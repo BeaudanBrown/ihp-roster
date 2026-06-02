@@ -24,6 +24,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import Web.Admin.Xero.Mutations (applyXeroTimesheetPreparationStaffDecisionMutation,
                                  approveXeroTimesheetPreparationPayItemsMutation,
+                                 approveXeroTimesheetPreparationStaffStepMutation,
                                  createPersistedXeroTimesheetPreviewMutation,
                                  previewXeroTimesheetPreparationMutation,
                                  refreshXeroTimesheetPreparationMutation,
@@ -69,10 +70,11 @@ showXeroTimesheetPreparationStaffMappingsFragmentAction ::
 showXeroTimesheetPreparationStaffMappingsFragmentAction runId = do
     result <- loadXeroTimesheetPreparationView runId
     let showMatched = paramOrDefault @Bool False "showMatched"
+        editStaffId = paramOrNothing @(Id Staff) "editStaffId"
     respondHtml $
         case result of
             Left message -> [hsx|<section id="xero-preparation-staff-mappings"><div class="alert alert-danger mb-0">{message}</div></section>|]
-            Right view -> renderXeroTimesheetPreparationStaffMappingsFragment showMatched view
+            Right view -> renderXeroTimesheetPreparationStaffMappingsFragment showMatched editStaffId view
 
 applyXeroTimesheetPreparationStaffDecisionAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -91,7 +93,7 @@ continueXeroTimesheetPreparationStaffStepAction ::
     Id XeroTimesheetPreparationRun ->
     IO ()
 continueXeroTimesheetPreparationStaffStepAction runId = do
-    result <- loadXeroTimesheetPreparationView runId
+    result <- liveMutationValue <$> approveXeroTimesheetPreparationStaffStepMutation runId
     respondWithPreparationDialog result
 
 approveXeroTimesheetPreparationPayItemsAction ::

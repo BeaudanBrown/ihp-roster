@@ -206,7 +206,6 @@ preparationDialogTitle view =
         <> formatDateDisplay view.preparationRun.payPeriodStart
         <> " to "
         <> formatDateDisplay view.preparationRun.payPeriodEnd
-        <> maybe "" (\paymentDate -> " · payment " <> formatDateDisplay paymentDate) view.preparationRun.paymentDate
 
 renderStepNotice :: Text -> Text -> Html
 renderStepNotice label detail = [hsx|
@@ -246,8 +245,8 @@ confirmSubmitButton _view = OverlayButton
 
 needsStaffStep :: XeroTimesheetPreparationView -> Bool
 needsStaffStep view =
-    view.preparationManualStaffDecisionCount > 0
-        || any staffRowNeedsAttention view.preparationStaffRows
+    not (null view.preparationStaffRows)
+        && (not view.preparationStaffStepApproved || any staffRowNeedsAttention view.preparationStaffRows)
 
 needsPayItemStep :: XeroTimesheetPreparationView -> Bool
 needsPayItemStep view = any payItemRowNeedsApproval proposedRows || (not (null proposedRows) && isNothing (selectedAccountCode view))
@@ -402,10 +401,10 @@ renderConnectionNotice view
 
 renderStaffMappings :: XeroTimesheetPreparationView -> Html
 renderStaffMappings =
-    renderXeroTimesheetPreparationStaffMappingsFragment False
+    renderXeroTimesheetPreparationStaffMappingsFragment False Nothing
 
-renderXeroTimesheetPreparationStaffMappingsFragment :: Bool -> XeroTimesheetPreparationView -> Html
-renderXeroTimesheetPreparationStaffMappingsFragment showMatched view
+renderXeroTimesheetPreparationStaffMappingsFragment :: Bool -> Maybe (Id Staff) -> XeroTimesheetPreparationView -> Html
+renderXeroTimesheetPreparationStaffMappingsFragment showMatched editStaffId view
     | null view.preparationStaffRows = mempty
     | otherwise = [hsx|
         <section id="xero-preparation-staff-mappings">
@@ -429,14 +428,14 @@ renderXeroTimesheetPreparationStaffMappingsFragment showMatched view
                             <th>Xero employee</th>
                         </tr>
                     </thead>
-                    <tbody>{forEach visibleRows (renderStaffMappingRow view)}</tbody>
+                    <tbody>{forEach visibleRows (renderStaffMappingRow view editStaffId)}</tbody>
                 </table>
             </div>
         </section>
     |]
     where
         (confirmedRows, unconfirmedRows) = List.partition staffRowIsConfirmed view.preparationStaffRows
-        visibleRows = unconfirmedRows <> if showMatched then confirmedRows else []
+        visibleRows = unconfirmedRows <> if showMatched || not view.preparationStaffStepApproved then confirmedRows else []
 
 renderStaffShowMatchedToggle :: Bool -> XeroTimesheetPreparationView -> Html
 renderStaffShowMatchedToggle showMatched view = [hsx|
@@ -461,19 +460,65 @@ renderStaffShowMatchedToggleButton showMatched =
         , appToggleRoleSwitch = True
         }
 
-renderStaffMappingRow :: XeroTimesheetPreparationView -> XeroPreparationStaffRow -> Html
-renderStaffMappingRow view row = [hsx|
+renderStaffMappingRow :: XeroTimesheetPreparationView -> Maybe (Id Staff) -> XeroPreparationStaffRow -> Html
+renderStaffMappingRow view editStaffId row = [hsx|
     <tr class={classes [("xero-staff-mapping-row-matched", staffRowIsConfirmed row)]}
         data-xero-staff-mapping-status={staffMappingStatus row}>
         <td>
             <div class="fw-semibold text-truncate">{staffName staff}</div>
         </td>
         <td class="small text-truncate">{staffSecondaryLabel row}</td>
-        <td>{renderStaffEmployeeSelectionForm view row}</td>
+        <td>{renderStaffEmployeeCell view editStaffId row}</td>
     </tr>
 |]
     where
         staff = row.preparationStaffMappingRow.mappingRowStaff
+
+renderStaffEmployeeCell :: XeroTimesheetPreparationView -> Maybe (Id Staff) -> XeroPreparationStaffRow -> Html
+renderStaffEmployeeCell view editStaffId row
+    | staffRowNeedsInteractiveSelection editStaffId row = renderStaffEmployeeSelectionForm view row
+    | otherwise = renderStaffEmployeeReadOnly view row
+
+staffRowNeedsInteractiveSelection :: Maybe (Id Staff) -> XeroPreparationStaffRow -> Bool
+staffRowNeedsInteractiveSelection editStaffId row =
+    editStaffId == Just row.preparationStaffMappingRow.mappingRowStaff.id
+        || (row.preparationStaffNeedsDecision && not (staffRowHasPendingAutoMatch row))
+        || Text.null (currentStaffEmployeeSelection row)
+
+renderStaffEmployeeReadOnly :: XeroTimesheetPreparationView -> XeroPreparationStaffRow -> Html
+renderStaffEmployeeReadOnly view row = [hsx|
+    <div class="d-flex align-items-center justify-content-between gap-2">
+        <div>
+            <div class="fw-semibold small">{staffEmployeeDisplay row}</div>
+            <div class="small app-muted">{staffEmployeeStatusLabel row}</div>
+        </div>
+        <form method="GET"
+              action={ShowXeroTimesheetPreparationStaffMappingsFragmentAction view.preparationRun.id}
+              hx-get={pathTo (ShowXeroTimesheetPreparationStaffMappingsFragmentAction view.preparationRun.id)}
+              hx-target="#xero-preparation-staff-mappings"
+              hx-swap="outerHTML">
+            <input type="hidden" name="showMatched" value="true" />
+            <input type="hidden" name="editStaffId" value={tshow row.preparationStaffMappingRow.mappingRowStaff.id} />
+            <button type="submit" class="btn btn-sm btn-outline-secondary">Edit</button>
+        </form>
+    </div>
+|]
+
+staffEmployeeDisplay :: XeroPreparationStaffRow -> Text
+staffEmployeeDisplay row
+    | currentStaffEmployeeSelection row == "not_applicable" = "Not paid through Xero"
+    | otherwise =
+        fromMaybe (currentStaffEmployeeSelection row) $
+            decisionEmployeeName <|> mappingEmployeeName
+    where
+        decisionEmployeeName = row.preparationStaffDecision >>= (.xeroEmployeeName)
+        mappingEmployeeName = row.preparationStaffMappingRow.mappingRowMapping.xeroEmployeeName
+
+staffEmployeeStatusLabel :: XeroPreparationStaffRow -> Text
+staffEmployeeStatusLabel row
+    | staffRowHasPendingAutoMatch row = "Suggested match — click Continue to approve"
+    | staffRowIsConfirmed row = "Approved"
+    | otherwise = "Selected"
 
 renderStaffEmployeeSelectionForm :: XeroTimesheetPreparationView -> XeroPreparationStaffRow -> Html
 renderStaffEmployeeSelectionForm view row = [hsx|
@@ -651,7 +696,6 @@ renderPayItemDecisions view
         <section>
             <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
                 <h6 class="mb-0">Managed pay items</h6>
-                <span class="small app-muted">{tshow (length proposedRows)} will be created on submit</span>
             </div>
             <div class={appSurfaceClasses "p-3"}>
                 <div class="table-responsive mb-3">

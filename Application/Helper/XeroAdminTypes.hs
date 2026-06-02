@@ -255,6 +255,7 @@ data XeroTimesheetPreparationView = XeroTimesheetPreparationView
     , preparationPayItemAccountCodeSelection :: Maybe XeroPayItemAccountCodeSelection
     , preparationPendingDecisionCount        :: Int
     , preparationManualStaffDecisionCount    :: Int
+    , preparationStaffStepApproved           :: Bool
     , preparationPostedPayRunBlocked         :: Bool
     , preparationCanPreview                  :: Bool
     , preparationCanSubmit                   :: Bool

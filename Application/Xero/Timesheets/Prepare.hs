@@ -2,6 +2,7 @@ module Application.Xero.Timesheets.Prepare
     ( XeroPreparationStaffDecision (..)
     , applyXeroPreparationStaffDecision
     , approveXeroPreparationPayItemDecisions
+    , approveXeroPreparationStaffStep
     , loadXeroTimesheetPreparationView
     , previewXeroTimesheetPreparation
     , refreshXeroTimesheetPreparation
@@ -164,6 +165,7 @@ loadXeroTimesheetPreparationView runId = do
                 postedBlocked = preparationRunPosted run
                 proposedPayItemCount = length (filter ((== "proposed") . (.payItemRequirementStatus) . (.preparationPayItemRequirement)) payItemRows)
                 pendingPayItemDecisionCount = length (filter pendingPayItemCreateDecision decisions)
+                staffStepApproved = any staffStepApprovalApplied decisions
                 canPreview =
                     connection.connectionStatus == "active"
                         && not postedBlocked
@@ -195,6 +197,7 @@ loadXeroTimesheetPreparationView runId = do
                         , preparationPayItemAccountCodeSelection = accountCodeSelection
                         , preparationPendingDecisionCount = pendingDecisionCount
                         , preparationManualStaffDecisionCount = manualStaffDecisionCount
+                        , preparationStaffStepApproved = staffStepApproved
                         , preparationPostedPayRunBlocked = postedBlocked
                         , preparationCanPreview = canPreview
                         , preparationCanSubmit = canSubmit
@@ -202,6 +205,46 @@ loadXeroTimesheetPreparationView runId = do
                         , preparationPreviewRows = maybe [] (\submissionView -> submissionView.timesheetRunPreviewRows) maybeSubmissionView
                         , preparationSubmissionRun = maybeSubmissionRun
                         }
+
+approveXeroPreparationStaffStep ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Id XeroTimesheetPreparationRun ->
+    IO (Either Text XeroTimesheetPreparationView)
+approveXeroPreparationStaffStep runId = do
+    fetchPreparationRunForCurrentVenue runId >>= \case
+        Nothing -> pure (Left "Xero preparation run was not found for this venue.")
+        Just run -> do
+            connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
+            decisions <- fetchPreparationDecisions run
+            let pendingAutoMatches = filter isPendingStaffAutoMatch decisions
+            autoMatchResults <- mapM (applyPendingAutoMatchDecision run connection) pendingAutoMatches
+            case lefts autoMatchResults of
+                message : _ -> pure (Left message)
+                [] -> do
+                    refreshedStaffRows <- fetchCurrentVenueXeroStaffMappingRows (Just connection)
+                    approvedStaffIds <- fetchApprovedPreparationStaffIds run
+                    let unresolvedRows =
+                            refreshedStaffRows
+                                |> filter (staffRowHasApprovedEntry approvedStaffIds)
+                                |> filter staffNeedsXeroDecision
+                    if not (null unresolvedRows)
+                        then pure (Left "Resolve staff matches before continuing.")
+                        else do
+                            _ <- applyPreparationDecision run Nothing "staff_step_approved" Nothing Nothing Nothing
+                            reloadAfterLocalDecision run remoteTimesheetsFromRun
+
+applyPendingAutoMatchDecision ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroTimesheetPreparationRun ->
+    XeroConnection ->
+    XeroTimesheetPreparationDecision ->
+    IO (Either Text ())
+applyPendingAutoMatchDecision run connection decision =
+    case (decision.staffId, decision.xeroEmployeeId) of
+        (Just staffUuid, Just employeeId) -> do
+            staff <- fetch (Id staffUuid :: Id Staff)
+            applyEmployeeMappingDecisionWithoutReload run connection staff "staff_auto_match" employeeId
+        _ -> pure (Left "A proposed staff match is missing staff or Xero employee details.")
 
 applyXeroPreparationStaffDecision ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -676,6 +719,19 @@ applyEmployeeMappingDecision ::
     Text ->
     IO (Either Text XeroTimesheetPreparationView)
 applyEmployeeMappingDecision run connection staff decisionKind employeeId = do
+    applyEmployeeMappingDecisionWithoutReload run connection staff decisionKind employeeId >>= \case
+        Left message -> pure (Left message)
+        Right () -> reloadAfterLocalDecision run remoteTimesheetsFromRun
+
+applyEmployeeMappingDecisionWithoutReload ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroTimesheetPreparationRun ->
+    XeroConnection ->
+    Staff ->
+    Text ->
+    Text ->
+    IO (Either Text ())
+applyEmployeeMappingDecisionWithoutReload run connection staff decisionKind employeeId = do
     maybeEmployee <-
         query @XeroEmployee
             |> filterWhere (#venueId, unpackId currentVenueId)
@@ -699,7 +755,7 @@ applyEmployeeMappingDecision run connection staff decisionKind employeeId = do
                     _ <- persistPreparationStaffMapping connection staff "verified" (Just employee)
                     _ <- applyPreparationDecision run (Just staff) decisionKind (Just employee.xeroEmployeeId) (Just employee.displayName) Nothing
                     dismissPendingStaffAutoMatches run staff
-                    reloadAfterLocalDecision run remoteTimesheetsFromRun
+                    pure (Right ())
 
 persistPreparationStaffMapping ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -946,6 +1002,14 @@ pendingManualPreparationDecision decision =
 pendingPayItemCreateDecision :: XeroTimesheetPreparationDecision -> Bool
 pendingPayItemCreateDecision decision =
     decision.decisionStatus == "pending" && decision.decisionKind == "pay_item_create"
+
+isPendingStaffAutoMatch :: XeroTimesheetPreparationDecision -> Bool
+isPendingStaffAutoMatch decision =
+    decision.decisionStatus == "pending" && decision.decisionKind == "staff_auto_match"
+
+staffStepApprovalApplied :: XeroTimesheetPreparationDecision -> Bool
+staffStepApprovalApplied decision =
+    decision.decisionStatus == "applied" && decision.decisionKind == "staff_step_approved"
 
 readinessAllowsAutomaticPayItemSubmit :: XeroTimesheetReadiness -> Bool
 readinessAllowsAutomaticPayItemSubmit readiness =

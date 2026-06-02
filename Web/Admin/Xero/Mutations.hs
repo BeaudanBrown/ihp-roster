@@ -19,6 +19,7 @@ module Web.Admin.Xero.Mutations
     , saveXeroStaffMappingMutation
     , applyXeroTimesheetPreparationStaffDecisionMutation
     , approveXeroTimesheetPreparationPayItemsMutation
+    , approveXeroTimesheetPreparationStaffStepMutation
     , createPersistedXeroTimesheetPreviewMutation
     , previewXeroTimesheetPreparationMutation
     , refreshXeroTimesheetPreparationMutation
@@ -529,6 +530,10 @@ applyXeroTimesheetPreparationStaffDecisionMutation runId staffId decision =
 approveXeroTimesheetPreparationPayItemsMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> Maybe Text -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
 approveXeroTimesheetPreparationPayItemsMutation runId maybeAccountCode =
     XeroPrepare.approveXeroPreparationPayItemDecisions runId maybeAccountCode >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.pay_items_approve"
+
+approveXeroTimesheetPreparationStaffStepMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
+approveXeroTimesheetPreparationStaffStepMutation runId =
+    XeroPrepare.approveXeroPreparationStaffStep runId >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.staff_approve"
 
 previewXeroTimesheetPreparationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
 previewXeroTimesheetPreparationMutation runId =
