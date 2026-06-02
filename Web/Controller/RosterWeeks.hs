@@ -119,11 +119,11 @@ instance Controller RosterWeeksController where
             rowHtml <- fetchVisibleRosterRowFragment rosterGroupId weekOffset rosterDayId rowIndex
             respondHtmlProfiled (fromMaybe mempty rowHtml)
 
-    action UpdateRosterAssignmentFiltersAction { weekOffset } = do
+    action UpdateRosterAssignmentFiltersAction { weekOffset = _ } = do
         ensureManagerRole
-        rosterGroup <- resolveRequestedRosterGroup
+        _ <- resolveRequestedRosterGroup
         setRosterAssignmentFiltersSession rosterAssignmentFiltersFromParams
-        respondWithRosterContent rosterGroup.id weekOffset
+        respondHtmlProfiled mempty
 
     action CreateRosterWeekAction { weekOffset } = do
         ensureManagerRole

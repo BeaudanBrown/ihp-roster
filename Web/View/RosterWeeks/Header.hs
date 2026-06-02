@@ -281,8 +281,7 @@ renderRosterAssignmentFiltersMenuSection weekOffset rosterGroupId menuTriggerId 
           data-roster-filter-menu-trigger-id={menuTriggerId}
           data-disable-javascript-submission="true"
           hx-post={rosterAssignmentFiltersUrl weekOffset rosterGroupId}
-          hx-target={"#" <> rosterContentFragmentId}
-          hx-swap="outerHTML"
+          hx-swap="none"
           hx-push-url="false"
           hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
         <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Hide from dropdowns</div>
