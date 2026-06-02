@@ -14,6 +14,7 @@ module Application.Xero.Timesheets.Preview
 where
 
 import Application.Helper.Pay
+import Application.Helper.Xero (XeroTimesheetRef (..))
 import Application.Helper.XeroTimesheetReadiness
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
@@ -44,6 +45,7 @@ data XeroTimesheetPreviewInput = XeroTimesheetPreviewInput
     , previewAwardLevelBaseRates   :: ![AwardLevelBaseRate]
     , previewAwardLevelPenalties   :: ![AwardLevelPenaltyRate]
     , previewTimePenaltyAllowances :: ![AwardTimePenaltyAllowance]
+    , previewRemoteTimesheets      :: ![XeroTimesheetRef]
     }
     deriving (Eq, Show)
 
@@ -66,7 +68,8 @@ data XeroTimesheetPreview = XeroTimesheetPreview
     , previewStaffPayVersionIds :: ![UUID]
     , previewShiftPayVersionIds :: ![UUID]
     , previewLines              :: ![XeroTimesheetPreviewLine]
-    , previewRequestObjectJson  :: !Aeson.Value
+    , previewExistingXeroTimesheetId :: !(Maybe Text)
+    , previewRequestObjectJson       :: !Aeson.Value
     }
     deriving (Eq, Show)
 
@@ -273,6 +276,7 @@ fetchPreviewInput request connection = do
         , previewAwardLevelBaseRates = baseRates
         , previewAwardLevelPenalties = penaltyRates
         , previewTimePenaltyAllowances = timeAllowances
+        , previewRemoteTimesheets = request.readinessRemoteTimesheets
         }
 
 mappingIncludesEntry :: TimesheetEntry -> XeroStaffMapping -> Bool
@@ -521,7 +525,8 @@ toPreview input aggregation =
                 |> Map.elems
                 |> List.sortOn (.lineAggregationEarningsRateId)
                 |> map (toPreviewLine input)
-        requestObject = timesheetRequestObject input aggregation.timesheetAggregationEmployeeId lines
+        maybeExistingTimesheetId = matchingDraftTimesheetId input aggregation.timesheetAggregationEmployeeId
+        requestObject = timesheetRequestObject input maybeExistingTimesheetId aggregation.timesheetAggregationEmployeeId lines
      in XeroTimesheetPreview
             { previewStaffIds = aggregation.timesheetAggregationStaffIds
             , previewXeroEmployeeId = aggregation.timesheetAggregationEmployeeId
@@ -531,6 +536,7 @@ toPreview input aggregation =
             , previewStaffPayVersionIds = aggregation.timesheetAggregationStaffVersionIds
             , previewShiftPayVersionIds = aggregation.timesheetAggregationShiftVersionIds
             , previewLines = lines
+            , previewExistingXeroTimesheetId = maybeExistingTimesheetId
             , previewRequestObjectJson = requestObject
             }
 
@@ -545,15 +551,27 @@ toPreviewLine input aggregation =
         , previewLineShiftPayVersionIds = aggregation.lineAggregationShiftVersionIds
         }
 
-timesheetRequestObject :: XeroTimesheetPreviewInput -> Text -> [XeroTimesheetPreviewLine] -> Aeson.Value
-timesheetRequestObject input employeeId lines =
-    Aeson.object
-        [ "EmployeeID" Aeson..= employeeId
-        , "StartDate" Aeson..= input.previewPeriodStart
-        , "EndDate" Aeson..= input.previewPeriodEnd
-        , "Status" Aeson..= ("DRAFT" :: Text)
-        , "TimesheetLines" Aeson..= map lineRequestObject lines
-        ]
+matchingDraftTimesheetId :: XeroTimesheetPreviewInput -> Text -> Maybe Text
+matchingDraftTimesheetId input employeeId = do
+    remote <-
+        input.previewRemoteTimesheets
+            |> filter (\candidate -> candidate.xeroTimesheetEmployeeId == employeeId)
+            |> filter (\candidate -> candidate.xeroTimesheetStartDate == input.previewPeriodStart)
+            |> filter (\candidate -> candidate.xeroTimesheetEndDate == input.previewPeriodEnd)
+            |> filter (\candidate -> maybe False ((== "draft") . Text.toCaseFold) candidate.xeroTimesheetStatus)
+            |> listToMaybe
+    remote.xeroTimesheetId
+
+timesheetRequestObject :: XeroTimesheetPreviewInput -> Maybe Text -> Text -> [XeroTimesheetPreviewLine] -> Aeson.Value
+timesheetRequestObject input maybeExistingTimesheetId employeeId lines =
+    Aeson.object $
+        maybe [] (\timesheetId -> ["TimesheetID" Aeson..= timesheetId]) maybeExistingTimesheetId
+            <> [ "EmployeeID" Aeson..= employeeId
+               , "StartDate" Aeson..= input.previewPeriodStart
+               , "EndDate" Aeson..= input.previewPeriodEnd
+               , "Status" Aeson..= ("DRAFT" :: Text)
+               , "TimesheetLines" Aeson..= map lineRequestObject lines
+               ]
 
 lineRequestObject :: XeroTimesheetPreviewLine -> Aeson.Value
 lineRequestObject line =
@@ -579,11 +597,17 @@ timesheetPreviewJson preview =
         , "periodStart" Aeson..= preview.previewPayPeriodStart
         , "periodEnd" Aeson..= preview.previewPayPeriodEnd
         , "sourceTimesheetEntryIds" Aeson..= preview.previewSourceEntryIds
+        , "existingXeroTimesheetId" Aeson..= preview.previewExistingXeroTimesheetId
+        , "operation" Aeson..= timesheetPreviewOperation preview
         , "staffPayVersionIds" Aeson..= preview.previewStaffPayVersionIds
         , "shiftTypePayVersionIds" Aeson..= preview.previewShiftPayVersionIds
         , "requestObject" Aeson..= preview.previewRequestObjectJson
         , "lines" Aeson..= map linePreviewJson preview.previewLines
         ]
+
+timesheetPreviewOperation :: XeroTimesheetPreview -> Text
+timesheetPreviewOperation preview =
+    if isJust preview.previewExistingXeroTimesheetId then "update" else "create"
 
 linePreviewJson :: XeroTimesheetPreviewLine -> Aeson.Value
 linePreviewJson line =

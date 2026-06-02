@@ -186,6 +186,7 @@ renderPreviewRows rows = [hsx|
                 <tr>
                     <th>Employee</th>
                     <th>Period</th>
+                    <th>Action</th>
                     <th class="text-end">Units</th>
                     <th>Earnings lines</th>
                     <th class="text-end">Source entries</th>
@@ -204,11 +205,26 @@ renderPreviewRow row = [hsx|
             <div class="small app-muted">{row.previewRowXeroEmployeeId}</div>
         </td>
         <td>{formatDateDisplay row.previewRowPeriodStart} to {formatDateDisplay row.previewRowPeriodEnd}</td>
+        <td>{renderPreviewOperation row}</td>
         <td class="text-end">{formatUnits row.previewRowTotalUnits}</td>
         <td>{earningsSummary row.previewRowLines}</td>
         <td class="text-end">{row.previewRowSourceCount}</td>
     </tr>
 |]
+
+renderPreviewOperation :: XeroTimesheetPreviewRowView -> Html
+renderPreviewOperation row
+    | row.previewRowOperation == "update" = [hsx|
+        <div>
+            <span class="badge text-bg-info">Update existing draft</span>
+            {renderPreviewXeroTimesheetId row.previewRowXeroTimesheetId}
+        </div>
+    |]
+    | otherwise = [hsx|<span class="badge text-bg-success">Create new draft</span>|]
+
+renderPreviewXeroTimesheetId :: Maybe Text -> Html
+renderPreviewXeroTimesheetId Nothing = mempty
+renderPreviewXeroTimesheetId (Just timesheetId) = [hsx|<div class="small app-muted">{timesheetId}</div>|]
 
 renderSubmissionRows :: [XeroTimesheetSubmissionRowView] -> Html
 renderSubmissionRows [] = mempty

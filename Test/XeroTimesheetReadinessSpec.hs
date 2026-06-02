@@ -205,7 +205,7 @@ tests = do
                 readinessBlockerCodes readiness `shouldNotSatisfy` elem "mixed_pay_config_versions"
                 xeroTimesheetReady readiness `shouldBe` True
 
-        it "blocks an existing Xero timesheet for the same employee and period" $ withContext do
+        it "warns and allows updating an existing Xero draft timesheet for the same employee and period" $ withContext do
             withCleanDb do
                 fixture <- createReadyMappedFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
                 let request =
@@ -226,8 +226,33 @@ tests = do
 
                 readiness <- validateXeroTimesheetReadiness request
 
-                readinessBlockerCodes readiness `shouldSatisfy` elem "existing_xero_timesheet"
+                readinessBlockerCodes readiness `shouldNotSatisfy` elem "existing_xero_timesheet"
                 map (.xeroBlockerCode) readiness.xeroReadinessWarnings `shouldSatisfy` elem "existing_xero_draft_timesheet"
+                readiness.xeroTimesheetReady `shouldBe` True
+
+        it "blocks an existing non-draft Xero timesheet for the same employee and period" $ withContext do
+            withCleanDb do
+                fixture <- createReadyMappedFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
+                let request =
+                        fixture.request
+                            { readinessRemoteTimesheets =
+                                [ XeroTimesheetRef
+                                    { xeroTimesheetId = Just "ts-existing"
+                                    , xeroTimesheetEmployeeId = "employee-ready"
+                                    , xeroTimesheetStartDate = fromGregorian 2026 4 27
+                                    , xeroTimesheetEndDate = fromGregorian 2026 5 3
+                                    , xeroTimesheetStatus = Just "APPROVED"
+                                    , xeroTimesheetHours = Nothing
+                                    , xeroTimesheetLines = []
+                                    , xeroTimesheetRaw = Aeson.Null
+                                    }
+                                ]
+                            }
+
+                readiness <- validateXeroTimesheetReadiness request
+
+                readinessBlockerCodes readiness `shouldSatisfy` elem "existing_xero_timesheet"
+                map (.xeroBlockerCode) readiness.xeroReadinessWarnings `shouldNotSatisfy` elem "existing_xero_draft_timesheet"
 
         it "does not block unrelated employee timesheets in the same period" $ withContext do
             withCleanDb do

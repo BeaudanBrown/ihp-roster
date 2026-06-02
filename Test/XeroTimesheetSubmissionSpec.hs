@@ -84,7 +84,7 @@ tests =
                             run.payPeriodEnd `shouldBe` addDays 6 historicalStart
                             run.selectedPayrollCalendarId `shouldBe` Just "calendar-preview"
 
-            it "blocks create when the immediate duplicate check finds a remote Xero timesheet for the employee and period" $ withContext do
+            it "updates when the immediate duplicate check finds a remote Xero draft timesheet for the employee and period" $ withContext do
                 withCleanDb do
                     fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                     prepareConnectionForStrictMock fixture.connection
@@ -99,10 +99,15 @@ tests =
                     case result of
                         Left message -> expectationFailure (cs message)
                         Right run -> do
-                            run.status `shouldBe` "blocked"
-                            run.errorSummary `shouldSatisfy` maybe False ("Xero already has a timesheet" `isInfixOf`)
+                            run.status `shouldBe` "submitted"
                             submissions <- query @XeroTimesheetSubmission |> filterWhere (#xeroSubmissionRunId, unpackId run.id) |> fetch
-                            submissions `shouldBe` []
+                            submissions `shouldSatisfy` ((== 1) . length)
+                            case submissions of
+                                [submission] -> do
+                                    submission.idempotencyKey `shouldSatisfy` ("xero-timesheet:update:" `Text.isPrefixOf`)
+                                    submission.requestPayloadJson `shouldSatisfy` jsonValueContainsText "timesheet-id"
+                                    submission.xeroTimesheetId `shouldBe` Just "timesheet-id"
+                                _ -> expectationFailure "expected one Xero timesheet submission row"
 
             it "submits only mapped employees assigned to the selected synced Xero payroll calendar" $ withContext do
                 withCleanDb do

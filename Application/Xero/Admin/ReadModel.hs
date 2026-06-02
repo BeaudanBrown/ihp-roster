@@ -707,11 +707,13 @@ previewRowsFromJson employees earningsRates value =
         earningsRateNames = Map.fromList (map (\rate -> (rate.xeroEarningsRateId, rate.name)) earningsRates)
 
 data RawPreviewRow = RawPreviewRow
-    { rawPreviewEmployeeId :: Text
-    , rawPreviewStart      :: Day
-    , rawPreviewEnd        :: Day
-    , rawPreviewSourceIds  :: [UUID]
-    , rawPreviewLines      :: [RawPreviewLine]
+    { rawPreviewEmployeeId        :: Text
+    , rawPreviewOperation         :: Text
+    , rawPreviewXeroTimesheetId   :: Maybe Text
+    , rawPreviewStart             :: Day
+    , rawPreviewEnd               :: Day
+    , rawPreviewSourceIds         :: [UUID]
+    , rawPreviewLines             :: [RawPreviewLine]
     }
 
 data RawPreviewLine = RawPreviewLine
@@ -731,6 +733,8 @@ parsePreviewRow =
     Aeson.withObject "XeroTimesheetPreview" \object ->
         RawPreviewRow
             <$> object Aeson..: "xeroEmployeeId"
+            <*> object Aeson..:? "operation" AesonTypes..!= ("create" :: Text)
+            <*> object Aeson..:? "existingXeroTimesheetId"
             <*> object Aeson..: "periodStart"
             <*> object Aeson..: "periodEnd"
             <*> object Aeson..: "sourceTimesheetEntryIds"
@@ -750,6 +754,8 @@ toPreviewRow employeeNames earningsRateNames row =
      in XeroTimesheetPreviewRowView
             { previewRowXeroEmployeeId = row.rawPreviewEmployeeId
             , previewRowEmployeeName = Map.findWithDefault row.rawPreviewEmployeeId row.rawPreviewEmployeeId employeeNames
+            , previewRowOperation = row.rawPreviewOperation
+            , previewRowXeroTimesheetId = row.rawPreviewXeroTimesheetId
             , previewRowPeriodStart = row.rawPreviewStart
             , previewRowPeriodEnd = row.rawPreviewEnd
             , previewRowTotalUnits = sum (map (.previewLineViewTotalUnits) lines)

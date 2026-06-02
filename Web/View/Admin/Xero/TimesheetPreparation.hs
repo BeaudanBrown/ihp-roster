@@ -149,8 +149,8 @@ renderXeroTimesheetPreparationSubmittingDialog view =
             <div class="d-flex align-items-center gap-3" data-xero-timesheet-preparation-submitting="true">
                 <div id="xero-timesheet-preparation-submitting-indicator" class="spinner-border text-primary" role="status" aria-hidden="true"></div>
                 <div>
-                    <div class="fw-semibold">Creating Xero draft timesheets...</div>
-                    <div class="small app-muted">Bepis is submitting each employee draft timesheet to Xero. This can take a moment.</div>
+                    <div class="fw-semibold">Submitting Xero draft timesheets...</div>
+                    <div class="small app-muted">Bepis is creating new drafts or updating existing Xero drafts for each employee. This can take a moment.</div>
                 </div>
                 <form method="POST"
                       action={RunXeroTimesheetPreparationSubmissionAction view.preparationRun.id}
@@ -327,7 +327,7 @@ payPeriodDays view =
 renderFinalSubmissionCopy :: Html
 renderFinalSubmissionCopy = [hsx|
     <div class="small app-muted">
-        This creates Xero Payroll AU draft timesheets only. Review and approve payroll in Xero before paying staff.
+        This creates new Xero Payroll AU draft timesheets or updates existing Xero draft timesheets shown above. Review and approve payroll in Xero before paying staff.
     </div>
 |]
 
@@ -382,8 +382,8 @@ workflowDetail view =
         XeroPreparationPreparing -> "Connection, reference data, pay runs, duplicate timesheets, mappings, pay items, and readiness checks are run automatically."
         XeroPreparationNeedsDecision -> "Choose Xero employees, mark staff as not paid through Xero, or choose the account code needed for automatic pay item creation."
         XeroPreparationBlocked -> "Resolve the blockers shown in readiness validation before submitting."
-        XeroPreparationReadyForPreview -> "All required decisions are resolved. Submit will create any missing managed pay items and then create the Xero draft timesheets."
-        XeroPreparationPreviewed -> "Review the preview rows, then submit only when you are ready to create Xero draft timesheets."
+        XeroPreparationReadyForPreview -> "All required decisions are resolved. Submit will create any missing managed pay items, then create new Xero drafts or update existing Xero drafts."
+        XeroPreparationPreviewed -> "Review the preview rows, then submit only when you are ready to create or update Xero draft timesheets."
         XeroPreparationSubmitted -> "The latest submission status is recorded below and in the Xero panel."
         XeroPreparationFailed -> "Refresh checks or close the dialog and retry after fixing the reported issue."
 
@@ -780,6 +780,7 @@ renderPreview view
                     <thead>
                         <tr>
                             <th>Employee</th>
+                            <th>Action</th>
                             <th class="text-end">Units</th>
                             <th>Earnings lines</th>
                         </tr>
@@ -797,10 +798,25 @@ renderPreviewRow row = [hsx|
             <div class="fw-semibold">{row.previewRowEmployeeName}</div>
             <div class="small app-muted">{row.previewRowXeroEmployeeId}</div>
         </td>
+        <td>{renderPreviewOperation row}</td>
         <td class="text-end">{formatUnits row.previewRowTotalUnits}</td>
         <td>{Text.intercalate ", " (map lineSummary row.previewRowLines)}</td>
     </tr>
 |]
+
+renderPreviewOperation :: XeroTimesheetPreviewRowView -> Html
+renderPreviewOperation row
+    | row.previewRowOperation == "update" = [hsx|
+        <div>
+            <span class="badge text-bg-info">Update existing draft</span>
+            {renderPreviewXeroTimesheetId row.previewRowXeroTimesheetId}
+        </div>
+    |]
+    | otherwise = [hsx|<span class="badge text-bg-success">Create new draft</span>|]
+
+renderPreviewXeroTimesheetId :: Maybe Text -> Html
+renderPreviewXeroTimesheetId Nothing = mempty
+renderPreviewXeroTimesheetId (Just timesheetId) = [hsx|<div class="small app-muted">{timesheetId}</div>|]
 
 lineSummary :: XeroTimesheetPreviewLineView -> Text
 lineSummary line =

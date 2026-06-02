@@ -102,6 +102,17 @@ tests =
                     preview.previewShiftPayVersionIds `shouldBe` sort (nub (mapMaybe (.shiftTypePayVersionId) fixture.entries))
                     preview.previewRequestObjectJson `shouldSatisfy` not . jsonContainsKey "TrackingItemID"
 
+            it "marks matching Xero draft timesheets as update previews" $ withContext do
+                withCleanDb do
+                    fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                    let remote = remoteTimesheetRef "remote-timesheet-a" "employee-a" fixture.periodStart fixture.periodEnd (Just "DRAFT")
+                    previewRun <- buildFixturePreviewWithRemotes fixture [remote]
+
+                    let preview = onlyPreview previewRun
+                    preview.previewExistingXeroTimesheetId `shouldBe` Just "remote-timesheet-a"
+                    preview.previewRequestObjectJson `shouldSatisfy` jsonContainsKey "TimesheetID"
+                    xeroTimesheetPreviewRunJson previewRun `shouldSatisfy` jsonContainsKey "operation"
+
             it "uses matched managed pay item requirements when explicit earnings mappings are absent" $ withContext do
                 withCleanDb do
                     fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
@@ -430,7 +441,10 @@ currentVenueBuckets venue effectiveDay = do
     pure (deriveXeroLocalEarningsBuckets effectiveDay (deriveXeroUsedAwardPayScopes staffMembers shiftTypes) awardLevels baseRates penaltyRates timeAllowances)
 
 buildFixturePreview :: (?modelContext :: ModelContext) => PreviewFixture -> IO XeroTimesheetPreviewRun
-buildFixturePreview fixture = do
+buildFixturePreview fixture = buildFixturePreviewWithRemotes fixture []
+
+buildFixturePreviewWithRemotes :: (?modelContext :: ModelContext) => PreviewFixture -> [XeroTimesheetRef] -> IO XeroTimesheetPreviewRun
+buildFixturePreviewWithRemotes fixture remoteTimesheets = do
     payResults <- fetchTimesheetPayResultsForEntries fixture.entries
     staffMappings <- query @XeroStaffMapping |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
     earningsMappings <- query @XeroEarningsRateMapping |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
@@ -460,10 +474,24 @@ buildFixturePreview fixture = do
                 , previewAwardLevelBaseRates = baseRates
                 , previewAwardLevelPenalties = penaltyRates
                 , previewTimePenaltyAllowances = timeAllowances
+                , previewRemoteTimesheets = remoteTimesheets
                 }
     case buildXeroTimesheetPreviewRun input of
         Left err         -> expectationFailure (cs err) >> error "unreachable"
         Right previewRun -> pure previewRun
+
+remoteTimesheetRef :: Text -> Text -> Day -> Day -> Maybe Text -> XeroTimesheetRef
+remoteTimesheetRef timesheetId employeeId start end status =
+    XeroTimesheetRef
+        { xeroTimesheetId = Just timesheetId
+        , xeroTimesheetEmployeeId = employeeId
+        , xeroTimesheetStartDate = start
+        , xeroTimesheetEndDate = end
+        , xeroTimesheetStatus = status
+        , xeroTimesheetHours = Nothing
+        , xeroTimesheetLines = []
+        , xeroTimesheetRaw = Aeson.object []
+        }
 
 overwritePreviewEmployeeRawCalendar :: (?modelContext :: ModelContext) => PreviewFixture -> Text -> Text -> IO ()
 overwritePreviewEmployeeRawCalendar fixture employeeId payrollCalendarId = do

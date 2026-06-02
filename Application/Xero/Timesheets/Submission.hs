@@ -14,6 +14,7 @@ import Application.Xero.Connection
 import Application.Xero.Timesheets.Preview
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.List as List
 import qualified Data.Text as Text
 import Data.Time.Clock (UTCTime)
@@ -218,9 +219,23 @@ submitExistingSubmission ::
     IO XeroTimesheetSubmission
 submitExistingSubmission xeroClient accessToken connection submission = do
     now <- getCurrentTime
-    createTimesheet xeroClient accessToken connection.tenantId submission.idempotencyKey submission.requestPayloadJson >>= \case
-        Right refs -> markSubmissionSubmitted submission now refs
-        Left err   -> markSubmissionFailed submission now (xeroClientErrorText err)
+    case submissionExistingTimesheetId submission of
+        Just timesheetId ->
+            updateTimesheet xeroClient accessToken connection.tenantId submission.idempotencyKey timesheetId submission.requestPayloadJson >>= \case
+                Right refs -> markSubmissionSubmitted submission now refs
+                Left err   -> markSubmissionFailed submission now (xeroClientErrorText err)
+        Nothing ->
+            createTimesheet xeroClient accessToken connection.tenantId submission.idempotencyKey submission.requestPayloadJson >>= \case
+                Right refs -> markSubmissionSubmitted submission now refs
+                Left err   -> markSubmissionFailed submission now (xeroClientErrorText err)
+
+submissionExistingTimesheetId :: XeroTimesheetSubmission -> Maybe Text
+submissionExistingTimesheetId submission =
+    AesonTypes.parseMaybe parser submission.requestPayloadJson
+    where
+        parser = AesonTypes.withArray "Xero timesheet submission request" \array -> do
+            firstObject <- maybe (fail "Missing Xero timesheet request object") pure (array Vector.!? 0)
+            AesonTypes.withObject "Xero timesheet request object" (AesonTypes..: "TimesheetID") firstObject
 
 xeroTimesheetSubmissionRequestJson :: XeroTimesheetPreview -> Aeson.Value
 xeroTimesheetSubmissionRequestJson preview =
@@ -228,7 +243,9 @@ xeroTimesheetSubmissionRequestJson preview =
 
 submissionIdempotencyKey :: XeroSubmissionRun -> XeroTimesheetPreview -> Text
 submissionIdempotencyKey run preview =
-    Text.take 128 ("xero-timesheet:" <> tshow (unpackId run.id) <> ":" <> preview.previewXeroEmployeeId)
+    Text.take 128 ("xero-timesheet:" <> operation <> ":" <> tshow (unpackId run.id) <> ":" <> preview.previewXeroEmployeeId <> maybe "" (":" <>) preview.previewExistingXeroTimesheetId)
+    where
+        operation = if isJust preview.previewExistingXeroTimesheetId then "update" else "create"
 
 fetchPreviewSourceEntries :: (?modelContext :: ModelContext) => XeroTimesheetPreview -> IO [TimesheetEntry]
 fetchPreviewSourceEntries preview =

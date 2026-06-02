@@ -151,6 +151,8 @@ data XeroTimesheetPreviewLineView = XeroTimesheetPreviewLineView
 data XeroTimesheetPreviewRowView = XeroTimesheetPreviewRowView
     { previewRowXeroEmployeeId :: Text
     , previewRowEmployeeName   :: Text
+    , previewRowOperation      :: Text
+    , previewRowXeroTimesheetId :: Maybe Text
     , previewRowPeriodStart    :: Day
     , previewRowPeriodEnd      :: Day
     , previewRowTotalUnits     :: Scientific

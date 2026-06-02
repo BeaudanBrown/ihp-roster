@@ -436,25 +436,31 @@ payItemRequirementBlockers earningsMappings requirements maybeAccountCodeSelecti
 duplicateBlockers :: XeroTimesheetReadinessRequest -> [TimesheetEntry] -> [XeroStaffMapping] -> [XeroTimesheetRef] -> [XeroReadinessBlocker]
 duplicateBlockers request entries mappings remoteTimesheets =
     matchingRemoteTimesheets request entries mappings remoteTimesheets
+        |> filter (not . isUpdatableDraftTimesheet)
         |> map \remote ->
             (blockerWith
                 "existing_xero_timesheet"
-                "Xero already has a timesheet for this employee and period. Create is blocked until update support exists."
+                "Xero already has a non-draft timesheet for this employee and period. Update or delete it in Xero before continuing."
             )
                 { xeroBlockerXeroObjectId = remote.xeroTimesheetId }
 
 duplicateWarnings :: XeroTimesheetReadinessRequest -> [TimesheetEntry] -> [XeroStaffMapping] -> [XeroTimesheetRef] -> [XeroReadinessBlocker]
 duplicateWarnings request entries mappings remoteTimesheets =
     matchingRemoteTimesheets request entries mappings remoteTimesheets
-        |> filter (\remote -> maybe False ((== "draft") . Text.toCaseFold) remote.xeroTimesheetStatus)
+        |> filter isUpdatableDraftTimesheet
         |> map \remote ->
             (blockerWith
                 "existing_xero_draft_timesheet"
-                "An existing Xero draft timesheet can become an update candidate after update support lands."
+                "Existing Xero draft timesheet will be updated."
             )
                 { xeroBlockerSeverity = XeroReadinessWarning
                 , xeroBlockerXeroObjectId = remote.xeroTimesheetId
                 }
+
+isUpdatableDraftTimesheet :: XeroTimesheetRef -> Bool
+isUpdatableDraftTimesheet remote =
+    isJust remote.xeroTimesheetId
+        && maybe False ((== "draft") . Text.toCaseFold) remote.xeroTimesheetStatus
 
 matchingRemoteTimesheets :: XeroTimesheetReadinessRequest -> [TimesheetEntry] -> [XeroStaffMapping] -> [XeroTimesheetRef] -> [XeroTimesheetRef]
 matchingRemoteTimesheets request entries mappings remoteTimesheets =
