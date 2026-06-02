@@ -68,7 +68,7 @@ tests =
                     map (.previewXeroEmployeeId) previewRun.previewRunTimesheets `shouldBe` ["employee-a", "employee-b"]
                     previewRun.previewRunRequestArrayJson `shouldSatisfy` isArrayOfLength 2
 
-            it "does not filter preview input by persisted employee payroll calendar metadata" $ withContext do
+            it "filters preview input by the selected synced Xero employee payroll calendar" $ withContext do
                 withCleanDb do
                     fixture <-
                         createPreviewFixture
@@ -82,8 +82,14 @@ tests =
                     case buildXeroTimesheetPreviewRun input of
                         Left err -> expectationFailure (cs err)
                         Right previewRun -> do
-                            map (.previewXeroEmployeeId) previewRun.previewRunTimesheets `shouldBe` ["employee-a", "employee-b"]
-                            concatMap (.previewSourceEntryIds) previewRun.previewRunTimesheets `shouldBe` map (unpackId . (.id)) fixture.entries
+                            let previews :: [XeroTimesheetPreview]
+                                previews = previewRun.previewRunTimesheets
+                                firstEntry :: TimesheetEntry
+                                firstEntry = fromMaybe (error "expected first entry") (head fixture.entries)
+                            map (.previewXeroEmployeeId) previews `shouldBe` ["employee-a"]
+                            case previews of
+                                [timesheetPreview] -> previewSourceEntryIds timesheetPreview `shouldBe` [unpackId firstEntry.id]
+                                _ -> expectationFailure "expected one preview"
 
             it "keeps source entry ids and pay version ids in metadata but omits TrackingItemID from Xero request JSON" $ withContext do
                 withCleanDb do

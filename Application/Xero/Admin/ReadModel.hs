@@ -483,7 +483,7 @@ fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection) = do
         calendarPeriodOptions = concatMap (derivedPeriodOptions today payRuns approvedWorkedOnDates) calendars
     pure $
         calendarPeriodOptions
-            |> filter (periodOptionMatchesApprovedEmployeeCalendars approvedEntries staffCalendarAssignments)
+            |> filter (periodOptionHasRelevantApprovedEmployee approvedEntries staffCalendarAssignments)
             |> List.nubBy samePeriodOption
             |> List.sortOn (Down . (.periodOptionStart))
 
@@ -521,9 +521,9 @@ staffPayrollCalendarAssignments mappings employees =
         calendarId <- maybeToList (xeroEmployeePayrollCalendarId employee)
         pure (mapping.staffId, calendarId)
 
-periodOptionMatchesApprovedEmployeeCalendars :: [TimesheetEntry] -> Map.Map UUID Text -> XeroTimesheetPeriodOption -> Bool
-periodOptionMatchesApprovedEmployeeCalendars approvedEntries staffCalendarAssignments option =
-    all entryMatches (periodEntries approvedEntries)
+periodOptionHasRelevantApprovedEmployee :: [TimesheetEntry] -> Map.Map UUID Text -> XeroTimesheetPeriodOption -> Bool
+periodOptionHasRelevantApprovedEmployee approvedEntries staffCalendarAssignments option =
+    any entryMatches (periodEntries approvedEntries)
     where
         periodEntries =
             filter \entry ->

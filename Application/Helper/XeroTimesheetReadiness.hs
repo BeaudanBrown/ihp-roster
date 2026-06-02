@@ -79,12 +79,17 @@ validateXeroTimesheetReadiness request = do
     latestSync <- fetchLatestXeroSyncRun request.readinessVenueId
     periodEntries <- fetchPeriodTimesheetEntries request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd
     notPaidStaffIds <- maybe (pure []) fetchNotPaidStaffMappingIds maybeConnection
-    let effectiveSkippedStaffIds = List.nub (request.readinessSkippedStaffIds <> notPaidStaffIds)
+    let baseSkippedStaffIds = List.nub (request.readinessSkippedStaffIds <> notPaidStaffIds)
+    let entriesBeforeCalendarFilter = filter (not . staffIsSkipped baseSkippedStaffIds . (.staffId)) periodEntries
+    let approvedEntriesBeforeCalendarFilter = approvedSubmittableEntries entriesBeforeCalendarFilter
+    let candidateStaffIds = List.nub (map (.staffId) approvedEntriesBeforeCalendarFilter)
+    staffMappings <- maybe (pure []) (fetchVerifiedStaffMappings candidateStaffIds) maybeConnection
+    mappedXeroEmployees <- maybe (pure []) (fetchMappedXeroEmployees staffMappings) maybeConnection
+    let calendarSkippedStaffIds = employeePayrollCalendarSkippedStaffIds request approvedEntriesBeforeCalendarFilter staffMappings mappedXeroEmployees
+    let effectiveSkippedStaffIds = List.nub (baseSkippedStaffIds <> calendarSkippedStaffIds)
     let entries = filter (not . staffIsSkipped effectiveSkippedStaffIds . (.staffId)) periodEntries
     let approvedEntries = approvedSubmittableEntries entries
     let includedStaffIds = List.nub (map (.staffId) approvedEntries)
-    staffMappings <- maybe (pure []) (fetchVerifiedStaffMappings includedStaffIds) maybeConnection
-    mappedXeroEmployees <- maybe (pure []) (fetchMappedXeroEmployees staffMappings) maybeConnection
     buckets <- fetchPeriodXeroLocalEarningsBuckets request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd effectiveSkippedStaffIds
     earningsMappings <- maybe (pure []) (fetchVerifiedEarningsMappings buckets) maybeConnection
     allPayItemRequirements <- maybe (pure []) fetchPayItemRequirements maybeConnection
@@ -99,7 +104,6 @@ validateXeroTimesheetReadiness request = do
                 [ connectionBlockers maybeConnection
                 , referenceSyncBlockers latestSync
                 , calendarBlockers request maybeCalendarSelection maybeCalendar
-                , employeePayrollCalendarBlockers request approvedEntries staffMappings mappedXeroEmployees
                 , entryBlockers entries
                 , earningsMappingBlockers buckets earningsMappings payItemRequirements
                 , payItemRequirementBlockers earningsMappings payItemRequirements maybeAccountCodeSelection
@@ -283,47 +287,22 @@ selectedCalendarBlockers request calendar =
                         { xeroBlockerXeroObjectId = Just calendar.xeroPayrollCalendarId }
                     ]
 
-employeePayrollCalendarBlockers :: XeroTimesheetReadinessRequest -> [TimesheetEntry] -> [XeroStaffMapping] -> [XeroEmployee] -> [XeroReadinessBlocker]
-employeePayrollCalendarBlockers request approvedEntries mappings xeroEmployees =
-    concatMap blockersForStaff includedStaffIds
+employeePayrollCalendarSkippedStaffIds :: XeroTimesheetReadinessRequest -> [TimesheetEntry] -> [XeroStaffMapping] -> [XeroEmployee] -> [UUID]
+employeePayrollCalendarSkippedStaffIds request approvedEntries mappings xeroEmployees =
+    case request.readinessPayrollCalendarId of
+        Nothing -> []
+        Just selectedCalendarId ->
+            includedStaffIds
+                |> mapMaybe (staffSkippedForCalendar selectedCalendarId)
+                |> List.nub
     where
         includedStaffIds = List.nub (map (.staffId) approvedEntries)
-        blockersForStaff staffId =
-            case List.find (mappingMatchesStaff staffId) mappings >>= (.xeroEmployeeId) of
-                Nothing -> []
-                Just employeeId ->
-                    case List.find (\employee -> employee.xeroEmployeeId == employeeId) xeroEmployees of
-                        Nothing ->
-                            [ (blockerWith
-                                "xero_employee_not_synced"
-                                "The matched Xero employee was not found in the latest synced Xero employee data. Refresh Xero data and check the staff match."
-                              )
-                                { xeroBlockerAffectedStaffId = Just staffId
-                                , xeroBlockerXeroObjectId = Just employeeId
-                                }
-                            ]
-                        Just employee ->
-                            case xeroEmployeePayrollCalendarId employee of
-                                Nothing ->
-                                    [ (blockerWith
-                                        "xero_employee_payroll_calendar_missing"
-                                        "The matched Xero employee does not have a payroll calendar in the latest synced Xero data. Assign the employee to the correct payroll calendar in Xero, then refresh Xero data."
-                                      )
-                                        { xeroBlockerAffectedStaffId = Just staffId
-                                        , xeroBlockerXeroObjectId = Just employeeId
-                                        }
-                                    ]
-                                Just employeeCalendarId
-                                    | Just employeeCalendarId == request.readinessPayrollCalendarId -> []
-                                    | otherwise ->
-                                        [ (blockerWith
-                                            "xero_employee_payroll_calendar_mismatch"
-                                            ("The matched Xero employee is assigned to payroll calendar " <> employeeCalendarId <> ", but the selected period uses " <> fromMaybe "another payroll calendar" request.readinessPayrollCalendarName <> ". Choose the employee's Xero payroll calendar period or update the employee in Xero, then refresh Xero data.")
-                                          )
-                                            { xeroBlockerAffectedStaffId = Just staffId
-                                            , xeroBlockerXeroObjectId = Just employeeId
-                                            }
-                                        ]
+        staffSkippedForCalendar selectedCalendarId staffId = do
+            employeeId <- List.find (mappingMatchesStaff staffId) mappings >>= (.xeroEmployeeId)
+            employee <- List.find (\candidate -> candidate.xeroEmployeeId == employeeId) xeroEmployees
+            employeeCalendarId <- xeroEmployeePayrollCalendarId employee
+            guard (employeeCalendarId /= selectedCalendarId)
+            Just staffId
         mappingMatchesStaff staffId mapping =
             mapping.staffId == staffId && isJust mapping.xeroEmployeeId
 

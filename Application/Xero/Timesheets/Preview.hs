@@ -16,6 +16,7 @@ where
 import Application.Helper.Pay
 import Application.Helper.XeroTimesheetReadiness
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Scientific as Scientific
@@ -212,10 +213,16 @@ fetchPreviewInput request connection = do
             |> filterWhereIn (#staffId, map (.staffId) includedEntries)
             |> filterWhere (#mappingStatus, "verified" :: Text)
             |> fetch
+    xeroEmployees <-
+        query @XeroEmployee
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> filterWhereIn (#xeroEmployeeId, List.nub (mapMaybe (.xeroEmployeeId) staffMappings))
+            |> fetch
     let entries =
             includedEntries
                 |> filter \entry ->
                     any (mappingIncludesEntry entry) staffMappings
+                        && entryMatchesSelectedPayrollCalendar request staffMappings xeroEmployees entry
     staffMembers <-
         query @Staff
             |> filterWhere (#venueId, unpackId request.readinessVenueId)
@@ -272,6 +279,25 @@ mappingIncludesEntry :: TimesheetEntry -> XeroStaffMapping -> Bool
 mappingIncludesEntry entry mapping =
     mapping.staffId == entry.staffId
         && isJust mapping.xeroEmployeeId
+
+entryMatchesSelectedPayrollCalendar :: XeroTimesheetReadinessRequest -> [XeroStaffMapping] -> [XeroEmployee] -> TimesheetEntry -> Bool
+entryMatchesSelectedPayrollCalendar request staffMappings xeroEmployees entry =
+    case request.readinessPayrollCalendarId of
+        Nothing -> True
+        Just selectedCalendarId ->
+            case List.find (mappingIncludesEntry entry) staffMappings >>= (.xeroEmployeeId) of
+                Nothing -> True
+                Just employeeId ->
+                    case List.find (\employee -> employee.xeroEmployeeId == employeeId) xeroEmployees >>= xeroEmployeePayrollCalendarId of
+                        Nothing -> True
+                        Just employeeCalendarId -> employeeCalendarId == selectedCalendarId
+
+xeroEmployeePayrollCalendarId :: XeroEmployee -> Maybe Text
+xeroEmployeePayrollCalendarId employee =
+    join $ AesonTypes.parseMaybe parser employee.rawPayload
+    where
+        parser = AesonTypes.withObject "Xero employee" \object ->
+            (object AesonTypes..:? "PayrollCalendarID") <|> (object AesonTypes..:? "payrollCalendarID") <|> (object AesonTypes..:? "payrollCalendarId")
 
 fetchActivePreviewXeroConnection :: (?modelContext :: ModelContext) => Id Venue -> IO (Maybe XeroConnection)
 fetchActivePreviewXeroConnection venueId =
