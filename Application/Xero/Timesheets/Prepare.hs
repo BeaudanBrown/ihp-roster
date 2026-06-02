@@ -11,6 +11,7 @@ module Application.Xero.Timesheets.Prepare
 
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
+import Application.Helper.TimeRules (shiftDurationMinutes)
 import Application.Helper.XeroTimesheetReadiness
 import Application.Helper.Audit (recordCurrentUserAuditEvent)
 import Application.Helper.ControllerContext (currentVenueId)
@@ -25,6 +26,7 @@ import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.List as List
+import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import Generated.Types
@@ -134,6 +136,7 @@ loadXeroTimesheetPreparationView runId = do
             let readinessView = preparationReadinessView run readiness
             staffRows <- fetchCurrentVenueXeroStaffMappingRows (Just connection)
             approvedStaffIds <- fetchApprovedPreparationStaffIds run
+            reviewRows <- fetchPreparationReviewRows run staffRows
             xeroEmployees <- fetchCurrentVenueXeroEmployees (Just connection)
             xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
             payItemRequirements <- fetchPreparationPayItemRequirements run connection xeroEarningsRates
@@ -193,6 +196,7 @@ loadXeroTimesheetPreparationView runId = do
                         , preparationPostedPayRunBlocked = postedBlocked
                         , preparationCanPreview = canPreview
                         , preparationCanSubmit = canSubmit
+                        , preparationReviewRows = reviewRows
                         , preparationPreviewRows = maybe [] (\submissionView -> submissionView.timesheetRunPreviewRows) maybeSubmissionView
                         , preparationSubmissionRun = maybeSubmissionRun
                         }
@@ -474,18 +478,59 @@ fetchApprovedPreparationStaffIds ::
     XeroTimesheetPreparationRun ->
     IO [UUID]
 fetchApprovedPreparationStaffIds run = do
-    entries <-
-        query @TimesheetEntry
-            |> filterWhere (#venueId, run.venueId)
-            |> filterWhereGreaterThanOrEqualTo (#workedOn, run.payPeriodStart)
-            |> filterWhereLessThanOrEqualTo (#workedOn, run.payPeriodEnd)
-            |> filterWhere (#isApproved, True)
-            |> filterWhere (#deletedAt, Nothing)
-            |> fetch
+    entries <- fetchApprovedPreparationEntries run
     pure $
         entries
             |> map (.staffId)
             |> List.nub
+
+fetchPreparationReviewRows ::
+    (?modelContext :: ModelContext) =>
+    XeroTimesheetPreparationRun ->
+    [XeroStaffMappingRow] ->
+    IO [XeroPreparationReviewRow]
+fetchPreparationReviewRows run staffRows = do
+    entries <- fetchApprovedPreparationEntries run
+    let xeroMappedStaffRows =
+            staffRows
+                |> filter (staffMappingVerified . (.mappingRowMapping))
+                |> filter (\row -> unpackId row.mappingRowStaff.id `elem` map (.staffId) entries)
+                |> List.sortOn (staffSortKey . (.mappingRowStaff))
+    pure (map (reviewRowForStaff entries) xeroMappedStaffRows)
+
+fetchApprovedPreparationEntries ::
+    (?modelContext :: ModelContext) =>
+    XeroTimesheetPreparationRun ->
+    IO [TimesheetEntry]
+fetchApprovedPreparationEntries run =
+    query @TimesheetEntry
+        |> filterWhere (#venueId, run.venueId)
+        |> filterWhereGreaterThanOrEqualTo (#workedOn, run.payPeriodStart)
+        |> filterWhereLessThanOrEqualTo (#workedOn, run.payPeriodEnd)
+        |> filterWhere (#isApproved, True)
+        |> filterWhere (#deletedAt, Nothing)
+        |> fetch
+
+reviewRowForStaff :: [TimesheetEntry] -> XeroStaffMappingRow -> XeroPreparationReviewRow
+reviewRowForStaff entries row =
+    let staff = row.mappingRowStaff
+        staffEntries = filter (\entry -> entry.staffId == unpackId staff.id) entries
+     in XeroPreparationReviewRow
+            { reviewRowStaff = staff
+            , reviewRowEntryCount = length staffEntries
+            , reviewRowTotalUnits = totalEntryUnits staffEntries
+            }
+
+totalEntryUnits :: [TimesheetEntry] -> Scientific
+totalEntryUnits entries =
+    fromIntegral (sum (map paidEntryMinutes entries)) / 60
+
+paidEntryMinutes :: TimesheetEntry -> Int
+paidEntryMinutes entry =
+    max 0 (shiftDurationMinutes entry.startTime entry.endTime - entry.breakMinutes)
+
+staffSortKey :: Staff -> (Text, Text)
+staffSortKey staff = (staff.lastName, staff.firstName)
 
 fetchPreparationPayItemRequirements ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -987,7 +1032,8 @@ preparationReadinessView run readiness =
                     { timesheetReadinessReady = False
                     , timesheetReadinessBlockers =
                         XeroTimesheetIssueView
-                            { timesheetIssueSeverity = "blocker"
+                            { timesheetIssueCode = "xero_pay_run_posted"
+                            , timesheetIssueSeverity = "blocker"
                             , timesheetIssueMessage = "The selected Xero pay run is posted. Draft timesheet creation is blocked."
                             , timesheetIssueHint = Nothing
                             }
@@ -1036,8 +1082,12 @@ staffNeedsXeroDecision row =
 
 staffMappingResolved :: XeroStaffMapping -> Bool
 staffMappingResolved mapping =
-    (mapping.mappingStatus == "verified" && isJust mapping.xeroEmployeeId)
+    staffMappingVerified mapping
         || (mapping.mappingStatus == "not_applicable" && isJust mapping.updatedByUserId)
+
+staffMappingVerified :: XeroStaffMapping -> Bool
+staffMappingVerified mapping =
+    mapping.mappingStatus == "verified" && isJust mapping.xeroEmployeeId
 
 activePayItemRequirement :: XeroPayItemRequirement -> Bool
 activePayItemRequirement requirement =

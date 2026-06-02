@@ -121,7 +121,8 @@ data XeroReadyChecklist = XeroReadyChecklist
     }
 
 data XeroTimesheetIssueView = XeroTimesheetIssueView
-    { timesheetIssueSeverity :: Text
+    { timesheetIssueCode     :: Text
+    , timesheetIssueSeverity :: Text
     , timesheetIssueMessage  :: Text
     , timesheetIssueHint     :: Maybe Text
     }
@@ -155,6 +156,13 @@ data XeroTimesheetPreviewRowView = XeroTimesheetPreviewRowView
     , previewRowTotalUnits     :: Scientific
     , previewRowLines          :: [XeroTimesheetPreviewLineView]
     , previewRowSourceCount    :: Int
+    }
+    deriving (Eq, Show)
+
+data XeroPreparationReviewRow = XeroPreparationReviewRow
+    { reviewRowStaff       :: Staff
+    , reviewRowEntryCount  :: Int
+    , reviewRowTotalUnits  :: Scientific
     }
     deriving (Eq, Show)
 
@@ -249,6 +257,7 @@ data XeroTimesheetPreparationView = XeroTimesheetPreparationView
     , preparationPostedPayRunBlocked         :: Bool
     , preparationCanPreview                  :: Bool
     , preparationCanSubmit                   :: Bool
+    , preparationReviewRows                  :: [XeroPreparationReviewRow]
     , preparationPreviewRows                 :: [XeroTimesheetPreviewRowView]
     , preparationSubmissionRun               :: Maybe XeroSubmissionRun
     }

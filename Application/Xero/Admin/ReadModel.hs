@@ -651,7 +651,8 @@ xeroTimesheetReadinessView readiness =
                 left.xeroBlockerCode == right.xeroBlockerCode
         issueView issue =
             XeroTimesheetIssueView
-                { timesheetIssueSeverity = xeroReadinessSeverityText issue.xeroBlockerSeverity
+                { timesheetIssueCode = issue.xeroBlockerCode
+                , timesheetIssueSeverity = xeroReadinessSeverityText issue.xeroBlockerSeverity
                 , timesheetIssueMessage = issue.xeroBlockerMessage
                 , timesheetIssueHint = issue.xeroBlockerActionHint
                 }
