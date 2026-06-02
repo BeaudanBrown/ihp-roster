@@ -48,8 +48,7 @@ renderXeroTimesheetPreparationLoadingDialog selectedPeriodKey =
             <div class="d-flex align-items-center gap-3" data-xero-timesheet-preparation-loading="true">
                 <div id="xero-timesheet-preparation-modal-loading-indicator" class="spinner-border text-primary" role="status" aria-hidden="true"></div>
                 <div>
-                    <div class="fw-semibold">Preparing Xero draft timesheets...</div>
-                    <div class="small app-muted">Checking the connection, Xero reference data, pay runs, timesheets, mappings, and pay items.</div>
+                    <div class="fw-semibold">Prepare Xero draft timesheets</div>
                 </div>
                 <form method="POST"
                       action={RunXeroTimesheetPreparationAction}

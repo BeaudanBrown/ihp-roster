@@ -1264,7 +1264,8 @@ tests = beforeAll testContext do
                             [("periodKey", fixturePeriodKey fixture)]
 
                 loadingResponse `responseStatusShouldBe` status200
-                loadingResponse `responseBodyShouldContain` "Preparing Xero draft timesheets..."
+                loadingResponse `responseBodyShouldContain` "Prepare Xero draft timesheets"
+                loadingResponse `responseBodyShouldNotContain` "Checking the connection"
                 loadingResponse `responseBodyShouldContain` "hx-post=\"/RunXeroTimesheetPreparation\""
                 loadingResponse `responseBodyShouldContain` "data-xero-timesheet-preparation-loading=\"true\""
                 initialPreparationRunCount <- query @XeroTimesheetPreparationRun |> fetchCount
