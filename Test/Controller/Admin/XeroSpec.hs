@@ -1265,6 +1265,7 @@ tests = beforeAll testContext do
 
                 loadingResponse `responseStatusShouldBe` status200
                 loadingResponse `responseBodyShouldContain` "Prepare Xero draft timesheets"
+                loadingResponse `responseBodyShouldNotContain` "modal-header"
                 loadingResponse `responseBodyShouldNotContain` "Checking the connection"
                 loadingResponse `responseBodyShouldContain` "hx-post=\"/RunXeroTimesheetPreparation\""
                 loadingResponse `responseBodyShouldContain` "data-xero-timesheet-preparation-loading=\"true\""
