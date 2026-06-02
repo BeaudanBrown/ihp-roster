@@ -212,11 +212,10 @@ fetchPreviewInput request connection = do
             |> filterWhereIn (#staffId, map (.staffId) includedEntries)
             |> filterWhere (#mappingStatus, "verified" :: Text)
             |> fetch
-    selectedPayrollCalendarEmployeeIds <- fetchSelectedPayrollCalendarEmployeeIds request connection
     let entries =
             includedEntries
                 |> filter \entry ->
-                    any (mappingIncludesEntry entry selectedPayrollCalendarEmployeeIds) staffMappings
+                    any (mappingIncludesEntry entry) staffMappings
     staffMembers <-
         query @Staff
             |> filterWhere (#venueId, unpackId request.readinessVenueId)
@@ -269,31 +268,10 @@ fetchPreviewInput request connection = do
         , previewTimePenaltyAllowances = timeAllowances
         }
 
-fetchSelectedPayrollCalendarEmployeeIds :: (?modelContext :: ModelContext) => XeroTimesheetReadinessRequest -> XeroConnection -> IO [Text]
-fetchSelectedPayrollCalendarEmployeeIds request connection = do
-    maybePayrollCalendarId <-
-        case request.readinessPayrollCalendarId of
-            Just calendarId -> pure (Just calendarId)
-            Nothing -> do
-                maybeSelection <-
-                    query @XeroPayrollCalendarSelection
-                        |> filterWhere (#xeroConnectionId, unpackId connection.id)
-                        |> filterWhere (#calendarStatus, "verified" :: Text)
-                        |> fetchOneOrNothing
-                pure (maybeSelection >>= (.xeroPayrollCalendarId))
-    case maybePayrollCalendarId of
-        Nothing -> pure []
-        Just payrollCalendarId ->
-            fmap (map (.xeroEmployeeId)) $
-                query @XeroEmployee
-                |> filterWhere (#xeroConnectionId, unpackId connection.id)
-                |> filterWhere (#payrollCalendarId, Just payrollCalendarId)
-                |> fetch
-
-mappingIncludesEntry :: TimesheetEntry -> [Text] -> XeroStaffMapping -> Bool
-mappingIncludesEntry entry selectedPayrollCalendarEmployeeIds mapping =
+mappingIncludesEntry :: TimesheetEntry -> XeroStaffMapping -> Bool
+mappingIncludesEntry entry mapping =
     mapping.staffId == entry.staffId
-        && maybe False (`elem` selectedPayrollCalendarEmployeeIds) mapping.xeroEmployeeId
+        && isJust mapping.xeroEmployeeId
 
 fetchActivePreviewXeroConnection :: (?modelContext :: ModelContext) => Id Venue -> IO (Maybe XeroConnection)
 fetchActivePreviewXeroConnection venueId =

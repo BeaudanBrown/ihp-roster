@@ -219,7 +219,6 @@ upsertXeroEmployee connection syncedAt employee = do
                 |> set #displayName employee.xeroEmployeeName
                 |> set #email employee.xeroEmployeeEmail
                 |> set #status employee.xeroEmployeeStatus
-                |> set #payrollCalendarId employee.xeroEmployeeCalendarId
                 |> set #rawPayload employee.xeroEmployeeRaw
                 |> set #syncedAt syncedAt
     case existing of

@@ -1064,7 +1064,6 @@ CREATE TABLE xero_employees (
     display_name TEXT NOT NULL,
     email TEXT,
     status TEXT,
-    payroll_calendar_id TEXT,
     raw_payload JSONB DEFAULT '{}'::JSONB NOT NULL,
     synced_at TIMESTAMP WITH TIME ZONE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
