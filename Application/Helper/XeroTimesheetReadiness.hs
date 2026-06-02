@@ -15,6 +15,7 @@ import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
 import Application.Xero.Timesheets.Buckets
 import Control.Monad (guard)
+import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.List as List
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays, diffDays)
@@ -83,6 +84,7 @@ validateXeroTimesheetReadiness request = do
     let approvedEntries = approvedSubmittableEntries entries
     let includedStaffIds = List.nub (map (.staffId) approvedEntries)
     staffMappings <- maybe (pure []) (fetchVerifiedStaffMappings includedStaffIds) maybeConnection
+    mappedXeroEmployees <- maybe (pure []) (fetchMappedXeroEmployees staffMappings) maybeConnection
     buckets <- fetchPeriodXeroLocalEarningsBuckets request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd effectiveSkippedStaffIds
     earningsMappings <- maybe (pure []) (fetchVerifiedEarningsMappings buckets) maybeConnection
     allPayItemRequirements <- maybe (pure []) fetchPayItemRequirements maybeConnection
@@ -97,6 +99,7 @@ validateXeroTimesheetReadiness request = do
                 [ connectionBlockers maybeConnection
                 , referenceSyncBlockers latestSync
                 , calendarBlockers request maybeCalendarSelection maybeCalendar
+                , employeePayrollCalendarBlockers request approvedEntries staffMappings mappedXeroEmployees
                 , entryBlockers entries
                 , earningsMappingBlockers buckets earningsMappings payItemRequirements
                 , payItemRequirementBlockers earningsMappings payItemRequirements maybeAccountCodeSelection
@@ -150,6 +153,13 @@ fetchVerifiedStaffMappings staffIds connection =
         |> filterWhere (#xeroConnectionId, unpackId connection.id)
         |> filterWhereIn (#staffId, staffIds)
         |> filterWhere (#mappingStatus, "verified" :: Text)
+        |> fetch
+
+fetchMappedXeroEmployees :: (?modelContext :: ModelContext) => [XeroStaffMapping] -> XeroConnection -> IO [XeroEmployee]
+fetchMappedXeroEmployees mappings connection =
+    query @XeroEmployee
+        |> filterWhere (#xeroConnectionId, unpackId connection.id)
+        |> filterWhereIn (#xeroEmployeeId, List.nub (mapMaybe (.xeroEmployeeId) mappings))
         |> fetch
 
 fetchNotPaidStaffMappingIds :: (?modelContext :: ModelContext) => XeroConnection -> IO [UUID]
@@ -272,6 +282,57 @@ selectedCalendarBlockers request calendar =
                       )
                         { xeroBlockerXeroObjectId = Just calendar.xeroPayrollCalendarId }
                     ]
+
+employeePayrollCalendarBlockers :: XeroTimesheetReadinessRequest -> [TimesheetEntry] -> [XeroStaffMapping] -> [XeroEmployee] -> [XeroReadinessBlocker]
+employeePayrollCalendarBlockers request approvedEntries mappings xeroEmployees =
+    concatMap blockersForStaff includedStaffIds
+    where
+        includedStaffIds = List.nub (map (.staffId) approvedEntries)
+        blockersForStaff staffId =
+            case List.find (mappingMatchesStaff staffId) mappings >>= (.xeroEmployeeId) of
+                Nothing -> []
+                Just employeeId ->
+                    case List.find (\employee -> employee.xeroEmployeeId == employeeId) xeroEmployees of
+                        Nothing ->
+                            [ (blockerWith
+                                "xero_employee_not_synced"
+                                "The matched Xero employee was not found in the latest synced Xero employee data. Refresh Xero data and check the staff match."
+                              )
+                                { xeroBlockerAffectedStaffId = Just staffId
+                                , xeroBlockerXeroObjectId = Just employeeId
+                                }
+                            ]
+                        Just employee ->
+                            case xeroEmployeePayrollCalendarId employee of
+                                Nothing ->
+                                    [ (blockerWith
+                                        "xero_employee_payroll_calendar_missing"
+                                        "The matched Xero employee does not have a payroll calendar in the latest synced Xero data. Assign the employee to the correct payroll calendar in Xero, then refresh Xero data."
+                                      )
+                                        { xeroBlockerAffectedStaffId = Just staffId
+                                        , xeroBlockerXeroObjectId = Just employeeId
+                                        }
+                                    ]
+                                Just employeeCalendarId
+                                    | Just employeeCalendarId == request.readinessPayrollCalendarId -> []
+                                    | otherwise ->
+                                        [ (blockerWith
+                                            "xero_employee_payroll_calendar_mismatch"
+                                            ("The matched Xero employee is assigned to payroll calendar " <> employeeCalendarId <> ", but the selected period uses " <> fromMaybe "another payroll calendar" request.readinessPayrollCalendarName <> ". Choose the employee's Xero payroll calendar period or update the employee in Xero, then refresh Xero data.")
+                                          )
+                                            { xeroBlockerAffectedStaffId = Just staffId
+                                            , xeroBlockerXeroObjectId = Just employeeId
+                                            }
+                                        ]
+        mappingMatchesStaff staffId mapping =
+            mapping.staffId == staffId && isJust mapping.xeroEmployeeId
+
+xeroEmployeePayrollCalendarId :: XeroEmployee -> Maybe Text
+xeroEmployeePayrollCalendarId employee =
+    join $ AesonTypes.parseMaybe parser employee.rawPayload
+    where
+        parser = AesonTypes.withObject "Xero employee" \object ->
+            (object AesonTypes..:? "PayrollCalendarID") <|> (object AesonTypes..:? "payrollCalendarID") <|> (object AesonTypes..:? "payrollCalendarId")
 
 deriveXeroPayrollCalendarPeriod :: XeroPayrollCalendar -> Day -> Maybe (Day, Day)
 deriveXeroPayrollCalendarPeriod calendar localPeriodStart = do

@@ -47,6 +47,16 @@ renderXeroConnectControl False = [hsx|
 
 renderXeroReconnectControls :: Bool -> Html
 renderXeroReconnectControls True = [hsx|
+    <form method="POST"
+          action={SyncXeroPayrollReferenceDataAction}
+          data-disable-javascript-submission="true"
+          hx-post={pathTo SyncXeroPayrollReferenceDataAction}
+          hx-target="#admin-xero-fragment"
+          hx-swap="outerHTML"
+          hx-push-url={pathTo XeroAction}
+          hx-indicator="#xero-connection-status-badge">
+        <button class="btn btn-outline-primary" type="submit">Refresh Xero data</button>
+    </form>
     <form method="POST" action={StartXeroConnectionAction} data-disable-javascript-submission="true">
         <button class="btn btn-outline-secondary" type="submit">Reconnect</button>
     </form>

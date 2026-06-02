@@ -104,7 +104,7 @@ tests =
                             submissions <- query @XeroTimesheetSubmission |> filterWhere (#xeroSubmissionRunId, unpackId run.id) |> fetch
                             submissions `shouldBe` []
 
-            it "submits mapped employees without persisted payroll calendar filtering" $ withContext do
+            it "blocks mapped employees assigned to a different synced Xero payroll calendar" $ withContext do
                 withCleanDb do
                     fixture <-
                         createPreviewFixture
@@ -124,12 +124,10 @@ tests =
                     case result of
                         Left message -> expectationFailure (cs message)
                         Right run -> do
-                            run.status `shouldBe` "submitted"
+                            run.status `shouldBe` "blocked"
+                            run.errorSummary `shouldSatisfy` maybe False ("assigned to payroll calendar" `isInfixOf`)
                             submissions <- query @XeroTimesheetSubmission |> filterWhere (#xeroSubmissionRunId, unpackId run.id) |> fetch
-                            submissions `shouldSatisfy` ((== 2) . length)
-                            map (.xeroEmployeeId) submissions `shouldBe` ["employee-a", "employee-b"]
-                            entries <- query @XeroTimesheetSubmissionEntry |> fetch
-                            map (.timesheetEntryId) entries `shouldBe` map (unpackId . (.id)) fixture.entries
+                            submissions `shouldBe` []
 
             it "persists semantic Xero validation errors from strict create responses" $ withContext do
                 withCleanDb do

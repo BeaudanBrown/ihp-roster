@@ -22,7 +22,7 @@ import qualified Data.List as List
 import qualified Data.Set as Set
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
-import Data.Time.Calendar (fromGregorian)
+import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.Clock (NominalDiffTime, addUTCTime, diffUTCTime,
                         getCurrentTime)
 import Data.Time.LocalTime (TimeOfDay (..))
@@ -1192,9 +1192,15 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "Working on Xero draft timesheets"
                 response `responseBodyShouldContain` "Selected Xero payroll period"
 
-        it "only shows Xero pay-run periods that contain approved local entries" $ withContext do
+        it "shows synced Xero payroll-calendar periods that contain approved local entries without requiring a pay run" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                payRun <- query @XeroPayRun |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetchOne
+                _ <-
+                    payRun
+                        |> set #payPeriodStart (addDays 7 fixture.periodStart)
+                        |> set #payPeriodEnd (addDays 7 fixture.periodEnd)
+                        |> updateRecord
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                     callAction ShowAdminXeroFragmentAction
@@ -1203,6 +1209,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "name=\"periodKey\""
                 response `responseBodyShouldContain` ("value=\"" <> fixturePeriodKey fixture <> "\"")
                 response `responseBodyShouldNotContain` "No synced Xero pay periods available"
+                response `responseBodyShouldNotContain` "DRAFT"
 
         it "does not show Xero pay periods that only have unapproved local entries" $ withContext do
             withCleanDb do
