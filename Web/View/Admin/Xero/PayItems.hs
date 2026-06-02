@@ -2,7 +2,10 @@ module Web.View.Admin.Xero.PayItems
     ( renderXeroPayItems
     , renderXeroPayItemAccountCodeSelection
     , renderXeroImportedPayItemImportDialog
+    , renderXeroImportedPayItemImportErrorDialog
+    , renderXeroImportedPayItemImportLoadingDialog
     , renderXeroPayItemsData
+    , renderXeroPayItemsDataOob
     ) where
 
 import Application.Helper.Xero (XeroEarningsRateRef (..))
@@ -59,16 +62,24 @@ renderXeroPayItemAccountCodeOption currentSelection option = [hsx|
 |]
 
 renderXeroPayItemsData :: [XeroPayItemAccountCodeOption] -> [XeroPayItemRequirement] -> [XeroImportedPayItem] -> Maybe XeroPayItemAccountCodeSelection -> Maybe XeroSyncRun -> Bool -> Html
-renderXeroPayItemsData accountCodeOptions requirements importedPayItems maybePayItemAccountCodeSelection maybePayItemSyncRun canManagePayItems
+renderXeroPayItemsData =
+    renderXeroPayItemsDataWith noOobSwap
+
+renderXeroPayItemsDataOob :: [XeroPayItemAccountCodeOption] -> [XeroPayItemRequirement] -> [XeroImportedPayItem] -> Maybe XeroPayItemAccountCodeSelection -> Maybe XeroSyncRun -> Bool -> Html
+renderXeroPayItemsDataOob =
+    renderXeroPayItemsDataWith outerHtmlOobSwap
+
+renderXeroPayItemsDataWith :: OobSwapAttr -> [XeroPayItemAccountCodeOption] -> [XeroPayItemRequirement] -> [XeroImportedPayItem] -> Maybe XeroPayItemAccountCodeSelection -> Maybe XeroSyncRun -> Bool -> Html
+renderXeroPayItemsDataWith maybeOobSwap accountCodeOptions requirements importedPayItems maybePayItemAccountCodeSelection maybePayItemSyncRun canManagePayItems
     | null requirements = [hsx|
-        <div id="xero-pay-items-data" class={appSurfaceClasses "p-3"}>
+        <div id="xero-pay-items-data" class={appSurfaceClasses "p-3"} hx-swap-oob={maybeOobSwap}>
             <h3 class="h6 mb-2">Pay item requirements</h3>
             <p class="small app-muted mb-3">No award-backed Xero pay item requirements are available yet.</p>
             {renderImportedXeroPayItemsPanel importedPayItems canManagePayItems}
         </div>
     |]
     | otherwise = [hsx|
-        <div id="xero-pay-items-data" class={appSurfaceClasses "p-3"}>
+        <div id="xero-pay-items-data" class={appSurfaceClasses "p-3"} hx-swap-oob={maybeOobSwap}>
             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
                 <div>
                     <h3 class="h6 mb-1">Pay item requirements</h3>
@@ -310,32 +321,82 @@ renderArchivedImportedPayItemRow item = [hsx|
     </tr>
 |]
 
+renderXeroImportedPayItemImportLoadingDialog :: Html
+renderXeroImportedPayItemImportLoadingDialog =
+    renderDialogOverlay DialogOverlayConfig
+        { dialogOverlayTitle = "Import Xero pay items"
+        , dialogOverlayBody = [hsx|
+            <div class="d-flex align-items-center gap-3" data-xero-import-loading="true">
+                <div id="xero-import-pay-items-loading-indicator" class="spinner-border text-primary" role="status" aria-hidden="true"></div>
+                <div>
+                    <div class="fw-semibold">Fetching Xero pay items...</div>
+                    <div class="small app-muted">Bepis is refreshing the Xero connection and loading supported hourly earnings rates.</div>
+                </div>
+                <form method="GET"
+                      action={OpenXeroPayItemImportAction}
+                      hx-get={pathTo OpenXeroPayItemImportAction}
+                      hx-trigger="load"
+                      hx-target={"#" <> dialogOverlayMountId}
+                      hx-swap="innerHTML"
+                      hx-indicator="#xero-import-pay-items-loading-indicator">
+                    <input type="hidden" name="loadCandidates" value="true" />
+                </form>
+            </div>
+        |]
+        , dialogOverlayStartButtons = []
+        , dialogOverlayButtons = []
+        , dialogOverlayDialogClass = ""
+        }
+
+renderXeroImportedPayItemImportErrorDialog :: Text -> Html
+renderXeroImportedPayItemImportErrorDialog message =
+    renderDialogOverlay DialogOverlayConfig
+        { dialogOverlayTitle = "Import Xero pay items"
+        , dialogOverlayBody = [hsx|
+            <div class="alert alert-danger mb-0">{message}</div>
+        |]
+        , dialogOverlayStartButtons = []
+        , dialogOverlayButtons =
+            [ OverlayButton
+                { overlayButtonLabel = "Close"
+                , overlayButtonClass = "btn btn-outline-secondary"
+                , overlayButtonAction = OverlayCloseAction
+                }
+            ]
+        , dialogOverlayDialogClass = ""
+        }
+
 renderXeroImportedPayItemImportDialog :: [XeroImportedPayItemCandidate] -> Html
-renderXeroImportedPayItemImportDialog candidates = [hsx|
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content">
-            <form method="POST"
+renderXeroImportedPayItemImportDialog candidates =
+    renderDialogOverlay DialogOverlayConfig
+        { dialogOverlayTitle = "Import Xero pay items"
+        , dialogOverlayBody = [hsx|
+            <form id="xero-imported-pay-items-import-form"
+                  method="POST"
                   action={ImportXeroPayItemsAction}
                   hx-post={pathTo ImportXeroPayItemsAction}
-                  hx-target="#xero-pay-items-data"
-                  hx-swap="outerHTML">
-                <div class="modal-header">
-                    <h2 class="modal-title h5">Import Xero pay items</h2>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p class="small app-muted">Only active hourly ordinary earnings rates that were not generated by Bepis and have not already been imported are shown.</p>
-                    <input type="search" class="form-control form-control-sm mb-3" placeholder="Search pay items" data-xero-import-search="true">
-                    {renderImportCandidateList candidates}
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary" disabled={null candidates}>Import selected</button>
-                </div>
+                  hx-target={"#" <> dialogOverlayMountId}
+                  hx-swap="innerHTML">
+                <p class="small app-muted">Only active hourly ordinary earnings rates that were not generated by Bepis and have not already been imported are shown.</p>
+                <input type="search" class="form-control form-control-sm mb-3" placeholder="Search pay items" data-xero-import-search="true">
+                {renderImportCandidateList candidates}
             </form>
-        </div>
-    </div>
-|]
+        |]
+        , dialogOverlayStartButtons = []
+        , dialogOverlayButtons =
+            [ OverlayButton
+                { overlayButtonLabel = "Cancel"
+                , overlayButtonClass = "btn btn-outline-secondary"
+                , overlayButtonAction = OverlayCloseAction
+                }
+            , OverlayButton
+                { overlayButtonLabel = "Import selected"
+                , overlayButtonClass = classes [("btn btn-primary", True), ("disabled", null candidates)]
+                , overlayButtonAction = OverlaySubmitFormAction "xero-imported-pay-items-import-form"
+                }
+            ]
+        , dialogOverlayDialogClass = "modal-lg modal-dialog-scrollable"
+        }
 
 renderImportCandidateList :: [XeroImportedPayItemCandidate] -> Html
 renderImportCandidateList [] = [hsx|<div class="alert alert-secondary small mb-0">No new supported Xero pay items are available to import.</div>|]

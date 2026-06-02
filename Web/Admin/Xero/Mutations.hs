@@ -8,6 +8,8 @@ module Web.Admin.Xero.Mutations
     , createRunningXeroPayItemSyncRunMutation
     , failXeroPayItemSyncMutation
     , failXeroConnectionAttemptMutation
+    , importXeroEarningsRatesMutation
+    , archiveImportedXeroPayItemMutation
     , failXeroReferenceSyncMutation
     , markXeroConnectionErrorMutation
     , startXeroConnectionMutation
@@ -36,6 +38,7 @@ import Application.Helper.LiveResource
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroTimesheetReadiness
+import qualified Application.Xero.Admin.ImportedPayItems as ImportedPayItems
 import Application.Xero.Admin.ReferenceData
 import qualified Application.Xero.Timesheets.Prepare as XeroPrepare
 import qualified Application.Xero.Timesheets.Preview as XeroPreview
@@ -248,6 +251,18 @@ failXeroPayItemSyncMutation syncRun verifiedCount message = do
         |> set #finishedAt (Just now)
         |> updateRecord
     invalidateTouchedResources "xero.pay_items.sync.fail" (liveMutationResult updated (xeroPayItemsTouchedResources currentVenueId))
+
+importXeroEarningsRatesMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => XeroConnection -> UTCTime -> [XeroEarningsRateRef] -> [Text] -> IO (LiveMutationResult [XeroImportedPayItem])
+importXeroEarningsRatesMutation connection now fetchedRates selectedRateIds = do
+    imported <- withTransaction do
+        forM_ fetchedRates (upsertXeroEarningsRate connection now)
+        ImportedPayItems.importXeroEarningsRates connection now fetchedRates selectedRateIds
+    invalidateTouchedResources "xero.pay_items.import" (liveMutationResult imported (xeroPayItemsTouchedResources currentVenueId))
+
+archiveImportedXeroPayItemMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UTCTime -> Text -> XeroImportedPayItem -> IO (LiveMutationResult XeroImportedPayItem)
+archiveImportedXeroPayItemMutation now reason payItem = do
+    archived <- ImportedPayItems.archiveImportedXeroPayItem now reason payItem
+    invalidateTouchedResources "xero.pay_items.import.archive" (liveMutationResult archived (xeroPayItemsTouchedResources currentVenueId))
 
 startXeroReferenceSyncMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => XeroConnection -> UTCTime -> IO (LiveMutationResult XeroSyncRun)
 startXeroReferenceSyncMutation connection now = do
@@ -541,7 +556,9 @@ xeroConnectionTouchedResources venueId =
 
 xeroPayItemsTouchedResources :: Id Venue -> [LiveResource]
 xeroPayItemsTouchedResources venueId =
-    [XeroPayItemsResource (unpackId venueId)]
+    [ XeroPayItemsResource (unpackId venueId)
+    , AdminShiftTypesResource (unpackId venueId)
+    ]
 
 xeroMappingsTouchedResources :: Id Venue -> [LiveResource]
 xeroMappingsTouchedResources venueId =

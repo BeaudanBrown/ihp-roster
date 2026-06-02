@@ -109,7 +109,10 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Xero Touched Venue"
 
                 Set.fromList (xeroPayItemsTouchedResources venue.id)
-                    `shouldBe` Set.fromList [XeroPayItemsResource (unpackId venue.id)]
+                    `shouldBe` Set.fromList
+                        [ XeroPayItemsResource (unpackId venue.id)
+                        , AdminShiftTypesResource (unpackId venue.id)
+                        ]
 
         it "records touched resources for Xero timesheet mutations" $ withContext do
             withCleanDb do

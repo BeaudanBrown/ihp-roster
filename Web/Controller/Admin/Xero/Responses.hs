@@ -9,6 +9,7 @@ module Web.Controller.Admin.Xero.Responses
     , respondWithXeroPayItemsMutationError
     , respondWithXeroPayItemsFragment
     , respondWithXeroPayItemsFragmentAndToast
+    , respondWithXeroPayItemsFragmentAndToastAndCloseDialog
     , respondWithXeroSectionFragment
     , respondWithXeroSectionFragmentAndToast
     , respondWithXeroStaffMappingControlsAndToast
@@ -96,6 +97,21 @@ respondWithXeroPayItemsFragmentAndToast maybeToast = do
     respondHtmlProfiled $
         mconcat
             [ fragmentHtml
+            , maybe mempty (\toast -> renderToastOverlayHostOob ToastBottomCenter [toast]) maybeToast
+            ]
+
+respondWithXeroPayItemsFragmentAndToastAndCloseDialog ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Maybe ToastOverlayConfig ->
+    IO ()
+respondWithXeroPayItemsFragmentAndToastAndCloseDialog maybeToast = do
+    xeroSectionData <- fetchCurrentVenueXeroAdminSectionData
+    fragmentHtml <- profileActionSpan "admin.xero.pay_items.fragment.render_oob" do
+        pure (renderXeroPayItemsFragmentOob xeroSectionData.xeroPayItemAccountCodeOptions xeroSectionData.xeroPayItemRequirements xeroSectionData.xeroImportedPayItems xeroSectionData.xeroPayItemAccountCodeSelection xeroSectionData.xeroLatestPayItemSyncRun xeroSectionData.xeroConnectionActionsAllowed)
+    respondHtmlProfiled $
+        mconcat
+            [ [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
+            , fragmentHtml
             , maybe mempty (\toast -> renderToastOverlayHostOob ToastBottomCenter [toast]) maybeToast
             ]
 

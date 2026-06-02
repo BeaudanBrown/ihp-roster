@@ -7,6 +7,7 @@ module Web.View.Admin.Xero
     , renderXeroSectionFragmentOob
     , renderXeroStaffMappingControlsOob
     , renderXeroPayItemsFragment
+    , renderXeroPayItemsFragmentOob
     , renderXeroStaffMappingsFragment
     , renderXeroStaffMappingsOob
     , AdminXeroLiveFragment (..)
@@ -248,6 +249,10 @@ renderXeroStaffMappingsFragment =
 renderXeroPayItemsFragment :: [XeroPayItemAccountCodeOption] -> [XeroPayItemRequirement] -> [XeroImportedPayItem] -> Maybe XeroPayItemAccountCodeSelection -> Maybe XeroSyncRun -> Bool -> Html
 renderXeroPayItemsFragment =
     renderXeroPayItemsData
+
+renderXeroPayItemsFragmentOob :: [XeroPayItemAccountCodeOption] -> [XeroPayItemRequirement] -> [XeroImportedPayItem] -> Maybe XeroPayItemAccountCodeSelection -> Maybe XeroSyncRun -> Bool -> Html
+renderXeroPayItemsFragmentOob =
+    renderXeroPayItemsDataOob
 
 renderXeroTimesheetsFragment :: XeroTimesheetPanelData -> Html
 renderXeroTimesheetsFragment =
