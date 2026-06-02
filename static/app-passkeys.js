@@ -60,7 +60,7 @@
         button.textContent = 'Checking for passkey...';
 
         try {
-            const beginResponse = await postJson(container.dataset.beginUrl, {});
+            const beginResponse = await postJson(container.dataset.beginUrl);
             const credential = await window.navigator.credentials.get({
                 publicKey: authenticationOptionsToNative(beginResponse),
                 signal: timeoutSignal(10000),
@@ -84,7 +84,7 @@
     async function runPasskeyLogin(container, button) {
         await withPasskeyButton(container, button, async function () {
             setPasskeyStatus(container, 'info', 'Waiting for your passkey...');
-            const beginResponse = await postJson(container.dataset.beginUrl, {});
+            const beginResponse = await postJson(container.dataset.beginUrl);
             const credential = await window.navigator.credentials.get({
                 publicKey: authenticationOptionsToNative(beginResponse),
             });
@@ -104,7 +104,7 @@
     async function runPasskeyRegistration(container, button) {
         await withPasskeyButton(container, button, async function () {
             setPasskeyStatus(container, 'info', 'Waiting for your passkey...');
-            const beginResponse = await postJson(container.dataset.beginUrl, {});
+            const beginResponse = await postJson(container.dataset.beginUrl);
             const credential = await window.navigator.credentials.create({
                 publicKey: registrationOptionsToNative(beginResponse),
             });
@@ -183,14 +183,19 @@
     }
 
     async function postJson(url, payload) {
+        const hasPayload = payload !== undefined;
         const response = await window.fetch(url, {
             method: 'POST',
             credentials: 'same-origin',
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(payload),
+            headers: hasPayload
+                ? {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                }
+                : {
+                    Accept: 'application/json',
+                },
+            body: hasPayload ? JSON.stringify(payload) : undefined,
         });
 
         const json = await response.json().catch(function () {

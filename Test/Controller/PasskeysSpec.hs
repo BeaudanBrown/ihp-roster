@@ -434,6 +434,13 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-begin-url=\"/BeginPasskeySetupRegistration?token="
                 response `responseBodyShouldContain` "data-finish-url=\"/FinishPasskeySetupRegistration\""
 
+        it "keeps passkey begin requests bodyless so setup-link tokens stay in the query string" $ withContext do
+            sourceBytes <- ByteString.readFile "static/app-passkeys.js"
+            let source = cs sourceBytes :: String
+            source `shouldContain` "const beginResponse = await postJson(container.dataset.beginUrl);"
+            source `shouldNotContain` "postJson(container.dataset.beginUrl, {})"
+            source `shouldContain` "body: hasPayload ? JSON.stringify(payload) : undefined"
+
         it "rejects consumed and expired passkey setup links" $ withContext do
             withCleanDb do
                 user <- createUserRecord "inactive-setup-link@example.com" "staff" True
