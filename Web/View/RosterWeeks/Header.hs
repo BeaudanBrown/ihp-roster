@@ -120,10 +120,9 @@ renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGr
                 {renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup}
             </div>
             <div class="dropdown-divider my-1"></div>
-            {renderRosterWeekActionsMenuSection weekOffset currentRosterGroup.id viewCapabilities}
+            {renderRosterWeekActionsMenuSection maybeRosterWeek weekOffset currentRosterGroup.id viewCapabilities}
             {renderRosterLayoutMenuSection weekOffset currentRosterGroup.id rosterLayoutMode}
             {renderRosterWageEstimatePreferenceMenuSection weekOffset currentRosterGroup.id viewCapabilities rosterEndTimesEnabled showWageEstimates}
-            {renderRosterColumnMenuSection maybeRosterWeek viewCapabilities}
             {renderRosterExportMenuSection maybeRosterWeek viewCapabilities}
             {renderRosterAssignmentFiltersMenuSection weekOffset currentRosterGroup.id menuTriggerId assignmentFilters viewCapabilities}
             {when (shouldShowRosterWeekMenuDivider maybeRosterWeek viewCapabilities) divider}
@@ -131,14 +130,15 @@ renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGr
     </div>
 |]
 
-renderRosterWeekActionsMenuSection :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterViewCapabilities -> Html
-renderRosterWeekActionsMenuSection weekOffset rosterGroupId viewCapabilities
-    | not viewCapabilities.canCopyRosterWeek = mempty
+renderRosterWeekActionsMenuSection :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> Id RosterGroup -> RosterViewCapabilities -> Html
+renderRosterWeekActionsMenuSection maybeRosterWeek weekOffset rosterGroupId viewCapabilities
+    | not (viewCapabilities.canCopyRosterWeek || shouldShowRosterSortForm maybeRosterWeek viewCapabilities) = mempty
     | otherwise = [hsx|
         <div class="px-1 py-1">
             <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Week actions</div>
             <div class="d-grid gap-2">
-                {renderCopyPreviousWeekForm weekOffset rosterGroupId}
+                {when viewCapabilities.canCopyRosterWeek (renderCopyPreviousWeekForm weekOffset rosterGroupId)}
+                {renderRosterSortForm maybeRosterWeek viewCapabilities}
             </div>
         </div>
         <div class="dropdown-divider my-1"></div>
@@ -151,7 +151,7 @@ renderRosterLayoutMenuSection weekOffset rosterGroupId selectedLayoutMode = [hsx
           action={rosterLayoutPreferenceUrl weekOffset rosterGroupId}
           data-disable-javascript-submission="true"
           hx-post={rosterLayoutPreferenceUrl weekOffset rosterGroupId}
-          hx-swap="none"
+          hx-swap="none settle:0ms"
           hx-push-url="false"
           hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
         <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Roster layout</div>
@@ -204,25 +204,13 @@ renderRosterWageEstimateToggle showWageEstimates =
         , appToggleOnChange = Just "this.form.requestSubmit()"
         }
 
-renderRosterColumnMenuSection :: (?context :: ControllerContext) => Maybe RosterWeek -> RosterViewCapabilities -> Html
-renderRosterColumnMenuSection maybeRosterWeek viewCapabilities
-    | not viewCapabilities.canManageRosterColumns = mempty
-    | not (shouldShowRosterSortForm maybeRosterWeek) = mempty
-    | otherwise = [hsx|
-        <div class="px-1 py-1">
-            <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Roster columns</div>
-            {renderRosterSortForm maybeRosterWeek}
-        </div>
-        <div class="dropdown-divider my-1"></div>
-|]
+shouldShowRosterSortForm :: Maybe RosterWeek -> RosterViewCapabilities -> Bool
+shouldShowRosterSortForm (Just rosterWeek) viewCapabilities = viewCapabilities.canManageRosterColumns && not rosterWeek.isLive
+shouldShowRosterSortForm Nothing _ = False
 
-shouldShowRosterSortForm :: Maybe RosterWeek -> Bool
-shouldShowRosterSortForm (Just rosterWeek) = not rosterWeek.isLive
-shouldShowRosterSortForm Nothing = False
-
-renderRosterSortForm :: (?context :: ControllerContext) => Maybe RosterWeek -> Html
-renderRosterSortForm (Just rosterWeek)
-    | not rosterWeek.isLive = [hsx|
+renderRosterSortForm :: (?context :: ControllerContext) => Maybe RosterWeek -> RosterViewCapabilities -> Html
+renderRosterSortForm (Just rosterWeek) viewCapabilities
+    | shouldShowRosterSortForm (Just rosterWeek) viewCapabilities = [hsx|
         <form method="POST"
               action={SortRosterWeekAction rosterWeek.id}
               class="mb-0"
@@ -238,7 +226,7 @@ renderRosterSortForm (Just rosterWeek)
             </button>
         </form>
     |]
-renderRosterSortForm _ = mempty
+renderRosterSortForm _ _ = mempty
 
 renderRosterExportMenuSection :: Maybe RosterWeek -> RosterViewCapabilities -> Html
 renderRosterExportMenuSection maybeRosterWeek viewCapabilities

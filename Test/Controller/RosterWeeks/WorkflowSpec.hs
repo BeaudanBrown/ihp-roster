@@ -1239,6 +1239,7 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-roster-layout=\"day_columns\""
+                response `responseBodyShouldContain` "hx-swap=\"none settle:0ms\""
                 response `responseBodyShouldContain` "roster-day-columns"
 
                 preferences <- query @UserPreference

@@ -259,8 +259,12 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-week-toolbar-section=\"navigation\""
                 response `responseBodyShouldContain` "data-week-toolbar-section=\"settings\""
                 response `responseBodyShouldContain` "data-roster-week-controls=\"manager-actions\""
+                response `responseBodyShouldContain` "Week actions"
                 response `responseBodyShouldContain` "hx-post=\"/CopyRosterWeek?sourceWeekOffset=-1&amp;targetWeekOffset=0&amp;rosterGroupId="
                 response `responseBodyShouldContain` "hx-confirm=\"This will overwrite the current week with the previous week's roster. Continue?\""
+                response `responseBodyShouldContain` "Sort shifts"
+                response `responseBodyShouldContain` "hx-post=\"/SortRosterWeek?rosterWeekId="
+                response `responseBodyShouldNotContain` "Roster columns"
                 response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
                 response `responseBodyShouldContain` "roster-live-toggle-"
                 response `responseBodyShouldContain` "app-toggle-button btn-outline-success"
@@ -280,6 +284,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "Copy Previous Week"
                 response `responseBodyShouldNotContain` "hx-post=\"/CopyRosterWeek"
+                response `responseBodyShouldNotContain` "Sort shifts"
 
         it "roster group switcher preserves weekOffset in the submitted form" $ withContext do
             withCleanDb do
