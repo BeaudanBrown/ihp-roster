@@ -1701,8 +1701,8 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "Readiness validation"
-                response `responseBodyShouldContain` "Xero already has a timesheet for this employee and period"
-                response `responseBodyShouldContain` "Create is blocked until update support exists"
+                response `responseBodyShouldContain` "Xero already has a non-draft timesheet for this employee and period"
+                response `responseBodyShouldContain` "Update or delete it in Xero before continuing"
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
                 preparationRun.status `shouldBe` "blocked"
                 preparationRun.remoteTimesheetsJson `shouldSatisfy` Preview.jsonContainsKey "remoteTimesheets"
