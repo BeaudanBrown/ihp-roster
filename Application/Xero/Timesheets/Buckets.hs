@@ -35,16 +35,26 @@ fetchPeriodXeroLocalEarningsBuckets venueId periodStart periodEnd skippedStaffId
             |> filterWhere (#venueId, unpackId venueId)
             |> filterWhereIn (#id, map (Id . (.staffId)) entries)
             |> fetch
+    staffPayVersions <-
+        query @StaffPayVersion
+            |> filterWhereIn (#id, mapMaybe (fmap Id . (.staffPayVersionId)) entries)
+            |> fetch
+    shiftTypePayVersions <-
+        query @ShiftTypePayVersion
+            |> filterWhereIn (#id, mapMaybe (fmap Id . (.shiftTypePayVersionId)) entries)
+            |> fetch
     payResults <- fetchTimesheetPayResultsForEntries entries
     awardLevels <- query @AwardLevel |> fetch
     baseRates <- query @AwardLevelBaseRate |> fetch
     penaltyRates <- query @AwardLevelPenaltyRate |> fetch
     timeAllowances <- query @AwardTimePenaltyAllowance |> fetch
-    let buckets = concatMap (entryBuckets staffMembers payResults awardLevels baseRates penaltyRates timeAllowances) entries
+    let buckets = concatMap (entryBuckets staffMembers staffPayVersions shiftTypePayVersions payResults awardLevels baseRates penaltyRates timeAllowances) entries
     pure (dedupeBuckets buckets)
 
 entryBuckets ::
     [Staff] ->
+    [StaffPayVersion] ->
+    [ShiftTypePayVersion] ->
     Map.Map Text TimesheetPayResult ->
     [AwardLevel] ->
     [AwardLevelBaseRate] ->
@@ -52,17 +62,29 @@ entryBuckets ::
     [AwardTimePenaltyAllowance] ->
     TimesheetEntry ->
     [XeroLocalEarningsBucket]
-entryBuckets staffMembers payResults awardLevels baseRates penaltyRates timeAllowances entry =
-    case do
-        staff <- List.find (\candidate -> unpackId candidate.id == entry.staffId) staffMembers
-        payResult <- Map.lookup (timesheetEntryIdKey entry.id) payResults
-        pure (staff, payResult)
-    of
-        Nothing -> []
-        Just (staff, payResult) ->
-            payResult.segments
-                |> filter (\segment -> segment.minutes > 0)
-                |> mapMaybe (segmentBucket awardLevels baseRates penaltyRates timeAllowances staff payResult)
+entryBuckets staffMembers staffPayVersions shiftTypePayVersions payResults awardLevels baseRates penaltyRates timeAllowances entry
+    | entryUsesImportedPayItem staffPayVersions shiftTypePayVersions entry = []
+    | otherwise =
+        case do
+            staff <- List.find (\candidate -> unpackId candidate.id == entry.staffId) staffMembers
+            payResult <- Map.lookup (timesheetEntryIdKey entry.id) payResults
+            pure (staff, payResult)
+        of
+            Nothing -> []
+            Just (staff, payResult) ->
+                payResult.segments
+                    |> filter (\segment -> segment.minutes > 0)
+                    |> mapMaybe (segmentBucket awardLevels baseRates penaltyRates timeAllowances staff payResult)
+
+entryUsesImportedPayItem :: [StaffPayVersion] -> [ShiftTypePayVersion] -> TimesheetEntry -> Bool
+entryUsesImportedPayItem staffPayVersions shiftTypePayVersions entry =
+    maybe False staffVersionUsesImportedPayItem entry.staffPayVersionId
+        || maybe False shiftVersionUsesImportedPayItem entry.shiftTypePayVersionId
+    where
+        staffVersionUsesImportedPayItem versionId =
+            any (\version -> unpackId version.id == versionId && isJust version.importedXeroPayItemId) staffPayVersions
+        shiftVersionUsesImportedPayItem versionId =
+            any (\version -> unpackId version.id == versionId && isJust version.importedXeroPayItemId) shiftTypePayVersions
 
 segmentBucket ::
     [AwardLevel] ->

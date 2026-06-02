@@ -74,7 +74,7 @@ tests = do
 
     beforeAll testContext do
       describe "Xero draft-timesheet readiness" do
-        it "warns on missing staff mapping and blocks missing earnings mapping and managed pay item readiness" $ withContext do
+        it "warns on missing staff mapping and blocks proposed managed pay item readiness without duplicate bucket noise" $ withContext do
             withCleanDb do
                 fixture <- createReadinessFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
 
@@ -82,8 +82,20 @@ tests = do
 
                 readinessBlockerCodes readiness `shouldNotSatisfy` elem "staff_mapping_not_verified"
                 map (.xeroBlockerCode) readiness.xeroReadinessWarnings `shouldSatisfy` elem "staff_mapping_not_verified"
-                readinessBlockerCodes readiness `shouldSatisfy` elem "earnings_mapping_not_verified"
+                readinessBlockerCodes readiness `shouldNotSatisfy` elem "earnings_mapping_not_verified"
                 readinessBlockerCodes readiness `shouldSatisfy` elem "managed_pay_item_not_ready"
+
+        it "blocks missing earnings mapping when no managed requirement covers the bucket" $ withContext do
+            withCleanDb do
+                fixture <- createReadinessFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
+                requirements <- query @XeroPayItemRequirementRecord |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
+                forM_ requirements \requirement ->
+                    requirement |> set #requirementStatus ("ignored" :: Text) |> updateRecord >>= const (pure ())
+
+                readiness <- validateXeroTimesheetReadiness fixture.request
+
+                readinessBlockerCodes readiness `shouldSatisfy` elem "earnings_mapping_not_verified"
+                readinessBlockerCodes readiness `shouldNotSatisfy` elem "managed_pay_item_not_ready"
 
         it "warns once when unapproved entries remain in the pay period" $ withContext do
             withCleanDb do
@@ -128,6 +140,46 @@ tests = do
                 readinessBlockerCodes readiness `shouldNotSatisfy` elem "earnings_mapping_not_verified"
                 readinessBlockerCodes readiness `shouldNotSatisfy` elem "managed_pay_item_not_ready"
                 readinessBlockerCodes readiness `shouldNotSatisfy` elem "missing_pay_item_account_code"
+                readiness.xeroTimesheetReady `shouldBe` True
+
+        it "accepts locked imported Xero pay items without requiring managed award buckets" $ withContext do
+            withCleanDb do
+                fixture <- createReadinessFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
+                _ <-
+                    newRecord @XeroStaffMapping
+                        |> set #venueId (unpackId fixture.venue.id)
+                        |> set #staffId (unpackId fixture.staff.id)
+                        |> set #xeroConnectionId (unpackId fixture.connection.id)
+                        |> set #xeroEmployeeId (Just "employee-ready")
+                        |> set #xeroEmployeeName (Just "Ada Lovelace")
+                        |> set #mappingStatus ("verified" :: Text)
+                        |> createRecord
+                _ <- createReadinessXeroEmployee fixture "employee-ready" (Just "calendar-ready")
+                importedPayItem <-
+                    newRecord @XeroImportedPayItem
+                        |> set #venueId (unpackId fixture.venue.id)
+                        |> set #xeroConnectionId (unpackId fixture.connection.id)
+                        |> set #xeroEarningsRateId ("earnings-imported" :: Text)
+                        |> set #name ("Imported owner pay" :: Text)
+                        |> set #earningsType ("ordinarytimeearnings" :: Text)
+                        |> set #rateType ("rateperunit" :: Text)
+                        |> set #typeOfUnits ("hours" :: Text)
+                        |> set #ratePerUnit 25
+                        |> set #rawPayload Aeson.Null
+                        |> set #importedByUserId (unpackId fixture.owner.id)
+                        |> createRecord
+                entry <- query @TimesheetEntry |> filterWhere (#venueId, unpackId fixture.venue.id) |> fetchOne
+                case entry.staffPayVersionId of
+                    Nothing -> expectationFailure "expected approved entry to lock a staff pay version"
+                    Just staffPayVersionId -> do
+                        staffPayVersion <- fetch (Id staffPayVersionId :: Id StaffPayVersion)
+                        staffPayVersion |> set #importedXeroPayItemId (Just importedPayItem.id) |> updateRecord >>= const (pure ())
+
+                readiness <- validateXeroTimesheetReadiness fixture.request
+
+                readinessBlockerCodes readiness `shouldNotSatisfy` elem "earnings_mapping_not_verified"
+                readinessBlockerCodes readiness `shouldNotSatisfy` elem "managed_pay_item_not_ready"
+                readiness.xeroReadinessPayBucketCount `shouldBe` 0
                 readiness.xeroTimesheetReady `shouldBe` True
 
         it "allows a Xero period to include multiple relational pay versions" $ withContext do

@@ -456,8 +456,7 @@ earningsMappingBlockers buckets mappings requirements =
             any
                 (\record ->
                     record.requirementKey == bucket.localBucketKey
-                        && record.requirementStatus `elem` ["matched", "created"]
-                        && isJust record.xeroEarningsRateId
+                        && record.requirementStatus /= "ignored"
                 )
                 requirements
 
