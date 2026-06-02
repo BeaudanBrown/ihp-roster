@@ -104,7 +104,7 @@ tests =
                             submissions <- query @XeroTimesheetSubmission |> filterWhere (#xeroSubmissionRunId, unpackId run.id) |> fetch
                             submissions `shouldBe` []
 
-            it "submits selected-calendar employees and excludes different-calendar employees" $ withContext do
+            it "submits mapped employees without persisted payroll calendar filtering" $ withContext do
                 withCleanDb do
                     fixture <-
                         createPreviewFixture
@@ -113,7 +113,7 @@ tests =
                             , EntrySpec 1 fixtureStaffB (TimeOfDay 9 0 0) (TimeOfDay 12 0 0)
                             ]
                     prepareConnectionForStrictMock fixture.connection
-                    forceFixtureEmployeeCalendarById fixture "employee-b" "calendar-other"
+                    overwriteFixtureEmployeeRawCalendar fixture "employee-b" "calendar-other"
 
                     result <-
                         XeroMock.withStrictXeroMock identitySpec payrollSpec \urls ->
@@ -126,10 +126,10 @@ tests =
                         Right run -> do
                             run.status `shouldBe` "submitted"
                             submissions <- query @XeroTimesheetSubmission |> filterWhere (#xeroSubmissionRunId, unpackId run.id) |> fetch
-                            submissions `shouldSatisfy` ((== 1) . length)
-                            map (.xeroEmployeeId) submissions `shouldBe` ["employee-a"]
+                            submissions `shouldSatisfy` ((== 2) . length)
+                            map (.xeroEmployeeId) submissions `shouldBe` ["employee-a", "employee-b"]
                             entries <- query @XeroTimesheetSubmissionEntry |> fetch
-                            map (.timesheetEntryId) entries `shouldBe` map (unpackId . (.id)) (take 1 fixture.entries)
+                            map (.timesheetEntryId) entries `shouldBe` map (unpackId . (.id)) fixture.entries
 
             it "persists semantic Xero validation errors from strict create responses" $ withContext do
                 withCleanDb do
@@ -269,15 +269,15 @@ forceFixtureEmployeeId fixture employeeId = do
     forM_ employees \employee ->
         void (employee |> set #xeroEmployeeId employeeId |> updateRecord)
 
-forceFixtureEmployeeCalendarById :: (?modelContext :: ModelContext) => PreviewFixture -> Text -> Text -> IO ()
-forceFixtureEmployeeCalendarById fixture employeeId payrollCalendarId = do
+overwriteFixtureEmployeeRawCalendar :: (?modelContext :: ModelContext) => PreviewFixture -> Text -> Text -> IO ()
+overwriteFixtureEmployeeRawCalendar fixture employeeId payrollCalendarId = do
     employees <-
         query @XeroEmployee
             |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id)
             |> filterWhere (#xeroEmployeeId, employeeId)
             |> fetch
     forM_ employees \employee ->
-        void (employee |> set #payrollCalendarId (Just payrollCalendarId) |> updateRecord)
+        void (employee |> set #rawPayload (Aeson.object ["EmployeeID" Aeson..= employeeId, "PayrollCalendarID" Aeson..= payrollCalendarId]) |> updateRecord)
 
 failIfCreateTimesheetClient :: XeroClient
 failIfCreateTimesheetClient =

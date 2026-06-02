@@ -432,7 +432,7 @@ tests = beforeAll testContext do
                 employeeCount <- query @XeroEmployee |> fetchCount
                 employeeCount `shouldBe` 1
                 syncedEmployee <- query @XeroEmployee |> fetchOne
-                syncedEmployee.payrollCalendarId `shouldBe` Just "calendar-1"
+                syncedEmployee.rawPayload `shouldSatisfy` Preview.jsonContainsKey "EmployeeID"
                 earningsRateCount <- query @XeroEarningsRate |> fetchCount
                 earningsRateCount `shouldBe` 1
                 payrollCalendarCount <- query @XeroPayrollCalendar |> fetchCount
@@ -2284,7 +2284,6 @@ createXeroEmployeeRecord connection displayName maybeEmail employeeId = do
         |> set #displayName displayName
         |> set #email maybeEmail
         |> set #status (Just "ACTIVE")
-        |> set #payrollCalendarId Nothing
         |> set #rawPayload (Aeson.object ["EmployeeID" Aeson..= employeeId])
         |> set #syncedAt now
         |> createRecord
