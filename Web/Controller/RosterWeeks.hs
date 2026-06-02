@@ -8,8 +8,8 @@ module Web.Controller.RosterWeeks where
 
 import Application.Helper.Controller
 import Application.Helper.LiveResource (LiveMutationResult (..), LiveResource)
-import Application.Helper.LiveSurface (serveTypedLiveFragment,
-                                       setTypedLiveSurfaceActorRefresh,
+import Application.Helper.LiveSurface (respondWithTypedLiveSurfaceFragments,
+                                       serveTypedLiveFragment,
                                        typedLiveSurfaceAffectedFragments)
 import Application.Helper.LiveUpdate (LiveUpdateScope (..))
 import Application.Helper.Profiling
@@ -300,7 +300,7 @@ instance Controller RosterWeeksController where
                 respondWithRosterActorRefresh
                     rosterGroupId
                     rosterWeek.weekOffset
-                    rosterContentAndStaffPanelFragments
+                    rosterGridFrameAndStaffPanelFragments
             else do
                 setSuccessMessage "Roster sorted."
                 redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
@@ -331,7 +331,7 @@ instance Controller RosterWeeksController where
                 respondWithRosterActorRefresh
                     rosterGroupId
                     rosterWeek.weekOffset
-                    rosterContentAndStaffPanelFragments
+                    rosterGridFrameAndStaffPanelFragments
             else do
                 setSuccessMessage successMessage
                 redirectToPath targetPath
@@ -374,7 +374,7 @@ instance Controller RosterWeeksController where
                         respondWithRosterActorRefresh
                             rosterGroupId
                             rosterWeek.weekOffset
-                            rosterContentAndStaffPanelFragments
+                            rosterGridFrameAndStaffPanelFragments
                     else do
                         setSuccessMessage "Roster row added."
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
@@ -423,7 +423,7 @@ instance Controller RosterWeeksController where
                         respondWithRosterActorRefresh
                             rosterGroupId
                             rosterWeek.weekOffset
-                            rosterContentAndStaffPanelFragments
+                            rosterGridFrameAndStaffPanelFragments
                     else do
                         setSuccessMessage "Roster row removed."
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
@@ -730,8 +730,8 @@ respondToRosterSlotMutation rosterGroupId rosterWeek rosterDay rowIndex mutation
     let maybeStaffParam = tshow <$> maybeStaffId
     let actorFragmentCandidates =
             case rosterLayoutModeValue layoutMode of
-                "day_columns" -> rosterContentAndStaffPanelFragments
-                _ -> rosterContentAndStaffPanelFragments
+                "day_columns" -> rosterGridFrameAndStaffPanelFragments
+                _ -> rosterGridFrameAndStaffPanelFragments
                     <> actorRosterRowFragments maybeStaffParam [(unpackId rosterDay.id, rowIndex)]
                     <> assignmentRefreshFragments maybeStaffParam
     let actorFragments =
@@ -752,8 +752,8 @@ respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult maybeStaffId i
     let maybeStaffParam = tshow <$> maybeStaffId
     let actorFragmentCandidates =
             case rosterLayoutModeValue layoutMode of
-                "day_columns" -> rosterContentAndStaffPanelFragments
-                _ -> rosterContentAndStaffPanelFragments
+                "day_columns" -> rosterGridFrameAndStaffPanelFragments
+                _ -> rosterGridFrameAndStaffPanelFragments
                     <> actorRosterRowFragments maybeStaffParam impactedRowKeys
                     <> assignmentRefreshFragments maybeStaffParam
     let actorFragments =
@@ -854,25 +854,37 @@ respondWithRosterActorRefresh :: (?context :: ControllerContext, ?modelContext :
 respondWithRosterActorRefresh rosterGroupId weekOffset fragments =
     respondWithRosterActorRefreshWithToast rosterGroupId weekOffset fragments Nothing
 
-respondWithRosterActorRefreshWithToast :: (?context :: ControllerContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> Maybe Text -> IO ()
-respondWithRosterActorRefreshWithToast rosterGroupId weekOffset fragments maybeWarningMessage = do
-    setTypedLiveSurfaceActorRefresh rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroupId weekOffset) fragments
-    respondHtmlProfiled $
-        clearDialogOverlayOob <> maybe mempty (renderToastOob ToastBottomCenter . errorToast) maybeWarningMessage
+respondWithRosterActorRefreshWithToast :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> Maybe Text -> IO ()
+respondWithRosterActorRefreshWithToast rosterGroupId weekOffset fragments maybeWarningMessage =
+    respondWithRosterActorFragments
+        rosterGroupId
+        weekOffset
+        fragments
+        (clearDialogOverlayOob <> maybe mempty (renderToastOob ToastBottomCenter . errorToast) maybeWarningMessage)
 
-respondWithRosterActorRefreshWithSuccess :: (?context :: ControllerContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> Text -> IO ()
-respondWithRosterActorRefreshWithSuccess rosterGroupId weekOffset fragments successMessage = do
-    setTypedLiveSurfaceActorRefresh rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroupId weekOffset) fragments
-    respondHtmlProfiled $
-        clearDialogOverlayOob <> renderToastOob ToastBottomCenter (successToast successMessage)
+respondWithRosterActorRefreshWithSuccess :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> Text -> IO ()
+respondWithRosterActorRefreshWithSuccess rosterGroupId weekOffset fragments successMessage =
+    respondWithRosterActorFragments
+        rosterGroupId
+        weekOffset
+        fragments
+        (clearDialogOverlayOob <> renderToastOob ToastBottomCenter (successToast successMessage))
+
+respondWithRosterActorFragments :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
+respondWithRosterActorFragments rosterGroupId weekOffset fragments extraHtml =
+    respondWithTypedLiveSurfaceFragments
+        rosterProjectionDefinition
+        (buildRosterProjectionScope rosterGroupId weekOffset)
+        fragments
+        extraHtml
+        renderRosterProjectionFragmentWithMode
 
 clearDialogOverlayOob :: Blaze.Html
 clearDialogOverlayOob = [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
 
-respondWithActorRosterFragmentRefresh :: (?context :: ControllerContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> IO ()
-respondWithActorRosterFragmentRefresh rosterGroupId weekOffset fragments = do
-    setTypedLiveSurfaceActorRefresh rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroupId weekOffset) fragments
-    respondHtmlProfiled mempty
+respondWithActorRosterFragmentRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> IO ()
+respondWithActorRosterFragmentRefresh rosterGroupId weekOffset fragments =
+    respondWithRosterActorFragments rosterGroupId weekOffset fragments mempty
 
 respondWithRosterPatches :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> Bool -> IO ()
 respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys shouldRefreshStaffPanel = do
@@ -1123,14 +1135,14 @@ respondToRosterSlotDefinitionError rosterWeek errorMessage =
             setErrorMessage errorMessage
             redirectToPath (rosterWeekUrl rosterWeek.weekOffset (coerce rosterWeek.rosterGroupId :: Id RosterGroup))
 
-respondToRosterSlotDefinitionSuccess :: (?context :: ControllerContext, ?request :: Request) => RosterWeek -> Text -> IO ()
+respondToRosterSlotDefinitionSuccess :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWeek -> Text -> IO ()
 respondToRosterSlotDefinitionSuccess rosterWeek successMessage =
     if isHtmxRequest
         then
             respondWithActorRosterFragmentRefresh
                 rosterGroupId
                 rosterWeek.weekOffset
-                rosterContentAndStaffPanelFragments
+                rosterGridFrameAndStaffPanelFragments
         else do
             setSuccessMessage successMessage
             redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)

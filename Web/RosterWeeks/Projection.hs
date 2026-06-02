@@ -92,7 +92,5 @@ actorRosterRowFragments _ =
     rosterRowFragments
 
 assignmentRefreshFragments :: Maybe Text -> [RosterProjectionFragment]
-assignmentRefreshFragments maybeStaffParam =
-    [ rosterContentFragment
-    | isJust maybeStaffParam
-    ]
+assignmentRefreshFragments _ =
+    []
