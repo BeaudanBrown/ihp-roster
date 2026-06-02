@@ -158,6 +158,7 @@ loadXeroTimesheetPreparationView runId = do
                 manualStaffDecisionCount = length (filter (.preparationStaffNeedsDecision) staffDecisionRows)
                 postedBlocked = preparationRunPosted run
                 proposedPayItemCount = length (filter ((== "proposed") . (.payItemRequirementStatus) . (.preparationPayItemRequirement)) payItemRows)
+                pendingPayItemDecisionCount = length (filter pendingPayItemCreateDecision decisions)
                 canPreview =
                     connection.connectionStatus == "active"
                         && not postedBlocked
@@ -168,6 +169,7 @@ loadXeroTimesheetPreparationView runId = do
                     connection.connectionStatus == "active"
                         && not postedBlocked
                         && pendingDecisionCount == 0
+                        && pendingPayItemDecisionCount == 0
                         && manualStaffDecisionCount == 0
                         && readinessAllowsAutomaticPayItemSubmit readiness
                         && (proposedPayItemCount == 0 || not (null accountCodeOptions))
@@ -229,45 +231,6 @@ applyXeroPreparationStaffDecision runId staffId decision = do
                             applyEmployeeMappingDecision run connection staff decisionKind employeeId
     where
         remoteTimesheetsFromCurrentRun updatedRun = remoteTimesheetsFromRun updatedRun
-
-approveXeroPreparationPayItems ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Id XeroTimesheetPreparationRun ->
-    Maybe Text ->
-    IO (Either Text XeroTimesheetPreparationView)
-approveXeroPreparationPayItems runId maybeAccountCode = do
-    fetchPreparationRunForCurrentVenue runId >>= \case
-        Nothing -> pure (Left "Xero preparation run was not found for this venue.")
-        Just run -> do
-            connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
-            xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
-            requirements <- fetchPreparationPayItemRequirements run connection xeroEarningsRates
-            accountCodeOptions <- fetchCurrentVenueXeroPayItemAccountCodeOptions (Just connection)
-            accountCodeSelection <- fetchCurrentVenueXeroPayItemAccountCodeSelection (Just connection)
-            forM_ (Text.strip <$> maybeAccountCode) \accountCode ->
-                when (not (Text.null accountCode)) do
-                    persistPreparationAccountCodeSelection connection accountCodeOptions accountCode
-            latestSelection <- fetchCurrentVenueXeroPayItemAccountCodeSelection (Just connection)
-            let selectedAccountCode = selectedXeroPayItemAccountCode accountCodeOptions latestSelection <|> selectedXeroPayItemAccountCode accountCodeOptions accountCodeSelection
-                proposedRequirements = filter (\requirement -> requirement.payItemRequirementStatus == "proposed") requirements
-            case selectedAccountCode of
-                Nothing -> pure (Left "Choose a Xero account code before creating managed pay items.")
-                Just accountCode
-                    | null proposedRequirements -> reloadAfterLocalDecision run remoteTimesheetsFromRun
-                    | otherwise ->
-                        readXeroConfig >>= \case
-                            Left message -> pure (Left message)
-                            Right config ->
-                                refreshXeroConnectionAccessWithoutBroadcast config connection >>= \case
-                                    Left message -> pure (Left message)
-                                    Right (refreshedConnection, accessToken) -> do
-                                        xeroClient <- currentXeroClient
-                                        now <- getCurrentTime
-                                        createProposedXeroPayItems xeroClient refreshedConnection accessToken now accountCode proposedRequirements >>= \case
-                                            Left message -> pure (Left message)
-                                            Right _ -> do
-                                                markPayItemCreateDecisionsApplied run proposedRequirements
-                                                refreshXeroTimesheetPreparation run.id
 
 ensurePreparationPayItemsReady ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -417,6 +380,7 @@ saveXeroPreparationAccountCode runId accountCode =
                         pure (Left "Choose a synced Xero account code from the dropdown.")
                     | otherwise -> do
                         persistPreparationAccountCodeSelection connection accountCodeOptions selectedAccountCode
+                        markPayItemCreateDecisionsApplied run []
                         reloadAfterLocalDecision run remoteTimesheetsFromRun
 
 previewXeroTimesheetPreparation ::
@@ -877,13 +841,16 @@ markPayItemCreateDecisionsApplied ::
     IO ()
 markPayItemCreateDecisionsApplied run requirements = do
     let requirementKeys = map (.payItemRequirementKey) requirements
-    decisions <-
-        query @XeroTimesheetPreparationDecision
-            |> filterWhere (#xeroTimesheetPreparationRunId, unpackId run.id)
-            |> filterWhere (#decisionKind, "pay_item_create" :: Text)
-            |> filterWhereIn (#localBucketKey, map Just requirementKeys)
-            |> filterWhere (#decisionStatus, "pending" :: Text)
-            |> fetch
+    decisions <- do
+        pendingDecisions <-
+            query @XeroTimesheetPreparationDecision
+                |> filterWhere (#xeroTimesheetPreparationRunId, unpackId run.id)
+                |> filterWhere (#decisionKind, "pay_item_create" :: Text)
+                |> filterWhere (#decisionStatus, "pending" :: Text)
+                |> fetch
+        pure $ if null requirementKeys
+            then pendingDecisions
+            else filter (\decision -> decision.localBucketKey `elem` map Just requirementKeys) pendingDecisions
     now <- getCurrentTime
     forM_ decisions \decision ->
         decision
@@ -917,6 +884,10 @@ persistRemotePreparationState connection run payRuns remoteTimesheets = do
 pendingManualPreparationDecision :: XeroTimesheetPreparationDecision -> Bool
 pendingManualPreparationDecision decision =
     decision.decisionStatus == "pending" && decision.decisionKind /= "pay_item_create"
+
+pendingPayItemCreateDecision :: XeroTimesheetPreparationDecision -> Bool
+pendingPayItemCreateDecision decision =
+    decision.decisionStatus == "pending" && decision.decisionKind == "pay_item_create"
 
 readinessAllowsAutomaticPayItemSubmit :: XeroTimesheetReadiness -> Bool
 readinessAllowsAutomaticPayItemSubmit readiness =
@@ -1051,7 +1022,7 @@ preparationPayItemRow decisions requirement =
                     ( \decision ->
                         decision.localBucketKey == Just requirement.payItemRequirementKey
                             && decision.decisionKind == "pay_item_create"
-                            && decision.decisionStatus == "pending"
+                            && decision.decisionStatus `elem` ["pending", "applied"]
                     )
         }
 

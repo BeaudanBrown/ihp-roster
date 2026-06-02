@@ -242,7 +242,13 @@ needsStaffStep view =
         || any staffRowNeedsAttention view.preparationStaffRows
 
 needsPayItemStep :: XeroTimesheetPreparationView -> Bool
-needsPayItemStep view = not (null (proposedPayItemRows view)) && isNothing (selectedAccountCode view)
+needsPayItemStep view = any payItemRowNeedsApproval proposedRows || (not (null proposedRows) && isNothing (selectedAccountCode view))
+    where
+        proposedRows = proposedPayItemRows view
+
+payItemRowNeedsApproval :: XeroPreparationPayItemRow -> Bool
+payItemRowNeedsApproval row =
+    maybe True ((== "pending") . (.decisionStatus)) row.preparationPayItemDecision
 
 proposedPayItemRows :: XeroTimesheetPreparationView -> [XeroPreparationPayItemRow]
 proposedPayItemRows view =

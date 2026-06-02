@@ -1449,6 +1449,20 @@ tests = beforeAll testContext do
                                     [("periodKey", fixturePeriodKey fixture)]
                 run <- query @XeroTimesheetPreparationRun |> fetchOne
 
+                approvalResponse <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest xeroClient do
+                        withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callActionWithParams (ApproveXeroTimesheetPreparationPayItemsAction run.id)
+                                    [("accountCode", "477")]
+
+                approvalResponse `responseStatusShouldBe` status200
+                approvalResponse `responseBodyShouldContain` "Review Xero draft timesheets"
+                approvalRequests <- liftIO $ IORef.readIORef requestsRef
+                approvalRequests `shouldBe` []
+                pendingAfterApproval <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "pay_item_create" :: Text) |> filterWhere (#decisionStatus, "pending" :: Text) |> fetchCount
+                pendingAfterApproval `shouldBe` 0
+
                 response <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest xeroClient do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
@@ -1463,7 +1477,7 @@ tests = beforeAll testContext do
                 length createRequests `shouldSatisfy` (> 0)
                 refreshedRun <- fetch run.id
                 refreshedRun.status `shouldBe` "submitted"
-                submissionRun <- query @XeroSubmissionRun |> fetchOne
+                submissionRun <- query @XeroSubmissionRun |> filterWhere (#status, "submitted" :: Text) |> fetchOne
                 submissionRun.status `shouldBe` "submitted"
                 pendingPayItemDecisions <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "pay_item_create" :: Text) |> filterWhere (#decisionStatus, "pending" :: Text) |> fetchCount
                 pendingPayItemDecisions `shouldBe` 0
