@@ -110,7 +110,6 @@ validateXeroTimesheetReadiness request = do
             concat
                 [ entryWarnings entries
                 , staffMappingWarnings entries staffMappings
-                , employeePayrollCalendarWarnings maybeConnection maybeCalendar staffMappings syncedEmployees
                 , duplicateWarnings request entries selectedCalendarStaffMappings request.readinessRemoteTimesheets
                 ]
     pure XeroTimesheetReadiness
@@ -354,34 +353,6 @@ employeePayrollCalendarBlockers request _ (Just calendar) mappings employees =
             )
                 { xeroBlockerXeroObjectId = Just employee.xeroEmployeeId
                 }
-
-employeePayrollCalendarWarnings ::
-    Maybe XeroConnection ->
-    Maybe XeroPayrollCalendar ->
-    [XeroStaffMapping] ->
-    [XeroEmployee] ->
-    [XeroReadinessBlocker]
-employeePayrollCalendarWarnings Nothing _ _ _ = []
-employeePayrollCalendarWarnings _ Nothing _ _ = []
-employeePayrollCalendarWarnings _ (Just calendar) mappings employees =
-    concatMap mappingWarnings mappedMappings
-    where
-        employeesByXeroId = Map.fromList [(employee.xeroEmployeeId, employee) | employee <- employees]
-        mappedMappings = filter (isJust . (.xeroEmployeeId)) mappings
-        mappingWarnings mapping =
-            case mapping.xeroEmployeeId >>= (`Map.lookup` employeesByXeroId) of
-                Just employee
-                    | maybe False (/= calendar.xeroPayrollCalendarId) employee.payrollCalendarId ->
-                        [ (employeeBlocker
-                            mapping
-                            "employee_payroll_calendar_excluded"
-                            ("Skipped mapped Xero employee " <> employee.xeroEmployeeId <> " because they belong to payroll calendar " <> fromMaybe "" employee.payrollCalendarId <> ", not selected calendar " <> calendar.xeroPayrollCalendarId <> ".")
-                          )
-                            { xeroBlockerSeverity = XeroReadinessWarning
-                            , xeroBlockerXeroObjectId = Just employee.xeroEmployeeId
-                            }
-                        ]
-                _ -> []
 
 staffMappingsForSelectedPayrollCalendar :: Maybe XeroPayrollCalendar -> [XeroStaffMapping] -> [XeroEmployee] -> [XeroStaffMapping]
 staffMappingsForSelectedPayrollCalendar Nothing mappings _ = mappings

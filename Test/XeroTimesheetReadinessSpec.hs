@@ -213,7 +213,7 @@ tests = do
                 readinessBlockerCodes readiness `shouldSatisfy` elem "employee_payroll_calendar_missing"
                 readiness.xeroTimesheetReady `shouldBe` False
 
-        it "warns and stays ready for a mapped employee on a different synced payroll calendar" $ withContext do
+        it "stays ready without warning for a mapped employee on a different synced payroll calendar" $ withContext do
             withCleanDb do
                 fixture <- createReadyMappedFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
                 employees <- query @XeroEmployee |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
@@ -239,7 +239,7 @@ tests = do
 
                 readinessBlockerCodes readiness `shouldNotSatisfy` elem "employee_payroll_calendar_mismatch"
                 readinessBlockerCodes readiness `shouldNotSatisfy` elem "existing_xero_timesheet"
-                map (.xeroBlockerCode) readiness.xeroReadinessWarnings `shouldSatisfy` elem "employee_payroll_calendar_excluded"
+                map (.xeroBlockerCode) readiness.xeroReadinessWarnings `shouldNotSatisfy` elem "employee_payroll_calendar_excluded"
                 readiness.xeroTimesheetReady `shouldBe` True
 
         it "keeps a mapped employee on the selected payroll calendar ready" $ withContext do
