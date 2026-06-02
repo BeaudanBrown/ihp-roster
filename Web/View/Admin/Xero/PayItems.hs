@@ -70,9 +70,9 @@ renderXeroPayItemsDataOob =
     renderXeroPayItemsDataWith outerHtmlOobSwap
 
 renderXeroPayItemsDataWith :: OobSwapAttr -> [XeroPayItemAccountCodeOption] -> [XeroPayItemRequirement] -> [XeroImportedPayItem] -> Maybe XeroPayItemAccountCodeSelection -> Maybe XeroSyncRun -> Bool -> Html
-renderXeroPayItemsDataWith maybeOobSwap _accountCodeOptions _requirements importedPayItems _maybePayItemAccountCodeSelection _maybePayItemSyncRun canManagePayItems = [hsx|
+renderXeroPayItemsDataWith maybeOobSwap accountCodeOptions _requirements importedPayItems _maybePayItemAccountCodeSelection _maybePayItemSyncRun canManagePayItems = [hsx|
     <div id="xero-pay-items-data" class={appSurfaceClasses "p-3"} hx-swap-oob={maybeOobSwap}>
-        {renderImportedXeroPayItemsPanel importedPayItems canManagePayItems}
+        {renderImportedXeroPayItemsPanel accountCodeOptions importedPayItems canManagePayItems}
     </div>
 |]
 
@@ -177,13 +177,13 @@ renderXeroPayItemRequirementStatus requirement =
         ("rate_changed", _)            -> renderAppStatusBadge AppStatusWarning "rate changed"
         _                              -> renderAppStatusBadge AppStatusNeutral "proposed"
 
-renderImportedXeroPayItemsPanel :: [XeroImportedPayItem] -> Bool -> Html
-renderImportedXeroPayItemsPanel importedPayItems canManagePayItems = [hsx|
+renderImportedXeroPayItemsPanel :: [XeroPayItemAccountCodeOption] -> [XeroImportedPayItem] -> Bool -> Html
+renderImportedXeroPayItemsPanel accountCodeOptions importedPayItems canManagePayItems = [hsx|
     <div class={appSurfaceClasses "p-3 bg-body-tertiary"}>
         <div class="d-flex flex-column flex-lg-row justify-content-between gap-2 mb-3">
             <div>
                 <h3 class="h6 mb-1">Imported Xero pay items</h3>
-                <p class="small app-muted mb-0">Import venue-owned hourly Xero earnings rates for staff and shift-type pay overrides.</p>
+                <p class="small app-muted mb-0">Import pay items from Xero to assign to shifts and staff in Bepis.</p>
             </div>
             <form method="GET"
                   action={OpenXeroPayItemImportAction}
@@ -193,8 +193,8 @@ renderImportedXeroPayItemsPanel importedPayItems canManagePayItems = [hsx|
                 <button type="submit" class="btn btn-sm btn-outline-primary" disabled={not canManagePayItems}>Import from Xero</button>
             </form>
         </div>
-        {renderActiveImportedPayItems activeItems}
-        {renderArchivedImportedPayItems archivedItems}
+        {renderActiveImportedPayItems accountCodeOptions activeItems}
+        {renderArchivedImportedPayItems accountCodeOptions archivedItems}
     </div>
 |]
     where
@@ -205,11 +205,11 @@ sortImportedPayItemsByName :: [XeroImportedPayItem] -> [XeroImportedPayItem]
 sortImportedPayItemsByName =
     List.sortOn (.name)
 
-renderActiveImportedPayItems :: [XeroImportedPayItem] -> Html
-renderActiveImportedPayItems [] = [hsx|
+renderActiveImportedPayItems :: [XeroPayItemAccountCodeOption] -> [XeroImportedPayItem] -> Html
+renderActiveImportedPayItems _ [] = [hsx|
     <div class="small app-muted">No custom Xero pay items have been imported yet.</div>
 |]
-renderActiveImportedPayItems items = [hsx|
+renderActiveImportedPayItems accountCodeOptions items = [hsx|
     <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
             <thead>
@@ -220,16 +220,16 @@ renderActiveImportedPayItems items = [hsx|
                     <th class="text-end">Actions</th>
                 </tr>
             </thead>
-            <tbody>{forEach items renderActiveImportedPayItemRow}</tbody>
+            <tbody>{forEach items (renderActiveImportedPayItemRow accountCodeOptions)}</tbody>
         </table>
     </div>
 |]
 
-renderActiveImportedPayItemRow :: XeroImportedPayItem -> Html
-renderActiveImportedPayItemRow item = [hsx|
+renderActiveImportedPayItemRow :: [XeroPayItemAccountCodeOption] -> XeroImportedPayItem -> Html
+renderActiveImportedPayItemRow accountCodeOptions item = [hsx|
     <tr>
         <td>{item.name}</td>
-        <td>{fromMaybe "—" item.accountCode}</td>
+        <td>{renderImportedPayItemAccount accountCodeOptions item}</td>
         <td class="text-end">${formatMoney item.ratePerUnit}/hr</td>
         <td class="text-end">
             <form method="POST"
@@ -244,28 +244,38 @@ renderActiveImportedPayItemRow item = [hsx|
     </tr>
 |]
 
-renderArchivedImportedPayItems :: [XeroImportedPayItem] -> Html
-renderArchivedImportedPayItems [] = mempty
-renderArchivedImportedPayItems items = [hsx|
+renderArchivedImportedPayItems :: [XeroPayItemAccountCodeOption] -> [XeroImportedPayItem] -> Html
+renderArchivedImportedPayItems _ [] = mempty
+renderArchivedImportedPayItems accountCodeOptions items = [hsx|
     <details class="mt-3">
         <summary class="small app-muted">Archived imported pay items ({tshow (length items)})</summary>
         <div class="table-responsive mt-2">
             <table class="table table-sm align-middle mb-0">
                 <thead><tr><th>Name</th><th>Account</th><th class="text-end">Rate</th></tr></thead>
-                <tbody>{forEach items renderArchivedImportedPayItemRow}</tbody>
+                <tbody>{forEach items (renderArchivedImportedPayItemRow accountCodeOptions)}</tbody>
             </table>
         </div>
     </details>
 |]
 
-renderArchivedImportedPayItemRow :: XeroImportedPayItem -> Html
-renderArchivedImportedPayItemRow item = [hsx|
+renderArchivedImportedPayItemRow :: [XeroPayItemAccountCodeOption] -> XeroImportedPayItem -> Html
+renderArchivedImportedPayItemRow accountCodeOptions item = [hsx|
     <tr>
         <td>{item.name}</td>
-        <td>{fromMaybe "—" item.accountCode}</td>
+        <td>{renderImportedPayItemAccount accountCodeOptions item}</td>
         <td class="text-end">${formatMoney item.ratePerUnit}/hr</td>
     </tr>
 |]
+
+renderImportedPayItemAccount :: [XeroPayItemAccountCodeOption] -> XeroImportedPayItem -> Text
+renderImportedPayItemAccount accountCodeOptions item =
+    case Text.strip <$> item.accountCode of
+        Nothing -> "—"
+        Just accountCode | Text.null accountCode -> "—"
+        Just accountCode ->
+            case List.find (\option -> option.accountCodeOptionValue == accountCode) accountCodeOptions of
+                Just option -> option.accountCodeOptionLabel
+                Nothing -> accountCode
 
 renderXeroImportedPayItemImportLoadingDialog :: Html
 renderXeroImportedPayItemImportLoadingDialog =

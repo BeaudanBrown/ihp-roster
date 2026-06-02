@@ -739,6 +739,19 @@ tests = beforeAll testContext do
                 _ <- createStaffUsingAwardLevel venue "Permanent" "Worker" awardLevel Permanent
                 _ <- createXeroEarningsRateRecord connection "Ordinary - Level 2 - PERM - Bepis - Undated" "earnings-ordinary"
                 _ <- createXeroEarningsRateRecord connection "Saturday Penalty - Level 2 - PERM - Bepis - Undated" "earnings-saturday"
+                _ <- newRecord @XeroImportedPayItem
+                    |> set #venueId (unpackId venue.id)
+                    |> set #xeroConnectionId (unpackId connection.id)
+                    |> set #xeroEarningsRateId ("earnings-imported" :: Text)
+                    |> set #name ("Imported Ordinary Hours" :: Text)
+                    |> set #accountCode (Just ("477" :: Text))
+                    |> set #earningsType ("ORDINARYTIMEEARNINGS" :: Text)
+                    |> set #rateType ("RATEPERUNIT" :: Text)
+                    |> set #typeOfUnits ("Hours" :: Text)
+                    |> set #ratePerUnit 31.50
+                    |> set #rawPayload (Aeson.object [])
+                    |> set #importedByUserId (unpackId admin.id)
+                    |> createRecord
                 payrollCalendar <- createXeroPayrollCalendarRecord connection "Weekly" "calendar-weekly"
 
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -754,6 +767,10 @@ tests = beforeAll testContext do
                 payItemsFragmentResponse `responseStatusShouldBe` status200
                 payItemsFragmentResponse `responseBodyShouldContain` "id=\"xero-pay-items-data\""
                 payItemsFragmentResponse `responseBodyShouldContain` "Imported Xero pay items"
+                payItemsFragmentResponse `responseBodyShouldContain` "Import pay items from Xero to assign to shifts and staff in Bepis."
+                payItemsFragmentResponse `responseBodyShouldContain` "Imported Ordinary Hours"
+                payItemsFragmentResponse `responseBodyShouldContain` "477: Wages and Salaries"
+                payItemsFragmentResponse `responseBodyShouldNotContain` "Import venue-owned hourly Xero earnings rates for staff and shift-type pay overrides."
                 payItemsFragmentResponse `responseBodyShouldNotContain` "Pay item requirements"
                 payItemsFragmentResponse `responseBodyShouldNotContain` "Saturday Penalty - Level 2 - PERM - Bepis - Undated"
                 payItemsFragmentResponse `responseBodyShouldNotContain` "Create 6 missing pay items in Xero"
