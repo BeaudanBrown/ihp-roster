@@ -288,6 +288,29 @@ tests = beforeAll testContext do
                 bodyText `shouldContain` ">+</div>"
                 bodyText `shouldNotContain` ">Add</div>"
 
+        it "renders draft empty day-column shifts as empty cards with a centered green plus" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-empty-day-column-create@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                early <- fetchSlotNameRecord venue "Early"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay early
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (UpdateRosterLayoutPreferenceAction 0) [("rosterLayoutMode", "day_columns")]
+
+                response `responseStatusShouldBe` status200
+                body <- responseBody response
+                let bodyText = cs body :: String
+                bodyText `shouldContain` "roster-shift-card-empty roster-shift-card-create roster-shift-launcher roster-shift-create-plus-card"
+                bodyText `shouldContain` "<span class=\"roster-shift-create-plus\" aria-hidden=\"true\">+</span>"
+                bodyText `shouldContain` "<span class=\"visually-hidden\">Add shift</span>"
+                bodyText `shouldContain` ("data-roster-shift-group-key=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
+                bodyText `shouldNotContain` ">Add shift</div>"
+
         it "does not render empty day-row create markers for live rosters" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
@@ -304,14 +327,31 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` ">+</div>"
                 response `responseBodyShouldNotContain` ">Add</div>"
 
-        it "keeps empty-shift plus markers hover-only and staff-panel names padded" $ withContext do
+        it "keeps create markers, row controls, and conflict staff-cell depth styling in CSS" $ withContext do
             cssBytes <- ByteString.readFile "static/css/features/roster/grid-cells.css"
+            dayActionsCssBytes <- ByteString.readFile "static/css/features/roster/day-actions.css"
+            shiftCardCssBytes <- ByteString.readFile "static/css/features/roster/shift-card.css"
+            statesCssBytes <- ByteString.readFile "static/css/features/roster/states.css"
             staffPanelCssBytes <- ByteString.readFile "static/css/features/roster/staff-panel.css"
             let css = cs cssBytes :: String
+            let dayActionsCss = cs dayActionsCssBytes :: String
+            let shiftCardCss = cs shiftCardCssBytes :: String
+            let statesCss = cs statesCssBytes :: String
             let staffPanelCss = cs staffPanelCssBytes :: String
             css `shouldContain` ".roster-grid .roster-shift-create-plus-cell .slot-cell-static"
             css `shouldContain` "opacity: 0;"
             css `shouldContain` ".roster-grid .roster-shift-create-plus-cell:hover .slot-cell-static"
+            dayActionsCss `shouldContain` ".roster-grid-frame[data-roster-column-editing=\"true\"] .roster-day-action-add"
+            dayActionsCss `shouldContain` ".roster-day-rail-section .roster-day-action-add,"
+            dayActionsCss `shouldContain` "display: none;"
+            shiftCardCss `shouldContain` ".roster-shift-create-plus-card"
+            shiftCardCss `shouldContain` "color: var(--bs-success);"
+            shiftCardCss `shouldContain` "font-size: 1.15rem;"
+            shiftCardCss `shouldContain` "font-weight: 800;"
+            shiftCardCss `shouldContain` ".roster-grid-frame[data-roster-end-times=\"true\"] .roster-shift-card-empty.roster-shift-create-plus-card"
+            shiftCardCss `shouldNotContain` "article.roster-shift-card[data-roster-shift-colour^=\"palette-\"]:not(.roster-shift-card-create)"
+            statesCss `shouldContain` ".roster-grid .slot-staff-cell.conflict-critical"
+            statesCss `shouldContain` "background-image: linear-gradient(180deg, var(--roster-conflict-bg-start), var(--roster-conflict-bg))"
             staffPanelCss `shouldContain` ".roster-staff-name"
             staffPanelCss `shouldContain` "padding-left: 0.55rem !important;"
 

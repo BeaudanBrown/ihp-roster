@@ -854,22 +854,27 @@ renderDayColumnRosterSlotCard RosterDayRenderModel { dayIsEditable, dayAssignmen
     renderDayColumnSlotCardContent dayIsEditable dayAssignmentFilters dayStaffMembers dayShiftTypes dayRosterEndTimesEnabled dayPublishAttempted dayRenderIndexes (ExistingRosterSlotTarget slot.id) slot.staffId slot.startTime slot.endTime slot.shiftTypeId (primaryConflict (lookupConflicts (get #id slot) dayRenderIndexes))
 
 renderDayColumnCreateCard :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterDay -> Maybe RosterSlotCellTarget -> Html
-renderDayColumnCreateCard RosterDayRenderModel { dayIsEditable, dayAssignmentFilters, dayStaffMembers, dayShiftTypes, dayRosterEndTimesEnabled } rosterDay maybeTarget
+renderDayColumnCreateCard RosterDayRenderModel { dayIsEditable } rosterDay maybeTarget
     | not dayIsEditable || rosterDay.isClosed = mempty
-    | otherwise =
-        case maybeTarget of
-            Nothing -> mempty
-            Just target ->
-                renderDayColumnSlotCardContent True dayAssignmentFilters dayStaffMembers dayShiftTypes dayRosterEndTimesEnabled False emptyRenderIndexes target Nothing Nothing Nothing Nothing Nothing
-  where
-    emptyRenderIndexes =
-        RosterRenderIndexes
-            { rosterDayById = Map.empty
-            , rosterDayRowsByDayId = Map.empty
-            , rosterSlotByDayRowSlotName = Map.empty
-            , rosterStaffById = Map.empty
-            , rosterConflictsBySlotId = Map.empty
-            }
+    | otherwise = maybe mempty renderDayColumnCreateLauncherCard maybeTarget
+
+renderDayColumnCreateLauncherCard :: (?context :: ControllerContext) => RosterSlotCellTarget -> Html
+renderDayColumnCreateLauncherCard target =
+    let groupKey = rosterShiftGroupKey target
+     in [hsx|
+        <article class="roster-shift-card roster-shift-card-empty roster-shift-card-create roster-shift-launcher roster-shift-create-plus-card"
+                 data-roster-shift-group-key={groupKey}
+                 data-roster-shift-launcher="true"
+                 tabindex="0"
+                 hx-get={pathTo (rosterSlotDialogAction target)}
+                 hx-target={"#" <> dialogOverlayMountId}
+                 hx-swap="innerHTML"
+                 hx-push-url="false"
+                 aria-label="Add shift">
+            <span class="roster-shift-create-plus" aria-hidden="true">+</span>
+            <span class="visually-hidden">Add shift</span>
+        </article>
+    |]
 
 renderDayColumnSlotCard :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> Bool -> RosterDay -> Int -> [RosterSlot] -> RosterRenderIndexes -> (Int, RosterWeekSlotDefinition) -> Html
 renderDayColumnSlotCard isEditable assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted rosterDay rowIndex rowSlots renderIndexes (_, slotName)

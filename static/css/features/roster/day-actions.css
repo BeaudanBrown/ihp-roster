@@ -30,7 +30,9 @@
 }
 
 .roster-grid-frame[data-roster-column-editing="true"] .roster-slot-column-delete,
-.roster-grid-frame[data-roster-column-editing="true"] .roster-slot-column-add-form {
+.roster-grid-frame[data-roster-column-editing="true"] .roster-slot-column-add-form,
+.roster-grid-frame[data-roster-column-editing="true"] .roster-day-action-add,
+.roster-grid-frame[data-roster-column-editing="true"] .roster-day-action-remove {
     display: inline-flex;
 }
 
@@ -152,6 +154,11 @@
 
 .roster-day-rail-section .roster-day-action-remove {
     color: var(--app-outline-danger-text);
+}
+
+.roster-day-rail-section .roster-day-action-add,
+.roster-day-rail-section .roster-day-action-remove {
+    display: none;
 }
 
 .roster-day-actions-placeholder {

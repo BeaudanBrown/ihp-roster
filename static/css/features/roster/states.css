@@ -61,6 +61,27 @@
     color: var(--roster-conflict-text) !important;
 }
 
+.roster-grid .slot-staff-cell.conflict-critical,
+.roster-grid .slot-staff-cell.conflict-preference,
+.roster-grid .slot-staff-cell.conflict-ideal {
+    background-image: linear-gradient(180deg, var(--roster-conflict-bg-start), var(--roster-conflict-bg)) !important;
+    box-shadow:
+        inset 0 1px 0 color-mix(in srgb, var(--app-white) 12%, transparent),
+        inset 0 -1px 0 color-mix(in srgb, var(--app-bg) 22%, transparent);
+    text-shadow: 0 1px 0 color-mix(in srgb, var(--app-bg) 38%, transparent);
+}
+
+@media (hover: hover) {
+    .roster-grid .slot-staff-cell.conflict-critical:hover,
+    .roster-grid .slot-staff-cell.conflict-preference:hover,
+    .roster-grid .slot-staff-cell.conflict-ideal:hover,
+    .roster-grid .slot-staff-cell.conflict-critical.is-roster-shift-group-highlighted,
+    .roster-grid .slot-staff-cell.conflict-preference.is-roster-shift-group-highlighted,
+    .roster-grid .slot-staff-cell.conflict-ideal.is-roster-shift-group-highlighted {
+        background-image: linear-gradient(180deg, var(--roster-conflict-bg-hover), var(--roster-conflict-bg-hover-end)) !important;
+    }
+}
+
 .roster-shift-card-field.conflict-critical {
     --roster-conflict-bg: var(--roster-danger);
     --roster-conflict-bg-start: color-mix(in srgb, var(--roster-danger) 76%, var(--app-white-alpha-08));

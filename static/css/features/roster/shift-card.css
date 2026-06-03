@@ -106,6 +106,12 @@ article.roster-shift-card:not(.roster-shift-card-create) {
     color: var(--app-muted);
 }
 
+.roster-shift-create-plus-card .roster-shift-create-plus {
+    font-size: 1.15rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
 .roster-shift-card.roster-shift-launcher:hover,
 .roster-shift-card.roster-shift-launcher:focus-visible,
 .roster-shift-card.roster-shift-launcher.is-roster-shift-group-highlighted {
@@ -193,4 +199,14 @@ article.roster-shift-card:not(.roster-shift-card-create) {
     border-color: color-mix(in srgb, var(--app-border-alpha-70) 58%, transparent);
     box-shadow: none;
     opacity: 0.72;
+}
+
+.roster-shift-card-empty.roster-shift-create-plus-card {
+    min-height: 2.15rem;
+    color: var(--bs-success);
+    background: color-mix(in srgb, var(--roster-empty) 62%, var(--app-surface-2));
+}
+
+.roster-grid-frame[data-roster-end-times="true"] .roster-shift-card-empty.roster-shift-create-plus-card {
+    min-height: 4.3rem;
 }
