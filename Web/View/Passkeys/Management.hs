@@ -6,7 +6,7 @@ module Web.View.Passkeys.Management
 where
 
 import Data.Time.Clock (diffUTCTime)
-import Web.View.Passkeys.Setup
+import Web.View.Passkeys.SetupModal
 import Web.View.Prelude
 
 renderPasskeyManagement :: UTCTime -> [Passkey] -> Text -> Html

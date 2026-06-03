@@ -1,4 +1,4 @@
-module Web.View.Passkeys.Setup
+module Web.View.Passkeys.SetupModal
     ( PasskeySetupView (..)
     , PasskeySetupMode (..)
     , renderPasskeySetupModal

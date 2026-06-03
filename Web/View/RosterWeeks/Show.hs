@@ -9,7 +9,7 @@ import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Projection (buildRosterProjectionScope)
 import Web.RosterWeeks.LiveSurface (rosterLiveSurfaceDefinition)
 import Web.RosterWeeks.Types
-import Web.View.Passkeys.Setup
+import Web.View.Passkeys.SetupModal
 import Web.View.Prelude
 import Web.View.RosterWeeks.Grid (renderRosterLayout)
 

@@ -4,7 +4,7 @@ import Application.Helper.PasskeyRecoveryCodes (verifyAndConsumeRecoveryCode)
 import Application.Helper.PasskeySetupTokens
 import qualified Data.Text as Text
 import Web.Controller.Prelude
-import Web.View.Passkeys.Setup
+import Web.View.Passkeys.SetupModal
 import Web.View.Passkeys.StepUp
 
 instance Controller PasskeysController where
