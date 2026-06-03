@@ -59,9 +59,23 @@
     transition: opacity 140ms ease;
 }
 
-.roster-grid .roster-shift-create-merged-cell .slot-cell-static {
-    height: 100%;
-    width: 100%;
+.roster-shift-dialog-time-picker .time-picker-trigger-button .js-time-picker-label {
+    margin-inline: auto;
+    text-align: center;
+}
+
+.roster-grid .roster-shift-create-group-cell.is-roster-shift-group-highlighted {
+    border-left-color: transparent !important;
+    border-right-color: transparent !important;
+    transform: none;
+}
+
+.roster-grid .roster-shift-create-group-cell.roster-block-start.is-roster-shift-group-highlighted {
+    border-left-color: var(--app-accent-softer) !important;
+}
+
+.roster-grid .roster-shift-create-group-cell.roster-block-end.is-roster-shift-group-highlighted {
+    border-right-color: var(--app-accent-softer) !important;
 }
 
 .roster-grid .roster-shift-create-plus-cell:hover .slot-cell-static,

@@ -136,9 +136,9 @@ renderRosterWeekActionsMenuSection maybeRosterWeek weekOffset rosterGroupId view
     | otherwise = [hsx|
         <div class="px-1 py-1">
             <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Week actions</div>
-            <div class="d-grid gap-2">
-                {when viewCapabilities.canCopyRosterWeek (renderCopyPreviousWeekForm weekOffset rosterGroupId)}
+            <div class="d-flex gap-2">
                 {renderRosterSortForm maybeRosterWeek viewCapabilities}
+                {when viewCapabilities.canCopyRosterWeek (renderCopyPreviousWeekForm weekOffset rosterGroupId)}
             </div>
         </div>
         <div class="dropdown-divider my-1"></div>
@@ -159,7 +159,6 @@ renderRosterLayoutMenuSection weekOffset rosterGroupId selectedLayoutMode = [hsx
             {forEach rosterLayoutModes (renderRosterLayoutModeOption selectedLayoutMode)}
         </div>
     </form>
-    <div class="dropdown-divider my-1"></div>
 |]
 
 renderRosterLayoutModeOption :: RosterLayoutModeEnum -> RosterLayoutModeEnum -> Html
@@ -192,7 +191,6 @@ renderRosterWageEstimatePreferenceMenuSection weekOffset rosterGroupId viewCapab
                 {renderRosterWageEstimateToggle showWageEstimates}
             </div>
         </form>
-        <div class="dropdown-divider my-1"></div>
 |]
 
 renderRosterWageEstimateToggle :: Bool -> Html
@@ -213,14 +211,14 @@ renderRosterSortForm (Just rosterWeek) viewCapabilities
     | shouldShowRosterSortForm (Just rosterWeek) viewCapabilities = [hsx|
         <form method="POST"
               action={SortRosterWeekAction rosterWeek.id}
-              class="mb-0"
+              class="mb-0 flex-fill"
               data-disable-javascript-submission="true"
               hx-post={SortRosterWeekAction rosterWeek.id}
               hx-target={"#" <> rosterContentFragmentId}
               hx-swap="none"
               hx-push-url="false"
               hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
-            <button type="submit" class="btn btn-outline-secondary btn-sm w-100 text-start">
+            <button type="submit" class="btn btn-outline-secondary btn-sm w-100 h-100 text-center">
                 <i class="bi bi-sort-down me-1" aria-hidden="true"></i>
                 Sort shifts
             </button>
@@ -259,7 +257,6 @@ renderRosterAssignmentFiltersMenuSection :: (?context :: ControllerContext) => I
 renderRosterAssignmentFiltersMenuSection weekOffset rosterGroupId menuTriggerId filters viewCapabilities =
     if viewCapabilities.canManageAssignmentFilter
         then [hsx|
-    <div class="dropdown-divider my-1"></div>
     <form class="px-1 py-1"
           method="POST"
           action={rosterAssignmentFiltersUrl weekOffset rosterGroupId}
@@ -307,8 +304,9 @@ renderCopyPreviousWeekForm weekOffset rosterGroupId = [hsx|
           hx-swap="outerHTML"
           hx-push-url="false"
           hx-sync={"#" <> rosterWeekShellId <> ":replace"}
-          hx-confirm="This will overwrite the current week with the previous week's roster. Continue?">
-        <button type="submit" class="btn btn-outline-primary btn-sm w-100 text-start">
+          hx-confirm="This will overwrite the current week with the previous week's roster. Continue?"
+          class="mb-0 flex-fill">
+        <button type="submit" class="btn btn-outline-primary btn-sm w-100 h-100 text-center">
             <i class="bi bi-copy me-1" aria-hidden="true"></i>
             Copy Previous Week
         </button>

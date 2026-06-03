@@ -183,7 +183,7 @@ renderDialogTimePicker fieldName emptyLabel value hasError =
             (defaultTimePickerConfig fieldName value rosterOperationalStartTimeText rosterOperationalFinalSelectableTimeText False)
                 { timePickerEmptyLabel = emptyLabel
                 , timePickerFieldClasses = ["roster-shift-dialog-time-picker"]
-                , timePickerTriggerClasses = ["w-100", "justify-content-between"] <> ["is-invalid" | hasError]
+                , timePickerTriggerClasses = ["w-100", "justify-content-center", "text-center"] <> ["is-invalid" | hasError]
                 , timePickerAriaLabel = "Select " <> emptyLabel
                 }
      in renderTimePickerField pickerConfig

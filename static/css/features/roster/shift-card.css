@@ -204,7 +204,16 @@ article.roster-shift-card:not(.roster-shift-card-create) {
 .roster-shift-card-empty.roster-shift-create-plus-card {
     min-height: 2.15rem;
     color: var(--bs-success);
-    background: color-mix(in srgb, var(--roster-empty) 62%, var(--app-surface-2));
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--app-success-soft) 42%, var(--app-surface-2)),
+        color-mix(in srgb, var(--app-success-soft) 30%, var(--app-surface))
+    );
+    border-color: var(--app-success-border);
+    box-shadow:
+        0 0.38rem 0.8rem color-mix(in srgb, var(--app-bg) 76%, transparent),
+        inset 0 0 0 1px var(--app-white-alpha-03);
+    opacity: 1;
 }
 
 .roster-grid-frame[data-roster-end-times="true"] .roster-shift-card-empty.roster-shift-create-plus-card {

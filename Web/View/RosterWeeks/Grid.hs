@@ -973,7 +973,12 @@ renderCreateBlockCells :: (?context :: ControllerContext) => RosterAssignmentFil
 renderCreateBlockCells _assignmentFilters _staffMembers _shiftTypes True rosterDay rowIndex blockIndex slotName =
     let target = NewRosterSlotTarget rosterDay.id slotName.id rowIndex
         groupKey = rosterShiftGroupKey target
-     in renderCreateLauncherCellWithGridSpan target groupKey (classes [("slot-empty-cell roster-shift-launcher roster-shift-create-plus-cell roster-shift-create-merged-cell roster-block-end", True), ("roster-block-start", blockIndex > 0)]) "+" (slotColumnCount True)
+     in mconcat
+        [ renderCreateLauncherCell target groupKey (classes [("slot-empty-cell roster-shift-launcher roster-shift-create-group-cell", True), ("roster-block-start", blockIndex > 0)]) ""
+        , renderCreateLauncherCell target groupKey "slot-empty-cell roster-shift-launcher roster-shift-create-group-cell" ""
+        , renderCreateLauncherCell target groupKey "slot-empty-cell roster-shift-launcher roster-shift-create-group-cell roster-shift-create-plus-cell" "+"
+        , renderCreateLauncherCell target groupKey "slot-empty-cell roster-shift-launcher roster-shift-create-group-cell roster-block-end" ""
+        ]
 renderCreateBlockCells _assignmentFilters _staffMembers _shiftTypes False rosterDay rowIndex blockIndex slotName =
     let target = NewRosterSlotTarget rosterDay.id slotName.id rowIndex
         groupKey = rosterShiftGroupKey target
