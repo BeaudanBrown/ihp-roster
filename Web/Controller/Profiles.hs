@@ -79,6 +79,7 @@ instance Controller ProfilesController where
         let staff = fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff
         let currentUserEmail = currentUser.email
         let openSection = normalizeProfileOpenSection (paramOrDefault @Text "" "section")
+        let preferencesWereSubmitted = openSection == "preferences"
         passkeys <- fetchCurrentUserPasskeys
         staffRsaDocument <- maybe (pure Nothing) latestRsaDocumentForStaff maybeExistingStaff
         let submittedRosterGroupIds = nub (mapMaybe parseRosterGroupIdText (paramTexts "rosterGroupIds"))
@@ -86,15 +87,18 @@ instance Controller ProfilesController where
         now <- getCurrentTime
         let today = utctDay now
         (preferenceWeekdays, selectedShiftPreferences) <-
-            profilePreferenceViewDataWithSubmitted maybeExistingStaff submittedShiftPreferenceKeys
+            if preferencesWereSubmitted
+                then profilePreferenceViewDataWithSubmitted maybeExistingStaff submittedShiftPreferenceKeys
+                else profilePreferenceViewData maybeExistingStaff
         leaveRequests <- fetchCurrentUserLeaveRequests
         leaveRequestForm <- buildDefaultLeaveRequest
-        let canManageProfileStaff = hasRole VenueAdminRole && isJust maybeExistingStaff
+        let canManageProfileStaff = hasRole VenueAdminRole && isJust maybeExistingStaff && not preferencesWereSubmitted
         maybeSelectedRosterGroupIds <- if canManageProfileStaff then parseStaffRosterGroupIds else pure Nothing
         maybeSubmittedPayRateSelection <- if canManageProfileStaff then parseSubmittedPayRateSelection "payRateSelection" else pure (Just emptyStaffPayRateSelection)
         let maybeSubmittedDefaultAwardLevelId = submittedAwardLevelId <$> maybeSubmittedPayRateSelection
         let maybeSubmittedImportedXeroPayItemId = submittedImportedXeroPayItemId <$> maybeSubmittedPayRateSelection
         let buildProfileStaff currentStaff
+                | preferencesWereSubmitted = currentStaff
                 | canManageProfileStaff = buildStaff True maybeSubmittedDefaultAwardLevelId maybeSubmittedImportedXeroPayItemId currentStaff
                 | otherwise =
                     currentStaff
@@ -121,7 +125,7 @@ instance Controller ProfilesController where
                         then respondHtml (renderProfileContentFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection)
                         else render EditView { .. }
                 Right staff -> do
-                    case parseShiftPreferenceSelections preferenceWeekdays submittedShiftPreferenceKeys of
+                    case if preferencesWereSubmitted then parseShiftPreferenceSelections preferenceWeekdays submittedShiftPreferenceKeys else Right selectedShiftPreferences of
                         Left preferenceError -> do
                             venueConfig <- fetchVenueConfig
                             setErrorMessage preferenceError
@@ -158,22 +162,29 @@ instance Controller ProfilesController where
                                         if isHtmxRequest
                                             then respondHtml (renderProfileContentFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection)
                                             else render EditView { .. }
-                                else do
-                                    mutationResult <- updateCurrentUserProfile openSection staff submittedSelections
-                                    let profileUpdate = mutationResult.liveMutationValue
-                                    let updatedStaff = profileUpdate.profileUpdatedStaff
-                                    if not profileUpdate.profileWasCompletedBefore && profileUpdate.profileIsCompletedNow
-                                        then redirectTo RosterWeeksAction
-                                        else if isHtmxRequest
-                                            then
-                                                respondHtml $
-                                                    mconcat
-                                                        [ renderProfileContentFragmentWithManagement updatedStaff currentUserEmail preferenceWeekdays submittedSelections passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection
-                                                        , renderToastOob ToastBottomCenter (successToast "Profile updated")
-                                                        ]
-                                            else do
-                                                setSuccessMessage "Profile updated"
-                                                redirectTo EditProfileAction
+                                else if preferencesWereSubmitted && isNothing maybeExistingStaff
+                                    then do
+                                        setErrorMessage "Save your profile details before setting shift preferences."
+                                        if isHtmxRequest
+                                            then respondHtml (renderProfileContentFragmentWithManagement staff currentUserEmail preferenceWeekdays submittedSelections passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection)
+                                            else render EditView { .. }
+                                    else do
+                                        mutationResult <- updateCurrentUserProfile openSection staff submittedSelections
+                                        let profileUpdate = mutationResult.liveMutationValue
+                                        let updatedStaff = profileUpdate.profileUpdatedStaff
+                                        let successMessage = if preferencesWereSubmitted then "Shift preferences updated" else "Profile updated"
+                                        if not preferencesWereSubmitted && not profileUpdate.profileWasCompletedBefore && profileUpdate.profileIsCompletedNow
+                                            then redirectTo RosterWeeksAction
+                                            else if isHtmxRequest
+                                                then
+                                                    respondHtml $
+                                                        mconcat
+                                                            [ renderProfileContentFragmentWithManagement updatedStaff currentUserEmail preferenceWeekdays submittedSelections passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection
+                                                            , renderToastOob ToastBottomCenter (successToast successMessage)
+                                                            ]
+                                                else do
+                                                    setSuccessMessage successMessage
+                                                    redirectTo EditProfileAction
 
 buildNewCurrentUserStaff :: (?context :: ControllerContext) => User -> Staff
 buildNewCurrentUserStaff user =
@@ -226,5 +237,5 @@ profilePreferenceViewDataWithSubmitted _maybeStaff submittedShiftPreferenceKeys 
 
 normalizeProfileOpenSection :: Text -> Text
 normalizeProfileOpenSection section
-    | section `elem` ["profile", "security", "leave", "rsa"] = section
+    | section `elem` ["profile", "preferences", "security", "leave", "rsa"] = section
     | otherwise = ""

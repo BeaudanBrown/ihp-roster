@@ -23,6 +23,9 @@ profileLiveSurfaceId = "profile-live-surface"
 profileDetailsFormId :: Text
 profileDetailsFormId = "profile-details-form"
 
+profileShiftPreferencesFormId :: Text
+profileShiftPreferencesFormId = "profile-shift-preferences-form"
+
 profileSectionsAccordionId :: Text
 profileSectionsAccordionId = "profile-sections"
 
@@ -105,7 +108,13 @@ renderProfileContentFragmentWithManagement staff currentUserEmail preferenceWeek
                 "profile-details"
                 "Profile Details"
                 (openSection == "profile")
-                (renderProfileForm staff currentUserEmail preferenceWeekdays selectedShiftPreferences staffManagementFields)
+                (renderProfileForm staff currentUserEmail staffManagementFields)
+            }
+            {renderAccordionSection
+                "profile-preferences"
+                "Shift Preferences"
+                (openSection == "preferences")
+                (renderProfileShiftPreferencesForm preferenceWeekdays selectedShiftPreferences)
             }
             {renderAccordionSection
                 "profile-security"
@@ -148,8 +157,8 @@ renderAccordionSection sectionId title isOpen body =
         , appAccordionItemBody = body
         }
 
-renderProfileForm :: Staff -> Text -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffManagementFieldData -> Html
-renderProfileForm staff currentUserEmail preferenceWeekdays selectedShiftPreferences staffManagementFields = [hsx|
+renderProfileForm :: Staff -> Text -> Maybe StaffManagementFieldData -> Html
+renderProfileForm staff currentUserEmail staffManagementFields = [hsx|
     <form id={profileDetailsFormId}
           method="POST"
           action={UpdateProfileAction}
@@ -161,12 +170,26 @@ renderProfileForm staff currentUserEmail preferenceWeekdays selectedShiftPrefere
         <input type="hidden" name="section" value="profile"/>
         {renderPersonalProfileFields staff (Just currentUserEmail)}
         {maybe mempty renderProfileStaffManagementSection staffManagementFields}
-        <div class="mt-4">
-            <h5 class="mb-3">Shift Preferences</h5>
-            {renderShiftPreferenceSections preferenceWeekdays selectedShiftPreferences}
-        </div>
         <div class="d-grid mt-4">
-            <button type="submit" class="btn btn-primary">Save</button>
+            <button type="submit" class="btn btn-primary">Save profile details</button>
+        </div>
+    </form>
+|]
+
+renderProfileShiftPreferencesForm :: [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
+renderProfileShiftPreferencesForm preferenceWeekdays selectedShiftPreferences = [hsx|
+    <form id={profileShiftPreferencesFormId}
+          method="POST"
+          action={UpdateProfileAction}
+          data-disable-javascript-submission="true"
+          hx-post={UpdateProfileAction}
+          hx-target={"#" <> profileContentFragmentId}
+          hx-swap="outerHTML show:none"
+          hx-push-url="false">
+        <input type="hidden" name="section" value="preferences"/>
+        {renderShiftPreferenceSections preferenceWeekdays selectedShiftPreferences}
+        <div class="d-grid mt-4">
+            <button type="submit" class="btn btn-primary">Save shift preferences</button>
         </div>
     </form>
 |]
