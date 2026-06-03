@@ -203,6 +203,8 @@ data XeroTimesheetPeriodOption = XeroTimesheetPeriodOption
     , periodOptionBlocked                :: Bool
     , periodOptionBlockReason            :: Maybe Text
     , periodOptionDerivedFromSyncedXero  :: Bool
+    , periodOptionLatestSubmissionStatus :: Maybe Text
+    , periodOptionLatestSubmissionRunId  :: Maybe (Id XeroSubmissionRun)
     }
     deriving (Eq, Show)
 

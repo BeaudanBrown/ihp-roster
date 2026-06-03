@@ -478,6 +478,12 @@ fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection) = do
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
             |> filterWhereIn (#xeroEmployeeId, List.nub (mapMaybe (.xeroEmployeeId) verifiedMappings))
             |> fetch
+    submissionRuns <-
+        query @XeroSubmissionRun
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> orderByDesc #updatedAt
+            |> fetch
     let approvedWorkedOnDates = List.nub (map (.workedOn) approvedEntries)
         staffCalendarAssignments = staffPayrollCalendarAssignments verifiedMappings mappedEmployees
         calendarPeriodOptions = concatMap (derivedPeriodOptions today payRuns approvedWorkedOnDates) calendars
@@ -485,6 +491,7 @@ fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection) = do
         calendarPeriodOptions
             |> filter (periodOptionHasRelevantApprovedEmployee approvedEntries staffCalendarAssignments)
             |> List.nubBy samePeriodOption
+            |> map (attachLatestSubmissionRun submissionRuns)
             |> List.sortOn (Down . (.periodOptionStart))
 
 derivedPeriodOptions :: Day -> [XeroPayRun] -> [Day] -> XeroPayrollCalendar -> [XeroTimesheetPeriodOption]
@@ -540,6 +547,24 @@ xeroEmployeePayrollCalendarId employee =
         parser = AesonTypes.withObject "Xero employee" \object ->
             (object AesonTypes..:? "PayrollCalendarID") <|> (object AesonTypes..:? "payrollCalendarID") <|> (object AesonTypes..:? "payrollCalendarId")
 
+attachLatestSubmissionRun :: [XeroSubmissionRun] -> XeroTimesheetPeriodOption -> XeroTimesheetPeriodOption
+attachLatestSubmissionRun submissionRuns option =
+    case List.find (submissionRunMatchesPeriod option) submissionRuns of
+        Nothing -> option
+        Just run ->
+            option
+                { periodOptionLatestSubmissionStatus = Just run.status
+                , periodOptionLatestSubmissionRunId = Just run.id
+                }
+
+submissionRunMatchesPeriod :: XeroTimesheetPeriodOption -> XeroSubmissionRun -> Bool
+submissionRunMatchesPeriod option run =
+    run.selectedPeriodKey == Just option.periodOptionKey
+        || ( run.selectedPayrollCalendarId == Just option.periodOptionPayrollCalendarId
+                && run.payPeriodStart == option.periodOptionStart
+                && run.payPeriodEnd == option.periodOptionEnd
+           )
+
 periodOptionFrom :: XeroPayrollCalendar -> Day -> Day -> Maybe XeroPayRun -> Bool -> XeroTimesheetPeriodOption
 periodOptionFrom calendar periodStart periodEnd maybePayRun derivedFromSyncedXero =
     XeroTimesheetPeriodOption
@@ -557,6 +582,8 @@ periodOptionFrom calendar periodStart periodEnd maybePayRun derivedFromSyncedXer
                 then Just "This Xero pay run is posted."
                 else Nothing
         , periodOptionDerivedFromSyncedXero = derivedFromSyncedXero || isJust maybePayRun
+        , periodOptionLatestSubmissionStatus = Nothing
+        , periodOptionLatestSubmissionRunId = Nothing
         }
 
 findPayRun :: XeroPayrollCalendar -> Day -> Day -> [XeroPayRun] -> Maybe XeroPayRun

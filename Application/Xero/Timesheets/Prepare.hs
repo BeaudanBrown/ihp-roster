@@ -1198,6 +1198,8 @@ periodOptionFromPreparationRun run =
                 then Just "This Xero pay run is posted."
                 else Nothing
         , periodOptionDerivedFromSyncedXero = isJust run.xeroPayRunId
+        , periodOptionLatestSubmissionStatus = Nothing
+        , periodOptionLatestSubmissionRunId = Nothing
         }
 
 remoteTimesheetsFromRun :: XeroTimesheetPreparationRun -> [XeroTimesheetRef]
