@@ -83,7 +83,7 @@ instance Controller ProfilesController where
         passkeys <- fetchCurrentUserPasskeys
         staffRsaDocument <- maybe (pure Nothing) latestRsaDocumentForStaff maybeExistingStaff
         let submittedRosterGroupIds = nub (mapMaybe parseRosterGroupIdText (paramTexts "rosterGroupIds"))
-        staffManagementFields <- fetchProfileStaffManagementFields maybeExistingStaff (Just submittedRosterGroupIds)
+        staffManagementFields <- fetchProfileStaffManagementFields maybeExistingStaff (if preferencesWereSubmitted then Nothing else Just submittedRosterGroupIds)
         now <- getCurrentTime
         let today = utctDay now
         (preferenceWeekdays, selectedShiftPreferences) <-
