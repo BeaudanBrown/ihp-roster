@@ -54,6 +54,7 @@ data EditView = EditView
     , leaveRequests            :: [LeaveRequest]
     , leaveRequestForm         :: LeaveRequest
     , staffRsaDocument         :: Maybe StaffDocument
+    , staffManagementFields    :: Maybe StaffManagementFieldData
     , today                    :: Day
     , now                      :: UTCTime
     , openSection              :: Text
@@ -80,7 +81,7 @@ instance View EditView where
                         renderProfileLiveSurface
                             staff
                             openSection
-                            (renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument today now openSection)
+                            (renderProfileContentFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection)
                     }
             })
 
@@ -93,14 +94,18 @@ renderProfileLiveSurface staff openSection body = [hsx|
 |]
 
 renderProfileContentFragment :: Staff -> Text -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> [Passkey] -> [LeaveRequest] -> LeaveRequest -> Maybe StaffDocument -> Day -> UTCTime -> Text -> Html
-renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument today now openSection = [hsx|
+renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument today now openSection =
+    renderProfileContentFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument Nothing today now openSection
+
+renderProfileContentFragmentWithManagement :: Staff -> Text -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> [Passkey] -> [LeaveRequest] -> LeaveRequest -> Maybe StaffDocument -> Maybe StaffManagementFieldData -> Day -> UTCTime -> Text -> Html
+renderProfileContentFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection = [hsx|
     <div id={profileContentFragmentId}>
         <div class="accordion" id={profileSectionsAccordionId}>
             {renderAccordionSection
                 "profile-details"
                 "Profile Details"
                 (openSection == "profile")
-                (renderProfileForm staff currentUserEmail preferenceWeekdays selectedShiftPreferences)
+                (renderProfileForm staff currentUserEmail preferenceWeekdays selectedShiftPreferences staffManagementFields)
             }
             {renderAccordionSection
                 "profile-security"
@@ -143,8 +148,8 @@ renderAccordionSection sectionId title isOpen body =
         , appAccordionItemBody = body
         }
 
-renderProfileForm :: Staff -> Text -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
-renderProfileForm staff currentUserEmail preferenceWeekdays selectedShiftPreferences = [hsx|
+renderProfileForm :: Staff -> Text -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffManagementFieldData -> Html
+renderProfileForm staff currentUserEmail preferenceWeekdays selectedShiftPreferences staffManagementFields = [hsx|
     <form id={profileDetailsFormId}
           method="POST"
           action={UpdateProfileAction}
@@ -155,6 +160,7 @@ renderProfileForm staff currentUserEmail preferenceWeekdays selectedShiftPrefere
           hx-push-url="false">
         <input type="hidden" name="section" value="profile"/>
         {renderPersonalProfileFields staff (Just currentUserEmail)}
+        {maybe mempty renderProfileStaffManagementSection staffManagementFields}
         <div class="mt-4">
             <h5 class="mb-3">Shift Preferences</h5>
             {renderShiftPreferenceSections preferenceWeekdays selectedShiftPreferences}
@@ -163,6 +169,14 @@ renderProfileForm staff currentUserEmail preferenceWeekdays selectedShiftPrefere
             <button type="submit" class="btn btn-primary">Save</button>
         </div>
     </form>
+|]
+
+renderProfileStaffManagementSection :: StaffManagementFieldData -> Html
+renderProfileStaffManagementSection managementFields = [hsx|
+    <div class="mt-4">
+        <h5 class="mb-3">Staff Admin</h5>
+        {renderStaffManagementFields managementFields}
+    </div>
 |]
 
 renderProfileRsaSection :: Staff -> Maybe StaffDocument -> Day -> Html

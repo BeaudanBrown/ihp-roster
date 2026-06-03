@@ -5,6 +5,17 @@ import qualified Data.Text as Text
 import Numeric (showFFloat)
 import Web.View.Prelude
 
+data StaffManagementFieldData = StaffManagementFieldData
+    { managementStaff                  :: Staff
+    , managementRosterGroups           :: [RosterGroup]
+    , managementAwardLevels            :: [AwardLevel]
+    , managementAwardLevelBaseRates    :: [AwardLevelBaseRate]
+    , managementImportedPayItems       :: [XeroImportedPayItem]
+    , managementSelectedRosterGroupIds :: [Id RosterGroup]
+    , managementWeekOffset             :: Maybe Int
+    , managementRosterGroupId          :: Maybe (Id RosterGroup)
+    }
+
 renderPersonalProfileFields :: Staff -> Maybe Text -> Html
 renderPersonalProfileFields staff maybeEmail = [hsx|
     <div class="row g-3 profile-field-grid">
@@ -253,3 +264,89 @@ renderStaffFieldError staff fieldName =
 
 hasStaffErrorFor :: Staff -> Text -> Bool
 hasStaffErrorFor staff fieldName = isJust (lookup fieldName staff.meta.annotations)
+
+renderStaffManagementFields :: StaffManagementFieldData -> Html
+renderStaffManagementFields StaffManagementFieldData { managementStaff = staff, managementRosterGroups = rosterGroups, managementAwardLevels = awardLevels, managementAwardLevelBaseRates = awardLevelBaseRates, managementImportedPayItems = importedPayItems, managementSelectedRosterGroupIds = selectedRosterGroupIds, managementWeekOffset = maybeWeekOffset, managementRosterGroupId = maybeRosterGroupId } = [hsx|
+    {maybe mempty renderWeekOffsetHiddenInput maybeWeekOffset}
+    {renderRosterGroupHiddenInput maybeRosterGroupId}
+    {when currentUserIsAdmin (renderStaffPayFields staff awardLevels awardLevelBaseRates importedPayItems)}
+    <div class="mb-3">
+        <label for="isActive" class="form-label">Status</label>
+        <select name="isActive" id="isActive" class={selectClass staff "isActive"}>
+            <option value="on" selected={staff.isActive}>Active</option>
+            <option value="" selected={not staff.isActive}>Inactive</option>
+        </select>
+        {renderStaffFieldError staff "isActive"}
+    </div>
+    <div class="mb-3">
+        <label class="form-label d-block">Roster Groups</label>
+        <div class="row g-2">
+            {forEach rosterGroups (renderRosterGroupCheckbox selectedRosterGroupIds)}
+        </div>
+    </div>
+|]
+
+renderWeekOffsetHiddenInput :: Int -> Html
+renderWeekOffsetHiddenInput weekOffset = [hsx|<input type="hidden" name="weekOffset" value={tshow weekOffset} />|]
+
+renderStaffPayFields :: Staff -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Html
+renderStaffPayFields staff awardLevels awardLevelBaseRates importedPayItems = [hsx|
+    <div class="row g-3">
+        <div class="col-12 col-md-6">
+            <label for="employmentBasis" class="form-label">Employment Basis</label>
+            <select name="employmentBasis" id="employmentBasis" class={selectClass staff "employmentBasis"}>
+                <option value="permanent" selected={staff.employmentBasis == Permanent}>Permanent</option>
+                <option value="casual" selected={staff.employmentBasis == Casual}>Casual</option>
+            </select>
+            {renderStaffFieldError staff "employmentBasis"}
+        </div>
+        <div class="col-12 col-md-6">
+            <label for="payRateSelection" class="form-label">Default Pay Rate</label>
+            <select name="payRateSelection" id="payRateSelection" class={selectClass staff "defaultAwardLevelId"}>
+                <option value="" selected={isNothing staff.defaultAwardLevelId && isNothing staff.importedXeroPayItemId}>Not assigned</option>
+                {forEach awardLevels (renderAwardLevelOption staff awardLevelBaseRates)}
+                {forEach importedPayItems (renderImportedPayItemOption staff.importedXeroPayItemId)}
+            </select>
+            {renderStaffFieldError staff "defaultAwardLevelId"}
+            {renderStaffFieldError staff "importedXeroPayItemId"}
+        </div>
+    </div>
+|]
+
+renderImportedPayItemOption :: Maybe (Id XeroImportedPayItem) -> XeroImportedPayItem -> Html
+renderImportedPayItemOption selectedImportedPayItemId importedPayItem = [hsx|
+    <option value={"xero:" <> inputValue importedPayItem.id} selected={selectedImportedPayItemId == Just importedPayItem.id}>
+        Xero: {importedPayItem.name} — {tshow importedPayItem.ratePerUnit}/hr
+    </option>
+|]
+
+renderAwardLevelOption :: Staff -> [AwardLevelBaseRate] -> AwardLevel -> Html
+renderAwardLevelOption staff awardLevelBaseRates awardLevel = [hsx|
+    <option value={"award:" <> inputValue awardLevel.id} selected={isNothing staff.importedXeroPayItemId && staff.defaultAwardLevelId == Just awardLevel.id}>
+        FWC: {awardLevelOptionLabel awardLevelBaseRates awardLevel}
+    </option>
+|]
+
+renderRosterGroupHiddenInput :: Maybe (Id RosterGroup) -> Html
+renderRosterGroupHiddenInput maybeRosterGroupId =
+    case maybeRosterGroupId of
+        Just rosterGroupId -> [hsx|<input type="hidden" name="rosterGroupId" value={tshow rosterGroupId} />|]
+        Nothing -> mempty
+
+renderRosterGroupCheckbox :: [Id RosterGroup] -> RosterGroup -> Html
+renderRosterGroupCheckbox selectedRosterGroupIds rosterGroup =
+    let isSelected = rosterGroup.id `elem` selectedRosterGroupIds
+     in [hsx|
+        <div class="col-12 col-md-6">
+            {renderRosterGroupToggle rosterGroup isSelected}
+        </div>
+    |]
+
+renderRosterGroupToggle :: RosterGroup -> Bool -> Html
+renderRosterGroupToggle rosterGroup isSelected =
+    renderAppToggleButton $ (defaultAppToggleButtonConfig ("staff-roster-group-" <> tshow rosterGroup.id) isSelected [hsx|<span>{rosterGroup.name}</span>|])
+        { appToggleInputName = Just "rosterGroupIds"
+        , appToggleInputValue = tshow rosterGroup.id
+        , appToggleButtonClass = "btn-sm timesheet-approval-toggle shift-preference-availability-button w-100 d-flex align-items-center justify-content-center gap-1"
+        }
+
