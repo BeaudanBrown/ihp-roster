@@ -59,8 +59,8 @@ lands.
   not present interactive affordance.
 - Shift type badges show the assigned shift type name. Shift types with a
   palette colour key render a small persisted colour marker; blank colour keys
-  render without a colour highlight. Unassigned shifts show `Type`; staffed
-  shifts without a shift type show `Type required` with warning/dashed styling.
+  render without a colour highlight. Unassigned shifts show `Role`; staffed
+  shifts without a shift type show `Role required` with warning/dashed styling.
 - Slot names and shift types are venue configuration, not free-form authority.
 - Shift type colour keys are optional reusable labels. Blank (`''`) means no
   roster colour highlight; palette keys (`palette-1` through `palette-10`) opt a

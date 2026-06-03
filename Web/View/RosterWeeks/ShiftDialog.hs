@@ -125,9 +125,9 @@ renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShift
     renderDialogAssignmentFields = [hsx|
         <div class="row g-3 mb-3">
             <div class="col-12 col-lg-6">
-                <label class="form-label" for="roster-shift-type-id">Shift type</label>
+                <label class="form-label" for="roster-shift-type-id">Role</label>
                 <select id="roster-shift-type-id" name="shiftTypeId" class={classes [("form-select", True), ("is-invalid", isJust rosterShiftDialogValues.rosterShiftTypeError)]}>
-                    <option value="">Select shift type</option>
+                    <option value="">Select role</option>
                     {forEach visibleShiftTypes (renderDialogShiftTypeOption rosterShiftDialogValues.rosterShiftTypeId)}
                 </select>
                 {renderDialogFieldError rosterShiftDialogValues.rosterShiftTypeError}

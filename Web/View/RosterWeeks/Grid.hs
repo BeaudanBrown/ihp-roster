@@ -386,13 +386,13 @@ renderSlotSubHeaders True _ =
         [ [hsx|<div role="columnheader" class="roster-subhead roster-col-time">Start</div>|]
         , [hsx|<div role="columnheader" class="roster-subhead roster-col-time">End</div>|]
         , [hsx|<div role="columnheader" class="roster-subhead roster-col-staff">Staff</div>|]
-        , [hsx|<div role="columnheader" class="roster-subhead roster-col-shift-type roster-block-end">Type</div>|]
+        , [hsx|<div role="columnheader" class="roster-subhead roster-col-shift-type roster-block-end">Role</div>|]
         ]
 renderSlotSubHeaders False _ =
     mconcat
         [ [hsx|<div role="columnheader" class="roster-subhead roster-col-time">Start</div>|]
         , [hsx|<div role="columnheader" class="roster-subhead roster-col-staff">Staff</div>|]
-        , [hsx|<div role="columnheader" class="roster-subhead roster-col-code roster-block-end">Type</div>|]
+        , [hsx|<div role="columnheader" class="roster-subhead roster-col-code roster-block-end">Role</div>|]
         ]
 
 renderRosterDay :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterDay -> Html
@@ -1109,7 +1109,7 @@ normaliseShiftTypeBadgeColourKey shiftType
 
 shiftTypeBadgeLabel :: Maybe UUID -> Maybe ShiftType -> Text
 shiftTypeBadgeLabel staffId maybeShiftType =
-    fromMaybe (if isJust staffId then "Type required" else "Type") (renderShiftTypeOptionLabel <$> maybeShiftType)
+    fromMaybe (if isJust staffId then "Role required" else "Role") (renderShiftTypeOptionLabel <$> maybeShiftType)
 
 renderReadOnlyDayColumnShiftTypeBadge :: Maybe UUID -> Maybe ShiftType -> Bool -> Html
 renderReadOnlyDayColumnShiftTypeBadge staffId selectedShiftType isPublishRequired = [hsx|
