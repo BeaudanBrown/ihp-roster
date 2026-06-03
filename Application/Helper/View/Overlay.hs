@@ -96,7 +96,11 @@ renderDialogOverlayButton button =
             </button>
         |]
         OverlaySubmitFormAction formId -> [hsx|
-            <button type="submit" class={button.overlayButtonClass} form={formId}>
+            <button type="submit"
+                    class={button.overlayButtonClass}
+                    form={formId}
+                    data-dialog-overlay-submit-button="true"
+                    data-loading-label="Working...">
                 {button.overlayButtonLabel}
             </button>
         |]
@@ -164,7 +168,11 @@ renderPageDialogButton closeUrl button =
             </a>
         |]
         OverlaySubmitFormAction formId -> [hsx|
-            <button type="submit" class={button.overlayButtonClass} form={formId}>
+            <button type="submit"
+                    class={button.overlayButtonClass}
+                    form={formId}
+                    data-dialog-overlay-submit-button="true"
+                    data-loading-label="Working...">
                 {button.overlayButtonLabel}
             </button>
         |]

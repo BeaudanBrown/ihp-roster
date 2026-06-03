@@ -65,6 +65,58 @@
         clearMount();
     });
 
+    document.addEventListener('submit', function (event) {
+        const activeDialog = getActiveDialog();
+        if (!activeDialog) return;
+
+        const form = event.target;
+        if (!(form instanceof HTMLFormElement)) return;
+
+        const submitter = event.submitter;
+        if (!(submitter instanceof HTMLButtonElement)) return;
+        if (!submitter.matches('[data-dialog-overlay-submit-button="true"]')) return;
+
+        activeDialog.querySelectorAll('button, a.btn').forEach(function (control) {
+            if (control instanceof HTMLButtonElement) {
+                control.disabled = true;
+            } else {
+                control.classList.add('disabled');
+                control.setAttribute('aria-disabled', 'true');
+            }
+        });
+
+        if (!submitter.dataset.originalHtml) {
+            submitter.dataset.originalHtml = submitter.innerHTML;
+        }
+        const label = submitter.getAttribute('data-loading-label') || 'Working...';
+        submitter.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span><span>' + label + '</span>';
+        submitter.classList.add('d-inline-flex', 'align-items-center', 'gap-2');
+    }, true);
+
+    document.addEventListener('htmx:afterRequest', function (event) {
+        const activeDialog = getActiveDialog();
+        if (!activeDialog) return;
+        if (!(event.detail && event.detail.elt instanceof HTMLElement)) return;
+        if (!activeDialog.contains(event.detail.elt)) return;
+
+        activeDialog.querySelectorAll('button, a.btn').forEach(function (control) {
+            if (control instanceof HTMLButtonElement) {
+                control.disabled = false;
+            } else {
+                control.classList.remove('disabled');
+                control.removeAttribute('aria-disabled');
+            }
+        });
+
+        activeDialog.querySelectorAll('[data-dialog-overlay-submit-button="true"]').forEach(function (control) {
+            if (!(control instanceof HTMLButtonElement)) return;
+            if (control.dataset.originalHtml) {
+                control.innerHTML = control.dataset.originalHtml;
+            }
+            control.classList.remove('d-inline-flex', 'align-items-center', 'gap-2');
+        });
+    });
+
     document.addEventListener('htmx:afterSwap', function (event) {
         if (!(event.detail && event.detail.target instanceof HTMLElement)) return;
         if (event.detail.target.id !== mountId) return;

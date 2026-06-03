@@ -311,11 +311,7 @@ renderPeriodSelection view
             No eligible Xero pay periods are available yet. Check that staff are matched to synced Xero employees and approved shifts exist for a synced Xero payroll calendar.
         </div>
     |]
-    | otherwise = [hsx|
-        <div class={appSurfaceClasses "p-3 small"}>
-            Select the Xero payroll period to prepare. The list is based on approved shifts for staff whose Xero mappings are now resolved.
-        </div>
-    |]
+    | otherwise = mempty
 
 renderEmptyPreparationPeriodOption :: XeroTimesheetPreparationView -> Html
 renderEmptyPreparationPeriodOption view

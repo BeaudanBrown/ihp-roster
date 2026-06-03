@@ -17,6 +17,7 @@ module Web.Controller.Admin.Xero.Timesheets
     ) where
 
 import Application.Helper.LiveResource (LiveMutationResult (..))
+import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter), renderToastOverlayHostOob)
 import Application.Helper.XeroTimesheetReadiness
 import Application.Helper.XeroAdminTypes (XeroTimesheetPreparationState (XeroPreparationSubmitted), XeroTimesheetPreparationView (..))
 import Application.Xero.Admin.ReadModel
@@ -132,10 +133,9 @@ confirmXeroTimesheetPreparationSubmissionAction ::
     IO ()
 confirmXeroTimesheetPreparationSubmissionAction runId = do
     result <- loadXeroTimesheetPreparationView runId
-    respondHtml $
-        case result of
-            Left message -> renderXeroTimesheetPreparationErrorDialog message
-            Right view -> renderXeroTimesheetPreparationSubmittingDialog view
+    case result of
+        Left message -> respondWithPreparationErrorToast message
+        Right view -> respondHtml (renderXeroTimesheetPreparationSubmittingDialog view)
 
 runXeroTimesheetPreparationSubmissionAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -239,10 +239,9 @@ respondWithPreparationDialog ::
 respondWithPreparationDialog result =
     if isHtmxRequest
         then do
-            respondHtml $
-                case result of
-                    Left message -> renderXeroTimesheetPreparationErrorDialog message
-                    Right view -> renderXeroTimesheetPreparationDialog view
+            case result of
+                Left message -> respondWithPreparationErrorToast message
+                Right view -> respondHtml (renderXeroTimesheetPreparationDialog view)
         else
             case result of
                 Left message -> do
@@ -251,6 +250,11 @@ respondWithPreparationDialog result =
                 Right _ -> do
                     setSuccessMessage "Updated Xero timesheet preparation."
                     redirectTo XeroAction
+
+respondWithPreparationErrorToast :: (?context :: ControllerContext, ?request :: Request) => Text -> IO ()
+respondWithPreparationErrorToast message = do
+    setHeader ("HX-Reswap", "none")
+    respondHtml (renderToastOverlayHostOob ToastBottomCenter [xeroErrorToast message])
 
 submissionBelongsToCurrentVenue ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
