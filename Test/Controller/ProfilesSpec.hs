@@ -258,7 +258,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "href=\"/LeaveRequests\""
                 response `responseBodyShouldContain` "<span>unavailability</span>"
 
-        it "saves submitted shift preferences from the profile form" $ withContext do
+        it "saves submitted shift preferences from the preferences form" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Profile Venue"
                 user <- createUserRecord "profile-preferences@example.com" "staff" True
@@ -269,13 +269,7 @@ tests = beforeAll testContext do
 
                 response <- withUserAndCurrentVenue user venue.id do
                     callActionWithParams UpdateProfileAction
-                        [ ("firstName", "Taylor")
-                        , ("lastName", "Smith")
-                        , ("preferredName", "")
-                        , ("phone", "0400000000")
-                        , ("emergencyContactName", "Casey Smith")
-                        , ("emergencyContactPhone", "0411111111")
-                        , ("idealShiftsPerWeek", "3")
+                        [ ("section", "preferences")
                         , ("shiftPreferenceKeys", cs preferenceKey)
                         , (cs (shiftPreferenceStartHourParamName preferenceKey), "12")
                         , (cs (shiftPreferenceEndHourParamName preferenceKey), "20")
@@ -332,14 +326,14 @@ tests = beforeAll testContext do
                 length rosterGroups `shouldBe` 1
                 refreshedUser.isProfileCompleted `shouldBe` True
 
-        it "saves shift preferences on the first successful profile submission" $ withContext do
+        it "saves shift preferences after profile creation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Profile Bootstrap Preferences Venue"
                 user <- createUserRecord "profile-bootstrap-preferences@example.com" "staff" False
                 _ <- createVenueMembershipRecord venue user "worker"
                 let preferenceKey = encodeShiftPreferenceKey 2
 
-                response <- withUserAndCurrentVenue user venue.id do
+                profileResponse <- withUserAndCurrentVenue user venue.id do
                     callActionWithParams UpdateProfileAction
                         [ ("firstName", "Taylor")
                         , ("lastName", "Smith")
@@ -348,14 +342,22 @@ tests = beforeAll testContext do
                         , ("emergencyContactName", "Casey Smith")
                         , ("emergencyContactPhone", "0411111111")
                         , ("idealShiftsPerWeek", "4")
+                        ]
+
+                profileResponse `responseStatusShouldBe` status302
+
+                staff <- query @Staff |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#userId, Just (unpackId user.id)) |> fetchOne
+
+                preferencesResponse <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams UpdateProfileAction
+                        [ ("section", "preferences")
                         , ("shiftPreferenceKeys", cs preferenceKey)
                         , (cs (shiftPreferenceStartHourParamName preferenceKey), "8")
                         , (cs (shiftPreferenceEndHourParamName preferenceKey), "14")
                         ]
 
-                response `responseStatusShouldBe` status302
+                preferencesResponse `responseStatusShouldBe` status302
 
-                staff <- query @Staff |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#userId, Just (unpackId user.id)) |> fetchOne
                 preferences <- query @StaffShiftPreference |> filterWhere (#staffId, unpackId staff.id) |> fetch
 
                 map (.weekdayIndex) preferences `shouldBe` [2]
