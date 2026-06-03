@@ -1181,16 +1181,15 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Draft timesheet submission"
-                response `responseBodyShouldContain` "approved Bepis timesheets"
+                response `responseBodyShouldContain` "confirm staff Xero mappings"
                 response `responseBodyShouldNotContain` "approved IHP timesheets"
-                response `responseBodyShouldContain` "Prepare"
-                response `responseBodyShouldContain` "name=\"periodKey\""
+                response `responseBodyShouldContain` "Prepare timesheets"
+                response `responseBodyShouldNotContain` "name=\"periodKey\""
                 response `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
                 response `responseBodyShouldContain` "id=\"xero-timesheets-data\""
                 response `responseBodyShouldNotContain` "id=\"xero-timesheet-submission-indicator\""
                 response `responseBodyShouldContain` "hx-post=\"/OpenXeroTimesheetPreparation\""
                 response `responseBodyShouldNotContain` "Working on Xero draft timesheets"
-                response `responseBodyShouldContain` "Selected Xero payroll period"
 
         it "shows synced Xero payroll-calendar periods that contain approved local entries without requiring a pay run" $ withContext do
             withCleanDb do
@@ -1206,9 +1205,8 @@ tests = beforeAll testContext do
                     callAction ShowAdminXeroFragmentAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "name=\"periodKey\""
-                response `responseBodyShouldContain` ("value=\"" <> fixturePeriodKey fixture <> "\"")
-                response `responseBodyShouldNotContain` "No synced Xero pay periods available"
+                response `responseBodyShouldNotContain` "name=\"periodKey\""
+                response `responseBodyShouldContain` "Prepare timesheets"
                 response `responseBodyShouldNotContain` "DRAFT"
                 response `responseBodyShouldNotContain` "submitted already"
 
@@ -1221,8 +1219,8 @@ tests = beforeAll testContext do
                     callAction ShowAdminXeroFragmentAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` ("value=\"" <> fixturePeriodKey fixture <> "\"")
-                response `responseBodyShouldContain` "submitted already"
+                response `responseBodyShouldNotContain` "name=\"periodKey\""
+                response `responseBodyShouldNotContain` "submitted already"
 
         it "uses the latest local Xero submission run status for a pay period" $ withContext do
             withCleanDb do
@@ -1237,7 +1235,7 @@ tests = beforeAll testContext do
                     callAction ShowAdminXeroFragmentAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "submitted already"
+                response `responseBodyShouldNotContain` "submitted already"
                 response `responseBodyShouldNotContain` "failed previously"
 
         it "does not mark other Xero pay periods from local submission history" $ withContext do
@@ -1260,7 +1258,7 @@ tests = beforeAll testContext do
                     callAction ShowAdminXeroFragmentAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` ("value=\"" <> fixturePeriodKey fixture <> "\"")
+                response `responseBodyShouldNotContain` "name=\"periodKey\""
                 response `responseBodyShouldNotContain` "submitted already"
 
         it "only offers payroll-calendar periods that match the approved employees' Xero calendars" $ withContext do
@@ -1279,9 +1277,8 @@ tests = beforeAll testContext do
                     callAction ShowAdminXeroFragmentAction
 
                 response `responseStatusShouldBe` status200
+                response `responseBodyShouldNotContain` "name=\"periodKey\""
                 response `responseBodyShouldNotContain` ("value=\"" <> fixturePeriodKey fixture <> "\"")
-                response `responseBodyShouldContain` ("value=\"" <> otherPeriodKey <> "\"")
-                response `responseBodyShouldContain` "Other Weekly Calendar"
 
         it "does not show Xero pay periods that only have unapproved local entries" $ withContext do
             withCleanDb do
@@ -1299,7 +1296,7 @@ tests = beforeAll testContext do
                     callAction ShowAdminXeroFragmentAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "No synced Xero pay periods available"
+                response `responseBodyShouldNotContain` "name=\"periodKey\""
                 response `responseBodyShouldNotContain` ("value=\"" <> fixturePeriodKey fixture <> "\"")
 
         it "does not show posted Xero pay-run periods in the draft-timesheet dropdown" $ withContext do
@@ -1312,7 +1309,7 @@ tests = beforeAll testContext do
                     callAction ShowAdminXeroFragmentAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "No synced Xero pay periods available"
+                response `responseBodyShouldNotContain` "name=\"periodKey\""
                 response `responseBodyShouldNotContain` ("value=\"" <> fixturePeriodKey fixture <> "\"")
 
         it "shows historical unposted Xero periods when they contain approved local entries" $ withContext do
@@ -1325,8 +1322,8 @@ tests = beforeAll testContext do
                     callAction ShowAdminXeroFragmentAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` ("value=\"" <> fixturePeriodKey fixture <> "\"")
-                response `responseBodyShouldContain` "DRAFT"
+                response `responseBodyShouldNotContain` "name=\"periodKey\""
+                response `responseBodyShouldNotContain` "DRAFT"
 
         it "opens the guided Xero preparation modal for a selected pay period" $ withContext do
             withCleanDb do
@@ -1538,6 +1535,7 @@ tests = beforeAll testContext do
         it "creates proposed managed Xero pay items automatically when submitting from preparation" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                markOtherFixtureStaffNotPaid fixture
                 encryptedRefreshToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
                 _ <-
                     fixture.connection
@@ -1561,9 +1559,12 @@ tests = beforeAll testContext do
                                 callActionWithParams RunXeroTimesheetPreparationAction
                                     [("periodKey", fixturePeriodKey fixture)]
                 run <- query @XeroTimesheetPreparationRun |> fetchOne
-                _ <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callAction (ContinueXeroTimesheetPreparationStaffStepAction run.id)
+                _ <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest xeroClient do
+                        withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callActionWithParams (SelectXeroTimesheetPreparationPeriodAction run.id)
+                                    [("periodKey", fixturePeriodKey fixture)]
 
                 approvalResponse <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest xeroClient do
@@ -1660,6 +1661,7 @@ tests = beforeAll testContext do
         it "keeps stale Xero payroll calendar selections out of the guided preparation path" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                markOtherFixtureStaffNotPaid fixture
                 existingSelection <- query @XeroPayrollCalendarSelection |> fetchOne
                 _ <-
                     existingSelection
@@ -1676,14 +1678,20 @@ tests = beforeAll testContext do
 
                 pageResponse `responseStatusShouldBe` status200
                 pageResponse `responseBodyShouldContain` "Draft timesheet submission"
-                pageResponse `responseBodyShouldContain` "Preview Calendar"
-                pageResponse `responseBodyShouldContain` "Prepare"
+                pageResponse `responseBodyShouldNotContain` "name=\"periodKey\""
+                pageResponse `responseBodyShouldContain` "Prepare timesheets"
 
+                _ <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest (referenceSyncXeroClient (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) [] [] []) do
+                        withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callAction RunXeroTimesheetPreparationAction
+                preparationRunBeforeSelect <- query @XeroTimesheetPreparationRun |> fetchOne
                 response <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest (referenceSyncXeroClient (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) [] [] []) do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                             withRequestHeaders [("HX-Request", "true")] do
-                                callActionWithParams RunXeroTimesheetPreparationAction
+                                callActionWithParams (SelectXeroTimesheetPreparationPeriodAction preparationRunBeforeSelect.id)
                                     [("periodKey", fixturePeriodKey fixture)]
 
                 response `responseStatusShouldBe` status200
