@@ -1864,7 +1864,7 @@ tests = beforeAll testContext do
                 preparationRunCount <- query @XeroTimesheetPreparationRun |> fetchCount
                 preparationRunCount `shouldBe` 0
 
-        it "persists a latest Xero draft-timesheet preview and renders one row per employee" $ withContext do
+        it "persists a Xero draft-timesheet preview without rendering a latest-run section" $ withContext do
             withCleanDb do
                 fixture <-
                     Preview.createPreviewFixture
@@ -1894,11 +1894,13 @@ tests = beforeAll testContext do
                 fragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                     callAction ShowAdminXeroTimesheetsFragmentAction
                 fragmentResponse `responseStatusShouldBe` status200
-                fragmentResponse `responseBodyShouldContain` "employee-a"
-                fragmentResponse `responseBodyShouldContain` "employee-b"
+                fragmentResponse `responseBodyShouldContain` "id=\"xero-timesheets-data\""
+                fragmentResponse `responseBodyShouldNotContain` "Latest run"
+                fragmentResponse `responseBodyShouldNotContain` "employee-a"
+                fragmentResponse `responseBodyShouldNotContain` "employee-b"
                 fragmentResponse `responseBodyShouldNotContain` "Historical runs"
 
-        it "submits Xero draft timesheets through the existing service and renders latest submission status" $ withContext do
+        it "submits Xero draft timesheets through the existing service without rendering latest submission status on the Xero page" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                 encryptedRefreshToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
@@ -1929,8 +1931,8 @@ tests = beforeAll testContext do
                     callAction ShowAdminXeroTimesheetsFragmentAction
                 fragmentResponse `responseStatusShouldBe` status200
                 fragmentResponse `responseBodyShouldContain` "id=\"xero-timesheets-data\""
-                fragmentResponse `responseBodyShouldContain` "Submission status"
-                fragmentResponse `responseBodyShouldContain` "submitted"
+                fragmentResponse `responseBodyShouldNotContain` "Latest run"
+                fragmentResponse `responseBodyShouldNotContain` "Submission status"
 
         it "renders readiness issues before Xero draft-timesheet submission" $ withContext do
             withCleanDb do
@@ -1954,7 +1956,7 @@ tests = beforeAll testContext do
                 blockedPage `responseBodyShouldContain` "Unapproved entries remain in the pay period."
                 blockedPage `responseBodyShouldContain` "There are no approved timesheet entries in the selected period."
 
-        it "renders per-employee Xero submission errors with a retry affordance" $ withContext do
+        it "persists per-employee Xero submission errors without rendering the latest-run retry section" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                 encryptedRefreshToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
@@ -1986,8 +1988,9 @@ tests = beforeAll testContext do
                 fragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                     callAction ShowAdminXeroTimesheetsFragmentAction
                 fragmentResponse `responseStatusShouldBe` status200
-                fragmentResponse `responseBodyShouldContain` "Xero validation failed: units are invalid"
-                fragmentResponse `responseBodyShouldContain` "Retry"
+                fragmentResponse `responseBodyShouldContain` "id=\"xero-timesheets-data\""
+                fragmentResponse `responseBodyShouldNotContain` "Xero validation failed: units are invalid"
+                fragmentResponse `responseBodyShouldNotContain` "Retry"
 
         it "records Xero payroll reference sync failures without storing stale rows" $ withContext do
             withCleanDb do

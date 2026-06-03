@@ -205,7 +205,7 @@ renderXeroTimesheetPreparationFailureDialog view =
             <div class="d-flex flex-column gap-3">
                 <div class="alert alert-danger mb-0">{fromMaybe "Xero draft-timesheet submission did not complete successfully." view.preparationRun.errorSummary}</div>
                 {renderPreview view}
-                <div class="small app-muted">Close this dialog to review employee-level submission status in the Xero panel.</div>
+                <div class="small app-muted">Review employee-level submission status below.</div>
             </div>
         |]
         , dialogOverlayStartButtons = []
@@ -476,7 +476,7 @@ workflowDetail view =
         XeroPreparationBlocked -> "Resolve the blockers shown in readiness validation before submitting."
         XeroPreparationReadyForPreview -> "All required decisions are resolved. Submit will create any missing managed pay items, then create new Xero drafts or update existing Xero drafts."
         XeroPreparationPreviewed -> "Review the preview rows, then submit only when you are ready to create or update Xero draft timesheets."
-        XeroPreparationSubmitted -> "The latest submission status is recorded below and in the Xero panel."
+        XeroPreparationSubmitted -> "The latest submission status is recorded below."
         XeroPreparationFailed -> "Refresh checks or close the dialog and retry after fixing the reported issue."
 
 renderConnectionNotice :: XeroTimesheetPreparationView -> Html
