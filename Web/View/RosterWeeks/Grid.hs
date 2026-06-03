@@ -960,12 +960,7 @@ renderCreateBlockCells :: (?context :: ControllerContext) => RosterAssignmentFil
 renderCreateBlockCells _assignmentFilters _staffMembers _shiftTypes True rosterDay rowIndex blockIndex slotName =
     let target = NewRosterSlotTarget rosterDay.id slotName.id rowIndex
         groupKey = rosterShiftGroupKey target
-     in mconcat
-        [ renderCreateLauncherCell target groupKey (classes [("slot-time-cell slot-start-time-cell roster-shift-launcher", True), ("roster-block-start", blockIndex > 0)]) ""
-        , renderCreateLauncherCell target groupKey "slot-time-cell slot-end-time-cell roster-shift-launcher" ""
-        , renderCreateLauncherCell target groupKey "slot-staff-cell position-relative roster-shift-launcher roster-shift-create-plus-cell" "+"
-        , renderCreateLauncherCell target groupKey "slot-shift-type-cell roster-block-end is-shift-type-empty roster-shift-launcher" ""
-        ]
+     in renderCreateLauncherCellWithGridSpan target groupKey (classes [("slot-empty-cell roster-shift-launcher roster-shift-create-plus-cell roster-shift-create-merged-cell roster-block-end", True), ("roster-block-start", blockIndex > 0)]) "+" (slotColumnCount True)
 renderCreateBlockCells _assignmentFilters _staffMembers _shiftTypes False rosterDay rowIndex blockIndex slotName =
     let target = NewRosterSlotTarget rosterDay.id slotName.id rowIndex
         groupKey = rosterShiftGroupKey target
@@ -976,9 +971,14 @@ renderCreateBlockCells _assignmentFilters _staffMembers _shiftTypes False roster
         ]
 
 renderCreateLauncherCell :: (?context :: ControllerContext) => RosterSlotCellTarget -> Text -> Text -> Text -> Html
-renderCreateLauncherCell target groupKey cellClasses label = [hsx|
+renderCreateLauncherCell target groupKey cellClasses label =
+    renderCreateLauncherCellWithGridSpan target groupKey cellClasses label 1
+
+renderCreateLauncherCellWithGridSpan :: (?context :: ControllerContext) => RosterSlotCellTarget -> Text -> Text -> Text -> Int -> Html
+renderCreateLauncherCellWithGridSpan target groupKey cellClasses label gridSpan = [hsx|
     <div role="gridcell"
          class={cellClasses}
+         style={"grid-column: span " <> tshow gridSpan <> ";"}
          data-roster-shift-group-key={groupKey}
          data-roster-shift-launcher="true"
          tabindex="0"

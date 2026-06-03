@@ -59,6 +59,11 @@
     transition: opacity 140ms ease;
 }
 
+.roster-grid .roster-shift-create-merged-cell .slot-cell-static {
+    height: 100%;
+    width: 100%;
+}
+
 .roster-grid .roster-shift-create-plus-cell:hover .slot-cell-static,
 .roster-grid .roster-shift-create-plus-cell:focus-visible .slot-cell-static,
 .roster-grid .roster-shift-create-plus-cell.is-roster-shift-group-highlighted .slot-cell-static {
