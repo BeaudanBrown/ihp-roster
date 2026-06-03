@@ -3,6 +3,9 @@ module Test.Controller.StaffSpec where
 import Application.Helper.LiveResource (LiveResource (..))
 import qualified Application.Helper.LiveUpdate as LiveUpdate
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
+import Application.Helper.StaffShiftPreferences (encodeShiftPreferenceKey,
+                                                 shiftPreferenceEndHourParamName,
+                                                 shiftPreferenceStartHourParamName)
 import Config
 import Generated.Types
 import IHP.ControllerPrelude
@@ -86,6 +89,22 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
                 response `responseBodyShouldContain` "roster-grid"
 
+        it "renders shift preferences in a dedicated staff edit accordion section" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Preferences Accordion Venue"
+                manager <- createUserRecord "staff-preferences-accordion-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue Nothing "Alpha" "Crew"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "id=\"staff-profile-details-collapse\" class=\"accordion-collapse collapse show\""
+                response `responseBodyShouldContain` "id=\"staff-profile-preferences-collapse\" class=\"accordion-collapse collapse\""
+                response `responseBodyShouldContain` "id=\"staff-shift-preferences-form\""
+                response `responseBodyShouldContain` "<span class=\"fw-semibold\">Shift Preferences</span>"
+
         it "updates explicit roster-group applicability from the staff edit form" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
@@ -116,6 +135,67 @@ tests = beforeAll testContext do
                     |> filterWhere (#deletedAt, Nothing)
                     |> fetch
                 sort (map (.rosterGroupId) assignments) `shouldBe` sort [unpackId frontOfHouse.id, unpackId backOfHouse.id]
+
+        it "keeps existing shift preferences when saving staff profile details" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Preserve Preferences Venue"
+                manager <- createUserRecord "staff-preserve-preferences-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
+                staff <- createStaffRecord venue Nothing "Alpha" "Crew"
+                _ <-
+                    newRecord @StaffShiftPreference
+                        |> set #venueId (unpackId venue.id)
+                        |> set #staffId (unpackId staff.id)
+                        |> set #weekdayIndex 1
+                        |> set #preferredStartHour 9
+                        |> set #preferredEndHour 17
+                        |> createRecord
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams
+                        (UpdateStaffAction staff.id)
+                        [ ("section", "profile")
+                        , ("firstName", "Alpha")
+                        , ("lastName", "Crew")
+                        , ("phone", "0400000000")
+                        , ("emergencyContactName", "Jordan Crew")
+                        , ("emergencyContactPhone", "0411111111")
+                        , ("idealShiftsPerWeek", "4")
+                        , ("isActive", "on")
+                        , ("weekOffset", "0")
+                        , ("rosterGroupIds", cs (tshow rosterGroup.id))
+                        ]
+
+                response `responseStatusShouldBe` status302
+                preferences <- query @StaffShiftPreference |> filterWhere (#staffId, unpackId staff.id) |> filterWhere (#deletedAt, Nothing) |> fetch
+                map (.weekdayIndex) preferences `shouldBe` [1]
+                map (.preferredStartHour) preferences `shouldBe` [9]
+                map (.preferredEndHour) preferences `shouldBe` [17]
+
+        it "saves staff shift preferences from the dedicated preferences form" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Dedicated Preferences Venue"
+                manager <- createUserRecord "staff-dedicated-preferences-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue Nothing "Alpha" "Crew"
+                let preferenceKey = encodeShiftPreferenceKey 2
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams
+                        (UpdateStaffAction staff.id)
+                        [ ("section", "preferences")
+                        , ("weekOffset", "0")
+                        , ("shiftPreferenceKeys", cs preferenceKey)
+                        , (cs (shiftPreferenceStartHourParamName preferenceKey), "8")
+                        , (cs (shiftPreferenceEndHourParamName preferenceKey), "14")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                preferences <- query @StaffShiftPreference |> filterWhere (#staffId, unpackId staff.id) |> filterWhere (#deletedAt, Nothing) |> fetch
+                map (.weekdayIndex) preferences `shouldBe` [2]
+                map (.preferredStartHour) preferences `shouldBe` [8]
+                map (.preferredEndHour) preferences `shouldBe` [14]
 
         it "rejects malformed roster group ids and shift preference keys without throwing" $ withContext do
             withCleanDb do

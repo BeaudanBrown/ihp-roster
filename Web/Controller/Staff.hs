@@ -32,6 +32,7 @@ instance Controller StaffController where
         maybeLinkedUserEmail <- fetchStaffLinkedUserEmail staff
         let weekOffset = paramOrDefault @Int 0 "weekOffset"
         let maybeRosterGroupId = paramOrNothing "rosterGroupId"
+        let openSection = normalizeStaffOpenSection (paramOrDefault @Text "profile" "section")
         venueConfig <- fetchVenueConfig
         rosterGroups <- fetchCurrentVenueRosterGroups
         awardLevels <- fetchAwardLevelsForStaffForm
@@ -45,7 +46,7 @@ instance Controller StaffController where
         leaveRequests <- fetchStaffLeaveRequests staff
         today <- utctDay <$> getCurrentTime
         if isHtmxRequest
-            then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId)
+            then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
             else render EditView { .. }
 
     action UpdateStaffAction { staffId } = do
@@ -57,74 +58,72 @@ instance Controller StaffController where
         let submittedShiftPreferenceKeys = nub (paramTexts "shiftPreferenceKeys")
         let weekOffset = paramOrDefault @Int 0 "weekOffset"
         let maybeRosterGroupId = paramOrNothing "rosterGroupId"
+        let openSection = normalizeStaffOpenSection (paramOrDefault @Text "profile" "section")
+        let preferencesWereSubmitted = openSection == "preferences"
         venueConfig <- fetchVenueConfig
         rosterGroups <- fetchCurrentVenueRosterGroups
         awardLevels <- fetchAwardLevelsForStaffForm
         awardLevelBaseRates <- fetchAwardLevelBaseRatesForStaffForm
         importedPayItems <- fetchActiveImportedXeroPayItems
-        let submittedRosterGroupIds = nub (mapMaybe parseRosterGroupIdText (paramTexts "rosterGroupIds"))
-        maybeSelectedRosterGroupIds <- parseStaffRosterGroupIds
+        currentSelectedRosterGroupIds <- fetchStaffRosterGroupIds staff
+        let submittedRosterGroupIds = if preferencesWereSubmitted then currentSelectedRosterGroupIds else nub (mapMaybe parseRosterGroupIdText (paramTexts "rosterGroupIds"))
         let canManageStaffPay = hasRole VenueAdminRole
-        maybeSubmittedPayRateSelection <- if canManageStaffPay then parseSubmittedPayRateSelection "payRateSelection" else pure (Just emptyStaffPayRateSelection)
-        let maybeSubmittedDefaultAwardLevelId = submittedAwardLevelId <$> maybeSubmittedPayRateSelection
-        let maybeSubmittedImportedXeroPayItemId = submittedImportedXeroPayItemId <$> maybeSubmittedPayRateSelection
         let preferenceWeekdays = allPreferenceWeekdays venueConfig
         staffRsaDocument <- latestRsaDocumentForStaff staff
         leaveRequest <- buildDefaultLeaveRequest
         leaveRequests <- fetchStaffLeaveRequests staff
         today <- utctDay <$> getCurrentTime
-        let selectedShiftPreferences =
-                case parseShiftPreferenceSelections preferenceWeekdays submittedShiftPreferenceKeys of
-                    Right selections -> selections
-                    Left _           -> []
-        staff
-            |> buildStaff canManageStaffPay maybeSubmittedDefaultAwardLevelId maybeSubmittedImportedXeroPayItemId
-            |> ifValid \case
-                Left staff -> do
-                    if isHtmxRequest
-                        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems submittedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId)
-                        else do
-                            let selectedRosterGroupIds = submittedRosterGroupIds
-                            render EditView { .. }
-                Right staff -> do
-                    case (maybeSelectedRosterGroupIds, maybeSubmittedDefaultAwardLevelId, maybeSubmittedImportedXeroPayItemId) of
-                        (Nothing, _, _) -> do
-                            let selectedRosterGroupIds = submittedRosterGroupIds
-                            if isHtmxRequest
-                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId)
-                                else render EditView { .. }
-                        (_, Nothing, _) -> do
-                            let selectedRosterGroupIds = submittedRosterGroupIds
-                            if isHtmxRequest
-                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId)
-                                else render EditView { .. }
-                        (_, _, Nothing) -> do
-                            let selectedRosterGroupIds = submittedRosterGroupIds
-                            if isHtmxRequest
-                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId)
-                                else render EditView { .. }
-                        (Just selectedRosterGroupIds, Just _, Just _) -> do
-                            case parseShiftPreferenceSelections preferenceWeekdays submittedShiftPreferenceKeys of
-                                Left preferenceError -> do
-                                    setErrorMessage preferenceError
-                                    if isHtmxRequest
-                                        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId)
-                                        else render EditView { .. }
-                                Right submittedSelections -> do
-                                    _ <- updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections
-                                    if isHtmxRequest
-                                        then do
-                                            rosterGroupId <- case maybeRosterGroupId of
-                                                Just rosterGroupId -> pure rosterGroupId
-                                                Nothing -> (.id) <$> fetchCurrentVenueDefaultRosterGroup
-                                            respondWithRosterContentOob rosterGroupId weekOffset
-                                        else do
-                                            setSuccessMessage "Staff member updated"
-                                            redirectToPath $
-                                                maybe
-                                                    (pathTo ShowRosterWeekAction { weekOffset })
-                                                    (\rosterGroupId -> appendQueryParams (pathTo ShowRosterWeekAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)])
-                                                    maybeRosterGroupId
+        selectedShiftPreferences <-
+            if preferencesWereSubmitted
+                then pure $
+                    case parseShiftPreferenceSelections preferenceWeekdays submittedShiftPreferenceKeys of
+                        Right selections -> selections
+                        Left _           -> []
+                else fetchStaffShiftPreferenceSelections staff
+        let renderStaffEditResponse renderedStaff renderedRosterGroupIds renderedPreferences =
+                if isHtmxRequest
+                    then respondHtml (renderStaffEditModalFragment renderedStaff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems renderedRosterGroupIds preferenceWeekdays renderedPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
+                    else do
+                        let selectedRosterGroupIds = renderedRosterGroupIds
+                        let selectedShiftPreferences = renderedPreferences
+                        render EditView { staff = renderedStaff, .. }
+        let respondStaffUpdateSuccess successMessage =
+                if isHtmxRequest
+                    then do
+                        rosterGroupId <- case maybeRosterGroupId of
+                            Just rosterGroupId -> pure rosterGroupId
+                            Nothing -> (.id) <$> fetchCurrentVenueDefaultRosterGroup
+                        respondWithRosterContentOob rosterGroupId weekOffset
+                    else do
+                        setSuccessMessage successMessage
+                        redirectToPath $
+                            maybe
+                                (pathTo ShowRosterWeekAction { weekOffset })
+                                (\rosterGroupId -> appendQueryParams (pathTo ShowRosterWeekAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)])
+                                maybeRosterGroupId
+        if preferencesWereSubmitted
+            then case parseShiftPreferenceSelections preferenceWeekdays submittedShiftPreferenceKeys of
+                Left preferenceError -> do
+                    setErrorMessage preferenceError
+                    renderStaffEditResponse staff currentSelectedRosterGroupIds selectedShiftPreferences
+                Right submittedSelections -> do
+                    _ <- updateStaffMember originalStaff staff currentSelectedRosterGroupIds submittedSelections
+                    respondStaffUpdateSuccess "Shift preferences updated"
+            else do
+                maybeSelectedRosterGroupIds <- parseStaffRosterGroupIds
+                maybeSubmittedPayRateSelection <- if canManageStaffPay then parseSubmittedPayRateSelection "payRateSelection" else pure (Just emptyStaffPayRateSelection)
+                let maybeSubmittedDefaultAwardLevelId = submittedAwardLevelId <$> maybeSubmittedPayRateSelection
+                let maybeSubmittedImportedXeroPayItemId = submittedImportedXeroPayItemId <$> maybeSubmittedPayRateSelection
+                staff
+                    |> buildStaff canManageStaffPay maybeSubmittedDefaultAwardLevelId maybeSubmittedImportedXeroPayItemId
+                    |> ifValid \case
+                        Left invalidStaff -> renderStaffEditResponse invalidStaff submittedRosterGroupIds selectedShiftPreferences
+                        Right validStaff -> do
+                            case (maybeSelectedRosterGroupIds, maybeSubmittedDefaultAwardLevelId, maybeSubmittedImportedXeroPayItemId) of
+                                (Just selectedRosterGroupIds, Just _, Just _) -> do
+                                    _ <- updateStaffMember originalStaff validStaff selectedRosterGroupIds selectedShiftPreferences
+                                    respondStaffUpdateSuccess "Staff member updated"
+                                _ -> renderStaffEditResponse validStaff submittedRosterGroupIds selectedShiftPreferences
 
 emptyStaffPayRateSelection :: SubmittedPayRateSelection
 emptyStaffPayRateSelection = SubmittedPayRateSelection Nothing Nothing
@@ -229,3 +228,8 @@ parseStaffRosterGroupIds = do
 parseRosterGroupIdText :: Text -> Maybe (Id RosterGroup)
 parseRosterGroupIdText value =
     Id <$> parseUUIDText value
+
+normalizeStaffOpenSection :: Text -> Text
+normalizeStaffOpenSection section
+    | section `elem` ["profile", "preferences", "security", "leave", "rsa"] = section
+    | otherwise = "profile"

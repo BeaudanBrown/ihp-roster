@@ -4,9 +4,10 @@ import Application.Helper.Controller (VenueRole (VenueOwnerRole), currentUserIsS
 import Application.Helper.StaffShiftPreferences
 import Web.View.LeaveRequests.New (renderLeaveRequestFormFields)
 import Web.View.Prelude
-import Web.View.Profiles.Edit (profileSectionsAccordionId, renderAccordionSection, renderProfileLeaveRequestsList)
+import Web.View.Profiles.Edit (renderProfileLeaveRequestsList)
 import Web.View.StaffDocuments.Rsa
 import Web.View.StaffProfileForm
+import Web.View.StaffProfileSections
 
 data EditView = EditView
     { staff                    :: Staff
@@ -24,26 +25,33 @@ data EditView = EditView
     , today                    :: Day
     , weekOffset               :: Int
     , maybeRosterGroupId       :: Maybe (Id RosterGroup)
+    , openSection              :: Text
     }
 
 instance View EditView where
     html EditView { .. } =
-        renderStaffEditPageModal
+        renderStaffEditPageModalWithButtons
             weekOffset
-            staffEditFormId
-            (renderStaffEditBody PageOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId)
+            []
+            (renderStaffEditBody PageOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
 
 staffEditFormId :: Text
 staffEditFormId = "staff-edit-form"
 
-renderStaffEditModalFragment :: Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> LeaveRequest -> [LeaveRequest] -> Day -> Int -> Maybe (Id RosterGroup) -> Html
-renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId =
-    renderStaffEditDialog
-        staffEditFormId
-        (renderStaffEditBody HtmxOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId)
+staffShiftPreferencesEditFormId :: Text
+staffShiftPreferencesEditFormId = "staff-shift-preferences-form"
 
-renderStaffEditBody :: OverlayFormMode -> Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> LeaveRequest -> [LeaveRequest] -> Day -> Int -> Maybe (Id RosterGroup) -> Html
-renderStaffEditBody formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId =
+staffSectionsAccordionId :: Text
+staffSectionsAccordionId = "staff-sections"
+
+renderStaffEditModalFragment :: Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> LeaveRequest -> [LeaveRequest] -> Day -> Int -> Maybe (Id RosterGroup) -> Text -> Html
+renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection =
+    renderStaffEditDialogWithButtons
+        []
+        (renderStaffEditBody HtmxOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
+
+renderStaffEditBody :: OverlayFormMode -> Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> LeaveRequest -> [LeaveRequest] -> Day -> Int -> Maybe (Id RosterGroup) -> Text -> Html
+renderStaffEditBody formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection =
     let rsaPanel =
             renderRsaDocumentPanel
                 RsaPanelConfig
@@ -59,29 +67,60 @@ renderStaffEditBody formMode staff maybeLinkedUserEmail rosterGroups awardLevels
                     , rsaPanelCanReview = currentUserIsManager
                     , rsaPanelShowHeader = True
                     }
+        managementFields =
+            StaffManagementFieldData
+                { managementStaff = staff
+                , managementRosterGroups = rosterGroups
+                , managementAwardLevels = awardLevels
+                , managementAwardLevelBaseRates = awardLevelBaseRates
+                , managementImportedPayItems = importedPayItems
+                , managementSelectedRosterGroupIds = selectedRosterGroupIds
+                , managementWeekOffset = Just weekOffset
+                , managementRosterGroupId = maybeRosterGroupId
+                }
+        staffAction = UpdateStaffAction (get #id staff)
+        accordionConfig =
+            StaffProfileAccordionConfig
+                { staffProfileAccordionId = staffSectionsAccordionId
+                , staffProfileAccordionOpenSection = openSection
+                , staffProfileAccordionSections =
+                    [ StaffProfileAccordionSection
+                        { staffProfileSectionKey = "profile"
+                        , staffProfileSectionId = "staff-profile-details"
+                        , staffProfileSectionTitle = "Profile Details"
+                        , staffProfileSectionBody = renderStaffDetailsForm formMode staff maybeLinkedUserEmail managementFields staffAction
+                        }
+                    , StaffProfileAccordionSection
+                        { staffProfileSectionKey = "preferences"
+                        , staffProfileSectionId = "staff-profile-preferences"
+                        , staffProfileSectionTitle = "Shift Preferences"
+                        , staffProfileSectionBody = renderStaffShiftPreferencesEditForm formMode preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId staffAction
+                        }
+                    , StaffProfileAccordionSection
+                        { staffProfileSectionKey = "security"
+                        , staffProfileSectionId = "staff-profile-security"
+                        , staffProfileSectionTitle = "Sign-In Methods"
+                        , staffProfileSectionBody = renderStaffLoginAccessPanel staff maybeLinkedUserEmail weekOffset maybeRosterGroupId
+                        }
+                    ]
+                    <> [ StaffProfileAccordionSection
+                            { staffProfileSectionKey = "leave"
+                            , staffProfileSectionId = "staff-profile-leave"
+                            , staffProfileSectionTitle = "Unavailability"
+                            , staffProfileSectionBody = renderStaffLeaveRequestsContentFragment staff leaveRequest leaveRequests
+                            }
+                       | currentUserIsManager
+                       ]
+                    <> [ StaffProfileAccordionSection
+                            { staffProfileSectionKey = "rsa"
+                            , staffProfileSectionId = "staff-profile-rsa"
+                            , staffProfileSectionTitle = "RSA"
+                            , staffProfileSectionBody = rsaPanel
+                            }
+                       ]
+                }
      in [hsx|
-        <div class="accordion" id={profileSectionsAccordionId}>
-            {renderAccordionSection
-                "staff-profile-details"
-                "Profile Details"
-                True
-                (renderForm formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId (UpdateStaffAction (get #id staff)))}
-            {renderAccordionSection
-                "staff-profile-security"
-                "Sign-In Methods"
-                False
-                (renderStaffLoginAccessPanel staff maybeLinkedUserEmail weekOffset maybeRosterGroupId)}
-            {when currentUserIsManager (renderAccordionSection
-                "staff-profile-leave"
-                "Unavailability"
-                False
-                (renderStaffLeaveRequestsContentFragment staff leaveRequest leaveRequests))}
-            {renderAccordionSection
-                "staff-profile-rsa"
-                "RSA"
-                False
-                rsaPanel}
-        </div>
+        {renderStaffProfileAccordion accordionConfig}
     |]
 
 staffLeaveRequestFormFragmentId :: Text
@@ -188,51 +227,46 @@ renderStaffPasskeyReturnInputs weekOffset maybeRosterGroupId = [hsx|
 renderStaffPasskeyRosterGroupInput :: Id RosterGroup -> Html
 renderStaffPasskeyRosterGroupInput rosterGroupId = [hsx|<input type="hidden" name="rosterGroupId" value={tshow rosterGroupId}/>|]
 
-renderForm :: OverlayFormMode -> Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Int -> Maybe (Id RosterGroup) -> StaffController -> Html
-renderForm formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId action =
-    case formMode of
-        HtmxOverlayForm -> [hsx|
-            <form id={staffEditFormId}
-                  method="POST"
-                  action={action}
-                  class="mt-3"
-                  data-disable-javascript-submission="true"
-                  hx-post={action}
-                  hx-target={"#" <> dialogOverlayMountId}
-                  hx-swap="innerHTML"
-                  hx-push-url="false">
-                {renderFormFields staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId}
-            </form>
-        |]
-        PageOverlayForm -> [hsx|
-            <form id={staffEditFormId}
-                  method="POST"
-                  action={action}
-                  class="mt-3">
-                {renderFormFields staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId}
-            </form>
-        |]
-
-renderFormFields :: Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Int -> Maybe (Id RosterGroup) -> Html
-renderFormFields staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId = [hsx|
-        {renderPersonalProfileFields staff maybeLinkedUserEmail}
-        {renderStaffManagementFields managementFields}
-        <div class="mb-3">
-            <label class="form-label d-block">Shift Preferences</label>
-            {renderShiftPreferenceSections preferenceWeekdays selectedShiftPreferences}
-        </div>
-|]
-  where
-    managementFields =
-        StaffManagementFieldData
-            { managementStaff = staff
-            , managementRosterGroups = rosterGroups
-            , managementAwardLevels = awardLevels
-            , managementAwardLevelBaseRates = awardLevelBaseRates
-            , managementImportedPayItems = importedPayItems
-            , managementSelectedRosterGroupIds = selectedRosterGroupIds
-            , managementWeekOffset = Just weekOffset
-            , managementRosterGroupId = maybeRosterGroupId
+renderStaffDetailsForm :: OverlayFormMode -> Staff -> Maybe Text -> StaffManagementFieldData -> StaffController -> Html
+renderStaffDetailsForm formMode staff maybeLinkedUserEmail managementFields action =
+    renderStaffProfileDetailsForm
+        StaffProfileDetailsFormConfig
+            { staffProfileDetailsFormId = staffEditFormId
+            , staffProfileDetailsFormAction = pathTo action
+            , staffProfileDetailsFormClass = "mt-3"
+            , staffProfileDetailsFormHtmx = staffEditFormHtmxConfig formMode
+            , staffProfileDetailsFormHiddenInputs = [hsx|<input type="hidden" name="section" value="profile"/>|]
+            , staffProfileDetailsFormManagement = Just managementFields
+            , staffProfileDetailsFormManagementBody = renderStaffManagementFields
+            , staffProfileDetailsFormSubmitLabel = "Save profile details"
             }
+        staff
+        maybeLinkedUserEmail
 
+renderStaffShiftPreferencesEditForm :: OverlayFormMode -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Int -> Maybe (Id RosterGroup) -> StaffController -> Html
+renderStaffShiftPreferencesEditForm formMode preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId action =
+    renderStaffShiftPreferencesForm
+        StaffShiftPreferencesFormConfig
+            { staffShiftPreferencesFormId = staffShiftPreferencesEditFormId
+            , staffShiftPreferencesFormAction = pathTo action
+            , staffShiftPreferencesFormClass = "mt-3"
+            , staffShiftPreferencesFormHtmx = staffEditFormHtmxConfig formMode
+            , staffShiftPreferencesFormHiddenInputs = [hsx|
+                <input type="hidden" name="section" value="preferences"/>
+                {renderWeekOffsetHiddenInput weekOffset}
+                {renderRosterGroupHiddenInput maybeRosterGroupId}
+            |]
+            , staffShiftPreferencesFormSubmitLabel = "Save shift preferences"
+            }
+        preferenceWeekdays
+        selectedShiftPreferences
+
+staffEditFormHtmxConfig :: OverlayFormMode -> Maybe StaffProfileFormHtmxConfig
+staffEditFormHtmxConfig HtmxOverlayForm =
+    Just StaffProfileFormHtmxConfig
+        { staffProfileFormHtmxTarget = "#" <> dialogOverlayMountId
+        , staffProfileFormHtmxSwap = "innerHTML"
+        , staffProfileFormHtmxPushUrl = "false"
+        }
+staffEditFormHtmxConfig PageOverlayForm = Nothing
 
