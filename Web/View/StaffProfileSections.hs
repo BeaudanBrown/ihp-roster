@@ -99,7 +99,7 @@ renderStaffProfileDetailsFormBody StaffProfileDetailsFormConfig { .. } staff may
     {staffProfileDetailsFormHiddenInputs}
     {renderPersonalProfileFields staff maybeEmail}
     {maybe mempty staffProfileDetailsFormManagementBody staffProfileDetailsFormManagement}
-    <div class="d-grid mt-4">
+    <div class="d-grid mt-4 app-modal-sticky-actions">
         <button type="submit" class="btn btn-primary">{staffProfileDetailsFormSubmitLabel}</button>
     </div>
 |]
@@ -139,7 +139,7 @@ renderStaffShiftPreferencesFormBody :: StaffShiftPreferencesFormConfig -> [Prefe
 renderStaffShiftPreferencesFormBody StaffShiftPreferencesFormConfig { .. } preferenceWeekdays selectedShiftPreferences = [hsx|
     {staffShiftPreferencesFormHiddenInputs}
     {renderShiftPreferenceSections preferenceWeekdays selectedShiftPreferences}
-    <div class="d-grid mt-4">
+    <div class="d-grid mt-4 app-modal-sticky-actions">
         <button type="submit" class="btn btn-primary">{staffShiftPreferencesFormSubmitLabel}</button>
     </div>
 |]

@@ -155,7 +155,7 @@ renderStaffLeaveRequestFormFragment staffId leaveRequest = [hsx|
             <input type="hidden" name="responseContext" value="staff"/>
             <input type="hidden" name="staffId" value={tshow staffId}/>
             {renderLeaveRequestFormFields leaveRequest}
-            <div class="d-grid mt-4 app-form-width">
+            <div class="d-grid mt-4 app-form-width app-modal-sticky-actions">
                 <button type="submit" class="btn btn-primary">Add unavailable time</button>
             </div>
         </form>

@@ -17,6 +17,15 @@
     overflow-y: auto;
 }
 
+.modal.show > .modal-dialog > .modal-content > .modal-body .app-modal-sticky-actions {
+    position: sticky;
+    z-index: 2;
+    bottom: 0;
+    padding-top: 0.75rem;
+    padding-bottom: 0.25rem;
+    background: var(--bs-modal-bg);
+}
+
 .app-modal-footer {
     display: flex;
     justify-content: space-between;
