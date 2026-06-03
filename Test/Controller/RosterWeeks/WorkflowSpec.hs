@@ -735,6 +735,11 @@ tests = beforeAll testContext do
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
                         |> set #durationMinutes (Just 1380)
                     )
+                _ <-
+                    newRecord @UserPreference
+                        |> set #userId (unpackId admin.id)
+                        |> set #showWageEstimates True
+                        |> createRecord
 
                 adminResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction (ShowRosterWeekAction 0)
