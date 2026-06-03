@@ -156,3 +156,23 @@
         display: none;
     }
 }
+
+@media (min-width: 576px) and (max-width: 991.98px) {
+    .app-week-toolbar-timesheets {
+        grid-template-areas: "quick navigation settings";
+        min-height: 4.5rem;
+    }
+
+    .app-week-toolbar-timesheets .app-week-toolbar-desktop-start {
+        display: flex;
+    }
+
+    .app-week-toolbar-timesheets .app-week-toolbar-mobile-control,
+    .app-week-toolbar-timesheets .app-week-toolbar-aux-mobile {
+        display: none;
+    }
+
+    .app-week-toolbar-timesheets .app-week-toolbar-aux-desktop {
+        display: inline-flex;
+    }
+}
