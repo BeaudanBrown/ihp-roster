@@ -89,27 +89,11 @@ renderRosterContent =
     renderRosterMainPanel
 
 renderRosterMainPanel :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
-renderRosterMainPanel gridModel@RosterGridRenderModel { gridStaffSelfServicePanel } = [hsx|
+renderRosterMainPanel gridModel = [hsx|
     <div class="app-panel overflow-hidden mb-5 mb-xl-0 roster-main-panel">
-        {when hasSidePanel renderRosterFullscreenToggle}
         {renderRosterGridToolbarFragment gridModel}
         {renderRosterGridFrameFragment gridModel}
     </div>
-|]
-    where
-        hasSidePanel = currentUserIsManager || isJust gridStaffSelfServicePanel
-
-renderRosterFullscreenToggle :: Html
-renderRosterFullscreenToggle = [hsx|
-    <button type="button"
-            class="btn btn-outline-secondary btn-sm roster-fullscreen-toggle"
-            data-roster-fullscreen-toggle="true"
-            aria-pressed="false"
-            aria-label="Expand roster"
-            title="Expand roster">
-        <i class="bi bi-fullscreen" aria-hidden="true"></i>
-        <span class="visually-hidden" data-roster-fullscreen-toggle-label="true">Expand roster</span>
-    </button>
 |]
 
 renderRosterGridToolbarFragment :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
@@ -117,11 +101,13 @@ renderRosterGridToolbarFragment =
     renderRosterGridToolbarFragmentWithSwap Nothing
 
 renderRosterGridToolbarFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterGridRenderModel -> Html
-renderRosterGridToolbarFragmentWithSwap maybeSwapOob RosterGridRenderModel { gridRosterWeek, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridAssignmentFilters, gridWeekStartDate, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction, gridShowWageEstimates, gridShowRosterWarnings } = [hsx|
+renderRosterGridToolbarFragmentWithSwap maybeSwapOob RosterGridRenderModel { gridRosterWeek, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridAssignmentFilters, gridWeekStartDate, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction, gridShowWageEstimates, gridShowRosterWarnings, gridStaffSelfServicePanel } = [hsx|
     <div id={rosterGridToolbarFragmentId} hx-swap-oob={maybeSwapOob}>
-        {renderRosterGridHeader gridRosterWeek gridWeekOffset gridRosterGroups gridCurrentRosterGroup gridAssignmentFilters gridWeekStartDate gridViewCapabilities gridRosterLayoutMode gridRosterEndTimesEnabled gridRosterWagePrediction gridShowWageEstimates gridShowRosterWarnings}
+        {renderRosterGridHeader gridRosterWeek gridWeekOffset gridRosterGroups gridCurrentRosterGroup gridAssignmentFilters gridWeekStartDate gridViewCapabilities gridRosterLayoutMode gridRosterEndTimesEnabled gridRosterWagePrediction gridShowWageEstimates gridShowRosterWarnings hasSidePanel}
     </div>
 |]
+    where
+        hasSidePanel = currentUserIsManager || isJust gridStaffSelfServicePanel
 
 renderRosterGridFrameFragment :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
 renderRosterGridFrameFragment =

@@ -18,8 +18,8 @@ import Web.RosterWeeks.Types (RosterAssignmentFilters (..),
 import Web.View.Prelude
 import Web.View.RosterWeeks.Overview (renderRosterWeekLabel)
 
-renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> Day -> RosterViewCapabilities -> RosterLayoutModeEnum -> Bool -> Maybe RosterWagePrediction -> Bool -> Bool -> Html
-renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters weekStartDate viewCapabilities rosterLayoutMode rosterEndTimesEnabled rosterWagePrediction showWageEstimates showRosterWarnings =
+renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> Day -> RosterViewCapabilities -> RosterLayoutModeEnum -> Bool -> Maybe RosterWagePrediction -> Bool -> Bool -> Bool -> Html
+renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters weekStartDate viewCapabilities rosterLayoutMode rosterEndTimesEnabled rosterWagePrediction showWageEstimates showRosterWarnings canToggleFullscreen =
     renderWeekToolbar WeekToolbarConfig
         { weekToolbarVariant = WeekToolbarRoster
         , weekToolbarAriaLabel = "Roster week controls"
@@ -27,9 +27,25 @@ renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGrou
         , weekToolbarPrimary = renderLiveToggle maybeRosterWeek viewCapabilities
         , weekToolbarReset = renderThisWeekButton
         , weekToolbarNavigation = renderRosterWeekControls weekOffset currentRosterGroup weekStartDate
-        , weekToolbarSettings = renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters viewCapabilities rosterLayoutMode rosterEndTimesEnabled showWageEstimates showRosterWarnings
+        , weekToolbarSettings = mconcat
+            [ when canToggleFullscreen renderRosterFullscreenToggle
+            , renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters viewCapabilities rosterLayoutMode rosterEndTimesEnabled showWageEstimates showRosterWarnings
+            ]
         , weekToolbarAuxiliary = renderRosterWeekWageSummary rosterWagePrediction
         }
+
+renderRosterFullscreenToggle :: Html
+renderRosterFullscreenToggle = [hsx|
+    <button type="button"
+            class="btn btn-outline-secondary btn-sm roster-fullscreen-toggle"
+            data-roster-fullscreen-toggle="true"
+            aria-pressed="false"
+            aria-label="Expand roster"
+            title="Expand roster">
+        <i class="bi bi-fullscreen" aria-hidden="true"></i>
+        <span class="visually-hidden" data-roster-fullscreen-toggle-label="true">Expand roster</span>
+    </button>
+|]
 
 renderRosterWeekWageSummary :: (?context :: ControllerContext) => Maybe RosterWagePrediction -> Html
 renderRosterWeekWageSummary Nothing = mempty

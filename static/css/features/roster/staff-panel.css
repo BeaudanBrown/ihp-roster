@@ -1,5 +1,24 @@
 /* Roster side layout, staff panel, quick tools, and staff-panel responsive rules. */
 
+.roster-fullscreen-toggle {
+    min-width: 2.35rem;
+    min-height: 2.35rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+}
+
+#roster-week-shell[data-roster-fullscreen="true"] .roster-layout-main {
+    flex: 0 0 100%;
+    width: 100%;
+    max-width: 100%;
+}
+
+#roster-week-shell[data-roster-fullscreen="true"] .roster-layout-side {
+    display: none !important;
+}
+
 .roster-layout-side {
     display: flex;
     min-width: 0;
