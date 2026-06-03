@@ -222,7 +222,7 @@ renderXeroConnectionBody Nothing _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ connectionAct
         </section>
     </div>
 |]
-renderXeroConnectionBody (Just connection) _maybeConnectedByUser _maybeSyncRun _employeeCount _earningsRateCount _payrollCalendarCount _xeroEmployees _mappingRows _mappingCounts _xeroEarningsRates payItemRequirements importedPayItems accountCodeOptions maybePayItemSyncRun _xeroPayrollCalendars _maybePayrollCalendarSelection maybePayItemAccountCodeSelection _readyChecklist connectionActionsAllowed timesheetPanel = [hsx|
+renderXeroConnectionBody (Just connection) _maybeConnectedByUser _maybeSyncRun _employeeCount _earningsRateCount _payrollCalendarCount _xeroEmployees _mappingRows _mappingCounts _xeroEarningsRates _payItemRequirements _importedPayItems _accountCodeOptions _maybePayItemSyncRun _xeroPayrollCalendars _maybePayrollCalendarSelection _maybePayItemAccountCodeSelection _readyChecklist connectionActionsAllowed timesheetPanel = [hsx|
     <div class="d-flex flex-column gap-4">
         <section class={appSurfaceClasses "p-3"}>
             <div class="d-flex flex-column gap-3">
@@ -230,7 +230,6 @@ renderXeroConnectionBody (Just connection) _maybeConnectedByUser _maybeSyncRun _
                 {renderXeroActionControls timesheetPanel connectionActionsAllowed}
             </div>
         </section>
-        {renderXeroOperationalPanels connection timesheetPanel payItemRequirements importedPayItems accountCodeOptions maybePayItemSyncRun maybePayItemAccountCodeSelection connectionActionsAllowed}
     </div>
 |]
 

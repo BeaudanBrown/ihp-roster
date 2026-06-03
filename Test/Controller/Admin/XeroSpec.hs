@@ -410,7 +410,7 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "admin_xero_timesheets"
                 pageResponse `responseBodyShouldContain` "id=\"xero-connection-status-badge\""
                 pageResponse `responseBodyShouldContain` "xero-connection-sync-label"
-                pageResponse `responseBodyShouldContain` "id=\"xero-timesheets-data\""
+                pageResponse `responseBodyShouldNotContain` "id=\"xero-timesheets-data\""
                 pageResponse `responseBodyShouldNotContain` "id=\"xero-timesheet-submission-indicator\""
                 pageResponse `responseBodyShouldContain` "hx-post=\"/OpenXeroTimesheetPreparation\""
                 pageResponse `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
@@ -756,8 +756,8 @@ tests = beforeAll testContext do
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction ShowAdminXeroFragmentAction
                 pageResponse `responseStatusShouldBe` status200
-                pageResponse `responseBodyShouldContain` "id=\"xero-pay-items-data\""
-                pageResponse `responseBodyShouldContain` "Imported Xero pay items"
+                pageResponse `responseBodyShouldNotContain` "id=\"xero-pay-items-data\""
+                pageResponse `responseBodyShouldNotContain` "Imported Xero pay items"
                 pageResponse `responseBodyShouldNotContain` "Pay item requirements"
                 pageResponse `responseBodyShouldNotContain` "admin_xero_pay_items"
                 pageResponse `responseBodyShouldNotContain` "name=\"xeroPayItemAccountCodeSelection\""
@@ -1180,8 +1180,8 @@ tests = beforeAll testContext do
                     callAction XeroAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Draft timesheet submission"
-                response `responseBodyShouldContain` "confirm staff Xero mappings"
+                response `responseBodyShouldNotContain` "Draft timesheet submission"
+                response `responseBodyShouldNotContain` "confirm staff Xero mappings"
                 response `responseBodyShouldNotContain` "approved IHP timesheets"
                 response `responseBodyShouldContain` "Upload timesheets"
                 response `responseBodyShouldContain` "Import pay items"
@@ -1190,7 +1190,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "<button class=\"btn btn-outline-secondary\" type=\"submit\">Reconnect</button>"
                 response `responseBodyShouldNotContain` "name=\"periodKey\""
                 response `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
-                response `responseBodyShouldContain` "id=\"xero-timesheets-data\""
+                response `responseBodyShouldNotContain` "id=\"xero-timesheets-data\""
                 response `responseBodyShouldNotContain` "id=\"xero-timesheet-submission-indicator\""
                 response `responseBodyShouldContain` "hx-post=\"/OpenXeroTimesheetPreparation\""
                 response `responseBodyShouldNotContain` "Working on Xero draft timesheets"
@@ -1681,7 +1681,7 @@ tests = beforeAll testContext do
                     callAction XeroAction
 
                 pageResponse `responseStatusShouldBe` status200
-                pageResponse `responseBodyShouldContain` "Draft timesheet submission"
+                pageResponse `responseBodyShouldNotContain` "Draft timesheet submission"
                 pageResponse `responseBodyShouldNotContain` "name=\"periodKey\""
                 pageResponse `responseBodyShouldContain` "Upload timesheets"
 
@@ -1938,7 +1938,7 @@ tests = beforeAll testContext do
                 fragmentResponse `responseBodyShouldNotContain` "Latest run"
                 fragmentResponse `responseBodyShouldNotContain` "Submission status"
 
-        it "renders readiness issues before Xero draft-timesheet submission" $ withContext do
+        it "does not render readiness issues in removed Xero page cards" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                 let entry = case fixture.entries of
@@ -1957,8 +1957,8 @@ tests = beforeAll testContext do
                     callAction XeroAction
 
                 blockedPage `responseStatusShouldBe` status200
-                blockedPage `responseBodyShouldContain` "Unapproved entries remain in the pay period."
-                blockedPage `responseBodyShouldContain` "There are no approved timesheet entries in the selected period."
+                blockedPage `responseBodyShouldNotContain` "Unapproved entries remain in the pay period."
+                blockedPage `responseBodyShouldNotContain` "There are no approved timesheet entries in the selected period."
 
         it "persists per-employee Xero submission errors without rendering the latest-run retry section" $ withContext do
             withCleanDb do
