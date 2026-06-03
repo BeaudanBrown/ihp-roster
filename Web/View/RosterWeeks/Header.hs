@@ -136,7 +136,7 @@ renderRosterWeekActionsMenuSection maybeRosterWeek weekOffset rosterGroupId view
     | otherwise = [hsx|
         <div class="px-1 py-1">
             <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Week actions</div>
-            <div class="d-flex gap-2">
+            <div class="roster-week-action-grid">
                 {renderRosterSortForm maybeRosterWeek viewCapabilities}
                 {when viewCapabilities.canCopyRosterWeek (renderCopyPreviousWeekForm weekOffset rosterGroupId)}
             </div>
@@ -211,7 +211,7 @@ renderRosterSortForm (Just rosterWeek) viewCapabilities
     | shouldShowRosterSortForm (Just rosterWeek) viewCapabilities = [hsx|
         <form method="POST"
               action={SortRosterWeekAction rosterWeek.id}
-              class="mb-0 flex-fill"
+              class="mb-0 roster-week-action-form"
               data-disable-javascript-submission="true"
               hx-post={SortRosterWeekAction rosterWeek.id}
               hx-target={"#" <> rosterContentFragmentId}
@@ -305,7 +305,7 @@ renderCopyPreviousWeekForm weekOffset rosterGroupId = [hsx|
           hx-push-url="false"
           hx-sync={"#" <> rosterWeekShellId <> ":replace"}
           hx-confirm="This will overwrite the current week with the previous week's roster. Continue?"
-          class="mb-0 flex-fill">
+          class="mb-0 roster-week-action-form">
         <button type="submit" class="btn btn-outline-primary btn-sm w-100 h-100 text-center">
             <i class="bi bi-copy me-1" aria-hidden="true"></i>
             Copy Previous Week

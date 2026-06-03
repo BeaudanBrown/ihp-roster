@@ -72,20 +72,22 @@ async function weekToolbarMetrics(page: import('@playwright/test').Page, toolbar
 }
 
 test.describe('Shared week toolbar responsive layout', () => {
-    test('spaces roster layout buttons evenly in settings menu', async ({ page }) => {
+    test('spaces roster week action buttons evenly in settings menu', async ({ page }) => {
         test.setTimeout(90_000);
         await page.setViewportSize({ width: 1280, height: 900 });
 
-        await openRoster(page, { email: 'e2e-admin@example.com', ensureEditable: false });
+        await openRoster(page, { email: 'e2e-admin@example.com', ensureEditable: true });
         await page.getByRole('button', { name: 'Roster settings' }).click();
 
-        const layoutGroup = page.locator('.roster-layout-mode-group');
-        await expect(layoutGroup).toBeVisible();
+        const actionGroup = page.locator('.roster-week-action-grid');
+        await expect(actionGroup).toBeVisible();
+        await expect(actionGroup.getByRole('button', { name: 'Sort shifts' })).toBeVisible();
+        await expect(actionGroup.getByRole('button', { name: 'Copy Previous Week' })).toBeVisible();
 
-        const metrics = await layoutGroup.evaluate((group) => {
+        const metrics = await actionGroup.evaluate((group) => {
             const groupElement = group as HTMLElement;
             const groupRect = groupElement.getBoundingClientRect();
-            const buttons = Array.from(groupElement.querySelectorAll('label.btn')) as HTMLElement[];
+            const buttons = Array.from(groupElement.querySelectorAll('button')) as HTMLElement[];
             return {
                 display: window.getComputedStyle(groupElement).display,
                 groupLeft: groupRect.left,

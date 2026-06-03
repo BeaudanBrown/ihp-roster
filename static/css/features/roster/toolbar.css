@@ -10,6 +10,22 @@
     column-gap: 1rem;
 }
 
+.roster-week-action-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+    gap: 0.5rem;
+}
+
+.roster-week-action-form {
+    min-width: 0;
+}
+
+.roster-week-action-form .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .roster-week-nav-arrow {
     width: 2.5rem;
     padding-inline: 0;
