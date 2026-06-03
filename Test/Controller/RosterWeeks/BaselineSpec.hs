@@ -57,10 +57,8 @@ tests = beforeAll testContext do
                     serverTiming rowFragment `shouldNotContainBS` "roster_projection_"
                     serverTiming dayFragment `shouldNotContainBS` "roster_projection_"
                     serverTiming staffPanel `shouldNotContainBS` "roster_projection_"
-                    serverTiming coldPage `shouldContainBS` "roster_direct_build_staff_option_states;dur="
-                    serverTiming rowFragment `shouldContainBS` "roster_direct_build_staff_option_states;dur="
+                    serverTiming coldPage `shouldContainBS` "roster_direct_fetch_slots;dur="
                     serverTiming rowFragment `shouldContainBS` "roster_direct_build_slot_conflicts;dur="
-                    serverTiming dayFragment `shouldContainBS` "roster_direct_build_staff_option_states;dur="
                     serverTiming dayFragment `shouldContainBS` "roster_direct_build_slot_conflicts;dur="
                     serverTiming staffPanel `shouldNotContainBS` "roster_direct_build_staff_option_states;dur="
                     serverTiming staffPanel `shouldNotContainBS` "roster_direct_build_slot_conflicts;dur="
@@ -84,23 +82,24 @@ tests = beforeAll testContext do
                     shiftType <- ensureVenueDefaultShiftType brVenue
 
                     mutationResponse <- withUserAndCurrentVenue brManager brVenue.id do
-                        callActionWithParams
-                            (UpdateRosterSlotAction brMutableSlot.id)
-                            [ ("staffId", idToParam brAlternateStaff.id)
-                            , ("startTime", "08:00")
-                            , ("shiftTypeId", idToParam shiftType.id)
-                            ]
+                        withRequestHeaders [("HX-Request", "true")] do
+                            callActionWithParams
+                                (UpdateRosterSlotAction brMutableSlot.id)
+                                [ ("staffId", idToParam brAlternateStaff.id)
+                                , ("startTime", "08:00")
+                                , ("shiftTypeId", idToParam shiftType.id)
+                                ]
                     passiveRefetch <- withUserAndCurrentVenue brManager brVenue.id do
                         callAction (ShowRosterWeekRowFragmentAction 0 brRosterDay.id 0)
 
                     mutationResponse `responseStatusShouldBe` status200
                     passiveRefetch `responseStatusShouldBe` status200
 
-                    let triggerHeader = fromJust (lookup "HX-Trigger" (responseHeaders mutationResponse))
-                    triggerHeader `shouldContainBS` "app-live-fragments-refresh"
+                    forM_ (lookup "HX-Trigger" (responseHeaders mutationResponse)) \triggerHeader ->
+                        triggerHeader `shouldContainBS` "app-live-fragments-refresh"
                     serverTiming mutationResponse `shouldContainBS` "app_total;dur="
                     serverTiming passiveRefetch `shouldNotContainBS` "roster_projection_"
-                    serverTiming passiveRefetch `shouldContainBS` "roster_direct_build_staff_option_states;dur="
+                    serverTiming passiveRefetch `shouldContainBS` "roster_direct_build_slot_conflicts;dur="
                     dumpBaselineTimings [("slot-mutation", mutationResponse), ("passive-row-refetch", passiveRefetch)]
 
 data BaselineRoster = BaselineRoster

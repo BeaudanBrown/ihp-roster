@@ -373,7 +373,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Support"
                 response `responseBodyShouldContain` "Invite Venue Owner"
-                response `responseBodyShouldContain` "Add passkey"
+                response `responseBodyShouldContain` "Create a passkey for admin access"
                 response `responseBodyShouldContain` "data-success-redirect=\"/Support\""
                 response `responseBodyShouldNotContain` "Create Venue"
                 response `responseBodyShouldContain` "data-live-update-surface=\""

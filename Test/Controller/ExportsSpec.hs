@@ -434,8 +434,8 @@ tests = beforeAll testContext do
                 venueA <- createVenueWithConfig "Venue A"
                 venueB <- createVenueWithConfig "Venue B"
                 admin <- createUserRecord "exports-scope@example.com" "staff" True
-                _ <- createVenueMembershipRecord venueA admin "venue_admin"
-                _ <- createVenueMembershipRecord venueB admin "venue_admin"
+                _ <- createVenueMembershipRecord venueA admin "venue_owner"
+                _ <- createVenueMembershipRecord venueB admin "venue_owner"
                 exportJobA <- newRecord @ExportJob
                     |> set #venueId (unpackId venueA.id)
                     |> set #requestedByUserId (unpackId admin.id)
@@ -464,7 +464,7 @@ tests = beforeAll testContext do
                     |> createRecord
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venueB.id do
-                    callAction AdminAction
+                    callAction ShowAdminExportsFragmentAction
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Exports"

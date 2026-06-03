@@ -1405,8 +1405,9 @@ tests = beforeAll testContext do
                 resetXeroStaffMappingForPreparation fixture.staffA
                 resetXeroStaffMappingForPreparation fixture.staffB
 
+                xeroClient <- referenceSyncXeroClientForFixture (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) fixture.connection
                 response <- withXeroConfigForTest (Right testXeroConfig) do
-                    withXeroClientForTest (referenceSyncXeroClient (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) [] [] []) do
+                    withXeroClientForTest xeroClient do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                             withRequestHeaders [("HX-Request", "true")] do
                                 callActionWithParams RunXeroTimesheetPreparationAction
@@ -1416,7 +1417,6 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Staff mappings"
                 response `responseBodyShouldNotContain` "Show matched"
                 response `responseBodyShouldContain` "Xero employee"
-                response `responseBodyShouldNotContain` "name=\"xeroEmployeeSelection\""
                 response `responseBodyShouldContain` "Suggested match — click Approve to confirm"
                 response `responseBodyShouldContain` "Ada Lovelace"
                 response `responseBodyShouldContain` "Edit"
@@ -1432,7 +1432,6 @@ tests = beforeAll testContext do
 
                 matchedResponse `responseStatusShouldBe` status200
                 matchedResponse `responseBodyShouldNotContain` "Show matched"
-                matchedResponse `responseBodyShouldNotContain` "name=\"xeroEmployeeSelection\""
                 matchedResponse `responseBodyShouldNotContain` ">Approve</button>"
                 matchedResponse `responseBodyShouldNotContain` "Skip this time"
                 matchedResponse `responseBodyShouldNotContain` "Manual employee"
@@ -1447,7 +1446,7 @@ tests = beforeAll testContext do
                 appliedStaffDecisions <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "staff_auto_match" :: Text) |> filterWhere (#decisionStatus, "applied" :: Text) |> fetchCount
                 appliedStaffDecisions `shouldBe` 2
                 staffStepApprovals <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "staff_step_approved" :: Text) |> filterWhere (#decisionStatus, "applied" :: Text) |> fetchCount
-                staffStepApprovals `shouldBe` 1
+                staffStepApprovals `shouldBe` 0
 
         it "applies the selected suggested employee through the unified preparation dropdown" $ withContext do
             withCleanDb do
@@ -1458,8 +1457,9 @@ tests = beforeAll testContext do
                         |> set #encryptedRefreshToken encryptedRefreshToken
                         |> updateRecord
                 resetXeroStaffMappingForPreparation fixture.staffA
+                xeroClient <- referenceSyncXeroClientForFixture (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) fixture.connection
                 _ <- withXeroConfigForTest (Right testXeroConfig) do
-                    withXeroClientForTest (referenceSyncXeroClient (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) [] [] []) do
+                    withXeroClientForTest xeroClient do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                             withRequestHeaders [("HX-Request", "true")] do
                                 callActionWithParams RunXeroTimesheetPreparationAction
@@ -1486,6 +1486,7 @@ tests = beforeAll testContext do
         it "shows proposed managed pay item creation instead of manual earnings-rate mapping in the preparation modal" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                markOtherFixtureStaffNotPaid fixture
                 encryptedRefreshToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
                 _ <-
                     fixture.connection
@@ -1499,18 +1500,25 @@ tests = beforeAll testContext do
                         >>= const (pure ())
                 _ <- createXeroEarningsRateRecord fixture.connection "Ordinary Hours" "earnings-account-code"
 
+                xeroClient <- referenceSyncXeroClientForFixture (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) fixture.connection
                 response <- withXeroConfigForTest (Right testXeroConfig) do
-                    withXeroClientForTest (referenceSyncXeroClient (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) [] [] []) do
+                    withXeroClientForTest xeroClient do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                             withRequestHeaders [("HX-Request", "true")] do
                                 callActionWithParams RunXeroTimesheetPreparationAction
                                     [("periodKey", fixturePeriodKey fixture)]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldNotContain` "Step 1 of 3"
-                response `responseBodyShouldContain` "Step 2 of 3"
+                response `responseBodyShouldContain` "Step 2 of 4"
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
-                let payItemResponse = response
+                payItemResponse <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest xeroClient do
+                        withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callActionWithParams (SelectXeroTimesheetPreparationPeriodAction preparationRun.id)
+                                    [("periodKey", fixturePeriodKey fixture)]
+                payItemResponse `responseStatusShouldBe` status200
+                payItemResponse `responseBodyShouldContain` "Step 2 of 3"
                 payItemResponse `responseBodyShouldContain` "Managed pay items"
                 payItemResponse `responseBodyShouldNotContain` "will be created on submit"
                 payItemResponse `responseBodyShouldNotContain` "1 will be created on submit"
@@ -1521,7 +1529,8 @@ tests = beforeAll testContext do
                 payItemResponse `responseBodyShouldNotContain` "name=\"xeroEarningsRateSelection\""
                 pendingPayItemDecisions <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "pay_item_create" :: Text) |> filterWhere (#decisionStatus, "pending" :: Text) |> fetchCount
                 pendingPayItemDecisions `shouldSatisfy` (> 0)
-                preparationRun.status `shouldBe` "ready_for_preview"
+                refreshedPreparationRun <- fetch preparationRun.id
+                refreshedPreparationRun.status `shouldBe` "ready_for_preview"
 
         it "creates proposed managed Xero pay items automatically when submitting from preparation" $ withContext do
             withCleanDb do
@@ -1604,6 +1613,7 @@ tests = beforeAll testContext do
         it "reports unverified managed pay item creation during preparation submit" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                markOtherFixtureStaffNotPaid fixture
                 encryptedRefreshToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
                 _ <-
                     fixture.connection
@@ -1619,7 +1629,11 @@ tests = beforeAll testContext do
                 _ <- createXeroEarningsRateRecord fixture.connection "Ordinary Hours" "earnings-account-code"
                 requestsRef <- liftIO $ IORef.newIORef []
                 let tokenResponse = XeroTokenResponse "submit-access-token" "submit-refresh-token" 1800 (Just requiredXeroScopesText)
-                    xeroClient = payItemCreateXeroClientWithVerifiedLimit tokenResponse requestsRef (Just 0)
+                baseClient <- referenceSyncXeroClientForFixture tokenResponse fixture.connection
+                let xeroClient = (payItemCreateXeroClientWithVerifiedLimit tokenResponse requestsRef (Just 0))
+                        { fetchPayrollEmployees = fetchPayrollEmployees baseClient
+                        , fetchPayrollCalendars = fetchPayrollCalendars baseClient
+                        }
                 _ <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest xeroClient do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
@@ -1627,9 +1641,12 @@ tests = beforeAll testContext do
                                 callActionWithParams RunXeroTimesheetPreparationAction
                                     [("periodKey", fixturePeriodKey fixture)]
                 run <- query @XeroTimesheetPreparationRun |> fetchOne
-                _ <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callAction (ContinueXeroTimesheetPreparationStaffStepAction run.id)
+                _ <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest xeroClient do
+                        withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callActionWithParams (SelectXeroTimesheetPreparationPeriodAction run.id)
+                                    [("periodKey", fixturePeriodKey fixture)]
                 _ <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest xeroClient do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do

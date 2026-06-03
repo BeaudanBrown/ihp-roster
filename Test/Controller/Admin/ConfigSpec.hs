@@ -106,10 +106,17 @@ tests = beforeAll testContext do
                                 | target <- planRegisteredLiveSurfaceInvalidations (Set.singleton resource) [scope]
                                 ]
 
+                let rosterContentFragments =
+                        [ RosterGridToolbarFragment
+                        , RosterDayColumnsFragment
+                        , RosterDayRailFragment
+                        , RosterWageRailFragment
+                        , RosterSlotsGridFragment
+                        ]
                 planFragments (RosterEndTimesConfigResource venueId)
-                    `shouldReturn` [(scope, [RosterContentFragment])]
+                    `shouldReturn` [(scope, rosterContentFragments)]
                 planFragments (RosterWeekBoundaryConfigResource venueId)
-                    `shouldReturn` [(scope, [RosterContentFragment])]
+                    `shouldReturn` [(scope, rosterContentFragments)]
 
         it "shows the Xero header button and page to super admins" $ withContext do
             withCleanDb do
