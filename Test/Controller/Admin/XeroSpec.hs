@@ -1210,6 +1210,58 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` ("value=\"" <> fixturePeriodKey fixture <> "\"")
                 response `responseBodyShouldNotContain` "No synced Xero pay periods available"
                 response `responseBodyShouldNotContain` "DRAFT"
+                response `responseBodyShouldNotContain` "submitted already"
+
+        it "marks Xero pay periods that already have a local submitted run" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                _ <- createSubmissionRunForFixture fixture "submitted"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    callAction ShowAdminXeroFragmentAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` ("value=\"" <> fixturePeriodKey fixture <> "\"")
+                response `responseBodyShouldContain` "submitted already"
+
+        it "uses the latest local Xero submission run status for a pay period" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                older <- createSubmissionRunForFixture fixture "failed"
+                newer <- createSubmissionRunForFixture fixture "submitted"
+                now <- getCurrentTime
+                _ <- older |> set #updatedAt (addUTCTime (-60) now) |> updateRecord
+                _ <- newer |> set #updatedAt now |> updateRecord
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    callAction ShowAdminXeroFragmentAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "submitted already"
+                response `responseBodyShouldNotContain` "failed previously"
+
+        it "does not mark other Xero pay periods from local submission history" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                _ <-
+                    newRecord @XeroSubmissionRun
+                        |> set #venueId (unpackId fixture.venue.id)
+                        |> set #xeroConnectionId (unpackId fixture.connection.id)
+                        |> set #submittedByUserId (unpackId fixture.owner.id)
+                        |> set #payPeriodStart (addDays 7 fixture.periodStart)
+                        |> set #payPeriodEnd (addDays 7 fixture.periodEnd)
+                        |> set #selectedPayrollCalendarId (Just ("calendar-preview" :: Text))
+                        |> set #selectedPayrollCalendarName (Just ("Preview Calendar" :: Text))
+                        |> set #selectedPeriodKey (Just ("calendar-preview:" <> tshow (addDays 7 fixture.periodStart) <> ":" <> tshow (addDays 7 fixture.periodEnd) :: Text))
+                        |> set #status ("submitted" :: Text)
+                        |> createRecord
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    callAction ShowAdminXeroFragmentAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` ("value=\"" <> fixturePeriodKey fixture <> "\"")
+                response `responseBodyShouldNotContain` "submitted already"
 
         it "only offers payroll-calendar periods that match the approved employees' Xero calendars" $ withContext do
             withCleanDb do
@@ -2472,6 +2524,24 @@ addCasualBaseAndSaturdayPenalty awardLevel baseRate saturdayRate = do
 
 fixturePeriodKey fixture =
     cs ("calendar-preview:" <> tshow fixture.periodStart <> ":" <> tshow fixture.periodEnd :: Text)
+
+createSubmissionRunForFixture ::
+    (?modelContext :: ModelContext) =>
+    Preview.PreviewFixture ->
+    Text ->
+    IO XeroSubmissionRun
+createSubmissionRunForFixture fixture status =
+    newRecord @XeroSubmissionRun
+        |> set #venueId (unpackId fixture.venue.id)
+        |> set #xeroConnectionId (unpackId fixture.connection.id)
+        |> set #submittedByUserId (unpackId fixture.owner.id)
+        |> set #payPeriodStart fixture.periodStart
+        |> set #payPeriodEnd fixture.periodEnd
+        |> set #selectedPayrollCalendarId (Just ("calendar-preview" :: Text))
+        |> set #selectedPayrollCalendarName (Just ("Preview Calendar" :: Text))
+        |> set #selectedPeriodKey (Just ("calendar-preview:" <> tshow fixture.periodStart <> ":" <> tshow fixture.periodEnd :: Text))
+        |> set #status status
+        |> createRecord
 
 createPreparationRunForFixture ::
     (?modelContext :: ModelContext) =>
