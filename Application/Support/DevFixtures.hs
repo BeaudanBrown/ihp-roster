@@ -32,6 +32,7 @@ import IHP.Prelude
 data DevRosterSlotSeed = DevRosterSlotSeed
     { slotStaff       :: !(Maybe Staff)
     , slotStartTime   :: !(Maybe TimeOfDay)
+    , slotEndTime     :: !(Maybe TimeOfDay)
     , slotShiftTypeId :: !(Maybe UUID)
     }
 
@@ -1056,6 +1057,7 @@ createRosterRow rosterDay slotNames rowIndex assignments = do
                     |> set #shiftTypeId slotSeed.slotShiftTypeId
                     |> set #rowIndex rowIndex
                     |> set #startTime slotSeed.slotStartTime
+                    |> set #endTime slotSeed.slotEndTime
                     |> set #createdAt now
                     |> set #updatedAt now
 
@@ -1064,6 +1066,7 @@ seededRosterSlot maybeStaff startTime maybeShiftTypeId =
     DevRosterSlotSeed
         { slotStaff = maybeStaff
         , slotStartTime = Just startTime
+        , slotEndTime = Just (slotEndTimeFor startTime)
         , slotShiftTypeId = maybeShiftTypeId
         }
 
@@ -1078,6 +1081,18 @@ slotStartTimeFor slotIndex dayIndex =
         0 -> TimeOfDay (6 + (dayIndex `mod` 2)) 30 0
         1 -> TimeOfDay (11 + (dayIndex `mod` 2)) 0 0
         _ -> TimeOfDay (16 + (dayIndex `mod` 2)) 30 0
+
+slotEndTimeFor :: TimeOfDay -> TimeOfDay
+slotEndTimeFor startTime =
+    minutesToTimeOfDay (timeOfDayToMinutes startTime + 330)
+
+timeOfDayToMinutes :: TimeOfDay -> Int
+timeOfDayToMinutes (TimeOfDay hour minute _) =
+    (hour * 60) + minute
+
+minutesToTimeOfDay :: Int -> TimeOfDay
+minutesToTimeOfDay totalMinutes =
+    TimeOfDay (totalMinutes `div` 60) (totalMinutes `mod` 60) 0
 
 deterministicPercent :: Int -> [Int] -> Int
 deterministicPercent seedValue keys = deterministicIndex seedValue keys 100

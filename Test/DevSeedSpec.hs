@@ -78,6 +78,7 @@ tests = beforeAll testContext do
                 length rosterSlots `shouldSatisfy` (> 30)
                 sort (map (.isLive) rosterWeeks) `shouldBe` [False, True]
                 length (filter (isJust . (.startTime)) rosterSlots) `shouldSatisfy` (> 10)
+                length (filter (isJust . (.endTime)) rosterSlots) `shouldBe` length (filter (isJust . (.startTime)) rosterSlots)
                 sort (nub (map (.idealShiftsPerWeek) seededStaff)) `shouldBe` [0, 1, 2, 3, 4, 5]
                 let seededStaffNames = map (\staff -> (staff.firstName, staff.lastName)) seededStaff
                 let expectedSeededStaffNames =
