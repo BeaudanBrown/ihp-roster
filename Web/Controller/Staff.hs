@@ -32,7 +32,7 @@ instance Controller StaffController where
         maybeLinkedUserEmail <- fetchStaffLinkedUserEmail staff
         let weekOffset = paramOrDefault @Int 0 "weekOffset"
         let maybeRosterGroupId = paramOrNothing "rosterGroupId"
-        let openSection = normalizeStaffOpenSection (paramOrDefault @Text "profile" "section")
+        let openSection = normalizeStaffOpenSection (paramOrDefault @Text "" "section")
         venueConfig <- fetchVenueConfig
         rosterGroups <- fetchCurrentVenueRosterGroups
         awardLevels <- fetchAwardLevelsForStaffForm
@@ -58,7 +58,7 @@ instance Controller StaffController where
         let submittedShiftPreferenceKeys = nub (paramTexts "shiftPreferenceKeys")
         let weekOffset = paramOrDefault @Int 0 "weekOffset"
         let maybeRosterGroupId = paramOrNothing "rosterGroupId"
-        let openSection = normalizeStaffOpenSection (paramOrDefault @Text "profile" "section")
+        let openSection = normalizeStaffOpenSection (paramOrDefault @Text "" "section")
         let preferencesWereSubmitted = openSection == "preferences"
         venueConfig <- fetchVenueConfig
         rosterGroups <- fetchCurrentVenueRosterGroups
@@ -232,4 +232,4 @@ parseRosterGroupIdText value =
 normalizeStaffOpenSection :: Text -> Text
 normalizeStaffOpenSection section
     | section `elem` ["profile", "preferences", "security", "leave", "rsa"] = section
-    | otherwise = "profile"
+    | otherwise = ""

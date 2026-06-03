@@ -26,6 +26,22 @@
     background: var(--bs-modal-bg);
 }
 
+.app-page-dialog-modal,
+.app-page-dialog-backdrop {
+    display: block;
+}
+
+.app-staff-edit-dialog > .modal-content {
+    height: calc(100dvh - (var(--bs-modal-margin) * 2));
+}
+
+@media (min-width: 992px) {
+    .app-staff-edit-dialog {
+        --bs-modal-width: 70vw;
+        max-width: 70vw;
+    }
+}
+
 .app-modal-footer {
     display: flex;
     justify-content: space-between;

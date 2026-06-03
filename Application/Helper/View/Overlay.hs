@@ -137,13 +137,29 @@ confirmSubmitAttribute Nothing = ""
 confirmSubmitAttribute (Just message) = "return window.confirm(" <> show message <> ");"
 
 renderPageDialogModal :: Text -> DialogOverlayConfig -> Html
-renderPageDialogModal closeUrl DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody, dialogOverlayStartButtons, dialogOverlayButtons } =
-    renderModal Modal
-        { modalTitle = dialogOverlayTitle
-        , modalCloseUrl = closeUrl
-        , modalFooter = Just (renderPageDialogFooter closeUrl dialogOverlayStartButtons dialogOverlayButtons)
-        , modalContent = dialogOverlayBody
-        }
+renderPageDialogModal closeUrl DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody, dialogOverlayStartButtons, dialogOverlayButtons, dialogOverlayDialogClass } = [hsx|
+    <div class="modal fade overflow-auto show app-page-dialog-modal"
+         id="modal"
+         tabindex="-1"
+         role="dialog"
+         aria-labelledby="modal-title"
+         aria-hidden="true"
+         onclick="if (event.target.id === 'modal') document.getElementById('modal-backdrop').click()">
+        <div class={classes [("modal-dialog", True), (dialogOverlayDialogClass, not (Text.null dialogOverlayDialogClass))]}
+             role="document"
+             id="modal-inner">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modal-title">{dialogOverlayTitle}</h5>
+                    <a href={closeUrl} class="btn-close" aria-label="Close"></a>
+                </div>
+                <div class="modal-body">{dialogOverlayBody}</div>
+                <div class="modal-footer">{renderPageDialogFooter closeUrl dialogOverlayStartButtons dialogOverlayButtons}</div>
+            </div>
+        </div>
+    </div>
+    <a id="modal-backdrop" href={closeUrl} class="modal-backdrop fade show app-page-dialog-backdrop"></a>
+|]
 
 renderPageDialogFooter :: Text -> [OverlayButton] -> [OverlayButton] -> Html
 renderPageDialogFooter closeUrl startButtons buttons

@@ -10,6 +10,9 @@ import IHP.ViewPrelude
 import Web.Routes ()
 import Web.Types
 
+staffEditDialogClass :: Text
+staffEditDialogClass = "app-staff-edit-dialog"
+
 renderStaffEditPageModal :: Int -> Text -> Html -> Html
 renderStaffEditPageModal weekOffset formId =
     renderStaffEditPageModalWithButtons weekOffset (defaultOverlayButtons formId)
@@ -23,7 +26,7 @@ renderStaffEditPageModalWithButtons weekOffset buttons formContent =
             , dialogOverlayBody = formContent
             , dialogOverlayStartButtons = []
             , dialogOverlayButtons = buttons
-            , dialogOverlayDialogClass = ""
+            , dialogOverlayDialogClass = staffEditDialogClass
             }
 
 renderStaffEditDialog :: Text -> Html -> Html
@@ -37,5 +40,5 @@ renderStaffEditDialogWithButtons buttons formContent =
         , dialogOverlayBody = formContent
         , dialogOverlayStartButtons = []
         , dialogOverlayButtons = buttons
-        , dialogOverlayDialogClass = ""
+        , dialogOverlayDialogClass = staffEditDialogClass
         }
