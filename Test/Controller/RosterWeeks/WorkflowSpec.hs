@@ -756,7 +756,7 @@ tests = beforeAll testContext do
                 adminResponse `responseBodyShouldContain` ">Wages<"
                 adminResponse `responseBodyShouldContain` "roster-day-wage-total"
                 adminResponse `responseBodyShouldContain` "aria-label=\"Wages for day\""
-                adminResponse `responseBodyShouldContain` "Show wages"
+                adminResponse `responseBodyShouldContain` "Wages enabled"
                 adminResponse `responseBodyShouldNotContain` "Admin estimate only"
                 adminResponse `responseBodyShouldNotContain` "roster-wage-prediction"
 
@@ -783,7 +783,7 @@ tests = beforeAll testContext do
 
                 hiddenWagesResponse `responseStatusShouldBe` status200
                 hiddenWagesResponse `responseBodyShouldContain` "data-roster-wages=\"hidden\""
-                hiddenWagesResponse `responseBodyShouldContain` "Show wages"
+                hiddenWagesResponse `responseBodyShouldContain` "Wages disabled"
                 hiddenWagesResponse `responseBodyShouldNotContain` "Wages:"
                 hiddenWagesResponse `responseBodyShouldNotContain` "roster-wage-summary"
                 hiddenWagesResponse `responseBodyShouldNotContain` "roster-day-wage-total"
@@ -802,7 +802,7 @@ tests = beforeAll testContext do
                 managerResponse `responseBodyShouldNotContain` "roster-day-wage-total"
                 managerResponse `responseBodyShouldNotContain` "aria-label=\"Wages for day\""
                 managerResponse `responseBodyShouldNotContain` "roster-wage-prediction"
-                managerResponse `responseBodyShouldNotContain` "Show wages"
+                managerResponse `responseBodyShouldNotContain` "Wages disabled"
 
         it "hides wage estimate controls when roster end times are disabled" $ withContext do
             withCleanDb do
@@ -833,7 +833,7 @@ tests = beforeAll testContext do
                 adminResponse `responseStatusShouldBe` status200
                 adminResponse `responseBodyShouldContain` "data-roster-end-times=\"false\""
                 adminResponse `responseBodyShouldContain` "data-roster-wages=\"hidden\""
-                adminResponse `responseBodyShouldNotContain` "Show wages"
+                adminResponse `responseBodyShouldNotContain` "Wages disabled"
                 adminResponse `responseBodyShouldNotContain` "Wages:"
                 adminResponse `responseBodyShouldNotContain` "roster-wage-summary"
                 adminResponse `responseBodyShouldNotContain` "roster-day-wage-total"
@@ -846,7 +846,7 @@ tests = beforeAll testContext do
                             [("showWageEstimates", "true")]
 
                 toggleResponse `responseStatusShouldBe` status200
-                toggleResponse `responseBodyShouldNotContain` "Show wages"
+                toggleResponse `responseBodyShouldNotContain` "Wages disabled"
                 toggleResponse `responseBodyShouldNotContain` "Wages:"
                 hiddenPreferences <- query @UserPreference
                     |> filterWhere (#userId, unpackId admin.id)

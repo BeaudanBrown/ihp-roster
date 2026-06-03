@@ -131,6 +131,22 @@
     }
 }
 
+.roster-grid-frame[data-roster-warnings="hidden"] .slot-staff-cell.conflict-critical,
+.roster-grid-frame[data-roster-warnings="hidden"] .slot-staff-cell.conflict-preference,
+.roster-grid-frame[data-roster-warnings="hidden"] .slot-staff-cell.conflict-ideal,
+.roster-grid-frame[data-roster-warnings="hidden"] .roster-shift-card-field.conflict-critical,
+.roster-grid-frame[data-roster-warnings="hidden"] .roster-shift-card-field.conflict-preference,
+.roster-grid-frame[data-roster-warnings="hidden"] .roster-shift-card-field.conflict-ideal,
+.roster-grid-frame[data-roster-warnings="hidden"] .roster-shift-card-field.conflict-critical:hover,
+.roster-grid-frame[data-roster-warnings="hidden"] .roster-shift-card-field.conflict-preference:hover,
+.roster-grid-frame[data-roster-warnings="hidden"] .roster-shift-card-field.conflict-ideal:hover {
+    background-color: transparent !important;
+    background-image: none !important;
+    color: inherit !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+}
+
 .roster-shift-card-field.conflict-critical .slot-cell-static,
 .roster-shift-card-field.conflict-preference .slot-cell-static,
 .roster-shift-card-field.conflict-ideal .slot-cell-static {

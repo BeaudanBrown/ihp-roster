@@ -472,6 +472,16 @@ instance Controller RosterWeeksController where
                         setSuccessMessage "Roster layout preference saved."
                         redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
 
+    action UpdateRosterWarningPreferenceAction { weekOffset } = do
+        rosterGroup <- resolveRequestedRosterGroup
+        let showRosterWarnings = paramOrDefault @Text "false" "showRosterWarnings" == "true"
+        _ <- upsertCurrentUserShowRosterWarnings showRosterWarnings
+        if isHtmxRequest
+            then respondWithRosterFragmentsUpdate rosterGroup.id weekOffset [RosterProjectionGridToolbar, RosterProjectionGridFrame] (successToast "Roster warning preference saved.")
+            else do
+                setSuccessMessage "Roster warning preference saved."
+                redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
+
     action UpdateRosterWageEstimatePreferenceAction { weekOffset } = do
         accessDeniedUnless (hasRole VenueAdminRole)
         rosterGroup <- resolveRequestedRosterGroup
@@ -937,7 +947,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId = do
     passkeySetupPrompt <- passkeySetupPromptFromSession
 
     case rosterDataOrNothing of
-        Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction, showWageEstimates, rosterPublicHolidays } ->
+        Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } ->
             let visibleRosterWeek =
                     if rosterWeek.isLive || hasRole ManagerRole'
                         then Just rosterWeek
@@ -966,6 +976,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId = do
                         , rosterEndTimesEnabled
                         , rosterWagePrediction
                         , showWageEstimates
+                        , showRosterWarnings
                         , publicHolidays = rosterPublicHolidays
                         , passkeySetupPrompt
                         }

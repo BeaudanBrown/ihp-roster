@@ -101,9 +101,9 @@ renderRosterGridToolbarFragment =
     renderRosterGridToolbarFragmentWithSwap Nothing
 
 renderRosterGridToolbarFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterGridRenderModel -> Html
-renderRosterGridToolbarFragmentWithSwap maybeSwapOob RosterGridRenderModel { gridRosterWeek, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridAssignmentFilters, gridWeekStartDate, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction, gridShowWageEstimates } = [hsx|
+renderRosterGridToolbarFragmentWithSwap maybeSwapOob RosterGridRenderModel { gridRosterWeek, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridAssignmentFilters, gridWeekStartDate, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction, gridShowWageEstimates, gridShowRosterWarnings } = [hsx|
     <div id={rosterGridToolbarFragmentId} hx-swap-oob={maybeSwapOob}>
-        {renderRosterGridHeader gridRosterWeek gridWeekOffset gridRosterGroups gridCurrentRosterGroup gridAssignmentFilters gridWeekStartDate gridViewCapabilities gridRosterLayoutMode gridRosterEndTimesEnabled gridRosterWagePrediction gridShowWageEstimates}
+        {renderRosterGridHeader gridRosterWeek gridWeekOffset gridRosterGroups gridCurrentRosterGroup gridAssignmentFilters gridWeekStartDate gridViewCapabilities gridRosterLayoutMode gridRosterEndTimesEnabled gridRosterWagePrediction gridShowWageEstimates gridShowRosterWarnings}
     </div>
 |]
 
@@ -112,7 +112,7 @@ renderRosterGridFrameFragment =
     renderRosterGridFrameFragmentWithSwap Nothing
 
 renderRosterGridFrameFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterGridRenderModel -> Html
-renderRosterGridFrameFragmentWithSwap maybeSwapOob gridModel@RosterGridRenderModel { gridRosterWeek, gridSlotNames, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridShowWageEstimates } =
+renderRosterGridFrameFragmentWithSwap maybeSwapOob gridModel@RosterGridRenderModel { gridRosterWeek, gridSlotNames, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridShowWageEstimates, gridShowRosterWarnings } =
     let slotColumnsAreEditable = gridViewCapabilities.canManageRosterColumns
         rosterIsHiddenDraft = isNothing gridRosterWeek
         isDayColumnsLayout = not rosterIsHiddenDraft && rosterLayoutModeValue gridRosterLayoutMode == "day_columns"
@@ -131,13 +131,14 @@ renderRosterGridFrameFragmentWithSwap maybeSwapOob gridModel@RosterGridRenderMod
              data-roster-end-times={if gridRosterEndTimesEnabled then ("true" :: Text) else "false"}
              data-roster-column-editor={if slotColumnsAreEditable && not rosterIsHiddenDraft then ("available" :: Text) else "unavailable"}
              data-roster-wages={if gridShowWageEstimates && not rosterIsHiddenDraft then ("visible" :: Text) else "hidden"}
+             data-roster-warnings={if gridShowRosterWarnings && not rosterIsHiddenDraft then ("visible" :: Text) else "hidden"}
              style={"--roster-slot-count:" <> tshow (max 1 (length gridSlotNames)) <> ";"}>
             {gridBody}
         </div>
 |]
 
 rosterDayRenderModelFromGrid :: (?context :: ControllerContext) => RosterGridRenderModel -> RosterDayRenderModel
-rosterDayRenderModelFromGrid RosterGridRenderModel { gridRosterWeek, gridAssignmentFilters, gridStaffMembers, gridSlotNames, gridShiftTypes, gridWeekStartDate, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction, gridShowWageEstimates, gridPublicHolidays, gridPublishAttempted } =
+rosterDayRenderModelFromGrid RosterGridRenderModel { gridRosterWeek, gridAssignmentFilters, gridStaffMembers, gridSlotNames, gridShiftTypes, gridWeekStartDate, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction, gridShowWageEstimates, gridShowRosterWarnings, gridPublicHolidays, gridPublishAttempted } =
     RosterDayRenderModel
         { dayIsEditable = rosterWeekIsEditable gridRosterWeek
         , daySlotNames = gridSlotNames
@@ -152,6 +153,7 @@ rosterDayRenderModelFromGrid RosterGridRenderModel { gridRosterWeek, gridAssignm
         , dayRosterEndTimesEnabled = gridRosterEndTimesEnabled
         , dayRosterWagePrediction = gridRosterWagePrediction
         , dayShowWageEstimates = gridShowWageEstimates
+        , dayShowRosterWarnings = gridShowRosterWarnings
         , dayPublicHolidays = gridPublicHolidays
         , dayPublishAttempted = gridPublishAttempted
         }

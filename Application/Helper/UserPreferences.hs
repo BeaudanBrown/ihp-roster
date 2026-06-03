@@ -5,12 +5,14 @@ module Application.Helper.UserPreferences
     , defaultRosterLayoutMode
     , fetchCurrentRosterLayoutMode
     , fetchCurrentUserRosterPreferences
+    , fetchCurrentUserShowRosterWarnings
     , fetchCurrentUserShowWageEstimates
     , parseRosterLayoutMode
     , rosterLayoutModeLabel
     , rosterLayoutModeValue
     , rosterLayoutModes
     , upsertCurrentUserRosterLayoutMode
+    , upsertCurrentUserShowRosterWarnings
     , upsertCurrentUserShowWageEstimates
     ) where
 
@@ -19,14 +21,18 @@ import Generated.Types
 import IHP.ControllerPrelude
 
 data UserRosterPreferences = UserRosterPreferences
-    { userRosterLayoutMode   :: RosterLayoutModeEnum
-    , userShowWageEstimates :: Bool
+    { userRosterLayoutMode      :: RosterLayoutModeEnum
+    , userShowRosterWarnings    :: Bool
+    , userShowWageEstimates     :: Bool
     }
 
 normaliseUserRosterPreferences :: Maybe UserPreference -> UserRosterPreferences
 normaliseUserRosterPreferences maybePreferences =
     UserRosterPreferences
         { userRosterLayoutMode = maybe defaultRosterLayoutMode (.rosterLayoutMode) maybePreferences
+        -- Legacy column name is inverted for roster warning highlights: TRUE keeps
+        -- conflict highlighting hidden, preserving the default disabled state.
+        , userShowRosterWarnings = maybe False (\preferences -> not preferences.showShiftTypeHighlights) maybePreferences
         , userShowWageEstimates = maybe False (.showWageEstimates) maybePreferences
         }
 
@@ -63,6 +69,10 @@ fetchCurrentRosterLayoutMode :: (?context :: ControllerContext, ?modelContext ::
 fetchCurrentRosterLayoutMode =
     (.userRosterLayoutMode) <$> fetchCurrentUserRosterPreferences
 
+fetchCurrentUserShowRosterWarnings :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Bool
+fetchCurrentUserShowRosterWarnings =
+    (.userShowRosterWarnings) <$> fetchCurrentUserRosterPreferences
+
 fetchCurrentUserShowWageEstimates :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Bool
 fetchCurrentUserShowWageEstimates =
     (.userShowWageEstimates) <$> fetchCurrentUserRosterPreferences
@@ -82,6 +92,24 @@ upsertCurrentUserRosterLayoutMode layoutMode = do
             newRecord @UserPreference
                 |> set #userId (unpackId currentUser.id)
                 |> set #rosterLayoutMode layoutMode
+                |> createRecord
+
+upsertCurrentUserShowRosterWarnings ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Bool ->
+    IO UserPreference
+upsertCurrentUserShowRosterWarnings showRosterWarnings = do
+    maybePreferences <- fetchCurrentUserPreferenceRecord
+    let hideRosterWarnings = not showRosterWarnings
+    case maybePreferences of
+        Just preferences ->
+            preferences
+                |> set #showShiftTypeHighlights hideRosterWarnings
+                |> updateRecord
+        Nothing ->
+            newRecord @UserPreference
+                |> set #userId (unpackId currentUser.id)
+                |> set #showShiftTypeHighlights hideRosterWarnings
                 |> createRecord
 
 upsertCurrentUserShowWageEstimates ::

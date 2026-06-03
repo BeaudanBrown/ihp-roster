@@ -382,7 +382,7 @@ test.describe('Mobile experience smoke', () => {
         await expect(page.locator('.roster-day-columns')).toBeVisible();
         const dayColumnsScroll = await setScroll('#roster-grid-frame');
         await markScrollOwner('#roster-grid-frame', 'day-columns-owner');
-        await toggleAssignmentFilter('At ideal shifts or greater');
+        await toggleAssignmentFilter('Too many shifts');
         await expectScrollOwnerMarker('#roster-grid-frame', 'day-columns-owner');
         if (dayColumnsScroll > 0) {
             expect(Math.abs((await readScroll('#roster-grid-frame')) - dayColumnsScroll)).toBeLessThanOrEqual(2);
@@ -408,7 +408,7 @@ test.describe('Mobile experience smoke', () => {
         await expect(page.locator('.roster-slots-scroller')).toBeVisible();
         const dayRowsScroll = await setScroll('.roster-slots-scroller');
         await markScrollOwner('.roster-slots-scroller', 'day-rows-owner');
-        await toggleAssignmentFilter('No preferred shifts that day');
+        await toggleAssignmentFilter('Regular day off');
         await expectScrollOwnerMarker('.roster-slots-scroller', 'day-rows-owner');
         if (dayRowsScroll > 0) {
             expect(Math.abs((await readScroll('.roster-slots-scroller')) - dayRowsScroll)).toBeLessThanOrEqual(2);

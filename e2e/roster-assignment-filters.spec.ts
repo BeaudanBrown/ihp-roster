@@ -23,7 +23,7 @@ test.describe('Roster assignment filters', () => {
         await loginAndOpenRoster(page);
 
         await page.getByLabel('Roster settings').click();
-        await page.getByLabel('Already assigned that day').check();
+        await page.getByLabel('Double shifts').check();
         await expect(page.locator('#roster-content')).toBeVisible();
 
         const daySection = firstEditableRosterDaySection(page);

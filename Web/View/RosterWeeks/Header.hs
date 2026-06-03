@@ -11,14 +11,15 @@ import Data.Time.Calendar (Day)
 import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterWeekShellId)
 import Web.RosterWeeks.Paths (rosterAssignmentFiltersUrl, rosterCopyWeekUrl,
                               rosterLayoutPreferenceUrl,
-                              rosterWageEstimatePreferenceUrl, rosterWeekUrl)
+                              rosterWageEstimatePreferenceUrl,
+                              rosterWarningPreferenceUrl, rosterWeekUrl)
 import Web.RosterWeeks.Types (RosterAssignmentFilters (..),
                               RosterViewCapabilities (..))
 import Web.View.Prelude
 import Web.View.RosterWeeks.Overview (renderRosterWeekLabel)
 
-renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> Day -> RosterViewCapabilities -> RosterLayoutModeEnum -> Bool -> Maybe RosterWagePrediction -> Bool -> Html
-renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters weekStartDate viewCapabilities rosterLayoutMode rosterEndTimesEnabled rosterWagePrediction showWageEstimates =
+renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> Day -> RosterViewCapabilities -> RosterLayoutModeEnum -> Bool -> Maybe RosterWagePrediction -> Bool -> Bool -> Html
+renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters weekStartDate viewCapabilities rosterLayoutMode rosterEndTimesEnabled rosterWagePrediction showWageEstimates showRosterWarnings =
     renderWeekToolbar WeekToolbarConfig
         { weekToolbarVariant = WeekToolbarRoster
         , weekToolbarAriaLabel = "Roster week controls"
@@ -26,7 +27,7 @@ renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGrou
         , weekToolbarPrimary = renderLiveToggle maybeRosterWeek viewCapabilities
         , weekToolbarReset = renderThisWeekButton
         , weekToolbarNavigation = renderRosterWeekControls weekOffset currentRosterGroup weekStartDate
-        , weekToolbarSettings = renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters viewCapabilities rosterLayoutMode rosterEndTimesEnabled showWageEstimates
+        , weekToolbarSettings = renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters viewCapabilities rosterLayoutMode rosterEndTimesEnabled showWageEstimates showRosterWarnings
         , weekToolbarAuxiliary = renderRosterWeekWageSummary rosterWagePrediction
         }
 
@@ -108,8 +109,8 @@ renderThisWeekButton =
             , partialNavigationPushUrl = True
             }
 
-renderRosterWeekMoreMenu :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> RosterViewCapabilities -> RosterLayoutModeEnum -> Bool -> Bool -> Html
-renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters viewCapabilities rosterLayoutMode rosterEndTimesEnabled showWageEstimates =
+renderRosterWeekMoreMenu :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> RosterViewCapabilities -> RosterLayoutModeEnum -> Bool -> Bool -> Bool -> Html
+renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters viewCapabilities rosterLayoutMode rosterEndTimesEnabled showWageEstimates showRosterWarnings =
     let menuTriggerId = rosterWeekMoreMenuId maybeRosterWeek currentRosterGroup.id
         divider = [hsx|<div class="dropdown-divider my-1"></div>|]
      in [hsx|
@@ -122,7 +123,7 @@ renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGr
             <div class="dropdown-divider my-1"></div>
             {renderRosterWeekActionsMenuSection maybeRosterWeek weekOffset currentRosterGroup.id viewCapabilities}
             {renderRosterLayoutMenuSection weekOffset currentRosterGroup.id rosterLayoutMode}
-            {renderRosterWageEstimatePreferenceMenuSection weekOffset currentRosterGroup.id viewCapabilities rosterEndTimesEnabled showWageEstimates}
+            {renderRosterDisplayPreferencesMenuSection weekOffset currentRosterGroup.id viewCapabilities rosterEndTimesEnabled showWageEstimates showRosterWarnings}
             {renderRosterExportMenuSection maybeRosterWeek viewCapabilities}
             {renderRosterAssignmentFiltersMenuSection weekOffset currentRosterGroup.id menuTriggerId assignmentFilters viewCapabilities}
             {when (shouldShowRosterWeekMenuDivider maybeRosterWeek viewCapabilities) divider}
@@ -175,11 +176,35 @@ renderRosterLayoutModeOption selectedLayoutMode layoutMode =
         <label class="btn btn-outline-secondary btn-sm" for={inputId}>{rosterLayoutModeLabel layoutMode}</label>
     |]
 
-renderRosterWageEstimatePreferenceMenuSection :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterViewCapabilities -> Bool -> Bool -> Html
-renderRosterWageEstimatePreferenceMenuSection weekOffset rosterGroupId viewCapabilities rosterEndTimesEnabled showWageEstimates
+renderRosterDisplayPreferencesMenuSection :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterViewCapabilities -> Bool -> Bool -> Bool -> Html
+renderRosterDisplayPreferencesMenuSection weekOffset rosterGroupId viewCapabilities rosterEndTimesEnabled showWageEstimates showRosterWarnings = [hsx|
+    <div class="row g-2 px-1 pb-1">
+        {renderRosterWarningPreferenceForm weekOffset rosterGroupId showRosterWarnings}
+        {renderRosterWageEstimatePreferenceForm weekOffset rosterGroupId viewCapabilities rosterEndTimesEnabled showWageEstimates}
+    </div>
+|]
+
+renderRosterWarningPreferenceForm :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Bool -> Html
+renderRosterWarningPreferenceForm weekOffset rosterGroupId showRosterWarnings = [hsx|
+    <form class="col-6 mb-0"
+          method="POST"
+          action={rosterWarningPreferenceUrl weekOffset rosterGroupId}
+          data-disable-javascript-submission="true"
+          hx-post={rosterWarningPreferenceUrl weekOffset rosterGroupId}
+          hx-swap="none"
+          hx-push-url="false"
+          hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
+        <div class="roster-display-toggle">
+            {renderRosterWarningToggle showRosterWarnings}
+        </div>
+    </form>
+|]
+
+renderRosterWageEstimatePreferenceForm :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterViewCapabilities -> Bool -> Bool -> Html
+renderRosterWageEstimatePreferenceForm weekOffset rosterGroupId viewCapabilities rosterEndTimesEnabled showWageEstimates
     | not viewCapabilities.canViewWageEstimates || not rosterEndTimesEnabled = mempty
     | otherwise = [hsx|
-        <form class="px-1 pb-1"
+        <form class="col-6 mb-0"
               method="POST"
               action={rosterWageEstimatePreferenceUrl weekOffset rosterGroupId}
               data-disable-javascript-submission="true"
@@ -187,15 +212,24 @@ renderRosterWageEstimatePreferenceMenuSection weekOffset rosterGroupId viewCapab
               hx-swap="none"
               hx-push-url="false"
               hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
-            <div class="px-1 roster-display-toggle">
+            <div class="roster-display-toggle">
                 {renderRosterWageEstimateToggle showWageEstimates}
             </div>
         </form>
 |]
 
+renderRosterWarningToggle :: Bool -> Html
+renderRosterWarningToggle showRosterWarnings =
+    renderAppToggleButton $ (defaultAppToggleButtonConfig "show-roster-warnings" showRosterWarnings [hsx|<span class="small">{if showRosterWarnings then ("Warnings enabled" :: Text) else "Warnings disabled"}</span>|])
+        { appToggleInputName = Just "showRosterWarnings"
+        , appToggleInputValue = "true"
+        , appToggleButtonClass = "btn-sm w-100 justify-content-start"
+        , appToggleOnChange = Just "this.form.requestSubmit()"
+        }
+
 renderRosterWageEstimateToggle :: Bool -> Html
 renderRosterWageEstimateToggle showWageEstimates =
-    renderAppToggleButton $ (defaultAppToggleButtonConfig "show-wage-estimates" showWageEstimates [hsx|<span class="small">Show wages</span>|])
+    renderAppToggleButton $ (defaultAppToggleButtonConfig "show-wage-estimates" showWageEstimates [hsx|<span class="small">{if showWageEstimates then ("Wages enabled" :: Text) else "Wages disabled"}</span>|])
         { appToggleInputName = Just "showWageEstimates"
         , appToggleInputValue = "true"
         , appToggleButtonClass = "btn-sm w-100 justify-content-start"
@@ -267,12 +301,12 @@ renderRosterAssignmentFiltersMenuSection weekOffset rosterGroupId menuTriggerId 
           hx-swap="none"
           hx-push-url="false"
           hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
-        <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Hide from dropdowns</div>
+        <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Enforce prevention</div>
         <div class="roster-assignment-filter-grid">
-            {renderRosterAssignmentFilterToggle "hide-staff-at-ideal" "hideStaffAtIdealShifts" filters.hideStaffAtIdealShifts "At ideal shifts or greater"}
-            {renderRosterAssignmentFilterToggle "hide-staff-unavailable" "hideStaffUnavailable" filters.hideStaffUnavailable "No preferred shifts that day"}
-            {renderRosterAssignmentFilterToggle "hide-staff-on-leave" "hideStaffOnApprovedLeave" filters.hideStaffOnApprovedLeave "Approved unavailable period on this date"}
-            {renderRosterAssignmentFilterToggle "hide-staff-assigned-today" "hideStaffAlreadyAssignedToday" filters.hideStaffAlreadyAssignedToday "Already assigned that day"}
+            {renderRosterAssignmentFilterToggle "hide-staff-at-ideal" "hideStaffAtIdealShifts" filters.hideStaffAtIdealShifts "Too many shifts"}
+            {renderRosterAssignmentFilterToggle "hide-staff-unavailable" "hideStaffUnavailable" filters.hideStaffUnavailable "Regular day off"}
+            {renderRosterAssignmentFilterToggle "hide-staff-on-leave" "hideStaffOnApprovedLeave" filters.hideStaffOnApprovedLeave "Unavailable"}
+            {renderRosterAssignmentFilterToggle "hide-staff-assigned-today" "hideStaffAlreadyAssignedToday" filters.hideStaffAlreadyAssignedToday "Double shifts"}
         </div>
     </form>
 |]
