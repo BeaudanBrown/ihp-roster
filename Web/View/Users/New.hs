@@ -2,14 +2,16 @@ module Web.View.Users.New where
 
 import Application.Helper.View.VenueBootstrap (renderVenueBootstrapFields)
 import Web.View.Prelude
+import Web.View.StaffProfileForm (renderPersonalProfileFields)
 
 data NewView
     = InviteOnlyView
-    | InvitationSignupView { user :: User, venueInvitation :: VenueInvitation }
+    | InvitationSignupView { user :: User, venueInvitation :: VenueInvitation, staff :: Staff }
     | VenueOnboardingSignupView
         { user                    :: User
         , onboardingInvitation    :: VenueOnboardingInvitation
         , venue                   :: Venue
+        , staff                   :: Staff
         , venueTimezone           :: Text
         , venueRosterWeekStartsOn :: Int
         }
@@ -30,7 +32,7 @@ instance View NewView where
             </div>
         </div>
     |]
-    html InvitationSignupView { user, venueInvitation } = [hsx|
+    html InvitationSignupView { user, venueInvitation, staff } = [hsx|
         <div class="app-page-auth">
             <div class="app-auth-card">
                 <div class="app-auth-body">
@@ -38,7 +40,7 @@ instance View NewView where
                     <p class="app-muted mb-4 text-center">
                         You have been invited to join this venue as {invitationRoleLabel venueInvitation.inviteRole}.
                     </p>
-                    {renderInvitationForm user venueInvitation}
+                    {renderInvitationForm user venueInvitation staff}
                     <hr/>
                     <p class="text-center mb-0 app-muted small">
                         Already have an account?
@@ -48,7 +50,7 @@ instance View NewView where
             </div>
         </div>
     |]
-    html VenueOnboardingSignupView { user, onboardingInvitation, venue, venueTimezone, venueRosterWeekStartsOn } = [hsx|
+    html VenueOnboardingSignupView { user, onboardingInvitation, venue, staff, venueTimezone, venueRosterWeekStartsOn } = [hsx|
         <div class="app-page-auth">
             <div class="app-auth-card">
                 <div class="app-auth-body">
@@ -56,7 +58,7 @@ instance View NewView where
                     <p class="app-muted mb-4 text-center">
                         Create your account and configure your venue before it is created.
                     </p>
-                    {renderVenueOnboardingForm user onboardingInvitation venue venueTimezone venueRosterWeekStartsOn}
+                    {renderVenueOnboardingForm user onboardingInvitation venue staff venueTimezone venueRosterWeekStartsOn}
                     <hr/>
                     <p class="text-center mb-0 app-muted small">
                         Already have an account?
@@ -67,8 +69,8 @@ instance View NewView where
         </div>
     |]
 
-renderInvitationForm :: User -> VenueInvitation -> Html
-renderInvitationForm user invitation = formForWithoutJavascript user [hsx|
+renderInvitationForm :: User -> VenueInvitation -> Staff -> Html
+renderInvitationForm user invitation staff = formForWithoutJavascript user [hsx|
     <input type="hidden" name="invitationId" value={tshow invitation.id} />
     <div class="mb-3">
         <label class="form-label" for="email">Email address</label>
@@ -88,13 +90,16 @@ renderInvitationForm user invitation = formForWithoutJavascript user [hsx|
         , validatorResult = Nothing
         , required = True
         }}
+    <hr/>
+    <h5 class="mb-3">Confirm your staff details</h5>
+    {renderPersonalProfileFields staff (Just invitation.email)}
     <div class="d-grid mt-4">
         <button type="submit" class="btn btn-primary">Create Account</button>
     </div>
 |]
 
-renderVenueOnboardingForm :: User -> VenueOnboardingInvitation -> Venue -> Text -> Int -> Html
-renderVenueOnboardingForm user invitation venue venueTimezone venueRosterWeekStartsOn = [hsx|
+renderVenueOnboardingForm :: User -> VenueOnboardingInvitation -> Venue -> Staff -> Text -> Int -> Html
+renderVenueOnboardingForm user invitation venue staff venueTimezone venueRosterWeekStartsOn = [hsx|
     <form method="POST" action={CreateVenueOnboardingUserAction} data-disable-javascript-submission="true">
         <input type="hidden" name="invitationId" value={tshow invitation.id} />
         <div class="mb-3">
@@ -133,6 +138,9 @@ renderVenueOnboardingForm user invitation venue venueTimezone venueRosterWeekSta
         <div class="row g-3">
             {renderVenueBootstrapFields venue venueTimezone venueRosterWeekStartsOn}
         </div>
+        <hr/>
+        <h5 class="mb-3">Confirm your staff details</h5>
+        {renderPersonalProfileFields staff (Just invitation.email)}
         <div class="d-grid mt-4">
             <button type="submit" class="btn btn-primary">Create Account And Venue</button>
         </div>

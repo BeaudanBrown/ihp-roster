@@ -6,6 +6,7 @@ import Application.Helper.Controller (unsafeEnumFromText,
 import Application.Helper.LiveResource
 import Config
 import Data.Aeson (Value (Null))
+import qualified Data.ByteString.Char8 as ByteString
 import Data.Time.Clock (addUTCTime, getCurrentTime)
 import Generated.Types
 import IHP.ControllerPrelude
@@ -24,6 +25,17 @@ import Web.FrontController ()
 import Web.Users.Mutations (acceptedVenueInvitationTouchedResources)
 import Web.Routes
 import Web.Types
+
+signupStaffParams :: [(ByteString, ByteString)]
+signupStaffParams =
+    [ ("firstName", "Taylor")
+    , ("lastName", "Smith")
+    , ("preferredName", "")
+    , ("phone", "0400000000")
+    , ("emergencyContactName", "Casey Smith")
+    , ("emergencyContactPhone", "0411111111")
+    , ("idealShiftsPerWeek", "3")
+    ]
 
 tests :: Spec
 tests = beforeAll testContext do
@@ -90,17 +102,17 @@ tests = beforeAll testContext do
             withCleanDb do
                 invitation <- createVenueOnboardingInvitationRecord Nothing "owner-create-venue@example.com"
 
-                response <- callActionWithParams CreateVenueOnboardingUserAction
+                response <- callActionWithParams CreateVenueOnboardingUserAction $
                     [ ("invitationId", idToParam invitation.id)
                     , ("passwordHash", "test-password-123")
                     , ("passwordConfirmation", "test-password-123")
                     , ("name", "Owner Venue")
                     , ("timezone", "Australia/Melbourne")
                     , ("rosterWeekStartsOn", "2")
-                    ]
+                    ] <> signupStaffParams
 
                 response `responseStatusShouldBe` status302
-                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/EditProfile"
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
 
                 user <- query @User |> filterWhere (#email, "owner-create-venue@example.com") |> fetchOne
                 venue <- query @Venue |> filterWhere (#name, "Owner Venue") |> fetchOne
@@ -113,7 +125,7 @@ tests = beforeAll testContext do
                 venueConfig.rosterWeekStartsOn `shouldBe` 2
                 venueConfig.rosterWeekStartsOn `shouldSatisfy` (`elem` validRosterWeekStartDays)
                 inputValue membership.venueRole `shouldBe` "venue_owner"
-                staff `shouldBe` Nothing
+                staff `shouldSatisfy` isJust
                 inputValue updatedInvitation.status `shouldBe` "accepted"
                 updatedInvitation.acceptedByUserId `shouldBe` Just (unpackId user.id)
 
@@ -157,6 +169,25 @@ tests = beforeAll testContext do
                 userCount `shouldBe` 0
                 membershipCount `shouldBe` 0
 
+        it "does not create or accept invited accounts until staff details are complete" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Incomplete Staff Invite Venue"
+                invitation <- createVenueInvitationRecord venue Nothing "incomplete-staff@example.com" "worker"
+
+                response <- callActionWithParams CreateUserAction
+                    [ ("invitationId", idToParam invitation.id)
+                    , ("passwordHash", "test-password-123")
+                    , ("passwordConfirmation", "test-password-123")
+                    ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Confirm your staff details"
+                userExists <- query @User |> filterWhere (#email, "incomplete-staff@example.com") |> fetchExists
+                updatedInvitation <- fetch invitation.id
+                userExists `shouldBe` False
+                inputValue updatedInvitation.status `shouldBe` "pending"
+                updatedInvitation.acceptedAt `shouldBe` Nothing
+
         it "records touched resources for accepted venue invitations" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Invitation Touch Venue"
@@ -169,15 +200,15 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Bootstrap Venue"
                 invitation <- createVenueInvitationRecord venue Nothing "owner@example.com" "venue_owner"
 
-                response <- callActionWithParams CreateUserAction
+                response <- callActionWithParams CreateUserAction $
                     [ ("invitationId", idToParam invitation.id)
                     , ("email", "attacker@example.com")
                     , ("passwordHash", "test-password-123")
                     , ("passwordConfirmation", "test-password-123")
-                    ]
+                    ] <> signupStaffParams
 
                 response `responseStatusShouldBe` status302
-                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/EditProfile"
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
 
                 user <- query @User
                     |> filterWhere (#email, "owner@example.com")
@@ -196,7 +227,7 @@ tests = beforeAll testContext do
                 verificationTokenCount <- query @EmailVerificationToken |> fetchCount
 
                 membership.venueId `shouldBe` unpackId venue.id
-                staff `shouldBe` Nothing
+                staff `shouldSatisfy` isJust
                 inputValue membership.venueRole `shouldBe` "venue_owner"
                 inputValue user.userRole `shouldBe` "staff"
                 isJust user.emailVerifiedAt `shouldBe` True

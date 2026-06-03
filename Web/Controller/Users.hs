@@ -5,6 +5,7 @@ import Application.Helper.LiveResource (LiveMutationResult (..))
 import Application.Helper.VenueBootstrap (createVenueWithBootstrapConfigInCurrentTransaction,
                                           defaultStaffNameFromEmail,
                                           defaultVenueBootstrapTimezone,
+                                          ensureLinkedStaffRecord,
                                           provisionVenueMembership)
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationIsActive)
 import Application.Helper.WeekBoundaries (validRosterWeekStartDays)
@@ -30,8 +31,9 @@ instance Controller UsersController where
                 case invitationOrNothing of
                     Just invitation | invitationIsActive now invitation -> do
                         let user = newRecord @User |> set #email invitation.email
+                        let staff = newRecord @Staff
                         setTitle "Accept Invitation"
-                        render InvitationSignupView { user, venueInvitation = invitation }
+                        render InvitationSignupView { user, venueInvitation = invitation, staff }
                     _ -> do
                         setErrorMessage "That invitation is no longer valid. Contact support for a new bootstrap invite."
                         setTitle "Request Access"
@@ -51,6 +53,7 @@ instance Controller UsersController where
                     Just invitation | invitationIsActive now invitation -> do
                         let passwordConfirmation = normalizeText (paramOrDefault @Text "" "passwordConfirmation")
                         let user = newRecord @User |> set #email invitation.email
+                        let staff = buildSignupStaff (newRecord @Staff)
                         user
                             |> requireParam #passwordHash "passwordHash" "Password is required"
                             |> fill @'["passwordHash"]
@@ -63,14 +66,19 @@ instance Controller UsersController where
                             >>= ifValid \case
                                 Left user -> do
                                     setTitle "Accept Invitation"
-                                    render InvitationSignupView { user, venueInvitation = invitation }
-                                Right user -> do
-                                    hashed <- hashPassword user.passwordHash
-                                    user <- liveMutationValue <$> acceptVenueInvitation now invitation user hashed
-                                    Sessions.beforeLogin user
-                                    LoginSupport.login user
-                                    setSuccessMessage "Invitation accepted."
-                                    redirectTo EditProfileAction
+                                    render InvitationSignupView { user, venueInvitation = invitation, staff }
+                                Right user ->
+                                    staff |> ifValid \case
+                                        Left staff -> do
+                                            setTitle "Accept Invitation"
+                                            render InvitationSignupView { user, venueInvitation = invitation, staff }
+                                        Right staff -> do
+                                            hashed <- hashPassword user.passwordHash
+                                            user <- liveMutationValue <$> acceptVenueInvitation now invitation user hashed staff
+                                            Sessions.beforeLogin user
+                                            LoginSupport.login user
+                                            setSuccessMessage "Invitation accepted."
+                                            redirectTo RosterWeeksAction
                     _ -> do
                         setErrorMessage "That invitation is no longer valid. Contact support for a new bootstrap invite."
                         setTitle "Request Access"
@@ -90,6 +98,7 @@ instance Controller UsersController where
                     Just invitation | venueOnboardingInvitationIsActive now invitation -> do
                         let user = newRecord @User |> set #email invitation.email
                         let venue = newRecord @Venue |> set #status (unsafeEnumFromText @VenueStatusEnum "active")
+                        let staff = newRecord @Staff
                         let venueTimezone = defaultVenueBootstrapTimezone
                         let venueRosterWeekStartsOn = defaultRosterWeekStartsOn
                         setTitle "Create Venue"
@@ -97,6 +106,7 @@ instance Controller UsersController where
                             { user
                             , onboardingInvitation = invitation
                             , venue
+                            , staff
                             , venueTimezone
                             , venueRosterWeekStartsOn
                             }
@@ -121,6 +131,7 @@ instance Controller UsersController where
                         let venueTimezone = normalizeText (paramOrDefault defaultVenueBootstrapTimezone "timezone")
                         let venueRosterWeekStartsOn = fromMaybe defaultRosterWeekStartsOn (paramOrNothing @Int "rosterWeekStartsOn")
                         let user = newRecord @User |> set #email invitation.email
+                        let staff = buildSignupStaff (newRecord @Staff)
                         let venue =
                                 newRecord @Venue
                                     |> set #status (unsafeEnumFromText @VenueStatusEnum "active")
@@ -140,6 +151,7 @@ instance Controller UsersController where
                                         { user
                                         , onboardingInvitation = invitation
                                         , venue
+                                        , staff
                                         , venueTimezone
                                         , venueRosterWeekStartsOn
                                         }
@@ -149,85 +161,132 @@ instance Controller UsersController where
                                                 |> requireParam #name "name" "Venue name is required"
                                                 |> fill @'["name"]
                                                 |> requiredBoundedTextField #name 120
-                                    case venueWithName.meta.annotations of
-                                        [] | venueRosterWeekStartsOn `elem` validRosterWeekStartDays && not (isEmpty venueTimezone) -> do
-                                            hashed <- hashPassword user.passwordHash
-                                            user <- withTransaction do
-                                                verifiedAt <- getCurrentTime
-                                                user <-
-                                                    user
-                                                        |> set #passwordHash hashed
-                                                        |> set #emailVerifiedAt (Just verifiedAt)
-                                                        |> createRecord
-                                                (createdVenue, _) <- createVenueWithBootstrapConfigInCurrentTransaction venueWithName.name venueTimezone venueRosterWeekStartsOn
-                                                membership <- provisionVenueMembership createdVenue user "venue_owner"
-                                                _ <-
-                                                    invitation
-                                                        |> set #status (unsafeEnumFromText @InvitationStatusEnum "accepted")
-                                                        |> set #acceptedByUserId (Just (unpackId (get #id user)))
-                                                        |> set #acceptedAt (Just now)
-                                                        |> updateRecord
-                                                void $
-                                                    recordAuditEvent
-                                                        (unpackId createdVenue.id)
-                                                        (unpackId (get #id user))
-                                                        "venue_bootstrapped"
-                                                        "venues"
-                                                        (unpackId (get #id createdVenue))
-                                                        (Aeson.object
-                                                            [ "venueName" Aeson..= createdVenue.name
-                                                            , "timezone" Aeson..= venueTimezone
-                                                            , "rosterWeekStartsOn" Aeson..= venueRosterWeekStartsOn
-                                                            , "onboardingInvitationId" Aeson..= unpackId (get #id invitation)
-                                                            ]
-                                                        )
-                                                        requestAuditSourceChannel
-                                                void $
-                                                    recordAuditEvent
-                                                        (unpackId createdVenue.id)
-                                                        (unpackId (get #id user))
-                                                        "venue_role_assigned"
-                                                        "venue_memberships"
-                                                        (unpackId (get #id membership))
-                                                        (Aeson.object
-                                                            [ "email" Aeson..= user.email
-                                                            , "assignedRole" Aeson..= inputValue membership.venueRole
-                                                            , "onboardingInvitationId" Aeson..= unpackId (get #id invitation)
-                                                            ]
-                                                        )
-                                                        requestAuditSourceChannel
-                                                void $
-                                                    recordVenueMembershipRoleEvent
-                                                        (unpackId createdVenue.id)
-                                                        (unpackId (get #id user))
-                                                        membership
-                                                        (unsafeEnumFromText @VenueMembershipRoleEventTypeEnum "assigned")
-                                                        Nothing
-                                                        membership.venueRole
-                                                        (Aeson.object
-                                                            [ "email" Aeson..= user.email
-                                                            , "onboardingInvitationId" Aeson..= unpackId (get #id invitation)
-                                                            ]
-                                                        )
-                                                pure user
-                                            Sessions.beforeLogin user
-                                            LoginSupport.login user
-                                            setSuccessMessage "Venue created."
-                                            redirectTo EditProfileAction
-                                        _ -> do
-                                            setErrorMessage "Provide a venue name, timezone, and valid roster week start."
+                                    staff |> ifValid \case
+                                        Left staff -> do
+                                            setErrorMessage "Provide your required staff details."
                                             setTitle "Create Venue"
                                             render VenueOnboardingSignupView
                                                 { onboardingInvitation = invitation
                                                 , user
                                                 , venue = venueWithName
+                                                , staff
                                                 , venueTimezone
                                                 , venueRosterWeekStartsOn
                                                 }
+                                        Right staff -> case venueWithName.meta.annotations of
+                                            [] | venueRosterWeekStartsOn `elem` validRosterWeekStartDays && not (isEmpty venueTimezone) -> do
+                                                hashed <- hashPassword user.passwordHash
+                                                user <- withTransaction do
+                                                    verifiedAt <- getCurrentTime
+                                                    user <-
+                                                        user
+                                                            |> set #passwordHash hashed
+                                                            |> set #emailVerifiedAt (Just verifiedAt)
+                                                            |> set #isProfileCompleted True
+                                                            |> createRecord
+                                                    (createdVenue, _) <- createVenueWithBootstrapConfigInCurrentTransaction venueWithName.name venueTimezone venueRosterWeekStartsOn
+                                                    membership <- provisionVenueMembership createdVenue user "venue_owner"
+                                                    _ <- createSignupStaff createdVenue user staff
+                                                    _ <-
+                                                        invitation
+                                                            |> set #status (unsafeEnumFromText @InvitationStatusEnum "accepted")
+                                                            |> set #acceptedByUserId (Just (unpackId (get #id user)))
+                                                            |> set #acceptedAt (Just now)
+                                                            |> updateRecord
+                                                    void $
+                                                        recordAuditEvent
+                                                            (unpackId createdVenue.id)
+                                                            (unpackId (get #id user))
+                                                            "venue_bootstrapped"
+                                                            "venues"
+                                                            (unpackId (get #id createdVenue))
+                                                            (Aeson.object
+                                                                [ "venueName" Aeson..= createdVenue.name
+                                                                , "timezone" Aeson..= venueTimezone
+                                                                , "rosterWeekStartsOn" Aeson..= venueRosterWeekStartsOn
+                                                                , "onboardingInvitationId" Aeson..= unpackId (get #id invitation)
+                                                                ]
+                                                            )
+                                                            requestAuditSourceChannel
+                                                    void $
+                                                        recordAuditEvent
+                                                            (unpackId createdVenue.id)
+                                                            (unpackId (get #id user))
+                                                            "venue_role_assigned"
+                                                            "venue_memberships"
+                                                            (unpackId (get #id membership))
+                                                            (Aeson.object
+                                                                [ "email" Aeson..= user.email
+                                                                , "assignedRole" Aeson..= inputValue membership.venueRole
+                                                                , "onboardingInvitationId" Aeson..= unpackId (get #id invitation)
+                                                                ]
+                                                            )
+                                                            requestAuditSourceChannel
+                                                    void $
+                                                        recordVenueMembershipRoleEvent
+                                                            (unpackId createdVenue.id)
+                                                            (unpackId (get #id user))
+                                                            membership
+                                                            (unsafeEnumFromText @VenueMembershipRoleEventTypeEnum "assigned")
+                                                            Nothing
+                                                            membership.venueRole
+                                                            (Aeson.object
+                                                                [ "email" Aeson..= user.email
+                                                                , "onboardingInvitationId" Aeson..= unpackId (get #id invitation)
+                                                                ]
+                                                            )
+                                                    pure user
+                                                Sessions.beforeLogin user
+                                                LoginSupport.login user
+                                                setSuccessMessage "Venue created."
+                                                redirectTo RosterWeeksAction
+                                            _ -> do
+                                                setErrorMessage "Provide a venue name, timezone, and valid roster week start."
+                                                setTitle "Create Venue"
+                                                render VenueOnboardingSignupView
+                                                    { onboardingInvitation = invitation
+                                                    , user
+                                                    , venue = venueWithName
+                                                    , staff
+                                                    , venueTimezone
+                                                    , venueRosterWeekStartsOn
+                                                    }
                     _ -> do
                         setErrorMessage "That onboarding link is no longer valid. Contact support for a new venue owner invitation."
                         setTitle "Request Access"
                         render InviteOnlyView
+
+buildSignupStaff :: (?context :: ControllerContext, ?request :: Request) => Staff -> Staff
+buildSignupStaff staff =
+    staff
+        |> requireParam #firstName "firstName" "First name is required"
+        |> requireParam #lastName "lastName" "Last name is required"
+        |> requireParam #phone "phone" "Phone is required"
+        |> requireParam #emergencyContactName "emergencyContactName" "Emergency contact name is required"
+        |> requireParam #emergencyContactPhone "emergencyContactPhone" "Emergency contact phone is required"
+        |> requireParam #idealShiftsPerWeek "idealShiftsPerWeek" "Ideal shifts per week is required"
+        |> fill @'["firstName", "lastName", "preferredName", "phone", "emergencyContactName", "emergencyContactPhone", "idealShiftsPerWeek"]
+        |> normalizeMaybeTextField #preferredName
+        |> requiredBoundedTextField #firstName 80
+        |> requiredBoundedTextField #lastName 80
+        |> validateField #preferredName (validateMaybe (boundedText 80))
+        |> requiredBoundedTextField #phone 80
+        |> requiredBoundedTextField #emergencyContactName 120
+        |> requiredBoundedTextField #emergencyContactPhone 80
+        |> validateField #idealShiftsPerWeek (isInRange (0, 7))
+
+createSignupStaff :: (?modelContext :: ModelContext) => Venue -> User -> Staff -> IO Staff
+createSignupStaff venue user staff = do
+    linkedStaff <- ensureLinkedStaffRecord venue user staff.firstName staff.lastName
+    linkedStaff
+        |> set #firstName staff.firstName
+        |> set #lastName staff.lastName
+        |> set #preferredName staff.preferredName
+        |> set #phone staff.phone
+        |> set #emergencyContactName staff.emergencyContactName
+        |> set #emergencyContactPhone staff.emergencyContactPhone
+        |> set #idealShiftsPerWeek staff.idealShiftsPerWeek
+        |> updateRecord
 
 fetchInvitation :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id VenueInvitation -> IO (Maybe VenueInvitation)
 fetchInvitation invitationId =

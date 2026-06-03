@@ -4,23 +4,35 @@ module Web.Users.Mutations
     ) where
 
 import Application.Helper.LiveResource
-import Application.Helper.VenueBootstrap (provisionVenueMembership)
+import Application.Helper.VenueBootstrap (ensureLinkedStaffRecord,
+                                          provisionVenueMembership)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Web.Controller.Prelude
 import Web.LiveResourceInvalidation (invalidateTouchedResources)
 
-acceptVenueInvitation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UTCTime -> VenueInvitation -> User -> Text -> IO (LiveMutationResult User)
-acceptVenueInvitation acceptedAt invitation user hashedPassword = do
+acceptVenueInvitation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UTCTime -> VenueInvitation -> User -> Text -> Staff -> IO (LiveMutationResult User)
+acceptVenueInvitation acceptedAt invitation user hashedPassword staffInput = do
     acceptedUser <- withTransaction do
         verifiedAt <- getCurrentTime
         acceptedUser <-
             user
                 |> set #passwordHash hashedPassword
                 |> set #emailVerifiedAt (Just verifiedAt)
+                |> set #isProfileCompleted True
                 |> createRecord
         venue <- fetch (Id invitation.venueId :: Id Venue)
         membership <- provisionVenueMembership venue acceptedUser (inputValue invitation.inviteRole)
+        linkedStaff <- ensureLinkedStaffRecord venue acceptedUser staffInput.firstName staffInput.lastName
+        _ <- linkedStaff
+            |> set #firstName staffInput.firstName
+            |> set #lastName staffInput.lastName
+            |> set #preferredName staffInput.preferredName
+            |> set #phone staffInput.phone
+            |> set #emergencyContactName staffInput.emergencyContactName
+            |> set #emergencyContactPhone staffInput.emergencyContactPhone
+            |> set #idealShiftsPerWeek staffInput.idealShiftsPerWeek
+            |> updateRecord
         _ <-
             invitation
                 |> set #status (unsafeEnumFromText @InvitationStatusEnum "accepted")
