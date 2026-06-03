@@ -267,6 +267,7 @@ scripts = [hsx|
         <script src={assetPath "/vendor/flatpickr.js"}></script>
         <script src={assetPath "/vendor/morphdom-umd.min.js"}></script>
         <script src={assetPath "/app-bootstrap.js"}></script>
+        <script src={assetPath "/app-scrollbars.js"}></script>
         <script src={assetPath "/app-date-pickers.js"}></script>
         <script src={assetPath "/app-passkeys.js"}></script>
         <script src={assetPath "/app-live-updates.js"}></script>

@@ -42,6 +42,7 @@ CSS_FILES += static/css/features/xero.css
 JS_FILES += static/vendor/bootstrap-5.3.8/bootstrap.bundle.min.js
 JS_FILES += ${IHP}/static/vendor/flatpickr.js
 JS_FILES += ${IHP}/static/vendor/morphdom-umd.min.js
+JS_FILES += static/app-scrollbars.js
 JS_FILES += static/app-horizontal-scroll.js
 JS_FILES += static/app-xero.js
 

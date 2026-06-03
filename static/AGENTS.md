@@ -14,6 +14,7 @@ Read this before editing `static/` assets.
   - `app-passkeys.js`
   - `app-preferences.js`
   - `app-roster.js`
+  - `app-scrollbars.js`
   - `app-time-picker.js`
   - `app-timesheets.js`
   - `app-toasts.js`

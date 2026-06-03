@@ -5,8 +5,6 @@
     overflow-x: auto;
     padding: 0.9rem;
     cursor: grab;
-    scrollbar-color: var(--app-control-border) transparent;
-    scrollbar-width: thin;
 }
 
 .app-horizontal-frame[data-horizontal-dragging="true"] {

@@ -18,6 +18,60 @@ body.modal-open {
     padding-right: 0 !important;
 }
 
+html,
+* {
+    scrollbar-color: transparent transparent;
+    scrollbar-width: thin;
+}
+
+html.app-scrollbar-active,
+*.app-scrollbar-active,
+*:hover,
+*:focus-within {
+    scrollbar-color: var(--app-border-strong) var(--app-surface-muted);
+}
+
+*::-webkit-scrollbar {
+    width: 0.65rem;
+    height: 0.65rem;
+}
+
+*::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: var(--app-radius-sm);
+}
+
+*::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: var(--app-radius-sm);
+    background: transparent;
+    background-clip: padding-box;
+}
+
+html.app-scrollbar-active::-webkit-scrollbar-track,
+*.app-scrollbar-active::-webkit-scrollbar-track,
+*:hover::-webkit-scrollbar-track,
+*:focus-within::-webkit-scrollbar-track {
+    background: var(--app-surface-muted);
+}
+
+html.app-scrollbar-active::-webkit-scrollbar-thumb,
+*.app-scrollbar-active::-webkit-scrollbar-thumb,
+*:hover::-webkit-scrollbar-thumb,
+*:focus-within::-webkit-scrollbar-thumb {
+    border-color: var(--app-surface-muted);
+    background: var(--app-border-strong);
+    background-clip: padding-box;
+}
+
+html.app-scrollbar-active::-webkit-scrollbar-thumb:hover,
+*.app-scrollbar-active::-webkit-scrollbar-thumb:hover,
+*:hover::-webkit-scrollbar-thumb:hover,
+*:focus-within::-webkit-scrollbar-thumb:hover {
+    background: var(--app-muted);
+    background-clip: padding-box;
+}
+
 body.theme-dark {
     background: radial-gradient(circle at top, var(--app-body-radial-start) 0%, var(--app-bg) 46%);
     color: var(--app-text);
