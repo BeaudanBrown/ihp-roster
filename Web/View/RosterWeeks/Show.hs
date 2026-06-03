@@ -56,6 +56,7 @@ renderRosterWeekShell ShowView { .. } =
      in [hsx|
     <section id={rosterWeekShellId}
              hx-history-elt="true"
+             data-roster-fullscreen="false"
              data-live-update-surface={liveSurfaceConfigJson <$> rosterWeekLiveSurface currentRosterGroup.id weekOffset liveUpdateScope}>
         {page}
     </section>
