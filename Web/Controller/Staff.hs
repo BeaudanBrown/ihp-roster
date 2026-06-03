@@ -1,5 +1,7 @@
 module Web.Controller.Staff where
 
+import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
+                                        fetchStaffLeaveRequests)
 import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
                                         fetchCurrentVenueRosterGroupIds,
                                         fetchCurrentVenueRosterGroups,
@@ -39,9 +41,11 @@ instance Controller StaffController where
         let preferenceWeekdays = allPreferenceWeekdays venueConfig
         selectedShiftPreferences <- fetchStaffShiftPreferenceSelections staff
         staffRsaDocument <- latestRsaDocumentForStaff staff
+        leaveRequest <- buildDefaultLeaveRequest
+        leaveRequests <- fetchStaffLeaveRequests staff
         today <- utctDay <$> getCurrentTime
         if isHtmxRequest
-            then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId)
+            then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId)
             else render EditView { .. }
 
     action UpdateStaffAction { staffId } = do
@@ -66,6 +70,8 @@ instance Controller StaffController where
         let maybeSubmittedImportedXeroPayItemId = submittedImportedXeroPayItemId <$> maybeSubmittedPayRateSelection
         let preferenceWeekdays = allPreferenceWeekdays venueConfig
         staffRsaDocument <- latestRsaDocumentForStaff staff
+        leaveRequest <- buildDefaultLeaveRequest
+        leaveRequests <- fetchStaffLeaveRequests staff
         today <- utctDay <$> getCurrentTime
         let selectedShiftPreferences =
                 case parseShiftPreferenceSelections preferenceWeekdays submittedShiftPreferenceKeys of
@@ -76,7 +82,7 @@ instance Controller StaffController where
             |> ifValid \case
                 Left staff -> do
                     if isHtmxRequest
-                        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems submittedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId)
+                        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems submittedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId)
                         else do
                             let selectedRosterGroupIds = submittedRosterGroupIds
                             render EditView { .. }
@@ -85,24 +91,24 @@ instance Controller StaffController where
                         (Nothing, _, _) -> do
                             let selectedRosterGroupIds = submittedRosterGroupIds
                             if isHtmxRequest
-                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId)
+                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId)
                                 else render EditView { .. }
                         (_, Nothing, _) -> do
                             let selectedRosterGroupIds = submittedRosterGroupIds
                             if isHtmxRequest
-                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId)
+                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId)
                                 else render EditView { .. }
                         (_, _, Nothing) -> do
                             let selectedRosterGroupIds = submittedRosterGroupIds
                             if isHtmxRequest
-                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId)
+                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId)
                                 else render EditView { .. }
                         (Just selectedRosterGroupIds, Just _, Just _) -> do
                             case parseShiftPreferenceSelections preferenceWeekdays submittedShiftPreferenceKeys of
                                 Left preferenceError -> do
                                     setErrorMessage preferenceError
                                     if isHtmxRequest
-                                        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId)
+                                        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId)
                                         else render EditView { .. }
                                 Right submittedSelections -> do
                                     _ <- updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections

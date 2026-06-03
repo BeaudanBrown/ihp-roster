@@ -119,21 +119,21 @@ renderShiftTypeCreateForm _shiftTypes showInactive awardLevels awardLevelBaseRat
           hx-swap="outerHTML">
         <input type="hidden" name="showInactiveShiftTypes" value={boolParam showInactive} />
         <div class="row g-2 align-items-end">
-            <div class="col-12 col-lg-4">
+            <div class="col-12 col-lg-3">
                 <label class="form-label" for="new-shift-type-name">Name</label>
                 <input id="new-shift-type-name" class="form-control" type="text" name="name" placeholder="Standard Shift" />
             </div>
             <div class="col-12 col-lg-4">
                 {renderPayRateSelect "new-shift-type-pay-rate" Nothing Nothing awardLevels awardLevelBaseRates importedPayItems Nothing}
             </div>
-            <div class="col-12 col-lg-2">
+            <div class="col-12 col-lg-3">
                 {renderShiftTypeColourSelect "new-shift-type-colour" defaultCreateColourKey Nothing}
             </div>
-            <div class="col-12 col-lg-1">
+            <div class="col-6 col-lg-1">
                 <label class="form-label" for="new-shift-type-active">Status</label>
                 {renderAdminActiveToggle "new-shift-type-active" Nothing "admin-shift-types-fragment" True}
             </div>
-            <div class="col-12 col-lg-2">
+            <div class="col-6 col-lg-1">
                 <button class="btn btn-outline-primary w-100" type="submit">Add</button>
             </div>
         </div>
@@ -175,7 +175,7 @@ renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates impor
             </div>
         </div>
         <div class="row g-2 align-items-end">
-            <div class="col-12 col-lg-4">
+            <div class="col-12 col-lg-3">
                 <label class="form-label">Name</label>
                 <input class="form-control"
                        type="text"

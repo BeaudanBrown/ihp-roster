@@ -1,6 +1,7 @@
 module Application.Helper.ProfileLeave
     ( buildDefaultLeaveRequest
     , fetchCurrentUserLeaveRequests
+    , fetchStaffLeaveRequests
     ) where
 
 import Application.Helper.Controller (currentVenueId, fetchCurrentUserStaff)
@@ -16,13 +17,16 @@ fetchCurrentUserLeaveRequests = do
     maybeStaff <- fetchCurrentUserStaff
     case maybeStaff of
         Nothing -> pure []
-        Just staff ->
-            query @LeaveRequest
-                |> filterWhere (#venueId, unpackId currentVenueId)
-                |> filterWhere (#staffId, unpackId staff.id)
-                |> filterWhere (#deletedAt, Nothing)
-                |> orderByDesc #startDate
-                |> fetch
+        Just staff -> fetchStaffLeaveRequests staff
+
+fetchStaffLeaveRequests :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Staff -> IO [LeaveRequest]
+fetchStaffLeaveRequests staff =
+    query @LeaveRequest
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#staffId, unpackId staff.id)
+        |> filterWhere (#deletedAt, Nothing)
+        |> orderByDesc #startDate
+        |> fetch
 
 buildDefaultLeaveRequest :: (?context :: ControllerContext) => IO LeaveRequest
 buildDefaultLeaveRequest = do

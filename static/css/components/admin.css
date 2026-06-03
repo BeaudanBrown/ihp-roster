@@ -1,8 +1,17 @@
 /* Shared admin settings rows and shift-colour select controls. */
 
 .admin-settings-grid {
+    --admin-setting-card-width: 18rem;
     display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--admin-setting-card-width)), var(--admin-setting-card-width)));
     gap: 0.85rem;
+    justify-content: start;
+}
+
+@media (min-width: 1400px) {
+    .admin-settings-grid {
+        grid-template-columns: repeat(4, var(--admin-setting-card-width));
+    }
 }
 
 .app-toggle-button {
@@ -25,7 +34,9 @@
 
 .admin-setting-row {
     display: flex;
-    align-items: center;
+    min-height: 100%;
+    align-items: stretch;
+    flex-direction: column;
     justify-content: space-between;
     gap: 1rem;
     padding: 0.9rem;

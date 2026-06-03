@@ -37,18 +37,22 @@
 }
 
 .roster-day-column-header .roster-day-heading {
+    align-self: center;
     justify-self: start;
     text-align: left;
 }
 
 .roster-day-column-wage-slot {
+    align-self: center;
     justify-self: center;
     text-align: center;
 }
 
 .roster-day-column-control-slot {
+    align-self: center;
     justify-self: end;
     display: flex;
+    align-items: center;
     justify-content: flex-end;
 }
 
@@ -75,6 +79,7 @@
 .roster-day-column-header .roster-day-date {
     display: flex;
     align-items: center;
+    min-height: 100%;
     font-size: var(--roster-text-sm);
     font-weight: 800;
 }

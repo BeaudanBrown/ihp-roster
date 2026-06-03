@@ -601,8 +601,8 @@ renderRowWithAttrs RosterRowRenderModel { rowIsEditable, rowSlotNames, rowAssign
 renderPrimaryDayLabel :: Maybe Text -> Day -> Html
 renderPrimaryDayLabel maybeHolidayName date = [hsx|
     <div class="roster-day-date">
-        <span>{Text.pack (formatTime defaultTimeLocale "%a" date)} {Text.pack (formatTime defaultTimeLocale "%d/%m" date)}</span>
         {renderPublicHolidayIndicator maybeHolidayName}
+        <span>{Text.pack (formatTime defaultTimeLocale "%a" date)} {Text.pack (formatTime defaultTimeLocale "%d/%m" date)}</span>
     </div>
 |]
 

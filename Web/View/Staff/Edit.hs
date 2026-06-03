@@ -2,8 +2,9 @@ module Web.View.Staff.Edit where
 
 import Application.Helper.Controller (VenueRole (VenueOwnerRole), currentUserIsSuperAdmin, hasRole)
 import Application.Helper.StaffShiftPreferences
+import Web.View.LeaveRequests.New (renderLeaveRequestFormFields)
 import Web.View.Prelude
-import Web.View.Profiles.Edit (profileSectionsAccordionId, renderAccordionSection)
+import Web.View.Profiles.Edit (profileSectionsAccordionId, renderAccordionSection, renderProfileLeaveRequestsList)
 import Web.View.StaffDocuments.Rsa
 import Web.View.StaffProfileForm
 
@@ -18,6 +19,8 @@ data EditView = EditView
     , preferenceWeekdays       :: [PreferenceWeekday]
     , selectedShiftPreferences :: [ShiftPreferenceSelection]
     , staffRsaDocument         :: Maybe StaffDocument
+    , leaveRequest             :: LeaveRequest
+    , leaveRequests            :: [LeaveRequest]
     , today                    :: Day
     , weekOffset               :: Int
     , maybeRosterGroupId       :: Maybe (Id RosterGroup)
@@ -28,19 +31,19 @@ instance View EditView where
         renderStaffEditPageModal
             weekOffset
             staffEditFormId
-            (renderStaffEditBody PageOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId)
+            (renderStaffEditBody PageOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId)
 
 staffEditFormId :: Text
 staffEditFormId = "staff-edit-form"
 
-renderStaffEditModalFragment :: Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> Day -> Int -> Maybe (Id RosterGroup) -> Html
-renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId =
+renderStaffEditModalFragment :: Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> LeaveRequest -> [LeaveRequest] -> Day -> Int -> Maybe (Id RosterGroup) -> Html
+renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId =
     renderStaffEditDialog
         staffEditFormId
-        (renderStaffEditBody HtmxOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId)
+        (renderStaffEditBody HtmxOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId)
 
-renderStaffEditBody :: OverlayFormMode -> Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> Day -> Int -> Maybe (Id RosterGroup) -> Html
-renderStaffEditBody formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId =
+renderStaffEditBody :: OverlayFormMode -> Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> LeaveRequest -> [LeaveRequest] -> Day -> Int -> Maybe (Id RosterGroup) -> Html
+renderStaffEditBody formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId =
     let rsaPanel =
             renderRsaDocumentPanel
                 RsaPanelConfig
@@ -68,6 +71,11 @@ renderStaffEditBody formMode staff maybeLinkedUserEmail rosterGroups awardLevels
                 "Sign-In Methods"
                 False
                 (renderStaffLoginAccessPanel staff maybeLinkedUserEmail weekOffset maybeRosterGroupId)}
+            {when currentUserIsManager (renderAccordionSection
+                "staff-profile-leave"
+                "Unavailability"
+                False
+                (renderStaffLeaveRequestsContentFragment staff leaveRequest leaveRequests))}
             {renderAccordionSection
                 "staff-profile-rsa"
                 "RSA"
@@ -75,6 +83,61 @@ renderStaffEditBody formMode staff maybeLinkedUserEmail rosterGroups awardLevels
                 rsaPanel}
         </div>
     |]
+
+staffLeaveRequestFormFragmentId :: Text
+staffLeaveRequestFormFragmentId = "staff-leave-request-form-fragment"
+
+staffLeaveRequestsListFragmentId :: Text
+staffLeaveRequestsListFragmentId = "staff-leave-requests-list-fragment"
+
+renderStaffLeaveRequestsContentFragment :: Staff -> LeaveRequest -> [LeaveRequest] -> Html
+renderStaffLeaveRequestsContentFragment staff leaveRequest leaveRequests = [hsx|
+    <div class="row g-4 align-items-start">
+        <div class="col-12 col-xl-5">
+            {renderStaffLeaveRequestFormFragment staff.id leaveRequest}
+        </div>
+        <div class="col-12 col-xl-7">
+            {renderStaffLeaveRequestsListFragment leaveRequests}
+        </div>
+    </div>
+|]
+
+renderStaffLeaveRequestFormFragment :: Id Staff -> LeaveRequest -> Html
+renderStaffLeaveRequestFormFragment staffId leaveRequest = [hsx|
+    <div id={staffLeaveRequestFormFragmentId}>
+        <form id="staff-leave-request-form"
+              method="POST"
+              action={CreateLeaveRequestAction}
+              data-disable-javascript-submission="true"
+              hx-post={CreateLeaveRequestAction}
+              hx-target={"#" <> staffLeaveRequestFormFragmentId}
+              hx-swap="outerHTML"
+              hx-push-url="false">
+            <input type="hidden" name="responseContext" value="staff"/>
+            <input type="hidden" name="staffId" value={tshow staffId}/>
+            {renderLeaveRequestFormFields leaveRequest}
+            <div class="d-grid mt-4 app-form-width">
+                <button type="submit" class="btn btn-primary">Add unavailable time</button>
+            </div>
+        </form>
+    </div>
+|]
+
+renderStaffLeaveRequestsListFragment :: [LeaveRequest] -> Html
+renderStaffLeaveRequestsListFragment leaveRequests = [hsx|
+    <div id={staffLeaveRequestsListFragmentId}>
+        <h5 class="mb-3">Unavailable periods</h5>
+        {renderProfileLeaveRequestsList leaveRequests}
+    </div>
+|]
+
+renderStaffLeaveRequestsListFragmentOob :: [LeaveRequest] -> Html
+renderStaffLeaveRequestsListFragmentOob leaveRequests = [hsx|
+    <div id={staffLeaveRequestsListFragmentId} hx-swap-oob="outerHTML">
+        <h5 class="mb-3">Unavailable periods</h5>
+        {renderProfileLeaveRequestsList leaveRequests}
+    </div>
+|]
 
 renderStaffLoginAccessPanel :: Staff -> Maybe Text -> Int -> Maybe (Id RosterGroup) -> Html
 renderStaffLoginAccessPanel staff maybeLinkedUserEmail weekOffset maybeRosterGroupId = [hsx|

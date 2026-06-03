@@ -116,7 +116,11 @@
 }
 
 .roster-layout-mode-group .btn {
+    display: inline-flex;
     min-width: 0;
+    align-items: center;
+    justify-content: center;
     overflow: hidden;
+    text-align: center;
     text-overflow: ellipsis;
 }

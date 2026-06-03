@@ -1,7 +1,8 @@
 module Web.Controller.LeaveRequests where
 
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
-                                        fetchCurrentUserLeaveRequests)
+                                        fetchCurrentUserLeaveRequests,
+                                        fetchStaffLeaveRequests)
 import Application.Helper.Profiling
 import Application.Helper.View (ToastOverlayPosition (..), dialogOverlayMountId,
                                 errorToast, renderToastOob, successToast)
@@ -16,6 +17,8 @@ import Web.LeaveRequests.Projection
 import Web.View.LeaveRequests.Index
 import Web.View.LeaveRequests.New
 import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServiceLeaveFormFragment)
+import Web.View.Staff.Edit (renderStaffLeaveRequestFormFragment,
+                            renderStaffLeaveRequestsListFragmentOob)
 
 instance Controller LeaveRequestsController where
     beforeAction = do
@@ -64,9 +67,9 @@ instance Controller LeaveRequestsController where
     action CreateLeaveRequestAction = do
         ensureStaffSelfServiceAccess
         ensureVenueWritable
-        maybeStaff <- fetchCurrentUserStaff
         let responseContext = requestedLeaveResponseContext
         ensureLeaveProfileAccess responseContext
+        maybeStaff <- fetchLeaveRequestTargetStaff responseContext
         case maybeStaff of
             Nothing -> do
                 respondWithLeaveContextError responseContext "No staff record found. Contact an administrator."
@@ -138,17 +141,20 @@ data LeaveResponseContext
     = LeavePageResponseContext
     | LeaveProfileResponseContext
     | LeaveRosterResponseContext
+    | LeaveStaffResponseContext
     deriving (Eq, Show)
 
 parseLeaveResponseContext :: Text -> LeaveResponseContext
 parseLeaveResponseContext responseContext
     | responseContext == "profile" = LeaveProfileResponseContext
     | responseContext == "roster" = LeaveRosterResponseContext
+    | responseContext == "staff" = LeaveStaffResponseContext
     | otherwise = LeavePageResponseContext
 
 effectiveLeaveResponseContext :: (?context :: ControllerContext) => LeaveResponseContext -> LeaveResponseContext
 effectiveLeaveResponseContext requestedContext
     | requestedContext == LeaveRosterResponseContext = LeaveRosterResponseContext
+    | requestedContext == LeaveStaffResponseContext = LeaveStaffResponseContext
     | not (hasRole ManagerRole') = LeaveProfileResponseContext
     | otherwise = requestedContext
 
@@ -167,6 +173,7 @@ leaveFallbackPath LeavePageResponseContext = pathTo EditProfileAction
 leaveFallbackPath LeaveProfileResponseContext =
     pathTo EditProfileAction <> "?section=leave"
 leaveFallbackPath LeaveRosterResponseContext = pathTo RosterWeeksAction
+leaveFallbackPath LeaveStaffResponseContext = pathTo RosterWeeksAction
 
 respondWithLeaveRequestValidationFailure :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => LeaveResponseContext -> LeaveRequest -> IO ()
 respondWithLeaveRequestValidationFailure responseContext leaveRequest =
@@ -177,6 +184,8 @@ respondWithLeaveRequestValidationFailure responseContext leaveRequest =
             respondHtml (renderProfileLeaveRequestFormFragment leaveRequest)
         LeaveRosterResponseContext ->
             respondHtml (renderRosterStaffSelfServiceLeaveFormFragment leaveRequest)
+        LeaveStaffResponseContext ->
+            respondHtml (renderStaffLeaveRequestFormFragment (Id leaveRequest.staffId) leaveRequest)
 
 respondWithLeaveMutationSuccess :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => LeaveResponseContext -> Text -> Bool -> IO ()
 respondWithLeaveMutationSuccess responseContext successMessage renderMainFragmentOob =
@@ -199,13 +208,37 @@ respondWithLeaveMutationSuccess responseContext successMessage renderMainFragmen
                     [ renderRosterStaffSelfServiceLeaveFormFragment leaveRequest
                     , renderToastOob ToastBottomCenter (successToast successMessage)
                     ]
+        LeaveStaffResponseContext -> do
+            maybeStaff <- fetchLeaveRequestTargetStaff LeaveStaffResponseContext
+            case maybeStaff of
+                Nothing -> respondWithLeaveContextError LeaveStaffResponseContext "No staff record found. Contact an administrator."
+                Just staff -> do
+                    leaveRequest <- buildDefaultLeaveRequest
+                    leaveRequests <- fetchStaffLeaveRequests staff
+                    respondHtmlProfiled $
+                        mconcat
+                            [ renderStaffLeaveRequestFormFragment staff.id leaveRequest
+                            , renderStaffLeaveRequestsListFragmentOob leaveRequests
+                            , renderToastOob ToastBottomCenter (successToast successMessage)
+                            ]
 
-ensureLeaveProfileAccess :: (?context :: ControllerContext, ?modelContext :: ModelContext) => LeaveResponseContext -> IO ()
+ensureLeaveProfileAccess :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveResponseContext -> IO ()
 ensureLeaveProfileAccess responseContext =
     case responseContext of
         LeavePageResponseContext    -> ensureProfileCompleted
         LeaveProfileResponseContext -> pure ()
         LeaveRosterResponseContext  -> ensureProfileCompleted
+        LeaveStaffResponseContext   -> ensureManagerRole
+
+fetchLeaveRequestTargetStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveResponseContext -> IO (Maybe Staff)
+fetchLeaveRequestTargetStaff LeaveStaffResponseContext = do
+    case paramOrNothing @(Id Staff) "staffId" of
+        Nothing -> pure Nothing
+        Just staffId -> do
+            staff <- fetch staffId
+            ensureRecordInCurrentVenue staff.venueId
+            pure (Just staff)
+fetchLeaveRequestTargetStaff _ = fetchCurrentUserStaff
 
 respondWithLeaveContextError :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => LeaveResponseContext -> Text -> IO ()
 respondWithLeaveContextError responseContext errorMessage =
@@ -225,6 +258,14 @@ respondWithLeaveContextError responseContext errorMessage =
             respondHtmlProfiled $
                 mconcat
                     [ renderRosterStaffSelfServiceLeaveFormFragment leaveRequest
+                    , renderToastOob ToastBottomCenter (errorToast errorMessage)
+                    ]
+        LeaveStaffResponseContext -> do
+            leaveRequest <- buildDefaultLeaveRequest
+            let formHtml = maybe mempty (`renderStaffLeaveRequestFormFragment` leaveRequest) (paramOrNothing @(Id Staff) "staffId")
+            respondHtmlProfiled $
+                mconcat
+                    [ formHtml
                     , renderToastOob ToastBottomCenter (errorToast errorMessage)
                     ]
 
