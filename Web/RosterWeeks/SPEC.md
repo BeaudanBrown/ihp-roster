@@ -21,6 +21,9 @@ lands.
   Managers, staff, and venues without roster end times enabled do not receive
   wage controls or markup.
 - Publishing a roster is the visibility gate for staff-facing roster content.
+- Staff-facing draft roster pages keep the week shell and day column mounted for
+  live updates, but hide slot rows, closed-day state, and other draft roster
+  details behind a non-live placeholder.
 - Publishing requires every staffed shift to have a start time and shift type;
   venues with end times enabled must also provide an end time.
 - Publishing an auto-timesheet-enabled roster queues `roster_timesheet_creation`

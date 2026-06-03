@@ -111,6 +111,10 @@
     grid-template-columns: minmax(0, var(--roster-day-column-width)) minmax(4.9rem, var(--roster-wage-column-width)) minmax(0, calc(100% - var(--roster-day-column-width) - var(--roster-wage-column-width)));
 }
 
+.roster-grid-frame[data-roster-visibility="hidden-draft"] {
+    grid-template-columns: minmax(0, var(--roster-day-column-width)) minmax(0, calc(100% - var(--roster-day-column-width)));
+}
+
 .roster-day-rail,
 .roster-wage-rail {
     min-width: 0;
@@ -163,6 +167,43 @@
 
 .roster-grid-frame[data-roster-end-times="true"] .roster-slots-grid {
     min-width: max(100%, calc(var(--roster-slot-count) * 20.2rem));
+}
+
+.roster-grid-frame[data-roster-visibility="hidden-draft"] .roster-slots-grid {
+    min-width: 100%;
+}
+
+.roster-hidden-draft-grid {
+    background-color: var(--app-panel-bg);
+}
+
+.roster-hidden-draft-grid-head {
+    height: var(--roster-grid-header-height);
+    min-height: var(--roster-grid-header-height);
+    border-top: 1px solid var(--app-border);
+    border-bottom: 1px solid var(--app-border-strong);
+    background-color: var(--roster-subhead);
+}
+
+.roster-hidden-draft-grid-body {
+    display: flex;
+    min-height: calc(var(--roster-grid-row-height) * 7);
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    border-bottom: 1px solid var(--app-border);
+    background: linear-gradient(180deg, var(--app-panel-bg), var(--app-surface-2));
+}
+
+.roster-hidden-draft-message {
+    max-width: min(100%, 28rem);
+    padding: 0.75rem 1rem;
+    border: 1px dashed var(--app-border-strong);
+    border-radius: var(--app-radius-lg);
+    background-color: var(--app-surface);
+    color: var(--app-muted);
+    font-weight: 800;
+    text-align: center;
 }
 
 .roster-grid [role="columnheader"],

@@ -47,6 +47,7 @@ import Application.Helper.SurfaceProjection
 import Application.Helper.UserPreferences
 import Data.Coerce (coerce)
 import Data.List (find, nubBy)
+import Data.Maybe (isNothing)
 import qualified Data.Map.Strict as Map
 import qualified Data.Time.Calendar as Calendar
 import qualified Data.UUID as UUID
@@ -174,13 +175,20 @@ renderRosterProjectionFragmentWithMode renderMode rosterData fragment =
         RosterProjectionStaffPanel ->
             Just (renderRosterStaffPanelFromProjectionWithMode renderMode rosterData)
         RosterProjectionDaySection rosterDayId ->
-            rosterData >>= \projection -> renderRequestedDaySectionFragmentFromProjectionWithMode renderMode projection rosterDayId
+            rosterData >>= \projection ->
+                if isHiddenDraftForCurrentUser projection.rosterWeek
+                    then Nothing
+                    else renderRequestedDaySectionFragmentFromProjectionWithMode renderMode projection rosterDayId
         RosterProjectionRow rosterDayId rowIndex ->
-            rosterData >>= \projection -> renderRequestedRowFragmentFromProjectionWithMode renderMode projection rosterDayId rowIndex
+            rosterData >>= \projection ->
+                if isHiddenDraftForCurrentUser projection.rosterWeek
+                    then Nothing
+                    else renderRequestedRowFragmentFromProjectionWithMode renderMode projection rosterDayId rowIndex
     where
         renderGridFragment plainRenderer swapRenderer maybeRosterData = do
             projection <- maybeRosterData
-            let viewCapabilities = buildRosterViewCapabilities (Just projection.rosterWeek)
+            let visibleRosterWeek = visibleRosterWeekForCurrentUser projection.rosterWeek
+            let viewCapabilities = buildRosterViewCapabilities visibleRosterWeek
             let gridModel = rosterGridRenderModelFromProjection viewCapabilities projection
             pure $ case renderMode of
                 FragmentPlain -> plainRenderer gridModel
@@ -188,16 +196,25 @@ renderRosterProjectionFragmentWithMode renderMode rosterData fragment =
         renderDayColumnsFragment maybeRosterData = do
             projection <- maybeRosterData
             let dayModel = rosterDayRenderModelFromProjection projection
-            pure $ case renderMode of
-                FragmentPlain -> renderRosterDayColumnsFragment dayModel projection.rosterDays
-                FragmentOob swapAttr -> renderRosterDayColumnsFragmentWithSwap swapAttr dayModel projection.rosterDays
+            if isHiddenDraftForCurrentUser projection.rosterWeek
+                then Nothing
+                else pure $ case renderMode of
+                    FragmentPlain -> renderRosterDayColumnsFragment dayModel projection.rosterDays
+                    FragmentOob swapAttr -> renderRosterDayColumnsFragmentWithSwap swapAttr dayModel projection.rosterDays
         renderDayRailFragment maybeRosterData = do
             projection <- maybeRosterData
-            let viewCapabilities = buildRosterViewCapabilities (Just projection.rosterWeek)
+            let visibleRosterWeek = visibleRosterWeekForCurrentUser projection.rosterWeek
+            let viewCapabilities = buildRosterViewCapabilities visibleRosterWeek
             let dayModel = rosterDayRenderModelFromProjection projection
             pure $ case renderMode of
-                FragmentPlain -> renderRosterDayRailFragment viewCapabilities.canManageRosterColumns dayModel projection.rosterDays
-                FragmentOob swapAttr -> renderRosterDayRailFragmentWithSwap swapAttr viewCapabilities.canManageRosterColumns dayModel projection.rosterDays
+                FragmentPlain ->
+                    if isNothing visibleRosterWeek
+                        then renderHiddenDraftDayRailFragmentWithSwap Nothing dayModel projection.rosterDays
+                        else renderRosterDayRailFragment viewCapabilities.canManageRosterColumns dayModel projection.rosterDays
+                FragmentOob swapAttr ->
+                    if isNothing visibleRosterWeek
+                        then renderHiddenDraftDayRailFragmentWithSwap swapAttr dayModel projection.rosterDays
+                        else renderRosterDayRailFragmentWithSwap swapAttr viewCapabilities.canManageRosterColumns dayModel projection.rosterDays
         renderWageRailFragment maybeRosterData = do
             projection <- maybeRosterData
             let dayModel = rosterDayRenderModelFromProjection projection
@@ -206,28 +223,35 @@ renderRosterProjectionFragmentWithMode renderMode rosterData fragment =
                 FragmentOob swapAttr -> renderRosterWageRailFragmentWithSwap swapAttr dayModel projection.rosterDays
         renderSlotsGridFragment maybeRosterData = do
             projection <- maybeRosterData
-            let viewCapabilities = buildRosterViewCapabilities (Just projection.rosterWeek)
+            let visibleRosterWeek = visibleRosterWeekForCurrentUser projection.rosterWeek
+            let viewCapabilities = buildRosterViewCapabilities visibleRosterWeek
             let dayModel = rosterDayRenderModelFromProjection projection
             pure $ case renderMode of
-                FragmentPlain -> renderRosterSlotsGridFragment projection.rosterEndTimesEnabled viewCapabilities.canManageRosterColumns (Just projection.rosterWeek) projection.orderedSlotNames dayModel projection.rosterDays
-                FragmentOob swapAttr -> renderRosterSlotsGridFragmentWithSwap swapAttr projection.rosterEndTimesEnabled viewCapabilities.canManageRosterColumns (Just projection.rosterWeek) projection.orderedSlotNames dayModel projection.rosterDays
+                FragmentPlain ->
+                    if isNothing visibleRosterWeek
+                        then renderHiddenDraftSlotsGridFragmentWithSwap Nothing projection.rosterDays
+                        else renderRosterSlotsGridFragment projection.rosterEndTimesEnabled viewCapabilities.canManageRosterColumns visibleRosterWeek projection.orderedSlotNames dayModel projection.rosterDays
+                FragmentOob swapAttr ->
+                    if isNothing visibleRosterWeek
+                        then renderHiddenDraftSlotsGridFragmentWithSwap swapAttr projection.rosterDays
+                        else renderRosterSlotsGridFragmentWithSwap swapAttr projection.rosterEndTimesEnabled viewCapabilities.canManageRosterColumns visibleRosterWeek projection.orderedSlotNames dayModel projection.rosterDays
 
 renderRosterContentFromProjection :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => [RosterGroup] -> RosterGroup -> Maybe RosterRenderData -> IO Blaze.Html
 renderRosterContentFromProjection rosterGroups currentRosterGroup rosterData =
     case rosterData of
         Nothing -> pure [hsx|<div id="roster-content"></div>|]
         Just projection -> do
-            let viewCapabilities = buildRosterViewCapabilities (Just projection.rosterWeek)
+            let viewCapabilities = buildRosterViewCapabilities (visibleRosterWeekForCurrentUser projection.rosterWeek)
             pure $ renderRosterContentFragment (rosterGridRenderModelFromProjectionWithGroups rosterGroups currentRosterGroup viewCapabilities projection)
 
-rosterGridRenderModelFromProjection :: RosterViewCapabilities -> RosterRenderData -> RosterGridRenderModel
+rosterGridRenderModelFromProjection :: (?context :: ControllerContext) => RosterViewCapabilities -> RosterRenderData -> RosterGridRenderModel
 rosterGridRenderModelFromProjection viewCapabilities projection@RosterRenderData { rosterGroups, currentRosterGroup } =
     rosterGridRenderModelFromProjectionWithGroups rosterGroups currentRosterGroup viewCapabilities projection
 
-rosterGridRenderModelFromProjectionWithGroups :: [RosterGroup] -> RosterGroup -> RosterViewCapabilities -> RosterRenderData -> RosterGridRenderModel
+rosterGridRenderModelFromProjectionWithGroups :: (?context :: ControllerContext) => [RosterGroup] -> RosterGroup -> RosterViewCapabilities -> RosterRenderData -> RosterGridRenderModel
 rosterGridRenderModelFromProjectionWithGroups rosterGroups currentRosterGroup viewCapabilities RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction, showWageEstimates, rosterPublicHolidays } =
     RosterGridRenderModel
-        { gridRosterWeek = Just rosterWeek
+        { gridRosterWeek = visibleRosterWeekForCurrentUser rosterWeek
         , gridRosterDays = rosterDays
         , gridWeekOffset = rosterWeek.weekOffset
         , gridRosterGroups = rosterGroups
@@ -250,6 +274,14 @@ rosterGridRenderModelFromProjectionWithGroups rosterGroups currentRosterGroup vi
         , gridPublicHolidays = rosterPublicHolidays
         , gridPublishAttempted = False
         }
+
+visibleRosterWeekForCurrentUser :: (?context :: ControllerContext) => RosterWeek -> Maybe RosterWeek
+visibleRosterWeekForCurrentUser rosterWeek
+    | rosterWeek.isLive || hasRole ManagerRole' = Just rosterWeek
+    | otherwise = Nothing
+
+isHiddenDraftForCurrentUser :: (?context :: ControllerContext) => RosterWeek -> Bool
+isHiddenDraftForCurrentUser rosterWeek = isNothing (visibleRosterWeekForCurrentUser rosterWeek)
 
 rosterDayRenderModelFromProjection :: (?context :: ControllerContext) => RosterRenderData -> RosterDayRenderModel
 rosterDayRenderModelFromProjection RosterRenderData { rosterWeek, weekStartDate, assignmentFilters, staffMembers, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction, showWageEstimates, rosterPublicHolidays } =

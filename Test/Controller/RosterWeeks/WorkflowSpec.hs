@@ -1414,7 +1414,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "data-roster-staff-name=\"Other\""
                 response `responseBodyShouldContain` "4 active staff"
 
-        it "staff row fragment fetch returns a masked row for a draft week" $ withContext do
+        it "staff row fragment fetch returns no roster row for a draft week" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 staffUser <- createUserRecord "roster-staff-row-fragment@example.com" "staff" True
@@ -1432,7 +1432,7 @@ tests = beforeAll testContext do
                 body <- responseBody response
                 let bodyText = cs body :: String
                 let rowId = cs (rosterRowDomIdText rosterDay.id 0) :: String
-                bodyText `shouldContain` rowId
+                bodyText `shouldNotContain` rowId
                 bodyText `shouldNotContain` "Crew, Alpha"
 
         it "manager can copy a week and it is created as draft with copied slots" $ withContext do

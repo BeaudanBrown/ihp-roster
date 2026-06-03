@@ -88,6 +88,28 @@ tests = beforeAll testContext do
                 targetFragmentKeys targets
                     `shouldBe` [[RosterGridToolbarFragment, RosterDayColumnsFragment, RosterDayRailFragment, RosterWageRailFragment, RosterSlotsGridFragment, RosterStaffPanelFragment]]
 
+        it "renders hidden draft roster fragments without leaking closed days or slots to staff" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                worker <- createUserRecord "roster-worker-hidden-fragment@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue worker "worker"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue (Just worker) "Alpha" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                _ <- updateRecord (rosterDay |> set #isClosed True)
+                _ <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+
+                response <- withUserAndCurrentVenue worker venue.id do
+                    callAction (ShowRosterWeekGridFrameFragmentAction 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "data-roster-visibility=\"hidden-draft\""
+                response `responseBodyShouldContain` "This roster isn't live yet."
+                response `responseBodyShouldNotContain` "Crew, Alpha"
+                response `responseBodyShouldNotContain` "roster-day-closed-label"
+                response `responseBodyShouldNotContain` "slot-closed-cell"
+
         it "does not include rows from other weeks when refreshing related assignment rows" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

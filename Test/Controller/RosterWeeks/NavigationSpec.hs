@@ -129,20 +129,28 @@ tests = beforeAll testContext do
                     |> fetch
                 length createdSlots `shouldBe` 0
 
-        it "staff cannot see draft weeks but still gets the roster shell" $ withContext do
+        it "staff cannot see draft weeks but still gets the hidden roster shell" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "roster-staff-draft@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user "worker"
-                _ <- fetchSlotNameRecord venue "Early"
-                _ <- createRosterWeekRecord venue 0 False
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue (Just user) "Alpha" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                _ <- updateRecord (rosterDay |> set #isClosed True)
+                _ <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
 
                 response <- withUser user do
                     callAction (ShowRosterWeekAction 0)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "roster-grid"
+                response `responseBodyShouldContain` "roster-hidden-draft-grid"
+                response `responseBodyShouldContain` "This roster isn't live yet."
                 response `responseBodyShouldNotContain` "Crew, Alpha"
+                response `responseBodyShouldNotContain` "roster-day-closed-label"
+                response `responseBodyShouldNotContain` "slot-closed-cell"
+                response `responseBodyShouldNotContain` "roster-grid-header-row-subheads"
 
         it "empty roster pages still expose declarative live-update surface metadata" $ withContext do
             withCleanDb do

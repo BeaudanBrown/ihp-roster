@@ -8,8 +8,10 @@ module Web.View.RosterWeeks.Grid
     , renderRosterDayColumnsFragmentWithSwap
     , renderRosterDayRailFragment
     , renderRosterDayRailFragmentWithSwap
+    , renderHiddenDraftDayRailFragmentWithSwap
     , renderRosterSlotsGridFragment
     , renderRosterSlotsGridFragmentWithSwap
+    , renderHiddenDraftSlotsGridFragmentWithSwap
     , renderRosterWageRailFragment
     , renderRosterWageRailFragmentWithSwap
     , renderRosterGridToolbarFragment
@@ -112,20 +114,23 @@ renderRosterGridFrameFragment =
 renderRosterGridFrameFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterGridRenderModel -> Html
 renderRosterGridFrameFragmentWithSwap maybeSwapOob gridModel@RosterGridRenderModel { gridRosterWeek, gridSlotNames, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridShowWageEstimates } =
     let slotColumnsAreEditable = gridViewCapabilities.canManageRosterColumns
-        isDayColumnsLayout = rosterLayoutModeValue gridRosterLayoutMode == "day_columns"
+        rosterIsHiddenDraft = isNothing gridRosterWeek
+        isDayColumnsLayout = not rosterIsHiddenDraft && rosterLayoutModeValue gridRosterLayoutMode == "day_columns"
+        frameLayoutValue = if rosterIsHiddenDraft then ("hidden_draft" :: Text) else rosterLayoutModeValue gridRosterLayoutMode
         gridBody = renderRosterGridInnerFragments gridModel
      in [hsx|
         <div id={rosterGridFrameFragmentId}
              class={classes [("roster-grid-frame", True), ("app-horizontal-frame", isDayColumnsLayout)]}
              hx-swap-oob={maybeSwapOob}
-             data-roster-layout={rosterLayoutModeValue gridRosterLayoutMode}
+             data-roster-layout={frameLayoutValue}
+             data-roster-visibility={if rosterIsHiddenDraft then ("hidden-draft" :: Text) else "visible"}
              data-horizontal-snap={if isDayColumnsLayout then ("nearest-item" :: Text) else ""}
              data-horizontal-snap-item-selector={if isDayColumnsLayout then (".roster-day-column" :: Text) else ""}
              data-horizontal-drag-scroll={if isDayColumnsLayout then ("mouse" :: Text) else ""}
              data-horizontal-drag-scroll-ignore-selector={if isDayColumnsLayout then ("[data-roster-shift-launcher]" :: Text) else ""}
              data-roster-end-times={if gridRosterEndTimesEnabled then ("true" :: Text) else "false"}
-             data-roster-column-editor={if slotColumnsAreEditable then ("available" :: Text) else "unavailable"}
-             data-roster-wages={if gridShowWageEstimates then ("visible" :: Text) else "hidden"}
+             data-roster-column-editor={if slotColumnsAreEditable && not rosterIsHiddenDraft then ("available" :: Text) else "unavailable"}
+             data-roster-wages={if gridShowWageEstimates && not rosterIsHiddenDraft then ("visible" :: Text) else "hidden"}
              style={"--roster-slot-count:" <> tshow (max 1 (length gridSlotNames)) <> ";"}>
             {gridBody}
         </div>
@@ -155,9 +160,11 @@ renderRosterGridInnerFragments :: (?context :: ControllerContext) => RosterGridR
 renderRosterGridInnerFragments gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridSlotNames, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled } =
     let dayModel = rosterDayRenderModelFromGrid gridModel
         slotColumnsAreEditable = gridViewCapabilities.canManageRosterColumns
-     in if rosterLayoutModeValue gridRosterLayoutMode == "day_columns"
-            then renderRosterDayColumnsFragment dayModel gridRosterDays
-            else renderRosterDayRowsGrid gridRosterEndTimesEnabled slotColumnsAreEditable gridRosterWeek gridSlotNames dayModel gridRosterDays
+     in if isNothing gridRosterWeek
+            then renderHiddenDraftRosterGrid dayModel gridRosterDays
+            else if rosterLayoutModeValue gridRosterLayoutMode == "day_columns"
+                then renderRosterDayColumnsFragment dayModel gridRosterDays
+                else renderRosterDayRowsGrid gridRosterEndTimesEnabled slotColumnsAreEditable gridRosterWeek gridSlotNames dayModel gridRosterDays
 
 renderDayRowsWageAmount :: Maybe RosterWagePrediction -> Day -> Html
 renderDayRowsWageAmount Nothing _ = mempty
@@ -208,6 +215,48 @@ renderRosterDayRailFragmentWithSwap maybeSwapOob slotColumnsAreEditable dayModel
         </div>
         <div class="roster-day-rail-body">
             {forEach rosterDays (renderRosterDayRailSection dayModel)}
+        </div>
+    </div>
+|]
+
+renderHiddenDraftRosterGrid :: (?context :: ControllerContext) => RosterDayRenderModel -> [RosterDay] -> Html
+renderHiddenDraftRosterGrid dayModel rosterDays = [hsx|
+    {renderHiddenDraftDayRailFragment dayModel rosterDays}
+    <div class="roster-slots-scroller">
+        {renderHiddenDraftSlotsGridFragment rosterDays}
+    </div>
+|]
+
+renderHiddenDraftDayRailFragment :: (?context :: ControllerContext) => RosterDayRenderModel -> [RosterDay] -> Html
+renderHiddenDraftDayRailFragment =
+    renderHiddenDraftDayRailFragmentWithSwap Nothing
+
+renderHiddenDraftDayRailFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterDayRenderModel -> [RosterDay] -> Html
+renderHiddenDraftDayRailFragmentWithSwap maybeSwapOob dayModel rosterDays = [hsx|
+    <div id={rosterDayRailFragmentId} class="roster-day-rail" aria-label="Roster days" hx-swap-oob={maybeSwapOob}>
+        <div class="roster-day-rail-head">
+            <span class="roster-day-rail-head-label">Day</span>
+        </div>
+        <div class="roster-day-rail-body">
+            {forEach rosterDays (renderHiddenDraftDayRailSection dayModel)}
+        </div>
+    </div>
+|]
+
+renderHiddenDraftSlotsGridFragment :: [RosterDay] -> Html
+renderHiddenDraftSlotsGridFragment =
+    renderHiddenDraftSlotsGridFragmentWithSwap Nothing
+
+renderHiddenDraftSlotsGridFragmentWithSwap :: Maybe Text -> [RosterDay] -> Html
+renderHiddenDraftSlotsGridFragmentWithSwap maybeSwapOob _rosterDays = [hsx|
+    <div id={rosterSlotsGridFragmentId}
+         class="roster-grid roster-slots-grid roster-hidden-draft-grid"
+         role="region"
+         aria-label="Roster visibility"
+         hx-swap-oob={maybeSwapOob}>
+        <div class="roster-hidden-draft-grid-head" aria-hidden="true"></div>
+        <div class="roster-hidden-draft-grid-body" role="status" aria-live="polite">
+            <div class="roster-hidden-draft-message">This roster isn't live yet.</div>
         </div>
     </div>
 |]
@@ -396,6 +445,21 @@ renderRosterDayRailSection RosterDayRenderModel { dayIsEditable, dayWeekStartDat
                     {renderDayRowControls dayIsEditable rosterDay lastRowIndex}
                 </div>
                 {renderEmptyDayLabelRows rowCount 2}
+            </div>
+        </div>
+    |]
+
+renderHiddenDraftDayRailSection :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterDay -> Html
+renderHiddenDraftDayRailSection RosterDayRenderModel { dayWeekStartDate, dayPublicHolidays } rosterDay =
+    let date = Calendar.addDays (toInteger (get #dayOffset rosterDay)) dayWeekStartDate
+     in [hsx|
+        <div class={classes [("roster-day-rail-section", True), ("roster-day-rail-section-hidden-draft", True), ("day-alt-dark", odd (get #dayOffset rosterDay)), ("day-alt-light", even (get #dayOffset rosterDay))]}>
+            <div class="roster-day-label-stack">
+                <div class="roster-day-label-row roster-day-label-row-primary">
+                    <div class="roster-day-heading">
+                        {renderPrimaryDayLabel (Map.lookup date dayPublicHolidays) date}
+                    </div>
+                </div>
             </div>
         </div>
     |]
