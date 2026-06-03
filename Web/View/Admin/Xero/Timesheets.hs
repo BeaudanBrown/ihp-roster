@@ -2,7 +2,6 @@ module Web.View.Admin.Xero.Timesheets
     ( renderXeroTimesheetPanel
     ) where
 
-import Application.Helper.View.Overlay (dialogOverlayMountId)
 import Application.Helper.XeroAdminTypes
 import qualified Data.Text as Text
 import Web.View.Prelude
@@ -10,35 +9,13 @@ import Web.View.Prelude
 renderXeroTimesheetPanel :: XeroTimesheetPanelData -> Html
 renderXeroTimesheetPanel panel = [hsx|
     <div id="xero-timesheets-data" class="d-flex flex-column gap-3">
-        <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
-            <div>
-                <h3 class="h6 mb-1">Draft timesheet submission</h3>
-                <div class="small app-muted">Prepare Xero Payroll AU draft timesheets. Bepis will first confirm staff Xero mappings, then let you choose an eligible Xero payroll period.</div>
-            </div>
-            <div class="d-flex flex-wrap gap-2 align-items-start">
-                {renderPreparationButton panel}
-            </div>
+        <div>
+            <h3 class="h6 mb-1">Draft timesheet submission</h3>
+            <div class="small app-muted">Prepare Xero Payroll AU draft timesheets. Bepis will first confirm staff Xero mappings, then let you choose an eligible Xero payroll period.</div>
         </div>
         {renderPeriodNotice panel}
         {maybe mempty renderReadiness panel.xeroTimesheetReadiness}
     </div>
-|]
-
-renderPreparationButton :: XeroTimesheetPanelData -> Html
-renderPreparationButton panel = [hsx|
-    <form method="POST"
-          action={OpenXeroTimesheetPreparationAction}
-          class="d-flex flex-column flex-md-row gap-2 align-items-md-center"
-          data-xero-timesheet-preparation-form="true"
-          hx-post={pathTo OpenXeroTimesheetPreparationAction}
-          hx-target={"#" <> dialogOverlayMountId}
-          hx-swap="innerHTML">
-        <button type="submit"
-                class="btn btn-sm btn-primary"
-                disabled={not (canOpenPreparation panel)}>
-            Prepare timesheets
-        </button>
-    </form>
 |]
 
 renderEmptyPeriodOption :: XeroTimesheetPanelData -> Html
@@ -72,10 +49,6 @@ periodSubmissionStatusLabel status =
         Just "pending" -> " · submission pending"
         Just "blocked" -> " · blocked previously"
         _ -> ""
-
-canOpenPreparation :: XeroTimesheetPanelData -> Bool
-canOpenPreparation panel =
-    panel.xeroTimesheetActionsAllowed
 
 renderPeriodNotice :: XeroTimesheetPanelData -> Html
 renderPeriodNotice panel =

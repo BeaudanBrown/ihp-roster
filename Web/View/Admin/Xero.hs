@@ -36,6 +36,7 @@ import Application.Helper.LiveSurface (FragmentDependencies,
                                        mkTypedDefinedLiveSurface)
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveUpdateScope (..))
+import Application.Helper.View.Overlay (dialogOverlayMountId)
 import Application.Helper.XeroAdminTypes
 import Web.View.Admin.Common
 import Web.View.Admin.Xero.Connection
@@ -224,9 +225,40 @@ renderXeroConnectionBody Nothing _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ connectionAct
 renderXeroConnectionBody (Just connection) _maybeConnectedByUser _maybeSyncRun _employeeCount _earningsRateCount _payrollCalendarCount _xeroEmployees _mappingRows _mappingCounts _xeroEarningsRates payItemRequirements importedPayItems accountCodeOptions maybePayItemSyncRun _xeroPayrollCalendars _maybePayrollCalendarSelection maybePayItemAccountCodeSelection _readyChecklist connectionActionsAllowed timesheetPanel = [hsx|
     <div class="d-flex flex-column gap-4">
         <section class={appSurfaceClasses "p-3"}>
-            {renderXeroConnectionDetails connection connectionActionsAllowed}
+            <div class="d-flex flex-column gap-3">
+                {renderXeroConnectionDetails connection}
+                {renderXeroActionControls timesheetPanel connectionActionsAllowed}
+            </div>
         </section>
         {renderXeroOperationalPanels connection timesheetPanel payItemRequirements importedPayItems accountCodeOptions maybePayItemSyncRun maybePayItemAccountCodeSelection connectionActionsAllowed}
+    </div>
+|]
+
+renderXeroActionControls :: XeroTimesheetPanelData -> Bool -> Html
+renderXeroActionControls timesheetPanel connectionActionsAllowed = [hsx|
+    <div class="d-flex flex-wrap gap-2">
+        <form method="POST"
+              action={OpenXeroTimesheetPreparationAction}
+              data-xero-timesheet-preparation-form="true"
+              hx-post={pathTo OpenXeroTimesheetPreparationAction}
+              hx-target={"#" <> dialogOverlayMountId}
+              hx-swap="innerHTML">
+            <button type="submit"
+                    class="btn btn-primary"
+                    disabled={not (connectionActionsAllowed && timesheetPanel.xeroTimesheetActionsAllowed)}>
+                Upload timesheets
+            </button>
+        </form>
+        <form method="GET"
+              action={OpenXeroPayItemImportAction}
+              hx-get={pathTo OpenXeroPayItemImportAction}
+              hx-target={"#" <> dialogOverlayMountId}
+              hx-swap="innerHTML">
+            <button type="submit" class="btn btn-outline-primary" disabled={not connectionActionsAllowed}>Import pay items</button>
+        </form>
+        <form method="POST" action={DisconnectXeroConnectionAction} data-disable-javascript-submission="true">
+            <button class="btn btn-outline-danger" type="submit" disabled={not connectionActionsAllowed}>Disconnect</button>
+        </form>
     </div>
 |]
 

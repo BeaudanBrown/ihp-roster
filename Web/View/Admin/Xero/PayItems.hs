@@ -178,20 +178,11 @@ renderXeroPayItemRequirementStatus requirement =
         _                              -> renderAppStatusBadge AppStatusNeutral "proposed"
 
 renderImportedXeroPayItemsPanel :: [XeroPayItemAccountCodeOption] -> [XeroImportedPayItem] -> Bool -> Html
-renderImportedXeroPayItemsPanel accountCodeOptions importedPayItems canManagePayItems = [hsx|
+renderImportedXeroPayItemsPanel accountCodeOptions importedPayItems _canManagePayItems = [hsx|
     <div class={appSurfaceClasses "p-3 bg-body-tertiary"}>
-        <div class="d-flex flex-column flex-lg-row justify-content-between gap-2 mb-3">
-            <div>
-                <h3 class="h6 mb-1">Imported Xero pay items</h3>
-                <p class="small app-muted mb-0">Import pay items from Xero to assign to shifts and staff in Bepis.</p>
-            </div>
-            <form method="GET"
-                  action={OpenXeroPayItemImportAction}
-                  hx-get={pathTo OpenXeroPayItemImportAction}
-                  hx-target="#dialog-overlay-mount"
-                  hx-swap="innerHTML">
-                <button type="submit" class="btn btn-sm btn-outline-primary" disabled={not canManagePayItems}>Import from Xero</button>
-            </form>
+        <div class="mb-3">
+            <h3 class="h6 mb-1">Imported Xero pay items</h3>
+            <p class="small app-muted mb-0">Import pay items from Xero to assign to shifts and staff in Bepis.</p>
         </div>
         {renderActiveImportedPayItems accountCodeOptions activeItems}
         {renderArchivedImportedPayItems accountCodeOptions archivedItems}

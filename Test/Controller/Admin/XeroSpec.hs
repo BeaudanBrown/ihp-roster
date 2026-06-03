@@ -1183,7 +1183,11 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Draft timesheet submission"
                 response `responseBodyShouldContain` "confirm staff Xero mappings"
                 response `responseBodyShouldNotContain` "approved IHP timesheets"
-                response `responseBodyShouldContain` "Prepare timesheets"
+                response `responseBodyShouldContain` "Upload timesheets"
+                response `responseBodyShouldContain` "Import pay items"
+                response `responseBodyShouldNotContain` "Prepare timesheets"
+                response `responseBodyShouldNotContain` "Refresh Xero data"
+                response `responseBodyShouldNotContain` "<button class=\"btn btn-outline-secondary\" type=\"submit\">Reconnect</button>"
                 response `responseBodyShouldNotContain` "name=\"periodKey\""
                 response `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
                 response `responseBodyShouldContain` "id=\"xero-timesheets-data\""
@@ -1206,7 +1210,7 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "name=\"periodKey\""
-                response `responseBodyShouldContain` "Prepare timesheets"
+                response `responseBodyShouldContain` "Upload timesheets"
                 response `responseBodyShouldNotContain` "DRAFT"
                 response `responseBodyShouldNotContain` "submitted already"
 
@@ -1679,7 +1683,7 @@ tests = beforeAll testContext do
                 pageResponse `responseStatusShouldBe` status200
                 pageResponse `responseBodyShouldContain` "Draft timesheet submission"
                 pageResponse `responseBodyShouldNotContain` "name=\"periodKey\""
-                pageResponse `responseBodyShouldContain` "Prepare timesheets"
+                pageResponse `responseBodyShouldContain` "Upload timesheets"
 
                 _ <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest (referenceSyncXeroClient (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) [] [] []) do
