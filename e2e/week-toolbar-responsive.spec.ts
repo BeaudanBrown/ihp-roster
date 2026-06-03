@@ -72,6 +72,48 @@ async function weekToolbarMetrics(page: import('@playwright/test').Page, toolbar
 }
 
 test.describe('Shared week toolbar responsive layout', () => {
+    test('spaces roster layout buttons evenly in settings menu', async ({ page }) => {
+        test.setTimeout(90_000);
+        await page.setViewportSize({ width: 1280, height: 900 });
+
+        await openRoster(page, { email: 'e2e-admin@example.com', ensureEditable: false });
+        await page.getByRole('button', { name: 'Roster settings' }).click();
+
+        const layoutGroup = page.locator('.roster-layout-mode-group');
+        await expect(layoutGroup).toBeVisible();
+
+        const metrics = await layoutGroup.evaluate((group) => {
+            const groupElement = group as HTMLElement;
+            const groupRect = groupElement.getBoundingClientRect();
+            const buttons = Array.from(groupElement.querySelectorAll('label.btn')) as HTMLElement[];
+            return {
+                display: window.getComputedStyle(groupElement).display,
+                groupLeft: groupRect.left,
+                groupWidth: groupRect.width,
+                buttons: buttons.map((button) => {
+                    const rect = button.getBoundingClientRect();
+                    const style = window.getComputedStyle(button);
+                    return {
+                        width: rect.width,
+                        centerX: rect.left + rect.width / 2,
+                        justifyContent: style.justifyContent,
+                        textAlign: style.textAlign,
+                    };
+                }),
+            };
+        });
+
+        expect(metrics.display).toBe('grid');
+        expect(metrics.buttons).toHaveLength(2);
+        expect(Math.abs(metrics.buttons[0].width - metrics.buttons[1].width)).toBeLessThanOrEqual(1);
+        expect(Math.abs(metrics.buttons[0].centerX - (metrics.groupLeft + metrics.groupWidth * 0.25))).toBeLessThanOrEqual(2);
+        expect(Math.abs(metrics.buttons[1].centerX - (metrics.groupLeft + metrics.groupWidth * 0.75))).toBeLessThanOrEqual(2);
+        for (const button of metrics.buttons) {
+            expect(button.justifyContent).toBe('center');
+            expect(button.textAlign).toBe('center');
+        }
+    });
+
     test('keeps roster and timesheet week controls on one desktop row', async ({ page }) => {
         test.setTimeout(90_000);
         await page.setViewportSize({ width: 1280, height: 900 });

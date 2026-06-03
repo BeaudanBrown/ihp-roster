@@ -116,12 +116,17 @@
 }
 
 .roster-layout-mode-group {
-    display: flex;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
 }
 
 .roster-layout-mode-group .btn {
-    flex: 1 1 0;
+    display: inline-flex;
+    width: 100%;
     min-width: 0;
+    align-items: center;
+    justify-content: center;
     overflow: hidden;
     text-align: center;
     text-overflow: ellipsis;
