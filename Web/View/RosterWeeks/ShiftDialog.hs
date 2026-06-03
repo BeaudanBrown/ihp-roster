@@ -117,26 +117,32 @@ renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShift
           hx-swap="innerHTML"
           hx-push-url="false">
         {renderMaybeFormError rosterShiftDialogValues.rosterShiftFormError}
-        <div class="mb-3">
-            <label class="form-label" for="roster-shift-staff-id">Staff</label>
-            <select id="roster-shift-staff-id" name="staffId" class={classes [("form-select", True), ("is-invalid", isJust rosterShiftDialogValues.rosterShiftStaffError)]}>
-                <option value="">Select staff</option>
-                {forEach visibleStaffMembers (renderStaffOption rosterShiftDialogValues.rosterShiftStaffId rosterShiftDialogStaff)}
-            </select>
-            {renderDialogFieldError rosterShiftDialogValues.rosterShiftStaffError}
-        </div>
+        {renderDialogAssignmentFields}
         {renderDialogTimeFields}
-        <div class="mb-0">
-            <label class="form-label" for="roster-shift-type-id">Shift type</label>
-            <select id="roster-shift-type-id" name="shiftTypeId" class={classes [("form-select", True), ("is-invalid", isJust rosterShiftDialogValues.rosterShiftTypeError)]}>
-                <option value="">Select shift type</option>
-                {forEach visibleShiftTypes (renderDialogShiftTypeOption rosterShiftDialogValues.rosterShiftTypeId)}
-            </select>
-            {renderDialogFieldError rosterShiftDialogValues.rosterShiftTypeError}
-        </div>
     </form>
 |]
   where
+    renderDialogAssignmentFields = [hsx|
+        <div class="row g-3 mb-3">
+            <div class="col-12 col-lg-6">
+                <label class="form-label" for="roster-shift-type-id">Shift type</label>
+                <select id="roster-shift-type-id" name="shiftTypeId" class={classes [("form-select", True), ("is-invalid", isJust rosterShiftDialogValues.rosterShiftTypeError)]}>
+                    <option value="">Select shift type</option>
+                    {forEach visibleShiftTypes (renderDialogShiftTypeOption rosterShiftDialogValues.rosterShiftTypeId)}
+                </select>
+                {renderDialogFieldError rosterShiftDialogValues.rosterShiftTypeError}
+            </div>
+            <div class="col-12 col-lg-6">
+                <label class="form-label" for="roster-shift-staff-id">Staff member</label>
+                <select id="roster-shift-staff-id" name="staffId" class={classes [("form-select", True), ("is-invalid", isJust rosterShiftDialogValues.rosterShiftStaffError)]}>
+                    <option value="">Select staff member</option>
+                    {forEach visibleStaffMembers (renderStaffOption rosterShiftDialogValues.rosterShiftStaffId rosterShiftDialogStaff)}
+                </select>
+                {renderDialogFieldError rosterShiftDialogValues.rosterShiftStaffError}
+            </div>
+        </div>
+    |]
+
     renderDialogTimeFields
         | rosterShiftDialogEndTimes = [hsx|
             <div class="row g-3 mb-3">
