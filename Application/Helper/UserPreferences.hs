@@ -27,7 +27,7 @@ normaliseUserRosterPreferences :: Maybe UserPreference -> UserRosterPreferences
 normaliseUserRosterPreferences maybePreferences =
     UserRosterPreferences
         { userRosterLayoutMode = maybe defaultRosterLayoutMode (.rosterLayoutMode) maybePreferences
-        , userShowWageEstimates = maybe True (.showWageEstimates) maybePreferences
+        , userShowWageEstimates = maybe False (.showWageEstimates) maybePreferences
         }
 
 defaultRosterLayoutMode :: RosterLayoutModeEnum

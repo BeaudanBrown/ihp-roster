@@ -359,19 +359,19 @@ tests = describe "Schema" do
         let preferences = newRecord @UserPreference
         inputValue (get #rosterLayoutMode preferences) `shouldBe` "day_rows"
         get #showShiftTypeHighlights preferences `shouldBe` True
-        get #showWageEstimates preferences `shouldBe` True
+        get #showWageEstimates preferences `shouldBe` False
         map inputValue (allEnumValues @RosterLayoutModeEnum) `shouldBe` ["day_rows", "day_columns"]
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TYPE roster_layout_mode_enum AS ENUM ('day_rows', 'day_columns');"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE user_preferences"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_layout_mode roster_layout_mode_enum DEFAULT 'day_rows' NOT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "show_shift_type_highlights BOOLEAN DEFAULT TRUE NOT NULL"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "show_wage_estimates BOOLEAN DEFAULT TRUE NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "show_wage_estimates BOOLEAN DEFAULT FALSE NOT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "UNIQUE(user_id)"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE TYPE roster_layout_mode_enum AS ENUM ('day_rows', 'day_columns');"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE user_preferences"
         highlightMigrationSqlText `shouldSatisfy` Text.isInfixOf "ADD COLUMN show_shift_type_highlights BOOLEAN DEFAULT TRUE NOT NULL"
-        wageEstimateMigrationSqlText `shouldSatisfy` Text.isInfixOf "ADD COLUMN show_wage_estimates BOOLEAN DEFAULT TRUE NOT NULL"
+        wageEstimateMigrationSqlText `shouldSatisfy` Text.isInfixOf "ADD COLUMN show_wage_estimates BOOLEAN DEFAULT FALSE NOT NULL"
 
     it "stores RSA staff document metadata without onboarding-sensitive fields" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
