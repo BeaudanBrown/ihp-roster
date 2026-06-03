@@ -410,7 +410,7 @@ CREATE TABLE venue_config (
     roster_week_starts_on INT NOT NULL,
     week_offset_epoch DATE NOT NULL,
     late_to_early_min_start_gap_minutes INT DEFAULT 0 NOT NULL,
-    roster_end_times_enabled BOOLEAN DEFAULT FALSE NOT NULL,
+    roster_end_times_enabled BOOLEAN DEFAULT TRUE NOT NULL,
     auto_timesheet_creation_enabled BOOLEAN DEFAULT FALSE NOT NULL,
     staff_timesheet_edit_window_days INT DEFAULT 7 NOT NULL,
     public_holiday_jurisdiction TEXT DEFAULT 'VIC' NOT NULL,

@@ -454,6 +454,7 @@ tests = beforeAll testContext do
                 _ <- updateRecord
                     ( slot
                         |> set #startTime (Just (timeOfDay 9 0))
+                        |> set #endTime (Just (timeOfDay 17 0))
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
                     )
 
@@ -768,6 +769,8 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Venue A"
                 admin <- createUserRecord "roster-admin-wage-end-times-disabled@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin "venue_admin"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- updateRecord (venueConfig |> set #rosterEndTimesEnabled False)
                 slotName <- fetchSlotNameRecord venue "Early"
                 staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
                 _ <- updateRecord (staffMember |> set #employmentBasis Permanent)

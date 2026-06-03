@@ -650,6 +650,7 @@ fullShiftParamsAt :: Staff -> ShiftType -> ByteString -> [(ByteString, ByteStrin
 fullShiftParamsAt staff shiftType startTime =
     [ ("staffId", idToParam staff.id)
     , ("startTime", startTime)
+    , ("endTime", "17:00")
     , ("shiftTypeId", idToParam shiftType.id)
     ]
 

@@ -1,5 +1,5 @@
 ALTER TABLE venue_config
-    ADD COLUMN IF NOT EXISTS roster_end_times_enabled BOOLEAN DEFAULT FALSE NOT NULL;
+    ADD COLUMN IF NOT EXISTS roster_end_times_enabled BOOLEAN DEFAULT TRUE NOT NULL;
 
 ALTER TABLE roster_slots
     ADD COLUMN IF NOT EXISTS end_time TIME DEFAULT NULL,
