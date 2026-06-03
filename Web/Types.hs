@@ -43,6 +43,8 @@ data AuthController
 
 data PasskeysController
     = PasskeyStepUpAction
+    | PasskeySetupAction
+    | DismissMandatoryPasskeySetupAction
     | ShowPasskeyRecoveryCodeDialogAction
     | UsePasskeyRecoveryCodeAction
     | SendNewDevicePasskeySetupEmailAction

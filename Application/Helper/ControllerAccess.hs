@@ -12,7 +12,7 @@ import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import qualified Network.Wai as Wai
 import Text.Read (readMaybe)
 import Web.Routes ()
-import Web.Types (PasskeysController (PasskeyStepUpAction),
+import Web.Types (PasskeysController (PasskeySetupAction, PasskeyStepUpAction),
                   ProfilesController (EditProfileAction),
                   RosterWeeksController (RosterWeeksAction),
                   SessionsController (NewSessionAction),
@@ -71,7 +71,7 @@ ensureProfileCompleted = do
         withRequestContext do
             setErrorMessage "Please complete your profile to continue."
             redirectTo EditProfileAction
-    ensurePrivilegedPasskeySetupComplete
+    pure ()
 
 hasVenueRole :: VenueRole -> VenueRole -> Bool
 hasVenueRole actualRole minimumRole = actualRole >= minimumRole
@@ -130,10 +130,10 @@ ensureManagerRole :: (?context :: ControllerContext, ?request :: Request) => IO 
 ensureManagerRole =
     redirectPermissionDeniedUnless (hasRole ManagerRole') "You need manager access to view that page."
 
-ensureAdminRole :: (?context :: ControllerContext, ?request :: Request) => IO ()
+ensureAdminRole :: (?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => IO ()
 ensureAdminRole = do
     redirectPermissionDeniedUnless (hasRole VenueAdminRole) "You need admin access to view that page."
-    ensurePrivilegedPasskeyVerified
+    ensurePrivilegedPasskeyReady
 
 currentUserRequiresMandatoryPasskey :: (?context :: ControllerContext) => Bool
 currentUserRequiresMandatoryPasskey =
@@ -203,6 +203,16 @@ clearCurrentUserPasskeyVerification = do
     deleteSession passkeyVerifiedUserSessionKey
     deleteSession passkeyVerifiedAtSessionKey
     clearCurrentUserPasskeyRecoveryVerification
+
+ensurePrivilegedPasskeyReady :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+ensurePrivilegedPasskeyReady = do
+    when currentUserRequiresMandatoryPasskey do
+        hasPasskey <- currentUserHasPasskey
+        if not hasPasskey
+            then withRequestContext do
+                setSession passkeyStepUpRedirectSessionKey currentRequestPath
+                redirectTo PasskeySetupAction
+            else ensurePrivilegedPasskeyVerified
 
 ensurePrivilegedPasskeyVerified :: (?context :: ControllerContext) => IO ()
 ensurePrivilegedPasskeyVerified = do

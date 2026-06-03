@@ -189,7 +189,7 @@ tests = beforeAll testContext do
                     rosterResponse `responseStatusShouldBe` status200
                     rosterResponse `responseBodyShouldContain` "js-passkey-setup-prompt"
                     rosterResponse `responseBodyShouldContain` "data-mode=\"first-passkey\""
-                    rosterResponse `responseBodyShouldContain` "Use your device unlock next time"
+                    rosterResponse `responseBodyShouldContain` "Set up faster sign-in"
 
         it "prompts password users with existing passkeys to add this device" $ withContext do
             withCleanDb do
@@ -209,7 +209,7 @@ tests = beforeAll testContext do
                     rosterResponse `responseStatusShouldBe` status200
                     rosterResponse `responseBodyShouldContain` "js-passkey-setup-prompt"
                     rosterResponse `responseBodyShouldContain` "data-mode=\"additional-device\""
-                    rosterResponse `responseBodyShouldContain` "Set up faster sign-in on this device too"
+                    rosterResponse `responseBodyShouldContain` "Add this device as a passkey"
 
         it "audits failed password logins for known invited accounts" $ withContext do
             withCleanDb do

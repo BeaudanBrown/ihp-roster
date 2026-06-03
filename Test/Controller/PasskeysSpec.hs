@@ -110,12 +110,12 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Sign-In Methods"
-                response `responseBodyShouldContain` "Add passkey"
+                response `responseBodyShouldContain` "Create passkey"
                 response `responseBodyShouldContain` "No passkeys registered yet."
                 response `responseBodyShouldContain` "data-begin-url=\"/BeginPasskeyRegistration\""
                 response `responseBodyShouldContain` "data-finish-url=\"/FinishPasskeyRegistration\""
 
-        it "requires venue admins without passkeys to finish security setup before operational pages" $ withContext do
+        it "lets venue admins without passkeys reach roster before restricted access" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Mandatory Admin Passkey Venue"
                 user <- createUserRecord "mandatory-admin-passkey@example.com" "admin" True
@@ -125,9 +125,10 @@ tests = beforeAll testContext do
                     callAction RosterWeeksAction
 
                 response `responseStatusShouldBe` status302
-                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/EditProfile?section=security"
+                lookup HTTP.hLocation (responseHeaders response)
+                    `shouldSatisfy` maybe False ("http://localhost/ShowRosterWeek?weekOffset=" `ByteString.isPrefixOf`)
 
-        it "requires venue owners without passkeys to finish security setup before operational pages" $ withContext do
+        it "lets venue owners without passkeys reach roster before restricted access" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Mandatory Owner Passkey Venue"
                 user <- createUserRecord "mandatory-owner-passkey@example.com" "admin" True
@@ -137,7 +138,8 @@ tests = beforeAll testContext do
                     callAction RosterWeeksAction
 
                 response `responseStatusShouldBe` status302
-                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/EditProfile?section=security"
+                lookup HTTP.hLocation (responseHeaders response)
+                    `shouldSatisfy` maybe False ("http://localhost/ShowRosterWeek?weekOffset=" `ByteString.isPrefixOf`)
 
         it "does not require workers without passkeys to finish passkey setup before roster access" $ withContext do
             withCleanDb do
@@ -286,7 +288,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status302
                 lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/PasskeyStepUp"
 
-        it "forces passkey setup immediately after promotion to venue admin" $ withContext do
+        it "requires passkey setup after promotion when opening admin pages" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Promoted Admin Passkey Venue"
                 user <- createUserRecord "promoted-admin@example.com" "staff" True
@@ -296,10 +298,10 @@ tests = beforeAll testContext do
                     |> updateRecord
 
                 response <- withUserAndCurrentVenue user venue.id do
-                    callAction RosterWeeksAction
+                    callAction AdminAction
 
                 response `responseStatusShouldBe` status302
-                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/EditProfile?section=security"
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/PasskeySetup"
 
         it "requires fresh passkey verification before adding another admin passkey" $ withContext do
             withCleanDb do
@@ -330,7 +332,7 @@ tests = beforeAll testContext do
                     callActionWithParams UsePasskeyRecoveryCodeAction [("recoveryCode", "ABCD EFGH IJKL MNOP")]
 
                 response `responseStatusShouldBe` status302
-                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/EditProfile?section=security"
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/PasskeySetup"
                 consumedCode <- fetch recoveryCode.id
                 consumedCode.usedAt `shouldSatisfy` isJust
 
@@ -353,7 +355,7 @@ tests = beforeAll testContext do
                     callActionWithParams UsePasskeyRecoveryCodeAction [("recoveryCode", "support recovery code")]
 
                 response `responseStatusShouldBe` status302
-                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/Support"
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/PasskeySetup"
                 now <- getCurrentTime
                 supportResponse <- withSessionValues
                     [ (cs (LoginSupport.sessionKey @User), Serialize.encode founder.id)
@@ -364,7 +366,7 @@ tests = beforeAll testContext do
                         callAction SupportAction
 
                 supportResponse `responseStatusShouldBe` status200
-                supportResponse `responseBodyShouldContain` "Add passkey"
+                supportResponse `responseBodyShouldContain` "Create passkey"
                 supportResponse `responseBodyShouldContain` "data-success-redirect=\"/Support\""
 
         it "allows recovery-code verified admins to begin replacement passkey registration" $ withContext do

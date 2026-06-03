@@ -43,10 +43,39 @@
             });
         });
 
+        root.querySelectorAll('.js-passkey-setup-modal').forEach(function (modal) {
+            if (modal.dataset.passkeyModalInitialized === 'true') return;
+            modal.dataset.passkeyModalInitialized = 'true';
+            initPasskeySetupModal(modal);
+        });
+
         root.querySelectorAll('.js-passkey-setup-prompt').forEach(function (container) {
             if (container.dataset.passkeyInitialized === 'true') return;
             container.dataset.passkeyInitialized = 'true';
             initPasskeySetupPrompt(container);
+        });
+    }
+
+    function initPasskeySetupModal(modal) {
+        document.body.classList.add('modal-open');
+        const dismissButton = modal.querySelector('.js-passkey-setup-dismiss');
+        if (!dismissButton) return;
+
+        dismissButton.addEventListener('click', function (event) {
+            const href = dismissButton.getAttribute('href') || '';
+            if (href !== '#') return;
+            event.preventDefault();
+            const wrapper = modal.closest('.js-passkey-setup-prompt');
+            const backdrop = modal.nextElementSibling;
+            if (wrapper) {
+                wrapper.remove();
+            } else {
+                modal.remove();
+                if (backdrop && backdrop.classList.contains('js-passkey-setup-modal-backdrop')) {
+                    backdrop.remove();
+                }
+            }
+            document.body.classList.remove('modal-open');
         });
     }
 
@@ -131,33 +160,35 @@
 
         if (!window.PublicKeyCredential || !window.navigator.credentials || !userId) {
             container.remove();
+            document.body.classList.remove('modal-open');
             return;
         }
 
         if (isPasskeyPromptDismissed(userId)) {
             container.remove();
+            document.body.classList.remove('modal-open');
             return;
         }
 
         if (mode === 'additional-device' && hasPasskeySeen(userId)) {
             container.remove();
+            document.body.classList.remove('modal-open');
             return;
         }
 
         container.classList.remove('d-none');
-
-        const setupButton = container.querySelector('.js-passkey-setup-button');
-        if (setupButton) {
-            setupButton.addEventListener('click', function () {
-                void runPasskeyRegistration(container, setupButton);
-            });
-        }
+        document.body.classList.add('modal-open');
 
         const dismissButton = container.querySelector('.js-passkey-setup-dismiss');
         if (dismissButton) {
-            dismissButton.addEventListener('click', function () {
-                dismissPasskeyPrompt(userId);
-                container.remove();
+            dismissButton.addEventListener('click', function (event) {
+                const href = dismissButton.getAttribute('href') || '';
+                if (href === '#') {
+                    event.preventDefault();
+                    dismissPasskeyPrompt(userId);
+                    container.remove();
+                    document.body.classList.remove('modal-open');
+                }
             });
         }
     }

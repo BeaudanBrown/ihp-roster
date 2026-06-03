@@ -4,6 +4,7 @@ import Application.Helper.PasskeyRecoveryCodes (verifyAndConsumeRecoveryCode)
 import Application.Helper.PasskeySetupTokens
 import qualified Data.Text as Text
 import Web.Controller.Prelude
+import Web.View.Passkeys.Setup
 import Web.View.Passkeys.StepUp
 
 instance Controller PasskeysController where
@@ -16,9 +17,18 @@ instance Controller PasskeysController where
             redirectTo RosterWeeksAction
         passkeys <- fetchCurrentUserPasskeys
         when (null passkeys) do
-            setErrorMessage "Add your first passkey before continuing."
-            redirectToPath profileSecurityPath
+            redirectTo PasskeySetupAction
         render StepUpView { .. }
+
+    action PasskeySetupAction = do
+        rawRedirectTo <- getSession @Text passkeyStepUpRedirectSessionKey
+        let passkeySetupRedirectTo = fromMaybe (pathTo RosterWeeksAction) (rawRedirectTo >>= nonEmptyText)
+        render PasskeySetupView { .. }
+
+    action DismissMandatoryPasskeySetupAction = do
+        deleteSession passkeyStepUpRedirectSessionKey
+        setErrorMessage "Create a passkey before opening restricted admin pages."
+        redirectTo RosterWeeksAction
 
     action ShowPasskeyRecoveryCodeDialogAction = do
         unless currentUserRequiresMandatoryPasskey do
@@ -42,7 +52,7 @@ instance Controller PasskeysController where
             then do
                 markCurrentUserPasskeyRecoveryVerified
                 setSuccessMessage "Recovery code accepted. Add a new passkey now to restore access."
-                redirectToPath mandatoryPasskeySetupPath
+                redirectTo PasskeySetupAction
             else do
                 setErrorMessage "That recovery code was not valid or has already been used."
                 redirectTo PasskeyStepUpAction

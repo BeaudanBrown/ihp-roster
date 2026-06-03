@@ -42,11 +42,12 @@ instance Controller BillingController where
     action UpdateVenueBillingControlAction =
         updateVenueBillingControlAction
 
-ensureBillingAccess :: (?context :: ControllerContext, ?request :: Request) => IO ()
-ensureBillingAccess =
+ensureBillingAccess :: (?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => IO ()
+ensureBillingAccess = do
     redirectPermissionDeniedUnless
         (currentUserIsSuperAdmin || hasRole VenueOwnerRole)
         "Only the venue owner or a super admin can manage billing for this venue."
+    ensurePrivilegedPasskeyReady
 
 fetchBillingViewModel :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO BillingViewModel
 fetchBillingViewModel = do

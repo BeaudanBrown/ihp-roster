@@ -6,6 +6,7 @@ module Web.View.Passkeys.Management
 where
 
 import Data.Time.Clock (diffUTCTime)
+import Web.View.Passkeys.Setup
 import Web.View.Prelude
 
 renderPasskeyManagement :: UTCTime -> [Passkey] -> Text -> Html
@@ -23,23 +24,13 @@ renderPasskeyManagementWithAddButton now canAddPasskey passkeys successRedirect 
     </div>
 |]
 
-renderPasskeyRegistrationAction :: Bool -> Text -> Html
+renderPasskeyRegistrationAction :: (?context :: ControllerContext) => Bool -> Text -> Html
 renderPasskeyRegistrationAction False _ = mempty
-renderPasskeyRegistrationAction True successRedirect = [hsx|
-    <div class="js-passkey-register"
-         data-begin-url={pathTo BeginPasskeyRegistrationAction}
-         data-finish-url={pathTo FinishPasskeyRegistrationAction}
-         data-status-id="passkey-management-status"
-         data-success-redirect={successRedirect}>
-        <div class="mb-3">
-            <label class="form-label" for="passkey-management-name">Passkey name</label>
-            <input id="passkey-management-name" type="text" class="form-control js-passkey-name" maxlength="120" placeholder="e.g. Work laptop" autocomplete="off"/>
-            <div class="form-text app-muted">Use a name you will recognize later, such as this device or security key.</div>
-        </div>
-        <button type="button" class="btn btn-outline-primary js-passkey-register-button">Add passkey</button>
-    </div>
-    <div id="passkey-management-status" class="alert d-none mt-3"></div>
-|]
+renderPasskeyRegistrationAction True successRedirect =
+    renderPasskeySetupModal
+        (if currentUserIsAdmin then MandatoryFirstPasskey else OptionalFirstPasskey)
+        successRedirect
+        (Just "#")
 
 renderNewDevicePasskeyAction :: [Passkey] -> Html
 renderNewDevicePasskeyAction [] = mempty

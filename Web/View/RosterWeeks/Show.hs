@@ -9,6 +9,7 @@ import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Projection (buildRosterProjectionScope)
 import Web.RosterWeeks.LiveSurface (rosterLiveSurfaceDefinition)
 import Web.RosterWeeks.Types
+import Web.View.Passkeys.Setup
 import Web.View.Prelude
 import Web.View.RosterWeeks.Grid (renderRosterLayout)
 
@@ -68,40 +69,20 @@ rosterWeekLiveSurface rosterGroupId weekOffset maybeScope =
 renderPasskeySetupPrompt :: (?context :: ControllerContext) => Maybe PasskeySetupPromptMode -> Html
 renderPasskeySetupPrompt Nothing = mempty
 renderPasskeySetupPrompt (Just promptMode) = [hsx|
-    <section class="alert alert-info d-none js-passkey-setup-prompt"
-             data-user-id={tshow currentUser.id}
-             data-mode={passkeyPromptModeValue promptMode}
-             data-begin-url={pathTo BeginPasskeyRegistrationAction}
-             data-finish-url={pathTo FinishPasskeyRegistrationAction}
-             data-status-id="passkey-setup-prompt-status">
-        <div class="d-flex flex-column flex-md-row gap-3 align-items-md-center justify-content-between">
-            <div>
-                <strong>{passkeyPromptTitle promptMode}</strong>
-                <div class="small mt-1">{passkeyPromptBody promptMode}</div>
-            </div>
-            <div class="d-flex flex-column flex-md-row gap-2 flex-shrink-0 align-items-md-end">
-                <div>
-                    <label class="form-label small mb-1" for="passkey-setup-prompt-name">Passkey name</label>
-                    <input id="passkey-setup-prompt-name" type="text" class="form-control form-control-sm js-passkey-name" maxlength="120" placeholder="This device" autocomplete="off"/>
-                </div>
-                <button type="button" class="btn btn-primary btn-sm js-passkey-setup-button">Set up faster sign-in</button>
-                <button type="button" class="btn btn-outline-secondary btn-sm js-passkey-setup-dismiss">Not now</button>
-            </div>
-        </div>
-        <div id="passkey-setup-prompt-status" class="alert d-none mt-3 mb-0"></div>
-    </section>
+    <div class="js-passkey-setup-prompt"
+         data-user-id={tshow currentUser.id}
+         data-mode={passkeyPromptModeValue promptMode}>
+        {renderPasskeySetupModal (passkeySetupModeFromPrompt promptMode) (pathTo RosterWeeksAction) (Just "#")}
+    </div>
 |]
 
 passkeyPromptModeValue :: PasskeySetupPromptMode -> Text
 passkeyPromptModeValue FirstPasskeyPrompt            = "first-passkey"
 passkeyPromptModeValue AdditionalDevicePasskeyPrompt = "additional-device"
 
-passkeyPromptTitle :: PasskeySetupPromptMode -> Text
-passkeyPromptTitle FirstPasskeyPrompt = "Use your device unlock next time"
-passkeyPromptTitle AdditionalDevicePasskeyPrompt = "Set up faster sign-in on this device too"
-
-passkeyPromptBody :: PasskeySetupPromptMode -> Text
-passkeyPromptBody FirstPasskeyPrompt =
-    "Create a passkey so you can sign in with Face ID, Touch ID, Windows Hello or your screen lock instead of typing your password."
-passkeyPromptBody AdditionalDevicePasskeyPrompt =
-    "This account already has a passkey. Add one here if you want this browser to offer the same quick sign-in."
+passkeySetupModeFromPrompt :: (?context :: ControllerContext) => PasskeySetupPromptMode -> PasskeySetupMode
+passkeySetupModeFromPrompt FirstPasskeyPrompt =
+    if currentUserIsAdmin
+        then MandatoryFirstPasskey
+        else OptionalFirstPasskey
+passkeySetupModeFromPrompt AdditionalDevicePasskeyPrompt = OptionalAdditionalDevice
