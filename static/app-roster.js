@@ -77,6 +77,85 @@
     });
 })();
 
+(function enableRosterFullscreenToggle() {
+    if (typeof window === 'undefined') return;
+
+    const shellSelector = '#roster-week-shell';
+    const toggleSelector = '[data-roster-fullscreen-toggle="true"]';
+    const labelSelector = '[data-roster-fullscreen-toggle-label="true"]';
+    const expandedLabel = 'Exit expanded roster';
+    const collapsedLabel = 'Expand roster';
+
+    function rosterShellFromToggle(toggle) {
+        return toggle.closest(shellSelector);
+    }
+
+    function isExpanded(shell) {
+        return shell instanceof HTMLElement && shell.dataset.rosterFullscreen === 'true';
+    }
+
+    function updateToggle(toggle, expanded) {
+        toggle.setAttribute('aria-pressed', expanded ? 'true' : 'false');
+        toggle.setAttribute('aria-label', expanded ? expandedLabel : collapsedLabel);
+        toggle.setAttribute('title', expanded ? expandedLabel : collapsedLabel);
+
+        const label = toggle.querySelector(labelSelector);
+        if (label) label.textContent = expanded ? expandedLabel : collapsedLabel;
+
+        const icon = toggle.querySelector('.bi');
+        if (icon) {
+            icon.classList.toggle('bi-fullscreen', !expanded);
+            icon.classList.toggle('bi-fullscreen-exit', expanded);
+        }
+    }
+
+    function syncShell(shell) {
+        if (!(shell instanceof HTMLElement)) return;
+        const expanded = isExpanded(shell);
+        shell.querySelectorAll(toggleSelector).forEach(function (toggle) {
+            if (toggle instanceof HTMLElement) updateToggle(toggle, expanded);
+        });
+    }
+
+    function syncAllShells() {
+        document.querySelectorAll(shellSelector).forEach(syncShell);
+    }
+
+    function setRosterFullscreen(shell, expanded, toggle) {
+        if (!(shell instanceof HTMLElement)) return;
+        shell.dataset.rosterFullscreen = expanded ? 'true' : 'false';
+        syncShell(shell);
+
+        if (expanded && toggle instanceof HTMLElement) {
+            toggle.focus({ preventScroll: true });
+        }
+    }
+
+    document.addEventListener('click', function (event) {
+        if (!(event.target instanceof Element)) return;
+
+        const toggle = event.target.closest(toggleSelector);
+        if (!(toggle instanceof HTMLElement)) return;
+
+        const shell = rosterShellFromToggle(toggle);
+        if (!(shell instanceof HTMLElement)) return;
+
+        setRosterFullscreen(shell, !isExpanded(shell), toggle);
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key !== 'Escape') return;
+
+        const shell = document.querySelector(`${shellSelector}[data-roster-fullscreen="true"]`);
+        if (shell instanceof HTMLElement) {
+            setRosterFullscreen(shell, false, shell.querySelector(toggleSelector));
+        }
+    });
+
+    document.addEventListener('htmx:afterSwap', syncAllShells);
+    document.addEventListener('DOMContentLoaded', syncAllShells);
+})();
+
 (function enableRosterColumnEditMode() {
     if (typeof window === 'undefined') return;
 
