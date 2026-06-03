@@ -43,11 +43,8 @@ openXeroTimesheetPreparationAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     IO ()
 openXeroTimesheetPreparationAction = do
-    if isHtmxRequest
-        then respondHtml renderXeroTimesheetPreparationLoadingDialog
-        else do
-            result <- liveMutationValue <$> runXeroTimesheetPreparationMutation
-            respondWithPreparationDialog result
+    result <- liveMutationValue <$> runXeroTimesheetPreparationMutation
+    respondWithPreparationDialog result
 
 runXeroTimesheetPreparationAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

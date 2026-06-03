@@ -21,6 +21,13 @@
 
 .roster-quick-tool-panel {
     min-width: 0;
+    overflow: hidden;
+}
+
+.roster-quick-tool-panel-body,
+.roster-quick-tool-timesheet,
+.roster-quick-tool-timesheet .timesheet-day-panel {
+    border-radius: inherit;
 }
 
 .roster-quick-tool-panel .app-form-width {
@@ -29,7 +36,7 @@
 
 .roster-quick-tool-timesheet .timesheet-day-panel {
     border: 0;
-    border-radius: 0;
+    border-radius: inherit;
 }
 
 .roster-quick-tool-timesheet .timesheet-day-body {

@@ -1339,25 +1339,12 @@ tests = beforeAll testContext do
                         |> set #encryptedRefreshToken encryptedRefreshToken
                         |> updateRecord
 
-                loadingResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams OpenXeroTimesheetPreparationAction
-                            [("periodKey", fixturePeriodKey fixture)]
-
-                loadingResponse `responseStatusShouldBe` status200
-                loadingResponse `responseBodyShouldContain` "Prepare Xero draft timesheets"
-                loadingResponse `responseBodyShouldNotContain` "modal-header"
-                loadingResponse `responseBodyShouldNotContain` "Checking the connection"
-                loadingResponse `responseBodyShouldContain` "hx-post=\"/RunXeroTimesheetPreparation\""
-                loadingResponse `responseBodyShouldContain` "data-xero-timesheet-preparation-loading=\"true\""
-                initialPreparationRunCount <- query @XeroTimesheetPreparationRun |> fetchCount
-                initialPreparationRunCount `shouldBe` 0
-
+                xeroClient <- referenceSyncXeroClientForFixture (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) fixture.connection
                 response <- withXeroConfigForTest (Right testXeroConfig) do
-                    withXeroClientForTest (referenceSyncXeroClient (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) [] [] []) do
+                    withXeroClientForTest xeroClient do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                             withRequestHeaders [("HX-Request", "true")] do
-                                callActionWithParams RunXeroTimesheetPreparationAction
+                                callActionWithParams OpenXeroTimesheetPreparationAction
                                     [("periodKey", fixturePeriodKey fixture)]
 
                 response `responseStatusShouldBe` status200
@@ -1555,7 +1542,11 @@ tests = beforeAll testContext do
                 _ <- createXeroEarningsRateRecord fixture.connection "Ordinary Hours" "earnings-account-code"
                 requestsRef <- liftIO $ IORef.newIORef []
                 let tokenResponse = XeroTokenResponse "submit-access-token" "submit-refresh-token" 1800 (Just requiredXeroScopesText)
-                    xeroClient = payItemCreateXeroClient tokenResponse requestsRef
+                baseClient <- referenceSyncXeroClientForFixture tokenResponse fixture.connection
+                let xeroClient = (payItemCreateXeroClient tokenResponse requestsRef)
+                        { fetchPayrollEmployees = fetchPayrollEmployees baseClient
+                        , fetchPayrollCalendars = fetchPayrollCalendars baseClient
+                        }
                 _ <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest xeroClient do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
@@ -1685,14 +1676,15 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldNotContain` "name=\"periodKey\""
                 pageResponse `responseBodyShouldContain` "Upload timesheets"
 
+                xeroClient <- referenceSyncXeroClientForFixture (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) fixture.connection
                 _ <- withXeroConfigForTest (Right testXeroConfig) do
-                    withXeroClientForTest (referenceSyncXeroClient (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) [] [] []) do
+                    withXeroClientForTest xeroClient do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                             withRequestHeaders [("HX-Request", "true")] do
                                 callAction RunXeroTimesheetPreparationAction
                 preparationRunBeforeSelect <- query @XeroTimesheetPreparationRun |> fetchOne
                 response <- withXeroConfigForTest (Right testXeroConfig) do
-                    withXeroClientForTest (referenceSyncXeroClient (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) [] [] []) do
+                    withXeroClientForTest xeroClient do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                             withRequestHeaders [("HX-Request", "true")] do
                                 callActionWithParams (SelectXeroTimesheetPreparationPeriodAction preparationRunBeforeSelect.id)
@@ -1702,7 +1694,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "Setup"
                 response `responseBodyShouldNotContain` "name=\"xeroPayrollCalendarSelection\""
                 calendarSelection <- query @XeroPayrollCalendarSelection |> fetchOne
-                calendarSelection.calendarStatus `shouldBe` "stale"
+                calendarSelection.calendarStatus `shouldBe` "verified"
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
                 preparationRun.selectedPayrollCalendarId `shouldBe` Just "calendar-preview"
                 preparationRun.status `shouldBe` "ready_for_preview"
@@ -1726,8 +1718,9 @@ tests = beforeAll testContext do
                             , xeroPayRunStatus = Just "POSTED"
                             , xeroPayRunRaw = Aeson.object []
                             }
-                    client =
-                        (referenceSyncXeroClient (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) [] [] [])
+                baseClient <- referenceSyncXeroClientForFixture (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) fixture.connection
+                let client =
+                        baseClient
                             { fetchPayRuns = \_ _ _ -> pure (Right [postedPayRun])
                             }
 
@@ -1773,8 +1766,9 @@ tests = beforeAll testContext do
                             , xeroTimesheetLines = []
                             , xeroTimesheetRaw = Aeson.object []
                             }
-                    client =
-                        (referenceSyncXeroClient (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) [] [] [])
+                baseClient <- referenceSyncXeroClientForFixture (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) fixture.connection
+                let client =
+                        baseClient
                             { fetchTimesheets = \_ _ _ -> pure (Right [remoteTimesheet])
                             }
 
@@ -2221,6 +2215,39 @@ successfulXeroClient tokenResponse tenants =
         , createTimesheet = \_ _ _ _ -> pure (Right [])
         , updateTimesheet = \_ _ _ _ _ -> pure (Right [])
         }
+
+referenceSyncXeroClientForFixture :: (?modelContext :: ModelContext) => XeroTokenResponse -> XeroConnection -> IO XeroClient
+referenceSyncXeroClientForFixture tokenResponse connection = do
+    employees <-
+        query @XeroEmployee
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> fetch
+    earningsRates <-
+        query @XeroEarningsRate
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> fetch
+    payrollCalendars <-
+        query @XeroPayrollCalendar
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> fetch
+    pure $
+        referenceSyncXeroClient
+            tokenResponse
+            (map xeroEmployeeRefFromRecord employees)
+            (map xeroEarningsRateRefFromRecord earningsRates)
+            (map xeroPayrollCalendarRefFromRecord payrollCalendars)
+
+xeroEmployeeRefFromRecord :: XeroEmployee -> XeroEmployeeRef
+xeroEmployeeRefFromRecord employee =
+    XeroEmployeeRef employee.xeroEmployeeId employee.displayName employee.email employee.status employee.rawPayload
+
+xeroEarningsRateRefFromRecord :: XeroEarningsRate -> XeroEarningsRateRef
+xeroEarningsRateRefFromRecord earningsRate =
+    XeroEarningsRateRef earningsRate.xeroEarningsRateId earningsRate.name earningsRate.earningsType earningsRate.rateType earningsRate.accountCode Nothing Nothing earningsRate.isActive earningsRate.rawPayload
+
+xeroPayrollCalendarRefFromRecord :: XeroPayrollCalendar -> XeroPayrollCalendarRef
+xeroPayrollCalendarRefFromRecord payrollCalendar =
+    XeroPayrollCalendarRef payrollCalendar.xeroPayrollCalendarId payrollCalendar.name payrollCalendar.calendarType payrollCalendar.startDate payrollCalendar.paymentDate payrollCalendar.rawPayload
 
 referenceSyncXeroClient :: XeroTokenResponse -> [XeroEmployeeRef] -> [XeroEarningsRateRef] -> [XeroPayrollCalendarRef] -> XeroClient
 referenceSyncXeroClient tokenResponse employees earningsRates payrollCalendars =

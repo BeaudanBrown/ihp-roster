@@ -40,7 +40,7 @@ renderRosterStaffSelfServicePanelFragment (Just panel)
              class="col-12 col-xl-4 col-xxl-3 roster-layout-side roster-staff-self-service-panel">
             <div class="roster-staff-self-service-stack">
                 <div class="app-panel roster-quick-tool-panel">
-                    <div class="app-panel-body p-0">
+                    <div class="app-panel-body p-0 roster-quick-tool-panel-body">
                         <div id={rosterStaffSelfServiceTimesheetLiveSurfaceId}
                              class="roster-quick-tool-timesheet"
                              data-live-update-surface={liveSurfaceConfigJson (timesheetLiveSurface panel)}>
