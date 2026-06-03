@@ -48,6 +48,7 @@ data ShowView = ShowView
     , rosterEndTimesEnabled    :: Bool
     , rosterWagePrediction     :: Maybe RosterWagePrediction
     , showWageEstimates        :: Bool
+    , publicHolidays           :: Map Day Text
     , shiftTypes               :: [ShiftType]
     , passkeySetupPrompt       :: Maybe PasskeySetupPromptMode
     }
@@ -136,6 +137,7 @@ data RosterRenderData = RosterRenderData
     , rosterEndTimesEnabled :: Bool
     , rosterWagePrediction  :: Maybe RosterWagePrediction
     , showWageEstimates     :: Bool
+    , rosterPublicHolidays  :: Map Day Text
 }
 
 data RosterGridRenderModel = RosterGridRenderModel
@@ -159,6 +161,7 @@ data RosterGridRenderModel = RosterGridRenderModel
     , gridRosterEndTimesEnabled    :: Bool
     , gridRosterWagePrediction     :: Maybe RosterWagePrediction
     , gridShowWageEstimates        :: Bool
+    , gridPublicHolidays           :: Map Day Text
     , gridPublishAttempted         :: Bool
     }
 
@@ -176,6 +179,7 @@ data RosterDayRenderModel = RosterDayRenderModel
     , dayRosterEndTimesEnabled :: Bool
     , dayRosterWagePrediction  :: Maybe RosterWagePrediction
     , dayShowWageEstimates     :: Bool
+    , dayPublicHolidays        :: Map Day Text
     , dayPublishAttempted      :: Bool
     }
 

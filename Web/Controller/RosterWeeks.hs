@@ -937,7 +937,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId = do
     passkeySetupPrompt <- passkeySetupPromptFromSession
 
     case rosterDataOrNothing of
-        Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction, showWageEstimates } ->
+        Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction, showWageEstimates, rosterPublicHolidays } ->
             let visibleRosterWeek =
                     if rosterWeek.isLive || hasRole ManagerRole'
                         then Just rosterWeek
@@ -966,6 +966,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId = do
                         , rosterEndTimesEnabled
                         , rosterWagePrediction
                         , showWageEstimates
+                        , publicHolidays = rosterPublicHolidays
                         , passkeySetupPrompt
                         }
         Nothing ->

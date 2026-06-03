@@ -46,6 +46,7 @@ renderRosterWeekShell ShowView { .. } =
                         , gridRosterEndTimesEnabled = rosterEndTimesEnabled
                         , gridRosterWagePrediction = rosterWagePrediction
                         , gridShowWageEstimates = showWageEstimates
+                        , gridPublicHolidays = publicHolidays
                         , gridPublishAttempted = False
                         }
                     ]

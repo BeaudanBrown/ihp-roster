@@ -86,6 +86,41 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "roster-day-label-row-controls"
                 response `responseBodyShouldContain` cs (rosterRowDomIdText rosterDay.id 1)
 
+        it "shows statewide public holiday indicators on roster day labels" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-public-holidays@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                let weekStartDate = venueWeekStartDate venueConfig 0
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                _ <- createRosterDayRecord rosterWeek 0
+                _ <- createRosterDayRecord rosterWeek 1
+                _ <-
+                    newRecord @PublicHoliday
+                        |> set #jurisdiction "VIC"
+                        |> set #holidayDate weekStartDate
+                        |> set #name "Picnic Day"
+                        |> set #isRegional False
+                        |> createRecord
+                _ <-
+                    newRecord @PublicHoliday
+                        |> set #jurisdiction "VIC"
+                        |> set #holidayDate (addDays 1 weekStartDate)
+                        |> set #name "Regional Show Day"
+                        |> set #region (Just "Regional Council")
+                        |> set #isRegional True
+                        |> createRecord
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekAction 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "roster-public-holiday-indicator"
+                response `responseBodyShouldContain` "title=\"Picnic Day\""
+                response `responseBodyShouldContain` "aria-label=\"Public holiday: Picnic Day\""
+                response `responseBodyShouldNotContain` "Regional Show Day"
+
         it "manager can mark a draft roster day closed via HTMX without deleting existing slot content" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

@@ -73,6 +73,8 @@
 }
 
 .roster-day-column-header .roster-day-date {
+    display: flex;
+    align-items: center;
     font-size: var(--roster-text-sm);
     font-weight: 800;
 }
