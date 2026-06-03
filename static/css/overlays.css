@@ -1,5 +1,22 @@
 /* Shared dialog footer, toast, and picker overlay styles. */
 
+.modal.show > .modal-dialog > .modal-content {
+    display: flex;
+    max-height: calc(100dvh - (var(--bs-modal-margin) * 2));
+    overflow: hidden;
+    flex-direction: column;
+}
+
+.modal.show > .modal-dialog > .modal-content > .modal-header,
+.modal.show > .modal-dialog > .modal-content > .modal-footer {
+    flex: 0 0 auto;
+}
+
+.modal.show > .modal-dialog > .modal-content > .modal-body {
+    min-height: 0;
+    overflow-y: auto;
+}
+
 .app-modal-footer {
     display: flex;
     justify-content: space-between;
