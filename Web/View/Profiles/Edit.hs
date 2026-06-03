@@ -13,6 +13,7 @@ import Web.Profiles.LiveUpdates
 import Web.View.Prelude
 import Web.View.StaffDocuments.Rsa
 import Web.View.StaffProfileForm
+import Web.View.StaffProfileSections
 
 profileContentFragmentId :: Text
 profileContentFragmentId = "profile-content-fragment"
@@ -101,42 +102,49 @@ renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedS
     renderProfileContentFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument Nothing today now openSection
 
 renderProfileContentFragmentWithManagement :: Staff -> Text -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> [Passkey] -> [LeaveRequest] -> LeaveRequest -> Maybe StaffDocument -> Maybe StaffManagementFieldData -> Day -> UTCTime -> Text -> Html
-renderProfileContentFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection = [hsx|
-    <div id={profileContentFragmentId}>
-        <div class="accordion" id={profileSectionsAccordionId}>
-            {renderAccordionSection
-                "profile-details"
-                "Profile Details"
-                (openSection == "profile")
-                (renderProfileForm staff currentUserEmail staffManagementFields)
-            }
-            {renderAccordionSection
-                "profile-preferences"
-                "Shift Preferences"
-                (openSection == "preferences")
-                (renderProfileShiftPreferencesForm preferenceWeekdays selectedShiftPreferences)
-            }
-            {renderAccordionSection
-                "profile-security"
-                "Sign-In Methods"
-                (openSection == "security")
-                (renderPasskeyManagement now passkeys (appendQueryParams (pathTo EditProfileAction) [("section", "security")]))
-            }
-            {renderAccordionSection
-                "profile-leave"
-                "Unavailability"
-                (openSection == "leave")
-                (renderProfileLeaveRequestsContentFragment staff leaveRequestForm leaveRequests)
-            }
-            {renderAccordionSection
-                "profile-rsa"
-                "RSA"
-                (openSection == "rsa")
-                (renderProfileRsaSection staff staffRsaDocument today)
-            }
+renderProfileContentFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection =
+    let accordionConfig =
+            StaffProfileAccordionConfig
+                { staffProfileAccordionId = profileSectionsAccordionId
+                , staffProfileAccordionOpenSection = openSection
+                , staffProfileAccordionSections =
+                    [ StaffProfileAccordionSection
+                        { staffProfileSectionKey = "profile"
+                        , staffProfileSectionId = "profile-details"
+                        , staffProfileSectionTitle = "Profile Details"
+                        , staffProfileSectionBody = renderProfileForm staff currentUserEmail staffManagementFields
+                        }
+                    , StaffProfileAccordionSection
+                        { staffProfileSectionKey = "preferences"
+                        , staffProfileSectionId = "profile-preferences"
+                        , staffProfileSectionTitle = "Shift Preferences"
+                        , staffProfileSectionBody = renderProfileShiftPreferencesForm preferenceWeekdays selectedShiftPreferences
+                        }
+                    , StaffProfileAccordionSection
+                        { staffProfileSectionKey = "security"
+                        , staffProfileSectionId = "profile-security"
+                        , staffProfileSectionTitle = "Sign-In Methods"
+                        , staffProfileSectionBody = renderPasskeyManagement now passkeys (appendQueryParams (pathTo EditProfileAction) [("section", "security")])
+                        }
+                    , StaffProfileAccordionSection
+                        { staffProfileSectionKey = "leave"
+                        , staffProfileSectionId = "profile-leave"
+                        , staffProfileSectionTitle = "Unavailability"
+                        , staffProfileSectionBody = renderProfileLeaveRequestsContentFragment staff leaveRequestForm leaveRequests
+                        }
+                    , StaffProfileAccordionSection
+                        { staffProfileSectionKey = "rsa"
+                        , staffProfileSectionId = "profile-rsa"
+                        , staffProfileSectionTitle = "RSA"
+                        , staffProfileSectionBody = renderProfileRsaSection staff staffRsaDocument today
+                        }
+                    ]
+                }
+     in [hsx|
+        <div id={profileContentFragmentId}>
+            {renderStaffProfileAccordion accordionConfig}
         </div>
-    </div>
-|]
+    |]
 
 profileLiveSurface :: (?context :: ControllerContext) => Staff -> Text -> Maybe LiveSurfaceConfig
 profileLiveSurface staff openSection =
@@ -146,53 +154,55 @@ profileLiveSurface staff openSection =
 
 renderAccordionSection :: Text -> Text -> Bool -> Html -> Html
 renderAccordionSection sectionId title isOpen body =
-    renderAppAccordionItem AppAccordionItemConfig
-        { appAccordionItemId = sectionId
-        , appAccordionItemParentId = profileSectionsAccordionId
-        , appAccordionItemTitle = title
-        , appAccordionItemIsOpen = isOpen
-        , appAccordionItemClass = ""
-        , appAccordionItemBodyClass = ""
-        , appAccordionItemButtonContent = [hsx|<span class="fw-semibold">{title}</span>|]
-        , appAccordionItemBody = body
-        }
+    renderStaffProfileAccordionSection
+        profileSectionsAccordionId
+        (if isOpen then sectionId else "")
+        StaffProfileAccordionSection
+            { staffProfileSectionKey = sectionId
+            , staffProfileSectionId = sectionId
+            , staffProfileSectionTitle = title
+            , staffProfileSectionBody = body
+            }
 
 renderProfileForm :: Staff -> Text -> Maybe StaffManagementFieldData -> Html
-renderProfileForm staff currentUserEmail staffManagementFields = [hsx|
-    <form id={profileDetailsFormId}
-          method="POST"
-          action={UpdateProfileAction}
-          data-disable-javascript-submission="true"
-          hx-post={UpdateProfileAction}
-          hx-target={"#" <> profileContentFragmentId}
-          hx-swap="outerHTML show:none"
-          hx-push-url="false">
-        <input type="hidden" name="section" value="profile"/>
-        {renderPersonalProfileFields staff (Just currentUserEmail)}
-        {maybe mempty renderProfileStaffManagementSection staffManagementFields}
-        <div class="d-grid mt-4">
-            <button type="submit" class="btn btn-primary">Save profile details</button>
-        </div>
-    </form>
-|]
+renderProfileForm staff currentUserEmail staffManagementFields =
+    renderStaffProfileDetailsForm
+        StaffProfileDetailsFormConfig
+            { staffProfileDetailsFormId = profileDetailsFormId
+            , staffProfileDetailsFormAction = pathTo UpdateProfileAction
+            , staffProfileDetailsFormClass = ""
+            , staffProfileDetailsFormHtmx =
+                Just StaffProfileFormHtmxConfig
+                    { staffProfileFormHtmxTarget = "#" <> profileContentFragmentId
+                    , staffProfileFormHtmxSwap = "outerHTML show:none"
+                    , staffProfileFormHtmxPushUrl = "false"
+                    }
+            , staffProfileDetailsFormHiddenInputs = [hsx|<input type="hidden" name="section" value="profile"/>|]
+            , staffProfileDetailsFormManagement = staffManagementFields
+            , staffProfileDetailsFormManagementBody = renderProfileStaffManagementSection
+            , staffProfileDetailsFormSubmitLabel = "Save profile details"
+            }
+        staff
+        (Just currentUserEmail)
 
 renderProfileShiftPreferencesForm :: [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
-renderProfileShiftPreferencesForm preferenceWeekdays selectedShiftPreferences = [hsx|
-    <form id={profileShiftPreferencesFormId}
-          method="POST"
-          action={UpdateProfileAction}
-          data-disable-javascript-submission="true"
-          hx-post={UpdateProfileAction}
-          hx-target={"#" <> profileContentFragmentId}
-          hx-swap="outerHTML show:none"
-          hx-push-url="false">
-        <input type="hidden" name="section" value="preferences"/>
-        {renderShiftPreferenceSections preferenceWeekdays selectedShiftPreferences}
-        <div class="d-grid mt-4">
-            <button type="submit" class="btn btn-primary">Save shift preferences</button>
-        </div>
-    </form>
-|]
+renderProfileShiftPreferencesForm preferenceWeekdays selectedShiftPreferences =
+    renderStaffShiftPreferencesForm
+        StaffShiftPreferencesFormConfig
+            { staffShiftPreferencesFormId = profileShiftPreferencesFormId
+            , staffShiftPreferencesFormAction = pathTo UpdateProfileAction
+            , staffShiftPreferencesFormClass = ""
+            , staffShiftPreferencesFormHtmx =
+                Just StaffProfileFormHtmxConfig
+                    { staffProfileFormHtmxTarget = "#" <> profileContentFragmentId
+                    , staffProfileFormHtmxSwap = "outerHTML show:none"
+                    , staffProfileFormHtmxPushUrl = "false"
+                    }
+            , staffShiftPreferencesFormHiddenInputs = [hsx|<input type="hidden" name="section" value="preferences"/>|]
+            , staffShiftPreferencesFormSubmitLabel = "Save shift preferences"
+            }
+        preferenceWeekdays
+        selectedShiftPreferences
 
 renderProfileStaffManagementSection :: StaffManagementFieldData -> Html
 renderProfileStaffManagementSection managementFields = [hsx|
