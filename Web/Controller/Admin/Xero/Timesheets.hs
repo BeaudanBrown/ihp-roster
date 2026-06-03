@@ -9,6 +9,7 @@ module Web.Controller.Admin.Xero.Timesheets
     , retryXeroDraftTimesheetSubmissionAction
     , runXeroTimesheetPreparationAction
     , runXeroTimesheetPreparationSubmissionAction
+    , selectXeroTimesheetPreparationPeriodAction
     , showXeroTimesheetPreparationStaffMappingsFragmentAction
     , showXeroTimesheetPreparationSummaryAction
     , submitXeroDraftTimesheetsAction
@@ -30,6 +31,7 @@ import Web.Admin.Xero.Mutations (applyXeroTimesheetPreparationStaffDecisionMutat
                                  refreshXeroTimesheetPreparationMutation,
                                  retryXeroDraftTimesheetSubmissionMutation,
                                  runXeroTimesheetPreparationMutation,
+                                 selectXeroTimesheetPreparationPeriodMutation,
                                  submitXeroDraftTimesheetsMutation,
                                  submitXeroTimesheetPreparationMutation)
 import Web.Controller.Admin.Xero.Responses
@@ -40,19 +42,17 @@ openXeroTimesheetPreparationAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     IO ()
 openXeroTimesheetPreparationAction = do
-    let selectedPeriodKey = Text.strip (paramOrDefault @Text "" "periodKey")
     if isHtmxRequest
-        then respondHtml (renderXeroTimesheetPreparationLoadingDialog selectedPeriodKey)
+        then respondHtml renderXeroTimesheetPreparationLoadingDialog
         else do
-            result <- liveMutationValue <$> runXeroTimesheetPreparationMutation selectedPeriodKey
+            result <- liveMutationValue <$> runXeroTimesheetPreparationMutation
             respondWithPreparationDialog result
 
 runXeroTimesheetPreparationAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     IO ()
 runXeroTimesheetPreparationAction = do
-    let selectedPeriodKey = Text.strip (paramOrDefault @Text "" "periodKey")
-    result <- liveMutationValue <$> runXeroTimesheetPreparationMutation selectedPeriodKey
+    result <- liveMutationValue <$> runXeroTimesheetPreparationMutation
     respondWithPreparationDialog result
 
 refreshXeroTimesheetPreparationAction ::
@@ -94,6 +94,15 @@ continueXeroTimesheetPreparationStaffStepAction ::
     IO ()
 continueXeroTimesheetPreparationStaffStepAction runId = do
     result <- liveMutationValue <$> approveXeroTimesheetPreparationStaffStepMutation runId
+    respondWithPreparationDialog result
+
+selectXeroTimesheetPreparationPeriodAction ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Id XeroTimesheetPreparationRun ->
+    IO ()
+selectXeroTimesheetPreparationPeriodAction runId = do
+    let selectedPeriodKey = Text.strip (paramOrDefault @Text "" "periodKey")
+    result <- liveMutationValue <$> selectXeroTimesheetPreparationPeriodMutation runId selectedPeriodKey
     respondWithPreparationDialog result
 
 approveXeroTimesheetPreparationPayItemsAction ::

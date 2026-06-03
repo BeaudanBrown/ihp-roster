@@ -18,6 +18,7 @@ import Web.View.Prelude
 renderXeroTimesheetPreparationDialog :: XeroTimesheetPreparationView -> Html
 renderXeroTimesheetPreparationDialog view
     | needsStaffStep view = renderXeroTimesheetPreparationStaffStep view
+    | needsPeriodStep view = renderXeroTimesheetPreparationPeriodStep view
     | needsPayItemStep view = renderXeroTimesheetPreparationPayItemsStep view
     | view.preparationState == XeroPreparationSubmitted = renderXeroTimesheetPreparationSubmittedDialog view
     | view.preparationState == XeroPreparationFailed = renderXeroTimesheetPreparationFailureDialog view
@@ -39,8 +40,8 @@ renderXeroTimesheetPreparationErrorDialog message =
         , dialogOverlayDialogClass = ""
         }
 
-renderXeroTimesheetPreparationLoadingDialog :: Text -> Html
-renderXeroTimesheetPreparationLoadingDialog selectedPeriodKey = [hsx|
+renderXeroTimesheetPreparationLoadingDialog :: Html
+renderXeroTimesheetPreparationLoadingDialog = [hsx|
     <div class="modal fade show d-block"
          data-dialog-overlay="true"
          tabindex="-1"
@@ -61,7 +62,6 @@ renderXeroTimesheetPreparationLoadingDialog selectedPeriodKey = [hsx|
                               hx-target={"#" <> dialogOverlayMountId}
                               hx-swap="innerHTML"
                               hx-indicator="#xero-timesheet-preparation-modal-loading-indicator">
-                            <input type="hidden" name="periodKey" value={selectedPeriodKey} />
                         </form>
                     </div>
                 </div>
@@ -92,6 +92,36 @@ renderXeroTimesheetPreparationStaffStep view =
         , dialogOverlayStartButtons = []
         , dialogOverlayButtons = closeButton : [continueStaffButton view]
         , dialogOverlayDialogClass = "modal-xl"
+        }
+
+renderXeroTimesheetPreparationPeriodStep :: XeroTimesheetPreparationView -> Html
+renderXeroTimesheetPreparationPeriodStep view =
+    renderDialogOverlay DialogOverlayConfig
+        { dialogOverlayTitle = preparationDialogTitle view
+        , dialogOverlayBody = [hsx|
+            <div class="d-flex flex-column gap-3" data-xero-timesheet-preparation-dialog="true">
+                {renderStepNotice "Step 2 of 4" "Choose the Xero payroll period after staff Xero mappings have been resolved."}
+                {renderPeriodSelection view}
+                <form id="xero-preparation-period-form"
+                      method="POST"
+                      action={SelectXeroTimesheetPreparationPeriodAction view.preparationRun.id}
+                      hx-post={pathTo (SelectXeroTimesheetPreparationPeriodAction view.preparationRun.id)}
+                      hx-target={"#" <> dialogOverlayMountId}
+                      hx-swap="innerHTML">
+                    <select name="periodKey"
+                            id="xero-preparation-period-select"
+                            class="form-select"
+                            aria-label="Xero pay period"
+                            disabled={null view.preparationPeriodOptions}>
+                        {renderEmptyPreparationPeriodOption view}
+                        {forEach view.preparationPeriodOptions renderPreparationPeriodOption}
+                    </select>
+                </form>
+            </div>
+        |]
+        , dialogOverlayStartButtons = []
+        , dialogOverlayButtons = closeButton : [selectPeriodButton view]
+        , dialogOverlayDialogClass = "modal-lg"
         }
 
 renderXeroTimesheetPreparationPayItemsStep :: XeroTimesheetPreparationView -> Html
@@ -200,10 +230,13 @@ renderXeroTimesheetPreparationSubmittedDialog view =
 
 preparationDialogTitle :: XeroTimesheetPreparationView -> Text
 preparationDialogTitle view =
-    "Pay period: "
-        <> formatDateDisplay view.preparationRun.payPeriodStart
-        <> " to "
-        <> formatDateDisplay view.preparationRun.payPeriodEnd
+    case view.preparationPeriodOption of
+        Nothing -> "Prepare Xero draft timesheets"
+        Just option ->
+            "Pay period: "
+                <> formatDateDisplay option.periodOptionStart
+                <> " to "
+                <> formatDateDisplay option.periodOptionEnd
 
 renderStepNotice :: Text -> Text -> Html
 renderStepNotice label detail = [hsx|
@@ -227,6 +260,13 @@ continueStaffButton _view = OverlayButton
     , overlayButtonAction = OverlaySubmitFormAction "xero-preparation-staff-continue-form"
     }
 
+selectPeriodButton :: XeroTimesheetPreparationView -> OverlayButton
+selectPeriodButton view = OverlayButton
+    { overlayButtonLabel = "Continue"
+    , overlayButtonClass = "btn btn-primary"
+    , overlayButtonAction = OverlaySubmitFormAction "xero-preparation-period-form"
+    }
+
 approvePayItemsButton :: OverlayButton
 approvePayItemsButton = OverlayButton
     { overlayButtonLabel = "Approve pay items and continue"
@@ -246,8 +286,11 @@ needsStaffStep view =
     not (null view.preparationStaffRows)
         && any staffRowNeedsAttention view.preparationStaffRows
 
+needsPeriodStep :: XeroTimesheetPreparationView -> Bool
+needsPeriodStep view = isNothing view.preparationPeriodOption
+
 needsPayItemStep :: XeroTimesheetPreparationView -> Bool
-needsPayItemStep view = any payItemRowNeedsApproval proposedRows || (not (null proposedRows) && isNothing (selectedAccountCode view))
+needsPayItemStep view = isJust view.preparationPeriodOption && (any payItemRowNeedsApproval proposedRows || (not (null proposedRows) && isNothing (selectedAccountCode view)))
     where
         proposedRows = proposedPayItemRows view
 
@@ -260,6 +303,51 @@ proposedPayItemRows view =
     view.preparationPayItemRows
         |> filter \row ->
             row.preparationPayItemRequirement.payItemRequirementStatus == "proposed"
+
+renderPeriodSelection :: XeroTimesheetPreparationView -> Html
+renderPeriodSelection view
+    | null view.preparationPeriodOptions = [hsx|
+        <div class="alert alert-secondary mb-0">
+            No eligible Xero pay periods are available yet. Check that staff are matched to synced Xero employees and approved shifts exist for a synced Xero payroll calendar.
+        </div>
+    |]
+    | otherwise = [hsx|
+        <div class={appSurfaceClasses "p-3 small"}>
+            Select the Xero payroll period to prepare. The list is based on approved shifts for staff whose Xero mappings are now resolved.
+        </div>
+    |]
+
+renderEmptyPreparationPeriodOption :: XeroTimesheetPreparationView -> Html
+renderEmptyPreparationPeriodOption view
+    | null view.preparationPeriodOptions = [hsx|<option value="">No eligible Xero pay periods available</option>|]
+    | otherwise = [hsx|<option value="">Choose a Xero pay period</option>|]
+
+renderPreparationPeriodOption :: XeroTimesheetPeriodOption -> Html
+renderPreparationPeriodOption option = [hsx|
+    <option value={option.periodOptionKey} disabled={option.periodOptionBlocked}>{preparationPeriodOptionLabel option}</option>
+|]
+
+preparationPeriodOptionLabel :: XeroTimesheetPeriodOption -> Text
+preparationPeriodOptionLabel option =
+    option.periodOptionPayrollCalendarName
+        <> " · "
+        <> formatDateDisplay option.periodOptionStart
+        <> " to "
+        <> formatDateDisplay option.periodOptionEnd
+        <> maybe "" (\status -> " · " <> Text.toUpper status) option.periodOptionXeroPayRunStatus
+        <> preparationPeriodSubmissionStatusLabel option.periodOptionLatestSubmissionStatus
+        <> maybe "" (\reason -> " · blocked: " <> reason) option.periodOptionBlockReason
+
+preparationPeriodSubmissionStatusLabel :: Maybe Text -> Text
+preparationPeriodSubmissionStatusLabel status =
+    case Text.toCaseFold . Text.strip <$> status of
+        Just "submitted" -> " · submitted already"
+        Just "partially_failed" -> " · partially submitted"
+        Just "failed" -> " · failed previously"
+        Just "previewed" -> " · previewed previously"
+        Just "pending" -> " · submission pending"
+        Just "blocked" -> " · blocked previously"
+        _ -> ""
 
 renderFinalSummaryCards :: XeroTimesheetPreparationView -> Html
 renderFinalSummaryCards view = [hsx|
@@ -322,7 +410,9 @@ renderReviewRow row = [hsx|
 
 payPeriodDays :: XeroTimesheetPreparationView -> Int
 payPeriodDays view =
-    fromIntegral (diffDays view.preparationRun.payPeriodEnd view.preparationRun.payPeriodStart) + 1
+    case view.preparationPeriodOption of
+        Nothing -> 0
+        Just option -> fromIntegral (diffDays option.periodOptionEnd option.periodOptionStart) + 1
 
 renderFinalSubmissionCopy :: Html
 renderFinalSubmissionCopy = mempty
@@ -332,11 +422,17 @@ renderRunSummary view = [hsx|
     <div>
         <div class="fw-semibold">Pay Period</div>
         <div class="small app-muted">
-            {formatDateDisplay view.preparationRun.payPeriodStart} to {formatDateDisplay view.preparationRun.payPeriodEnd}
+            {renderRunPeriod view}
             {renderPaymentDate view.preparationRun.paymentDate}
         </div>
     </div>
 |]
+
+renderRunPeriod :: XeroTimesheetPreparationView -> Html
+renderRunPeriod view =
+    case view.preparationPeriodOption of
+        Nothing -> [hsx|Not selected yet|]
+        Just option -> [hsx|{formatDateDisplay option.periodOptionStart} to {formatDateDisplay option.periodOptionEnd}|]
 
 renderPaymentDate :: Maybe Day -> Html
 renderPaymentDate Nothing = mempty

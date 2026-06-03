@@ -15,7 +15,7 @@ renderXeroTimesheetPanel panel = [hsx|
         <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
             <div>
                 <h3 class="h6 mb-1">Draft timesheet submission</h3>
-                <div class="small app-muted">Create Xero Payroll AU draft timesheets from approved Bepis timesheets for the selected payroll calendar period.</div>
+                <div class="small app-muted">Prepare Xero Payroll AU draft timesheets. Bepis will first confirm staff Xero mappings, then let you choose an eligible Xero payroll period.</div>
             </div>
             <div class="d-flex flex-wrap gap-2 align-items-start">
                 {renderPreparationButton panel}
@@ -36,18 +36,10 @@ renderPreparationButton panel = [hsx|
           hx-post={pathTo OpenXeroTimesheetPreparationAction}
           hx-target={"#" <> dialogOverlayMountId}
           hx-swap="innerHTML">
-        <select name="periodKey"
-                id="xero-timesheet-period-select"
-                class="form-select form-select-sm"
-                aria-label="Xero pay period"
-                disabled={not (canOpenPreparation panel)}>
-            {renderEmptyPeriodOption panel}
-            {forEach panel.xeroTimesheetPeriodOptions renderPeriodOption}
-        </select>
         <button type="submit"
                 class="btn btn-sm btn-primary"
                 disabled={not (canOpenPreparation panel)}>
-            Prepare
+            Prepare timesheets
         </button>
     </form>
 |]
@@ -87,7 +79,6 @@ periodSubmissionStatusLabel status =
 canOpenPreparation :: XeroTimesheetPanelData -> Bool
 canOpenPreparation panel =
     panel.xeroTimesheetActionsAllowed
-        && not (null panel.xeroTimesheetPeriodOptions)
 
 renderPeriodNotice :: XeroTimesheetPanelData -> Html
 renderPeriodNotice panel =

@@ -25,6 +25,7 @@ module Web.Admin.Xero.Mutations
     , refreshXeroTimesheetPreparationMutation
     , retryXeroDraftTimesheetSubmissionMutation
     , runXeroTimesheetPreparationMutation
+    , selectXeroTimesheetPreparationPeriodMutation
     , startXeroReferenceSyncMutation
     , submitXeroDraftTimesheetsMutation
     , submitXeroTimesheetPreparationMutation
@@ -515,13 +516,17 @@ recordXeroTimesheetsMutation label value =
     invalidateTouchedResources label $
         liveMutationResult value (xeroTimesheetsTouchedResources currentVenueId)
 
-runXeroTimesheetPreparationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
-runXeroTimesheetPreparationMutation selectedPeriodKey =
-    XeroPrepare.startXeroTimesheetPreparation selectedPeriodKey >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.start"
+runXeroTimesheetPreparationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
+runXeroTimesheetPreparationMutation =
+    XeroPrepare.startXeroTimesheetPreparation >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.start"
 
 refreshXeroTimesheetPreparationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
 refreshXeroTimesheetPreparationMutation runId =
     XeroPrepare.refreshXeroTimesheetPreparation runId >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.refresh"
+
+selectXeroTimesheetPreparationPeriodMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> Text -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
+selectXeroTimesheetPreparationPeriodMutation runId selectedPeriodKey =
+    XeroPrepare.selectXeroTimesheetPreparationPeriod runId selectedPeriodKey >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.period_select"
 
 applyXeroTimesheetPreparationStaffDecisionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> Id Staff -> XeroPrepare.XeroPreparationStaffDecision -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
 applyXeroTimesheetPreparationStaffDecisionMutation runId staffId decision =

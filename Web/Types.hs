@@ -140,6 +140,7 @@ data AdminController
     | ShowXeroTimesheetPreparationStaffMappingsFragmentAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | ApplyXeroTimesheetPreparationStaffDecisionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | ContinueXeroTimesheetPreparationStaffStepAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
+    | SelectXeroTimesheetPreparationPeriodAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | ApproveXeroTimesheetPreparationPayItemsAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | ShowXeroTimesheetPreparationSummaryAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | ConfirmXeroTimesheetPreparationSubmissionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }

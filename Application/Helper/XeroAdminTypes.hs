@@ -248,7 +248,8 @@ data XeroTimesheetPreparationView = XeroTimesheetPreparationView
     { preparationRun                         :: XeroTimesheetPreparationRun
     , preparationState                       :: XeroTimesheetPreparationState
     , preparationConnection                  :: XeroConnection
-    , preparationPeriodOption                :: XeroTimesheetPeriodOption
+    , preparationPeriodOption                :: Maybe XeroTimesheetPeriodOption
+    , preparationPeriodOptions               :: [XeroTimesheetPeriodOption]
     , preparationReadiness                   :: XeroTimesheetReadinessView
     , preparationPayrollCalendars            :: [XeroPayrollCalendar]
     , preparationPayrollCalendarSelection    :: Maybe XeroPayrollCalendarSelection
