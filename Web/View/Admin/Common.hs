@@ -56,7 +56,7 @@ renderInactiveToggleSummary paramName fragmentPath targetId rows showInactive = 
 
 renderShowInactiveToggle :: Text -> Text -> Text -> Bool -> Html
 renderShowInactiveToggle inputId targetId toggleHref showInactive =
-    renderAppToggleButton $ (defaultAppToggleButtonConfig inputId showInactive [hsx|<span class="small">Show inactive</span>|])
+    renderAppToggleButton $ (defaultAppToggleButtonConfig inputId showInactive [hsx|<span class="small">Show disabled</span>|])
         { appToggleButtonClass = "btn-sm"
         , appToggleRoleSwitch = True
         , appToggleHxGet = Just toggleHref
@@ -135,7 +135,7 @@ renderAdminActiveToggle inputId maybePostPath targetId isActive = [hsx|
 |]
     where
         statusLabel :: Text
-        statusLabel = if isActive then "Active" else "Inactive"
+        statusLabel = if isActive then "Enabled" else "Disabled"
         toggleConfig = (defaultAppToggleButtonConfig inputId isActive [hsx|<span class="small">{statusLabel}</span>|])
             { appToggleInputName = Just "isActive"
             , appToggleInputValue = "true"
