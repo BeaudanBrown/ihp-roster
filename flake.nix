@@ -108,6 +108,45 @@
                                     '';
                                 });
                             });
+
+                            stripe-cli =
+                                let
+                                    version = "1.42.10";
+                                    assets = {
+                                        x86_64-linux = {
+                                            platform = "linux_x86_64";
+                                            hash = "sha256-BHLeW7aGtPvTcYdP2hWmy5hVN1Wg0oHX2sp10Hz80/I=";
+                                        };
+                                    };
+                                    asset = assets.${final.stdenv.hostPlatform.system} or null;
+                                in
+                                    if asset == null then
+                                        prev.stripe-cli
+                                    else
+                                        final.stdenv.mkDerivation {
+                                            pname = "stripe-cli";
+                                            inherit version;
+                                            src = final.fetchurl {
+                                                url = "https://github.com/stripe/stripe-cli/releases/download/v${version}/stripe_${version}_${asset.platform}.tar.gz";
+                                                inherit (asset) hash;
+                                            };
+                                            sourceRoot = ".";
+                                            dontBuild = true;
+                                            nativeBuildInputs = [ final.installShellFiles ];
+                                            installPhase = ''
+                                                runHook preInstall
+                                                install -Dm755 stripe $out/bin/stripe
+                                                installShellCompletion --cmd stripe \
+                                                    --bash <($out/bin/stripe completion --write-to-stdout --shell bash) \
+                                                    --zsh <($out/bin/stripe completion --write-to-stdout --shell zsh)
+                                                runHook postInstall
+                                            '';
+                                            meta = prev.stripe-cli.meta // {
+                                                homepage = "https://stripe.com/docs/stripe-cli";
+                                                changelog = "https://github.com/stripe/stripe-cli/releases/tag/v${version}";
+                                                mainProgram = "stripe";
+                                            };
+                                        };
                         })
                     ];
 
@@ -131,6 +170,7 @@
                         pkgs.poppler-utils
                         pkgs.k6
                         pkgs.jq
+                        pkgs.stripe-cli
                     ];
 
                     env = {
@@ -2356,6 +2396,183 @@ EOF
                             echo "devenv started (pid=$PID, log=$LOG_FILE)"
                         '';
 
+                        # Start Stripe CLI webhook forwarding in the foreground.
+                        # Usage: stripe-listen
+                        stripe-listen.exec = ''
+                            set -euo pipefail
+                            if [ -f "$PWD/.env" ]; then
+                                set -a
+                                # shellcheck disable=SC1091
+                                . "$PWD/.env"
+                                set +a
+                            fi
+                            if [ -z "''${STRIPE_SECRET_KEY:-}" ]; then
+                                echo "stripe-listen requires STRIPE_SECRET_KEY in the environment or .env." >&2
+                                exit 64
+                            fi
+                            exec stripe listen \
+                                --api-key "$STRIPE_SECRET_KEY" \
+                                --skip-update \
+                                --events checkout.session.completed,checkout.session.async_payment_succeeded,checkout.session.async_payment_failed,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,invoice.payment_failed \
+                                --forward-to localhost:8000/StripeWebhook
+                        '';
+
+                        # Start the local app with Stripe CLI webhook forwarding.
+                        # Loads stable Stripe test config from .env, captures the per-session
+                        # STRIPE_WEBHOOK_SECRET from `stripe listen`, then starts the normal IHP app.
+                        # Usage: dev-start-stripe
+                        dev-start-stripe.exec = ''
+                            set -euo pipefail
+                            STATE_DIR="$(dev-agent-state-dir)"
+                            PID_FILE="$STATE_DIR/devenv.pid"
+                            POSTGRES_PID_FILE="$STATE_DIR/postgres.pid"
+                            MAILHOG_PID_FILE="$STATE_DIR/mailhog.pid"
+                            STRIPE_PID_FILE="$STATE_DIR/stripe-listen.pid"
+                            LOG_FILE="$STATE_DIR/devenv.log"
+                            STRIPE_LOG_FILE="$STATE_DIR/stripe-listen.log"
+                            STRIPE_GENERATED_ENV="$STATE_DIR/stripe-generated.env"
+                            DB_SOCKET="''${PGHOST:-$PWD/build/db}"
+                            APP_HEALTH_URL="''${APP_BASE_URL:-http://127.0.0.1:8000}"
+
+                            mkdir -p "$STATE_DIR"
+
+                            if [ ! -f "$PWD/.env" ]; then
+                                echo "dev-start-stripe requires a local .env file with STRIPE_SECRET_KEY and STRIPE_PRICE_ID or STRIPE_PRICE_LOOKUP_KEY." >&2
+                                exit 64
+                            fi
+
+                            set -a
+                            # shellcheck disable=SC1091
+                            . "$PWD/.env"
+                            set +a
+
+                            if [ -z "''${STRIPE_SECRET_KEY:-}" ]; then
+                                echo "dev-start-stripe requires STRIPE_SECRET_KEY in .env." >&2
+                                exit 64
+                            fi
+                            if [ -z "''${STRIPE_PRICE_ID:-}" ] && [ -z "''${STRIPE_PRICE_LOOKUP_KEY:-}" ]; then
+                                echo "dev-start-stripe requires STRIPE_PRICE_ID or STRIPE_PRICE_LOOKUP_KEY in .env." >&2
+                                exit 64
+                            fi
+                            if ! command -v stripe >/dev/null 2>&1; then
+                                echo "stripe CLI is not available in this shell." >&2
+                                exit 69
+                            fi
+
+                            if dev-status >/dev/null 2>&1; then
+                                echo "devenv already healthy; run dev-stop before dev-start-stripe if you need Stripe webhook forwarding."
+                                exit 0
+                            fi
+
+                            if [ -f "$PID_FILE" ]; then
+                                PID=$(cat "$PID_FILE")
+                                if kill -0 "$PID" 2>/dev/null; then
+                                    echo "devenv already running (pid=$PID); run dev-stop before dev-start-stripe."
+                                    exit 0
+                                fi
+                                rm -f "$PID_FILE"
+                            fi
+
+                            if [ -f "$STRIPE_PID_FILE" ]; then
+                                STRIPE_PID=$(cat "$STRIPE_PID_FILE")
+                                if kill -0 "$STRIPE_PID" 2>/dev/null; then
+                                    echo "[dev-start-stripe] stopping existing stripe listen (pid=$STRIPE_PID)" >&2
+                                    kill -TERM -"$STRIPE_PID" 2>/dev/null || kill -TERM "$STRIPE_PID" 2>/dev/null || true
+                                    sleep 1
+                                fi
+                                rm -f "$STRIPE_PID_FILE"
+                            fi
+
+                            : > "$LOG_FILE"
+                            : > "$STRIPE_LOG_FILE"
+                            rm -f "$STRIPE_GENERATED_ENV"
+                            export XDG_CACHE_HOME="''${XDG_CACHE_HOME:-/tmp/nix-cache}"
+                            mkdir -p "$XDG_CACHE_HOME"
+                            dev-ensure-postgres
+                            dev-ensure-mailhog
+
+                            if command -v lsof >/dev/null 2>&1 \
+                                && lsof -nP -iTCP:8000 -sTCP:LISTEN >/dev/null 2>&1 \
+                                && ! curl --connect-timeout 1 --max-time 2 -fsS "$APP_HEALTH_URL" >/dev/null 2>&1; then
+                                echo "Port 8000 is occupied but not responding to $APP_HEALTH_URL." >&2
+                                echo "Stop the stale process before starting dev again:" >&2
+                                lsof -nP -iTCP:8000 -sTCP:LISTEN >&2 || true
+                                exit 1
+                            fi
+
+                            if [ ! -f "$STRIPE_PID_FILE" ]; then
+                                echo "[dev-start-stripe] launching stripe listen" >>"$LOG_FILE"
+                                setsid nohup stripe listen \
+                                    --api-key "$STRIPE_SECRET_KEY" \
+                                    --skip-update \
+                                    --events checkout.session.completed,checkout.session.async_payment_succeeded,checkout.session.async_payment_failed,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,invoice.payment_failed \
+                                    --forward-to localhost:8000/StripeWebhook \
+                                    </dev/null >>"$STRIPE_LOG_FILE" 2>&1 &
+                                STRIPE_PID=$!
+                                echo "$STRIPE_PID" > "$STRIPE_PID_FILE"
+                                disown "$STRIPE_PID" 2>/dev/null || true
+                            fi
+
+                            WEBHOOK_SECRET=""
+                            for _ in $(seq 1 30); do
+                                if [ -f "$STRIPE_PID_FILE" ]; then
+                                    STRIPE_PID=$(cat "$STRIPE_PID_FILE")
+                                    if ! kill -0 "$STRIPE_PID" 2>/dev/null; then
+                                        echo "stripe listen exited before printing a webhook secret; recent log output:" >&2
+                                        tail -n 80 "$STRIPE_LOG_FILE" >&2 || true
+                                        rm -f "$STRIPE_PID_FILE"
+                                        exit 1
+                                    fi
+                                fi
+                                WEBHOOK_SECRET=$(grep -Eo 'whsec_[A-Za-z0-9_]+' "$STRIPE_LOG_FILE" | tail -n 1 || true)
+                                if [ -n "$WEBHOOK_SECRET" ]; then
+                                    break
+                                fi
+                                sleep 1
+                            done
+
+                            if [ -z "$WEBHOOK_SECRET" ]; then
+                                echo "Timed out waiting for stripe listen to print a webhook signing secret." >&2
+                                echo "Run 'bash ./bin/in-env stripe login' if the Stripe CLI is not authenticated." >&2
+                                echo "--- recent stripe listen log ---" >&2
+                                tail -n 80 "$STRIPE_LOG_FILE" >&2 || true
+                                exit 1
+                            fi
+
+                            umask 077
+                            printf 'STRIPE_WEBHOOK_SECRET=%s\n' "$WEBHOOK_SECRET" > "$STRIPE_GENERATED_ENV"
+
+                            echo "[dev-start-stripe] launching start with Stripe webhook forwarding" >>"$LOG_FILE"
+                            setsid nohup bash -c '
+                                set -euo pipefail
+                                set -a
+                                . "$PWD/.env"
+                                . "$1"
+                                set +a
+                                exec start
+                            ' bash "$STRIPE_GENERATED_ENV" </dev/null >>"$LOG_FILE" 2>&1 &
+                            PID=$!
+                            echo "$PID" > "$PID_FILE"
+                            disown "$PID" 2>/dev/null || true
+
+                            for _ in $(seq 1 3); do
+                                sleep 1
+                                if ! kill -0 "$PID" 2>/dev/null; then
+                                    echo "devenv failed to start; recent log output:"
+                                    tail -n 60 "$LOG_FILE" || true
+                                    rm -f "$PID_FILE"
+                                    if [ -f "$STRIPE_PID_FILE" ]; then
+                                        STRIPE_PID=$(cat "$STRIPE_PID_FILE")
+                                        kill -TERM -"$STRIPE_PID" 2>/dev/null || kill -TERM "$STRIPE_PID" 2>/dev/null || true
+                                        rm -f "$STRIPE_PID_FILE"
+                                    fi
+                                    exit 1
+                                fi
+                            done
+
+                            echo "devenv started with Stripe forwarding (pid=$PID, stripe_pid=$(cat "$STRIPE_PID_FILE"), log=$LOG_FILE, stripe_log=$STRIPE_LOG_FILE)"
+                        '';
+
                         # Stop background devenv processes started by dev-start.
                         # Usage: dev-stop
                         dev-stop.exec = ''
@@ -2364,6 +2581,7 @@ EOF
                             PID_FILE="$STATE_DIR/devenv.pid"
                             POSTGRES_PID_FILE="$STATE_DIR/postgres.pid"
                             MAILHOG_PID_FILE="$STATE_DIR/mailhog.pid"
+                            STRIPE_PID_FILE="$STATE_DIR/stripe-listen.pid"
 
                             stop_tracked_process() {
                                 local pid_file="$1"
@@ -2396,6 +2614,7 @@ EOF
                             }
 
                             if [ ! -f "$PID_FILE" ]; then
+                                stop_tracked_process "$STRIPE_PID_FILE" "stripe-listen"
                                 if dev-status >/dev/null 2>&1; then
                                     echo "devenv is healthy but unmanaged (no pid file); not stopping"
                                     exit 0
@@ -2416,6 +2635,7 @@ EOF
                             fi
 
                             stop_tracked_process "$PID_FILE" "devenv"
+                            stop_tracked_process "$STRIPE_PID_FILE" "stripe-listen"
                             stop_tracked_process "$POSTGRES_PID_FILE" "postgres"
                             stop_tracked_process "$MAILHOG_PID_FILE" "mailhog"
                             echo "devenv stopped"

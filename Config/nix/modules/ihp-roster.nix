@@ -90,6 +90,10 @@ let
       STRIPE_PAYMENT_METHOD_TYPES = lib.concatStringsSep "," stripeCfg.paymentMethodTypes;
     }
   );
+  runtimeEnvironmentFiles = optional (cfg.environmentFile != null) cfg.environmentFile;
+  xeroEnvironmentFiles = runtimeEnvironmentFiles ++ optional (cfg.xero.environmentFile != null) cfg.xero.environmentFile;
+  stripeEnvironmentFiles = optional (stripeCfg.environmentFile != null) stripeCfg.environmentFile;
+  appWorkerEnvironmentFiles = xeroEnvironmentFiles ++ stripeEnvironmentFiles;
   stripeCredentialConfig = optionalAttrs stripeCfg.enable {
     LoadCredential = [
       "stripe-secret-key:${toString stripeCfg.secretKeyFile}"
@@ -249,7 +253,7 @@ in
     environmentFile = mkOption {
       type = types.nullOr types.path;
       default = null;
-      description = "Optional systemd environment file layered onto app/worker services for secrets.";
+      description = "Optional systemd environment file layered onto app/worker services and sweep jobs for shared secrets.";
     };
 
     sessionSecret = mkOption {
@@ -453,6 +457,16 @@ in
     billing.stripe = {
       enable = mkEnableOption "Stripe Billing integration";
 
+      environmentFile = mkOption {
+        type = types.nullOr types.path;
+        default = null;
+        description = ''
+          Optional dotenv-style Stripe environment file layered onto app and worker services.
+          Use this when deployment secrets are managed as an environment namespace.
+          Prefer secretKeyFile/webhookSecretFile with enable = true for file-backed production credentials.
+        '';
+      };
+
       priceLookupKey = mkOption {
         type = types.nullOr types.str;
         default = "bepis_venue_monthly_aud_100";
@@ -526,23 +540,35 @@ in
       };
     };
 
-    xero.keepalive = {
-      enable = mkOption {
-        type = types.bool;
-        default = true;
-        description = "Whether to run the Xero connection keepalive sweep on a systemd timer.";
+    xero = {
+      environmentFile = mkOption {
+        type = types.nullOr types.path;
+        default = null;
+        description = ''
+          Optional dotenv-style Xero environment file layered onto app, worker,
+          and Xero keepalive services. Expected keys are XERO_CLIENT_ID,
+          XERO_CLIENT_SECRET, XERO_REDIRECT_URI, and XERO_TOKEN_ENCRYPTION_KEY.
+        '';
       };
 
-      onCalendar = mkOption {
-        type = types.str;
-        default = "daily";
-        description = "systemd OnCalendar expression for the Xero keepalive sweep.";
-      };
+      keepalive = {
+        enable = mkOption {
+          type = types.bool;
+          default = true;
+          description = "Whether to run the Xero connection keepalive sweep on a systemd timer.";
+        };
 
-      randomizedDelaySec = mkOption {
-        type = types.str;
-        default = "30m";
-        description = "Randomized delay applied to the Xero keepalive timer.";
+        onCalendar = mkOption {
+          type = types.str;
+          default = "daily";
+          description = "systemd OnCalendar expression for the Xero keepalive sweep.";
+        };
+
+        randomizedDelaySec = mkOption {
+          type = types.str;
+          default = "30m";
+          description = "Randomized delay applied to the Xero keepalive timer.";
+        };
       };
     };
 
@@ -704,10 +730,10 @@ in
       };
 
       systemd.services.app.serviceConfig = serviceUserConfig // stripeCredentialConfig // {
-        EnvironmentFile = optional (cfg.environmentFile != null) cfg.environmentFile;
+        EnvironmentFile = appWorkerEnvironmentFiles;
       };
       systemd.services.worker.serviceConfig = serviceUserConfig // stripeCredentialConfig // {
-        EnvironmentFile = optional (cfg.environmentFile != null) cfg.environmentFile;
+        EnvironmentFile = appWorkerEnvironmentFiles;
       };
       systemd.services.worker.enable = mkForce hasJobRunner;
       systemd.services.app-keygen.postStart = mkIf hasServiceUser ''
@@ -791,7 +817,7 @@ in
         requires = [ schemaReadyService ];
         serviceConfig = {
           Type = "oneshot";
-          EnvironmentFile = optional (cfg.environmentFile != null) cfg.environmentFile;
+          EnvironmentFile = xeroEnvironmentFiles;
           ExecStart = "${if cfg.package != null then cfg.package else defaultPackage}/bin/XeroKeepaliveSweep";
         }
         // serviceUserConfig;
@@ -821,7 +847,7 @@ in
         requires = [ schemaReadyService ];
         serviceConfig = {
           Type = "oneshot";
-          EnvironmentFile = optional (cfg.environmentFile != null) cfg.environmentFile;
+          EnvironmentFile = runtimeEnvironmentFiles;
           ExecStart = "${if cfg.package != null then cfg.package else defaultPackage}/bin/RsaReminderSweep";
         }
         // serviceUserConfig;
@@ -851,7 +877,7 @@ in
         requires = [ schemaReadyService ];
         serviceConfig = {
           Type = "oneshot";
-          EnvironmentFile = optional (cfg.environmentFile != null) cfg.environmentFile;
+          EnvironmentFile = runtimeEnvironmentFiles;
           ExecStart = "${if cfg.package != null then cfg.package else defaultPackage}/bin/PublicHolidayRefreshSweep";
           NoNewPrivileges = true;
           PrivateTmp = true;
@@ -882,7 +908,7 @@ in
         requires = [ schemaReadyService ];
         serviceConfig = {
           Type = "oneshot";
-          EnvironmentFile = optional (cfg.environmentFile != null) cfg.environmentFile;
+          EnvironmentFile = runtimeEnvironmentFiles;
           ExecStart = "${if cfg.package != null then cfg.package else defaultPackage}/bin/FwcMapdRefreshSweep";
           NoNewPrivileges = true;
           PrivateTmp = true;
