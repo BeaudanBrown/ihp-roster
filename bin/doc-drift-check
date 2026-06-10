@@ -56,4 +56,16 @@ reject_text AGENTS.md 'https://cdn.jsdelivr.net'
 reject_text Web/View/AGENTS.md 'https://unpkg.com'
 reject_text Web/View/AGENTS.md 'https://cdn.jsdelivr.net'
 
+require_text Web/View/AGENTS.md 'Dialog-style modals must go through `Application.Helper.View.Overlay`'
+
+raw_modal_matches="$(
+    rg -n 'class="modal|class="[^"]+ modal|modal-backdrop' Web Application -g'*.hs' \
+        | grep -v '^Application/Helper/View/Overlay.hs:' \
+        | grep -v '^Application/Helper/View/TimePicker.hs:' \
+        || true
+)"
+if [[ -n "$raw_modal_matches" ]]; then
+    fail $'raw dialog modal markup outside approved overlay/picker helpers:\n'"$raw_modal_matches"
+fi
+
 echo "doc-drift-check: ok"

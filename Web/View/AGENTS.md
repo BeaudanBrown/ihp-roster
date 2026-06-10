@@ -55,6 +55,12 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
 - Layout is defined in `Web/View/Layout.hs`
 - Use `appendQueryParams` for links/forms that need query strings. It URL-encodes keys and values; do not hand-build `?key=value` strings from user or token text.
 
+## Overlay Pattern
+- Dialog-style modals must go through `Application.Helper.View.Overlay` helpers (`renderDialogOverlay`, `renderDialogOverlayBodyOnly`, or the approved page-dialog helper) and should target `#dialog-overlay-mount` for HTMX workflows.
+- Do not render hidden modal templates or raw `.modal`/`.modal-backdrop` markup inside accordions, panels, tables, or live fragments. Put only the trigger in page content, then load the dialog into the shared mount.
+- The picker and toast lanes stay separate: picker overlays are globally mounted helpers such as `renderQuarterHourTimePickerModal`, and toasts use the toast overlay helpers.
+- When migrating a bespoke modal, remove obsolete modal-specific JS, CSS selectors, data attributes, exports, and tests in the same change.
+
 ## Roster HTMX Pattern
 - Roster shift edits are whole-shift dialog submits. Grid cells/cards are launchers with `data-roster-shift-launcher`, not inline autosave inputs.
 - Dialog forms post atomically to the slot create/update actions and target `#dialog-overlay-mount`; successful actor responses clear the dialog and trigger live fragment refreshes.
