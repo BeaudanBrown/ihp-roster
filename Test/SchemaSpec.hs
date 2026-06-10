@@ -336,6 +336,7 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "shift_type_id UUID"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE SET NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE INDEX idx_roster_slots_shift_type ON roster_slots (shift_type_id) WHERE shift_type_id IS NOT NULL AND deleted_at IS NULL;"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_venue_onboarding_invitations_pending_email_unique ON venue_onboarding_invitations (LOWER(email)) WHERE status = 'pending' AND accepted_at IS NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "source_roster_slot_id UUID DEFAULT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "FOREIGN KEY (source_roster_slot_id) REFERENCES roster_slots (id) ON DELETE RESTRICT"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_timesheet_entries_source_roster_slot ON timesheet_entries (source_roster_slot_id) WHERE source_roster_slot_id IS NOT NULL;"

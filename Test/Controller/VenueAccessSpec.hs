@@ -12,7 +12,9 @@ import Application.Helper.LiveUpdate (LiveUpdateScope (..))
 import Application.PublicHolidays.Job (publicHolidayRefreshJobKind)
 import Config
 import qualified Data.Serialize as Serialize
+import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
+import Data.Time.Clock (getCurrentTime)
 import Generated.Types
 import qualified IHP.AuthSupport.Controller.Sessions as Sessions
 import IHP.Controller.Context (ControllerContext, newControllerContext)
@@ -519,6 +521,49 @@ tests = beforeAll testContext do
                 invitation.invitedByUserId `shouldBe` Just (unpackId founder.id)
                 inputValue invitation.status `shouldBe` "pending"
                 isJust invitation.expiresAt `shouldBe` True
+
+        it "normalizes and rejects duplicate pending venue owner onboarding invitations" $ withContext do
+            withCleanDb do
+                homeVenue <- createVenueWithConfig "Home Venue"
+                founder <- createUserRecordWithPlatformRole "founder-duplicate-owner-invite@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                _ <- createVenueOnboardingInvitationRecord (Just founder) "duplicate-owner@example.com"
+
+                response <- withPasskeyVerifiedUser founder do
+                    callActionWithParams CreateSupportVenueOnboardingInvitationAction
+                        [ ("email", "  DUPLICATE-OWNER@example.com  ")
+                        ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "There is already a pending owner invite for this email."
+                pendingInvitations <- query @VenueOnboardingInvitation
+                    |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+                    |> fetch
+                let invitationCount = length (filter ((== "duplicate-owner@example.com") . Text.toLower . Text.strip . (.email)) pendingInvitations)
+                invitationCount `shouldBe` 1
+
+        it "allows a new venue owner onboarding invitation after the prior invite was accepted" $ withContext do
+            withCleanDb do
+                homeVenue <- createVenueWithConfig "Home Venue"
+                founder <- createUserRecordWithPlatformRole "founder-accepted-owner-invite@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                now <- getCurrentTime
+                _ <- createVenueOnboardingInvitationRecord (Just founder) "accepted-owner@example.com"
+                    >>= updateRecord
+                        . set #status (unsafeEnumFromText @InvitationStatusEnum "accepted")
+                        . set #acceptedAt (Just now)
+
+                response <- withPasskeyVerifiedUser founder do
+                    callActionWithParams CreateSupportVenueOnboardingInvitationAction
+                        [ ("email", "Accepted-Owner@Example.com")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                newInvitation <- query @VenueOnboardingInvitation
+                    |> filterWhere (#email, "accepted-owner@example.com")
+                    |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+                    |> fetchOne
+                newInvitation.invitedByUserId `shouldBe` Just (unpackId founder.id)
 
         it "shows recent venue owner invites with delivery state on the support page" $ withContext do
             withCleanDb do

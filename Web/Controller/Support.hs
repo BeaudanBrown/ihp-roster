@@ -66,23 +66,30 @@ instance Controller SupportController where
         feedbackRows <- fetchSupportFeedbackRows
         SupportUnreadFeedbackCount unreadFeedbackCount <- fetchSupportUnreadFeedbackCount
         now <- getCurrentTime
-        let onboardingInvitation = buildSupportVenueOnboardingInvitationForm |> fill @'["email"]
+        let onboardingInvitation = buildSupportVenueOnboardingInvitationForm |> fill @'["email"] |> normalizeTextField #email |> modify #email Text.toLower
         onboardingInvitation
             |> validateField #email nonEmpty
             |> validateField #email isEmail
             |> ifValid \case
                 Left onboardingInvitation -> render IndexView { .. }
                 Right onboardingInvitation -> do
-                    invitation <- withTransaction do
-                        onboardingInvitation
-                            |> set #invitedByUserId (Just (unpackId currentUser.id))
-                            |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
-                            |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "queued")
-                            |> set #expiresAt (Just (addUTCTime venueOnboardingInvitationLifetime now))
-                            |> createRecord
-                    void (enqueueVenueOnboardingInvitationDeliveryJob (Just currentUser.id) invitation)
-                    setSuccessMessage ("Venue owner invitation queued for " <> invitation.email)
-                    redirectTo SupportAction
+                    duplicateExists <- pendingVenueOnboardingInvitationExists onboardingInvitation.email
+                    if duplicateExists
+                        then do
+                            let onboardingInvitationWithDuplicateError = onboardingInvitation
+                                    |> validateField #email (const (Failure "There is already a pending owner invite for this email."))
+                            render IndexView { onboardingInvitation = onboardingInvitationWithDuplicateError, .. }
+                        else do
+                            invitation <- withTransaction do
+                                onboardingInvitation
+                                    |> set #invitedByUserId (Just (unpackId currentUser.id))
+                                    |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
+                                    |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "queued")
+                                    |> set #expiresAt (Just (addUTCTime venueOnboardingInvitationLifetime now))
+                                    |> createRecord
+                            void (enqueueVenueOnboardingInvitationDeliveryJob (Just currentUser.id) invitation)
+                            setSuccessMessage ("Venue owner invitation queued for " <> invitation.email)
+                            redirectTo SupportAction
 
     action CreateFwcMapdRefreshJobAction = do
         enqueueResult <- enqueueFwcMapdRefreshJob (Just (unpackId currentUser.id))
@@ -233,6 +240,14 @@ fetchVenueOnboardingInvitations =
     query @VenueOnboardingInvitation
         |> orderByDesc #createdAt
         |> fetch
+
+pendingVenueOnboardingInvitationExists :: (?modelContext :: ModelContext) => Text -> IO Bool
+pendingVenueOnboardingInvitationExists email = do
+    pendingInvitations <- query @VenueOnboardingInvitation
+        |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+        |> filterWhere (#acceptedAt, Nothing)
+        |> fetch
+    pure (any ((== Text.toLower (Text.strip email)) . Text.toLower . Text.strip . (.email)) pendingInvitations)
 
 fetchFwcMapdAwardRatesSectionData ::
     (?modelContext :: ModelContext) =>

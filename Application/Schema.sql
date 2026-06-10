@@ -1504,6 +1504,7 @@ CREATE INDEX idx_passkey_setup_tokens_venue_id ON passkey_setup_tokens (venue_id
 CREATE INDEX idx_venue_invitations_venue_status ON venue_invitations (venue_id, status);
 CREATE INDEX idx_venue_invitations_email_status ON venue_invitations (email, status);
 CREATE INDEX idx_venue_onboarding_invitations_email_status ON venue_onboarding_invitations (email, status);
+CREATE UNIQUE INDEX idx_venue_onboarding_invitations_pending_email_unique ON venue_onboarding_invitations (LOWER(email)) WHERE status = 'pending' AND accepted_at IS NULL;
 CREATE INDEX idx_staff_venue ON staff (venue_id);
 CREATE INDEX idx_staff_default_award_level ON staff (default_award_level_id) WHERE default_award_level_id IS NOT NULL;
 CREATE INDEX idx_staff_imported_xero_pay_item ON staff (imported_xero_pay_item_id) WHERE imported_xero_pay_item_id IS NOT NULL;
