@@ -47,6 +47,8 @@ barVenueCurationProfile =
             [ "introductory level"
             , "food and beverage attendant"
             , "food and beverage supervisor"
+            , "kitchen attendant"
+            , "cook"
             , "bar attendant"
             , "bar"
             ]
