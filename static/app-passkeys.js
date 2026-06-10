@@ -43,48 +43,11 @@
             });
         });
 
-        root.querySelectorAll('.js-passkey-setup-modal').forEach(function (modal) {
-            if (modal.dataset.passkeyModalInitialized === 'true') return;
-            modal.dataset.passkeyModalInitialized = 'true';
-            initPasskeySetupModal(modal);
-        });
-
         root.querySelectorAll('.js-passkey-setup-prompt').forEach(function (container) {
             if (container.dataset.passkeyInitialized === 'true') return;
             container.dataset.passkeyInitialized = 'true';
             initPasskeySetupPrompt(container);
         });
-    }
-
-    function initPasskeySetupModal(modal) {
-        if (isModalVisible(modal)) {
-            document.body.classList.add('modal-open');
-        }
-
-        const dismissButton = modal.querySelector('.js-passkey-setup-dismiss');
-        if (!dismissButton) return;
-
-        dismissButton.addEventListener('click', function (event) {
-            const href = dismissButton.getAttribute('href') || '';
-            if (href !== '#') return;
-            event.preventDefault();
-            const promptWrapper = modal.closest('.js-passkey-setup-prompt');
-            const backdrop = modal.nextElementSibling;
-            if (promptWrapper) {
-                promptWrapper.remove();
-                document.body.classList.remove('modal-open');
-            } else {
-                modal.remove();
-                if (backdrop && backdrop.classList.contains('js-passkey-setup-modal-backdrop')) {
-                    backdrop.remove();
-                }
-                document.body.classList.remove('modal-open');
-            }
-        });
-    }
-
-    function isModalVisible(modal) {
-        return modal.classList.contains('show') && modal.classList.contains('d-block');
     }
 
     async function runPasskeyFirstLogin(container, button) {
@@ -187,16 +150,13 @@
         container.classList.remove('d-none');
         document.body.classList.add('modal-open');
 
-        const dismissButton = container.querySelector('.js-passkey-setup-dismiss');
+        const dismissButton = container.querySelector('[data-dialog-overlay-close="true"]');
         if (dismissButton) {
             dismissButton.addEventListener('click', function (event) {
-                const href = dismissButton.getAttribute('href') || '';
-                if (href === '#') {
-                    event.preventDefault();
-                    dismissPasskeyPrompt(userId);
-                    container.remove();
-                    document.body.classList.remove('modal-open');
-                }
+                event.preventDefault();
+                dismissPasskeyPrompt(userId);
+                container.remove();
+                document.body.classList.remove('modal-open');
             });
         }
     }

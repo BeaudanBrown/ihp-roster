@@ -74,7 +74,7 @@ renderPasskeySetupPrompt (Just promptMode) = [hsx|
     <div class="js-passkey-setup-prompt"
          data-user-id={tshow currentUser.id}
          data-mode={passkeyPromptModeValue promptMode}>
-        {renderPasskeySetupModal (passkeySetupModeFromPrompt promptMode) (pathTo RosterWeeksAction) (Just "#")}
+        {renderPasskeySetupDialog (passkeySetupModeFromPrompt promptMode) (pathTo RosterWeeksAction)}
     </div>
 |]
 

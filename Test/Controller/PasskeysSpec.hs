@@ -410,7 +410,19 @@ tests = beforeAll testContext do
 
                 supportResponse `responseStatusShouldBe` status200
                 supportResponse `responseBodyShouldContain` "Create passkey"
-                supportResponse `responseBodyShouldContain` "data-success-redirect=\"/Support\""
+                supportResponse `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
+                supportResponse `responseBodyShouldContain` "successRedirect=%2FSupport"
+
+                dialogResponse <- withSessionValues
+                    [ (cs (LoginSupport.sessionKey @User), Serialize.encode founder.id)
+                    , (passkeyRecoveryVerifiedUserSessionKey, Serialize.encode (inputValue founder.id :: Text))
+                    , (passkeyRecoveryVerifiedAtSessionKey, Serialize.encode (formatPasskeyVerifiedAt now))
+                    ]
+                    do
+                        callActionWithParams ShowPasskeySetupDialogAction [("successRedirect", "/Support")]
+
+                dialogResponse `responseStatusShouldBe` status200
+                dialogResponse `responseBodyShouldContain` "data-success-redirect=\"/Support\""
 
         it "allows recovery-code verified admins to begin replacement passkey registration" $ withContext do
             withCleanDb do

@@ -2,7 +2,7 @@ module Web.View.Passkeys.SetupModal
     ( PasskeySetupView (..)
     , PasskeySetupMode (..)
     , renderPasskeySetupDialog
-    , renderPasskeySetupModal
+    , renderPasskeySetupPageDialog
     ) where
 
 import Web.View.Prelude
@@ -18,14 +18,13 @@ instance View PasskeySetupView where
             , appPageDescription = Just "Create a passkey before continuing to restricted account or venue administration."
             , appPageActions = mempty
             , appPageWidthClass = ""
-            , appPageBody = renderPasskeySetupModal MandatoryFirstPasskey passkeySetupRedirectTo (Just (pathTo DismissMandatoryPasskeySetupAction))
+            , appPageBody = renderPasskeySetupPageDialog (pathTo DismissMandatoryPasskeySetupAction) MandatoryFirstPasskey passkeySetupRedirectTo
             }
 
 data PasskeySetupMode
     = OptionalFirstPasskey
     | OptionalAdditionalDevice
     | MandatoryFirstPasskey
-    | RecoveryReplacementPasskey
     deriving (Eq, Show)
 
 renderPasskeySetupDialog :: (?context :: ControllerContext) => PasskeySetupMode -> Text -> Html
@@ -38,28 +37,15 @@ renderPasskeySetupDialog mode successRedirect =
         , dialogOverlayDialogClass = ""
         }
 
-renderPasskeySetupModal :: (?context :: ControllerContext) => PasskeySetupMode -> Text -> Maybe Text -> Html
-renderPasskeySetupModal mode successRedirect maybeDismissUrl = [hsx|
-    <div class="modal fade show d-block js-passkey-setup-modal"
-         data-passkey-setup-modal="true"
-         tabindex="-1"
-         role="dialog"
-         aria-modal="true"
-         aria-labelledby="passkey-setup-modal-title">
-        <div class="modal-dialog modal-dialog-centered" role="document">
-            <div class="modal-content shadow">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="passkey-setup-modal-title">{passkeySetupTitle mode}</h5>
-                    {renderPasskeyDismissButton maybeDismissUrl}
-                </div>
-                <div class="modal-body">
-                    {renderPasskeySetupBody mode successRedirect}
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="modal-backdrop fade show js-passkey-setup-modal-backdrop" data-passkey-setup-dismiss={fromMaybe "" maybeDismissUrl}></div>
-|]
+renderPasskeySetupPageDialog :: (?context :: ControllerContext) => Text -> PasskeySetupMode -> Text -> Html
+renderPasskeySetupPageDialog closeUrl mode successRedirect =
+    renderPageDialogModal closeUrl DialogOverlayConfig
+        { dialogOverlayTitle = passkeySetupTitle mode
+        , dialogOverlayBody = renderPasskeySetupBody mode successRedirect
+        , dialogOverlayStartButtons = []
+        , dialogOverlayButtons = []
+        , dialogOverlayDialogClass = "modal-dialog-centered"
+        }
 
 renderPasskeySetupBody :: (?context :: ControllerContext) => PasskeySetupMode -> Text -> Html
 renderPasskeySetupBody mode successRedirect = [hsx|
@@ -79,17 +65,10 @@ renderPasskeySetupBody mode successRedirect = [hsx|
     <div id="passkey-setup-modal-status" class="alert d-none mt-3 mb-0"></div>
 |]
 
-renderPasskeyDismissButton :: Maybe Text -> Html
-renderPasskeyDismissButton Nothing = mempty
-renderPasskeyDismissButton (Just dismissUrl) = [hsx|
-    <a href={dismissUrl} class="btn-close js-passkey-setup-dismiss" aria-label="Close"></a>
-|]
-
 passkeySetupTitle :: PasskeySetupMode -> Text
 passkeySetupTitle OptionalFirstPasskey = "Set up faster sign-in"
 passkeySetupTitle OptionalAdditionalDevice = "Add this device as a passkey"
 passkeySetupTitle MandatoryFirstPasskey = "Create a passkey for admin access"
-passkeySetupTitle RecoveryReplacementPasskey = "Create a replacement passkey"
 
 passkeySetupBodyText :: PasskeySetupMode -> Text
 passkeySetupBodyText OptionalFirstPasskey =
@@ -98,5 +77,3 @@ passkeySetupBodyText OptionalAdditionalDevice =
     "This account already has a passkey. Add one here if you want this browser or device to offer the same quick sign-in."
 passkeySetupBodyText MandatoryFirstPasskey =
     "You can keep using the roster, but restricted venue administration requires a passkey to protect staff and payroll data."
-passkeySetupBodyText RecoveryReplacementPasskey =
-    "Your recovery code has been accepted. Create a new passkey now to restore restricted account access."
