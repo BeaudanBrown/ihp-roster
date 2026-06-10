@@ -45,6 +45,7 @@ data PasskeysController
     = PasskeyStepUpAction
     | PasskeySetupAction
     | DismissMandatoryPasskeySetupAction
+    | ShowPasskeySetupDialogAction
     | ShowPasskeyRecoveryCodeDialogAction
     | UsePasskeyRecoveryCodeAction
     | SendNewDevicePasskeySetupEmailAction

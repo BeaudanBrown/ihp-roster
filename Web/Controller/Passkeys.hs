@@ -30,6 +30,10 @@ instance Controller PasskeysController where
         setErrorMessage "Create a passkey before opening restricted admin pages."
         redirectTo RosterWeeksAction
 
+    action ShowPasskeySetupDialogAction = do
+        let successRedirect = safeLocalRedirect (paramOrDefault @Text profileSecurityPath "successRedirect")
+        respondHtml (renderPasskeySetupDialog OptionalFirstPasskey successRedirect)
+
     action ShowPasskeyRecoveryCodeDialogAction = do
         unless currentUserRequiresMandatoryPasskey do
             redirectTo RosterWeeksAction
@@ -98,6 +102,11 @@ nonEmptyText value =
     if Text.null value
         then Nothing
         else Just value
+
+safeLocalRedirect :: Text -> Text
+safeLocalRedirect value
+    | "/" `Text.isPrefixOf` value && not ("//" `Text.isPrefixOf` value) = value
+    | otherwise = profileSecurityPath
 
 ensureFreshPasskeyForProfileSecurity :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 ensureFreshPasskeyForProfileSecurity = do

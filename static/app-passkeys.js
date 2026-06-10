@@ -57,7 +57,10 @@
     }
 
     function initPasskeySetupModal(modal) {
-        document.body.classList.add('modal-open');
+        if (isModalVisible(modal)) {
+            document.body.classList.add('modal-open');
+        }
+
         const dismissButton = modal.querySelector('.js-passkey-setup-dismiss');
         if (!dismissButton) return;
 
@@ -65,18 +68,23 @@
             const href = dismissButton.getAttribute('href') || '';
             if (href !== '#') return;
             event.preventDefault();
-            const wrapper = modal.closest('.js-passkey-setup-prompt');
+            const promptWrapper = modal.closest('.js-passkey-setup-prompt');
             const backdrop = modal.nextElementSibling;
-            if (wrapper) {
-                wrapper.remove();
+            if (promptWrapper) {
+                promptWrapper.remove();
+                document.body.classList.remove('modal-open');
             } else {
                 modal.remove();
                 if (backdrop && backdrop.classList.contains('js-passkey-setup-modal-backdrop')) {
                     backdrop.remove();
                 }
+                document.body.classList.remove('modal-open');
             }
-            document.body.classList.remove('modal-open');
         });
+    }
+
+    function isModalVisible(modal) {
+        return modal.classList.contains('show') && modal.classList.contains('d-block');
     }
 
     async function runPasskeyFirstLogin(container, button) {

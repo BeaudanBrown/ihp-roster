@@ -1,6 +1,7 @@
 module Web.View.Passkeys.SetupModal
     ( PasskeySetupView (..)
     , PasskeySetupMode (..)
+    , renderPasskeySetupDialog
     , renderPasskeySetupModal
     ) where
 
@@ -27,6 +28,16 @@ data PasskeySetupMode
     | RecoveryReplacementPasskey
     deriving (Eq, Show)
 
+renderPasskeySetupDialog :: (?context :: ControllerContext) => PasskeySetupMode -> Text -> Html
+renderPasskeySetupDialog mode successRedirect =
+    renderDialogOverlay DialogOverlayConfig
+        { dialogOverlayTitle = passkeySetupTitle mode
+        , dialogOverlayBody = renderPasskeySetupBody mode successRedirect
+        , dialogOverlayStartButtons = []
+        , dialogOverlayButtons = []
+        , dialogOverlayDialogClass = ""
+        }
+
 renderPasskeySetupModal :: (?context :: ControllerContext) => PasskeySetupMode -> Text -> Maybe Text -> Html
 renderPasskeySetupModal mode successRedirect maybeDismissUrl = [hsx|
     <div class="modal fade show d-block js-passkey-setup-modal"
@@ -42,25 +53,30 @@ renderPasskeySetupModal mode successRedirect maybeDismissUrl = [hsx|
                     {renderPasskeyDismissButton maybeDismissUrl}
                 </div>
                 <div class="modal-body">
-                    <p class="app-muted">{passkeySetupBody mode}</p>
-                    <div class="js-passkey-register"
-                         data-begin-url={pathTo BeginPasskeyRegistrationAction}
-                         data-finish-url={pathTo FinishPasskeyRegistrationAction}
-                         data-status-id="passkey-setup-modal-status"
-                         data-success-redirect={successRedirect}>
-                        <div class="mb-3">
-                            <label class="form-label" for="passkey-setup-modal-name">Passkey name</label>
-                            <input id="passkey-setup-modal-name" type="text" class="form-control js-passkey-name" maxlength="120" placeholder="This device" autocomplete="off"/>
-                            <div class="form-text app-muted">Use a name you will recognize later, such as this device or security key.</div>
-                        </div>
-                        <button type="button" class="btn btn-primary js-passkey-register-button">Create passkey</button>
-                    </div>
-                    <div id="passkey-setup-modal-status" class="alert d-none mt-3 mb-0"></div>
+                    {renderPasskeySetupBody mode successRedirect}
                 </div>
             </div>
         </div>
     </div>
     <div class="modal-backdrop fade show js-passkey-setup-modal-backdrop" data-passkey-setup-dismiss={fromMaybe "" maybeDismissUrl}></div>
+|]
+
+renderPasskeySetupBody :: (?context :: ControllerContext) => PasskeySetupMode -> Text -> Html
+renderPasskeySetupBody mode successRedirect = [hsx|
+    <p class="app-muted">{passkeySetupBodyText mode}</p>
+    <div class="js-passkey-register"
+         data-begin-url={pathTo BeginPasskeyRegistrationAction}
+         data-finish-url={pathTo FinishPasskeyRegistrationAction}
+         data-status-id="passkey-setup-modal-status"
+         data-success-redirect={successRedirect}>
+        <div class="mb-3">
+            <label class="form-label" for="passkey-setup-modal-name">Passkey name</label>
+            <input id="passkey-setup-modal-name" type="text" class="form-control js-passkey-name" maxlength="120" placeholder="This device" autocomplete="off"/>
+            <div class="form-text app-muted">Use a name you will recognize later, such as this device or security key.</div>
+        </div>
+        <button type="button" class="btn btn-primary js-passkey-register-button">Create passkey</button>
+    </div>
+    <div id="passkey-setup-modal-status" class="alert d-none mt-3 mb-0"></div>
 |]
 
 renderPasskeyDismissButton :: Maybe Text -> Html
@@ -75,12 +91,12 @@ passkeySetupTitle OptionalAdditionalDevice = "Add this device as a passkey"
 passkeySetupTitle MandatoryFirstPasskey = "Create a passkey for admin access"
 passkeySetupTitle RecoveryReplacementPasskey = "Create a replacement passkey"
 
-passkeySetupBody :: PasskeySetupMode -> Text
-passkeySetupBody OptionalFirstPasskey =
+passkeySetupBodyText :: PasskeySetupMode -> Text
+passkeySetupBodyText OptionalFirstPasskey =
     "A passkey lets you sign in with Face ID, Touch ID, Windows Hello or your device screen lock instead of typing your password. You can skip this for now."
-passkeySetupBody OptionalAdditionalDevice =
+passkeySetupBodyText OptionalAdditionalDevice =
     "This account already has a passkey. Add one here if you want this browser or device to offer the same quick sign-in."
-passkeySetupBody MandatoryFirstPasskey =
+passkeySetupBodyText MandatoryFirstPasskey =
     "You can keep using the roster, but restricted venue administration requires a passkey to protect staff and payroll data."
-passkeySetupBody RecoveryReplacementPasskey =
+passkeySetupBodyText RecoveryReplacementPasskey =
     "Your recovery code has been accepted. Create a new passkey now to restore restricted account access."

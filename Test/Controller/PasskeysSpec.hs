@@ -110,10 +110,53 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Sign-In Methods"
+                response `responseBodyShouldContain` "Add a passkey"
                 response `responseBodyShouldContain` "Create passkey"
                 response `responseBodyShouldContain` "No passkeys registered yet."
+                response `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
+                response `responseBodyShouldContain` "successRedirect=%2FEditProfile%3Fsection%3Dsecurity"
+                response `responseBodyShouldNotContain` "data-begin-url=\"/BeginPasskeyRegistration\""
+                response `responseBodyShouldNotContain` "data-finish-url=\"/FinishPasskeyRegistration\""
+                response `responseBodyShouldNotContain` "modal fade show d-block"
+
+        it "renders normal profile passkey management for venue admins without passkeys" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Profile Passkey Venue"
+                user <- createUserRecord "admin-profile-passkey@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue user "venue_admin"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams EditProfileAction [("section", "security")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Sign-In Methods"
+                response `responseBodyShouldContain` "Add a passkey"
+                response `responseBodyShouldContain` "Create passkey"
+                response `responseBodyShouldContain` "No passkeys registered yet."
+                response `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
+                response `responseBodyShouldContain` "successRedirect=%2FEditProfile%3Fsection%3Dsecurity"
+                response `responseBodyShouldNotContain` "data-begin-url=\"/BeginPasskeyRegistration\""
+                response `responseBodyShouldNotContain` "data-finish-url=\"/FinishPasskeyRegistration\""
+                response `responseBodyShouldNotContain` "Create a passkey for admin access"
+                response `responseBodyShouldNotContain` "restricted venue administration requires a passkey"
+                response `responseBodyShouldNotContain` "modal fade show d-block"
+
+        it "renders optional passkey setup through the unified dialog overlay" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Passkey Dialog Venue"
+                user <- createUserRecord "passkey-dialog@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams ShowPasskeySetupDialogAction [("successRedirect", "/EditProfile?section=security")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "data-dialog-overlay=\"true\""
+                response `responseBodyShouldContain` "Set up faster sign-in"
                 response `responseBodyShouldContain` "data-begin-url=\"/BeginPasskeyRegistration\""
                 response `responseBodyShouldContain` "data-finish-url=\"/FinishPasskeyRegistration\""
+                response `responseBodyShouldContain` "data-success-redirect=\"/EditProfile?section=security\""
+                response `responseBodyShouldNotContain` "Create a passkey for admin access"
 
         it "lets venue admins without passkeys reach roster before restricted access" $ withContext do
             withCleanDb do

@@ -6,7 +6,6 @@ module Web.View.Passkeys.Management
 where
 
 import Data.Time.Clock (diffUTCTime)
-import Web.View.Passkeys.SetupModal
 import Web.View.Prelude
 
 renderPasskeyManagement :: UTCTime -> [Passkey] -> Text -> Html
@@ -27,10 +26,19 @@ renderPasskeyManagementWithAddButton now canAddPasskey passkeys successRedirect 
 renderPasskeyRegistrationAction :: (?context :: ControllerContext) => Bool -> Text -> Html
 renderPasskeyRegistrationAction False _ = mempty
 renderPasskeyRegistrationAction True successRedirect =
-    renderPasskeySetupModal
-        (if currentUserIsAdmin then MandatoryFirstPasskey else OptionalFirstPasskey)
-        successRedirect
-        (Just "#")
+    let dialogUrl = appendQueryParams (pathTo ShowPasskeySetupDialogAction) [("successRedirect", successRedirect)]
+     in [hsx|
+    <div class="mb-3 js-passkey-management-add">
+        <h3 class="h6 mb-2">Add a passkey</h3>
+        <p class="app-muted mb-3">Use a passkey to sign in with Face ID, Touch ID, Windows Hello, or your device screen lock.</p>
+        <a href={dialogUrl}
+           class="btn btn-primary"
+           hx-get={dialogUrl}
+           hx-target={"#" <> dialogOverlayMountId}
+           hx-swap="innerHTML"
+           hx-push-url="false">Create passkey</a>
+    </div>
+|]
 
 renderNewDevicePasskeyAction :: [Passkey] -> Html
 renderNewDevicePasskeyAction [] = mempty
