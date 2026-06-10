@@ -39,9 +39,10 @@ lands.
   for those slots have been cancelled or finished.
 - Roster forms must submit full cell payloads so single-field edits do not
   clear sibling slot fields.
-- Roster conflict warning highlights are user-controlled display chrome. They
-  default off, can be enabled from roster settings, and only affect visual
-  highlighting; conflict messages remain rendered on the affected staff cells.
+- Roster conflict warning highlights are manager-controlled display chrome. They
+  default off, can be enabled by managers from roster settings, and only affect
+  visual highlighting; conflict messages remain rendered on the affected staff
+  cells.
 
 ## Scheduling Data
 

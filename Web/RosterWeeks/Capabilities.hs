@@ -22,4 +22,5 @@ buildRosterViewCapabilities maybeRosterWeek =
             , canManageRosterColumns = managerAudience && draftWeek
             , canViewLeaveMetrics = managerAudience
             , canViewWageEstimates = currentUserIsAdmin
+            , canManageRosterWarnings = managerAudience
             }

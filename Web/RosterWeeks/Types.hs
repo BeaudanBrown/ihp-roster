@@ -62,6 +62,7 @@ data RosterViewCapabilities = RosterViewCapabilities
     , canManageRosterColumns    :: Bool
     , canViewLeaveMetrics       :: Bool
     , canViewWageEstimates      :: Bool
+    , canManageRosterWarnings   :: Bool
     }
 
 data RosterRenderIndexes = RosterRenderIndexes

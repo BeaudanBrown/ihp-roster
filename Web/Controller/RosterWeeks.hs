@@ -473,6 +473,7 @@ instance Controller RosterWeeksController where
                         redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
 
     action UpdateRosterWarningPreferenceAction { weekOffset } = do
+        ensureManagerRole
         rosterGroup <- resolveRequestedRosterGroup
         let showRosterWarnings = paramOrDefault @Text "false" "showRosterWarnings" == "true"
         _ <- upsertCurrentUserShowRosterWarnings showRosterWarnings

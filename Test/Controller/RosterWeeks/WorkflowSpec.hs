@@ -674,6 +674,35 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` ">Alpha<"
                 response `responseBodyShouldNotContain` "No roster exists for this week yet."
 
+        it "hides roster warning controls and highlights from staff" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-warnings@example.com" "staff" True
+                worker <- createUserRecord "roster-worker-warnings@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue worker "worker"
+                _ <-
+                    newRecord @UserPreference
+                        |> set #userId (unpackId worker.id)
+                        |> set #showShiftTypeHighlights False
+                        |> createRecord
+                _ <- fetchSlotNameRecord venue "Early"
+                _ <- createRosterWeekRecord venue 0 True
+
+                managerResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekAction 0)
+
+                managerResponse `responseStatusShouldBe` status200
+                managerResponse `responseBodyShouldContain` "Warnings disabled"
+
+                workerResponse <- withUserAndCurrentVenue worker venue.id do
+                    callAction (ShowRosterWeekAction 0)
+
+                workerResponse `responseStatusShouldBe` status200
+                workerResponse `responseBodyShouldNotContain` "Warnings enabled"
+                workerResponse `responseBodyShouldNotContain` "Warnings disabled"
+                workerResponse `responseBodyShouldContain` "data-roster-warnings=\"hidden\""
+
         it "shows roster JPG export only to managers on live weeks" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

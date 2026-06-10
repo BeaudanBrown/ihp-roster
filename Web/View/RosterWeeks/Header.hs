@@ -195,7 +195,7 @@ renderRosterLayoutModeOption selectedLayoutMode layoutMode =
 renderRosterDisplayPreferencesMenuSection :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterViewCapabilities -> Bool -> Bool -> Bool -> Html
 renderRosterDisplayPreferencesMenuSection weekOffset rosterGroupId viewCapabilities rosterEndTimesEnabled showWageEstimates showRosterWarnings = [hsx|
     <div class="row g-2 px-1 pb-1">
-        {renderRosterWarningPreferenceForm weekOffset rosterGroupId showRosterWarnings}
+        {when viewCapabilities.canManageRosterWarnings (renderRosterWarningPreferenceForm weekOffset rosterGroupId showRosterWarnings)}
         {renderRosterWageEstimatePreferenceForm weekOffset rosterGroupId viewCapabilities rosterEndTimesEnabled showWageEstimates}
     </div>
 |]

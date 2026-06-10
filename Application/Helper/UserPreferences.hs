@@ -16,7 +16,8 @@ module Application.Helper.UserPreferences
     , upsertCurrentUserShowWageEstimates
     ) where
 
-import Application.Helper.Controller (enumFromText, unsafeEnumFromText)
+import Application.Helper.Controller (VenueRole (ManagerRole'), enumFromText,
+                                      hasRole, unsafeEnumFromText)
 import Generated.Types
 import IHP.ControllerPrelude
 
@@ -70,8 +71,9 @@ fetchCurrentRosterLayoutMode =
     (.userRosterLayoutMode) <$> fetchCurrentUserRosterPreferences
 
 fetchCurrentUserShowRosterWarnings :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Bool
-fetchCurrentUserShowRosterWarnings =
-    (.userShowRosterWarnings) <$> fetchCurrentUserRosterPreferences
+fetchCurrentUserShowRosterWarnings
+    | not (hasRole ManagerRole') = pure False
+    | otherwise = (.userShowRosterWarnings) <$> fetchCurrentUserRosterPreferences
 
 fetchCurrentUserShowWageEstimates :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Bool
 fetchCurrentUserShowWageEstimates =
