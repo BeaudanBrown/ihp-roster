@@ -41,35 +41,23 @@ renderXeroTimesheetPreparationErrorDialog message =
         }
 
 renderXeroTimesheetPreparationLoadingDialog :: Html
-renderXeroTimesheetPreparationLoadingDialog = [hsx|
-    <div class="modal fade show d-block"
-         data-dialog-overlay="true"
-         tabindex="-1"
-         role="dialog"
-         aria-modal="true">
-        <div class="modal-dialog modal-dialog-centered" role="document">
-            <div class="modal-content shadow">
-                <div class="modal-body">
-                    <div class="d-flex align-items-center gap-3" data-xero-timesheet-preparation-loading="true">
-                        <div id="xero-timesheet-preparation-modal-loading-indicator" class="spinner-border text-primary" role="status" aria-hidden="true"></div>
-                        <div>
-                            <div class="fw-semibold">Prepare Xero draft timesheets</div>
-                        </div>
-                        <form method="POST"
-                              action={RunXeroTimesheetPreparationAction}
-                              hx-post={pathTo RunXeroTimesheetPreparationAction}
-                              hx-trigger="load"
-                              hx-target={"#" <> dialogOverlayMountId}
-                              hx-swap="innerHTML"
-                              hx-indicator="#xero-timesheet-preparation-modal-loading-indicator">
-                        </form>
-                    </div>
-                </div>
+renderXeroTimesheetPreparationLoadingDialog =
+    renderDialogOverlayBodyOnly "Prepare Xero draft timesheets" "" [hsx|
+        <div class="d-flex align-items-center gap-3" data-xero-timesheet-preparation-loading="true">
+            <div id="xero-timesheet-preparation-modal-loading-indicator" class="spinner-border text-primary" role="status" aria-hidden="true"></div>
+            <div>
+                <div class="fw-semibold">Prepare Xero draft timesheets</div>
             </div>
+            <form method="POST"
+                  action={RunXeroTimesheetPreparationAction}
+                  hx-post={pathTo RunXeroTimesheetPreparationAction}
+                  hx-trigger="load"
+                  hx-target={"#" <> dialogOverlayMountId}
+                  hx-swap="innerHTML"
+                  hx-indicator="#xero-timesheet-preparation-modal-loading-indicator">
+            </form>
         </div>
-    </div>
-    <div class="modal-backdrop fade show" data-dialog-overlay-backdrop="true"></div>
-|]
+    |]
 
 renderXeroTimesheetPreparationStaffStep :: XeroTimesheetPreparationView -> Html
 renderXeroTimesheetPreparationStaffStep view =

@@ -73,6 +73,24 @@ renderDialogOverlay DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody,
     <div class="modal-backdrop fade show" data-dialog-overlay-backdrop="true"></div>
 |]
 
+renderDialogOverlayBodyOnly :: Text -> Text -> Html -> Html
+renderDialogOverlayBodyOnly ariaLabel dialogOverlayDialogClass dialogOverlayBody = [hsx|
+    <div class="modal fade show d-block"
+         data-dialog-overlay="true"
+         tabindex="-1"
+         role="dialog"
+         aria-modal="true"
+         aria-label={ariaLabel}>
+        <div class={classes [("modal-dialog", True), ("modal-dialog-centered", True), (dialogOverlayDialogClass, not (Text.null dialogOverlayDialogClass))]}
+             role="document">
+            <div class="modal-content shadow">
+                <div class="modal-body">{dialogOverlayBody}</div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show" data-dialog-overlay-backdrop="true"></div>
+|]
+
 renderDialogOverlayFooter :: [OverlayButton] -> [OverlayButton] -> Html
 renderDialogOverlayFooter startButtons buttons
     | null startButtons && null buttons = mempty
