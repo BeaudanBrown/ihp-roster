@@ -4,8 +4,8 @@ import Application.Helper.WeekBoundaries (weekdayIndexLabel)
 import Generated.Types
 import IHP.ViewPrelude
 
-renderVenueBootstrapFields :: Venue -> Text -> Int -> Html
-renderVenueBootstrapFields venue venueTimezone venueRosterWeekStartsOn = [hsx|
+renderVenueBootstrapFields :: Venue -> Int -> Html
+renderVenueBootstrapFields venue venueRosterWeekStartsOn = [hsx|
     <div class="col-12">
         <label class="form-label" for="venue-name">Venue name</label>
         <input
@@ -18,18 +18,7 @@ renderVenueBootstrapFields venue venueTimezone venueRosterWeekStartsOn = [hsx|
         />
         {renderVenueFieldError venue "name"}
     </div>
-    <div class="col-12 col-lg-6">
-        <label class="form-label" for="venue-timezone">Timezone</label>
-        <input
-            id="venue-timezone"
-            type="text"
-            class="form-control"
-            name="timezone"
-            value={venueTimezone}
-            required="required"
-        />
-    </div>
-    <div class="col-12 col-lg-6">
+    <div class="col-12">
         <label class="form-label" for="venue-roster-week-starts-on">Roster week starts on</label>
         <select id="venue-roster-week-starts-on" class="form-select" name="rosterWeekStartsOn">
             {forEach [1 :: Int, 2, 3, 4, 5, 6, 0] (renderWeekdayOption venueRosterWeekStartsOn)}

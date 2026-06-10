@@ -67,7 +67,7 @@ renderPersonalProfileFields staff maybeEmail = [hsx|
             />
         </div>
         <div class="col-12 col-lg-6">
-            <label for="phone" class="form-label">Phone</label>
+            <label for="phone" class="form-label">Phone #</label>
             <input
                 id="phone"
                 name="phone"
@@ -79,7 +79,7 @@ renderPersonalProfileFields staff maybeEmail = [hsx|
             {renderStaffFieldError staff "phone"}
         </div>
         <div class="col-12 col-lg-6">
-            <label for="idealShiftsPerWeek" class="form-label">Ideal Shifts Per Week</label>
+            <label for="idealShiftsPerWeek" class="form-label">Ideal # Shifts</label>
             <select
                 id="idealShiftsPerWeek"
                 name="idealShiftsPerWeek"

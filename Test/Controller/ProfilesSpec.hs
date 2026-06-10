@@ -132,7 +132,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "hx-target=\"#profile-leave-request-form-fragment\""
                 response `responseBodyShouldContain` "name=\"preferredName\""
                 response `responseBodyShouldContain` "Emergency Contact Name"
-                response `responseBodyShouldContain` "Ideal Shifts Per Week"
+                response `responseBodyShouldContain` "Ideal # Shifts"
                 response `responseBodyShouldContain` "id=\"idealShiftsPerWeek\""
                 response `responseBodyShouldContain` "<option value=\"0\""
                 response `responseBodyShouldContain` "<option value=\"7\""

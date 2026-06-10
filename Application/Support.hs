@@ -27,7 +27,7 @@ resetDatabase = do
 
 createVenueWithConfig :: (?modelContext :: ModelContext) => Text -> IO Venue
 createVenueWithConfig name =
-    fst <$> createVenueWithBootstrapConfig name defaultVenueBootstrapTimezone 1
+    fst <$> createVenueWithBootstrapConfig (defaultVenueBootstrapConfig name)
 
 createUserRecord :: (?modelContext :: ModelContext) => Text -> Text -> Bool -> IO User
 createUserRecord emailAddress globalRole isProfileCompleted =

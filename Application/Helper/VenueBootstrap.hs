@@ -1,7 +1,9 @@
 module Application.Helper.VenueBootstrap
-    ( createVenueWithBootstrapConfig
+    ( VenueBootstrapConfig (..)
+    , createVenueWithBootstrapConfig
     , createVenueWithBootstrapConfigInCurrentTransaction
     , defaultStaffNameFromEmail
+    , defaultVenueBootstrapConfig
     , defaultVenueBootstrapTimezone
     , ensureLinkedStaffRecord
     , provisionVenueMembership
@@ -20,29 +22,49 @@ import IHP.ControllerPrelude
 defaultVenueBootstrapTimezone :: Text
 defaultVenueBootstrapTimezone = "Australia/Melbourne"
 
-createVenueWithBootstrapConfig :: (?modelContext :: ModelContext) => Text -> Text -> Int -> IO (Venue, VenueConfig)
-createVenueWithBootstrapConfig name timezone rosterWeekStartsOn =
-    withTransaction do
-        createVenueWithBootstrapConfigInCurrentTransaction name timezone rosterWeekStartsOn
+data VenueBootstrapConfig = VenueBootstrapConfig
+    { venueBootstrapName                         :: Text
+    , venueBootstrapTimezone                     :: Text
+    , venueBootstrapRosterWeekStartsOn           :: Int
+    , venueBootstrapRosterEndTimesEnabled        :: Bool
+    , venueBootstrapAutoTimesheetCreationEnabled :: Bool
+    }
 
-createVenueWithBootstrapConfigInCurrentTransaction :: (?modelContext :: ModelContext) => Text -> Text -> Int -> IO (Venue, VenueConfig)
-createVenueWithBootstrapConfigInCurrentTransaction name timezone rosterWeekStartsOn = do
+createVenueWithBootstrapConfig :: (?modelContext :: ModelContext) => VenueBootstrapConfig -> IO (Venue, VenueConfig)
+createVenueWithBootstrapConfig bootstrapConfig =
+    withTransaction do
+        createVenueWithBootstrapConfigInCurrentTransaction bootstrapConfig
+
+createVenueWithBootstrapConfigInCurrentTransaction :: (?modelContext :: ModelContext) => VenueBootstrapConfig -> IO (Venue, VenueConfig)
+createVenueWithBootstrapConfigInCurrentTransaction bootstrapConfig = do
     venue <-
         newRecord @Venue
-            |> set #name name
+            |> set #name bootstrapConfig.venueBootstrapName
             |> set #status (unsafeEnumFromText @VenueStatusEnum "active")
             |> createRecord
     venueConfig <-
         newRecord @VenueConfig
             |> set #venueId (unpackId venue.id)
-            |> set #timezone timezone
-            |> set #rosterWeekStartsOn rosterWeekStartsOn
-            |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay rosterWeekStartsOn)
+            |> set #timezone bootstrapConfig.venueBootstrapTimezone
+            |> set #rosterWeekStartsOn bootstrapConfig.venueBootstrapRosterWeekStartsOn
+            |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay bootstrapConfig.venueBootstrapRosterWeekStartsOn)
+            |> set #rosterEndTimesEnabled bootstrapConfig.venueBootstrapRosterEndTimesEnabled
+            |> set #autoTimesheetCreationEnabled bootstrapConfig.venueBootstrapAutoTimesheetCreationEnabled
             |> set #lateToEarlyMinStartGapMinutes 600
             |> set #staffTimesheetEditWindowDays 7
             |> createRecord
     _ <- ensureVenueRosterDefaults venue
     pure (venue, venueConfig)
+
+
+defaultVenueBootstrapConfig :: Text -> VenueBootstrapConfig
+defaultVenueBootstrapConfig venueName = VenueBootstrapConfig
+    { venueBootstrapName = venueName
+    , venueBootstrapTimezone = defaultVenueBootstrapTimezone
+    , venueBootstrapRosterWeekStartsOn = 1
+    , venueBootstrapRosterEndTimesEnabled = True
+    , venueBootstrapAutoTimesheetCreationEnabled = False
+    }
 
 provisionVenueMembership :: (?modelContext :: ModelContext) => Venue -> User -> Text -> IO VenueMembership
 provisionVenueMembership venue user venueRole =

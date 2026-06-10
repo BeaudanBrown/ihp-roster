@@ -4,6 +4,7 @@ import Application.Helper.Controller (unsafeEnumFromText,
                                       updateVenueMembershipRoleWithAudit,
                                       validRosterWeekStartDays)
 import Application.Helper.LiveResource
+import Application.Helper.VenueBootstrap (defaultVenueBootstrapTimezone)
 import Config
 import Data.Aeson (Value (Null))
 import qualified Data.ByteString.Char8 as ByteString
@@ -97,6 +98,11 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Create Your Venue"
                 response `responseBodyShouldContain` "owner-onboarding@example.com"
                 response `responseBodyShouldContain` "Roster week starts on"
+                response `responseBodyShouldContain` "Account Details"
+                response `responseBodyShouldContain` "Roster end times"
+                response `responseBodyShouldContain` "Auto-create pending timesheets"
+                response `responseBodyShouldNotContain` "venue-timezone"
+                response `responseBodyShouldNotContain` "Already have an account?"
 
         it "creates a verified user, venue, and owner membership from a pending onboarding invitation" $ withContext do
             withCleanDb do
@@ -107,8 +113,9 @@ tests = beforeAll testContext do
                     , ("passwordHash", "test-password-123")
                     , ("passwordConfirmation", "test-password-123")
                     , ("name", "Owner Venue")
-                    , ("timezone", "Australia/Melbourne")
+                    , ("timezone", "Pacific/Auckland")
                     , ("rosterWeekStartsOn", "2")
+                    , ("autoTimesheetCreationEnabled", "true")
                     ] <> signupStaffParams
 
                 response `responseStatusShouldBe` status302
@@ -121,8 +128,10 @@ tests = beforeAll testContext do
                 staff <- query @Staff |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#userId, Just (unpackId user.id)) |> fetchOneOrNothing
                 updatedInvitation <- fetch invitation.id
 
-                venueConfig.timezone `shouldBe` "Australia/Melbourne"
+                venueConfig.timezone `shouldBe` defaultVenueBootstrapTimezone
                 venueConfig.rosterWeekStartsOn `shouldBe` 2
+                venueConfig.rosterEndTimesEnabled `shouldBe` False
+                venueConfig.autoTimesheetCreationEnabled `shouldBe` True
                 venueConfig.rosterWeekStartsOn `shouldSatisfy` (`elem` validRosterWeekStartDays)
                 inputValue membership.venueRole `shouldBe` "venue_owner"
                 staff `shouldSatisfy` isJust

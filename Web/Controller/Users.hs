@@ -2,7 +2,8 @@ module Web.Controller.Users where
 
 import Application.Helper.Controller (defaultRosterWeekStartsOn)
 import Application.Helper.LiveResource (LiveMutationResult (..))
-import Application.Helper.VenueBootstrap (createVenueWithBootstrapConfigInCurrentTransaction,
+import Application.Helper.VenueBootstrap (VenueBootstrapConfig (..),
+                                          createVenueWithBootstrapConfigInCurrentTransaction,
                                           defaultStaffNameFromEmail,
                                           defaultVenueBootstrapTimezone,
                                           ensureLinkedStaffRecord,
@@ -99,16 +100,18 @@ instance Controller UsersController where
                         let user = newRecord @User |> set #email invitation.email
                         let venue = newRecord @Venue |> set #status (unsafeEnumFromText @VenueStatusEnum "active")
                         let staff = newRecord @Staff
-                        let venueTimezone = defaultVenueBootstrapTimezone
                         let venueRosterWeekStartsOn = defaultRosterWeekStartsOn
+                        let venueRosterEndTimesEnabled = True
+                        let venueAutoTimesheetCreationEnabled = False
                         setTitle "Create Venue"
                         render VenueOnboardingSignupView
                             { user
                             , onboardingInvitation = invitation
                             , venue
                             , staff
-                            , venueTimezone
                             , venueRosterWeekStartsOn
+                            , venueRosterEndTimesEnabled
+                            , venueAutoTimesheetCreationEnabled
                             }
                     _ -> do
                         setErrorMessage "That onboarding link is no longer valid. Contact support for a new venue owner invitation."
@@ -128,8 +131,10 @@ instance Controller UsersController where
                 case invitationOrNothing of
                     Just invitation | venueOnboardingInvitationIsActive now invitation -> do
                         let passwordConfirmation = normalizeText (paramOrDefault @Text "" "passwordConfirmation")
-                        let venueTimezone = normalizeText (paramOrDefault defaultVenueBootstrapTimezone "timezone")
+                        let venueTimezone = defaultVenueBootstrapTimezone
                         let venueRosterWeekStartsOn = fromMaybe defaultRosterWeekStartsOn (paramOrNothing @Int "rosterWeekStartsOn")
+                        let venueRosterEndTimesEnabled = isJust (paramOrNothing @Text "rosterEndTimesEnabled")
+                        let venueAutoTimesheetCreationEnabled = isJust (paramOrNothing @Text "autoTimesheetCreationEnabled")
                         let user = newRecord @User |> set #email invitation.email
                         let staff = buildSignupStaff (newRecord @Staff)
                         let venue =
@@ -152,8 +157,9 @@ instance Controller UsersController where
                                         , onboardingInvitation = invitation
                                         , venue
                                         , staff
-                                        , venueTimezone
                                         , venueRosterWeekStartsOn
+                                        , venueRosterEndTimesEnabled
+                                        , venueAutoTimesheetCreationEnabled
                                         }
                                 Right user -> do
                                     let venueWithName =
@@ -170,11 +176,12 @@ instance Controller UsersController where
                                                 , user
                                                 , venue = venueWithName
                                                 , staff
-                                                , venueTimezone
                                                 , venueRosterWeekStartsOn
+                                                , venueRosterEndTimesEnabled
+                                                , venueAutoTimesheetCreationEnabled
                                                 }
                                         Right staff -> case venueWithName.meta.annotations of
-                                            [] | venueRosterWeekStartsOn `elem` validRosterWeekStartDays && not (isEmpty venueTimezone) -> do
+                                            [] | venueRosterWeekStartsOn `elem` validRosterWeekStartDays -> do
                                                 hashed <- hashPassword user.passwordHash
                                                 user <- withTransaction do
                                                     verifiedAt <- getCurrentTime
@@ -184,7 +191,14 @@ instance Controller UsersController where
                                                             |> set #emailVerifiedAt (Just verifiedAt)
                                                             |> set #isProfileCompleted True
                                                             |> createRecord
-                                                    (createdVenue, _) <- createVenueWithBootstrapConfigInCurrentTransaction venueWithName.name venueTimezone venueRosterWeekStartsOn
+                                                    let bootstrapConfig = VenueBootstrapConfig
+                                                            { venueBootstrapName = venueWithName.name
+                                                            , venueBootstrapTimezone = venueTimezone
+                                                            , venueBootstrapRosterWeekStartsOn = venueRosterWeekStartsOn
+                                                            , venueBootstrapRosterEndTimesEnabled = venueRosterEndTimesEnabled
+                                                            , venueBootstrapAutoTimesheetCreationEnabled = venueAutoTimesheetCreationEnabled
+                                                            }
+                                                    (createdVenue, _) <- createVenueWithBootstrapConfigInCurrentTransaction bootstrapConfig
                                                     membership <- provisionVenueMembership createdVenue user "venue_owner"
                                                     _ <- createSignupStaff createdVenue user staff
                                                     _ <-
@@ -241,15 +255,16 @@ instance Controller UsersController where
                                                 setSuccessMessage "Venue created."
                                                 redirectTo RosterWeeksAction
                                             _ -> do
-                                                setErrorMessage "Provide a venue name, timezone, and valid roster week start."
+                                                setErrorMessage "Provide a venue name and valid roster week start."
                                                 setTitle "Create Venue"
                                                 render VenueOnboardingSignupView
                                                     { onboardingInvitation = invitation
                                                     , user
                                                     , venue = venueWithName
                                                     , staff
-                                                    , venueTimezone
                                                     , venueRosterWeekStartsOn
+                                                    , venueRosterEndTimesEnabled
+                                                    , venueAutoTimesheetCreationEnabled
                                                     }
                     _ -> do
                         setErrorMessage "That onboarding link is no longer valid. Contact support for a new venue owner invitation."

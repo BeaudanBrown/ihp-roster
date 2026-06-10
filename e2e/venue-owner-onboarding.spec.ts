@@ -86,20 +86,25 @@ test.describe('Venue owner onboarding invites', () => {
         const ownerPage = await ownerContext.newPage();
 
         await gotoWhenReady(ownerPage, inviteUrl, '#email');
+        await expect(ownerPage.locator('body')).toContainText('Account Details');
+        await expect(ownerPage.locator('body')).toContainText('Roster end times');
+        await expect(ownerPage.locator('body')).toContainText('Auto-create pending timesheets');
         await expect(ownerPage.locator('#email')).toHaveValue(ownerEmail);
-        await expect(ownerPage.locator('#email')).toHaveAttribute('readonly', 'readonly');
+        await expect(ownerPage.locator('#email')).toBeDisabled();
         await ownerPage.fill('#passwordHash', 'test-password-123');
         await ownerPage.fill('#passwordConfirmation', 'test-password-123');
         await ownerPage.fill('#venue-name', venueName);
-        await ownerPage.fill('#venue-timezone', 'Pacific/Auckland');
+        await expect(ownerPage.locator('#venue-timezone')).toHaveCount(0);
         await ownerPage.selectOption('#venue-roster-week-starts-on', '2');
+        await ownerPage.fill('#firstName', 'E2E');
+        await ownerPage.fill('#lastName', 'Owner');
+        await ownerPage.fill('#phone', '0400000000');
+        await ownerPage.selectOption('#idealShiftsPerWeek', '3');
+        await ownerPage.fill('#emergencyContactName', 'Emergency Contact');
+        await ownerPage.fill('#emergencyContactPhone', '0411111111');
         await ownerPage.getByRole('button', { name: 'Create Account And Venue' }).click();
 
-        await expect(ownerPage).toHaveURL(/EditProfile/, { timeout: E2E_TIMEOUT.navigation });
-        const preferenceLabels = await ownerPage
-            .locator('[data-shift-preference-window] .shift-preference-table__available label span:not(.visually-hidden)')
-            .allTextContents();
-        expect(preferenceLabels.slice(0, 7)).toEqual(['Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon']);
+        await expect(ownerPage).toHaveURL(/RosterWeeks/, { timeout: E2E_TIMEOUT.navigation });
 
         await gotoWhenReady(ownerPage, inviteUrl, 'body');
         await expect(ownerPage.locator('body')).toContainText('Invitation Required');
