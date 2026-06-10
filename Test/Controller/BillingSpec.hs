@@ -6,7 +6,10 @@ import Config
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Test.Mocking
+import qualified Data.ByteString as ByteString
+import qualified Network.HTTP.Types.URI as URI
 import Network.HTTP.Types.Status
+import qualified Network.Wai as Wai
 import Network.Wai (responseHeaders)
 import Test.Hspec
 import Test.Support
@@ -132,7 +135,7 @@ tests = beforeAll testContext do
                 control.manualReadOnlyReason `shouldBe` Just "Payment follow-up"
                 control.setByUserId `shouldBe` Just (unpackId superAdmin.id)
 
-        it "does not treat Checkout success as subscription state" $ withContext do
+        it "returns Checkout success to Billing with a webhook-pending modal" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Billing Success Venue"
                 owner <- createUserRecord "billing-success-owner@example.com" "staff" True
@@ -141,10 +144,85 @@ tests = beforeAll testContext do
                 response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
                     callActionWithParams BillingSuccessAction [("session_id", "cs_test_123")]
 
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Billing Pending"
+                response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/Billing?checkout=success&session_id=cs_test_123"
                 subscriptionCount <- query @VenueSubscription |> filterWhere (#venueId, unpackId venue.id) |> fetchCount
                 subscriptionCount `shouldBe` 0
+
+        it "shows a pending Checkout modal on Billing while waiting for webhook confirmation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Pending Modal Venue"
+                owner <- createUserRecord "billing-pending-modal-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    withRequestQuery "checkout=success&session_id=cs_test_123" do
+                        callAction BillingAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Finalising subscription"
+                response `responseBodyShouldContain` "spinner-border"
+                response `responseBodyShouldContain` "Checkout session: cs_test_123"
+                response `responseBodyShouldContain` "data-live-update-url=\"/ShowBillingStatusFragment?checkout=success&amp;session_id=cs_test_123\""
+
+        it "updates the Checkout modal to confirmed once the subscription webhook is processed" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Confirmed Modal Venue"
+                owner <- createUserRecord "billing-confirmed-modal-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <-
+                    newRecord @VenueSubscription
+                        |> set #venueId (unpackId venue.id)
+                        |> set #stripeSubscriptionId "sub_confirmed_123"
+                        |> set #stripePriceId "price_monthly_123"
+                        |> set #status "active"
+                        |> set #cancelAtPeriodEnd False
+                        |> createRecord
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    withRequestQuery "checkout=success&session_id=cs_test_123" do
+                        callAction ShowBillingStatusFragmentAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Subscription confirmed"
+                response `responseBodyShouldContain` "sub_confirmed_123"
+                response `responseBodyShouldContain` "Continue"
+
+        it "updates the Checkout modal to failed when a relevant webhook fails" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Failed Modal Venue"
+                owner <- createUserRecord "billing-failed-modal-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <-
+                    newRecord @BillingEvent
+                        |> set #stripeEventId "evt_failed_checkout_123"
+                        |> set #eventType "checkout.session.completed"
+                        |> set #livemode False
+                        |> set #providerObjectType (Just "checkout.session")
+                        |> set #providerObjectId (Just "cs_test_123")
+                        |> set #venueId (Just (unpackId venue.id))
+                        |> set #status "failed"
+                        |> set #errorSummary (Just "processing failed")
+                        |> createRecord
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    withRequestQuery "checkout=success&session_id=cs_test_123" do
+                        callAction ShowBillingStatusFragmentAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Subscription needs attention"
+                response `responseBodyShouldContain` "processing failed"
+                response `responseBodyShouldContain` "Try Checkout Again"
+
+withRequestQuery :: (?request :: Wai.Request) => ByteString -> ((?request :: Wai.Request) => IO result) -> IO result
+withRequestQuery query callback = do
+    let queryBytes = if "?" `ByteString.isPrefixOf` query then ByteString.drop 1 query else query
+    let request' = ?request
+            { Wai.rawQueryString = "?" <> queryBytes
+            , Wai.queryString = URI.parseQuery queryBytes
+            }
+    let ?request = request'
+    callback
 
 testStripeConfig :: StripeConfig
 testStripeConfig =

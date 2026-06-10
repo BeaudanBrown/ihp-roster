@@ -2,6 +2,7 @@ module Web.View.Billing.Index where
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.LiveSurface (liveSurfaceConfigJson, mkTypedDefinedLiveSurface)
+import Application.Helper.Url (appendQueryParams)
 import qualified Data.Text as Text
 import Web.Billing.LiveUpdates
 import Web.View.Prelude
@@ -11,7 +12,18 @@ data BillingViewModel = BillingViewModel
     , maybeSubscription :: !(Maybe VenueSubscription)
     , maybeControl      :: !(Maybe VenueBillingControl)
     , recentEvents      :: ![BillingEvent]
+    , checkoutReturn    :: !(Maybe BillingCheckoutReturn)
     }
+
+data BillingCheckoutReturn = BillingCheckoutReturn
+    { checkoutSessionId :: !(Maybe Text)
+    , checkoutOutcome   :: !BillingCheckoutOutcome
+    }
+
+data BillingCheckoutOutcome
+    = BillingCheckoutPending
+    | BillingCheckoutConfirmed !VenueSubscription
+    | BillingCheckoutFailed !BillingEvent
 
 newtype BillingView = BillingView
     { viewModel :: BillingViewModel
@@ -63,12 +75,104 @@ renderBillingResultPage title message =
         }
 
 renderBillingStatusFragment :: BillingViewModel -> Html
-renderBillingStatusFragment viewModel@BillingViewModel { recentEvents, maybeControl } = [hsx|
-    <div id="billing-status-fragment">
+renderBillingStatusFragment viewModel@BillingViewModel { recentEvents, maybeControl, checkoutReturn } = [hsx|
+    <div id="billing-status-fragment" data-live-update-url={billingStatusFragmentUrl checkoutReturn}>
         {renderBillingStatusPanel viewModel}
         {if currentUserIsSupportAdmin then renderBillingControlPanel maybeControl else mempty}
         {renderBillingEventsPanel recentEvents}
+        {renderBillingCheckoutReturnModal checkoutReturn}
     </div>
+|]
+
+billingStatusFragmentUrl :: Maybe BillingCheckoutReturn -> Text
+billingStatusFragmentUrl Nothing = pathTo ShowBillingStatusFragmentAction
+billingStatusFragmentUrl (Just BillingCheckoutReturn { checkoutSessionId }) =
+    appendQueryParams (pathTo ShowBillingStatusFragmentAction) $
+        ("checkout", "success") : maybe [] (\sessionId -> [("session_id", sessionId)]) checkoutSessionId
+
+renderBillingCheckoutReturnModal :: Maybe BillingCheckoutReturn -> Html
+renderBillingCheckoutReturnModal Nothing = mempty
+renderBillingCheckoutReturnModal (Just checkoutReturn) = [hsx|
+    <div class="modal fade show d-block"
+         tabindex="-1"
+         role="dialog"
+         aria-modal="true"
+         aria-labelledby="billing-checkout-return-title"
+         data-billing-checkout-modal="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content shadow">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="billing-checkout-return-title">{billingCheckoutModalTitle checkoutReturn.checkoutOutcome}</h5>
+                    {renderBillingCheckoutCloseButton checkoutReturn.checkoutOutcome}
+                </div>
+                <div class="modal-body">
+                    {renderBillingCheckoutModalBody checkoutReturn}
+                </div>
+                {renderBillingCheckoutModalFooter checkoutReturn.checkoutOutcome}
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show" data-billing-checkout-modal-backdrop="true"></div>
+|]
+
+billingCheckoutModalTitle :: BillingCheckoutOutcome -> Text
+billingCheckoutModalTitle BillingCheckoutPending = "Finalising subscription"
+billingCheckoutModalTitle (BillingCheckoutConfirmed _) = "Subscription confirmed"
+billingCheckoutModalTitle (BillingCheckoutFailed _) = "Subscription needs attention"
+
+renderBillingCheckoutCloseButton :: BillingCheckoutOutcome -> Html
+renderBillingCheckoutCloseButton BillingCheckoutPending = mempty
+renderBillingCheckoutCloseButton _ = [hsx|
+    <a href={BillingAction} class="btn-close" aria-label="Close"></a>
+|]
+
+renderBillingCheckoutModalFooter :: BillingCheckoutOutcome -> Html
+renderBillingCheckoutModalFooter BillingCheckoutPending = mempty
+renderBillingCheckoutModalFooter (BillingCheckoutConfirmed _) = [hsx|
+    <div class="modal-footer">
+        <a href={BillingAction} class="btn btn-primary">Continue</a>
+    </div>
+|]
+renderBillingCheckoutModalFooter (BillingCheckoutFailed _) = [hsx|
+    <div class="modal-footer">
+        <a href={BillingAction} class="btn btn-outline-secondary">Back to Billing</a>
+        <form method="POST" action={CreateBillingCheckoutSessionAction} data-disable-javascript-submission="true">
+            <button type="submit" class="btn btn-primary">Try Checkout Again</button>
+        </form>
+    </div>
+|]
+
+renderBillingCheckoutModalBody :: BillingCheckoutReturn -> Html
+renderBillingCheckoutModalBody BillingCheckoutReturn { checkoutSessionId, checkoutOutcome = BillingCheckoutPending } = [hsx|
+    <div class="d-flex gap-3 align-items-start">
+        <div class="spinner-border text-primary flex-shrink-0" role="status" aria-label="Loading"></div>
+        <div>
+            <p class="mb-2">Stripe has returned you to Bepis. We are waiting for the signed webhook to confirm the subscription.</p>
+            <p class="mb-0 app-muted small">This usually takes a few seconds. You can leave this page open; it will update automatically.</p>
+            {renderCheckoutSessionHint checkoutSessionId}
+        </div>
+    </div>
+|]
+renderBillingCheckoutModalBody BillingCheckoutReturn { checkoutOutcome = BillingCheckoutConfirmed subscription } = [hsx|
+    <p class="mb-2">Stripe confirmed the subscription and Bepis has updated this venue's billing status.</p>
+    <div class="small app-muted">Subscription: {subscription.stripeSubscriptionId}</div>
+|]
+renderBillingCheckoutModalBody BillingCheckoutReturn { checkoutOutcome = BillingCheckoutFailed event } = [hsx|
+    <p class="mb-2">Stripe sent a webhook for this checkout, but Bepis could not confirm the subscription automatically.</p>
+    <div class="small app-muted">Last event: {event.eventType} · {event.status}</div>
+    {renderBillingCheckoutErrorSummary event.errorSummary}
+|]
+
+renderBillingCheckoutErrorSummary :: Maybe Text -> Html
+renderBillingCheckoutErrorSummary Nothing = mempty
+renderBillingCheckoutErrorSummary (Just summary) = [hsx|
+    <div class="small text-danger mt-2">{summary}</div>
+|]
+
+renderCheckoutSessionHint :: Maybe Text -> Html
+renderCheckoutSessionHint Nothing = mempty
+renderCheckoutSessionHint (Just sessionId) = [hsx|
+    <div class="small app-muted mt-2">Checkout session: {sessionId}</div>
 |]
 
 renderBillingStatusPanel :: BillingViewModel -> Html

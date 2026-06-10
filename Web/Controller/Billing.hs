@@ -2,7 +2,8 @@ module Web.Controller.Billing where
 
 import Application.Billing.Stripe
 import Application.Helper.LiveResource (LiveMutationResult (..))
-import Control.Monad (void)
+import Application.Helper.Url (appendQueryParams)
+import Control.Monad (guard, void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import Application.Helper.LiveSurface (serveTypedLiveFragment)
@@ -33,8 +34,9 @@ instance Controller BillingController where
     action CreateBillingPortalSessionAction =
         createBillingPortalSessionAction
 
-    action BillingSuccessAction =
-        render BillingSuccessView
+    action BillingSuccessAction = do
+        let checkoutParams = ("checkout", "success") : maybe [] (\sessionId -> [("session_id", sessionId)]) (paramOrNothing @Text "session_id")
+        redirectToPath (appendQueryParams (pathTo BillingAction) checkoutParams)
 
     action BillingCancelAction =
         render BillingCancelView
@@ -49,7 +51,7 @@ ensureBillingAccess = do
         "Only the venue owner or a super admin can manage billing for this venue."
     ensurePrivilegedPasskeyReady
 
-fetchBillingViewModel :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO BillingViewModel
+fetchBillingViewModel :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO BillingViewModel
 fetchBillingViewModel = do
     maybeCustomer <- fetchCurrentVenueBillingCustomer
     maybeSubscription <- fetchCurrentVenueSubscription
@@ -60,7 +62,30 @@ fetchBillingViewModel = do
             |> orderByDesc #receivedAt
             |> limit 5
             |> fetch
+    let checkoutReturn = billingCheckoutReturnFromRequest maybeSubscription recentEvents
     pure BillingViewModel { .. }
+
+billingCheckoutReturnFromRequest :: (?request :: Request) => Maybe VenueSubscription -> [BillingEvent] -> Maybe BillingCheckoutReturn
+billingCheckoutReturnFromRequest maybeSubscription recentEvents = do
+    guard (paramOrNothing @Text "checkout" == Just "success" || isJust checkoutSessionId)
+    pure BillingCheckoutReturn
+        { checkoutSessionId
+        , checkoutOutcome = classifyCheckoutOutcome checkoutSessionId maybeSubscription recentEvents
+        }
+    where
+        checkoutSessionId = paramOrNothing @Text "session_id"
+
+classifyCheckoutOutcome :: Maybe Text -> Maybe VenueSubscription -> [BillingEvent] -> BillingCheckoutOutcome
+classifyCheckoutOutcome _ (Just subscription) _ = BillingCheckoutConfirmed subscription
+classifyCheckoutOutcome checkoutSessionId Nothing recentEvents =
+    case find (isCheckoutFailure checkoutSessionId) recentEvents of
+        Just event -> BillingCheckoutFailed event
+        Nothing -> BillingCheckoutPending
+
+isCheckoutFailure :: Maybe Text -> BillingEvent -> Bool
+isCheckoutFailure checkoutSessionId event =
+    event.status == "failed"
+        || (event.eventType == "checkout.session.async_payment_failed" && maybe True (\sessionId -> event.providerObjectId == Just sessionId) checkoutSessionId)
 
 fetchCurrentVenueBillingCustomer :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO (Maybe VenueBillingCustomer)
 fetchCurrentVenueBillingCustomer =
