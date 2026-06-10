@@ -4,13 +4,27 @@ import Application.Billing.Notifications (billingNotificationJobKind)
 import Application.Billing.Stripe
 import Application.Billing.Webhook
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
+import qualified "crypton" Crypto.Hash as Hash
+import "crypton" Crypto.MAC.HMAC (HMAC, hmac)
 import qualified Data.Aeson as Aeson
+import qualified Data.ByteArray as ByteArray
+import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LByteString
+import qualified Data.IORef as IORef
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as TextEncoding
+import Data.Time.Clock.POSIX (getPOSIXTime)
+import qualified Data.Vault.Lazy as Vault
 import Generated.Types
+import IHP.Controller.Session (sessionVaultKey)
+import IHP.ControllerSupport (runActionWithNewContext)
 import IHP.ControllerPrelude
+import IHP.Server (initMiddlewareStack)
 import IHP.Test.Mocking
+import Network.HTTP.Types.Header (hContentType)
 import Network.HTTP.Types.Status
+import qualified Network.Wai as Wai
+import Network.Wai.Internal (ResponseReceived (..))
 import Test.Hspec
 import Test.Support
 import Web.Controller.StripeWebhooks ()
@@ -79,6 +93,37 @@ tests = beforeAll testContext do
                 map (.venueId) jobs `shouldBe` [Just (unpackId venue.id), Just (unpackId venue.id)]
                 map (.relatedTable) jobs `shouldBe` [Just "billing_events", Just "billing_events"]
 
+        it "accepts a valid signed JSON webhook request through the controller body middleware" $ withContext do
+            withCleanDb do
+                let eventBody = checkoutSessionEventWithoutVenue "evt_controller_checkout_123" "cus_controller_123" "sub_controller_123"
+                signatureHeader <- signedStripeHeader testStripeConfig.webhookSecret eventBody
+                response <- withStripeConfigForTest (Right testStripeConfig) do
+                    callStripeWebhookWithJsonBody eventBody signatureHeader
+
+                response `responseStatusShouldBe` status200
+                event <- query @BillingEvent |> filterWhere (#stripeEventId, "evt_controller_checkout_123" :: Text) |> fetchOne
+                event.status `shouldBe` "processed"
+                event.providerObjectType `shouldBe` Just "checkout.session"
+                event.stripeCustomerId `shouldBe` Just "cus_controller_123"
+                event.stripeSubscriptionId `shouldBe` Just "sub_controller_123"
+
+        it "upserts subscription state from a signed controller webhook request" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Webhook Controller Subscription Venue"
+                let eventBody = subscriptionEvent "evt_controller_subscription_123" venue "cus_controller_subscription_123" "sub_controller_subscription_123" "active"
+                signatureHeader <- signedStripeHeader testStripeConfig.webhookSecret eventBody
+                response <- withStripeConfigForTest (Right testStripeConfig) do
+                    callStripeWebhookWithJsonBody eventBody signatureHeader
+
+                response `responseStatusShouldBe` status200
+                event <- query @BillingEvent |> filterWhere (#stripeEventId, "evt_controller_subscription_123" :: Text) |> fetchOne
+                event.status `shouldBe` "processed"
+                event.venueId `shouldBe` Just (unpackId venue.id)
+                subscription <- query @VenueSubscription |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                subscription.stripeSubscriptionId `shouldBe` "sub_controller_subscription_123"
+                subscription.stripePriceId `shouldBe` "price_monthly_123"
+                subscription.status `shouldBe` "active"
+
         it "rejects invalid webhook signatures before parsing" $ withContext do
             withCleanDb do
                 response <- withStripeConfigForTest (Right testStripeConfig) do
@@ -88,6 +133,74 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status400
                 eventCount <- query @BillingEvent |> fetchCount
                 eventCount `shouldBe` 0
+
+        it "rejects signed JSON webhook requests when the body bytes do not match the signature" $ withContext do
+            withCleanDb do
+                let signedBody = checkoutSessionEventWithoutVenue "evt_body_mismatch_signed" "cus_body_mismatch" "sub_body_mismatch"
+                let sentBody = checkoutSessionEventWithoutVenue "evt_body_mismatch_sent" "cus_body_mismatch" "sub_body_mismatch"
+                signatureHeader <- signedStripeHeader testStripeConfig.webhookSecret signedBody
+                response <- withStripeConfigForTest (Right testStripeConfig) do
+                    callStripeWebhookWithJsonBody sentBody signatureHeader
+
+                response `responseStatusShouldBe` status400
+                eventCount <- query @BillingEvent |> fetchCount
+                eventCount `shouldBe` 0
+
+callStripeWebhookWithJsonBody :: (?application :: WebApplication, ?mocking :: MockContext WebApplication, ?request :: Wai.Request) => LByteString.ByteString -> Text -> IO Wai.Response
+callStripeWebhookWithJsonBody rawBody signatureHeader = do
+    let MockContext { frameworkConfig, modelContext, pgListener } = ?mocking
+    requestChunks <- IORef.newIORef (LByteString.toChunks rawBody)
+    let readBodyChunk = IORef.atomicModifyIORef requestChunks \case
+            [] -> ([], "")
+            chunk : chunks -> (chunks, chunk)
+    let baseRequest =
+            (Wai.setRequestBodyChunks readBodyChunk ?request)
+                { Wai.requestMethod = "POST"
+                , Wai.requestHeaders =
+                    [ (hContentType, "application/json")
+                    , ("Stripe-Signature", cs signatureHeader)
+                    ] <> filter ((/= hContentType) . fst) (Wai.requestHeaders ?request)
+                }
+    responseRef <- IORef.newIORef Nothing
+    let captureRespond response = do
+            IORef.writeIORef responseRef (Just response)
+            pure ResponseReceived
+    let mockSession = Vault.lookup sessionVaultKey (Wai.vault ?request)
+    let controllerApp request respond = do
+            let request' = case mockSession of
+                    Just session -> request { Wai.vault = Vault.insert sessionVaultKey session (Wai.vault request) }
+                    Nothing -> request
+            let ?request = request'
+            let ?respond = respond
+            runActionWithNewContext StripeWebhookAction
+    middlewareStack <- initMiddlewareStack frameworkConfig modelContext pgListener
+    _ <- middlewareStack controllerApp baseRequest captureRespond
+    IORef.readIORef responseRef >>= \case
+        Just response -> pure response
+        Nothing -> error "callStripeWebhookWithJsonBody: No response was returned by the controller"
+
+signedStripeHeader :: Text -> LByteString.ByteString -> IO Text
+signedStripeHeader webhookSecret rawBody = do
+    timestamp <- floor <$> getPOSIXTime
+    let signature = stripeWebhookTestSignatureHex webhookSecret timestamp rawBody
+    pure ("t=" <> cs (show timestamp) <> ",v1=" <> signature)
+
+stripeWebhookTestSignatureHex :: Text -> Integer -> LByteString.ByteString -> Text
+stripeWebhookTestSignatureHex webhookSecret timestamp rawBody =
+    let digest = hmac (TextEncoding.encodeUtf8 webhookSecret) (stripeWebhookSignedPayload timestamp rawBody) :: HMAC Hash.SHA256
+     in bytesToHex (ByteArray.convert digest)
+
+bytesToHex :: ByteString.ByteString -> Text
+bytesToHex = Text.concat . map byteToHex . ByteString.unpack
+    where
+        byteToHex byte =
+            let high = fromIntegral byte `div` (16 :: Int)
+                low = fromIntegral byte `mod` (16 :: Int)
+             in Text.pack [hexDigit high, hexDigit low]
+
+        hexDigit value
+            | value < 10 = toEnum (fromEnum '0' + value)
+            | otherwise = toEnum (fromEnum 'a' + value - 10)
 
 createBillingCustomer :: (?modelContext :: ModelContext) => Venue -> Text -> IO VenueBillingCustomer
 createBillingCustomer venue customerId =
@@ -124,6 +237,27 @@ subscriptionEvent eventId venue customerId subscriptionId status =
                                             ]
                                         ]
                                     ]
+                            ]
+                    ]
+            ]
+
+checkoutSessionEventWithoutVenue :: Text -> Text -> Text -> LByteString.ByteString
+checkoutSessionEventWithoutVenue eventId customerId subscriptionId =
+    Aeson.encode $
+        Aeson.object
+            [ "id" Aeson..= eventId
+            , "type" Aeson..= ("checkout.session.completed" :: Text)
+            , "livemode" Aeson..= False
+            , "api_version" Aeson..= ("2025-03-31.basil" :: Text)
+            , "data" Aeson..=
+                Aeson.object
+                    [ "object" Aeson..=
+                        Aeson.object
+                            [ "object" Aeson..= ("checkout.session" :: Text)
+                            , "id" Aeson..= ("cs_controller_123" :: Text)
+                            , "customer" Aeson..= customerId
+                            , "subscription" Aeson..= subscriptionId
+                            , "status" Aeson..= ("complete" :: Text)
                             ]
                     ]
             ]

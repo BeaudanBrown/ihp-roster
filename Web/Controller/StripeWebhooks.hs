@@ -10,7 +10,7 @@ import Web.Controller.Prelude
 
 instance Controller StripeWebhooksController where
     action StripeWebhookAction = do
-        rawBody <- Wai.strictRequestBody ?request
+        rawBody <- getRequestBody
         signatureHeader <- requireStripeSignatureHeader
         readStripeConfig >>= \case
             Left message ->
