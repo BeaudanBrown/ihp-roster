@@ -17,7 +17,10 @@ data StaffManagementFieldData = StaffManagementFieldData
     }
 
 renderPersonalProfileFields :: Staff -> Maybe Text -> Html
-renderPersonalProfileFields staff maybeEmail = [hsx|
+renderPersonalProfileFields = renderPersonalProfileFieldsWithEmailId "email"
+
+renderPersonalProfileFieldsWithEmailId :: Text -> Staff -> Maybe Text -> Html
+renderPersonalProfileFieldsWithEmailId emailFieldId staff maybeEmail = [hsx|
     <div class="row g-3 profile-field-grid">
         <div class="col-12 col-lg-6">
             <label for="firstName" class="form-label">First Name</label>
@@ -56,9 +59,9 @@ renderPersonalProfileFields staff maybeEmail = [hsx|
             {renderStaffFieldError staff "preferredName"}
         </div>
         <div class="col-12 col-lg-6">
-            <label for="email" class="form-label">Email</label>
+            <label for={emailFieldId} class="form-label">Email</label>
             <input
-                id="email"
+                id={emailFieldId}
                 type="email"
                 class="form-control"
                 value={fromMaybe "" maybeEmail}

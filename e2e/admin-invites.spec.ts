@@ -31,6 +31,15 @@ async function submitInviteCreateForm(page: Page) {
     await page.locator('#admin-invites-fragment form').getByRole('button', { name: 'Send' }).click();
 }
 
+async function fillRequiredInviteeStaffDetails(page: Page) {
+    await page.fill('#firstName', 'E2E');
+    await page.fill('#lastName', 'Invitee');
+    await page.fill('#phone', '0400000000');
+    await page.selectOption('#idealShiftsPerWeek', '3');
+    await page.fill('#emergencyContactName', 'Emergency Contact');
+    await page.fill('#emergencyContactPhone', '0411111111');
+}
+
 test.describe('Admin invites', () => {
     test.setTimeout(E2E_TIMEOUT.slowTest);
 
@@ -86,13 +95,17 @@ test.describe('Admin invites', () => {
         const inviteeContext = await browser.newContext();
         const inviteePage = await inviteeContext.newPage();
 
-        await gotoWhenReady(inviteePage, inviteUrl, '#email');
-        await expect(inviteePage.locator('#email')).toHaveValue(inviteeEmail);
-        await expect(inviteePage.locator('#email')).toHaveAttribute('readonly', 'readonly');
+        await gotoWhenReady(inviteePage, inviteUrl, '#invite-email');
+        await expect(inviteePage.locator('#invite-email')).toHaveValue(inviteeEmail);
+        await expect(inviteePage.locator('#invite-email')).toHaveAttribute('readonly', 'readonly');
+        await expect(inviteePage.locator('#staff-email')).toHaveValue(inviteeEmail);
+        await expect(inviteePage.locator('#staff-email')).toBeDisabled();
         await inviteePage.fill('input[name="passwordHash"]', 'test-password-123');
         await inviteePage.fill('input[name="passwordConfirmation"]', 'test-password-123');
+        await fillRequiredInviteeStaffDetails(inviteePage);
         await inviteePage.locator('form').evaluate((form) => (form as HTMLFormElement).requestSubmit());
-        await expect(inviteePage).toHaveURL(/EditProfile/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(inviteePage).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(inviteePage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
 
         await gotoWhenReady(page, '/Admin', '#admin-config-sections');
         await openInvitesSection(page);

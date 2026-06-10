@@ -2,14 +2,12 @@ import { test, expect, Page } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
 import {
     clearMailhogInbox,
-    clearE2EUserPasskeys,
-    enableVirtualPasskeyAuthenticator,
     extractFirstUrl,
     gotoWhenReady,
     inviteUrlForCurrentBase,
     mailhogMessageSubject,
     mailhogMessageText,
-    registerFirstSupportPasskeyForCurrentUser,
+    loginAsPrivilegedUserWithSeededPasskeySession,
     waitForMailhogMessage,
     webauthnBaseURL,
 } from './test-helpers';
@@ -17,15 +15,8 @@ import {
 test.use({ baseURL: webauthnBaseURL });
 
 async function loginAsSuperAdmin(page: Page) {
-    clearE2EUserPasskeys('e2e-super-admin@example.com');
-    await enableVirtualPasskeyAuthenticator(page);
-    await gotoWhenReady(page, '/NewSession', '#email');
-    await page.fill('#email', 'e2e-super-admin@example.com');
-    await page.fill('#password', 'test-password-123');
-    await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/Support/, { timeout: E2E_TIMEOUT.navigation });
-    await expect(page.locator('#support-create-onboarding-email')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
-    await registerFirstSupportPasskeyForCurrentUser(page);
+    await loginAsPrivilegedUserWithSeededPasskeySession(page, 'e2e-super-admin@example.com', 'test-password-123');
+    await gotoWhenReady(page, '/Support', '#support-create-onboarding-email');
 }
 
 async function openSupport(page: Page) {
@@ -85,12 +76,12 @@ test.describe('Venue owner onboarding invites', () => {
         const ownerContext = await browser.newContext();
         const ownerPage = await ownerContext.newPage();
 
-        await gotoWhenReady(ownerPage, inviteUrl, '#email');
+        await gotoWhenReady(ownerPage, inviteUrl, '#staff-email');
         await expect(ownerPage.locator('body')).toContainText('Account Details');
         await expect(ownerPage.locator('body')).toContainText('Roster end times');
         await expect(ownerPage.locator('body')).toContainText('Auto-create pending timesheets');
-        await expect(ownerPage.locator('#email')).toHaveValue(ownerEmail);
-        await expect(ownerPage.locator('#email')).toBeDisabled();
+        await expect(ownerPage.locator('#staff-email')).toHaveValue(ownerEmail);
+        await expect(ownerPage.locator('#staff-email')).toBeDisabled();
         await ownerPage.fill('#passwordHash', 'test-password-123');
         await ownerPage.fill('#passwordConfirmation', 'test-password-123');
         await ownerPage.fill('#venue-name', venueName);
@@ -104,7 +95,8 @@ test.describe('Venue owner onboarding invites', () => {
         await ownerPage.fill('#emergencyContactPhone', '0411111111');
         await ownerPage.getByRole('button', { name: 'Create Account And Venue' }).click();
 
-        await expect(ownerPage).toHaveURL(/RosterWeeks/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(ownerPage).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(ownerPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
 
         await gotoWhenReady(ownerPage, inviteUrl, 'body');
         await expect(ownerPage.locator('body')).toContainText('Invitation Required');

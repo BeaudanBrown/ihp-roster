@@ -2,7 +2,7 @@ module Web.View.Users.New where
 
 import Application.Helper.View.VenueBootstrap (renderVenueBootstrapFields)
 import Web.View.Prelude
-import Web.View.StaffProfileForm (renderPersonalProfileFields)
+import Web.View.StaffProfileForm (renderPersonalProfileFieldsWithEmailId)
 
 data NewView
     = InviteOnlyView
@@ -69,9 +69,9 @@ renderInvitationForm :: User -> VenueInvitation -> Staff -> Html
 renderInvitationForm user invitation staff = formForWithoutJavascript user [hsx|
     <input type="hidden" name="invitationId" value={tshow invitation.id} />
     <div class="mb-3">
-        <label class="form-label" for="email">Email address</label>
+        <label class="form-label" for="invite-email">Email address</label>
         <input
-            id="email"
+            id="invite-email"
             type="email"
             class="form-control"
             value={invitation.email}
@@ -88,7 +88,7 @@ renderInvitationForm user invitation staff = formForWithoutJavascript user [hsx|
         }}
     <hr/>
     <h5 class="mb-3">Confirm your staff details</h5>
-    {renderPersonalProfileFields staff (Just invitation.email)}
+    {renderPersonalProfileFieldsWithEmailId "staff-email" staff (Just invitation.email)}
     <div class="d-grid mt-4">
         <button type="submit" class="btn btn-primary">Create Account</button>
     </div>
@@ -133,7 +133,7 @@ renderVenueOnboardingForm user invitation venue staff venueRosterWeekStartsOn ve
                     />
                 </div>
             </div>
-            {renderPersonalProfileFields staff (Just invitation.email)}
+            {renderPersonalProfileFieldsWithEmailId "staff-email" staff (Just invitation.email)}
         </section>
         <div class="d-grid mt-4">
             <button type="submit" class="btn btn-primary">Create Account And Venue</button>
