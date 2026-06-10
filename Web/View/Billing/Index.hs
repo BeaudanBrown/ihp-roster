@@ -80,7 +80,7 @@ renderBillingStatusFragment viewModel@BillingViewModel { recentEvents, maybeCont
         {renderBillingStatusPanel viewModel}
         {if currentUserIsSupportAdmin then renderBillingControlPanel maybeControl else mempty}
         {renderBillingEventsPanel recentEvents}
-        {renderBillingCheckoutReturnModal checkoutReturn}
+        {renderBillingCheckoutReturnDialog checkoutReturn}
     </div>
 |]
 
@@ -90,60 +90,46 @@ billingStatusFragmentUrl (Just BillingCheckoutReturn { checkoutSessionId }) =
     appendQueryParams (pathTo ShowBillingStatusFragmentAction) $
         ("checkout", "success") : maybe [] (\sessionId -> [("session_id", sessionId)]) checkoutSessionId
 
-renderBillingCheckoutReturnModal :: Maybe BillingCheckoutReturn -> Html
-renderBillingCheckoutReturnModal Nothing = mempty
-renderBillingCheckoutReturnModal (Just checkoutReturn) = [hsx|
-    <div class="modal fade show d-block"
-         tabindex="-1"
-         role="dialog"
-         aria-modal="true"
-         aria-labelledby="billing-checkout-return-title"
-         data-billing-checkout-modal="true">
-        <div class="modal-dialog modal-dialog-centered" role="document">
-            <div class="modal-content shadow">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="billing-checkout-return-title">{billingCheckoutModalTitle checkoutReturn.checkoutOutcome}</h5>
-                    {renderBillingCheckoutCloseButton checkoutReturn.checkoutOutcome}
-                </div>
-                <div class="modal-body">
-                    {renderBillingCheckoutModalBody checkoutReturn}
-                </div>
-                {renderBillingCheckoutModalFooter checkoutReturn.checkoutOutcome}
-            </div>
-        </div>
-    </div>
-    <div class="modal-backdrop fade show" data-billing-checkout-modal-backdrop="true"></div>
-|]
+renderBillingCheckoutReturnDialog :: Maybe BillingCheckoutReturn -> Html
+renderBillingCheckoutReturnDialog Nothing = mempty
+renderBillingCheckoutReturnDialog (Just checkoutReturn) =
+    renderPageDialogModal (pathTo BillingAction) DialogOverlayConfig
+        { dialogOverlayTitle = billingCheckoutDialogTitle checkoutReturn.checkoutOutcome
+        , dialogOverlayBody = renderBillingCheckoutDialogBody checkoutReturn
+        , dialogOverlayStartButtons = []
+        , dialogOverlayButtons = billingCheckoutDialogButtons checkoutReturn.checkoutOutcome
+        , dialogOverlayDialogClass = "modal-dialog-centered"
+        }
 
-billingCheckoutModalTitle :: BillingCheckoutOutcome -> Text
-billingCheckoutModalTitle BillingCheckoutPending = "Finalising subscription"
-billingCheckoutModalTitle (BillingCheckoutConfirmed _) = "Subscription confirmed"
-billingCheckoutModalTitle (BillingCheckoutFailed _) = "Subscription needs attention"
+billingCheckoutDialogTitle :: BillingCheckoutOutcome -> Text
+billingCheckoutDialogTitle BillingCheckoutPending = "Finalising subscription"
+billingCheckoutDialogTitle (BillingCheckoutConfirmed _) = "Subscription confirmed"
+billingCheckoutDialogTitle (BillingCheckoutFailed _) = "Subscription needs attention"
 
-renderBillingCheckoutCloseButton :: BillingCheckoutOutcome -> Html
-renderBillingCheckoutCloseButton BillingCheckoutPending = mempty
-renderBillingCheckoutCloseButton _ = [hsx|
-    <a href={BillingAction} class="btn-close" aria-label="Close"></a>
-|]
+billingCheckoutDialogButtons :: BillingCheckoutOutcome -> [OverlayButton]
+billingCheckoutDialogButtons BillingCheckoutPending = []
+billingCheckoutDialogButtons (BillingCheckoutConfirmed _) =
+    [ OverlayButton
+        { overlayButtonLabel = "Continue"
+        , overlayButtonClass = "btn btn-primary"
+        , overlayButtonAction = OverlayNavigateAction (pathTo BillingAction)
+        }
+    ]
+billingCheckoutDialogButtons (BillingCheckoutFailed _) =
+    [ OverlayButton
+        { overlayButtonLabel = "Back to Billing"
+        , overlayButtonClass = "btn btn-outline-secondary"
+        , overlayButtonAction = OverlayNavigateAction (pathTo BillingAction)
+        }
+    , OverlayButton
+        { overlayButtonLabel = "Try Checkout Again"
+        , overlayButtonClass = "btn btn-primary"
+        , overlayButtonAction = OverlayFormAction "POST" (pathTo CreateBillingCheckoutSessionAction) [] "" Nothing
+        }
+    ]
 
-renderBillingCheckoutModalFooter :: BillingCheckoutOutcome -> Html
-renderBillingCheckoutModalFooter BillingCheckoutPending = mempty
-renderBillingCheckoutModalFooter (BillingCheckoutConfirmed _) = [hsx|
-    <div class="modal-footer">
-        <a href={BillingAction} class="btn btn-primary">Continue</a>
-    </div>
-|]
-renderBillingCheckoutModalFooter (BillingCheckoutFailed _) = [hsx|
-    <div class="modal-footer">
-        <a href={BillingAction} class="btn btn-outline-secondary">Back to Billing</a>
-        <form method="POST" action={CreateBillingCheckoutSessionAction} data-disable-javascript-submission="true">
-            <button type="submit" class="btn btn-primary">Try Checkout Again</button>
-        </form>
-    </div>
-|]
-
-renderBillingCheckoutModalBody :: BillingCheckoutReturn -> Html
-renderBillingCheckoutModalBody BillingCheckoutReturn { checkoutSessionId, checkoutOutcome = BillingCheckoutPending } = [hsx|
+renderBillingCheckoutDialogBody :: BillingCheckoutReturn -> Html
+renderBillingCheckoutDialogBody BillingCheckoutReturn { checkoutSessionId, checkoutOutcome = BillingCheckoutPending } = [hsx|
     <div class="d-flex gap-3 align-items-start">
         <div class="spinner-border text-primary flex-shrink-0" role="status" aria-label="Loading"></div>
         <div>
@@ -153,11 +139,11 @@ renderBillingCheckoutModalBody BillingCheckoutReturn { checkoutSessionId, checko
         </div>
     </div>
 |]
-renderBillingCheckoutModalBody BillingCheckoutReturn { checkoutOutcome = BillingCheckoutConfirmed subscription } = [hsx|
+renderBillingCheckoutDialogBody BillingCheckoutReturn { checkoutOutcome = BillingCheckoutConfirmed subscription } = [hsx|
     <p class="mb-2">Stripe confirmed the subscription and Bepis has updated this venue's billing status.</p>
     <div class="small app-muted">Subscription: {subscription.stripeSubscriptionId}</div>
 |]
-renderBillingCheckoutModalBody BillingCheckoutReturn { checkoutOutcome = BillingCheckoutFailed event } = [hsx|
+renderBillingCheckoutDialogBody BillingCheckoutReturn { checkoutOutcome = BillingCheckoutFailed event } = [hsx|
     <p class="mb-2">Stripe sent a webhook for this checkout, but Bepis could not confirm the subscription automatically.</p>
     <div class="small app-muted">Last event: {event.eventType} · {event.status}</div>
     {renderBillingCheckoutErrorSummary event.errorSummary}

@@ -163,6 +163,9 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Finalising subscription"
                 response `responseBodyShouldContain` "spinner-border"
                 response `responseBodyShouldContain` "Checkout session: cs_test_123"
+                response `responseBodyShouldContain` "app-page-dialog-modal"
+                response `responseBodyShouldNotContain` "data-billing-checkout-modal"
+                response `responseBodyShouldNotContain` "data-billing-checkout-modal-backdrop"
                 response `responseBodyShouldContain` "data-live-update-url=\"/ShowBillingStatusFragment?checkout=success&amp;session_id=cs_test_123\""
 
         it "updates the Checkout modal to confirmed once the subscription webhook is processed" $ withContext do
@@ -187,6 +190,8 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Subscription confirmed"
                 response `responseBodyShouldContain` "sub_confirmed_123"
                 response `responseBodyShouldContain` "Continue"
+                response `responseBodyShouldContain` "app-page-dialog-modal"
+                response `responseBodyShouldNotContain` "data-billing-checkout-modal"
 
         it "updates the Checkout modal to failed when a relevant webhook fails" $ withContext do
             withCleanDb do
