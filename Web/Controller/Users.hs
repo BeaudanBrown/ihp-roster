@@ -16,6 +16,7 @@ import qualified IHP.AuthSupport.Controller.Sessions as Sessions
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import Web.Controller.Prelude
 import Web.Controller.Sessions ()
+import Web.Controller.StaffProfileValidation (buildRequiredPersonalProfileStaff)
 import Web.Users.Mutations (acceptVenueInvitation)
 import Web.View.Users.New
 
@@ -54,7 +55,7 @@ instance Controller UsersController where
                     Just invitation | invitationIsActive now invitation -> do
                         let passwordConfirmation = normalizeText (paramOrDefault @Text "" "passwordConfirmation")
                         let user = newRecord @User |> set #email invitation.email
-                        let staff = buildSignupStaff (newRecord @Staff)
+                        let staff = buildRequiredPersonalProfileStaff (newRecord @Staff)
                         user
                             |> requireParam #passwordHash "passwordHash" "Password is required"
                             |> fill @'["passwordHash"]
@@ -136,7 +137,7 @@ instance Controller UsersController where
                         let venueRosterEndTimesEnabled = isJust (paramOrNothing @Text "rosterEndTimesEnabled")
                         let venueAutoTimesheetCreationEnabled = isJust (paramOrNothing @Text "autoTimesheetCreationEnabled")
                         let user = newRecord @User |> set #email invitation.email
-                        let staff = buildSignupStaff (newRecord @Staff)
+                        let staff = buildRequiredPersonalProfileStaff (newRecord @Staff)
                         let venue =
                                 newRecord @Venue
                                     |> set #status (unsafeEnumFromText @VenueStatusEnum "active")
@@ -270,25 +271,6 @@ instance Controller UsersController where
                         setErrorMessage "That onboarding link is no longer valid. Contact support for a new venue owner invitation."
                         setTitle "Request Access"
                         render InviteOnlyView
-
-buildSignupStaff :: (?context :: ControllerContext, ?request :: Request) => Staff -> Staff
-buildSignupStaff staff =
-    staff
-        |> requireParam #firstName "firstName" "First name is required"
-        |> requireParam #lastName "lastName" "Last name is required"
-        |> requireParam #phone "phone" "Phone is required"
-        |> requireParam #emergencyContactName "emergencyContactName" "Emergency contact name is required"
-        |> requireParam #emergencyContactPhone "emergencyContactPhone" "Emergency contact phone is required"
-        |> requireParam #idealShiftsPerWeek "idealShiftsPerWeek" "Ideal shifts per week is required"
-        |> fill @'["firstName", "lastName", "preferredName", "phone", "emergencyContactName", "emergencyContactPhone", "idealShiftsPerWeek"]
-        |> normalizeMaybeTextField #preferredName
-        |> requiredBoundedTextField #firstName 80
-        |> requiredBoundedTextField #lastName 80
-        |> validateField #preferredName (validateMaybe (boundedText 80))
-        |> requiredBoundedTextField #phone 80
-        |> requiredBoundedTextField #emergencyContactName 120
-        |> requiredBoundedTextField #emergencyContactPhone 80
-        |> validateField #idealShiftsPerWeek (isInRange (0, 7))
 
 createSignupStaff :: (?modelContext :: ModelContext) => Venue -> User -> Staff -> IO Staff
 createSignupStaff venue user staff = do

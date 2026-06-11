@@ -177,7 +177,11 @@ renderProfileForm staff currentUserEmail staffManagementFields =
                     , staffProfileFormHtmxSwap = "outerHTML show:none"
                     , staffProfileFormHtmxPushUrl = "false"
                     }
+            , staffProfileDetailsFormAttributes = []
             , staffProfileDetailsFormHiddenInputs = [hsx|<input type="hidden" name="section" value="profile"/>|]
+            , staffProfileDetailsFormBeforeFields = mempty
+            , staffProfileDetailsFormFieldsHeading = Nothing
+            , staffProfileDetailsFormAfterFields = mempty
             , staffProfileDetailsFormManagement = staffManagementFields
             , staffProfileDetailsFormManagementBody = renderProfileStaffManagementSection
             , staffProfileDetailsFormSubmitLabel = "Save profile details"

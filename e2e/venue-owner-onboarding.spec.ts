@@ -76,12 +76,12 @@ test.describe('Venue owner onboarding invites', () => {
         const ownerContext = await browser.newContext();
         const ownerPage = await ownerContext.newPage();
 
-        await gotoWhenReady(ownerPage, inviteUrl, '#staff-email');
+        await gotoWhenReady(ownerPage, inviteUrl, '#email');
         await expect(ownerPage.locator('body')).toContainText('Account Details');
         await expect(ownerPage.locator('body')).toContainText('Roster end times');
         await expect(ownerPage.locator('body')).toContainText('Auto-create pending timesheets');
-        await expect(ownerPage.locator('#staff-email')).toHaveValue(ownerEmail);
-        await expect(ownerPage.locator('#staff-email')).toBeDisabled();
+        await expect(ownerPage.locator('#email')).toHaveValue(ownerEmail);
+        await expect(ownerPage.locator('#email')).toBeDisabled();
         await ownerPage.fill('#passwordHash', 'test-password-123');
         await ownerPage.fill('#passwordConfirmation', 'test-password-123');
         await ownerPage.fill('#venue-name', venueName);

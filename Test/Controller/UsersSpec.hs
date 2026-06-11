@@ -60,7 +60,12 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "invitee@example.com"
                 response `responseBodyShouldContain` "venue admin"
                 response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
-                response `responseBodyShouldContain` "readonly=\"readonly\""
+                response `responseBodyShouldContain` "Account Details"
+                response `responseBodyShouldContain` "Confirm your staff details"
+                response `responseBodyShouldContain` "id=\"email\""
+                response `responseBodyShouldContain` "disabled=\"disabled\""
+                response `responseBodyShouldNotContain` "id=\"invite-email\""
+                response `responseBodyShouldNotContain` "id=\"staff-email\""
 
         it "does not render the signup form for an expired invitation" $ withContext do
             withCleanDb do
@@ -99,6 +104,11 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "owner-onboarding@example.com"
                 response `responseBodyShouldContain` "Roster week starts on"
                 response `responseBodyShouldContain` "Account Details"
+                response `responseBodyShouldContain` "Confirm your staff details"
+                response `responseBodyShouldContain` "id=\"email\""
+                response `responseBodyShouldContain` "disabled=\"disabled\""
+                response `responseBodyShouldNotContain` "id=\"staff-email\""
+                response `responseBodyShouldNotContain` "id=\"invite-email\""
                 response `responseBodyShouldContain` "Roster end times"
                 response `responseBodyShouldContain` "Auto-create pending timesheets"
                 response `responseBodyShouldNotContain` "venue-timezone"

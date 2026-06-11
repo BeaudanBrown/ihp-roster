@@ -95,11 +95,9 @@ test.describe('Admin invites', () => {
         const inviteeContext = await browser.newContext();
         const inviteePage = await inviteeContext.newPage();
 
-        await gotoWhenReady(inviteePage, inviteUrl, '#invite-email');
-        await expect(inviteePage.locator('#invite-email')).toHaveValue(inviteeEmail);
-        await expect(inviteePage.locator('#invite-email')).toHaveAttribute('readonly', 'readonly');
-        await expect(inviteePage.locator('#staff-email')).toHaveValue(inviteeEmail);
-        await expect(inviteePage.locator('#staff-email')).toBeDisabled();
+        await gotoWhenReady(inviteePage, inviteUrl, '#email');
+        await expect(inviteePage.locator('#email')).toHaveValue(inviteeEmail);
+        await expect(inviteePage.locator('#email')).toBeDisabled();
         await inviteePage.fill('input[name="passwordHash"]', 'test-password-123');
         await inviteePage.fill('input[name="passwordConfirmation"]', 'test-password-123');
         await fillRequiredInviteeStaffDetails(inviteePage);

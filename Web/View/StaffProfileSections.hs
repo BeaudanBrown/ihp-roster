@@ -24,14 +24,18 @@ data StaffProfileFormHtmxConfig = StaffProfileFormHtmxConfig
     }
 
 data StaffProfileDetailsFormConfig = StaffProfileDetailsFormConfig
-    { staffProfileDetailsFormId             :: Text
-    , staffProfileDetailsFormAction         :: Text
-    , staffProfileDetailsFormClass          :: Text
-    , staffProfileDetailsFormHtmx           :: Maybe StaffProfileFormHtmxConfig
-    , staffProfileDetailsFormHiddenInputs   :: Html
-    , staffProfileDetailsFormManagement     :: Maybe StaffManagementFieldData
-    , staffProfileDetailsFormManagementBody :: StaffManagementFieldData -> Html
-    , staffProfileDetailsFormSubmitLabel    :: Text
+    { staffProfileDetailsFormId               :: Text
+    , staffProfileDetailsFormAction           :: Text
+    , staffProfileDetailsFormClass            :: Text
+    , staffProfileDetailsFormHtmx             :: Maybe StaffProfileFormHtmxConfig
+    , staffProfileDetailsFormAttributes       :: [(Text, Text)]
+    , staffProfileDetailsFormHiddenInputs     :: Html
+    , staffProfileDetailsFormBeforeFields     :: Html
+    , staffProfileDetailsFormFieldsHeading    :: Maybe Text
+    , staffProfileDetailsFormAfterFields      :: Html
+    , staffProfileDetailsFormManagement       :: Maybe StaffManagementFieldData
+    , staffProfileDetailsFormManagementBody   :: StaffManagementFieldData -> Html
+    , staffProfileDetailsFormSubmitLabel      :: Text
     }
 
 data StaffShiftPreferencesFormConfig = StaffShiftPreferencesFormConfig
@@ -79,7 +83,8 @@ renderStaffProfileDetailsFormWithHtmx config@StaffProfileDetailsFormConfig { .. 
           hx-post={staffProfileDetailsFormAction}
           hx-target={staffProfileFormHtmxTarget}
           hx-swap={staffProfileFormHtmxSwap}
-          hx-push-url={staffProfileFormHtmxPushUrl}>
+          hx-push-url={staffProfileFormHtmxPushUrl}
+          {...staffProfileDetailsFormAttributes}>
         {renderStaffProfileDetailsFormBody config staff maybeEmail}
     </form>
 |]
@@ -89,7 +94,8 @@ renderStaffProfileDetailsFormNative config@StaffProfileDetailsFormConfig { .. } 
     <form id={staffProfileDetailsFormId}
           method="POST"
           action={staffProfileDetailsFormAction}
-          class={staffProfileDetailsFormClass}>
+          class={staffProfileDetailsFormClass}
+          {...staffProfileDetailsFormAttributes}>
         {renderStaffProfileDetailsFormBody config staff maybeEmail}
     </form>
 |]
@@ -97,12 +103,19 @@ renderStaffProfileDetailsFormNative config@StaffProfileDetailsFormConfig { .. } 
 renderStaffProfileDetailsFormBody :: StaffProfileDetailsFormConfig -> Staff -> Maybe Text -> Html
 renderStaffProfileDetailsFormBody StaffProfileDetailsFormConfig { .. } staff maybeEmail = [hsx|
     {staffProfileDetailsFormHiddenInputs}
+    {staffProfileDetailsFormBeforeFields}
+    {renderStaffProfileDetailsFieldsHeading staffProfileDetailsFormFieldsHeading}
     {renderPersonalProfileFields staff maybeEmail}
     {maybe mempty staffProfileDetailsFormManagementBody staffProfileDetailsFormManagement}
+    {staffProfileDetailsFormAfterFields}
     <div class="d-grid mt-4 app-modal-sticky-actions">
         <button type="submit" class="btn btn-primary">{staffProfileDetailsFormSubmitLabel}</button>
     </div>
 |]
+
+renderStaffProfileDetailsFieldsHeading :: Maybe Text -> Html
+renderStaffProfileDetailsFieldsHeading (Just heading) = [hsx|<h5 class="mb-3">{heading}</h5>|]
+renderStaffProfileDetailsFieldsHeading Nothing = mempty
 
 renderStaffShiftPreferencesForm :: StaffShiftPreferencesFormConfig -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
 renderStaffShiftPreferencesForm config@StaffShiftPreferencesFormConfig { staffShiftPreferencesFormHtmx = Just htmxConfig } preferenceWeekdays selectedShiftPreferences =

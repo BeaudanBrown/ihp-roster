@@ -235,7 +235,11 @@ renderStaffDetailsForm formMode staff maybeLinkedUserEmail managementFields acti
             , staffProfileDetailsFormAction = pathTo action
             , staffProfileDetailsFormClass = "mt-3"
             , staffProfileDetailsFormHtmx = staffEditFormHtmxConfig formMode
+            , staffProfileDetailsFormAttributes = []
             , staffProfileDetailsFormHiddenInputs = [hsx|<input type="hidden" name="section" value="profile"/>|]
+            , staffProfileDetailsFormBeforeFields = mempty
+            , staffProfileDetailsFormFieldsHeading = Nothing
+            , staffProfileDetailsFormAfterFields = mempty
             , staffProfileDetailsFormManagement = Just managementFields
             , staffProfileDetailsFormManagementBody = renderStaffManagementFields
             , staffProfileDetailsFormSubmitLabel = "Save profile details"

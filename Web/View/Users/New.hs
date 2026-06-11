@@ -2,7 +2,7 @@ module Web.View.Users.New where
 
 import Application.Helper.View.VenueBootstrap (renderVenueBootstrapFields)
 import Web.View.Prelude
-import Web.View.StaffProfileForm (renderPersonalProfileFieldsWithEmailId)
+import Web.View.StaffProfileSections
 
 data NewView
     = InviteOnlyView
@@ -66,80 +66,112 @@ instance View NewView where
     |]
 
 renderInvitationForm :: User -> VenueInvitation -> Staff -> Html
-renderInvitationForm user invitation staff = formForWithoutJavascript user [hsx|
-    <input type="hidden" name="invitationId" value={tshow invitation.id} />
-    <div class="mb-3">
-        <label class="form-label" for="invite-email">Email address</label>
-        <input
-            id="invite-email"
-            type="email"
-            class="form-control"
-            value={invitation.email}
-            readonly="readonly"
-        />
-    </div>
-    {(passwordField #passwordHash) { fieldLabel = "Password", placeholder = "••••••••", required = True }}
-    {(passwordField #passwordHash)
-        { fieldLabel = "Confirm Password"
-        , placeholder = "••••••••"
-        , fieldName = "passwordConfirmation"
-        , validatorResult = Nothing
-        , required = True
-        }}
-    <hr/>
-    <h5 class="mb-3">Confirm your staff details</h5>
-    {renderPersonalProfileFieldsWithEmailId "staff-email" staff (Just invitation.email)}
-    <div class="d-grid mt-4">
-        <button type="submit" class="btn btn-primary">Create Account</button>
+renderInvitationForm user invitation staff =
+    renderInvitedProfileDetailsForm
+        NewAccountProfileFormConfig
+            { newAccountProfileFormId = "new-invited-account-form"
+            , newAccountProfileFormAction = pathTo CreateUserAction
+            , newAccountProfileFormHiddenInputs = [hsx|<input type="hidden" name="invitationId" value={tshow invitation.id}/>|]
+            , newAccountProfileFormBeforeAccountFields = mempty
+            , newAccountProfileFormSubmitLabel = "Create Account"
+            }
+        user
+        staff
+        invitation.email
+
+renderVenueOnboardingForm :: User -> VenueOnboardingInvitation -> Venue -> Staff -> Int -> Bool -> Bool -> Html
+renderVenueOnboardingForm user invitation venue staff venueRosterWeekStartsOn venueRosterEndTimesEnabled venueAutoTimesheetCreationEnabled =
+    renderInvitedProfileDetailsForm
+        NewAccountProfileFormConfig
+            { newAccountProfileFormId = "new-venue-owner-account-form"
+            , newAccountProfileFormAction = pathTo CreateVenueOnboardingUserAction
+            , newAccountProfileFormHiddenInputs = [hsx|<input type="hidden" name="invitationId" value={tshow invitation.id}/>|]
+            , newAccountProfileFormBeforeAccountFields = [hsx|
+                <section class="mb-4">
+                    <h5 class="mb-3">Venue setup</h5>
+                    <div class="row g-3">
+                        {renderVenueBootstrapFields venue venueRosterWeekStartsOn}
+                        {renderVenueDefaultToggles venueRosterEndTimesEnabled venueAutoTimesheetCreationEnabled}
+                    </div>
+                </section>
+                <hr/>
+            |]
+            , newAccountProfileFormSubmitLabel = "Create Account And Venue"
+            }
+        user
+        staff
+        invitation.email
+
+data NewAccountProfileFormConfig = NewAccountProfileFormConfig
+    { newAccountProfileFormId                  :: Text
+    , newAccountProfileFormAction              :: Text
+    , newAccountProfileFormHiddenInputs        :: Html
+    , newAccountProfileFormBeforeAccountFields :: Html
+    , newAccountProfileFormSubmitLabel         :: Text
+    }
+
+renderInvitedProfileDetailsForm :: NewAccountProfileFormConfig -> User -> Staff -> Text -> Html
+renderInvitedProfileDetailsForm NewAccountProfileFormConfig { .. } user staff email =
+    renderStaffProfileDetailsForm
+        StaffProfileDetailsFormConfig
+            { staffProfileDetailsFormId = newAccountProfileFormId
+            , staffProfileDetailsFormAction = newAccountProfileFormAction
+            , staffProfileDetailsFormClass = ""
+            , staffProfileDetailsFormHtmx = Nothing
+            , staffProfileDetailsFormAttributes = [("data-disable-javascript-submission", "true")]
+            , staffProfileDetailsFormHiddenInputs = newAccountProfileFormHiddenInputs
+            , staffProfileDetailsFormBeforeFields = [hsx|
+                {newAccountProfileFormBeforeAccountFields}
+                <section class="mb-4">
+                    <h5 class="mb-3">Account Details</h5>
+                    {renderAccountPasswordFields user}
+                </section>
+                <hr/>
+            |]
+            , staffProfileDetailsFormFieldsHeading = Just "Confirm your staff details"
+            , staffProfileDetailsFormAfterFields = mempty
+            , staffProfileDetailsFormManagement = Nothing
+            , staffProfileDetailsFormManagementBody = const mempty
+            , staffProfileDetailsFormSubmitLabel = newAccountProfileFormSubmitLabel
+            }
+        staff
+        (Just email)
+
+renderAccountPasswordFields :: User -> Html
+renderAccountPasswordFields user = [hsx|
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-lg-6">
+            <label class="form-label" for="passwordHash">Password</label>
+            <input
+                id="passwordHash"
+                name="passwordHash"
+                type="password"
+                class={classes ["form-control", ("is-invalid", isJust (getValidationFailure #passwordHash user))]}
+                placeholder="••••••••"
+                required="required"
+                value={user.passwordHash}
+            />
+            {renderPasswordValidation user}
+        </div>
+        <div class="col-12 col-lg-6">
+            <label class="form-label" for="passwordConfirmation">Confirm Password</label>
+            <input
+                id="passwordConfirmation"
+                name="passwordConfirmation"
+                type="password"
+                class="form-control"
+                placeholder="••••••••"
+                required="required"
+            />
+        </div>
     </div>
 |]
 
-renderVenueOnboardingForm :: User -> VenueOnboardingInvitation -> Venue -> Staff -> Int -> Bool -> Bool -> Html
-renderVenueOnboardingForm user invitation venue staff venueRosterWeekStartsOn venueRosterEndTimesEnabled venueAutoTimesheetCreationEnabled = [hsx|
-    <form method="POST" action={CreateVenueOnboardingUserAction} data-disable-javascript-submission="true">
-        <input type="hidden" name="invitationId" value={tshow invitation.id} />
-        <section class="mb-4">
-            <h5 class="mb-3">Venue setup</h5>
-            <div class="row g-3">
-                {renderVenueBootstrapFields venue venueRosterWeekStartsOn}
-                {renderVenueDefaultToggles venueRosterEndTimesEnabled venueAutoTimesheetCreationEnabled}
-            </div>
-        </section>
-        <hr/>
-        <section>
-            <h5 class="mb-3">Account Details</h5>
-            <div class="row g-3 mb-3">
-                <div class="col-12 col-lg-6">
-                    <label class="form-label" for="passwordHash">Password</label>
-                    <input
-                        id="passwordHash"
-                        name="passwordHash"
-                        type="password"
-                        class="form-control"
-                        placeholder="••••••••"
-                        required="required"
-                        value={user.passwordHash}
-                    />
-                </div>
-                <div class="col-12 col-lg-6">
-                    <label class="form-label" for="passwordConfirmation">Confirm Password</label>
-                    <input
-                        id="passwordConfirmation"
-                        name="passwordConfirmation"
-                        type="password"
-                        class="form-control"
-                        placeholder="••••••••"
-                        required="required"
-                    />
-                </div>
-            </div>
-            {renderPersonalProfileFieldsWithEmailId "staff-email" staff (Just invitation.email)}
-        </section>
-        <div class="d-grid mt-4">
-            <button type="submit" class="btn btn-primary">Create Account And Venue</button>
-        </div>
-    </form>
-|]
+renderPasswordValidation :: User -> Html
+renderPasswordValidation user =
+    case getValidationFailure #passwordHash user of
+        Just message -> [hsx|<div class="invalid-feedback">{message}</div>|]
+        Nothing      -> mempty
 
 renderVenueDefaultToggles :: Bool -> Bool -> Html
 renderVenueDefaultToggles rosterEndTimesEnabled autoTimesheetCreationEnabled = [hsx|
