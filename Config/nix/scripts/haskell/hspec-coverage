@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=../lib/ghc.sh
+. "@scriptsRoot@/lib/ghc.sh"
 BASE_TEST_DATABASE_NAME="${TEST_DATABASE_NAME:-app_test_coverage}"
 export TEST_DB_SOCKET="${TEST_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
 
@@ -18,8 +20,7 @@ rm -rf "$BUILD_DIR" "$COVERAGE_DIR"
 mkdir -p "$BUILD_DIR" "$HPC_DIR" "$HTML_DIR"
 ln -sfn "$COVERAGE_DIR" "$COVERAGE_ROOT/latest"
 
-GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
-  | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
+GHC_OPTS="$(ihp_roster_ghc_opts)"
 ghc $GHC_OPTS \
     -fhpc \
     -hpcdir "$HPC_DIR" \

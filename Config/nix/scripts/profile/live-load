@@ -122,43 +122,8 @@ if [ -z "$PROFILE_MANIFEST" ] || [ ! -f "$PROFILE_MANIFEST" ]; then
 fi
 PROFILE_MANIFEST="$(realpath -m "$PROFILE_MANIFEST")"
 
-process_group_pids() {
-    local pgid="$1"
-    pgrep -g "$pgid" 2>/dev/null | tr '\n' ' ' || true
-}
-
-detect_profile_base_url() {
-    local pgid="$1"
-    local pids ports port
-    pids=$(process_group_pids "$pgid")
-    if [ -z "$pids" ]; then
-        return 1
-    fi
-
-    ports=$(
-        lsof -Pan -iTCP -sTCP:LISTEN $(printf ' -p %s' $pids) 2>/dev/null \
-            | awk 'NR > 1 { split($9, parts, ":"); print parts[length(parts)] }' \
-            | sort -n -u
-    )
-
-    for port in $ports; do
-        if curl -fsS "http://127.0.0.1:$port/NewSession" 2>/dev/null | grep -q 'id="email"'; then
-            printf 'http://127.0.0.1:%s\n' "$port"
-            return 0
-        fi
-    done
-
-    return 1
-}
-
-cleanup_profile_server() {
-    if [ -f "$PROFILE_PID_FILE" ]; then
-        local pid
-        pid=$(cat "$PROFILE_PID_FILE")
-        kill -TERM -"$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
-        rm -f "$PROFILE_PID_FILE"
-    fi
-}
+# shellcheck source=../lib/profile-server.sh
+. "@scriptsRoot@/lib/profile-server.sh"
 trap cleanup_profile_server EXIT INT TERM
 
 if [ -z "$PROFILE_BASE_URL" ]; then

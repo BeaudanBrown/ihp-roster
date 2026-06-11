@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=../lib/stripe.sh
+. "@scriptsRoot@/lib/stripe.sh"
 STATE_DIR="$(dev-agent-state-dir)"
 PID_FILE="$STATE_DIR/devenv.pid"
 POSTGRES_PID_FILE="$STATE_DIR/postgres.pid"
@@ -82,7 +84,7 @@ if [ ! -f "$STRIPE_PID_FILE" ]; then
     setsid nohup stripe listen \
         --api-key "$STRIPE_SECRET_KEY" \
         --skip-update \
-        --events checkout.session.completed,checkout.session.async_payment_succeeded,checkout.session.async_payment_failed,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,invoice.payment_failed \
+        --events "$IHP_ROSTER_STRIPE_WEBHOOK_EVENTS" \
         --forward-to localhost:8000/StripeWebhook \
         </dev/null >>"$STRIPE_LOG_FILE" 2>&1 &
     STRIPE_PID=$!

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=../lib/ghc.sh
+. "@scriptsRoot@/lib/ghc.sh"
 
 PROFILE_LIVE_RUN_ID="${PROFILE_LIVE_RUN_ID:-$(date +%s)-$$-$RANDOM}"
 PROFILE_LIVE_OUTPUT_DIR="${PROFILE_LIVE_OUTPUT_DIR:-$PWD/output/profile-live-invalidation/$PROFILE_LIVE_RUN_ID}"
@@ -18,8 +20,7 @@ PROFILE_LIVE_OUTPUT_DIR="$(realpath -m "$PROFILE_LIVE_OUTPUT_DIR")"
 mkdir -p "$PROFILE_LIVE_OUTPUT_DIR"
 SCRIPT_ARGS[0]="--output-dir=$PROFILE_LIVE_OUTPUT_DIR"
 
-GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
-  | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
+GHC_OPTS="$(ihp_roster_ghc_opts)"
 mkdir -p build/Script
 cat > build/Script/ProfileLiveInvalidationMain.hs <<'EOF'
 import qualified Application.Script.ProfileLiveInvalidation as Script

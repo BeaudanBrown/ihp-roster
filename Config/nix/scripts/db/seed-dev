@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=../lib/ghc.sh
+. "@scriptsRoot@/lib/ghc.sh"
 
 DB_NAME="app"
 RESET_MODE=""
@@ -58,8 +60,7 @@ DEV_XERO_SEED_FILE="${DEV_XERO_SEED_FILE:-$PWD/build/dev-xero-connection.sql}"
 echo "Loading hard-coded dev award and public holiday data"
 psql -h "$DB_SOCKET" -v ON_ERROR_STOP=1 -d "$DB_NAME" -f Application/Support/Seed/DevReferenceData.sql
 
-GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
-  | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
+GHC_OPTS="$(ihp_roster_ghc_opts)"
 mkdir -p build/Script
 cat > build/Script/SeedDevMain.hs.tmp <<'EOF'
 import qualified Application.Script.SeedDev as Script

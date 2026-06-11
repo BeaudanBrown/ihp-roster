@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=../lib/ghc.sh
+. "@scriptsRoot@/lib/ghc.sh"
 
 DB_NAME="app_profile"
 DB_SOCKET="${PROFILE_SEED_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
@@ -61,8 +63,7 @@ SQL
 psql -v ON_ERROR_STOP=1 -h "$DB_SOCKET" -d "$DB_NAME" < "$SYSTEM_SCHEMA"
 psql -v ON_ERROR_STOP=1 -h "$DB_SOCKET" -d "$DB_NAME" < Application/Schema.sql
 
-GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
-  | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
+GHC_OPTS="$(ihp_roster_ghc_opts)"
 mkdir -p build/Script "$OUTPUT_DIR"
 cat > build/Script/SeedProfileMain.hs <<'EOF'
 import qualified Application.Script.SeedProfile as Script

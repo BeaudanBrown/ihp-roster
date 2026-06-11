@@ -5,10 +5,12 @@ let
             [
                 "@mailhog@"
                 "@ripgrep@"
+                "@scriptsRoot@"
             ]
             [
                 "${pkgs.mailhog}"
                 "${pkgs.ripgrep}"
+                "${../scripts}"
             ]
             (builtins.readFile path);
 

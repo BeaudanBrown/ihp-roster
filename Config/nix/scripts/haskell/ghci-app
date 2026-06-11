@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
-  | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
+# shellcheck source=../lib/ghc.sh
+. "@scriptsRoot@/lib/ghc.sh"
+GHC_OPTS="$(ihp_roster_ghc_opts)"
 exec ghci $GHC_OPTS Main.hs "$@"

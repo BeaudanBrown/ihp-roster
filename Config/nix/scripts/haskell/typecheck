@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=../lib/ghc.sh
+. "@scriptsRoot@/lib/ghc.sh"
 TARGET="${1:-Main.hs}"
-GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
-  | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
+GHC_OPTS="$(ihp_roster_ghc_opts)"
 TYPECHECK_DIR="${TYPECHECK_BUILD_DIR:-$PWD/build/Typecheck}"
 mkdir -p "$TYPECHECK_DIR/obj" "$TYPECHECK_DIR/hi"
 exec ghc -fno-code -fwrite-interface $GHC_OPTS "$TARGET" \

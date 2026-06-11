@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=../lib/ghc.sh
+. "@scriptsRoot@/lib/ghc.sh"
 
 DB_NAME="${1:-app}"
 case "$DB_NAME" in
@@ -14,8 +16,7 @@ case "$DB_NAME" in
 esac
 
 export DATABASE_URL="postgresql:///$DB_NAME?host=${PGHOST:-$PWD/build/db}"
-GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
-  | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
+GHC_OPTS="$(ihp_roster_ghc_opts)"
 mkdir -p build/Script
 cat > build/Script/XeroPayItemProbeMain.hs <<'EOF'
 import qualified Application.Script.XeroPayItemProbe as Script

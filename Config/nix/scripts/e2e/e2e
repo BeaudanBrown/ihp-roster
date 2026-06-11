@@ -1,21 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# shellcheck source=../lib/ghc.sh
+. "@scriptsRoot@/lib/ghc.sh"
+# shellcheck source=../lib/common.sh
+. "@scriptsRoot@/lib/common.sh"
 export TEST_DB_SOCKET="${TEST_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
 export MAILHOG_BASE_URL="${MAILHOG_BASE_URL:-http://127.0.0.1:8025}"
 BASE_E2E_DATABASE_NAME="${TEST_DATABASE_NAME:-app_e2e}"
 export E2E_RUN_ID="${E2E_RUN_ID:-$(date +%s)-$$-$RANDOM}"
 export IHP_ROSTER_E2E=1
 export E2E_TEST_TOKEN="${E2E_TEST_TOKEN:-e2e-$E2E_RUN_ID-$RANDOM}"
-
-detect_cpu_count() {
-    if command -v getconf >/dev/null 2>&1; then
-        getconf _NPROCESSORS_ONLN 2>/dev/null && return 0
-    fi
-    if command -v nproc >/dev/null 2>&1; then
-        nproc && return 0
-    fi
-    printf '1\n'
-}
 
 detect_e2e_shards() {
     if [ -n "${E2E_SHARDS:-}" ]; then
@@ -47,7 +41,7 @@ detect_e2e_shards() {
     done
 
     local detected_cpu_count
-    detected_cpu_count="$(detect_cpu_count)"
+    detected_cpu_count="$(ihp_roster_detect_cpu_count)"
     if [ "$detected_cpu_count" -gt 2 ]; then
         printf '2\n'
     else
@@ -93,24 +87,15 @@ cleanup_parent() {
 }
 trap cleanup_parent EXIT
 
-process_group_pids() {
-    local pgid="$1"
-    pgrep -g "$pgid" 2>/dev/null | tr '\n' ' ' || true
-}
-
 detect_e2e_base_url() {
     local pgid="$1"
     local pids ports port
-    pids=$(process_group_pids "$pgid")
+    pids=$(ihp_roster_process_group_pids "$pgid")
     if [ -z "$pids" ]; then
         return 1
     fi
 
-    ports=$(
-        lsof -Pan -iTCP -sTCP:LISTEN $(printf ' -p %s' $pids) 2>/dev/null \
-            | awk 'NR > 1 { split($9, parts, ":"); print parts[length(parts)] }' \
-            | sort -n -u
-    )
+    ports=$(ihp_roster_listen_ports_for_pids "$pids")
 
     for port in $ports; do
         local body
