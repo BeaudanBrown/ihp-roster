@@ -6,7 +6,7 @@
         in
         {
             ihp = {
-                appName = "app"; # Change this to your project name
+                appName = "app";
                 enable = true;
                 withHoogle = true;
                 # Use a filtered project source so local dev artifacts do not leak into
@@ -23,7 +23,6 @@
                             sha256 = "sha256-iJygaLPu0NyOHxUKwpd7vMkUnIXNRtAnnCumqKqces8=";
                         } {});
                     in with p; [
-                        # Haskell dependencies go here
                         aeson
                         p.ihp
                         p.ihp-mail
