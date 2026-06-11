@@ -39,14 +39,6 @@
         --roster-day-column-width: 15rem;
     }
 
-    .roster-slots-scroller {
-        overflow-x: auto;
-        overflow-y: hidden;
-        overscroll-behavior-x: contain;
-        scrollbar-color: var(--app-control-border) transparent;
-        scrollbar-width: thin;
-    }
-
 }
 
 @media (min-width: 992px) {

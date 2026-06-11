@@ -207,7 +207,7 @@ test.describe('Styling regression contracts', () => {
         });
 
         expect(metrics).not.toBeNull();
-        expect(['hidden', 'auto']).toContain(metrics?.tableOverflowX);
+        expect(metrics?.tableOverflowX).toBe('auto');
         expect(metrics?.tableScrollWidth).toBeGreaterThanOrEqual(metrics?.tableClientWidth ?? 0);
         expect(metrics?.frameScrollWidth).toBeLessThanOrEqual((metrics?.frameClientWidth ?? 0) + 1);
         expect(metrics?.tableMinWidth).not.toBe('0px');

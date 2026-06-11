@@ -32,7 +32,8 @@ test.describe('Roster week overview', () => {
         await expect(page.getByRole('button', { name: 'Export JPG' })).toHaveCount(0);
     });
 
-    test('keeps the desktop roster grid fitted without page-level horizontal scrolling', async ({ page }) => {
+    test('keeps a large desktop roster grid fitted without requiring local horizontal scrolling', async ({ page }) => {
+        await page.setViewportSize({ width: 1900, height: 900 });
         await openRoster(page);
 
         const metrics = await page.locator('.roster-grid-frame').first().evaluate((frame) => {
@@ -60,11 +61,53 @@ test.describe('Roster week overview', () => {
         });
 
         expect(metrics).not.toBeNull();
-        expect(['hidden', 'auto']).toContain(metrics?.overflowX);
-        expect(metrics?.scrollWidth).toBeGreaterThanOrEqual(metrics?.clientWidth ?? 0);
+        expect(metrics?.overflowX).toBe('auto');
+        expect(metrics?.scrollWidth).toBeLessThanOrEqual((metrics?.clientWidth ?? 0) + 1);
         expect(metrics?.frameScrollWidth).toBeLessThanOrEqual((metrics?.frameClientWidth ?? 0) + 1);
         expect(metrics?.gridMinWidth).not.toBe('0px');
         expect(metrics?.dayRailPosition).toBe('static');
+    });
+
+    test('makes the roster slots locally scrollable on medium viewports when columns do not fit', async ({ page }) => {
+        await page.setViewportSize({ width: 1260, height: 900 });
+        await openRoster(page, { ensureEditable: false });
+
+        const metrics = await page.locator('.roster-grid-frame').first().evaluate((frame) => {
+            if (!(frame instanceof HTMLElement)) {
+                throw new Error('Expected roster grid frame to be an HTMLElement');
+            }
+
+            frame.style.setProperty('--roster-slot-count', '4');
+
+            const scroller = frame.querySelector('.roster-slots-scroller');
+            const grid = frame.querySelector('.roster-grid');
+
+            if (!(scroller instanceof HTMLElement) || !(grid instanceof HTMLElement)) {
+                return null;
+            }
+
+            const maxScrollLeft = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+            scroller.scrollLeft = Math.floor(maxScrollLeft / 2);
+
+            return {
+                clientWidth: scroller.clientWidth,
+                scrollWidth: scroller.scrollWidth,
+                scrollLeft: scroller.scrollLeft,
+                overflowX: getComputedStyle(scroller).overflowX,
+                gridMinWidth: getComputedStyle(grid).minWidth,
+                rootScrollWidth: document.documentElement.scrollWidth,
+                bodyScrollWidth: document.body.scrollWidth,
+                viewportWidth: document.documentElement.clientWidth,
+            };
+        });
+
+        expect(metrics).not.toBeNull();
+        expect(metrics?.overflowX).toBe('auto');
+        expect(metrics?.scrollWidth).toBeGreaterThan(metrics?.clientWidth ?? 0);
+        expect(metrics?.scrollLeft).toBeGreaterThan(0);
+        expect(metrics?.gridMinWidth).not.toBe('0px');
+        expect(metrics?.rootScrollWidth).toBeLessThanOrEqual((metrics?.viewportWidth ?? 0) + 1);
+        expect(metrics?.bodyScrollWidth).toBeLessThanOrEqual((metrics?.viewportWidth ?? 0) + 1);
     });
 
     test('worker cannot see manager-only roster controls or leave metrics', async ({ page }) => {

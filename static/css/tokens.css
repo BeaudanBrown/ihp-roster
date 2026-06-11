@@ -8,6 +8,7 @@
     --app-surface-2: #1a2230;
     --app-surface-raised: var(--app-surface-2);
     --app-surface-muted: #101825;
+    --app-surface-subtle: var(--app-surface-muted);
 
     --app-border: #2a3446;
     --app-border-strong: #3a465d;
