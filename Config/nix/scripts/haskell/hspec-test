@@ -1,0 +1,122 @@
+#!/usr/bin/env bash
+set -euo pipefail
+BASE_TEST_DATABASE_NAME="${TEST_DATABASE_NAME:-app_test}"
+export TEST_DB_SOCKET="${TEST_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
+
+detect_cpu_count() {
+    if command -v getconf >/dev/null 2>&1; then
+        getconf _NPROCESSORS_ONLN 2>/dev/null && return 0
+    fi
+    if command -v nproc >/dev/null 2>&1; then
+        nproc && return 0
+    fi
+    printf '1\n'
+}
+
+detect_test_shards() {
+    if [ -n "${TEST_SHARDS:-}" ]; then
+        printf '%s\n' "$TEST_SHARDS"
+        return 0
+    fi
+
+    if [ "$#" -gt 0 ]; then
+        printf '1\n'
+        return 0
+    fi
+
+    detect_cpu_count
+}
+
+TEST_SHARDS="$(detect_test_shards "$@")"
+case "$TEST_SHARDS" in
+    ""|*[!0-9]*)
+        echo "TEST_SHARDS must be a positive integer, got: $TEST_SHARDS" >&2
+        exit 1
+        ;;
+esac
+if [ "$TEST_SHARDS" -lt 1 ]; then
+    echo "TEST_SHARDS must be at least 1" >&2
+    exit 1
+fi
+
+GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
+  | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
+mkdir -p build/Test
+ghc $GHC_OPTS -iTest -main-is Main Test/Main.hs -o build/Test/Main -odir build/Test -hidir build/Test
+
+if [ "$TEST_SHARDS" -eq 1 ]; then
+    export TEST_DATABASE_NAME="$BASE_TEST_DATABASE_NAME"
+    export DATABASE_URL="postgresql:///$TEST_DATABASE_NAME?host=$TEST_DB_SOCKET"
+    test-db-reset
+    exec build/Test/Main "$@"
+fi
+
+RUN_ID="${TEST_RUN_ID:-$(date +%s)-$$-$RANDOM}"
+STATE_ROOT="$PWD/.devenv/test"
+STATE_DIR="$STATE_ROOT/$RUN_ID"
+mkdir -p "$STATE_DIR"
+ln -sfn "$STATE_DIR" "$STATE_ROOT/latest"
+
+shard_pids=()
+shard_statuses=()
+
+run_test_shard() {
+    local shard_index="$1"
+    shift
+    local shard_db_name="${BASE_TEST_DATABASE_NAME}_${RUN_ID}_shard_${shard_index}"
+    local shard_log="$STATE_DIR/shard-$shard_index.log"
+
+    (
+        export TEST_SHARD_INDEX="$shard_index"
+        export TEST_SHARD_TOTAL="$TEST_SHARDS"
+        export TEST_DATABASE_NAME="$shard_db_name"
+        export DATABASE_URL="postgresql:///$TEST_DATABASE_NAME?host=$TEST_DB_SOCKET"
+
+        cleanup() {
+            if [ "${TEST_KEEP_DATABASES:-0}" = "1" ]; then
+                return 0
+            fi
+
+            psql -h "$TEST_DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 <<SQL >/dev/null 2>&1 || true
+DROP DATABASE IF EXISTS "$TEST_DATABASE_NAME" WITH (FORCE);
+SQL
+        }
+        trap cleanup EXIT INT TERM
+
+        test-db-reset
+        build/Test/Main "$@"
+        exit $?
+    ) >"$shard_log" 2>&1 &
+
+    shard_pids+=("$!")
+}
+
+for shard_index in $(seq 1 "$TEST_SHARDS"); do
+    run_test_shard "$shard_index" "$@"
+done
+
+failed=0
+for shard_offset in "${!shard_pids[@]}"; do
+    if wait "${shard_pids[$shard_offset]}"; then
+        shard_statuses[$shard_offset]=0
+    else
+        shard_statuses[$shard_offset]=$?
+        failed=1
+    fi
+done
+
+if [ "$failed" -ne 0 ]; then
+    echo "Parallel hspec run failed; shard logs are under $STATE_DIR" >&2
+    for shard_index in $(seq 1 "$TEST_SHARDS"); do
+        status="${shard_statuses[$((shard_index - 1))]:-1}"
+        if [ "$status" -ne 0 ]; then
+            echo >&2
+            echo "===== hspec shard $shard_index/$TEST_SHARDS failed (exit $status) =====" >&2
+            tail -n 120 "$STATE_DIR/shard-$shard_index.log" >&2 || true
+        fi
+    done
+    exit 1
+fi
+
+echo "Parallel hspec run completed across $TEST_SHARDS shards"
+echo "Shard logs: $STATE_DIR"

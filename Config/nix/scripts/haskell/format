@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if [ $# -gt 0 ]; then
+    exec stylish-haskell -i "$@"
+fi
+find . -name '*.hs' \
+    -not -path './IHP/*' \
+    -not -path './build/*' \
+    -not -path './.devenv/*' \
+    -not -path './.direnv/*' \
+    -exec stylish-haskell -i {} +
+echo "Formatted all app sources."

@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+export E2E_INCLUDE_SCREENSHOTS=1
+exec e2e \
+    --project=mobile-chromium \
+    --project=galaxy-s9-plus \
+    --project=tablet-chromium \
+    e2e/roster-mobile-screenshots.spec.ts \
+    "$@"

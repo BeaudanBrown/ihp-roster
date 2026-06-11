@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+STATE_DIR="$(dev-agent-state-dir)"
+LOG_FILE="$STATE_DIR/devenv.log"
+DB_SOCKET="${PGHOST:-$PWD/build/db}"
+APP_HEALTH_URL="${APP_BASE_URL:-http://127.0.0.1:8000}"
+APP_PID=""
+APP_WAS_ALREADY_RUNNING=0
+MAILHOG_STARTED=0
+MAILHOG_BIN="$(command -v MailHog || command -v mailhog)"
+
+mkdir -p "$STATE_DIR"
+export XDG_CACHE_HOME="${XDG_CACHE_HOME:-/tmp/nix-cache}"
+mkdir -p "$XDG_CACHE_HOME"
+
+if curl --connect-timeout 1 --max-time 2 -fsS "${MAILHOG_BASE_URL:-http://127.0.0.1:8025}/api/v2/messages" >/dev/null 2>&1; then
+    MAILHOG_STARTED=0
+else
+    "$MAILHOG_BIN" \
+        -smtp-bind-addr 127.0.0.1:1025 \
+        -ui-bind-addr 127.0.0.1:8025 \
+        -api-bind-addr 127.0.0.1:8025 &
+    MAILHOG_PID=$!
+    MAILHOG_STARTED=1
+fi
+
+cleanup() {
+    if [ -n "$APP_PID" ]; then
+        kill "$APP_PID" 2>/dev/null || true
+    fi
+    if [ "${MAILHOG_STARTED:-0}" = "1" ] && [ -n "${MAILHOG_PID:-}" ]; then
+        kill "$MAILHOG_PID" 2>/dev/null || true
+    fi
+}
+trap cleanup EXIT INT TERM
+
+if ! psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
+    dev-ensure-postgres
+fi
+
+if curl --connect-timeout 1 --max-time 2 -fsS "$APP_HEALTH_URL" >/dev/null 2>&1; then
+    APP_WAS_ALREADY_RUNNING=1
+    echo "App server already running; MailHog available at http://127.0.0.1:8025"
+else
+    if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:8000 -sTCP:LISTEN >/dev/null 2>&1; then
+        echo "Port 8000 is occupied but not responding to $APP_HEALTH_URL." >&2
+        echo "Stop the stale process before starting dev again:" >&2
+        lsof -nP -iTCP:8000 -sTCP:LISTEN >&2 || true
+        exit 1
+    fi
+    echo "[dev-foreground] launching start (XDG_CACHE_HOME=$XDG_CACHE_HOME)" >>"$LOG_FILE"
+    echo "Starting app server, postgres, and MailHog..."
+    start &
+    APP_PID=$!
+    wait "$APP_PID"
+fi
+
+if [ "$APP_WAS_ALREADY_RUNNING" = "1" ] && [ "${MAILHOG_STARTED:-0}" = "1" ] && [ -n "${MAILHOG_PID:-}" ]; then
+    wait "$MAILHOG_PID"
+fi

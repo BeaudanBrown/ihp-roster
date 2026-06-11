@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+set -euo pipefail
+BASE_TEST_DATABASE_NAME="${TEST_DATABASE_NAME:-app_test_coverage}"
+export TEST_DB_SOCKET="${TEST_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
+
+RUN_ID="${COVERAGE_RUN_ID:-$(date +%s)-$$-$RANDOM}"
+COVERAGE_ROOT="$PWD/output/coverage/hspec"
+COVERAGE_DIR="$COVERAGE_ROOT/$RUN_ID"
+BUILD_DIR="$PWD/build/TestCoverage"
+HPC_DIR="$COVERAGE_DIR/hpc"
+HTML_DIR="$COVERAGE_DIR/html"
+TIX_FILE="$COVERAGE_DIR/hspec.tix"
+REPORT_FILE="$COVERAGE_DIR/report.txt"
+RAW_REPORT_FILE="$COVERAGE_DIR/raw-report.txt"
+XML_REPORT_FILE="$COVERAGE_DIR/report.xml"
+
+rm -rf "$BUILD_DIR" "$COVERAGE_DIR"
+mkdir -p "$BUILD_DIR" "$HPC_DIR" "$HTML_DIR"
+ln -sfn "$COVERAGE_DIR" "$COVERAGE_ROOT/latest"
+
+GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
+  | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
+ghc $GHC_OPTS \
+    -fhpc \
+    -hpcdir "$HPC_DIR" \
+    -iTest \
+    -main-is Main \
+    Test/Main.hs \
+    -o "$BUILD_DIR/Main" \
+    -odir "$BUILD_DIR/obj" \
+    -hidir "$BUILD_DIR/hi"
+
+export TEST_DATABASE_NAME="$BASE_TEST_DATABASE_NAME"
+export DATABASE_URL="postgresql:///$TEST_DATABASE_NAME?host=$TEST_DB_SOCKET"
+export HPCTIXFILE="$TIX_FILE"
+test-db-reset
+"$BUILD_DIR/Main" "$@"
+
+mapfile -t APP_MODULES < <(
+    find Application Web -name '*.hs' -print \
+        | sort \
+        | awk '{ gsub("/", "."); sub(/[.]hs$/, ""); print }'
+)
+
+hpc report "$TIX_FILE" \
+    --hpcdir="$HPC_DIR" \
+    --srcdir=. \
+    --per-module \
+    "${APP_MODULES[@]}" \
+    > "$REPORT_FILE"
+hpc report "$TIX_FILE" \
+    --hpcdir="$HPC_DIR" \
+    --srcdir=. \
+    --per-module \
+    > "$RAW_REPORT_FILE"
+hpc report "$TIX_FILE" \
+    --hpcdir="$HPC_DIR" \
+    --srcdir=. \
+    --xml-output \
+    "${APP_MODULES[@]}" \
+    > "$XML_REPORT_FILE"
+hpc markup "$TIX_FILE" \
+    --hpcdir="$HPC_DIR" \
+    --srcdir=. \
+    --destdir="$HTML_DIR" \
+    "${APP_MODULES[@]}" \
+    >/dev/null
+
+cat "$REPORT_FILE"
+echo
+echo "Hspec app coverage report: $REPORT_FILE"
+echo "Hspec app coverage XML: $XML_REPORT_FILE"
+echo "Hspec app coverage HTML: $HTML_DIR/hpc_index.html"
+echo "Hspec raw coverage report: $RAW_REPORT_FILE"

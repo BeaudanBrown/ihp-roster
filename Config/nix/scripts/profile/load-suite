@@ -1,0 +1,200 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export PROFILE_DB_SOCKET="${PROFILE_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
+PROFILE_SUITE_RUN_ID="${PROFILE_SUITE_RUN_ID:-$(date +%s)-$$-$RANDOM}"
+PROFILE_SUITE_OUTPUT_DIR="${PROFILE_SUITE_OUTPUT_DIR:-$PWD/output/profile-load-suite/$PROFILE_SUITE_RUN_ID}"
+PROFILE_DATABASE_NAME="${PROFILE_DATABASE_NAME:-app_profile_load_suite_$PROFILE_SUITE_RUN_ID}"
+PROFILE_SHOULD_SEED=1
+PROFILE_SEED_ARGS=()
+PROFILE_SUITE_SCENARIOS=()
+PROFILE_SUITE_RATE_OVERRIDE=""
+PROFILE_SUITE_DURATION_OVERRIDE=""
+PROFILE_SUITE_VUS_OVERRIDE=""
+PROFILE_SUITE_MAX_VUS_OVERRIDE=""
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --help|-h)
+            cat <<'EOF'
+Usage: profile-load-suite [options]
+
+Options:
+  --seed                         Seed the suite database before running (default)
+  --reuse-db                     Reuse the selected suite database
+  --db=app_profile_*             Suite database name
+  --output-dir=path              Suite artifact directory
+  --seed-arg=arg                 Forward an option to seed-profile
+  --scenario=name                Scenario to include; can be repeated
+  --rate=N                       Override all scenario rates
+  --duration=30s                 Override all scenario durations
+  --vus=N                        Override all scenario preallocated VUs
+  --max-vus=N                    Override all scenario maximum VUs
+
+Default scenarios:
+  roster-hot, roster-wide, roster-overview, roster-projections, fragments, timesheets, leave, admin, profile, mixed-app
+EOF
+            exit 0
+            ;;
+        --seed)
+            PROFILE_SHOULD_SEED=1
+            shift
+            ;;
+        --reuse-db)
+            PROFILE_SHOULD_SEED=0
+            shift
+            ;;
+        --db=*)
+            PROFILE_DATABASE_NAME="${1#--db=}"
+            shift
+            ;;
+        --output-dir=*)
+            PROFILE_SUITE_OUTPUT_DIR="${1#--output-dir=}"
+            shift
+            ;;
+        --seed-arg=*)
+            PROFILE_SEED_ARGS+=("${1#--seed-arg=}")
+            shift
+            ;;
+        --scenario=*)
+            PROFILE_SUITE_SCENARIOS+=("${1#--scenario=}")
+            shift
+            ;;
+        --rate=*)
+            PROFILE_SUITE_RATE_OVERRIDE="${1#--rate=}"
+            shift
+            ;;
+        --duration=*)
+            PROFILE_SUITE_DURATION_OVERRIDE="${1#--duration=}"
+            shift
+            ;;
+        --vus=*)
+            PROFILE_SUITE_VUS_OVERRIDE="${1#--vus=}"
+            shift
+            ;;
+        --max-vus=*)
+            PROFILE_SUITE_MAX_VUS_OVERRIDE="${1#--max-vus=}"
+            shift
+            ;;
+        *)
+            echo "Unknown profile-load-suite argument: $1" >&2
+            exit 1
+            ;;
+    esac
+done
+
+case "$PROFILE_DATABASE_NAME" in
+    app_profile|app_profile_*)
+        ;;
+    *)
+        echo "Unsupported profiling database target: $PROFILE_DATABASE_NAME" >&2
+        echo "Use app_profile or an app_profile_* database name." >&2
+        exit 1
+        ;;
+esac
+
+if ! psql -h "$PROFILE_DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
+    echo "Load profiling suite requires the local postgres socket at $PROFILE_DB_SOCKET" >&2
+    echo "Start the local environment first (e.g. dev-start or devenv up)." >&2
+    exit 1
+fi
+
+supported_scenario() {
+    case "$1" in
+        roster-hot|roster-wide|roster-overview|roster-projections|fragments|timesheets|leave|admin|profile|mixed-app)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+scenario_default_rate() {
+    case "$1" in
+        fragments|roster-overview|roster-projections) printf '20\n' ;;
+        *) printf '10\n' ;;
+    esac
+}
+
+scenario_default_duration() {
+    printf '30s\n'
+}
+
+scenario_default_vus() {
+    printf '10\n'
+}
+
+if [ "${#PROFILE_SUITE_SCENARIOS[@]}" -eq 0 ]; then
+    PROFILE_SUITE_SCENARIOS=(
+        roster-hot
+        roster-wide
+        roster-overview
+        roster-projections
+        fragments
+        timesheets
+        leave
+        admin
+        profile
+        mixed-app
+    )
+fi
+
+for scenario in "${PROFILE_SUITE_SCENARIOS[@]}"; do
+    if ! supported_scenario "$scenario"; then
+        echo "Unsupported load profiling scenario: $scenario" >&2
+        exit 1
+    fi
+done
+
+PROFILE_SUITE_OUTPUT_DIR="$(realpath -m "$PROFILE_SUITE_OUTPUT_DIR")"
+PROFILE_SUITE_SEED_OUTPUT_DIR="$PROFILE_SUITE_OUTPUT_DIR/seed"
+mkdir -p "$PROFILE_SUITE_OUTPUT_DIR"
+
+if [ "$PROFILE_SHOULD_SEED" = "1" ]; then
+    seed-profile "$PROFILE_DATABASE_NAME" --output-dir="$PROFILE_SUITE_SEED_OUTPUT_DIR" "${PROFILE_SEED_ARGS[@]}"
+elif [ ! -f "$PROFILE_SUITE_SEED_OUTPUT_DIR/manifest.json" ] && [ -f "$PWD/build/profile-seed/latest/manifest.json" ]; then
+    mkdir -p "$PROFILE_SUITE_SEED_OUTPUT_DIR"
+    cp "$PWD/build/profile-seed/latest/manifest.json" "$PROFILE_SUITE_SEED_OUTPUT_DIR/manifest.json"
+fi
+
+if [ ! -f "$PROFILE_SUITE_SEED_OUTPUT_DIR/manifest.json" ]; then
+    echo "Missing suite profile seed manifest: $PROFILE_SUITE_SEED_OUTPUT_DIR/manifest.json" >&2
+    echo "Run with --seed, or provide PROFILE_SUITE_OUTPUT_DIR that already contains seed/manifest.json." >&2
+    exit 1
+fi
+
+completed_scenarios=()
+for scenario in "${PROFILE_SUITE_SCENARIOS[@]}"; do
+    scenario_output_dir="$PROFILE_SUITE_OUTPUT_DIR/$scenario"
+    scenario_seed_dir="$scenario_output_dir/seed"
+    mkdir -p "$scenario_seed_dir"
+    cp "$PROFILE_SUITE_SEED_OUTPUT_DIR/manifest.json" "$scenario_seed_dir/manifest.json"
+
+    rate="${PROFILE_SUITE_RATE_OVERRIDE:-$(scenario_default_rate "$scenario")}"
+    duration="${PROFILE_SUITE_DURATION_OVERRIDE:-$(scenario_default_duration "$scenario")}"
+    vus="${PROFILE_SUITE_VUS_OVERRIDE:-$(scenario_default_vus "$scenario")}"
+    max_vus="${PROFILE_SUITE_MAX_VUS_OVERRIDE:-}"
+
+    echo "Running profile load scenario: $scenario rate=$rate duration=$duration vus=$vus"
+    args=(
+        --reuse-db
+        --db="$PROFILE_DATABASE_NAME"
+        --output-dir="$scenario_output_dir"
+        --scenario="$scenario"
+        --rate="$rate"
+        --duration="$duration"
+        --vus="$vus"
+    )
+    if [ -n "$max_vus" ]; then
+        args+=(--max-vus="$max_vus")
+    fi
+    profile-load "${args[@]}"
+    completed_scenarios+=("$scenario")
+done
+
+node ./e2e/profile-load-suite-report.mjs \
+    "$PROFILE_SUITE_OUTPUT_DIR" \
+    "${completed_scenarios[@]}"
+ln -sfn "$PROFILE_SUITE_OUTPUT_DIR" "$PWD/output/profile-load-suite/latest"
+echo "Profile load suite artifacts: $PROFILE_SUITE_OUTPUT_DIR"

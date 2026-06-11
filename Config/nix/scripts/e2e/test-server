@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export TEST_DATABASE_NAME="${TEST_DATABASE_NAME:-app_e2e}"
+export TEST_DB_SOCKET="${TEST_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
+export DATABASE_URL="postgresql:///$TEST_DATABASE_NAME?host=$TEST_DB_SOCKET"
+export IHP_BROWSER="echo"
+export IHP_ROSTER_E2E=1
+exec RunDevServer

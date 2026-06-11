@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+TARGET="${1:-Main.hs}"
+GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
+  | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
+TYPECHECK_DIR="${TYPECHECK_BUILD_DIR:-$PWD/build/Typecheck}"
+mkdir -p "$TYPECHECK_DIR/obj" "$TYPECHECK_DIR/hi"
+exec ghc -fno-code -fwrite-interface $GHC_OPTS "$TARGET" \
+    -odir "$TYPECHECK_DIR/obj" \
+    -hidir "$TYPECHECK_DIR/hi"

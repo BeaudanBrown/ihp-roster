@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -euo pipefail
+DB_NAME="${TEST_DATABASE_NAME:-app_test}"
+DB_SOCKET="${TEST_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
+LOAD_E2E_FIXTURES="${TEST_DB_LOAD_E2E_FIXTURES:-0}"
+SYSTEM_SCHEMA="${IHP_DEV_CHECKOUT:-$PWD/IHP}/ihp-ide/data/IHPSchema.sql"
+
+if [ ! -f "$SYSTEM_SCHEMA" ]; then
+    if [ -n "${IHP:-}" ] && [ -f "$IHP/lib/IHP/IHPSchema.sql" ]; then
+        SYSTEM_SCHEMA="$IHP/lib/IHP/IHPSchema.sql"
+    elif [ -f "${IHP_LIB:-}/IHPSchema.sql" ]; then
+        SYSTEM_SCHEMA="$IHP_LIB/IHPSchema.sql"
+    else
+        echo "Could not locate IHPSchema.sql" >&2
+        exit 1
+    fi
+fi
+
+if ! psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
+    echo "Test database reset requires the local postgres socket at $DB_SOCKET" >&2
+    echo "Start the local environment first (e.g. bash ./bin/in-env dev-start or devenv up)." >&2
+    exit 1
+fi
+
+psql -h "$DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 <<SQL
+DROP DATABASE IF EXISTS "$DB_NAME" WITH (FORCE);
+CREATE DATABASE "$DB_NAME";
+SQL
+
+psql -v ON_ERROR_STOP=1 -h "$DB_SOCKET" -d "$DB_NAME" < "$SYSTEM_SCHEMA"
+psql -v ON_ERROR_STOP=1 -h "$DB_SOCKET" -d "$DB_NAME" < Application/Schema.sql
+psql -v ON_ERROR_STOP=1 -h "$DB_SOCKET" -d "$DB_NAME" < Application/Fixtures.sql
+
+if [ "$LOAD_E2E_FIXTURES" = "1" ]; then
+    psql -v ON_ERROR_STOP=1 -h "$DB_SOCKET" -d "$DB_NAME" < e2e/fixtures/seed.sql
+fi

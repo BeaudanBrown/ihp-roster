@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export PROFILE_DATABASE_NAME="${PROFILE_DATABASE_NAME:-app_profile}"
+export PROFILE_DB_SOCKET="${PROFILE_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
+export DATABASE_URL="postgresql:///$PROFILE_DATABASE_NAME?host=$PROFILE_DB_SOCKET"
+export IHP_BROWSER="echo"
+export IHP_ROSTER_PROFILING="${IHP_ROSTER_PROFILING:-1}"
+exec RunDevServer

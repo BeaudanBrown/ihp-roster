@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+set -euo pipefail
+STATE_DIR="$(dev-agent-state-dir)"
+MAILHOG_PID_FILE="$STATE_DIR/mailhog.pid"
+LOG_FILE="$STATE_DIR/devenv.log"
+MAILHOG_URL="${MAILHOG_BASE_URL:-http://127.0.0.1:8025}"
+MAILHOG_BIN="$(command -v MailHog || command -v mailhog)"
+
+mkdir -p "$STATE_DIR"
+: > "$LOG_FILE"
+
+if curl -fsS "$MAILHOG_URL/api/v2/messages" >/dev/null 2>&1; then
+    exit 0
+fi
+
+if [ -f "$MAILHOG_PID_FILE" ]; then
+    MAILHOG_PID=$(cat "$MAILHOG_PID_FILE")
+    if ! kill -0 "$MAILHOG_PID" 2>/dev/null; then
+        rm -f "$MAILHOG_PID_FILE"
+    fi
+fi
+
+if [ ! -f "$MAILHOG_PID_FILE" ]; then
+    echo "[dev-ensure-mailhog] launching MailHog" >>"$LOG_FILE"
+    setsid nohup "$MAILHOG_BIN" \
+        -smtp-bind-addr 127.0.0.1:1025 \
+        -ui-bind-addr 127.0.0.1:8025 \
+        -api-bind-addr 127.0.0.1:8025 \
+        </dev/null >>"$LOG_FILE" 2>&1 &
+    MAILHOG_PID=$!
+    echo "$MAILHOG_PID" > "$MAILHOG_PID_FILE"
+    disown "$MAILHOG_PID" 2>/dev/null || true
+fi
+
+for _ in $(seq 1 20); do
+    if curl -fsS "$MAILHOG_URL/api/v2/messages" >/dev/null 2>&1; then
+        exit 0
+    fi
+    sleep 1
+done
+
+echo "devenv MailHog failed to start; recent log output:"
+tail -n 60 "$LOG_FILE" || true
+exit 1

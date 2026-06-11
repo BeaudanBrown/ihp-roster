@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+REPORT_DIR="${PLAYWRIGHT_HTML_REPORT_DIR:-$PWD/.devenv/e2e/latest-report}"
+exec playwright show-report "$REPORT_DIR"

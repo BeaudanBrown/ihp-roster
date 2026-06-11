@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DB_NAME="app_profile"
+DB_SOCKET="${PROFILE_SEED_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
+OUTPUT_DIR="build/profile-seed/latest"
+SCRIPT_ARGS=()
+
+if [ "$#" -gt 0 ] && [[ "$1" != --* ]]; then
+    DB_NAME="$1"
+    shift
+fi
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --output-dir=*)
+            OUTPUT_DIR="${1#--output-dir=}"
+            SCRIPT_ARGS+=("$1")
+            shift
+            ;;
+        *)
+            SCRIPT_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+
+case "$DB_NAME" in
+    app_profile|app_profile_*)
+        ;;
+    *)
+        echo "Unsupported profiling database target: $DB_NAME" >&2
+        echo "Use app_profile or an app_profile_* database name." >&2
+        exit 1
+        ;;
+esac
+
+SYSTEM_SCHEMA="${IHP_DEV_CHECKOUT:-$PWD/IHP}/ihp-ide/data/IHPSchema.sql"
+if [ ! -f "$SYSTEM_SCHEMA" ]; then
+    if [ -n "${IHP:-}" ] && [ -f "$IHP/lib/IHP/IHPSchema.sql" ]; then
+        SYSTEM_SCHEMA="$IHP/lib/IHP/IHPSchema.sql"
+    elif [ -f "${IHP_LIB:-}/IHPSchema.sql" ]; then
+        SYSTEM_SCHEMA="$IHP_LIB/IHPSchema.sql"
+    else
+        echo "Could not locate IHPSchema.sql" >&2
+        exit 1
+    fi
+fi
+
+if ! psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
+    echo "Profile seeding requires the local postgres socket at $DB_SOCKET" >&2
+    echo "Start the local environment first (e.g. dev-start or devenv up)." >&2
+    exit 1
+fi
+
+psql -h "$DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 <<SQL
+DROP DATABASE IF EXISTS "$DB_NAME" WITH (FORCE);
+CREATE DATABASE "$DB_NAME";
+SQL
+
+psql -v ON_ERROR_STOP=1 -h "$DB_SOCKET" -d "$DB_NAME" < "$SYSTEM_SCHEMA"
+psql -v ON_ERROR_STOP=1 -h "$DB_SOCKET" -d "$DB_NAME" < Application/Schema.sql
+
+GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
+  | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
+mkdir -p build/Script "$OUTPUT_DIR"
+cat > build/Script/SeedProfileMain.hs <<'EOF'
+import qualified Application.Script.SeedProfile as Script
+
+main = Script.run
+EOF
+ghc $GHC_OPTS -main-is Main build/Script/SeedProfileMain.hs \
+    -o build/Script/SeedProfile \
+    -odir build/Script \
+    -hidir build/Script
+build/Script/SeedProfile --output-dir="$OUTPUT_DIR" "${SCRIPT_ARGS[@]}"
+
+psql -v ON_ERROR_STOP=1 -h "$DB_SOCKET" -d "$DB_NAME" < "$OUTPUT_DIR/load.sql"
+pg_dump -h "$DB_SOCKET" -Fc "$DB_NAME" > "$OUTPUT_DIR/$DB_NAME.dump"
+
+echo "Profile database seeded: $DB_NAME"
+echo "Profile seed dump: $OUTPUT_DIR/$DB_NAME.dump"

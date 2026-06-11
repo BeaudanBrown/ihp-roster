@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if [ -n "${DEVENV_AGENT_STATE_DIR:-}" ]; then
+    printf '%s\n' "$DEVENV_AGENT_STATE_DIR"
+elif [ -n "${XDG_RUNTIME_DIR:-}" ]; then
+    printf '%s\n' "$XDG_RUNTIME_DIR/ihp-roster-dev"
+else
+    printf '%s\n' "$PWD/.devenv/agent"
+fi

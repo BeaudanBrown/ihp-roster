@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if [ -f "$PWD/.env" ]; then
+    set -a
+    # shellcheck disable=SC1091
+    . "$PWD/.env"
+    set +a
+fi
+if [ -z "${STRIPE_SECRET_KEY:-}" ]; then
+    echo "stripe-listen requires STRIPE_SECRET_KEY in the environment or .env." >&2
+    exit 64
+fi
+exec stripe listen \
+    --api-key "$STRIPE_SECRET_KEY" \
+    --skip-update \
+    --events checkout.session.completed,checkout.session.async_payment_succeeded,checkout.session.async_payment_failed,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,invoice.payment_failed \
+    --forward-to localhost:8000/StripeWebhook

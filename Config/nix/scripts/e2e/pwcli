@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export PWCLI_VERSION="${PWCLI_VERSION:-0.1.4}"
+STATE_DIR="$PWD/.devenv/playwright-cli"
+CONFIG_FILE="$STATE_DIR/cli.config.json"
+mkdir -p "$STATE_DIR"
+mkdir -p "$PWD/.playwright"
+
+PWCLI_BROWSER="$(
+    find "$PLAYWRIGHT_BROWSERS_PATH" -maxdepth 3 -path '*/chrome-linux64/chrome' | head -n 1
+)"
+
+if [ -z "$PWCLI_BROWSER" ]; then
+    echo "Could not locate Chromium inside PLAYWRIGHT_BROWSERS_PATH=$PLAYWRIGHT_BROWSERS_PATH" >&2
+    exit 1
+fi
+
+cat >"$CONFIG_FILE" <<EOF
+{
+  "browser": {
+    "browserName": "chromium",
+    "launchOptions": {
+      "executablePath": "$PWCLI_BROWSER"
+    }
+  }
+}
+EOF
+
+HAS_CONFIG=false
+for arg in "$@"; do
+    if [ "$arg" = "--config" ] || [ "${arg#--config=}" != "$arg" ]; then
+        HAS_CONFIG=true
+        break
+    fi
+done
+
+if [ "$HAS_CONFIG" = true ]; then
+    exec npx --yes --package "@playwright/cli@$PWCLI_VERSION" playwright-cli "$@"
+fi
+
+exec npx --yes --package "@playwright/cli@$PWCLI_VERSION" playwright-cli --config "$CONFIG_FILE" "$@"

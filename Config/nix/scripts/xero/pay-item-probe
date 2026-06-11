@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DB_NAME="${1:-app}"
+case "$DB_NAME" in
+    app|app_test)
+        shift || true
+        ;;
+    *)
+        echo "Unsupported database target: $DB_NAME" >&2
+        echo "Usage: xero-pay-item-probe [app|app_test] --connection-id=<uuid> ..." >&2
+        exit 1
+        ;;
+esac
+
+export DATABASE_URL="postgresql:///$DB_NAME?host=${PGHOST:-$PWD/build/db}"
+GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
+  | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
+mkdir -p build/Script
+cat > build/Script/XeroPayItemProbeMain.hs <<'EOF'
+import qualified Application.Script.XeroPayItemProbe as Script
+import qualified Config
+import IHP.ScriptSupport
+
+main = runScript Config.config Script.run
+EOF
+ghc $GHC_OPTS -iTest -main-is Main build/Script/XeroPayItemProbeMain.hs \
+    -o build/Script/XeroPayItemProbe \
+    -odir build/Script \
+    -hidir build/Script
+exec build/Script/XeroPayItemProbe "$@"

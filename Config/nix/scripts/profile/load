@@ -1,0 +1,256 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+export PROFILE_DB_SOCKET="${PROFILE_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
+PROFILE_RUN_ID="${PROFILE_RUN_ID:-$(date +%s)-$$-$RANDOM}"
+PROFILE_LOAD_OUTPUT_DIR="${PROFILE_LOAD_OUTPUT_DIR:-$PWD/output/profile-load/$PROFILE_RUN_ID}"
+PROFILE_DATABASE_NAME="${PROFILE_DATABASE_NAME:-app_profile_load_$PROFILE_RUN_ID}"
+PROFILE_SHOULD_SEED=1
+PROFILE_SEED_ARGS=()
+PROFILE_LOAD_SCENARIO="${PROFILE_LOAD_SCENARIO:-roster-hot}"
+PROFILE_LOAD_RATE="${PROFILE_LOAD_RATE:-10}"
+PROFILE_LOAD_DURATION="${PROFILE_LOAD_DURATION:-30s}"
+PROFILE_LOAD_VUS="${PROFILE_LOAD_VUS:-10}"
+PROFILE_LOAD_MAX_VUS="${PROFILE_LOAD_MAX_VUS:-}"
+PROFILE_K6_ARGS=()
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --help|-h)
+            cat <<'EOF'
+Usage: profile-load [options] [-- k6-args...]
+
+Options:
+  --seed                         Seed the profile database before running (default)
+  --reuse-db                     Reuse the selected profile database
+  --db=app_profile_*             Profile database name
+  --output-dir=path              Artifact directory
+  --seed-arg=arg                 Forward an option to seed-profile
+  --scenario=name                roster-hot|roster-wide|roster-overview|roster-projections|fragments|timesheets|leave|admin|profile|mixed-app
+  --rate=N                       Target iterations per second (default: 10)
+  --duration=30s                 k6 scenario duration (default: 30s)
+  --vus=N                        Preallocated k6 virtual users (default: 10)
+  --max-vus=N                    Maximum k6 virtual users
+  --email=email                  Override manifest login email
+  --password=password            Override manifest login password
+EOF
+            exit 0
+            ;;
+        --seed)
+            PROFILE_SHOULD_SEED=1
+            shift
+            ;;
+        --reuse-db)
+            PROFILE_SHOULD_SEED=0
+            shift
+            ;;
+        --db=*)
+            PROFILE_DATABASE_NAME="${1#--db=}"
+            shift
+            ;;
+        --output-dir=*)
+            PROFILE_LOAD_OUTPUT_DIR="${1#--output-dir=}"
+            shift
+            ;;
+        --seed-arg=*)
+            PROFILE_SEED_ARGS+=("${1#--seed-arg=}")
+            shift
+            ;;
+        --scenario=*)
+            PROFILE_LOAD_SCENARIO="${1#--scenario=}"
+            shift
+            ;;
+        --rate=*)
+            PROFILE_LOAD_RATE="${1#--rate=}"
+            shift
+            ;;
+        --duration=*)
+            PROFILE_LOAD_DURATION="${1#--duration=}"
+            shift
+            ;;
+        --vus=*)
+            PROFILE_LOAD_VUS="${1#--vus=}"
+            shift
+            ;;
+        --max-vus=*)
+            PROFILE_LOAD_MAX_VUS="${1#--max-vus=}"
+            shift
+            ;;
+        --email=*)
+            export PROFILE_EMAIL="${1#--email=}"
+            shift
+            ;;
+        --password=*)
+            export PROFILE_PASSWORD="${1#--password=}"
+            shift
+            ;;
+        --)
+            shift
+            PROFILE_K6_ARGS+=("$@")
+            break
+            ;;
+        *)
+            PROFILE_K6_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+
+case "$PROFILE_DATABASE_NAME" in
+    app_profile|app_profile_*)
+        ;;
+    *)
+        echo "Unsupported profiling database target: $PROFILE_DATABASE_NAME" >&2
+        echo "Use app_profile or an app_profile_* database name." >&2
+        exit 1
+        ;;
+esac
+
+case "$PROFILE_LOAD_SCENARIO" in
+    roster-hot|roster-wide|roster-overview|roster-projections|fragments|timesheets|leave|admin|profile|mixed-app)
+        ;;
+    *)
+        echo "Unsupported load profiling scenario: $PROFILE_LOAD_SCENARIO" >&2
+        echo "Use roster-hot, roster-wide, roster-overview, roster-projections, fragments, timesheets, leave, admin, profile, or mixed-app." >&2
+        exit 1
+        ;;
+esac
+
+if ! psql -h "$PROFILE_DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
+    echo "Load profiling requires the local postgres socket at $PROFILE_DB_SOCKET" >&2
+    echo "Start the local environment first (e.g. dev-start or devenv up)." >&2
+    exit 1
+fi
+
+PROFILE_LOAD_OUTPUT_DIR="$(realpath -m "$PROFILE_LOAD_OUTPUT_DIR")"
+mkdir -p "$PROFILE_LOAD_OUTPUT_DIR"
+PROFILE_SEED_OUTPUT_DIR="$PROFILE_LOAD_OUTPUT_DIR/seed"
+PROFILE_LOG="$PROFILE_LOAD_OUTPUT_DIR/server.log"
+PROFILE_PID_FILE="$PROFILE_LOAD_OUTPUT_DIR/server.pid"
+PROFILE_K6_METRICS="$PROFILE_LOAD_OUTPUT_DIR/k6-metrics.ndjson"
+PROFILE_K6_STDOUT="$PROFILE_LOAD_OUTPUT_DIR/k6.stdout"
+PROFILE_LOAD_METADATA="$PROFILE_LOAD_OUTPUT_DIR/metadata.json"
+
+if [ "$PROFILE_SHOULD_SEED" = "1" ]; then
+    seed-profile "$PROFILE_DATABASE_NAME" --output-dir="$PROFILE_SEED_OUTPUT_DIR" "${PROFILE_SEED_ARGS[@]}"
+elif [ ! -f "$PROFILE_SEED_OUTPUT_DIR/manifest.json" ] && [ -f "$PWD/build/profile-seed/latest/manifest.json" ]; then
+    mkdir -p "$PROFILE_SEED_OUTPUT_DIR"
+    cp "$PWD/build/profile-seed/latest/manifest.json" "$PROFILE_SEED_OUTPUT_DIR/manifest.json"
+fi
+
+if [ ! -f "$PROFILE_SEED_OUTPUT_DIR/manifest.json" ]; then
+    echo "Missing profile seed manifest: $PROFILE_SEED_OUTPUT_DIR/manifest.json" >&2
+    echo "Run with --seed, or provide PROFILE_LOAD_OUTPUT_DIR that already contains seed/manifest.json." >&2
+    exit 1
+fi
+
+process_group_pids() {
+    local pgid="$1"
+    pgrep -g "$pgid" 2>/dev/null | tr '\n' ' ' || true
+}
+
+detect_profile_base_url() {
+    local pgid="$1"
+    local pids ports port
+    pids=$(process_group_pids "$pgid")
+    if [ -z "$pids" ]; then
+        return 1
+    fi
+
+    ports=$(
+        lsof -Pan -iTCP -sTCP:LISTEN $(printf ' -p %s' $pids) 2>/dev/null \
+            | awk 'NR > 1 { split($9, parts, ":"); print parts[length(parts)] }' \
+            | sort -n -u
+    )
+
+    for port in $ports; do
+        if curl -fsS "http://127.0.0.1:$port/NewSession" 2>/dev/null | grep -q 'id="email"'; then
+            printf 'http://127.0.0.1:%s\n' "$port"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+cleanup_profile_server() {
+    if [ -f "$PROFILE_PID_FILE" ]; then
+        local pid
+        pid=$(cat "$PROFILE_PID_FILE")
+        kill -TERM -"$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
+        rm -f "$PROFILE_PID_FILE"
+    fi
+}
+trap cleanup_profile_server EXIT INT TERM
+
+(
+    export PROFILE_DATABASE_NAME
+    export PROFILE_DB_SOCKET
+    export IHP_ROSTER_PROFILING=1
+    setsid profile-test-server </dev/null >>"$PROFILE_LOG" 2>&1 &
+    echo "$!" > "$PROFILE_PID_FILE"
+    wait "$!"
+) &
+PROFILE_WRAPPER_PID="$!"
+
+PROFILE_SERVER_PID=""
+for _ in $(seq 1 120); do
+    if [ -f "$PROFILE_PID_FILE" ]; then
+        PROFILE_SERVER_PID="$(cat "$PROFILE_PID_FILE")"
+    fi
+    if [ -n "$PROFILE_SERVER_PID" ] && PROFILE_BASE_URL=$(detect_profile_base_url "$PROFILE_SERVER_PID"); then
+        export PROFILE_BASE_URL
+        export PROFILE_MANIFEST="$PROFILE_SEED_OUTPUT_DIR/manifest.json"
+        export PROFILE_LOAD_SCENARIO
+        export PROFILE_LOAD_RATE
+        export PROFILE_LOAD_DURATION
+        export PROFILE_LOAD_VUS
+        if [ -n "$PROFILE_LOAD_MAX_VUS" ]; then
+            export PROFILE_LOAD_MAX_VUS
+        fi
+
+        jq -n \
+            --arg runId "$PROFILE_RUN_ID" \
+            --arg scenario "$PROFILE_LOAD_SCENARIO" \
+            --arg rate "$PROFILE_LOAD_RATE" \
+            --arg duration "$PROFILE_LOAD_DURATION" \
+            --arg vus "$PROFILE_LOAD_VUS" \
+            --arg maxVus "${PROFILE_LOAD_MAX_VUS:-}" \
+            --arg database "$PROFILE_DATABASE_NAME" \
+            --arg baseUrl "$PROFILE_BASE_URL" \
+            --slurpfile manifest "$PROFILE_SEED_OUTPUT_DIR/manifest.json" \
+            '{runId:$runId, scenario:$scenario, rate:$rate, duration:$duration, vus:$vus, maxVus:$maxVus, database:$database, baseUrl:$baseUrl, seed:$manifest[0].options}' \
+            > "$PROFILE_LOAD_METADATA"
+
+        echo "Profile load server ready at $PROFILE_BASE_URL"
+        echo "Profile load database: $PROFILE_DATABASE_NAME"
+        echo "Profile load scenario: $PROFILE_LOAD_SCENARIO rate=$PROFILE_LOAD_RATE duration=$PROFILE_LOAD_DURATION vus=$PROFILE_LOAD_VUS"
+
+        k6 run \
+            --out "json=$PROFILE_K6_METRICS" \
+            "${PROFILE_K6_ARGS[@]}" \
+            ./e2e/profile-load.js \
+            | tee "$PROFILE_K6_STDOUT"
+
+        node ./e2e/profile-load-report.mjs \
+            "$PROFILE_K6_METRICS" \
+            "$PROFILE_LOAD_OUTPUT_DIR" \
+            "$PROFILE_LOAD_METADATA"
+        ln -sfn "$PROFILE_LOAD_OUTPUT_DIR" "$PWD/output/profile-load/latest"
+        echo "Profile load artifacts: $PROFILE_LOAD_OUTPUT_DIR"
+        exit 0
+    fi
+
+    if [ -n "$PROFILE_SERVER_PID" ] && ! kill -0 "$PROFILE_SERVER_PID" 2>/dev/null; then
+        echo "Profile load app server failed to start" >&2
+        tail -n 120 "$PROFILE_LOG" >&2 || true
+        exit 1
+    fi
+
+    sleep 1
+done
+
+echo "Timed out waiting for profile load app server" >&2
+tail -n 120 "$PROFILE_LOG" >&2 || true
+kill "$PROFILE_WRAPPER_PID" 2>/dev/null || true
+exit 1

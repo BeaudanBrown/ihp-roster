@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+STATE_DIR="$(dev-agent-state-dir)"
+POSTGRES_PID_FILE="$STATE_DIR/postgres.pid"
+LOG_FILE="$STATE_DIR/devenv.log"
+DB_SOCKET="${PGHOST:-$PWD/build/db}"
+
+mkdir -p "$STATE_DIR"
+: > "$LOG_FILE"
+
+if psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
+    exit 0
+fi
+
+if [ -f "$POSTGRES_PID_FILE" ]; then
+    PG_PID=$(cat "$POSTGRES_PID_FILE")
+    if ! kill -0 "$PG_PID" 2>/dev/null; then
+        rm -f "$POSTGRES_PID_FILE"
+    fi
+fi
+
+if [ ! -f "$POSTGRES_PID_FILE" ]; then
+    echo "[dev-ensure-postgres] launching start-postgres (socket=$DB_SOCKET)" >>"$LOG_FILE"
+    setsid nohup start-postgres </dev/null >>"$LOG_FILE" 2>&1 &
+    PG_PID=$!
+    echo "$PG_PID" > "$POSTGRES_PID_FILE"
+    disown "$PG_PID" 2>/dev/null || true
+fi
+
+for _ in $(seq 1 20); do
+    if psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
+        exit 0
+    fi
+    sleep 1
+done
+
+echo "devenv postgres failed to start; recent log output:"
+tail -n 60 "$LOG_FILE" || true
+exit 1

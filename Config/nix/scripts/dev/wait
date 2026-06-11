@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+TIMEOUT="${1:-90}"
+START_TS=$(date +%s)
+
+while true; do
+    if dev-status >/dev/null 2>&1; then
+        dev-status
+        exit 0
+    fi
+
+    NOW_TS=$(date +%s)
+    if [ $((NOW_TS - START_TS)) -ge "$TIMEOUT" ]; then
+        echo "Timed out waiting for devenv health after ${TIMEOUT}s"
+        dev-status || true
+        echo "--- recent devenv log ---"
+        tail -n 80 "$(dev-agent-state-dir)/devenv.log" || true
+        exit 1
+    fi
+
+    sleep 1
+done

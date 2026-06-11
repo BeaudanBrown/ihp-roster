@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+set -euo pipefail
+STATE_DIR="$(dev-agent-state-dir)"
+PID_FILE="$STATE_DIR/devenv.pid"
+SOCKET_FILE="$STATE_DIR/pc.sock"
+DB_SOCKET="${PGHOST:-$PWD/build/db}"
+APP_HEALTH_URL="${APP_BASE_URL:-http://127.0.0.1:8000}"
+PID=""
+
+if [ -f "$PID_FILE" ]; then
+    PID=$(cat "$PID_FILE")
+    if ! kill -0 "$PID" 2>/dev/null; then
+        rm -f "$PID_FILE"
+        PID=""
+    fi
+fi
+
+RUNNING=false
+if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+    RUNNING=true
+fi
+
+SOCKET_OK=false
+if [ -S "$SOCKET_FILE" ] && lsof "$SOCKET_FILE" >/dev/null 2>&1; then
+    SOCKET_OK=true
+    RUNNING=true
+fi
+
+DB_OK=false
+DB_BLOCKED=false
+DB_ERR=""
+if DB_ERR=$(psql -h "$DB_SOCKET" -d app -c "select 1" 2>&1); then
+    DB_OK=true
+elif echo "$DB_ERR" | @ripgrep@/bin/rg -qi "operation not permitted|permission denied"; then
+    DB_BLOCKED=true
+fi
+
+HTTP_OK=false
+HTTP_BLOCKED=false
+HTTP_ERR=""
+if HTTP_ERR=$(curl --connect-timeout 1 --max-time 2 -fsS "$APP_HEALTH_URL" 2>&1); then
+    HTTP_OK=true
+elif echo "$HTTP_ERR" | @ripgrep@/bin/rg -qi "operation not permitted|permission denied"; then
+    HTTP_BLOCKED=true
+fi
+
+MAILHOG_OK=false
+MAILHOG_BLOCKED=false
+MAILHOG_ERR=""
+if MAILHOG_ERR=$(curl --connect-timeout 1 --max-time 2 -fsS "${MAILHOG_BASE_URL:-http://127.0.0.1:8025}/api/v2/messages" 2>&1); then
+    MAILHOG_OK=true
+elif echo "$MAILHOG_ERR" | @ripgrep@/bin/rg -qi "operation not permitted|permission denied"; then
+    MAILHOG_BLOCKED=true
+fi
+
+CHECKS_BLOCKED=false
+if { [ "$DB_OK" = true ] || [ "$DB_BLOCKED" = true ]; } \
+    && { [ "$HTTP_OK" = true ] || [ "$HTTP_BLOCKED" = true ]; } \
+    && { [ "$MAILHOG_OK" = true ] || [ "$MAILHOG_BLOCKED" = true ]; }; then
+    CHECKS_BLOCKED=true
+fi
+
+MANAGED=false
+if [ -n "$PID" ] || [ "$SOCKET_OK" = true ]; then
+    MANAGED=true
+fi
+
+# Consider the app "running" if it's reachable via DB+HTTP,
+# even when it was started outside of dev-start (no pid/socket file).
+if [ "$DB_OK" = true ] && [ "$HTTP_OK" = true ]; then
+    RUNNING=true
+fi
+
+echo "running=$RUNNING managed=$MANAGED socket_ok=$SOCKET_OK pid=${PID:-none} db_ok=$DB_OK http_ok=$HTTP_OK mailhog_ok=$MAILHOG_OK db_blocked=$DB_BLOCKED http_blocked=$HTTP_BLOCKED mailhog_blocked=$MAILHOG_BLOCKED"
+
+if [ "$DB_OK" = true ] && [ "$HTTP_OK" = true ] && [ "$MAILHOG_OK" = true ]; then
+    exit 0
+fi
+
+# In restricted sandbox environments network/socket checks can be blocked.
+# In that case, treat a running process as healthy enough for automation.
+if [ "$RUNNING" = true ] && [ "$CHECKS_BLOCKED" = true ]; then
+    exit 0
+fi
+
+exit 1
