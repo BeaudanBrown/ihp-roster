@@ -39,6 +39,7 @@ Tickets:
 - `ir-4ggo`
 - `ir-sy25`
 - `ir-00br`
+- `ir-5vrr`
 
 Living docs to update:
 
@@ -50,6 +51,9 @@ Direction:
 
 - Founder support access is platform-level and distinct from venue membership.
 - Support-mode UI and audit should make the access mode explicit.
+- Consider defense-in-depth that makes the super-admin login/support surface
+  reachable only from a trusted host or founder tailnet before credentials can
+  even be submitted.
 - Ordinary multi-venue switching remains separate from support access.
 
 ## Public Holidays
