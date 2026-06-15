@@ -1,6 +1,6 @@
 ---
 id: ir-nlv5
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-06-15T23:44:59Z
@@ -22,3 +22,9 @@ Build on Application.Helper.Staff.isTrialStaff. Add or consolidate helpers in fo
 
 Named helpers exist for trial staff, rosterable staff, and linked active staff. Existing trial-staff tests are extended for helper/filter behavior. No schema change is introduced. Typecheck passes.
 
+
+## Notes
+
+**2026-06-15T23:50:27Z**
+
+Added explicit rosterable vs linked-active staff helpers in Application.Helper.Staff and venue-scoped query helper names; kept fetchActiveVenueStaff as rosterable-compatible alias for existing callers. Focused Trial staff Hspec and typecheck pass.

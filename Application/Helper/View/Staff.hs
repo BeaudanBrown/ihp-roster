@@ -8,7 +8,7 @@ module Application.Helper.View.Staff
     , staffDisplayName
     ) where
 
-import Application.Helper.Staff (isTrialStaff)
+import Application.Helper.Staff (isTrialStaff, linkedActiveStaff)
 import qualified Data.Char as Char
 import Data.List (sortBy)
 import qualified Data.Text as Text
@@ -19,8 +19,7 @@ import IHP.ViewPrelude
 -- isTrialStaff from Application.Helper.Staff.
 linkedActiveStaffForRosterPanel :: [Staff] -> [Staff]
 linkedActiveStaffForRosterPanel =
-    sortBy sortStaff
-        . filter (\staff -> staff.isActive && isJust staff.userId)
+    sortBy sortStaff . linkedActiveStaff
     where
         sortStaff left right =
             compare left.firstName right.firstName <> compare left.lastName right.lastName

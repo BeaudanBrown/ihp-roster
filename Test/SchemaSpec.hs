@@ -3,7 +3,9 @@ module Test.SchemaSpec where
 import Application.Helper.Controller
 import Application.Helper.Export
 import Application.Helper.Export.Render (csvCell)
-import Application.Helper.Staff (isTrialStaff)
+import Application.Helper.Staff (isLinkedActiveStaff, isRosterableStaff,
+                                 isTrialStaff, linkedActiveStaff,
+                                 rosterableStaff)
 import Application.Helper.Url (appendQueryParams)
 import Application.Helper.View (formatDateDisplay,
                                 linkedActiveStaffForRosterPanel,
@@ -563,6 +565,59 @@ tests = describe "Schema" do
                     |> set #lastName "Person"
                     |> set #userId (Just def)
             isTrialStaff linkedStaff `shouldBe` False
+
+        it "treats active non-archived trial and linked staff as rosterable" do
+            let archivedAt = UTCTime (fromGregorian 2026 1 1) (secondsToDiffTime 0)
+            let trialStaff = newRecord @Staff
+                    |> set #firstName "Blair"
+                    |> set #lastName "Trial"
+            let linkedStaff = newRecord @Staff
+                    |> set #firstName "Alex"
+                    |> set #lastName "Linked"
+                    |> set #userId (Just def)
+            let inactiveTrialStaff = newRecord @Staff
+                    |> set #firstName "Inactive"
+                    |> set #lastName "Trial"
+                    |> set #isActive False
+            let archivedLinkedStaff = newRecord @Staff
+                    |> set #firstName "Archived"
+                    |> set #lastName "Linked"
+                    |> set #userId (Just def)
+                    |> set #archivedAt (Just archivedAt)
+
+            isRosterableStaff trialStaff `shouldBe` True
+            isRosterableStaff linkedStaff `shouldBe` True
+            isRosterableStaff inactiveTrialStaff `shouldBe` False
+            isRosterableStaff archivedLinkedStaff `shouldBe` False
+            map (.firstName) (rosterableStaff [trialStaff, linkedStaff, inactiveTrialStaff, archivedLinkedStaff])
+                `shouldBe` ["Blair", "Alex"]
+
+        it "limits linked-active eligibility to active non-archived staff with a user_id" do
+            let archivedAt = UTCTime (fromGregorian 2026 1 1) (secondsToDiffTime 0)
+            let trialStaff = newRecord @Staff
+                    |> set #firstName "Blair"
+                    |> set #lastName "Trial"
+            let linkedStaff = newRecord @Staff
+                    |> set #firstName "Alex"
+                    |> set #lastName "Linked"
+                    |> set #userId (Just def)
+            let inactiveLinkedStaff = newRecord @Staff
+                    |> set #firstName "Inactive"
+                    |> set #lastName "Linked"
+                    |> set #userId (Just def)
+                    |> set #isActive False
+            let archivedLinkedStaff = newRecord @Staff
+                    |> set #firstName "Archived"
+                    |> set #lastName "Linked"
+                    |> set #userId (Just def)
+                    |> set #archivedAt (Just archivedAt)
+
+            isLinkedActiveStaff trialStaff `shouldBe` False
+            isLinkedActiveStaff linkedStaff `shouldBe` True
+            isLinkedActiveStaff inactiveLinkedStaff `shouldBe` False
+            isLinkedActiveStaff archivedLinkedStaff `shouldBe` False
+            map (.firstName) (linkedActiveStaff [trialStaff, linkedStaff, inactiveLinkedStaff, archivedLinkedStaff])
+                `shouldBe` ["Alex"]
 
         it "filters roster panel staff to active linked staff sorted by first name" do
             let inactiveLinkedStaff = newRecord @Staff
