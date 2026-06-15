@@ -1,6 +1,6 @@
 ---
 id: ir-yoho
-status: open
+status: closed
 deps: [ir-nlv5]
 links: []
 created: 2026-06-15T23:44:59Z
@@ -22,3 +22,9 @@ Add NewStaffAction/CreateStaffAction or an equivalent StaffController flow. Gate
 
 A manager can create a trial staff placeholder for the current venue. A non-manager cannot create one. Tampered or cross-venue roster group ids are rejected or rerendered safely. The created staff row has user_id NULL and active TRUE. Selected roster group assignments are persisted. Focused controller tests pass.
 
+
+## Notes
+
+**2026-06-15T23:55:48Z**
+
+Implemented NewStaffAction/CreateStaffAction for current-venue trial placeholders, using existing staff form shape with placeholder contact defaults and current roster-group/pay-field validation. Focused StaffController Hspec and typecheck pass.

@@ -198,7 +198,9 @@ data SupportController
     deriving (Eq, Show, Data)
 
 data StaffController
-    = EditStaffAction { staffId :: !(Id Staff) }
+    = NewStaffAction
+    | CreateStaffAction
+    | EditStaffAction { staffId :: !(Id Staff) }
     | UpdateStaffAction { staffId :: !(Id Staff) }
     deriving (Eq, Show, Data)
 

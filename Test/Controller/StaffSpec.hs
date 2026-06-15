@@ -45,6 +45,97 @@ tests = beforeAll testContext do
                 ]
             response `responseStatusShouldBe` status302
 
+        it "redirects unauthenticated users from new trial staff form" $ withContext do
+            response <- callAction NewStaffAction
+            response `responseStatusShouldBe` status302
+
+        it "lets managers create active trial staff placeholders with selected roster groups" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Trial Staff Venue"
+                manager <- createUserRecord "trial-staff-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                frontOfHouse <- createVenueRosterGroupWithDefaults venue "Front of House" 1 True
+                backOfHouse <- createVenueRosterGroupWithDefaults venue "Back of House" 2 True
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams
+                        CreateStaffAction
+                        [ ("firstName", "Trial")
+                        , ("lastName", "Placeholder")
+                        , ("phone", "Trial placeholder")
+                        , ("emergencyContactName", "Trial placeholder")
+                        , ("emergencyContactPhone", "Trial placeholder")
+                        , ("idealShiftsPerWeek", "2")
+                        , ("isActive", "on")
+                        , ("weekOffset", "0")
+                        , ("rosterGroupIds", cs (tshow frontOfHouse.id))
+                        , ("rosterGroupIds", cs (tshow backOfHouse.id))
+                        ]
+
+                response `responseStatusShouldBe` status302
+                staff <- query @Staff
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#firstName, "Trial" :: Text)
+                    |> filterWhere (#lastName, "Placeholder" :: Text)
+                    |> fetchOne
+                staff.userId `shouldBe` Nothing
+                staff.isActive `shouldBe` True
+                assignments <- query @StaffRosterGroup
+                    |> filterWhere (#staffId, unpackId staff.id)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetch
+                sort (map (.rosterGroupId) assignments) `shouldBe` sort [unpackId frontOfHouse.id, unpackId backOfHouse.id]
+
+        it "prevents non-managers from creating trial staff placeholders" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Trial Staff Worker Venue"
+                worker <- createUserRecord "trial-staff-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue worker "worker"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
+
+                response <- withUserAndCurrentVenue worker venue.id do
+                    callActionWithParams
+                        CreateStaffAction
+                        [ ("firstName", "Blocked")
+                        , ("lastName", "Trial")
+                        , ("phone", "Trial placeholder")
+                        , ("emergencyContactName", "Trial placeholder")
+                        , ("emergencyContactPhone", "Trial placeholder")
+                        , ("idealShiftsPerWeek", "1")
+                        , ("isActive", "on")
+                        , ("rosterGroupIds", cs (tshow rosterGroup.id))
+                        ]
+
+                response `responseStatusShouldBe` status302
+                exists <- query @Staff |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#firstName, "Blocked" :: Text) |> fetchExists
+                exists `shouldBe` False
+
+        it "rejects cross-venue roster group ids when creating trial staff placeholders" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Trial Staff Current Venue"
+                otherVenue <- createVenueWithConfig "Trial Staff Other Venue"
+                manager <- createUserRecord "trial-staff-cross-venue-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                otherGroup <- createVenueRosterGroupWithDefaults otherVenue "Other Venue Group" 1 True
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams
+                        CreateStaffAction
+                        [ ("firstName", "Cross")
+                        , ("lastName", "Venue")
+                        , ("phone", "Trial placeholder")
+                        , ("emergencyContactName", "Trial placeholder")
+                        , ("emergencyContactPhone", "Trial placeholder")
+                        , ("idealShiftsPerWeek", "1")
+                        , ("isActive", "on")
+                        , ("rosterGroupIds", cs (tshow otherGroup.id))
+                        ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Choose roster groups from the current venue."
+                exists <- query @Staff |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#firstName, "Cross" :: Text) |> fetchExists
+                exists `shouldBe` False
+
         it "records touched resources for staff updates" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Touched Venue"

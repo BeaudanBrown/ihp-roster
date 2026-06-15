@@ -5,7 +5,8 @@ import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
 import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
                                         fetchCurrentVenueRosterGroupIds,
                                         fetchCurrentVenueRosterGroups,
-                                        fetchStaffRosterGroupIds)
+                                        fetchStaffRosterGroupIds,
+                                        syncStaffRosterGroupAssignments)
 import Application.Helper.StaffShiftPreferences
 import Web.Controller.Admin.Support (SubmittedPayRateSelection (..),
                                      fetchActiveImportedXeroPayItems,
@@ -25,6 +26,56 @@ instance Controller StaffController where
         ensureCurrentVenue
         ensureProfileCompleted
         ensureManagerRole
+
+    action NewStaffAction = do
+        let weekOffset = paramOrDefault @Int 0 "weekOffset"
+        let maybeRosterGroupId = paramOrNothing @(Id RosterGroup) "rosterGroupId"
+        staff <- buildNewTrialStaff
+        rosterGroups <- fetchCurrentVenueRosterGroups
+        awardLevels <- fetchAwardLevelsForStaffForm
+        awardLevelBaseRates <- fetchAwardLevelBaseRatesForStaffForm
+        importedPayItems <- fetchActiveImportedXeroPayItems
+        defaultRosterGroup <- fetchCurrentVenueDefaultRosterGroup
+        let selectedRosterGroupIds = [defaultRosterGroup.id]
+        if isHtmxRequest
+            then respondHtml (renderNewStaffModalFragment staff rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds weekOffset maybeRosterGroupId)
+            else render NewView { .. }
+
+    action CreateStaffAction = do
+        ensureVenueWritable
+        let weekOffset = paramOrDefault @Int 0 "weekOffset"
+        let maybeRosterGroupId = paramOrNothing @(Id RosterGroup) "rosterGroupId"
+        rosterGroups <- fetchCurrentVenueRosterGroups
+        awardLevels <- fetchAwardLevelsForStaffForm
+        awardLevelBaseRates <- fetchAwardLevelBaseRatesForStaffForm
+        importedPayItems <- fetchActiveImportedXeroPayItems
+        maybeSelectedRosterGroupIds <- parseStaffRosterGroupIds
+        let submittedRosterGroupIds = nub (mapMaybe parseRosterGroupIdText (paramTexts "rosterGroupIds"))
+        let canManageStaffPay = hasRole VenueAdminRole
+        maybeSubmittedPayRateSelection <- if canManageStaffPay then parseSubmittedPayRateSelection "payRateSelection" else pure (Just emptyStaffPayRateSelection)
+        let maybeSubmittedDefaultAwardLevelId = submittedAwardLevelId <$> maybeSubmittedPayRateSelection
+        let maybeSubmittedImportedXeroPayItemId = submittedImportedXeroPayItemId <$> maybeSubmittedPayRateSelection
+        staff <- buildNewTrialStaff
+        staff
+            |> buildStaff canManageStaffPay maybeSubmittedDefaultAwardLevelId maybeSubmittedImportedXeroPayItemId
+            |> ifValid \case
+                Left invalidStaff -> renderNewStaffResponse invalidStaff submittedRosterGroupIds rosterGroups awardLevels awardLevelBaseRates importedPayItems weekOffset maybeRosterGroupId
+                Right validStaff -> do
+                    case (maybeSelectedRosterGroupIds, maybeSubmittedDefaultAwardLevelId, maybeSubmittedImportedXeroPayItemId) of
+                        (Just selectedRosterGroupIds@(selectedRosterGroupId : _), Just _, Just _) -> do
+                            _ <- createTrialStaffMember validStaff selectedRosterGroupIds
+                            if isHtmxRequest
+                                then do
+                                    let rosterGroupId = fromMaybe selectedRosterGroupId maybeRosterGroupId
+                                    respondWithRosterContentOob rosterGroupId weekOffset
+                                else do
+                                    setSuccessMessage "Trial staff placeholder created"
+                                    redirectToPath $
+                                        maybe
+                                            (pathTo ShowRosterWeekAction { weekOffset })
+                                            (\rosterGroupId -> appendQueryParams (pathTo ShowRosterWeekAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)])
+                                            maybeRosterGroupId
+                        _ -> renderNewStaffResponse validStaff submittedRosterGroupIds rosterGroups awardLevels awardLevelBaseRates importedPayItems weekOffset maybeRosterGroupId
 
     action EditStaffAction { staffId } = do
         staff <- fetch staffId
@@ -127,6 +178,33 @@ instance Controller StaffController where
 
 emptyStaffPayRateSelection :: SubmittedPayRateSelection
 emptyStaffPayRateSelection = SubmittedPayRateSelection Nothing Nothing
+
+buildNewTrialStaff :: (?context :: ControllerContext) => IO Staff
+buildNewTrialStaff =
+    pure $
+        newRecord @Staff
+            |> set #venueId (unpackId currentVenueId)
+            |> set #userId Nothing
+            |> set #firstName ""
+            |> set #lastName ""
+            |> set #phone "Trial placeholder"
+            |> set #emergencyContactName "Trial placeholder"
+            |> set #emergencyContactPhone "Trial placeholder"
+            |> set #idealShiftsPerWeek 0
+            |> set #isActive True
+
+createTrialStaffMember :: (?modelContext :: ModelContext) => Staff -> [Id RosterGroup] -> IO Staff
+createTrialStaffMember staff selectedRosterGroupIds =
+    withTransaction do
+        createdStaff <- staff |> createRecord
+        syncStaffRosterGroupAssignments createdStaff selectedRosterGroupIds
+        pure createdStaff
+
+renderNewStaffResponse :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Staff -> [Id RosterGroup] -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Int -> Maybe (Id RosterGroup) -> IO ()
+renderNewStaffResponse staff selectedRosterGroupIds rosterGroups awardLevels awardLevelBaseRates importedPayItems weekOffset maybeRosterGroupId =
+    if isHtmxRequest
+        then respondHtml (renderNewStaffModalFragment staff rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds weekOffset maybeRosterGroupId)
+        else render NewView { .. }
 
 buildStaff :: (?request :: Request) => Bool -> Maybe (Maybe (Id AwardLevel)) -> Maybe (Maybe (Id XeroImportedPayItem)) -> Staff -> Staff
 buildStaff canManageStaffPay maybeSubmittedDefaultAwardLevelId maybeSubmittedImportedXeroPayItemId staff =

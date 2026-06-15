@@ -9,6 +9,24 @@ import Web.View.StaffDocuments.Rsa
 import Web.View.StaffProfileForm
 import Web.View.StaffProfileSections
 
+data NewView = NewView
+    { staff                  :: Staff
+    , rosterGroups           :: [RosterGroup]
+    , awardLevels            :: [AwardLevel]
+    , awardLevelBaseRates    :: [AwardLevelBaseRate]
+    , importedPayItems       :: [XeroImportedPayItem]
+    , selectedRosterGroupIds :: [Id RosterGroup]
+    , weekOffset             :: Int
+    , maybeRosterGroupId     :: Maybe (Id RosterGroup)
+    }
+
+instance View NewView where
+    html NewView { .. } =
+        renderStaffEditPageModalWithButtons
+            weekOffset
+            []
+            (renderNewStaffBody PageOverlayForm staff rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds weekOffset maybeRosterGroupId)
+
 data EditView = EditView
     { staff                    :: Staff
     , maybeLinkedUserEmail     :: Maybe Text
@@ -43,6 +61,47 @@ staffShiftPreferencesEditFormId = "staff-shift-preferences-form"
 
 staffSectionsAccordionId :: Text
 staffSectionsAccordionId = "staff-sections"
+
+renderNewStaffModalFragment :: Staff -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Int -> Maybe (Id RosterGroup) -> Html
+renderNewStaffModalFragment staff rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds weekOffset maybeRosterGroupId =
+    renderStaffEditDialogWithButtons
+        []
+        (renderNewStaffBody HtmxOverlayForm staff rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds weekOffset maybeRosterGroupId)
+
+renderNewStaffBody :: OverlayFormMode -> Staff -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Int -> Maybe (Id RosterGroup) -> Html
+renderNewStaffBody formMode staff rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds weekOffset maybeRosterGroupId =
+    let managementFields =
+            StaffManagementFieldData
+                { managementStaff = staff
+                , managementRosterGroups = rosterGroups
+                , managementAwardLevels = awardLevels
+                , managementAwardLevelBaseRates = awardLevelBaseRates
+                , managementImportedPayItems = importedPayItems
+                , managementSelectedRosterGroupIds = selectedRosterGroupIds
+                , managementWeekOffset = Just weekOffset
+                , managementRosterGroupId = maybeRosterGroupId
+                }
+     in renderStaffProfileDetailsForm
+            StaffProfileDetailsFormConfig
+                { staffProfileDetailsFormId = "staff-new-form"
+                , staffProfileDetailsFormAction = pathTo CreateStaffAction
+                , staffProfileDetailsFormClass = "mt-3"
+                , staffProfileDetailsFormHtmx = staffEditFormHtmxConfig formMode
+                , staffProfileDetailsFormAttributes = []
+                , staffProfileDetailsFormHiddenInputs = mempty
+                , staffProfileDetailsFormBeforeFields = [hsx|
+                    <div class="alert alert-info" role="alert">
+                        Create a trial staff placeholder for roster planning. Trial staff have no sign-in access.
+                    </div>
+                |]
+                , staffProfileDetailsFormFieldsHeading = Just "Trial staff details"
+                , staffProfileDetailsFormAfterFields = mempty
+                , staffProfileDetailsFormManagement = Just managementFields
+                , staffProfileDetailsFormManagementBody = renderStaffManagementFields
+                , staffProfileDetailsFormSubmitLabel = "Create trial staff"
+                }
+            staff
+            Nothing
 
 renderStaffEditModalFragment :: Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> LeaveRequest -> [LeaveRequest] -> Day -> Int -> Maybe (Id RosterGroup) -> Text -> Html
 renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection =
