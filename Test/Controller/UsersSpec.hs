@@ -67,6 +67,39 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "id=\"invite-email\""
                 response `responseBodyShouldNotContain` "id=\"staff-email\""
 
+        it "prefills the signup form from an adoptable trial staff invitation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Trial Adoption Signup Venue"
+                staff <- createStaffRecord venue Nothing "Blair" "Trial"
+                    >>= updateRecord . set #preferredName (Just "Bee")
+                invitation <- createVenueInvitationRecord venue Nothing "blair-trial@example.com" "worker"
+                    >>= updateRecord . set #staffId (Just staff.id)
+
+                response <- callActionWithParams NewUserAction [("invitationId", idToParam invitation.id)]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Accept Invitation"
+                response `responseBodyShouldContain` "claim an existing trial staff profile"
+                response `responseBodyShouldContain` "value=\"Blair\""
+                response `responseBodyShouldContain` "value=\"Trial\""
+                response `responseBodyShouldContain` "value=\"Bee\""
+                response `responseBodyShouldContain` "blair-trial@example.com"
+                response `responseBodyShouldContain` "Confirm your staff details"
+
+        it "does not render the signup form when the adoption target is already linked" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Linked Adoption Signup Venue"
+                linkedUser <- createUserRecord "linked-adoption-target@example.com" "staff" True
+                staff <- createStaffRecord venue (Just linkedUser) "Linked" "Trial"
+                invitation <- createVenueInvitationRecord venue Nothing "linked-adoption@example.com" "worker"
+                    >>= updateRecord . set #staffId (Just staff.id)
+
+                response <- callActionWithParams NewUserAction [("invitationId", idToParam invitation.id)]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Invitation Required"
+                response `responseBodyShouldNotContain` "Accept Invitation"
+
         it "does not render the signup form for an expired invitation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Expired Invite Venue"

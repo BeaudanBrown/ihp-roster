@@ -40,7 +40,7 @@ instance View NewView where
                 <div class="app-auth-body">
                     <h4 class="card-title mb-3 text-center">Accept Invitation</h4>
                     <p class="app-muted mb-4 text-center">
-                        You have been invited to join this venue as {invitationRoleLabel venueInvitation.inviteRole}.
+                        {invitationSignupIntro venueInvitation}
                     </p>
                     {renderInvitationForm user venueInvitation staff}
                     <hr/>
@@ -65,6 +65,11 @@ instance View NewView where
             </div>
         </div>
     |]
+
+invitationSignupIntro :: VenueInvitation -> Text
+invitationSignupIntro invitation
+    | isJust invitation.staffId = "You have been invited to claim an existing trial staff profile. Review the prefilled details, update anything that has changed, and create your account."
+    | otherwise = "You have been invited to join this venue as " <> invitationRoleLabel invitation.inviteRole <> "."
 
 renderInvitationForm :: User -> VenueInvitation -> Staff -> Html
 renderInvitationForm user invitation staff =

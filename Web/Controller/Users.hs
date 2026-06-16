@@ -2,6 +2,7 @@ module Web.Controller.Users where
 
 import Application.Helper.Controller (defaultRosterWeekStartsOn)
 import Application.Helper.LiveResource (LiveMutationResult (..))
+import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.Helper.VenueBootstrap (VenueBootstrapConfig (..),
                                           createVenueWithBootstrapConfigInCurrentTransaction,
                                           defaultStaffNameFromEmail,
@@ -32,10 +33,16 @@ instance Controller UsersController where
                 invitationOrNothing <- fetchInvitation invitationId
                 case invitationOrNothing of
                     Just invitation | invitationIsActive now invitation -> do
-                        let user = newRecord @User |> set #email invitation.email
-                        let staff = newRecord @Staff
-                        setTitle "Accept Invitation"
-                        render InvitationSignupView { user, venueInvitation = invitation, staff }
+                        maybeStaff <- invitationSignupStaff invitation
+                        case maybeStaff of
+                            Just staff -> do
+                                let user = newRecord @User |> set #email invitation.email
+                                setTitle "Accept Invitation"
+                                render InvitationSignupView { user, venueInvitation = invitation, staff }
+                            Nothing -> do
+                                setErrorMessage "That invitation is no longer valid. Contact support for a new bootstrap invite."
+                                setTitle "Request Access"
+                                render InviteOnlyView
                     _ -> do
                         setErrorMessage "That invitation is no longer valid. Contact support for a new bootstrap invite."
                         setTitle "Request Access"
@@ -290,6 +297,17 @@ fetchInvitation invitationId =
     query @VenueInvitation
         |> filterWhere (#id, invitationId)
         |> fetchOneOrNothing
+
+invitationSignupStaff :: (?modelContext :: ModelContext) => VenueInvitation -> IO (Maybe Staff)
+invitationSignupStaff invitation =
+    case invitation.staffId of
+        Nothing -> pure (Just (newRecord @Staff))
+        Just staffId -> do
+            maybeStaff <- query @Staff
+                |> filterWhere (#id, staffId)
+                |> filterWhere (#venueId, invitation.venueId)
+                |> fetchOneOrNothing
+            pure (maybeStaff >>= \staff -> if isAdoptableTrialStaff staff then Just staff else Nothing)
 
 fetchVenueOnboardingInvitation :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id VenueOnboardingInvitation -> IO (Maybe VenueOnboardingInvitation)
 fetchVenueOnboardingInvitation invitationId =
