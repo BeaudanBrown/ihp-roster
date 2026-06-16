@@ -172,6 +172,7 @@ CREATE TABLE venue_invitations (
     venue_id UUID NOT NULL,
     invited_by_user_id UUID,
     accepted_by_user_id UUID,
+    staff_id UUID DEFAULT NULL,
     email TEXT NOT NULL,
     invite_role venue_role_enum DEFAULT 'worker' NOT NULL,
     status invitation_status_enum DEFAULT 'pending' NOT NULL,
@@ -1503,6 +1504,7 @@ CREATE INDEX idx_passkey_setup_tokens_user_id ON passkey_setup_tokens (user_id);
 CREATE INDEX idx_passkey_setup_tokens_venue_id ON passkey_setup_tokens (venue_id);
 CREATE INDEX idx_venue_invitations_venue_status ON venue_invitations (venue_id, status);
 CREATE INDEX idx_venue_invitations_email_status ON venue_invitations (email, status);
+CREATE INDEX idx_venue_invitations_staff ON venue_invitations (staff_id) WHERE staff_id IS NOT NULL;
 CREATE INDEX idx_venue_onboarding_invitations_email_status ON venue_onboarding_invitations (email, status);
 CREATE UNIQUE INDEX idx_venue_onboarding_invitations_pending_email_unique ON venue_onboarding_invitations (LOWER(email)) WHERE status = 'pending' AND accepted_at IS NULL;
 CREATE INDEX idx_staff_venue ON staff (venue_id);
@@ -1613,6 +1615,7 @@ CREATE INDEX idx_xero_payroll_calendar_selections_venue_status ON xero_payroll_c
 CREATE UNIQUE INDEX idx_xero_pay_item_account_code_selections_connection ON xero_pay_item_account_code_selections (xero_connection_id);
 CREATE UNIQUE INDEX idx_xero_pay_item_requirement_records_connection_key ON xero_pay_item_requirement_records (xero_connection_id, requirement_key);
 CREATE INDEX idx_xero_pay_item_requirement_records_venue_status ON xero_pay_item_requirement_records (venue_id, requirement_status);
+ALTER TABLE venue_invitations ADD CONSTRAINT venue_invitations_staff_id_fk FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT;
 ALTER TABLE staff ADD CONSTRAINT staff_imported_xero_pay_item_id_fk FOREIGN KEY (imported_xero_pay_item_id) REFERENCES xero_imported_pay_items (id) ON DELETE RESTRICT;
 ALTER TABLE shift_types ADD CONSTRAINT shift_types_imported_xero_pay_item_id_fk FOREIGN KEY (imported_xero_pay_item_id) REFERENCES xero_imported_pay_items (id) ON DELETE RESTRICT;
 ALTER TABLE staff_pay_versions ADD CONSTRAINT staff_pay_versions_imported_xero_pay_item_id_fk FOREIGN KEY (imported_xero_pay_item_id) REFERENCES xero_imported_pay_items (id) ON DELETE RESTRICT;
@@ -1749,6 +1752,23 @@ BEGIN
         )
     THEN
         RAISE EXCEPTION 'roster slot shift_type_id must stay within roster week venue';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION enforce_venue_invitation_staff_venue_integrity()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    IF NEW.staff_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1
+        FROM staff s
+        WHERE s.id = NEW.staff_id
+            AND s.venue_id = NEW.venue_id
+    ) THEN
+        RAISE EXCEPTION 'venue invitation staff_id must match invitation venue';
     END IF;
 
     RETURN NEW;
@@ -2006,6 +2026,7 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER enforce_roster_week_venue_integrity BEFORE INSERT OR UPDATE ON roster_weeks FOR EACH ROW EXECUTE FUNCTION enforce_roster_week_venue_integrity();
 CREATE TRIGGER enforce_slot_name_venue_integrity BEFORE INSERT OR UPDATE ON slot_names FOR EACH ROW EXECUTE FUNCTION enforce_slot_name_venue_integrity();
 CREATE TRIGGER enforce_roster_slot_week_definition_integrity BEFORE INSERT OR UPDATE ON roster_slots FOR EACH ROW EXECUTE FUNCTION enforce_roster_slot_week_definition_integrity();
+CREATE TRIGGER enforce_venue_invitation_staff_venue_integrity BEFORE INSERT OR UPDATE ON venue_invitations FOR EACH ROW EXECUTE FUNCTION enforce_venue_invitation_staff_venue_integrity();
 CREATE TRIGGER enforce_staff_roster_group_venue_integrity BEFORE INSERT OR UPDATE ON staff_roster_groups FOR EACH ROW EXECUTE FUNCTION enforce_staff_roster_group_venue_integrity();
 CREATE TRIGGER enforce_staff_shift_preference_venue_integrity BEFORE INSERT OR UPDATE ON staff_shift_preferences FOR EACH ROW EXECUTE FUNCTION enforce_staff_shift_preference_venue_integrity();
 CREATE TRIGGER enforce_staff_document_venue_integrity BEFORE INSERT OR UPDATE ON staff_documents FOR EACH ROW EXECUTE FUNCTION enforce_staff_document_venue_integrity();

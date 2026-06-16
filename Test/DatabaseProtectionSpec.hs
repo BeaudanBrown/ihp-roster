@@ -87,6 +87,21 @@ tests = beforeAll testContext do
 
                 result `shouldSatisfy` isLeft
 
+        it "rejects direct SQL venue invitations whose adoption staff belongs to another venue" $ withContext do
+            withCleanDb do
+                venueA <- createVenueWithConfig "Tenant Invitation A"
+                venueB <- createVenueWithConfig "Tenant Invitation B"
+                foreignStaff <- createStaffRecord venueB Nothing "Tenant" "Trial"
+
+                result <-
+                    try
+                        ( sqlExecDiscardResult
+                            "INSERT INTO venue_invitations (venue_id, staff_id, email) VALUES (?, ?, ?)"
+                            (unpackId venueA.id, unpackId foreignStaff.id, "trial-invite@example.com" :: Text)
+                        ) :: IO (Either SomeException ())
+
+                result `shouldSatisfy` isLeft
+
         it "rejects direct SQL timesheets whose shift type belongs to another venue" $ withContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Tenant Timesheet A"

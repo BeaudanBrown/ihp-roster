@@ -1,5 +1,7 @@
 module Application.Helper.Staff
-    ( isLinkedActiveStaff
+    ( adoptableTrialStaff
+    , isAdoptableTrialStaff
+    , isLinkedActiveStaff
     , isRosterableStaff
     , isTrialStaff
     , linkedActiveStaff
@@ -23,8 +25,16 @@ isRosterableStaff staff = staff.isActive && isNothing staff.archivedAt
 isLinkedActiveStaff :: Staff -> Bool
 isLinkedActiveStaff staff = isRosterableStaff staff && isJust staff.userId
 
+-- | Adoptable trial staff can be claimed by a new invitation-created account.
+-- They must be active, not archived, and still have no linked user account.
+isAdoptableTrialStaff :: Staff -> Bool
+isAdoptableTrialStaff staff = isRosterableStaff staff && isTrialStaff staff
+
 rosterableStaff :: [Staff] -> [Staff]
 rosterableStaff = filter isRosterableStaff
 
 linkedActiveStaff :: [Staff] -> [Staff]
 linkedActiveStaff = filter isLinkedActiveStaff
+
+adoptableTrialStaff :: [Staff] -> [Staff]
+adoptableTrialStaff = filter isAdoptableTrialStaff

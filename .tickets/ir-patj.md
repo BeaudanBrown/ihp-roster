@@ -1,6 +1,6 @@
 ---
 id: ir-patj
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-06-16T01:03:30Z
@@ -22,3 +22,9 @@ Add nullable staff/adoption target FK to venue_invitations, index it, regenerate
 
 Generated types include the new optional adoption target; schema tests cover default/null behavior and same-venue/adoption eligibility expectations; normal invitation rows remain valid.
 
+
+## Notes
+
+**2026-06-16T01:14:45Z**
+
+Implemented schema foundation: venue_invitations now has nullable staff_id adoption target with FK/index and tenant-integrity trigger; generated types expose staffId; Application.Helper.Staff exposes isAdoptableTrialStaff/adoptableTrialStaff for active unarchived trial rows. Added schema/helper coverage and database trigger regression. Verified focused Hspec and typecheck.

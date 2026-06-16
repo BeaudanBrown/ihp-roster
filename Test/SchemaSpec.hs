@@ -3,7 +3,8 @@ module Test.SchemaSpec where
 import Application.Helper.Controller
 import Application.Helper.Export
 import Application.Helper.Export.Render (csvCell)
-import Application.Helper.Staff (isLinkedActiveStaff, isRosterableStaff,
+import Application.Helper.Staff (adoptableTrialStaff, isAdoptableTrialStaff,
+                                 isLinkedActiveStaff, isRosterableStaff,
                                  isTrialStaff, linkedActiveStaff,
                                  rosterableStaff)
 import Application.Helper.Url (appendQueryParams)
@@ -170,10 +171,11 @@ tests = describe "Schema" do
         inputValue (get #venueRole membership) `shouldBe` "worker"
         get #isActive membership `shouldBe` True
 
-    it "venue invitations expose bootstrap role and status fields" do
+    it "venue invitations expose bootstrap role, status, and optional staff adoption target" do
         let invitation = newRecord @VenueInvitation
         inputValue (get #inviteRole invitation) `shouldBe` "worker"
         inputValue (get #status invitation) `shouldBe` "pending"
+        get #staffId invitation `shouldBe` Nothing
 
     it "venue onboarding invitations expose delivery and redemption fields" do
         let invitation = newRecord @VenueOnboardingInvitation
@@ -618,6 +620,31 @@ tests = describe "Schema" do
             isLinkedActiveStaff archivedLinkedStaff `shouldBe` False
             map (.firstName) (linkedActiveStaff [trialStaff, linkedStaff, inactiveLinkedStaff, archivedLinkedStaff])
                 `shouldBe` ["Alex"]
+
+        it "limits adoption eligibility to active non-archived trial staff" do
+            let archivedAt = UTCTime (fromGregorian 2026 1 1) (secondsToDiffTime 0)
+            let trialStaff = newRecord @Staff
+                    |> set #firstName "Blair"
+                    |> set #lastName "Trial"
+            let linkedStaff = newRecord @Staff
+                    |> set #firstName "Alex"
+                    |> set #lastName "Linked"
+                    |> set #userId (Just def)
+            let inactiveTrialStaff = newRecord @Staff
+                    |> set #firstName "Inactive"
+                    |> set #lastName "Trial"
+                    |> set #isActive False
+            let archivedTrialStaff = newRecord @Staff
+                    |> set #firstName "Archived"
+                    |> set #lastName "Trial"
+                    |> set #archivedAt (Just archivedAt)
+
+            isAdoptableTrialStaff trialStaff `shouldBe` True
+            isAdoptableTrialStaff linkedStaff `shouldBe` False
+            isAdoptableTrialStaff inactiveTrialStaff `shouldBe` False
+            isAdoptableTrialStaff archivedTrialStaff `shouldBe` False
+            map (.firstName) (adoptableTrialStaff [trialStaff, linkedStaff, inactiveTrialStaff, archivedTrialStaff])
+                `shouldBe` ["Blair"]
 
         it "filters roster panel staff to active linked staff sorted by first name" do
             let inactiveLinkedStaff = newRecord @Staff
