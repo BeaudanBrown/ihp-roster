@@ -281,7 +281,7 @@ currentVenueLocalXeroEarningsBuckets = do
 
 fetchCurrentVenueXeroUsedAwardPayScopes :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [XeroUsedAwardPayScope]
 fetchCurrentVenueXeroUsedAwardPayScopes = do
-    staffMembers <- fetchActiveVenueStaff currentVenueId
+    staffMembers <- fetchLinkedActiveVenueStaff currentVenueId
     shiftTypes <- fetchActiveVenueShiftTypes currentVenueId
     pure (deriveXeroUsedAwardPayScopes staffMembers shiftTypes)
 
@@ -290,14 +290,7 @@ fetchCurrentVenueXeroStaffMappingRows maybeConnection =
     case maybeConnection of
         Nothing -> pure []
         Just connection -> do
-            staffMembers <-
-                query @Staff
-                    |> filterWhere (#venueId, unpackId currentVenueId)
-                    |> filterWhere (#isActive, True)
-                    |> filterWhere (#archivedAt, Nothing)
-                    |> orderBy #lastName
-                    |> orderBy #firstName
-                    |> fetch
+            staffMembers <- fetchLinkedActiveVenueStaff currentVenueId
             mappings <-
                 query @XeroStaffMapping
                     |> filterWhere (#venueId, unpackId currentVenueId)

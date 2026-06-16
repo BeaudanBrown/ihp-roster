@@ -257,7 +257,9 @@ createPreviewFixtureAtPeriod calendarType periodStart entrySpecs = do
 
 createMappedStaff :: (?modelContext :: ModelContext) => Venue -> AwardLevel -> Text -> Text -> IO Staff
 createMappedStaff venue awardLevel firstName lastName = do
-    staff <- createStaffRecord venue Nothing firstName lastName
+    user <- createUserRecord ("xero-preview-staff-" <> Text.toLower firstName <> "-" <> Text.toLower lastName <> "@example.com") "staff" True
+    _ <- createVenueMembershipRecord venue user "worker"
+    staff <- createStaffRecord venue (Just user) firstName lastName
     staff
         |> set #employmentBasis Permanent
         |> set #defaultAwardLevelId (Just awardLevel.id)

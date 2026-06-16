@@ -546,7 +546,7 @@ tests = beforeAll testContext do
                 admin <- createUserRecord "xero-staff-mapping-visibility@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin "venue_owner"
                 connection <- createActiveXeroConnection venue admin
-                _ <- createStaffRecord venue Nothing "Local" "Worker"
+                _ <- createStaffRecord venue (Just admin) "Local" "Worker"
 
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction ShowAdminXeroFragmentAction
@@ -581,7 +581,7 @@ tests = beforeAll testContext do
                 syncedResponse `responseBodyShouldNotContain` "<th>Status</th>"
                 syncedResponse `responseBodyShouldNotContain` "<th class=\"text-end\">Current</th>"
                 syncedResponse `responseBodyShouldNotContain` ">Save</button>"
-                syncedResponse `responseBodyShouldContain` "2 not paid through Xero"
+                syncedResponse `responseBodyShouldContain` "1 not paid through Xero"
                 syncedResponse `responseBodyShouldContain` "1 possible matches"
 
         it "saves Xero staff mappings and not-paid-through-Xero states from the admin fragment" $ withContext do
@@ -590,7 +590,10 @@ tests = beforeAll testContext do
                 admin <- createUserRecord "xero-staff-mapping@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin "venue_owner"
                 connection <- createActiveXeroConnection venue admin
-                staff <- createStaffRecord venue Nothing "Ada" "Lovelace"
+                staff <- createStaffRecord venue (Just admin) "Ada" "Lovelace"
+                secondUser <- createUserRecord "xero-staff-mapping-second@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue secondUser "worker"
+                secondStaff <- createStaffRecord venue (Just secondUser) "Grace" "Hopper"
                 trialStaff <- createStaffRecord venue Nothing "Trial" "Worker"
                 employee <- createXeroEmployeeRecord connection "Ada Lovelace" (Just "ada@example.com") "employee-ada"
 
@@ -630,12 +633,14 @@ tests = beforeAll testContext do
                 mappingResponse `responseBodyShouldContain` "id=\"xero-staff-mapping-counts\""
                 mappingResponse `responseBodyShouldContain` "xero-staff-mapping-row-matched"
                 mappingResponse `responseBodyShouldContain` ("id=\"xero-staff-mapping-control-" <> tshow staff.id <> "\"")
-                mappingResponse `responseBodyShouldContain` ("id=\"xero-staff-mapping-control-" <> tshow trialStaff.id <> "\"")
+                mappingResponse `responseBodyShouldContain` ("id=\"xero-staff-mapping-control-" <> tshow secondStaff.id <> "\"")
+                mappingResponse `responseBodyShouldNotContain` ("id=\"xero-staff-mapping-control-" <> tshow trialStaff.id <> "\"")
                 mappingResponse `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
                 mappingBody <- responseBody mappingResponse
                 let mappingText = cs mappingBody
                 let beforeMatchedAdaInMutation = fst (Text.breakOn "Ada Lovelace" mappingText)
-                beforeMatchedAdaInMutation `shouldSatisfy` Text.isInfixOf "Trial Worker"
+                beforeMatchedAdaInMutation `shouldSatisfy` Text.isInfixOf "Grace Hopper"
+                mappingText `shouldSatisfy` not . Text.isInfixOf "Trial Worker"
                 fullFragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction ShowAdminXeroFragmentAction
                 fullFragmentResponse `responseBodyShouldNotContain` "xero-staff-mapping-row-matched"
@@ -644,7 +649,7 @@ tests = beforeAll testContext do
                 duplicateResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams SaveXeroStaffMappingAction
-                            [ ("staffId", idToParam trialStaff.id)
+                            [ ("staffId", idToParam secondStaff.id)
                             , ("xeroEmployeeSelection", "employee-ada")
                             ]
 
@@ -660,14 +665,25 @@ tests = beforeAll testContext do
                 notApplicableResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams SaveXeroStaffMappingAction
-                            [ ("staffId", idToParam trialStaff.id)
+                            [ ("staffId", idToParam secondStaff.id)
                             , ("xeroEmployeeSelection", "not_applicable")
                             ]
 
                 notApplicableResponse `responseStatusShouldBe` status200
-                trialMapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId trialStaff.id) |> fetchOne
-                trialMapping.mappingStatus `shouldBe` "not_applicable"
-                trialMapping.xeroEmployeeId `shouldBe` Nothing
+                secondMapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId secondStaff.id) |> fetchOne
+                secondMapping.mappingStatus `shouldBe` "not_applicable"
+                secondMapping.xeroEmployeeId `shouldBe` Nothing
+
+                trialTamperResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams SaveXeroStaffMappingAction
+                            [ ("staffId", idToParam trialStaff.id)
+                            , ("xeroEmployeeSelection", "not_applicable")
+                            ]
+                trialTamperResponse `responseStatusShouldBe` status200
+                trialTamperResponse `responseBodyShouldContain` "Choose a linked active staff member from the current venue."
+                trialMappingExists <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId trialStaff.id) |> fetchExists
+                trialMappingExists `shouldBe` False
 
         it "suggests the closest available Xero employee for a staff member" $ withContext do
             withCleanDb do
@@ -675,7 +691,7 @@ tests = beforeAll testContext do
                 admin <- createUserRecord "xero-staff-suggestion@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin "venue_owner"
                 connection <- createActiveXeroConnection venue admin
-                staff <- createStaffRecord venue Nothing "Ada" "Lovelace"
+                staff <- createStaffRecord venue (Just admin) "Ada" "Lovelace"
                 _ <- createXeroEmployeeRecord connection "Ava Lovelace" Nothing "employee-ava"
                 employee <- createXeroEmployeeRecord connection "Ada Lovelace" Nothing "employee-ada"
 
@@ -702,8 +718,10 @@ tests = beforeAll testContext do
                 admin <- createUserRecord "xero-staff-weak-suggestion@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin "venue_owner"
                 connection <- createActiveXeroConnection venue admin
-                weakStaff <- createStaffRecord venue Nothing "Ada" "Lovelace"
-                ambiguousStaff <- createStaffRecord venue Nothing "John" "Smith"
+                weakStaff <- createStaffRecord venue (Just admin) "Ada" "Lovelace"
+                ambiguousUser <- createUserRecord "xero-ambiguous-suggestion@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue ambiguousUser "worker"
+                ambiguousStaff <- createStaffRecord venue (Just ambiguousUser) "John" "Smith"
                 _ <- createXeroEmployeeRecord connection "Zoe Campbell" Nothing "employee-zoe"
                 _ <- createXeroEmployeeRecord connection "Jon Smith" Nothing "employee-jon"
                 _ <- createXeroEmployeeRecord connection "John Smyth" Nothing "employee-smyth"
@@ -2146,7 +2164,7 @@ tests = beforeAll testContext do
                         |> set #connectionStatus "reauthorization_required"
                         |> set #lastError (Just "Expired refresh token")
                         |> updateRecord
-                staff <- createStaffRecord venue Nothing "Mapped" "Worker"
+                staff <- createStaffRecord venue (Just owner) "Mapped" "Worker"
                 _ <- newRecord @XeroStaffMapping
                     |> set #venueId (unpackId venue.id)
                     |> set #staffId (unpackId staff.id)
@@ -2558,7 +2576,9 @@ createStaffUsingAwardLevel ::
     StaffEmploymentBasisEnum ->
     IO Staff
 createStaffUsingAwardLevel venue firstName lastName awardLevel employmentBasis = do
-    staff <- createStaffRecord venue Nothing firstName lastName
+    user <- createUserRecord ("xero-award-staff-" <> Text.toLower firstName <> "-" <> Text.toLower lastName <> "@example.com") "staff" True
+    _ <- createVenueMembershipRecord venue user "worker"
+    staff <- createStaffRecord venue (Just user) firstName lastName
     staff
         |> set #employmentBasis employmentBasis
         |> set #defaultAwardLevelId (Just awardLevel.id)

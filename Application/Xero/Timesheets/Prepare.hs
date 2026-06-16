@@ -18,6 +18,7 @@ import Application.Helper.TimeRules (shiftDurationMinutes)
 import Application.Helper.XeroTimesheetReadiness
 import Application.Helper.Audit (recordCurrentUserAuditEvent)
 import Application.Helper.ControllerContext (currentVenueId)
+import Application.Helper.Staff (isLinkedActiveStaff)
 import Application.Xero.Admin.PayItems
 import Application.Xero.Admin.ReadModel
 import Application.Xero.Admin.ReferenceData
@@ -301,7 +302,8 @@ applyXeroPreparationStaffDecision runId staffId decision = do
                     |> filterWhere (#venueId, unpackId currentVenueId)
                     |> fetchOneOrNothing
             case maybeStaff of
-                Nothing -> pure (Left "Choose a staff member from the current venue.")
+                Nothing -> pure (Left "Choose a linked active staff member from the current venue.")
+                Just staff | not (isLinkedActiveStaff staff) -> pure (Left "Choose a linked active staff member from the current venue.")
                 Just staff ->
                     case decision of
                         MarkStaffNotPaidThroughXero -> do

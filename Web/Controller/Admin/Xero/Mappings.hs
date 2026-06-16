@@ -8,6 +8,7 @@ module Web.Controller.Admin.Xero.Mappings
 
 import Application.Helper.LiveResource (LiveMutationResult (..))
 import Application.Helper.Profiling
+import Application.Helper.Staff (isLinkedActiveStaff)
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
 import Application.Xero.Admin.ReadModel
@@ -102,7 +103,8 @@ saveXeroStaffMapping connection staffId selection = do
             |> filterWhere (#venueId, unpackId currentVenueId)
             |> fetchOneOrNothing
     case maybeStaff of
-        Nothing -> respondWithXeroStaffMappingError connection "Choose a staff member from the current venue."
+        Nothing -> respondWithXeroStaffMappingError connection "Choose a linked active staff member from the current venue."
+        Just staff | not (isLinkedActiveStaff staff) -> respondWithXeroStaffMappingError connection "Choose a linked active staff member from the current venue."
         Just staff ->
             case selection of
                 "" -> persistXeroStaffMapping connection staff "not_applicable" Nothing

@@ -1,6 +1,6 @@
 ---
 id: ir-cgee
-status: open
+status: closed
 deps: [ir-nlv5]
 links: []
 created: 2026-06-15T23:44:59Z
@@ -22,3 +22,9 @@ Inspect staff queries in Xero/payroll readiness, staff mappings, pay-scope deriv
 
 Xero/payroll readiness does not require mappings or pay readiness for trial staff. Payroll-adjacent candidate staff queries use linked active staff unless resolving historical rows from timesheet entries. Historical exports still resolve staff attached to existing entries. Typecheck and focused Hspec pass.
 
+
+## Notes
+
+**2026-06-16T00:14:01Z**
+
+Audited Xero/payroll-adjacent eligibility: staff mapping rows and Xero pay-scope derivation now use linked active staff, mapping/preparation tampered staff decisions reject trial rows, and historical entry/submission staff lookups remain unfiltered. Focused Xero Hspec and typecheck pass.
