@@ -3,6 +3,7 @@ module Test.Controller.StaffSpec where
 import Application.Helper.LiveResource (LiveResource (..))
 import qualified Application.Helper.LiveUpdate as LiveUpdate
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
+import Application.InvitationDelivery.Job (venueInvitationDeliveryJobKind)
 import Application.Helper.StaffShiftPreferences (encodeShiftPreferenceKey,
                                                  shiftPreferenceEndHourParamName,
                                                  shiftPreferenceStartHourParamName)
@@ -206,6 +207,91 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "id=\"roster-content\""
                 response `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
                 response `responseBodyShouldContain` "roster-grid"
+
+        it "renders a trial staff invitation email field in the staff details form" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Trial Invite Field Venue"
+                manager <- createUserRecord "staff-trial-invite-field-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue Nothing "Trial" "Invite"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "name=\"invitationEmail\""
+                response `responseBodyShouldContain` "Send an invite link to claim this trial staff profile."
+                response `responseBodyShouldContain` "Invite</button>"
+
+        it "lets managers create worker adoption invitations for current-venue trial staff" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Trial Invite Venue"
+                manager <- createUserRecord "staff-trial-invite-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue Nothing "Trial" "Invite"
+                versionBefore <- LiveUpdate.currentLiveUpdateVersion LiveUpdate.AdminInvitesScope { venueId = unpackId venue.id }
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams
+                        (CreateTrialStaffInvitationAction staff.id)
+                        [("invitationEmail", "trial-invite-claim@example.com")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Invitation queued for trial-invite-claim@example.com"
+                invitation <- query @VenueInvitation
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#email, "trial-invite-claim@example.com" :: Text)
+                    |> fetchOne
+                invitation.staffId `shouldBe` Just staff.id
+                inputValue invitation.inviteRole `shouldBe` "worker"
+                inputValue invitation.status `shouldBe` "pending"
+                appJob <- query @AppJob
+                    |> filterWhere (#relatedTable, Just ("venue_invitations" :: Text))
+                    |> filterWhere (#relatedId, Just (unpackId invitation.id))
+                    |> fetchOne
+                appJob.jobKind `shouldBe` venueInvitationDeliveryJobKind
+                versionAfter <- LiveUpdate.currentLiveUpdateVersion LiveUpdate.AdminInvitesScope { venueId = unpackId venue.id }
+                versionAfter `shouldBe` versionBefore + 1
+
+        it "prevents non-managers from creating trial staff adoption invitations" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Worker Invite Venue"
+                worker <- createUserRecord "staff-worker-invite-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue worker "worker"
+                staff <- createStaffRecord venue Nothing "Worker" "Invite"
+
+                response <- withUserAndCurrentVenue worker venue.id do
+                    callActionWithParams
+                        (CreateTrialStaffInvitationAction staff.id)
+                        [("invitationEmail", "worker-invite-claim@example.com")]
+
+                response `responseStatusShouldBe` status302
+                exists <- query @VenueInvitation
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#email, "worker-invite-claim@example.com" :: Text)
+                    |> fetchExists
+                exists `shouldBe` False
+
+        it "rejects adoption invitations for linked staff" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Linked Invite Venue"
+                manager <- createUserRecord "staff-linked-invite-manager@example.com" "staff" True
+                linkedUser <- createUserRecord "staff-linked-invite-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue (Just linkedUser) "Linked" "Invite"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams
+                        (CreateTrialStaffInvitationAction staff.id)
+                        [("invitationEmail", "linked-invite-claim@example.com")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Only active trial staff without a linked login can be invited."
+                exists <- query @VenueInvitation
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#email, "linked-invite-claim@example.com" :: Text)
+                    |> fetchExists
+                exists `shouldBe` False
 
         it "renders shift preferences in a dedicated staff edit accordion section" $ withContext do
             withCleanDb do

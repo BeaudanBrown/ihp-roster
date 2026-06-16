@@ -1,5 +1,6 @@
 module Web.Staff.Mutations
-    ( createTrialStaffMember
+    ( createTrialStaffInvitationMutation
+    , createTrialStaffMember
     , staffCreateTouchedResources
     , staffUpdateTouchedResources
     , staffXeroPayItemScopeChanged
@@ -9,10 +10,13 @@ module Web.Staff.Mutations
 import Application.Helper.LiveResource
 import Application.Helper.Pay (ensureStaffPayVersionForStaff)
 import Application.Helper.RosterGroups (syncStaffRosterGroupAssignments)
+import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection,
                                                  replaceStaffShiftPreferences)
+import Application.Helper.VenueInvitation (venueInvitationLifetime)
+import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob)
 import Control.Monad (void)
-import Data.Time.Clock (getCurrentTime, utctDay)
+import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
 import Web.Controller.Prelude
 import Web.LiveResourceInvalidation (invalidateTouchedResources)
 
@@ -25,6 +29,37 @@ staffXeroPayItemScope staff
     | staff.isActive && isNothing staff.archivedAt =
         Just (staff.defaultAwardLevelId, staff.importedXeroPayItemId, staff.employmentBasis)
     | otherwise = Nothing
+
+createTrialStaffInvitationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> Text -> IO (Either Text (LiveMutationResult VenueInvitation))
+createTrialStaffInvitationMutation staff email
+    | staff.venueId /= unpackId currentVenueId = pure (Left "Choose trial staff from the current venue.")
+    | not (isAdoptableTrialStaff staff) = pure (Left "Only active trial staff without a linked login can be invited.")
+    | otherwise = do
+        existingUser <- query @User
+            |> filterWhere (#email, email)
+            |> fetchOneOrNothing
+        case existingUser of
+            Just _ -> pure (Left "That email already has an account. Trial adoption invites must create a new account.")
+            Nothing -> do
+                now <- getCurrentTime
+                invitation <- newRecord @VenueInvitation
+                    |> set #venueId (unpackId currentVenueId)
+                    |> set #invitedByUserId (Just (unpackId currentUser.id))
+                    |> set #staffId (Just staff.id)
+                    |> set #email email
+                    |> set #inviteRole (venueRoleToEnum WorkerRole)
+                    |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
+                    |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "queued")
+                    |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
+                    |> createRecord
+                void (enqueueVenueInvitationDeliveryJob (Just currentUser.id) invitation)
+                Right <$> invalidateTouchedResources "staff.invite_trial" (liveMutationResult invitation (trialStaffInvitationTouchedResources staff))
+
+trialStaffInvitationTouchedResources :: (?context :: ControllerContext) => Staff -> [LiveResource]
+trialStaffInvitationTouchedResources staff =
+    [ AdminInvitesResource (unpackId currentVenueId)
+    , StaffProfileResource (unpackId staff.id)
+    ]
 
 createTrialStaffMember :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> [Id RosterGroup] -> IO (LiveMutationResult Staff)
 createTrialStaffMember staff selectedRosterGroupIds = do

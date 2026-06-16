@@ -202,6 +202,7 @@ data StaffController
     | CreateStaffAction
     | EditStaffAction { staffId :: !(Id Staff) }
     | UpdateStaffAction { staffId :: !(Id Staff) }
+    | CreateTrialStaffInvitationAction { staffId :: !(Id Staff) }
     deriving (Eq, Show, Data)
 
 newtype LiveUpdatesWSApp

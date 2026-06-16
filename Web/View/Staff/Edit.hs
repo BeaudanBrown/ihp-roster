@@ -95,6 +95,7 @@ renderNewStaffBody formMode staff rosterGroups awardLevels awardLevelBaseRates i
                     </div>
                 |]
                 , staffProfileDetailsFormFieldsHeading = Just "Trial staff details"
+                , staffProfileDetailsFormEmailField = renderPersonalProfileFields
                 , staffProfileDetailsFormAfterFields = mempty
                 , staffProfileDetailsFormManagement = Just managementFields
                 , staffProfileDetailsFormManagementBody = renderStaffManagementFields
@@ -298,6 +299,7 @@ renderStaffDetailsForm formMode staff maybeLinkedUserEmail managementFields acti
             , staffProfileDetailsFormHiddenInputs = [hsx|<input type="hidden" name="section" value="profile"/>|]
             , staffProfileDetailsFormBeforeFields = mempty
             , staffProfileDetailsFormFieldsHeading = Nothing
+            , staffProfileDetailsFormEmailField = renderStaffEditPersonalProfileFields formMode
             , staffProfileDetailsFormAfterFields = mempty
             , staffProfileDetailsFormManagement = Just managementFields
             , staffProfileDetailsFormManagementBody = renderStaffManagementFields
@@ -305,6 +307,59 @@ renderStaffDetailsForm formMode staff maybeLinkedUserEmail managementFields acti
             }
         staff
         maybeLinkedUserEmail
+
+renderStaffEditPersonalProfileFields :: OverlayFormMode -> Staff -> Maybe Text -> Html
+renderStaffEditPersonalProfileFields formMode staff maybeLinkedUserEmail
+    | isNothing staff.userId = renderPersonalProfileFieldsWithEmailSlot (renderTrialStaffInviteEmailField formMode staff) staff
+    | otherwise = renderPersonalProfileFields staff maybeLinkedUserEmail
+
+renderTrialStaffInviteEmailField :: OverlayFormMode -> Staff -> Html
+renderTrialStaffInviteEmailField HtmxOverlayForm staff = [hsx|
+    <div class="col-12 col-lg-6">
+        <label for="invitationEmail" class="form-label">Email</label>
+        <div class="input-group">
+            <input
+                id="invitationEmail"
+                name="invitationEmail"
+                type="email"
+                class="form-control"
+                placeholder="name@example.com"
+            />
+            <button
+                type="submit"
+                class="btn btn-outline-primary"
+                formaction={CreateTrialStaffInvitationAction staff.id}
+                formmethod="POST"
+                hx-post={CreateTrialStaffInvitationAction staff.id}
+                hx-target={"#" <> dialogOverlayMountId}
+                hx-swap="innerHTML"
+                hx-push-url="false"
+            >Invite</button>
+        </div>
+        <div class="form-text">Send an invite link to claim this trial staff profile.</div>
+    </div>
+|]
+renderTrialStaffInviteEmailField PageOverlayForm staff = [hsx|
+    <div class="col-12 col-lg-6">
+        <label for="invitationEmail" class="form-label">Email</label>
+        <div class="input-group">
+            <input
+                id="invitationEmail"
+                name="invitationEmail"
+                type="email"
+                class="form-control"
+                placeholder="name@example.com"
+            />
+            <button
+                type="submit"
+                class="btn btn-outline-primary"
+                formaction={CreateTrialStaffInvitationAction staff.id}
+                formmethod="POST"
+            >Invite</button>
+        </div>
+        <div class="form-text">Send an invite link to claim this trial staff profile.</div>
+    </div>
+|]
 
 renderStaffShiftPreferencesEditForm :: OverlayFormMode -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Int -> Maybe (Id RosterGroup) -> StaffController -> Html
 renderStaffShiftPreferencesEditForm formMode preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId action =

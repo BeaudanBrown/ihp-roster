@@ -1,6 +1,6 @@
 ---
 id: ir-olct
-status: open
+status: closed
 deps: [ir-patj]
 links: []
 created: 2026-06-16T01:03:30Z
@@ -28,3 +28,7 @@ Authorized normal invite senders can send an adoption invite for current-venue t
 **2026-06-16T01:07:49Z**
 
 UI placement decision: add the first adoption invite form where the Email field normally appears in the staff details/profile form for trial staff. For linked staff keep the existing read-only email display. For trial staff render an email address input and submit button that posts a worker-only adoption invite for that staff id.
+
+**2026-06-16T01:22:15Z**
+
+Implemented first trial staff adoption invite entry point. Trial staff edit details now show an invitation email input/button where the read-only email field normally appears; linked staff keep the normal read-only email. Added CreateTrialStaffInvitationAction and mutation-layer creation of worker-only venue invitations with staff_id, existing delivery jobs, existing UUID invitation URLs, and AdminInvites/StaffProfile invalidation. Guards reject non-managers via StaffController beforeAction, linked/inactive/archived staff, cross-venue staff, and existing-account emails. Verified focused StaffController Hspec, mutation-boundary-focused command, and typecheck.

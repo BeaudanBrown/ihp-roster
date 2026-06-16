@@ -9,6 +9,7 @@ import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
 import Application.Helper.StaffShiftPreferences
 import Web.Controller.Admin.Support (SubmittedPayRateSelection (..),
                                      fetchActiveImportedXeroPayItems,
+                                     parseRequiredEmail,
                                      parseSubmittedPayRateSelection)
 import Application.Helper.Url (appendQueryParams)
 import Application.StaffDocuments.Rsa (latestRsaDocumentForStaff)
@@ -175,6 +176,19 @@ instance Controller StaffController where
                                     respondStaffUpdateSuccess "Staff member updated"
                                 _ -> renderStaffEditResponse validStaff submittedRosterGroupIds selectedShiftPreferences
 
+    action CreateTrialStaffInvitationAction { staffId } = do
+        ensureVenueWritable
+        staff <- fetch staffId
+        ensureRecordInCurrentVenue staff.venueId
+        maybeEmail <- parseRequiredEmail "invitationEmail" "Invite email is required."
+        case maybeEmail of
+            Just email -> do
+                createTrialStaffInvitationMutation staff email >>= \case
+                    Right _ -> setSuccessMessage ("Invitation queued for " <> email)
+                    Left message -> setErrorMessage message
+            Nothing -> pure ()
+        renderStaffEditResponseFor staff "profile"
+
 emptyStaffPayRateSelection :: SubmittedPayRateSelection
 emptyStaffPayRateSelection = SubmittedPayRateSelection Nothing Nothing
 
@@ -198,6 +212,27 @@ renderNewStaffResponse staff selectedRosterGroupIds rosterGroups awardLevels awa
     if isHtmxRequest
         then respondHtml (renderNewStaffModalFragment staff rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds weekOffset maybeRosterGroupId)
         else render NewView { .. }
+
+renderStaffEditResponseFor :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Staff -> Text -> IO ()
+renderStaffEditResponseFor staff openSection = do
+    maybeLinkedUserEmail <- fetchStaffLinkedUserEmail staff
+    let weekOffset = paramOrDefault @Int 0 "weekOffset"
+    let maybeRosterGroupId = paramOrNothing "rosterGroupId"
+    venueConfig <- fetchVenueConfig
+    rosterGroups <- fetchCurrentVenueRosterGroups
+    awardLevels <- fetchAwardLevelsForStaffForm
+    awardLevelBaseRates <- fetchAwardLevelBaseRatesForStaffForm
+    importedPayItems <- fetchActiveImportedXeroPayItems
+    selectedRosterGroupIds <- fetchStaffRosterGroupIds staff
+    let preferenceWeekdays = allPreferenceWeekdays venueConfig
+    selectedShiftPreferences <- fetchStaffShiftPreferenceSelections staff
+    staffRsaDocument <- latestRsaDocumentForStaff staff
+    leaveRequest <- buildDefaultLeaveRequest
+    leaveRequests <- fetchStaffLeaveRequests staff
+    today <- utctDay <$> getCurrentTime
+    if isHtmxRequest
+        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
+        else render EditView { .. }
 
 buildStaff :: (?request :: Request) => Bool -> Maybe (Maybe (Id AwardLevel)) -> Maybe (Maybe (Id XeroImportedPayItem)) -> Staff -> Staff
 buildStaff canManageStaffPay maybeSubmittedDefaultAwardLevelId maybeSubmittedImportedXeroPayItemId staff =

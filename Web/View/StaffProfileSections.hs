@@ -32,6 +32,7 @@ data StaffProfileDetailsFormConfig = StaffProfileDetailsFormConfig
     , staffProfileDetailsFormHiddenInputs     :: Html
     , staffProfileDetailsFormBeforeFields     :: Html
     , staffProfileDetailsFormFieldsHeading    :: Maybe Text
+    , staffProfileDetailsFormEmailField       :: Staff -> Maybe Text -> Html
     , staffProfileDetailsFormAfterFields      :: Html
     , staffProfileDetailsFormManagement       :: Maybe StaffManagementFieldData
     , staffProfileDetailsFormManagementBody   :: StaffManagementFieldData -> Html
@@ -105,7 +106,7 @@ renderStaffProfileDetailsFormBody StaffProfileDetailsFormConfig { .. } staff may
     {staffProfileDetailsFormHiddenInputs}
     {staffProfileDetailsFormBeforeFields}
     {renderStaffProfileDetailsFieldsHeading staffProfileDetailsFormFieldsHeading}
-    {renderPersonalProfileFields staff maybeEmail}
+    {staffProfileDetailsFormEmailField staff maybeEmail}
     {maybe mempty staffProfileDetailsFormManagementBody staffProfileDetailsFormManagement}
     {staffProfileDetailsFormAfterFields}
     <div class="d-grid mt-4 app-modal-sticky-actions">

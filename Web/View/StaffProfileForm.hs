@@ -20,7 +20,26 @@ renderPersonalProfileFields :: Staff -> Maybe Text -> Html
 renderPersonalProfileFields = renderPersonalProfileFieldsWithEmailId "email"
 
 renderPersonalProfileFieldsWithEmailId :: Text -> Staff -> Maybe Text -> Html
-renderPersonalProfileFieldsWithEmailId emailFieldId staff maybeEmail = [hsx|
+renderPersonalProfileFieldsWithEmailId emailFieldId staff maybeEmail =
+    renderPersonalProfileFieldsWithEmailSlot (renderReadonlyEmailField emailFieldId maybeEmail) staff
+
+renderReadonlyEmailField :: Text -> Maybe Text -> Html
+renderReadonlyEmailField emailFieldId maybeEmail = [hsx|
+    <div class="col-12 col-lg-6">
+        <label for={emailFieldId} class="form-label">Email</label>
+        <input
+            id={emailFieldId}
+            type="email"
+            class="form-control"
+            value={fromMaybe "" maybeEmail}
+            readonly="readonly"
+            disabled="disabled"
+        />
+    </div>
+|]
+
+renderPersonalProfileFieldsWithEmailSlot :: Html -> Staff -> Html
+renderPersonalProfileFieldsWithEmailSlot emailField staff = [hsx|
     <div class="row g-3 profile-field-grid">
         <div class="col-12 col-lg-6">
             <label for="firstName" class="form-label">First Name</label>
@@ -58,17 +77,7 @@ renderPersonalProfileFieldsWithEmailId emailFieldId staff maybeEmail = [hsx|
             />
             {renderStaffFieldError staff "preferredName"}
         </div>
-        <div class="col-12 col-lg-6">
-            <label for={emailFieldId} class="form-label">Email</label>
-            <input
-                id={emailFieldId}
-                type="email"
-                class="form-control"
-                value={fromMaybe "" maybeEmail}
-                readonly="readonly"
-                disabled="disabled"
-            />
-        </div>
+        {emailField}
         <div class="col-12 col-lg-6">
             <label for="phone" class="form-label">Phone #</label>
             <input

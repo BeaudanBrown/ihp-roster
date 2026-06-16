@@ -181,6 +181,7 @@ renderProfileForm staff currentUserEmail staffManagementFields =
             , staffProfileDetailsFormHiddenInputs = [hsx|<input type="hidden" name="section" value="profile"/>|]
             , staffProfileDetailsFormBeforeFields = mempty
             , staffProfileDetailsFormFieldsHeading = Nothing
+            , staffProfileDetailsFormEmailField = renderPersonalProfileFields
             , staffProfileDetailsFormAfterFields = mempty
             , staffProfileDetailsFormManagement = staffManagementFields
             , staffProfileDetailsFormManagementBody = renderProfileStaffManagementSection
