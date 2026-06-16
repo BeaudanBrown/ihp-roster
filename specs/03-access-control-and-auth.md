@@ -88,7 +88,8 @@ Required fields are defined in onboarding spec and enforced server-side.
 
 - Placeholder workers are non-login records for quick roster assignment.
 - They never access app flows directly.
-- If conversion to login-enabled worker is added later, it must preserve worker identity, audit history and venue ownership.
+- Trial staff placeholders can be converted to login-enabled workers only through venue invitations sent by users who can already send ordinary staff invitations.
+- A trial staff adoption invitation is new-account-only and worker-role-only. The signup form is prefilled from the trial staff row but remains editable; on acceptance the existing `staff` row is linked to the new `user` so roster slots, roster groups, preferences, pay/profile data, and history stay attached to the same staff identity.
 - Placeholder workers do not appear in privileged account-administration flows unless explicitly designed.
 
 ## Sensitive permission boundaries

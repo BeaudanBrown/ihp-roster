@@ -1,6 +1,6 @@
 ---
 id: ir-3qq9
-status: open
+status: closed
 deps: []
 links: [ir-uw2m]
 created: 2026-06-16T01:03:30Z
@@ -27,3 +27,7 @@ A venue staff sender who can create normal worker invitations can invite an acti
 **2026-06-16T01:07:49Z**
 
 Clarification: first implementation keeps the existing /NewUser?invitationId=<venue_invitations.id> UUID link shape. Trial adoption invites are new-account-only, worker role only, and use the same sender authorization as regular new staff invites. The adoption signup form remains editable and is simply prefilled from the chosen trial staff row. Initial UI placement should be pragmatic: in the staff details page/dialog, replace the read-only Email field area for trial staff with an email input + invite button. A nicer roster/admin invite UI can iterate later.
+
+**2026-06-16T01:34:03Z**
+
+All implementation children are closed. Trial staff adoption invites now support schema foundation, staff-details invite UI, worker-only invite creation/delivery, signup prefill from trial staff, acceptance by linking the existing staff row, documentation, mail copy, and focused/full verification.

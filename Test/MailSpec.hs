@@ -37,6 +37,24 @@ tests = beforeAll testContext do
                 addressEmail from `shouldBe` "noreply@example.com"
                 text mail `shouldBe` "You have been invited to join this venue as manager.\n\nAccept invitation:\nhttps://app.example/NewUser?invitationId=test\n\nThis invitation expires in 24 hours."
 
+        it "renders staff adoption invitation mail with claim-profile copy and the existing invite URL" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Mail Adoption Invite Venue"
+                staff <- createStaffRecord venue Nothing "Mail" "Trial"
+                invitation <- createVenueInvitationRecord venue Nothing "trial-mail-invite@example.com" "worker"
+                    >>= updateRecord . set #staffId (Just staff.id)
+                let mail =
+                        VenueInvitationMail
+                            { invitation = invitation
+                            , inviteUrl = "https://app.example/NewUser?invitationId=trial"
+                            , fromAddress = "noreply@example.com"
+                            }
+                let ?context = ?mocking
+                let ?mail = mail
+
+                addressEmail (to mail) `shouldBe` "trial-mail-invite@example.com"
+                text mail `shouldBe` "You have been invited to claim your Bepis staff profile and create your account.\n\nAccept invitation:\nhttps://app.example/NewUser?invitationId=trial\n\nThis invitation expires in 24 hours."
+
         it "maps venue invitation roles to stable user-facing labels" $ withContext do
             inviteRoleLabel ("venue_owner" :: Text) `shouldBe` "venue owner"
             inviteRoleLabel ("venue_admin" :: Text) `shouldBe` "venue admin"

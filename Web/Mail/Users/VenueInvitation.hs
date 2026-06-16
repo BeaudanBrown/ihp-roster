@@ -25,17 +25,21 @@ instance BuildMail VenueInvitationMail where
             }
 
     html VenueInvitationMail { invitation, inviteUrl } = [hsx|
-        <p>You have been invited to join this venue as {inviteRoleLabel invitation.inviteRole}.</p>
+        <p>{venueInvitationMailIntro invitation}</p>
         <p><a href={inviteUrl}>Accept invitation</a></p>
         <p>This invitation expires in 24 hours.</p>
     |]
 
     text VenueInvitationMail { invitation, inviteUrl } =
-        "You have been invited to join this venue as "
-            <> inviteRoleLabel invitation.inviteRole
-            <> ".\n\nAccept invitation:\n"
+        venueInvitationMailIntro invitation
+            <> "\n\nAccept invitation:\n"
             <> inviteUrl
             <> "\n\nThis invitation expires in 24 hours."
+
+venueInvitationMailIntro :: VenueInvitation -> Text
+venueInvitationMailIntro invitation
+    | isJust invitation.staffId = "You have been invited to claim your Bepis staff profile and create your account."
+    | otherwise = "You have been invited to join this venue as " <> inviteRoleLabel invitation.inviteRole <> "."
 
 inviteRoleLabel :: InputValue value => value -> Text
 inviteRoleLabel value =

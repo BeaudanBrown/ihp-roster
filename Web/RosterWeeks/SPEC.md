@@ -27,7 +27,10 @@ lands.
 - Trial staff placeholders are active venue-scoped `staff` rows with no linked
   `user_id`. They are rosterable when active and not archived, can be assigned
   to selected roster groups, and appear beside linked staff in roster assignment
-  options and the manager staff panel.
+  options and the manager staff panel. Managers can send a worker-only adoption
+  invitation for a trial staff row; accepting the invitation links the existing
+  `staff` row to the new `user` rather than creating a replacement staff row, so
+  existing roster slots remain attached to the same staff identity.
 - The roster staff panel uses the existing role column for trial placeholders and
   renders their role as `TRIAL`; linked staff continue to show their venue
   membership role labels.
