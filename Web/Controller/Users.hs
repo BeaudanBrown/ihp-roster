@@ -60,34 +60,41 @@ instance Controller UsersController where
                 invitationOrNothing <- fetchInvitation invitationId
                 case invitationOrNothing of
                     Just invitation | invitationIsActive now invitation -> do
-                        let passwordConfirmation = normalizeText (paramOrDefault @Text "" "passwordConfirmation")
-                        let user = newRecord @User |> set #email invitation.email
-                        let staff = buildRequiredPersonalProfileStaff (newRecord @Staff)
-                        user
-                            |> requireParam #passwordHash "passwordHash" "Password is required"
-                            |> fill @'["passwordHash"]
-                            |> normalizeTextField #passwordHash
-                            |> validateField #passwordHash (isEqual passwordConfirmation |> withCustomErrorMessage "Passwords don't match")
-                            |> validateField #passwordHash nonEmpty
-                            |> validateField #passwordHash (boundedText 256)
-                            |> validateField #email isEmail
-                            |> validateIsUnique #email
-                            >>= ifValid \case
-                                Left user -> do
-                                    setTitle "Accept Invitation"
-                                    render InvitationSignupView { user, venueInvitation = invitation, staff }
-                                Right user ->
-                                    staff |> ifValid \case
-                                        Left staff -> do
+                        maybeInvitationStaff <- invitationSignupStaff invitation
+                        case maybeInvitationStaff of
+                            Nothing -> do
+                                setErrorMessage "That invitation is no longer valid. Contact support for a new bootstrap invite."
+                                setTitle "Request Access"
+                                render InviteOnlyView
+                            Just _ -> do
+                                let passwordConfirmation = normalizeText (paramOrDefault @Text "" "passwordConfirmation")
+                                let user = newRecord @User |> set #email invitation.email
+                                let staff = buildRequiredPersonalProfileStaff (newRecord @Staff)
+                                user
+                                    |> requireParam #passwordHash "passwordHash" "Password is required"
+                                    |> fill @'["passwordHash"]
+                                    |> normalizeTextField #passwordHash
+                                    |> validateField #passwordHash (isEqual passwordConfirmation |> withCustomErrorMessage "Passwords don't match")
+                                    |> validateField #passwordHash nonEmpty
+                                    |> validateField #passwordHash (boundedText 256)
+                                    |> validateField #email isEmail
+                                    |> validateIsUnique #email
+                                    >>= ifValid \case
+                                        Left user -> do
                                             setTitle "Accept Invitation"
                                             render InvitationSignupView { user, venueInvitation = invitation, staff }
-                                        Right staff -> do
-                                            hashed <- hashPassword user.passwordHash
-                                            user <- liveMutationValue <$> acceptVenueInvitation now invitation user hashed staff
-                                            Sessions.beforeLogin user
-                                            LoginSupport.login user
-                                            setSuccessMessage "Invitation accepted."
-                                            redirectTo RosterWeeksAction
+                                        Right user ->
+                                            staff |> ifValid \case
+                                                Left staff -> do
+                                                    setTitle "Accept Invitation"
+                                                    render InvitationSignupView { user, venueInvitation = invitation, staff }
+                                                Right staff -> do
+                                                    hashed <- hashPassword user.passwordHash
+                                                    user <- liveMutationValue <$> acceptVenueInvitation now invitation user hashed staff
+                                                    Sessions.beforeLogin user
+                                                    LoginSupport.login user
+                                                    setSuccessMessage "Invitation accepted."
+                                                    redirectTo RosterWeeksAction
                     _ -> do
                         setErrorMessage "That invitation is no longer valid. Contact support for a new bootstrap invite."
                         setTitle "Request Access"

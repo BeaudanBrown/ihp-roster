@@ -244,8 +244,18 @@ tests = beforeAll testContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Invitation Touch Venue"
                 invitation <- createVenueInvitationRecord venue Nothing "touch@example.com" "manager"
+                staff <- createStaffRecord venue Nothing "Touch" "Trial"
+                adoptionInvitation <- createVenueInvitationRecord venue Nothing "touch-adoption@example.com" "worker"
+                    >>= updateRecord . set #staffId (Just staff.id)
 
                 acceptedVenueInvitationTouchedResources invitation `shouldBe` [AdminInvitesResource (unpackId venue.id)]
+                acceptedVenueInvitationTouchedResources adoptionInvitation
+                    `shouldBe`
+                        [ AdminInvitesResource (unpackId venue.id)
+                        , StaffProfileResource (unpackId staff.id)
+                        , StaffPreferencesResource (unpackId staff.id)
+                        , StaffRosterMembershipResource (unpackId staff.id)
+                        ]
 
         it "creates a verified user and venue membership from a pending invitation" $ withContext do
             withCleanDb do
@@ -299,6 +309,72 @@ tests = beforeAll testContext do
                 inputValue roleEvent.eventType `shouldBe` "assigned"
                 roleEvent.previousRole `shouldBe` Nothing
                 inputValue roleEvent.newRole `shouldBe` "venue_owner"
+
+        it "adopts an existing trial staff row when accepting a staff-linked invitation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Adopt Trial Venue"
+                trialStaff <- createStaffRecord venue Nothing "Blair" "Trial"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotName <- createSlotNameRecord venue "Floor"
+                rosterSlot <- createRosterSlotRecord rosterDay slotName (Just trialStaff) 0
+                invitation <- createVenueInvitationRecord venue Nothing "adopt-trial@example.com" "worker"
+                    >>= updateRecord . set #staffId (Just trialStaff.id)
+
+                response <- callActionWithParams CreateUserAction $
+                    [ ("invitationId", idToParam invitation.id)
+                    , ("passwordHash", "test-password-123")
+                    , ("passwordConfirmation", "test-password-123")
+                    , ("firstName", "Blair Updated")
+                    , ("lastName", "Trial")
+                    , ("preferredName", "Bee")
+                    , ("phone", "0499999999")
+                    , ("emergencyContactName", "Casey Trial")
+                    , ("emergencyContactPhone", "0488888888")
+                    , ("idealShiftsPerWeek", "4")
+                    ]
+
+                response `responseStatusShouldBe` status302
+                user <- query @User |> filterWhere (#email, "adopt-trial@example.com") |> fetchOne
+                updatedStaff <- fetch trialStaff.id
+                updatedSlot <- fetch rosterSlot.id
+                membership <- query @VenueMembership |> filterWhere (#userId, unpackId user.id) |> fetchOne
+                linkedStaffCount <- query @Staff
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#userId, Just (unpackId user.id))
+                    |> fetchCount
+                updatedInvitation <- fetch invitation.id
+
+                updatedStaff.userId `shouldBe` Just (unpackId user.id)
+                updatedStaff.firstName `shouldBe` "Blair Updated"
+                updatedStaff.preferredName `shouldBe` Just "Bee"
+                updatedStaff.phone `shouldBe` "0499999999"
+                updatedSlot.staffId `shouldBe` Just (unpackId trialStaff.id)
+                linkedStaffCount `shouldBe` 1
+                inputValue membership.venueRole `shouldBe` "worker"
+                inputValue updatedInvitation.status `shouldBe` "accepted"
+                updatedInvitation.acceptedByUserId `shouldBe` Just (unpackId user.id)
+
+        it "does not accept a staff-linked invitation whose target was already linked" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Stale Adoption Venue"
+                linkedUser <- createUserRecord "stale-adoption-linked@example.com" "staff" True
+                staff <- createStaffRecord venue (Just linkedUser) "Stale" "Trial"
+                invitation <- createVenueInvitationRecord venue Nothing "stale-adoption@example.com" "worker"
+                    >>= updateRecord . set #staffId (Just staff.id)
+
+                response <- callActionWithParams CreateUserAction $
+                    [ ("invitationId", idToParam invitation.id)
+                    , ("passwordHash", "test-password-123")
+                    , ("passwordConfirmation", "test-password-123")
+                    ] <> signupStaffParams
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Invitation Required"
+                userExists <- query @User |> filterWhere (#email, "stale-adoption@example.com") |> fetchExists
+                updatedInvitation <- fetch invitation.id
+                userExists `shouldBe` False
+                inputValue updatedInvitation.status `shouldBe` "pending"
 
         it "records durable history when a venue membership role changes" $ withContext do
             withCleanDb do
