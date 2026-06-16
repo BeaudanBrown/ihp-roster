@@ -33,7 +33,7 @@ let
   };
 
   defaultPackage =
-    if cfg.optimized then
+    if cfg.production then
       self.packages.${pkgs.system}.optimized-prod-server
     else
       self.packages.${pkgs.system}.default;
@@ -223,6 +223,14 @@ in
     )
   ];
 
+  options.services.ihp = {
+    withHoogle = mkOption {
+      type = types.bool;
+      default = true;
+      description = "Whether to enable Hoogle in the IHP dev shell and IHP_HOOGLE_PORT environment wiring.";
+    };
+  };
+
   options.services.ihpRoster = {
     enable = mkEnableOption "ihp-roster application service";
 
@@ -342,13 +350,13 @@ in
     package = mkOption {
       type = types.nullOr types.package;
       default = null;
-      description = "Optional app package override. Defaults to this flake's prod package.";
+      description = "Optional app package override. Defaults to this flake's package for this deployment profile.";
     };
 
-    optimized = mkOption {
+    production = mkOption {
       type = types.bool;
       default = false;
-      description = "Whether to use the optimized production package output.";
+      description = "Use production profile: optimized output with hoogle disabled.";
     };
 
     rtsFlags = mkOption {
@@ -725,7 +733,8 @@ in
         // cfg.additionalEnvVars;
         appPort = cfg.appPort;
         package = if cfg.package != null then cfg.package else defaultPackage;
-        optimized = cfg.optimized;
+        optimized = cfg.production;
+        withHoogle = !cfg.production;
         rtsFlags = cfg.rtsFlags;
       };
 
