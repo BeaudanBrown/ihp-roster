@@ -1,6 +1,6 @@
 ---
 id: ir-7dqy
-status: open
+status: closed
 deps: [ir-nlv5, ir-yoho]
 links: []
 created: 2026-06-15T23:44:59Z
@@ -22,3 +22,9 @@ Add a roster-page/staff-panel affordance that opens the create-trial-staff flow.
 
 Trial staff appear in the roster staff panel after creation. Their role cell reads TRIAL. Trial staff can be assigned to roster slots. Linked staff role display remains worker/manager/venue admin/venue owner as before. Focused roster tests cover panel role/visibility and assignment eligibility.
 
+
+## Notes
+
+**2026-06-16T00:00:16Z**
+
+Surfaced trial staff in current roster-group staff panel with TRIAL role label and added panel affordance to open create-trial-staff modal. Focused roster staff panel Hspec and typecheck pass.

@@ -40,7 +40,17 @@ renderRosterStaffPanel weekOffset currentRosterGroupId hasMultipleRosterGroups p
                     <h2 class="h5 mb-1">Staff</h2>
                     <div class="roster-staff-panel-summary">{staffPanelSummary panelScope panelStaff}</div>
                 </div>
-                {when hasMultipleRosterGroups (renderStaffScopeToggle weekOffset currentRosterGroupId panelScope)}
+                <div class="d-flex flex-column align-items-end gap-2">
+                    <button type="button"
+                            class="btn btn-sm btn-outline-primary"
+                            hx-get={appendQueryParams (pathTo NewStaffAction) [("weekOffset", tshow weekOffset), ("rosterGroupId", tshow currentRosterGroupId)]}
+                            hx-target={"#" <> htmxModalMountId}
+                            hx-swap="innerHTML"
+                            hx-push-url="false">
+                        Add trial staff
+                    </button>
+                    {when hasMultipleRosterGroups (renderStaffScopeToggle weekOffset currentRosterGroupId panelScope)}
+                </div>
             </div>
 
             <div class="roster-staff-panel-list">
@@ -165,6 +175,7 @@ humanizeStaffRole "venue_admin" = "Venue Admin"
 humanizeStaffRole "venue_owner" = "Venue Owner"
 humanizeStaffRole "manager"     = "Manager"
 humanizeStaffRole "worker"      = "Worker"
+humanizeStaffRole "trial"       = "TRIAL"
 humanizeStaffRole other         = Text.toTitle (Text.replace "_" " " other)
 
 renderShiftSummary :: RosterStaffPanelEntry -> Html

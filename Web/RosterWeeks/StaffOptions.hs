@@ -10,7 +10,8 @@ module Web.RosterWeeks.StaffOptions
 
 import Application.Helper.Controller (LeaveRequestStatus (..),
                                       parseLeaveRequestStatus, venueRoleToText)
-import Application.Helper.View (linkedActiveStaffForRosterPanel)
+import Application.Helper.Staff (isTrialStaff)
+import Application.Helper.View (rosterableStaffForRosterPanel)
 import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Data.Coerce (coerce)
 import Data.List (find, nub, sortBy)
@@ -49,9 +50,11 @@ fetchRosterStaffPanelEntriesForScope panelScope staffMembers allSlots = do
         buildPanelEntry membershipsByUserId assignedShiftCountByStaffId staff =
             let staffId = coerce (get #id staff)
                 assignedShiftCount = Map.findWithDefault 0 staffId assignedShiftCountByStaffId
-                roleText = case staff.userId >>= (`Map.lookup` membershipsByUserId) of
-                    Just membership -> inputValue membership.venueRole
-                    Nothing         -> venueRoleToText WorkerRole
+                roleText = if isTrialStaff staff
+                    then "trial"
+                    else case staff.userId >>= (`Map.lookup` membershipsByUserId) of
+                        Just membership -> inputValue membership.venueRole
+                        Nothing         -> venueRoleToText WorkerRole
              in RosterStaffPanelEntry
                     { staff
                     , assignedShiftCount
@@ -59,7 +62,7 @@ fetchRosterStaffPanelEntriesForScope panelScope staffMembers allSlots = do
                     }
 
 staffForPanelScope :: RosterStaffPanelScope -> [Staff] -> [Staff]
-staffForPanelScope RosterStaffPanelCurrentGroup = linkedActiveStaffForRosterPanel
+staffForPanelScope RosterStaffPanelCurrentGroup = rosterableStaffForRosterPanel
 staffForPanelScope RosterStaffPanelAllVenue =
     sortBy sortStaff
         . filter (\staff -> staff.isActive && isNothing staff.archivedAt)

@@ -1380,15 +1380,21 @@ tests = beforeAll testContext do
                 backOfHouse <- createVenueRosterGroupWithDefaults venue "Back of House" 2 True
                 alpha <- createStaffRecord venue (Just alphaUser) "Alpha" "Crew"
                 bravo <- createStaffRecord venue (Just bravoUser) "Bravo" "Crew"
+                trial <- createStaffRecord venue Nothing "Trial" "Crew"
                 syncStaffRosterGroupAssignments alpha [frontOfHouse.id]
                 syncStaffRosterGroupAssignments bravo [backOfHouse.id]
+                syncStaffRosterGroupAssignments trial [frontOfHouse.id]
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams (ShowRosterWeekStaffPanelFragmentAction 0) [("rosterGroupId", idToParam frontOfHouse.id)]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-roster-staff-name=\"Alpha\""
+                response `responseBodyShouldContain` "data-roster-staff-name=\"Trial\""
+                response `responseBodyShouldContain` "data-roster-staff-role=\"TRIAL\""
                 response `responseBodyShouldNotContain` "data-roster-staff-name=\"Bravo\""
+                response `responseBodyShouldContain` "Add trial staff"
+                response `responseBodyShouldContain` "hx-get=\"/NewStaff?weekOffset=0&amp;rosterGroupId="
                 response `responseBodyShouldContain` "Show all staff"
 
         it "hides the all-staff staff panel toggle when the venue has one roster group" $ withContext do
