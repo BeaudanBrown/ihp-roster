@@ -19,9 +19,11 @@ import Application.Helper.Controller (unsafeEnumFromText,
                                       validRosterShiftDurationMinutes,
                                       venueWeekOffsetForDay, venueWeekStartDate)
 import Application.Helper.LiveResource
+import Application.Helper.Staff (isLinkedActiveStaff)
 import Control.Monad (forM, void)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
+import Data.Maybe (catMaybes)
 import Data.Time.Calendar (Day, addDays, diffDays)
 import Data.Time.Clock (UTCTime)
 import Data.Time.LocalTime (TimeOfDay)
@@ -131,39 +133,43 @@ performRosterTimesheetCreationJob appJob = do
                     Nothing ->
                         markRosterTimesheetJobSkipped appJob "roster_slot_incomplete"
                     Just (startTime, endTime, staffId, shiftTypeId) -> do
-                        let workedOn = rosterSlotWorkedOn venueConfig rosterWeek rosterDay
-                        timesheetEntry <- withTransaction do
-                            entry <- newRecord @TimesheetEntry
-                                |> set #venueId rosterWeek.venueId
-                                |> set #staffId staffId
-                                |> set #shiftTypeId shiftTypeId
-                                |> set #workedOn workedOn
-                                |> set #startTime startTime
-                                |> set #endTime endTime
-                                |> set #hadBreak False
-                                |> set #breakStartTime Nothing
-                                |> set #breakEndTime Nothing
-                                |> set #breakMinutes 0
-                                |> set #sourceRosterSlotId (Just (unpackId rosterSlot.id))
-                                |> createRecord
-                            forM_ appJob.requestedByUserId \actorUserId ->
+                        staffEligible <- staffIdIsLinkedActive staffId
+                        if not staffEligible
+                            then markRosterTimesheetJobSkipped appJob "trial_staff_roster_only"
+                            else do
+                                let workedOn = rosterSlotWorkedOn venueConfig rosterWeek rosterDay
+                                timesheetEntry <- withTransaction do
+                                    entry <- newRecord @TimesheetEntry
+                                        |> set #venueId rosterWeek.venueId
+                                        |> set #staffId staffId
+                                        |> set #shiftTypeId shiftTypeId
+                                        |> set #workedOn workedOn
+                                        |> set #startTime startTime
+                                        |> set #endTime endTime
+                                        |> set #hadBreak False
+                                        |> set #breakStartTime Nothing
+                                        |> set #breakEndTime Nothing
+                                        |> set #breakMinutes 0
+                                        |> set #sourceRosterSlotId (Just (unpackId rosterSlot.id))
+                                        |> createRecord
+                                    forM_ appJob.requestedByUserId \actorUserId ->
+                                        void $
+                                            recordTimesheetEntryVersion
+                                                rosterWeek.venueId
+                                                actorUserId
+                                                (unsafeEnumFromText @EntryVersionActionEnum "created")
+                                                entry
+                                                (Aeson.object
+                                                    [ "source" Aeson..= ("live_roster" :: Text)
+                                                    , "rosterSlotId" Aeson..= tshow rosterSlot.id
+                                                    , "rosterWeekId" Aeson..= tshow rosterWeek.id
+                                                    ]
+                                                )
+                                    pure entry
+                                markRosterTimesheetJobSucceeded appJob "created" (Just timesheetEntry)
                                 void $
-                                    recordTimesheetEntryVersion
-                                        rosterWeek.venueId
-                                        actorUserId
-                                        (unsafeEnumFromText @EntryVersionActionEnum "created")
-                                        entry
-                                        (Aeson.object
-                                            [ "source" Aeson..= ("live_roster" :: Text)
-                                            , "rosterSlotId" Aeson..= tshow rosterSlot.id
-                                            , "rosterWeekId" Aeson..= tshow rosterWeek.id
-                                            ]
-                                        )
-                            pure entry
-                        markRosterTimesheetJobSucceeded appJob "created" (Just timesheetEntry)
-                        void $
-                            invalidateTouchedResourcesWithoutContext "timesheet.roster_automation.create" $
-                                liveMutationResult timesheetEntry [rosterTimesheetTouchedResource venueConfig rosterWeek workedOn]
+                                    invalidateTouchedResourcesWithoutContext "timesheet.roster_automation.create" $
+                                        liveMutationResult timesheetEntry [rosterTimesheetTouchedResource venueConfig rosterWeek workedOn]
 
 rosterTimesheetTouchedResource :: VenueConfig -> RosterWeek -> Day -> LiveResource
 rosterTimesheetTouchedResource venueConfig rosterWeek workedOn =
@@ -208,11 +214,22 @@ fetchCompleteRosterSlots rosterDays =
                 |> filterWhere (#rosterDayId, unpackId rosterDay.id)
                 |> filterWhere (#deletedAt, Nothing)
                 |> fetch
-            pure
-                [ (rosterDay, slot, startTime, endTime, staffId, shiftTypeId)
-                | slot <- slots
-                , Just (startTime, endTime, staffId, shiftTypeId) <- [completeRosterSlot slot]
-                ]
+            fmap catMaybes $
+                forM slots \slot ->
+                    case completeRosterSlot slot of
+                        Nothing -> pure Nothing
+                        Just (startTime, endTime, staffId, shiftTypeId) -> do
+                            staffEligible <- staffIdIsLinkedActive staffId
+                            pure $ if staffEligible
+                                then Just (rosterDay, slot, startTime, endTime, staffId, shiftTypeId)
+                                else Nothing
+
+staffIdIsLinkedActive :: (?modelContext :: ModelContext) => UUID -> IO Bool
+staffIdIsLinkedActive staffId = do
+    maybeStaff <- query @Staff
+        |> filterWhere (#id, Id staffId)
+        |> fetchOneOrNothing
+    pure (maybe False isLinkedActiveStaff maybeStaff)
 
 completeRosterSlot :: RosterSlot -> Maybe (TimeOfDay, TimeOfDay, UUID, UUID)
 completeRosterSlot rosterSlot = do

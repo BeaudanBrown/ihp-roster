@@ -43,6 +43,7 @@ import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
+import Application.Helper.VenueScopedQueries (fetchLinkedActiveVenueStaff)
 import Web.Timesheets.Paths (timesheetDayColumnsFragmentUrl,
                              timesheetDaySectionFragmentUrl,
                              timesheetToolbarFragmentUrl)
@@ -81,7 +82,7 @@ data TimesheetLiveSurface
 
 fetchTimesheetDataForWeek :: (?modelContext :: ModelContext, ?context :: ControllerContext) => Day -> Day -> Bool -> Bool -> Maybe UUID.UUID -> IO ([TimesheetEntry], [Staff], Maybe UUID.UUID, Maybe UUID.UUID)
 fetchTimesheetDataForWeek weekStartDate weekEndDate showApproved showAllStaff requestedStaffFilterId = do
-    staffMembers <- query @Staff |> filterWhere (#venueId, unpackId currentVenueId) |> orderByAsc #lastName |> fetch
+    staffMembers <- fetchLinkedActiveVenueStaff currentVenueId
 
     let weekDays = [weekStartDate .. weekEndDate]
     maybeCurrentViewerStaff <- fetchCurrentUserStaff
@@ -146,8 +147,8 @@ fetchTimesheetDataForWeek weekStartDate weekEndDate showApproved showAllStaff re
 fetchStaffForForm :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO [Staff]
 fetchStaffForForm =
     if hasRole ManagerRole'
-        then query @Staff |> filterWhere (#venueId, unpackId currentVenueId) |> filterWhere (#isActive, True) |> orderByAsc #lastName |> fetch
-        else maybeToList <$> fetchCurrentUserStaff
+        then fetchLinkedActiveVenueStaff currentVenueId
+        else filter (isJust . (.userId)) . maybeToList <$> fetchCurrentUserStaff
 
 fetchShiftTypesForForm :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO [ShiftType]
 fetchShiftTypesForForm =

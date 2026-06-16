@@ -1,6 +1,6 @@
 ---
 id: ir-9mz7
-status: open
+status: closed
 deps: [ir-nlv5]
 links: []
 created: 2026-06-15T23:44:59Z
@@ -22,3 +22,9 @@ Timesheet form/query paths should use linked active staff only. Harden ensureSta
 
 Trial staff do not appear in timesheet create/edit staff selectors or manager staff filters. Tampered timesheet create/update with trial staff is rejected safely. Publishing an auto-timesheet-enabled roster with trial staff succeeds. Auto-timesheet automation creates entries only for linked staff slots and no trial-staff timesheet entry is created. Focused Timesheets and RosterTimesheetsAutomation tests pass.
 
+
+## Notes
+
+**2026-06-16T00:05:07Z**
+
+Excluded trial staff from timesheet form/filter staff sets, hardened timesheet staff assignment validation to linked active staff, and skipped trial staff in roster-to-timesheet enqueue and execution paths. Focused TimesheetsController/Roster timesheet automation Hspec and typecheck pass.

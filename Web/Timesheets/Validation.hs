@@ -13,6 +13,7 @@ import Application.Helper.Url (appendQueryParams)
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
+import Application.Helper.Staff (isLinkedActiveStaff)
 import Web.Timesheets.Paths (timesheetWeekUrl)
 import Web.Timesheets.Responses (respondWithTimesheetDaySectionUpdate)
 
@@ -57,13 +58,16 @@ ensureTimesheetVisibility entry =
                 accessDeniedUnless ownsEntry
 
 ensureStaffAssignmentAllowed :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO ()
-ensureStaffAssignmentAllowed staffId =
-    do
-        ensureOptionalStaffInCurrentVenue (Just staffId)
-        unless (hasRole ManagerRole') do
-            maybeStaff <- fetchCurrentUserStaff
-            let isOwnStaff = maybe False (\staff -> unpackId (get #id staff) == staffId) maybeStaff
-            accessDeniedUnless isOwnStaff
+ensureStaffAssignmentAllowed staffId = do
+    maybeStaff <- query @Staff
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#id, Id staffId)
+        |> fetchOneOrNothing
+    accessDeniedUnless (maybe False isLinkedActiveStaff maybeStaff)
+    unless (hasRole ManagerRole') do
+        maybeCurrentStaff <- fetchCurrentUserStaff
+        let isOwnStaff = maybe False (\staff -> unpackId (get #id staff) == staffId) maybeCurrentStaff
+        accessDeniedUnless isOwnStaff
 
 ensureShiftTypeAllowed :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO ()
 ensureShiftTypeAllowed shiftTypeId = do

@@ -187,7 +187,9 @@ tests = beforeAll testContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Support Timesheet Venue"
                 superAdmin <- createUserRecordWithPlatformRole "timesheet-super-admin@example.com" "staff" (Just SuperAdminRole) True
-                staff <- createStaffRecord venue Nothing "Tess" "Worker"
+                worker <- createUserRecord "timesheet-super-admin-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue worker "worker"
+                staff <- createStaffRecord venue (Just worker) "Tess" "Worker"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
 
@@ -232,6 +234,60 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "name=\"endTime\" value=\"20:00\""
                 response `responseBodyShouldNotContain` ">Day<"
                 response `responseBodyShouldNotContain` "07/01/2025</div>"
+
+        it "excludes trial staff from manager timesheet forms and staff filters" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Trial Exclusion Venue"
+                manager <- createUserRecord "timesheet-trial-manager@example.com" "staff" True
+                linkedUser <- createUserRecord "timesheet-linked-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue linkedUser "worker"
+                linkedStaff <- createStaffRecord venue (Just linkedUser) "Linked" "Worker"
+                trialStaff <- createStaffRecord venue Nothing "Trial" "Worker"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- createShiftTypeRecord venue payLevel "Ordinary"
+
+                formResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams NewTimesheetEntryAction
+                            [ ("weekOffset", "0")
+                            , ("workedOn", "2025-01-07")
+                            ]
+                weekResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (ShowTimesheetWeekAction 0) [("showAllStaff", "true")]
+
+                formResponse `responseStatusShouldBe` status200
+                formResponse `responseBodyShouldContain` "Linked Worker"
+                formResponse `responseBodyShouldNotContain` "Trial Worker"
+                formResponse `responseBodyShouldContain` cs (tshow linkedStaff.id)
+                formResponse `responseBodyShouldNotContain` cs (tshow trialStaff.id)
+                weekResponse `responseStatusShouldBe` status200
+                weekResponse `responseBodyShouldContain` "Linked Worker"
+                weekResponse `responseBodyShouldNotContain` "Trial Worker"
+                weekResponse `responseBodyShouldNotContain` cs (tshow trialStaff.id)
+
+        it "rejects tampered manager timesheet creation for trial staff" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Trial Tamper Venue"
+                manager <- createUserRecord "timesheet-trial-tamper-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                trialStaff <- createStaffRecord venue Nothing "Trial" "Tamper"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams CreateTimesheetEntryAction
+                        [ ("weekOffset", "0")
+                        , ("staffId", idToParam trialStaff.id)
+                        , ("shiftTypeId", idToParam shiftType.id)
+                        , ("workedOn", "2025-01-07")
+                        , ("startTime", "09:00")
+                        , ("endTime", "17:00")
+                        ]
+
+                response `responseStatusShouldBe` status403
+                entryExists <- query @TimesheetEntry |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#staffId, unpackId trialStaff.id) |> fetchExists
+                entryExists `shouldBe` False
 
         it "rejects malformed required timesheet ids without creating an entry" $ withContext do
             withCleanDb do
@@ -384,7 +440,7 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Timesheet Live Filter Url Venue"
                 manager <- createUserRecord "timesheet-live-filter-url-manager@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
-                staff <- createStaffRecord venue Nothing "Lina" "Filtered"
+                staff <- createStaffRecord venue (Just manager) "Lina" "Filtered"
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
@@ -405,8 +461,12 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Timesheet Staff Filter Venue"
                 manager <- createUserRecord "timesheet-staff-filter-manager@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
-                workerA <- createStaffRecord venue Nothing "Ava" "Filter"
-                workerB <- createStaffRecord venue Nothing "Bea" "Filter"
+                workerAUser <- createUserRecord "timesheet-staff-filter-a@example.com" "staff" True
+                workerBUser <- createUserRecord "timesheet-staff-filter-b@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue workerAUser "worker"
+                _ <- createVenueMembershipRecord venue workerBUser "worker"
+                workerA <- createStaffRecord venue (Just workerAUser) "Ava" "Filter"
+                workerB <- createStaffRecord venue (Just workerBUser) "Bea" "Filter"
                 entryA <- createTimesheetEntryRecord venue workerA (fromGregorian 2025 1 7)
                 _ <- createTimesheetEntryRecord venue workerB (fromGregorian 2025 1 7)
 
@@ -551,8 +611,12 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Timesheet Create Hidden Approved Venue"
                 manager <- createUserRecord "timesheet-create-hide-approved-manager@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
-                approvedStaff <- createStaffRecord venue Nothing "Ada" "Approved"
-                pendingStaff <- createStaffRecord venue Nothing "Pia" "Pending"
+                approvedUser <- createUserRecord "timesheet-approved-worker@example.com" "staff" True
+                pendingUser <- createUserRecord "timesheet-pending-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue approvedUser "worker"
+                _ <- createVenueMembershipRecord venue pendingUser "worker"
+                approvedStaff <- createStaffRecord venue (Just approvedUser) "Ada" "Approved"
+                pendingStaff <- createStaffRecord venue (Just pendingUser) "Pia" "Pending"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
                 _ <- createApprovedTimesheetEntryRecord venue approvedStaff manager (fromGregorian 2025 1 7)
@@ -615,7 +679,7 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Timesheet Venue"
                 manager <- createUserRecord "timesheet-date-move-manager@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
-                staff <- createStaffRecord venue Nothing "Tia" "Move"
+                staff <- createStaffRecord venue (Just manager) "Tia" "Move"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
@@ -733,7 +797,7 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Timesheet Venue"
                 manager <- createUserRecord "timesheet-reset@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
-                staff <- createStaffRecord venue Nothing "Ria" "Shift"
+                staff <- createStaffRecord venue (Just manager) "Ria" "Shift"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
                 entry <- createApprovedTimesheetEntryRecord venue staff manager (fromGregorian 2025 1 9)

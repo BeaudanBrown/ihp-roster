@@ -33,6 +33,34 @@ tests = beforeAll testContext do
                 draftJobs `shouldBe` []
                 query @AppJob |> fetchCount >>= (`shouldBe` 0)
 
+        it "does not enqueue jobs for complete trial-staff roster slots" $ withContext do
+            withCleanDb do
+                (venue, manager, rosterWeek, _rosterDay, slot, _shiftType) <- createCompleteLiveRosterSlotFixture
+                venueConfig <- fetchVenueConfigFor venue
+                _ <- updateRecord (venueConfig |> set #autoTimesheetCreationEnabled True)
+                trialStaff <- createStaffRecord venue Nothing "Trial" "RosterOnly"
+                _ <- updateRecord (slot |> set #staffId (Just (unpackId trialStaff.id)))
+
+                queuedJobs <- enqueueRosterTimesheetCreationJobsForWeek (Just manager.id) rosterWeek
+
+                queuedJobs `shouldBe` []
+                query @AppJob |> fetchCount >>= (`shouldBe` 0)
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
+
+        it "skips a queued job if its roster slot is reassigned to trial staff before execution" $ withContext do
+            withCleanDb do
+                (venue, manager, rosterWeek, _rosterDay, slot, _shiftType) <- createCompleteLiveRosterSlotFixture
+                venueConfig <- fetchVenueConfigFor venue
+                _ <- updateRecord (venueConfig |> set #autoTimesheetCreationEnabled True)
+                [EnqueuedAppJob job] <- enqueueRosterTimesheetCreationJobsForWeek (Just manager.id) rosterWeek
+                trialStaff <- createStaffRecord venue Nothing "Trial" "LateSwap"
+                _ <- updateRecord (slot |> set #staffId (Just (unpackId trialStaff.id)))
+
+                performRosterTimesheetCreationJob job
+
+                assertJobSkipped job "trial_staff_roster_only"
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
+
         it "queues one delayed job per complete live roster slot when the venue opts in" $ withContext do
             withCleanDb do
                 (venue, manager, rosterWeek, rosterDay, slot, shiftType) <- createCompleteLiveRosterSlotFixture
@@ -229,7 +257,9 @@ createCompleteLiveRosterSlotFixture = do
     manager <- createUserRecord "roster-timesheet-manager@example.com" "staff" True
     _ <- createVenueMembershipRecord venue manager "manager"
     slotName <- fetchSlotNameRecord venue "Early"
-    staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+    staffUser <- createUserRecord "roster-timesheet-worker@example.com" "staff" True
+    _ <- createVenueMembershipRecord venue staffUser "worker"
+    staffMember <- createStaffRecord venue (Just staffUser) "Alpha" "Crew"
     level <- createPayLevelRecord venue "Level 1"
     shiftType <- createShiftTypeRecord venue level "Late"
     rosterWeek <- createRosterWeekRecord venue 0 True
