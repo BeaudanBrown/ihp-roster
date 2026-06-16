@@ -30,7 +30,7 @@ import Web.View.Prelude
 renderInvitesSection :: [VenueInvitation] -> Id RosterGroup -> Html
 renderInvitesSection invitations rosterGroupId =
     renderConfigSection
-        "invites"
+        "admin-invites-section"
         mempty
         (renderInviteCreateForm rosterGroupId)
         [hsx|

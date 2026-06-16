@@ -27,7 +27,7 @@ import Web.View.Prelude
 renderRosterGroupsSection :: [RosterGroup] -> Bool -> Html
 renderRosterGroupsSection rosterGroups showInactive =
     renderConfigSection
-        "roster-groups"
+        "admin-roster-groups-section"
         (renderInactiveToggleSummary "showInactiveRosterGroups" (pathTo ShowAdminRosterGroupsFragmentAction) "admin-roster-groups-fragment" rosterGroups showInactive)
         [hsx|
             {renderRosterGroupCreateForm showInactive}

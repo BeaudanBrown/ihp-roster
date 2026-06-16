@@ -70,7 +70,7 @@ renderExportsSectionFragment reportWeekSelection defaultRangeStart defaultRangeE
 renderExportsSection :: ReportWeekSelection -> Day -> Day -> [ExportJob] -> Html
 renderExportsSection _reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs =
     renderConfigSection
-        "exports"
+        "admin-exports-section"
         (renderExportSummary exportJobs)
         mempty
         [hsx|

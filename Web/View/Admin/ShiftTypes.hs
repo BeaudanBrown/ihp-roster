@@ -35,7 +35,7 @@ import Web.View.Prelude
 renderShiftTypesSection :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Html
 renderShiftTypesSection shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems =
     renderConfigSection
-        "shift-types"
+        "admin-shift-types-section"
         (renderInactiveToggleSummary "showInactiveShiftTypes" (pathTo ShowAdminShiftTypesFragmentAction) "admin-shift-types-fragment" shiftTypes showInactive)
         (renderShiftTypeCreateForm shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems)
         (renderShiftTypeRows shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems)
