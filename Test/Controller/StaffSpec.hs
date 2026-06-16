@@ -223,6 +223,23 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Send an invite link to claim this trial staff profile."
                 response `responseBodyShouldContain` "Invite</button>"
 
+        it "shows pending invite state when a trial staff invitation already exists" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Pending Invite Field Venue"
+                manager <- createUserRecord "staff-pending-invite-field-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue Nothing "Pending" "Invite"
+                _ <- createVenueInvitationRecord venue (Just manager) "pending-trial-invite@example.com" "worker"
+                    >>= updateRecord . set #staffId (Just staff.id)
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Pending invite"
+                response `responseBodyShouldContain` "pending-trial-invite@example.com"
+                response `responseBodyShouldNotContain` "name=\"invitationEmail\""
+
         it "lets managers create worker adoption invitations for current-venue trial staff" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Trial Invite Venue"
@@ -232,12 +249,17 @@ tests = beforeAll testContext do
                 versionBefore <- LiveUpdate.currentLiveUpdateVersion LiveUpdate.AdminInvitesScope { venueId = unpackId venue.id }
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams
-                        (CreateTrialStaffInvitationAction staff.id)
-                        [("invitationEmail", "trial-invite-claim@example.com")]
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (CreateTrialStaffInvitationAction staff.id)
+                            [("invitationEmail", "trial-invite-claim@example.com")]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Invitation queued for trial-invite-claim@example.com"
+                response `responseBodyShouldContain` "Invitation sent to trial-invite-claim@example.com"
+                response `responseBodyShouldContain` "id=\"toast-overlay-mount\""
+                response `responseBodyShouldContain` "hx-swap-oob=\"innerHTML\""
+                response `responseBodyShouldContain` "Pending invite"
+                response `responseBodyShouldContain` "trial-invite-claim@example.com"
                 invitation <- query @VenueInvitation
                     |> filterWhere (#venueId, unpackId venue.id)
                     |> filterWhere (#email, "trial-invite-claim@example.com" :: Text)

@@ -12,6 +12,7 @@ import Web.Controller.Admin.Support (SubmittedPayRateSelection (..),
                                      parseRequiredEmail,
                                      parseSubmittedPayRateSelection)
 import Application.Helper.Url (appendQueryParams)
+import Application.Helper.View (ToastOverlayConfig, ToastOverlayPosition (..), renderToastOob, successToast)
 import Application.StaffDocuments.Rsa (latestRsaDocumentForStaff)
 import Data.Time.Calendar (Day)
 import Data.Time.Clock (getCurrentTime, utctDay)
@@ -81,6 +82,7 @@ instance Controller StaffController where
         staff <- fetch staffId
         ensureRecordInCurrentVenue staff.venueId
         maybeLinkedUserEmail <- fetchStaffLinkedUserEmail staff
+        pendingTrialStaffInvitation <- fetchPendingTrialStaffInvitation staff
         let weekOffset = paramOrDefault @Int 0 "weekOffset"
         let maybeRosterGroupId = paramOrNothing "rosterGroupId"
         let openSection = normalizeStaffOpenSection (paramOrDefault @Text "" "section")
@@ -97,7 +99,7 @@ instance Controller StaffController where
         leaveRequests <- fetchStaffLeaveRequests staff
         today <- utctDay <$> getCurrentTime
         if isHtmxRequest
-            then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
+            then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
             else render EditView { .. }
 
     action UpdateStaffAction { staffId } = do
@@ -106,6 +108,7 @@ instance Controller StaffController where
         ensureRecordInCurrentVenue staff.venueId
         let originalStaff = staff
         maybeLinkedUserEmail <- fetchStaffLinkedUserEmail staff
+        pendingTrialStaffInvitation <- fetchPendingTrialStaffInvitation staff
         let submittedShiftPreferenceKeys = nub (paramTexts "shiftPreferenceKeys")
         let weekOffset = paramOrDefault @Int 0 "weekOffset"
         let maybeRosterGroupId = paramOrNothing "rosterGroupId"
@@ -133,7 +136,7 @@ instance Controller StaffController where
                 else fetchStaffShiftPreferenceSelections staff
         let renderStaffEditResponse renderedStaff renderedRosterGroupIds renderedPreferences =
                 if isHtmxRequest
-                    then respondHtml (renderStaffEditModalFragment renderedStaff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems renderedRosterGroupIds preferenceWeekdays renderedPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
+                    then respondHtml (renderStaffEditModalFragment renderedStaff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems renderedRosterGroupIds preferenceWeekdays renderedPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
                     else do
                         let selectedRosterGroupIds = renderedRosterGroupIds
                         let selectedShiftPreferences = renderedPreferences
@@ -184,10 +187,11 @@ instance Controller StaffController where
         case maybeEmail of
             Just email -> do
                 createTrialStaffInvitationMutation staff email >>= \case
-                    Right _ -> setSuccessMessage ("Invitation queued for " <> email)
-                    Left message -> setErrorMessage message
-            Nothing -> pure ()
-        renderStaffEditResponseFor staff "profile"
+                    Right _ -> renderStaffEditResponseFor staff "profile" (Just (successToast ("Invitation sent to " <> email)))
+                    Left message -> do
+                        setErrorMessage message
+                        renderStaffEditResponseFor staff "profile" Nothing
+            Nothing -> renderStaffEditResponseFor staff "profile" Nothing
 
 emptyStaffPayRateSelection :: SubmittedPayRateSelection
 emptyStaffPayRateSelection = SubmittedPayRateSelection Nothing Nothing
@@ -213,9 +217,10 @@ renderNewStaffResponse staff selectedRosterGroupIds rosterGroups awardLevels awa
         then respondHtml (renderNewStaffModalFragment staff rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds weekOffset maybeRosterGroupId)
         else render NewView { .. }
 
-renderStaffEditResponseFor :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Staff -> Text -> IO ()
-renderStaffEditResponseFor staff openSection = do
+renderStaffEditResponseFor :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Staff -> Text -> Maybe ToastOverlayConfig -> IO ()
+renderStaffEditResponseFor staff openSection maybeToast = do
     maybeLinkedUserEmail <- fetchStaffLinkedUserEmail staff
+    pendingTrialStaffInvitation <- fetchPendingTrialStaffInvitation staff
     let weekOffset = paramOrDefault @Int 0 "weekOffset"
     let maybeRosterGroupId = paramOrNothing "rosterGroupId"
     venueConfig <- fetchVenueConfig
@@ -231,8 +236,22 @@ renderStaffEditResponseFor staff openSection = do
     leaveRequests <- fetchStaffLeaveRequests staff
     today <- utctDay <$> getCurrentTime
     if isHtmxRequest
-        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
+        then respondHtml [hsx|
+            {renderStaffEditModalFragment staff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection}
+            {maybe mempty (renderToastOob ToastBottomCenter) maybeToast}
+        |]
         else render EditView { .. }
+
+fetchPendingTrialStaffInvitation :: (?modelContext :: ModelContext) => Staff -> IO (Maybe VenueInvitation)
+fetchPendingTrialStaffInvitation staff =
+    case staff.userId of
+        Just _ -> pure Nothing
+        Nothing ->
+            query @VenueInvitation
+                |> filterWhere (#staffId, Just staff.id)
+                |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+                |> orderByDesc #createdAt
+                |> fetchOneOrNothing
 
 buildStaff :: (?request :: Request) => Bool -> Maybe (Maybe (Id AwardLevel)) -> Maybe (Maybe (Id XeroImportedPayItem)) -> Staff -> Staff
 buildStaff canManageStaffPay maybeSubmittedDefaultAwardLevelId maybeSubmittedImportedXeroPayItemId staff =

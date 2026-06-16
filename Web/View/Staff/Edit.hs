@@ -30,6 +30,7 @@ instance View NewView where
 data EditView = EditView
     { staff                    :: Staff
     , maybeLinkedUserEmail     :: Maybe Text
+    , pendingTrialStaffInvitation :: Maybe VenueInvitation
     , rosterGroups             :: [RosterGroup]
     , awardLevels              :: [AwardLevel]
     , awardLevelBaseRates      :: [AwardLevelBaseRate]
@@ -51,7 +52,7 @@ instance View EditView where
         renderStaffEditPageModalWithButtons
             weekOffset
             []
-            (renderStaffEditBody PageOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
+            (renderStaffEditBody PageOverlayForm staff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
 
 staffEditFormId :: Text
 staffEditFormId = "staff-edit-form"
@@ -104,14 +105,14 @@ renderNewStaffBody formMode staff rosterGroups awardLevels awardLevelBaseRates i
             staff
             Nothing
 
-renderStaffEditModalFragment :: Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> LeaveRequest -> [LeaveRequest] -> Day -> Int -> Maybe (Id RosterGroup) -> Text -> Html
-renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection =
+renderStaffEditModalFragment :: Staff -> Maybe Text -> Maybe VenueInvitation -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> LeaveRequest -> [LeaveRequest] -> Day -> Int -> Maybe (Id RosterGroup) -> Text -> Html
+renderStaffEditModalFragment staff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection =
     renderStaffEditDialogWithButtons
         []
-        (renderStaffEditBody HtmxOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
+        (renderStaffEditBody HtmxOverlayForm staff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
 
-renderStaffEditBody :: OverlayFormMode -> Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> LeaveRequest -> [LeaveRequest] -> Day -> Int -> Maybe (Id RosterGroup) -> Text -> Html
-renderStaffEditBody formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection =
+renderStaffEditBody :: OverlayFormMode -> Staff -> Maybe Text -> Maybe VenueInvitation -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> LeaveRequest -> [LeaveRequest] -> Day -> Int -> Maybe (Id RosterGroup) -> Text -> Html
+renderStaffEditBody formMode staff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection =
     let rsaPanel =
             renderRsaDocumentPanel
                 RsaPanelConfig
@@ -148,7 +149,7 @@ renderStaffEditBody formMode staff maybeLinkedUserEmail rosterGroups awardLevels
                         { staffProfileSectionKey = "profile"
                         , staffProfileSectionId = "staff-profile-details"
                         , staffProfileSectionTitle = "Profile Details"
-                        , staffProfileSectionBody = renderStaffDetailsForm formMode staff maybeLinkedUserEmail managementFields staffAction
+                        , staffProfileSectionBody = renderStaffDetailsForm formMode staff maybeLinkedUserEmail pendingTrialStaffInvitation managementFields staffAction
                         }
                     , StaffProfileAccordionSection
                         { staffProfileSectionKey = "preferences"
@@ -287,8 +288,8 @@ renderStaffPasskeyReturnInputs weekOffset maybeRosterGroupId = [hsx|
 renderStaffPasskeyRosterGroupInput :: Id RosterGroup -> Html
 renderStaffPasskeyRosterGroupInput rosterGroupId = [hsx|<input type="hidden" name="rosterGroupId" value={tshow rosterGroupId}/>|]
 
-renderStaffDetailsForm :: OverlayFormMode -> Staff -> Maybe Text -> StaffManagementFieldData -> StaffController -> Html
-renderStaffDetailsForm formMode staff maybeLinkedUserEmail managementFields action =
+renderStaffDetailsForm :: OverlayFormMode -> Staff -> Maybe Text -> Maybe VenueInvitation -> StaffManagementFieldData -> StaffController -> Html
+renderStaffDetailsForm formMode staff maybeLinkedUserEmail pendingTrialStaffInvitation managementFields action =
     renderStaffProfileDetailsForm
         StaffProfileDetailsFormConfig
             { staffProfileDetailsFormId = staffEditFormId
@@ -299,7 +300,7 @@ renderStaffDetailsForm formMode staff maybeLinkedUserEmail managementFields acti
             , staffProfileDetailsFormHiddenInputs = [hsx|<input type="hidden" name="section" value="profile"/>|]
             , staffProfileDetailsFormBeforeFields = mempty
             , staffProfileDetailsFormFieldsHeading = Nothing
-            , staffProfileDetailsFormEmailField = renderStaffEditPersonalProfileFields formMode
+            , staffProfileDetailsFormEmailField = renderStaffEditPersonalProfileFields formMode pendingTrialStaffInvitation
             , staffProfileDetailsFormAfterFields = mempty
             , staffProfileDetailsFormManagement = Just managementFields
             , staffProfileDetailsFormManagementBody = renderStaffManagementFields
@@ -308,13 +309,23 @@ renderStaffDetailsForm formMode staff maybeLinkedUserEmail managementFields acti
         staff
         maybeLinkedUserEmail
 
-renderStaffEditPersonalProfileFields :: OverlayFormMode -> Staff -> Maybe Text -> Html
-renderStaffEditPersonalProfileFields formMode staff maybeLinkedUserEmail
-    | isNothing staff.userId = renderPersonalProfileFieldsWithEmailSlot (renderTrialStaffInviteEmailField formMode staff) staff
+renderStaffEditPersonalProfileFields :: OverlayFormMode -> Maybe VenueInvitation -> Staff -> Maybe Text -> Html
+renderStaffEditPersonalProfileFields formMode pendingTrialStaffInvitation staff maybeLinkedUserEmail
+    | isNothing staff.userId = renderPersonalProfileFieldsWithEmailSlot (renderTrialStaffEmailField formMode staff pendingTrialStaffInvitation) staff
     | otherwise = renderPersonalProfileFields staff maybeLinkedUserEmail
 
-renderTrialStaffInviteEmailField :: OverlayFormMode -> Staff -> Html
-renderTrialStaffInviteEmailField HtmxOverlayForm staff = [hsx|
+renderTrialStaffEmailField :: OverlayFormMode -> Staff -> Maybe VenueInvitation -> Html
+renderTrialStaffEmailField _ _ (Just invitation) = [hsx|
+    <div class="col-12 col-lg-6">
+        <label for="pendingInvitationEmail" class="form-label">Email</label>
+        <div class="form-control d-flex align-items-center justify-content-between gap-2" id="pendingInvitationEmail">
+            <span>{invitation.email}</span>
+            <span class="badge text-bg-warning">Pending invite</span>
+        </div>
+        <div class="form-text">An invitation has been sent and is waiting to be accepted.</div>
+    </div>
+|]
+renderTrialStaffEmailField HtmxOverlayForm staff Nothing = [hsx|
     <div class="col-12 col-lg-6">
         <label for="invitationEmail" class="form-label">Email</label>
         <div class="input-group">
@@ -339,7 +350,7 @@ renderTrialStaffInviteEmailField HtmxOverlayForm staff = [hsx|
         <div class="form-text">Send an invite link to claim this trial staff profile.</div>
     </div>
 |]
-renderTrialStaffInviteEmailField PageOverlayForm staff = [hsx|
+renderTrialStaffEmailField PageOverlayForm staff Nothing = [hsx|
     <div class="col-12 col-lg-6">
         <label for="invitationEmail" class="form-label">Email</label>
         <div class="input-group">
