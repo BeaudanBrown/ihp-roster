@@ -375,8 +375,8 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Support"
                 response `responseBodyShouldContain` "Invite Venue Owner"
-                response `responseBodyShouldContain` "Create a passkey for admin access"
-                response `responseBodyShouldContain` "data-success-redirect=\"/Support\""
+                response `responseBodyShouldContain` "Create passkey"
+                response `responseBodyShouldContain` "successRedirect=%2FSupport"
                 response `responseBodyShouldNotContain` "Create Venue"
                 response `responseBodyShouldContain` "data-live-update-surface=\""
                 response `responseBodyShouldContain` "support_platform"
@@ -739,8 +739,10 @@ tests = beforeAll testContext do
                 venueB <- createVenueWithConfig "Venue B"
                 manager <- createUserRecord "manager-timesheet-scope@example.com" "staff" True
                 _ <- createVenueMembershipRecord venueA manager "manager"
-                staffA <- createStaffRecord venueA Nothing "Ava" "Hours"
-                staffB <- createStaffRecord venueB Nothing "Bea" "Hours"
+                staffA <- createStaffRecord venueA (Just manager) "Ava" "Hours"
+                staffBUser <- createUserRecord "venue-b-timesheet-scope@example.com" "staff" True
+                _ <- createVenueMembershipRecord venueB staffBUser "worker"
+                staffB <- createStaffRecord venueB (Just staffBUser) "Bea" "Hours"
                 _ <- createTimesheetEntryRecord venueA staffA defaultWeekEpoch
                 _ <- createTimesheetEntryRecord venueB staffB defaultWeekEpoch
 

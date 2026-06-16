@@ -907,7 +907,7 @@ tests = beforeAll testContext do
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 _ <- updateRecord (venueConfig |> set #autoTimesheetCreationEnabled True)
                 slotName <- fetchSlotNameRecord venue "Late"
-                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                staffMember <- createStaffRecord venue (Just manager) "Alpha" "Crew"
                 level <- createPayLevelRecord venue "Level 1"
                 shiftType <- createShiftTypeRecord venue level "Bar"
                 rosterWeek <- createRosterWeekRecord venue 0 False
@@ -942,9 +942,13 @@ tests = beforeAll testContext do
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 _ <- updateRecord (venueConfig |> set #autoTimesheetCreationEnabled True)
                 slotName <- fetchSlotNameRecord venue "Late"
-                alpha <- createStaffRecord venue Nothing "Alpha" "Crew"
-                bravo <- createStaffRecord venue Nothing "Bravo" "Crew"
-                charlie <- createStaffRecord venue Nothing "Charlie" "Crew"
+                alpha <- createStaffRecord venue (Just manager) "Alpha" "Crew"
+                bravoUser <- createUserRecord "roster-timesheet-cancel-bravo@example.com" "staff" True
+                charlieUser <- createUserRecord "roster-timesheet-cancel-charlie@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue bravoUser "worker"
+                _ <- createVenueMembershipRecord venue charlieUser "worker"
+                bravo <- createStaffRecord venue (Just bravoUser) "Bravo" "Crew"
+                charlie <- createStaffRecord venue (Just charlieUser) "Charlie" "Crew"
                 level <- createPayLevelRecord venue "Level 1"
                 shiftType <- createShiftTypeRecord venue level "Bar"
                 rosterWeek <- createRosterWeekRecord venue 0 False
@@ -994,7 +998,7 @@ tests = beforeAll testContext do
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 _ <- updateRecord (venueConfig |> set #autoTimesheetCreationEnabled True |> set #rosterEndTimesEnabled True)
                 slotName <- fetchSlotNameRecord venue "Late"
-                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                staffMember <- createStaffRecord venue (Just manager) "Alpha" "Crew"
                 level <- createPayLevelRecord venue "Level 1"
                 shiftType <- createShiftTypeRecord venue level "Bar"
                 rosterWeek <- createRosterWeekRecord venue 0 False
@@ -1071,8 +1075,10 @@ tests = beforeAll testContext do
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 _ <- updateRecord (venueConfig |> set #autoTimesheetCreationEnabled True |> set #rosterEndTimesEnabled True)
                 slotName <- fetchSlotNameRecord venue "Late"
-                alpha <- createStaffRecord venue Nothing "Alpha" "Crew"
-                bravo <- createStaffRecord venue Nothing "Bravo" "Crew"
+                alpha <- createStaffRecord venue (Just manager) "Alpha" "Crew"
+                bravoUser <- createUserRecord "roster-timesheet-warning-bravo@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue bravoUser "worker"
+                bravo <- createStaffRecord venue (Just bravoUser) "Bravo" "Crew"
                 level <- createPayLevelRecord venue "Level 1"
                 shiftType <- createShiftTypeRecord venue level "Bar"
                 rosterWeek <- createRosterWeekRecord venue 0 True

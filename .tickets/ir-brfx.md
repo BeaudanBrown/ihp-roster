@@ -1,6 +1,6 @@
 ---
 id: ir-brfx
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-06-15T23:44:59Z
@@ -21,3 +21,9 @@ Use the existing staff.user_id IS NULL model for trial placeholders. Avoid schem
 
 Managers/admins/owners/support-equivalent can create current-venue trial staff placeholders. Create form uses the full staff details shape with obvious placeholder contact/emergency defaults. Created trial staff are active, have user_id NULL, are assigned to selected roster groups, appear in roster assignment options, and show TRIAL in the existing staff-panel role column. Trial staff can be rostered and do not block publishing. Roster-to-timesheet automation ignores trial-staff slots without creating timesheet entries or blocking publish. Manual timesheet create/update cannot assign trial staff, and trial staff are not offered in timesheet staff selectors/filters. Xero/payroll readiness/mapping/export paths use active linked staff for eligibility. Focused Hspec coverage and typecheck pass. Living specs document V1 behavior and non-goals.
 
+
+## Notes
+
+**2026-06-16T00:30:50Z**
+
+Epic implementation complete. Closed children cover explicit staff eligibility helpers, trial placeholder creation flow, roster/staff-panel surfacing, timesheet and automation exclusion, Xero/payroll linked-staff eligibility, and living spec verification. Final verification: bash ./bin/in-env typecheck and full bash ./bin/in-env hspec-test passed.

@@ -1,5 +1,6 @@
 module Web.Staff.Mutations
-    ( staffUpdateTouchedResources
+    ( createTrialStaffMember
+    , staffUpdateTouchedResources
     , staffXeroPayItemScopeChanged
     , updateStaffMember
     ) where
@@ -23,6 +24,13 @@ staffXeroPayItemScope staff
     | staff.isActive && isNothing staff.archivedAt =
         Just (staff.defaultAwardLevelId, staff.importedXeroPayItemId, staff.employmentBasis)
     | otherwise = Nothing
+
+createTrialStaffMember :: (?modelContext :: ModelContext) => Staff -> [Id RosterGroup] -> IO Staff
+createTrialStaffMember staff selectedRosterGroupIds =
+    withTransaction do
+        createdStaff <- staff |> createRecord
+        syncStaffRosterGroupAssignments createdStaff selectedRosterGroupIds
+        pure createdStaff
 
 updateStaffMember :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> Staff -> [Id RosterGroup] -> [ShiftPreferenceSelection] -> IO (LiveMutationResult Staff)
 updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections = do

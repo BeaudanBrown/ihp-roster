@@ -24,11 +24,19 @@ lands.
 - Staff-facing draft roster pages keep the week shell and day column mounted for
   live updates, but hide slot rows, closed-day state, and other draft roster
   details behind a non-live placeholder.
+- Trial staff placeholders are active venue-scoped `staff` rows with no linked
+  `user_id`. They are rosterable when active and not archived, can be assigned
+  to selected roster groups, and appear beside linked staff in roster assignment
+  options and the manager staff panel.
+- The roster staff panel uses the existing role column for trial placeholders and
+  renders their role as `TRIAL`; linked staff continue to show their venue
+  membership role labels.
 - Publishing requires every staffed shift to have a start time and shift type;
   venues with end times enabled must also provide an end time.
 - Publishing an auto-timesheet-enabled roster queues `roster_timesheet_creation`
-  app jobs for complete slots using the slot state and calculated run time at
-  the moment of publishing.
+  app jobs for complete linked-staff slots using the slot state and calculated
+  run time at the moment of publishing. Complete trial-staff slots are valid for
+  roster publishing but are roster-only and do not queue timesheet creation jobs.
 - Moving a live roster week back to draft cancels that week's not-started and
   retry `roster_timesheet_creation` jobs by marking them succeeded with result
   `{status: "cancelled", reason: "roster_week_moved_to_draft"}`. Running jobs

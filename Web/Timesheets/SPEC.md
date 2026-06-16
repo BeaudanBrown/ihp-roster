@@ -7,6 +7,9 @@ lands.
 ## Current Contract
 
 - Timesheet entries are venue-scoped and staff-scoped.
+- Trial staff placeholders (`staff.user_id IS NULL`) are roster-only in V1. They
+  are excluded from manual timesheet staff selectors and manager staff filters,
+  and tampered create/update requests that target trial staff are rejected.
 - Time inputs must be exact 15-minute increments.
 - Leave `end_date` style conventions do not apply to timesheet worked dates;
   each entry has a concrete worked date and start/end/break data.
@@ -39,6 +42,9 @@ lands.
 - Roster-to-timesheet automation is venue opt-in and job-backed through
   `roster_timesheet_creation`; it is not a generic app-job cancellation feature
   or a normal form shortcut.
+- Trial-staff roster slots are ignored by roster-to-timesheet automation. They
+  do not create jobs when publishing and are skipped quietly if a stale queued
+  job later sees a slot reassigned to trial staff.
 - A live-to-draft roster rollback cancels only not-started and retry
   roster-timesheet creation jobs for slots in that week, recording result
   `{status: "cancelled", reason: "roster_week_moved_to_draft"}`.

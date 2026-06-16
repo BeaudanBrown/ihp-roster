@@ -1,6 +1,6 @@
 ---
 id: ir-kcm5
-status: open
+status: closed
 deps: [ir-yoho, ir-7dqy, ir-9mz7, ir-cgee]
 links: []
 created: 2026-06-15T23:44:59Z
@@ -22,3 +22,9 @@ Update Web/RosterWeeks/SPEC.md to document trial placeholders as rosterable, TRI
 
 Living specs document implemented V1 behavior and non-goals. Verification includes bash ./bin/in-env typecheck plus focused Hspec for trial staff helpers, roster panel/assignment behavior, timesheets, roster timesheet automation, and Xero/payroll eligibility if touched. Broader hspec-test is run if implementation breadth warrants it. Epic acceptance criteria are checked and a closeout note is added.
 
+
+## Notes
+
+**2026-06-16T00:30:47Z**
+
+Documented trial staff roster/timesheet V1 behavior in living specs. Moved trial placeholder creation into Web.Staff.Mutations to satisfy mutation boundary checks. Updated verification fixtures so timesheet/automation scenarios use linked active staff where expected. Verified with focused bootstrap support and venue-scoped timesheet specs, plus bash ./bin/in-env typecheck and full bash ./bin/in-env hspec-test.

@@ -5,8 +5,7 @@ import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
 import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
                                         fetchCurrentVenueRosterGroupIds,
                                         fetchCurrentVenueRosterGroups,
-                                        fetchStaffRosterGroupIds,
-                                        syncStaffRosterGroupAssignments)
+                                        fetchStaffRosterGroupIds)
 import Application.Helper.StaffShiftPreferences
 import Web.Controller.Admin.Support (SubmittedPayRateSelection (..),
                                      fetchActiveImportedXeroPayItems,
@@ -192,13 +191,6 @@ buildNewTrialStaff =
             |> set #emergencyContactPhone "Trial placeholder"
             |> set #idealShiftsPerWeek 0
             |> set #isActive True
-
-createTrialStaffMember :: (?modelContext :: ModelContext) => Staff -> [Id RosterGroup] -> IO Staff
-createTrialStaffMember staff selectedRosterGroupIds =
-    withTransaction do
-        createdStaff <- staff |> createRecord
-        syncStaffRosterGroupAssignments createdStaff selectedRosterGroupIds
-        pure createdStaff
 
 renderNewStaffResponse :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Staff -> [Id RosterGroup] -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Int -> Maybe (Id RosterGroup) -> IO ()
 renderNewStaffResponse staff selectedRosterGroupIds rosterGroups awardLevels awardLevelBaseRates importedPayItems weekOffset maybeRosterGroupId =
