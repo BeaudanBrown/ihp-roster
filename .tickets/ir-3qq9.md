@@ -2,7 +2,7 @@
 id: ir-3qq9
 status: open
 deps: []
-links: []
+links: [ir-uw2m]
 created: 2026-06-16T01:03:30Z
 type: epic
 priority: 1
@@ -21,3 +21,9 @@ Extend existing venue_invitations rather than introducing a parallel public sign
 
 A venue staff sender who can create normal worker invitations can invite an active trial staff row; the emailed/special link opens the existing account creation page prefilled with trial details; accepting creates a new user and worker membership and links the existing staff row without changing its id; previous roster slots/group assignments remain attached; normal invitations still work; stale/cross-venue/already-linked/adopted invitations are rejected safely; behavior is documented and covered by focused controller, mutation, schema, and mail tests.
 
+
+## Notes
+
+**2026-06-16T01:07:49Z**
+
+Clarification: first implementation keeps the existing /NewUser?invitationId=<venue_invitations.id> UUID link shape. Trial adoption invites are new-account-only, worker role only, and use the same sender authorization as regular new staff invites. The adoption signup form remains editable and is simply prefilled from the chosen trial staff row. Initial UI placement should be pragmatic: in the staff details page/dialog, replace the read-only Email field area for trial staff with an email input + invite button. A nicer roster/admin invite UI can iterate later.

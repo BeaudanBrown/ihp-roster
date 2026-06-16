@@ -22,3 +22,9 @@ Add a mutation for creating a pending worker invitation with the adoption target
 
 Authorized normal invite senders can send an adoption invite for current-venue trial staff; unauthorized users and cross-venue/already-linked staff are rejected; delivery job/mail uses the existing invite link; admin invite surfaces refresh.
 
+
+## Notes
+
+**2026-06-16T01:07:49Z**
+
+UI placement decision: add the first adoption invite form where the Email field normally appears in the staff details/profile form for trial staff. For linked staff keep the existing read-only email display. For trial staff render an email address input and submit button that posts a worker-only adoption invite for that staff id.
