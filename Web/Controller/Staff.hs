@@ -190,6 +190,7 @@ buildNewTrialStaff =
             |> set #emergencyContactName "Trial placeholder"
             |> set #emergencyContactPhone "Trial placeholder"
             |> set #idealShiftsPerWeek 0
+            |> set #employmentBasis Casual
             |> set #isActive True
 
 renderNewStaffResponse :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Staff -> [Id RosterGroup] -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Int -> Maybe (Id RosterGroup) -> IO ()

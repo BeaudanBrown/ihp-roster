@@ -22,7 +22,7 @@ import Test.Support
 import Web.Controller.Staff ()
 import Web.FrontController ()
 import Web.Routes
-import Web.Staff.Mutations (staffUpdateTouchedResources)
+import Web.Staff.Mutations (staffCreateTouchedResources, staffUpdateTouchedResources)
 import Web.Types
 
 tests :: Spec
@@ -49,7 +49,21 @@ tests = beforeAll testContext do
             response <- callAction NewStaffAction
             response `responseStatusShouldBe` status302
 
-        it "lets managers create active trial staff placeholders with selected roster groups" $ withContext do
+        it "labels the trial staff dialog as add trial" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Trial Staff Dialog Venue"
+                manager <- createUserRecord "trial-staff-dialog-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction NewStaffAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Add Trial"
+                response `responseBodyShouldNotContain` "Edit Staff Member"
+
+        it "lets managers create active casual trial staff placeholders with selected roster groups" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Trial Staff Venue"
                 manager <- createUserRecord "trial-staff-manager@example.com" "staff" True
@@ -80,6 +94,7 @@ tests = beforeAll testContext do
                     |> fetchOne
                 staff.userId `shouldBe` Nothing
                 staff.isActive `shouldBe` True
+                staff.employmentBasis `shouldBe` Casual
                 assignments <- query @StaffRosterGroup
                     |> filterWhere (#staffId, unpackId staff.id)
                     |> filterWhere (#deletedAt, Nothing)
@@ -135,6 +150,18 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Choose roster groups from the current venue."
                 exists <- query @Staff |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#firstName, "Cross" :: Text) |> fetchExists
                 exists `shouldBe` False
+
+        it "records touched resources for trial staff creation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Create Touched Venue"
+                staff <- createStaffRecord venue Nothing "Trace" "Trial"
+
+                Set.fromList (staffCreateTouchedResources staff)
+                    `shouldBe` Set.fromList
+                        [ StaffProfileResource (unpackId staff.id)
+                        , StaffPreferencesResource (unpackId staff.id)
+                        , StaffRosterMembershipResource (unpackId staff.id)
+                        ]
 
         it "records touched resources for staff updates" $ withContext do
             withCleanDb do

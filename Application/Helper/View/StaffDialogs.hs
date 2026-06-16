@@ -1,5 +1,7 @@
 module Application.Helper.View.StaffDialogs
     ( renderStaffEditDialog
+    , renderStaffAddTrialDialogWithButtons
+    , renderStaffAddTrialPageModalWithButtons
     , renderStaffEditDialogWithButtons
     , renderStaffEditPageModal
     , renderStaffEditPageModalWithButtons
@@ -18,11 +20,17 @@ renderStaffEditPageModal weekOffset formId =
     renderStaffEditPageModalWithButtons weekOffset (defaultOverlayButtons formId)
 
 renderStaffEditPageModalWithButtons :: Int -> [OverlayButton] -> Html -> Html
-renderStaffEditPageModalWithButtons weekOffset buttons formContent =
+renderStaffEditPageModalWithButtons = renderStaffPageModalWithTitle "Edit Staff Member"
+
+renderStaffAddTrialPageModalWithButtons :: Int -> [OverlayButton] -> Html -> Html
+renderStaffAddTrialPageModalWithButtons = renderStaffPageModalWithTitle "Add Trial"
+
+renderStaffPageModalWithTitle :: Text -> Int -> [OverlayButton] -> Html -> Html
+renderStaffPageModalWithTitle title weekOffset buttons formContent =
     renderPageDialogModal
         (pathTo (ShowRosterWeekAction weekOffset))
         DialogOverlayConfig
-            { dialogOverlayTitle = "Edit Staff Member"
+            { dialogOverlayTitle = title
             , dialogOverlayBody = formContent
             , dialogOverlayStartButtons = []
             , dialogOverlayButtons = buttons
@@ -34,9 +42,15 @@ renderStaffEditDialog formId =
     renderStaffEditDialogWithButtons (defaultOverlayButtons formId)
 
 renderStaffEditDialogWithButtons :: [OverlayButton] -> Html -> Html
-renderStaffEditDialogWithButtons buttons formContent =
+renderStaffEditDialogWithButtons = renderStaffDialogWithTitle "Edit Staff Member"
+
+renderStaffAddTrialDialogWithButtons :: [OverlayButton] -> Html -> Html
+renderStaffAddTrialDialogWithButtons = renderStaffDialogWithTitle "Add Trial"
+
+renderStaffDialogWithTitle :: Text -> [OverlayButton] -> Html -> Html
+renderStaffDialogWithTitle title buttons formContent =
     renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = "Edit Staff Member"
+        { dialogOverlayTitle = title
         , dialogOverlayBody = formContent
         , dialogOverlayStartButtons = []
         , dialogOverlayButtons = buttons

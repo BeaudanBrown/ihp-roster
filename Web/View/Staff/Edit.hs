@@ -22,7 +22,7 @@ data NewView = NewView
 
 instance View NewView where
     html NewView { .. } =
-        renderStaffEditPageModalWithButtons
+        renderStaffAddTrialPageModalWithButtons
             weekOffset
             []
             (renderNewStaffBody PageOverlayForm staff rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds weekOffset maybeRosterGroupId)
@@ -64,7 +64,7 @@ staffSectionsAccordionId = "staff-sections"
 
 renderNewStaffModalFragment :: Staff -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Int -> Maybe (Id RosterGroup) -> Html
 renderNewStaffModalFragment staff rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds weekOffset maybeRosterGroupId =
-    renderStaffEditDialogWithButtons
+    renderStaffAddTrialDialogWithButtons
         []
         (renderNewStaffBody HtmxOverlayForm staff rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds weekOffset maybeRosterGroupId)
 

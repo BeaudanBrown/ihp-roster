@@ -273,7 +273,7 @@ renderStaffManagementFields StaffManagementFieldData { managementStaff = staff, 
     {maybe mempty renderWeekOffsetHiddenInput maybeWeekOffset}
     {renderRosterGroupHiddenInput maybeRosterGroupId}
     {when currentUserIsAdmin (renderStaffPayFields staff awardLevels awardLevelBaseRates importedPayItems)}
-    <div class="mb-3">
+    <div class="mt-3">
         <label for="isActive" class="form-label">Status</label>
         <select name="isActive" id="isActive" class={selectClass staff "isActive"}>
             <option value="on" selected={staff.isActive}>Active</option>
@@ -281,7 +281,7 @@ renderStaffManagementFields StaffManagementFieldData { managementStaff = staff, 
         </select>
         {renderStaffFieldError staff "isActive"}
     </div>
-    <div class="mb-3">
+    <div class="mt-3">
         <label class="form-label d-block">Roster Groups</label>
         <div class="row g-2">
             {forEach rosterGroups (renderRosterGroupCheckbox selectedRosterGroupIds)}
@@ -294,7 +294,7 @@ renderWeekOffsetHiddenInput weekOffset = [hsx|<input type="hidden" name="weekOff
 
 renderStaffPayFields :: Staff -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Html
 renderStaffPayFields staff awardLevels awardLevelBaseRates importedPayItems = [hsx|
-    <div class="row g-3">
+    <div class="row g-3 mt-3 staff-pay-field-grid">
         <div class="col-12 col-md-6">
             <label for="employmentBasis" class="form-label">Employment Basis</label>
             <select name="employmentBasis" id="employmentBasis" class={selectClass staff "employmentBasis"}>
