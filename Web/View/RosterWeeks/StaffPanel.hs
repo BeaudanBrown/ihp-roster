@@ -37,8 +37,7 @@ renderRosterStaffPanel weekOffset currentRosterGroupId hasMultipleRosterGroups p
         <div class="app-panel-body">
             <div class="roster-staff-panel-header">
                 <div>
-                    <h2 class="h5 mb-1">Staff</h2>
-                    <div class="roster-staff-panel-summary">{staffPanelSummary panelScope panelStaff}</div>
+                    <h2 class="h5 mb-0">Staff</h2>
                 </div>
                 <div class="d-flex flex-column align-items-end gap-2">
                     <button type="button"
@@ -96,10 +95,6 @@ sortRosterStaffPanelEntries panelStaffMembers =
             <> compare (get #id left.staff) (get #id right.staff)
     where
         sortName entry = Text.toCaseFold (staffDisplayName panelStaffMembers entry.staff)
-
-staffPanelSummary :: RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Text
-staffPanelSummary RosterStaffPanelCurrentGroup panelStaff = tshow (length panelStaff) <> " group staff"
-staffPanelSummary RosterStaffPanelAllVenue panelStaff = tshow (length panelStaff) <> " active staff"
 
 renderStaffScopeToggle :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterStaffPanelScope -> Html
 renderStaffScopeToggle weekOffset currentRosterGroupId panelScope = [hsx|

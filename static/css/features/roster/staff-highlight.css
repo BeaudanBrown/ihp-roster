@@ -12,12 +12,13 @@
     --roster-staff-highlight-depth-fill: var(--roster-staff-highlight-cell-fill);
     --roster-staff-highlight-depth-start: color-mix(in srgb, var(--roster-staff-highlight-depth-fill) 78%, var(--app-white-alpha-08));
     --roster-staff-highlight-depth-end: color-mix(in srgb, var(--roster-staff-highlight-depth-fill) 94%, var(--app-bg));
-    background: linear-gradient(180deg, var(--roster-staff-highlight-depth-start), var(--roster-staff-highlight-depth-end)) !important;
+    background-color: var(--roster-staff-highlight-depth-fill) !important;
+    background-image: linear-gradient(180deg, var(--roster-staff-highlight-depth-start), var(--roster-staff-highlight-depth-end)) !important;
     color: var(--app-text) !important;
     box-shadow:
         inset 0 1px 0 color-mix(in srgb, var(--app-white) 12%, transparent),
         inset 0 -1px 0 color-mix(in srgb, var(--app-bg) 22%, transparent) !important;
-    text-shadow: 0 1px 0 color-mix(in srgb, var(--app-bg) 38%, transparent);
+    text-shadow: 0 1px 0 color-mix(in srgb, var(--app-bg) 38%, transparent) !important;
 }
 
 .roster-shift-card.is-roster-staff-slot-highlighted,
@@ -31,10 +32,24 @@
 .roster-shift-card.is-roster-staff-slot-highlighted-start .roster-shift-card-field,
 .roster-shift-card.is-roster-staff-slot-highlighted-end .roster-shift-card-field {
     --roster-staff-highlight-depth-fill: var(--roster-staff-highlight-cell-fill);
-    background: linear-gradient(180deg, var(--roster-staff-highlight-depth-start), var(--roster-staff-highlight-depth-end)) !important;
+    background-color: var(--roster-staff-highlight-depth-fill) !important;
+    background-image: linear-gradient(180deg, var(--roster-staff-highlight-depth-start), var(--roster-staff-highlight-depth-end)) !important;
     color: var(--app-text) !important;
     box-shadow:
         inset 0 1px 0 color-mix(in srgb, var(--app-white) 12%, transparent),
         inset 0 -1px 0 color-mix(in srgb, var(--app-bg) 22%, transparent) !important;
-    text-shadow: 0 1px 0 color-mix(in srgb, var(--app-bg) 38%, transparent);
+    text-shadow: 0 1px 0 color-mix(in srgb, var(--app-bg) 38%, transparent) !important;
+}
+
+.roster-grid-frame[data-roster-warnings="hidden"] .roster-grid [role="gridcell"].is-roster-staff-slot-highlighted,
+.roster-grid-frame[data-roster-warnings="hidden"] .roster-shift-card.is-roster-staff-slot-highlighted .roster-shift-card-field,
+.roster-grid-frame[data-roster-warnings="hidden"] .roster-shift-card.is-roster-staff-slot-highlighted-start .roster-shift-card-field,
+.roster-grid-frame[data-roster-warnings="hidden"] .roster-shift-card.is-roster-staff-slot-highlighted-end .roster-shift-card-field {
+    background-color: var(--roster-staff-highlight-depth-fill) !important;
+    background-image: linear-gradient(180deg, var(--roster-staff-highlight-depth-start), var(--roster-staff-highlight-depth-end)) !important;
+    color: var(--app-text) !important;
+    box-shadow:
+        inset 0 1px 0 color-mix(in srgb, var(--app-white) 12%, transparent),
+        inset 0 -1px 0 color-mix(in srgb, var(--app-bg) 22%, transparent) !important;
+    text-shadow: 0 1px 0 color-mix(in srgb, var(--app-bg) 38%, transparent) !important;
 }

@@ -1453,7 +1453,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-roster-staff-name=\"Bravo\""
                 response `responseBodyShouldContain` "data-roster-staff-name=\"Trial\""
                 response `responseBodyShouldNotContain` "data-roster-staff-name=\"Other\""
-                response `responseBodyShouldContain` "4 active staff"
+                response `responseBodyShouldNotContain` "active staff"
 
         it "staff row fragment fetch returns no roster row for a draft week" $ withContext do
             withCleanDb do

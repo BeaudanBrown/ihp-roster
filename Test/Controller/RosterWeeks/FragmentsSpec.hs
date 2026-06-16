@@ -355,11 +355,13 @@ tests = beforeAll testContext do
             shiftCardCssBytes <- ByteString.readFile "static/css/features/roster/shift-card.css"
             statesCssBytes <- ByteString.readFile "static/css/features/roster/states.css"
             staffPanelCssBytes <- ByteString.readFile "static/css/features/roster/staff-panel.css"
+            staffHighlightCssBytes <- ByteString.readFile "static/css/features/roster/staff-highlight.css"
             let css = cs cssBytes :: String
             let dayActionsCss = cs dayActionsCssBytes :: String
             let shiftCardCss = cs shiftCardCssBytes :: String
             let statesCss = cs statesCssBytes :: String
             let staffPanelCss = cs staffPanelCssBytes :: String
+            let staffHighlightCss = cs staffHighlightCssBytes :: String
             css `shouldContain` ".roster-grid .roster-shift-create-plus-cell .slot-cell-static"
             css `shouldContain` "opacity: 0;"
             css `shouldContain` ".roster-grid .roster-shift-create-plus-cell:hover .slot-cell-static"
@@ -376,6 +378,8 @@ tests = beforeAll testContext do
             statesCss `shouldContain` "background-image: linear-gradient(180deg, var(--roster-conflict-bg-start), var(--roster-conflict-bg))"
             staffPanelCss `shouldContain` ".roster-staff-name"
             staffPanelCss `shouldContain` "padding-left: 0.55rem !important;"
+            staffHighlightCss `shouldContain` ".roster-grid-frame[data-roster-warnings=\"hidden\"] .roster-grid [role=\"gridcell\"].is-roster-staff-slot-highlighted"
+            staffHighlightCss `shouldContain` ".roster-grid-frame[data-roster-warnings=\"hidden\"] .roster-shift-card.is-roster-staff-slot-highlighted .roster-shift-card-field"
 
         it "allows assigning staff who are applicable to the slot's roster group" $ withContext do
             withCleanDb do
