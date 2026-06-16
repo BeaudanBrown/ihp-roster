@@ -7,6 +7,7 @@ module Web.Staff.Mutations
     , updateStaffMember
     ) where
 
+import Application.Helper.Audit (updateVenueMembershipRoleWithAudit)
 import Application.Helper.LiveResource
 import Application.Helper.Pay (ensureStaffPayVersionForStaff)
 import Application.Helper.RosterGroups (syncStaffRosterGroupAssignments)
@@ -16,6 +17,7 @@ import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection,
 import Application.Helper.VenueInvitation (venueInvitationLifetime)
 import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob)
 import Control.Monad (void)
+import qualified Data.Aeson as Aeson
 import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
 import Web.Controller.Prelude
 import Web.LiveResourceInvalidation (invalidateTouchedResources)
@@ -76,8 +78,8 @@ staffCreateTouchedResources staff =
     , StaffRosterMembershipResource (unpackId staff.id)
     ]
 
-updateStaffMember :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> Staff -> [Id RosterGroup] -> [ShiftPreferenceSelection] -> IO (LiveMutationResult Staff)
-updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections = do
+updateStaffMember :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> Staff -> [Id RosterGroup] -> [ShiftPreferenceSelection] -> Maybe VenueMembership -> Maybe VenueRoleEnum -> IO (LiveMutationResult Staff)
+updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections maybeMembership maybeVenueRole = do
     updatedStaff <- withTransaction do
         updatedStaff <- staff |> updateRecord
         syncStaffRosterGroupAssignments updatedStaff selectedRosterGroupIds
@@ -86,6 +88,13 @@ updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections
             today <- utctDay <$> getCurrentTime
             void (ensureStaffPayVersionForStaff currentUser.id updatedStaff today)
         pure updatedStaff
+    forM_ ((,) <$> maybeMembership <*> maybeVenueRole) \(membership, venueRole) ->
+        void $ updateVenueMembershipRoleWithAudit
+            (unpackId currentUser.id)
+            "web"
+            membership
+            venueRole
+            (Aeson.object ["staffId" Aeson..= tshow staff.id])
     let payScopeChanged = staffXeroPayItemScopeChanged originalStaff updatedStaff
     invalidateTouchedResources "staff.update" (liveMutationResult updatedStaff (staffUpdateTouchedResources payScopeChanged updatedStaff))
 

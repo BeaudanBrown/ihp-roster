@@ -130,7 +130,7 @@ instance Controller ProfilesController where
                             if canManageProfileStaff
                                 then case (maybeExistingStaff, maybeSelectedRosterGroupIds, maybeSubmittedDefaultAwardLevelId, maybeSubmittedImportedXeroPayItemId) of
                                     (Just originalStaff, Just selectedRosterGroupIds, Just _, Just _) -> do
-                                        mutationResult <- updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections
+                                        mutationResult <- updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections Nothing Nothing
                                         let updatedStaff = mutationResult.liveMutationValue
                                         updatedManagementFields <- fetchProfileStaffManagementFields (Just updatedStaff) (Just selectedRosterGroupIds)
                                         if isHtmxRequest
@@ -196,6 +196,7 @@ fetchProfileStaffManagementFields (Just staff) maybeSubmittedRosterGroupIds
                     , managementAwardLevelBaseRates = awardLevelBaseRates
                     , managementImportedPayItems = importedPayItems
                     , managementSelectedRosterGroupIds = selectedRosterGroupIds
+                    , managementVenueMembership = Nothing
                     , managementWeekOffset = Nothing
                     , managementRosterGroupId = Nothing
                     }

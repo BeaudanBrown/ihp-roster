@@ -1,5 +1,7 @@
 module Web.View.StaffProfileForm where
 
+import Application.Helper.Controller (VenueRole (..), currentUserIsSuperAdmin,
+                                      hasRole, parseVenueRole, venueRoleToText)
 import Application.Helper.StaffShiftPreferences
 import qualified Data.Text as Text
 import Numeric (showFFloat)
@@ -12,6 +14,7 @@ data StaffManagementFieldData = StaffManagementFieldData
     , managementAwardLevelBaseRates    :: [AwardLevelBaseRate]
     , managementImportedPayItems       :: [XeroImportedPayItem]
     , managementSelectedRosterGroupIds :: [Id RosterGroup]
+    , managementVenueMembership        :: Maybe VenueMembership
     , managementWeekOffset             :: Maybe Int
     , managementRosterGroupId          :: Maybe (Id RosterGroup)
     }
@@ -278,9 +281,10 @@ hasStaffErrorFor :: Staff -> Text -> Bool
 hasStaffErrorFor staff fieldName = isJust (lookup fieldName staff.meta.annotations)
 
 renderStaffManagementFields :: StaffManagementFieldData -> Html
-renderStaffManagementFields StaffManagementFieldData { managementStaff = staff, managementRosterGroups = rosterGroups, managementAwardLevels = awardLevels, managementAwardLevelBaseRates = awardLevelBaseRates, managementImportedPayItems = importedPayItems, managementSelectedRosterGroupIds = selectedRosterGroupIds, managementWeekOffset = maybeWeekOffset, managementRosterGroupId = maybeRosterGroupId } = [hsx|
+renderStaffManagementFields StaffManagementFieldData { managementStaff = staff, managementRosterGroups = rosterGroups, managementAwardLevels = awardLevels, managementAwardLevelBaseRates = awardLevelBaseRates, managementImportedPayItems = importedPayItems, managementSelectedRosterGroupIds = selectedRosterGroupIds, managementVenueMembership = maybeMembership, managementWeekOffset = maybeWeekOffset, managementRosterGroupId = maybeRosterGroupId } = [hsx|
     {maybe mempty renderWeekOffsetHiddenInput maybeWeekOffset}
     {renderRosterGroupHiddenInput maybeRosterGroupId}
+    {when currentUserIsAdmin (renderStaffRoleField maybeMembership)}
     {when currentUserIsAdmin (renderStaffPayFields staff awardLevels awardLevelBaseRates importedPayItems)}
     <div class="mt-3">
         <label for="isActive" class="form-label">Status</label>
@@ -300,6 +304,34 @@ renderStaffManagementFields StaffManagementFieldData { managementStaff = staff, 
 
 renderWeekOffsetHiddenInput :: Int -> Html
 renderWeekOffsetHiddenInput weekOffset = [hsx|<input type="hidden" name="weekOffset" value={tshow weekOffset} />|]
+
+renderStaffRoleField :: Maybe VenueMembership -> Html
+renderStaffRoleField Nothing = mempty
+renderStaffRoleField (Just membership) = [hsx|
+    <div class="mt-3">
+        <label for="venueRole" class="form-label">Staff Role</label>
+        <select name="venueRole" id="venueRole" class="form-select">
+            {forEach assignableVenueRoles (renderVenueRoleOption membership)}
+        </select>
+        <div class="form-text">Controls this person's access level in the current venue.</div>
+    </div>
+|]
+
+assignableVenueRoles :: (?context :: ControllerContext) => [VenueRole]
+assignableVenueRoles =
+    [WorkerRole, ManagerRole', VenueAdminRole]
+        <> [VenueOwnerRole | currentUserIsSuperAdmin || hasRole VenueOwnerRole]
+
+renderVenueRoleOption :: VenueMembership -> VenueRole -> Html
+renderVenueRoleOption membership venueRole = [hsx|
+    <option value={venueRoleToText venueRole} selected={parseVenueRole membership.venueRole == Just venueRole}>{venueRoleLabel venueRole}</option>
+|]
+
+venueRoleLabel :: VenueRole -> Text
+venueRoleLabel WorkerRole     = "Worker"
+venueRoleLabel ManagerRole'   = "Manager"
+venueRoleLabel VenueAdminRole = "Venue Admin"
+venueRoleLabel VenueOwnerRole = "Venue Owner"
 
 renderStaffPayFields :: Staff -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Html
 renderStaffPayFields staff awardLevels awardLevelBaseRates importedPayItems = [hsx|

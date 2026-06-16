@@ -2,6 +2,8 @@ module Web.Controller.Staff where
 
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchStaffLeaveRequests)
+import Application.Helper.Controller (VenueRole (..), parseVenueRole,
+                                      venueRoleToEnum)
 import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
                                         fetchCurrentVenueRosterGroupIds,
                                         fetchCurrentVenueRosterGroups,
@@ -82,6 +84,7 @@ instance Controller StaffController where
         staff <- fetch staffId
         ensureRecordInCurrentVenue staff.venueId
         maybeLinkedUserEmail <- fetchStaffLinkedUserEmail staff
+        maybeVenueMembership <- fetchStaffVenueMembership staff
         pendingTrialStaffInvitation <- fetchPendingTrialStaffInvitation staff
         let weekOffset = paramOrDefault @Int 0 "weekOffset"
         let maybeRosterGroupId = paramOrNothing "rosterGroupId"
@@ -99,7 +102,7 @@ instance Controller StaffController where
         leaveRequests <- fetchStaffLeaveRequests staff
         today <- utctDay <$> getCurrentTime
         if isHtmxRequest
-            then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
+            then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
             else render EditView { .. }
 
     action UpdateStaffAction { staffId } = do
@@ -108,6 +111,7 @@ instance Controller StaffController where
         ensureRecordInCurrentVenue staff.venueId
         let originalStaff = staff
         maybeLinkedUserEmail <- fetchStaffLinkedUserEmail staff
+        maybeVenueMembership <- fetchStaffVenueMembership staff
         pendingTrialStaffInvitation <- fetchPendingTrialStaffInvitation staff
         let submittedShiftPreferenceKeys = nub (paramTexts "shiftPreferenceKeys")
         let weekOffset = paramOrDefault @Int 0 "weekOffset"
@@ -136,7 +140,7 @@ instance Controller StaffController where
                 else fetchStaffShiftPreferenceSelections staff
         let renderStaffEditResponse renderedStaff renderedRosterGroupIds renderedPreferences =
                 if isHtmxRequest
-                    then respondHtml (renderStaffEditModalFragment renderedStaff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems renderedRosterGroupIds preferenceWeekdays renderedPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
+                    then respondHtml (renderStaffEditModalFragment renderedStaff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems renderedRosterGroupIds maybeVenueMembership preferenceWeekdays renderedPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
                     else do
                         let selectedRosterGroupIds = renderedRosterGroupIds
                         let selectedShiftPreferences = renderedPreferences
@@ -161,10 +165,11 @@ instance Controller StaffController where
                     setErrorMessage preferenceError
                     renderStaffEditResponse staff currentSelectedRosterGroupIds selectedShiftPreferences
                 Right submittedSelections -> do
-                    _ <- updateStaffMember originalStaff staff currentSelectedRosterGroupIds submittedSelections
+                    _ <- updateStaffMember originalStaff staff currentSelectedRosterGroupIds submittedSelections Nothing Nothing
                     respondStaffUpdateSuccess "Shift preferences updated"
             else do
                 maybeSelectedRosterGroupIds <- parseStaffRosterGroupIds
+                maybeSubmittedVenueRole <- if canManageStaffPay then parseSubmittedStaffVenueRole staff maybeVenueMembership else pure (Just Nothing)
                 maybeSubmittedPayRateSelection <- if canManageStaffPay then parseSubmittedPayRateSelection "payRateSelection" else pure (Just emptyStaffPayRateSelection)
                 let maybeSubmittedDefaultAwardLevelId = submittedAwardLevelId <$> maybeSubmittedPayRateSelection
                 let maybeSubmittedImportedXeroPayItemId = submittedImportedXeroPayItemId <$> maybeSubmittedPayRateSelection
@@ -173,9 +178,9 @@ instance Controller StaffController where
                     |> ifValid \case
                         Left invalidStaff -> renderStaffEditResponse invalidStaff submittedRosterGroupIds selectedShiftPreferences
                         Right validStaff -> do
-                            case (maybeSelectedRosterGroupIds, maybeSubmittedDefaultAwardLevelId, maybeSubmittedImportedXeroPayItemId) of
-                                (Just selectedRosterGroupIds, Just _, Just _) -> do
-                                    _ <- updateStaffMember originalStaff validStaff selectedRosterGroupIds selectedShiftPreferences
+                            case (maybeSelectedRosterGroupIds, maybeSubmittedVenueRole, maybeSubmittedDefaultAwardLevelId, maybeSubmittedImportedXeroPayItemId) of
+                                (Just selectedRosterGroupIds, Just submittedVenueRole, Just _, Just _) -> do
+                                    _ <- updateStaffMember originalStaff validStaff selectedRosterGroupIds selectedShiftPreferences maybeVenueMembership submittedVenueRole
                                     respondStaffUpdateSuccess "Staff member updated"
                                 _ -> renderStaffEditResponse validStaff submittedRosterGroupIds selectedShiftPreferences
 
@@ -220,6 +225,7 @@ renderNewStaffResponse staff selectedRosterGroupIds rosterGroups awardLevels awa
 renderStaffEditResponseFor :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Staff -> Text -> Maybe ToastOverlayConfig -> IO ()
 renderStaffEditResponseFor staff openSection maybeToast = do
     maybeLinkedUserEmail <- fetchStaffLinkedUserEmail staff
+    maybeVenueMembership <- fetchStaffVenueMembership staff
     pendingTrialStaffInvitation <- fetchPendingTrialStaffInvitation staff
     let weekOffset = paramOrDefault @Int 0 "weekOffset"
     let maybeRosterGroupId = paramOrNothing "rosterGroupId"
@@ -237,7 +243,7 @@ renderStaffEditResponseFor staff openSection maybeToast = do
     today <- utctDay <$> getCurrentTime
     if isHtmxRequest
         then respondHtml [hsx|
-            {renderStaffEditModalFragment staff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection}
+            {renderStaffEditModalFragment staff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection}
             {maybe mempty (renderToastOob ToastBottomCenter) maybeToast}
         |]
         else render EditView { .. }
@@ -330,6 +336,58 @@ fetchStaffLinkedUserEmail staff =
     case staff.userId of
         Nothing     -> pure Nothing
         Just userId -> Just . (.email) <$> fetch (Id userId :: Id User)
+
+fetchStaffVenueMembership :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Staff -> IO (Maybe VenueMembership)
+fetchStaffVenueMembership staff =
+    case staff.userId of
+        Nothing -> pure Nothing
+        Just userId ->
+            query @VenueMembership
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhere (#userId, userId)
+                |> filterWhere (#isActive, True)
+                |> fetchOneOrNothing
+
+parseSubmittedStaffVenueRole :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> Maybe VenueMembership -> IO (Maybe (Maybe VenueRoleEnum))
+parseSubmittedStaffVenueRole _ Nothing = pure (Just Nothing)
+parseSubmittedStaffVenueRole staff (Just membership) = do
+    let submittedRoleText = paramOrDefault @Text "" "venueRole"
+    case parseVenueRole submittedRoleText of
+        Nothing -> do
+            setErrorMessage "Choose a valid staff role."
+            pure Nothing
+        Just submittedRole -> do
+            let existingRole = parseVenueRole membership.venueRole
+            if not (currentUserCanAssignVenueRole existingRole submittedRole)
+                then do
+                    setErrorMessage "Only the venue owner or a super admin can assign venue owner access."
+                    pure Nothing
+                else if membership.userId == unpackId currentUser.id && submittedRole < VenueAdminRole
+                    then do
+                        setErrorMessage "You cannot remove your own admin access."
+                        pure Nothing
+                else if existingRole == Just VenueOwnerRole && submittedRole /= VenueOwnerRole
+                    then do
+                        ownerCount <- activeVenueOwnerCount
+                        if ownerCount <= 1
+                            then do
+                                setErrorMessage "Each venue needs at least one owner."
+                                pure Nothing
+                            else pure (Just (Just (venueRoleToEnum submittedRole)))
+                    else pure (Just (Just (venueRoleToEnum submittedRole)))
+    where
+        currentUserCanAssignVenueRole existingRole submittedRole =
+            currentUserIsSuperAdmin
+                || hasRole VenueOwnerRole
+                || (submittedRole /= VenueOwnerRole && existingRole /= Just VenueOwnerRole)
+
+activeVenueOwnerCount :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Int
+activeVenueOwnerCount =
+    query @VenueMembership
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#venueRole, venueRoleToEnum VenueOwnerRole)
+        |> filterWhere (#isActive, True)
+        |> fetchCount
 
 parseStaffRosterGroupIds :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Maybe [Id RosterGroup])
 parseStaffRosterGroupIds = do

@@ -499,6 +499,46 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "FWC: Level 3 (perm $32.75/hr)"
                 response `responseBodyShouldContain` "Not assigned"
 
+        it "lets venue admins view and update a linked staff member venue role" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Role Venue"
+                admin <- createUserRecord "staff-role-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                workerUser <- createUserRecord "staff-role-worker@example.com" "staff" True
+                membership <- createVenueMembershipRecord venue workerUser "worker"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
+                staff <- createStaffRecord venue (Just workerUser) "Role" "Target"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Staff Role"
+                response `responseBodyShouldContain` "<select name=\"venueRole\""
+                response `responseBodyShouldContain` "<option value=\"worker\" selected"
+
+                updateResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (UpdateStaffAction staff.id)
+                        [ ("firstName", "Role")
+                        , ("lastName", "Target")
+                        , ("phone", "0400000000")
+                        , ("emergencyContactName", "Jordan Crew")
+                        , ("emergencyContactPhone", "0411111111")
+                        , ("idealShiftsPerWeek", "4")
+                        , ("isActive", "on")
+                        , ("employmentBasis", "casual")
+                        , ("payRateSelection", "")
+                        , ("venueRole", "manager")
+                        , ("weekOffset", "0")
+                        , ("rosterGroupIds", cs (tshow rosterGroup.id))
+                        ]
+
+                updateResponse `responseStatusShouldBe` status302
+                updatedMembership <- fetch membership.id
+                inputValue updatedMembership.venueRole `shouldBe` ("manager" :: Text)
+                auditEvent <- query @AuditEvent |> filterWhere (#targetId, unpackId membership.id) |> fetchOne
+                auditEvent.eventType `shouldBe` "venue_role_changed"
+
         it "shows active imported Xero pay items in the staff pay override dropdown" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Imported Pay Item Venue"
