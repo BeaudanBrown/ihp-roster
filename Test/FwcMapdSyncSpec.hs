@@ -263,8 +263,42 @@ tests = do
                     map (.hourlyRate) baseRates `shouldBe` [24.95, 25.80]
                     map (.operativeFrom) baseRates `shouldBe` [Just (fromGregorian 2025 7 1), Just (fromGregorian 2026 7 1)]
 
-            it "builds the support/admin award-rate view model from current core hospitality rows" $ withContext do
+            it "builds the support/admin award-rate view model from the latest current core hospitality snapshot" $ withContext do
                 withCleanDb do
+                    let oldSyncedAt = UTCTime (fromGregorian 2026 1 1) 0
+                    let latestSyncedAt = UTCTime (fromGregorian 2026 2 1) 0
+                    _ <-
+                        newRecord @FwcMapdAward
+                            |> set #awardFixedId 9
+                            |> set #awardId 8009
+                            |> set #code "MA000009"
+                            |> set #name "Hospitality Industry (General) Award 2020"
+                            |> set #awardOperativeTo (Nothing :: Maybe Day)
+                            |> set #syncedAt oldSyncedAt
+                            |> createRecord
+                    _ <-
+                        newRecord @FwcMapdClassification
+                            |> set #awardFixedId 9
+                            |> set #classificationFixedId 101
+                            |> set #classification "Level 1"
+                            |> set #parentClassificationName (Just "Food and beverage attendant grade 1")
+                            |> set #clauseDescription (Just "Hospitality employees")
+                            |> set #operativeTo (Nothing :: Maybe Day)
+                            |> set #syncedAt oldSyncedAt
+                            |> createRecord
+                    _ <-
+                        newRecord @FwcMapdPayRate
+                            |> set #awardFixedId 9
+                            |> set #classificationFixedId (Just 101)
+                            |> set #classification "Level 1"
+                            |> set #parentClassificationName (Just "Food and beverage attendant grade 1")
+                            |> set #employeeRateTypeCode (Just "AD")
+                            |> set #calculatedRate (Just 23.95)
+                            |> set #calculatedRateType (Just "Hourly")
+                            |> set #operativeTo (Nothing :: Maybe Day)
+                            |> set #syncedAt oldSyncedAt
+                            |> createRecord
+
                     award <-
                         newRecord @FwcMapdAward
                             |> set #awardFixedId 9
@@ -272,6 +306,7 @@ tests = do
                             |> set #code "MA000009"
                             |> set #name "Hospitality Industry (General) Award 2020"
                             |> set #awardOperativeTo (Nothing :: Maybe Day)
+                            |> set #syncedAt latestSyncedAt
                             |> createRecord
                     _ <-
                         newRecord @FwcMapdAward
@@ -280,6 +315,7 @@ tests = do
                             |> set #code "OLD"
                             |> set #name "Closed Award"
                             |> set #awardOperativeTo (Just (fromGregorian 2024 6 30))
+                            |> set #syncedAt latestSyncedAt
                             |> createRecord
                     coreClassification <-
                         newRecord @FwcMapdClassification
@@ -289,6 +325,7 @@ tests = do
                             |> set #parentClassificationName (Just "Food and beverage attendant grade 1")
                             |> set #clauseDescription (Just "Hospitality employees")
                             |> set #operativeTo (Nothing :: Maybe Day)
+                            |> set #syncedAt latestSyncedAt
                             |> createRecord
                     _ <-
                         newRecord @FwcMapdClassification
@@ -297,6 +334,7 @@ tests = do
                             |> set #classification "Level 1"
                             |> set #parentClassificationName (Just "Casino electronic gaming employee grade 1")
                             |> set #operativeTo (Nothing :: Maybe Day)
+                            |> set #syncedAt latestSyncedAt
                             |> createRecord
                     _ <-
                         newRecord @FwcMapdClassification
@@ -305,6 +343,7 @@ tests = do
                             |> set #classification "Loaded Rate"
                             |> set #clauseDescription (Just "LoadedRates schedule")
                             |> set #operativeTo (Nothing :: Maybe Day)
+                            |> set #syncedAt latestSyncedAt
                             |> createRecord
                     _ <-
                         newRecord @FwcMapdPayRate
@@ -316,6 +355,7 @@ tests = do
                             |> set #calculatedRate (Just 24.95)
                             |> set #calculatedRateType (Just "Hourly")
                             |> set #operativeTo (Nothing :: Maybe Day)
+                            |> set #syncedAt latestSyncedAt
                             |> createRecord
                     _ <-
                         newRecord @FwcMapdPayRate
@@ -326,6 +366,7 @@ tests = do
                             |> set #calculatedRate (Just 19.95)
                             |> set #calculatedRateType (Just "Hourly")
                             |> set #operativeTo (Nothing :: Maybe Day)
+                            |> set #syncedAt latestSyncedAt
                             |> createRecord
 
                     adminData <- fetchFwcMapdAdminData

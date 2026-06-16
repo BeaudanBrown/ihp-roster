@@ -39,21 +39,35 @@ fetchFwcMapdAdminData = do
             |> orderByDesc #startedAt
             |> fetchOneOrNothing
 
+    latestSyncedAt <- fetchLatestFwcMapdSnapshotSyncedAt
+
     currentAwards <-
-        query @FwcMapdAward
-            |> filterWhere (#awardOperativeTo, Nothing :: Maybe Day)
-            |> orderBy #code
-            |> fetch
+        case latestSyncedAt of
+            Nothing -> pure []
+            Just syncedAt ->
+                query @FwcMapdAward
+                    |> filterWhere (#syncedAt, syncedAt)
+                    |> filterWhere (#awardOperativeTo, Nothing :: Maybe Day)
+                    |> orderBy #code
+                    |> fetch
 
     currentClassifications <-
-        query @FwcMapdClassification
-            |> filterWhere (#operativeTo, Nothing :: Maybe Day)
-            |> fetch
+        case latestSyncedAt of
+            Nothing -> pure []
+            Just syncedAt ->
+                query @FwcMapdClassification
+                    |> filterWhere (#syncedAt, syncedAt)
+                    |> filterWhere (#operativeTo, Nothing :: Maybe Day)
+                    |> fetch
 
     currentPayRates <-
-        query @FwcMapdPayRate
-            |> filterWhere (#operativeTo, Nothing :: Maybe Day)
-            |> fetch
+        case latestSyncedAt of
+            Nothing -> pure []
+            Just syncedAt ->
+                query @FwcMapdPayRate
+                    |> filterWhere (#syncedAt, syncedAt)
+                    |> filterWhere (#operativeTo, Nothing :: Maybe Day)
+                    |> fetch
 
     let currentAwardByFixedId =
             currentAwards
@@ -86,6 +100,14 @@ fetchFwcMapdAdminData = do
             , currentCoreAdultPayRates = currentCoreAdultPayRates
             , rateTypeBreakdown = rateTypeBreakdown
             }
+
+fetchLatestFwcMapdSnapshotSyncedAt :: (?modelContext :: ModelContext) => IO (Maybe UTCTime)
+fetchLatestFwcMapdSnapshotSyncedAt = do
+    latestAward <-
+        query @FwcMapdAward
+            |> orderByDesc #syncedAt
+            |> fetchOneOrNothing
+    pure ((.syncedAt) <$> latestAward)
 
 mkDisplayPayRate :: Map.Map Int FwcMapdAward -> Map.Map Int FwcMapdClassification -> FwcMapdPayRate -> Maybe FwcMapdDisplayPayRate
 mkDisplayPayRate currentAwardByFixedId classificationsByFixedId payRate = do
