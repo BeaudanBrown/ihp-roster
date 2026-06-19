@@ -606,7 +606,6 @@ renderRosterShiftDialogForCreate :: (?context :: ControllerContext, ?modelContex
 renderRosterShiftDialogForCreate rosterDay rosterWeek slotDefinition rowIndex values = do
     staffMembers <- fetchEligibleRosterGroupStaff (coerce rosterWeek.rosterGroupId)
     shiftTypes <- fetchCurrentVenueRosterShiftTypesForDialog
-    venueConfig <- fetchVenueConfig
     let targetSlot =
             newRecord @RosterSlot
                 |> set #rosterDayId (unpackId rosterDay.id)
@@ -620,7 +619,6 @@ renderRosterShiftDialogForCreate rosterDay rosterWeek slotDefinition rowIndex va
         , rosterShiftDialogStaff = staffMembers
         , rosterShiftDialogStaffOptionStates = staffOptionStates
         , rosterShiftDialogShiftTypes = shiftTypes
-        , rosterShiftDialogEndTimes = venueConfig.rosterEndTimesEnabled
         , rosterShiftDialogValues = values
         }
 
@@ -628,7 +626,6 @@ renderRosterShiftDialogForEdit :: (?context :: ControllerContext, ?modelContext 
 renderRosterShiftDialogForEdit rosterSlot _rosterDay rosterWeek values = do
     staffMembers <- fetchEligibleRosterGroupStaff (coerce rosterWeek.rosterGroupId)
     shiftTypes <- fetchCurrentVenueRosterShiftTypesForDialog
-    venueConfig <- fetchVenueConfig
     staffOptionStates <- buildRosterShiftDialogStaffOptionStates (coerce rosterWeek.rosterGroupId) rosterWeek rosterSlot staffMembers
     respondHtmlProfiled $ renderRosterShiftDialog RosterShiftDialogData
         { rosterShiftDialogMode = EditRosterShiftDialog rosterSlot.id
@@ -636,7 +633,6 @@ renderRosterShiftDialogForEdit rosterSlot _rosterDay rosterWeek values = do
         , rosterShiftDialogStaff = staffMembers
         , rosterShiftDialogStaffOptionStates = staffOptionStates
         , rosterShiftDialogShiftTypes = shiftTypes
-        , rosterShiftDialogEndTimes = venueConfig.rosterEndTimesEnabled
         , rosterShiftDialogValues = values
         }
 
@@ -675,7 +671,6 @@ fetchCurrentVenueRosterShiftTypesForDialog =
 
 validateRosterShiftDialogSubmission :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> Maybe RosterSlot -> IO (Either RosterShiftDialogValues ValidatedRosterShift)
 validateRosterShiftDialogSubmission rosterGroupId rosterWeek maybeExistingSlot = do
-    venueConfig <- fetchVenueConfig
     let staffParam = paramOrNothing @Text "staffId"
     let startParam = paramOrNothing @Text "startTime"
     let endParam = paramOrNothing @Text "endTime"
@@ -703,7 +698,6 @@ validateRosterShiftDialogSubmission rosterGroupId rosterWeek maybeExistingSlot =
             | isNothing parsedStartTime = Just "Choose a valid start time."
             | otherwise = Nothing
     let endError
-            | not venueConfig.rosterEndTimesEnabled = Nothing
             | isNothing (normalizeOptionalText endParam) = Just "Choose an end time."
             | isNothing parsedEndTime = Just "Choose a valid end time."
             | otherwise = Nothing
@@ -712,7 +706,7 @@ validateRosterShiftDialogSubmission rosterGroupId rosterWeek maybeExistingSlot =
             | isNothing parsedShiftTypeId || not shiftTypeInVenue = Just "Choose a shift type for this venue."
             | otherwise = Nothing
     let timingError =
-            case (parsedStartTime, if venueConfig.rosterEndTimesEnabled then parsedEndTime else Nothing) of
+            case (parsedStartTime, parsedEndTime) of
                 (Just startTime, Just endTime)
                     | not (isValidRosterShiftTimePair startTime endTime) -> Just invalidRosterSlotTimingMessage
                 _ -> Nothing
@@ -723,12 +717,12 @@ validateRosterShiftDialogSubmission rosterGroupId rosterWeek maybeExistingSlot =
             , rosterShiftEndError = endError <|> timingError
             , rosterShiftTypeError = shiftTypeError
             }
-    case (staffError, startError, endError, shiftTypeError, timingError, parsedStaffId, parsedStartTime, parsedShiftTypeId) of
-        (Nothing, Nothing, Nothing, Nothing, Nothing, Just staffId, Just startTime, Just shiftTypeId) ->
+    case (staffError, startError, endError, shiftTypeError, timingError, parsedStaffId, parsedStartTime, parsedEndTime, parsedShiftTypeId) of
+        (Nothing, Nothing, Nothing, Nothing, Nothing, Just staffId, Just startTime, Just endTime, Just shiftTypeId) ->
             pure (Right ValidatedRosterShift
                 { validRosterShiftStaffId = staffId
                 , validRosterShiftStartTime = startTime
-                , validRosterShiftEndTime = if venueConfig.rosterEndTimesEnabled then parsedEndTime else Nothing
+                , validRosterShiftEndTime = Just endTime
                 , validRosterShiftTypeId = shiftTypeId
                 })
         _ -> pure (Left valuesWithErrors)
@@ -1027,7 +1021,6 @@ fetchRelatedSlotsForStaffIdsInRosterWeek rosterWeek staffIds =
 validateRosterWeekCanGoLive :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWeek -> Bool -> IO (Maybe Text)
 validateRosterWeekCanGoLive _ False = pure Nothing
 validateRosterWeekCanGoLive rosterWeek True = do
-    venueConfig <- fetchVenueConfig
     rosterDays <- query @RosterDay
         |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
         |> fetch
@@ -1038,24 +1031,21 @@ validateRosterWeekCanGoLive rosterWeek True = do
                 |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) rosterDays)
                 |> filterWhere (#deletedAt, Nothing)
                 |> fetch
-    let blockingSlots = filter (rosterSlotBlocksPublish venueConfig.rosterEndTimesEnabled) rosterSlots
+    let blockingSlots = filter rosterSlotBlocksPublish rosterSlots
     pure
         if null blockingSlots
             then Nothing
-            else Just (publishRequiredFieldsMessage venueConfig.rosterEndTimesEnabled)
+            else Just publishRequiredFieldsMessage
 
-publishRequiredFieldsMessage :: Bool -> Text
-publishRequiredFieldsMessage True = "Roster week cannot go live until every staffed shift has a start time, valid end time, and shift type."
-publishRequiredFieldsMessage False = "Roster week cannot go live until every staffed shift has a start time and shift type."
+publishRequiredFieldsMessage :: Text
+publishRequiredFieldsMessage = "Roster week cannot go live until every staffed shift has a start time, valid end time, and shift type."
 
-rosterSlotBlocksPublish :: Bool -> RosterSlot -> Bool
-rosterSlotBlocksPublish endTimesEnabled slot =
+rosterSlotBlocksPublish :: RosterSlot -> Bool
+rosterSlotBlocksPublish slot =
     isJust slot.staffId
         && ( isNothing slot.startTime
              || isNothing slot.shiftTypeId
-             || ( endTimesEnabled
-                    && not (rosterSlotHasValidStartEnd slot)
-                )
+             || not (rosterSlotHasValidStartEnd slot)
            )
 
 rosterSlotHasValidStartEnd :: RosterSlot -> Bool

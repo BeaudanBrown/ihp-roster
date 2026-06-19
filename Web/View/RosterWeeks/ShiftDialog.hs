@@ -56,7 +56,6 @@ data RosterShiftDialogData = RosterShiftDialogData
     , rosterShiftDialogStaff             :: ![Staff]
     , rosterShiftDialogStaffOptionStates :: !(Map.Map UUID RosterAssignmentOptionState)
     , rosterShiftDialogShiftTypes        :: ![ShiftType]
-    , rosterShiftDialogEndTimes   :: !Bool
     , rosterShiftDialogValues     :: !RosterShiftDialogValues
     }
 
@@ -107,7 +106,7 @@ deleteButton (EditRosterShiftDialog rosterSlotId) =
 
 
 renderRosterShiftForm :: (?context :: ControllerContext) => RosterShiftDialogData -> Html
-renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogStaff, rosterShiftDialogStaffOptionStates, rosterShiftDialogShiftTypes, rosterShiftDialogEndTimes, rosterShiftDialogValues } = [hsx|
+renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogStaff, rosterShiftDialogStaffOptionStates, rosterShiftDialogShiftTypes, rosterShiftDialogValues } = [hsx|
     <form id={rosterShiftFormId rosterShiftDialogMode}
           method="POST"
           action={rosterShiftFormAction rosterShiftDialogMode}
@@ -143,28 +142,20 @@ renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShift
         </div>
     |]
 
-    renderDialogTimeFields
-        | rosterShiftDialogEndTimes = [hsx|
-            <div class="row g-3 mb-3">
-                <div class="col-12 col-sm-6">
-                    <label class="form-label">Start time</label>
-                    {renderDialogTimePicker "startTime" "Start" rosterShiftDialogValues.rosterShiftStartTime (isJust rosterShiftDialogValues.rosterShiftStartError)}
-                    {renderDialogFieldError rosterShiftDialogValues.rosterShiftStartError}
-                </div>
-                <div class="col-12 col-sm-6">
-                    <label class="form-label">End time</label>
-                    {renderDialogTimePicker "endTime" "End" rosterShiftDialogValues.rosterShiftEndTime (isJust rosterShiftDialogValues.rosterShiftEndError)}
-                    {renderDialogFieldError rosterShiftDialogValues.rosterShiftEndError}
-                </div>
-            </div>
-        |]
-        | otherwise = [hsx|
-            <div class="mb-3">
+    renderDialogTimeFields = [hsx|
+        <div class="row g-3 mb-3">
+            <div class="col-12 col-sm-6">
                 <label class="form-label">Start time</label>
                 {renderDialogTimePicker "startTime" "Start" rosterShiftDialogValues.rosterShiftStartTime (isJust rosterShiftDialogValues.rosterShiftStartError)}
                 {renderDialogFieldError rosterShiftDialogValues.rosterShiftStartError}
             </div>
-        |]
+            <div class="col-12 col-sm-6">
+                <label class="form-label">End time</label>
+                {renderDialogTimePicker "endTime" "End" rosterShiftDialogValues.rosterShiftEndTime (isJust rosterShiftDialogValues.rosterShiftEndError)}
+                {renderDialogFieldError rosterShiftDialogValues.rosterShiftEndError}
+            </div>
+        </div>
+    |]
     selectedOrVisible staff =
         let staffId = coerce staff.id
             isSelected = Just staffId == rosterShiftDialogValues.rosterShiftStaffId

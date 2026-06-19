@@ -1170,7 +1170,7 @@ tests = beforeAll testContext do
                 publishedWeek <- fetch rosterWeek.id
                 publishedWeek.isLive `shouldBe` True
 
-        it "blocks publishing staffed shifts missing shift type when end times are disabled" $ withContext do
+        it "blocks publishing staffed shifts missing end times or shift types when end times are hidden" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-publish-type-required@example.com" "staff" True
@@ -1193,11 +1193,24 @@ tests = beforeAll testContext do
                             [("isLive", "on")]
 
                 blockedResponse `responseStatusShouldBe` status200
-                blockedResponse `responseBodyShouldContain` "Roster week cannot go live until every staffed shift has a start time and shift type."
+                blockedResponse `responseBodyShouldContain` "Roster week cannot go live until every staffed shift has a start time, valid end time, and shift type."
                 blockedWeek <- fetch rosterWeek.id
                 blockedWeek.isLive `shouldBe` False
 
                 _ <- updateRecord (slot |> set #shiftTypeId (Just (unpackId shiftType.id)))
+
+                stillBlockedResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+                            [("isLive", "on")]
+
+                stillBlockedResponse `responseStatusShouldBe` status200
+                stillBlockedResponse `responseBodyShouldContain` "Roster week cannot go live until every staffed shift has a start time, valid end time, and shift type."
+                stillBlockedWeek <- fetch rosterWeek.id
+                stillBlockedWeek.isLive `shouldBe` False
+
+                _ <- updateRecord (slot |> set #endTime (Just (timeOfDay 17 0)) |> set #durationMinutes (Just 480))
 
                 publishedResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -1235,6 +1248,40 @@ tests = beforeAll testContext do
                             ]
 
                 response `responseStatusShouldBe` status200
+                updatedSlot <- fetch slot.id
+                updatedSlot.startTime `shouldBe` Just (timeOfDay 22 0)
+                updatedSlot.endTime `shouldBe` Just (timeOfDay 2 0)
+                updatedSlot.shiftTypeId `shouldBe` Just (unpackId shiftType.id)
+                updatedSlot.durationMinutes `shouldBe` Just 240
+
+        it "manager slot edits save end times when roster end times are hidden" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-hidden-end-time-save@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- updateRecord (venueConfig |> set #rosterEndTimesEnabled False)
+                slotName <- fetchSlotNameRecord venue "Late"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                level <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue level "Bar"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (UpdateRosterSlotAction slot.id)
+                            [ ("staffId", idToParam staffMember.id)
+                            , ("startTime", "22:00")
+                            , ("endTime", "02:00")
+                            , ("shiftTypeId", idToParam shiftType.id)
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldNotContain` "roster-col-time\">End"
+                response `responseBodyShouldNotContain` ">2:00 AM<"
                 updatedSlot <- fetch slot.id
                 updatedSlot.startTime `shouldBe` Just (timeOfDay 22 0)
                 updatedSlot.endTime `shouldBe` Just (timeOfDay 2 0)
