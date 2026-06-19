@@ -853,6 +853,11 @@ tests = describe "Schema" do
             shiftDurationMinutes (TimeOfDay 22 0 0) (TimeOfDay 2 0 0) `shouldBe` 240
             shiftDurationMinutes (TimeOfDay 9 0 0) (TimeOfDay 9 0 0) `shouldBe` 0
 
+        it "assumes automatic meal breaks only for shifts at least 6h15m" do
+            automaticMealBreakForShift (TimeOfDay 9 0 0) (TimeOfDay 15 0 0) `shouldBe` Nothing
+            automaticMealBreakForShift (TimeOfDay 9 0 0) (TimeOfDay 15 15 0) `shouldBe` Just (TimeOfDay 14 30 0, TimeOfDay 15 0 0, 30)
+            automaticMealBreakForShift (TimeOfDay 20 0 0) (TimeOfDay 2 15 0) `shouldBe` Just (TimeOfDay 1 30 0, TimeOfDay 2 0 0, 30)
+
     describe "TimeRules roster operational day" do
         it "exposes the 06:00 to 05:45 next-day roster window" do
             rosterOperationalStartMinuteOfDay `shouldBe` 360

@@ -19,6 +19,15 @@ isQuarterHourTime tod = todMin tod `mod` 15 == 0 && todSec tod == 0
 isQuarterHourMinutes :: Int -> Bool
 isQuarterHourMinutes mins = mins >= 0 && mins `mod` 15 == 0
 
+automaticMealBreakThresholdMinutes :: Int
+automaticMealBreakThresholdMinutes = 6 * 60 + 15
+
+automaticMealBreakStartOffsetMinutes :: Int
+automaticMealBreakStartOffsetMinutes = 5 * 60 + 30
+
+automaticMealBreakMinutes :: Int
+automaticMealBreakMinutes = 30
+
 rosterOperationalStartMinuteOfDay :: Int
 rosterOperationalStartMinuteOfDay = 6 * 60
 
@@ -44,6 +53,22 @@ shiftDurationMinutes :: TimeOfDay -> TimeOfDay -> Int
 shiftDurationMinutes start end =
     normalizeShiftMinuteOfDay end - normalizeShiftMinuteOfDay start
 
+automaticMealBreakForShift :: TimeOfDay -> TimeOfDay -> Maybe (TimeOfDay, TimeOfDay, Int)
+automaticMealBreakForShift start end
+    | shiftDurationMinutes start end >= automaticMealBreakThresholdMinutes =
+        let startMinute = timeOfDayToMinutes start
+            breakStartMinute = startMinute + automaticMealBreakStartOffsetMinutes
+            breakEndMinute = breakStartMinute + automaticMealBreakMinutes
+         in Just (minuteOfDayToTimeOfDay breakStartMinute, minuteOfDayToTimeOfDay breakEndMinute, automaticMealBreakMinutes)
+    | otherwise = Nothing
+
+automaticMealBreakWindowMinutes :: TimeOfDay -> TimeOfDay -> Maybe (Int, Int)
+automaticMealBreakWindowMinutes start end
+    | shiftDurationMinutes start end >= automaticMealBreakThresholdMinutes =
+        let breakStartMinute = normalizeShiftMinuteOfDay start + automaticMealBreakStartOffsetMinutes
+         in Just (breakStartMinute, breakStartMinute + automaticMealBreakMinutes)
+    | otherwise = Nothing
+
 validRosterShiftDurationMinutes :: TimeOfDay -> TimeOfDay -> Maybe Int
 validRosterShiftDurationMinutes start end =
     let startMinute = normalizeRosterOperationalMinute start
@@ -62,6 +87,12 @@ isValidRosterShiftTimePair start end = isJust (validRosterShiftDurationMinutes s
 
 timeOfDayToMinutes :: TimeOfDay -> Int
 timeOfDayToMinutes tod = todHour tod * 60 + todMin tod
+
+minuteOfDayToTimeOfDay :: Int -> TimeOfDay
+minuteOfDayToTimeOfDay minute =
+    let normalizedMinute = minute `mod` (24 * 60)
+        (hour, minuteOfHour) = normalizedMinute `divMod` 60
+     in TimeOfDay hour minuteOfHour 0
 
 normalizeShiftMinuteOfDay :: TimeOfDay -> Int
 normalizeShiftMinuteOfDay = normalizeRosterOperationalMinute

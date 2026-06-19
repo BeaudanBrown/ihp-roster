@@ -15,7 +15,8 @@ module Application.RosterTimesheets.Automation
 
 import Application.Async.Queue
 import Application.Helper.Audit
-import Application.Helper.Controller (unsafeEnumFromText,
+import Application.Helper.Controller (automaticMealBreakForShift,
+                                      unsafeEnumFromText,
                                       validRosterShiftDurationMinutes,
                                       venueWeekOffsetForDay, venueWeekStartDate)
 import Application.Helper.LiveResource
@@ -138,6 +139,10 @@ performRosterTimesheetCreationJob appJob = do
                             then markRosterTimesheetJobSkipped appJob "trial_staff_roster_only"
                             else do
                                 let workedOn = rosterSlotWorkedOn venueConfig rosterWeek rosterDay
+                                let (hadBreak, breakStartTime, breakEndTime, breakMinutes) =
+                                        case automaticMealBreakForShift startTime endTime of
+                                            Nothing -> (False, Nothing, Nothing, 0)
+                                            Just (autoBreakStart, autoBreakEnd, autoBreakMinutes) -> (True, Just autoBreakStart, Just autoBreakEnd, autoBreakMinutes)
                                 timesheetEntry <- withTransaction do
                                     entry <- newRecord @TimesheetEntry
                                         |> set #venueId rosterWeek.venueId
@@ -146,10 +151,10 @@ performRosterTimesheetCreationJob appJob = do
                                         |> set #workedOn workedOn
                                         |> set #startTime startTime
                                         |> set #endTime endTime
-                                        |> set #hadBreak False
-                                        |> set #breakStartTime Nothing
-                                        |> set #breakEndTime Nothing
-                                        |> set #breakMinutes 0
+                                        |> set #hadBreak hadBreak
+                                        |> set #breakStartTime breakStartTime
+                                        |> set #breakEndTime breakEndTime
+                                        |> set #breakMinutes breakMinutes
                                         |> set #sourceRosterSlotId (Just (unpackId rosterSlot.id))
                                         |> createRecord
                                     forM_ appJob.requestedByUserId \actorUserId ->

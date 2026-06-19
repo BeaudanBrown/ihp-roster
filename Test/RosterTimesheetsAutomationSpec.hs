@@ -115,6 +115,10 @@ tests = beforeAll testContext do
                 entry.workedOn `shouldBe` addDays 1 (venueWeekStartDate venueConfig rosterWeek.weekOffset)
                 entry.startTime `shouldBe` timeOfDay 22 0
                 entry.endTime `shouldBe` timeOfDay 2 0
+                entry.hadBreak `shouldBe` False
+                entry.breakStartTime `shouldBe` Nothing
+                entry.breakEndTime `shouldBe` Nothing
+                entry.breakMinutes `shouldBe` 0
                 entry.isApproved `shouldBe` False
                 entry.sourceRosterSlotId `shouldBe` Just (unpackId slot.id)
 
@@ -124,6 +128,27 @@ tests = beforeAll testContext do
                 performRosterTimesheetCreationJob job
 
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 1)
+
+        it "creates an automatic 30 minute break for generated roster timesheets at least 6h15m long" $ withContext do
+            withCleanDb do
+                (venue, manager, rosterWeek, _rosterDay, slot, _shiftType) <- createCompleteLiveRosterSlotFixture
+                venueConfig <- fetchVenueConfigFor venue
+                _ <- updateRecord (venueConfig |> set #autoTimesheetCreationEnabled True)
+                _ <- updateRecord
+                    ( slot
+                        |> set #startTime (Just (timeOfDay 9 0))
+                        |> set #endTime (Just (timeOfDay 15 15))
+                        |> set #durationMinutes (Just 375)
+                    )
+                [EnqueuedAppJob job] <- enqueueRosterTimesheetCreationJobsForWeek (Just manager.id) rosterWeek
+
+                performRosterTimesheetCreationJob job
+
+                entry <- query @TimesheetEntry |> fetchOne
+                entry.hadBreak `shouldBe` True
+                entry.breakStartTime `shouldBe` Just (timeOfDay 14 30)
+                entry.breakEndTime `shouldBe` Just (timeOfDay 15 0)
+                entry.breakMinutes `shouldBe` 30
 
         it "skips a queued job when the venue opt-in is disabled before execution" $ withContext do
             withCleanDb do

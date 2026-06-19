@@ -1,6 +1,7 @@
 module Test.PaySpec where
 
 import Application.Helper.Pay
+import Application.Helper.RosterWagePrediction
 import Config
 import Control.Monad (void)
 import qualified Data.Map.Strict as Map
@@ -228,6 +229,37 @@ tests = do
                     fmap (.minutes) result.segments `shouldBe` [60, 270, 120]
                     result.totals.paidMinutes `shouldBe` 450
                     result.totals.totalAmount `shouldBe` 250.5
+
+            it "subtracts roster wage estimate automatic breaks from start+5h30 instead of the shift end" $ withContext do
+                withCleanDb do
+                    venue <- createVenueWithConfig "Roster Wage Break Venue"
+                    venueConfig <- query @VenueConfig
+                        |> filterWhere (#venueId, unpackId venue.id)
+                        |> fetchOne
+                        >>= updateRecord
+                            . set #rosterWeekStartsOn 1
+                            . set #weekOffsetEpoch (fromGregorian 2025 1 6)
+                    level <- createPayLevelRecordWithRates venue "Roster Wage Level" 60 60 600 1 1 1
+                    staff <- createStaffRecord venue Nothing "Wage" "Estimate"
+                        >>= updateRecord
+                            . set #employmentBasis Permanent
+                            . set #defaultAwardLevelId (Just level.id)
+                    shiftType <- createShiftTypeRecord venue level "Late Wage"
+                    rosterWeek <- createRosterWeekRecord venue 0 False
+                    rosterDay <- createRosterDayRecord rosterWeek 3
+                    slotName <- fetchSlotNameRecord venue "Early"
+                    rosterSlot <- createRosterSlotRecord rosterDay slotName (Just staff) 0
+                        >>= updateRecord
+                            . set #startTime (Just (TimeOfDay 18 0 0))
+                            . set #endTime (Just (TimeOfDay 0 15 0))
+                            . set #durationMinutes (Just 375)
+                            . set #shiftTypeId (Just (unpackId shiftType.id))
+
+                    prediction <- fetchRosterWagePrediction venueConfig rosterWeek [rosterDay] [rosterSlot]
+
+                    prediction.predictionWeekTotal `shouldBe` 765
+                    fmap (.predictionDayTotal) (lookupRosterWagePredictionDay prediction rosterDay) `shouldBe` Just 765
+                    prediction.predictionCompleteShiftCount `shouldBe` 1
 
             it "allocates after-midnight breaks to the next calendar day segment" $ withContext do
                 withCleanDb do

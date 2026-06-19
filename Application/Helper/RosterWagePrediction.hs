@@ -12,7 +12,9 @@ module Application.Helper.RosterWagePrediction
     , formatMoneyAmount
     ) where
 
-import Application.Helper.TimeRules (shiftDurationMinutes, timeOfDayToMinutes,
+import Application.Helper.TimeRules (automaticMealBreakMinutes,
+                                     automaticMealBreakWindowMinutes,
+                                     timeOfDayToMinutes,
                                      validRosterShiftDurationMinutes)
 import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import qualified Data.List as List
@@ -80,7 +82,7 @@ fetchRosterWagePrediction venueConfig rosterWeek rosterDays rosterSlots = do
             , predictionWeekTotal = roundMoney (sum (map (.predictionDayTotal) predictionDays))
             , predictionCompleteShiftCount = length predictedShifts
             , predictionIncompleteShiftCount = length (filter staffedIncomplete rosterSlots)
-            , predictionBreakMinutes = assumedBreakMinutes
+            , predictionBreakMinutes = automaticMealBreakMinutes
             }
     where
         rosterDaysById = Map.fromList [(unpackId rosterDay.id, rosterDay) | rosterDay <- rosterDays]
@@ -166,20 +168,15 @@ payWindowsForShift startTime endTime =
 
 paidMinutesInWindow :: TimeOfDay -> TimeOfDay -> PayWindow -> Int
 paidMinutesInWindow startTime endTime PayWindow { windowStartMinute, windowEndMinute } =
-    max 0 (min paidEnd windowEndMinute - max startMinute windowStartMinute)
+    max 0 (basePaidMinutes - breakOverlapMinutes)
     where
         startMinute = normalizeShiftMinute startTime
         endMinute = normalizeShiftMinute endTime
-        paidEnd = max startMinute (endMinute - predictedBreakMinutes startTime endTime)
-
-predictedBreakMinutes :: TimeOfDay -> TimeOfDay -> Int
-predictedBreakMinutes startTime endTime =
-    if shiftDurationMinutes startTime endTime > 360
-        then assumedBreakMinutes
-        else 0
-
-assumedBreakMinutes :: Int
-assumedBreakMinutes = 30
+        basePaidMinutes = max 0 (min endMinute windowEndMinute - max startMinute windowStartMinute)
+        breakOverlapMinutes =
+            case automaticMealBreakWindowMinutes startTime endTime of
+                Nothing -> 0
+                Just (breakStartMinute, breakEndMinute) -> max 0 (min breakEndMinute windowEndMinute - max breakStartMinute windowStartMinute)
 
 normalizeShiftMinute :: TimeOfDay -> Int
 normalizeShiftMinute timeOfDay =
