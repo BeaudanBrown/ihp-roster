@@ -14,6 +14,7 @@ data UserRole
 
 data VenueRole
     = WorkerRole
+    | SupervisorRole
     | ManagerRole'
     | VenueAdminRole
     | VenueOwnerRole
@@ -96,6 +97,7 @@ userRoleToText AdminRole   = "admin"
 
 venueRoleToText :: VenueRole -> Text
 venueRoleToText WorkerRole     = "worker"
+venueRoleToText SupervisorRole = "supervisor"
 venueRoleToText ManagerRole'   = "manager"
 venueRoleToText VenueAdminRole = "venue_admin"
 venueRoleToText VenueOwnerRole = "venue_owner"
@@ -112,6 +114,7 @@ venueRoleEnumToRole :: VenueRoleEnum -> VenueRole
 venueRoleEnumToRole enumValue =
     case inputValue enumValue of
         "worker"      -> WorkerRole
+        "supervisor"  -> SupervisorRole
         "manager"     -> ManagerRole'
         "venue_admin" -> VenueAdminRole
         "venue_owner" -> VenueOwnerRole

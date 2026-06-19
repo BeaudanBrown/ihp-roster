@@ -516,6 +516,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Staff Role"
                 response `responseBodyShouldContain` "<select name=\"venueRole\""
                 response `responseBodyShouldContain` "<option value=\"worker\" selected"
+                response `responseBodyShouldContain` "<option value=\"supervisor\""
 
                 updateResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams (UpdateStaffAction staff.id)

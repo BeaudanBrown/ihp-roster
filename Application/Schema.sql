@@ -33,7 +33,7 @@
 
 -- schema-nav: enum-types
 CREATE TYPE venue_status_enum AS ENUM ('active', 'inactive');
-CREATE TYPE venue_role_enum AS ENUM ('worker', 'manager', 'venue_admin', 'venue_owner');
+CREATE TYPE venue_role_enum AS ENUM ('worker', 'supervisor', 'manager', 'venue_admin', 'venue_owner');
 CREATE TYPE platform_role_enum AS ENUM ('super_admin');
 CREATE TYPE invitation_status_enum AS ENUM ('pending', 'accepted', 'revoked');
 CREATE TYPE invitation_delivery_status_enum AS ENUM ('queued', 'sent', 'failed');

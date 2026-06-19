@@ -423,6 +423,7 @@ parseRosterWeekStartsOn =
 
 venueRoleLabel :: VenueRole -> Text
 venueRoleLabel WorkerRole     = "Worker"
+venueRoleLabel SupervisorRole = "Supervisor"
 venueRoleLabel ManagerRole'   = "Manager"
 venueRoleLabel VenueAdminRole = "Venue Admin"
 venueRoleLabel VenueOwnerRole = "Venue Owner"

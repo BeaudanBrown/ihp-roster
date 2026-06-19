@@ -169,6 +169,7 @@ humanizeStaffRole :: Text -> Text
 humanizeStaffRole "venue_admin" = "Venue Admin"
 humanizeStaffRole "venue_owner" = "Venue Owner"
 humanizeStaffRole "manager"     = "Manager"
+humanizeStaffRole "supervisor"  = "Supervisor"
 humanizeStaffRole "worker"      = "Worker"
 humanizeStaffRole "trial"       = "TRIAL"
 humanizeStaffRole other         = Text.toTitle (Text.replace "_" " " other)

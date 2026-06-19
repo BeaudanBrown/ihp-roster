@@ -218,4 +218,5 @@ invitationRoleLabel value =
         "venue_owner" -> "venue owner"
         "venue_admin" -> "venue admin"
         "manager"     -> "manager"
+        "supervisor"  -> "supervisor"
         _             -> "worker"

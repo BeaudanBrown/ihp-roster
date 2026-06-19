@@ -319,7 +319,7 @@ renderStaffRoleField (Just membership) = [hsx|
 
 assignableVenueRoles :: (?context :: ControllerContext) => [VenueRole]
 assignableVenueRoles =
-    [WorkerRole, ManagerRole', VenueAdminRole]
+    [WorkerRole, SupervisorRole, ManagerRole', VenueAdminRole]
         <> [VenueOwnerRole | currentUserIsSuperAdmin || hasRole VenueOwnerRole]
 
 renderVenueRoleOption :: VenueMembership -> VenueRole -> Html
@@ -329,6 +329,7 @@ renderVenueRoleOption membership venueRole = [hsx|
 
 venueRoleLabel :: VenueRole -> Text
 venueRoleLabel WorkerRole     = "Worker"
+venueRoleLabel SupervisorRole = "Supervisor"
 venueRoleLabel ManagerRole'   = "Manager"
 venueRoleLabel VenueAdminRole = "Venue Admin"
 venueRoleLabel VenueOwnerRole = "Venue Owner"
