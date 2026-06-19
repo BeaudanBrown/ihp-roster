@@ -1,5 +1,8 @@
 /* App-wide design tokens. Add semantic variables here before component CSS. */
 :root {
+    --app-density-font-scale: 1;
+    --app-density-space-scale: 1;
+    --app-density-control-scale: 1;
     color-scheme: dark;
 
     --app-bg: #0d1119;
@@ -127,14 +130,22 @@
     --app-shadow-md: 0 0.7rem 1.7rem rgba(0, 0, 0, 0.25);
     --app-shadow-lg: 0 1rem 2.5rem rgba(0, 0, 0, 0.32);
 
-    --app-space-1: 0.25rem;
-    --app-space-2: 0.5rem;
-    --app-space-3: 0.75rem;
-    --app-space-4: 1rem;
-    --app-space-5: 1.5rem;
-    --app-control-height-sm: 2rem;
-    --app-control-height-md: 2.5rem;
-    --app-control-height-lg: 2.75rem;
+    --app-space-1-base: 0.25rem;
+    --app-space-2-base: 0.5rem;
+    --app-space-3-base: 0.75rem;
+    --app-space-4-base: 1rem;
+    --app-space-5-base: 1.5rem;
+    --app-space-1: calc(var(--app-space-1-base) * var(--app-density-space-scale));
+    --app-space-2: calc(var(--app-space-2-base) * var(--app-density-space-scale));
+    --app-space-3: calc(var(--app-space-3-base) * var(--app-density-space-scale));
+    --app-space-4: calc(var(--app-space-4-base) * var(--app-density-space-scale));
+    --app-space-5: calc(var(--app-space-5-base) * var(--app-density-space-scale));
+    --app-control-height-sm-base: 2rem;
+    --app-control-height-md-base: 2.5rem;
+    --app-control-height-lg-base: 2.75rem;
+    --app-control-height-sm: calc(var(--app-control-height-sm-base) * var(--app-density-control-scale));
+    --app-control-height-md: calc(var(--app-control-height-md-base) * var(--app-density-control-scale));
+    --app-control-height-lg: calc(var(--app-control-height-lg-base) * var(--app-density-control-scale));
 
     --roster-header: #2c3a4f;
     --roster-subhead: #243041;
@@ -144,13 +155,36 @@
     --roster-danger: #5e1e23;
     --roster-row-height: 1.2rem;
 
-    --text-xs: clamp(0.68rem, 0.66rem + 0.14vw, 0.8rem);
-    --text-sm: clamp(0.8rem, 0.77rem + 0.18vw, 0.94rem);
-    --text-base: clamp(0.92rem, 0.87rem + 0.24vw, 1.06rem);
-    --text-lg: clamp(1.02rem, 0.95rem + 0.42vw, 1.3rem);
-    --text-xl: clamp(1.56rem, 1.26rem + 0.96vw, 2.45rem);
+    --text-xs-base: clamp(0.68rem, 0.66rem + 0.14vw, 0.8rem);
+    --text-sm-base: clamp(0.8rem, 0.77rem + 0.18vw, 0.94rem);
+    --text-base-base: clamp(0.92rem, 0.87rem + 0.24vw, 1.06rem);
+    --text-lg-base: clamp(1.02rem, 0.95rem + 0.42vw, 1.3rem);
+    --text-xl-base: clamp(1.56rem, 1.26rem + 0.96vw, 2.45rem);
+    --text-xs: calc(var(--text-xs-base) * var(--app-density-font-scale));
+    --text-sm: calc(var(--text-sm-base) * var(--app-density-font-scale));
+    --text-base: calc(var(--text-base-base) * var(--app-density-font-scale));
+    --text-lg: calc(var(--text-lg-base) * var(--app-density-font-scale));
+    --text-xl: calc(var(--text-xl-base) * var(--app-density-font-scale));
 
     --roster-text-xs: clamp(0.58rem, 0.57rem + 0.11vw, 0.72rem);
     --roster-text-sm: clamp(0.66rem, 0.64rem + 0.14vw, 0.8rem);
     --roster-text-base: clamp(0.74rem, 0.71rem + 0.18vw, 0.9rem);
+}
+
+[data-ui-scale="compact"] {
+    --app-density-font-scale: 0.92;
+    --app-density-space-scale: 0.86;
+    --app-density-control-scale: 0.9;
+}
+
+[data-ui-scale="normal"] {
+    --app-density-font-scale: 1;
+    --app-density-space-scale: 1;
+    --app-density-control-scale: 1;
+}
+
+[data-ui-scale="large"] {
+    --app-density-font-scale: 1.08;
+    --app-density-space-scale: 1.12;
+    --app-density-control-scale: 1.1;
 }
