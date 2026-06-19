@@ -268,7 +268,7 @@ renderRosterSortForm (Just rosterWeek) viewCapabilities
               hx-swap="none"
               hx-push-url="false"
               hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
-            <button type="submit" class="btn btn-outline-secondary btn-sm w-100 h-100 text-center">
+            <button type="submit" class="btn btn-outline-secondary btn-sm w-100 h-100 text-center roster-week-action-button">
                 <i class="bi bi-sort-down me-1" aria-hidden="true"></i>
                 Sort shifts
             </button>
@@ -356,7 +356,7 @@ renderCopyPreviousWeekForm weekOffset rosterGroupId = [hsx|
           hx-sync={"#" <> rosterWeekShellId <> ":replace"}
           hx-confirm="This will overwrite the current week with the previous week's roster. Continue?"
           class="mb-0 roster-week-action-form">
-        <button type="submit" class="btn btn-outline-primary btn-sm w-100 h-100 text-center">
+        <button type="submit" class="btn btn-outline-primary btn-sm w-100 h-100 text-center roster-week-action-button">
             <i class="bi bi-copy me-1" aria-hidden="true"></i>
             Copy Previous Week
         </button>

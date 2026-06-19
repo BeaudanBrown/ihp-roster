@@ -20,7 +20,7 @@
     min-width: 0;
 }
 
-.roster-week-action-form .btn {
+.roster-week-action-button {
     display: inline-flex;
     align-items: center;
     justify-content: center;

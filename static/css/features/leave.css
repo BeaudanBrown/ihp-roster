@@ -36,11 +36,11 @@
     gap: 0.18rem;
 }
 
-.leave-request-archive-page-selector.btn-group > .btn {
+.leave-request-archive-page-selector > .leave-request-archive-page-button {
     border-radius: var(--app-radius-sm) !important;
 }
 
-.leave-request-archive-page-selector .btn {
+.leave-request-archive-page-button {
     min-width: 2rem;
     padding-inline: 0.45rem;
     font-variant-numeric: tabular-nums;

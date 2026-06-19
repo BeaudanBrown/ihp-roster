@@ -257,20 +257,20 @@ renderArchiveLastPageBoundary pagination@ArchivePagination { archivePaginationTo
 
 renderArchiveEllipsis :: Html
 renderArchiveEllipsis = [hsx|
-    <span class="btn btn-sm btn-outline-secondary disabled leave-request-archive-page-ellipsis" aria-hidden="true">...</span>
+    <span class="btn btn-sm btn-outline-secondary disabled leave-request-archive-page-button leave-request-archive-page-ellipsis" aria-hidden="true">...</span>
 |]
 
 renderArchivePageNumber :: (?context :: ControllerContext) => ArchivePagination -> Int -> Html
 renderArchivePageNumber pagination@ArchivePagination { archivePaginationCurrentPage } pageNumber
     | pageNumber == archivePaginationCurrentPage = [hsx|
-        <span class="btn btn-sm btn-outline-secondary active" aria-current="page">{tshow pageNumber}</span>
+        <span class="btn btn-sm btn-outline-secondary active leave-request-archive-page-button" aria-current="page">{tshow pageNumber}</span>
     |]
     | otherwise = renderArchivePageLink pagination pageNumber (tshow pageNumber) False ("Archive page " <> tshow pageNumber)
 
 renderArchivePageLink :: (?context :: ControllerContext) => ArchivePagination -> Int -> Text -> Bool -> Text -> Html
 renderArchivePageLink ArchivePagination { archivePaginationCurrentPage, archivePaginationTotalPages } requestedPage label isDisabled ariaLabel = [hsx|
     <a href={href}
-       class={classes [("btn btn-sm btn-outline-secondary", True), ("disabled", isDisabled)]}
+       class={classes [("btn btn-sm btn-outline-secondary leave-request-archive-page-button", True), ("disabled", isDisabled)]}
        aria-label={ariaLabel}
        aria-disabled={if isDisabled then ("true" :: Text) else ("false" :: Text)}
        hx-get={fragmentHref}
