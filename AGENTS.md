@@ -8,8 +8,8 @@ short and project-wide; put subsystem-specific rules in the nearest local
 
 Use this order when documents disagree:
 
-1. Current code, `Application/Schema.sql`, generated types, and passing tests
-   describe implemented behavior.
+1. Current code, `Application/Schema.sql`, generated types, migrations, and
+   passing tests describe implemented behavior.
 2. Subsystem-local `README.md`, `SPEC.md`, and `AGENTS.md` describe the living
    contract for the code beside them.
 3. `specs/` describes product, domain, compliance, and acceptance intent that
@@ -163,6 +163,28 @@ the linked repo-local `ir-*` ticket for implementation details.
 - Live-update subsystem details live in `Application/Helper/LiveUpdate.SPEC.md`
   and local feature docs.
 
+## Live Database And Migrations
+
+Bepis is live and production data must be preserved. `Application/Schema.sql`
+remains the canonical full schema for fresh databases and generated types, but
+it is not by itself an upgrade path for deployed databases.
+
+Every schema-affecting change must include a clear migration path using the IHP
+migration system under `Application/Migration/`, unless the ticket explicitly
+records why no deployed database change is required. Keep migrations
+customer-data-preserving by default. Destructive changes such as dropping columns,
+tables, enum values, or customer records require an explicit ticket, operator
+runbook, backup/restore plan, and rollback/recovery notes.
+
+Local `make db` is only for development/parser/startup verification and resets
+local dev data. Do not treat `make db` as a production or staging migration
+strategy.
+
+For schema changes, update `Application/Schema.sql`, add the migration file(s),
+regenerate generated types, run focused schema/code checks, and verify parser
+compatibility with the dev DB/startup flow when enums, constraints, triggers, or
+advanced SQL are involved.
+
 ## Verification
 
 Use the repo wrapper unless you are already inside the devenv shell:
@@ -185,8 +207,10 @@ bash ./bin/in-env regen-types
 bash ./bin/in-env typecheck
 ```
 
-Then apply the schema to the dev DB with `make db` while the dev server is
-running, and restart/wait when enums or constraints changed.
+Also add the matching `Application/Migration/*.sql` upgrade path for deployed
+databases. Then apply the schema to the local dev DB with `make db` while the
+dev server is running, and restart/wait when enums or constraints changed.
+Remember that `make db` resets local dev data and is not a live-data migration.
 
 After controller changes, run focused or full `hspec-test`. After UI or
 integration changes, run focused `e2e` or screenshots as appropriate.

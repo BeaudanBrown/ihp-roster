@@ -25,11 +25,15 @@ behavior belongs in subsystem-local docs.
 
 ## Data
 
-- `Application/Schema.sql` is the schema source of truth.
+- `Application/Schema.sql` is the canonical full schema source of truth for
+  fresh databases and generated model types.
+- `Application/Migration/` is the upgrade path for existing deployed databases;
+  production runs IHP migrations before starting app and worker services.
 - Generated model types live under `build/Generated/`.
 - Business authority is venue-scoped through `venue_memberships`.
-- Payroll-adjacent history must remain reproducible through immutable version
-  references or append-only history.
+- Payroll-adjacent history and customer records must remain reproducible and
+  data-preserving through immutable version references, append-only history, and
+  live-safe migrations.
 
 ## Runtime
 

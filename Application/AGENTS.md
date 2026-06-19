@@ -31,9 +31,24 @@ bash ./bin/in-env regen-types
 bash ./bin/in-env typecheck
 ```
 
-Apply the schema to the dev database with `make db` while the dev server is
-running. This resets local dev data. For enum/constraint changes, restart and
-wait for the dev server to catch startup-only schema-parser failures.
+Bepis is live and production data must be preserved. Pair every schema-affecting
+change with a migration path in `Application/Migration/`; see
+`Application/Migration/README.md`. `Application/Schema.sql` is the canonical full
+schema for fresh databases and generated types, while migrations upgrade existing
+live/staging/production databases.
+
+Apply the schema to the local dev database with `make db` while the dev server is
+running. This resets local dev data and does not replace a migration. For
+enum/constraint changes, restart and wait for the dev server to catch
+startup-only schema-parser failures.
+
+Prefer additive live-safe migration order: add nullable/defaulted structures,
+backfill existing rows, verify shape, then tighten constraints or remove old
+compatibility paths later when needed. Do not drop columns, tables, enum values,
+or customer data without an explicit ticket, operator-approved runbook,
+backup/restore plan, and rollback/recovery notes. If a schema edit intentionally
+needs no deployed database migration, record the rationale in the ticket or
+commit notes.
 
 `Application/Fixtures.sql` must keep a deterministic founder/bootstrap account
 usable after `make db`. Venue business authority still comes from
@@ -78,4 +93,5 @@ controllers. Validate venue/tenant scope before mutating user-requested ids.
 
 Run `bash ./bin/in-env typecheck` after code changes. Add focused Hspec when
 changing helper behavior or schema constraints. Schema changes also need
-`regen-types` and dev DB/startup verification.
+`regen-types`, matching `Application/Migration/*.sql` files for deployed
+databases, and local dev DB/startup verification.

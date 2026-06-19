@@ -49,7 +49,10 @@ bash ./bin/in-env typecheck
 ```
 
 Apply the schema to the local dev database with `make db` while the dev server is
-running. This resets the local dev schema.
+running. This resets the local dev schema and is only for local verification.
+Bepis is live; existing staging/production databases are upgraded through IHP
+migrations in `Application/Migration/`. Schema-changing work should update both
+`Application/Schema.sql` and the matching migration SQL.
 
 ## Static Assets
 

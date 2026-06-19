@@ -28,6 +28,9 @@ customer data depends on weak application-only invariants.
 
 Schema work must respect IHP parser quirks around enums and rewritten check
 constraints. Root and application agent docs record the current safe patterns.
+Bepis is now live, so the migration requirement from the archived V1 hardening
+plan is promoted into active guidance: schema changes must preserve existing
+customer data and include an IHP migration path for deployed databases.
 
 ## Intended Contract
 
@@ -35,11 +38,14 @@ constraints. Root and application agent docs record the current safe patterns.
   possible.
 - Required text/enum/status fields should have parser-safe constraints.
 - Historical and payroll-adjacent records should preserve lineage.
-- Schema changes must regenerate types, apply to the dev DB, and pass startup
-  verification when enums or constraints change.
+- Schema changes must update `Application/Schema.sql`, add matching
+  `Application/Migration/*.sql` files for existing deployed databases,
+  regenerate types, preserve existing customer data, apply to the local dev DB,
+  and pass startup verification when enums or constraints change.
 
 ## Exit Criteria
 
 - Core constraints and nullable uniqueness fixes land with tests.
-- Living schema guidance in `Application/AGENTS.md` stays aligned with the
-  final constraint patterns.
+- Living schema guidance in `Application/AGENTS.md` and
+  `Application/Migration/README.md` stays aligned with the final constraint and
+  migration patterns.
