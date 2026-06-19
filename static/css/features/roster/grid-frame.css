@@ -2,7 +2,10 @@
 
 .roster-grid {
     --roster-grid-row-height: calc(var(--roster-row-height) + 0.65rem);
-    --roster-grid-columns: repeat(var(--roster-slot-count), minmax(4.6rem, 1.4fr) minmax(7.4rem, 2.2fr) minmax(3.8rem, 1fr));
+    --roster-slot-start-min-width: 4.6rem;
+    --roster-slot-staff-min-width: 7.4rem;
+    --roster-slot-wage-min-width: 3.8rem;
+    --roster-grid-columns: repeat(var(--roster-slot-count), minmax(var(--roster-slot-start-min-width), 1.4fr) minmax(var(--roster-slot-staff-min-width), 2.2fr) minmax(var(--roster-slot-wage-min-width), 1fr));
     font-size: var(--roster-text-sm);
     width: 100%;
 }
@@ -23,7 +26,11 @@
 }
 
 .roster-grid-frame[data-roster-end-times="true"] .roster-grid {
-    --roster-grid-columns: repeat(var(--roster-slot-count), minmax(4.35rem, 1.25fr) minmax(4.35rem, 1.25fr) minmax(7.3rem, 2.45fr) minmax(4.2rem, 0.95fr));
+    --roster-slot-start-min-width: 4.35rem;
+    --roster-slot-end-min-width: 4.35rem;
+    --roster-slot-staff-min-width: 7.3rem;
+    --roster-slot-wage-min-width: 4.2rem;
+    --roster-grid-columns: repeat(var(--roster-slot-count), minmax(var(--roster-slot-start-min-width), 1.25fr) minmax(var(--roster-slot-end-min-width), 1.25fr) minmax(var(--roster-slot-staff-min-width), 2.45fr) minmax(var(--roster-slot-wage-min-width), 0.95fr));
 }
 
 .roster-wage-summary {
@@ -89,6 +96,8 @@
     --roster-day-column-width: 18%;
     --roster-wage-column-width: 5.7rem;
     --roster-grid-header-height: 3rem;
+    --roster-slots-grid-min-width-per-slot: 15.8rem;
+    --roster-slots-grid-with-end-times-min-width-per-slot: 20.2rem;
     --roster-grid-row-height: calc(var(--roster-row-height) + 0.65rem);
     --roster-shift-border-width: 3px;
     --roster-shift-edge-corner-radius: calc(var(--app-radius-lg) - 0.2rem);
@@ -165,11 +174,11 @@
 }
 
 .roster-slots-grid {
-    min-width: max(100%, calc(var(--roster-slot-count) * 15.8rem));
+    min-width: max(100%, calc(var(--roster-slot-count) * var(--roster-slots-grid-min-width-per-slot)));
 }
 
 .roster-grid-frame[data-roster-end-times="true"] .roster-slots-grid {
-    min-width: max(100%, calc(var(--roster-slot-count) * 20.2rem));
+    min-width: max(100%, calc(var(--roster-slot-count) * var(--roster-slots-grid-with-end-times-min-width-per-slot)));
 }
 
 .roster-grid-frame[data-roster-visibility="hidden-draft"] .roster-slots-grid {

@@ -291,11 +291,13 @@
     }
 
     .roster-grid-frame:not([data-roster-layout="day_columns"])[data-roster-end-times="false"] .roster-grid {
-        --roster-grid-columns: repeat(var(--roster-slot-count), minmax(4.6rem, 1.4fr) minmax(6.8rem, 2fr) minmax(3.8rem, 1fr));
+        --roster-slot-staff-min-width: 6.8rem;
+        --roster-grid-columns: repeat(var(--roster-slot-count), minmax(var(--roster-slot-start-min-width), 1.4fr) minmax(var(--roster-slot-staff-min-width), 2fr) minmax(var(--roster-slot-wage-min-width), 1fr));
     }
 
     .roster-grid-frame:not([data-roster-layout="day_columns"])[data-roster-end-times="true"] .roster-grid {
-        --roster-grid-columns: repeat(var(--roster-slot-count), minmax(4.35rem, 1.25fr) minmax(4.35rem, 1.25fr) minmax(6.8rem, 2.25fr) minmax(4.2rem, 0.95fr));
+        --roster-slot-staff-min-width: 6.8rem;
+        --roster-grid-columns: repeat(var(--roster-slot-count), minmax(var(--roster-slot-start-min-width), 1.25fr) minmax(var(--roster-slot-end-min-width), 1.25fr) minmax(var(--roster-slot-staff-min-width), 2.25fr) minmax(var(--roster-slot-wage-min-width), 0.95fr));
     }
 }
 
