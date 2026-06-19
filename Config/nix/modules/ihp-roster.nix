@@ -400,6 +400,19 @@ in
       };
     };
 
+    security = {
+      requirePrivilegedStrongAuthentication = mkOption {
+        type = types.bool;
+        default = true;
+        description = ''
+          Whether privileged users must complete strong authentication before
+          restricted venue and platform administration. The current strong
+          authentication mechanism is passkey setup/step-up; this option is
+          intentionally provider-neutral for future OAuth or other factors.
+        '';
+      };
+    };
+
     legalDocuments = {
       businessName = mkOption {
         type = types.str;
@@ -726,6 +739,7 @@ in
         additionalEnvVars = {
           IHP_TELEMETRY_DISABLED = "1";
           APP_BASE_URL = cfg.baseUrl;
+          IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH = boolEnv cfg.security.requirePrivilegedStrongAuthentication;
         }
         // mailEnv
         // legalEnv

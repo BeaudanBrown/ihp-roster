@@ -10,6 +10,8 @@ import Generated.Types
 import IHP.ControllerPrelude
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import qualified Network.Wai as Wai
+import qualified System.Environment as Environment
+import System.IO.Unsafe (unsafePerformIO)
 import Text.Read (readMaybe)
 import Web.Routes ()
 import Web.Types (PasskeysController (PasskeySetupAction, PasskeyStepUpAction),
@@ -137,7 +139,19 @@ ensureAdminRole = do
 
 currentUserRequiresMandatoryPasskey :: (?context :: ControllerContext) => Bool
 currentUserRequiresMandatoryPasskey =
-    currentUserIsSuperAdmin || maybe False (`hasVenueRole` VenueAdminRole) currentVenueRoleOrNothing
+    privilegedStrongAuthenticationRequired
+        && (currentUserIsSuperAdmin || maybe False (`hasVenueRole` VenueAdminRole) currentVenueRoleOrNothing)
+
+privilegedStrongAuthenticationRequired :: Bool
+privilegedStrongAuthenticationRequired =
+    unsafePerformIO do
+        maybeValue <- Environment.lookupEnv "IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH"
+        pure (maybe True strongAuthenticationEnabledValue maybeValue)
+{-# NOINLINE privilegedStrongAuthenticationRequired #-}
+
+strongAuthenticationEnabledValue :: String -> Bool
+strongAuthenticationEnabledValue value =
+    value `notElem` ["0", "false", "FALSE", "no", "NO", "off", "OFF"]
 
 currentUserHasPasskey :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Bool
 currentUserHasPasskey =
