@@ -12,7 +12,8 @@ import Control.Monad (void)
 import Data.Functor ((<&>))
 import qualified Data.List as List
 import qualified Data.Text as Text
-import Data.Time.Clock (UTCTime)
+import Data.Time.Clock (NominalDiffTime, UTCTime, addUTCTime,
+                        getCurrentTime)
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.View.Admin.Invites
@@ -200,11 +201,26 @@ fetchCurrentVenueDayNames = do
     pure (sortDayNamesForVenueWeek venueConfig dayNames)
 
 fetchCurrentVenueInvitations :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [VenueInvitation]
-fetchCurrentVenueInvitations =
-    query @VenueInvitation
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> orderByDesc #createdAt
-        |> fetch
+fetchCurrentVenueInvitations = do
+    now <- getCurrentTime
+    let retentionCutoff = addUTCTime (negate venueInvitationHistoryRetentionSeconds) now
+    invitations <-
+        query @VenueInvitation
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> orderByDesc #createdAt
+            |> fetch
+    pure (filter (shouldShowVenueInvitation now retentionCutoff) invitations)
+
+venueInvitationHistoryRetentionSeconds :: NominalDiffTime
+venueInvitationHistoryRetentionSeconds = 7 * 24 * 60 * 60
+
+shouldShowVenueInvitation :: UTCTime -> UTCTime -> VenueInvitation -> Bool
+shouldShowVenueInvitation now retentionCutoff invitation =
+    case inputValue invitation.status of
+        "pending" -> maybe True (> now) invitation.expiresAt || maybe False (>= retentionCutoff) invitation.expiresAt
+        "accepted" -> fromMaybe invitation.updatedAt invitation.acceptedAt >= retentionCutoff
+        "revoked" -> invitation.updatedAt >= retentionCutoff
+        _ -> invitation.updatedAt >= retentionCutoff
 
 isVenueRosterWeekStartLocked :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Bool
 isVenueRosterWeekStartLocked = do

@@ -1,6 +1,7 @@
 module Test.Controller.Admin.ConfigSpec where
 
-import Application.Helper.Controller (PlatformRole (SuperAdminRole))
+import Application.Helper.Controller (PlatformRole (SuperAdminRole),
+                                      unsafeEnumFromText)
 import Application.Helper.Export (ExportJobType (..), exportJobTypeToText)
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
@@ -494,6 +495,38 @@ tests = beforeAll testContext do
                 inputValue createdInvitation.status `shouldBe` "pending"
                 inputValue createdInvitation.deliveryStatus `shouldSatisfy` (`elem` ["queued", "sent", "failed"])
                 inviteExpiryDeltaSeconds `shouldSatisfy` (\seconds -> seconds > 86000 && seconds < 87000)
+
+        it "hides accepted and expired venue invitations after one week" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Invite Retention Venue"
+                admin <- createUserRecord "admin-invite-retention@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                now <- getCurrentTime
+                let daysAgo days = addUTCTime (negate (days * 24 * 60 * 60)) now
+
+                _ <- createVenueInvitationRecord venue (Just admin) "active-pending@example.com" "worker"
+                _ <- createVenueInvitationRecord venue (Just admin) "recent-expired@example.com" "worker"
+                    >>= updateRecord . set #expiresAt (Just (addUTCTime (-3600) now))
+                _ <- createVenueInvitationRecord venue (Just admin) "old-expired@example.com" "worker"
+                    >>= updateRecord . set #expiresAt (Just (daysAgo 8))
+                _ <- createVenueInvitationRecord venue (Just admin) "recent-accepted@example.com" "worker"
+                    >>= updateRecord
+                        . set #status (unsafeEnumFromText @InvitationStatusEnum "accepted")
+                        . set #acceptedAt (Just (daysAgo 3))
+                _ <- createVenueInvitationRecord venue (Just admin) "old-accepted@example.com" "worker"
+                    >>= updateRecord
+                        . set #status (unsafeEnumFromText @InvitationStatusEnum "accepted")
+                        . set #acceptedAt (Just (daysAgo 8))
+
+                pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction AdminAction
+
+                pageResponse `responseStatusShouldBe` status200
+                pageResponse `responseBodyShouldContain` "active-pending@example.com"
+                pageResponse `responseBodyShouldContain` "recent-expired@example.com"
+                pageResponse `responseBodyShouldContain` "recent-accepted@example.com"
+                pageResponse `responseBodyShouldNotContain` "old-expired@example.com"
+                pageResponse `responseBodyShouldNotContain` "old-accepted@example.com"
 
         it "defaults shift type colours to blank and renders a no-colour option" $ withContext do
             withCleanDb do
