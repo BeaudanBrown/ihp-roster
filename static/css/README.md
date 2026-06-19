@@ -93,7 +93,8 @@ to both `Web/View/Layout.hs` and `Makefile` in the same cascade position.
   the `CSS_LINE_BUDGET` budget, raw colour literals outside token/palette/bridge
   modules, and unexpected app/global/Bootstrap selectors in feature modules.
   The remaining light Bootstrap utility and inline-style sections are review
-  output only.
+  output only. Inline styles that only set CSS custom properties through named
+  helper functions are allowed so dynamic geometry stays in CSS-owned rules.
 - Intentional exceptions must stay rare and explicit. Prefer moving CSS to the
   correct shared module or adding a token first; if an exception is genuinely
   durable, add the narrowest path/selector allowlist entry in `bin/style-audit`

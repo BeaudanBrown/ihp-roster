@@ -277,7 +277,7 @@ fi
 echo
 echo "style-audit review only: inline style attributes requiring review"
 rg -n 'style=' Web Application --glob '*.hs' \
-  | rg -v 'style=\{"--|style=\{\("width: var\(|timesheetMidnightStyle|segmentLeft|segmentWidth' > "$inline_styles" \
+  | rg -v 'style="--|style=\{"--|style=\{\("width: var\(|shiftPreferenceWindowStyle|timesheetMarkerStyle|slotHeaderGridColumnStyle|rosterGridColumnSpanStyle|timesheetMidnightStyle|segmentLeft|segmentWidth' > "$inline_styles" \
   || true
 if [[ -s "$inline_styles" ]]; then
   sed 's/^/  /' "$inline_styles"
