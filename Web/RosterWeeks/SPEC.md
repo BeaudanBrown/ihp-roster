@@ -15,11 +15,11 @@ lands.
 - Staff users cannot edit unpublished roster weeks.
 - Managers, venue admins, venue owners, and support-mode super admins can use
   manager/admin roster controls according to the controller capability checks.
-- Admin-and-up users see compact roster wage totals in roster chrome only when
-  roster end times are enabled for the venue: the week total in the right-side
-  toolbar area and per-day totals in day labels or day-column headers.
-  Managers, staff, and venues without roster end times enabled do not receive
-  wage controls or markup.
+- Admin-and-up users may enable compact roster wage totals in roster chrome:
+  the week total in the right-side toolbar area and per-day totals in day labels
+  or day-column headers. Managers and staff do not receive wage controls or
+  markup. The wage toggle is independent of the venue-wide roster end-time
+  display setting because shift end times are always collected.
 - Publishing a roster is the visibility gate for staff-facing roster content.
 - Staff-facing draft roster pages keep the week shell and day column mounted for
   live updates, but hide slot rows, closed-day state, and other draft roster
@@ -34,8 +34,9 @@ lands.
 - The roster staff panel uses the existing role column for trial placeholders and
   renders their role as `TRIAL`; linked staff continue to show their venue
   membership role labels.
-- Publishing requires every staffed shift to have a start time and shift type;
-  venues with end times enabled must also provide an end time.
+- Publishing requires every staffed shift to have a start time, valid end time,
+  and shift type. Shift end times are always collected; the venue setting only
+  controls whether end times are rendered in the roster grid/cards.
 - Publishing an auto-timesheet-enabled roster queues `roster_timesheet_creation`
   app jobs for complete linked-staff slots using the slot state and calculated
   run time at the moment of publishing. Complete trial-staff slots are valid for

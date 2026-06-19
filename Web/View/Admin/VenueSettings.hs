@@ -96,8 +96,8 @@ renderRosterEndTimesForm venueConfig = [hsx|
           hx-push-url="false">
         <input type="hidden" name="configField" value="rosterEndTimesEnabled" />
         <div class="admin-setting-row-copy">
-            <div class="fw-semibold">Roster end times</div>
-            <p class="small app-muted mb-0">Require staffed shifts to have start and end times before going live.</p>
+            <div class="fw-semibold">Show shift end times in roster</div>
+            <p class="small app-muted mb-0">Shift end times are always collected; this controls whether they appear in the roster.</p>
         </div>
         <div class="admin-setting-row-control">
             {renderVenueSettingToggle "venue-roster-end-times-enabled" "rosterEndTimesEnabled" venueConfig.rosterEndTimesEnabled}

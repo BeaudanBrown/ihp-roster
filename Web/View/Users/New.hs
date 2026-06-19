@@ -193,8 +193,8 @@ renderVenueDefaultToggles rosterEndTimesEnabled autoTimesheetCreationEnabled = [
                     value="true"
                     checked={rosterEndTimesEnabled}
                 />
-                <label class="form-check-label fw-semibold" for="venue-roster-end-times-enabled">Roster end times</label>
-                <p class="small app-muted mb-0">Require staffed shifts to have start and end times before going live.</p>
+                <label class="form-check-label fw-semibold" for="venue-roster-end-times-enabled">Show shift end times in roster</label>
+                <p class="small app-muted mb-0">Shift end times are always collected; this controls whether they appear in the roster.</p>
             </div>
             <div class="form-check form-switch mb-0">
                 <input

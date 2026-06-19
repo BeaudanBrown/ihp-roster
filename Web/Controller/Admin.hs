@@ -306,8 +306,8 @@ instance Controller AdminController where
                 _ <- setRosterEndTimesEnabledMutation venueConfig rosterEndTimesEnabled
                 setSuccessMessage $
                     if rosterEndTimesEnabled
-                        then "Roster end times enabled."
-                        else "Roster end times disabled."
+                        then "Roster end times shown in the roster."
+                        else "Roster end times hidden from the roster."
                 respondToVenueSettingsMutation
             "autoTimesheetCreationEnabled" -> do
                 let autoTimesheetCreationEnabled = isJust (paramOrNothing @Text "autoTimesheetCreationEnabled")

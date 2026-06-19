@@ -569,7 +569,7 @@ tests = beforeAll testContext do
                 unchangedSlot.endTime `shouldBe` Just (timeOfDay 17 0)
                 unchangedSlot.durationMinutes `shouldBe` Just 480
 
-        it "blocks publishing staffed shifts with invalid timing when end times are enabled" $ withContext do
+        it "blocks publishing staffed shifts with invalid timing" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-invalid-publish-time@example.com" "staff" True
@@ -602,7 +602,7 @@ tests = beforeAll testContext do
                 updatedWeek <- fetch rosterWeek.id
                 updatedWeek.isLive `shouldBe` False
 
-        it "allows valid overnight staffed shifts to go live when end times are enabled" $ withContext do
+        it "allows valid overnight staffed shifts to go live" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-overnight-publish@example.com" "staff" True
