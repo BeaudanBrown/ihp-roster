@@ -730,7 +730,7 @@ tests = beforeAll testContext do
                 workerResponse `responseStatusShouldBe` status200
                 workerResponse `responseBodyShouldNotContain` "Export JPG"
 
-        it "shows week wage estimates to admins only when end times are enabled" $ withContext do
+        it "shows week wage estimates to admins only" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 admin <- createUserRecord "roster-admin-wage-prediction@example.com" "staff" True
@@ -833,7 +833,7 @@ tests = beforeAll testContext do
                 managerResponse `responseBodyShouldNotContain` "roster-wage-prediction"
                 managerResponse `responseBodyShouldNotContain` "Wages disabled"
 
-        it "hides wage estimate controls when roster end times are disabled" $ withContext do
+        it "allows wage estimates when roster end times are hidden" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 admin <- createUserRecord "roster-admin-wage-end-times-disabled@example.com" "staff" True
@@ -862,7 +862,7 @@ tests = beforeAll testContext do
                 adminResponse `responseStatusShouldBe` status200
                 adminResponse `responseBodyShouldContain` "data-roster-end-times=\"false\""
                 adminResponse `responseBodyShouldContain` "data-roster-wages=\"hidden\""
-                adminResponse `responseBodyShouldNotContain` "Wages disabled"
+                adminResponse `responseBodyShouldContain` "Wages disabled"
                 adminResponse `responseBodyShouldNotContain` "Wages:"
                 adminResponse `responseBodyShouldNotContain` "roster-wage-summary"
                 adminResponse `responseBodyShouldNotContain` "roster-day-wage-total"
@@ -875,12 +875,17 @@ tests = beforeAll testContext do
                             [("showWageEstimates", "true")]
 
                 toggleResponse `responseStatusShouldBe` status200
-                toggleResponse `responseBodyShouldNotContain` "Wages disabled"
-                toggleResponse `responseBodyShouldNotContain` "Wages:"
-                hiddenPreferences <- query @UserPreference
+                toggleResponse `responseBodyShouldContain` "data-roster-end-times=\"false\""
+                toggleResponse `responseBodyShouldContain` "Wages enabled"
+                toggleResponse `responseBodyShouldContain` "Wages:"
+                toggleResponse `responseBodyShouldContain` "$150.00"
+                toggleResponse `responseBodyShouldContain` "roster-wage-summary"
+                toggleResponse `responseBodyShouldContain` "roster-day-wage-total"
+                toggleResponse `responseBodyShouldNotContain` ">5:00 PM<"
+                shownPreferences <- query @UserPreference
                     |> filterWhere (#userId, unpackId admin.id)
-                    |> fetchOneOrNothing
-                hiddenPreferences `shouldBe` Nothing
+                    |> fetchOne
+                shownPreferences.showWageEstimates `shouldBe` True
 
         it "manager can toggle a draft week live" $ withContext do
             withCleanDb do

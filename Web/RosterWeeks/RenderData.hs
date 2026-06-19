@@ -77,9 +77,9 @@ data RosterReadModelBackend
 currentRosterReadModelBackend :: RosterReadModelBackend
 currentRosterReadModelBackend = DirectRosterReadModel
 
-shouldShowRosterWageEstimates :: (?context :: ControllerContext) => VenueConfig -> Bool -> Bool
-shouldShowRosterWageEstimates venueConfig userShowWageEstimates =
-    hasRole VenueAdminRole && venueConfig.rosterEndTimesEnabled && userShowWageEstimates
+shouldShowRosterWageEstimates :: (?context :: ControllerContext) => Bool -> Bool
+shouldShowRosterWageEstimates userShowWageEstimates =
+    hasRole VenueAdminRole && userShowWageEstimates
 
 fetchRosterPublicHolidayMap :: (?modelContext :: ModelContext) => VenueConfig -> Calendar.Day -> IO (Map.Map Calendar.Day Text)
 fetchRosterPublicHolidayMap venueConfig weekStartDate = do
@@ -351,7 +351,7 @@ fetchVisibleRosterReadModelDirect rosterGroupId weekOffset = do
             userShowWageEstimates <- fetchCurrentUserShowWageEstimates
             showRosterWarnings <- fetchCurrentUserShowRosterWarnings
             venueConfig <- fetchVenueConfig
-            let showWageEstimates = shouldShowRosterWageEstimates venueConfig userShowWageEstimates
+            let showWageEstimates = shouldShowRosterWageEstimates userShowWageEstimates
             rosterPublicHolidays <- fetchRosterPublicHolidayMap venueConfig weekStartDate
             staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig)
             let renderIndexes = buildRosterRenderIndexes rosterDays (filterVisibleRosterSlots rosterDays maskedSlots) [] []
@@ -390,7 +390,7 @@ fetchRosterRenderDataDirect rosterGroupId weekOffset = do
     rosterLayoutMode <- fetchCurrentRosterLayoutMode
     userShowWageEstimates <- fetchCurrentUserShowWageEstimates
     showRosterWarnings <- fetchCurrentUserShowRosterWarnings
-    let showWageEstimates = shouldShowRosterWageEstimates venueConfig userShowWageEstimates
+    let showWageEstimates = shouldShowRosterWageEstimates userShowWageEstimates
     let weekStartDate = venueWeekStartDate venueConfig weekOffset
     rosterPublicHolidays <- fetchRosterPublicHolidayMap venueConfig weekStartDate
 
@@ -421,7 +421,7 @@ fetchRosterRenderData rosterGroupId weekOffset = do
     rosterLayoutMode <- fetchCurrentRosterLayoutMode
     userShowWageEstimates <- fetchCurrentUserShowWageEstimates
     showRosterWarnings <- fetchCurrentUserShowRosterWarnings
-    let showWageEstimates = shouldShowRosterWageEstimates venueConfig userShowWageEstimates
+    let showWageEstimates = shouldShowRosterWageEstimates userShowWageEstimates
     let weekStartDate = venueWeekStartDate venueConfig weekOffset
     rosterPublicHolidays <- fetchRosterPublicHolidayMap venueConfig weekStartDate
 
@@ -513,7 +513,7 @@ fetchVisibleRosterRenderData rosterGroupId weekOffset = do
             userShowWageEstimates <- fetchCurrentUserShowWageEstimates
             showRosterWarnings <- fetchCurrentUserShowRosterWarnings
             venueConfig <- fetchVenueConfig
-            let showWageEstimates = shouldShowRosterWageEstimates venueConfig userShowWageEstimates
+            let showWageEstimates = shouldShowRosterWageEstimates userShowWageEstimates
             rosterPublicHolidays <- fetchRosterPublicHolidayMap venueConfig weekStartDate
             staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig)
             let renderIndexes = buildRosterRenderIndexes rosterDays (filterVisibleRosterSlots rosterDays maskedSlots) [] []
@@ -637,7 +637,7 @@ renderVisibleRosterReadModelFragmentDirect rosterGroupId weekOffset fragment = d
                     rosterLayoutMode <- fetchCurrentRosterLayoutMode
                     userShowWageEstimates <- fetchCurrentUserShowWageEstimates
                     showRosterWarnings <- fetchCurrentUserShowRosterWarnings
-                    let showWageEstimates = shouldShowRosterWageEstimates venueConfig userShowWageEstimates
+                    let showWageEstimates = shouldShowRosterWageEstimates userShowWageEstimates
                     let weekStartDate = venueWeekStartDate venueConfig weekOffset
                     rosterPublicHolidays <- fetchRosterPublicHolidayMap venueConfig weekStartDate
                     let targetSlots = filter (\slot -> slot.rosterDayId == rosterDayUuid) visibleSlots

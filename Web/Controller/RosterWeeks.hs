@@ -486,22 +486,13 @@ instance Controller RosterWeeksController where
     action UpdateRosterWageEstimatePreferenceAction { weekOffset } = do
         accessDeniedUnless (hasRole VenueAdminRole)
         rosterGroup <- resolveRequestedRosterGroup
-        venueConfig <- fetchVenueConfig
-        if venueConfig.rosterEndTimesEnabled
-            then do
-                let showWageEstimates = paramOrDefault @Text "false" "showWageEstimates" == "true"
-                _ <- upsertCurrentUserShowWageEstimates showWageEstimates
-                if isHtmxRequest
-                    then respondWithRosterFragmentsUpdate rosterGroup.id weekOffset rosterGridStructuralFragments (successToast "Roster wage estimate preference saved.")
-                    else do
-                        setSuccessMessage "Roster wage estimate preference saved."
-                        redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
-            else
-                if isHtmxRequest
-                    then respondWithRosterFragmentsUpdate rosterGroup.id weekOffset [RosterProjectionGridToolbar] (errorToast "Enable roster end times before showing wage estimates.")
-                    else do
-                        setErrorMessage "Enable roster end times before showing wage estimates."
-                        redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
+        let showWageEstimates = paramOrDefault @Text "false" "showWageEstimates" == "true"
+        _ <- upsertCurrentUserShowWageEstimates showWageEstimates
+        if isHtmxRequest
+            then respondWithRosterFragmentsUpdate rosterGroup.id weekOffset rosterGridStructuralFragments (successToast "Roster wage estimate preference saved.")
+            else do
+                setSuccessMessage "Roster wage estimate preference saved."
+                redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
 
     action NewRosterSlotDialogAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = do
         ensureManagerRole
