@@ -24,6 +24,23 @@ When adding, moving, or splitting files, preserve selector order unless the
 ticket explicitly calls for a semantic refactor. Add every new linked stylesheet
 to both `Web/View/Layout.hs` and `Makefile` in the same cascade position.
 
+## Display density
+
+`data-ui-scale` is the app-wide display-density hook. It currently supports
+`compact`, `normal`, and `large`; unset is the same as `normal`. Keep normal
+values equal to the existing default experience, then derive compact/large from
+shared token scales in `tokens.css`:
+
+- `--app-density-font-scale` for text tokens
+- `--app-density-space-scale` for spacing tokens
+- `--app-density-control-scale` for control heights and control-adjacent widths
+
+Shared surfaces and Bootstrap bridges should consume `--text-*`, `--app-space-*`,
+and `--app-control-height-*` rather than hard-coding one-off density values.
+Feature-specific density, such as roster grid widths, may still add feature
+variables, but it should remain layered on top of the app-wide scale instead of
+becoming an isolated zoom system.
+
 ## Ownership map
 
 - **Tokens and palettes:** put semantic variables in `tokens.css` before using
