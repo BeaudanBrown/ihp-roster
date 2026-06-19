@@ -486,11 +486,11 @@ renderXeroTimesheetPreparationStaffMappingsFragment _showMatched editStaffId vie
                 <h6 class="mb-0">Staff mappings</h6>
             </div>
             <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0 xero-staff-mappings-table" style="table-layout: fixed;">
+                <table class="table table-sm align-middle mb-0 xero-staff-mappings-table">
                     <colgroup>
-                        <col style="width: 32%;" />
-                        <col style="width: 28%;" />
-                        <col style="width: 40%;" />
+                        <col class="xero-staff-mappings-col-staff" />
+                        <col class="xero-staff-mappings-col-email" />
+                        <col class="xero-staff-mappings-col-employee" />
                     </colgroup>
                     <thead>
                         <tr>
@@ -582,7 +582,7 @@ renderStaffEmployeeSelectionForm view row = [hsx|
           hx-swap="innerHTML">
         <input type="hidden" name="staffId" value={tshow staff.id} />
         <input type="hidden" name="decision" value="select_employee" />
-        <select name="xeroEmployeeSelection" class="form-select form-select-sm w-auto" style="min-width: 12rem; max-width: 16rem;" aria-label={"Xero employee for " <> staffName staff}>
+        <select name="xeroEmployeeSelection" class="form-select form-select-sm w-auto xero-employee-selection" aria-label={"Xero employee for " <> staffName staff}>
             {forEach selectableEmployees (renderEmployeeOption currentSelection)}
             <option value="not_applicable" selected={currentSelection == "not_applicable" || (Text.null currentSelection && null selectableEmployees)}>Not paid through Xero</option>
         </select>

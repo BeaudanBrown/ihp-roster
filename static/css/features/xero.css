@@ -1,3 +1,24 @@
+.xero-staff-mappings-table {
+    table-layout: fixed;
+}
+
+.xero-staff-mappings-col-staff {
+    width: 32%;
+}
+
+.xero-staff-mappings-col-email {
+    width: 28%;
+}
+
+.xero-staff-mappings-col-employee {
+    width: 40%;
+}
+
+.xero-employee-selection {
+    min-width: 12rem;
+    max-width: 16rem;
+}
+
 .xero-connection-sync-label {
     display: none;
     align-items: center;
