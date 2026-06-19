@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 import { openRoster } from './test-helpers';
 
 type RosterLayoutMetrics = {
@@ -16,10 +16,20 @@ type RosterLayoutMetrics = {
     overflowX: string;
 };
 
-async function measureRosterLayout(page: Parameters<typeof openRoster>[0]): Promise<RosterLayoutMetrics> {
-    return page.locator('.roster-grid-frame').first().evaluate((frame) => {
+async function setRosterScale(page: Page, scale: 'compact' | 'normal' | 'large') {
+    await page.evaluate((nextScale) => {
+        document.documentElement.setAttribute('data-ui-scale', nextScale);
+    }, scale);
+}
+
+async function measureRosterLayout(page: Page, options: { slotCount?: number } = {}): Promise<RosterLayoutMetrics> {
+    return page.locator('.roster-grid-frame').first().evaluate((frame, measureOptions) => {
         if (!(frame instanceof HTMLElement)) {
             throw new Error('Expected roster grid frame to be an HTMLElement');
+        }
+
+        if (measureOptions.slotCount !== undefined) {
+            frame.style.setProperty('--roster-slot-count', String(measureOptions.slotCount));
         }
 
         const dayRail = frame.querySelector('.roster-day-rail');
@@ -51,7 +61,7 @@ async function measureRosterLayout(page: Parameters<typeof openRoster>[0]): Prom
             gridMinWidth: gridStyles.minWidth,
             overflowX: getComputedStyle(scroller).overflowX,
         };
-    });
+    }, options);
 }
 
 test.describe('Roster layout scale baseline', () => {
@@ -81,4 +91,30 @@ test.describe('Roster layout scale baseline', () => {
             expect(metrics.cellFontSize).toBeLessThanOrEqual(14);
         });
     }
+
+    test('changes roster dimensions through scale presets without page-level overflow', async ({ page }) => {
+        await page.setViewportSize({ width: 1366, height: 900 });
+        await openRoster(page, { ensureEditable: false });
+
+        await setRosterScale(page, 'normal');
+        const normal = await measureRosterLayout(page, { slotCount: 8 });
+
+        await setRosterScale(page, 'compact');
+        const compact = await measureRosterLayout(page, { slotCount: 8 });
+
+        await setRosterScale(page, 'large');
+        const large = await measureRosterLayout(page, { slotCount: 8 });
+
+        expect(compact.dayRailWidth).toBeLessThan(normal.dayRailWidth);
+        expect(normal.dayRailWidth).toBeLessThan(large.dayRailWidth);
+        expect(compact.gridFontSize).toBeLessThan(normal.gridFontSize);
+        expect(normal.gridFontSize).toBeLessThan(large.gridFontSize);
+        expect(compact.scrollerScrollWidth).toBeLessThan(normal.scrollerScrollWidth);
+        expect(normal.scrollerScrollWidth).toBeLessThan(large.scrollerScrollWidth);
+
+        for (const metrics of [compact, normal, large]) {
+            expect(metrics.rootScrollWidth).toBeLessThanOrEqual(metrics.viewportWidth + 1);
+            expect(metrics.bodyScrollWidth).toBeLessThanOrEqual(metrics.viewportWidth + 1);
+        }
+    });
 });

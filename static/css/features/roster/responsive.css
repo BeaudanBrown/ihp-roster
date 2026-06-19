@@ -1,5 +1,59 @@
 /* Roster responsive layout overrides in original cascade position. */
 
+[data-ui-scale="compact"] {
+    --roster-row-height: 1.05rem;
+    --roster-text-xs: clamp(0.54rem, 0.53rem + 0.09vw, 0.66rem);
+    --roster-text-sm: clamp(0.61rem, 0.59rem + 0.11vw, 0.74rem);
+    --roster-text-base: clamp(0.68rem, 0.65rem + 0.15vw, 0.82rem);
+}
+
+[data-ui-scale="large"] {
+    --roster-row-height: 1.32rem;
+    --roster-text-xs: clamp(0.62rem, 0.6rem + 0.13vw, 0.78rem);
+    --roster-text-sm: clamp(0.72rem, 0.69rem + 0.16vw, 0.88rem);
+    --roster-text-base: clamp(0.8rem, 0.76rem + 0.2vw, 0.98rem);
+}
+
+[data-ui-scale="compact"] .roster-grid-frame:not([data-roster-layout="day_columns"]) {
+    --roster-day-column-width: 14.5%;
+    --roster-wage-column-width: 5.2rem;
+    --roster-slots-grid-min-width-per-slot: 13.9rem;
+    --roster-slots-grid-with-end-times-min-width-per-slot: 17.8rem;
+}
+
+[data-ui-scale="compact"] .roster-grid-frame:not([data-roster-layout="day_columns"])[data-roster-end-times="false"] .roster-grid {
+    --roster-slot-start-min-width: 4rem;
+    --roster-slot-staff-min-width: 6.2rem;
+    --roster-slot-wage-min-width: 3.4rem;
+}
+
+[data-ui-scale="compact"] .roster-grid-frame:not([data-roster-layout="day_columns"])[data-roster-end-times="true"] .roster-grid {
+    --roster-slot-start-min-width: 3.8rem;
+    --roster-slot-end-min-width: 3.8rem;
+    --roster-slot-staff-min-width: 6.1rem;
+    --roster-slot-wage-min-width: 3.6rem;
+}
+
+[data-ui-scale="large"] .roster-grid-frame:not([data-roster-layout="day_columns"]) {
+    --roster-day-column-width: 21%;
+    --roster-wage-column-width: 6.2rem;
+    --roster-slots-grid-min-width-per-slot: 17.6rem;
+    --roster-slots-grid-with-end-times-min-width-per-slot: 22.5rem;
+}
+
+[data-ui-scale="large"] .roster-grid-frame:not([data-roster-layout="day_columns"])[data-roster-end-times="false"] .roster-grid {
+    --roster-slot-start-min-width: 5rem;
+    --roster-slot-staff-min-width: 8.3rem;
+    --roster-slot-wage-min-width: 4.2rem;
+}
+
+[data-ui-scale="large"] .roster-grid-frame:not([data-roster-layout="day_columns"])[data-roster-end-times="true"] .roster-grid {
+    --roster-slot-start-min-width: 4.7rem;
+    --roster-slot-end-min-width: 4.7rem;
+    --roster-slot-staff-min-width: 8.2rem;
+    --roster-slot-wage-min-width: 4.6rem;
+}
+
 @media (max-width: 991.98px) {
     [data-roster-week-controls="manager-actions"] {
         justify-content: center;
