@@ -282,7 +282,7 @@ eventStatusBadgeClass status =
         "processed" -> "text-bg-success"
         "failed"    -> "text-bg-danger"
         "ignored"   -> "text-bg-secondary"
-        _           -> "text-bg-light"
+        _           -> "text-bg-secondary"
 
 renderProviderObject :: BillingEvent -> Text
 renderProviderObject event =
