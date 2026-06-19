@@ -113,7 +113,7 @@ rg --no-heading --only-matching --replace '$1' --glob '!static/vendor/**' 'var\(
 comm -23 "$used" "$defined" \
   | rg -v '^--bs-' > "$undefined" || true
 
-echo "style-audit: undefined CSS variables"
+echo "style-audit hard gate: undefined CSS variables"
 if [[ -s "$undefined" ]]; then
   sed 's/^/  /' "$undefined"
 else
@@ -121,7 +121,7 @@ else
 fi
 
 echo
-echo "style-audit: layout stylesheet assets"
+echo "style-audit hard gate: layout stylesheet assets"
 mapfile -t linked_css_assets < <(
   rg --only-matching --replace '$1' 'assetPath "([^"]+\.css)"' Web/View/Layout.hs \
     | sed 's/^.*://' \
@@ -208,7 +208,7 @@ else
 fi
 
 echo
-echo "style-audit: app-owned CSS @import usage"
+echo "style-audit hard gate: app-owned CSS @import usage"
 rg -n '@import' static \
   --glob '*.css' \
   --glob '!static/vendor/**' \
@@ -221,7 +221,7 @@ else
 fi
 
 echo
-echo "style-audit: CSS file size budget (${line_budget} lines/file)"
+echo "style-audit hard gate: CSS file size budget (${line_budget} lines/file)"
 for css_file in "${app_css_files[@]}"; do
   lines="$(wc -l < "$css_file" | tr -d ' ')"
   if (( lines > line_budget )); then
@@ -237,7 +237,7 @@ fi
 printf '^(%s):' "$(printf '%s|' "${raw_color_allowed_files[@]}" | sed 's/|$//; s#/#\\/#g; s#\.#\\.#g')" > "$raw_color_allowed_pattern"
 
 echo
-echo "style-audit: raw colors outside token/palette/bridge files"
+echo "style-audit hard gate: raw colors outside token/palette/bridge files"
 rg -n '#[0-9A-Fa-f]{3,8}|rgba?\(|hsla?\(' static \
   --glob '*.css' \
   --glob '!static/vendor/**' \
@@ -251,7 +251,7 @@ else
 fi
 
 echo
-echo "style-audit: unexpected app/global/Bootstrap selectors in feature CSS"
+echo "style-audit hard gate: unexpected app/global/Bootstrap selectors in feature CSS"
 rg -n '^\s*[^{}@]*\.(app-[[:alnum:]_-]*|btn[[:alnum:]_-]*|form-[[:alnum:]_-]*|nav-[[:alnum:]_-]*|breadcrumb[[:alnum:]_-]*|table[[:alnum:]_-]*|dropdown[[:alnum:]_-]*|modal[[:alnum:]_-]*)' static/css/features \
   --glob '*.css' > "$feature_global_selectors" \
   || true
@@ -265,7 +265,7 @@ else
 fi
 
 echo
-echo "style-audit: banned light-mode Bootstrap utilities in HSX"
+echo "style-audit review only: banned light-mode Bootstrap utilities in HSX"
 rg -n 'bg-white|bg-light|bg-light-subtle|text-muted|text-body-secondary' Web Application --glob '*.hs' > "$light_bootstrap_utilities" \
   || true
 if [[ -s "$light_bootstrap_utilities" ]]; then
@@ -275,7 +275,7 @@ else
 fi
 
 echo
-echo "style-audit: inline style attributes requiring review"
+echo "style-audit review only: inline style attributes requiring review"
 rg -n 'style=' Web Application --glob '*.hs' \
   | rg -v 'style=\{"--|style=\{\("width: var\(|timesheetMidnightStyle|segmentLeft|segmentWidth' > "$inline_styles" \
   || true
@@ -285,14 +285,23 @@ else
   echo "  none"
 fi
 
-if [[ -s "$undefined" \
-  || -s "$missing_assets" \
-  || -s "$missing_makefile_entries" \
-  || -s "$unlinked_app_css" \
-  || -s "$makefile_missing_app_css" \
-  || -s "$banned_imports" \
-  || -s "$oversized_css" \
-  || -s "$raw_colors" \
-  || -s "$unexpected_feature_global_selectors" ]]; then
+failed_gates=()
+[[ -s "$undefined" ]] && failed_gates+=("undefined CSS variables")
+[[ -s "$missing_assets" ]] && failed_gates+=("missing linked stylesheet files")
+[[ -s "$missing_makefile_entries" ]] && failed_gates+=("linked stylesheets missing Makefile CSS_FILES entries")
+[[ -s "$unlinked_app_css" ]] && failed_gates+=("unlinked app-owned CSS files")
+[[ -s "$makefile_missing_app_css" ]] && failed_gates+=("app-owned CSS files missing Makefile CSS_FILES entries")
+[[ -s "$banned_imports" ]] && failed_gates+=("app-owned CSS @import usage")
+[[ -s "$oversized_css" ]] && failed_gates+=("CSS files over line budget")
+[[ -s "$raw_colors" ]] && failed_gates+=("raw colors outside token/palette/bridge files")
+[[ -s "$unexpected_feature_global_selectors" ]] && failed_gates+=("unexpected app/global/Bootstrap selectors in feature CSS")
+
+if (( ${#failed_gates[@]} > 0 )); then
+  echo
+  echo "style-audit failed hard gates:"
+  printf '  %s\n' "${failed_gates[@]}"
   exit 1
 fi
+
+echo
+echo "style-audit hard gates passed"
