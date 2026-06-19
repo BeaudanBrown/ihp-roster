@@ -18,35 +18,12 @@ stop:
 status:
     dev-status
 
-# Forward local browser/dev-service ports from this machine to a dev host.
-# Run this on your laptop/workstation (e.g. t480), not inside an existing SSH
-# shell on grill. Override ports with e.g.
-#   IHP_ROSTER_TUNNEL_PORTS="18000:8000 18025:8025" just dev-tunnel grill
-# Each item is local-port:remote-port; bare ports map to themselves.
-dev-tunnel host="grill":
-    port_specs="${IHP_ROSTER_TUNNEL_PORTS:-8000 8025 1025}"; \
-    ssh_args=(-N -T -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3); \
-    echo "Opening SSH dev tunnel to {{host}}"; \
-    echo "Forwarded services:"; \
-    for spec in $port_specs; do \
-        if [[ "$spec" == *:* ]]; then local_port="${spec%%:*}"; remote_port="${spec#*:}"; else local_port="$spec"; remote_port="$spec"; fi; \
-        ssh_args+=(-L "127.0.0.1:${local_port}:127.0.0.1:${remote_port}"); \
-        case "$remote_port" in \
-            8000) label="app" ;; \
-            8025) label="MailHog UI/API" ;; \
-            1025) label="MailHog SMTP" ;; \
-            *) label="service" ;; \
-        esac; \
-        echo "  ${label}: 127.0.0.1:${local_port} -> {{host}}:127.0.0.1:${remote_port}"; \
-    done; \
-    echo; \
-    echo "Open http://127.0.0.1:8000 for the app and http://127.0.0.1:8025 for MailHog when using default ports."; \
-    echo "Press Ctrl-C to close the tunnel."; \
-    exec ssh "${ssh_args[@]}" "{{host}}"
-
-# Convenience alias for the primary remote development host.
 tunnel-grill:
-    @just dev-tunnel grill
+    ssh -N -T \
+        -L 127.0.0.1:8000:127.0.0.1:8000 \
+        -L 127.0.0.1:8025:127.0.0.1:8025 \
+        -L 127.0.0.1:1025:127.0.0.1:1025 \
+        grill
 
 db:
     make db
