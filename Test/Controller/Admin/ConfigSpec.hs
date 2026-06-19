@@ -165,10 +165,11 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "id=\"admin-shift-types-fragment\""
                 response `responseBodyShouldContain` "Pay Rate"
                 response `responseBodyShouldContain` (cs ("<option value=\"xero:" <> inputValue importedPayItem.id <> "\""))
-                response `responseBodyShouldContain` "Xero: Imported Bar Rate"
+                response `responseBodyShouldContain` "Xero imported rates"
+                response `responseBodyShouldContain` "Imported Bar Rate"
                 response `responseBodyShouldContain` "42.5/hr"
                 responseBodyText <- responseBody response
-                (cs responseBodyText :: String) `shouldContainInOrder` ["FWC: Level 1", "Xero: Imported Bar Rate"]
+                (cs responseBodyText :: String) `shouldContainInOrder` ["Award rates", "Level 1", "Xero imported rates", "Imported Bar Rate"]
 
                 createResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateShiftTypeAction

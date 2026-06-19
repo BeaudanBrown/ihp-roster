@@ -349,8 +349,8 @@ renderStaffPayFields staff awardLevels awardLevelBaseRates importedPayItems = [h
             <label for="payRateSelection" class="form-label">Default Pay Rate</label>
             <select name="payRateSelection" id="payRateSelection" class={selectClass staff "defaultAwardLevelId"}>
                 <option value="" selected={isNothing staff.defaultAwardLevelId && isNothing staff.importedXeroPayItemId}>Not assigned</option>
-                {forEach awardLevels (renderAwardLevelOption staff awardLevelBaseRates)}
-                {forEach importedPayItems (renderImportedPayItemOption staff.importedXeroPayItemId)}
+                {renderAwardLevelOptionsGroup staff awardLevels awardLevelBaseRates}
+                {renderImportedPayItemOptionsGroup staff.importedXeroPayItemId importedPayItems}
             </select>
             {renderStaffFieldError staff "defaultAwardLevelId"}
             {renderStaffFieldError staff "importedXeroPayItemId"}
@@ -358,17 +358,33 @@ renderStaffPayFields staff awardLevels awardLevelBaseRates importedPayItems = [h
     </div>
 |]
 
+renderImportedPayItemOptionsGroup :: Maybe (Id XeroImportedPayItem) -> [XeroImportedPayItem] -> Html
+renderImportedPayItemOptionsGroup _ [] = mempty
+renderImportedPayItemOptionsGroup selectedImportedPayItemId importedPayItems = [hsx|
+    <optgroup label="Xero imported rates">
+        {forEach importedPayItems (renderImportedPayItemOption selectedImportedPayItemId)}
+    </optgroup>
+|]
+
 renderImportedPayItemOption :: Maybe (Id XeroImportedPayItem) -> XeroImportedPayItem -> Html
 renderImportedPayItemOption selectedImportedPayItemId importedPayItem = [hsx|
     <option value={"xero:" <> inputValue importedPayItem.id} selected={selectedImportedPayItemId == Just importedPayItem.id}>
-        Xero: {importedPayItem.name} — {tshow importedPayItem.ratePerUnit}/hr
+        {importedPayItem.name} — {tshow importedPayItem.ratePerUnit}/hr
     </option>
+|]
+
+renderAwardLevelOptionsGroup :: Staff -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
+renderAwardLevelOptionsGroup _ [] _ = mempty
+renderAwardLevelOptionsGroup staff awardLevels awardLevelBaseRates = [hsx|
+    <optgroup label="Award rates">
+        {forEach awardLevels (renderAwardLevelOption staff awardLevelBaseRates)}
+    </optgroup>
 |]
 
 renderAwardLevelOption :: Staff -> [AwardLevelBaseRate] -> AwardLevel -> Html
 renderAwardLevelOption staff awardLevelBaseRates awardLevel = [hsx|
     <option value={"award:" <> inputValue awardLevel.id} selected={isNothing staff.importedXeroPayItemId && staff.defaultAwardLevelId == Just awardLevel.id}>
-        FWC: {awardLevelOptionLabel awardLevelBaseRates awardLevel}
+        {awardLevelOptionLabel awardLevelBaseRates awardLevel}
     </option>
 |]
 

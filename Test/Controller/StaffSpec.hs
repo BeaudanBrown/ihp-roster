@@ -496,7 +496,8 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Default Pay Rate"
-                response `responseBodyShouldContain` "FWC: Level 3 (perm $32.75/hr)"
+                response `responseBodyShouldContain` "Award rates"
+                response `responseBodyShouldContain` "Level 3 (perm $32.75/hr)"
                 response `responseBodyShouldContain` "Not assigned"
 
         it "lets venue admins view and update a linked staff member venue role" $ withContext do
@@ -555,10 +556,11 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Default Pay Rate"
                 response `responseBodyShouldContain` (cs ("<option value=\"xero:" <> inputValue importedPayItem.id <> "\""))
-                response `responseBodyShouldContain` "Xero: Imported Staff Rate"
+                response `responseBodyShouldContain` "Xero imported rates"
+                response `responseBodyShouldContain` "Imported Staff Rate"
                 response `responseBodyShouldContain` "55.25/hr"
                 responseBodyText <- responseBody response
-                (cs responseBodyText :: String) `shouldContainInOrder` ["FWC: Level Staff", "Xero: Imported Staff Rate"]
+                (cs responseBodyText :: String) `shouldContainInOrder` ["Award rates", "Level Staff", "Xero imported rates", "Imported Staff Rate"]
 
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
                 updateResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do

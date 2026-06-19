@@ -214,15 +214,23 @@ renderPayRateSelect fieldId selectedAwardLevelId selectedImportedPayItemId award
             hx-target="#admin-shift-types-fragment"
             hx-swap="outerHTML">
         <option value="" selected={isNothing selectedAwardLevelId && isNothing selectedImportedPayItemId}>Use staff default pay rate</option>
-        {forEach awardLevels (renderAwardLevelOption awardLevelBaseRates selectedAwardLevelId selectedImportedPayItemId)}
-        {forEach importedPayItems (renderImportedPayItemOption selectedImportedPayItemId)}
+        {renderAwardLevelOptionsGroup awardLevels awardLevelBaseRates selectedAwardLevelId selectedImportedPayItemId}
+        {renderImportedPayItemOptionsGroup selectedImportedPayItemId importedPayItems}
     </select>
+|]
+
+renderImportedPayItemOptionsGroup :: Maybe (Id XeroImportedPayItem) -> [XeroImportedPayItem] -> Html
+renderImportedPayItemOptionsGroup _ [] = mempty
+renderImportedPayItemOptionsGroup selectedImportedPayItemId importedPayItems = [hsx|
+    <optgroup label="Xero imported rates">
+        {forEach importedPayItems (renderImportedPayItemOption selectedImportedPayItemId)}
+    </optgroup>
 |]
 
 renderImportedPayItemOption :: Maybe (Id XeroImportedPayItem) -> XeroImportedPayItem -> Html
 renderImportedPayItemOption selectedImportedPayItemId importedPayItem = [hsx|
     <option value={"xero:" <> inputValue importedPayItem.id} selected={selectedImportedPayItemId == Just importedPayItem.id}>
-        Xero: {importedPayItem.name} — ${tshow importedPayItem.ratePerUnit}/hr
+        {importedPayItem.name} — ${tshow importedPayItem.ratePerUnit}/hr
     </option>
 |]
 
@@ -278,9 +286,17 @@ shiftTypeFieldKey :: Id ShiftType -> Text -> Text
 shiftTypeFieldKey shiftTypeId fieldName =
     tshow shiftTypeId <> ":" <> fieldName
 
+renderAwardLevelOptionsGroup :: [AwardLevel] -> [AwardLevelBaseRate] -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> Html
+renderAwardLevelOptionsGroup [] _ _ _ = mempty
+renderAwardLevelOptionsGroup awardLevels awardLevelBaseRates selectedAwardLevelId selectedImportedPayItemId = [hsx|
+    <optgroup label="Award rates">
+        {forEach awardLevels (renderAwardLevelOption awardLevelBaseRates selectedAwardLevelId selectedImportedPayItemId)}
+    </optgroup>
+|]
+
 renderAwardLevelOption :: [AwardLevelBaseRate] -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> AwardLevel -> Html
 renderAwardLevelOption awardLevelBaseRates selectedAwardLevelId selectedImportedPayItemId awardLevel = [hsx|
     <option value={"award:" <> inputValue awardLevel.id} selected={isNothing selectedImportedPayItemId && selectedAwardLevelId == Just awardLevel.id}>
-        FWC: {awardLevelOptionLabel awardLevelBaseRates awardLevel}
+        {awardLevelOptionLabel awardLevelBaseRates awardLevel}
     </option>
 |]
