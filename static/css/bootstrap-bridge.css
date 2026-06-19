@@ -18,7 +18,62 @@
     --bs-emphasis-color: var(--app-text);
     --bs-secondary-color: var(--app-muted);
     --bs-secondary-bg: var(--app-surface-2);
+    --bs-body-font-size: var(--text-base);
+    --bs-border-radius: var(--app-radius-md);
+    --bs-border-radius-sm: var(--app-radius-sm);
+    --bs-border-radius-lg: var(--app-radius-lg);
     --app-focus-ring-primary: rgba(var(--bs-primary-rgb), 0.25);
+}
+
+.btn {
+    --bs-btn-font-size: var(--text-base);
+    --bs-btn-padding-x: calc(0.75rem * var(--app-density-space-scale));
+    --bs-btn-padding-y: calc(0.375rem * var(--app-density-space-scale));
+    --bs-btn-border-radius: var(--app-radius-md);
+}
+
+.btn-sm {
+    --bs-btn-font-size: var(--text-sm);
+    --bs-btn-padding-x: calc(0.5rem * var(--app-density-space-scale));
+    --bs-btn-padding-y: calc(0.25rem * var(--app-density-space-scale));
+}
+
+.btn-lg {
+    --bs-btn-font-size: var(--text-lg);
+    --bs-btn-padding-x: calc(1rem * var(--app-density-space-scale));
+    --bs-btn-padding-y: calc(0.5rem * var(--app-density-space-scale));
+}
+
+.form-control,
+.form-select {
+    min-height: var(--app-control-height-md);
+    font-size: var(--text-base);
+}
+
+.form-control-sm,
+.form-select-sm {
+    min-height: var(--app-control-height-sm);
+    font-size: var(--text-sm);
+}
+
+.form-control-lg,
+.form-select-lg {
+    min-height: var(--app-control-height-lg);
+    font-size: var(--text-lg);
+}
+
+.dropdown-menu {
+    --bs-dropdown-font-size: var(--text-base);
+    --bs-dropdown-padding-x: var(--app-space-2);
+    --bs-dropdown-padding-y: var(--app-space-2);
+    --bs-dropdown-item-padding-x: var(--app-space-3);
+    --bs-dropdown-item-padding-y: var(--app-space-2);
+}
+
+.table {
+    --bs-table-cell-padding-x: var(--app-space-3);
+    --bs-table-cell-padding-y: var(--app-space-2);
+    font-size: var(--text-base);
 }
 
 .modal {

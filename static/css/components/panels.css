@@ -2,11 +2,11 @@
 
 .app-auth-body,
 .app-panel-body {
-    padding: 1.5rem;
+    padding: var(--app-space-5);
 }
 
 .app-panel-header {
-    padding: 1.5rem;
+    padding: var(--app-space-5);
     border-bottom: 1px solid var(--app-border);
 }
 
@@ -15,7 +15,7 @@
     flex-wrap: wrap;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 0.75rem;
+    gap: var(--app-space-3);
 }
 
 .app-panel-title {
@@ -23,6 +23,6 @@
 }
 
 .app-panel-description {
-    margin: 0.35rem 0 0;
+    margin: calc(0.35rem * var(--app-density-space-scale)) 0 0;
     color: var(--app-muted);
 }

@@ -2,29 +2,29 @@
 
 .btn.app-icon-button {
     display: inline-grid;
-    width: 2rem;
-    min-width: 2rem;
-    height: 2rem;
+    width: var(--app-control-height-sm);
+    min-width: var(--app-control-height-sm);
+    height: var(--app-control-height-sm);
     padding: 0;
     place-items: center;
 }
 
 .btn.app-compact-action-button {
-    min-width: 1.7rem;
-    min-height: 1.7rem;
-    padding: 0 0.4rem;
-    border-radius: 0.55rem;
+    min-width: calc(1.7rem * var(--app-density-control-scale));
+    min-height: calc(1.7rem * var(--app-density-control-scale));
+    padding: 0 calc(0.4rem * var(--app-density-space-scale));
+    border-radius: var(--app-radius-md);
     border: 1px solid var(--app-control-border);
     background: var(--app-white-alpha-05);
     color: var(--app-text);
-    font-size: 0.9rem;
+    font-size: var(--text-sm);
     font-weight: 700;
     line-height: 1;
     box-shadow: inset 0 1px 0 var(--app-white-alpha-06);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.28rem;
+    gap: var(--app-space-1);
 }
 
 .btn.app-compact-action-button:hover,

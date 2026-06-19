@@ -2,7 +2,7 @@
 
 .profile-field-grid .form-control,
 .profile-field-grid .form-select {
-    height: calc(2.75rem + 2px);
+    height: calc(var(--app-control-height-lg) + 2px);
 }
 
 h1,
@@ -13,7 +13,7 @@ h1,
 
 h2,
 .h2 {
-    font-size: clamp(1.2rem, 1.08rem + 0.55vw, 1.55rem);
+    font-size: calc(clamp(1.2rem, 1.08rem + 0.55vw, 1.55rem) * var(--app-density-font-scale));
 }
 
 h5,
@@ -28,7 +28,7 @@ h5,
 .app-dense-control {
     width: 100%;
     min-width: 0;
-    padding: 0 0.16rem;
+    padding: 0 calc(0.16rem * var(--app-density-space-scale));
     border: 0 !important;
     border-radius: 0 !important;
     background-color: transparent !important;
@@ -97,7 +97,7 @@ h5,
     justify-content: center;
     width: 100%;
     min-width: 0;
-    padding-inline: 0.16rem;
+    padding-inline: calc(0.16rem * var(--app-density-space-scale));
     text-align: center;
     line-height: 1;
     white-space: nowrap;
