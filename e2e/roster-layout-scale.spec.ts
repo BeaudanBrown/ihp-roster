@@ -117,4 +117,32 @@ test.describe('Roster layout scale baseline', () => {
             expect(metrics.bodyScrollWidth).toBeLessThanOrEqual(metrics.viewportWidth + 1);
         }
     });
+
+    for (const scale of ['compact', 'normal', 'large'] as const) {
+        test(`keeps roster shift dialogs clickable at ${scale} scale`, async ({ page }) => {
+            await page.setViewportSize({ width: 1366, height: 900 });
+            await openRoster(page);
+            await setRosterScale(page, scale);
+
+            const launcher = page.locator('[data-roster-shift-launcher="true"][hx-get*="EditRosterSlotDialog"]').first();
+            await expect(launcher).toBeVisible();
+            await launcher.scrollIntoViewIfNeeded();
+
+            const dialogResponsePromise = page.waitForResponse((response) =>
+                response.request().method() === 'GET' && response.url().includes('/EditRosterSlotDialog')
+            );
+            await launcher.click({ force: true });
+            const dialogResponse = await dialogResponsePromise;
+            expect(dialogResponse.status(), await dialogResponse.text()).toBe(200);
+
+            const dialog = page.locator('#dialog-overlay-mount [data-dialog-overlay="true"]');
+            await expect(dialog).toBeVisible();
+            await expect(page.locator('#roster-shift-staff-id')).toBeVisible();
+            await expect(page.locator('#roster-shift-type-id')).toBeVisible();
+            await expect(page.getByRole('button', { name: 'Save' })).toBeVisible();
+
+            await page.getByRole('button', { name: 'Cancel' }).click();
+            await expect(dialog).toHaveCount(0);
+        });
+    }
 });
