@@ -361,7 +361,11 @@ slotColumnCount False = 3
 
 slotHeaderGridColumnStyle :: Bool -> Text
 slotHeaderGridColumnStyle endTimesEnabled =
-    "grid-column: span " <> tshow (slotColumnCount endTimesEnabled) <> ";"
+    rosterGridColumnSpanStyle (slotColumnCount endTimesEnabled)
+
+rosterGridColumnSpanStyle :: Int -> Text
+rosterGridColumnSpanStyle gridSpan =
+    "--roster-grid-column-span: " <> tshow gridSpan <> ";"
 
 renderSlotAddButton :: (?context :: ControllerContext) => RosterWeek -> Bool -> Html
 renderSlotAddButton rosterWeek True = [hsx|
@@ -1064,7 +1068,7 @@ renderCreateLauncherCellWithGridSpan :: (?context :: ControllerContext) => Roste
 renderCreateLauncherCellWithGridSpan target groupKey cellClasses label gridSpan = [hsx|
     <div role="gridcell"
          class={cellClasses}
-         style={"grid-column: span " <> tshow gridSpan <> ";"}
+         style={rosterGridColumnSpanStyle gridSpan}
          data-roster-shift-group-key={groupKey}
          data-roster-shift-launcher="true"
          tabindex="0"

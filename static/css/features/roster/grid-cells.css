@@ -49,6 +49,10 @@
     background-color: inherit;
 }
 
+.roster-grid [data-roster-shift-launcher="true"] {
+    grid-column: span var(--roster-grid-column-span, 1);
+}
+
 .roster-grid .roster-shift-create-plus-cell .slot-cell-static {
     color: var(--bs-success);
     font-size: 1.15rem;

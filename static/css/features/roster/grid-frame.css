@@ -260,6 +260,7 @@
 }
 
 .roster-grid .roster-block-header {
+    grid-column: span var(--roster-grid-column-span);
     background-color: var(--roster-header);
     color: var(--app-text);
     font-weight: 700;

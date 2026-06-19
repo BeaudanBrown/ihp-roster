@@ -284,6 +284,7 @@
 .timesheet-shape-marker-line {
     position: absolute;
     top: -0.12rem;
+    left: var(--timesheet-marker-left);
     bottom: -0.12rem;
     width: 1px;
     margin-left: -0.5px;
@@ -311,6 +312,7 @@
 .timesheet-shape-marker-label {
     position: absolute;
     top: 0;
+    left: var(--timesheet-marker-left);
     transform: translateX(-50%);
     white-space: nowrap;
 }

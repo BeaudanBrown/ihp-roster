@@ -555,7 +555,7 @@ timesheetMarkerLeft scale minutes =
     in (fromIntegral (minutes - scaleStartMinutes scale) / total) * 100
 
 timesheetMarkerStyle :: TimesheetTimelineScale -> Int -> Text
-timesheetMarkerStyle scale minutes = "left:" <> tshow (timesheetMarkerLeft scale minutes) <> "%;"
+timesheetMarkerStyle scale minutes = "--timesheet-marker-left: " <> tshow (timesheetMarkerLeft scale minutes) <> "%;"
 
 renderTimesheetShapeMarkerLine :: TimesheetTimelineScale -> TimesheetShapeMarker -> Html
 renderTimesheetShapeMarkerLine scale marker = [hsx|
