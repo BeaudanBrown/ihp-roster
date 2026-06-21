@@ -1,7 +1,7 @@
 ---
 id: ir-jxjp
 status: open
-deps: [ir-j3hy]
+deps: [ir-j3hy, ir-o3fw]
 links: []
 created: 2026-06-21T03:48:51Z
 type: task
@@ -16,9 +16,9 @@ Add the test infrastructure and conventions for TypeScript frontend code before 
 
 ## Design
 
-Add a fast unit/DOM test runner for frontend TypeScript, preferably Vitest with jsdom, alongside the existing Playwright E2E suite. Integrate the test runner through Nix/devenv so agents and developers use bash ./bin/in-env frontend-test rather than npm/npx. Provide frontend-test and integrate it into frontend-check. Establish test locations and helpers for importable frontend modules under frontend/ts/, while preserving Playwright as the browser/integration authority for HTMX, Bootstrap, live updates, roster, and mobile behavior. Do not wire frontend unit or E2E tests into the pre-commit hook; the pre-commit hook remains for generated JS drift/build guardrails. Keep test tooling out of the live NixOS runtime package.
+Add a fast unit/DOM test runner for frontend TypeScript, preferably Vitest with jsdom, alongside the existing Playwright E2E suite. Integrate the test runner through Nix/devenv so agents and developers use bash ./bin/in-env frontend-test rather than npm/npx. Provide frontend-test and integrate it into frontend-check alongside contract drift checks. Establish test locations and helpers for importable frontend modules under frontend/ts/, including tests that consume generated contract fixtures/types where useful, while preserving Playwright as the browser/integration authority for HTMX, Bootstrap, live updates, roster, and mobile behavior. Do not wire frontend unit or E2E tests into the pre-commit hook; the pre-commit hook remains for generated JS drift/build guardrails. Keep test tooling out of the live NixOS runtime package.
 
 ## Acceptance Criteria
 
-bash ./bin/in-env frontend-test runs the TypeScript unit/DOM tests using Nix-provided tooling and without requiring npm/npx. frontend-check includes TypeScript validation and frontend-test. At least one migrated script/module has meaningful unit/DOM test coverage proving the pattern. Docs and agent notes describe when to use unit tests versus Playwright E2E. Existing Playwright commands remain the E2E path for browser runtime regressions. The production/live NixOS runtime remains free of frontend test tooling.
+bash ./bin/in-env frontend-test runs the TypeScript unit/DOM tests using Nix-provided tooling and without requiring npm/npx. frontend-check includes TypeScript validation, contract drift checks, and frontend-test. At least one migrated script/module has meaningful unit/DOM test coverage proving the pattern, using generated contract types/fixtures where applicable. Docs and agent notes describe when to use unit tests versus Playwright E2E. Existing Playwright commands remain the E2E path for browser runtime regressions. The production/live NixOS runtime remains free of frontend test tooling.
 
