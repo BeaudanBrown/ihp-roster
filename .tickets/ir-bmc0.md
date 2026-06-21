@@ -1,6 +1,6 @@
 ---
 id: ir-bmc0
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-06-21T06:08:16Z
@@ -21,3 +21,9 @@ Start with low-risk shared helpers and small runtime cleanups, then remove ts-no
 
 Shared DOM/lifecycle helpers are in place and adopted; app runtimes are incrementally typed without ts-nocheck; large live-update/roster/passkey/time-picker/horizontal-scroll code is split into feature modules; backend browser-boundary contracts remain Haskell-owned and drift-checked; frontend-check and focused E2E remain green or documented.
 
+
+## Notes
+
+**2026-06-21T23:48:10Z**
+
+Refactor epic complete. Added shared DOM/lifecycle helpers; split and typed bootstrap, dialog overlays, time picker, horizontal scroll, passkeys, live updates, and roster; removed all frontend/ts @ts-nocheck; added frontend-no-ts-nocheck guard into frontend-check; generated JS and Haskell-owned frontend contracts remain drift-checked. Final focused verification: frontend-check, doc-drift-check, frontend-drift-check, frontend-contracts-check, and rg @ts-nocheck (no matches).
