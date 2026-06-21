@@ -1,9 +1,30 @@
 "use strict";
 (() => {
-  // frontend/ts/app-passkeys.ts
-  function localStorageKeyForPasskey(userId, key) {
-    return `ihpRoster.${key}.${userId}`;
+  // frontend/ts/shared/dom.ts
+  function isElement(value) {
+    return typeof Element !== "undefined" && value instanceof Element;
   }
+  function isDocument(value) {
+    return typeof Document !== "undefined" && value instanceof Document;
+  }
+  function isDocumentFragment(value) {
+    return typeof DocumentFragment !== "undefined" && value instanceof DocumentFragment;
+  }
+  function isDomRoot(value) {
+    return isElement(value) || isDocument(value) || isDocumentFragment(value);
+  }
+
+  // frontend/ts/shared/lifecycle.ts
+  function eventDetailRecord(event) {
+    if (typeof CustomEvent === "undefined" || !(event instanceof CustomEvent)) return null;
+    if (event.detail === null || typeof event.detail !== "object") return null;
+    return event.detail;
+  }
+  function detailTarget(event, key) {
+    return eventDetailRecord(event)?.[key];
+  }
+
+  // frontend/ts/passkeys/base64url.ts
   function base64UrlToArrayBuffer(value) {
     const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
     const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
@@ -22,15 +43,23 @@
     });
     return globalThis.btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
   }
+
+  // frontend/ts/passkeys/storage.ts
+  function localStorageKeyForPasskey(userId, key) {
+    return `ihpRoster.${key}.${userId}`;
+  }
+
+  // frontend/ts/app-passkeys.ts
   (function enablePasskeys() {
     if (typeof window === "undefined") return;
     function initPasskeyAuth(event) {
-      const root = event && event.detail && event.detail.target instanceof HTMLElement ? event.detail.target : document;
+      const target = detailTarget(event, "target");
+      const root = isDomRoot(target) ? target : document;
       root.querySelectorAll(".js-passkey-login").forEach(function(container) {
         if (container.dataset.passkeyInitialized === "true") return;
         container.dataset.passkeyInitialized = "true";
         const button = container.querySelector(".js-passkey-login-button");
-        if (!button) return;
+        if (button === null) return;
         button.addEventListener("click", function() {
           void runPasskeyLogin(container, button);
         });
@@ -39,7 +68,7 @@
         if (container.dataset.passkeyInitialized === "true") return;
         container.dataset.passkeyInitialized = "true";
         const button = container.querySelector(".js-passkey-first-login-button");
-        if (!button) return;
+        if (button === null) return;
         button.addEventListener("click", function(event2) {
           event2.preventDefault();
           void runPasskeyFirstLogin(container, button);
@@ -49,7 +78,7 @@
         if (container.dataset.passkeyInitialized === "true") return;
         container.dataset.passkeyInitialized = "true";
         const button = container.querySelector(".js-passkey-register-button");
-        if (!button) return;
+        if (button === null) return;
         button.addEventListener("click", function() {
           void runPasskeyRegistration(container, button);
         });
@@ -61,7 +90,7 @@
       });
     }
     async function runPasskeyFirstLogin(container, button) {
-      if (!window.PublicKeyCredential || !window.navigator.credentials) {
+      if (!passkeysAreAvailable()) {
         redirectToFallback(container);
         return;
       }
@@ -73,14 +102,14 @@
           publicKey: authenticationOptionsToNative(beginResponse),
           signal: timeoutSignal(1e4)
         });
-        if (!credential) throw new Error("No passkey was selected.");
+        if (!(credential instanceof PublicKeyCredential)) throw new Error("No passkey was selected.");
         const finishResponse = await postJson(
           container.dataset.finishUrl,
           serializeAuthenticationCredential(credential)
         );
         markPasskeySeen(finishResponse.userId);
         redirectAfterPasskeySuccess(container, finishResponse);
-      } catch (error) {
+      } catch (_error) {
         redirectToFallback(container);
       } finally {
         button.textContent = originalText;
@@ -93,7 +122,7 @@
         const credential = await window.navigator.credentials.get({
           publicKey: authenticationOptionsToNative(beginResponse)
         });
-        if (!credential) throw new Error("No passkey was selected.");
+        if (!(credential instanceof PublicKeyCredential)) throw new Error("No passkey was selected.");
         const finishResponse = await postJson(
           container.dataset.finishUrl,
           serializeAuthenticationCredential(credential)
@@ -110,7 +139,7 @@
         const credential = await window.navigator.credentials.create({
           publicKey: registrationOptionsToNative(beginResponse)
         });
-        if (!credential) throw new Error("Passkey registration was cancelled.");
+        if (!(credential instanceof PublicKeyCredential)) throw new Error("Passkey registration was cancelled.");
         const finishResponse = await postJson(
           container.dataset.finishUrl,
           registrationPayload(container, credential)
@@ -127,7 +156,7 @@
     function initPasskeySetupPrompt(container) {
       const userId = container.dataset.userId;
       const mode = container.dataset.mode;
-      if (!window.PublicKeyCredential || !window.navigator.credentials || !userId) {
+      if (!passkeysAreAvailable() || userId === void 0 || userId === "") {
         container.remove();
         document.body.classList.remove("modal-open");
         return;
@@ -145,7 +174,7 @@
       container.classList.remove("d-none");
       document.body.classList.add("modal-open");
       const dismissButton = container.querySelector('[data-dialog-overlay-close="true"]');
-      if (dismissButton) {
+      if (dismissButton !== null) {
         dismissButton.addEventListener("click", function(event) {
           event.preventDefault();
           dismissPasskeyPrompt(userId);
@@ -155,7 +184,7 @@
       }
     }
     async function withPasskeyButton(container, button, callback) {
-      if (!window.PublicKeyCredential || !window.navigator.credentials) {
+      if (!passkeysAreAvailable()) {
         setPasskeyStatus(container, "danger", "Passkeys are not supported in this browser.");
         return;
       }
@@ -165,7 +194,7 @@
       try {
         await callback();
       } catch (error) {
-        setPasskeyStatus(container, "danger", error.message || "Passkey request failed.");
+        setPasskeyStatus(container, "danger", error instanceof Error ? error.message : "Passkey request failed.");
       } finally {
         button.disabled = false;
         button.innerHTML = originalHtml;
@@ -173,7 +202,7 @@
     }
     async function postJson(url, payload) {
       const hasPayload = payload !== void 0;
-      const response = await window.fetch(url, {
+      const response = await window.fetch(url ?? "", {
         method: "POST",
         credentials: "same-origin",
         headers: hasPayload ? {
@@ -188,22 +217,22 @@
         return {};
       });
       if (!response.ok) {
-        if (json.redirectTo) {
+        if (typeof json.redirectTo === "string") {
           window.location.assign(json.redirectTo);
         }
-        throw new Error(json.error || "Passkey request failed.");
+        throw new Error(typeof json.error === "string" ? json.error : "Passkey request failed.");
       }
       return json;
     }
     function setPasskeyStatus(container, tone, message) {
       const element = passkeyStatusElement(container);
-      if (!element) return;
+      if (element === null) return;
       element.className = `alert alert-${tone} mt-3`;
       element.textContent = message;
     }
     function setRecoveryCodeStatus(container, recoveryCode, successRedirect) {
       const element = passkeyStatusElement(container);
-      if (!element) return;
+      if (element === null) return;
       element.className = "alert alert-warning mt-3";
       element.textContent = "";
       const title = document.createElement("strong");
@@ -215,7 +244,7 @@
       code.className = "d-block fs-5 my-2 user-select-all";
       code.textContent = recoveryCode;
       element.append(title, body, code);
-      if (successRedirect) {
+      if (successRedirect !== void 0 && successRedirect !== "") {
         const link = document.createElement("a");
         link.className = "btn btn-sm btn-primary mt-2";
         link.href = successRedirect;
@@ -224,14 +253,14 @@
       }
     }
     function passkeyStatusElement(container) {
-      if (!container) return null;
       const targetId = container.dataset.statusId;
-      if (!targetId) return null;
-      return document.getElementById(targetId);
+      if (targetId === void 0 || targetId === "") return null;
+      const element = document.getElementById(targetId);
+      return element instanceof HTMLElement ? element : null;
     }
     function redirectAfterPasskeySuccess(container, response) {
       const redirectTo = response.redirectTo || container.dataset.successRedirect;
-      if (!redirectTo) return;
+      if (redirectTo === void 0 || redirectTo === "") return;
       window.location.assign(redirectTo);
     }
     function redirectToFallback(container) {
@@ -246,19 +275,19 @@
       return controller.signal;
     }
     function localStorageKey(userId, key) {
-      return `ihpRoster.${key}.${userId}`;
+      return localStorageKeyForPasskey(userId, key);
     }
     function markPasskeySeen(userId) {
-      if (!userId) return;
+      if (userId === void 0 || userId === "") return;
       try {
         window.localStorage.setItem(localStorageKey(userId, "passkeySeen"), "1");
-      } catch (error) {
+      } catch (_error) {
       }
     }
     function hasPasskeySeen(userId) {
       try {
         return window.localStorage.getItem(localStorageKey(userId, "passkeySeen")) === "1";
-      } catch (error) {
+      } catch (_error) {
         return false;
       }
     }
@@ -269,96 +298,92 @@
           localStorageKey(userId, "passkeyPromptDismissedUntil"),
           String(Date.now() + thirtyDaysMs)
         );
-      } catch (error) {
+      } catch (_error) {
       }
     }
     function isPasskeyPromptDismissed(userId) {
       try {
         const dismissedUntil = Number(window.localStorage.getItem(localStorageKey(userId, "passkeyPromptDismissedUntil")) || "0");
         return dismissedUntil > Date.now();
-      } catch (error) {
+      } catch (_error) {
         return false;
       }
-    }
-    function base64UrlToBuffer(value) {
-      const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
-      const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
-      const binary = window.atob(padded);
-      const bytes = new Uint8Array(binary.length);
-      for (let index = 0; index < binary.length; index += 1) {
-        bytes[index] = binary.charCodeAt(index);
-      }
-      return bytes.buffer;
-    }
-    function bufferToBase64Url(buffer) {
-      const bytes = new Uint8Array(buffer);
-      let binary = "";
-      bytes.forEach(function(byte) {
-        binary += String.fromCharCode(byte);
-      });
-      return window.btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
     }
     function registrationPayload(container, credential) {
       const payload = serializeRegistrationCredential(credential);
       const nameInput = container.querySelector(".js-passkey-name");
-      if (nameInput && nameInput.value.trim()) {
+      if (nameInput !== null && nameInput.value.trim()) {
         payload.name = nameInput.value.trim();
       }
       return payload;
     }
     function serializeRegistrationCredential(credential) {
+      const response = credential.response;
+      if (!(response instanceof AuthenticatorAttestationResponse)) {
+        throw new Error("Invalid registration credential response.");
+      }
       return {
-        rawId: bufferToBase64Url(credential.rawId),
+        rawId: arrayBufferToBase64Url(credential.rawId),
         response: {
-          clientDataJSON: bufferToBase64Url(credential.response.clientDataJSON),
-          attestationObject: bufferToBase64Url(credential.response.attestationObject),
-          transports: typeof credential.response.getTransports === "function" ? credential.response.getTransports() : []
+          clientDataJSON: arrayBufferToBase64Url(response.clientDataJSON),
+          attestationObject: arrayBufferToBase64Url(response.attestationObject),
+          transports: typeof response.getTransports === "function" ? response.getTransports() : []
         },
         clientExtensionResults: credential.getClientExtensionResults()
       };
     }
     function serializeAuthenticationCredential(credential) {
+      const response = credential.response;
+      if (!(response instanceof AuthenticatorAssertionResponse)) {
+        throw new Error("Invalid authentication credential response.");
+      }
       return {
-        rawId: bufferToBase64Url(credential.rawId),
+        rawId: arrayBufferToBase64Url(credential.rawId),
         response: {
-          clientDataJSON: bufferToBase64Url(credential.response.clientDataJSON),
-          authenticatorData: bufferToBase64Url(credential.response.authenticatorData),
-          signature: bufferToBase64Url(credential.response.signature),
-          userHandle: credential.response.userHandle ? bufferToBase64Url(credential.response.userHandle) : null
+          clientDataJSON: arrayBufferToBase64Url(response.clientDataJSON),
+          authenticatorData: arrayBufferToBase64Url(response.authenticatorData),
+          signature: arrayBufferToBase64Url(response.signature),
+          userHandle: response.userHandle ? arrayBufferToBase64Url(response.userHandle) : null
         },
         clientExtensionResults: credential.getClientExtensionResults()
       };
     }
     function registrationOptionsToNative(options) {
-      if (!options.user || !options.user.id) {
+      if (typeof options.challenge !== "string" || options.user === void 0 || typeof options.user.id !== "string") {
         throw new Error("Invalid registration options.");
       }
       return {
         ...options,
-        challenge: base64UrlToBuffer(options.challenge),
+        challenge: base64UrlToArrayBuffer(options.challenge),
         user: {
           ...options.user,
-          id: base64UrlToBuffer(options.user.id)
+          id: base64UrlToArrayBuffer(options.user.id)
         },
         excludeCredentials: (options.excludeCredentials || []).map(function(descriptor) {
           return {
             ...descriptor,
-            id: base64UrlToBuffer(descriptor.id)
+            id: base64UrlToArrayBuffer(descriptor.id)
           };
         })
       };
     }
     function authenticationOptionsToNative(options) {
+      if (typeof options.challenge !== "string") {
+        throw new Error("Invalid authentication options.");
+      }
       return {
         ...options,
-        challenge: base64UrlToBuffer(options.challenge),
+        challenge: base64UrlToArrayBuffer(options.challenge),
         allowCredentials: (options.allowCredentials || []).map(function(descriptor) {
           return {
             ...descriptor,
-            id: base64UrlToBuffer(descriptor.id)
+            id: base64UrlToArrayBuffer(descriptor.id)
           };
         })
       };
+    }
+    function passkeysAreAvailable() {
+      return typeof window.PublicKeyCredential === "function" && window.navigator.credentials !== void 0;
     }
     document.addEventListener("app:page-ready", initPasskeyAuth);
   })();
