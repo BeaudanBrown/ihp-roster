@@ -1,26 +1,41 @@
-// @ts-nocheck
-export const appPageReadyEventName = 'app:page-ready';
+import { isDocument, isHTMLElement } from "./shared/dom";
+import { detailTarget } from "./shared/lifecycle";
 
-export function pageReadyDetailFrom(detail) {
+export const appPageReadyEventName = "app:page-ready";
+
+export type PageReadyDetailInput = unknown;
+
+export type PageReadyDetail = {
+    source: string;
+    isFullPage: boolean;
+};
+
+function detailRecord(detail: PageReadyDetailInput): Record<string, unknown> {
+    return detail !== null && typeof detail === "object" ? detail as Record<string, unknown> : {};
+}
+
+export function pageReadyDetailFrom(detail: PageReadyDetailInput): PageReadyDetail {
+    const record = detailRecord(detail);
+    const source = record.source;
     return {
-        source: detail && detail.source ? detail.source : 'unknown',
-        isFullPage: Boolean(detail && detail.isFullPage),
+        source: typeof source === "string" && source !== "" ? source : "unknown",
+        isFullPage: Boolean(record.isFullPage),
     };
 }
 
 (function enableAppPageLifecycle() {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
 
     const pageReadyEventName = appPageReadyEventName;
 
-    function normalizeTarget(target) {
-        if (target instanceof HTMLElement) return target;
-        if (target instanceof Document) return document.body;
+    function normalizeTarget(target: unknown): HTMLElement {
+        if (isHTMLElement(target)) return target;
+        if (isDocument(target)) return document.body;
         return document.body;
     }
 
-    function dispatchPageReady(detail) {
-        const target = normalizeTarget(detail && detail.target);
+    function dispatchPageReady(detail?: PageReadyDetailInput): void {
+        const target = normalizeTarget(detailRecord(detail).target);
         const event = new CustomEvent(pageReadyEventName, {
             detail: {
                 target,
@@ -36,39 +51,37 @@ export function pageReadyDetailFrom(detail) {
     };
 
     document.addEventListener(pageReadyEventName, function (event) {
-        const target = normalizeTarget(event.detail && event.detail.target);
-        if (window.htmx && typeof window.htmx.process === 'function') {
-            window.htmx.process(target);
-        }
+        const target = normalizeTarget(detailTarget(event, "target"));
+        window.htmx?.process?.(target);
     });
 
-    document.addEventListener('DOMContentLoaded', function () {
+    document.addEventListener("DOMContentLoaded", function () {
         dispatchPageReady({
-            source: 'dom-content-loaded',
+            source: "dom-content-loaded",
             target: document.body,
             isFullPage: true,
         });
     });
 
-    document.addEventListener('htmx:afterSwap', function (event) {
+    document.addEventListener("htmx:afterSwap", function (event) {
         dispatchPageReady({
-            source: 'htmx-after-swap',
-            target: event.detail && event.detail.target,
+            source: "htmx-after-swap",
+            target: detailTarget(event, "target"),
             isFullPage: false,
         });
     });
 
-    document.addEventListener('htmx:oobAfterSwap', function (event) {
+    document.addEventListener("htmx:oobAfterSwap", function (event) {
         dispatchPageReady({
-            source: 'htmx-oob-after-swap',
-            target: event.detail && event.detail.target,
+            source: "htmx-oob-after-swap",
+            target: detailTarget(event, "target"),
             isFullPage: false,
         });
     });
 
-    if (document.readyState !== 'loading') {
+    if (document.readyState !== "loading") {
         dispatchPageReady({
-            source: 'document-ready',
+            source: "document-ready",
             target: document.body,
             isFullPage: true,
         });
@@ -78,7 +91,7 @@ export function pageReadyDetailFrom(detail) {
 // Keep tracked timer cleanup app-local so dev live reload and any future re-init flows
 // can clear stale intervals/timeouts without depending on legacy framework runtime hooks.
 (function enableTrackedTimers() {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
 
     if (!Array.isArray(window.allIntervals)) {
         window.allIntervals = [];
@@ -87,10 +100,10 @@ export function pageReadyDetailFrom(detail) {
         window.allTimeouts = [];
     }
 
-    if (typeof window.unsafeSetInterval !== 'function') {
+    if (typeof window.unsafeSetInterval !== "function") {
         window.unsafeSetInterval = window.setInterval.bind(window);
     }
-    if (typeof window.unsafeSetTimeout !== 'function') {
+    if (typeof window.unsafeSetTimeout !== "function") {
         window.unsafeSetTimeout = window.setTimeout.bind(window);
     }
 
@@ -101,33 +114,33 @@ export function pageReadyDetailFrom(detail) {
         window.setTimeout = trackedSetTimeout;
     }
 
-    if (typeof window.clearAllIntervals !== 'function') {
-        window.clearAllIntervals = function clearAllIntervals() {
-            for (const intervalId of window.allIntervals) {
+    if (typeof window.clearAllIntervals !== "function") {
+        window.clearAllIntervals = function clearAllIntervals(): void {
+            for (const intervalId of window.allIntervals ?? []) {
                 window.clearInterval(intervalId);
             }
             window.allIntervals = [];
         };
     }
 
-    if (typeof window.clearAllTimeouts !== 'function') {
-        window.clearAllTimeouts = function clearAllTimeouts() {
-            for (const timeoutId of window.allTimeouts) {
+    if (typeof window.clearAllTimeouts !== "function") {
+        window.clearAllTimeouts = function clearAllTimeouts(): void {
+            for (const timeoutId of window.allTimeouts ?? []) {
                 window.clearTimeout(timeoutId);
             }
             window.allTimeouts = [];
         };
     }
 
-    function trackedSetInterval() {
-        const intervalId = window.unsafeSetInterval.apply(window, arguments);
-        window.allIntervals.push(intervalId);
+    function trackedSetInterval(...args: Parameters<Window["setInterval"]>): ReturnType<Window["setInterval"]> {
+        const intervalId = window.unsafeSetInterval?.(...args) ?? window.setInterval(...args);
+        window.allIntervals?.push(intervalId);
         return intervalId;
     }
 
-    function trackedSetTimeout() {
-        const timeoutId = window.unsafeSetTimeout.apply(window, arguments);
-        window.allTimeouts.push(timeoutId);
+    function trackedSetTimeout(...args: Parameters<Window["setTimeout"]>): ReturnType<Window["setTimeout"]> {
+        const timeoutId = window.unsafeSetTimeout?.(...args) ?? window.setTimeout(...args);
+        window.allTimeouts?.push(timeoutId);
         return timeoutId;
     }
 })();
