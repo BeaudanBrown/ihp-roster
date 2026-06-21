@@ -1,3 +1,6 @@
+import { rootFromTarget } from "./shared/dom";
+import { detailTarget, onAppPageReady, onHtmxLoad } from "./shared/lifecycle";
+
 function syncHiddenInput(input: HTMLInputElement): void {
     const hiddenInputId = input.dataset.appToggleHiddenInputId;
     if (hiddenInputId === undefined || hiddenInputId === "") return;
@@ -24,7 +27,7 @@ export function syncToggleButton(input: HTMLInputElement): void {
 }
 
 function initToggleButtons(target: unknown): void {
-    const root = target instanceof Element || target instanceof Document ? target : document;
+    const root = rootFromTarget(target);
     root.querySelectorAll<HTMLInputElement>('[data-app-toggle-button-input="true"]').forEach((input) => {
         if (input.dataset.appToggleButtonReady === "true") return;
         input.dataset.appToggleButtonReady = "true";
@@ -35,19 +38,13 @@ function initToggleButtons(target: unknown): void {
     });
 }
 
-function detailTarget(event: Event, key: "target" | "elt"): unknown {
-    return event instanceof CustomEvent && event.detail !== null && typeof event.detail === "object"
-        ? (event.detail as Record<string, unknown>)[key]
-        : undefined;
-}
-
 function enableAppToggleButtons(): void {
     if (typeof window === "undefined") return;
 
-    document.addEventListener("app:page-ready", (event) => {
+    onAppPageReady((event) => {
         initToggleButtons(detailTarget(event, "target"));
     });
-    document.addEventListener("htmx:load", (event) => {
+    onHtmxLoad((event) => {
         initToggleButtons(detailTarget(event, "elt"));
     });
 

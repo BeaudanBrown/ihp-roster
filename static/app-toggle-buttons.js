@@ -1,5 +1,40 @@
 "use strict";
 (() => {
+  // frontend/ts/shared/dom.ts
+  function isElement(value) {
+    return typeof Element !== "undefined" && value instanceof Element;
+  }
+  function isDocument(value) {
+    return typeof Document !== "undefined" && value instanceof Document;
+  }
+  function isDocumentFragment(value) {
+    return typeof DocumentFragment !== "undefined" && value instanceof DocumentFragment;
+  }
+  function isDomRoot(value) {
+    return isElement(value) || isDocument(value) || isDocumentFragment(value);
+  }
+  function rootFromTarget(target, fallback = document) {
+    return isDomRoot(target) ? target : fallback;
+  }
+
+  // frontend/ts/shared/lifecycle.ts
+  function eventDetailRecord(event) {
+    if (typeof CustomEvent === "undefined" || !(event instanceof CustomEvent)) return null;
+    if (event.detail === null || typeof event.detail !== "object") return null;
+    return event.detail;
+  }
+  function detailTarget(event, key) {
+    return eventDetailRecord(event)?.[key];
+  }
+  function onAppPageReady(handler) {
+    if (typeof document === "undefined") return;
+    document.addEventListener("app:page-ready", handler);
+  }
+  function onHtmxLoad(handler) {
+    if (typeof document === "undefined") return;
+    document.addEventListener("htmx:load", handler);
+  }
+
   // frontend/ts/app-toggle-buttons.ts
   function syncHiddenInput(input) {
     const hiddenInputId = input.dataset.appToggleHiddenInputId;
@@ -22,7 +57,7 @@
     syncHiddenInput(input);
   }
   function initToggleButtons(target) {
-    const root = target instanceof Element || target instanceof Document ? target : document;
+    const root = rootFromTarget(target);
     root.querySelectorAll('[data-app-toggle-button-input="true"]').forEach((input) => {
       if (input.dataset.appToggleButtonReady === "true") return;
       input.dataset.appToggleButtonReady = "true";
@@ -32,15 +67,12 @@
       syncToggleButton(input);
     });
   }
-  function detailTarget(event, key) {
-    return event instanceof CustomEvent && event.detail !== null && typeof event.detail === "object" ? event.detail[key] : void 0;
-  }
   function enableAppToggleButtons() {
     if (typeof window === "undefined") return;
-    document.addEventListener("app:page-ready", (event) => {
+    onAppPageReady((event) => {
       initToggleButtons(detailTarget(event, "target"));
     });
-    document.addEventListener("htmx:load", (event) => {
+    onHtmxLoad((event) => {
       initToggleButtons(detailTarget(event, "elt"));
     });
     if (document.readyState !== "loading") {

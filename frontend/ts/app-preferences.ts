@@ -1,3 +1,6 @@
+import { rootFromTarget } from "./shared/dom";
+import { detailTarget, onAppPageReady, onHtmxLoad } from "./shared/lifecycle";
+
 export function formatHour(hour: string | number): string {
     const parsed = typeof hour === "number" ? hour : Number.parseInt(hour, 10);
     if (Number.isNaN(parsed)) return "";
@@ -59,7 +62,7 @@ function syncAvailability(container: HTMLElement): void {
 }
 
 function initShiftPreferenceWindows(target: unknown): void {
-    const root = target instanceof HTMLElement ? target : document;
+    const root = rootFromTarget(target);
     root.querySelectorAll<HTMLElement>("[data-shift-preference-window]").forEach((container) => {
         if (container.dataset.shiftPreferenceWindowReady === "true") return;
         container.dataset.shiftPreferenceWindowReady = "true";
@@ -84,12 +87,6 @@ function initShiftPreferenceWindows(target: unknown): void {
     });
 }
 
-function detailTarget(event: Event, key: "target" | "elt"): unknown {
-    return event instanceof CustomEvent && event.detail !== null && typeof event.detail === "object"
-        ? (event.detail as Record<string, unknown>)[key]
-        : undefined;
-}
-
 function initPreferenceControls(target: unknown): void {
     initShiftPreferenceWindows(target);
 }
@@ -97,10 +94,10 @@ function initPreferenceControls(target: unknown): void {
 function enableShiftPreferenceWindows(): void {
     if (typeof window === "undefined") return;
 
-    document.addEventListener("app:page-ready", (event) => {
+    onAppPageReady((event) => {
         initPreferenceControls(detailTarget(event, "target"));
     });
-    document.addEventListener("htmx:load", (event) => {
+    onHtmxLoad((event) => {
         initPreferenceControls(detailTarget(event, "elt"));
     });
 

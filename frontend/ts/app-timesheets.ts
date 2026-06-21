@@ -1,3 +1,6 @@
+import { type DomRoot } from "./shared/dom";
+import { detailRoot, onAppPageReady } from "./shared/lifecycle";
+
 // Enable/disable break-time controls based on the "Had break" checkbox.
 function syncBreakToggle(checkboxEl: HTMLInputElement): void {
     const targetSelector = checkboxEl.dataset.breakTarget;
@@ -13,16 +16,10 @@ function syncBreakToggle(checkboxEl: HTMLInputElement): void {
     document.dispatchEvent(new CustomEvent("time-picker:sync", { detail: { target: targetEl } }));
 }
 
-function syncAllBreakTogglesWithin(root: Element | Document): void {
+function syncAllBreakTogglesWithin(root: DomRoot): void {
     root.querySelectorAll<HTMLInputElement>('[data-break-toggle="true"]').forEach((checkboxEl) => {
         syncBreakToggle(checkboxEl);
     });
-}
-
-function detailTarget(event: Event, key: "target" | "elt"): unknown {
-    return event instanceof CustomEvent && event.detail !== null && typeof event.detail === "object"
-        ? (event.detail as Record<string, unknown>)[key]
-        : undefined;
 }
 
 function enableBreakTimeToggle(): void {
@@ -35,11 +32,8 @@ function enableBreakTimeToggle(): void {
         syncBreakToggle(checkboxEl);
     });
 
-    document.addEventListener("app:page-ready", (event) => {
-        const target = detailTarget(event, "target");
-        if (target instanceof Element || target instanceof Document) {
-            syncAllBreakTogglesWithin(target);
-        }
+    onAppPageReady((event) => {
+        syncAllBreakTogglesWithin(detailRoot(event, "target"));
     });
 }
 

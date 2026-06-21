@@ -1,5 +1,39 @@
 "use strict";
 (() => {
+  // frontend/ts/shared/dom.ts
+  function isElement(value) {
+    return typeof Element !== "undefined" && value instanceof Element;
+  }
+  function isDocument(value) {
+    return typeof Document !== "undefined" && value instanceof Document;
+  }
+  function isDocumentFragment(value) {
+    return typeof DocumentFragment !== "undefined" && value instanceof DocumentFragment;
+  }
+  function isDomRoot(value) {
+    return isElement(value) || isDocument(value) || isDocumentFragment(value);
+  }
+  function rootFromTarget(target, fallback = document) {
+    return isDomRoot(target) ? target : fallback;
+  }
+
+  // frontend/ts/shared/lifecycle.ts
+  function eventDetailRecord(event) {
+    if (typeof CustomEvent === "undefined" || !(event instanceof CustomEvent)) return null;
+    if (event.detail === null || typeof event.detail !== "object") return null;
+    return event.detail;
+  }
+  function detailTarget(event, key) {
+    return eventDetailRecord(event)?.[key];
+  }
+  function detailRoot(event, key, fallback = document) {
+    return rootFromTarget(detailTarget(event, key), fallback);
+  }
+  function onAppPageReady(handler) {
+    if (typeof document === "undefined") return;
+    document.addEventListener("app:page-ready", handler);
+  }
+
   // frontend/ts/app-timesheets.ts
   function syncBreakToggle(checkboxEl) {
     const targetSelector = checkboxEl.dataset.breakTarget;
@@ -17,9 +51,6 @@
       syncBreakToggle(checkboxEl);
     });
   }
-  function detailTarget(event, key) {
-    return event instanceof CustomEvent && event.detail !== null && typeof event.detail === "object" ? event.detail[key] : void 0;
-  }
   function enableBreakTimeToggle() {
     if (typeof window === "undefined") return;
     document.addEventListener("change", (event) => {
@@ -28,11 +59,8 @@
       if (checkboxEl === null) return;
       syncBreakToggle(checkboxEl);
     });
-    document.addEventListener("app:page-ready", (event) => {
-      const target = detailTarget(event, "target");
-      if (target instanceof Element || target instanceof Document) {
-        syncAllBreakTogglesWithin(target);
-      }
+    onAppPageReady((event) => {
+      syncAllBreakTogglesWithin(detailRoot(event, "target"));
     });
   }
   enableBreakTimeToggle();
