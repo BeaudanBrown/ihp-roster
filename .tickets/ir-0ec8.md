@@ -16,9 +16,9 @@ Convert medium-risk app-owned runtime scripts to TypeScript while preserving lif
 
 ## Design
 
-Convert app-bootstrap.js, app-dialog-overlays.js, app-time-picker.js, app-passkeys.js, and app-horizontal-scroll.js to matching frontend/ts/*.ts sources. Preserve app:page-ready compatibility and current script loading semantics.
+Convert app-bootstrap.js, app-dialog-overlays.js, app-time-picker.js, app-passkeys.js, and app-horizontal-scroll.js to matching frontend/ts/*.ts sources. Preserve app:page-ready compatibility and current script loading semantics. Add or extend unit/DOM tests for extracted lifecycle, overlay, picker, passkey, and scroll behavior, and keep browser-only contracts covered by focused Playwright checks.
 
 ## Acceptance Criteria
 
-Converted TS sources compile cleanly. Lifecycle events such as app:page-ready remain compatible. Dialogs, toasts, time picker, passkeys, and horizontal scroll behavior are not regressed. Focused e2e/screenshot checks run where appropriate.
+Converted TS sources compile cleanly. frontend-check passes with meaningful unit/DOM coverage for converted behavior. Lifecycle events such as app:page-ready remain compatible. Dialogs, toasts, time picker, passkeys, and horizontal scroll behavior are not regressed. Focused e2e/screenshot checks run where appropriate.
 

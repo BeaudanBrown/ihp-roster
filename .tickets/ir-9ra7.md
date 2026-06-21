@@ -1,7 +1,7 @@
 ---
 id: ir-9ra7
 status: open
-deps: [ir-j3hy]
+deps: [ir-j3hy, ir-jxjp]
 links: []
 created: 2026-06-21T03:37:16Z
 type: task
@@ -16,9 +16,9 @@ Update local docs and guardrails for the TypeScript source/runtime split.
 
 ## Design
 
-Update static/AGENTS.md, the README static asset section where needed, root AGENTS.md if project-wide static guidance needs adjustment, and doc drift checks if they should enforce the new TS source/runtime terminology.
+Update static/AGENTS.md, the README static asset section where needed, root AGENTS.md if project-wide static guidance needs adjustment, and doc drift checks if they should enforce the new TS source/runtime terminology. Document the frontend testing strategy: fast unit/DOM tests for importable TypeScript behavior, focused Playwright E2E for browser/server integration, and no frontend unit/E2E tests in the pre-commit hook.
 
 ## Acceptance Criteria
 
-Docs explain that app JS source lives in frontend/ts/, generated JS lives in static/, generated JS is checked in but should not be hand-edited, frontend-build/frontend-check/frontend-watch are the supported commands, dev starts the watcher automatically, and there is no Vite dev server or true HMR requirement.
+Docs explain that app JS source lives in frontend/ts/, generated JS lives in static/, generated JS is checked in but should not be hand-edited, frontend-build/frontend-check/frontend-test/frontend-watch are the supported commands, dev starts the watcher automatically, converted runtime behavior should gain unit/DOM and focused E2E coverage at the appropriate level, frontend unit/E2E tests are not pre-commit hooks, and there is no Vite dev server or true HMR requirement.
 

@@ -16,9 +16,9 @@ Run final verification and leave the frontend TypeScript baseline ready for the 
 
 ## Design
 
-Verify every app-owned JS file loaded by Web/View/Layout.hs has TypeScript source, generated output is reproducible, docs are current, and the future interaction-layer work can assume TypeScript/esbuild/npm imports behind stable Bepis contracts.
+Verify every app-owned JS file loaded by Web/View/Layout.hs has TypeScript source, generated output is reproducible, frontend unit/DOM and focused E2E coverage are current, docs are current, and the future interaction-layer work can assume TypeScript/esbuild/npm imports behind stable Bepis contracts.
 
 ## Acceptance Criteria
 
-All app-owned JS loaded in Web/View/Layout.hs has TS source. frontend-check passes. frontend-build produces no uncommitted generated diffs. Relevant focused e2e passes. typecheck passes. Docs are up to date. A handoff note records that future interaction work should be authored in TS and may use esbuild/npm imports behind stable Bepis contracts.
+All app-owned JS loaded in Web/View/Layout.hs has TS source. frontend-check passes, including the TypeScript unit/DOM test suite. frontend-build produces no uncommitted generated diffs. Each converted runtime has meaningful tests documented or implemented at the appropriate level: unit/DOM tests for importable logic and focused Playwright E2E for browser/server integration. Relevant focused e2e passes. typecheck passes. Docs are up to date. A handoff note records that future interaction work should be authored in TS and may use esbuild/npm imports behind stable Bepis contracts.
 
