@@ -24,6 +24,40 @@
     return `${fragmentKey}:${fragment.targetId}`;
   }
 
+  // frontend/ts/live-updates/validation.ts
+  function isRecord(value) {
+    return value !== null && typeof value === "object" && !Array.isArray(value);
+  }
+  function optionalString(value) {
+    return typeof value === "string" && value.length > 0 ? value : null;
+  }
+  function stringList(value) {
+    return Array.isArray(value) ? value.filter((item) => typeof item === "string" && item.length > 0) : [];
+  }
+  function fragmentList(value) {
+    return Array.isArray(value) ? value.filter(isLiveUpdateWireFragment) : [];
+  }
+  function isLiveUpdateScope(value) {
+    return isRecord(value) && typeof value.kind === "string" && value.kind.length > 0;
+  }
+  function isLiveUpdateWireFragment(value) {
+    return isRecord(value) && typeof value.targetId === "string" && value.targetId.length > 0 && typeof value.url === "string" && value.url.length > 0 && isRecord(value.fragmentKey) && typeof value.fragmentKey.kind === "string";
+  }
+  function parseLiveUpdateSurfaceConfig(value) {
+    if (!isRecord(value)) return null;
+    if (!isLiveUpdateScope(value.scope)) return null;
+    const scopeKey = optionalString(value.scopeKey);
+    if (scopeKey === null) return null;
+    return {
+      feature: optionalString(value.feature),
+      scope: value.scope,
+      scopeKey,
+      socketPath: optionalString(value.socketPath) ?? "/live-updates",
+      resyncFragments: fragmentList(value.resyncFragments),
+      decorateRequestsWithin: stringList(value.decorateRequestsWithin)
+    };
+  }
+
   // frontend/ts/app-live-updates.ts
   (function enableLiveUpdates() {
     if (typeof window === "undefined") return;
@@ -424,19 +458,18 @@
         reportSurfaceConfigError(ownerEl, error);
         return null;
       }
-      if (!config || !config.scope) return null;
-      const scopeKey = typeof config.scopeKey === "string" && config.scopeKey.length > 0 ? config.scopeKey : null;
-      if (!scopeKey) {
+      const parsedConfig = parseLiveUpdateSurfaceConfig(config);
+      if (parsedConfig === null) {
         reportSurfaceConfigError(ownerEl, new Error("Invalid live-update surface scope"));
         return null;
       }
       return {
-        feature: config.feature || null,
-        scope: config.scope,
-        scopeKey,
-        path: config.socketPath || "/live-updates",
-        resyncFragments: Array.isArray(config.resyncFragments) ? config.resyncFragments : [],
-        decorateRequestsWithin: Array.isArray(config.decorateRequestsWithin) ? config.decorateRequestsWithin : [],
+        feature: parsedConfig.feature,
+        scope: parsedConfig.scope,
+        scopeKey: parsedConfig.scopeKey,
+        path: parsedConfig.socketPath,
+        resyncFragments: parsedConfig.resyncFragments,
+        decorateRequestsWithin: parsedConfig.decorateRequestsWithin,
         ownerEls: [ownerEl],
         resync: function(subscription) {
           subscription.resyncFragments.forEach(handleFragmentRefreshRequest);

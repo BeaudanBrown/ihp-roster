@@ -7,6 +7,7 @@ import {
     liveUpdateMessageScopeKey,
     normalizeLiveUpdateVersion,
 } from "./live-updates/protocol";
+import { parseLiveUpdateSurfaceConfig } from "./live-updates/validation";
 
 export type LiveUpdateSurfaceConfig = {
     feature?: string | null;
@@ -512,21 +513,19 @@ export type LiveUpdateSurfaceConfig = {
             return null;
         }
 
-        if (!config || !config.scope) return null;
-
-        const scopeKey = typeof config.scopeKey === 'string' && config.scopeKey.length > 0 ? config.scopeKey : null;
-        if (!scopeKey) {
+        const parsedConfig = parseLiveUpdateSurfaceConfig(config);
+        if (parsedConfig === null) {
             reportSurfaceConfigError(ownerEl, new Error('Invalid live-update surface scope'));
             return null;
         }
 
         return {
-            feature: config.feature || null,
-            scope: config.scope,
-            scopeKey,
-            path: config.socketPath || '/live-updates',
-            resyncFragments: Array.isArray(config.resyncFragments) ? config.resyncFragments : [],
-            decorateRequestsWithin: Array.isArray(config.decorateRequestsWithin) ? config.decorateRequestsWithin : [],
+            feature: parsedConfig.feature,
+            scope: parsedConfig.scope,
+            scopeKey: parsedConfig.scopeKey,
+            path: parsedConfig.socketPath,
+            resyncFragments: parsedConfig.resyncFragments,
+            decorateRequestsWithin: parsedConfig.decorateRequestsWithin,
             ownerEls: [ownerEl],
             resync: function (subscription) {
                 subscription.resyncFragments.forEach(handleFragmentRefreshRequest);
