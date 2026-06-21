@@ -36,3 +36,7 @@ Staged roster typing slice: extracted column edit DOM behavior to typed frontend
 **2026-06-21T08:06:21Z**
 
 Staged roster typing slice: extracted compact staff panel sorting DOM wiring to typed frontend/ts/roster/staff-panel-sorting.ts. The module reuses compareRosterStaffData from staff-sort.ts and app-roster.ts now invokes enableRosterStaffPanelSorting(). Rebuilt static/app-roster.js. Verified frontend-check, doc-drift-check, and clean LSP diagnostics.
+
+**2026-06-21T08:08:09Z**
+
+Staged roster typing slice: extracted staff/shift hover, focus, keyboard, and pinned highlight behavior to typed frontend/ts/roster/staff-highlight.ts. app-roster.ts now invokes enableRosterStaffShiftHighlight(). Rebuilt static/app-roster.js. Verified frontend-check, doc-drift-check, and clean LSP diagnostics.

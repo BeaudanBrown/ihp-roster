@@ -77,6 +77,192 @@
     };
   }
 
+  // frontend/ts/roster/staff-highlight.ts
+  var rosterStaffRowSelector = ".roster-staff-panel-entry[data-roster-staff-id]";
+  var rowHighlightClass = "is-roster-staff-highlighted";
+  var slotHighlightClass = "is-roster-staff-slot-highlighted";
+  var slotHighlightStartClass = "is-roster-staff-slot-highlighted-start";
+  var slotHighlightEndClass = "is-roster-staff-slot-highlighted-end";
+  var highlightClasses = [
+    rowHighlightClass,
+    slotHighlightClass,
+    slotHighlightStartClass,
+    slotHighlightEndClass
+  ];
+  var shiftGroupHighlightClass = "is-roster-shift-group-highlighted";
+  var hoverRosterStaffId = "";
+  var pinnedRosterStaffId = "";
+  function clearRosterStaffHighlights() {
+    const selector = highlightClasses.map((className) => `.${className}`).join(", ");
+    document.querySelectorAll(selector).forEach((element) => {
+      element.classList.remove(...highlightClasses);
+    });
+  }
+  function highlightSlotElements(elements) {
+    const slotElementsById = /* @__PURE__ */ new Map();
+    elements.forEach((element) => {
+      const slotId = element.dataset.rosterSlotId || "";
+      if (!slotId) return;
+      const slotElements = slotElementsById.get(slotId) || [];
+      slotElements.push(element);
+      slotElementsById.set(slotId, slotElements);
+    });
+    slotElementsById.forEach((slotElements) => {
+      slotElements.forEach((element, index) => {
+        element.classList.add(slotHighlightClass);
+        if (index === 0) element.classList.add(slotHighlightStartClass);
+        if (index === slotElements.length - 1) element.classList.add(slotHighlightEndClass);
+      });
+    });
+  }
+  function staffElements(selector, staffId) {
+    return Array.from(document.querySelectorAll(selector)).filter(
+      (element) => element instanceof HTMLElement && element.dataset.rosterStaffId === staffId
+    );
+  }
+  function staffRowFromEvent(event) {
+    if (!(event.target instanceof Element)) return null;
+    const row = event.target.closest(rosterStaffRowSelector);
+    return row instanceof HTMLElement ? row : null;
+  }
+  function movedWithinRow(event, row) {
+    return event.relatedTarget instanceof Node && row.contains(event.relatedTarget);
+  }
+  function syncLocateButtons() {
+    document.querySelectorAll('[data-roster-staff-highlight-toggle="true"]').forEach((button) => {
+      if (!(button instanceof HTMLElement)) return;
+      const row = button.closest(rosterStaffRowSelector);
+      const isPressed = Boolean(row instanceof HTMLElement && row.dataset.rosterStaffId === pinnedRosterStaffId);
+      button.setAttribute("aria-pressed", isPressed ? "true" : "false");
+    });
+  }
+  function highlightRosterStaff(staffId) {
+    clearRosterStaffHighlights();
+    if (!staffId) {
+      syncLocateButtons();
+      return;
+    }
+    staffElements(rosterStaffRowSelector, staffId).forEach((element) => {
+      element.classList.add(rowHighlightClass);
+    });
+    highlightSlotElements(staffElements('.roster-grid [role="gridcell"][data-roster-staff-id][data-roster-slot-id]', staffId));
+    highlightSlotElements(staffElements(".roster-shift-card[data-roster-staff-id][data-roster-slot-id]", staffId));
+    syncLocateButtons();
+  }
+  function refreshRosterStaffHighlight() {
+    highlightRosterStaff(pinnedRosterStaffId || hoverRosterStaffId);
+  }
+  function activateRosterStaff(row) {
+    const staffId = row.dataset.rosterStaffId || "";
+    if (!staffId) return;
+    hoverRosterStaffId = staffId;
+    refreshRosterStaffHighlight();
+  }
+  function deactivateRosterStaff(row) {
+    const staffId = row.dataset.rosterStaffId || "";
+    if (!staffId || staffId !== hoverRosterStaffId) {
+      return;
+    }
+    hoverRosterStaffId = "";
+    refreshRosterStaffHighlight();
+  }
+  function togglePinnedRosterStaff(row) {
+    const staffId = row.dataset.rosterStaffId || "";
+    if (!staffId) return;
+    if (pinnedRosterStaffId === staffId) {
+      pinnedRosterStaffId = "";
+      hoverRosterStaffId = "";
+    } else {
+      pinnedRosterStaffId = staffId;
+    }
+    refreshRosterStaffHighlight();
+  }
+  function shiftLauncherFromEvent(event) {
+    if (!(event.target instanceof Element)) return null;
+    const launcher = event.target.closest("[data-roster-shift-group-key]");
+    return launcher instanceof HTMLElement ? launcher : null;
+  }
+  function movedWithinShiftGroup(event, launcher) {
+    const groupKey = launcher.dataset.rosterShiftGroupKey || "";
+    if (!groupKey || !(event.relatedTarget instanceof Element)) return false;
+    const nextLauncher = event.relatedTarget.closest("[data-roster-shift-group-key]");
+    return nextLauncher instanceof HTMLElement && nextLauncher.dataset.rosterShiftGroupKey === groupKey;
+  }
+  function setShiftGroupHighlight(groupKey, shouldHighlight) {
+    if (!groupKey) return;
+    document.querySelectorAll(`[data-roster-shift-group-key="${CSS.escape(groupKey)}"]`).forEach((element) => {
+      element.classList.toggle(shiftGroupHighlightClass, shouldHighlight);
+    });
+  }
+  function handleShiftGroupEnter(event) {
+    const launcher = shiftLauncherFromEvent(event);
+    if (!launcher || movedWithinShiftGroup(event, launcher)) return;
+    setShiftGroupHighlight(launcher.dataset.rosterShiftGroupKey || "", true);
+  }
+  function handleShiftGroupLeave(event) {
+    const launcher = shiftLauncherFromEvent(event);
+    if (!launcher || movedWithinShiftGroup(event, launcher)) return;
+    setShiftGroupHighlight(launcher.dataset.rosterShiftGroupKey || "", false);
+  }
+  function handleShiftLauncherKeydown(event) {
+    const launcher = shiftLauncherFromEvent(event);
+    if (!launcher || event.target !== launcher || event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    launcher.click();
+  }
+  function handleStaffRowEnter(event) {
+    const row = staffRowFromEvent(event);
+    if (!row || movedWithinRow(event, row)) return;
+    activateRosterStaff(row);
+  }
+  function handleStaffRowLeave(event) {
+    const row = staffRowFromEvent(event);
+    if (!row || movedWithinRow(event, row)) return;
+    deactivateRosterStaff(row);
+  }
+  function enableRosterStaffShiftHighlight() {
+    if (typeof window === "undefined") return;
+    document.addEventListener("mouseover", handleShiftGroupEnter);
+    document.addEventListener("mouseout", handleShiftGroupLeave);
+    document.addEventListener("focusin", handleShiftGroupEnter);
+    document.addEventListener("focusout", handleShiftGroupLeave);
+    document.addEventListener("keydown", handleShiftLauncherKeydown);
+    document.addEventListener("mouseover", handleStaffRowEnter);
+    document.addEventListener("mouseout", handleStaffRowLeave);
+    document.addEventListener("focusin", (event) => {
+      const row = staffRowFromEvent(event);
+      if (!row) return;
+      activateRosterStaff(row);
+    });
+    document.addEventListener("focusout", (event) => {
+      const row = staffRowFromEvent(event);
+      if (!row || movedWithinRow(event, row)) return;
+      deactivateRosterStaff(row);
+    });
+    document.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const toggleButton = event.target.closest('[data-roster-staff-highlight-toggle="true"]');
+      if (!(toggleButton instanceof HTMLElement)) return;
+      const row = toggleButton.closest(rosterStaffRowSelector);
+      if (!(row instanceof HTMLElement)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      togglePinnedRosterStaff(row);
+    }, true);
+    document.addEventListener("keydown", (event) => {
+      const row = staffRowFromEvent(event);
+      if (!row || event.target !== row || event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      row.click();
+    });
+    document.addEventListener("app:page-ready", () => {
+      if (pinnedRosterStaffId && !staffElements(rosterStaffRowSelector, pinnedRosterStaffId).length) {
+        pinnedRosterStaffId = "";
+      }
+      refreshRosterStaffHighlight();
+    });
+  }
+
   // frontend/ts/roster/staff-sort.ts
   function rosterParseNumber(value) {
     const parsed = Number.parseInt(value || "0", 10);
@@ -612,187 +798,5 @@
     });
   })();
   enableRosterStaffPanelSorting();
-  (function enableRosterStaffShiftHighlight() {
-    if (typeof window === "undefined") return;
-    const rosterStaffRowSelector = ".roster-staff-panel-entry[data-roster-staff-id]";
-    const rowHighlightClass = "is-roster-staff-highlighted";
-    const slotHighlightClass = "is-roster-staff-slot-highlighted";
-    const slotHighlightStartClass = "is-roster-staff-slot-highlighted-start";
-    const slotHighlightEndClass = "is-roster-staff-slot-highlighted-end";
-    const highlightClasses = [
-      rowHighlightClass,
-      slotHighlightClass,
-      slotHighlightStartClass,
-      slotHighlightEndClass
-    ];
-    let hoverRosterStaffId = "";
-    let pinnedRosterStaffId = "";
-    function clearRosterStaffHighlights() {
-      const selector = highlightClasses.map((className) => `.${className}`).join(", ");
-      document.querySelectorAll(selector).forEach(function(element) {
-        element.classList.remove(...highlightClasses);
-      });
-    }
-    function highlightSlotElements(elements) {
-      const slotElementsById = /* @__PURE__ */ new Map();
-      elements.forEach(function(element) {
-        const slotId = element.dataset.rosterSlotId || "";
-        if (!slotId) return;
-        const slotElements = slotElementsById.get(slotId) || [];
-        slotElements.push(element);
-        slotElementsById.set(slotId, slotElements);
-      });
-      slotElementsById.forEach(function(slotElements) {
-        slotElements.forEach(function(element, index) {
-          element.classList.add(slotHighlightClass);
-          if (index === 0) element.classList.add(slotHighlightStartClass);
-          if (index === slotElements.length - 1) element.classList.add(slotHighlightEndClass);
-        });
-      });
-    }
-    function staffElements(selector, staffId) {
-      return Array.from(document.querySelectorAll(selector)).filter(function(element) {
-        return element instanceof HTMLElement && element.dataset.rosterStaffId === staffId;
-      });
-    }
-    function staffRowFromEvent(event) {
-      if (!(event.target instanceof Element)) return null;
-      const row = event.target.closest(rosterStaffRowSelector);
-      return row instanceof HTMLElement ? row : null;
-    }
-    function movedWithinRow(event, row) {
-      return event.relatedTarget instanceof Node && row.contains(event.relatedTarget);
-    }
-    function syncLocateButtons() {
-      document.querySelectorAll('[data-roster-staff-highlight-toggle="true"]').forEach(function(button) {
-        if (!(button instanceof HTMLElement)) return;
-        const row = button.closest(rosterStaffRowSelector);
-        const isPressed = Boolean(row && row.dataset.rosterStaffId === pinnedRosterStaffId);
-        button.setAttribute("aria-pressed", isPressed ? "true" : "false");
-      });
-    }
-    function highlightRosterStaff(staffId) {
-      clearRosterStaffHighlights();
-      if (!staffId) {
-        syncLocateButtons();
-        return;
-      }
-      staffElements(rosterStaffRowSelector, staffId).forEach(function(element) {
-        element.classList.add(rowHighlightClass);
-      });
-      highlightSlotElements(staffElements('.roster-grid [role="gridcell"][data-roster-staff-id][data-roster-slot-id]', staffId));
-      highlightSlotElements(staffElements(".roster-shift-card[data-roster-staff-id][data-roster-slot-id]", staffId));
-      syncLocateButtons();
-    }
-    function refreshRosterStaffHighlight() {
-      highlightRosterStaff(pinnedRosterStaffId || hoverRosterStaffId);
-    }
-    function activateRosterStaff(row) {
-      const staffId = row.dataset.rosterStaffId || "";
-      if (!staffId) return;
-      hoverRosterStaffId = staffId;
-      refreshRosterStaffHighlight();
-    }
-    function deactivateRosterStaff(row) {
-      const staffId = row.dataset.rosterStaffId || "";
-      if (!staffId || staffId !== hoverRosterStaffId) {
-        return;
-      }
-      hoverRosterStaffId = "";
-      refreshRosterStaffHighlight();
-    }
-    function togglePinnedRosterStaff(row) {
-      const staffId = row.dataset.rosterStaffId || "";
-      if (!staffId) return;
-      if (pinnedRosterStaffId === staffId) {
-        pinnedRosterStaffId = "";
-        hoverRosterStaffId = "";
-      } else {
-        pinnedRosterStaffId = staffId;
-      }
-      refreshRosterStaffHighlight();
-    }
-    const shiftGroupHighlightClass = "is-roster-shift-group-highlighted";
-    function shiftLauncherFromEvent(event) {
-      if (!(event.target instanceof Element)) return null;
-      const launcher = event.target.closest("[data-roster-shift-group-key]");
-      return launcher instanceof HTMLElement ? launcher : null;
-    }
-    function movedWithinShiftGroup(event, launcher) {
-      const groupKey = launcher.dataset.rosterShiftGroupKey || "";
-      if (!groupKey || !(event.relatedTarget instanceof Element)) return false;
-      const nextLauncher = event.relatedTarget.closest("[data-roster-shift-group-key]");
-      return nextLauncher instanceof HTMLElement && nextLauncher.dataset.rosterShiftGroupKey === groupKey;
-    }
-    function setShiftGroupHighlight(groupKey, shouldHighlight) {
-      if (!groupKey) return;
-      document.querySelectorAll(`[data-roster-shift-group-key="${CSS.escape(groupKey)}"]`).forEach(function(element) {
-        element.classList.toggle(shiftGroupHighlightClass, shouldHighlight);
-      });
-    }
-    function handleShiftGroupEnter(event) {
-      const launcher = shiftLauncherFromEvent(event);
-      if (!launcher || movedWithinShiftGroup(event, launcher)) return;
-      setShiftGroupHighlight(launcher.dataset.rosterShiftGroupKey || "", true);
-    }
-    function handleShiftGroupLeave(event) {
-      const launcher = shiftLauncherFromEvent(event);
-      if (!launcher || movedWithinShiftGroup(event, launcher)) return;
-      setShiftGroupHighlight(launcher.dataset.rosterShiftGroupKey || "", false);
-    }
-    function handleShiftLauncherKeydown(event) {
-      const launcher = shiftLauncherFromEvent(event);
-      if (!launcher || event.target !== launcher || event.key !== "Enter" && event.key !== " ") return;
-      event.preventDefault();
-      launcher.click();
-    }
-    function handleStaffRowEnter(event) {
-      const row = staffRowFromEvent(event);
-      if (!row || movedWithinRow(event, row)) return;
-      activateRosterStaff(row);
-    }
-    function handleStaffRowLeave(event) {
-      const row = staffRowFromEvent(event);
-      if (!row || movedWithinRow(event, row)) return;
-      deactivateRosterStaff(row);
-    }
-    document.addEventListener("mouseover", handleShiftGroupEnter);
-    document.addEventListener("mouseout", handleShiftGroupLeave);
-    document.addEventListener("focusin", handleShiftGroupEnter);
-    document.addEventListener("focusout", handleShiftGroupLeave);
-    document.addEventListener("keydown", handleShiftLauncherKeydown);
-    document.addEventListener("mouseover", handleStaffRowEnter);
-    document.addEventListener("mouseout", handleStaffRowLeave);
-    document.addEventListener("focusin", function(event) {
-      const row = staffRowFromEvent(event);
-      if (!row) return;
-      activateRosterStaff(row);
-    });
-    document.addEventListener("focusout", function(event) {
-      const row = staffRowFromEvent(event);
-      if (!row || movedWithinRow(event, row)) return;
-      deactivateRosterStaff(row);
-    });
-    document.addEventListener("click", function(event) {
-      const toggleButton = event.target.closest('[data-roster-staff-highlight-toggle="true"]');
-      if (!(toggleButton instanceof HTMLElement)) return;
-      const row = toggleButton.closest(rosterStaffRowSelector);
-      if (!(row instanceof HTMLElement)) return;
-      event.preventDefault();
-      event.stopPropagation();
-      togglePinnedRosterStaff(row);
-    }, true);
-    document.addEventListener("keydown", function(event) {
-      const row = staffRowFromEvent(event);
-      if (!row || event.target !== row || event.key !== "Enter" && event.key !== " ") return;
-      event.preventDefault();
-      row.click();
-    });
-    document.addEventListener("app:page-ready", function() {
-      if (pinnedRosterStaffId && !staffElements(rosterStaffRowSelector, pinnedRosterStaffId).length) {
-        pinnedRosterStaffId = "";
-      }
-      refreshRosterStaffHighlight();
-    });
-  })();
+  enableRosterStaffShiftHighlight();
 })();
