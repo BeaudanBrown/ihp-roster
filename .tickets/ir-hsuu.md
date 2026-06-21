@@ -1,6 +1,6 @@
 ---
 id: ir-hsuu
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-04-29T04:41:29Z
@@ -17,8 +17,14 @@ Repo-local epic migrated from `docs/archive/plans/53-programmatic-demo-seeding.m
 
 source_plan: docs/archive/plans/53-programmatic-demo-seeding.md
 workstream: docs/workstreams/backlog.md
-status: planned
+status: closed
 
 ## Acceptance Criteria
 
 Deterministic realistic demo scenarios reuse bootstrap/payroll helpers, support manual QA/client demos, and remain testable.
+
+## Notes
+
+**2026-06-21T02:49:33Z**
+
+Closed after ticket/code reconciliation: implementation is already present in current codebase; no code changes made in this cleanup pass.

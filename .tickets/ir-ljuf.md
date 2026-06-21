@@ -1,6 +1,6 @@
 ---
 id: ir-ljuf
-status: open
+status: closed
 deps: [ir-5dzy]
 links: []
 created: 2026-04-29T04:41:29Z
@@ -14,3 +14,9 @@ tags: [workstream, coordinator:coordinator-wii, area:roster, area:bootstrap]
 
 Route fixtures, scripts, and venue creation through one idempotent helper for venue config, weekdays, default group, and slots.
 
+
+## Notes
+
+**2026-06-21T02:49:34Z**
+
+Closed after ticket/code reconciliation: implementation is already present in current codebase; no code changes made in this cleanup pass.

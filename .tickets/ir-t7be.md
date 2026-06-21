@@ -1,6 +1,6 @@
 ---
 id: ir-t7be
-status: open
+status: closed
 deps: []
 links: [ir-6vvh, ir-sky7]
 created: 2026-04-29T04:41:29Z
@@ -19,7 +19,7 @@ coordinator_epic: coordinator-wii
 project_id: ihp-roster
 source_plan: docs/archive/plans/49-roster-groups-and-venue-bootstrap.md
 workstream: docs/workstreams/roster-groups.md
-status: planned
+status: closed
 base_branch: roster
 work_branch: roster
 repo_tracker: .tickets
@@ -32,3 +32,9 @@ settled_direction:
 ## Acceptance Criteria
 
 Venues can own multiple roster groups, shared bootstrap guarantees default groups/slots, staff eligibility is group-aware, and roster UI/admin/live-update scopes include roster group where needed.
+
+## Notes
+
+**2026-06-21T02:49:34Z**
+
+Closed after ticket/code reconciliation: implementation is already present in current codebase; no code changes made in this cleanup pass.
