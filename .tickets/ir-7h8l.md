@@ -32,3 +32,7 @@ Initial probe of removing ts-nocheck from app-roster.ts produced roughly 98 stri
 **2026-06-21T08:04:59Z**
 
 Staged roster typing slice: extracted column edit DOM behavior to typed frontend/ts/roster/column-edit.ts and replaced the inline app-roster.ts IIFE with enableRosterColumnEditMode(). Rebuilt static/app-roster.js. Verified frontend-check, doc-drift-check, and clean LSP diagnostics.
+
+**2026-06-21T08:06:21Z**
+
+Staged roster typing slice: extracted compact staff panel sorting DOM wiring to typed frontend/ts/roster/staff-panel-sorting.ts. The module reuses compareRosterStaffData from staff-sort.ts and app-roster.ts now invokes enableRosterStaffPanelSorting(). Rebuilt static/app-roster.js. Verified frontend-check, doc-drift-check, and clean LSP diagnostics.

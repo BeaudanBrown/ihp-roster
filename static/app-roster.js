@@ -101,6 +101,81 @@
     return compareText(left.name || "", right.name || "") * directionMultiplier;
   }
 
+  // frontend/ts/roster/staff-panel-sorting.ts
+  function rowSortData(row) {
+    return {
+      name: row.dataset.rosterStaffName,
+      assigned: row.dataset.rosterStaffAssigned,
+      ideal: row.dataset.rosterStaffIdeal,
+      role: row.dataset.rosterStaffRole
+    };
+  }
+  function compareRows(leftRow, rightRow, key, direction) {
+    return compareRosterStaffData(rowSortData(leftRow), rowSortData(rightRow), key, direction);
+  }
+  function normalizeSortDirection(value) {
+    return value === "descending" ? "descending" : "ascending";
+  }
+  function syncSortButtonStates(tableEl, activeKey, direction) {
+    tableEl.querySelectorAll("[data-roster-staff-sort-key]").forEach((buttonEl) => {
+      if (!(buttonEl instanceof HTMLButtonElement)) return;
+      const isActive = buttonEl.dataset.rosterStaffSortKey === activeKey;
+      buttonEl.setAttribute("aria-sort", isActive ? direction : "none");
+      const headerCell = buttonEl.closest("th");
+      if (headerCell instanceof HTMLTableCellElement) {
+        headerCell.setAttribute("aria-sort", isActive ? direction : "none");
+      }
+    });
+  }
+  function sortRosterStaffTable(tableEl, key, direction) {
+    const tbodyEl = tableEl.querySelector(".roster-staff-table-body");
+    if (!(tbodyEl instanceof HTMLTableSectionElement)) return;
+    const rows = Array.from(tbodyEl.querySelectorAll(".roster-staff-panel-entry")).filter((rowEl) => rowEl instanceof HTMLElement);
+    rows.sort((leftRow, rightRow) => compareRows(leftRow, rightRow, key, direction));
+    rows.forEach((rowEl) => {
+      tbodyEl.appendChild(rowEl);
+    });
+    tableEl.dataset.rosterStaffSortKey = key;
+    tableEl.dataset.rosterStaffSortDirection = direction;
+    syncSortButtonStates(tableEl, key, direction);
+  }
+  function nextDirection(tableEl, key) {
+    const currentKey = tableEl.dataset.rosterStaffSortKey || "";
+    const currentDirection = tableEl.dataset.rosterStaffSortDirection || "none";
+    if (currentKey === key && currentDirection === "ascending") {
+      return "descending";
+    }
+    return "ascending";
+  }
+  function initRosterStaffPanelSortingWithin(root) {
+    root.querySelectorAll(".roster-staff-table").forEach((tableEl) => {
+      if (!(tableEl instanceof HTMLTableElement)) return;
+      const defaultKey = tableEl.dataset.rosterStaffSortKey || "name";
+      const defaultDirection = normalizeSortDirection(tableEl.dataset.rosterStaffSortDirection);
+      sortRosterStaffTable(tableEl, defaultKey, defaultDirection);
+    });
+  }
+  function rootFromPageReadyEvent(event) {
+    const target = event.detail?.target;
+    return target instanceof Element || target instanceof Document ? target : document;
+  }
+  function enableRosterStaffPanelSorting() {
+    if (typeof window === "undefined") return;
+    document.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const buttonEl = event.target.closest("[data-roster-staff-sort-key]");
+      if (!(buttonEl instanceof HTMLButtonElement)) return;
+      const tableEl = buttonEl.closest(".roster-staff-table");
+      if (!(tableEl instanceof HTMLTableElement)) return;
+      const key = buttonEl.dataset.rosterStaffSortKey || "name";
+      const direction = nextDirection(tableEl, key);
+      sortRosterStaffTable(tableEl, key, direction);
+    });
+    document.addEventListener("app:page-ready", (event) => {
+      initRosterStaffPanelSortingWithin(rootFromPageReadyEvent(event));
+    });
+  }
+
   // frontend/ts/app-roster.ts
   (function enableRosterWeekOverview() {
     if (typeof window === "undefined") return;
@@ -536,106 +611,7 @@
       handleRosterExport(buttonEl);
     });
   })();
-  (function enableRosterStaffPanelSorting() {
-    if (typeof window === "undefined") return;
-    function compareText(leftValue, rightValue) {
-      return leftValue.localeCompare(rightValue, void 0, { sensitivity: "base" });
-    }
-    function compareNumber(leftValue, rightValue) {
-      return leftValue - rightValue;
-    }
-    function parseNumber(value) {
-      return rosterParseNumber(value);
-    }
-    function compareRows(leftRow, rightRow, key, direction) {
-      const directionMultiplier = direction === "descending" ? -1 : 1;
-      if (key === "shifts") {
-        const assignedResult = compareNumber(
-          parseNumber(leftRow.dataset.rosterStaffAssigned),
-          parseNumber(rightRow.dataset.rosterStaffAssigned)
-        ) * directionMultiplier;
-        if (assignedResult !== 0) return assignedResult;
-        const idealResult = compareNumber(
-          parseNumber(leftRow.dataset.rosterStaffIdeal),
-          parseNumber(rightRow.dataset.rosterStaffIdeal)
-        ) * directionMultiplier;
-        if (idealResult !== 0) return idealResult;
-        return compareText(
-          leftRow.dataset.rosterStaffName || "",
-          rightRow.dataset.rosterStaffName || ""
-        );
-      }
-      if (key === "role") {
-        const roleResult = compareText(
-          leftRow.dataset.rosterStaffRole || "",
-          rightRow.dataset.rosterStaffRole || ""
-        ) * directionMultiplier;
-        if (roleResult !== 0) return roleResult;
-        return compareText(
-          leftRow.dataset.rosterStaffName || "",
-          rightRow.dataset.rosterStaffName || ""
-        );
-      }
-      return compareText(
-        leftRow.dataset.rosterStaffName || "",
-        rightRow.dataset.rosterStaffName || ""
-      ) * directionMultiplier;
-    }
-    function syncSortButtonStates(tableEl, activeKey, direction) {
-      tableEl.querySelectorAll("[data-roster-staff-sort-key]").forEach(function(buttonEl) {
-        if (!(buttonEl instanceof HTMLButtonElement)) return;
-        const isActive = buttonEl.dataset.rosterStaffSortKey === activeKey;
-        buttonEl.setAttribute("aria-sort", isActive ? direction : "none");
-        const headerCell = buttonEl.closest("th");
-        if (headerCell instanceof HTMLTableCellElement) {
-          headerCell.setAttribute("aria-sort", isActive ? direction : "none");
-        }
-      });
-    }
-    function sortRosterStaffTable(tableEl, key, direction) {
-      const tbodyEl = tableEl.querySelector(".roster-staff-table-body");
-      if (!(tbodyEl instanceof HTMLTableSectionElement)) return;
-      const rows = Array.from(tbodyEl.querySelectorAll(".roster-staff-panel-entry"));
-      rows.sort(function(leftRow, rightRow) {
-        return compareRows(leftRow, rightRow, key, direction);
-      });
-      rows.forEach(function(rowEl) {
-        tbodyEl.appendChild(rowEl);
-      });
-      tableEl.dataset.rosterStaffSortKey = key;
-      tableEl.dataset.rosterStaffSortDirection = direction;
-      syncSortButtonStates(tableEl, key, direction);
-    }
-    function nextDirection(tableEl, key) {
-      const currentKey = tableEl.dataset.rosterStaffSortKey || "";
-      const currentDirection = tableEl.dataset.rosterStaffSortDirection || "none";
-      if (currentKey === key && currentDirection === "ascending") {
-        return "descending";
-      }
-      return "ascending";
-    }
-    function initRosterStaffPanelSortingWithin(root) {
-      if (!(root instanceof Element || root instanceof Document)) return;
-      root.querySelectorAll(".roster-staff-table").forEach(function(tableEl) {
-        if (!(tableEl instanceof HTMLTableElement)) return;
-        const defaultKey = tableEl.dataset.rosterStaffSortKey || "name";
-        const defaultDirection = tableEl.dataset.rosterStaffSortDirection || "ascending";
-        sortRosterStaffTable(tableEl, defaultKey, defaultDirection);
-      });
-    }
-    document.addEventListener("click", function(event) {
-      const buttonEl = event.target.closest("[data-roster-staff-sort-key]");
-      if (!(buttonEl instanceof HTMLButtonElement)) return;
-      const tableEl = buttonEl.closest(".roster-staff-table");
-      if (!(tableEl instanceof HTMLTableElement)) return;
-      const key = buttonEl.dataset.rosterStaffSortKey || "name";
-      const direction = nextDirection(tableEl, key);
-      sortRosterStaffTable(tableEl, key, direction);
-    });
-    document.addEventListener("app:page-ready", function(event) {
-      initRosterStaffPanelSortingWithin(event.detail && event.detail.target || document);
-    });
-  })();
+  enableRosterStaffPanelSorting();
   (function enableRosterStaffShiftHighlight() {
     if (typeof window === "undefined") return;
     const rosterStaffRowSelector = ".roster-staff-panel-entry[data-roster-staff-id]";
