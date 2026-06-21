@@ -21,6 +21,7 @@ module Application.StaffDocuments.Rsa
 
 import Application.Async.Queue
 import Application.Helper.EmailVerification (isEmailDeliveryDisabled)
+import Application.Helper.Mail
 import qualified Control.Exception.Safe as Exception
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
@@ -32,7 +33,6 @@ import Data.Time.Calendar (addDays, diffDays)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.EnvVar
 import IHP.FrameworkConfig (ConfigProvider, FrameworkConfig)
 import IHP.Mail
 import Web.Mail.StaffDocuments.RsaReminder
@@ -451,7 +451,7 @@ sendRsaReminderEmail ::
     StaffDocument ->
     IO ()
 sendRsaReminderEmail reminderKind venue staff user staffDocument = do
-    fromAddress :: Text <- envOrDefault "MAIL_FROM" "noreply@dev.local"
+    AppMailSettings { .. } <- loadAppMailSettings
     emailDeliveryDisabled <- isEmailDeliveryDisabled
     unless emailDeliveryDisabled do
         sendMail RsaReminderMail
@@ -461,7 +461,9 @@ sendRsaReminderEmail reminderKind venue staff user staffDocument = do
             , staffDocument = staffDocument
             , reminderSubject = rsaReminderSubject reminderKind
             , reminderIntro = rsaReminderIntro reminderKind staffDocument
-            , fromAddress = fromAddress
+            , fromAddress = mailFromAddress
+            , replyToAddress = mailReplyToAddress
+            , supportEmail = mailSupportEmail
             }
 
 rsaReminderSubject :: RsaReminderKind -> Text

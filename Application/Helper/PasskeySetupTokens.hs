@@ -9,6 +9,7 @@ module Application.Helper.PasskeySetupTokens
     ) where
 
 import Application.Helper.EmailVerification (isEmailDeliveryDisabled)
+import Application.Helper.Mail
 import Application.Helper.Url (appendQueryParams)
 import qualified "crypton" Crypto.Hash as Hash
 import "crypton" Crypto.Random (getRandomBytes)
@@ -62,7 +63,7 @@ sendPasskeySetupTokenEmail ::
     Text ->
     IO ()
 sendPasskeySetupTokenEmail targetUser purpose rawToken = do
-    fromAddress :: Text <- envOrDefault "MAIL_FROM" "noreply@dev.local"
+    AppMailSettings { .. } <- loadAppMailSettings
     appBaseUrl :: Text <- envOrDefault "APP_BASE_URL" "http://localhost:8000"
     emailDeliveryDisabled <- isEmailDeliveryDisabled
     let setupUrl = appBaseUrl <> appendQueryParams (pathTo NewPasskeySetupAction) [("token", rawToken)]
@@ -70,7 +71,9 @@ sendPasskeySetupTokenEmail targetUser purpose rawToken = do
         sendMail PasskeySetupLinkMail
             { user = targetUser
             , setupUrl = setupUrl
-            , fromAddress = fromAddress
+            , fromAddress = mailFromAddress
+            , replyToAddress = mailReplyToAddress
+            , supportEmail = mailSupportEmail
             , purposeLabel = passkeySetupTokenPurposeEmailLabel purpose
             }
 

@@ -1,5 +1,6 @@
 module Application.Helper.EmailVerification where
 
+import Application.Helper.Mail
 import Application.Helper.Url (appendQueryParams)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDv4
@@ -29,7 +30,7 @@ issueEmailVerification user = do
 sendEmailVerification :: (?context :: ControllerContext, ?modelContext :: ModelContext) => User -> IO EmailVerificationToken
 sendEmailVerification user = do
     verificationToken <- issueEmailVerification user
-    fromAddress :: Text <- envOrDefault "MAIL_FROM" "noreply@dev.local"
+    AppMailSettings { .. } <- loadAppMailSettings
     appBaseUrl :: Text <- envOrDefault "APP_BASE_URL" "http://localhost:8000"
     emailDeliveryDisabled <- isEmailDeliveryDisabled
     let verificationUrl =
@@ -38,7 +39,9 @@ sendEmailVerification user = do
         sendMail EmailVerificationMail
             { user = user
             , verificationUrl = verificationUrl
-            , fromAddress = fromAddress
+            , fromAddress = mailFromAddress
+            , replyToAddress = mailReplyToAddress
+            , supportEmail = mailSupportEmail
             }
     pure verificationToken
 

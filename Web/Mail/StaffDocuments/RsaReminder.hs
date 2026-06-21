@@ -3,15 +3,18 @@ module Web.Mail.StaffDocuments.RsaReminder where
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.MailPrelude
+import Web.Mail.Shared
 
 data RsaReminderMail = RsaReminderMail
-    { recipient       :: User
-    , venue           :: Venue
-    , staff           :: Staff
-    , staffDocument   :: StaffDocument
+    { recipient      :: User
+    , venue          :: Venue
+    , staff          :: Staff
+    , staffDocument  :: StaffDocument
     , reminderSubject :: Text
-    , reminderIntro   :: Text
-    , fromAddress     :: Text
+    , reminderIntro  :: Text
+    , fromAddress    :: Text
+    , replyToAddress :: Text
+    , supportEmail   :: Text
     }
 
 instance BuildMail RsaReminderMail where
@@ -23,23 +26,26 @@ instance BuildMail RsaReminderMail where
             , addressEmail = recipient.email
             }
 
-    from =
-        Address
-            { addressName = Just "Bepis"
-            , addressEmail = ?mail.fromAddress
-            }
+    from = bepisFrom ?mail.fromAddress
 
-    html RsaReminderMail { venue, staff, staffDocument, reminderIntro } = [hsx|
+    replyTo RsaReminderMail { replyToAddress } = bepisReplyTo replyToAddress
+
+    html RsaReminderMail { venue, staff, staffDocument, reminderIntro, supportEmail } = [hsx|
         <p>{reminderIntro}</p>
         <p>
             Venue: {venue.name}<br/>
             Staff member: {staffDisplayName staff}<br/>
             Expiry date: {tshow staffDocument.expiryDate}
         </p>
-        <p>Please upload a current RSA document in your profile.</p>
+        <p>Please upload a current RSA document in your Bepis profile.</p>
+        <hr/>
+        <p>
+            You’re receiving this because this email address is associated with a Bepis account, venue, or invitation.
+            If this wasn’t expected, you can ignore this email or contact {supportEmail}.
+        </p>
     |]
 
-    text RsaReminderMail { venue, staff, staffDocument, reminderIntro } =
+    text RsaReminderMail { venue, staff, staffDocument, reminderIntro, supportEmail } =
         reminderIntro
             <> "\n\nVenue: "
             <> venue.name
@@ -47,7 +53,8 @@ instance BuildMail RsaReminderMail where
             <> staffDisplayName staff
             <> "\nExpiry date: "
             <> tshow staffDocument.expiryDate
-            <> "\n\nPlease upload a current RSA document in your profile."
+            <> "\n\nPlease upload a current RSA document in your Bepis profile."
+            <> supportFooterText supportEmail
 
 staffDisplayName :: Staff -> Text
 staffDisplayName staff =

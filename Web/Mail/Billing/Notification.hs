@@ -2,6 +2,7 @@ module Web.Mail.Billing.Notification where
 
 import Generated.Types
 import IHP.MailPrelude
+import Web.Mail.Shared
 
 data BillingNotificationMail = BillingNotificationMail
     { recipient        :: User
@@ -10,6 +11,8 @@ data BillingNotificationMail = BillingNotificationMail
     , notificationKind :: Text
     , billingUrl       :: Text
     , fromAddress      :: Text
+    , replyToAddress   :: Text
+    , supportEmail     :: Text
     }
 
 instance BuildMail BillingNotificationMail where
@@ -21,22 +24,25 @@ instance BuildMail BillingNotificationMail where
             , addressEmail = recipient.email
             }
 
-    from =
-        Address
-            { addressName = Just "Bepis"
-            , addressEmail = ?mail.fromAddress
-            }
+    from = bepisFrom ?mail.fromAddress
 
-    html BillingNotificationMail { venue, billingEvent, notificationKind, billingUrl } = [hsx|
+    replyTo BillingNotificationMail { replyToAddress } = bepisReplyTo replyToAddress
+
+    html BillingNotificationMail { venue, billingEvent, notificationKind, billingUrl, supportEmail } = [hsx|
         <p>Billing needs attention for {venue.name}.</p>
         <p>
             Event: {billingEvent.eventType}<br/>
             Status: {notificationKind}
         </p>
         <p><a href={billingUrl}>Open billing</a></p>
+        <hr/>
+        <p>
+            You’re receiving this because this email address is associated with a Bepis account, venue, or invitation.
+            If this wasn’t expected, you can ignore this email or contact {supportEmail}.
+        </p>
     |]
 
-    text BillingNotificationMail { venue, billingEvent, notificationKind, billingUrl } =
+    text BillingNotificationMail { venue, billingEvent, notificationKind, billingUrl, supportEmail } =
         "Billing needs attention for "
             <> venue.name
             <> ".\n\nEvent: "
@@ -45,3 +51,4 @@ instance BuildMail BillingNotificationMail where
             <> notificationKind
             <> "\n\nOpen billing:\n"
             <> billingUrl
+            <> supportFooterText supportEmail

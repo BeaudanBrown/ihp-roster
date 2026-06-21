@@ -2,11 +2,14 @@ module Web.Mail.Users.EmailVerification where
 
 import Generated.Types
 import IHP.MailPrelude
+import Web.Mail.Shared
 
 data EmailVerificationMail = EmailVerificationMail
     { user            :: User
     , verificationUrl :: Text
     , fromAddress     :: Text
+    , replyToAddress  :: Text
+    , supportEmail    :: Text
     }
 
 instance BuildMail EmailVerificationMail where
@@ -18,17 +21,21 @@ instance BuildMail EmailVerificationMail where
             , addressEmail = user.email
             }
 
-    from =
-        Address
-            { addressName = Just "Bepis"
-            , addressEmail = ?mail.fromAddress
-            }
+    from = bepisFrom ?mail.fromAddress
 
-    html EmailVerificationMail { verificationUrl } = [hsx|
-        <p>Verify your email to finish setting up your account.</p>
+    replyTo EmailVerificationMail { replyToAddress } = bepisReplyTo replyToAddress
+
+    html EmailVerificationMail { verificationUrl, supportEmail } = [hsx|
+        <p>Verify your email to finish setting up your Bepis account.</p>
         <p><a href={verificationUrl}>Verify email</a></p>
-        <p>If you did not expect this email, you can ignore it.</p>
+        <hr/>
+        <p>
+            You’re receiving this because this email address is associated with a Bepis account, venue, or invitation.
+            If this wasn’t expected, you can ignore this email or contact {supportEmail}.
+        </p>
     |]
 
-    text EmailVerificationMail { verificationUrl } =
-        "Verify your email to finish setting up your account:\n\n" <> verificationUrl
+    text EmailVerificationMail { verificationUrl, supportEmail } =
+        "Verify your email to finish setting up your Bepis account:\n\n"
+            <> verificationUrl
+            <> supportFooterText supportEmail

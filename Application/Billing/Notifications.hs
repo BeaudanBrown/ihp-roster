@@ -10,6 +10,7 @@ import Application.Helper.Controller (PlatformRole (SuperAdminRole),
                                       VenueRole (VenueOwnerRole),
                                       platformRoleToEnum, venueRoleToEnum)
 import Application.Helper.EmailVerification (isEmailDeliveryDisabled)
+import Application.Helper.Mail
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import IHP.EnvVar
@@ -137,7 +138,7 @@ sendBillingNotificationEmail ::
     BillingEvent ->
     IO ()
 sendBillingNotificationEmail notificationKind user venue billingEvent = do
-    fromAddress :: Text <- envOrDefault "MAIL_FROM" "noreply@dev.local"
+    AppMailSettings { .. } <- loadAppMailSettings
     appBaseUrl :: Text <- envOrDefault "APP_BASE_URL" "http://localhost:8000"
     emailDeliveryDisabled <- isEmailDeliveryDisabled
     unless emailDeliveryDisabled do
@@ -147,5 +148,7 @@ sendBillingNotificationEmail notificationKind user venue billingEvent = do
             , billingEvent = billingEvent
             , notificationKind = notificationKind
             , billingUrl = appBaseUrl <> pathTo BillingAction
-            , fromAddress = fromAddress
+            , fromAddress = mailFromAddress
+            , replyToAddress = mailReplyToAddress
+            , supportEmail = mailSupportEmail
             }

@@ -2,12 +2,15 @@ module Web.Mail.Users.PasskeySetupLink where
 
 import Generated.Types
 import IHP.MailPrelude
+import Web.Mail.Shared
 
 data PasskeySetupLinkMail = PasskeySetupLinkMail
-    { user         :: User
-    , setupUrl     :: Text
-    , fromAddress  :: Text
-    , purposeLabel :: Text
+    { user           :: User
+    , setupUrl       :: Text
+    , fromAddress    :: Text
+    , replyToAddress :: Text
+    , supportEmail   :: Text
+    , purposeLabel   :: Text
     }
 
 instance BuildMail PasskeySetupLinkMail where
@@ -19,20 +22,23 @@ instance BuildMail PasskeySetupLinkMail where
             , addressEmail = user.email
             }
 
-    from =
-        Address
-            { addressName = Just "Bepis"
-            , addressEmail = ?mail.fromAddress
-            }
+    from = bepisFrom ?mail.fromAddress
 
-    html PasskeySetupLinkMail { setupUrl, purposeLabel } = [hsx|
+    replyTo PasskeySetupLinkMail { replyToAddress } = bepisReplyTo replyToAddress
+
+    html PasskeySetupLinkMail { setupUrl, purposeLabel, supportEmail } = [hsx|
         <p>{purposeLabel} for your Bepis account.</p>
         <p><a href={setupUrl}>Set up passkey</a></p>
         <p>This link expires in one hour and can only be used once.</p>
-        <p>If you did not request this email, you can ignore it.</p>
+        <hr/>
+        <p>
+            You’re receiving this because this email address is associated with a Bepis account, venue, or invitation.
+            If this wasn’t expected, you can ignore this email or contact {supportEmail}.
+        </p>
     |]
 
-    text PasskeySetupLinkMail { setupUrl, purposeLabel } =
+    text PasskeySetupLinkMail { setupUrl, purposeLabel, supportEmail } =
         purposeLabel <> " for your Bepis account:\n\n"
             <> setupUrl
             <> "\n\nThis link expires in one hour and can only be used once."
+            <> supportFooterText supportEmail

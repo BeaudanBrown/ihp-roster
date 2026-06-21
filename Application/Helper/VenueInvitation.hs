@@ -1,6 +1,7 @@
 module Application.Helper.VenueInvitation where
 
 import Application.Helper.EmailVerification (isEmailDeliveryDisabled)
+import Application.Helper.Mail
 import Application.Helper.Url (appendQueryParams)
 import qualified Control.Exception.Safe as Exception
 import IHP.EnvVar
@@ -19,14 +20,18 @@ venueInvitationUrl appBaseUrl invitation =
 
 sendVenueInvitationEmail :: (?context :: context, ConfigProvider context, ?modelContext :: ModelContext) => VenueInvitation -> IO ()
 sendVenueInvitationEmail invitation = do
-    fromAddress :: Text <- envOrDefault "MAIL_FROM" "noreply@dev.local"
+    AppMailSettings { .. } <- loadAppMailSettings
     appBaseUrl :: Text <- envOrDefault "APP_BASE_URL" "http://localhost:8000"
+    venue <- fetch (Id invitation.venueId :: Id Venue)
     emailDeliveryDisabled <- isEmailDeliveryDisabled
     unless emailDeliveryDisabled do
         sendMail VenueInvitationMail
             { invitation = invitation
+            , venue = venue
             , inviteUrl = venueInvitationUrl appBaseUrl invitation
-            , fromAddress = fromAddress
+            , fromAddress = mailFromAddress
+            , replyToAddress = mailReplyToAddress
+            , supportEmail = mailSupportEmail
             }
 
 deliverVenueInvitationEmail :: (?context :: context, ConfigProvider context, ?modelContext :: ModelContext) => VenueInvitation -> IO (Either Text VenueInvitation)
