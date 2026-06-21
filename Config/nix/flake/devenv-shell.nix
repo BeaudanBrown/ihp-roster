@@ -53,7 +53,8 @@
                 cp -R "$src" source
                 chmod -R u+w source
                 cd source
-                bash Config/nix/scripts/frontend/check
+                tsc --project tsconfig.json --noEmit
+                bash Config/nix/scripts/frontend/drift-check
                 touch "$out"
             '';
         };

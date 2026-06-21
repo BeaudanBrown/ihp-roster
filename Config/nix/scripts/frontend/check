@@ -4,5 +4,6 @@ set -euo pipefail
 repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 cd "$repo_root"
 
+bash Config/nix/scripts/frontend/contracts-check
 tsc --project tsconfig.json --noEmit
 bash Config/nix/scripts/frontend/drift-check

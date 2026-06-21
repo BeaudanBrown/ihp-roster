@@ -30,6 +30,8 @@ in
         dev-foreground = script ../scripts/dev/foreground;
         frontend-build = script ../scripts/frontend/build;
         frontend-check = script ../scripts/frontend/check;
+        frontend-contracts = script ../scripts/frontend/contracts;
+        frontend-contracts-check = script ../scripts/frontend/contracts-check;
         frontend-drift-check = script ../scripts/frontend/drift-check;
         frontend-watch = script ../scripts/frontend/watch;
         git-install-hooks = script ../scripts/git/install-hooks;
