@@ -1,6 +1,6 @@
 ---
 id: ir-0ec8
-status: open
+status: closed
 deps: [ir-t1d5]
 links: []
 created: 2026-06-21T03:37:16Z
@@ -22,3 +22,9 @@ Convert app-bootstrap.js, app-dialog-overlays.js, app-time-picker.js, app-passke
 
 Converted TS sources compile cleanly. frontend-check passes with contract checks and meaningful unit/DOM coverage for converted behavior. Applicable backend-emitted JSON/data boundaries use generated contracts. Lifecycle events such as app:page-ready remain compatible. Dialogs, toasts, time picker, passkeys, and horizontal scroll behavior are not regressed. Focused e2e/screenshot checks run where appropriate.
 
+
+## Notes
+
+**2026-06-21T05:20:35Z**
+
+Converted medium-risk app scripts to frontend/ts entrypoints: app-bootstrap, app-dialog-overlays, app-time-picker, app-passkeys, and app-horizontal-scroll. Generated static/app*.js via frontend-build. Added frontend unit coverage for app:page-ready detail defaults, dialog submit loading markup, time-picker parsing/label/options, passkey storage/base64url helpers, and horizontal scroll parse/clamp helpers. Verified frontend-check, doc-drift-check, focused frontend flake check, LSP diagnostics, and focused mobile/dialog/horizontal Playwright coverage. Full mobile-experience run had 21 passing tests and 9 failures in broader navigation/roster cases with passkey prompt/roster setup symptoms; focused converted-script coverage passed.
