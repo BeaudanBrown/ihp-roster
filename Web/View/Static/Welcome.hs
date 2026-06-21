@@ -19,13 +19,7 @@ instance View WelcomeView where
                         Venue rostering, timesheets, unavailability, leave, payroll-ready exports, and support for hospitality operators.
                     </p>
                     <div class="d-grid">
-                        <div class="js-passkey-first-login"
-                             data-begin-url={pathTo BeginPasskeyAuthenticationAction}
-                             data-finish-url={pathTo FinishPasskeyAuthenticationAction}
-                             data-fallback-url={pathTo NewSessionAction}
-                             data-success-redirect={RosterWeeksAction}>
-                            <a href={NewSessionAction} class="btn btn-primary btn-lg w-100 js-passkey-first-login-button">Sign In</a>
-                        </div>
+                        <a href={NewSessionAction} class="btn btn-primary btn-lg w-100">Sign In</a>
                     </div>
                     <div class="mt-4">
                         <a href={PublicBillingSupportAction} class="link-secondary">Billing and support information</a>

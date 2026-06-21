@@ -64,16 +64,6 @@
           void runPasskeyLogin(container, button);
         });
       });
-      root.querySelectorAll(".js-passkey-first-login").forEach(function(container) {
-        if (container.dataset.passkeyInitialized === "true") return;
-        container.dataset.passkeyInitialized = "true";
-        const button = container.querySelector(".js-passkey-first-login-button");
-        if (button === null) return;
-        button.addEventListener("click", function(event2) {
-          event2.preventDefault();
-          void runPasskeyFirstLogin(container, button);
-        });
-      });
       root.querySelectorAll(".js-passkey-register").forEach(function(container) {
         if (container.dataset.passkeyInitialized === "true") return;
         container.dataset.passkeyInitialized = "true";
@@ -88,32 +78,6 @@
         container.dataset.passkeyInitialized = "true";
         initPasskeySetupPrompt(container);
       });
-    }
-    async function runPasskeyFirstLogin(container, button) {
-      if (!passkeysAreAvailable()) {
-        redirectToFallback(container);
-        return;
-      }
-      const originalText = button.textContent;
-      button.textContent = "Checking for passkey...";
-      try {
-        const beginResponse = await postJson(container.dataset.beginUrl);
-        const credential = await window.navigator.credentials.get({
-          publicKey: authenticationOptionsToNative(beginResponse),
-          signal: timeoutSignal(1e4)
-        });
-        if (!(credential instanceof PublicKeyCredential)) throw new Error("No passkey was selected.");
-        const finishResponse = await postJson(
-          container.dataset.finishUrl,
-          serializeAuthenticationCredential(credential)
-        );
-        markPasskeySeen(finishResponse.userId);
-        redirectAfterPasskeySuccess(container, finishResponse);
-      } catch (_error) {
-        redirectToFallback(container);
-      } finally {
-        button.textContent = originalText;
-      }
     }
     async function runPasskeyLogin(container, button) {
       await withPasskeyButton(container, button, async function() {
@@ -262,17 +226,6 @@
       const redirectTo = response.redirectTo || container.dataset.successRedirect;
       if (redirectTo === void 0 || redirectTo === "") return;
       window.location.assign(redirectTo);
-    }
-    function redirectToFallback(container) {
-      window.location.assign(container.dataset.fallbackUrl || "/NewSession");
-    }
-    function timeoutSignal(timeoutMs) {
-      if (!window.AbortController) return void 0;
-      const controller = new window.AbortController();
-      window.setTimeout(function() {
-        controller.abort();
-      }, timeoutMs);
-      return controller.signal;
     }
     function localStorageKey(userId, key) {
       return localStorageKeyForPasskey(userId, key);

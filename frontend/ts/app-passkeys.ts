@@ -59,19 +59,6 @@ type AuthenticationCredentialPayload = {
             });
         });
 
-        root.querySelectorAll<HTMLElement>(".js-passkey-first-login").forEach(function (container) {
-            if (container.dataset.passkeyInitialized === "true") return;
-            container.dataset.passkeyInitialized = "true";
-
-            const button = container.querySelector<HTMLButtonElement>(".js-passkey-first-login-button");
-            if (button === null) return;
-
-            button.addEventListener("click", function (event) {
-                event.preventDefault();
-                void runPasskeyFirstLogin(container, button);
-            });
-        });
-
         root.querySelectorAll<HTMLElement>(".js-passkey-register").forEach(function (container) {
             if (container.dataset.passkeyInitialized === "true") return;
             container.dataset.passkeyInitialized = "true";
@@ -89,37 +76,6 @@ type AuthenticationCredentialPayload = {
             container.dataset.passkeyInitialized = "true";
             initPasskeySetupPrompt(container);
         });
-    }
-
-    async function runPasskeyFirstLogin(container: PasskeyContainer, button: PasskeyButton): Promise<void> {
-        if (!passkeysAreAvailable()) {
-            redirectToFallback(container);
-            return;
-        }
-
-        const originalText = button.textContent;
-        button.textContent = "Checking for passkey...";
-
-        try {
-            const beginResponse = await postJson<JsonObject>(container.dataset.beginUrl);
-            const credential = await window.navigator.credentials.get({
-                publicKey: authenticationOptionsToNative(beginResponse),
-                signal: timeoutSignal(10000),
-            });
-            if (!(credential instanceof PublicKeyCredential)) throw new Error("No passkey was selected.");
-
-            const finishResponse = await postJson<PasskeyFinishResponse>(
-                container.dataset.finishUrl,
-                serializeAuthenticationCredential(credential)
-            );
-
-            markPasskeySeen(finishResponse.userId);
-            redirectAfterPasskeySuccess(container, finishResponse);
-        } catch (_error) {
-            redirectToFallback(container);
-        } finally {
-            button.textContent = originalText;
-        }
     }
 
     async function runPasskeyLogin(container: PasskeyContainer, button: PasskeyButton): Promise<void> {
@@ -295,20 +251,6 @@ type AuthenticationCredentialPayload = {
         const redirectTo = response.redirectTo || container.dataset.successRedirect;
         if (redirectTo === undefined || redirectTo === "") return;
         window.location.assign(redirectTo);
-    }
-
-    function redirectToFallback(container: PasskeyContainer): void {
-        window.location.assign(container.dataset.fallbackUrl || "/NewSession");
-    }
-
-    function timeoutSignal(timeoutMs: number): AbortSignal | undefined {
-        if (!window.AbortController) return undefined;
-
-        const controller = new window.AbortController();
-        window.setTimeout(function () {
-            controller.abort();
-        }, timeoutMs);
-        return controller.signal;
     }
 
     function localStorageKey(userId: string, key: PasskeyStorageKey): string {

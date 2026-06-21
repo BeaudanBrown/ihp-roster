@@ -32,11 +32,11 @@ tests = beforeAll testContext do
             response `responseStatusShouldBe` status200
             response `responseBodyShouldContain` "Bepis"
             response `responseBodyShouldContain` "Sign In"
+            response `responseBodyShouldContain` "href=\"/NewSession\""
             response `responseBodyShouldNotContain` "Request Access"
-            response `responseBodyShouldContain` "js-passkey-first-login"
-            response `responseBodyShouldContain` "data-begin-url=\"/BeginPasskeyAuthentication\""
-            response `responseBodyShouldContain` "data-finish-url=\"/FinishPasskeyAuthentication\""
-            response `responseBodyShouldContain` "data-fallback-url=\"/NewSession\""
+            response `responseBodyShouldNotContain` "js-passkey-first-login"
+            response `responseBodyShouldNotContain` "/BeginPasskeyAuthentication"
+            response `responseBodyShouldNotContain` "/FinishPasskeyAuthentication"
             response `responseBodyShouldContain` "Billing and support information"
 
         it "renders the public billing support page without authentication" $ withContext do
