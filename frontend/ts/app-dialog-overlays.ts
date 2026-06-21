@@ -1,54 +1,59 @@
-// @ts-nocheck
-export function dialogSubmitLoadingHtml(label) {
-    return '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span><span>' + label + '</span>';
+import { closestHTMLElement, isHTMLElement } from "./shared/dom";
+import { detailTarget } from "./shared/lifecycle";
+
+export function dialogSubmitLoadingHtml(label: string): string {
+    return '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span><span>' + label + "</span>";
 }
 
 // Shared workflow dialog mount for HTMX-driven form overlays.
 (function enableDialogOverlayMount() {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
 
-    const mountId = 'dialog-overlay-mount';
-    function getMount() {
-        return document.getElementById(mountId);
+    const mountId = "dialog-overlay-mount";
+    function getMount(): HTMLElement | null {
+        const mountEl = document.getElementById(mountId);
+        return isHTMLElement(mountEl) ? mountEl : null;
     }
 
-    function getActiveDialog() {
+    function getActiveDialog(): HTMLElement | null {
         const mountEl = getMount();
-        return mountEl ? mountEl.querySelector('[data-dialog-overlay="true"]') : null;
+        if (mountEl === null) return null;
+        const dialogEl = mountEl.querySelector('[data-dialog-overlay="true"]');
+        return isHTMLElement(dialogEl) ? dialogEl : null;
     }
 
-    function hasVisibleBootstrapModal() {
+    function hasVisibleBootstrapModal(): boolean {
         return Boolean(document.querySelector('.modal.show:not([data-dialog-overlay="true"])'));
     }
 
-    function syncDialogState() {
+    function syncDialogState(): void {
         const dialogEl = getActiveDialog();
         const hasDialog = dialogEl instanceof HTMLElement;
         const shouldLockBody = hasDialog || hasVisibleBootstrapModal();
 
-        document.body.classList.toggle('modal-open', shouldLockBody);
-        document.body.style.overflow = shouldLockBody ? 'hidden' : '';
+        document.body.classList.toggle("modal-open", shouldLockBody);
+        document.body.style.overflow = shouldLockBody ? "hidden" : "";
     }
 
-    function clearMount() {
+    function clearMount(): void {
         const mountEl = getMount();
-        if (!(mountEl instanceof HTMLElement)) return;
+        if (mountEl === null) return;
 
-        mountEl.innerHTML = '';
+        mountEl.innerHTML = "";
         syncDialogState();
     }
 
-    document.addEventListener('click', function (event) {
+    document.addEventListener("click", function (event) {
         const activeDialog = getActiveDialog();
-        const closeEl = event.target.closest('[data-dialog-overlay-close="true"]');
-        if (closeEl && activeDialog) {
+        const closeEl = closestHTMLElement(event.target, '[data-dialog-overlay-close="true"]');
+        if (closeEl !== null && activeDialog !== null) {
             event.preventDefault();
             clearMount();
             return;
         }
 
-        const backdropEl = event.target.closest('[data-dialog-overlay-backdrop="true"]');
-        if (backdropEl && activeDialog) {
+        const backdropEl = closestHTMLElement(event.target, '[data-dialog-overlay-backdrop="true"]');
+        if (backdropEl !== null && activeDialog !== null) {
             event.preventDefault();
             clearMount();
             return;
@@ -56,60 +61,61 @@ export function dialogSubmitLoadingHtml(label) {
 
         // The full-screen dialog shell sits above the backdrop, so background clicks
         // often land on the shell instead of the separate backdrop node.
-        if (activeDialog && event.target === activeDialog) {
+        if (activeDialog !== null && event.target === activeDialog) {
             event.preventDefault();
             clearMount();
         }
     });
 
-    document.addEventListener('keydown', function (event) {
-        if (event.key !== 'Escape') return;
-        if (!getActiveDialog()) return;
+    document.addEventListener("keydown", function (event) {
+        if (event.key !== "Escape") return;
+        if (getActiveDialog() === null) return;
 
         event.preventDefault();
         clearMount();
     });
 
-    document.addEventListener('submit', function (event) {
+    document.addEventListener("submit", function (event) {
         const activeDialog = getActiveDialog();
-        if (!activeDialog) return;
+        if (activeDialog === null) return;
 
         const form = event.target;
         if (!(form instanceof HTMLFormElement)) return;
 
-        const submitter = event.submitter;
+        const submitter = event instanceof SubmitEvent ? event.submitter : null;
         if (!(submitter instanceof HTMLButtonElement)) return;
         if (!submitter.matches('[data-dialog-overlay-submit-button="true"]')) return;
 
-        activeDialog.querySelectorAll('button, a.btn').forEach(function (control) {
+        activeDialog.querySelectorAll("button, a.btn").forEach(function (control) {
             if (control instanceof HTMLButtonElement) {
                 control.disabled = true;
-            } else {
-                control.classList.add('disabled');
-                control.setAttribute('aria-disabled', 'true');
+            } else if (isHTMLElement(control)) {
+                control.classList.add("disabled");
+                control.setAttribute("aria-disabled", "true");
             }
         });
 
         if (!submitter.dataset.originalHtml) {
             submitter.dataset.originalHtml = submitter.innerHTML;
         }
-        const label = submitter.getAttribute('data-loading-label') || 'Working...';
+        const label = submitter.getAttribute("data-loading-label") || "Working...";
         submitter.innerHTML = dialogSubmitLoadingHtml(label);
-        submitter.classList.add('d-inline-flex', 'align-items-center', 'gap-2');
+        submitter.classList.add("d-inline-flex", "align-items-center", "gap-2");
     }, true);
 
-    document.addEventListener('htmx:afterRequest', function (event) {
+    document.addEventListener("htmx:afterRequest", function (event) {
         const activeDialog = getActiveDialog();
-        if (!activeDialog) return;
-        if (!(event.detail && event.detail.elt instanceof HTMLElement)) return;
-        if (!activeDialog.contains(event.detail.elt)) return;
+        if (activeDialog === null) return;
+        const elt = detailTarget(event, "elt");
+        if (!isHTMLElement(elt)) return;
+        if (!activeDialog.contains(elt)) return;
 
-        activeDialog.querySelectorAll('button, a.btn').forEach(function (control) {
+        activeDialog.querySelectorAll("button, a.btn").forEach(function (control) {
             if (control instanceof HTMLButtonElement) {
                 control.disabled = false;
-            } else {
-                control.classList.remove('disabled');
-                control.removeAttribute('aria-disabled');
+            } else if (isHTMLElement(control)) {
+                control.classList.remove("disabled");
+                control.removeAttribute("aria-disabled");
             }
         });
 
@@ -118,22 +124,21 @@ export function dialogSubmitLoadingHtml(label) {
             if (control.dataset.originalHtml) {
                 control.innerHTML = control.dataset.originalHtml;
             }
-            control.classList.remove('d-inline-flex', 'align-items-center', 'gap-2');
+            control.classList.remove("d-inline-flex", "align-items-center", "gap-2");
         });
     });
 
-    document.addEventListener('htmx:afterSwap', function (event) {
-        if (!(event.detail && event.detail.target instanceof HTMLElement)) return;
-        if (event.detail.target.id !== mountId) return;
+    document.addEventListener("htmx:afterSwap", function (event) {
+        const target = detailTarget(event, "target");
+        if (!isHTMLElement(target)) return;
+        if (target.id !== mountId) return;
 
-        if (window.htmx && typeof window.htmx.process === 'function') {
-            window.htmx.process(event.detail.target);
-        }
+        window.htmx?.process?.(target);
 
         syncDialogState();
     });
 
-    document.addEventListener('shown.bs.modal', syncDialogState);
-    document.addEventListener('hidden.bs.modal', syncDialogState);
-    document.addEventListener('app:page-ready', syncDialogState);
+    document.addEventListener("shown.bs.modal", syncDialogState);
+    document.addEventListener("hidden.bs.modal", syncDialogState);
+    document.addEventListener("app:page-ready", syncDialogState);
 })();
