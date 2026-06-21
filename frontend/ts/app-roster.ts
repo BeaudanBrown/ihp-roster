@@ -1,60 +1,10 @@
 // @ts-nocheck
 
-export function rosterOverviewSummaryFromDayDataset(dataset) {
-    const hasDetails = dataset.weekOverviewDetails === 'true';
-    const isClosed = dataset.weekOverviewClosed === 'true';
+import { rosterFullscreenLabels } from "./roster/fullscreen";
+import { rosterOverviewSummaryFromDayDataset } from "./roster/overview";
+import { compareRosterStaffData, rosterParseNumber } from "./roster/staff-sort";
 
-    return {
-        hasDetails,
-        isClosed,
-        label: dataset.weekOverviewLabel || '',
-        leave: hasDetails ? (dataset.weekOverviewLeave || '0') : '—',
-        assigned: hasDetails ? (dataset.weekOverviewAssigned || '0') : '—',
-        hours: hasDetails ? (dataset.weekOverviewHours || '0h') : '—',
-        summary: dataset.weekOverviewSummary || '',
-        weekLabel: `In ${dataset.weekOverviewWeekLabel || ''}`,
-        url: dataset.weekOverviewUrl || '',
-    };
-}
-
-export function rosterParseNumber(value) {
-    const parsed = Number.parseInt(value || '0', 10);
-    return Number.isFinite(parsed) ? parsed : 0;
-}
-
-export function compareRosterStaffData(left, right, key, direction) {
-    const directionMultiplier = direction === 'descending' ? -1 : 1;
-    const compareText = (leftValue, rightValue) => leftValue.localeCompare(rightValue, undefined, { sensitivity: 'base' });
-    const compareNumber = (leftValue, rightValue) => leftValue - rightValue;
-
-    if (key === 'shifts') {
-        const assignedResult = compareNumber(rosterParseNumber(left.assigned), rosterParseNumber(right.assigned)) * directionMultiplier;
-        if (assignedResult !== 0) return assignedResult;
-
-        const idealResult = compareNumber(rosterParseNumber(left.ideal), rosterParseNumber(right.ideal)) * directionMultiplier;
-        if (idealResult !== 0) return idealResult;
-
-        return compareText(left.name || '', right.name || '');
-    }
-
-    if (key === 'role') {
-        const roleResult = compareText(left.role || '', right.role || '') * directionMultiplier;
-        if (roleResult !== 0) return roleResult;
-
-        return compareText(left.name || '', right.name || '');
-    }
-
-    return compareText(left.name || '', right.name || '') * directionMultiplier;
-}
-
-export function rosterFullscreenLabels(expanded) {
-    return {
-        pressed: expanded ? 'true' : 'false',
-        label: expanded ? 'Exit expanded roster' : 'Expand roster',
-        iconAdd: expanded ? 'bi-fullscreen-exit' : 'bi-fullscreen',
-        iconRemove: expanded ? 'bi-fullscreen' : 'bi-fullscreen-exit',
-    };
-}
+export { rosterFullscreenLabels, rosterOverviewSummaryFromDayDataset, compareRosterStaffData, rosterParseNumber };
 
 (function enableRosterWeekOverview() {
     if (typeof window === 'undefined') return;

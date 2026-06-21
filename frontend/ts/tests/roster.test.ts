@@ -1,9 +1,6 @@
-import {
-    compareRosterStaffData,
-    rosterFullscreenLabels,
-    rosterOverviewSummaryFromDayDataset,
-    rosterParseNumber,
-} from "../app-roster";
+import { rosterFullscreenLabels } from "../roster/fullscreen";
+import { rosterOverviewSummaryFromDayDataset } from "../roster/overview";
+import { compareRosterStaffData, rosterParseNumber } from "../roster/staff-sort";
 import { assertDeepEqual, assertEqual, test } from "./harness";
 
 test("roster overview summary preserves loaded and unloaded day values", () => {

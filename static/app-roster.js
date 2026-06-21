@@ -1,6 +1,16 @@
 "use strict";
 (() => {
-  // frontend/ts/app-roster.ts
+  // frontend/ts/roster/fullscreen.ts
+  function rosterFullscreenLabels(expanded) {
+    return {
+      pressed: expanded ? "true" : "false",
+      label: expanded ? "Exit expanded roster" : "Expand roster",
+      iconAdd: expanded ? "bi-fullscreen-exit" : "bi-fullscreen",
+      iconRemove: expanded ? "bi-fullscreen" : "bi-fullscreen-exit"
+    };
+  }
+
+  // frontend/ts/roster/overview.ts
   function rosterOverviewSummaryFromDayDataset(dataset) {
     const hasDetails = dataset.weekOverviewDetails === "true";
     const isClosed = dataset.weekOverviewClosed === "true";
@@ -16,6 +26,8 @@
       url: dataset.weekOverviewUrl || ""
     };
   }
+
+  // frontend/ts/roster/staff-sort.ts
   function rosterParseNumber(value) {
     const parsed = Number.parseInt(value || "0", 10);
     return Number.isFinite(parsed) ? parsed : 0;
@@ -38,14 +50,8 @@
     }
     return compareText(left.name || "", right.name || "") * directionMultiplier;
   }
-  function rosterFullscreenLabels(expanded) {
-    return {
-      pressed: expanded ? "true" : "false",
-      label: expanded ? "Exit expanded roster" : "Expand roster",
-      iconAdd: expanded ? "bi-fullscreen-exit" : "bi-fullscreen",
-      iconRemove: expanded ? "bi-fullscreen" : "bi-fullscreen-exit"
-    };
-  }
+
+  // frontend/ts/app-roster.ts
   (function enableRosterWeekOverview() {
     if (typeof window === "undefined") return;
     function updateOverviewSelection(panelEl, dayButton) {
