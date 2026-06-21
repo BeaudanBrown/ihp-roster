@@ -1,6 +1,6 @@
 ---
 id: ir-l5gk
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-06-21T03:37:16Z
@@ -35,3 +35,7 @@ Nix clarification: frontend tooling must be integrated through the flake/devenv/
 **2026-06-21T04:03:18Z**
 
 Contract-system clarification: integrate a narrow Haskell-to-TypeScript frontend contract layer into the epic. Haskell owns browser boundary DTOs/enums; generated TS under frontend/ts/generated/ is consumed by thin frontend code. Scope is JSON/data-* payloads, live-update surface config/messages, roster UI config, overlay lanes, and capability/config objects, not broad DB model generation.
+
+**2026-06-21T05:33:37Z**
+
+Epic implementation complete. TypeScript/esbuild pipeline, Haskell-owned generated frontend contracts, frontend unit/DOM test baseline, dev watcher integration, docs, and all app-owned runtime conversions are in place. Final verification recorded on ir-jpdm. Known remaining E2E notes are unrelated/pre-existing expectation mismatches documented on ir-vw6w/ir-vb2j/ir-jpdm.

@@ -29,3 +29,14 @@ Read this before editing `frontend/ts/`.
 - Converted runtimes should use generated contracts for backend-emitted JSON/data boundaries where applicable and add unit/DOM or focused E2E coverage at the appropriate level.
 - Use Playwright via `bash ./bin/in-env e2e ...` for browser/server integration: HTMX, Bootstrap behavior, websockets/live updates, layout, roster interactions, mobile behavior, and anything requiring real browser APIs.
 - Do not add frontend unit tests or Playwright E2E to pre-commit hooks. The hook is for generated asset drift only.
+
+## Future Interaction Work
+
+- Author new interaction-layer browser code in TypeScript under `frontend/ts/`.
+- It may use esbuild-resolved imports, but keep project commands Nix/devenv-owned
+  and avoid introducing developer-facing npm/npx workflows.
+- Keep Bepis browser contracts stable and narrow. Backend-emitted JSON/data
+  boundaries should use Haskell-owned generated contracts rather than duplicated
+  TypeScript domain models.
+- Production/live packaging serves checked-in generated static assets and must
+  stay Node-free.
