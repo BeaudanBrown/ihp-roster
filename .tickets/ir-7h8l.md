@@ -28,3 +28,7 @@ app-roster.ts no longer uses ts-nocheck; generated static JS is rebuilt; fronten
 **2026-06-21T06:41:55Z**
 
 Initial probe of removing ts-nocheck from app-roster.ts produced roughly 98 strict TypeScript errors concentrated in the remaining large DOM/event/export/staff-highlight sections. Reverted the probe to keep the tree green. Next safe step is to split the remaining roster runtime by concern (overview/fullscreen already extracted; next column-edit/export/staff-highlight modules), then remove ts-nocheck after the entrypoint is thin.
+
+**2026-06-21T08:04:59Z**
+
+Staged roster typing slice: extracted column edit DOM behavior to typed frontend/ts/roster/column-edit.ts and replaced the inline app-roster.ts IIFE with enableRosterColumnEditMode(). Rebuilt static/app-roster.js. Verified frontend-check, doc-drift-check, and clean LSP diagnostics.

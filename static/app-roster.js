@@ -1,5 +1,55 @@
 "use strict";
 (() => {
+  // frontend/ts/roster/column-edit.ts
+  function editorFrames() {
+    return Array.from(document.querySelectorAll('[data-roster-column-editor="available"]')).filter((frameEl) => frameEl instanceof HTMLElement);
+  }
+  function enableRosterColumnEditMode() {
+    if (typeof window === "undefined") return;
+    let columnEditEnabled = false;
+    function syncColumnEditMode() {
+      const enabled = Boolean(columnEditEnabled);
+      editorFrames().forEach((frameEl) => {
+        frameEl.dataset.rosterColumnEditing = enabled ? "true" : "false";
+      });
+      document.querySelectorAll("[data-roster-column-edit-start]").forEach((buttonEl) => {
+        if (buttonEl instanceof HTMLElement) {
+          buttonEl.setAttribute("aria-pressed", enabled ? "true" : "false");
+        }
+      });
+    }
+    function setColumnEditMode(enabled) {
+      columnEditEnabled = Boolean(enabled);
+      syncColumnEditMode();
+    }
+    function finishColumnEditing() {
+      const activeEl = document.activeElement;
+      if (activeEl instanceof HTMLElement && activeEl.closest('[data-roster-column-editor="available"]')) {
+        activeEl.blur();
+        window.setTimeout(() => {
+          setColumnEditMode(false);
+        }, 350);
+        return;
+      }
+      setColumnEditMode(false);
+    }
+    document.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const startButton = event.target.closest("[data-roster-column-edit-start]");
+      if (!(startButton instanceof HTMLElement)) return;
+      event.preventDefault();
+      setColumnEditMode(true);
+    });
+    document.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+      const doneButton = event.target.closest("[data-roster-column-edit-done]");
+      if (!(doneButton instanceof HTMLElement)) return;
+      event.preventDefault();
+      finishColumnEditing();
+    });
+    document.addEventListener("app:page-ready", syncColumnEditMode);
+  }
+
   // frontend/ts/roster/fullscreen.ts
   function rosterFullscreenLabels(expanded) {
     return {
@@ -180,54 +230,7 @@
     document.addEventListener("htmx:afterSwap", syncAllShells);
     document.addEventListener("DOMContentLoaded", syncAllShells);
   })();
-  (function enableRosterColumnEditMode() {
-    if (typeof window === "undefined") return;
-    let columnEditEnabled = false;
-    function editorFrames() {
-      return Array.from(document.querySelectorAll('[data-roster-column-editor="available"]')).filter(function(frameEl) {
-        return frameEl instanceof HTMLElement;
-      });
-    }
-    function syncColumnEditMode() {
-      const enabled = Boolean(columnEditEnabled);
-      editorFrames().forEach(function(frameEl) {
-        frameEl.dataset.rosterColumnEditing = enabled ? "true" : "false";
-      });
-      document.querySelectorAll("[data-roster-column-edit-start]").forEach(function(buttonEl) {
-        if (buttonEl instanceof HTMLElement) {
-          buttonEl.setAttribute("aria-pressed", enabled ? "true" : "false");
-        }
-      });
-    }
-    function setColumnEditMode(enabled) {
-      columnEditEnabled = Boolean(enabled);
-      syncColumnEditMode();
-    }
-    function finishColumnEditing() {
-      const activeEl = document.activeElement;
-      if (activeEl instanceof HTMLElement && activeEl.closest('[data-roster-column-editor="available"]')) {
-        activeEl.blur();
-        window.setTimeout(function() {
-          setColumnEditMode(false);
-        }, 350);
-        return;
-      }
-      setColumnEditMode(false);
-    }
-    document.addEventListener("click", function(event) {
-      const startButton = event.target.closest("[data-roster-column-edit-start]");
-      if (!(startButton instanceof HTMLElement)) return;
-      event.preventDefault();
-      setColumnEditMode(true);
-    });
-    document.addEventListener("click", function(event) {
-      const doneButton = event.target.closest("[data-roster-column-edit-done]");
-      if (!(doneButton instanceof HTMLElement)) return;
-      event.preventDefault();
-      finishColumnEditing();
-    });
-    document.addEventListener("app:page-ready", syncColumnEditMode);
-  })();
+  enableRosterColumnEditMode();
   (function enableRosterImageExport() {
     if (typeof window === "undefined") return;
     const exportConfigs = {
