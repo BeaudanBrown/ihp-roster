@@ -40,3 +40,7 @@ Staged roster typing slice: extracted compact staff panel sorting DOM wiring to 
 **2026-06-21T08:08:09Z**
 
 Staged roster typing slice: extracted staff/shift hover, focus, keyboard, and pinned highlight behavior to typed frontend/ts/roster/staff-highlight.ts. app-roster.ts now invokes enableRosterStaffShiftHighlight(). Rebuilt static/app-roster.js. Verified frontend-check, doc-drift-check, and clean LSP diagnostics.
+
+**2026-06-21T23:43:13Z**
+
+Staged roster typing slice: extracted roster image export/SVG/canvas behavior to typed frontend/ts/roster/image-export.ts and replaced the inline app-roster.ts IIFE with enableRosterImageExport(). Rebuilt static/app-roster.js. Verified frontend-build, frontend-check, doc-drift-check; syntax diagnostics clean for new module.
