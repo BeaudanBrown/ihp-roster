@@ -3,12 +3,22 @@ export {};
 type FlatpickrConfig = Record<string, unknown>;
 type HtmxRuntime = {
     process?: (element: Element) => void;
+    trigger?: (element: Element, eventName: string) => void;
+};
+
+type BootstrapRuntime = {
+    Modal?: {
+        getOrCreateInstance: (element: HTMLElement) => {
+            show: () => void;
+            hide: () => void;
+        };
+    };
 };
 
 declare global {
     interface Window {
         htmx?: HtmxRuntime;
-        bootstrap?: unknown;
+        bootstrap?: BootstrapRuntime;
         appPageLifecycle?: {
             eventName: string;
             dispatchPageReady: (detail?: unknown) => void;

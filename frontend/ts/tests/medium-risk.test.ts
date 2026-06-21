@@ -2,7 +2,7 @@ import { appPageReadyEventName, pageReadyDetailFrom } from "../app-bootstrap";
 import { dialogSubmitLoadingHtml } from "../app-dialog-overlays";
 import { clampHorizontalScrollLeft, parsePositiveIntegerForHorizontalScroll } from "../app-horizontal-scroll";
 import { arrayBufferToBase64Url, base64UrlToArrayBuffer, localStorageKeyForPasskey } from "../app-passkeys";
-import { buildTimeOptionsWithStepForRange, displayLabelFromTimeValue, minuteOfDayFromTimeValue } from "../app-time-picker";
+import { buildTimeOptionsWithStepForRange, displayLabelFromTimeValue, minuteOfDayFromTimeValue } from "../time-picker/options";
 import { assertDeepEqual, assertEqual, test } from "./harness";
 
 test("app bootstrap preserves page-ready event contract defaults", () => {
