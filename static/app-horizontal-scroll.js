@@ -1,14 +1,33 @@
 "use strict";
 (() => {
-  // frontend/ts/app-horizontal-scroll.ts
+  // frontend/ts/shared/dom.ts
+  function isElement(value) {
+    return typeof Element !== "undefined" && value instanceof Element;
+  }
+  function isHTMLElement(value) {
+    return typeof HTMLElement !== "undefined" && value instanceof HTMLElement;
+  }
+  function closestHTMLElement(target, selector) {
+    if (!isElement(target)) return null;
+    const element = target.closest(selector);
+    return isHTMLElement(element) ? element : null;
+  }
+
+  // frontend/ts/horizontal-scroll/math.ts
   function parsePositiveIntegerForHorizontalScroll(value) {
     const parsed = Number.parseInt(value || "", 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+  function parseNonNegativeIntegerForHorizontalScroll(value, fallback) {
+    const parsed = Number.parseInt(value || "", 10);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
   }
   function clampHorizontalScrollLeft(scrollLeft, scrollWidth, clientWidth) {
     const maxScrollLeft = Math.max(0, scrollWidth - clientWidth);
     return Math.min(Math.max(0, scrollLeft), maxScrollLeft);
   }
+
+  // frontend/ts/app-horizontal-scroll.ts
   (function enableHorizontalScroll() {
     if (typeof window === "undefined") return;
     const snapContainerSelector = "[data-horizontal-snap]";
@@ -44,7 +63,7 @@
     }
     function snappingIsEnabled(containerEl) {
       const mediaQuery = mediaQueryFor(containerEl);
-      return !mediaQuery || mediaQuery.matches;
+      return mediaQuery === void 0 || mediaQuery.matches;
     }
     function isSupportedSnapMode(containerEl) {
       return containerEl.dataset.horizontalSnap === "equal-groups" || containerEl.dataset.horizontalSnap === "nearest-item";
@@ -53,18 +72,16 @@
       return containerEl.dataset.horizontalDragScroll === "mouse";
     }
     function findSnapContainer(target) {
-      if (!(target instanceof Element)) return null;
-      const containerEl = target.closest(snapContainerSelector);
-      return containerEl instanceof HTMLElement && isSupportedSnapMode(containerEl) ? containerEl : null;
+      const containerEl = closestHTMLElement(target, snapContainerSelector);
+      return containerEl !== null && isSupportedSnapMode(containerEl) ? containerEl : null;
     }
     function findDragContainer(target) {
-      if (!(target instanceof Element)) return null;
-      const containerEl = target.closest(dragContainerSelector);
-      return containerEl instanceof HTMLElement && isSupportedDragMode(containerEl) ? containerEl : null;
+      const containerEl = closestHTMLElement(target, dragContainerSelector);
+      return containerEl !== null && isSupportedDragMode(containerEl) ? containerEl : null;
     }
     function snapStateFor(containerEl) {
       let state = snapStates.get(containerEl);
-      if (!state) {
+      if (state === void 0) {
         state = {
           generation: 0,
           timerId: null,
@@ -94,7 +111,7 @@
     }
     function snapInputIsActive(containerEl) {
       const state = snapStateFor(containerEl);
-      return state.pointerIds.size > 0 || state.touchIds.size > 0 || Boolean(activeDrag && activeDrag.containerEl === containerEl && activeDrag.isDragging);
+      return state.pointerIds.size > 0 || state.touchIds.size > 0 || Boolean(activeDrag?.containerEl === containerEl && activeDrag.isDragging);
     }
     function setSnapDragging(containerEl) {
       containerEl.setAttribute("data-horizontal-snap-dragging", "true");
@@ -102,12 +119,8 @@
     function clearSnapDragging(containerEl) {
       containerEl.removeAttribute("data-horizontal-snap-dragging");
     }
-    function clampScrollLeft(containerEl, scrollLeft) {
-      const maxScrollLeft = Math.max(0, containerEl.scrollWidth - containerEl.clientWidth);
-      return Math.min(Math.max(0, scrollLeft), maxScrollLeft);
-    }
     function smoothScrollTo(containerEl, scrollLeft) {
-      const targetLeft = clampScrollLeft(containerEl, scrollLeft);
+      const targetLeft = clampHorizontalScrollLeft(scrollLeft, containerEl.scrollWidth, containerEl.clientWidth);
       if (Math.abs(containerEl.scrollLeft - targetLeft) <= snapTolerancePx) return;
       const state = snapStateFor(containerEl);
       state.programmaticSnapGeneration = state.generation;
@@ -116,18 +129,14 @@
         behavior: reducedMotionQuery.matches ? "auto" : "smooth"
       });
     }
-    function parsePositiveInteger(value) {
-      const parsed = Number.parseInt(value || "", 10);
-      return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-    }
     function readGroupCount(containerEl) {
-      const explicitCount = parsePositiveInteger(containerEl.dataset.horizontalSnapGroupCount);
-      if (explicitCount) return explicitCount;
+      const explicitCount = parsePositiveIntegerForHorizontalScroll(containerEl.dataset.horizontalSnapGroupCount);
+      if (explicitCount !== null) return explicitCount;
       const groupVar = containerEl.dataset.horizontalSnapGroupVar;
-      if (groupVar) {
+      if (groupVar !== void 0 && groupVar !== "") {
         const styleSource = containerEl.closest(containerEl.dataset.horizontalSnapGroupVarScope || "[style]") || containerEl;
-        const varCount = parsePositiveInteger(window.getComputedStyle(styleSource).getPropertyValue(groupVar));
-        if (varCount) return varCount;
+        const varCount = parsePositiveIntegerForHorizontalScroll(window.getComputedStyle(styleSource).getPropertyValue(groupVar));
+        if (varCount !== null) return varCount;
       }
       return 1;
     }
@@ -139,10 +148,8 @@
     }
     function snapNearestItem(containerEl) {
       const itemSelector = containerEl.dataset.horizontalSnapItemSelector;
-      if (!itemSelector) return;
-      const items = Array.from(containerEl.querySelectorAll(itemSelector)).filter(function(itemEl) {
-        return itemEl instanceof HTMLElement;
-      });
+      if (itemSelector === void 0 || itemSelector === "") return;
+      const items = Array.from(containerEl.querySelectorAll(itemSelector)).filter((itemEl) => itemEl instanceof HTMLElement);
       if (items.length === 0) return;
       const containerRect = containerEl.getBoundingClientRect();
       const containerCenter = containerRect.left + containerRect.width / 2;
@@ -150,12 +157,12 @@
         const itemRect2 = itemEl.getBoundingClientRect();
         const itemCenter = itemRect2.left + itemRect2.width / 2;
         const distance = Math.abs(itemCenter - containerCenter);
-        if (!nearest || distance < nearest.distance) {
+        if (nearest === null || distance < nearest.distance) {
           return { itemEl, distance };
         }
         return nearest;
       }, null);
-      if (!nearestItem) return;
+      if (nearestItem === null) return;
       const itemRect = nearestItem.itemEl.getBoundingClientRect();
       const targetLeft = containerEl.scrollLeft + (itemRect.left + itemRect.width / 2) - containerCenter;
       smoothScrollTo(containerEl, targetLeft);
@@ -195,7 +202,7 @@
     }
     function pointerStartForSnap(event) {
       const containerEl = findSnapContainer(event.target);
-      if (!(containerEl instanceof HTMLElement) || !snappingIsEnabled(containerEl)) return;
+      if (containerEl === null || !snappingIsEnabled(containerEl)) return;
       const state = snapStateFor(containerEl);
       bumpSnapGeneration(containerEl);
       state.pointerIds.add(event.pointerId);
@@ -204,7 +211,7 @@
     }
     function pointerEndForSnap(event) {
       const containerEl = pointerSnapContainers.get(event.pointerId);
-      if (!(containerEl instanceof HTMLElement)) return;
+      if (containerEl === void 0) return;
       pointerSnapContainers.delete(event.pointerId);
       const state = snapStateFor(containerEl);
       state.pointerIds.delete(event.pointerId);
@@ -212,7 +219,7 @@
     }
     function touchStartForSnap(event) {
       const containerEl = findSnapContainer(event.target);
-      if (!(containerEl instanceof HTMLElement) || !snappingIsEnabled(containerEl)) return;
+      if (containerEl === null || !snappingIsEnabled(containerEl)) return;
       const state = snapStateFor(containerEl);
       bumpSnapGeneration(containerEl);
       Array.from(event.changedTouches).forEach(function(touch) {
@@ -225,22 +232,18 @@
       const affectedContainers = /* @__PURE__ */ new Set();
       Array.from(event.changedTouches).forEach(function(touch) {
         const containerEl = touchSnapContainers.get(touch.identifier);
-        if (!(containerEl instanceof HTMLElement)) return;
+        if (containerEl === void 0) return;
         touchSnapContainers.delete(touch.identifier);
         snapStateFor(containerEl).touchIds.delete(touch.identifier);
         affectedContainers.add(containerEl);
       });
       affectedContainers.forEach(releaseSnapContainer);
     }
-    function parseNonNegativeInteger(value, fallback) {
-      const parsed = Number.parseInt(value || "", 10);
-      return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
-    }
     function dragThresholdFor(containerEl) {
-      return parseNonNegativeInteger(containerEl.dataset.horizontalDragScrollThreshold, defaultDragThresholdPx);
+      return parseNonNegativeIntegerForHorizontalScroll(containerEl.dataset.horizontalDragScrollThreshold, defaultDragThresholdPx);
     }
     function clickSuppressionMsFor(containerEl) {
-      return parseNonNegativeInteger(containerEl.dataset.horizontalDragScrollClickSuppressionMs, defaultClickSuppressionMs);
+      return parseNonNegativeIntegerForHorizontalScroll(containerEl.dataset.horizontalDragScrollClickSuppressionMs, defaultClickSuppressionMs);
     }
     function dragIgnoreSelectorFor(containerEl) {
       const customSelector = containerEl.dataset.horizontalDragScrollIgnoreSelector;
@@ -269,10 +272,10 @@
     function pointerStartForDrag(event) {
       if (event.pointerType !== "mouse" || event.button !== 0) return;
       const containerEl = findDragContainer(event.target);
-      if (!(containerEl instanceof HTMLElement)) return;
+      if (containerEl === null) return;
       if (targetIsIgnoredForDrag(containerEl, event.target)) return;
       if (containerEl.scrollWidth <= containerEl.clientWidth) return;
-      if (activeDrag) {
+      if (activeDrag !== null) {
         finishDrag(false);
       }
       activeDrag = {
@@ -297,26 +300,27 @@
       }
     }
     function startActualDrag() {
-      if (!activeDrag || activeDrag.isDragging) return;
+      if (activeDrag === null || activeDrag.isDragging) return;
       activeDrag.isDragging = true;
       activeDrag.didDrag = true;
       setDragDragging(activeDrag.containerEl);
       if (isSupportedSnapMode(activeDrag.containerEl) && snappingIsEnabled(activeDrag.containerEl)) {
         setSnapDragging(activeDrag.containerEl);
       }
-      const selection = window.getSelection && window.getSelection();
-      if (selection) selection.removeAllRanges();
+      const selection = window.getSelection?.();
+      if (selection !== null && selection !== void 0) selection.removeAllRanges();
     }
     function pointerMoveForDrag(event) {
-      if (!activeDrag || event.pointerId !== activeDrag.pointerId) return;
+      if (activeDrag === null || event.pointerId !== activeDrag.pointerId) return;
       const deltaX = event.clientX - activeDrag.startX;
       if (!activeDrag.isDragging && Math.abs(deltaX) < activeDrag.threshold) return;
       startActualDrag();
+      if (activeDrag === null) return;
       activeDrag.containerEl.scrollLeft = activeDrag.startScrollLeft - deltaX;
       event.preventDefault();
     }
     function finishDrag(scheduleAfterRelease) {
-      if (!activeDrag) return;
+      if (activeDrag === null) return;
       const drag = activeDrag;
       activeDrag = null;
       clearDragDragging(drag.containerEl);
@@ -339,7 +343,7 @@
     }
     function clickForDrag(event) {
       const containerEl = findDragContainer(event.target);
-      if (!(containerEl instanceof HTMLElement)) return;
+      if (containerEl === null) return;
       const suppressUntil = Number.parseInt(containerEl.dataset.horizontalSuppressClickUntil || "", 10);
       if (Number.isFinite(suppressUntil) && Date.now() <= suppressUntil) {
         event.preventDefault();
@@ -352,14 +356,14 @@
     }, true);
     document.addEventListener("pointermove", pointerMoveForDrag, true);
     document.addEventListener("pointerup", function(event) {
-      if (activeDrag && event.pointerId === activeDrag.pointerId) {
+      if (activeDrag !== null && event.pointerId === activeDrag.pointerId) {
         finishDrag(true);
         return;
       }
       pointerEndForSnap(event);
     }, true);
     document.addEventListener("pointercancel", function(event) {
-      if (activeDrag && event.pointerId === activeDrag.pointerId) {
+      if (activeDrag !== null && event.pointerId === activeDrag.pointerId) {
         finishDrag(false);
         return;
       }
@@ -370,7 +374,7 @@
     document.addEventListener("touchcancel", touchEndForSnap, true);
     document.addEventListener("wheel", function(event) {
       const containerEl = findSnapContainer(event.target);
-      if (!(containerEl instanceof HTMLElement) || !snappingIsEnabled(containerEl)) return;
+      if (containerEl === null || !snappingIsEnabled(containerEl)) return;
       bumpSnapGeneration(containerEl);
     }, true);
     document.addEventListener("scroll", function(event) {

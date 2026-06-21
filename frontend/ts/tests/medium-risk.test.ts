@@ -1,6 +1,6 @@
 import { appPageReadyEventName, pageReadyDetailFrom } from "../app-bootstrap";
 import { dialogSubmitLoadingHtml } from "../app-dialog-overlays";
-import { clampHorizontalScrollLeft, parsePositiveIntegerForHorizontalScroll } from "../app-horizontal-scroll";
+import { clampHorizontalScrollLeft, parsePositiveIntegerForHorizontalScroll } from "../horizontal-scroll/math";
 import { arrayBufferToBase64Url, base64UrlToArrayBuffer, localStorageKeyForPasskey } from "../app-passkeys";
 import { buildTimeOptionsWithStepForRange, displayLabelFromTimeValue, minuteOfDayFromTimeValue } from "../time-picker/options";
 import { assertDeepEqual, assertEqual, test } from "./harness";
