@@ -6,3 +6,66 @@ export type OverlayLane =
     | "picker"
     | "toast";
 
+export type LiveUpdateScope =
+    | { kind: "roster_week"; venueId: string; rosterGroupId: string; weekOffset: number }
+    | { kind: "admin_venue_config"; venueId: string }
+    | { kind: "admin_shift_types"; venueId: string }
+    | { kind: "admin_roster_groups"; venueId: string }
+    | { kind: "admin_invites"; venueId: string }
+    | { kind: "admin_exports"; venueId: string }
+    | { kind: "admin_xero"; venueId: string }
+    | { kind: "billing"; venueId: string }
+    | { kind: "leave_requests"; venueId: string }
+    | { kind: "timesheet_week"; venueId: string; weekOffset: number }
+    | { kind: "profile"; venueId: string; staffId: string }
+    | { kind: "support_platform" };
+
+export type LiveFragmentKey =
+    | { kind: "roster_content" }
+    | { kind: "roster_grid_toolbar" }
+    | { kind: "roster_grid_frame" }
+    | { kind: "roster_day_columns" }
+    | { kind: "roster_day_rail" }
+    | { kind: "roster_wage_rail" }
+    | { kind: "roster_slots_grid" }
+    | { kind: "roster_staff_panel" }
+    | { kind: "roster_day_section"; rosterDayId: string }
+    | { kind: "roster_row"; rosterDayId: string; rowIndex: number }
+    | { kind: "leave_requests_content" }
+    | { kind: "timesheet_toolbar" }
+    | { kind: "timesheet_day_columns" }
+    | { kind: "timesheet_day_section"; dayOffset: number }
+    | { kind: "admin_venue_config" }
+    | { kind: "admin_invites" }
+    | { kind: "admin_exports" }
+    | { kind: "admin_shift_types" }
+    | { kind: "admin_roster_groups" }
+    | { kind: "admin_xero" }
+    | { kind: "admin_xero_staff_mappings" }
+    | { kind: "admin_xero_pay_items" }
+    | { kind: "admin_xero_timesheets" }
+    | { kind: "billing_status" }
+    | { kind: "profile_content" }
+    | { kind: "profile_leave_requests_content" }
+    | { kind: "support_award_rates_section" }
+    | { kind: "support_public_holidays_section" };
+
+export type LiveFragmentProtection = null | { kind: "focused_field"; activeSelector: string; fieldKeyAttr: string; fieldNameFallback: boolean; containerSelector?: string | null };
+
+export type LiveUpdateWireFragment = {
+    fragmentKey: LiveFragmentKey;
+    targetId: string;
+    url: string;
+    deferUntilBlur: boolean;
+    protectionPolicy?: LiveFragmentProtection;
+};
+
+export type LiveUpdateCommand =
+    | { type: "subscribe"; scope: LiveUpdateScope; clientId: string; lastSeenVersion?: number | null }
+    | { type: "unsubscribe"; scope: LiveUpdateScope };
+
+export type LiveUpdateMessage =
+    | { type: "subscribed"; scope: LiveUpdateScope; scopeKey: string; currentVersion: number; resync: boolean }
+    | { type: "invalidate"; scope: LiveUpdateScope; scopeKey: string; version: number; fragments: LiveUpdateWireFragment[]; sourceClientId?: string | null }
+    | { type: "error"; message: string };
+
