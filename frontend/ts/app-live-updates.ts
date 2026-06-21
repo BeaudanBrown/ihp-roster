@@ -1,5 +1,12 @@
 // @ts-nocheck
-import type { LiveUpdateCommand, LiveUpdateMessage, LiveUpdateScope, LiveUpdateWireFragment } from "./generated/contracts";
+import type { LiveUpdateScope, LiveUpdateWireFragment } from "./generated/contracts";
+import {
+    buildLiveUpdateSubscribeCommand,
+    liveUpdateFragmentMergeKey,
+    liveUpdateInvalidationShouldResync,
+    liveUpdateMessageScopeKey,
+    normalizeLiveUpdateVersion,
+} from "./live-updates/protocol";
 
 export type LiveUpdateSurfaceConfig = {
     feature?: string | null;
@@ -9,39 +16,6 @@ export type LiveUpdateSurfaceConfig = {
     resyncFragments?: LiveUpdateWireFragment[];
     decorateRequestsWithin?: string[];
 };
-
-export function liveUpdateMessageScopeKey(message: Pick<LiveUpdateMessage, "scopeKey"> | null | undefined): string | null {
-    if (message && typeof message.scopeKey === "string" && message.scopeKey.length > 0) {
-        return message.scopeKey;
-    }
-
-    return null;
-}
-
-export function normalizeLiveUpdateVersion(value: unknown): number | null {
-    return Number.isInteger(value) && (value as number) >= 0 ? value as number : null;
-}
-
-export function buildLiveUpdateSubscribeCommand(scope: LiveUpdateScope, clientId: string, lastSeenVersion: number | null): LiveUpdateCommand {
-    return {
-        type: "subscribe",
-        scope,
-        clientId,
-        lastSeenVersion: lastSeenVersion === null ? undefined : lastSeenVersion,
-    };
-}
-
-export function liveUpdateFragmentMergeKey(fragment: Pick<LiveUpdateWireFragment, "fragmentKey" | "targetId"> | null | undefined): string | null {
-    if (!fragment || !fragment.targetId) return null;
-    const fragmentKey = fragment.fragmentKey ? JSON.stringify(fragment.fragmentKey) : "";
-    return `${fragmentKey}:${fragment.targetId}`;
-}
-
-export function liveUpdateInvalidationShouldResync(previousVersion: number | null, nextVersion: number | null, fragmentCount: number): "gap" | "empty" | null {
-    if (nextVersion !== null && previousVersion !== null && nextVersion > previousVersion + 1) return "gap";
-    if (fragmentCount === 0) return "empty";
-    return null;
-}
 
 // Shared live-update runtime: one websocket per tab with many scope subscriptions.
 (function enableLiveUpdates() {

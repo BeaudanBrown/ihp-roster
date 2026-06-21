@@ -1,6 +1,6 @@
 "use strict";
 (() => {
-  // frontend/ts/app-live-updates.ts
+  // frontend/ts/live-updates/protocol.ts
   function liveUpdateMessageScopeKey(message) {
     if (message && typeof message.scopeKey === "string" && message.scopeKey.length > 0) {
       return message.scopeKey;
@@ -23,11 +23,8 @@
     const fragmentKey = fragment.fragmentKey ? JSON.stringify(fragment.fragmentKey) : "";
     return `${fragmentKey}:${fragment.targetId}`;
   }
-  function liveUpdateInvalidationShouldResync(previousVersion, nextVersion, fragmentCount) {
-    if (nextVersion !== null && previousVersion !== null && nextVersion > previousVersion + 1) return "gap";
-    if (fragmentCount === 0) return "empty";
-    return null;
-  }
+
+  // frontend/ts/app-live-updates.ts
   (function enableLiveUpdates() {
     if (typeof window === "undefined") return;
     const actorFragmentRefreshEventName = "app-live-fragments-refresh";

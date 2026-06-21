@@ -5,7 +5,7 @@ import {
     liveUpdateInvalidationShouldResync,
     liveUpdateMessageScopeKey,
     normalizeLiveUpdateVersion,
-} from "../app-live-updates";
+} from "../live-updates/protocol";
 import { assertDeepEqual, assertEqual, test } from "./harness";
 
 const scope: LiveUpdateScope = {
