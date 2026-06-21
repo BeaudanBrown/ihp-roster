@@ -33,6 +33,7 @@ in
         frontend-contracts = script ../scripts/frontend/contracts;
         frontend-contracts-check = script ../scripts/frontend/contracts-check;
         frontend-drift-check = script ../scripts/frontend/drift-check;
+        frontend-test = script ../scripts/frontend/test;
         frontend-watch = script ../scripts/frontend/watch;
         git-install-hooks = script ../scripts/git/install-hooks;
         typecheck = script ../scripts/haskell/typecheck;

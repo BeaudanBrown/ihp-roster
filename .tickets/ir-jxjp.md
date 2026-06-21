@@ -1,6 +1,6 @@
 ---
 id: ir-jxjp
-status: open
+status: closed
 deps: [ir-j3hy, ir-o3fw]
 links: []
 created: 2026-06-21T03:48:51Z
@@ -22,3 +22,9 @@ Add a fast unit/DOM test runner for frontend TypeScript, preferably Vitest with 
 
 bash ./bin/in-env frontend-test runs the TypeScript unit/DOM tests using Nix-provided tooling and without requiring npm/npx. frontend-check includes TypeScript validation, contract drift checks, and frontend-test. At least one migrated script/module has meaningful unit/DOM test coverage proving the pattern, using generated contract types/fixtures where applicable. Docs and agent notes describe when to use unit tests versus Playwright E2E. Existing Playwright commands remain the E2E path for browser runtime regressions. The production/live NixOS runtime remains free of frontend test tooling.
 
+
+## Notes
+
+**2026-06-21T04:41:32Z**
+
+Implemented frontend-test as a Nix/devenv command using Nix-provided esbuild and Node, with a tiny TypeScript test harness under frontend/ts/tests. Added a backend-boundary DOM helper readJsonScriptElement and tests that consume the generated OverlayLane contract type. frontend-check now runs contract drift, tsc, frontend-test, and generated JS drift. Added frontend/AGENTS.md documenting unit/DOM versus Playwright E2E usage and that frontend unit/E2E stay out of pre-commit. Verified frontend-test, frontend-check, focused frontend flake check, and LSP diagnostics.

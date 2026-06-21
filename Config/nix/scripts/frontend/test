@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+cd "$repo_root"
+
+tmp_dir="$(mktemp -d)"
+cleanup() {
+    rm -rf "$tmp_dir"
+}
+trap cleanup EXIT
+
+esbuild frontend/ts/tests/main.ts \
+    --bundle \
+    --platform=node \
+    --format=esm \
+    --target=node22 \
+    --outfile="$tmp_dir/frontend-tests.mjs" \
+    --log-level=warning
+
+node "$tmp_dir/frontend-tests.mjs"

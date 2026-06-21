@@ -47,6 +47,7 @@
                 src = projectSource;
                 nativeBuildInputs = [
                     pkgs.esbuild
+                    pkgs.nodejs_22
                     pkgs.typescript
                 ];
             } ''
@@ -54,6 +55,7 @@
                 chmod -R u+w source
                 cd source
                 tsc --project tsconfig.json --noEmit
+                bash Config/nix/scripts/frontend/test
                 bash Config/nix/scripts/frontend/drift-check
                 touch "$out"
             '';
