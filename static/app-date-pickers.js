@@ -1,53 +1,51 @@
-// Keep the date/datetime picker enhancement app-local so it survives after helpers.js is removed.
-(function enableDatePickers() {
-    if (typeof window === 'undefined') return;
-
-    const initializedKey = 'appDatePickerInitialized';
-
-    function initInput(inputEl) {
-        if (!(inputEl instanceof HTMLInputElement)) return;
-        if (!window.flatpickr) return;
-        if (inputEl.dataset[initializedKey] === 'true') return;
-        if (inputEl._flatpickr) {
-            inputEl.dataset[initializedKey] = 'true';
-            return;
-        }
-
-        const config = inputEl.type === 'datetime-local'
-            ? {
-                enableTime: true,
-                time_24hr: true,
-                dateFormat: 'Z',
-                altInput: true,
-                altFormat: 'd.m.y, H:i',
-            }
-            : {
-                altFormat: 'd.m.y',
-            };
-
-        window.flatpickr(inputEl, config);
-        inputEl.dataset[initializedKey] = 'true';
+"use strict";
+(() => {
+  // frontend/ts/app-date-pickers.ts
+  var initializedKey = "appDatePickerInitialized";
+  function datePickerConfigFor(inputType) {
+    return inputType === "datetime-local" ? {
+      enableTime: true,
+      time_24hr: true,
+      dateFormat: "Z",
+      altInput: true,
+      altFormat: "d.m.y, H:i"
+    } : {
+      altFormat: "d.m.y"
+    };
+  }
+  function initInput(inputEl) {
+    if (typeof window.flatpickr !== "function") return;
+    if (inputEl.dataset[initializedKey] === "true") return;
+    if (inputEl._flatpickr !== void 0) {
+      inputEl.dataset[initializedKey] = "true";
+      return;
     }
-
-    function initWithin(root) {
-        if (!(root instanceof Element || root instanceof Document)) return;
-
-        if (root instanceof HTMLInputElement && (root.type === 'date' || root.type === 'datetime-local')) {
-            initInput(root);
-        }
-
-        root.querySelectorAll("input[type='date'], input[type='datetime-local']").forEach(initInput);
+    window.flatpickr(inputEl, datePickerConfigFor(inputEl.type));
+    inputEl.dataset[initializedKey] = "true";
+  }
+  function initWithin(root) {
+    if (root instanceof HTMLInputElement && (root.type === "date" || root.type === "datetime-local")) {
+      initInput(root);
     }
-
-    function handleSwap(event) {
-        if (event.detail && event.detail.target instanceof HTMLElement) {
-            initWithin(event.detail.target);
-        }
+    root.querySelectorAll("input[type='date'], input[type='datetime-local']").forEach(initInput);
+  }
+  function rootFromPageEvent(event) {
+    const detail = event instanceof CustomEvent ? event.detail : void 0;
+    return detail?.target instanceof Element || detail?.target instanceof Document ? detail.target : document;
+  }
+  function handleSwap(event) {
+    const detail = event instanceof CustomEvent ? event.detail : void 0;
+    if (detail?.target instanceof HTMLElement) {
+      initWithin(detail.target);
     }
-
-    document.addEventListener('app:page-ready', function (event) {
-        initWithin((event.detail && event.detail.target) || document);
+  }
+  function enableDatePickers() {
+    if (typeof window === "undefined") return;
+    document.addEventListener("app:page-ready", (event) => {
+      initWithin(rootFromPageEvent(event));
     });
-    document.addEventListener('htmx:afterSwap', handleSwap);
-    document.addEventListener('htmx:oobAfterSwap', handleSwap);
+    document.addEventListener("htmx:afterSwap", handleSwap);
+    document.addEventListener("htmx:oobAfterSwap", handleSwap);
+  }
+  enableDatePickers();
 })();

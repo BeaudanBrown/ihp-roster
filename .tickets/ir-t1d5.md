@@ -1,6 +1,6 @@
 ---
 id: ir-t1d5
-status: open
+status: closed
 deps: [ir-j3hy, ir-9ra7, ir-jxjp, ir-o3fw]
 links: []
 created: 2026-06-21T03:37:16Z
@@ -22,3 +22,9 @@ Convert app.js, app-scrollbars.js, app-xero.js, app-date-pickers.js, app-toasts.
 
 Each low-risk script has matching frontend/ts/*.ts source. Generated JS matches frontend-build. frontend-check passes, including contract checks and unit/DOM tests added for converted behavior. Applicable backend-emitted JSON/data boundaries use generated contracts. Existing relevant UI behavior still works and basic syntax/runtime checks pass, with focused Playwright checks run where appropriate.
 
+
+## Notes
+
+**2026-06-21T04:59:58Z**
+
+Converted low-risk app scripts to frontend/ts entrypoints: app-scrollbars, app-xero, app-date-pickers, app-toasts, app-toggle-buttons, app-timesheets, app-preferences, with app.js already converted. Added unit coverage for fuzzyIncludes, datePickerConfigFor, and formatHour, plus existing contract-boundary tests. frontend-build regenerates matching static/app*.js. Verified frontend-check, doc-drift-check, focused frontend flake check, and LSP diagnostics.
