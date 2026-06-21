@@ -1,0 +1,30 @@
+---
+id: ir-7h8l
+status: in_progress
+deps: []
+links: []
+created: 2026-06-21T06:40:39Z
+type: task
+priority: 2
+assignee: beaudan
+parent: ir-bmc0
+tags: [agent-loop, frontend, typescript, refactor]
+---
+# Type roster runtime
+
+Remove ts-nocheck from app-roster.ts after helper extraction.
+
+## Design
+
+Add local DOM/event/data types to the remaining roster entrypoint while keeping behavior unchanged. Prefer explicit narrow DOM checks and existing helper modules; avoid broad feature rewrites in this slice.
+
+## Acceptance Criteria
+
+app-roster.ts no longer uses ts-nocheck; generated static JS is rebuilt; frontend-check and doc-drift-check pass; LSP diagnostics are clean.
+
+
+## Notes
+
+**2026-06-21T06:41:55Z**
+
+Initial probe of removing ts-nocheck from app-roster.ts produced roughly 98 strict TypeScript errors concentrated in the remaining large DOM/event/export/staff-highlight sections. Reverted the probe to keep the tree green. Next safe step is to split the remaining roster runtime by concern (overview/fullscreen already extracted; next column-edit/export/staff-highlight modules), then remove ts-nocheck after the entrypoint is thin.
