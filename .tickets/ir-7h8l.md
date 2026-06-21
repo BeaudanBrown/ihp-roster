@@ -1,6 +1,6 @@
 ---
 id: ir-7h8l
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-06-21T06:40:39Z
@@ -44,3 +44,7 @@ Staged roster typing slice: extracted staff/shift hover, focus, keyboard, and pi
 **2026-06-21T23:43:13Z**
 
 Staged roster typing slice: extracted roster image export/SVG/canvas behavior to typed frontend/ts/roster/image-export.ts and replaced the inline app-roster.ts IIFE with enableRosterImageExport(). Rebuilt static/app-roster.js. Verified frontend-build, frontend-check, doc-drift-check; syntax diagnostics clean for new module.
+
+**2026-06-21T23:44:21Z**
+
+Final roster typing slice: extracted week overview and fullscreen DOM wiring to typed roster/week-overview.ts and roster/fullscreen-runtime.ts, leaving app-roster.ts as a thin typed entrypoint. Removed the final frontend/ts @ts-nocheck. Rebuilt static/app-roster.js. Verified frontend-build, frontend-check, doc-drift-check, rg @ts-nocheck found no matches, and LSP diagnostics clean for app-roster/week-overview/fullscreen-runtime.
