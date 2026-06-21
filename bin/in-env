@@ -15,7 +15,7 @@ export IHP_TELEMETRY_DISABLED="${IHP_TELEMETRY_DISABLED:-1}"
 mkdir -p "$XDG_CACHE_HOME"
 
 if [ "${DEVENV_IN_DIRENV_SHELL:-}" = "true" ]; then
-    if command -v ghc-pkg >/dev/null 2>&1 && ghc-pkg list ihp 2>/dev/null | grep -q 'ihp-'; then
+    if command -v "$1" >/dev/null 2>&1 && command -v ghc-pkg >/dev/null 2>&1 && ghc-pkg list ihp 2>/dev/null | grep -q 'ihp-'; then
         exec "$@"
     fi
 fi

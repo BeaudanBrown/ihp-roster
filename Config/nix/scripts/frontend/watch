@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+cd "$repo_root"
+
+shopt -s nullglob
+entries=(frontend/ts/app*.ts)
+if [ "${#entries[@]}" -eq 0 ]; then
+    echo "frontend-watch: no frontend/ts/app*.ts entrypoints found" >&2
+    exit 1
+fi
+
+exec esbuild "${entries[@]}" \
+    --bundle \
+    --format=iife \
+    --platform=browser \
+    --target=es2020 \
+    --legal-comments=none \
+    --outdir=static \
+    --watch

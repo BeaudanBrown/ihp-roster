@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+cd "$repo_root"
+
+shopt -s nullglob
+entries=(frontend/ts/app*.ts)
+if [ "${#entries[@]}" -eq 0 ]; then
+    echo "frontend-drift-check: no frontend/ts/app*.ts entrypoints found" >&2
+    exit 1
+fi
+
+tmp_dir="$(mktemp -d)"
+cleanup() {
+    rm -rf "$tmp_dir"
+}
+trap cleanup EXIT
+
+esbuild "${entries[@]}" \
+    --bundle \
+    --format=iife \
+    --platform=browser \
+    --target=es2020 \
+    --legal-comments=none \
+    --outdir="$tmp_dir"
+
+for entry in "${entries[@]}"; do
+    base="$(basename "$entry" .ts).js"
+    expected="static/$base"
+    actual="$tmp_dir/$base"
+    if [ ! -f "$expected" ]; then
+        echo "frontend-drift-check: missing generated file $expected" >&2
+        exit 1
+    fi
+    if ! cmp -s "$actual" "$expected"; then
+        echo "frontend-drift-check: $expected is stale; run bash ./bin/in-env frontend-build" >&2
+        diff -u "$expected" "$actual" || true
+        exit 1
+    fi
+done

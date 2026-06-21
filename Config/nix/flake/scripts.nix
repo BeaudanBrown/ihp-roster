@@ -28,6 +28,11 @@ in
         dev-ensure-postgres = script ../scripts/dev/ensure-postgres;
         dev-ensure-mailhog = script ../scripts/dev/ensure-mailhog;
         dev-foreground = script ../scripts/dev/foreground;
+        frontend-build = script ../scripts/frontend/build;
+        frontend-check = script ../scripts/frontend/check;
+        frontend-drift-check = script ../scripts/frontend/drift-check;
+        frontend-watch = script ../scripts/frontend/watch;
+        git-install-hooks = script ../scripts/git/install-hooks;
         typecheck = script ../scripts/haskell/typecheck;
         regen-types = script ../scripts/haskell/regen-types;
         test-db-reset = script ../scripts/db/test-db-reset;

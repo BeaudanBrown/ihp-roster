@@ -1,6 +1,6 @@
 ---
 id: ir-j3hy
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-06-21T03:37:16Z
@@ -22,3 +22,9 @@ Add TypeScript and esbuild tooling through the Nix flake/devenv environment, not
 
 bash ./bin/in-env frontend-build emits the expected static app JS output using Nix-provided tooling. bash ./bin/in-env frontend-check succeeds without requiring npm/npx. bash ./bin/in-env frontend-drift-check detects stale generated JS. A pre-commit hook runs the generated-JS drift/build guard through bash ./bin/in-env and blocks stale static/app-*.js. One small app script is authored in TS and compiled back to the existing static path. The flake/devenv configuration exposes the required frontend tools, and there is an explicit Nix/devenv check path suitable for production packaging or pre-deploy validation without adding Node tooling to the live runtime.
 
+
+## Notes
+
+**2026-06-21T04:18:55Z**
+
+Implemented Nix/devenv TypeScript/esbuild pipeline. Added frontend-build, frontend-check, frontend-drift-check, frontend-watch, git-install-hooks, tracked .githooks/pre-commit, initial frontend/ts/app.ts compiled to static/app.js, and checks.x86_64-linux.frontend-drift. Verified frontend commands, stale drift detection, hook execution, and nix build .#checks.x86_64-linux.frontend-drift. Full nix flake check currently reaches an existing production PostgreSQL ensureDBOwnership assertion unrelated to this frontend change.

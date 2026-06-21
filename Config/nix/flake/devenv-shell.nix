@@ -3,6 +3,7 @@
     perSystem = { pkgs, inputs', ... }:
         let
             scriptDefinitions = import ./scripts.nix { inherit pkgs; };
+            projectSource = import ./project-source.nix { inherit pkgs; };
         in
         {
             # Custom configuration that will start with `devenv up`
@@ -15,6 +16,8 @@
                 packages = [
                     inputs'.playwright.packages.playwright-test
                     pkgs.nodejs_22
+                    pkgs.esbuild
+                    pkgs.typescript
                     pkgs.mailhog
                     pkgs.poppler-utils
                     pkgs.k6
@@ -39,5 +42,19 @@
 
                 scripts = scriptDefinitions.scripts;
             };
+
+            checks.frontend-drift = pkgs.runCommand "frontend-drift-check" {
+                src = projectSource;
+                nativeBuildInputs = [
+                    pkgs.esbuild
+                    pkgs.typescript
+                ];
+            } ''
+                cp -R "$src" source
+                chmod -R u+w source
+                cd source
+                bash Config/nix/scripts/frontend/check
+                touch "$out"
+            '';
         };
 }
