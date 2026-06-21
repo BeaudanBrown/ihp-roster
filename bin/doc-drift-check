@@ -29,8 +29,15 @@ done
 require_text Web/View/Layout.hs 'renderDesktopNavLink "unavailability"'
 require_text Web/View/Layout.hs 'renderWhenAudience XeroAudience (renderDesktopNavLink "xero"'
 
+require_text AGENTS.md 'frontend/ts/'
 require_text AGENTS.md 'static/app-*.js'
+require_text AGENTS.md 'frontend/ts/generated/'
 require_text AGENTS.md 'static/AGENTS.md'
+require_text AGENTS.md 'frontend/AGENTS.md'
+require_text README.md 'bash ./bin/in-env frontend-check'
+require_text README.md 'frontend/ts/generated/'
+require_text frontend/AGENTS.md 'Vite dev server'
+require_text static/AGENTS.md 'Do not edit generated'
 
 for script in \
     app-bootstrap.js \

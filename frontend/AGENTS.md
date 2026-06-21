@@ -7,7 +7,18 @@ Read this before editing `frontend/ts/`.
 - App-owned JavaScript source lives in `frontend/ts/`.
 - Generated browser assets live in `static/app*.js` and are still loaded by IHP through `assetPath`.
 - Generated TypeScript contracts live in `frontend/ts/generated/` and are backend-owned. Do not hand-edit generated files.
+- Contracts are for browser boundary data only: JSON/data-* payloads, live-update config/messages, roster UI config, overlay lanes, and capability/config objects. Do not generate broad database models for frontend use.
 - Use Nix/devenv entrypoints, not developer-facing `npm`/`npx` commands.
+- Supported commands:
+  - `bash ./bin/in-env frontend-build` regenerates checked-in `static/app*.js`.
+  - `bash ./bin/in-env frontend-check` runs contract drift, TypeScript validation, frontend tests, and JS drift.
+  - `bash ./bin/in-env frontend-test` runs fast TypeScript unit/DOM tests.
+  - `bash ./bin/in-env frontend-contracts` regenerates generated contracts.
+  - `bash ./bin/in-env frontend-contracts-check` checks generated contract drift.
+  - `bash ./bin/in-env frontend-watch` watches TS entrypoints and rebuilds generated JS.
+- `dev-start` and `just dev` start `frontend-watch`; `dev-stop` cleans up the managed watcher.
+- There is no Vite dev server or true HMR requirement. Existing browser reload/live-update behavior sees checked-in generated JS changes.
+- Production/live NixOS runtime serves generated static assets and must not require Node/esbuild/TypeScript/frontend test tooling.
 
 ## Testing
 
@@ -15,5 +26,6 @@ Read this before editing `frontend/ts/`.
 - `bash ./bin/in-env frontend-check` runs contract drift, TypeScript validation, frontend unit/DOM tests, and generated JS drift.
 - Put importable logic tests under `frontend/ts/tests/` and prefer small modules under `frontend/ts/shared/` or feature-local modules.
 - Unit/DOM tests should cover pure decisions, parser/contract boundaries, and DOM helpers that can be exercised without the IHP server.
+- Converted runtimes should use generated contracts for backend-emitted JSON/data boundaries where applicable and add unit/DOM or focused E2E coverage at the appropriate level.
 - Use Playwright via `bash ./bin/in-env e2e ...` for browser/server integration: HTMX, Bootstrap behavior, websockets/live updates, layout, roster interactions, mobile behavior, and anything requiring real browser APIs.
 - Do not add frontend unit tests or Playwright E2E to pre-commit hooks. The hook is for generated asset drift only.

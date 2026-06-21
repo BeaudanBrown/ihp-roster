@@ -5,6 +5,13 @@ Read this before editing `static/` assets.
 ## Local Rules
 
 - Runtime assets are app-owned and loaded through `assetPath`.
+- App JavaScript source lives in `frontend/ts/`. Generated browser output
+  lives in `static/app*.js`, is checked in, and must not be hand-edited.
+- Use `bash ./bin/in-env frontend-build` to regenerate JS, and
+  `bash ./bin/in-env frontend-check` before committing frontend changes.
+- Generated TypeScript contracts live in `frontend/ts/generated/`, are owned by
+  Haskell DTOs/enums, and must not be hand-edited. Use generated contracts for
+  backend-emitted JSON/data-* boundaries where applicable.
 - Keep app JavaScript split by concern:
   - `app-bootstrap.js`
   - `app-date-pickers.js`
@@ -50,7 +57,9 @@ Read this before editing `static/` assets.
   global-selector regressions. Use `bash ./bin/in-env ./bin/css-inventory` for
   the warning-only CSS architecture report (line budgets, raw colours, global
   feature selectors, and stale-selector candidates).
-- Do not add a bundler as part of ordinary runtime refactors.
+- The supported bundler is the existing Nix/devenv esbuild pipeline. Do not
+  add ad hoc bundlers, Vite dev servers, true-HMR requirements, or npm/npx
+  project workflows as part of ordinary runtime refactors.
 
 ## Live Runtime
 
@@ -96,3 +105,15 @@ bash ./bin/in-env e2e e2e/mobile-experience.spec.ts
 bash ./bin/in-env e2e e2e/live-update-declarative-adapter.spec.ts
 bash ./bin/in-env screenshot-page /RosterWeeks output/check.png --selector '#roster-week-shell'
 ```
+
+Use frontend unit/DOM tests for importable TypeScript behavior that does not
+need the IHP server or a real browser:
+
+```bash
+bash ./bin/in-env frontend-test
+bash ./bin/in-env frontend-check
+```
+
+Do not add frontend unit tests or Playwright E2E to pre-commit hooks. The
+tracked pre-commit hook is only for generated JS drift via
+`bash ./bin/in-env frontend-drift-check`.

@@ -1,6 +1,6 @@
 ---
 id: ir-9ra7
-status: open
+status: closed
 deps: [ir-j3hy, ir-jxjp, ir-o3fw]
 links: []
 created: 2026-06-21T03:37:16Z
@@ -22,3 +22,9 @@ Update static/AGENTS.md, the README static asset section where needed, root AGEN
 
 Docs explain that app JS source lives in frontend/ts/, generated JS lives in static/, generated JS is checked in but should not be hand-edited, generated frontend contracts live under frontend/ts/generated/ and are backend-owned, frontend-build/frontend-check/frontend-test/frontend-contracts/frontend-contracts-check/frontend-watch are the supported Nix/devenv commands, npm/npx are not the supported project workflow, dev starts the watcher automatically, converted runtime behavior should use generated contracts for backend-emitted JSON/data boundaries where applicable and gain unit/DOM and focused E2E coverage at the appropriate level, frontend unit/E2E tests are not pre-commit hooks, production/live NixOS runtime remains Node-free and serves checked-in generated JS, and there is no Vite dev server or true HMR requirement.
 
+
+## Notes
+
+**2026-06-21T04:54:41Z**
+
+Documented frontend TypeScript source-of-truth rules across README, root AGENTS, static/AGENTS, and frontend/AGENTS. Docs now cover frontend/ts as source, checked-in generated static/app*.js, backend-owned generated contracts under frontend/ts/generated, Nix/devenv frontend-* commands, frontend unit/DOM versus Playwright E2E strategy, no unit/E2E pre-commit hooks, dev-start/just dev watcher behavior, no Vite/HMR requirement, and Node-free production runtime. Updated doc-drift-check to guard the key frontend docs. Verified doc-drift-check and frontend-check.

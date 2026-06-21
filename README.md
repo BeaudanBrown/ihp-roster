@@ -57,7 +57,9 @@ migrations in `Application/Migration/`. Schema-changing work should update both
 ## Static Assets
 
 Runtime assets are local and loaded through `assetPath` from
-`Web/View/Layout.hs`.
+`Web/View/Layout.hs`. App-owned JavaScript is authored in TypeScript under
+`frontend/ts/` and compiled to checked-in generated `static/app*.js` files.
+Do not hand-edit generated app JS.
 
 - Bootstrap `5.3.8`
 - Bootstrap Icons `1.11.3`
@@ -67,16 +69,40 @@ Runtime assets are local and loaded through `assetPath` from
   `Web/View/Layout.hs` with `assetPath`
 - Compatibility CSS: `static/app.css` is linked last but should stay minimal;
   do not use it as an `@import` manifest for app-owned CSS
-- App JS entrypoints: `static/app-bootstrap.js`, `static/app-date-pickers.js`,
-  `static/app-dialog-overlays.js`, `static/app-live-updates.js`,
-  `static/app-passkeys.js`, `static/app-preferences.js`,
-  `static/app-roster.js`, `static/app-time-picker.js`,
-  `static/app-timesheets.js`, `static/app-toasts.js`, and `static/app.js`
+- App JS entrypoints: generated `static/app-bootstrap.js`,
+  `static/app-date-pickers.js`, `static/app-dialog-overlays.js`,
+  `static/app-live-updates.js`, `static/app-passkeys.js`,
+  `static/app-preferences.js`, `static/app-roster.js`,
+  `static/app-time-picker.js`, `static/app-timesheets.js`,
+  `static/app-toasts.js`, and `static/app.js`
+- Frontend contracts: Haskell-owned DTOs/enums generate TypeScript under
+  `frontend/ts/generated/`; use them for backend-emitted JSON/data boundaries
+  instead of duplicating broad backend or database models in browser code
 
 Feature CSS is split under `static/css/`; update the narrowest matching file
 and keep linked stylesheet paths mirrored in `Web/View/Layout.hs` and
 `Makefile` (`CSS_FILES`) so production cache busting and packaging stay in
 sync.
+
+Frontend tooling is exposed through Nix/devenv commands, not developer-facing
+`npm`/`npx` workflows:
+
+```bash
+bash ./bin/in-env frontend-build
+bash ./bin/in-env frontend-check
+bash ./bin/in-env frontend-test
+bash ./bin/in-env frontend-contracts
+bash ./bin/in-env frontend-contracts-check
+bash ./bin/in-env frontend-watch
+```
+
+`frontend-check` runs contract drift, TypeScript validation, frontend unit/DOM
+tests, and generated JS drift. `dev-start` and `just dev` run the frontend
+watcher; `dev-stop` cleans it up. There is no Vite dev server or true HMR
+requirement. Frontend unit tests and Playwright E2E are not pre-commit hooks;
+the tracked pre-commit hook only guards generated JS drift. Production/live
+NixOS runtime serves checked-in generated static JS and does not require
+Node/esbuild/TypeScript/frontend test tooling.
 
 ## CI
 
