@@ -11,7 +11,7 @@ Read this before editing `frontend/ts/`.
 - Use Nix/devenv entrypoints, not developer-facing `npm`/`npx` commands.
 - Supported commands:
   - `bash ./bin/in-env frontend-build` regenerates checked-in `static/app*.js`.
-  - `bash ./bin/in-env frontend-check` runs contract drift, TypeScript validation, frontend tests, and JS drift.
+  - `bash ./bin/in-env frontend-check` runs contract drift, TypeScript validation, the no-`@ts-nocheck` guard, frontend tests, and JS drift.
   - `bash ./bin/in-env frontend-test` runs fast TypeScript unit/DOM tests.
   - `bash ./bin/in-env frontend-contracts` regenerates generated contracts.
   - `bash ./bin/in-env frontend-contracts-check` checks generated contract drift.
@@ -23,7 +23,7 @@ Read this before editing `frontend/ts/`.
 ## Testing
 
 - Use `bash ./bin/in-env frontend-test` for fast TypeScript unit/DOM tests.
-- `bash ./bin/in-env frontend-check` runs contract drift, TypeScript validation, frontend unit/DOM tests, and generated JS drift.
+- `bash ./bin/in-env frontend-check` runs contract drift, TypeScript validation, the no-`@ts-nocheck` guard, frontend unit/DOM tests, and generated JS drift.
 - Put importable logic tests under `frontend/ts/tests/` and prefer small modules under `frontend/ts/shared/` or feature-local modules.
 - Unit/DOM tests should cover pure decisions, parser/contract boundaries, and DOM helpers that can be exercised without the IHP server.
 - Converted runtimes should use generated contracts for backend-emitted JSON/data boundaries where applicable and add unit/DOM or focused E2E coverage at the appropriate level.

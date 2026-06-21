@@ -6,5 +6,6 @@ cd "$repo_root"
 
 bash Config/nix/scripts/frontend/contracts-check
 tsc --project tsconfig.json --noEmit
+bash Config/nix/scripts/frontend/no-ts-nocheck
 bash Config/nix/scripts/frontend/test
 bash Config/nix/scripts/frontend/drift-check

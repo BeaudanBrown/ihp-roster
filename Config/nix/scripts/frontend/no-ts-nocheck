@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+cd "$repo_root"
+
+if rg --line-number --fixed-strings '@ts-nocheck' frontend/ts --glob '!generated/**'; then
+    echo "frontend-no-ts-nocheck: @ts-nocheck is not allowed in app-owned frontend TypeScript" >&2
+    exit 1
+fi
