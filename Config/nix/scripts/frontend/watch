@@ -18,4 +18,4 @@ exec esbuild "${entries[@]}" \
     --target=es2020 \
     --legal-comments=none \
     --outdir=static \
-    --watch
+    --watch=forever

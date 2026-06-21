@@ -2,16 +2,37 @@
 set -euo pipefail
 STATE_DIR="$(dev-agent-state-dir)"
 PID_FILE="$STATE_DIR/devenv.pid"
+FRONTEND_WATCH_PID_FILE="$STATE_DIR/frontend-watch.pid"
 POSTGRES_PID_FILE="$STATE_DIR/postgres.pid"
 MAILHOG_PID_FILE="$STATE_DIR/mailhog.pid"
 LOG_FILE="$STATE_DIR/devenv.log"
+FRONTEND_WATCH_LOG_FILE="$STATE_DIR/frontend-watch.log"
 DB_SOCKET="${PGHOST:-$PWD/build/db}"
 APP_HEALTH_URL="${APP_BASE_URL:-http://127.0.0.1:8000}"
 
 mkdir -p "$STATE_DIR"
 
+start_frontend_watch() {
+    if [ -f "$FRONTEND_WATCH_PID_FILE" ]; then
+        local frontend_pid
+        frontend_pid=$(cat "$FRONTEND_WATCH_PID_FILE")
+        if kill -0 "$frontend_pid" 2>/dev/null; then
+            return 0
+        fi
+        rm -f "$FRONTEND_WATCH_PID_FILE"
+    fi
+
+    : > "$FRONTEND_WATCH_LOG_FILE"
+    echo "[dev-start] launching frontend-watch" >>"$FRONTEND_WATCH_LOG_FILE"
+    setsid nohup frontend-watch </dev/null >>"$FRONTEND_WATCH_LOG_FILE" 2>&1 &
+    local frontend_pid=$!
+    echo "$frontend_pid" > "$FRONTEND_WATCH_PID_FILE"
+    disown "$frontend_pid" 2>/dev/null || true
+}
+
 if dev-status >/dev/null 2>&1; then
-    echo "devenv already healthy"
+    start_frontend_watch
+    echo "devenv already healthy (frontend-watch log=$FRONTEND_WATCH_LOG_FILE)"
     exit 0
 fi
 
@@ -31,6 +52,7 @@ export XDG_CACHE_HOME="${XDG_CACHE_HOME:-/tmp/nix-cache}"
 mkdir -p "$XDG_CACHE_HOME"
 dev-ensure-postgres
 dev-ensure-mailhog
+start_frontend_watch
 
 if command -v lsof >/dev/null 2>&1 \
     && lsof -nP -iTCP:8000 -sTCP:LISTEN >/dev/null 2>&1 \

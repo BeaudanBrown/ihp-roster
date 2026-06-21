@@ -6,6 +6,7 @@ LOG_FILE="$STATE_DIR/devenv.log"
 DB_SOCKET="${PGHOST:-$PWD/build/db}"
 APP_HEALTH_URL="${APP_BASE_URL:-http://127.0.0.1:8000}"
 APP_PID=""
+FRONTEND_WATCH_PID=""
 APP_WAS_ALREADY_RUNNING=0
 MAILHOG_STARTED=0
 MAILHOG_BIN="$(command -v MailHog || command -v mailhog)"
@@ -29,11 +30,17 @@ cleanup() {
     if [ -n "$APP_PID" ]; then
         kill "$APP_PID" 2>/dev/null || true
     fi
+    if [ -n "$FRONTEND_WATCH_PID" ]; then
+        kill "$FRONTEND_WATCH_PID" 2>/dev/null || true
+    fi
     if [ "${MAILHOG_STARTED:-0}" = "1" ] && [ -n "${MAILHOG_PID:-}" ]; then
         kill "$MAILHOG_PID" 2>/dev/null || true
     fi
 }
 trap cleanup EXIT INT TERM
+
+frontend-watch &
+FRONTEND_WATCH_PID=$!
 
 if ! psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
     dev-ensure-postgres
@@ -41,7 +48,7 @@ fi
 
 if curl --connect-timeout 1 --max-time 2 -fsS "$APP_HEALTH_URL" >/dev/null 2>&1; then
     APP_WAS_ALREADY_RUNNING=1
-    echo "App server already running; MailHog available at http://127.0.0.1:8025"
+    echo "App server already running; frontend-watch active; MailHog available at http://127.0.0.1:8025"
 else
     if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:8000 -sTCP:LISTEN >/dev/null 2>&1; then
         echo "Port 8000 is occupied but not responding to $APP_HEALTH_URL." >&2
@@ -50,7 +57,7 @@ else
         exit 1
     fi
     echo "[dev-foreground] launching start (XDG_CACHE_HOME=$XDG_CACHE_HOME)" >>"$LOG_FILE"
-    echo "Starting app server, postgres, and MailHog..."
+    echo "Starting app server, frontend-watch, postgres, and MailHog..."
     start &
     APP_PID=$!
     wait "$APP_PID"
