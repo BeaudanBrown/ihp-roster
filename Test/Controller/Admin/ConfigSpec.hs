@@ -350,6 +350,11 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "data-admin-shift-type-field-key=\""
                 pageResponse `responseBodyShouldContain` "name=\"colourKey\""
                 pageResponse `responseBodyShouldContain` "Optional Colour"
+                pageBody <- responseBody pageResponse
+                let newPayRateSelectTag = openingTagWithId "new-shift-type-pay-rate" pageBody
+                let newColourSelectTag = openingTagWithId "new-shift-type-colour" pageBody
+                newPayRateSelectTag `shouldNotContain` "hx-"
+                newColourSelectTag `shouldNotContain` "hx-"
                 pageResponse `responseBodyShouldContain` "hx-post=\"/CreateRosterGroup\""
                 pageResponse `responseBodyShouldContain` "admin_roster_groups"
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-roster-groups-fragment\""
@@ -855,6 +860,15 @@ tests = beforeAll testContext do
 
                 versions <- query @ShiftTypePayVersion |> orderByDesc #createdAt |> fetch
                 map (.createdByUserId) versions `shouldBe` [unpackId admin.id]
+
+openingTagWithId :: Text -> LByteString.ByteString -> String
+openingTagWithId elementId body =
+    cs ("<select" <> afterSelect <> Text.takeWhile (/= '>') rest <> ">")
+  where
+    bodyText = cs body :: Text
+    token = "id=\"" <> elementId <> "\""
+    (beforeToken, rest) = Text.breakOn token bodyText
+    (_, afterSelect) = Text.breakOnEnd "<select" beforeToken
 
 shouldContainInOrder :: String -> [String] -> Expectation
 shouldContainInOrder haystack needles =

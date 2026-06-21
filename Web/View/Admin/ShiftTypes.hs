@@ -208,16 +208,21 @@ renderPayRateSelect fieldId selectedAwardLevelId selectedImportedPayItemId award
     <select id={fieldId}
             class="form-select"
             name="payRateSelection"
-            hx-post={fromMaybe "" maybePostPath}
-            hx-trigger={if isJust maybePostPath then ("change" :: Text) else ("" :: Text)}
-            hx-include="closest form"
-            hx-target="#admin-shift-types-fragment"
-            hx-swap="outerHTML">
+            hx-post={maybePostPath}
+            hx-trigger={autosaveTrigger}
+            hx-include={autosaveInclude}
+            hx-target={autosaveTarget}
+            hx-swap={autosaveSwap}>
         <option value="" selected={isNothing selectedAwardLevelId && isNothing selectedImportedPayItemId}>Use staff default pay rate</option>
         {renderAwardLevelOptionsGroup awardLevels awardLevelBaseRates selectedAwardLevelId selectedImportedPayItemId}
         {renderImportedPayItemOptionsGroup selectedImportedPayItemId importedPayItems}
     </select>
 |]
+    where
+        autosaveTrigger = if isJust maybePostPath then Just ("change" :: Text) else Nothing
+        autosaveInclude = if isJust maybePostPath then Just ("closest form" :: Text) else Nothing
+        autosaveTarget = if isJust maybePostPath then Just ("#admin-shift-types-fragment" :: Text) else Nothing
+        autosaveSwap = if isJust maybePostPath then Just ("outerHTML" :: Text) else Nothing
 
 renderImportedPayItemOptionsGroup :: Maybe (Id XeroImportedPayItem) -> [XeroImportedPayItem] -> Html
 renderImportedPayItemOptionsGroup _ [] = mempty
@@ -241,17 +246,21 @@ renderShiftTypeColourSelect fieldId selectedColourKey maybePostPath = [hsx|
             class="form-select admin-shift-colour-select"
             name="colourKey"
             data-roster-shift-colour={effectiveSelectedColourKey}
-            hx-post={fromMaybe "" maybePostPath}
-            hx-trigger={if isJust maybePostPath then ("change" :: Text) else ("" :: Text)}
-            hx-include="closest form"
-            hx-target="#admin-shift-types-fragment"
-            hx-swap="outerHTML">
+            hx-post={maybePostPath}
+            hx-trigger={autosaveTrigger}
+            hx-include={autosaveInclude}
+            hx-target={autosaveTarget}
+            hx-swap={autosaveSwap}>
         {renderBlankShiftTypeColourOption effectiveSelectedColourKey}
         {forEach shiftTypeColourPaletteKeys (renderShiftTypeColourOption effectiveSelectedColourKey)}
     </select>
 |]
     where
         effectiveSelectedColourKey = normalizeRenderableColourKey selectedColourKey
+        autosaveTrigger = if isJust maybePostPath then Just ("change" :: Text) else Nothing
+        autosaveInclude = if isJust maybePostPath then Just ("closest form" :: Text) else Nothing
+        autosaveTarget = if isJust maybePostPath then Just ("#admin-shift-types-fragment" :: Text) else Nothing
+        autosaveSwap = if isJust maybePostPath then Just ("outerHTML" :: Text) else Nothing
 
 renderBlankShiftTypeColourOption :: Text -> Html
 renderBlankShiftTypeColourOption selectedColourKey = [hsx|

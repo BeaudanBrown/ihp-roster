@@ -16,6 +16,22 @@ async function duplicateIds(page: Page) {
 }
 
 test.describe('Admin shift types live updates', () => {
+    test('changing the create-row pay-rate select does not swap the admin page into the shift-types fragment', async ({ page }) => {
+        await openAdminWithSeededPasskeySession(page);
+        await page.getByRole('button', { name: 'Shift Types' }).click();
+        await expect(page.locator('#shift-types-collapse')).toHaveClass(/show/, { timeout: E2E_TIMEOUT.action });
+
+        const createPayRateSelect = page.locator('#new-shift-type-pay-rate');
+        await expect(createPayRateSelect).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
+        await createPayRateSelect.selectOption({ index: 1 });
+        await page.waitForTimeout(E2E_TIMEOUT.quick);
+
+        await expect(page.locator('#admin-shift-types-fragment #admin-config-sections')).toHaveCount(0);
+        await expect(page.locator('#admin-shift-types-fragment #shift-types')).toHaveCount(0);
+        await expect(page.locator('#admin-shift-types-fragment #app')).toHaveCount(0);
+        expect(await duplicateIds(page)).toEqual([]);
+    });
+
     test('replace only the shift types fragment during passive live refreshes', async ({ browser }) => {
         const viewerContext = await browser.newContext();
         const actorContext = await browser.newContext();
