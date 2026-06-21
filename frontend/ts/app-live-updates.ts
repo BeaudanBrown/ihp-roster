@@ -1,9 +1,7 @@
-// @ts-nocheck
-import type { LiveUpdateScope, LiveUpdateWireFragment } from "./generated/contracts";
+import type { LiveUpdateCommand, LiveUpdateMessage, LiveUpdateScope, LiveUpdateWireFragment } from "./generated/contracts";
 import {
     buildLiveUpdateSubscribeCommand,
     liveUpdateFragmentMergeKey,
-    liveUpdateInvalidationShouldResync,
     liveUpdateMessageScopeKey,
     normalizeLiveUpdateVersion,
 } from "./live-updates/protocol";
@@ -18,33 +16,80 @@ export type LiveUpdateSurfaceConfig = {
     decorateRequestsWithin?: string[];
 };
 
+type LiveUpdateDebugDetail = Record<string, unknown>;
+type LiveUpdatePerfSpan = {
+    token: string;
+    name: string;
+    startMark: string;
+    detail: LiveUpdateDebugDetail | null;
+};
+type LiveUpdatePreservedField = {
+    rowId?: string | null;
+    fieldKey?: string | null;
+    fieldKeyAttr?: string | null;
+    name?: string | null;
+    value?: string;
+};
+type LiveUpdateFragmentWithState = LiveUpdateWireFragment & {
+    preserveField?: LiveUpdatePreservedField;
+};
+type LiveUpdateSubscription = {
+    feature: string | null;
+    scope: LiveUpdateScope;
+    scopeKey: string;
+    path: string;
+    resyncFragments: LiveUpdateFragmentWithState[];
+    decorateRequestsWithin: string[];
+    ownerEl?: HTMLElement;
+    ownerEls?: HTMLElement[];
+    resync: (subscription: LiveUpdateSubscription) => void;
+};
+type InFlightFragmentState = {
+    next: LiveUpdateFragmentWithState | null;
+};
+type FragmentProtectionAdapter = {
+    matches: (fragment: LiveUpdateFragmentWithState, target: HTMLElement) => boolean;
+    hasActiveInput: (target: HTMLElement) => boolean;
+    captureState: (target: HTMLElement, fragment: LiveUpdateFragmentWithState) => LiveUpdateFragmentWithState;
+    restoreState: (target: HTMLElement, fragment: LiveUpdateFragmentWithState) => void;
+};
+type FocusedFieldProtectionPolicy = NonNullable<LiveUpdateWireFragment["protectionPolicy"]> & { kind: "focused_field" };
+type LiveUpdateSubscribedMessage = Extract<LiveUpdateMessage, { type: "subscribed" }>;
+type LiveUpdateInvalidateMessage = Extract<LiveUpdateMessage, { type: "invalidate" }>;
+type HtmxConfigRequestEvent = Event & {
+    detail?: {
+        elt?: unknown;
+        headers?: Record<string, string>;
+    };
+};
+
 // Shared live-update runtime: one websocket per tab with many scope subscriptions.
 (function enableLiveUpdates() {
     if (typeof window === 'undefined') return;
 
     const actorFragmentRefreshEventName = 'app-live-fragments-refresh';
-    const pendingDeferredFragments = new Map();
-    const inFlightFragments = new Map();
-    const activeSubscriptions = new Map();
-    const scopeVersions = new Map();
-    let socket = null;
-    let socketPath = null;
-    let reconnectTimer = null;
+    const pendingDeferredFragments = new Map<string, LiveUpdateFragmentWithState>();
+    const inFlightFragments = new Map<string, InFlightFragmentState>();
+    const activeSubscriptions = new Map<string, LiveUpdateSubscription>();
+    const scopeVersions = new Map<string, number>();
+    let socket: WebSocket | null = null;
+    let socketPath: string | null = null;
+    let reconnectTimer: ReturnType<typeof window.setTimeout> | null = null;
     let reconnectAttempt = 0;
-    let activeClientId = null;
+    let activeClientId: string | null = null;
     let nextPerfToken = 0;
 
     // Diagnostics and instrumentation.
-    function supportsPerformanceTimeline() {
+    function supportsPerformanceTimeline(): boolean {
         return Boolean(window.performance && typeof window.performance.mark === 'function' && typeof window.performance.measure === 'function');
     }
 
-    function perfToken(prefix) {
+    function perfToken(prefix: string): string {
         nextPerfToken += 1;
         return `${prefix}-${Date.now()}-${nextPerfToken}`;
     }
 
-    function beginPerfSpan(name, detail) {
+    function beginPerfSpan(name: string, detail?: LiveUpdateDebugDetail): LiveUpdatePerfSpan | null {
         if (!supportsPerformanceTimeline()) return null;
 
         const token = perfToken(name);
@@ -58,7 +103,7 @@ export type LiveUpdateSurfaceConfig = {
         };
     }
 
-    function endPerfSpan(span, extraDetail) {
+    function endPerfSpan(span: LiveUpdatePerfSpan | null, extraDetail?: LiveUpdateDebugDetail): number | null {
         if (!span || !supportsPerformanceTimeline()) return null;
 
         const endMark = `${span.token}:end`;
@@ -93,7 +138,7 @@ export type LiveUpdateSurfaceConfig = {
         return duration;
     }
 
-    function emitDebugEvent(name, detail) {
+    function emitDebugEvent(name: string, detail?: LiveUpdateDebugDetail): void {
         document.dispatchEvent(new CustomEvent('app:live-update-debug', {
             detail: {
                 name,
@@ -103,7 +148,7 @@ export type LiveUpdateSurfaceConfig = {
     }
 
     // Focus protection and deferred refresh state.
-    function findPreservedField(root, preserveField) {
+    function findPreservedField(root: HTMLElement | null, preserveField: LiveUpdatePreservedField | undefined): HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null {
         if (!(root instanceof HTMLElement) || !preserveField) return null;
 
         const fieldKey = preserveField.fieldKey;
@@ -132,7 +177,7 @@ export type LiveUpdateSurfaceConfig = {
     }
 
     // Websocket connection and client identity.
-    function makeClientId() {
+    function makeClientId(): string {
         if (window.crypto && typeof window.crypto.randomUUID === 'function') {
             return window.crypto.randomUUID();
         }
@@ -140,26 +185,26 @@ export type LiveUpdateSurfaceConfig = {
         return `live-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     }
 
-    function ensureClientId() {
+    function ensureClientId(): string {
         if (!activeClientId) {
             activeClientId = makeClientId();
         }
 
         document.querySelectorAll('[data-live-update-surface]').forEach(function (ownerEl) {
             if (ownerEl instanceof HTMLElement) {
-                ownerEl.dataset.liveUpdateClientId = activeClientId;
+                ownerEl.dataset.liveUpdateClientId = activeClientId ?? "";
             }
         });
 
         return activeClientId;
     }
 
-    function buildWebSocketUrl(path) {
+    function buildWebSocketUrl(path: string): string {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         return `${protocol}//${window.location.host}${path}`;
     }
 
-    function closeSocket() {
+    function closeSocket(): void {
         if (reconnectTimer) {
             window.clearTimeout(reconnectTimer);
             reconnectTimer = null;
@@ -178,7 +223,7 @@ export type LiveUpdateSurfaceConfig = {
     }
 
     // Fragment refetch, swapping, and per-target queueing.
-    async function swapFragmentHtml(targetId, html) {
+    async function swapFragmentHtml(targetId: string, html: string): Promise<void> {
         const perfSpan = beginPerfSpan('live_updates.swap_fragment', { targetId });
         const target = document.getElementById(targetId);
         if (!target) {
@@ -198,7 +243,7 @@ export type LiveUpdateSurfaceConfig = {
 
         let nextNode = template.content.firstElementChild;
         if (nextNode && nextNode.tagName === 'TEMPLATE') {
-            nextNode = nextNode.content.firstElementChild;
+            nextNode = (nextNode as HTMLTemplateElement).content.firstElementChild;
         }
 
         if (!(nextNode instanceof Element)) {
@@ -226,7 +271,7 @@ export type LiveUpdateSurfaceConfig = {
         });
     }
 
-    async function refetchFragment(fragment) {
+    async function refetchFragment(fragment: LiveUpdateFragmentWithState): Promise<void> {
         const perfSpan = beginPerfSpan('live_updates.refetch_fragment', {
             targetId: fragment && fragment.targetId ? fragment.targetId : null,
             url: fragment && fragment.url ? fragment.url : null,
@@ -254,7 +299,7 @@ export type LiveUpdateSurfaceConfig = {
         });
     }
 
-    function queueFragment(fragment) {
+    function queueFragment(fragment: LiveUpdateFragmentWithState): void {
         const existing = inFlightFragments.get(fragment.targetId);
         if (existing) {
             inFlightFragments.set(fragment.targetId, { ...existing, next: fragment });
@@ -281,7 +326,7 @@ export type LiveUpdateSurfaceConfig = {
             });
     }
 
-    function reportFragmentRefreshError(fragment, error) {
+    function reportFragmentRefreshError(fragment: LiveUpdateFragmentWithState, error: unknown): void {
         const detail = {
             targetId: fragment && fragment.targetId ? fragment.targetId : null,
             url: fragment && fragment.url ? fragment.url : null,
@@ -297,13 +342,13 @@ export type LiveUpdateSurfaceConfig = {
         }));
     }
 
-    function focusedFieldProtection(policy) {
+    function focusedFieldProtection(policy: FocusedFieldProtectionPolicy): FragmentProtectionAdapter {
         const activeSelector = policy && policy.activeSelector ? policy.activeSelector : 'input:focus, select:focus, textarea:focus';
         const fieldKeyAttr = policy && policy.fieldKeyAttr ? policy.fieldKeyAttr : 'data-live-field-key';
         const fieldNameFallback = !policy || policy.fieldNameFallback !== false;
         const containerSelector = policy && policy.containerSelector ? policy.containerSelector : null;
 
-        function findActiveInput(target) {
+        function findActiveInput(target: HTMLElement): HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null {
             if (!(target instanceof HTMLElement)) return null;
 
             const activeInput = target.querySelector(activeSelector);
@@ -315,17 +360,17 @@ export type LiveUpdateSurfaceConfig = {
         }
 
         return {
-            matches: function (fragment, target) {
+            matches: function (fragment: LiveUpdateFragmentWithState, target: HTMLElement): boolean {
                 return Boolean(
                     fragment &&
                     fragment.deferUntilBlur &&
                     target instanceof HTMLElement
                 );
             },
-            hasActiveInput: function (target) {
+            hasActiveInput: function (target: HTMLElement): boolean {
                 return Boolean(findActiveInput(target));
             },
-            captureState: function (target, fragment) {
+            captureState: function (target: HTMLElement, fragment: LiveUpdateFragmentWithState): LiveUpdateFragmentWithState {
                 if (!(target instanceof HTMLElement)) return fragment;
 
                 const activeInput = findActiveInput(target);
@@ -346,7 +391,7 @@ export type LiveUpdateSurfaceConfig = {
                     },
                 };
             },
-            restoreState: function (target, fragment) {
+            restoreState: function (target: HTMLElement, fragment: LiveUpdateFragmentWithState): void {
                 if (!fragment || !fragment.preserveField) return;
 
                 const { rowId, value } = fragment.preserveField;
@@ -354,17 +399,17 @@ export type LiveUpdateSurfaceConfig = {
                 const root = rowId ? document.getElementById(rowId) : target;
                 const field = findPreservedField(root, fragment.preserveField);
                 if (field) {
-                    field.value = value;
+                    field.value = value ?? "";
                 }
             },
         };
     }
 
-    const protectionPolicies = {
+    const protectionPolicies: Record<string, (policy: FocusedFieldProtectionPolicy) => FragmentProtectionAdapter> = {
         focused_field: focusedFieldProtection,
     };
 
-    function matchingFragmentProtection(fragment, target) {
+    function matchingFragmentProtection(fragment: LiveUpdateFragmentWithState | undefined, _target: HTMLElement): FragmentProtectionAdapter | null {
         if (fragment && fragment.protectionPolicy && fragment.protectionPolicy.kind) {
             const factory = protectionPolicies[fragment.protectionPolicy.kind];
             return typeof factory === 'function' ? factory(fragment.protectionPolicy) : null;
@@ -373,18 +418,18 @@ export type LiveUpdateSurfaceConfig = {
         return null;
     }
 
-    function hasProtectedActiveInput(target, fragment) {
+    function hasProtectedActiveInput(target: HTMLElement, fragment: LiveUpdateFragmentWithState | undefined): boolean {
         const adapter = matchingFragmentProtection(fragment, target);
         return Boolean(adapter && adapter.hasActiveInput(target));
     }
 
-    function captureDeferredState(target, fragment) {
+    function captureDeferredState(target: HTMLElement, fragment: LiveUpdateFragmentWithState): LiveUpdateFragmentWithState {
         const adapter = matchingFragmentProtection(fragment, target);
         if (!adapter) return fragment;
         return adapter.captureState(target, fragment);
     }
 
-    function restoreDeferredState(fragment) {
+    function restoreDeferredState(fragment: LiveUpdateFragmentWithState): void {
         if (!fragment || !fragment.targetId) return;
 
         const target = document.getElementById(fragment.targetId);
@@ -395,7 +440,7 @@ export type LiveUpdateSurfaceConfig = {
         adapter.restoreState(target, fragment);
     }
 
-    function handleFragmentRefreshRequest(fragment) {
+    function handleFragmentRefreshRequest(fragment: LiveUpdateFragmentWithState): void {
         if (!fragment || !fragment.targetId || !fragment.url) return;
         const target = document.getElementById(fragment.targetId);
         if (!(target instanceof HTMLElement)) return;
@@ -418,7 +463,7 @@ export type LiveUpdateSurfaceConfig = {
         queueFragment(resolvedFragment);
     }
 
-    function flushDeferredFragment(targetId) {
+    function flushDeferredFragment(targetId: string): void {
         const fragment = pendingDeferredFragments.get(targetId);
         if (!fragment) return;
 
@@ -430,7 +475,7 @@ export type LiveUpdateSurfaceConfig = {
         queueFragment(fragment);
     }
 
-    function flushDeferredFragmentsWithoutActiveInputs() {
+    function flushDeferredFragmentsWithoutActiveInputs(): void {
         Array.from(pendingDeferredFragments.entries()).forEach(function ([targetId]) {
             const target = document.getElementById(targetId);
             const fragment = pendingDeferredFragments.get(targetId);
@@ -441,7 +486,7 @@ export type LiveUpdateSurfaceConfig = {
     }
 
     // Subscription lifecycle and reconnect handling.
-    function scheduleReconnect() {
+    function scheduleReconnect(): void {
         if (reconnectTimer) return;
 
         reconnectAttempt += 1;
@@ -459,39 +504,39 @@ export type LiveUpdateSurfaceConfig = {
         }, delayMs);
     }
 
-    function sendCommand(command) {
+    function sendCommand(command: LiveUpdateCommand): void {
         if (!socket || socket.readyState !== window.WebSocket.OPEN) return;
         socket.send(JSON.stringify(command));
     }
 
-    function getScopeVersion(scopeKey) {
+    function getScopeVersion(scopeKey: string): number | null {
         const version = scopeVersions.get(scopeKey);
-        return Number.isInteger(version) ? version : null;
+        return Number.isInteger(version) ? version ?? null : null;
     }
 
-    function setScopeVersion(scopeKey, version) {
-        if (!Number.isInteger(version) || version < 0) return;
-        scopeVersions.set(scopeKey, version);
+    function setScopeVersion(scopeKey: string, version: unknown): void {
+        if (!Number.isInteger(version) || (version as number) < 0) return;
+        scopeVersions.set(scopeKey, version as number);
     }
 
-    function clearScopeVersion(scopeKey) {
+    function clearScopeVersion(scopeKey: string): void {
         scopeVersions.delete(scopeKey);
     }
 
-    function normalizeVersion(value) {
+    function normalizeVersion(value: unknown): number | null {
         return normalizeLiveUpdateVersion(value);
     }
 
-    function messageScopeKey(message) {
-        return liveUpdateMessageScopeKey(message);
+    function messageScopeKey(message: unknown): string | null {
+        return liveUpdateMessageScopeKey(message as { scopeKey?: unknown } | null | undefined);
     }
 
-    function subscribeScope(subscription) {
+    function subscribeScope(subscription: LiveUpdateSubscription): void {
         const lastSeenVersion = getScopeVersion(subscription.scopeKey);
         sendCommand(buildLiveUpdateSubscribeCommand(subscription.scope, ensureClientId(), lastSeenVersion));
     }
 
-    function unsubscribeScope(subscription) {
+    function unsubscribeScope(subscription: LiveUpdateSubscription): void {
         sendCommand({
             type: 'unsubscribe',
             scope: subscription.scope,
@@ -499,7 +544,7 @@ export type LiveUpdateSurfaceConfig = {
     }
 
     // Declarative surface discovery and merging.
-    function readDeclarativeSurface(ownerEl) {
+    function readDeclarativeSurface(ownerEl: Element): LiveUpdateSubscription | null {
         if (!(ownerEl instanceof HTMLElement)) return null;
 
         const rawConfig = ownerEl.getAttribute('data-live-update-surface');
@@ -527,13 +572,13 @@ export type LiveUpdateSurfaceConfig = {
             resyncFragments: parsedConfig.resyncFragments,
             decorateRequestsWithin: parsedConfig.decorateRequestsWithin,
             ownerEls: [ownerEl],
-            resync: function (subscription) {
+            resync: function (subscription: LiveUpdateSubscription): void {
                 subscription.resyncFragments.forEach(handleFragmentRefreshRequest);
             },
         };
     }
 
-    function reportSurfaceConfigError(ownerEl, error) {
+    function reportSurfaceConfigError(ownerEl: HTMLElement, error: unknown): void {
         const detail = {
             id: ownerEl && ownerEl.id ? ownerEl.id : null,
             feature: null,
@@ -549,9 +594,10 @@ export type LiveUpdateSurfaceConfig = {
         }));
     }
 
-    function collectDeclarativeSubscriptions() {
-        const subscriptions = [];
+    function collectDeclarativeSubscriptions(): LiveUpdateSubscription[] {
+        const subscriptions: LiveUpdateSubscription[] = [];
         document.querySelectorAll('[data-live-update-surface]').forEach(function (ownerEl) {
+            if (!(ownerEl instanceof HTMLElement)) return;
             const scopeInfo = readDeclarativeSurface(ownerEl);
             if (!scopeInfo || !scopeInfo.scopeKey) return;
             subscriptions.push({ ...scopeInfo, ownerEl });
@@ -559,7 +605,7 @@ export type LiveUpdateSurfaceConfig = {
         return subscriptions;
     }
 
-    function shouldDecorateDeclarativeRequest(event) {
+    function shouldDecorateDeclarativeRequest(event: HtmxConfigRequestEvent): boolean {
         const sourceEl = event.detail && event.detail.elt;
         if (!(sourceEl instanceof HTMLElement)) return false;
 
@@ -575,13 +621,13 @@ export type LiveUpdateSurfaceConfig = {
         });
     }
 
-    function fragmentMergeKey(fragment) {
+    function fragmentMergeKey(fragment: LiveUpdateFragmentWithState): string | null {
         return liveUpdateFragmentMergeKey(fragment);
     }
 
-    function mergeFragments(existingFragments, nextFragments) {
-        const merged = [];
-        const seen = new Set();
+    function mergeFragments(existingFragments: LiveUpdateFragmentWithState[], nextFragments: LiveUpdateFragmentWithState[]): LiveUpdateFragmentWithState[] {
+        const merged: LiveUpdateFragmentWithState[] = [];
+        const seen = new Set<string>();
 
         existingFragments.concat(nextFragments).forEach(function (fragment) {
             const mergeKey = fragmentMergeKey(fragment);
@@ -602,11 +648,11 @@ export type LiveUpdateSurfaceConfig = {
         return merged;
     }
 
-    function mergeStringLists(existingValues, nextValues) {
+    function mergeStringLists(existingValues: string[], nextValues: string[]): string[] {
         return Array.from(new Set(existingValues.concat(nextValues).filter(Boolean)));
     }
 
-    function mergeSubscription(existing, next) {
+    function mergeSubscription(existing: LiveUpdateSubscription | undefined, next: LiveUpdateSubscription): LiveUpdateSubscription {
         if (!existing) return next;
 
         return {
@@ -618,8 +664,8 @@ export type LiveUpdateSurfaceConfig = {
         };
     }
 
-    function desiredSubscriptions() {
-        const desired = new Map();
+    function desiredSubscriptions(): Map<string, LiveUpdateSubscription> {
+        const desired = new Map<string, LiveUpdateSubscription>();
 
         collectDeclarativeSubscriptions().forEach(function (subscription) {
             desired.set(subscription.scopeKey, mergeSubscription(desired.get(subscription.scopeKey), subscription));
@@ -629,7 +675,7 @@ export type LiveUpdateSurfaceConfig = {
     }
 
     // Server message handling.
-    function handleSubscribedMessage(message) {
+    function handleSubscribedMessage(message: LiveUpdateSubscribedMessage): void {
         if (!message) return;
 
         const scopeKey = messageScopeKey(message);
@@ -647,7 +693,7 @@ export type LiveUpdateSurfaceConfig = {
         }
     }
 
-    function handleInvalidateMessage(message) {
+    function handleInvalidateMessage(message: LiveUpdateInvalidateMessage): void {
         if (!message || !Array.isArray(message.fragments)) return;
         if (message.sourceClientId && message.sourceClientId === activeClientId) return;
         const perfSpan = beginPerfSpan('live_updates.handle_invalidate', {
@@ -713,7 +759,7 @@ export type LiveUpdateSurfaceConfig = {
         endPerfSpan(perfSpan, { outcome: 'queued_fragments', scopeKey });
     }
 
-    function openSocket(path) {
+    function openSocket(path: string): void {
         const connectPerfSpan = beginPerfSpan('live_updates.open_socket', { path });
         socket = new window.WebSocket(buildWebSocketUrl(path));
         socketPath = path;
@@ -774,7 +820,8 @@ export type LiveUpdateSurfaceConfig = {
         ensureClientId();
 
         const desired = desiredSubscriptions();
-        const nextPath = desired.size > 0 ? desired.values().next().value.path : null;
+        const firstDesired = desired.values().next().value as LiveUpdateSubscription | undefined;
+        const nextPath = firstDesired?.path ?? null;
 
         if (desired.size === 0 || !nextPath) {
             activeSubscriptions.clear();
@@ -782,14 +829,14 @@ export type LiveUpdateSurfaceConfig = {
             return;
         }
 
-        const removed = [];
+        const removed: LiveUpdateSubscription[] = [];
         activeSubscriptions.forEach(function (subscription, scopeKey) {
             if (!desired.has(scopeKey)) {
                 removed.push(subscription);
             }
         });
 
-        const added = [];
+        const added: LiveUpdateSubscription[] = [];
         desired.forEach(function (subscription, scopeKey) {
             if (!activeSubscriptions.has(scopeKey)) {
                 added.push(subscription);
@@ -829,20 +876,23 @@ export type LiveUpdateSurfaceConfig = {
 
     // DOM event bindings.
     document.addEventListener('htmx:configRequest', function (event) {
-        if (!shouldDecorateDeclarativeRequest(event)) return;
+        const htmxEvent = event as HtmxConfigRequestEvent;
+        if (!shouldDecorateDeclarativeRequest(htmxEvent)) return;
         const clientId = ensureClientId();
-        event.detail.headers['X-Live-Update-Client-Id'] = clientId;
+        if (htmxEvent.detail?.headers !== undefined) {
+            htmxEvent.detail.headers['X-Live-Update-Client-Id'] = clientId;
+        }
     });
 
-    function handleActorFragmentRefreshEvent(event) {
-        const detail = event.detail;
+    function handleActorFragmentRefreshEvent(event: Event): void {
+        const detail = event instanceof CustomEvent ? event.detail : null;
         const fragments = Array.isArray(detail && detail.fragments) ? detail.fragments : [];
         fragments.forEach(handleFragmentRefreshRequest);
     }
 
     document.addEventListener(actorFragmentRefreshEventName, handleActorFragmentRefreshEvent);
 
-    document.addEventListener('focusout', function (event) {
+    document.addEventListener('focusout', function () {
         window.setTimeout(function () {
             flushDeferredFragmentsWithoutActiveInputs();
         }, 0);

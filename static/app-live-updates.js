@@ -160,7 +160,7 @@
       }
       document.querySelectorAll("[data-live-update-surface]").forEach(function(ownerEl) {
         if (ownerEl instanceof HTMLElement) {
-          ownerEl.dataset.liveUpdateClientId = activeClientId;
+          ownerEl.dataset.liveUpdateClientId = activeClientId ?? "";
         }
       });
       return activeClientId;
@@ -330,7 +330,7 @@
           const root = rowId ? document.getElementById(rowId) : target;
           const field = findPreservedField(root, fragment.preserveField);
           if (field) {
-            field.value = value;
+            field.value = value ?? "";
           }
         }
       };
@@ -338,7 +338,7 @@
     const protectionPolicies = {
       focused_field: focusedFieldProtection
     };
-    function matchingFragmentProtection(fragment, target) {
+    function matchingFragmentProtection(fragment, _target) {
       if (fragment && fragment.protectionPolicy && fragment.protectionPolicy.kind) {
         const factory = protectionPolicies[fragment.protectionPolicy.kind];
         return typeof factory === "function" ? factory(fragment.protectionPolicy) : null;
@@ -422,7 +422,7 @@
     }
     function getScopeVersion(scopeKey) {
       const version = scopeVersions.get(scopeKey);
-      return Number.isInteger(version) ? version : null;
+      return Number.isInteger(version) ? version ?? null : null;
     }
     function setScopeVersion(scopeKey, version) {
       if (!Number.isInteger(version) || version < 0) return;
@@ -492,6 +492,7 @@
     function collectDeclarativeSubscriptions() {
       const subscriptions = [];
       document.querySelectorAll("[data-live-update-surface]").forEach(function(ownerEl) {
+        if (!(ownerEl instanceof HTMLElement)) return;
         const scopeInfo = readDeclarativeSurface(ownerEl);
         if (!scopeInfo || !scopeInfo.scopeKey) return;
         subscriptions.push({ ...scopeInfo, ownerEl });
@@ -676,7 +677,8 @@
     function syncConnection() {
       ensureClientId();
       const desired = desiredSubscriptions();
-      const nextPath = desired.size > 0 ? desired.values().next().value.path : null;
+      const firstDesired = desired.values().next().value;
+      const nextPath = firstDesired?.path ?? null;
       if (desired.size === 0 || !nextPath) {
         activeSubscriptions.clear();
         closeSocket();
@@ -722,17 +724,20 @@
       }
     }
     document.addEventListener("htmx:configRequest", function(event) {
-      if (!shouldDecorateDeclarativeRequest(event)) return;
+      const htmxEvent = event;
+      if (!shouldDecorateDeclarativeRequest(htmxEvent)) return;
       const clientId = ensureClientId();
-      event.detail.headers["X-Live-Update-Client-Id"] = clientId;
+      if (htmxEvent.detail?.headers !== void 0) {
+        htmxEvent.detail.headers["X-Live-Update-Client-Id"] = clientId;
+      }
     });
     function handleActorFragmentRefreshEvent(event) {
-      const detail = event.detail;
+      const detail = event instanceof CustomEvent ? event.detail : null;
       const fragments = Array.isArray(detail && detail.fragments) ? detail.fragments : [];
       fragments.forEach(handleFragmentRefreshRequest);
     }
     document.addEventListener(actorFragmentRefreshEventName, handleActorFragmentRefreshEvent);
-    document.addEventListener("focusout", function(event) {
+    document.addEventListener("focusout", function() {
       window.setTimeout(function() {
         flushDeferredFragmentsWithoutActiveInputs();
       }, 0);
