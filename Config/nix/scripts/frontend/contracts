@@ -20,6 +20,7 @@ trap cleanup EXIT
 mkdir -p "$tmp_dir/obj" "$tmp_dir/hi"
 GHC_OPTS="$(ihp_roster_ghc_opts)"
 ghc $GHC_OPTS Application/Script/GenerateFrontendContracts.hs \
+    -main-is Application.Script.GenerateFrontendContracts \
     -odir "$tmp_dir/obj" \
     -hidir "$tmp_dir/hi" \
     -o "$tmp_dir/generate-frontend-contracts" >/dev/null

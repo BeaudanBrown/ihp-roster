@@ -5,6 +5,11 @@ set -euo pipefail
 TARGET="${1:-Main.hs}"
 GHC_OPTS="$(ihp_roster_ghc_opts)"
 TYPECHECK_DIR="${TYPECHECK_BUILD_DIR:-$PWD/build/Typecheck}"
+if [ -f "@scriptsRoot@/haskell/module-name-check" ]; then
+    bash "@scriptsRoot@/haskell/module-name-check"
+else
+    bash Config/nix/scripts/haskell/module-name-check
+fi
 mkdir -p "$TYPECHECK_DIR/obj" "$TYPECHECK_DIR/hi"
 exec ghc -fno-code -fwrite-interface $GHC_OPTS "$TARGET" \
     -odir "$TYPECHECK_DIR/obj" \

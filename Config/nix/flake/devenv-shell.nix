@@ -59,5 +59,15 @@
                 bash Config/nix/scripts/frontend/drift-check
                 touch "$out"
             '';
+
+            checks.haskell-module-names = pkgs.runCommand "haskell-module-name-check" {
+                src = projectSource;
+            } ''
+                cp -R "$src" source
+                chmod -R u+w source
+                cd source
+                bash Config/nix/scripts/haskell/module-name-check
+                touch "$out"
+            '';
         };
 }

@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+cd "$repo_root"
+
+status=0
+
+haskell_files() {
+    if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        git ls-files '*.hs'
+    else
+        find . -type f -name '*.hs' \
+            ! -path './build/*' \
+            ! -path './.devenv/*' \
+            ! -path './.direnv/*' \
+            | sed 's#^./##' \
+            | sort
+    fi
+}
+
+expected_module_for_path() {
+    local file="$1"
+    local without_ext="${file%.hs}"
+    printf '%s\n' "${without_ext//\//.}"
+}
+
+while IFS= read -r file; do
+    case "$file" in
+        Setup.hs)
+            continue
+            ;;
+        Main.hs|Test/Main.hs)
+            expected="Main"
+            ;;
+        Config/Config.hs)
+            expected="Config"
+            ;;
+        *)
+            expected="$(expected_module_for_path "$file")"
+            ;;
+    esac
+
+    actual_line="$(sed -n -E 's/^module[[:space:]]+([^[:space:]\(]+).*/\1/p' "$file" | head -n 1)"
+    if [ -z "$actual_line" ]; then
+        echo "haskell-module-name-check: $file has no explicit module declaration" >&2
+        status=1
+        continue
+    fi
+
+    if [ "$actual_line" != "$expected" ]; then
+        echo "haskell-module-name-check: $file declares module $actual_line, expected $expected" >&2
+        status=1
+    fi
+done < <(haskell_files)
+
+exit "$status"
