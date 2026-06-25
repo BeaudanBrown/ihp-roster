@@ -1,6 +1,7 @@
 import { InteractionDom } from "../generated/contracts";
 import { readActivationIntentPayload } from "../interaction/activation";
 import { submitCommittedInteractionIntent } from "../interaction/form-bridge";
+import { createPointerSessionController, hitTestClosest, readPointerSessionStart } from "../interaction/pointer-session";
 import { createInteractionRuntime } from "../interaction/runtime";
 import { InteractionIntentBus } from "../interaction/intent-bus";
 import { assertEqual, test } from "./harness";
@@ -9,6 +10,10 @@ class MiniElement extends EventTarget {
     readonly children: MiniElement[] = [];
     parent: MiniElement | null = null;
     value = "";
+    innerHTML = "";
+    capturedPointerId: number | null = null;
+    releasedPointerId: number | null = null;
+    ownerDocument?: { elementFromPoint: (x: number, y: number) => MiniElement | null };
     private readonly attrs = new Map<string, string>();
 
     constructor(attrs: Record<string, string> = {}) {
@@ -30,6 +35,19 @@ class MiniElement extends EventTarget {
     setAttribute(name: string, value: string): void {
         this.attrs.set(name, value);
         if (name === "value") this.value = value;
+    }
+
+    setPointerCapture(pointerId: number): void {
+        this.capturedPointerId = pointerId;
+    }
+
+    releasePointerCapture(pointerId: number): void {
+        this.releasedPointerId = pointerId;
+    }
+
+    replaceChildren(): void {
+        this.children.length = 0;
+        this.innerHTML = "";
     }
 
     querySelectorAll(selector: string): MiniElement[] {
@@ -76,6 +94,21 @@ function matchesTagSelector(element: MiniElement, selector: string): boolean {
 function eventWithTarget(type: string, target: MiniElement): Event {
     const event = new Event(type, { bubbles: true, cancelable: true });
     Object.defineProperty(event, "target", { value: target });
+    return event;
+}
+
+function pointerEventWithTarget(type: string, target: MiniElement, pointerId: number, clientX: number, clientY: number, pointerType = "mouse"): Event {
+    const event = eventWithTarget(type, target) as Event & { pointerId: number; clientX: number; clientY: number; pointerType: string };
+    event.pointerId = pointerId;
+    event.clientX = clientX;
+    event.clientY = clientY;
+    event.pointerType = pointerType;
+    return event;
+}
+
+function keyEvent(key: string): Event {
+    const event = new Event("keydown", { bubbles: true, cancelable: true }) as Event & { key: string };
+    event.key = key;
     return event;
 }
 
@@ -229,4 +262,96 @@ test("runtime submits uncanceled committed intents and does not submit canceled 
     assertEqual(canceled.canceled, true);
     assertEqual(required.value, "cell-3");
     runtime.stop();
+});
+
+test("pointer session markers start only from enabled mounted handles", () => {
+    const mount = new MiniElement({ [attrs.surface]: "true" });
+    const marker = mount.append(new MiniElement({
+        [attrs.pointerSession]: "true",
+        [attrs.sessionKind]: "drag",
+        [attrs.sessionIntent]: "move-shift",
+    }));
+
+    const session = readPointerSessionStart(pointerEventWithTarget("pointerdown", marker, 7, 10, 20), 4);
+
+    assertEqual(session?.intent, "move-shift");
+    assertEqual(session?.sessionKind, "drag");
+    assertEqual(session?.pointerId, 7);
+    assertEqual(session?.startClientX, 10);
+});
+
+test("pointer sessions emit start preview commit and clean disposable layers", () => {
+    const phases: string[] = [];
+    const deltas: string[] = [];
+    const mount = new MiniElement({ [attrs.surface]: "true" });
+    const marker = mount.append(new MiniElement({
+        [attrs.pointerSession]: "true",
+        [attrs.sessionKind]: "drag",
+        [attrs.sessionIntent]: "move-shift",
+        [attrs.sessionThreshold]: "3",
+    }));
+    const layer = mount.append(new MiniElement({ [attrs.disposableLayer]: "preview" }));
+    layer.append(new MiniElement());
+
+    const controller = createPointerSessionController({
+        runtime: {
+            emit(payload) {
+                phases.push(payload.phase);
+                if (payload.phase === "preview" || payload.phase === "commit") deltas.push(payload.fields?.deltaX ?? "");
+                return { canceled: false };
+            },
+        },
+    });
+
+    controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 1, 0, 0));
+    controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 2, 20, 0));
+    controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 1, 2, 0));
+    controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 1, 5, 0));
+    controller.handlePointerUp(pointerEventWithTarget("pointerup", marker, 1, 8, 0));
+
+    assertEqual(phases.join(","), "start,preview,preview,commit");
+    assertEqual(deltas.join(","), "5,8,8");
+    assertEqual(marker.capturedPointerId, 1);
+    assertEqual(marker.releasedPointerId, 1);
+    assertEqual(layer.children.length, 0);
+    assertEqual(controller.currentSession(), null);
+});
+
+test("pointer sessions cancel below threshold, on pointercancel, and on Escape", () => {
+    const phases: string[] = [];
+    const mount = new MiniElement({ [attrs.surface]: "true" });
+    const marker = mount.append(new MiniElement({
+        [attrs.pointerSession]: "true",
+        [attrs.sessionKind]: "resize",
+        [attrs.sessionIntent]: "resize-shift",
+        [attrs.sessionThreshold]: "5",
+    }));
+    const controller = createPointerSessionController({ runtime: { emit: (payload) => { phases.push(payload.phase); return { canceled: false }; } } });
+
+    controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 1, 0, 0));
+    controller.handlePointerUp(pointerEventWithTarget("pointerup", marker, 1, 1, 0));
+    controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 2, 0, 0));
+    controller.handlePointerCancel(pointerEventWithTarget("pointercancel", marker, 2, 0, 0));
+    controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 3, 0, 0));
+    controller.handleKeyDown(keyEvent("Escape"));
+
+    assertEqual(phases.join(","), "start,cancel,start,cancel,start,cancel");
+    assertEqual(controller.currentSession(), null);
+});
+
+test("pointer sessions ignore disabled markers and hit-test under disposable overlays", () => {
+    const mount = new MiniElement({ [attrs.surface]: "true" });
+    const disabled = mount.append(new MiniElement({
+        [attrs.pointerSession]: "true",
+        [attrs.sessionKind]: "drag",
+        [attrs.sessionIntent]: "move-shift",
+        [attrs.sessionDisabled]: "true",
+    }));
+    const dropzone = new MiniElement({ [attrs.marker]: "dropzone" });
+    const doc = { elementFromPoint: (_x: number, _y: number) => dropzone };
+    mount.ownerDocument = doc;
+    dropzone.ownerDocument = doc;
+
+    assertEqual(readPointerSessionStart(pointerEventWithTarget("pointerdown", disabled, 1, 0, 0)), null);
+    assertEqual(hitTestClosest(mount as unknown as Element, 12, 34, `[${attrs.marker}=\"dropzone\"]`), dropzone as unknown as Element);
 });

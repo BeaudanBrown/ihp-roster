@@ -141,6 +141,17 @@ server submission still happens only through the matching generated intent form.
 Marker keys should be unique within a concrete mount for the marker kind unless
 multiple rendered controls intentionally alias the same logical action.
 
+Generic pointer session markers may start local disposable sessions from mouse,
+pen, or touch pointer events. A helper-rendered pointer marker declares the
+session kind and eventual intent name; generated attributes may disable/read-only
+a marker, set a movement threshold, or set a timeout. The runtime keeps one
+active session at a time, captures the pointer when possible, emits
+`start`/`preview`/`commit`/`cancel` phases, hit-tests with `elementFromPoint`,
+and clears disposable layers in the same concrete mount on cancel, timeout,
+HTMX cleanup, explicit stop, or commit. Preview phases are local only; the server
+DOM remains authoritative until a committed intent submits through a generated
+intent form.
+
 On commit the generic bridge must:
 
 1. find the generated intent form for the intent type inside the same concrete

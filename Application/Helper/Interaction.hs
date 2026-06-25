@@ -43,6 +43,7 @@ module Application.Helper.Interaction
     , mkInteractionSurfaceMount
     , renderInteractionActivationMarker
     , renderInteractionActivationIntentMarker
+    , renderInteractionPointerSessionMarker
     , renderInteractionCapabilityShell
     , renderInteractionContainerMarker
     , renderInteractionDisposableLayer
@@ -57,6 +58,7 @@ module Application.Helper.Interaction
     , serverLayerDomId
     , typedInteractionCapabilityFor
     , withInteractionActivationIntentMarker
+    , withInteractionPointerSessionMarker
     ) where
 
 import Application.Helper.Interaction.Types (DisposableLayerDefinition (..),
@@ -332,6 +334,25 @@ withInteractionActivationIntentMarker markerKey intentName trigger valueFieldNam
         ! attr "data-bepis-activation-intent" intentName
         ! attr "data-bepis-activation-trigger" (interactionActivationTriggerAttribute trigger)
         ! maybeAttr "data-bepis-activation-value-field" (unIntentFieldName <$> valueFieldName)
+
+renderInteractionPointerSessionMarker :: Text -> Text -> Text -> Html -> Html
+renderInteractionPointerSessionMarker markerKey sessionKindName intentName inner =
+    Html5.div
+        ! attr "data-bepis-marker" (interactionMarkerKindAttribute InteractionItemMarker)
+        ! attr "data-bepis-item" markerKey
+        ! attr "data-bepis-pointer-session" "true"
+        ! attr "data-bepis-session-kind" sessionKindName
+        ! attr "data-bepis-session-intent" intentName
+        $ inner
+
+withInteractionPointerSessionMarker :: Text -> Text -> Text -> Html -> Html
+withInteractionPointerSessionMarker markerKey sessionKindName intentName html =
+    html
+        ! attr "data-bepis-marker" (interactionMarkerKindAttribute InteractionItemMarker)
+        ! attr "data-bepis-item" markerKey
+        ! attr "data-bepis-pointer-session" "true"
+        ! attr "data-bepis-session-kind" sessionKindName
+        ! attr "data-bepis-session-intent" intentName
 
 interactionMarkerKindAttribute :: InteractionMarkerKind -> Text
 interactionMarkerKindAttribute InteractionItemMarker         = "item"

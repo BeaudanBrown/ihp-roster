@@ -107,6 +107,17 @@ tests = describe "Typed interaction surface capabilities" do
         html `shouldContainText` "data-bepis-activation-trigger=\"change\""
         html `shouldContainText` "data-bepis-activation-value-field=\"rosterLayoutMode\""
 
+    it "renders generic pointer session markers from typed helpers" do
+        let html = renderText do
+                renderInteractionPointerSessionMarker "card-1" "drag" "move-card" do
+                    Html5.toHtml ("Card 1" :: Text)
+
+        html `shouldContainText` "data-bepis-marker=\"item\""
+        html `shouldContainText` "data-bepis-item=\"card-1\""
+        html `shouldContainText` "data-bepis-pointer-session=\"true\""
+        html `shouldContainText` "data-bepis-session-kind=\"drag\""
+        html `shouldContainText` "data-bepis-session-intent=\"move-card\""
+
     it "derives mount-local intent targets for duplicate mounts" do
         let form = (moveIntentForm (testFragmentRef TestInteractionContent))
                 { intentFormTarget = IntentTargetMountLocal (InteractionMountLocalTarget "selection-panel")
