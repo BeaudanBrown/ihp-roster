@@ -28,6 +28,7 @@
                         } {});
                     in with p; [
                         aeson
+                        aeson-typescript
                         p.ihp
                         p.ihp-mail
                         p.ihp-hspec

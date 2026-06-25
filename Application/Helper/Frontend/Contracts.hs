@@ -6,6 +6,7 @@ module Application.Helper.Frontend.Contracts
 )
 where
 
+import Application.Helper.Frontend.AesonTypeScriptSpike (aesonTypeScriptSpikeTypeScript)
 import Application.Helper.Interaction (htmxMethodValues, htmxSwapValues,
                                        interactionActivationTriggerValues,
                                        interactionConflictResolutionValues,
@@ -243,6 +244,14 @@ frontendContractDeclarations =
     [ stringUnionDeclaration overlayLaneTypeName (fmap snd overlayLaneValues)
     , liveUpdateContracts
     , interactionContracts
+    , TypeScriptDeclaration
+        { name = "AesonTypeScriptSpike"
+        , source = Text.unlines
+            [ "// Spike proof-of-viability for aeson-typescript-generated browser wire contracts."
+            , "// Keep this narrow until the live-update/interaction protocol migrates in later tickets."
+            , aesonTypeScriptSpikeTypeScript
+            ]
+        }
     ]
 
 frontendContractsTypeScript :: Text

@@ -37,6 +37,7 @@ import qualified Test.Controller.UsersSpec
 import qualified Test.Controller.VenueAccessSpec
 import qualified Test.DatabaseProtectionSpec
 import qualified Test.DevSeedSpec
+import qualified Test.FrontendAesonTypeScriptSpikeSpec
 import qualified Test.FwcMapdSyncSpec
 import qualified Test.InteractionSpec
 import qualified Test.LiveResourceInvalidationSpec
@@ -181,6 +182,7 @@ allSuites =
     , TestSuite "VenueOnboardingInvitation" Test.VenueOnboardingInvitationSpec.tests
     , TestSuite "DevSeed" Test.DevSeedSpec.tests
     , TestSuite "Conflict" Test.ConflictSpec.tests
+    , TestSuite "FrontendAesonTypeScriptSpike" Test.FrontendAesonTypeScriptSpikeSpec.tests
     , TestSuite "Interaction" Test.InteractionSpec.tests
     , TestSuite "LiveUpdate" Test.LiveUpdateSpec.tests
     , TestSuite "LiveResource" Test.LiveResourceSpec.tests

@@ -27,6 +27,8 @@ executable App
   build-depends:
   	ihp,
   	ihp-mail,
+    aeson,
+    aeson-typescript,
   	base,
   	wai,
     process,

@@ -204,3 +204,44 @@ export type InteractionCapabilityContract = {
     conflictPolicies: InteractionConflictPolicy[];
 };
 
+// Spike proof-of-viability for aeson-typescript-generated browser wire contracts.
+// Keep this narrow until the live-update/interaction protocol migrates in later tickets.
+export interface IAesonTypeScriptSpikeClear {
+    type: "clear";
+    reason: string;
+}
+
+export interface IAesonTypeScriptSpikeMessage {
+    messageId: string;
+    messageMode: AesonTypeScriptSpikeSimpleEnum;
+    messageIntent: AesonTypeScriptSpikeUnion;
+    messageNullable: AesonTypeScriptSpikeNullableRecord;
+    messageOptional: AesonTypeScriptSpikeOptionalRecord;
+    messageFragments: AesonTypeScriptSpikeNullableRecord[];
+}
+
+export interface IAesonTypeScriptSpikeNullableRecord {
+    nullableId: string;
+    nullableNote: string | null;
+}
+
+export interface IAesonTypeScriptSpikeOptionalRecord {
+    optionalLabel: string;
+    optionalNote?: string;
+}
+
+export interface IAesonTypeScriptSpikeSelect {
+    type: "select";
+    selectedId: string;
+}
+
+export type AesonTypeScriptSpikeMessage = IAesonTypeScriptSpikeMessage;
+
+export type AesonTypeScriptSpikeNullableRecord = IAesonTypeScriptSpikeNullableRecord;
+
+export type AesonTypeScriptSpikeOptionalRecord = IAesonTypeScriptSpikeOptionalRecord;
+
+export type AesonTypeScriptSpikeSimpleEnum = "alpha" | "beta";
+
+export type AesonTypeScriptSpikeUnion = IAesonTypeScriptSpikeSelect | IAesonTypeScriptSpikeClear;
+
