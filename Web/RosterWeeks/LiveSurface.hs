@@ -10,6 +10,7 @@ module Web.RosterWeeks.LiveSurface
     , RosterInteractionSession (..)
     , RosterLiveSurface
     , rosterInteractionMountKey
+    , rosterInteractionStaticSchema
     , rosterDragSessionKindName
     , rosterLayoutModeIntentField
     , rosterLayoutModeIntentName
@@ -85,6 +86,7 @@ rosterLiveSurfaceDefinition =
                 (rosterFragmentDependencies scope fragment)
         , typedSurfaceDecorateRequestsWithin = const ["#roster-week-shell"]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\scope -> RequireCurrentVenueRosterGroup (unpackId currentVenueId) (unpackId scope.rosterProjectionGroupId))
+        , typedSurfaceInteractionSchema = rosterInteractionStaticSchema
         , typedSurfaceInteraction = rosterInteractionCapability
         }
     where
@@ -101,25 +103,36 @@ rosterLiveSurfaceDefinition =
                 _ ->
                     Nothing
 
-rosterInteractionCapability :: (?context :: ControllerContext) => RosterProjectionScope -> InteractionCapability (SurfaceFragmentRef RosterLiveSurface) RosterProjectionFragment RosterInteractionLayer RosterInteractionSession RosterInteractionIntent
-rosterInteractionCapability scope =
-    emptyInteractionCapability
-        { interactionDisposableLayers =
+rosterInteractionStaticSchema :: InteractionStaticSchema RosterProjectionFragment RosterInteractionLayer RosterInteractionSession RosterInteractionIntent
+rosterInteractionStaticSchema =
+    emptyInteractionStaticSchema
+        { interactionStaticDisposableLayers =
             [ DisposableLayerDefinition
                 { disposableLayerKind = RosterDragPreviewLayer
                 , disposableLayerName = "drag-preview"
                 , disposableLayerDomIdSuffix = "drag-preview"
                 }
             ]
-        , interactionSessionKinds =
+        , interactionStaticSessionKinds =
             [ SessionKindDefinition
                 { sessionKind = RosterDragSession
                 , sessionKindName = rosterDragSessionKindName
                 , sessionDescription = "Roster drag/drop prototype"
                 }
             ]
-        , interactionIntentForms = [rosterLayoutModeIntentForm scope, rosterMoveShiftIntentForm scope]
-        , interactionConflictPolicies =
+        , interactionStaticIntents =
+            [ InteractionIntentSchema
+                { interactionIntentSchemaIntent = SetRosterLayoutModeIntent
+                , interactionIntentSchemaName = rosterLayoutModeIntentName
+                , interactionIntentSchemaFields = [IntentFieldSchema rosterLayoutModeIntentField IntentFieldRequired Nothing]
+                }
+            , InteractionIntentSchema
+                { interactionIntentSchemaIntent = MoveRosterShiftToSlotIntent
+                , interactionIntentSchemaName = rosterMoveShiftIntentName
+                , interactionIntentSchemaFields = rosterMoveShiftIntentFields
+                }
+            ]
+        , interactionStaticConflictPolicies =
             [ InteractionConflictPolicy
                 { conflictPolicySession = InteractionSessionKind RosterDragSession
                 , conflictPolicyFragment = AnyInteractionFragment
@@ -127,6 +140,17 @@ rosterInteractionCapability scope =
                 , conflictPolicyTimeoutMs = Just 5000
                 }
             ]
+        }
+
+rosterInteractionCapability :: (?context :: ControllerContext) => RosterProjectionScope -> InteractionCapability (SurfaceFragmentRef RosterLiveSurface) RosterProjectionFragment RosterInteractionLayer RosterInteractionSession RosterInteractionIntent
+rosterInteractionCapability scope =
+    emptyInteractionCapability
+        { interactionStaticSchema = rosterInteractionStaticSchema
+        , interactionServerLayers = rosterInteractionStaticSchema.interactionStaticServerLayers
+        , interactionDisposableLayers = rosterInteractionStaticSchema.interactionStaticDisposableLayers
+        , interactionSessionKinds = rosterInteractionStaticSchema.interactionStaticSessionKinds
+        , interactionIntentForms = [rosterLayoutModeIntentForm scope, rosterMoveShiftIntentForm scope]
+        , interactionConflictPolicies = rosterInteractionStaticSchema.interactionStaticConflictPolicies
         }
 
 rosterLayoutModeIntentForm :: (?context :: ControllerContext) => RosterProjectionScope -> IntentFormContract (SurfaceFragmentRef RosterLiveSurface) RosterInteractionIntent

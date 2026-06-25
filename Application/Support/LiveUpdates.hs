@@ -44,6 +44,7 @@ supportLiveSurfaceDefinition =
                 , "#support-public-holidays-section"
                 ]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const RequireSupportSuperAdmin)
+        , typedSurfaceInteractionSchema = emptyInteractionStaticSchema
         , typedSurfaceInteraction = const emptyInteractionCapability
         }
 

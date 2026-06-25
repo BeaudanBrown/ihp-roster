@@ -43,6 +43,7 @@ billingLiveSurfaceDefinition =
                 (liveFragmentDependsOn (BillingResource key.billingSurfaceVenueId) [])
         , typedSurfaceDecorateRequestsWithin = const ["#billing-live-surface", "#billing-status-fragment"]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\key -> RequireCurrentVenueOwner key.billingSurfaceVenueId)
+        , typedSurfaceInteractionSchema = emptyInteractionStaticSchema
         , typedSurfaceInteraction = const emptyInteractionCapability
         }
 

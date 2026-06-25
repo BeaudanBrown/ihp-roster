@@ -56,7 +56,8 @@ import qualified Application.Helper.Frontend.LiveUpdateSchema as Wire
 import Application.Helper.Interaction.Types (EmptyInteractionIntent,
                                              EmptyInteractionLayer,
                                              EmptyInteractionSession,
-                                             InteractionCapability)
+                                             InteractionCapability,
+                                             InteractionStaticSchema)
 import Application.Helper.LiveResource (LiveResource)
 import Application.Helper.LiveUpdate.Internal
 import Application.Helper.Profiling (respondHtmlProfiled)
@@ -137,6 +138,7 @@ data TypedLiveSurfaceDefinition surface scope fragment layer session intent = Ty
     , typedSurfaceFragmentContract       :: scope -> fragment -> FragmentContract surface
     , typedSurfaceDecorateRequestsWithin :: scope -> [Text]
     , typedSurfaceAuthorize              :: !(LiveSurfaceAuthorization scope)
+    , typedSurfaceInteractionSchema      :: !(InteractionStaticSchema fragment layer session intent)
     , typedSurfaceInteraction            :: scope -> InteractionCapability (SurfaceFragmentRef surface) fragment layer session intent
     }
 

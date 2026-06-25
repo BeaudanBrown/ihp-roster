@@ -44,6 +44,7 @@ adminExportsLiveSurfaceDefinition =
                 (liveFragmentDependsOn (AdminExportsResource currentVenueScopeId) [])
         , typedSurfaceDecorateRequestsWithin = const ["#" <> adminExportsFragmentId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId))
+        , typedSurfaceInteractionSchema = emptyInteractionStaticSchema
         , typedSurfaceInteraction = const emptyInteractionCapability
         }
 

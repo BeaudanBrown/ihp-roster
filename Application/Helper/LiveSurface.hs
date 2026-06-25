@@ -14,6 +14,7 @@ module Application.Helper.LiveSurface
     , SurfaceScope (..)
     , TypedLiveSurfaceDefinition (..)
     , emptyInteractionCapability
+    , emptyInteractionStaticSchema
     , authorizeLiveScopeRequirement
     , authorizeTypedLiveSurfaceScope
     , authorizeTypedLiveSurfaceWireScope
@@ -52,7 +53,8 @@ module Application.Helper.LiveSurface
 import Application.Helper.Interaction.Types (EmptyInteractionIntent,
                                              EmptyInteractionLayer,
                                              EmptyInteractionSession,
-                                             emptyInteractionCapability)
+                                             emptyInteractionCapability,
+                                             emptyInteractionStaticSchema)
 import Application.Helper.LiveSurface.Internal (AuthorizedLiveFragment (..),
                                                 FragmentContract (..),
                                                 FragmentDependencies (..),

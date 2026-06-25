@@ -48,6 +48,7 @@ adminVenueSettingsLiveSurfaceDefinitionForVenue surfaceVenueId =
                 (liveFragmentDependsOn (AdminVenueSettingsResource surfaceVenueId) [])
         , typedSurfaceDecorateRequestsWithin = const ["#" <> adminVenueSettingsFragmentId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin surfaceVenueId))
+        , typedSurfaceInteractionSchema = emptyInteractionStaticSchema
         , typedSurfaceInteraction = const emptyInteractionCapability
         }
 

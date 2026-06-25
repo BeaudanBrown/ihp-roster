@@ -202,6 +202,7 @@ timesheetLiveSurfaceDefinitionForVenue surfaceVenueId =
                 (timesheetFragmentDependencies surfaceVenueId requestKey fragment)
         , typedSurfaceDecorateRequestsWithin = const ["#" <> timesheetDayColumnsId, "#roster-staff-self-service-timesheet-live-surface"]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenue surfaceVenueId))
+        , typedSurfaceInteractionSchema = emptyInteractionStaticSchema
         , typedSurfaceInteraction = const emptyInteractionCapability
         }
     where

@@ -173,6 +173,7 @@ testActorLiveSurfaceDefinition =
                 (liveFragmentResyncOnly "test actor fragment")
         , typedSurfaceDecorateRequestsWithin = const []
         , typedSurfaceAuthorize = LiveSurfaceAuthorization { authorizeLiveSurfaceScope = const (pure True) }
+        , typedSurfaceInteractionSchema = emptyInteractionStaticSchema
         , typedSurfaceInteraction = const emptyInteractionCapability
         }
 

@@ -10,11 +10,13 @@ module Application.Helper.Interaction.Types
     , InteractionConflictResolution (..)
     , InteractionFieldPresence (..)
     , InteractionFragmentSelector (..)
+    , InteractionIntentSchema (..)
     , InteractionIntentTarget (..)
     , InteractionMarkerKind (..)
     , InteractionMountKey (..)
     , InteractionMountLocalTarget (..)
     , InteractionSessionSelector (..)
+    , InteractionStaticSchema (..)
     , IntentFieldName (..)
     , IntentFieldSchema (..)
     , IntentFormContract (..)
@@ -23,6 +25,8 @@ module Application.Helper.Interaction.Types
     , DisposableLayerDefinition (..)
     , SessionKindDefinition (..)
     , emptyInteractionCapability
+    , emptyInteractionStaticSchema
+    , interactionCapabilityStaticSchema
     , htmxMethodValues
     , htmxSwapValues
     , interactionActivationTriggerValues
@@ -84,6 +88,13 @@ data IntentFieldSchema = IntentFieldSchema
 data IntentHiddenField = IntentHiddenField
     { intentHiddenFieldName  :: !IntentFieldName
     , intentHiddenFieldValue :: !Text
+    }
+    deriving (Eq, Show)
+
+data InteractionIntentSchema intent = InteractionIntentSchema
+    { interactionIntentSchemaIntent :: !intent
+    , interactionIntentSchemaName   :: !Text
+    , interactionIntentSchemaFields :: ![IntentFieldSchema]
     }
     deriving (Eq, Show)
 
@@ -169,8 +180,18 @@ data InteractionConflictPolicy fragment session = InteractionConflictPolicy
     }
     deriving (Eq, Show)
 
+data InteractionStaticSchema fragment layer session intent = InteractionStaticSchema
+    { interactionStaticServerLayers     :: ![ServerLayerDefinition]
+    , interactionStaticDisposableLayers :: ![DisposableLayerDefinition layer]
+    , interactionStaticSessionKinds     :: ![SessionKindDefinition session]
+    , interactionStaticIntents          :: ![InteractionIntentSchema intent]
+    , interactionStaticConflictPolicies :: ![InteractionConflictPolicy fragment session]
+    }
+    deriving (Eq, Show)
+
 data InteractionCapability fragmentRef fragment layer session intent = InteractionCapability
-    { interactionServerLayers     :: ![ServerLayerDefinition]
+    { interactionStaticSchema     :: !(InteractionStaticSchema fragment layer session intent)
+    , interactionServerLayers     :: ![ServerLayerDefinition]
     , interactionDisposableLayers :: ![DisposableLayerDefinition layer]
     , interactionSessionKinds     :: ![SessionKindDefinition session]
     , interactionIntentForms      :: ![IntentFormContract fragmentRef intent]
@@ -178,15 +199,30 @@ data InteractionCapability fragmentRef fragment layer session intent = Interacti
     }
     deriving (Eq, Show)
 
+emptyInteractionStaticSchema :: InteractionStaticSchema fragment layer session intent
+emptyInteractionStaticSchema =
+    InteractionStaticSchema
+        { interactionStaticServerLayers = []
+        , interactionStaticDisposableLayers = []
+        , interactionStaticSessionKinds = []
+        , interactionStaticIntents = []
+        , interactionStaticConflictPolicies = []
+        }
+
 emptyInteractionCapability :: InteractionCapability fragmentRef fragment layer session intent
 emptyInteractionCapability =
     InteractionCapability
-        { interactionServerLayers = []
+        { interactionStaticSchema = emptyInteractionStaticSchema
+        , interactionServerLayers = []
         , interactionDisposableLayers = []
         , interactionSessionKinds = []
         , interactionIntentForms = []
         , interactionConflictPolicies = []
         }
+
+interactionCapabilityStaticSchema :: InteractionCapability fragmentRef fragment layer session intent -> InteractionStaticSchema fragment layer session intent
+interactionCapabilityStaticSchema capability =
+    capability.interactionStaticSchema
 
 interactionFieldPresenceValues :: [(InteractionFieldPresence, Text)]
 interactionFieldPresenceValues =

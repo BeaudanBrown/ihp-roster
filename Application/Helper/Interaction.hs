@@ -10,11 +10,13 @@ module Application.Helper.Interaction
     , InteractionConflictResolution (..)
     , InteractionFieldPresence (..)
     , InteractionFragmentSelector (..)
+    , InteractionIntentSchema (..)
     , InteractionIntentTarget (..)
     , InteractionMarkerKind (..)
     , InteractionMountKey (..)
     , InteractionMountLocalTarget (..)
     , InteractionSessionSelector (..)
+    , InteractionStaticSchema (..)
     , InteractionSurfaceMount (..)
     , IntentFieldName (..)
     , IntentFieldSchema (..)
@@ -26,6 +28,7 @@ module Application.Helper.Interaction
     , TypedInteractionSurfaceDefinition
     , disposableLayerDomId
     , emptyInteractionCapability
+    , emptyInteractionStaticSchema
     , emptyInteractionSurfaceDefinition
     , htmxMethodAttribute
     , htmxMethodValues
@@ -34,6 +37,7 @@ module Application.Helper.Interaction
     , interactionActivationTriggerAttribute
     , interactionActivationTriggerValues
     , interactionConflictResolutionValues
+    , interactionCapabilityStaticSchema
     , interactionFieldPresenceValues
     , interactionFormDomId
     , interactionIntentTargetSelector
@@ -57,6 +61,7 @@ module Application.Helper.Interaction
     , renderInteractionSurfaceMount
     , serverLayerDomId
     , typedInteractionCapabilityFor
+    , typedInteractionStaticSchemaFor
     , withInteractionActivationIntentMarker
     , withInteractionDropzoneMarker
     , withInteractionPointerSessionMarker
@@ -77,16 +82,20 @@ import Application.Helper.Interaction.Types (DisposableLayerDefinition (..),
                                              InteractionConflictResolution (..),
                                              InteractionFieldPresence (..),
                                              InteractionFragmentSelector (..),
+                                             InteractionIntentSchema (..),
                                              InteractionIntentTarget (..),
                                              InteractionMarkerKind (..),
                                              InteractionMountKey (..),
                                              InteractionMountLocalTarget (..),
                                              InteractionSessionSelector (..),
+                                             InteractionStaticSchema (..),
                                              ServerLayerDefinition (..),
                                              SessionKindDefinition (..),
                                              emptyInteractionCapability,
+                                             emptyInteractionStaticSchema,
                                              htmxMethodValues, htmxSwapValues,
                                              interactionActivationTriggerValues,
+                                             interactionCapabilityStaticSchema,
                                              interactionConflictResolutionValues,
                                              interactionFieldPresenceValues)
 import qualified Application.Helper.Interaction.Types as Types
@@ -130,6 +139,12 @@ typedInteractionCapabilityFor ::
     Types.InteractionCapability (SurfaceFragmentRef surface) fragment layer session intent
 typedInteractionCapabilityFor definition scope =
     definition.typedSurfaceInteraction scope
+
+typedInteractionStaticSchemaFor ::
+    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
+    Types.InteractionStaticSchema fragment layer session intent
+typedInteractionStaticSchemaFor definition =
+    definition.typedSurfaceInteractionSchema
 
 interactionSurfaceLiveConfig ::
     TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
@@ -222,13 +237,14 @@ renderInteractionCapabilityShell ::
 renderInteractionCapabilityShell definition mount serverHtml =
     renderInteractionSurfaceMountWithAttrs definition mount conflictPoliciesAttr do
         renderInteractionServerLayer definition mount serverLayer serverHtml
-        mapM_ (renderInteractionDisposableLayer definition mount) capability.interactionDisposableLayers
+        mapM_ (renderInteractionDisposableLayer definition mount) staticSchema.interactionStaticDisposableLayers
         mapM_ (renderInteractionIntentForm definition mount) capability.interactionIntentForms
     where
         capability = typedInteractionCapabilityFor definition mount.interactionMountScope
-        serverLayer = fromMaybe defaultServerLayer (listToMaybe capability.interactionServerLayers)
+        staticSchema = typedInteractionStaticSchemaFor definition
+        serverLayer = fromMaybe defaultServerLayer (listToMaybe staticSchema.interactionStaticServerLayers)
         defaultServerLayer = ServerLayerDefinition { serverLayerName = "server", serverLayerDomIdSuffix = "server" }
-        conflictPoliciesAttr = attr "data-bepis-conflict-policies" (interactionConflictPoliciesJson definition mount.interactionMountScope capability)
+        conflictPoliciesAttr = attr "data-bepis-conflict-policies" (interactionConflictPoliciesJson definition mount.interactionMountScope staticSchema)
 
 renderInteractionServerLayer ::
     TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
@@ -392,10 +408,10 @@ interactionConflictPoliciesJson ::
     Eq session =>
     TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
     scope ->
-    InteractionCapability (SurfaceFragmentRef surface) fragment layer session intent ->
+    InteractionStaticSchema fragment layer session intent ->
     Text
-interactionConflictPoliciesJson definition scope capability =
-    TextEncoding.decodeUtf8 (LBS.toStrict (Aeson.encode (fmap policyObject capability.interactionConflictPolicies)))
+interactionConflictPoliciesJson definition scope staticSchema =
+    TextEncoding.decodeUtf8 (LBS.toStrict (Aeson.encode (fmap policyObject staticSchema.interactionStaticConflictPolicies)))
     where
         policyObject policy =
             Aeson.object
@@ -407,7 +423,7 @@ interactionConflictPoliciesJson definition scope capability =
         sessionSelectorName AnyInteractionSession = "*" :: Text
         sessionSelectorName (InteractionSessionKind session) =
             fromMaybe "*" do
-                matching <- find ((== session) . (.sessionKind)) capability.interactionSessionKinds
+                matching <- find ((== session) . (.sessionKind)) staticSchema.interactionStaticSessionKinds
                 pure matching.sessionKindName
         fragmentSelectorTargetId AnyInteractionFragment = "*" :: Text
         fragmentSelectorTargetId (InteractionFragment fragment) =

@@ -99,9 +99,14 @@ or infer a singleton surface for a scope.
 
 1. Feature code declares closed Haskell types for disposable layers, intents,
    intent fields, and any interaction-specific markers.
-2. Haskell contracts attach optional interaction capability to the same typed
-   live surface definition and define field schemas, HTMX form metadata, and
-   live-fragment conflict policy. Existing surfaces can use empty capability.
+2. Haskell contracts attach a scope-free static interaction schema plus optional
+   runtime interaction capability to the same typed live surface definition. The
+   static schema enumerates layer names, session names, intent names, field
+   schemas, marker semantics, and default conflict policy without constructing a
+   fake scope. Runtime capability still owns concrete HTMX form actions, targets,
+   sync selectors, hidden values, and any fragment refs whose URLs depend on the
+   mounted scope. Existing surfaces can use empty static schema and empty
+   capability.
 3. Haskell helpers render surface mounts, server layers, disposable layers,
    typed item/slot/handle markers, and generated HTMX intent forms. Use
    `renderInteractionCapabilityShell` for the standard mount/layer/form shell,

@@ -17,6 +17,7 @@ import Application.Helper.LiveSurface (EmptyInteractionIntent,
                                        SurfaceFragmentRef, SurfaceScope (..),
                                        TypedLiveSurfaceDefinition (..),
                                        emptyInteractionCapability,
+                                       emptyInteractionStaticSchema,
                                        liveFragmentDependsOn,
                                        liveSurfaceAuthorizationByRequirement,
                                        liveSurfaceConfigJson,
@@ -81,6 +82,7 @@ adminShiftTypesLiveSurfaceDefinition =
                 (liveFragmentDependsOn (AdminShiftTypesResource currentVenueScopeId) [])
         , typedSurfaceDecorateRequestsWithin = const ["#admin-shift-types-fragment"]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId))
+        , typedSurfaceInteractionSchema = emptyInteractionStaticSchema
         , typedSurfaceInteraction = const emptyInteractionCapability
         }
 

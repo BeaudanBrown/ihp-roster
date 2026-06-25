@@ -9,6 +9,13 @@ import IHP.Prelude
 import Test.Hspec
 import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
 import qualified Text.Blaze.Html5 as Html5
+import Web.RosterWeeks.LiveSurface (RosterInteractionIntent (..),
+                                    RosterInteractionSession (..),
+                                    rosterDragSessionKindName,
+                                    rosterInteractionStaticSchema,
+                                    rosterLayoutModeIntentField,
+                                    rosterLayoutModeIntentName,
+                                    rosterMoveShiftIntentName)
 
 
 tests :: Spec
@@ -41,15 +48,20 @@ tests = describe "Typed interaction surface capabilities" do
         interactionFormDomId definition duplicateMount form
             `shouldBe` "bepis-surface--test-interaction--support-platform--duplicate--intent-form--move-card"
 
-    it "models server-owned HTMX intent form contracts and typed live-fragment conflict policy" do
+    it "models scope-free static concepts separately from runtime HTMX intent forms" do
+        let staticSchema = typedInteractionStaticSchemaFor testLiveSurfaceDefinition
         let capability = testInteractionCapability ()
 
-        map (.serverLayerName) capability.interactionServerLayers
+        map (.serverLayerName) staticSchema.interactionStaticServerLayers
             `shouldBe` ["server"]
-        map (.disposableLayerKind) capability.interactionDisposableLayers
+        map (.disposableLayerKind) staticSchema.interactionStaticDisposableLayers
             `shouldBe` [DragPreviewLayer]
-        map (.sessionKind) capability.interactionSessionKinds
+        map (.sessionKind) staticSchema.interactionStaticSessionKinds
             `shouldBe` [DragSession]
+        map (.interactionIntentSchemaIntent) staticSchema.interactionStaticIntents
+            `shouldBe` [MoveCardIntent]
+        map (.interactionIntentSchemaFields) staticSchema.interactionStaticIntents
+            `shouldBe` [[IntentFieldSchema (IntentFieldName "cardId") IntentFieldRequired Nothing, IntentFieldSchema (IntentFieldName "targetSlotId") IntentFieldRequired Nothing]]
         map (.intentFormIntent) capability.interactionIntentForms
             `shouldBe` [MoveCardIntent]
         case capability.interactionIntentForms of
@@ -63,13 +75,35 @@ tests = describe "Typed interaction surface capabilities" do
                 htmxSwapAttribute form.intentFormSwap
                     `shouldBe` "outerHTML"
             forms -> expectationFailure (cs ("Expected one intent form, got " <> show (length forms) :: Text))
-        capability.interactionConflictPolicies
+        staticSchema.interactionStaticConflictPolicies
             `shouldBe`
                 [ InteractionConflictPolicy
                     { conflictPolicySession = InteractionSessionKind DragSession
                     , conflictPolicyFragment = InteractionFragment TestInteractionContent
                     , conflictPolicyResolution = DeferLiveFragmentUntilSessionEnds
                     , conflictPolicyTimeoutMs = Just 1500
+                    }
+                ]
+        interactionCapabilityStaticSchema capability `shouldBe` staticSchema
+
+    it "enumerates roster interaction concepts without a concrete scope" do
+        map (.disposableLayerName) rosterInteractionStaticSchema.interactionStaticDisposableLayers
+            `shouldBe` ["drag-preview"]
+        map (.sessionKindName) rosterInteractionStaticSchema.interactionStaticSessionKinds
+            `shouldBe` [rosterDragSessionKindName]
+        map (.interactionIntentSchemaName) rosterInteractionStaticSchema.interactionStaticIntents
+            `shouldBe` [rosterLayoutModeIntentName, rosterMoveShiftIntentName]
+        map (.interactionIntentSchemaIntent) rosterInteractionStaticSchema.interactionStaticIntents
+            `shouldBe` [SetRosterLayoutModeIntent, MoveRosterShiftToSlotIntent]
+        map (.intentFieldName) (concatMap (.interactionIntentSchemaFields) rosterInteractionStaticSchema.interactionStaticIntents)
+            `shouldContain` [rosterLayoutModeIntentField]
+        rosterInteractionStaticSchema.interactionStaticConflictPolicies
+            `shouldBe`
+                [ InteractionConflictPolicy
+                    { conflictPolicySession = InteractionSessionKind RosterDragSession
+                    , conflictPolicyFragment = AnyInteractionFragment
+                    , conflictPolicyResolution = DeferLiveFragmentUntilSessionEnds
+                    , conflictPolicyTimeoutMs = Just 5000
                     }
                 ]
 
@@ -160,38 +194,61 @@ testLiveSurfaceDefinition =
                 (liveFragmentResyncOnly "test interaction fragment")
         , typedSurfaceDecorateRequestsWithin = const []
         , typedSurfaceAuthorize = LiveSurfaceAuthorization { authorizeLiveSurfaceScope = const (pure True) }
+        , typedSurfaceInteractionSchema = testInteractionStaticSchema
         , typedSurfaceInteraction = testInteractionCapability
         }
 
 emptyTestLiveSurfaceDefinition :: TypedLiveSurfaceDefinition TestInteractionSurface () TestInteractionFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 emptyTestLiveSurfaceDefinition =
-    testLiveSurfaceDefinition { typedSurfaceInteraction = const emptyInteractionCapability }
+    TypedLiveSurfaceDefinition
+        { typedSurfaceFeature = "test-interaction"
+        , typedSurfaceScope = const (SurfaceScope SupportPlatformScope)
+        , typedSurfaceScopeFromWire = const (Just ())
+        , typedSurfaceDefaultFragments = const [TestInteractionContent]
+        , typedSurfaceFragmentContract = \() fragment ->
+            mkSurfaceFragmentContract
+                (testFragmentRef fragment)
+                (liveFragmentResyncOnly "test interaction fragment")
+        , typedSurfaceDecorateRequestsWithin = const []
+        , typedSurfaceAuthorize = LiveSurfaceAuthorization { authorizeLiveSurfaceScope = const (pure True) }
+        , typedSurfaceInteractionSchema = emptyInteractionStaticSchema
+        , typedSurfaceInteraction = const emptyInteractionCapability
+        }
 
-testInteractionCapability :: () -> InteractionCapability (SurfaceFragmentRef TestInteractionSurface) TestInteractionFragment TestDisposableLayer TestInteractionSession TestInteractionIntent
-testInteractionCapability () =
-    InteractionCapability
-        { interactionServerLayers =
+testInteractionStaticSchema :: InteractionStaticSchema TestInteractionFragment TestDisposableLayer TestInteractionSession TestInteractionIntent
+testInteractionStaticSchema =
+    emptyInteractionStaticSchema
+        { interactionStaticServerLayers =
             [ ServerLayerDefinition
                 { serverLayerName = "server"
                 , serverLayerDomIdSuffix = "server"
                 }
             ]
-        , interactionDisposableLayers =
+        , interactionStaticDisposableLayers =
             [ DisposableLayerDefinition
                 { disposableLayerKind = DragPreviewLayer
                 , disposableLayerName = "drag-preview"
                 , disposableLayerDomIdSuffix = "drag-preview"
                 }
             ]
-        , interactionSessionKinds =
+        , interactionStaticSessionKinds =
             [ SessionKindDefinition
                 { sessionKind = DragSession
                 , sessionKindName = "drag"
                 , sessionDescription = "Local drag preview session"
                 }
             ]
-        , interactionIntentForms = [moveIntentForm (testFragmentRef TestInteractionContent)]
-        , interactionConflictPolicies =
+        , interactionStaticIntents =
+            [ InteractionIntentSchema
+                { interactionIntentSchemaIntent = MoveCardIntent
+                , interactionIntentSchemaName = "move-card"
+                , interactionIntentSchemaFields =
+                    [ IntentFieldSchema (IntentFieldName "cardId") IntentFieldRequired Nothing
+                    , IntentFieldSchema (IntentFieldName "targetSlotId") IntentFieldRequired Nothing
+                    ]
+                }
+            ]
+        , interactionStaticConflictPolicies =
             [ InteractionConflictPolicy
                 { conflictPolicySession = InteractionSessionKind DragSession
                 , conflictPolicyFragment = InteractionFragment TestInteractionContent
@@ -199,6 +256,17 @@ testInteractionCapability () =
                 , conflictPolicyTimeoutMs = Just 1500
                 }
             ]
+        }
+
+testInteractionCapability :: () -> InteractionCapability (SurfaceFragmentRef TestInteractionSurface) TestInteractionFragment TestDisposableLayer TestInteractionSession TestInteractionIntent
+testInteractionCapability () =
+    emptyInteractionCapability
+        { interactionStaticSchema = testInteractionStaticSchema
+        , interactionServerLayers = testInteractionStaticSchema.interactionStaticServerLayers
+        , interactionDisposableLayers = testInteractionStaticSchema.interactionStaticDisposableLayers
+        , interactionSessionKinds = testInteractionStaticSchema.interactionStaticSessionKinds
+        , interactionIntentForms = [moveIntentForm (testFragmentRef TestInteractionContent)]
+        , interactionConflictPolicies = testInteractionStaticSchema.interactionStaticConflictPolicies
         }
 
 moveIntentForm :: SurfaceFragmentRef TestInteractionSurface -> IntentFormContract (SurfaceFragmentRef TestInteractionSurface) TestInteractionIntent

@@ -20,6 +20,7 @@ import Application.Helper.LiveSurface (EmptyInteractionIntent,
                                        SurfaceFragmentRef, SurfaceScope (..),
                                        TypedLiveSurfaceDefinition (..),
                                        emptyInteractionCapability,
+                                       emptyInteractionStaticSchema,
                                        liveFragmentDependsOn,
                                        liveSurfaceAuthorizationByRequirement,
                                        liveSurfaceConfigJson,
@@ -110,6 +111,7 @@ adminInvitesLiveSurfaceDefinitionForVenue surfaceVenueId =
                 (liveFragmentDependsOn (AdminInvitesResource surfaceVenueId) [])
         , typedSurfaceDecorateRequestsWithin = const ["#admin-invites-fragment"]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin surfaceVenueId))
+        , typedSurfaceInteractionSchema = emptyInteractionStaticSchema
         , typedSurfaceInteraction = const emptyInteractionCapability
         }
 

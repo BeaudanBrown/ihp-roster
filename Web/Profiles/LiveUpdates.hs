@@ -70,6 +70,7 @@ profileContentLiveSurfaceDefinition =
                 (profileContentDependsOn key fragment)
         , typedSurfaceDecorateRequestsWithin = const ["#" <> profileDetailsFormId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\key -> RequireCurrentVenueStaff key.profileContentVenueId key.profileContentStaffId)
+        , typedSurfaceInteractionSchema = emptyInteractionStaticSchema
         , typedSurfaceInteraction = const emptyInteractionCapability
         }
 
@@ -143,6 +144,7 @@ profileLeaveRequestsLiveSurfaceDefinition =
                 (liveFragmentDependsOn (StaffLeaveRequestsResource key.profileLeaveStaffId) [])
         , typedSurfaceDecorateRequestsWithin = const ["#" <> profileLeaveRequestsContentFragmentId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\key -> RequireCurrentVenueStaff key.profileLeaveVenueId key.profileLeaveStaffId)
+        , typedSurfaceInteractionSchema = emptyInteractionStaticSchema
         , typedSurfaceInteraction = const emptyInteractionCapability
         }
 

@@ -87,6 +87,7 @@ leaveRequestsLiveSurfaceDefinition =
                 (liveFragmentDependsOn (LeaveRequestsResource (unpackId currentVenueId)) [])
         , typedSurfaceDecorateRequestsWithin = const ["#" <> leaveRequestsShellId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueManager (unpackId currentVenueId)))
+        , typedSurfaceInteractionSchema = emptyInteractionStaticSchema
         , typedSurfaceInteraction = const emptyInteractionCapability
         }
 

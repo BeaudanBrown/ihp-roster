@@ -32,6 +32,7 @@ import Application.Helper.LiveSurface (EmptyInteractionIntent,
                                        SurfaceFragmentRef, SurfaceScope (..),
                                        TypedLiveSurfaceDefinition (..),
                                        emptyInteractionCapability,
+                                       emptyInteractionStaticSchema,
                                        liveFragmentDependsOn,
                                        liveSurfaceAuthorizationByRequirement,
                                        liveSurfaceConfigJson,
@@ -130,6 +131,7 @@ adminXeroLiveSurfaceDefinitionForVenue surfaceVenueId =
                 (adminXeroLiveFragmentDependencies surfaceVenueId fragment)
         , typedSurfaceDecorateRequestsWithin = const ["#admin-xero-fragment"]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueOwner surfaceVenueId))
+        , typedSurfaceInteractionSchema = emptyInteractionStaticSchema
         , typedSurfaceInteraction = const emptyInteractionCapability
         }
 

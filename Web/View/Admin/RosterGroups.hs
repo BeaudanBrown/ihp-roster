@@ -17,6 +17,7 @@ import Application.Helper.LiveSurface (EmptyInteractionIntent,
                                        SurfaceFragmentRef, SurfaceScope (..),
                                        TypedLiveSurfaceDefinition (..),
                                        emptyInteractionCapability,
+                                       emptyInteractionStaticSchema,
                                        liveFragmentDependsOn,
                                        liveSurfaceAuthorizationByRequirement,
                                        liveSurfaceConfigJson,
@@ -75,6 +76,7 @@ adminRosterGroupsLiveSurfaceDefinition =
                 (liveFragmentDependsOn (AdminRosterGroupsResource currentVenueScopeId) [])
         , typedSurfaceDecorateRequestsWithin = const ["#admin-roster-groups-fragment"]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId))
+        , typedSurfaceInteractionSchema = emptyInteractionStaticSchema
         , typedSurfaceInteraction = const emptyInteractionCapability
         }
 
