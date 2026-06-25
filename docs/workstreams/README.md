@@ -41,6 +41,8 @@ for forward-looking design.
   compatibility/manual authoring layer and strict typed migration.
 - `live-update-runtime-simplification.md` - follow-up cleanup of internal
   live-update compatibility primitives and protocol simplification decisions.
+- `typed-interaction-surfaces.md` - typed disposable interaction layers,
+  generated intent contracts, and HTMX form bridge on top of live surfaces.
 - `roster-sql-read-model-trial.md` - trial replacing roster projection-cache
   reads with a direct SQL/database-near read model.
 - `backlog.md` - smaller open streams that do not yet need dedicated files.

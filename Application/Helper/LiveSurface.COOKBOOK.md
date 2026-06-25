@@ -23,6 +23,16 @@ URLs, authorization, and protection policy.
   browsers to refetch authorized fragments.
 - **Projection**: a cached server render snapshot used when a fragment can be
   regenerated from the same read model.
+- **Interaction capability**: optional typed metadata attached to the same
+  surface origin for disposable UI layers, user intents, generated HTMX intent
+  forms, and live-fragment conflict policy. See
+  `docs/workstreams/typed-interaction-surfaces.md` while this stream is active.
+- **Disposable layer**: a Haskell-declared client-owned region for temporary UI
+  such as drag previews, resize ghosts, selection rectangles, context menus, or
+  command overlays. It is not authoritative and must be safe to clear.
+- **Intent form**: a Haskell-rendered HTMX form for a typed committed user
+  intent. TypeScript fills generated hidden fields and dispatches the generated
+  trigger; it must not construct persistence URLs.
 
 ## Add A Fragment
 
@@ -73,6 +83,10 @@ URLs, authorization, and protection policy.
   pages do not force unnecessary database work.
 - Do not add feature-level passive broadcast or refresh helpers. Passive viewer
   updates flow from touched `LiveResource` values through `Web.LiveSurfaceRegistry`.
+- Do not handwrite interaction `data-bepis-*` attrs, disposable layer mounts, or
+  intent HTMX forms in feature views once typed helpers exist. Interaction
+  markup should be generated from typed Haskell contracts so duplicate/moved
+  surface mounts keep valid target ids and form attributes.
 
 ## Review Checklist
 

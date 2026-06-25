@@ -32,11 +32,21 @@ Read this before editing `frontend/ts/`.
 
 ## Future Interaction Work
 
+- Start with `docs/workstreams/typed-interaction-surfaces.md` and the active
+  `ir-jsyd` ticket tree before implementing interaction-layer work.
 - Author new interaction-layer browser code in TypeScript under `frontend/ts/`.
 - It may use esbuild-resolved imports, but keep project commands Nix/devenv-owned
   and avoid introducing developer-facing npm/npx workflows.
 - Keep Bepis browser contracts stable and narrow. Backend-emitted JSON/data
   boundaries should use Haskell-owned generated contracts rather than duplicated
   TypeScript domain models.
+- TypeScript must consume Haskell-generated surface, disposable-layer, intent,
+  intent-field, live-fragment, and conflict-policy contracts where available; do
+  not define canonical `data-bepis-*`, surface, fragment, layer, or intent string
+  names by hand in runtime code.
+- Generic interaction code may create, move, and clear disposable UI inside
+  Haskell-declared disposable layers, but must not mutate server-owned business
+  DOM or construct persistence URLs. Committed intents submit through
+  Haskell-rendered HTMX forms.
 - Production/live packaging serves checked-in generated static assets and must
   stay Node-free.

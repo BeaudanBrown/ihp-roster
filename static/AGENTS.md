@@ -77,6 +77,24 @@ Read this before editing `static/` assets.
   without a protocol migration ticket and browser coverage.
 - Feature scripts may handle genuinely feature-specific UI behavior.
 
+## Typed Interaction Runtime
+
+- Read `docs/workstreams/typed-interaction-surfaces.md` before adding
+  `data-bepis-*` interaction markup or runtime behavior.
+- Interaction surfaces, server layers, disposable layers, item/slot/handle
+  markers, intent names, intent fields, HTMX triggers, targets, and swaps should
+  be rendered by Haskell helpers from typed Haskell contracts. Do not handwrite
+  raw `data-bepis-*` attrs or interaction HTMX forms in feature views except in
+  tests/fixtures that explicitly exercise guardrails.
+- Static/TypeScript runtime code consumes generated contracts and stays generic:
+  it may manage disposable sessions and disposable UI inside declared layers,
+  but must not mutate server-owned business DOM, infer live-fragment URLs/target
+  ids, or construct mutation URLs.
+- Use standard HTMX primitives first: generated forms, custom event triggers,
+  lifecycle events, `hx-sync`/`hx-disabled-elt` where useful, and OOB swaps.
+  Do not introduce HTMX extensions or custom elements until a later ticket proves
+  that repeated stable lifecycle behavior belongs there.
+
 ## Horizontal Scroll Components
 
 - Use `app-horizontal-frame`, `app-horizontal-grid`, and
