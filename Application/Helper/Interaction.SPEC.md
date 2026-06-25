@@ -1,8 +1,7 @@
 # Typed Interaction Surface Specification
 
 This living spec defines the implementation contract for typed disposable
-interaction surfaces. It moves the durable contract from the active planning
-stream in `docs/workstreams/typed-interaction-surfaces.md` to the seam shared by
+interaction surfaces. This is the durable contract for the seam shared by
 `Application.Helper.LiveSurface`, `Application.Helper.LiveUpdate`, Haskell view
 helpers, generated TypeScript contracts, and the generic browser runtime.
 
@@ -114,9 +113,9 @@ or infer a singleton surface for a scope.
    `renderInteractionDisposableLayer` for custom layouts, `renderInteraction*Marker`
    for item/container/slot/dropzone/resize/activation markers, and
    `renderInteractionIntentForm` for server-owned HTMX intent submission forms.
-4. Haskell-generated TypeScript exposes narrow browser DTOs/unions for surface
-   metadata, layers, session kinds, intents, fields, live fragments, and
-   conflict policy.
+4. Haskell-generated TypeScript exposes narrow browser DTOs/unions for live
+   update payloads, registered surface families, static interaction schemas,
+   layers, session kinds, intents, fields, live fragments, and conflict policy.
 5. Generic TypeScript discovers mounted contracts, manages disposable sessions,
    emits normalized intents, validates fields against the generated schema,
    fills the matching generated form in the same mount, and dispatches the
@@ -220,7 +219,7 @@ render a ghost and insertion guide in disposable layers while dragging. On drop,
 it submits the generated form. The server validates assignment ownership, target
 scope, ordering, conflicts, and permissions before returning OOB fragments.
 
-The first roster prototype uses editable row-grid shift launchers as draggable
+The roster drop implementation uses editable row-grid shift launchers as draggable
 items and empty row-grid create launchers as dropzones. The browser submits
 opaque `sourceItemKey` and `targetDropzoneKey` tokens through the generated
 `move-roster-shift-to-slot` form; the controller parses those tokens, validates

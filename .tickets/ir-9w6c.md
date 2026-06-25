@@ -1,6 +1,6 @@
 ---
 id: ir-9w6c
-status: open
+status: closed
 deps: [ir-tp1i, ir-2g0b]
 links: []
 created: 2026-06-25T11:57:30Z
@@ -22,3 +22,9 @@ Remove compatibility helpers that embedded large TypeScript declarations in Hask
 
 Docs describe generator architecture, static schema versus runtime metadata, and validator/type guard expectations; guardrails prohibit new large handwritten TS declaration blocks for Haskell-owned contracts; frontend-check, typecheck, and focused contract tests pass.
 
+
+## Notes
+
+**2026-06-25T13:40:42Z**
+
+Removed final compatibility/proof contract remnants: deleted LegacyManualContracts, the aeson-typescript spike module, and the spike Hspec suite; removed LegacyManual origin/helper from TypeScript generator support; removed spike declaration from generated contracts. Updated FrontendContracts guardrails to assert no legacy/manual/spike modules or generated output return. Updated Interaction spec, LiveSurface cookbook, frontend/static agent docs, and typed-interaction workstream to name the Haskell-owned generated-contract architecture, static manifest/schema versus runtime metadata split, validator expectations, and no-handwritten contract rules. Verified frontend-contracts-check, frontend-check, typecheck, focused Hspec, and clean LSP diagnostics.

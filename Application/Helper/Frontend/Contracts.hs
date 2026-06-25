@@ -5,7 +5,6 @@ module Application.Helper.Frontend.Contracts
     )
 where
 
-import Application.Helper.Frontend.AesonTypeScriptSpike (aesonTypeScriptSpikeDeclaration)
 import Application.Helper.Frontend.InteractionSchema (interactionSchemaDeclaration)
 import Application.Helper.Frontend.LiveUpdateSchema (liveUpdateSchemaDeclaration)
 import Application.Helper.Frontend.SurfaceManifestSchema (surfaceManifestDeclaration)
@@ -40,7 +39,6 @@ frontendContractDeclarations =
     , liveUpdateSchemaDeclaration
     , interactionSchemaDeclaration
     , surfaceManifestDeclaration
-    , aesonTypeScriptSpikeDeclaration
     ]
 
 frontendContractsTypeScript :: Text

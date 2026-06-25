@@ -79,18 +79,20 @@ Read this before editing `static/` assets.
 
 ## Typed Interaction Runtime
 
-- Read `Application/Helper/Interaction.SPEC.md` and
-  `docs/workstreams/typed-interaction-surfaces.md` before adding
-  `data-bepis-*` interaction markup or runtime behavior.
+- Read `Application/Helper/Interaction.SPEC.md` before adding `data-bepis-*`
+  interaction markup or runtime behavior. Use
+  `docs/workstreams/typed-interaction-surfaces.md` only for remaining ticket
+  history while it is still active.
 - Interaction surfaces, server layers, disposable layers, item/slot/handle
   markers, intent names, intent fields, HTMX triggers, targets, and swaps should
   be rendered by Haskell helpers from typed Haskell contracts. Do not handwrite
   raw `data-bepis-*` attrs or interaction HTMX forms in feature views except in
   tests/fixtures that explicitly exercise guardrails.
-- Static/TypeScript runtime code consumes generated contracts and stays generic:
-  it may manage disposable sessions and disposable UI inside declared layers,
-  but must not mutate server-owned business DOM, infer live-fragment URLs/target
-  ids, or construct mutation URLs.
+- Static/TypeScript runtime code consumes generated live-update,
+  registered-surface, and interaction contracts and stays generic: it may manage
+  disposable sessions and disposable UI inside declared layers, but must not
+  mutate server-owned business DOM, infer live-fragment URLs/target ids, or
+  construct mutation URLs.
 - Use standard HTMX primitives first: generated forms, custom event triggers,
   lifecycle events, `hx-sync`/`hx-disabled-elt` where useful, and OOB swaps.
   Do not introduce HTMX extensions or custom elements until a later ticket proves

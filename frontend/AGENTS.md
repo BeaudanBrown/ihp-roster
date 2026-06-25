@@ -30,21 +30,21 @@ Read this before editing `frontend/ts/`.
 - Use Playwright via `bash ./bin/in-env e2e ...` for browser/server integration: HTMX, Bootstrap behavior, websockets/live updates, layout, roster interactions, mobile behavior, and anything requiring real browser APIs.
 - Do not add frontend unit tests or Playwright E2E to pre-commit hooks. The hook is for generated asset drift only.
 
-## Future Interaction Work
+## Typed Interaction Work
 
-- Start with `Application/Helper/Interaction.SPEC.md`,
-  `docs/workstreams/typed-interaction-surfaces.md`, and the active `ir-jsyd`
-  ticket tree before implementing interaction-layer work.
+- Start with `Application/Helper/Interaction.SPEC.md` before implementing
+  interaction-layer work. Use `docs/workstreams/typed-interaction-surfaces.md`
+  only for remaining ticket history while it is still active.
 - Author new interaction-layer browser code in TypeScript under `frontend/ts/`.
 - It may use esbuild-resolved imports, but keep project commands Nix/devenv-owned
   and avoid introducing developer-facing npm/npx workflows.
 - Keep Bepis browser contracts stable and narrow. Backend-emitted JSON/data
-  boundaries should use Haskell-owned generated contracts rather than duplicated
+  boundaries must use Haskell-owned generated contracts rather than duplicated
   TypeScript domain models.
-- TypeScript must consume Haskell-generated surface, disposable-layer, intent,
-  intent-field, live-fragment, and conflict-policy contracts where available; do
-  not define canonical `data-bepis-*`, surface, fragment, layer, or intent string
-  names by hand in runtime code.
+- TypeScript must consume Haskell-generated live-update, registered-surface,
+  disposable-layer, intent, intent-field, live-fragment, and conflict-policy
+  contracts; do not define canonical `data-bepis-*`, surface, fragment, layer,
+  or intent string names by hand in runtime code.
 - Generic interaction code may create, move, and clear disposable UI inside
   Haskell-declared disposable layers, but must not mutate server-owned business
   DOM or construct persistence URLs. Committed intents submit through

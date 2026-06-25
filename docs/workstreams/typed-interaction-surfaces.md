@@ -1,6 +1,6 @@
 # Typed Interaction Surfaces
 
-Status: active
+Status: active; durable implementation contract lives in `Application/Helper/Interaction.SPEC.md`.
 
 Tickets:
 
@@ -29,9 +29,9 @@ Related workstreams and docs:
 
 ## Goal
 
-The durable implementation contract now lives in
+The durable implementation contract lives in
 `Application/Helper/Interaction.SPEC.md`; keep this workstream as the active
-planning/ticket index until the stream exits.
+planning/ticket index until the remaining interaction stream exits.
 
 Extend the typed live-surface architecture with optional typed interaction
 capabilities. Haskell should remain the source of truth for surface families,
@@ -51,7 +51,9 @@ The target authoring model is:
   empty for non-interactive surfaces;
 - Haskell helpers render valid surface mounts, server layers, disposable layers,
   typed item/slot/handle attributes, and HTMX intent forms;
-- generated TypeScript contracts describe the browser boundary;
+- generated TypeScript contracts describe the browser boundary, including
+  live-update payloads, registered surface families/fragments, static
+  interaction schemas, and runtime metadata shapes;
 - generic TypeScript runtimes manage disposable sessions, dispatch normalized
   intents, fill generated forms, and coordinate live updates without owning
   business state.
@@ -115,19 +117,23 @@ and default non-interactive policy.
 
 ### Generated TypeScript
 
-Generated TypeScript should stay narrow and browser-boundary focused:
+Generated TypeScript stays narrow and browser-boundary focused:
 
-- surface family/kind values;
+- registered surface family values, scope kinds, and fragment kinds;
 - surface scope and mount metadata needed by generic runtime;
-- live fragment keys and wire refs already used by live updates;
+- live-update config, command, message, fragment, and protection DTOs plus
+  runtime type guards;
+- static interaction schemas;
 - disposable layer names;
 - session kinds;
 - intent names;
 - intent field object shapes;
 - conflict-policy DTOs.
 
-Do not generate broad database models or make TypeScript authoritative for
-business state. `frontend-contracts-check` and `frontend-check` must catch drift.
+Runtime-specific URLs, DOM ids, current scope keys, HTMX actions, targets, and
+hidden values remain Haskell-rendered metadata. Do not generate broad database
+models or make TypeScript authoritative for business state.
+`frontend-contracts-check` and `frontend-check` must catch drift.
 
 ### Surface portability
 
@@ -204,7 +210,8 @@ Conflict policy is typed and conservative at first:
 1. Document the contract and update local agent docs (`ir-4uuy`).
 2. Add Haskell interaction capability types with empty capabilities for existing
    live surfaces (`ir-fq28`).
-3. Generate TypeScript contracts from those Haskell declarations (`ir-95e7`).
+3. Generate TypeScript contracts from Haskell declarations (`ir-95e7`, plus
+   `ir-vpmd` for live-update/schema-owned frontend wire contracts).
 4. Add typed Haskell render helpers and guardrails (`ir-w50d`).
 5. Implement the generic TypeScript intent bus and HTMX form bridge (`ir-ojl5`).
 6. Prove the golden path on a low-risk click/select prototype (`ir-gyit`).

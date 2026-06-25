@@ -2,7 +2,6 @@ module Application.Helper.Frontend.TypeScript
     ( TypeScriptDeclaration (..)
     , TypeScriptDeclarationOrigin (..)
     , aesonTypeScriptDeclaration
-    , legacyManualDeclaration
     , renderTypeScriptDeclarations
     , smallCompositionDeclaration
     , stringUnionDeclaration
@@ -16,16 +15,13 @@ import Data.Aeson.TypeScript.TH (ExportMode (ExportEach),
 import qualified Data.Text as Text
 import IHP.Prelude
 
--- | Where a generated frontend contract block came from.
---
--- The long-term direction is HaskellSchemaGenerated for every Haskell/TS shared
--- DTO. LegacyManual is a temporary marker for the pre-existing handwritten
--- live-update and interaction blocks while later tickets migrate them onto
--- Haskell-owned schemas.
+-- | Where a frontend contract block came from. Browser-boundary DTOs shared
+-- between Haskell and TypeScript should use HaskellSchemaGenerated. Small
+-- composition declarations are reserved for narrow app constants such as
+-- OverlayLane that do not need a full JSON schema.
 data TypeScriptDeclarationOrigin
     = HaskellSchemaGenerated
     | SmallComposition
-    | LegacyManual
     deriving (Eq, Show)
 
 data TypeScriptDeclaration = TypeScriptDeclaration
@@ -57,14 +53,6 @@ smallCompositionDeclaration name source =
     TypeScriptDeclaration
         { name
         , origin = SmallComposition
-        , source
-        }
-
-legacyManualDeclaration :: Text -> Text -> TypeScriptDeclaration
-legacyManualDeclaration name source =
-    TypeScriptDeclaration
-        { name
-        , origin = LegacyManual
         , source
         }
 

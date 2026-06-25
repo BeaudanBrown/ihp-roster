@@ -25,8 +25,8 @@ URLs, authorization, and protection policy.
   regenerated from the same read model.
 - **Interaction capability**: optional typed metadata attached to the same
   surface origin for disposable UI layers, user intents, generated HTMX intent
-  forms, and live-fragment conflict policy. See
-  `docs/workstreams/typed-interaction-surfaces.md` while this stream is active.
+  forms, and live-fragment conflict policy. The durable interaction contract is
+  `Application/Helper/Interaction.SPEC.md`.
 - **Disposable layer**: a Haskell-declared client-owned region for temporary UI
   such as drag previews, resize ghosts, selection rectangles, context menus, or
   command overlays. It is not authoritative and must be safe to clear.
@@ -61,7 +61,9 @@ cookbook remains the checklist for live fragments.
 7. Render `data-live-update-surface={liveSurfaceConfigJson surface}` on a
    stable owner shell, where `surface` comes from `mkTypedDefinedLiveSurface`.
 8. Register the surface in `Web.LiveSurfaceRegistry` so touched resources can be
-   matched to subscribed scopes and fragments.
+   matched to subscribed scopes and fragments. Keep the static
+   `registeredLiveSurfaceManifest` entry in the same module in sync; generated
+   TypeScript exports this manifest for frontend discovery and tests.
 9. Make the business mutation return touched resources and call
    `invalidateTouchedResources` or `invalidateTouchedResourcesWithoutContext`
    after the write commits.
@@ -88,9 +90,9 @@ cookbook remains the checklist for live fragments.
 - Do not add feature-level passive broadcast or refresh helpers. Passive viewer
   updates flow from touched `LiveResource` values through `Web.LiveSurfaceRegistry`.
 - Do not handwrite interaction `data-bepis-*` attrs, disposable layer mounts, or
-  intent HTMX forms in feature views once typed helpers exist. Interaction
-  markup should be generated from typed Haskell contracts so duplicate/moved
-  surface mounts keep valid target ids and form attributes.
+  intent HTMX forms in feature views. Interaction markup should be generated
+  from typed Haskell contracts so duplicate/moved surface mounts keep valid
+  target ids and form attributes.
 
 ## Review Checklist
 

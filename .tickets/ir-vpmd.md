@@ -1,6 +1,6 @@
 ---
 id: ir-vpmd
-status: open
+status: closed
 deps: []
 links: [ir-jsyd]
 created: 2026-06-25T11:56:58Z
@@ -21,3 +21,9 @@ Use aeson-typescript as the primary TypeScript declaration generator. Allow live
 
 No large handwritten TypeScript declaration blocks remain for Haskell-owned frontend contracts; aeson-typescript is integrated into the project; live-update wire protocol TypeScript types are generated from Haskell wire types and JSON instances; browser-received JSON has generated/schema-driven validators or type guards; static interaction schema exposes all shared layer/session/intent/field concepts for generation; registered surfaces/fragments/intents appear in generated contracts or fail guard tests when omitted; docs state that every Haskell/TypeScript shared concept must be generated from Haskell-owned schemas; frontend-contracts-check, frontend-check, typecheck, and focused LiveSurface/LiveUpdate/Interaction tests pass.
 
+
+## Notes
+
+**2026-06-25T13:40:51Z**
+
+All child tickets are closed. Final cleanup removed legacy/manual/spike contract paths, generated contracts now cover live-update wire protocol and guards, interaction static schema, registered surface manifest, and docs describe Haskell-owned schema generation with runtime metadata kept server-rendered. Verification for the final slice passed: frontend-contracts-check, frontend-check, typecheck, focused FrontendContracts/LiveSurface/Interaction Hspec, and clean LSP diagnostics.
