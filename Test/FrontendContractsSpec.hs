@@ -13,6 +13,8 @@ import Application.Helper.Frontend.Contracts (frontendContractDeclarations,
                                               frontendContractsTypeScript)
 import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..),
                                                TypeScriptDeclarationOrigin (..))
+import Web.LiveSurfaceRegistry (RegisteredLiveSurfaceManifest (..),
+                                registeredLiveSurfaceManifest)
 
 tests :: Spec
 tests = describe "Frontend contract generator foundation" do
@@ -26,6 +28,7 @@ tests = describe "Frontend contract generator foundation" do
         declarationOrigins `shouldContain` [("AesonTypeScriptSpike", HaskellSchemaGenerated)]
         declarationOrigins `shouldContain` [("LiveUpdateContracts", HaskellSchemaGenerated)]
         declarationOrigins `shouldContain` [("InteractionContracts", HaskellSchemaGenerated)]
+        declarationOrigins `shouldContain` [("LiveSurfaceManifest", HaskellSchemaGenerated)]
 
     it "keeps the composition root free of large handwritten protocol blocks" do
         source <- Text.readFile "Application/Helper/Frontend/Contracts.hs"
@@ -45,6 +48,13 @@ tests = describe "Frontend contract generator foundation" do
                     then Just path
                     else Nothing
         offenders `shouldBe` []
+
+    it "generates a manifest for every registered live surface family" do
+        let generatedSource = frontendContractsTypeScript
+        forM_ registeredLiveSurfaceManifest \surface -> do
+            generatedSource `shouldSatisfy` Text.isInfixOf ("\"" <> surface.surfaceFamily <> "\":{")
+        generatedSource `shouldSatisfy` Text.isInfixOf "export const LiveSurfaceManifest"
+        generatedSource `shouldSatisfy` Text.isInfixOf "export type LiveSurfaceFamily"
 
     it "does not leave migrated protocols in the legacy manual block" do
         source <- Text.readFile "Application/Helper/Frontend/LegacyManualContracts.hs"

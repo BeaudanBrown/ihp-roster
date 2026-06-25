@@ -144,8 +144,10 @@ isAllowedInfrastructureFile path =
     path
         `elem`
             [ "Application/Helper/Frontend/Contracts.hs"
+            , "Application/Helper/Frontend/InteractionSchema.hs"
             , "Application/Helper/Frontend/LegacyManualContracts.hs"
             , "Application/Helper/Frontend/LiveUpdateSchema.hs"
+            , "Application/Helper/Frontend/SurfaceManifestSchema.hs"
             , "Application/Helper/Interaction.hs"
             , "Application/Helper/LiveUpdate.hs"
             , "Application/Helper/LiveUpdate/Internal.hs"

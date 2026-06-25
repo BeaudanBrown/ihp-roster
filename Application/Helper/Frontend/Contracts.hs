@@ -8,6 +8,7 @@ where
 import Application.Helper.Frontend.AesonTypeScriptSpike (aesonTypeScriptSpikeDeclaration)
 import Application.Helper.Frontend.InteractionSchema (interactionSchemaDeclaration)
 import Application.Helper.Frontend.LiveUpdateSchema (liveUpdateSchemaDeclaration)
+import Application.Helper.Frontend.SurfaceManifestSchema (surfaceManifestDeclaration)
 import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..),
                                                renderTypeScriptDeclarations,
                                                stringUnionDeclaration)
@@ -38,6 +39,7 @@ frontendContractDeclarations =
     [ stringUnionDeclaration overlayLaneTypeName (fmap snd overlayLaneValues)
     , liveUpdateSchemaDeclaration
     , interactionSchemaDeclaration
+    , surfaceManifestDeclaration
     , aesonTypeScriptSpikeDeclaration
     ]
 

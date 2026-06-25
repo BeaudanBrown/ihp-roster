@@ -1,4 +1,4 @@
-import { InteractionDom, InteractionStaticSchemas, type InteractionCapabilityContract, type IntentFormContract } from "../generated/contracts";
+import { InteractionDom, InteractionStaticSchemas, LiveSurfaceManifest, type InteractionCapabilityContract, type IntentFormContract } from "../generated/contracts";
 import { assertDeepEqual, assertEqual, test } from "./harness";
 
 test("generated interaction contracts describe mount-local intent forms", () => {
@@ -38,6 +38,14 @@ test("generated interaction contracts describe mount-local intent forms", () => 
     assertEqual(InteractionDom.pointerFields.sourceItemKey, "sourceItemKey");
     assertEqual(InteractionDom.pointerFields.targetDropzoneKey, "targetDropzoneKey");
     assertDeepEqual(capability.intentForms[0]?.fields, [{ name: "cellId", presence: "required" }]);
+});
+
+test("generated live surface manifest exposes registered surface schemas without runtime urls", () => {
+    assertEqual(LiveSurfaceManifest.roster.interactionSchema, "roster");
+    assertDeepEqual(LiveSurfaceManifest.roster.scopeKinds, ["roster_week"]);
+    assertEqual(LiveSurfaceManifest.roster.fragmentKinds.includes("roster_day_section"), true);
+    assertEqual(LiveSurfaceManifest.timesheets.scopeKinds[0], "timesheet_week");
+    assertEqual(JSON.stringify(LiveSurfaceManifest).includes("/ShowRosterWeek"), false);
 });
 
 test("generated interaction static schemas expose roster intents and fields", () => {
