@@ -20,7 +20,10 @@ type WireConflictPolicy = {
 };
 
 const attrs = InteractionDom.attributes;
-const defaultInteractionDeferTimeoutMs = 5000;
+// Deferral is session-bound: passive fragments should flush as soon as the
+// interaction session ends. This timeout is only a fallback watchdog for stuck
+// or lost session-end events, not the ordinary delay mechanism.
+const defaultInteractionDeferFallbackTimeoutMs = 5000;
 
 export function resolveLiveFragmentInteractionConflict(
     fragment: Pick<LiveUpdateWireFragment, "targetId">,
@@ -32,7 +35,7 @@ export function resolveLiveFragmentInteractionConflict(
 
     const policy = matchingConflictPolicy(session, fragment, target);
     const action = policy?.resolution ?? "defer";
-    const timeoutMs = policy?.timeoutMs ?? (action === "defer" ? defaultInteractionDeferTimeoutMs : null);
+    const timeoutMs = policy?.timeoutMs ?? (action === "defer" ? defaultInteractionDeferFallbackTimeoutMs : null);
 
     return { action, session, timeoutMs };
 }

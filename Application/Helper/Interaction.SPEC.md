@@ -158,7 +158,8 @@ tracks active sessions by concrete mount and consults helper-rendered conflict
 policies before refetching passive fragments. A matching policy may apply,
 defer, or cancel; without a narrower policy, a passive refresh targeting the
 same concrete mount defers and latest-per-target invalidation wins. Deferred
-fragments are refetched after session end or a bounded timeout, so queued updates
+fragments are refetched immediately after session end. A bounded timeout is only
+a fallback watchdog for lost terminal events or stuck sessions, so queued updates
 converge to the latest server state instead of applying stale stored HTML.
 
 On commit the generic bridge must:
@@ -251,8 +252,10 @@ Conflict policy is typed and conservative:
   the Haskell-owned policy;
 - actor HTMX responses for the committed intent win, clear disposable UI, and
   replace authoritative DOM;
-- passive deferred swaps must not wait forever; timeout should cancel stale
-  sessions and apply/refetch server state;
+- passive deferred swaps flush as soon as the active session ends;
+- fallback timeout should exist only to prevent stuck sessions from hiding
+  passive updates forever, and should cancel stale sessions then apply/refetch
+  server state;
 - if policy is missing or ambiguous, prefer cancel/refetch over preserving stale
   local UI.
 

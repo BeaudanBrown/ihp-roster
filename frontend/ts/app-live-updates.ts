@@ -457,7 +457,7 @@ type HtmxConfigRequestEvent = Event & {
         }
         if (interactionConflict && interactionConflict.action === 'defer') {
             pendingInteractionDeferredFragments.set(resolvedFragment.targetId, resolvedFragment);
-            scheduleInteractionDeferredFlush(resolvedFragment.targetId, interactionConflict.timeoutMs);
+            scheduleInteractionDeferredFallbackFlush(resolvedFragment.targetId, interactionConflict.timeoutMs);
             document.dispatchEvent(new CustomEvent('app:live-update-performance', {
                 detail: {
                     name: 'live_updates.defer_fragment',
@@ -495,19 +495,22 @@ type HtmxConfigRequestEvent = Event & {
         pendingInteractionDeferredFragments.delete(targetId);
     }
 
-    function scheduleInteractionDeferredFlush(targetId: string, timeoutMs: number | null): void {
+    function scheduleInteractionDeferredFallbackFlush(targetId: string, timeoutMs: number | null): void {
         const existing = pendingInteractionTimers.get(targetId);
         if (existing) window.clearTimeout(existing);
         if (timeoutMs === null || timeoutMs <= 0) return;
 
+        // Deferred interaction fragments are normally flushed immediately from
+        // the interaction-session-end handler. This timer is only a watchdog so
+        // a lost terminal event cannot hide passive live updates indefinitely.
         pendingInteractionTimers.set(targetId, window.setTimeout(function () {
             const fragment = pendingInteractionDeferredFragments.get(targetId);
             const target = document.getElementById(targetId);
             if (fragment && target instanceof HTMLElement) {
                 const conflict = resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions);
-                if (conflict) activeInteractionSessions.requestCancel(conflict.session, 'live-fragment-defer-timeout');
+                if (conflict) activeInteractionSessions.requestCancel(conflict.session, 'live-fragment-defer-fallback-timeout');
             }
-            flushInteractionDeferredFragment(targetId, 'interaction_timeout');
+            flushInteractionDeferredFragment(targetId, 'interaction_fallback_timeout');
         }, timeoutMs));
     }
 
@@ -966,10 +969,8 @@ type HtmxConfigRequestEvent = Event & {
     document.addEventListener(actorFragmentRefreshEventName, handleActorFragmentRefreshEvent);
 
     document.addEventListener('bepis:interaction-session-end', function () {
-        window.setTimeout(function () {
-            flushInteractionDeferredFragmentsWithoutActiveSessions();
-            flushDeferredFragmentsWithoutActiveInputs();
-        }, 0);
+        flushInteractionDeferredFragmentsWithoutActiveSessions();
+        flushDeferredFragmentsWithoutActiveInputs();
     });
 
     document.addEventListener('htmx:afterSwap', function () {
