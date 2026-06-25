@@ -21,6 +21,7 @@
       sessionReadOnly: "data-bepis-session-read-only",
       sessionThreshold: "data-bepis-session-threshold",
       sessionTimeoutMs: "data-bepis-session-timeout-ms",
+      interactionActive: "data-bepis-interaction-active",
       disposableLayer: "data-bepis-disposable-layer",
       conflictPolicies: "data-bepis-conflict-policies",
       intentForm: "data-bepis-intent-form",
@@ -366,6 +367,7 @@
       clearTimeoutHandle();
       clearDisposableLayers(session.mount);
       releasePointerCapture(session.marker, session.pointerId);
+      setDocumentInteractionActive(session.mount, false);
       if (activeSession === session) activeSession = null;
       dispatchInteractionSessionEnd(sessionSnapshot(session, reason));
     };
@@ -417,6 +419,8 @@
         clearDisposableLayers(start.mount);
         activeSession = start;
         capturePointer(start.marker, start.pointerId);
+        setDocumentInteractionActive(start.mount, true);
+        if (event.cancelable) event.preventDefault();
         const result = runtime.emit({
           phase: "start",
           intent: start.intent,
@@ -435,10 +439,12 @@
       },
       handlePointerMove(event) {
         if (!activeSession || !isMatchingPointerEvent(event, activeSession)) return;
+        if (event.cancelable) event.preventDefault();
         updateSession(activeSession, event);
       },
       handlePointerUp(event) {
         if (!activeSession || !isMatchingPointerEvent(event, activeSession)) return;
+        if (event.cancelable && activeSession.activated) event.preventDefault();
         updateSession(activeSession, event);
         if (activeSession.activated) finishSession(activeSession, event);
         else cancelSession(activeSession, event);
@@ -579,6 +585,12 @@
   }
   function clearDisposableLayers(mount) {
     for (const layer of mount.querySelectorAll(disposableLayerSelector)) clearElement(layer);
+  }
+  function setDocumentInteractionActive(mount, active) {
+    const root = mount.ownerDocument?.documentElement;
+    if (!root) return;
+    if (active) root.setAttribute(attrs4.interactionActive, values3.enabled);
+    else root.removeAttribute(attrs4.interactionActive);
   }
   function clearElement(element) {
     const mutable = element;

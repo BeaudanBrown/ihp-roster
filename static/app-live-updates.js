@@ -21,6 +21,7 @@
       sessionReadOnly: "data-bepis-session-read-only",
       sessionThreshold: "data-bepis-session-threshold",
       sessionTimeoutMs: "data-bepis-session-timeout-ms",
+      interactionActive: "data-bepis-interaction-active",
       disposableLayer: "data-bepis-disposable-layer",
       conflictPolicies: "data-bepis-conflict-policies",
       intentForm: "data-bepis-intent-form",
@@ -50,13 +51,13 @@
 
   // frontend/ts/interaction/live-conflicts.ts
   var attrs = InteractionDom.attributes;
-  var defaultInteractionDeferTimeoutMs = 5e3;
+  var defaultInteractionDeferFallbackTimeoutMs = 5e3;
   function resolveLiveFragmentInteractionConflict(fragment, target, tracker) {
     const session = tracker.findForTarget(target);
     if (!session) return null;
     const policy = matchingConflictPolicy(session, fragment, target);
     const action = policy?.resolution ?? "defer";
-    const timeoutMs = policy?.timeoutMs ?? (action === "defer" ? defaultInteractionDeferTimeoutMs : null);
+    const timeoutMs = policy?.timeoutMs ?? (action === "defer" ? defaultInteractionDeferFallbackTimeoutMs : null);
     return { action, session, timeoutMs };
   }
   function readInteractionConflictPolicies(mount) {
@@ -526,7 +527,7 @@
       }
       if (interactionConflict && interactionConflict.action === "defer") {
         pendingInteractionDeferredFragments.set(resolvedFragment.targetId, resolvedFragment);
-        scheduleInteractionDeferredFlush(resolvedFragment.targetId, interactionConflict.timeoutMs);
+        scheduleInteractionDeferredFallbackFlush(resolvedFragment.targetId, interactionConflict.timeoutMs);
         document.dispatchEvent(new CustomEvent("app:live-update-performance", {
           detail: {
             name: "live_updates.defer_fragment",
@@ -559,7 +560,7 @@
       pendingInteractionTimers.delete(targetId);
       pendingInteractionDeferredFragments.delete(targetId);
     }
-    function scheduleInteractionDeferredFlush(targetId, timeoutMs) {
+    function scheduleInteractionDeferredFallbackFlush(targetId, timeoutMs) {
       const existing = pendingInteractionTimers.get(targetId);
       if (existing) window.clearTimeout(existing);
       if (timeoutMs === null || timeoutMs <= 0) return;
@@ -568,9 +569,9 @@
         const target = document.getElementById(targetId);
         if (fragment && target instanceof HTMLElement) {
           const conflict = resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions);
-          if (conflict) activeInteractionSessions.requestCancel(conflict.session, "live-fragment-defer-timeout");
+          if (conflict) activeInteractionSessions.requestCancel(conflict.session, "live-fragment-defer-fallback-timeout");
         }
-        flushInteractionDeferredFragment(targetId, "interaction_timeout");
+        flushInteractionDeferredFragment(targetId, "interaction_fallback_timeout");
       }, timeoutMs));
     }
     function flushInteractionDeferredFragment(targetId, reason) {
@@ -951,10 +952,8 @@
     }
     document.addEventListener(actorFragmentRefreshEventName, handleActorFragmentRefreshEvent);
     document.addEventListener("bepis:interaction-session-end", function() {
-      window.setTimeout(function() {
-        flushInteractionDeferredFragmentsWithoutActiveSessions();
-        flushDeferredFragmentsWithoutActiveInputs();
-      }, 0);
+      flushInteractionDeferredFragmentsWithoutActiveSessions();
+      flushDeferredFragmentsWithoutActiveInputs();
     });
     document.addEventListener("htmx:afterSwap", function() {
       flushInteractionDeferredFragmentsWithoutActiveSessions();
