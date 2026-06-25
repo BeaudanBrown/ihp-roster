@@ -7,6 +7,11 @@
       surfaceFamily: "data-bepis-surface-family",
       scopeKey: "data-bepis-scope-key",
       mountKey: "data-bepis-mount-key",
+      marker: "data-bepis-marker",
+      activation: "data-bepis-activation",
+      activationIntent: "data-bepis-activation-intent",
+      activationTrigger: "data-bepis-activation-trigger",
+      activationValueField: "data-bepis-activation-value-field",
       intentForm: "data-bepis-intent-form",
       intent: "data-bepis-intent",
       intentField: "data-bepis-intent-field",
@@ -14,7 +19,8 @@
       intentHiddenField: "data-bepis-intent-hidden-field"
     },
     values: {
-      enabled: "true"
+      enabled: "true",
+      activationMarker: "activation"
     }
   };
 
@@ -176,4 +182,91 @@
     };
   }
   var defaultInteractionRuntime = createInteractionRuntime();
+
+  // frontend/ts/interaction/activation.ts
+  var attrs2 = InteractionDom.attributes;
+  var values2 = InteractionDom.values;
+  var activationSelector = `[${attrs2.marker}="${values2.activationMarker}"]`;
+  function enableGenericInteractionActivations(options = {}) {
+    if (typeof document === "undefined") return () => void 0;
+    const root = options.root ?? document;
+    const runtime = options.runtime ?? defaultInteractionRuntime;
+    const clickHandler = (event) => handleActivationEvent(event, "click", runtime);
+    const changeHandler = (event) => handleActivationEvent(event, "change", runtime);
+    const keydownHandler = (event) => handleKeyboardActivationEvent(event, runtime);
+    root.addEventListener("click", clickHandler);
+    root.addEventListener("change", changeHandler);
+    root.addEventListener("keydown", keydownHandler);
+    return () => {
+      root.removeEventListener("click", clickHandler);
+      root.removeEventListener("change", changeHandler);
+      root.removeEventListener("keydown", keydownHandler);
+    };
+  }
+  function readActivationIntentPayload(event, expectedTrigger) {
+    const marker = closestActivationMarker(event.target);
+    if (!marker) return null;
+    const trigger = marker.getAttribute(attrs2.activationTrigger);
+    if (!trigger || expectedTrigger && trigger !== expectedTrigger) return null;
+    const intent = marker.getAttribute(attrs2.activationIntent);
+    if (!intent) return null;
+    const fields = readActivationFields(marker, event);
+    if (fields === null) return null;
+    return {
+      phase: "commit",
+      intent,
+      fields,
+      marker,
+      sourceEvent: event
+    };
+  }
+  function handleActivationEvent(event, expectedTrigger, runtime) {
+    const payload = readActivationIntentPayload(event, expectedTrigger);
+    if (!payload) return;
+    const result = runtime.emit(payload);
+    if (result.canceled && event.cancelable) event.preventDefault();
+  }
+  function handleKeyboardActivationEvent(event, runtime) {
+    if (!isKeyboardEvent(event)) return;
+    const trigger = keyboardTriggerForEvent(event);
+    if (!trigger) return;
+    handleActivationEvent(event, trigger, runtime);
+  }
+  function keyboardTriggerForEvent(event) {
+    if (event.key === "Enter") return "keydown-enter";
+    if (event.key === " " || event.key === "Spacebar") return "keydown-space";
+    return null;
+  }
+  function closestActivationMarker(target) {
+    if (!isElementLike2(target)) return null;
+    const marker = target.closest(activationSelector);
+    return isElementLike2(marker) ? marker : null;
+  }
+  function readActivationFields(marker, event) {
+    const valueField = marker.getAttribute(attrs2.activationValueField);
+    if (!valueField) return {};
+    const valueElement = valueSourceElement(marker, event);
+    if (!valueElement) return null;
+    return { [valueField]: valueElement.value };
+  }
+  function valueSourceElement(marker, event) {
+    if (isValueElement(event.target)) return event.target;
+    if (isValueElement(marker)) return marker;
+    const nested = marker.querySelector("input,select,textarea");
+    return isValueElement(nested) ? nested : null;
+  }
+  function isKeyboardEvent(event) {
+    return typeof KeyboardEvent !== "undefined" && event instanceof KeyboardEvent;
+  }
+  function isValueElement(value) {
+    return isElementLike2(value) && typeof value.value === "string";
+  }
+  function isElementLike2(value) {
+    if (value === null || typeof value !== "object") return false;
+    const maybe = value;
+    return typeof maybe.getAttribute === "function" && typeof maybe.closest === "function" && typeof maybe.querySelector === "function";
+  }
+
+  // frontend/ts/app-interactions.ts
+  enableGenericInteractionActivations();
 })();

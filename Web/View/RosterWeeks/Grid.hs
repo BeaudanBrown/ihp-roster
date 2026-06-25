@@ -25,6 +25,8 @@ module Web.View.RosterWeeks.Grid
     , rowsForDay
     ) where
 
+import Application.Helper.Interaction (InteractionSurfaceMount (..),
+                                       renderInteractionCapabilityShell)
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
 import Application.Helper.RosterWagePrediction
 import Application.Helper.ShiftTypeColours (shiftTypeColourPaletteKeys)
@@ -43,6 +45,9 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (TimeOfDay)
 import Data.UUID (UUID)
 import Web.RosterWeeks.Dom
+import Web.RosterWeeks.LiveSurface (rosterInteractionMountKey,
+                                    rosterLiveSurfaceDefinition)
+import Web.RosterWeeks.Projection (buildRosterProjectionScope)
 import Web.RosterWeeks.Types
 import Web.View.Prelude
 import Web.View.RosterWeeks.Header (renderRosterGridHeader)
@@ -93,14 +98,19 @@ renderRosterContentFragmentWithSwap maybeSwapOob gridModel =
     |]
 
 renderRosterLayout :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
-renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridWeekOffset, gridRosterGroups, gridPanelStaff, gridStaffSelfServicePanel } =
-    profileHtmlComponent "render.roster.layout" [hsx|
-        <div class="row g-4 align-items-start roster-layout">
-            {renderRosterContentFragment gridModel}
-            {forEach gridRosterWeek (\rosterWeek -> renderRosterStaffPanelFragment gridWeekOffset (coerce rosterWeek.rosterGroupId) (length gridRosterGroups > 1) RosterStaffPanelCurrentGroup gridPanelStaff)}
-            {renderRosterStaffSelfServicePanelFragment gridStaffSelfServicePanel}
-        </div>
-    |]
+renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridPanelStaff, gridStaffSelfServicePanel } =
+    let mount = InteractionSurfaceMount
+            { interactionMountScope = buildRosterProjectionScope gridCurrentRosterGroup.id gridWeekOffset
+            , interactionMountKey = rosterInteractionMountKey
+            }
+     in profileHtmlComponent "render.roster.layout" do
+        renderInteractionCapabilityShell rosterLiveSurfaceDefinition mount [hsx|
+            <div class="row g-4 align-items-start roster-layout">
+                {renderRosterContentFragment gridModel}
+                {forEach gridRosterWeek (\rosterWeek -> renderRosterStaffPanelFragment gridWeekOffset (coerce rosterWeek.rosterGroupId) (length gridRosterGroups > 1) RosterStaffPanelCurrentGroup gridPanelStaff)}
+                {renderRosterStaffSelfServicePanelFragment gridStaffSelfServicePanel}
+            </div>
+        |]
 
 rosterContentColumnClasses :: (?context :: ControllerContext) => RosterGridRenderModel -> Text
 rosterContentColumnClasses RosterGridRenderModel { gridStaffSelfServicePanel } =

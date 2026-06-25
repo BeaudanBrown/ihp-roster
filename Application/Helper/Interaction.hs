@@ -4,6 +4,7 @@ module Application.Helper.Interaction
     , EmptyInteractionSession
     , HtmxMethod (..)
     , HtmxSwap (..)
+    , InteractionActivationTrigger (..)
     , InteractionCapability (..)
     , InteractionConflictPolicy (..)
     , InteractionConflictResolution (..)
@@ -30,6 +31,8 @@ module Application.Helper.Interaction
     , htmxMethodValues
     , htmxSwapAttribute
     , htmxSwapValues
+    , interactionActivationTriggerAttribute
+    , interactionActivationTriggerValues
     , interactionConflictResolutionValues
     , interactionFieldPresenceValues
     , interactionFormDomId
@@ -39,6 +42,7 @@ module Application.Helper.Interaction
     , interactionMountDomId
     , mkInteractionSurfaceMount
     , renderInteractionActivationMarker
+    , renderInteractionActivationIntentMarker
     , renderInteractionCapabilityShell
     , renderInteractionContainerMarker
     , renderInteractionDisposableLayer
@@ -52,6 +56,7 @@ module Application.Helper.Interaction
     , renderInteractionSurfaceMount
     , serverLayerDomId
     , typedInteractionCapabilityFor
+    , withInteractionActivationIntentMarker
     ) where
 
 import Application.Helper.Interaction.Types (DisposableLayerDefinition (..),
@@ -63,6 +68,7 @@ import Application.Helper.Interaction.Types (DisposableLayerDefinition (..),
                                              IntentFieldSchema (..),
                                              IntentFormContract (..),
                                              IntentHiddenField (..),
+                                             InteractionActivationTrigger (..),
                                              InteractionCapability (..),
                                              InteractionConflictPolicy (..),
                                              InteractionConflictResolution (..),
@@ -77,6 +83,7 @@ import Application.Helper.Interaction.Types (DisposableLayerDefinition (..),
                                              SessionKindDefinition (..),
                                              emptyInteractionCapability,
                                              htmxMethodValues, htmxSwapValues,
+                                             interactionActivationTriggerValues,
                                              interactionConflictResolutionValues,
                                              interactionFieldPresenceValues)
 import qualified Application.Helper.Interaction.Types as Types
@@ -307,6 +314,25 @@ renderInteractionResizeHandleMarker = renderInteractionMarker InteractionResizeH
 renderInteractionActivationMarker :: Text -> Html -> Html
 renderInteractionActivationMarker = renderInteractionMarker InteractionActivationMarker
 
+renderInteractionActivationIntentMarker :: Text -> Text -> InteractionActivationTrigger -> Maybe IntentFieldName -> Html -> Html
+renderInteractionActivationIntentMarker markerKey intentName trigger valueFieldName inner =
+    Html5.div
+        ! attr "data-bepis-marker" (interactionMarkerKindAttribute InteractionActivationMarker)
+        ! attr "data-bepis-activation" markerKey
+        ! attr "data-bepis-activation-intent" intentName
+        ! attr "data-bepis-activation-trigger" (interactionActivationTriggerAttribute trigger)
+        ! maybeAttr "data-bepis-activation-value-field" (unIntentFieldName <$> valueFieldName)
+        $ inner
+
+withInteractionActivationIntentMarker :: Text -> Text -> InteractionActivationTrigger -> Maybe IntentFieldName -> Html -> Html
+withInteractionActivationIntentMarker markerKey intentName trigger valueFieldName html =
+    html
+        ! attr "data-bepis-marker" (interactionMarkerKindAttribute InteractionActivationMarker)
+        ! attr "data-bepis-activation" markerKey
+        ! attr "data-bepis-activation-intent" intentName
+        ! attr "data-bepis-activation-trigger" (interactionActivationTriggerAttribute trigger)
+        ! maybeAttr "data-bepis-activation-value-field" (unIntentFieldName <$> valueFieldName)
+
 interactionMarkerKindAttribute :: InteractionMarkerKind -> Text
 interactionMarkerKindAttribute InteractionItemMarker         = "item"
 interactionMarkerKindAttribute InteractionContainerMarker    = "container"
@@ -314,6 +340,10 @@ interactionMarkerKindAttribute InteractionSlotMarker         = "slot"
 interactionMarkerKindAttribute InteractionDropzoneMarker     = "dropzone"
 interactionMarkerKindAttribute InteractionResizeHandleMarker = "resize-handle"
 interactionMarkerKindAttribute InteractionActivationMarker   = "activation"
+
+interactionActivationTriggerAttribute :: InteractionActivationTrigger -> Text
+interactionActivationTriggerAttribute trigger =
+    fromMaybe (error "Unknown interaction activation trigger") (lookup trigger interactionActivationTriggerValues)
 
 fieldPresenceAttribute :: InteractionFieldPresence -> Text
 fieldPresenceAttribute presence =

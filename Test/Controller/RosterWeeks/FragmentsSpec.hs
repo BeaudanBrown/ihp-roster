@@ -710,6 +710,25 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "hx-get=\"/ShowRosterWeekOverviewFragment?weekOffset=0&amp;rosterGroupId="
                 response `responseBodyShouldNotContain` "data-week-overview-day=\"true\""
 
+        it "promotes roster layout selection through typed interaction intent markup" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-layout-intent@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekAction 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "data-bepis-surface=\"true\""
+                response `responseBodyShouldContain` "data-bepis-intent-form=\"set-roster-layout-mode\""
+                response `responseBodyShouldContain` "hx-trigger=\"bepis:intent-submit\""
+                response `responseBodyShouldContain` "name=\"rosterLayoutMode\" value=\"\" data-bepis-intent-field=\"rosterLayoutMode\" data-bepis-field-presence=\"required\""
+                response `responseBodyShouldContain` "data-bepis-marker=\"activation\" data-bepis-activation=\"roster-layout-day_columns\""
+                response `responseBodyShouldContain` "data-bepis-activation-intent=\"set-roster-layout-mode\""
+                response `responseBodyShouldContain` "data-bepis-activation-trigger=\"change\""
+                response `responseBodyShouldContain` "data-bepis-activation-value-field=\"rosterLayoutMode\""
+
         it "month overview fragment includes other weeks in the same month and counts assigned shifts rather than unique staff" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

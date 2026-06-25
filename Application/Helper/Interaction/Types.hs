@@ -4,6 +4,7 @@ module Application.Helper.Interaction.Types
     , EmptyInteractionSession
     , HtmxMethod (..)
     , HtmxSwap (..)
+    , InteractionActivationTrigger (..)
     , InteractionCapability (..)
     , InteractionConflictPolicy (..)
     , InteractionConflictResolution (..)
@@ -24,6 +25,7 @@ module Application.Helper.Interaction.Types
     , emptyInteractionCapability
     , htmxMethodValues
     , htmxSwapValues
+    , interactionActivationTriggerValues
     , interactionConflictResolutionValues
     , interactionFieldPresenceValues
     ) where
@@ -116,6 +118,13 @@ data InteractionMarkerKind
     | InteractionActivationMarker
     deriving (Eq, Show)
 
+data InteractionActivationTrigger
+    = InteractionActivationClick
+    | InteractionActivationChange
+    | InteractionActivationKeydownEnter
+    | InteractionActivationKeydownSpace
+    deriving (Eq, Show)
+
 data InteractionIntentTarget fragmentRef
     = IntentTargetLiveFragment !fragmentRef
     | IntentTargetMountLocal !InteractionMountLocalTarget
@@ -183,6 +192,14 @@ interactionFieldPresenceValues :: [(InteractionFieldPresence, Text)]
 interactionFieldPresenceValues =
     [ (IntentFieldRequired, "required")
     , (IntentFieldOptional, "optional")
+    ]
+
+interactionActivationTriggerValues :: [(InteractionActivationTrigger, Text)]
+interactionActivationTriggerValues =
+    [ (InteractionActivationClick, "click")
+    , (InteractionActivationChange, "change")
+    , (InteractionActivationKeydownEnter, "keydown-enter")
+    , (InteractionActivationKeydownSpace, "keydown-space")
     ]
 
 htmxMethodValues :: [(HtmxMethod, Text)]

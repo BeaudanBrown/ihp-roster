@@ -7,6 +7,7 @@ module Application.Helper.Frontend.Contracts
 where
 
 import Application.Helper.Interaction (htmxMethodValues, htmxSwapValues,
+                                       interactionActivationTriggerValues,
                                        interactionConflictResolutionValues,
                                        interactionFieldPresenceValues)
 import qualified Data.Text as Text
@@ -127,6 +128,11 @@ interactionContracts = TypeScriptDeclaration
         , "        surfaceFamily: \"data-bepis-surface-family\","
         , "        scopeKey: \"data-bepis-scope-key\","
         , "        mountKey: \"data-bepis-mount-key\","
+        , "        marker: \"data-bepis-marker\","
+        , "        activation: \"data-bepis-activation\","
+        , "        activationIntent: \"data-bepis-activation-intent\","
+        , "        activationTrigger: \"data-bepis-activation-trigger\","
+        , "        activationValueField: \"data-bepis-activation-value-field\","
         , "        intentForm: \"data-bepis-intent-form\","
         , "        intent: \"data-bepis-intent\","
         , "        intentField: \"data-bepis-intent-field\","
@@ -134,12 +140,14 @@ interactionContracts = TypeScriptDeclaration
         , "        intentHiddenField: \"data-bepis-intent-hidden-field\""
         , "    },"
         , "    values: {"
-        , "        enabled: \"true\""
+        , "        enabled: \"true\","
+        , "        activationMarker: \"activation\""
         , "    }"
         , "} as const;"
         , ""
         , "export type InteractionDomAttribute = typeof InteractionDom.attributes[keyof typeof InteractionDom.attributes];"
         , ""
+        , stringUnionSource "InteractionActivationTrigger" (fmap snd interactionActivationTriggerValues)
         , stringUnionSource "InteractionFieldPresence" (fmap snd interactionFieldPresenceValues)
         , stringUnionSource "HtmxMethod" (fmap snd htmxMethodValues)
         , stringUnionSource "HtmxSwap" (fmap snd htmxSwapValues <> ["custom"])

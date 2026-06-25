@@ -2,6 +2,8 @@ module Web.View.RosterWeeks.Header
     ( renderRosterGridHeader
     ) where
 
+import Application.Helper.Interaction (InteractionActivationTrigger (..),
+                                       withInteractionActivationIntentMarker)
 import Application.Helper.RosterWagePrediction (RosterWagePrediction (..),
                                                 formatMoneyAmount)
 import Application.Helper.UserPreferences (rosterLayoutModeLabel,
@@ -9,8 +11,9 @@ import Application.Helper.UserPreferences (rosterLayoutModeLabel,
                                            rosterLayoutModes)
 import Data.Time.Calendar (Day)
 import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterWeekShellId)
+import Web.RosterWeeks.LiveSurface (rosterLayoutModeIntentField,
+                                    rosterLayoutModeIntentName)
 import Web.RosterWeeks.Paths (rosterAssignmentFiltersUrl, rosterCopyWeekUrl,
-                              rosterLayoutPreferenceUrl,
                               rosterWageEstimatePreferenceUrl,
                               rosterWarningPreferenceUrl, rosterWeekUrl)
 import Web.RosterWeeks.Types (RosterAssignmentFilters (..),
@@ -162,33 +165,30 @@ renderRosterWeekActionsMenuSection maybeRosterWeek weekOffset rosterGroupId view
     |]
 
 renderRosterLayoutMenuSection :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterLayoutModeEnum -> Html
-renderRosterLayoutMenuSection weekOffset rosterGroupId selectedLayoutMode = [hsx|
-    <form class="px-1 py-1"
-          method="POST"
-          action={rosterLayoutPreferenceUrl weekOffset rosterGroupId}
-          data-disable-javascript-submission="true"
-          hx-post={rosterLayoutPreferenceUrl weekOffset rosterGroupId}
-          hx-swap="none settle:0ms"
-          hx-push-url="false"
-          hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
+renderRosterLayoutMenuSection _weekOffset _rosterGroupId selectedLayoutMode = [hsx|
+    <div class="px-1 py-1">
         <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Roster layout</div>
         <div class="btn-group w-100 roster-layout-mode-group" role="group" aria-label="Roster layout">
             {forEach rosterLayoutModes (renderRosterLayoutModeOption selectedLayoutMode)}
         </div>
-    </form>
+    </div>
 |]
 
 renderRosterLayoutModeOption :: RosterLayoutModeEnum -> RosterLayoutModeEnum -> Html
 renderRosterLayoutModeOption selectedLayoutMode layoutMode =
     let inputId = "roster-layout-mode-" <> rosterLayoutModeValue layoutMode
+        layoutValue = rosterLayoutModeValue layoutMode
+        markerKey = "roster-layout-" <> layoutValue
+        inputHtml = [hsx|
+            <input type="radio"
+                   class="btn-check"
+                   name="rosterLayoutMode"
+                   id={inputId}
+                   value={layoutValue}
+                   checked={rosterLayoutModeValue selectedLayoutMode == layoutValue} />
+        |]
      in [hsx|
-        <input type="radio"
-               class="btn-check"
-               name="rosterLayoutMode"
-               id={inputId}
-               value={rosterLayoutModeValue layoutMode}
-               checked={rosterLayoutModeValue selectedLayoutMode == rosterLayoutModeValue layoutMode}
-               onchange="this.form.requestSubmit()" />
+        {withInteractionActivationIntentMarker markerKey rosterLayoutModeIntentName InteractionActivationChange (Just rosterLayoutModeIntentField) inputHtml}
         <label class="btn btn-outline-secondary btn-sm" for={inputId}>{rosterLayoutModeLabel layoutMode}</label>
     |]
 

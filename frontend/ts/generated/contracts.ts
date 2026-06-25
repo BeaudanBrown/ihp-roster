@@ -75,6 +75,11 @@ export const InteractionDom = {
         surfaceFamily: "data-bepis-surface-family",
         scopeKey: "data-bepis-scope-key",
         mountKey: "data-bepis-mount-key",
+        marker: "data-bepis-marker",
+        activation: "data-bepis-activation",
+        activationIntent: "data-bepis-activation-intent",
+        activationTrigger: "data-bepis-activation-trigger",
+        activationValueField: "data-bepis-activation-value-field",
         intentForm: "data-bepis-intent-form",
         intent: "data-bepis-intent",
         intentField: "data-bepis-intent-field",
@@ -82,11 +87,18 @@ export const InteractionDom = {
         intentHiddenField: "data-bepis-intent-hidden-field"
     },
     values: {
-        enabled: "true"
+        enabled: "true",
+        activationMarker: "activation"
     }
 } as const;
 
 export type InteractionDomAttribute = typeof InteractionDom.attributes[keyof typeof InteractionDom.attributes];
+
+export type InteractionActivationTrigger =
+    | "click"
+    | "change"
+    | "keydown-enter"
+    | "keydown-space";
 
 export type InteractionFieldPresence =
     | "required"

@@ -1,6 +1,6 @@
 ---
 id: ir-gyit
-status: open
+status: closed
 deps: [ir-ojl5, ir-w50d, ir-95e7]
 links: []
 created: 2026-06-16T13:45:45Z

@@ -161,15 +161,15 @@ contextFreeRegisteredLiveSurfacesForScope = \case
         []
 
 defaultCandidateFragments ::
-    TypedLiveSurfaceDefinition surface scope fragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent ->
+    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
     scope ->
     [fragment]
 defaultCandidateFragments definition surfaceKey =
     definition.typedSurfaceDefaultFragments surfaceKey
 
 registeredTypedLiveSurface ::
-    TypedLiveSurfaceDefinition surface scope fragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent ->
-    (TypedLiveSurfaceDefinition surface scope fragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent -> scope -> [fragment]) ->
+    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
+    (TypedLiveSurfaceDefinition surface scope fragment layer session intent -> scope -> [fragment]) ->
     RegisteredLiveSurface
 registeredTypedLiveSurface definition candidateFragments =
     RegisteredLiveSurface \resources wireScope -> do

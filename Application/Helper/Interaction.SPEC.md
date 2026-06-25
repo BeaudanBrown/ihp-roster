@@ -131,6 +131,16 @@ The default intent lifecycle is local until commit:
 Commit-only submission is the default. Start/preview server submissions require
 a future explicit typed form contract and should not be invented by runtime code.
 
+Generic activation markers may promote ordinary click/change controls into the
+intent path without feature-specific TypeScript. A helper-rendered activation
+marker has a mount-local key, an intent name, an activation trigger (`click`,
+`change`, `keydown-enter`, or `keydown-space`), and optionally one value field
+whose value is read from the event target/control. The browser runtime resolves
+the closest activation marker from the event target and emits a committed intent;
+server submission still happens only through the matching generated intent form.
+Marker keys should be unique within a concrete mount for the marker kind unless
+multiple rendered controls intentionally alias the same logical action.
+
 On commit the generic bridge must:
 
 1. find the generated intent form for the intent type inside the same concrete

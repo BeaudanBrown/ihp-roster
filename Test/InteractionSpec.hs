@@ -96,6 +96,17 @@ tests = describe "Typed interaction surface capabilities" do
         html `shouldContainText` "name=\"cardId\" value=\"\" data-bepis-intent-field=\"cardId\" data-bepis-field-presence=\"required\""
         html `shouldContainText` "name=\"intent\" value=\"move-card\" data-bepis-intent-hidden-field=\"intent\""
 
+    it "renders generic activation intent markers from typed helpers" do
+        let html = renderText do
+                renderInteractionActivationIntentMarker "layout-day-columns" "set-roster-layout-mode" InteractionActivationChange (Just (IntentFieldName "rosterLayoutMode")) do
+                    Html5.toHtml ("Day columns" :: Text)
+
+        html `shouldContainText` "data-bepis-marker=\"activation\""
+        html `shouldContainText` "data-bepis-activation=\"layout-day-columns\""
+        html `shouldContainText` "data-bepis-activation-intent=\"set-roster-layout-mode\""
+        html `shouldContainText` "data-bepis-activation-trigger=\"change\""
+        html `shouldContainText` "data-bepis-activation-value-field=\"rosterLayoutMode\""
+
     it "derives mount-local intent targets for duplicate mounts" do
         let form = (moveIntentForm (testFragmentRef TestInteractionContent))
                 { intentFormTarget = IntentTargetMountLocal (InteractionMountLocalTarget "selection-panel")

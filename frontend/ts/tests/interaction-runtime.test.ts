@@ -1,4 +1,5 @@
 import { InteractionDom } from "../generated/contracts";
+import { readActivationIntentPayload } from "../interaction/activation";
 import { submitCommittedInteractionIntent } from "../interaction/form-bridge";
 import { createInteractionRuntime } from "../interaction/runtime";
 import { InteractionIntentBus } from "../interaction/intent-bus";
@@ -35,12 +36,16 @@ class MiniElement extends EventTarget {
         const matches: MiniElement[] = [];
         const visit = (element: MiniElement) => {
             for (const child of element.children) {
-                if (matchesSelector(child, selector)) matches.push(child);
+                if (matchesSelector(child, selector) || matchesTagSelector(child, selector)) matches.push(child);
                 visit(child);
             }
         };
         visit(this);
         return matches;
+    }
+
+    querySelector(selector: string): MiniElement | null {
+        return this.querySelectorAll(selector)[0] ?? null;
     }
 
     closest(selector: string): MiniElement | null {
@@ -61,6 +66,17 @@ function matchesSelector(element: MiniElement, selector: string): boolean {
     const attrMatch = selector.match(/^\[([^\]]+)\]$/);
     if (attrMatch) return element.getAttribute(attrMatch[1] ?? "") !== null;
     return false;
+}
+
+function matchesTagSelector(element: MiniElement, selector: string): boolean {
+    const tag = element.getAttribute("tag");
+    return selector.split(",").some((part) => part.trim() === tag);
+}
+
+function eventWithTarget(type: string, target: MiniElement): Event {
+    const event = new Event(type, { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "target", { value: target });
+    return event;
 }
 
 function buildMount(): { mount: MiniElement; form: MiniElement; required: MiniElement; optional: MiniElement; marker: MiniElement } {
@@ -100,6 +116,37 @@ test("interaction intent bus emits cancelable normalized events", () => {
 
     assertEqual(observedPhase, "commit");
     assertEqual(result.canceled, true);
+});
+
+test("generic activation markers emit committed intent payloads from closest markers", () => {
+    const marker = new MiniElement({
+        [attrs.marker]: "activation",
+        [attrs.activation]: "roster-layout-day-columns",
+        [attrs.activationIntent]: "set-roster-layout-mode",
+        [attrs.activationTrigger]: "change",
+        [attrs.activationValueField]: "rosterLayoutMode",
+    });
+    const input = marker.append(new MiniElement({ tag: "input", value: "day_columns" }));
+
+    const payload = readActivationIntentPayload(eventWithTarget("change", input), "change");
+
+    assertEqual(payload?.phase, "commit");
+    assertEqual(payload?.intent, "set-roster-layout-mode");
+    assertEqual(payload?.fields?.rosterLayoutMode, "day_columns");
+    assertEqual(payload?.marker, marker as unknown as Element);
+});
+
+test("generic activation markers ignore non-matching triggers", () => {
+    const marker = new MiniElement({
+        [attrs.marker]: "activation",
+        [attrs.activation]: "save-button",
+        [attrs.activationIntent]: "save",
+        [attrs.activationTrigger]: "click",
+    });
+    const child = marker.append(new MiniElement());
+
+    assertEqual(readActivationIntentPayload(eventWithTarget("change", child), "change"), null);
+    assertEqual(readActivationIntentPayload(eventWithTarget("click", child), "click")?.intent, "save");
 });
 
 test("committed intents fill the matching helper-rendered form and dispatch the generated trigger", () => {

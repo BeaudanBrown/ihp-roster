@@ -5,13 +5,20 @@
 {-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 
 module Web.RosterWeeks.LiveSurface
-    ( RosterLiveSurface
+    ( RosterInteractionIntent (..)
+    , RosterInteractionLayer (..)
+    , RosterInteractionSession (..)
+    , RosterLiveSurface
+    , rosterInteractionMountKey
+    , rosterLayoutModeIntentField
+    , rosterLayoutModeIntentName
     , mkRosterProjectionDefinition
     , rosterLiveSurfaceDefinition
     , rosterProjectionVersion
     ) where
 
 import Application.Helper.Controller
+import Application.Helper.Interaction
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
@@ -25,7 +32,8 @@ import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Filters
-import Web.RosterWeeks.Paths (rosterWeekContentFragmentUrl,
+import Web.RosterWeeks.Paths (rosterLayoutPreferenceUrl,
+                              rosterWeekContentFragmentUrl,
                               rosterWeekDayColumnsFragmentUrl,
                               rosterWeekDayRailFragmentUrl,
                               rosterWeekDaySectionFragmentUrl,
@@ -40,7 +48,20 @@ import Web.RosterWeeks.Types
 
 data RosterLiveSurface
 
-rosterLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition RosterLiveSurface RosterProjectionScope RosterProjectionFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
+data RosterInteractionLayer deriving (Eq, Show)
+data RosterInteractionSession deriving (Eq, Show)
+data RosterInteractionIntent = SetRosterLayoutModeIntent deriving (Eq, Show)
+
+rosterInteractionMountKey :: InteractionMountKey
+rosterInteractionMountKey = InteractionMountKey "primary"
+
+rosterLayoutModeIntentName :: Text
+rosterLayoutModeIntentName = "set-roster-layout-mode"
+
+rosterLayoutModeIntentField :: IntentFieldName
+rosterLayoutModeIntentField = IntentFieldName "rosterLayoutMode"
+
+rosterLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition RosterLiveSurface RosterProjectionScope RosterProjectionFragment RosterInteractionLayer RosterInteractionSession RosterInteractionIntent
 rosterLiveSurfaceDefinition =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "roster"
@@ -53,7 +74,7 @@ rosterLiveSurfaceDefinition =
                 (rosterFragmentDependencies scope fragment)
         , typedSurfaceDecorateRequestsWithin = const ["#roster-week-shell"]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\scope -> RequireCurrentVenueRosterGroup (unpackId currentVenueId) (unpackId scope.rosterProjectionGroupId))
-        , typedSurfaceInteraction = const emptyInteractionCapability
+        , typedSurfaceInteraction = rosterInteractionCapability
         }
     where
         rosterSurfaceScope scope =
@@ -68,6 +89,28 @@ rosterLiveSurfaceDefinition =
                         }
                 _ ->
                     Nothing
+
+rosterInteractionCapability :: (?context :: ControllerContext) => RosterProjectionScope -> InteractionCapability (SurfaceFragmentRef RosterLiveSurface) RosterProjectionFragment RosterInteractionLayer RosterInteractionSession RosterInteractionIntent
+rosterInteractionCapability scope =
+    emptyInteractionCapability
+        { interactionIntentForms = [rosterLayoutModeIntentForm scope]
+        }
+
+rosterLayoutModeIntentForm :: (?context :: ControllerContext) => RosterProjectionScope -> IntentFormContract (SurfaceFragmentRef RosterLiveSurface) RosterInteractionIntent
+rosterLayoutModeIntentForm scope =
+    IntentFormContract
+        { intentFormIntent = SetRosterLayoutModeIntent
+        , intentFormName = rosterLayoutModeIntentName
+        , intentFormAction = rosterLayoutPreferenceUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId
+        , intentFormMethod = HtmxPost
+        , intentFormTrigger = "bepis:intent-submit"
+        , intentFormTarget = IntentTargetLiveFragment (rosterFragmentRef scope RosterProjectionContent)
+        , intentFormSwap = HtmxSwapNone
+        , intentFormFields = [IntentFieldSchema rosterLayoutModeIntentField IntentFieldRequired Nothing]
+        , intentFormHiddenFields = []
+        , intentFormSync = Just ("#" <> rosterWeekShellId <> ":replace")
+        , intentFormDisabledElement = Nothing
+        }
 
 rosterFragmentRef :: RosterProjectionScope -> RosterProjectionFragment -> SurfaceFragmentRef RosterLiveSurface
 rosterFragmentRef scope = \case
