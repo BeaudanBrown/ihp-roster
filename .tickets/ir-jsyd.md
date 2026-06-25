@@ -7,17 +7,34 @@ created: 2026-06-16T13:44:46Z
 type: epic
 priority: 2
 assignee: Beaudan Brown
-tags: [agent-loop, frontend, htmx, interaction]
+tags: [agent-loop, frontend, htmx, interaction, live-fragments, typescript]
 ---
-# Design declarative interaction intent layer
+# Typed disposable interaction surfaces and intent bridge
 
-Define and implement a reusable server-declared interaction layer where generic client-side gesture code emits normalized intents and HTMX/server-rendered fragments remain authoritative.
+Extend typed live surfaces with optional typed interaction capabilities so Haskell-generated contracts/render helpers define valid surface mounts, server layers, disposable layers, intent forms, HTMX submission metadata, and live-fragment conflict policy; TypeScript consumes generated contracts through generic runtimes.
 
 ## Design
 
-Use data-bepis-* attributes rendered by IHP to declare surfaces, items, slots, dropzones, resize handles, and intent forms. JavaScript owns only ephemeral interaction UI and dispatches normalized intent events; HTMX submits server-declared forms; IHP validates, mutates, and returns authoritative fragments. Include pointer/touch support and coordination with live fragments.
+Build on the existing strict typed live-surface architecture rather than creating a separate string-based interaction system. A surface family and scope remain Haskell-owned. A concrete surface mount adds a mount key so the same scope can be moved across pages or mounted more than once without DOM id, HTMX target, or form collisions.
+
+Interaction capability is optional. Existing live surfaces start with empty disposable-layer, intent, field-schema, and conflict-policy definitions. Feature modules can then opt in by adding closed Haskell types for disposable layers and intents, Haskell intent field schemas, generated HTMX form contracts, and live-fragment conflict policies. TypeScript is generated from those Haskell definitions where possible and must not invent canonical surface, fragment, layer, or intent strings.
+
+The canonical hierarchy is: surface family -> surface scope -> concrete mount -> server layer/live fragments plus disposable layers/sessions plus intent forms. Server-rendered HTML remains authoritative. Disposable UI is temporary client-owned DOM inside Haskell-declared disposable layers and must be safe to clear. Generic TypeScript runtimes may manage sessions, previews, ghosts, menus, selection rectangles, and similar disposable UI, but cannot mutate business DOM or construct mutation URLs.
+
+Committed intents submit through Haskell-rendered HTMX forms. The generic bridge fills generated hidden inputs and dispatches generated custom HTMX triggers; routes, verbs, targets, swaps, and validation remain server-owned. Use standard HTMX primitives first: generated forms, custom event `hx-trigger`, lifecycle events, `hx-sync`/`hx-disabled-elt` where useful, and OOB swaps. Do not start with HTMX extensions/custom elements; revisit only after stable repeated lifecycle behavior justifies it.
+
+Live updates and disposable sessions share the same typed surface origin. Live fragments may update behind an active disposable session when the fragment cannot invalidate active anchors/targets/forms. Conflicting swaps should apply, defer, or cancel according to Haskell-owned policy. Actor HTMX responses for the committed intent win and clear disposable UI.
+
+See `docs/workstreams/typed-interaction-surfaces.md` for the planning vocabulary, hierarchy, non-goals, and implementation order.
 
 ## Acceptance Criteria
 
-A documented architecture and initial runtime exist for declarative interaction surfaces; at least one low-risk prototype surface proves click/pointer/touch intent dispatch through HTMX without client-side business-state ownership; follow-up tickets cover timeline drag/drop and resize.
+- A documented typed interaction architecture exists and is linked from local frontend/static/live-surface docs.
+- Existing typed live surfaces can declare empty interaction capabilities without behavior changes.
+- Haskell types model surface families/scopes/mounts, live fragments, disposable layers, intents, intent field schemas, HTMX form contracts, and conflict policies.
+- TypeScript contracts for interaction browser boundaries are generated from Haskell and checked for drift.
+- Haskell helpers render interaction surface mounts, server layers, disposable layers, typed markers, and HTMX intent forms; feature views do not handwrite raw interaction attrs/forms.
+- A generic TypeScript intent bus/form bridge submits committed intents through generated forms without JS-built URLs or business DOM mutation.
+- At least one low-risk prototype proves click/keyboard/touch activation, typed fields, server-rendered response, and mount portability.
+- Follow-up pointer/touch, live coordination, timeline drop, and resize tickets use the same typed model.
 
