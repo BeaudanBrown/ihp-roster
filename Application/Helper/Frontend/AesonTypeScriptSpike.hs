@@ -7,18 +7,18 @@ module Application.Helper.Frontend.AesonTypeScriptSpike
     , AesonTypeScriptSpikeSimpleEnum (..)
     , AesonTypeScriptSpikeUnion (..)
     , AesonTypeScriptSpikeWireId (..)
+    , aesonTypeScriptSpikeDeclaration
     , aesonTypeScriptSpikeTypeScript
     ) where
 
 import Application.Helper.Frontend.AesonTypeScriptOptions (stripPrefixLower)
+import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..),
+                                               aesonTypeScriptDeclaration)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.TH as Aeson
 import Data.Aeson.TypeScript.Recursive (getTypeScriptDeclarationsRecursively)
-import Data.Aeson.TypeScript.TH (ExportMode (ExportEach),
-                                 FormattingOptions (..),
-                                 SumTypeFormat (TypeAlias), TSDeclaration,
-                                 TypeScript (..), defaultFormattingOptions,
-                                 deriveJSONAndTypeScript, formatTSDeclarations')
+import Data.Aeson.TypeScript.TH (TSDeclaration, TypeScript (..),
+                                 deriveJSONAndTypeScript)
 import qualified Data.List as List
 import Data.Proxy (Proxy (..))
 import qualified Data.Text as Text
@@ -114,16 +114,18 @@ $(deriveJSONAndTypeScript
     Aeson.defaultOptions
     ''AesonTypeScriptSpikeMessage)
 
+aesonTypeScriptSpikeDeclaration :: TypeScriptDeclaration
+aesonTypeScriptSpikeDeclaration =
+    aesonTypeScriptDeclaration
+        "AesonTypeScriptSpike"
+        [ "// Spike proof-of-viability for aeson-typescript-generated browser wire contracts."
+        , "// Keep this narrow until the live-update/interaction protocol migrates in later tickets."
+        ]
+        aesonTypeScriptSpikeDeclarations
+
 aesonTypeScriptSpikeTypeScript :: Text
 aesonTypeScriptSpikeTypeScript =
-    Text.pack $
-        formatTSDeclarations'
-            defaultFormattingOptions
-                { numIndentSpaces = 4
-                , exportMode = ExportEach
-                , typeAlternativesFormat = TypeAlias
-                }
-            aesonTypeScriptSpikeDeclarations
+    aesonTypeScriptSpikeDeclaration.source
 
 aesonTypeScriptSpikeDeclarations :: [TSDeclaration]
 aesonTypeScriptSpikeDeclarations =

@@ -244,4 +244,3 @@ export type AesonTypeScriptSpikeOptionalRecord = IAesonTypeScriptSpikeOptionalRe
 export type AesonTypeScriptSpikeSimpleEnum = "alpha" | "beta";
 
 export type AesonTypeScriptSpikeUnion = IAesonTypeScriptSpikeSelect | IAesonTypeScriptSpikeClear;
-

@@ -1,6 +1,6 @@
 ---
 id: ir-xkxz
-status: open
+status: closed
 deps: [ir-ftfp]
 links: []
 created: 2026-06-25T11:32:58Z
@@ -24,3 +24,9 @@ This foundation should support later tickets that generate live-update protocol 
 
 `frontend-contracts` still writes `frontend/ts/generated/contracts.ts`; `frontend-contracts-check` still detects drift; large handwritten live-update/interaction TypeScript declaration blocks are removed or replaced by generator output for at least the foundation/prototype path; guard tests or lint checks document and enforce the no-large-handwritten-TS-declarations rule; `typecheck` and focused contract tests pass.
 
+
+## Notes
+
+**2026-06-25T12:30:59Z**
+
+Implemented generator foundation: Application.Helper.Frontend.TypeScript now owns TypeScriptDeclaration origin metadata, aeson-typescript formatting, renderTypeScriptDeclarations, small string-union composition, and a temporary legacy marker. Application.Helper.Frontend.Contracts is now a small composition root; pre-existing handwritten live-update/interaction blocks moved into LegacyManualContracts as explicit temporary compatibility pending ir-k3q0/ir-bfj9. The aeson-typescript spike now emits a HaskellSchemaGenerated declaration through the foundation. Added FrontendContractsSpec guardrails so the composition root cannot regain large handwritten protocol blocks and legacyManualDeclaration stays isolated. Verified frontend-contracts-check, typecheck, and focused Hspec contract tests.
