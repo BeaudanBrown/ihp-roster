@@ -16,8 +16,13 @@ const email = __ENV.PROFILE_EMAIL || selectedAccount?.email;
 const password = __ENV.PROFILE_PASSWORD || selectedAccount?.password || 'password123';
 
 const requestAppTotal = new Trend('profile_request_app_total', true);
+const namedSpanTotal = new Trend('profile_named_span_total', true);
+const unattributedAppTotal = new Trend('profile_unattributed_app_total', true);
+const responseBytes = new Trend('profile_response_bytes', true);
+const componentBytes = new Trend('profile_component_bytes', true);
 const spanDuration = new Trend('profile_span_duration', true);
 const timingRecordCount = new Counter('profile_timing_records');
+const profileCounterValue = new Counter('profile_counter_value');
 let loggedIn = false;
 let sessionCookie = null;
 
@@ -57,6 +62,8 @@ export default function () {
         [`${route.name} status ok`]: (res) => routeStatusOk(route, res.status),
     });
 
+    recordResponseBytes(route, response);
+    recordProfileCounters(route, response);
     recordServerTiming(route, response);
 }
 
@@ -158,13 +165,38 @@ function url(path) {
     return `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
+function recordResponseBytes(route, response) {
+    const profiledBytes = Number(headerValue(response.headers, 'x-profile-response-bytes'));
+    const contentLength = Number(headerValue(response.headers, 'content-length'));
+    const byteCount = Number.isFinite(profiledBytes) && profiledBytes >= 0 ? profiledBytes : contentLength;
+    if (!Number.isFinite(byteCount) || byteCount < 0) return;
+    responseBytes.add(byteCount, {
+        route: route.name,
+        scenario: scenarioName,
+    });
+}
+
+function recordProfileCounters(route, response) {
+    const header = headerValue(response.headers, 'x-profile-counters');
+    if (!header) return;
+    for (const counter of parseProfileCounters(header)) {
+        profileCounterValue.add(counter.value, {
+            route: route.name,
+            scenario: scenarioName,
+            counter: counter.name,
+        });
+    }
+}
+
 function recordServerTiming(route, response) {
     const header = headerValue(response.headers, 'server-timing');
     if (!header) return;
 
-    for (const metric of parseServerTiming(header)) {
-        if (metric.durationMs === null || Number.isNaN(metric.durationMs)) continue;
+    const metrics = parseServerTiming(header).filter((metric) => metric.durationMs !== null && !Number.isNaN(metric.durationMs));
+    let appTotalMs = null;
+    let namedTotalMs = 0;
 
+    for (const metric of metrics) {
         const tags = {
             route: route.name,
             scenario: scenarioName,
@@ -173,10 +205,23 @@ function recordServerTiming(route, response) {
 
         timingRecordCount.add(1, tags);
         if (metric.name === 'app_total') {
+            appTotalMs = metric.durationMs;
             requestAppTotal.add(metric.durationMs, tags);
         } else {
+            namedTotalMs += metric.durationMs;
             spanDuration.add(metric.durationMs, tags);
+            const bytes = bytesFromTimingDescription(metric.description);
+            if (bytes !== null) componentBytes.add(bytes, tags);
         }
+    }
+
+    if (appTotalMs !== null) {
+        const tags = {
+            route: route.name,
+            scenario: scenarioName,
+        };
+        namedSpanTotal.add(namedTotalMs, tags);
+        unattributedAppTotal.add(Math.max(0, appTotalMs - namedTotalMs), tags);
     }
 }
 
@@ -188,17 +233,39 @@ function headerValue(headers, wantedName) {
     return null;
 }
 
+function parseProfileCounters(header) {
+    return splitHeader(header).map((item) => {
+        const [name, value] = item.split('=');
+        return { name: name || '', value: Number(value) };
+    }).filter((counter) => counter.name && Number.isFinite(counter.value));
+}
+
 function parseServerTiming(header) {
     return splitHeader(header).map((item) => {
         const parts = item.split(';').map((part) => part.trim()).filter(Boolean);
         const name = parts.shift() || '';
-        const result = { name, durationMs: null };
+        const result = { name, durationMs: null, description: null };
         for (const part of parts) {
-            const [key, value] = part.split('=');
+            const [key, ...valueParts] = part.split('=');
+            const value = valueParts.join('=');
             if (key === 'dur') result.durationMs = Number(value);
+            if (key === 'desc') result.description = unquote(value);
         }
         return result;
     });
+}
+
+function bytesFromTimingDescription(description) {
+    if (!description) return null;
+    const match = /(?:^|\s)bytes=(\d+)/.exec(description);
+    if (!match) return null;
+    const value = Number(match[1]);
+    return Number.isFinite(value) ? value : null;
+}
+
+function unquote(value) {
+    if (!value) return value;
+    return value.startsWith('"') && value.endsWith('"') ? value.slice(1, -1) : value;
 }
 
 function accountForScenario(name) {

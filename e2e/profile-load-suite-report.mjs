@@ -16,6 +16,13 @@ function round(value) {
     return Math.round(value * 10) / 10;
 }
 
+function formatBytes(bytes) {
+    if (!Number.isFinite(bytes)) return '?';
+    if (bytes >= 1024 * 1024) return `${round(bytes / (1024 * 1024))} MiB`;
+    if (bytes >= 1024) return `${round(bytes / 1024)} KiB`;
+    return `${round(bytes)} B`;
+}
+
 function scenarioProfile(suiteDir, scenario) {
     const profilePath = path.join(suiteDir, scenario, 'load-profile.json');
     const profile = readJson(profilePath);
@@ -46,6 +53,21 @@ function renderMarkdown(suiteDir, profiles) {
     ).sort((a, b) => (b.p95Ms || 0) - (a.p95Ms || 0));
     const slowestAppTotals = profiles.flatMap((item) =>
         (item.summary.appTotals || []).map((row) => ({ scenario: item.scenario, ...row }))
+    ).sort((a, b) => (b.p95Ms || 0) - (a.p95Ms || 0));
+    const attributionGaps = profiles.flatMap((item) =>
+        (item.summary.unattributedAppTotals || []).map((row) => ({ scenario: item.scenario, ...row }))
+    ).sort((a, b) => (b.p95Ms || 0) - (a.p95Ms || 0));
+    const largestResponses = profiles.flatMap((item) =>
+        (item.summary.responseBytes || []).map((row) => ({ scenario: item.scenario, ...row }))
+    ).sort((a, b) => (b.p95Bytes || 0) - (a.p95Bytes || 0));
+    const componentBytes = profiles.flatMap((item) =>
+        (item.summary.componentBytes || []).map((row) => ({ scenario: item.scenario, ...row }))
+    ).sort((a, b) => (b.p95Bytes || 0) - (a.p95Bytes || 0));
+    const counters = profiles.flatMap((item) =>
+        (item.summary.counters || []).map((row) => ({ scenario: item.scenario, ...row }))
+    ).sort((a, b) => (b.p95Count || 0) - (a.p95Count || 0) || (b.total || 0) - (a.total || 0));
+    const slowestSpanCategories = profiles.flatMap((item) =>
+        (item.summary.spanCategories || []).map((row) => ({ scenario: item.scenario, ...row }))
     ).sort((a, b) => (b.p95Ms || 0) - (a.p95Ms || 0));
     const slowestSpans = profiles.flatMap((item) =>
         (item.summary.spans || []).map((row) => ({ scenario: item.scenario, ...row }))
@@ -84,11 +106,12 @@ function renderMarkdown(suiteDir, profiles) {
                 ),
                 '',
             ]),
-        '| Scenario | Rate | Duration | Requests | Req/sec | Failures | Dropped | VU Sat. | Slowest HTTP P95 | Slowest App P95 | Slowest Span P95 |',
-        '| --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |',
+        '| Scenario | Rate | Duration | Requests | Req/sec | Failures | Dropped | Drop Class | VU Sat. | Slowest HTTP P95 | Slowest App P95 | Worst Unattr. P95 | Slowest Span P95 |',
+        '| --- | ---: | --- | ---: | ---: | ---: | ---: | --- | ---: | --- | --- | --- | --- |',
         ...profiles.map((item) => {
             const http = topItem(item.summary.http, 'p95Ms');
             const app = topItem(item.summary.appTotals, 'p95Ms');
+            const unattr = topItem(item.summary.unattributedAppTotals, 'p95Ms');
             const span = topItem(item.summary.spans, 'p95Ms');
             return [
                 `| \`${item.scenario}\``,
@@ -98,9 +121,11 @@ function renderMarkdown(suiteDir, profiles) {
                 item.summary.requestsPerSecond || 0,
                 item.summary.failedCount || 0,
                 item.summary.droppedIterations || 0,
+                item.summary.dropClassification || '?',
                 `${round((item.summary.vuSaturation || 0) * 100)}%`,
                 http ? `\`${http.route}\` ${http.p95Ms}ms` : '',
                 app ? `\`${app.route}\` ${app.p95Ms}ms` : '',
+                unattr ? `\`${unattr.route}\` ${unattr.p95Ms}ms` : '',
                 span ? `\`${span.span}\` ${span.p95Ms}ms` : '',
             ].join(' | ') + ' |';
         }),
@@ -121,12 +146,52 @@ function renderMarkdown(suiteDir, profiles) {
             `| ${row.scenario} | \`${row.route}\` | ${row.count} | ${row.medianMs} | ${row.p95Ms} | ${row.p99Ms} | ${row.maxMs} |`
         ),
         '',
+        '## Largest Attribution Gaps',
+        '',
+        '| Scenario | Route | Count | Unattributed P95 | Unattributed P99 | Max |',
+        '| --- | --- | ---: | ---: | ---: | ---: |',
+        ...attributionGaps.slice(0, 20).map((row) =>
+            `| ${row.scenario} | \`${row.route}\` | ${row.count} | ${row.p95Ms} | ${row.p99Ms} | ${row.maxMs} |`
+        ),
+        '',
+        '## Largest Responses',
+        '',
+        '| Scenario | Route | Count | Median | P95 | P99 | Max |',
+        '| --- | --- | ---: | ---: | ---: | ---: | ---: |',
+        ...largestResponses.slice(0, 20).map((row) =>
+            `| ${row.scenario} | \`${row.route}\` | ${row.count} | ${formatBytes(row.medianBytes)} | ${formatBytes(row.p95Bytes)} | ${formatBytes(row.p99Bytes)} | ${formatBytes(row.maxBytes)} |`
+        ),
+        '',
+        '## Component Bytes',
+        '',
+        '| Scenario | Route | Component | Count | Median | P95 | P99 | Max |',
+        '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |',
+        ...componentBytes.slice(0, 50).map((row) =>
+            `| ${row.scenario} | \`${row.route}\` | \`${row.span}\` | ${row.count} | ${formatBytes(row.medianBytes)} | ${formatBytes(row.p95Bytes)} | ${formatBytes(row.p99Bytes)} | ${formatBytes(row.maxBytes)} |`
+        ),
+        '',
+        '## Profile Counters',
+        '',
+        '| Scenario | Route | Counter | Samples | Total | Median/request | P95/request | Max/request |',
+        '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |',
+        ...counters.slice(0, 50).map((row) =>
+            `| ${row.scenario} | \`${row.route}\` | \`${row.counter}\` | ${row.count} | ${row.total} | ${row.medianCount} | ${row.p95Count} | ${row.maxCount} |`
+        ),
+        '',
+        '## Slowest Span Categories',
+        '',
+        '| Scenario | Route | Category | Count | Median | P95 | P99 | Max |',
+        '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |',
+        ...slowestSpanCategories.slice(0, 30).map((row) =>
+            `| ${row.scenario} | \`${row.route}\` | \`${row.category}\` | ${row.count} | ${row.medianMs} | ${row.p95Ms} | ${row.p99Ms} | ${row.maxMs} |`
+        ),
+        '',
         '## Slowest App Spans',
         '',
-        '| Scenario | Route | Span | Count | Median | P95 | P99 | Max |',
-        '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |',
+        '| Scenario | Route | Category | Span | Count | Median | P95 | P99 | Max |',
+        '| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |',
         ...slowestSpans.slice(0, 30).map((row) =>
-            `| ${row.scenario} | \`${row.route}\` | \`${row.span}\` | ${row.count} | ${row.medianMs} | ${row.p95Ms} | ${row.p99Ms} | ${row.maxMs} |`
+            `| ${row.scenario} | \`${row.route}\` | \`${row.category || ''}\` | \`${row.span}\` | ${row.count} | ${row.medianMs} | ${row.p95Ms} | ${row.p99Ms} | ${row.maxMs} |`
         ),
         '',
     ];

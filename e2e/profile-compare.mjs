@@ -20,6 +20,18 @@ function requestKey(request) {
     return `${request.scenario}::${request.method || ''}::${request.route || request.path}`;
 }
 
+function routeKey(row) {
+    return `${row.scenario}::${row.route || row.path || ''}`;
+}
+
+function categoryKey(row) {
+    return `${row.scenario}::${row.route || ''}::${row.category}`;
+}
+
+function counterKey(row) {
+    return `${row.scenario}::${row.route || row.path || ''}::${row.counter}`;
+}
+
 function indexBy(items, keyFn) {
     const result = new Map();
     for (const item of items) result.set(keyFn(item), item);
@@ -41,6 +53,14 @@ function compare(beforeProfile, afterProfile) {
     const afterRequests = indexBy(after.requests, requestKey);
     const beforeScenarioStats = indexBy(before.scenarios, (item) => item.scenario);
     const afterScenarioStats = indexBy(after.scenarios, (item) => item.scenario);
+    const beforeUnattributed = indexBy(before.unattributed, routeKey);
+    const afterUnattributed = indexBy(after.unattributed, routeKey);
+    const beforeResponses = indexBy(before.responseBytes, routeKey);
+    const afterResponses = indexBy(after.responseBytes, routeKey);
+    const beforeCategories = indexBy(before.spanCategories, categoryKey);
+    const afterCategories = indexBy(after.spanCategories, categoryKey);
+    const beforeCounters = indexBy(before.counters, counterKey);
+    const afterCounters = indexBy(after.counters, counterKey);
 
     const spanDiffs = [...afterSpans.entries()]
         .filter(([key]) => beforeSpans.has(key))
@@ -63,6 +83,38 @@ function compare(beforeProfile, afterProfile) {
         })
         .sort((a, b) => Math.abs(b.total.delta) - Math.abs(a.total.delta));
 
+    const unattributedDiffs = [...afterUnattributed.entries()]
+        .filter(([key]) => beforeUnattributed.has(key))
+        .map(([key, after]) => {
+            const before = beforeUnattributed.get(key);
+            return { key, scenario: after.scenario, route: after.route || '', before, after, p95: diffValue(before.p95Ms, after.p95Ms) };
+        })
+        .sort((a, b) => Math.abs(b.p95.delta) - Math.abs(a.p95.delta));
+
+    const responseByteDiffs = [...afterResponses.entries()]
+        .filter(([key]) => beforeResponses.has(key))
+        .map(([key, after]) => {
+            const before = beforeResponses.get(key);
+            return { key, scenario: after.scenario, route: after.route || '', before, after, p95: diffValue(before.p95Bytes, after.p95Bytes) };
+        })
+        .sort((a, b) => Math.abs(b.p95.delta) - Math.abs(a.p95.delta));
+
+    const counterDiffs = [...afterCounters.entries()]
+        .filter(([key]) => beforeCounters.has(key))
+        .map(([key, after]) => {
+            const before = beforeCounters.get(key);
+            return { key, scenario: after.scenario, route: after.route || after.path || '', counter: after.counter, before, after, p95: diffValue(before.p95Count, after.p95Count) };
+        })
+        .sort((a, b) => Math.abs(b.p95.delta) - Math.abs(a.p95.delta));
+
+    const categoryDiffs = [...afterCategories.entries()]
+        .filter(([key]) => beforeCategories.has(key))
+        .map(([key, after]) => {
+            const before = beforeCategories.get(key);
+            return { key, scenario: after.scenario, route: after.route || '', category: after.category, before, after, p95: diffValue(before.p95Ms, after.p95Ms) };
+        })
+        .sort((a, b) => Math.abs(b.p95.delta) - Math.abs(a.p95.delta));
+
     const scenarioDiffs = [...afterScenarioStats.entries()]
         .filter(([key]) => beforeScenarioStats.has(key))
         .map(([key, after]) => {
@@ -79,7 +131,7 @@ function compare(beforeProfile, afterProfile) {
         })
         .sort((a, b) => Math.abs(b.droppedIterations.delta) - Math.abs(a.droppedIterations.delta));
 
-    return { spanDiffs, requestDiffs, scenarioDiffs };
+    return { spanDiffs, requestDiffs, unattributedDiffs, responseByteDiffs, counterDiffs, categoryDiffs, scenarioDiffs };
 }
 
 function normalizeProfile(profile) {
@@ -88,6 +140,10 @@ function normalizeProfile(profile) {
         return {
             requests: summaries.flatMap((summary) => (summary.http || []).map((row) => ({ scenario: summary.scenario, ...row }))),
             spans: summaries.flatMap((summary) => (summary.spans || []).map((row) => ({ scenario: summary.scenario, ...row }))),
+            unattributed: summaries.flatMap((summary) => (summary.unattributedAppTotals || []).map((row) => ({ scenario: summary.scenario, ...row }))),
+            responseBytes: summaries.flatMap((summary) => (summary.responseBytes || []).map((row) => ({ scenario: summary.scenario, ...row }))),
+            spanCategories: summaries.flatMap((summary) => (summary.spanCategories || []).map((row) => ({ scenario: summary.scenario, ...row }))),
+            counters: summaries.flatMap((summary) => (summary.counters || []).map((row) => ({ scenario: summary.scenario, ...row }))),
             scenarios: summaries,
         };
     }
@@ -98,6 +154,10 @@ function normalizeProfile(profile) {
         return {
             requests: (summary.http || []).map((row) => ({ scenario, ...row })),
             spans: (summary.spans || []).map((row) => ({ scenario, ...row })),
+            unattributed: (summary.unattributedAppTotals || []).map((row) => ({ scenario, ...row })),
+            responseBytes: (summary.responseBytes || []).map((row) => ({ scenario, ...row })),
+            spanCategories: (summary.spanCategories || []).map((row) => ({ scenario, ...row })),
+            counters: (summary.counters || []).map((row) => ({ scenario, ...row })),
             scenarios: [{ scenario, ...summary }],
         };
     }
@@ -105,6 +165,10 @@ function normalizeProfile(profile) {
     return {
         requests: summary.slowestRequests || [],
         spans: summary.slowestSpans || [],
+        unattributed: [],
+        responseBytes: [],
+        spanCategories: [],
+        counters: [],
         scenarios: [],
     };
 }
@@ -135,6 +199,38 @@ function renderMarkdown(beforePath, afterPath, comparison) {
         '| --- | --- | --- | ---: | ---: | ---: |',
         ...comparison.requestDiffs.slice(0, 20).map((item) =>
             `| ${item.scenario} | ${item.method} | \`${item.path}\` | ${item.before.totalMs ?? item.before.p95Ms} | ${item.after.totalMs ?? item.after.p95Ms} | ${formatDelta(item.total)} |`
+        ),
+        '',
+        '## Largest Attribution Gap Changes',
+        '',
+        '| Scenario | Route | Before P95 | After P95 | Delta P95 |',
+        '| --- | --- | ---: | ---: | ---: |',
+        ...comparison.unattributedDiffs.slice(0, 20).map((item) =>
+            `| ${item.scenario} | \`${item.route}\` | ${item.before.p95Ms} | ${item.after.p95Ms} | ${formatDelta(item.p95)} |`
+        ),
+        '',
+        '## Largest Response Size Changes',
+        '',
+        '| Scenario | Route | Before P95 Bytes | After P95 Bytes | Delta P95 Bytes |',
+        '| --- | --- | ---: | ---: | ---: |',
+        ...comparison.responseByteDiffs.slice(0, 20).map((item) =>
+            `| ${item.scenario} | \`${item.route}\` | ${item.before.p95Bytes} | ${item.after.p95Bytes} | ${formatDelta(item.p95)} |`
+        ),
+        '',
+        '## Largest Counter Changes',
+        '',
+        '| Scenario | Route | Counter | Before P95/request | After P95/request | Delta P95 |',
+        '| --- | --- | --- | ---: | ---: | ---: |',
+        ...comparison.counterDiffs.slice(0, 20).map((item) =>
+            `| ${item.scenario} | \`${item.route}\` | \`${item.counter}\` | ${item.before.p95Count} | ${item.after.p95Count} | ${formatDelta(item.p95)} |`
+        ),
+        '',
+        '## Largest Span Category Changes',
+        '',
+        '| Scenario | Route | Category | Before P95 | After P95 | Delta P95 |',
+        '| --- | --- | --- | ---: | ---: | ---: |',
+        ...comparison.categoryDiffs.slice(0, 20).map((item) =>
+            `| ${item.scenario} | \`${item.route}\` | \`${item.category}\` | ${item.before.p95Ms} | ${item.after.p95Ms} | ${formatDelta(item.p95)} |`
         ),
         '',
         '## Load Pressure Changes',

@@ -4,6 +4,7 @@ module Web.View.RosterWeeks.StaffPanel
     , renderRosterStaffPanelFragmentWithSwap
     ) where
 
+import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
 import Application.Helper.View (staffDisplayName)
 import Data.List (sortBy)
 import qualified Data.Text as Text
@@ -23,7 +24,7 @@ renderRosterStaffPanelFragmentOob =
 renderRosterStaffPanelFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Int -> Id RosterGroup -> Bool -> RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Html
 renderRosterStaffPanelFragmentWithSwap maybeSwapOob weekOffset currentRosterGroupId hasMultipleRosterGroups panelScope panelStaff =
     if currentUserIsManager
-        then [hsx|
+        then profileHtmlComponent "render.roster.staff_panel_fragment" [hsx|
             <div id={rosterStaffPanelFragmentId}
                  class="col-12 col-xl-4 col-xxl-3 roster-layout-side"
                  hx-swap-oob={maybeSwapOob}>
@@ -33,7 +34,9 @@ renderRosterStaffPanelFragmentWithSwap maybeSwapOob weekOffset currentRosterGrou
         else mempty
 
 renderRosterStaffPanel :: Int -> Id RosterGroup -> Bool -> RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Html
-renderRosterStaffPanel weekOffset currentRosterGroupId hasMultipleRosterGroups panelScope panelStaff = [hsx|
+renderRosterStaffPanel weekOffset currentRosterGroupId hasMultipleRosterGroups panelScope panelStaff = profileHtmlComponent "render.roster.staff_panel_component" [hsx|
+    {profileRenderCounter "render.roster.staff_panel" 1}
+    {profileRenderCounter "render.roster.staff_panel_entry" (length panelStaff)}
     <div class="app-panel roster-staff-panel">
         <div class="app-panel-body">
             <div class="roster-staff-panel-header">
@@ -135,6 +138,7 @@ renderRosterStaffPanelEntry panelStaffMembers weekOffset currentRosterGroupId en
         staffRoleLabel = humanizeStaffRole entry.userRole
      in
         [hsx|
+        {profileRenderCounter "render.roster.staff_panel_entry_render" 1}
         <tr class="roster-staff-panel-entry"
                 data-roster-staff-id={tshow entry.staff.id}
                 data-roster-staff-name={staffDisplayLabel}

@@ -4,6 +4,7 @@ import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
                                        liveSurfaceConfigJson,
                                        mkTypedDefinedLiveSurface)
 import Application.Helper.LiveUpdate (LiveUpdateScope)
+import Application.Helper.Profiling (profileHtmlComponent)
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.LiveSurface (rosterLiveSurfaceDefinition)
@@ -53,7 +54,7 @@ renderRosterWeekShell ShowView { .. } =
                         }
                     ]
             })
-     in [hsx|
+     in profileHtmlComponent "render.roster.full_shell" [hsx|
     <section id={rosterWeekShellId}
              hx-history-elt="true"
              data-roster-fullscreen="false"

@@ -32,20 +32,50 @@ function ensureGroup(map, key, init) {
     return map.get(key);
 }
 
-function summarizeSamples(samples) {
+function summarizeSamples(samples, suffix = 'Ms') {
     return {
         count: samples.length,
-        medianMs: round(percentile(samples, 0.5)),
-        p95Ms: round(percentile(samples, 0.95)),
-        p99Ms: round(percentile(samples, 0.99)),
-        maxMs: round(samples.length ? Math.max(...samples) : 0),
+        [`median${suffix}`]: round(percentile(samples, 0.5)),
+        [`p95${suffix}`]: round(percentile(samples, 0.95)),
+        [`p99${suffix}`]: round(percentile(samples, 0.99)),
+        [`max${suffix}`]: round(samples.length ? Math.max(...samples) : 0),
     };
+}
+
+function spanCategory(span) {
+    if (!span) return 'unknown';
+    if (span.includes('projection')) return 'projection';
+    if (span.includes('direct') || span.includes('fetch') || span.includes('load')) return 'read_model';
+    if (span.includes('render') || span.startsWith('render_')) return 'render';
+    if (span.includes('build') || span.includes('predict') || span.includes('ensure')) return 'domain';
+    if (span.includes('live')) return 'live_update';
+    if (span.includes('xero')) return 'external';
+    return span.split('_')[0] || 'unknown';
+}
+
+function dropClassification(dropRate) {
+    if (dropRate < 0.01) return 'clean';
+    if (dropRate < 0.10) return 'strained';
+    return 'overloaded';
+}
+
+function formatBytes(bytes) {
+    if (!Number.isFinite(bytes)) return '?';
+    if (bytes >= 1024 * 1024) return `${round(bytes / (1024 * 1024))} MiB`;
+    if (bytes >= 1024) return `${round(bytes / 1024)} KiB`;
+    return `${round(bytes)} B`;
 }
 
 function parseMetrics(filePath) {
     const httpGroups = new Map();
     const appGroups = new Map();
+    const namedSpanGroups = new Map();
+    const unattributedGroups = new Map();
+    const byteGroups = new Map();
     const spanGroups = new Map();
+    const spanCategoryGroups = new Map();
+    const componentByteGroups = new Map();
+    const counterGroups = new Map();
     let requestCount = 0;
     let failedCount = 0;
     let droppedIterations = 0;
@@ -97,15 +127,68 @@ function parseMetrics(filePath) {
                 samples: [],
             }));
             group.samples.push(value);
-        } else if (event.metric === 'profile_span_duration') {
+        } else if (event.metric === 'profile_named_span_total') {
+            const key = groupKey(tags, ['scenario', 'route']);
+            const group = ensureGroup(namedSpanGroups, key, () => ({
+                scenario: tags.scenario || '',
+                route: tags.route || '',
+                samples: [],
+            }));
+            group.samples.push(value);
+        } else if (event.metric === 'profile_unattributed_app_total') {
+            const key = groupKey(tags, ['scenario', 'route']);
+            const group = ensureGroup(unattributedGroups, key, () => ({
+                scenario: tags.scenario || '',
+                route: tags.route || '',
+                samples: [],
+            }));
+            group.samples.push(value);
+        } else if (event.metric === 'profile_response_bytes') {
+            const key = groupKey(tags, ['scenario', 'route']);
+            const group = ensureGroup(byteGroups, key, () => ({
+                scenario: tags.scenario || '',
+                route: tags.route || '',
+                samples: [],
+            }));
+            group.samples.push(value);
+        } else if (event.metric === 'profile_component_bytes') {
             const key = groupKey(tags, ['scenario', 'route', 'span']);
-            const group = ensureGroup(spanGroups, key, () => ({
+            const group = ensureGroup(componentByteGroups, key, () => ({
                 scenario: tags.scenario || '',
                 route: tags.route || '',
                 span: tags.span || '',
                 samples: [],
             }));
             group.samples.push(value);
+        } else if (event.metric === 'profile_counter_value') {
+            const key = groupKey(tags, ['scenario', 'route', 'counter']);
+            const group = ensureGroup(counterGroups, key, () => ({
+                scenario: tags.scenario || '',
+                route: tags.route || '',
+                counter: tags.counter || '',
+                total: 0,
+                samples: [],
+            }));
+            group.total += value;
+            group.samples.push(value);
+        } else if (event.metric === 'profile_span_duration') {
+            const key = groupKey(tags, ['scenario', 'route', 'span']);
+            const group = ensureGroup(spanGroups, key, () => ({
+                scenario: tags.scenario || '',
+                route: tags.route || '',
+                span: tags.span || '',
+                category: spanCategory(tags.span || ''),
+                samples: [],
+            }));
+            group.samples.push(value);
+            const categoryKey = groupKey({ ...tags, category: group.category }, ['scenario', 'route', 'category']);
+            const categoryGroup = ensureGroup(spanCategoryGroups, categoryKey, () => ({
+                scenario: tags.scenario || '',
+                route: tags.route || '',
+                category: group.category,
+                samples: [],
+            }));
+            categoryGroup.samples.push(value);
         } else if (event.metric === 'dropped_iterations') {
             droppedIterations += value;
         } else if (event.metric === 'iterations') {
@@ -137,12 +220,53 @@ function parseMetrics(filePath) {
         ...summarizeSamples(group.samples),
     })).sort((a, b) => b.p95Ms - a.p95Ms);
 
+    const namedSpanTotals = [...namedSpanGroups.values()].map((group) => ({
+        scenario: group.scenario,
+        route: group.route,
+        ...summarizeSamples(group.samples),
+    })).sort((a, b) => b.p95Ms - a.p95Ms);
+
+    const unattributedAppTotals = [...unattributedGroups.values()].map((group) => ({
+        scenario: group.scenario,
+        route: group.route,
+        ...summarizeSamples(group.samples),
+    })).sort((a, b) => b.p95Ms - a.p95Ms);
+
+    const responseBytes = [...byteGroups.values()].map((group) => ({
+        scenario: group.scenario,
+        route: group.route,
+        ...summarizeSamples(group.samples, 'Bytes'),
+    })).sort((a, b) => b.p95Bytes - a.p95Bytes);
+
     const spans = [...spanGroups.values()].map((group) => ({
         scenario: group.scenario,
         route: group.route,
         span: group.span,
+        category: group.category,
         ...summarizeSamples(group.samples),
     })).sort((a, b) => b.p95Ms - a.p95Ms);
+
+    const spanCategories = [...spanCategoryGroups.values()].map((group) => ({
+        scenario: group.scenario,
+        route: group.route,
+        category: group.category,
+        ...summarizeSamples(group.samples),
+    })).sort((a, b) => b.p95Ms - a.p95Ms);
+
+    const componentBytes = [...componentByteGroups.values()].map((group) => ({
+        scenario: group.scenario,
+        route: group.route,
+        span: group.span,
+        ...summarizeSamples(group.samples, 'Bytes'),
+    })).sort((a, b) => b.p95Bytes - a.p95Bytes);
+
+    const counters = [...counterGroups.values()].map((group) => ({
+        scenario: group.scenario,
+        route: group.route,
+        counter: group.counter,
+        total: group.total,
+        ...summarizeSamples(group.samples, 'Count'),
+    })).sort((a, b) => b.p95Count - a.p95Count || b.total - a.total);
 
     const missingServerTiming = [...httpGroups.values()]
         .map((group) => {
@@ -160,12 +284,34 @@ function parseMetrics(filePath) {
         .filter((row) => row.missingCount > 0)
         .sort((a, b) => b.missingCount - a.missingCount || a.route.localeCompare(b.route));
 
+    const scheduledIterations = completedIterations + droppedIterations;
+    const dropRate = scheduledIterations === 0 ? 0 : droppedIterations / scheduledIterations;
+
+    const missingResponseBytes = [...httpGroups.values()]
+        .map((group) => {
+            const key = groupKey({ scenario: group.scenario, route: group.route }, ['scenario', 'route']);
+            const byteCount = byteGroups.get(key)?.samples.length || 0;
+            const missingCount = Math.max(0, group.samples.length - byteCount);
+            return {
+                scenario: group.scenario,
+                route: group.route,
+                requestCount: group.samples.length,
+                byteCount,
+                missingCount,
+            };
+        })
+        .filter((row) => row.missingCount > 0)
+        .sort((a, b) => b.missingCount - a.missingCount || a.route.localeCompare(b.route));
+
     return {
         requestCount,
         failedCount,
         failureRate: requestCount === 0 ? 0 : failedCount / requestCount,
         droppedIterations,
         completedIterations,
+        scheduledIterations,
+        dropRate,
+        dropClassification: dropClassification(dropRate),
         checkCount,
         failedChecks,
         checkFailureRate: checkCount === 0 ? 0 : failedChecks / checkCount,
@@ -176,8 +322,15 @@ function parseMetrics(filePath) {
         requestsPerSecond: elapsedSeconds === 0 ? 0 : round(requestCount / elapsedSeconds),
         http,
         appTotals,
+        namedSpanTotals,
+        unattributedAppTotals,
+        responseBytes,
         spans,
+        spanCategories,
+        componentBytes,
+        counters,
         missingServerTiming,
+        missingResponseBytes,
     };
 }
 
@@ -205,6 +358,7 @@ function renderMarkdown(summary, metadata) {
         `Failed 5xx/transport-ish requests: ${summary.failedCount} (${round(summary.failureRate * 100)}%)`,
         `Completed iterations: ${summary.completedIterations}`,
         `Dropped iterations: ${summary.droppedIterations}`,
+        `Scheduled iterations: ${summary.scheduledIterations} (${round(summary.dropRate * 100)}% dropped; ${summary.dropClassification})`,
         `Failed checks: ${summary.failedChecks}/${summary.checkCount} (${round(summary.checkFailureRate * 100)}%)`,
         `Max observed VUs: ${summary.maxObservedVus}/${summary.maxObservedVusLimit || '?'} (${round(summary.vuSaturation * 100)}%)`,
         `Observed throughput: ${summary.requestsPerSecond} req/sec over ${summary.elapsedSeconds}s`,
@@ -221,6 +375,37 @@ function renderMarkdown(summary, metadata) {
                 ),
                 '',
             ]),
+        ...(summary.missingResponseBytes.length === 0
+            ? ['All sampled routes had response byte records.', '']
+            : [
+                '### Response Size Coverage',
+                '',
+                '| Scenario | Route | Requests | Byte Records | Missing |',
+                '| --- | --- | ---: | ---: | ---: |',
+                ...summary.missingResponseBytes.map((row) =>
+                    `| ${row.scenario} | \`${row.route}\` | ${row.requestCount} | ${row.byteCount} | ${row.missingCount} |`
+                ),
+                '',
+            ]),
+        '## Attribution Gaps',
+        '',
+        '| Scenario | Route | Count | App P95 | Named Span P95 | Unattributed P95 |',
+        '| --- | --- | ---: | ---: | ---: | ---: |',
+        ...summary.unattributedAppTotals.slice(0, 20).map((row) => {
+            const key = `${row.scenario}::${row.route}`;
+            const app = summary.appTotals.find((item) => `${item.scenario}::${item.route}` === key);
+            const named = summary.namedSpanTotals.find((item) => `${item.scenario}::${item.route}` === key);
+            return `| ${row.scenario} | \`${row.route}\` | ${row.count} | ${app?.p95Ms ?? ''} | ${named?.p95Ms ?? ''} | ${row.p95Ms} |`;
+        }),
+        '',
+        '## Largest Responses',
+        '',
+        '| Scenario | Route | Count | Median | P95 | P99 | Max |',
+        '| --- | --- | ---: | ---: | ---: | ---: | ---: |',
+        ...summary.responseBytes.slice(0, 20).map((row) =>
+            `| ${row.scenario} | \`${row.route}\` | ${row.count} | ${formatBytes(row.medianBytes)} | ${formatBytes(row.p95Bytes)} | ${formatBytes(row.p99Bytes)} | ${formatBytes(row.maxBytes)} |`
+        ),
+        '',
         '## Slowest HTTP Routes',
         '',
         '| Scenario | Route | Count | Median | P95 | P99 | Max | Statuses |',
@@ -237,12 +422,36 @@ function renderMarkdown(summary, metadata) {
             `| ${row.scenario} | \`${row.route}\` | ${row.count} | ${row.medianMs} | ${row.p95Ms} | ${row.p99Ms} | ${row.maxMs} |`
         ),
         '',
+        '## Component Bytes',
+        '',
+        '| Scenario | Route | Component | Count | Median | P95 | P99 | Max |',
+        '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |',
+        ...summary.componentBytes.slice(0, 40).map((row) =>
+            `| ${row.scenario} | \`${row.route}\` | \`${row.span}\` | ${row.count} | ${formatBytes(row.medianBytes)} | ${formatBytes(row.p95Bytes)} | ${formatBytes(row.p99Bytes)} | ${formatBytes(row.maxBytes)} |`
+        ),
+        '',
+        '## Profile Counters',
+        '',
+        '| Scenario | Route | Counter | Samples | Total | Median/request | P95/request | Max/request |',
+        '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |',
+        ...summary.counters.slice(0, 40).map((row) =>
+            `| ${row.scenario} | \`${row.route}\` | \`${row.counter}\` | ${row.count} | ${row.total} | ${row.medianCount} | ${row.p95Count} | ${row.maxCount} |`
+        ),
+        '',
+        '## Slowest Span Categories',
+        '',
+        '| Scenario | Route | Category | Count | Median | P95 | P99 | Max |',
+        '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |',
+        ...summary.spanCategories.slice(0, 30).map((row) =>
+            `| ${row.scenario} | \`${row.route}\` | \`${row.category}\` | ${row.count} | ${row.medianMs} | ${row.p95Ms} | ${row.p99Ms} | ${row.maxMs} |`
+        ),
+        '',
         '## Slowest App Spans',
         '',
-        '| Scenario | Route | Span | Count | Median | P95 | P99 | Max |',
-        '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |',
+        '| Scenario | Route | Category | Span | Count | Median | P95 | P99 | Max |',
+        '| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |',
         ...summary.spans.slice(0, 30).map((row) =>
-            `| ${row.scenario} | \`${row.route}\` | \`${row.span}\` | ${row.count} | ${row.medianMs} | ${row.p95Ms} | ${row.p99Ms} | ${row.maxMs} |`
+            `| ${row.scenario} | \`${row.route}\` | \`${row.category}\` | \`${row.span}\` | ${row.count} | ${row.medianMs} | ${row.p95Ms} | ${row.p99Ms} | ${row.maxMs} |`
         ),
         '',
     ];

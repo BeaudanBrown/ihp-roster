@@ -227,6 +227,14 @@ function accountForScenario(options, manifest) {
     return manifest.accounts?.primaryManager;
 }
 
+function parseProfileCounters(header) {
+    if (!header) return [];
+    return splitHeader(header).map((item) => {
+        const [name, value] = item.split('=');
+        return { name: name || '', value: Number(value) };
+    }).filter((counter) => counter.name && Number.isFinite(counter.value));
+}
+
 function parseServerTiming(header) {
     return splitHeader(header).map((metric) => {
         const parts = metric.split(';').map((part) => part.trim()).filter(Boolean);
@@ -270,9 +278,29 @@ function summarize(records) {
         .filter((record) => record.serverTiming.length > 0)
         .map((record) => {
             const total = record.serverTiming.find((metric) => metric.name === 'app_total');
-            return { ...record, totalMs: total?.durationMs ?? record.wallMs };
+            const namedTotalMs = record.serverTiming
+                .filter((metric) => metric.name !== 'app_total' && metric.durationMs !== null)
+                .reduce((sum, metric) => sum + metric.durationMs, 0);
+            const totalMs = total?.durationMs ?? record.wallMs;
+            return { ...record, totalMs, namedTotalMs, unattributedMs: Math.max(0, totalMs - namedTotalMs) };
         });
     const spanGroups = new Map();
+    const counterGroups = new Map();
+    for (const record of measured) {
+        for (const counter of record.profileCounters || []) {
+            const key = `${record.scenario}::${new URL(record.url).pathname}::${counter.name}`;
+            const group = counterGroups.get(key) || {
+                scenario: record.scenario,
+                path: new URL(record.url).pathname + new URL(record.url).search,
+                counter: counter.name,
+                total: 0,
+                samples: [],
+            };
+            group.total += counter.value;
+            group.samples.push(counter.value);
+            counterGroups.set(key, group);
+        }
+    }
     for (const record of requests) {
         for (const metric of record.serverTiming) {
             if (metric.name === 'app_total' || metric.durationMs === null) continue;
@@ -295,6 +323,42 @@ function summarize(records) {
     return {
         requestCount: requests.length,
         missingServerTiming,
+        slowestAttributionGaps: [...requests]
+            .sort((a, b) => b.unattributedMs - a.unattributedMs)
+            .slice(0, 20)
+            .map((record) => ({
+                scenario: record.scenario,
+                method: record.method,
+                path: new URL(record.url).pathname + new URL(record.url).search,
+                status: record.status,
+                totalMs: round(record.totalMs),
+                namedTotalMs: round(record.namedTotalMs),
+                unattributedMs: round(record.unattributedMs),
+            })),
+        counters: [...counterGroups.values()]
+            .map((group) => ({
+                scenario: group.scenario,
+                path: group.path,
+                counter: group.counter,
+                total: group.total,
+                count: group.samples.length,
+                medianCount: round(percentile(group.samples, 0.5)),
+                p95Count: round(percentile(group.samples, 0.95)),
+                maxCount: round(Math.max(...group.samples)),
+            }))
+            .sort((a, b) => b.p95Count - a.p95Count || b.total - a.total)
+            .slice(0, 50),
+        largestResponses: measured
+            .filter((record) => Number.isFinite(record.responseBytes))
+            .sort((a, b) => b.responseBytes - a.responseBytes)
+            .slice(0, 20)
+            .map((record) => ({
+                scenario: record.scenario,
+                method: record.method,
+                path: new URL(record.url).pathname + new URL(record.url).search,
+                status: record.status,
+                responseBytes: record.responseBytes,
+            })),
         slowestRequests: requests
             .sort((a, b) => b.totalMs - a.totalMs)
             .slice(0, 20)
@@ -305,6 +369,8 @@ function summarize(records) {
                 status: record.status,
                 totalMs: round(record.totalMs),
                 wallMs: round(record.wallMs),
+                unattributedMs: round(record.unattributedMs),
+                responseBytes: record.responseBytes ?? null,
             })),
         slowestSpans: [...spanGroups.values()]
             .map((group) => ({
@@ -369,6 +435,20 @@ function round(value) {
     return Math.round(value * 10) / 10;
 }
 
+function responseBytesFromHeaders(headers) {
+    const profiledValue = Number(headers['x-profile-response-bytes']);
+    if (Number.isFinite(profiledValue) && profiledValue >= 0) return profiledValue;
+    const value = Number(headers['content-length']);
+    return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+function formatBytes(bytes) {
+    if (!Number.isFinite(bytes)) return '?';
+    if (bytes >= 1024 * 1024) return `${round(bytes / (1024 * 1024))} MiB`;
+    if (bytes >= 1024) return `${round(bytes / 1024)} KiB`;
+    return `${round(bytes)} B`;
+}
+
 function renderMarkdown(options, manifest, summary) {
     const lines = [
         '# Profile Report',
@@ -392,10 +472,34 @@ function renderMarkdown(options, manifest, summary) {
             ]),
         '## Slowest Requests',
         '',
-        '| Scenario | Method | Status | Total ms | Wall ms | Path |',
-        '| --- | --- | ---: | ---: | ---: | --- |',
+        '| Scenario | Method | Status | Total ms | Wall ms | Unattributed ms | Bytes | Path |',
+        '| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |',
         ...summary.slowestRequests.map((request) =>
-            `| ${request.scenario} | ${request.method} | ${request.status} | ${request.totalMs} | ${request.wallMs} | \`${request.path}\` |`
+            `| ${request.scenario} | ${request.method} | ${request.status} | ${request.totalMs} | ${request.wallMs} | ${request.unattributedMs} | ${formatBytes(request.responseBytes)} | \`${request.path}\` |`
+        ),
+        '',
+        '## Largest Attribution Gaps',
+        '',
+        '| Scenario | Method | Status | Total ms | Named span ms | Unattributed ms | Path |',
+        '| --- | --- | ---: | ---: | ---: | ---: | --- |',
+        ...summary.slowestAttributionGaps.map((request) =>
+            `| ${request.scenario} | ${request.method} | ${request.status} | ${request.totalMs} | ${request.namedTotalMs} | ${request.unattributedMs} | \`${request.path}\` |`
+        ),
+        '',
+        '## Largest Responses',
+        '',
+        '| Scenario | Method | Status | Bytes | Path |',
+        '| --- | --- | ---: | ---: | --- |',
+        ...summary.largestResponses.map((request) =>
+            `| ${request.scenario} | ${request.method} | ${request.status} | ${formatBytes(request.responseBytes)} | \`${request.path}\` |`
+        ),
+        '',
+        '## Profile Counters',
+        '',
+        '| Scenario | Path | Counter | Samples | Total | Median/request | P95/request | Max/request |',
+        '| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |',
+        ...summary.counters.map((counter) =>
+            `| ${counter.scenario} | \`${counter.path}\` | \`${counter.counter}\` | ${counter.count} | ${counter.total} | ${counter.medianCount} | ${counter.p95Count} | ${counter.maxCount} |`
         ),
         '',
         '## Slowest Spans',
@@ -440,7 +544,8 @@ async function runXeroAutosaveScenario(page, options, manifest, scenario, record
     const startedAt = performance.now();
     const saveResponse = await submitXeroMappingSelection(page, activeSelect, xero.targetEmployeeId);
     const wallMs = performance.now() - startedAt;
-    const serverTimingHeader = saveResponse.headers()['server-timing'];
+    const saveResponseHeaders = saveResponse.headers();
+    const serverTimingHeader = saveResponseHeaders['server-timing'];
 
     await page.getByLabel(xero.targetStaffLabel).waitFor({ state: 'visible', timeout: options.timeoutMs });
     await page.getByLabel(xero.targetStaffLabel).evaluate((element, expectedValue) => {
@@ -475,6 +580,8 @@ async function runXeroAutosaveScenario(page, options, manifest, scenario, record
             method: 'POST',
             status: saveResponse.status(),
             serverTiming: serverTimingHeader ? parseServerTiming(serverTimingHeader) : [],
+            profileCounters: parseProfileCounters(saveResponseHeaders['x-profile-counters']),
+            responseBytes: responseBytesFromHeaders(saveResponseHeaders),
             wallMs: round(wallMs),
             interaction: interactionDetails,
         });
@@ -497,7 +604,8 @@ async function runExportGenerationScenario(page, options, manifest, scenario, re
         page.locator('#admin-export-generation-form button[name="exportType"]').first().click(),
     ]).then(([response]) => response);
     const wallMs = performance.now() - startedAt;
-    const serverTimingHeader = exportResponse.headers()['server-timing'];
+    const exportResponseHeaders = exportResponse.headers();
+    const serverTimingHeader = exportResponseHeaders['server-timing'];
 
     records.push({
         scenario: scenario.name,
@@ -507,6 +615,8 @@ async function runExportGenerationScenario(page, options, manifest, scenario, re
         method: 'POST',
         status: exportResponse.status(),
         serverTiming: serverTimingHeader ? parseServerTiming(serverTimingHeader) : [],
+        profileCounters: parseProfileCounters(exportResponseHeaders['x-profile-counters']),
+        responseBytes: responseBytesFromHeaders(exportResponseHeaders),
         wallMs: round(wallMs),
     });
 }
@@ -552,7 +662,8 @@ async function main() {
         const url = response.url();
         if (!activeScenario) return;
         if (new URL(url).origin !== new URL(options.baseUrl).origin) return;
-        const serverTimingHeader = response.headers()['server-timing'];
+        const responseHeaders = response.headers();
+        const serverTimingHeader = responseHeaders['server-timing'];
         records.push({
             scenario: activeScenario,
             iteration: activeIteration,
@@ -561,6 +672,8 @@ async function main() {
             method: request.method(),
             status: response.status(),
             serverTiming: serverTimingHeader ? parseServerTiming(serverTimingHeader) : [],
+            profileCounters: parseProfileCounters(responseHeaders['x-profile-counters']),
+            responseBytes: responseBytesFromHeaders(responseHeaders),
             wallMs: 0,
         });
     });

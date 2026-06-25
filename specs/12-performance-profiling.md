@@ -18,6 +18,10 @@ IHP_ROSTER_PROFILING=1
 
 When enabled, response middleware emits `Server-Timing` and `X-Request-Id` headers for normal app responses, including HTML, JSON, redirects, and downloads. Controllers should not add render wrappers just to emit profiling headers. The app does not keep an unbounded in-memory profile store; the runners collect timings from response headers.
 
+The shared `renderProfiled` and `respondHtmlProfiled` helpers add coarse `render.ihp_view` and `render.respond_html` spans when profiling is enabled. `respondHtmlProfiled` also emits `X-Profile-Response-Bytes` for rendered HTML payload size. Use these helpers for profiled routes and add narrower manual spans only when a route-level render span still leaves a large attribution gap.
+
+Profiling counters are available for high-volume render paths via `profileCounter` in IO code and `profileRenderCounter` in pure view code. Counters are emitted in `X-Profile-Counters` and summarized alongside timings. Use counters sparingly for repeated structures such as roster rows, slot blocks, grid cells, launchers, hidden inputs, picker options, and panel entries.
+
 Manual spans are added with helpers from `Application.Helper.Profiling`, for example:
 
 ```haskell
@@ -25,7 +29,7 @@ profileActionSpan "roster.build_month_overview" do
     buildRosterMonthOverviewDays venueConfig rosterGroupId focusDate
 ```
 
-Use span names that identify the app area and operation. The emitted `Server-Timing` token sanitizes dots to underscores, so `roster.build_month_overview` appears as `roster_build_month_overview` in reports.
+Use span names that identify the app area and operation. Prefer category-style prefixes such as `read_model.*`, `projection.*`, `domain.*`, `render.*`, `external.*`, and `live_update.*` for new spans. Existing legacy spans are still accepted and are grouped heuristically by the load reports. The emitted `Server-Timing` token sanitizes dots to underscores, so `roster.build_month_overview` appears as `roster_build_month_overview` in reports.
 
 When `IHP_ROSTER_PROFILING` is unset, profiling is default-off. Span helpers first check for an active request profile and avoid monotonic clock reads or cache-stat snapshots when no profile exists. Production deployments must leave profiling disabled unless an operator intentionally starts an isolated profiling run or enables it briefly for a controlled diagnostic window.
 
@@ -117,7 +121,7 @@ Available scenarios:
 
 The shared scenario catalog lives at `e2e/profile-scenarios.json`; update it when adding or retiring profile coverage so Playwright and k6 stay aligned.
 
-`profile-load` uses k6's constant-arrival-rate model. `--rate=10 --duration=30s` means it tries to start 10 iterations per second for 30 seconds. Dropped iterations mean the test could not keep the requested arrival schedule; they are useful regression signal even when requests still pass.
+`profile-load` uses k6's constant-arrival-rate model. `--rate=10 --duration=30s` means it tries to start 10 iterations per second for 30 seconds. Dropped iterations mean the test could not keep the requested arrival schedule; they are useful regression signal even when requests still pass. Reports classify runs as `clean` (<1% dropped), `strained` (1–10%), or `overloaded` (>10%). Use clean/strained runs for latency comparisons and overloaded runs for stress/capacity comparisons.
 
 ## Load Suite
 
@@ -159,6 +163,10 @@ Useful fields:
 
 - HTTP p95/p99 by route: user-visible request latency.
 - App total p95/p99 by route: server-side request work.
+- Attribution gaps: `app_total - named spans`; large gaps mean add spans around rendering/serialization or another uninstrumented boundary before guessing at a refactor.
+- Largest responses: response byte sizes when the server provides `Content-Length` or `X-Profile-Response-Bytes`; missing byte records usually mean chunked/streamed responses and are reported separately.
+- Profile counters: high-volume render counts per route/request, useful for finding multiplicative markup such as slot cells, grid cells, launchers, forms, and panel entries.
+- Span category p95/p99: grouped costs such as `read_model`, `projection`, `domain`, `render`, `external`, and `live_update`.
 - Span p95/p99: specific code paths worth optimizing.
 - Dropped iterations: arrival-rate pressure, often useful as regression signal.
 - VU saturation: whether k6 had to use most of the configured virtual-user ceiling.
