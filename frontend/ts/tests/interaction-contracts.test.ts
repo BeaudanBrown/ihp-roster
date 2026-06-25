@@ -1,4 +1,4 @@
-import type { InteractionCapabilityContract, IntentFormContract } from "../generated/contracts";
+import { InteractionDom, type InteractionCapabilityContract, type IntentFormContract } from "../generated/contracts";
 import { assertDeepEqual, assertEqual, test } from "./harness";
 
 test("generated interaction contracts describe mount-local intent forms", () => {
@@ -31,5 +31,6 @@ test("generated interaction contracts describe mount-local intent forms", () => 
     };
 
     assertEqual(capability.intentForms[0]?.method, "post");
+    assertEqual(InteractionDom.attributes.intentField, "data-bepis-intent-field");
     assertDeepEqual(capability.intentForms[0]?.fields, [{ name: "cellId", presence: "required" }]);
 });

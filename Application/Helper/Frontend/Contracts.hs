@@ -121,7 +121,26 @@ interactionContracts :: TypeScriptDeclaration
 interactionContracts = TypeScriptDeclaration
     { name = "InteractionContracts"
     , source = Text.unlines
-        [ stringUnionSource "InteractionFieldPresence" (fmap snd interactionFieldPresenceValues)
+        [ "export const InteractionDom = {"
+        , "    attributes: {"
+        , "        surface: \"data-bepis-surface\","
+        , "        surfaceFamily: \"data-bepis-surface-family\","
+        , "        scopeKey: \"data-bepis-scope-key\","
+        , "        mountKey: \"data-bepis-mount-key\","
+        , "        intentForm: \"data-bepis-intent-form\","
+        , "        intent: \"data-bepis-intent\","
+        , "        intentField: \"data-bepis-intent-field\","
+        , "        fieldPresence: \"data-bepis-field-presence\","
+        , "        intentHiddenField: \"data-bepis-intent-hidden-field\""
+        , "    },"
+        , "    values: {"
+        , "        enabled: \"true\""
+        , "    }"
+        , "} as const;"
+        , ""
+        , "export type InteractionDomAttribute = typeof InteractionDom.attributes[keyof typeof InteractionDom.attributes];"
+        , ""
+        , stringUnionSource "InteractionFieldPresence" (fmap snd interactionFieldPresenceValues)
         , stringUnionSource "HtmxMethod" (fmap snd htmxMethodValues)
         , stringUnionSource "HtmxSwap" (fmap snd htmxSwapValues <> ["custom"])
         , stringUnionSource "InteractionConflictResolution" (fmap snd interactionConflictResolutionValues)

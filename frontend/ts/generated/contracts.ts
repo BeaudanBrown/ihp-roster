@@ -69,6 +69,25 @@ export type LiveUpdateMessage =
     | { type: "invalidate"; scope: LiveUpdateScope; scopeKey: string; version: number; fragments: LiveUpdateWireFragment[]; sourceClientId?: string | null }
     | { type: "error"; message: string };
 
+export const InteractionDom = {
+    attributes: {
+        surface: "data-bepis-surface",
+        surfaceFamily: "data-bepis-surface-family",
+        scopeKey: "data-bepis-scope-key",
+        mountKey: "data-bepis-mount-key",
+        intentForm: "data-bepis-intent-form",
+        intent: "data-bepis-intent",
+        intentField: "data-bepis-intent-field",
+        fieldPresence: "data-bepis-field-presence",
+        intentHiddenField: "data-bepis-intent-hidden-field"
+    },
+    values: {
+        enabled: "true"
+    }
+} as const;
+
+export type InteractionDomAttribute = typeof InteractionDom.attributes[keyof typeof InteractionDom.attributes];
+
 export type InteractionFieldPresence =
     | "required"
     | "optional";

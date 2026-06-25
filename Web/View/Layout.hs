@@ -270,6 +270,7 @@ scripts = [hsx|
         <script src={assetPath "/app-date-pickers.js"}></script>
         <script src={assetPath "/app-passkeys.js"}></script>
         <script src={assetPath "/app-live-updates.js"}></script>
+        <script src={assetPath "/app-interactions.js"}></script>
         <script src={assetPath "/app-dialog-overlays.js"}></script>
         <script src={assetPath "/app-toasts.js"}></script>
         <script src={assetPath "/app-time-picker.js"}></script>
