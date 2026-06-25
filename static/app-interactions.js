@@ -20,6 +20,7 @@
       sessionThreshold: "data-bepis-session-threshold",
       sessionTimeoutMs: "data-bepis-session-timeout-ms",
       disposableLayer: "data-bepis-disposable-layer",
+      conflictPolicies: "data-bepis-conflict-policies",
       intentForm: "data-bepis-intent-form",
       intent: "data-bepis-intent",
       intentField: "data-bepis-intent-field",
@@ -275,11 +276,30 @@
     return typeof maybe.getAttribute === "function" && typeof maybe.closest === "function" && typeof maybe.querySelector === "function";
   }
 
-  // frontend/ts/interaction/pointer-session.ts
+  // frontend/ts/interaction/session-state.ts
+  var interactionSessionStartEventName = "bepis:interaction-session-start";
+  var interactionSessionEndEventName = "bepis:interaction-session-end";
+  var interactionSessionCancelRequestEventName = "bepis:interaction-session-cancel-request";
   var attrs3 = InteractionDom.attributes;
+  function dispatchInteractionSessionStart(detail, root) {
+    const eventRoot = root ?? defaultDocument();
+    if (!eventRoot) return;
+    eventRoot.dispatchEvent(new CustomEvent(interactionSessionStartEventName, { detail }));
+  }
+  function dispatchInteractionSessionEnd(detail, root) {
+    const eventRoot = root ?? defaultDocument();
+    if (!eventRoot) return;
+    eventRoot.dispatchEvent(new CustomEvent(interactionSessionEndEventName, { detail }));
+  }
+  function defaultDocument() {
+    return typeof document === "undefined" ? null : document;
+  }
+
+  // frontend/ts/interaction/pointer-session.ts
+  var attrs4 = InteractionDom.attributes;
   var values3 = InteractionDom.values;
-  var sessionSelector = `[${attrs3.pointerSession}="${values3.enabled}"]`;
-  var disposableLayerSelector = `[${attrs3.disposableLayer}]`;
+  var sessionSelector = `[${attrs4.pointerSession}="${values3.enabled}"]`;
+  var disposableLayerSelector = `[${attrs4.disposableLayer}]`;
   var defaultThresholdPx = 4;
   function enableGenericPointerSessions(options = {}) {
     if (typeof document === "undefined") return () => void 0;
@@ -292,6 +312,7 @@
     root.addEventListener("keydown", controller.handleKeyDown);
     root.addEventListener("htmx:beforeSwap", controller.handleExternalCleanup);
     root.addEventListener("htmx:beforeCleanupElement", controller.handleExternalCleanup);
+    root.addEventListener(interactionSessionCancelRequestEventName, controller.handleCancelRequest);
     return () => {
       root.removeEventListener("pointerdown", controller.handlePointerDown);
       root.removeEventListener("pointermove", controller.handlePointerMove);
@@ -300,6 +321,7 @@
       root.removeEventListener("keydown", controller.handleKeyDown);
       root.removeEventListener("htmx:beforeSwap", controller.handleExternalCleanup);
       root.removeEventListener("htmx:beforeCleanupElement", controller.handleExternalCleanup);
+      root.removeEventListener(interactionSessionCancelRequestEventName, controller.handleCancelRequest);
       controller.stop();
     };
   }
@@ -314,17 +336,18 @@
     };
     const scheduleTimeout = (session) => {
       clearTimeoutHandle();
-      const timeoutMs = numberAttribute(session.marker, attrs3.sessionTimeoutMs);
+      const timeoutMs = numberAttribute(session.marker, attrs4.sessionTimeoutMs);
       if (timeoutMs === null || timeoutMs <= 0) return;
       timeoutHandle = setTimeout(() => {
         if (activeSession === session) cancelSession(session, null);
       }, timeoutMs);
     };
-    const cleanupSession = (session) => {
+    const cleanupSession = (session, reason) => {
       clearTimeoutHandle();
       clearDisposableLayers(session.mount);
       releasePointerCapture(session.marker, session.pointerId);
       if (activeSession === session) activeSession = null;
+      dispatchInteractionSessionEnd(sessionSnapshot(session, reason));
     };
     const cancelSession = (session, sourceEvent) => {
       runtime.emit({
@@ -335,7 +358,7 @@
         marker: session.marker,
         sourceEvent
       });
-      cleanupSession(session);
+      cleanupSession(session, sourceEvent?.type ?? "cancel");
     };
     const finishSession = (session, sourceEvent) => {
       const result = runtime.emit({
@@ -347,7 +370,7 @@
         sourceEvent
       });
       if (result.canceled && sourceEvent.cancelable) sourceEvent.preventDefault();
-      cleanupSession(session);
+      cleanupSession(session, sourceEvent.type);
     };
     const updateSession = (session, event) => {
       session.currentClientX = numberValue(event.clientX);
@@ -381,9 +404,10 @@
         });
         if (result.canceled) {
           if (event.cancelable) event.preventDefault();
-          cleanupSession(start);
+          cleanupSession(start, "canceled-start");
           return;
         }
+        dispatchInteractionSessionStart(sessionSnapshot(start));
         scheduleTimeout(start);
       },
       handlePointerMove(event) {
@@ -409,6 +433,13 @@
         if (!activeSession) return;
         cancelSession(activeSession, event);
       },
+      handleCancelRequest(event) {
+        if (!activeSession) return;
+        const detail = event instanceof CustomEvent ? event.detail : null;
+        if (detail?.mountId && detail.mountId !== activeSession.mount.id) return;
+        if (detail?.sessionKind && detail.sessionKind !== activeSession.sessionKind) return;
+        cancelSession(activeSession, event);
+      },
       currentSession() {
         return activeSession;
       },
@@ -425,12 +456,12 @@
     if (isDisabled(marker)) return null;
     const mount = closestInteractionMount2(marker);
     if (!mount) return null;
-    const intent = marker.getAttribute(attrs3.sessionIntent);
-    const sessionKind = marker.getAttribute(attrs3.sessionKind);
+    const intent = marker.getAttribute(attrs4.sessionIntent);
+    const sessionKind = marker.getAttribute(attrs4.sessionKind);
     if (!intent || !sessionKind) return null;
     const startClientX = numberValue(pointerEvent.clientX);
     const startClientY = numberValue(pointerEvent.clientY);
-    const thresholdPx = numberAttribute(marker, attrs3.sessionThreshold) ?? fallbackThresholdPx;
+    const thresholdPx = numberAttribute(marker, attrs4.sessionThreshold) ?? fallbackThresholdPx;
     return {
       mount,
       marker,
@@ -444,6 +475,15 @@
       currentClientY: startClientY,
       thresholdPx: Math.max(0, thresholdPx),
       activated: thresholdPx <= 0
+    };
+  }
+  function sessionSnapshot(session, reason) {
+    return {
+      mount: session.mount,
+      mountId: session.mount.id,
+      sessionKind: session.sessionKind,
+      intent: session.intent,
+      reason: reason ?? null
     };
   }
   function pointerSessionFields(session) {
@@ -472,7 +512,7 @@
     return isElementLike3(marker) ? marker : null;
   }
   function closestInteractionMount2(marker) {
-    const mount = marker.closest(`[${attrs3.surface}="${values3.enabled}"]`);
+    const mount = marker.closest(`[${attrs4.surface}="${values3.enabled}"]`);
     return isElementLike3(mount) ? mount : null;
   }
   function clearDisposableLayers(mount) {
@@ -487,7 +527,7 @@
     if (typeof mutable.innerHTML === "string") mutable.innerHTML = "";
   }
   function isDisabled(marker) {
-    return marker.getAttribute(attrs3.sessionDisabled) === values3.enabled || marker.getAttribute(attrs3.sessionReadOnly) === values3.enabled;
+    return marker.getAttribute(attrs4.sessionDisabled) === values3.enabled || marker.getAttribute(attrs4.sessionReadOnly) === values3.enabled;
   }
   function isMatchingPointerEvent(event, session) {
     return numberValue(event.pointerId) === session.pointerId;

@@ -1,4 +1,6 @@
 import type { LiveUpdateCommand, LiveUpdateMessage, LiveUpdateScope, LiveUpdateWireFragment } from "./generated/contracts";
+import { resolveLiveFragmentInteractionConflict } from "./interaction/live-conflicts";
+import { createActiveInteractionSessionTracker } from "./interaction/session-state";
 import {
     buildLiveUpdateSubscribeCommand,
     liveUpdateFragmentMergeKey,
@@ -69,6 +71,9 @@ type HtmxConfigRequestEvent = Event & {
 
     const actorFragmentRefreshEventName = 'app-live-fragments-refresh';
     const pendingDeferredFragments = new Map<string, LiveUpdateFragmentWithState>();
+    const pendingInteractionDeferredFragments = new Map<string, LiveUpdateFragmentWithState>();
+    const pendingInteractionTimers = new Map<string, ReturnType<typeof window.setTimeout>>();
+    const activeInteractionSessions = createActiveInteractionSessionTracker(document);
     const inFlightFragments = new Map<string, InFlightFragmentState>();
     const activeSubscriptions = new Map<string, LiveUpdateSubscription>();
     const scopeVersions = new Map<string, number>();
@@ -446,6 +451,26 @@ type HtmxConfigRequestEvent = Event & {
         if (!(target instanceof HTMLElement)) return;
         const resolvedFragment = { ...fragment, url: target.dataset.liveUpdateUrl || fragment.url };
 
+        const interactionConflict = resolveLiveFragmentInteractionConflict(resolvedFragment, target, activeInteractionSessions);
+        if (interactionConflict && interactionConflict.action === 'cancel') {
+            activeInteractionSessions.requestCancel(interactionConflict.session, 'live-fragment-conflict');
+        }
+        if (interactionConflict && interactionConflict.action === 'defer') {
+            pendingInteractionDeferredFragments.set(resolvedFragment.targetId, resolvedFragment);
+            scheduleInteractionDeferredFlush(resolvedFragment.targetId, interactionConflict.timeoutMs);
+            document.dispatchEvent(new CustomEvent('app:live-update-performance', {
+                detail: {
+                    name: 'live_updates.defer_fragment',
+                    duration: 0,
+                    targetId: resolvedFragment.targetId,
+                    reason: 'interaction_session',
+                },
+            }));
+            return;
+        }
+
+        clearInteractionDeferredFragment(resolvedFragment.targetId);
+
         if (resolvedFragment.deferUntilBlur && hasProtectedActiveInput(target, resolvedFragment)) {
             pendingDeferredFragments.set(resolvedFragment.targetId, captureDeferredState(target, resolvedFragment));
             document.dispatchEvent(new CustomEvent('app:live-update-performance', {
@@ -461,6 +486,53 @@ type HtmxConfigRequestEvent = Event & {
 
         pendingDeferredFragments.delete(resolvedFragment.targetId);
         queueFragment(resolvedFragment);
+    }
+
+    function clearInteractionDeferredFragment(targetId: string): void {
+        const timer = pendingInteractionTimers.get(targetId);
+        if (timer) window.clearTimeout(timer);
+        pendingInteractionTimers.delete(targetId);
+        pendingInteractionDeferredFragments.delete(targetId);
+    }
+
+    function scheduleInteractionDeferredFlush(targetId: string, timeoutMs: number | null): void {
+        const existing = pendingInteractionTimers.get(targetId);
+        if (existing) window.clearTimeout(existing);
+        if (timeoutMs === null || timeoutMs <= 0) return;
+
+        pendingInteractionTimers.set(targetId, window.setTimeout(function () {
+            const fragment = pendingInteractionDeferredFragments.get(targetId);
+            const target = document.getElementById(targetId);
+            if (fragment && target instanceof HTMLElement) {
+                const conflict = resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions);
+                if (conflict) activeInteractionSessions.requestCancel(conflict.session, 'live-fragment-defer-timeout');
+            }
+            flushInteractionDeferredFragment(targetId, 'interaction_timeout');
+        }, timeoutMs));
+    }
+
+    function flushInteractionDeferredFragment(targetId: string, reason: string): void {
+        const fragment = pendingInteractionDeferredFragments.get(targetId);
+        if (!fragment) return;
+
+        clearInteractionDeferredFragment(targetId);
+        emitDebugEvent('deferred_fragment_flush', {
+            targetId,
+            reason,
+        });
+        queueFragment(fragment);
+    }
+
+    function flushInteractionDeferredFragmentsWithoutActiveSessions(): void {
+        Array.from(pendingInteractionDeferredFragments.entries()).forEach(function ([targetId, fragment]) {
+            const target = document.getElementById(targetId);
+            if (!(target instanceof HTMLElement)) {
+                flushInteractionDeferredFragment(targetId, 'target_missing');
+                return;
+            }
+            const conflict = resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions);
+            if (!conflict) flushInteractionDeferredFragment(targetId, 'interaction_session_end');
+        });
     }
 
     function flushDeferredFragment(targetId: string): void {
@@ -479,6 +551,7 @@ type HtmxConfigRequestEvent = Event & {
         Array.from(pendingDeferredFragments.entries()).forEach(function ([targetId]) {
             const target = document.getElementById(targetId);
             const fragment = pendingDeferredFragments.get(targetId);
+            if (target instanceof HTMLElement && fragment && resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions)) return;
             if (!target || !hasProtectedActiveInput(target, fragment)) {
                 flushDeferredFragment(targetId);
             }
@@ -891,6 +964,21 @@ type HtmxConfigRequestEvent = Event & {
     }
 
     document.addEventListener(actorFragmentRefreshEventName, handleActorFragmentRefreshEvent);
+
+    document.addEventListener('bepis:interaction-session-end', function () {
+        window.setTimeout(function () {
+            flushInteractionDeferredFragmentsWithoutActiveSessions();
+            flushDeferredFragmentsWithoutActiveInputs();
+        }, 0);
+    });
+
+    document.addEventListener('htmx:afterSwap', function () {
+        flushInteractionDeferredFragmentsWithoutActiveSessions();
+    });
+
+    document.addEventListener('htmx:responseError', function () {
+        flushInteractionDeferredFragmentsWithoutActiveSessions();
+    });
 
     document.addEventListener('focusout', function () {
         window.setTimeout(function () {

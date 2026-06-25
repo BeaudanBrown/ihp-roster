@@ -141,6 +141,7 @@ interactionContracts = TypeScriptDeclaration
         , "        sessionThreshold: \"data-bepis-session-threshold\","
         , "        sessionTimeoutMs: \"data-bepis-session-timeout-ms\","
         , "        disposableLayer: \"data-bepis-disposable-layer\","
+        , "        conflictPolicies: \"data-bepis-conflict-policies\","
         , "        intentForm: \"data-bepis-intent-form\","
         , "        intent: \"data-bepis-intent\","
         , "        intentField: \"data-bepis-intent-field\","

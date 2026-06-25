@@ -1,6 +1,12 @@
 import { InteractionDom } from "../generated/contracts";
 import type { InteractionIntentPayload } from "./intent-bus";
 import { defaultInteractionRuntime } from "./runtime";
+import {
+    dispatchInteractionSessionEnd,
+    dispatchInteractionSessionStart,
+    interactionSessionCancelRequestEventName,
+    type InteractionSessionCancelRequestDetail,
+} from "./session-state";
 
 export type PointerSessionRuntime = {
     emit: (payload: InteractionIntentPayload) => { canceled: boolean };
@@ -61,6 +67,7 @@ export function enableGenericPointerSessions(options: PointerSessionOptions = {}
     root.addEventListener("keydown", controller.handleKeyDown);
     root.addEventListener("htmx:beforeSwap", controller.handleExternalCleanup);
     root.addEventListener("htmx:beforeCleanupElement", controller.handleExternalCleanup);
+    root.addEventListener(interactionSessionCancelRequestEventName, controller.handleCancelRequest);
 
     return () => {
         root.removeEventListener("pointerdown", controller.handlePointerDown);
@@ -70,6 +77,7 @@ export function enableGenericPointerSessions(options: PointerSessionOptions = {}
         root.removeEventListener("keydown", controller.handleKeyDown);
         root.removeEventListener("htmx:beforeSwap", controller.handleExternalCleanup);
         root.removeEventListener("htmx:beforeCleanupElement", controller.handleExternalCleanup);
+        root.removeEventListener(interactionSessionCancelRequestEventName, controller.handleCancelRequest);
         controller.stop();
     };
 }
@@ -94,11 +102,12 @@ export function createPointerSessionController(options: PointerSessionOptions = 
         }, timeoutMs);
     };
 
-    const cleanupSession = (session: ActivePointerSession) => {
+    const cleanupSession = (session: ActivePointerSession, reason: string) => {
         clearTimeoutHandle();
         clearDisposableLayers(session.mount);
         releasePointerCapture(session.marker, session.pointerId);
         if (activeSession === session) activeSession = null;
+        dispatchInteractionSessionEnd(sessionSnapshot(session, reason));
     };
 
     const cancelSession = (session: ActivePointerSession, sourceEvent: Event | null) => {
@@ -110,7 +119,7 @@ export function createPointerSessionController(options: PointerSessionOptions = 
             marker: session.marker,
             sourceEvent,
         });
-        cleanupSession(session);
+        cleanupSession(session, sourceEvent?.type ?? "cancel");
     };
 
     const finishSession = (session: ActivePointerSession, sourceEvent: Event) => {
@@ -123,7 +132,7 @@ export function createPointerSessionController(options: PointerSessionOptions = 
             sourceEvent,
         });
         if (result.canceled && sourceEvent.cancelable) sourceEvent.preventDefault();
-        cleanupSession(session);
+        cleanupSession(session, sourceEvent.type);
     };
 
     const updateSession = (session: ActivePointerSession, event: PointerEventLike) => {
@@ -161,10 +170,11 @@ export function createPointerSessionController(options: PointerSessionOptions = 
             });
             if (result.canceled) {
                 if (event.cancelable) event.preventDefault();
-                cleanupSession(start);
+                cleanupSession(start, "canceled-start");
                 return;
             }
 
+            dispatchInteractionSessionStart(sessionSnapshot(start));
             scheduleTimeout(start);
         },
         handlePointerMove(event: Event) {
@@ -188,6 +198,13 @@ export function createPointerSessionController(options: PointerSessionOptions = 
         },
         handleExternalCleanup(event: Event) {
             if (!activeSession) return;
+            cancelSession(activeSession, event);
+        },
+        handleCancelRequest(event: Event) {
+            if (!activeSession) return;
+            const detail = event instanceof CustomEvent ? event.detail as InteractionSessionCancelRequestDetail : null;
+            if (detail?.mountId && detail.mountId !== activeSession.mount.id) return;
+            if (detail?.sessionKind && detail.sessionKind !== activeSession.sessionKind) return;
             cancelSession(activeSession, event);
         },
         currentSession() {
@@ -241,6 +258,16 @@ export function hitTestClosest(root: Document | Element, clientX: number, client
     const hit = elementFromPoint(clientX, clientY);
     if (!isElementLike(hit)) return null;
     return hit.closest(selector);
+}
+
+function sessionSnapshot(session: ActivePointerSession, reason?: string) {
+    return {
+        mount: session.mount,
+        mountId: session.mount.id,
+        sessionKind: session.sessionKind,
+        intent: session.intent,
+        reason: reason ?? null,
+    };
 }
 
 function pointerSessionFields(session: ActivePointerSession): Record<string, string> {

@@ -92,8 +92,11 @@ import qualified Application.Helper.Interaction.Types as Types
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (liveUpdateScopeKey)
 import Application.Helper.LiveUpdate.Runtime (LiveUpdateWireFragment (..))
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Char as Char
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as TextEncoding
 import IHP.Prelude
 import qualified Text.Blaze.Html as Blaze
 import qualified Text.Blaze.Html5 as Html5
@@ -186,7 +189,16 @@ renderInteractionSurfaceMount ::
     InteractionSurfaceMount scope ->
     Html ->
     Html
-renderInteractionSurfaceMount definition mount inner =
+renderInteractionSurfaceMount definition mount =
+    renderInteractionSurfaceMountWithAttrs definition mount mempty
+
+renderInteractionSurfaceMountWithAttrs ::
+    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
+    InteractionSurfaceMount scope ->
+    Blaze.Attribute ->
+    Html ->
+    Html
+renderInteractionSurfaceMountWithAttrs definition mount extraAttrs inner =
     Html5.div
         ! attr "id" mountId
         ! attr "data-live-update-surface" (liveSurfaceConfigJson (interactionSurfaceLiveConfig definition mount))
@@ -194,18 +206,20 @@ renderInteractionSurfaceMount definition mount inner =
         ! attr "data-bepis-surface-family" definition.typedSurfaceFeature
         ! attr "data-bepis-scope-key" (liveUpdateScopeKey surfaceScope)
         ! attr "data-bepis-mount-key" mount.interactionMountKey.unInteractionMountKey
+        ! extraAttrs
         $ inner
     where
         mountId = interactionMountDomId definition mount
         surfaceScope = unSurfaceScope (definition.typedSurfaceScope mount.interactionMountScope)
 
 renderInteractionCapabilityShell ::
+    Eq session =>
     TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
     InteractionSurfaceMount scope ->
     Html ->
     Html
 renderInteractionCapabilityShell definition mount serverHtml =
-    renderInteractionSurfaceMount definition mount do
+    renderInteractionSurfaceMountWithAttrs definition mount conflictPoliciesAttr do
         renderInteractionServerLayer definition mount serverLayer serverHtml
         mapM_ (renderInteractionDisposableLayer definition mount) capability.interactionDisposableLayers
         mapM_ (renderInteractionIntentForm definition mount) capability.interactionIntentForms
@@ -213,6 +227,7 @@ renderInteractionCapabilityShell definition mount serverHtml =
         capability = typedInteractionCapabilityFor definition mount.interactionMountScope
         serverLayer = fromMaybe defaultServerLayer (listToMaybe capability.interactionServerLayers)
         defaultServerLayer = ServerLayerDefinition { serverLayerName = "server", serverLayerDomIdSuffix = "server" }
+        conflictPoliciesAttr = attr "data-bepis-conflict-policies" (interactionConflictPoliciesJson definition mount.interactionMountScope capability)
 
 renderInteractionServerLayer ::
     TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
@@ -365,6 +380,37 @@ interactionMarkerKindAttribute InteractionActivationMarker   = "activation"
 interactionActivationTriggerAttribute :: InteractionActivationTrigger -> Text
 interactionActivationTriggerAttribute trigger =
     fromMaybe (error "Unknown interaction activation trigger") (lookup trigger interactionActivationTriggerValues)
+
+interactionConflictPoliciesJson ::
+    Eq session =>
+    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
+    scope ->
+    InteractionCapability (SurfaceFragmentRef surface) fragment layer session intent ->
+    Text
+interactionConflictPoliciesJson definition scope capability =
+    TextEncoding.decodeUtf8 (LBS.toStrict (Aeson.encode (fmap policyObject capability.interactionConflictPolicies)))
+    where
+        policyObject policy =
+            Aeson.object
+                [ "session" Aeson..= sessionSelectorName policy.conflictPolicySession
+                , "targetId" Aeson..= fragmentSelectorTargetId policy.conflictPolicyFragment
+                , "resolution" Aeson..= conflictResolutionAttribute policy.conflictPolicyResolution
+                , "timeoutMs" Aeson..= policy.conflictPolicyTimeoutMs
+                ]
+        sessionSelectorName AnyInteractionSession = "*" :: Text
+        sessionSelectorName (InteractionSessionKind session) =
+            fromMaybe "*" do
+                matching <- find ((== session) . (.sessionKind)) capability.interactionSessionKinds
+                pure matching.sessionKindName
+        fragmentSelectorTargetId AnyInteractionFragment = "*" :: Text
+        fragmentSelectorTargetId (InteractionFragment fragment) =
+            case unSurfaceFragmentRefs [(definition.typedSurfaceFragmentContract scope fragment).fragmentContractRef] of
+                [LiveUpdateWireFragment { targetId }] -> targetId
+                _                                     -> "*"
+
+conflictResolutionAttribute :: InteractionConflictResolution -> Text
+conflictResolutionAttribute resolution =
+    fromMaybe (error "Unknown interaction conflict resolution") (lookup resolution interactionConflictResolutionValues)
 
 fieldPresenceAttribute :: InteractionFieldPresence -> Text
 fieldPresenceAttribute presence =

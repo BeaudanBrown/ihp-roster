@@ -1,7 +1,9 @@
 import { InteractionDom } from "../generated/contracts";
 import { readActivationIntentPayload } from "../interaction/activation";
 import { submitCommittedInteractionIntent } from "../interaction/form-bridge";
+import { resolveLiveFragmentInteractionConflict } from "../interaction/live-conflicts";
 import { createPointerSessionController, hitTestClosest, readPointerSessionStart } from "../interaction/pointer-session";
+import { createActiveInteractionSessionTracker, dispatchInteractionSessionEnd, dispatchInteractionSessionStart } from "../interaction/session-state";
 import { createInteractionRuntime } from "../interaction/runtime";
 import { InteractionIntentBus } from "../interaction/intent-bus";
 import { assertEqual, test } from "./harness";
@@ -9,6 +11,7 @@ import { assertEqual, test } from "./harness";
 class MiniElement extends EventTarget {
     readonly children: MiniElement[] = [];
     parent: MiniElement | null = null;
+    id = "";
     value = "";
     innerHTML = "";
     capturedPointerId: number | null = null;
@@ -19,6 +22,7 @@ class MiniElement extends EventTarget {
     constructor(attrs: Record<string, string> = {}) {
         super();
         for (const [name, value] of Object.entries(attrs)) this.attrs.set(name, value);
+        this.id = attrs.id ?? "";
         this.value = attrs.value ?? "";
     }
 
@@ -354,4 +358,43 @@ test("pointer sessions ignore disabled markers and hit-test under disposable ove
 
     assertEqual(readPointerSessionStart(pointerEventWithTarget("pointerdown", disabled, 1, 0, 0)), null);
     assertEqual(hitTestClosest(mount as unknown as Element, 12, 34, `[${attrs.marker}=\"dropzone\"]`), dropzone as unknown as Element);
+});
+
+test("live fragment conflicts defer matching active interaction sessions and ignore unrelated mounts", () => {
+    const root = new EventTarget() as Document;
+    const tracker = createActiveInteractionSessionTracker(root);
+    const mount = new MiniElement({ id: "mount-1", [attrs.surface]: "true" });
+    const target = mount.append(new MiniElement({ id: "fragment-1" }));
+    const otherMount = new MiniElement({ id: "mount-2", [attrs.surface]: "true" });
+    const otherTarget = otherMount.append(new MiniElement({ id: "fragment-2" }));
+
+    dispatchInteractionSessionStart({ mount: mount as unknown as Element, mountId: "mount-1", sessionKind: "drag", intent: "move" }, root);
+
+    const conflict = resolveLiveFragmentInteractionConflict({ targetId: "fragment-1" }, target as unknown as Element, tracker);
+    const unrelated = resolveLiveFragmentInteractionConflict({ targetId: "fragment-2" }, otherTarget as unknown as Element, tracker);
+
+    assertEqual(conflict?.action, "defer");
+    assertEqual(conflict?.session.mountId, "mount-1");
+    assertEqual(unrelated, null);
+    dispatchInteractionSessionEnd({ mount: mount as unknown as Element, mountId: "mount-1", sessionKind: "drag", intent: "move" }, root);
+    assertEqual(resolveLiveFragmentInteractionConflict({ targetId: "fragment-1" }, target as unknown as Element, tracker), null);
+    tracker.stop();
+});
+
+test("live fragment conflicts honor generated cancel policies", () => {
+    const root = new EventTarget() as Document;
+    const tracker = createActiveInteractionSessionTracker(root);
+    const mount = new MiniElement({
+        id: "mount-1",
+        [attrs.surface]: "true",
+        [attrs.conflictPolicies]: JSON.stringify([{ session: "resize", targetId: "fragment-1", resolution: "cancel", timeoutMs: 10 }]),
+    });
+    const target = mount.append(new MiniElement({ id: "fragment-1" }));
+
+    dispatchInteractionSessionStart({ mount: mount as unknown as Element, mountId: "mount-1", sessionKind: "resize", intent: "resize" }, root);
+    const conflict = resolveLiveFragmentInteractionConflict({ targetId: "fragment-1" }, target as unknown as Element, tracker);
+
+    assertEqual(conflict?.action, "cancel");
+    assertEqual(conflict?.timeoutMs, 10);
+    tracker.stop();
 });

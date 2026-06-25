@@ -1,5 +1,140 @@
 "use strict";
 (() => {
+  // frontend/ts/generated/contracts.ts
+  var InteractionDom = {
+    attributes: {
+      surface: "data-bepis-surface",
+      surfaceFamily: "data-bepis-surface-family",
+      scopeKey: "data-bepis-scope-key",
+      mountKey: "data-bepis-mount-key",
+      marker: "data-bepis-marker",
+      activation: "data-bepis-activation",
+      activationIntent: "data-bepis-activation-intent",
+      activationTrigger: "data-bepis-activation-trigger",
+      activationValueField: "data-bepis-activation-value-field",
+      pointerSession: "data-bepis-pointer-session",
+      sessionKind: "data-bepis-session-kind",
+      sessionIntent: "data-bepis-session-intent",
+      sessionDisabled: "data-bepis-session-disabled",
+      sessionReadOnly: "data-bepis-session-read-only",
+      sessionThreshold: "data-bepis-session-threshold",
+      sessionTimeoutMs: "data-bepis-session-timeout-ms",
+      disposableLayer: "data-bepis-disposable-layer",
+      conflictPolicies: "data-bepis-conflict-policies",
+      intentForm: "data-bepis-intent-form",
+      intent: "data-bepis-intent",
+      intentField: "data-bepis-intent-field",
+      fieldPresence: "data-bepis-field-presence",
+      intentHiddenField: "data-bepis-intent-hidden-field"
+    },
+    values: {
+      enabled: "true",
+      activationMarker: "activation"
+    }
+  };
+
+  // frontend/ts/interaction/live-conflicts.ts
+  var attrs = InteractionDom.attributes;
+  var defaultInteractionDeferTimeoutMs = 5e3;
+  function resolveLiveFragmentInteractionConflict(fragment, target, tracker) {
+    const session = tracker.findForTarget(target);
+    if (!session) return null;
+    const policy = matchingConflictPolicy(session, fragment, target);
+    const action = policy?.resolution ?? "defer";
+    const timeoutMs = policy?.timeoutMs ?? (action === "defer" ? defaultInteractionDeferTimeoutMs : null);
+    return { action, session, timeoutMs };
+  }
+  function readInteractionConflictPolicies(mount) {
+    const raw = mount.getAttribute(attrs.conflictPolicies);
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter(isWireConflictPolicy);
+    } catch (_error) {
+      return [];
+    }
+  }
+  function matchingConflictPolicy(session, fragment, target) {
+    const mount = target.closest(`[${attrs.surface}="true"]`);
+    if (!mount) return null;
+    const policies = readInteractionConflictPolicies(mount);
+    return policies.find((policy) => {
+      const sessionMatches = policy.session === "*" || policy.session === session.sessionKind;
+      const targetMatches = policy.targetId === "*" || policy.targetId === fragment.targetId;
+      return sessionMatches && targetMatches;
+    }) ?? null;
+  }
+  function isWireConflictPolicy(value) {
+    if (value === null || typeof value !== "object") return false;
+    const maybe = value;
+    return isOptionalString(maybe.session) && isOptionalString(maybe.targetId) && isOptionalResolution(maybe.resolution) && (maybe.timeoutMs === void 0 || maybe.timeoutMs === null || typeof maybe.timeoutMs === "number");
+  }
+  function isOptionalString(value) {
+    return value === void 0 || typeof value === "string";
+  }
+  function isOptionalResolution(value) {
+    return value === void 0 || value === "apply" || value === "defer" || value === "cancel";
+  }
+
+  // frontend/ts/interaction/session-state.ts
+  var interactionSessionStartEventName = "bepis:interaction-session-start";
+  var interactionSessionEndEventName = "bepis:interaction-session-end";
+  var interactionSessionCancelRequestEventName = "bepis:interaction-session-cancel-request";
+  var attrs2 = InteractionDom.attributes;
+  function requestInteractionSessionCancel(detail, root) {
+    const eventRoot = root ?? defaultDocument();
+    if (!eventRoot) return;
+    eventRoot.dispatchEvent(new CustomEvent(interactionSessionCancelRequestEventName, { detail }));
+  }
+  function createActiveInteractionSessionTracker(root) {
+    const sessionsByMountId = /* @__PURE__ */ new Map();
+    const handleStart = (event) => {
+      const detail = customDetail(event);
+      if (!detail || !detail.mountId || !detail.mount || !detail.sessionKind || !detail.intent) return;
+      sessionsByMountId.set(detail.mountId, {
+        mount: detail.mount,
+        mountId: detail.mountId,
+        sessionKind: detail.sessionKind,
+        intent: detail.intent
+      });
+    };
+    const handleEnd = (event) => {
+      const detail = customDetail(event);
+      if (!detail || !detail.mountId) return;
+      sessionsByMountId.delete(detail.mountId);
+    };
+    root.addEventListener(interactionSessionStartEventName, handleStart);
+    root.addEventListener(interactionSessionEndEventName, handleEnd);
+    return {
+      findForTarget(target) {
+        const mount = target.closest(`[${attrs2.surface}="true"]`);
+        if (!isElementLike(mount)) return null;
+        return sessionsByMountId.get(mount.id) ?? null;
+      },
+      hasActiveSession() {
+        return sessionsByMountId.size > 0;
+      },
+      requestCancel(session, reason) {
+        requestInteractionSessionCancel({ ...session, reason });
+      },
+      stop() {
+        root.removeEventListener(interactionSessionStartEventName, handleStart);
+        root.removeEventListener(interactionSessionEndEventName, handleEnd);
+        sessionsByMountId.clear();
+      }
+    };
+  }
+  function customDetail(event) {
+    return event instanceof CustomEvent ? event.detail : null;
+  }
+  function defaultDocument() {
+    return typeof document === "undefined" ? null : document;
+  }
+  function isElementLike(value) {
+    return value !== null && typeof value === "object" && typeof value.id === "string";
+  }
+
   // frontend/ts/live-updates/protocol.ts
   function liveUpdateMessageScopeKey(message) {
     if (message && typeof message.scopeKey === "string" && message.scopeKey.length > 0) {
@@ -63,6 +198,9 @@
     if (typeof window === "undefined") return;
     const actorFragmentRefreshEventName = "app-live-fragments-refresh";
     const pendingDeferredFragments = /* @__PURE__ */ new Map();
+    const pendingInteractionDeferredFragments = /* @__PURE__ */ new Map();
+    const pendingInteractionTimers = /* @__PURE__ */ new Map();
+    const activeInteractionSessions = createActiveInteractionSessionTracker(document);
     const inFlightFragments = /* @__PURE__ */ new Map();
     const activeSubscriptions = /* @__PURE__ */ new Map();
     const scopeVersions = /* @__PURE__ */ new Map();
@@ -367,6 +505,24 @@
       const target = document.getElementById(fragment.targetId);
       if (!(target instanceof HTMLElement)) return;
       const resolvedFragment = { ...fragment, url: target.dataset.liveUpdateUrl || fragment.url };
+      const interactionConflict = resolveLiveFragmentInteractionConflict(resolvedFragment, target, activeInteractionSessions);
+      if (interactionConflict && interactionConflict.action === "cancel") {
+        activeInteractionSessions.requestCancel(interactionConflict.session, "live-fragment-conflict");
+      }
+      if (interactionConflict && interactionConflict.action === "defer") {
+        pendingInteractionDeferredFragments.set(resolvedFragment.targetId, resolvedFragment);
+        scheduleInteractionDeferredFlush(resolvedFragment.targetId, interactionConflict.timeoutMs);
+        document.dispatchEvent(new CustomEvent("app:live-update-performance", {
+          detail: {
+            name: "live_updates.defer_fragment",
+            duration: 0,
+            targetId: resolvedFragment.targetId,
+            reason: "interaction_session"
+          }
+        }));
+        return;
+      }
+      clearInteractionDeferredFragment(resolvedFragment.targetId);
       if (resolvedFragment.deferUntilBlur && hasProtectedActiveInput(target, resolvedFragment)) {
         pendingDeferredFragments.set(resolvedFragment.targetId, captureDeferredState(target, resolvedFragment));
         document.dispatchEvent(new CustomEvent("app:live-update-performance", {
@@ -382,6 +538,47 @@
       pendingDeferredFragments.delete(resolvedFragment.targetId);
       queueFragment(resolvedFragment);
     }
+    function clearInteractionDeferredFragment(targetId) {
+      const timer = pendingInteractionTimers.get(targetId);
+      if (timer) window.clearTimeout(timer);
+      pendingInteractionTimers.delete(targetId);
+      pendingInteractionDeferredFragments.delete(targetId);
+    }
+    function scheduleInteractionDeferredFlush(targetId, timeoutMs) {
+      const existing = pendingInteractionTimers.get(targetId);
+      if (existing) window.clearTimeout(existing);
+      if (timeoutMs === null || timeoutMs <= 0) return;
+      pendingInteractionTimers.set(targetId, window.setTimeout(function() {
+        const fragment = pendingInteractionDeferredFragments.get(targetId);
+        const target = document.getElementById(targetId);
+        if (fragment && target instanceof HTMLElement) {
+          const conflict = resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions);
+          if (conflict) activeInteractionSessions.requestCancel(conflict.session, "live-fragment-defer-timeout");
+        }
+        flushInteractionDeferredFragment(targetId, "interaction_timeout");
+      }, timeoutMs));
+    }
+    function flushInteractionDeferredFragment(targetId, reason) {
+      const fragment = pendingInteractionDeferredFragments.get(targetId);
+      if (!fragment) return;
+      clearInteractionDeferredFragment(targetId);
+      emitDebugEvent("deferred_fragment_flush", {
+        targetId,
+        reason
+      });
+      queueFragment(fragment);
+    }
+    function flushInteractionDeferredFragmentsWithoutActiveSessions() {
+      Array.from(pendingInteractionDeferredFragments.entries()).forEach(function([targetId, fragment]) {
+        const target = document.getElementById(targetId);
+        if (!(target instanceof HTMLElement)) {
+          flushInteractionDeferredFragment(targetId, "target_missing");
+          return;
+        }
+        const conflict = resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions);
+        if (!conflict) flushInteractionDeferredFragment(targetId, "interaction_session_end");
+      });
+    }
     function flushDeferredFragment(targetId) {
       const fragment = pendingDeferredFragments.get(targetId);
       if (!fragment) return;
@@ -396,6 +593,7 @@
       Array.from(pendingDeferredFragments.entries()).forEach(function([targetId]) {
         const target = document.getElementById(targetId);
         const fragment = pendingDeferredFragments.get(targetId);
+        if (target instanceof HTMLElement && fragment && resolveLiveFragmentInteractionConflict(fragment, target, activeInteractionSessions)) return;
         if (!target || !hasProtectedActiveInput(target, fragment)) {
           flushDeferredFragment(targetId);
         }
@@ -737,6 +935,18 @@
       fragments.forEach(handleFragmentRefreshRequest);
     }
     document.addEventListener(actorFragmentRefreshEventName, handleActorFragmentRefreshEvent);
+    document.addEventListener("bepis:interaction-session-end", function() {
+      window.setTimeout(function() {
+        flushInteractionDeferredFragmentsWithoutActiveSessions();
+        flushDeferredFragmentsWithoutActiveInputs();
+      }, 0);
+    });
+    document.addEventListener("htmx:afterSwap", function() {
+      flushInteractionDeferredFragmentsWithoutActiveSessions();
+    });
+    document.addEventListener("htmx:responseError", function() {
+      flushInteractionDeferredFragmentsWithoutActiveSessions();
+    });
     document.addEventListener("focusout", function() {
       window.setTimeout(function() {
         flushDeferredFragmentsWithoutActiveInputs();

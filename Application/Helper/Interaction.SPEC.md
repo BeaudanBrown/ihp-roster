@@ -152,6 +152,15 @@ HTMX cleanup, explicit stop, or commit. Preview phases are local only; the serve
 DOM remains authoritative until a committed intent submits through a generated
 intent form.
 
+Live-fragment coordination uses the same generic session boundary. Pointer
+sessions publish mount/session start and end events. The live-update runtime
+tracks active sessions by concrete mount and consults helper-rendered conflict
+policies before refetching passive fragments. A matching policy may apply,
+defer, or cancel; without a narrower policy, a passive refresh targeting the
+same concrete mount defers and latest-per-target invalidation wins. Deferred
+fragments are refetched after session end or a bounded timeout, so queued updates
+converge to the latest server state instead of applying stale stored HTML.
+
 On commit the generic bridge must:
 
 1. find the generated intent form for the intent type inside the same concrete
