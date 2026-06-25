@@ -1,6 +1,6 @@
 ---
 id: ir-fq28
-status: open
+status: closed
 deps: [ir-4uuy]
 links: []
 created: 2026-06-25T01:05:44Z
