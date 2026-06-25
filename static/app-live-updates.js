@@ -166,7 +166,7 @@
       type: "subscribe",
       scope,
       clientId,
-      lastSeenVersion: lastSeenVersion === null ? void 0 : lastSeenVersion
+      lastSeenVersion
     };
   }
   function liveUpdateFragmentMergeKey(fragment) {

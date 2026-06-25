@@ -52,6 +52,7 @@ import Application.Helper.ControllerContext (authenticatedCurrentUser,
                                              currentUserIsSuperAdmin,
                                              currentVenueOrNothing)
 import Application.Helper.ControllerSupport (VenueRole (..))
+import qualified Application.Helper.Frontend.LiveUpdateSchema as Wire
 import Application.Helper.Interaction.Types (EmptyInteractionIntent,
                                              EmptyInteractionLayer,
                                              EmptyInteractionSession,
@@ -62,6 +63,7 @@ import Application.Helper.Profiling (respondHtmlProfiled)
 import Application.Helper.SurfaceProjection
 import Application.Helper.View.Oob (OobSwapAttr, outerHtmlOobSwap)
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import Data.Coerce (coerce)
 import qualified Data.Dynamic as Dynamic
@@ -157,25 +159,35 @@ data ProjectionLiveSurfaceDefinition surface scope snapshot fragment = Projectio
     }
 
 instance Aeson.ToJSON LiveSurfaceConfig where
-    toJSON LiveSurfaceConfig { feature, socketPath, scope, scopeKey, resyncFragments, decorateRequestsWithin } =
-        Aeson.object
-            [ "feature" Aeson..= feature
-            , "socketPath" Aeson..= socketPath
-            , "scope" Aeson..= scope
-            , "scopeKey" Aeson..= scopeKey
-            , "resyncFragments" Aeson..= resyncFragments
-            , "decorateRequestsWithin" Aeson..= decorateRequestsWithin
-            ]
+    toJSON = Aeson.toJSON . liveSurfaceConfigToWire
 
 instance Aeson.FromJSON LiveSurfaceConfig where
-    parseJSON = Aeson.withObject "LiveSurfaceConfig" \object ->
+    parseJSON value = liveSurfaceConfigFromWire =<< Aeson.parseJSON value
+
+liveSurfaceConfigToWire :: LiveSurfaceConfig -> Wire.LiveSurfaceConfig
+liveSurfaceConfigToWire LiveSurfaceConfig { feature, socketPath, scope, scopeKey, resyncFragments, decorateRequestsWithin } =
+    Wire.LiveSurfaceConfig
+        { feature
+        , socketPath
+        , scope = liveUpdateScopeToWire scope
+        , scopeKey
+        , resyncFragments = map liveUpdateWireFragmentToWire resyncFragments
+        , decorateRequestsWithin
+        }
+
+liveSurfaceConfigFromWire :: Wire.LiveSurfaceConfig -> Aeson.Parser LiveSurfaceConfig
+liveSurfaceConfigFromWire Wire.LiveSurfaceConfig { feature, socketPath, scope, scopeKey, resyncFragments, decorateRequestsWithin } = do
+    parsedScope <- liveUpdateScopeFromWire scope
+    parsedFragments <- mapM liveUpdateWireFragmentFromWire resyncFragments
+    pure
         LiveSurfaceConfig
-            <$> object Aeson..: "feature"
-            <*> object Aeson..: "socketPath"
-            <*> object Aeson..: "scope"
-            <*> object Aeson..: "scopeKey"
-            <*> object Aeson..: "resyncFragments"
-            <*> object Aeson..: "decorateRequestsWithin"
+            { feature
+            , socketPath
+            , scope = parsedScope
+            , scopeKey
+            , resyncFragments = parsedFragments
+            , decorateRequestsWithin
+            }
 
 mkSurfaceFragmentRef :: LiveFragmentKey -> Text -> Text -> SurfaceFragmentRef surface
 mkSurfaceFragmentRef fragmentKey targetId url =

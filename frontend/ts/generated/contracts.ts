@@ -6,69 +6,259 @@ export type OverlayLane =
     | "picker"
     | "toast";
 
-export type LiveUpdateScope =
-    | { kind: "roster_week"; venueId: string; rosterGroupId: string; weekOffset: number }
-    | { kind: "admin_venue_config"; venueId: string }
-    | { kind: "admin_shift_types"; venueId: string }
-    | { kind: "admin_roster_groups"; venueId: string }
-    | { kind: "admin_invites"; venueId: string }
-    | { kind: "admin_exports"; venueId: string }
-    | { kind: "admin_xero"; venueId: string }
-    | { kind: "billing"; venueId: string }
-    | { kind: "leave_requests"; venueId: string }
-    | { kind: "timesheet_week"; venueId: string; weekOffset: number }
-    | { kind: "profile"; venueId: string; staffId: string }
-    | { kind: "support_platform" };
+// Live-update wire protocol generated from Haskell schema types.
+export interface IAdminExports {
+    kind: "admin_exports";
+    venueId: string;
+}
 
-export type LiveFragmentKey =
-    | { kind: "roster_content" }
-    | { kind: "roster_grid_toolbar" }
-    | { kind: "roster_grid_frame" }
-    | { kind: "roster_day_columns" }
-    | { kind: "roster_day_rail" }
-    | { kind: "roster_wage_rail" }
-    | { kind: "roster_slots_grid" }
-    | { kind: "roster_staff_panel" }
-    | { kind: "roster_day_section"; rosterDayId: string }
-    | { kind: "roster_row"; rosterDayId: string; rowIndex: number }
-    | { kind: "leave_requests_content" }
-    | { kind: "timesheet_toolbar" }
-    | { kind: "timesheet_day_columns" }
-    | { kind: "timesheet_day_section"; dayOffset: number }
-    | { kind: "admin_venue_config" }
-    | { kind: "admin_invites" }
-    | { kind: "admin_exports" }
-    | { kind: "admin_shift_types" }
-    | { kind: "admin_roster_groups" }
-    | { kind: "admin_xero" }
-    | { kind: "admin_xero_staff_mappings" }
-    | { kind: "admin_xero_pay_items" }
-    | { kind: "admin_xero_timesheets" }
-    | { kind: "billing_status" }
-    | { kind: "profile_content" }
-    | { kind: "profile_leave_requests_content" }
-    | { kind: "support_award_rates_section" }
-    | { kind: "support_public_holidays_section" };
+export interface IAdminExportsFragment {
+    kind: "admin_exports";
+}
 
-export type LiveFragmentProtection = null | { kind: "focused_field"; activeSelector: string; fieldKeyAttr: string; fieldNameFallback: boolean; containerSelector?: string | null };
+export interface IAdminInvites {
+    kind: "admin_invites";
+    venueId: string;
+}
 
-export type LiveUpdateWireFragment = {
+export interface IAdminInvitesFragment {
+    kind: "admin_invites";
+}
+
+export interface IAdminRosterGroups {
+    kind: "admin_roster_groups";
+    venueId: string;
+}
+
+export interface IAdminRosterGroupsFragment {
+    kind: "admin_roster_groups";
+}
+
+export interface IAdminShiftTypes {
+    kind: "admin_shift_types";
+    venueId: string;
+}
+
+export interface IAdminShiftTypesFragment {
+    kind: "admin_shift_types";
+}
+
+export interface IAdminVenueConfig {
+    kind: "admin_venue_config";
+    venueId: string;
+}
+
+export interface IAdminVenueConfigFragment {
+    kind: "admin_venue_config";
+}
+
+export interface IAdminXero {
+    kind: "admin_xero";
+    venueId: string;
+}
+
+export interface IAdminXeroFragment {
+    kind: "admin_xero";
+}
+
+export interface IAdminXeroPayItems {
+    kind: "admin_xero_pay_items";
+}
+
+export interface IAdminXeroStaffMappings {
+    kind: "admin_xero_staff_mappings";
+}
+
+export interface IAdminXeroTimesheets {
+    kind: "admin_xero_timesheets";
+}
+
+export interface IBilling {
+    kind: "billing";
+    venueId: string;
+}
+
+export interface IBillingStatus {
+    kind: "billing_status";
+}
+
+export interface IFocusedFieldProtectionConfig {
+    activeSelector: string;
+    fieldKeyAttr: string;
+    fieldNameFallback: boolean;
+    containerSelector: string | null;
+}
+
+export interface ILeaveRequests {
+    kind: "leave_requests";
+    venueId: string;
+}
+
+export interface ILeaveRequestsContent {
+    kind: "leave_requests_content";
+}
+
+export interface ILiveSurfaceConfig {
+    feature: string;
+    socketPath: string;
+    scope: LiveUpdateScope;
+    scopeKey: string;
+    resyncFragments: LiveUpdateWireFragment[];
+    decorateRequestsWithin: string[];
+}
+
+export interface ILiveUpdateWireFragment {
     fragmentKey: LiveFragmentKey;
     targetId: string;
     url: string;
     deferUntilBlur: boolean;
-    protectionPolicy?: LiveFragmentProtection;
-};
+    protectionPolicy: LiveFragmentProtection | null;
+}
 
-export type LiveUpdateCommand =
-    | { type: "subscribe"; scope: LiveUpdateScope; clientId: string; lastSeenVersion?: number | null }
-    | { type: "unsubscribe"; scope: LiveUpdateScope };
+export interface IProfile {
+    kind: "profile";
+    venueId: string;
+    staffId: string;
+}
 
-export type LiveUpdateMessage =
-    | { type: "subscribed"; scope: LiveUpdateScope; scopeKey: string; currentVersion: number; resync: boolean }
-    | { type: "invalidate"; scope: LiveUpdateScope; scopeKey: string; version: number; fragments: LiveUpdateWireFragment[]; sourceClientId?: string | null }
-    | { type: "error"; message: string };
+export interface IProfileContent {
+    kind: "profile_content";
+}
 
+export interface IProfileLeaveRequestsContent {
+    kind: "profile_leave_requests_content";
+}
+
+export interface IRosterContent {
+    kind: "roster_content";
+}
+
+export interface IRosterDayColumns {
+    kind: "roster_day_columns";
+}
+
+export interface IRosterDayRail {
+    kind: "roster_day_rail";
+}
+
+export interface IRosterDaySection {
+    kind: "roster_day_section";
+    rosterDayId: string;
+}
+
+export interface IRosterGridFrame {
+    kind: "roster_grid_frame";
+}
+
+export interface IRosterGridToolbar {
+    kind: "roster_grid_toolbar";
+}
+
+export interface IRosterRow {
+    kind: "roster_row";
+    rosterDayId: string;
+    rowIndex: number;
+}
+
+export interface IRosterSlotsGrid {
+    kind: "roster_slots_grid";
+}
+
+export interface IRosterStaffPanel {
+    kind: "roster_staff_panel";
+}
+
+export interface IRosterWageRail {
+    kind: "roster_wage_rail";
+}
+
+export interface IRosterWeek {
+    kind: "roster_week";
+    venueId: string;
+    rosterGroupId: string;
+    weekOffset: number;
+}
+
+export interface ISupportAwardRatesSection {
+    kind: "support_award_rates_section";
+}
+
+export interface ISupportPlatform {
+    kind: "support_platform";
+}
+
+export interface ISupportPublicHolidaysSection {
+    kind: "support_public_holidays_section";
+}
+
+export interface ITimesheetDayColumns {
+    kind: "timesheet_day_columns";
+}
+
+export interface ITimesheetDaySection {
+    kind: "timesheet_day_section";
+    dayOffset: number;
+}
+
+export interface ITimesheetToolbar {
+    kind: "timesheet_toolbar";
+}
+
+export interface ITimesheetWeek {
+    kind: "timesheet_week";
+    venueId: string;
+    weekOffset: number;
+}
+
+export type FocusedFieldProtectionConfig = IFocusedFieldProtectionConfig;
+
+export type LiveFragmentKey = IRosterContent | IRosterGridToolbar | IRosterGridFrame | IRosterDayColumns | IRosterDayRail | IRosterWageRail | IRosterSlotsGrid | IRosterStaffPanel | IRosterDaySection | IRosterRow | ILeaveRequestsContent | ITimesheetToolbar | ITimesheetDayColumns | ITimesheetDaySection | IAdminVenueConfigFragment | IAdminInvitesFragment | IAdminExportsFragment | IAdminShiftTypesFragment | IAdminRosterGroupsFragment | IAdminXeroFragment | IAdminXeroStaffMappings | IAdminXeroPayItems | IAdminXeroTimesheets | IBillingStatus | IProfileContent | IProfileLeaveRequestsContent | ISupportAwardRatesSection | ISupportPublicHolidaysSection;
+
+export type LiveSurfaceConfig = ILiveSurfaceConfig;
+
+export type LiveUpdateScope = IRosterWeek | IAdminVenueConfig | IAdminShiftTypes | IAdminRosterGroups | IAdminInvites | IAdminExports | IAdminXero | IBilling | ILeaveRequests | ITimesheetWeek | IProfile | ISupportPlatform;
+
+export type LiveUpdateWireFragment = ILiveUpdateWireFragment;
+
+export type LiveFragmentProtection = null | { kind: "focused_field"; activeSelector: string; fieldKeyAttr: string; fieldNameFallback: boolean; containerSelector: string | null };
+
+export interface ISubscribe {
+    type: "subscribe";
+    scope: LiveUpdateScope;
+    clientId: string;
+    lastSeenVersion: number | null;
+}
+
+export interface IUnsubscribe {
+    type: "unsubscribe";
+    scope: LiveUpdateScope;
+}
+
+export type LiveUpdateCommand = ISubscribe | IUnsubscribe;
+
+export interface IError {
+    type: "error";
+    message: string;
+}
+
+export interface IInvalidate {
+    type: "invalidate";
+    scope: LiveUpdateScope;
+    scopeKey: string;
+    version: number;
+    fragments: LiveUpdateWireFragment[];
+    sourceClientId: string | null;
+}
+
+export interface ISubscribed {
+    type: "subscribed";
+    scope: LiveUpdateScope;
+    scopeKey: string;
+    currentVersion: number;
+    resync: boolean;
+}
+
+export type LiveUpdateMessage = ISubscribed | IInvalidate | IError;
 export const InteractionDom = {
     attributes: {
         surface: "data-bepis-surface",

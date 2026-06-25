@@ -1,5 +1,6 @@
 module Test.LiveUpdateSpec where
 
+import qualified Application.Helper.Frontend.LiveUpdateSchema as Wire
 import Application.Helper.LiveSurface
 import Application.Helper.LiveSurface.Internal (defaultLiveUpdateScopeAuthorizationRequirement)
 import Application.Helper.LiveUpdate.Runtime
@@ -13,6 +14,40 @@ import Test.Hspec
 
 tests :: Spec
 tests = describe "LiveUpdate runtime types" do
+    it "encodes runtime values through the generated live-update wire schema" do
+        let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
+        let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
+        let scope = RosterWeekScope { venueId, rosterGroupId, weekOffset = 0 }
+        let fragment =
+                LiveUpdateWireFragment
+                    { fragmentKey = RosterStaffPanelFragment
+                    , targetId = "roster-staff-panel"
+                    , url = "/ShowRosterStaffPanelFragment?weekOffset=0"
+                    , deferUntilBlur = False
+                    , protectionPolicy = NoProtection
+                    }
+        let message =
+                LiveUpdatesInvalidated
+                    { scope
+                    , scopeKey = liveUpdateScopeKey scope
+                    , version = 6
+                    , fragments = [fragment]
+                    , sourceClientId = Just "client-1"
+                    }
+        let surface =
+                testLiveSurfaceConfig
+                    "roster"
+                    scope
+                    [fragment]
+
+        Aeson.toJSON scope `shouldBe` Aeson.toJSON (liveUpdateScopeToWire scope)
+        Aeson.toJSON fragment `shouldBe` Aeson.toJSON (liveUpdateWireFragmentToWire fragment)
+        Aeson.toJSON message
+            `shouldBe`
+                Aeson.toJSON
+                    (Wire.Invalidate (liveUpdateScopeToWire scope) (liveUpdateScopeKey scope) 6 [liveUpdateWireFragmentToWire fragment] (Just "client-1"))
+        Aeson.decode (Aeson.encode surface) `shouldBe` Just surface
+
     it "round-trips roster, admin, leave, timesheet, and support scopes through JSON" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"

@@ -19,7 +19,7 @@ export function buildLiveUpdateSubscribeCommand(scope: LiveUpdateScope, clientId
         type: "subscribe",
         scope,
         clientId,
-        lastSeenVersion: lastSeenVersion === null ? undefined : lastSeenVersion,
+        lastSeenVersion,
     };
 }
 

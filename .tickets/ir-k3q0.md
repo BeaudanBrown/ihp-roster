@@ -1,6 +1,6 @@
 ---
 id: ir-k3q0
-status: open
+status: closed
 deps: [ir-xkxz]
 links: []
 created: 2026-06-25T11:57:29Z
@@ -22,3 +22,9 @@ Use the generator foundation to derive or explicitly share ToJSON/FromJSON and T
 
 Generated contracts.ts contains live-update protocol types emitted from Haskell types rather than handwritten declarations; Haskell JSON instances and TS declarations share one schema/options source; frontend live-update tests pass; focused LiveUpdate/LiveSurface Hspec passes; websocket/runtime behavior remains compatible within a single deployed version.
 
+
+## Notes
+
+**2026-06-25T12:55:54Z**
+
+Migrated live-update protocol contracts to Haskell-owned schema types in Application.Helper.Frontend.LiveUpdateSchema. Generated contracts.ts now emits LiveUpdateScope, LiveFragmentKey, LiveFragmentProtection, LiveUpdateWireFragment, LiveUpdateCommand, LiveUpdateMessage, and LiveSurfaceConfig through aeson-typescript; old handwritten live-update TypeScript was removed from LegacyManualContracts. Runtime Aeson instances now encode/decode through schema conversion helpers so JSON and TypeScript share the same schema/options. Updated frontend command builder/tests for explicit null lastSeenVersion and added Hspec coverage tying runtime JSON to generated schema wire values plus guard coverage ensuring no stale live-update manual block remains. Verified frontend-check, frontend-contracts-check, typecheck, and focused LiveUpdate/LiveSurface/FrontendContracts Hspec.

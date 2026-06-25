@@ -33,7 +33,7 @@ test("live update command builder preserves backend-owned subscribe contract", (
         type: "subscribe",
         scope,
         clientId: "client-1",
-        lastSeenVersion: undefined,
+        lastSeenVersion: null,
     });
     assertDeepEqual(buildLiveUpdateSubscribeCommand(scope, "client-1", 4), {
         type: "subscribe",

@@ -26,7 +26,11 @@ module Application.Helper.LiveUpdate.Internal
     , currentLiveUpdateVersionWithBus
     , incrementLiveUpdateVersionWithBus
     , liveUpdateSourceClientId
+    , liveUpdateScopeFromWire
     , liveUpdateScopeKey
+    , liveUpdateScopeToWire
+    , liveUpdateWireFragmentFromWire
+    , liveUpdateWireFragmentToWire
     , mkLiveUpdateWireFragment
     , newInMemoryLiveBus
     , registerLiveSubscription
@@ -49,6 +53,7 @@ import IHP.Prelude
 import qualified Network.WebSockets as WebSocket
 import System.IO.Unsafe (unsafePerformIO)
 
+import qualified Application.Helper.Frontend.LiveUpdateSchema as Wire
 import Application.Helper.Profiling (profileActionSpan,
                                      profileActionSpanWithDetail)
 
@@ -234,338 +239,43 @@ liveUpdateSourceClientId =
     cs <$> getHeader "X-Live-Update-Client-Id"
 
 instance Aeson.ToJSON LiveUpdateScope where
-    toJSON RosterWeekScope { venueId, rosterGroupId, weekOffset } =
-        Aeson.object
-            [ "kind" Aeson..= ("roster_week" :: Text)
-            , "venueId" Aeson..= UUID.toText venueId
-            , "rosterGroupId" Aeson..= UUID.toText rosterGroupId
-            , "weekOffset" Aeson..= weekOffset
-            ]
-    toJSON AdminVenueConfigScope { venueId } =
-        Aeson.object
-            [ "kind" Aeson..= ("admin_venue_config" :: Text)
-            , "venueId" Aeson..= UUID.toText venueId
-            ]
-    toJSON AdminShiftTypesScope { venueId } =
-        Aeson.object
-            [ "kind" Aeson..= ("admin_shift_types" :: Text)
-            , "venueId" Aeson..= UUID.toText venueId
-            ]
-    toJSON AdminRosterGroupsScope { venueId } =
-        Aeson.object
-            [ "kind" Aeson..= ("admin_roster_groups" :: Text)
-            , "venueId" Aeson..= UUID.toText venueId
-            ]
-    toJSON AdminInvitesScope { venueId } =
-        Aeson.object
-            [ "kind" Aeson..= ("admin_invites" :: Text)
-            , "venueId" Aeson..= UUID.toText venueId
-            ]
-    toJSON AdminExportsScope { venueId } =
-        Aeson.object
-            [ "kind" Aeson..= ("admin_exports" :: Text)
-            , "venueId" Aeson..= UUID.toText venueId
-            ]
-    toJSON AdminXeroScope { venueId } =
-        Aeson.object
-            [ "kind" Aeson..= ("admin_xero" :: Text)
-            , "venueId" Aeson..= UUID.toText venueId
-            ]
-    toJSON BillingScope { venueId } =
-        Aeson.object
-            [ "kind" Aeson..= ("billing" :: Text)
-            , "venueId" Aeson..= UUID.toText venueId
-            ]
-    toJSON LeaveRequestsScope { venueId } =
-        Aeson.object
-            [ "kind" Aeson..= ("leave_requests" :: Text)
-            , "venueId" Aeson..= UUID.toText venueId
-            ]
-    toJSON TimesheetWeekScope { venueId, weekOffset } =
-        Aeson.object
-            [ "kind" Aeson..= ("timesheet_week" :: Text)
-            , "venueId" Aeson..= UUID.toText venueId
-            , "weekOffset" Aeson..= weekOffset
-            ]
-    toJSON ProfileScope { venueId, staffId } =
-        Aeson.object
-            [ "kind" Aeson..= ("profile" :: Text)
-            , "venueId" Aeson..= UUID.toText venueId
-            , "staffId" Aeson..= UUID.toText staffId
-            ]
-    toJSON SupportPlatformScope =
-        Aeson.object
-            [ "kind" Aeson..= ("support_platform" :: Text)
-            ]
+    toJSON = Aeson.toJSON . liveUpdateScopeToWire
 
 instance Aeson.FromJSON LiveUpdateScope where
-    parseJSON = Aeson.withObject "LiveUpdateScope" \object -> do
-        kind <- object Aeson..: "kind"
-        case (kind :: Text) of
-            "roster_week" ->
-                RosterWeekScope
-                    <$> (parseUuid =<< object Aeson..: "venueId")
-                    <*> (parseUuid =<< object Aeson..: "rosterGroupId")
-                    <*> object Aeson..: "weekOffset"
-            "admin_venue_config" ->
-                AdminVenueConfigScope
-                    <$> (parseUuid =<< object Aeson..: "venueId")
-            "admin_shift_types" ->
-                AdminShiftTypesScope
-                    <$> (parseUuid =<< object Aeson..: "venueId")
-            "admin_roster_groups" ->
-                AdminRosterGroupsScope
-                    <$> (parseUuid =<< object Aeson..: "venueId")
-            "admin_invites" ->
-                AdminInvitesScope
-                    <$> (parseUuid =<< object Aeson..: "venueId")
-            "admin_exports" ->
-                AdminExportsScope
-                    <$> (parseUuid =<< object Aeson..: "venueId")
-            "admin_xero" ->
-                AdminXeroScope
-                    <$> (parseUuid =<< object Aeson..: "venueId")
-            "billing" ->
-                BillingScope
-                    <$> (parseUuid =<< object Aeson..: "venueId")
-            "leave_requests" ->
-                LeaveRequestsScope
-                    <$> (parseUuid =<< object Aeson..: "venueId")
-            "timesheet_week" ->
-                TimesheetWeekScope
-                    <$> (parseUuid =<< object Aeson..: "venueId")
-                    <*> object Aeson..: "weekOffset"
-            "profile" ->
-                ProfileScope
-                    <$> (parseUuid =<< object Aeson..: "venueId")
-                    <*> (parseUuid =<< object Aeson..: "staffId")
-            "support_platform" -> pure SupportPlatformScope
-            _ -> fail ("Unknown live update scope kind: " <> cs kind)
+    parseJSON value = liveUpdateScopeFromWire =<< Aeson.parseJSON value
 
 instance Aeson.ToJSON LiveFragmentKey where
-    toJSON RosterContentFragment =
-        Aeson.object ["kind" Aeson..= ("roster_content" :: Text)]
-    toJSON RosterGridToolbarFragment =
-        Aeson.object ["kind" Aeson..= ("roster_grid_toolbar" :: Text)]
-    toJSON RosterGridFrameFragment =
-        Aeson.object ["kind" Aeson..= ("roster_grid_frame" :: Text)]
-    toJSON RosterDayColumnsFragment =
-        Aeson.object ["kind" Aeson..= ("roster_day_columns" :: Text)]
-    toJSON RosterDayRailFragment =
-        Aeson.object ["kind" Aeson..= ("roster_day_rail" :: Text)]
-    toJSON RosterWageRailFragment =
-        Aeson.object ["kind" Aeson..= ("roster_wage_rail" :: Text)]
-    toJSON RosterSlotsGridFragment =
-        Aeson.object ["kind" Aeson..= ("roster_slots_grid" :: Text)]
-    toJSON RosterStaffPanelFragment =
-        Aeson.object ["kind" Aeson..= ("roster_staff_panel" :: Text)]
-    toJSON RosterDaySectionFragment { rosterDayId } =
-        Aeson.object
-            [ "kind" Aeson..= ("roster_day_section" :: Text)
-            , "rosterDayId" Aeson..= UUID.toText rosterDayId
-            ]
-    toJSON RosterRowFragment { rosterDayId, rowIndex } =
-        Aeson.object
-            [ "kind" Aeson..= ("roster_row" :: Text)
-            , "rosterDayId" Aeson..= UUID.toText rosterDayId
-            , "rowIndex" Aeson..= rowIndex
-            ]
-    toJSON LeaveRequestsContentFragment =
-        Aeson.object ["kind" Aeson..= ("leave_requests_content" :: Text)]
-    toJSON TimesheetToolbarFragment =
-        Aeson.object ["kind" Aeson..= ("timesheet_toolbar" :: Text)]
-    toJSON TimesheetDayColumnsFragment =
-        Aeson.object ["kind" Aeson..= ("timesheet_day_columns" :: Text)]
-    toJSON TimesheetDaySectionFragment { dayOffset } =
-        Aeson.object
-            [ "kind" Aeson..= ("timesheet_day_section" :: Text)
-            , "dayOffset" Aeson..= dayOffset
-            ]
-    toJSON AdminVenueConfigFragment =
-        Aeson.object ["kind" Aeson..= ("admin_venue_config" :: Text)]
-    toJSON AdminInvitesFragment =
-        Aeson.object ["kind" Aeson..= ("admin_invites" :: Text)]
-    toJSON AdminExportsFragment =
-        Aeson.object ["kind" Aeson..= ("admin_exports" :: Text)]
-    toJSON AdminShiftTypesFragment =
-        Aeson.object ["kind" Aeson..= ("admin_shift_types" :: Text)]
-    toJSON AdminRosterGroupsFragment =
-        Aeson.object ["kind" Aeson..= ("admin_roster_groups" :: Text)]
-    toJSON AdminXeroFragment =
-        Aeson.object ["kind" Aeson..= ("admin_xero" :: Text)]
-    toJSON AdminXeroStaffMappingsFragment =
-        Aeson.object ["kind" Aeson..= ("admin_xero_staff_mappings" :: Text)]
-    toJSON AdminXeroPayItemsFragment =
-        Aeson.object ["kind" Aeson..= ("admin_xero_pay_items" :: Text)]
-    toJSON AdminXeroTimesheetsFragment =
-        Aeson.object ["kind" Aeson..= ("admin_xero_timesheets" :: Text)]
-    toJSON BillingStatusFragment =
-        Aeson.object ["kind" Aeson..= ("billing_status" :: Text)]
-    toJSON ProfileContentFragment =
-        Aeson.object ["kind" Aeson..= ("profile_content" :: Text)]
-    toJSON ProfileLeaveRequestsContentFragment =
-        Aeson.object ["kind" Aeson..= ("profile_leave_requests_content" :: Text)]
-    toJSON SupportAwardRatesSectionFragment =
-        Aeson.object ["kind" Aeson..= ("support_award_rates_section" :: Text)]
-    toJSON SupportPublicHolidaysSectionFragment =
-        Aeson.object ["kind" Aeson..= ("support_public_holidays_section" :: Text)]
+    toJSON = Aeson.toJSON . liveFragmentKeyToWire
 
 instance Aeson.FromJSON LiveFragmentKey where
-    parseJSON = Aeson.withObject "LiveFragmentKey" \object -> do
-        kind <- object Aeson..: "kind"
-        case (kind :: Text) of
-            "roster_content" -> pure RosterContentFragment
-            "roster_grid_toolbar" -> pure RosterGridToolbarFragment
-            "roster_grid_frame" -> pure RosterGridFrameFragment
-            "roster_day_columns" -> pure RosterDayColumnsFragment
-            "roster_day_rail" -> pure RosterDayRailFragment
-            "roster_wage_rail" -> pure RosterWageRailFragment
-            "roster_slots_grid" -> pure RosterSlotsGridFragment
-            "roster_staff_panel" -> pure RosterStaffPanelFragment
-            "roster_day_section" ->
-                RosterDaySectionFragment
-                    <$> (parseUuid =<< object Aeson..: "rosterDayId")
-            "roster_row" ->
-                RosterRowFragment
-                    <$> (parseUuid =<< object Aeson..: "rosterDayId")
-                    <*> object Aeson..: "rowIndex"
-            "leave_requests_content" -> pure LeaveRequestsContentFragment
-            "timesheet_toolbar" -> pure TimesheetToolbarFragment
-            "timesheet_day_columns" -> pure TimesheetDayColumnsFragment
-            "timesheet_day_section" ->
-                TimesheetDaySectionFragment
-                    <$> object Aeson..: "dayOffset"
-            "admin_venue_config" -> pure AdminVenueConfigFragment
-            "admin_invites" -> pure AdminInvitesFragment
-            "admin_exports" -> pure AdminExportsFragment
-            "admin_shift_types" -> pure AdminShiftTypesFragment
-            "admin_roster_groups" -> pure AdminRosterGroupsFragment
-            "admin_xero" -> pure AdminXeroFragment
-            "admin_xero_staff_mappings" -> pure AdminXeroStaffMappingsFragment
-            "admin_xero_pay_items" -> pure AdminXeroPayItemsFragment
-            "admin_xero_timesheets" -> pure AdminXeroTimesheetsFragment
-            "billing_status" -> pure BillingStatusFragment
-            "profile_content" -> pure ProfileContentFragment
-            "profile_leave_requests_content" -> pure ProfileLeaveRequestsContentFragment
-            "support_award_rates_section" -> pure SupportAwardRatesSectionFragment
-            "support_public_holidays_section" -> pure SupportPublicHolidaysSectionFragment
-            _ -> fail ("Unknown live fragment kind: " <> cs kind)
+    parseJSON value = liveFragmentKeyFromWire =<< Aeson.parseJSON value
 
 instance Aeson.ToJSON FocusedFieldProtectionConfig where
-    toJSON FocusedFieldProtectionConfig { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector } =
-        Aeson.object
-            [ "activeSelector" Aeson..= activeSelector
-            , "fieldKeyAttr" Aeson..= fieldKeyAttr
-            , "fieldNameFallback" Aeson..= fieldNameFallback
-            , "containerSelector" Aeson..= containerSelector
-            ]
+    toJSON = Aeson.toJSON . focusedFieldProtectionConfigToWire
 
 instance Aeson.FromJSON FocusedFieldProtectionConfig where
-    parseJSON = Aeson.withObject "FocusedFieldProtectionConfig" \object ->
-        FocusedFieldProtectionConfig
-            <$> object Aeson..: "activeSelector"
-            <*> object Aeson..: "fieldKeyAttr"
-            <*> object Aeson..: "fieldNameFallback"
-            <*> object Aeson..:? "containerSelector"
+    parseJSON value = focusedFieldProtectionConfigFromWire <$> Aeson.parseJSON value
 
 instance Aeson.ToJSON LiveFragmentProtection where
-    toJSON NoProtection = Aeson.Null
-    toJSON (FocusedFieldProtection config) =
-        Aeson.object
-            [ "kind" Aeson..= ("focused_field" :: Text)
-            , "activeSelector" Aeson..= config.activeSelector
-            , "fieldKeyAttr" Aeson..= config.fieldKeyAttr
-            , "fieldNameFallback" Aeson..= config.fieldNameFallback
-            , "containerSelector" Aeson..= config.containerSelector
-            ]
+    toJSON = Aeson.toJSON . liveFragmentProtectionToWire
 
 instance Aeson.FromJSON LiveFragmentProtection where
-    parseJSON Aeson.Null = pure NoProtection
-    parseJSON value = Aeson.withObject "LiveFragmentProtection" parseProtection value
-      where
-        parseProtection object = do
-            kind <- object Aeson..: "kind"
-            case (kind :: Text) of
-                "focused_field" ->
-                    FocusedFieldProtection
-                        <$> (FocusedFieldProtectionConfig
-                            <$> object Aeson..: "activeSelector"
-                            <*> object Aeson..: "fieldKeyAttr"
-                            <*> object Aeson..: "fieldNameFallback"
-                            <*> object Aeson..:? "containerSelector"
-                            )
-                _ -> fail ("Unknown live fragment protection kind: " <> cs kind)
+    parseJSON value = liveFragmentProtectionFromWire <$> Aeson.parseJSON value
 
 instance Aeson.ToJSON LiveUpdateWireFragment where
-    toJSON LiveUpdateWireFragment { fragmentKey, targetId, url, deferUntilBlur, protectionPolicy } =
-        Aeson.object
-            [ "fragmentKey" Aeson..= fragmentKey
-            , "targetId" Aeson..= targetId
-            , "url" Aeson..= url
-            , "deferUntilBlur" Aeson..= deferUntilBlur
-            , "protectionPolicy" Aeson..= protectionPolicy
-            ]
+    toJSON = Aeson.toJSON . liveUpdateWireFragmentToWire
 
 instance Aeson.FromJSON LiveUpdateWireFragment where
-    parseJSON = Aeson.withObject "LiveUpdateWireFragment" \object ->
-        LiveUpdateWireFragment
-            <$> object Aeson..: "fragmentKey"
-            <*> object Aeson..: "targetId"
-            <*> object Aeson..: "url"
-            <*> object Aeson..: "deferUntilBlur"
-            <*> object Aeson..:? "protectionPolicy" Aeson..!= NoProtection
+    parseJSON value = liveUpdateWireFragmentFromWire =<< Aeson.parseJSON value
 
 instance Aeson.ToJSON LiveUpdateCommand where
-    toJSON SubscribeLiveUpdates { scope, clientId, lastSeenVersion } =
-        Aeson.object
-            [ "type" Aeson..= ("subscribe" :: Text)
-            , "scope" Aeson..= scope
-            , "clientId" Aeson..= clientId
-            , "lastSeenVersion" Aeson..= lastSeenVersion
-            ]
-    toJSON UnsubscribeLiveUpdates { scope } =
-        Aeson.object
-            [ "type" Aeson..= ("unsubscribe" :: Text)
-            , "scope" Aeson..= scope
-            ]
+    toJSON = Aeson.toJSON . liveUpdateCommandToWire
 
 instance Aeson.FromJSON LiveUpdateCommand where
-    parseJSON = Aeson.withObject "LiveUpdateCommand" \object -> do
-        messageType <- object Aeson..: "type"
-        case (messageType :: Text) of
-            "subscribe" ->
-                SubscribeLiveUpdates
-                    <$> object Aeson..: "scope"
-                    <*> object Aeson..: "clientId"
-                    <*> object Aeson..:? "lastSeenVersion"
-            "unsubscribe" ->
-                UnsubscribeLiveUpdates
-                    <$> object Aeson..: "scope"
-            _ -> fail ("Unknown live update command: " <> cs messageType)
+    parseJSON value = liveUpdateCommandFromWire =<< Aeson.parseJSON value
 
 instance Aeson.ToJSON LiveUpdateMessage where
-    toJSON LiveUpdatesSubscribed { scope, scopeKey, currentVersion, resync } =
-        Aeson.object
-            [ "type" Aeson..= ("subscribed" :: Text)
-            , "scope" Aeson..= scope
-            , "scopeKey" Aeson..= scopeKey
-            , "currentVersion" Aeson..= currentVersion
-            , "resync" Aeson..= resync
-            ]
-    toJSON LiveUpdatesInvalidated { scope, scopeKey, version, fragments, sourceClientId } =
-        Aeson.object
-            [ "type" Aeson..= ("invalidate" :: Text)
-            , "scope" Aeson..= scope
-            , "scopeKey" Aeson..= scopeKey
-            , "version" Aeson..= version
-            , "fragments" Aeson..= fragments
-            , "sourceClientId" Aeson..= sourceClientId
-            ]
-    toJSON LiveUpdatesError { message } =
-        Aeson.object
-            [ "type" Aeson..= ("error" :: Text)
-            , "message" Aeson..= message
-            ]
+    toJSON = Aeson.toJSON . liveUpdateMessageToWire
 
 data LiveSubscription = LiveSubscription
     { subscriptionId         :: !UUID.UUID
@@ -802,6 +512,137 @@ sendInvalidation scope version sourceClientId fragments subscription = do
                 , fragments
                 , sourceClientId
                 }
+
+liveUpdateScopeToWire :: LiveUpdateScope -> Wire.LiveUpdateScope
+liveUpdateScopeToWire RosterWeekScope { venueId, rosterGroupId, weekOffset } =
+    Wire.RosterWeek (UUID.toText venueId) (UUID.toText rosterGroupId) weekOffset
+liveUpdateScopeToWire AdminVenueConfigScope { venueId } = Wire.AdminVenueConfig (UUID.toText venueId)
+liveUpdateScopeToWire AdminShiftTypesScope { venueId } = Wire.AdminShiftTypes (UUID.toText venueId)
+liveUpdateScopeToWire AdminRosterGroupsScope { venueId } = Wire.AdminRosterGroups (UUID.toText venueId)
+liveUpdateScopeToWire AdminInvitesScope { venueId } = Wire.AdminInvites (UUID.toText venueId)
+liveUpdateScopeToWire AdminExportsScope { venueId } = Wire.AdminExports (UUID.toText venueId)
+liveUpdateScopeToWire AdminXeroScope { venueId } = Wire.AdminXero (UUID.toText venueId)
+liveUpdateScopeToWire BillingScope { venueId } = Wire.Billing (UUID.toText venueId)
+liveUpdateScopeToWire LeaveRequestsScope { venueId } = Wire.LeaveRequests (UUID.toText venueId)
+liveUpdateScopeToWire TimesheetWeekScope { venueId, weekOffset } = Wire.TimesheetWeek (UUID.toText venueId) weekOffset
+liveUpdateScopeToWire ProfileScope { venueId, staffId } = Wire.Profile (UUID.toText venueId) (UUID.toText staffId)
+liveUpdateScopeToWire SupportPlatformScope = Wire.SupportPlatform
+
+liveUpdateScopeFromWire :: Wire.LiveUpdateScope -> Aeson.Parser LiveUpdateScope
+liveUpdateScopeFromWire Wire.RosterWeek { venueId, rosterGroupId, weekOffset } = RosterWeekScope <$> parseUuid venueId <*> parseUuid rosterGroupId <*> pure weekOffset
+liveUpdateScopeFromWire Wire.AdminVenueConfig { venueId } = AdminVenueConfigScope <$> parseUuid venueId
+liveUpdateScopeFromWire Wire.AdminShiftTypes { venueId } = AdminShiftTypesScope <$> parseUuid venueId
+liveUpdateScopeFromWire Wire.AdminRosterGroups { venueId } = AdminRosterGroupsScope <$> parseUuid venueId
+liveUpdateScopeFromWire Wire.AdminInvites { venueId } = AdminInvitesScope <$> parseUuid venueId
+liveUpdateScopeFromWire Wire.AdminExports { venueId } = AdminExportsScope <$> parseUuid venueId
+liveUpdateScopeFromWire Wire.AdminXero { venueId } = AdminXeroScope <$> parseUuid venueId
+liveUpdateScopeFromWire Wire.Billing { venueId } = BillingScope <$> parseUuid venueId
+liveUpdateScopeFromWire Wire.LeaveRequests { venueId } = LeaveRequestsScope <$> parseUuid venueId
+liveUpdateScopeFromWire Wire.TimesheetWeek { venueId, weekOffset } = TimesheetWeekScope <$> parseUuid venueId <*> pure weekOffset
+liveUpdateScopeFromWire Wire.Profile { venueId, staffId } = ProfileScope <$> parseUuid venueId <*> parseUuid staffId
+liveUpdateScopeFromWire Wire.SupportPlatform = pure SupportPlatformScope
+
+liveFragmentKeyToWire :: LiveFragmentKey -> Wire.LiveFragmentKey
+liveFragmentKeyToWire = \case
+    RosterContentFragment -> Wire.RosterContent
+    RosterGridToolbarFragment -> Wire.RosterGridToolbar
+    RosterGridFrameFragment -> Wire.RosterGridFrame
+    RosterDayColumnsFragment -> Wire.RosterDayColumns
+    RosterDayRailFragment -> Wire.RosterDayRail
+    RosterWageRailFragment -> Wire.RosterWageRail
+    RosterSlotsGridFragment -> Wire.RosterSlotsGrid
+    RosterStaffPanelFragment -> Wire.RosterStaffPanel
+    RosterDaySectionFragment { rosterDayId } -> Wire.RosterDaySection (UUID.toText rosterDayId)
+    RosterRowFragment { rosterDayId, rowIndex } -> Wire.RosterRow (UUID.toText rosterDayId) rowIndex
+    LeaveRequestsContentFragment -> Wire.LeaveRequestsContent
+    TimesheetToolbarFragment -> Wire.TimesheetToolbar
+    TimesheetDayColumnsFragment -> Wire.TimesheetDayColumns
+    TimesheetDaySectionFragment { dayOffset } -> Wire.TimesheetDaySection dayOffset
+    AdminVenueConfigFragment -> Wire.AdminVenueConfigFragment
+    AdminInvitesFragment -> Wire.AdminInvitesFragment
+    AdminExportsFragment -> Wire.AdminExportsFragment
+    AdminShiftTypesFragment -> Wire.AdminShiftTypesFragment
+    AdminRosterGroupsFragment -> Wire.AdminRosterGroupsFragment
+    AdminXeroFragment -> Wire.AdminXeroFragment
+    AdminXeroStaffMappingsFragment -> Wire.AdminXeroStaffMappings
+    AdminXeroPayItemsFragment -> Wire.AdminXeroPayItems
+    AdminXeroTimesheetsFragment -> Wire.AdminXeroTimesheets
+    BillingStatusFragment -> Wire.BillingStatus
+    ProfileContentFragment -> Wire.ProfileContent
+    ProfileLeaveRequestsContentFragment -> Wire.ProfileLeaveRequestsContent
+    SupportAwardRatesSectionFragment -> Wire.SupportAwardRatesSection
+    SupportPublicHolidaysSectionFragment -> Wire.SupportPublicHolidaysSection
+
+liveFragmentKeyFromWire :: Wire.LiveFragmentKey -> Aeson.Parser LiveFragmentKey
+liveFragmentKeyFromWire = \case
+    Wire.RosterContent -> pure RosterContentFragment
+    Wire.RosterGridToolbar -> pure RosterGridToolbarFragment
+    Wire.RosterGridFrame -> pure RosterGridFrameFragment
+    Wire.RosterDayColumns -> pure RosterDayColumnsFragment
+    Wire.RosterDayRail -> pure RosterDayRailFragment
+    Wire.RosterWageRail -> pure RosterWageRailFragment
+    Wire.RosterSlotsGrid -> pure RosterSlotsGridFragment
+    Wire.RosterStaffPanel -> pure RosterStaffPanelFragment
+    Wire.RosterDaySection { rosterDayId } -> RosterDaySectionFragment <$> parseUuid rosterDayId
+    Wire.RosterRow { rosterDayId, rowIndex } -> RosterRowFragment <$> parseUuid rosterDayId <*> pure rowIndex
+    Wire.LeaveRequestsContent -> pure LeaveRequestsContentFragment
+    Wire.TimesheetToolbar -> pure TimesheetToolbarFragment
+    Wire.TimesheetDayColumns -> pure TimesheetDayColumnsFragment
+    Wire.TimesheetDaySection { dayOffset } -> pure (TimesheetDaySectionFragment dayOffset)
+    Wire.AdminVenueConfigFragment -> pure AdminVenueConfigFragment
+    Wire.AdminInvitesFragment -> pure AdminInvitesFragment
+    Wire.AdminExportsFragment -> pure AdminExportsFragment
+    Wire.AdminShiftTypesFragment -> pure AdminShiftTypesFragment
+    Wire.AdminRosterGroupsFragment -> pure AdminRosterGroupsFragment
+    Wire.AdminXeroFragment -> pure AdminXeroFragment
+    Wire.AdminXeroStaffMappings -> pure AdminXeroStaffMappingsFragment
+    Wire.AdminXeroPayItems -> pure AdminXeroPayItemsFragment
+    Wire.AdminXeroTimesheets -> pure AdminXeroTimesheetsFragment
+    Wire.BillingStatus -> pure BillingStatusFragment
+    Wire.ProfileContent -> pure ProfileContentFragment
+    Wire.ProfileLeaveRequestsContent -> pure ProfileLeaveRequestsContentFragment
+    Wire.SupportAwardRatesSection -> pure SupportAwardRatesSectionFragment
+    Wire.SupportPublicHolidaysSection -> pure SupportPublicHolidaysSectionFragment
+
+focusedFieldProtectionConfigToWire :: FocusedFieldProtectionConfig -> Wire.FocusedFieldProtectionConfig
+focusedFieldProtectionConfigToWire FocusedFieldProtectionConfig { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector } =
+    Wire.FocusedFieldProtectionConfig { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector }
+
+focusedFieldProtectionConfigFromWire :: Wire.FocusedFieldProtectionConfig -> FocusedFieldProtectionConfig
+focusedFieldProtectionConfigFromWire Wire.FocusedFieldProtectionConfig { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector } =
+    FocusedFieldProtectionConfig { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector }
+
+liveFragmentProtectionToWire :: LiveFragmentProtection -> Wire.LiveFragmentProtection
+liveFragmentProtectionToWire NoProtection = Wire.LiveFragmentProtection Nothing
+liveFragmentProtectionToWire (FocusedFieldProtection config) = Wire.LiveFragmentProtection (Just (focusedFieldProtectionConfigToWire config))
+
+liveFragmentProtectionFromWire :: Wire.LiveFragmentProtection -> LiveFragmentProtection
+liveFragmentProtectionFromWire (Wire.LiveFragmentProtection Nothing) = NoProtection
+liveFragmentProtectionFromWire (Wire.LiveFragmentProtection (Just config)) = FocusedFieldProtection (focusedFieldProtectionConfigFromWire config)
+
+liveUpdateWireFragmentToWire :: LiveUpdateWireFragment -> Wire.LiveUpdateWireFragment
+liveUpdateWireFragmentToWire LiveUpdateWireFragment { fragmentKey, targetId, url, deferUntilBlur, protectionPolicy } =
+    Wire.LiveUpdateWireFragment (liveFragmentKeyToWire fragmentKey) targetId url deferUntilBlur (Just (liveFragmentProtectionToWire protectionPolicy))
+
+liveUpdateWireFragmentFromWire :: Wire.LiveUpdateWireFragment -> Aeson.Parser LiveUpdateWireFragment
+liveUpdateWireFragmentFromWire Wire.LiveUpdateWireFragment { fragmentKey, targetId, url, deferUntilBlur, protectionPolicy } = do
+    parsedFragmentKey <- liveFragmentKeyFromWire fragmentKey
+    pure LiveUpdateWireFragment { fragmentKey = parsedFragmentKey, targetId, url, deferUntilBlur, protectionPolicy = maybe NoProtection liveFragmentProtectionFromWire protectionPolicy }
+
+liveUpdateCommandToWire :: LiveUpdateCommand -> Wire.LiveUpdateCommand
+liveUpdateCommandToWire SubscribeLiveUpdates { scope, clientId, lastSeenVersion } = Wire.Subscribe (liveUpdateScopeToWire scope) clientId lastSeenVersion
+liveUpdateCommandToWire UnsubscribeLiveUpdates { scope } = Wire.Unsubscribe (liveUpdateScopeToWire scope)
+
+liveUpdateCommandFromWire :: Wire.LiveUpdateCommand -> Aeson.Parser LiveUpdateCommand
+liveUpdateCommandFromWire Wire.Subscribe { scope, clientId, lastSeenVersion } = SubscribeLiveUpdates <$> liveUpdateScopeFromWire scope <*> pure clientId <*> pure lastSeenVersion
+liveUpdateCommandFromWire Wire.Unsubscribe { scope } = UnsubscribeLiveUpdates <$> liveUpdateScopeFromWire scope
+
+liveUpdateMessageToWire :: LiveUpdateMessage -> Wire.LiveUpdateMessage
+liveUpdateMessageToWire LiveUpdatesSubscribed { scope, scopeKey, currentVersion, resync } =
+    Wire.Subscribed (liveUpdateScopeToWire scope) scopeKey currentVersion resync
+liveUpdateMessageToWire LiveUpdatesInvalidated { scope, scopeKey, version, fragments, sourceClientId } =
+    Wire.Invalidate (liveUpdateScopeToWire scope) scopeKey version (map liveUpdateWireFragmentToWire fragments) sourceClientId
+liveUpdateMessageToWire LiveUpdatesError { message } = Wire.Error message
 
 parseUuid :: Text -> Aeson.Parser UUID.UUID
 parseUuid value =
