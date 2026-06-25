@@ -38,3 +38,9 @@ See `docs/workstreams/typed-interaction-surfaces.md` for the planning vocabulary
 - At least one low-risk prototype proves click/keyboard/touch activation, typed fields, server-rendered response, and mount portability.
 - Follow-up pointer/touch, live coordination, timeline drop, and resize tickets use the same typed model.
 
+
+## Notes
+
+**2026-06-25T01:39:18Z**
+
+Plan update: added ir-libm to fold interaction capability into TypedLiveSurfaceDefinition before render helpers, so the ir-fq28 wrapper remains a bridge rather than the long-term surface origin.

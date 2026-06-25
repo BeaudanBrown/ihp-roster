@@ -1,4 +1,5 @@
 import "./data-json.test";
+import "./interaction-contracts.test";
 import "./shared.test";
 import "./low-risk.test";
 import "./medium-risk.test";

@@ -69,3 +69,82 @@ export type LiveUpdateMessage =
     | { type: "invalidate"; scope: LiveUpdateScope; scopeKey: string; version: number; fragments: LiveUpdateWireFragment[]; sourceClientId?: string | null }
     | { type: "error"; message: string };
 
+export type InteractionFieldPresence =
+    | "required"
+    | "optional";
+
+export type HtmxMethod =
+    | "get"
+    | "post"
+    | "put"
+    | "patch"
+    | "delete";
+
+export type HtmxSwap =
+    | "innerHTML"
+    | "outerHTML"
+    | "beforeend"
+    | "afterbegin"
+    | "none"
+    | "custom";
+
+export type InteractionConflictResolution =
+    | "apply"
+    | "defer"
+    | "cancel";
+
+export type InteractionMountMetadata = {
+    surfaceFamily: string;
+    scopeKey: string;
+    mountKey: string;
+    mountId: string;
+};
+
+export type ServerLayerContract = { name: string; domId: string };
+
+export type DisposableLayerContract = { kind: string; name: string; domId: string };
+
+export type SessionKindContract = { kind: string; description: string };
+
+export type IntentFieldSchema = {
+    name: string;
+    presence: InteractionFieldPresence;
+    defaultValue?: string | null;
+};
+
+export type IntentHiddenField = { name: string; value: string };
+
+export type InteractionIntentTarget =
+    | { kind: "live_fragment"; fragment: LiveUpdateWireFragment }
+    | { kind: "mount_local"; target: string };
+
+export type IntentFormContract = {
+    intent: string;
+    name: string;
+    action: string;
+    method: HtmxMethod;
+    trigger: string;
+    target: InteractionIntentTarget;
+    swap: HtmxSwap | { kind: "custom"; value: string };
+    fields: IntentFieldSchema[];
+    hiddenFields: IntentHiddenField[];
+    sync?: string | null;
+    disabledElement?: string | null;
+};
+
+export type InteractionConflictPolicy = {
+    session: string | "*";
+    fragment: LiveFragmentKey | "*";
+    resolution: InteractionConflictResolution;
+    timeoutMs?: number | null;
+};
+
+export type InteractionCapabilityContract = {
+    mount: InteractionMountMetadata;
+    serverLayers: ServerLayerContract[];
+    disposableLayers: DisposableLayerContract[];
+    sessionKinds: SessionKindContract[];
+    intentForms: IntentFormContract[];
+    conflictPolicies: InteractionConflictPolicy[];
+};
+

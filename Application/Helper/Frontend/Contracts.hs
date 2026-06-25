@@ -6,6 +6,12 @@ module Application.Helper.Frontend.Contracts
 )
 where
 
+import Application.Helper.Interaction
+    ( htmxMethodValues
+    , htmxSwapValues
+    , interactionConflictResolutionValues
+    , interactionFieldPresenceValues
+    )
 import IHP.Prelude
 import qualified Data.Text as Text
 
@@ -114,10 +120,80 @@ liveUpdateContracts = TypeScriptDeclaration
         ]
     }
 
+interactionContracts :: TypeScriptDeclaration
+interactionContracts = TypeScriptDeclaration
+    { name = "InteractionContracts"
+    , source = Text.unlines
+        [ stringUnionSource "InteractionFieldPresence" (fmap snd interactionFieldPresenceValues)
+        , stringUnionSource "HtmxMethod" (fmap snd htmxMethodValues)
+        , stringUnionSource "HtmxSwap" (fmap snd htmxSwapValues <> ["custom"])
+        , stringUnionSource "InteractionConflictResolution" (fmap snd interactionConflictResolutionValues)
+        , "export type InteractionMountMetadata = {"
+        , "    surfaceFamily: string;"
+        , "    scopeKey: string;"
+        , "    mountKey: string;"
+        , "    mountId: string;"
+        , "};"
+        , ""
+        , "export type ServerLayerContract = { name: string; domId: string };"
+        , ""
+        , "export type DisposableLayerContract = { kind: string; name: string; domId: string };"
+        , ""
+        , "export type SessionKindContract = { kind: string; description: string };"
+        , ""
+        , "export type IntentFieldSchema = {"
+        , "    name: string;"
+        , "    presence: InteractionFieldPresence;"
+        , "    defaultValue?: string | null;"
+        , "};"
+        , ""
+        , "export type IntentHiddenField = { name: string; value: string };"
+        , ""
+        , "export type InteractionIntentTarget ="
+        , "    | { kind: \"live_fragment\"; fragment: LiveUpdateWireFragment }"
+        , "    | { kind: \"mount_local\"; target: string };"
+        , ""
+        , "export type IntentFormContract = {"
+        , "    intent: string;"
+        , "    name: string;"
+        , "    action: string;"
+        , "    method: HtmxMethod;"
+        , "    trigger: string;"
+        , "    target: InteractionIntentTarget;"
+        , "    swap: HtmxSwap | { kind: \"custom\"; value: string };"
+        , "    fields: IntentFieldSchema[];"
+        , "    hiddenFields: IntentHiddenField[];"
+        , "    sync?: string | null;"
+        , "    disabledElement?: string | null;"
+        , "};"
+        , ""
+        , "export type InteractionConflictPolicy = {"
+        , "    session: string | \"*\";"
+        , "    fragment: LiveFragmentKey | \"*\";"
+        , "    resolution: InteractionConflictResolution;"
+        , "    timeoutMs?: number | null;"
+        , "};"
+        , ""
+        , "export type InteractionCapabilityContract = {"
+        , "    mount: InteractionMountMetadata;"
+        , "    serverLayers: ServerLayerContract[];"
+        , "    disposableLayers: DisposableLayerContract[];"
+        , "    sessionKinds: SessionKindContract[];"
+        , "    intentForms: IntentFormContract[];"
+        , "    conflictPolicies: InteractionConflictPolicy[];"
+        , "};"
+        ]
+    }
+
+stringUnionSource :: Text -> [Text] -> Text
+stringUnionSource name values =
+    (stringUnionDeclaration name values).source
+
 frontendContractDeclarations :: [TypeScriptDeclaration]
 frontendContractDeclarations =
     [ stringUnionDeclaration overlayLaneTypeName (fmap snd overlayLaneValues)
     , liveUpdateContracts
+    , interactionContracts
     ]
 
 frontendContractsTypeScript :: Text
