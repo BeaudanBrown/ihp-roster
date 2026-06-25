@@ -5,8 +5,8 @@ Read this before editing `static/` assets.
 ## Local Rules
 
 - Runtime assets are app-owned and loaded through `assetPath`.
-- App JavaScript source lives in `frontend/ts/`. Generated browser output
-  lives in `static/app*.js`, is checked in, and must not be hand-edited.
+- App JavaScript source lives in `frontend/ts/`. Do not edit generated browser
+  output: `static/app*.js` is checked in and must not be hand-edited.
 - Use `bash ./bin/in-env frontend-build` to regenerate JS, and
   `bash ./bin/in-env frontend-check` before committing frontend changes.
 - Generated TypeScript contracts live in `frontend/ts/generated/`, are owned by
@@ -45,21 +45,24 @@ Read this before editing `static/` assets.
   Bootstrap overrides in feature stylesheets unless the exception is explicitly
   documented in the CSS README or local feature docs.
 - Link split CSS from `Web/View/Layout.hs` with `assetPath`; mirror each linked
-  app-owned stylesheet in `Makefile` `CSS_FILES` so packaging hash inputs stay
-  complete and in cascade order.
+  app-owned stylesheet in `Makefile` `CSS_FILES` so style-audit can keep direct
+  Layout assets complete and in cascade order. IHP `prod.js`/`prod.css`
+  concatenation is disabled for this app.
 - Do not use production CSS `@import` for app-owned files because imported URLs
   do not receive IHP's cache-busting query string.
-- Do not edit generated or third-party CSS (`static/prod.css`,
-  `static/vendor/**`) as part of app stylesheet refactors.
+- Do not edit third-party CSS (`static/vendor/**`) as part of app stylesheet
+  refactors.
 - Run `bash ./bin/in-env ./bin/style-audit` after stylesheet link, token, or
   architecture changes. It is a hard gate for Layout/Makefile sync, missing
   app-owned stylesheet links, `@import`, line budget, raw colour, and unexpected
   global-selector regressions. Use `bash ./bin/in-env ./bin/css-inventory` for
   the warning-only CSS architecture report (line budgets, raw colours, global
   feature selectors, and stale-selector candidates).
-- The supported bundler is the existing Nix/devenv esbuild pipeline. Do not
-  add ad hoc bundlers, Vite dev servers, true-HMR requirements, or npm/npx
-  project workflows as part of ordinary runtime refactors.
+- The supported browser-code bundler is the existing Nix/devenv esbuild
+  pipeline that emits split `static/app*.js` files. Do not add ad hoc bundlers,
+  re-enable IHP `prod.js` concatenation, Vite dev servers, true-HMR
+  requirements, or npm/npx project workflows as part of ordinary runtime
+  refactors.
 
 ## Live Runtime
 

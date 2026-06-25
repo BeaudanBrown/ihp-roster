@@ -12,6 +12,10 @@
                 # Use a filtered project source so local dev artifacts do not leak into
                 # production packaging or generated app-lib.cabal module discovery.
                 projectPath = projectSource;
+                # Bepis loads split static assets directly from Web.View.Layout via
+                # assetPath. Disable IHP's optional prod.js/prod.css concatenation so
+                # production packaging does not generate unused bundle artifacts.
+                static.makeBundling = false;
                 packages = with pkgs; [
                     poppler-utils
                 ];

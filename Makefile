@@ -1,3 +1,7 @@
+# Bepis intentionally serves split assets from Web/View/Layout.hs via assetPath.
+# IHP's optional prod.js/prod.css concatenation is disabled in
+# Config/nix/flake/ihp-app.nix. Keep CSS_FILES as a style-audit manifest that
+# mirrors Layout stylesheet order; do not add JS_FILES for an unused prod.js.
 CSS_FILES += static/vendor/bootstrap-5.3.8/bootstrap.min.css
 CSS_FILES += static/vendor/bootstrap-icons-1.11.3/bootstrap-icons.min.css
 CSS_FILES += ${IHP}/static/vendor/flatpickr.min.css
@@ -38,13 +42,6 @@ CSS_FILES += static/css/features/roster/staff-highlight.css
 CSS_FILES += static/css/features/roster/export-print.css
 CSS_FILES += static/css/features/timesheets.css
 CSS_FILES += static/css/features/xero.css
-
-JS_FILES += static/vendor/bootstrap-5.3.8/bootstrap.bundle.min.js
-JS_FILES += ${IHP}/static/vendor/flatpickr.js
-JS_FILES += ${IHP}/static/vendor/morphdom-umd.min.js
-JS_FILES += static/app-scrollbars.js
-JS_FILES += static/app-horizontal-scroll.js
-JS_FILES += static/app-xero.js
 
 # Resolve IHPSchema.sql across IHP env layouts.
 # Some environments expose IHP_LIB without IHPSchema.sql (e.g. env-var compatibility wrapper).

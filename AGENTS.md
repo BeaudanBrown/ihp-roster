@@ -138,7 +138,8 @@ the linked repo-local `ir-*` ticket for implementation details.
 - Auth pages must not render the authenticated header.
 - Use Bootstrap 5.3.8 vendor assets and `assetPath` for static references.
 - App CSS is split under `static/css/` and linked from `Web/View/Layout.hs` via
-  `assetPath`; keep new stylesheet links mirrored in `Makefile` `CSS_FILES`.
+  `assetPath`; keep new stylesheet links mirrored in `Makefile` `CSS_FILES` for
+  style-audit/Layout sync. IHP `prod.js`/`prod.css` bundling is disabled.
 - Do not use production CSS `@import` for app-owned files, because imports
   bypass IHP's `assetPath` cache busting.
 - App JavaScript source lives under `frontend/ts/`; generated checked-in output

@@ -2,9 +2,10 @@
 
 App-owned CSS is split into directly linked stylesheets. `Web/View/Layout.hs`
 loads each stylesheet with `assetPath`, and `Makefile` mirrors the same files in
-`CSS_FILES` so packaging and cache-busting see every source. Do not use
-app-owned CSS `@import`, do not add a bundler, and do not edit generated or
-third-party CSS (`static/prod.css`, `static/vendor/**`).
+`CSS_FILES` so style-audit can keep Layout assets complete and ordered. IHP's
+optional `prod.js`/`prod.css` concatenation is disabled for this app; production
+serves the split static assets directly. Do not use app-owned CSS `@import`, do
+not add a bundler, and do not edit third-party CSS (`static/vendor/**`).
 
 ## Cascade order
 
@@ -22,7 +23,8 @@ feature styles load later:
 
 When adding, moving, or splitting files, preserve selector order unless the
 ticket explicitly calls for a semantic refactor. Add every new linked stylesheet
-to both `Web/View/Layout.hs` and `Makefile` in the same cascade position.
+to both `Web/View/Layout.hs` and `Makefile` `CSS_FILES` in the same cascade
+position.
 
 ## Display density
 

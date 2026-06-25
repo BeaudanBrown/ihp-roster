@@ -81,8 +81,9 @@ Do not hand-edit generated app JS.
 
 Feature CSS is split under `static/css/`; update the narrowest matching file
 and keep linked stylesheet paths mirrored in `Web/View/Layout.hs` and
-`Makefile` (`CSS_FILES`) so production cache busting and packaging stay in
-sync.
+`Makefile` (`CSS_FILES`) so style-audit can keep the direct `assetPath` links in
+sync. IHP's optional `prod.js`/`prod.css` concatenation is disabled; production
+serves the checked-in split static assets directly.
 
 Frontend tooling is exposed through Nix/devenv commands, not developer-facing
 `npm`/`npx` workflows:

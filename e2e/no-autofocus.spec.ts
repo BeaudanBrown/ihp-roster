@@ -52,7 +52,6 @@ function sourceFiles(root: string): string[] {
             return sourceFiles(fullPath);
         }
         if (!entry.isFile()) return [];
-        if (fullPath === path.join('static', 'prod.js')) return [];
         return [fullPath];
     });
 }
