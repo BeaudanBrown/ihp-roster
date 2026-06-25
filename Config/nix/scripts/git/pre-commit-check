@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+format
+
+if ! git diff --quiet; then
+    echo "Formatting changed files. Review and re-stage them, then commit again."
+    git status --short
+    exit 1
+fi
+
+frontend-drift-check

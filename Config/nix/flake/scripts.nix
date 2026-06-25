@@ -37,6 +37,7 @@ in
         frontend-test = script ../scripts/frontend/test;
         frontend-watch = script ../scripts/frontend/watch;
         git-install-hooks = script ../scripts/git/install-hooks;
+        git-pre-commit-check = script ../scripts/git/pre-commit-check;
         haskell-module-name-check = script ../scripts/haskell/module-name-check;
         typecheck = script ../scripts/haskell/typecheck;
         regen-types = script ../scripts/haskell/regen-types;
