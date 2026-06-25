@@ -18,6 +18,11 @@ body.modal-open {
     padding-right: 0 !important;
 }
 
+html[data-bepis-interaction-active="true"],
+html[data-bepis-interaction-active="true"] * {
+    user-select: none;
+}
+
 html,
 * {
     scrollbar-color: transparent transparent;

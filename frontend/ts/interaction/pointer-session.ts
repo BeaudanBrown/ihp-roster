@@ -111,6 +111,7 @@ export function createPointerSessionController(options: PointerSessionOptions = 
         clearTimeoutHandle();
         clearDisposableLayers(session.mount);
         releasePointerCapture(session.marker, session.pointerId);
+        setDocumentInteractionActive(session.mount, false);
         if (activeSession === session) activeSession = null;
         dispatchInteractionSessionEnd(sessionSnapshot(session, reason));
     };
@@ -167,6 +168,8 @@ export function createPointerSessionController(options: PointerSessionOptions = 
             clearDisposableLayers(start.mount);
             activeSession = start;
             capturePointer(start.marker, start.pointerId);
+            setDocumentInteractionActive(start.mount, true);
+            if (event.cancelable) event.preventDefault();
 
             const result = runtime.emit({
                 phase: "start",
@@ -187,10 +190,12 @@ export function createPointerSessionController(options: PointerSessionOptions = 
         },
         handlePointerMove(event: Event) {
             if (!activeSession || !isMatchingPointerEvent(event, activeSession)) return;
+            if (event.cancelable) event.preventDefault();
             updateSession(activeSession, event);
         },
         handlePointerUp(event: Event) {
             if (!activeSession || !isMatchingPointerEvent(event, activeSession)) return;
+            if (event.cancelable && activeSession.activated) event.preventDefault();
             updateSession(activeSession, event);
             if (activeSession.activated) finishSession(activeSession, event);
             else cancelSession(activeSession, event);
@@ -349,6 +354,13 @@ function closestInteractionMount(marker: ElementLike): ElementLike | null {
 
 function clearDisposableLayers(mount: ElementLike): void {
     for (const layer of mount.querySelectorAll(disposableLayerSelector)) clearElement(layer);
+}
+
+function setDocumentInteractionActive(mount: ElementLike, active: boolean): void {
+    const root = mount.ownerDocument?.documentElement;
+    if (!root) return;
+    if (active) root.setAttribute(attrs.interactionActive, values.enabled);
+    else root.removeAttribute(attrs.interactionActive);
 }
 
 function clearElement(element: Element): void {

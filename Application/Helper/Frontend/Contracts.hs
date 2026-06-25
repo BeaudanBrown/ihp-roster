@@ -142,6 +142,7 @@ interactionContracts = TypeScriptDeclaration
         , "        sessionReadOnly: \"data-bepis-session-read-only\","
         , "        sessionThreshold: \"data-bepis-session-threshold\","
         , "        sessionTimeoutMs: \"data-bepis-session-timeout-ms\","
+        , "        interactionActive: \"data-bepis-interaction-active\","
         , "        disposableLayer: \"data-bepis-disposable-layer\","
         , "        conflictPolicies: \"data-bepis-conflict-policies\","
         , "        intentForm: \"data-bepis-intent-form\","

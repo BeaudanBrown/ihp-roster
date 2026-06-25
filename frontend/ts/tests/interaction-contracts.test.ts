@@ -34,6 +34,7 @@ test("generated interaction contracts describe mount-local intent forms", () => 
     assertEqual(InteractionDom.attributes.intentField, "data-bepis-intent-field");
     assertEqual(InteractionDom.attributes.item, "data-bepis-item");
     assertEqual(InteractionDom.attributes.dropzone, "data-bepis-dropzone");
+    assertEqual(InteractionDom.attributes.interactionActive, "data-bepis-interaction-active");
     assertEqual(InteractionDom.pointerFields.sourceItemKey, "sourceItemKey");
     assertEqual(InteractionDom.pointerFields.targetDropzoneKey, "targetDropzoneKey");
     assertDeepEqual(capability.intentForms[0]?.fields, [{ name: "cellId", presence: "required" }]);
