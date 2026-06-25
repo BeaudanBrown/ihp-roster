@@ -34,6 +34,10 @@ URLs, authorization, and protection policy.
   intent. TypeScript fills generated hidden fields and dispatches the generated
   trigger; it must not construct persistence URLs.
 
+The living interaction contract is `Application/Helper/Interaction.SPEC.md`.
+Use it for typed surface/layer/intent/form/conflict-policy details; this
+cookbook remains the checklist for live fragments.
+
 ## Add A Fragment
 
 1. Add feature-local closed ADT constructors, for example

@@ -32,8 +32,9 @@ Read this before editing `frontend/ts/`.
 
 ## Future Interaction Work
 
-- Start with `docs/workstreams/typed-interaction-surfaces.md` and the active
-  `ir-jsyd` ticket tree before implementing interaction-layer work.
+- Start with `Application/Helper/Interaction.SPEC.md`,
+  `docs/workstreams/typed-interaction-surfaces.md`, and the active `ir-jsyd`
+  ticket tree before implementing interaction-layer work.
 - Author new interaction-layer browser code in TypeScript under `frontend/ts/`.
 - It may use esbuild-resolved imports, but keep project commands Nix/devenv-owned
   and avoid introducing developer-facing npm/npx workflows.

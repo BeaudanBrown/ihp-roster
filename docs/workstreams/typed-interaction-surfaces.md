@@ -21,12 +21,17 @@ Related workstreams and docs:
 - `docs/workstreams/live-surface-architecture.md`
 - `docs/workstreams/strict-live-surface-overhaul.md`
 - `docs/workstreams/live-update-runtime-simplification.md`
+- `Application/Helper/Interaction.SPEC.md` (living contract)
 - `Application/Helper/LiveUpdate.SPEC.md`
 - `Application/Helper/LiveSurface.COOKBOOK.md`
 - `frontend/AGENTS.md`
 - `static/AGENTS.md`
 
 ## Goal
+
+The durable implementation contract now lives in
+`Application/Helper/Interaction.SPEC.md`; keep this workstream as the active
+planning/ticket index until the stream exits.
 
 Extend the typed live-surface architecture with optional typed interaction
 capabilities. Haskell should remain the source of truth for surface families,

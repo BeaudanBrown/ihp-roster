@@ -24,7 +24,9 @@ This file describes the shared live-fragment architecture implemented by
 ## Surface Declaration
 
 For the step-by-step checklist and glossary used when adding a fragment, see
-`Application/Helper/LiveSurface.COOKBOOK.md`.
+`Application/Helper/LiveSurface.COOKBOOK.md`. For typed disposable layers,
+intent forms, generated browser contracts, and live-fragment conflict policy,
+see `Application/Helper/Interaction.SPEC.md`.
 
 Ordinary live surfaces should be declared in Haskell with
 `Application.Helper.LiveSurface.TypedLiveSurfaceDefinition` and rendered on a

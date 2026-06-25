@@ -79,7 +79,8 @@ Read this before editing `static/` assets.
 
 ## Typed Interaction Runtime
 
-- Read `docs/workstreams/typed-interaction-surfaces.md` before adding
+- Read `Application/Helper/Interaction.SPEC.md` and
+  `docs/workstreams/typed-interaction-surfaces.md` before adding
   `data-bepis-*` interaction markup or runtime behavior.
 - Interaction surfaces, server layers, disposable layers, item/slot/handle
   markers, intent names, intent fields, HTMX triggers, targets, and swaps should
