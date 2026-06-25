@@ -129,7 +129,8 @@ isAllowedInfrastructureFile :: FilePath -> Bool
 isAllowedInfrastructureFile path =
     path
         `elem`
-            [ "Application/Helper/LiveUpdate.hs"
+            [ "Application/Helper/Frontend/Contracts.hs"
+            , "Application/Helper/LiveUpdate.hs"
             , "Application/Helper/LiveUpdate/Internal.hs"
             , "Application/Helper/LiveUpdate/Runtime.hs"
             , "Application/Helper/LiveSurface.hs"

@@ -12,10 +12,14 @@ module Web.View.Admin.Invites
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.LiveResource (LiveResource (..))
-import Application.Helper.LiveSurface (LiveScopeAuthorizationRequirement (..),
+import Application.Helper.LiveSurface (EmptyInteractionIntent,
+                                       EmptyInteractionLayer,
+                                       EmptyInteractionSession,
+                                       LiveScopeAuthorizationRequirement (..),
                                        LiveSurfaceConfig (..),
                                        SurfaceFragmentRef, SurfaceScope (..),
                                        TypedLiveSurfaceDefinition (..),
+                                       emptyInteractionCapability,
                                        liveFragmentDependsOn,
                                        liveSurfaceAuthorizationByRequirement,
                                        liveSurfaceConfigJson,
@@ -87,11 +91,11 @@ adminInvitesLiveSurface :: (?context :: ControllerContext) => Id RosterGroup -> 
 adminInvitesLiveSurface rosterGroupId =
     mkTypedDefinedLiveSurface adminInvitesLiveSurfaceDefinition AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Just rosterGroupId }
 
-adminInvitesLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminInvitesSurface AdminInvitesSurfaceKey AdminInvitesLiveFragment
+adminInvitesLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminInvitesSurface AdminInvitesSurfaceKey AdminInvitesLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 adminInvitesLiveSurfaceDefinition =
     adminInvitesLiveSurfaceDefinitionForVenue currentVenueScopeId
 
-adminInvitesLiveSurfaceDefinitionForVenue :: UUID -> TypedLiveSurfaceDefinition AdminInvitesSurface AdminInvitesSurfaceKey AdminInvitesLiveFragment
+adminInvitesLiveSurfaceDefinitionForVenue :: UUID -> TypedLiveSurfaceDefinition AdminInvitesSurface AdminInvitesSurfaceKey AdminInvitesLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 adminInvitesLiveSurfaceDefinitionForVenue surfaceVenueId =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "admin-invites"
@@ -106,6 +110,7 @@ adminInvitesLiveSurfaceDefinitionForVenue surfaceVenueId =
                 (liveFragmentDependsOn (AdminInvitesResource surfaceVenueId) [])
         , typedSurfaceDecorateRequestsWithin = const ["#admin-invites-fragment"]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin surfaceVenueId))
+        , typedSurfaceInteraction = const emptyInteractionCapability
         }
 
 adminInvitesLiveFragmentRef :: AdminInvitesSurfaceKey -> AdminInvitesLiveFragment -> SurfaceFragmentRef AdminInvitesSurface

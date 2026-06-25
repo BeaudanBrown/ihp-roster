@@ -158,7 +158,7 @@ data TestActorFragment
     | TestActorSibling
     deriving (Eq, Show)
 
-testActorLiveSurfaceDefinition :: TypedLiveSurfaceDefinition TestActorSurface () TestActorFragment
+testActorLiveSurfaceDefinition :: TypedLiveSurfaceDefinition TestActorSurface () TestActorFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 testActorLiveSurfaceDefinition =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "test-actor"
@@ -171,6 +171,7 @@ testActorLiveSurfaceDefinition =
                 (liveFragmentResyncOnly "test actor fragment")
         , typedSurfaceDecorateRequestsWithin = const []
         , typedSurfaceAuthorize = LiveSurfaceAuthorization { authorizeLiveSurfaceScope = const (pure True) }
+        , typedSurfaceInteraction = const emptyInteractionCapability
         }
 
 testActorProjectionDefinition :: ProjectionLiveSurfaceDefinition TestActorSurface () Text TestActorFragment

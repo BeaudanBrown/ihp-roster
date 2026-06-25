@@ -1,6 +1,6 @@
 ---
 id: ir-libm
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-06-25T01:39:18Z

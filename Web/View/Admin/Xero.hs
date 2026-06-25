@@ -23,11 +23,15 @@ module Web.View.Admin.Xero
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.LiveResource (LiveResource (..))
-import Application.Helper.LiveSurface (FragmentDependencies,
+import Application.Helper.LiveSurface (EmptyInteractionIntent,
+                                       EmptyInteractionLayer,
+                                       EmptyInteractionSession,
+                                       FragmentDependencies,
                                        LiveScopeAuthorizationRequirement (..),
                                        LiveSurfaceConfig (..),
                                        SurfaceFragmentRef, SurfaceScope (..),
                                        TypedLiveSurfaceDefinition (..),
+                                       emptyInteractionCapability,
                                        liveFragmentDependsOn,
                                        liveSurfaceAuthorizationByRequirement,
                                        liveSurfaceConfigJson,
@@ -107,11 +111,11 @@ adminXeroLiveSurface :: (?context :: ControllerContext) => Maybe LiveSurfaceConf
 adminXeroLiveSurface =
     Just (mkTypedDefinedLiveSurface adminXeroLiveSurfaceDefinition ())
 
-adminXeroLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminXeroSurface () AdminXeroLiveFragment
+adminXeroLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminXeroSurface () AdminXeroLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 adminXeroLiveSurfaceDefinition =
     adminXeroLiveSurfaceDefinitionForVenue currentVenueScopeId
 
-adminXeroLiveSurfaceDefinitionForVenue :: UUID -> TypedLiveSurfaceDefinition AdminXeroSurface () AdminXeroLiveFragment
+adminXeroLiveSurfaceDefinitionForVenue :: UUID -> TypedLiveSurfaceDefinition AdminXeroSurface () AdminXeroLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 adminXeroLiveSurfaceDefinitionForVenue surfaceVenueId =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "admin-xero"
@@ -126,6 +130,7 @@ adminXeroLiveSurfaceDefinitionForVenue surfaceVenueId =
                 (adminXeroLiveFragmentDependencies surfaceVenueId fragment)
         , typedSurfaceDecorateRequestsWithin = const ["#admin-xero-fragment"]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueOwner surfaceVenueId))
+        , typedSurfaceInteraction = const emptyInteractionCapability
         }
 
 adminXeroLiveFragmentDependencies :: UUID -> AdminXeroLiveFragment -> FragmentDependencies

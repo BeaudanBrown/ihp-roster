@@ -8,8 +8,12 @@ module Web.LiveSurfaceRegistry
     ) where
 
 import Application.Helper.LiveResource (LiveResource)
-import Application.Helper.LiveSurface (SurfaceScope (..),
+import Application.Helper.LiveSurface (EmptyInteractionIntent,
+                                       EmptyInteractionLayer,
+                                       EmptyInteractionSession,
+                                       SurfaceScope (..),
                                        TypedLiveSurfaceDefinition (..),
+                                       emptyInteractionCapability,
                                        authorizeTypedLiveSurfaceWireScope,
                                        normalizeSurfaceFragmentRefs,
                                        typedLiveSurfaceAffectedFragments,
@@ -157,15 +161,15 @@ contextFreeRegisteredLiveSurfacesForScope = \case
         []
 
 defaultCandidateFragments ::
-    TypedLiveSurfaceDefinition surface scope fragment ->
+    TypedLiveSurfaceDefinition surface scope fragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent ->
     scope ->
     [fragment]
 defaultCandidateFragments definition surfaceKey =
     definition.typedSurfaceDefaultFragments surfaceKey
 
 registeredTypedLiveSurface ::
-    TypedLiveSurfaceDefinition surface scope fragment ->
-    (TypedLiveSurfaceDefinition surface scope fragment -> scope -> [fragment]) ->
+    TypedLiveSurfaceDefinition surface scope fragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent ->
+    (TypedLiveSurfaceDefinition surface scope fragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent -> scope -> [fragment]) ->
     RegisteredLiveSurface
 registeredTypedLiveSurface definition candidateFragments =
     RegisteredLiveSurface \resources wireScope -> do
@@ -189,7 +193,7 @@ registeredTypedLiveSurface definition candidateFragments =
                                 }
 
 profileContentCandidateFragments ::
-    TypedLiveSurfaceDefinition surface scope ProfileContentFragment ->
+    TypedLiveSurfaceDefinition surface scope ProfileContentFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent ->
     scope ->
     [ProfileContentFragment]
 profileContentCandidateFragments _ _ =

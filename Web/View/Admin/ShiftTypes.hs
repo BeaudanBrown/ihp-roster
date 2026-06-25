@@ -9,11 +9,15 @@ module Web.View.Admin.ShiftTypes
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.LiveResource (LiveResource (..))
-import Application.Helper.LiveSurface (LiveScopeAuthorizationRequirement (..),
+import Application.Helper.LiveSurface (EmptyInteractionIntent,
+                                       EmptyInteractionLayer,
+                                       EmptyInteractionSession,
+                                       LiveScopeAuthorizationRequirement (..),
                                        LiveSurfaceConfig (..),
                                        SurfaceFragmentRef,
                                        SurfaceScope (..),
                                        TypedLiveSurfaceDefinition (..),
+                                       emptyInteractionCapability,
                                        liveFragmentDependsOn,
                                        liveSurfaceAuthorizationByRequirement,
                                        liveSurfaceConfigJson,
@@ -62,7 +66,7 @@ adminShiftTypesLiveSurface :: (?context :: ControllerContext) => LiveSurfaceConf
 adminShiftTypesLiveSurface =
     mkTypedDefinedLiveSurface adminShiftTypesLiveSurfaceDefinition ()
 
-adminShiftTypesLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminShiftTypesSurface () AdminShiftTypesLiveFragment
+adminShiftTypesLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminShiftTypesSurface () AdminShiftTypesLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 adminShiftTypesLiveSurfaceDefinition =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "admin-shift-types"
@@ -78,6 +82,7 @@ adminShiftTypesLiveSurfaceDefinition =
                 (liveFragmentDependsOn (AdminShiftTypesResource currentVenueScopeId) [])
         , typedSurfaceDecorateRequestsWithin = const ["#admin-shift-types-fragment"]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId))
+        , typedSurfaceInteraction = const emptyInteractionCapability
         }
 
 adminShiftTypesSurfaceScope :: (?context :: ControllerContext) => () -> SurfaceScope AdminShiftTypesSurface

@@ -54,7 +54,7 @@ currentProfileContentSurfaceKey staff openSection =
         , profileContentOpenSection = openSection
         }
 
-profileContentLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition ProfileContentSurface ProfileContentSurfaceKey ProfileContentFragment
+profileContentLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition ProfileContentSurface ProfileContentSurfaceKey ProfileContentFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 profileContentLiveSurfaceDefinition =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "profile"
@@ -70,6 +70,7 @@ profileContentLiveSurfaceDefinition =
                 (profileContentDependsOn key fragment)
         , typedSurfaceDecorateRequestsWithin = const ["#" <> profileDetailsFormId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\key -> RequireCurrentVenueStaff key.profileContentVenueId key.profileContentStaffId)
+        , typedSurfaceInteraction = const emptyInteractionCapability
         }
 
 profileContentFragment :: Text -> ProfileContentFragment
@@ -126,7 +127,7 @@ currentProfileLeaveSurfaceKey staff =
         , profileLeaveStaffId = unpackId staff.id
         }
 
-profileLeaveRequestsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition ProfileLeaveSurface ProfileLeaveSurfaceKey ProfileLeaveFragment
+profileLeaveRequestsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition ProfileLeaveSurface ProfileLeaveSurfaceKey ProfileLeaveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 profileLeaveRequestsLiveSurfaceDefinition =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "profile-leave-requests"
@@ -142,6 +143,7 @@ profileLeaveRequestsLiveSurfaceDefinition =
                 (liveFragmentDependsOn (StaffLeaveRequestsResource key.profileLeaveStaffId) [])
         , typedSurfaceDecorateRequestsWithin = const ["#" <> profileLeaveRequestsContentFragmentId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\key -> RequireCurrentVenueStaff key.profileLeaveVenueId key.profileLeaveStaffId)
+        , typedSurfaceInteraction = const emptyInteractionCapability
         }
 
 profileLeaveRequestsFragment :: ProfileLeaveFragment

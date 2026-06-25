@@ -24,7 +24,7 @@ data SupportLiveFragment
 supportLiveUpdateScope :: LiveUpdateScope
 supportLiveUpdateScope = SupportPlatformScope
 
-supportLiveSurfaceDefinition :: TypedLiveSurfaceDefinition SupportSurface () SupportLiveFragment
+supportLiveSurfaceDefinition :: TypedLiveSurfaceDefinition SupportSurface () SupportLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 supportLiveSurfaceDefinition =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "support"
@@ -44,6 +44,7 @@ supportLiveSurfaceDefinition =
                 , "#support-public-holidays-section"
                 ]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const RequireSupportSuperAdmin)
+        , typedSurfaceInteraction = const emptyInteractionCapability
         }
 
 supportLiveFragmentRefs :: [SupportLiveFragment]

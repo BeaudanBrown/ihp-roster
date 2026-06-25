@@ -9,10 +9,14 @@ module Web.View.Admin.RosterGroups
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.LiveResource (LiveResource (..))
-import Application.Helper.LiveSurface (LiveScopeAuthorizationRequirement (..),
+import Application.Helper.LiveSurface (EmptyInteractionIntent,
+                                       EmptyInteractionLayer,
+                                       EmptyInteractionSession,
+                                       LiveScopeAuthorizationRequirement (..),
                                        LiveSurfaceConfig (..),
                                        SurfaceFragmentRef, SurfaceScope (..),
                                        TypedLiveSurfaceDefinition (..),
+                                       emptyInteractionCapability,
                                        liveFragmentDependsOn,
                                        liveSurfaceAuthorizationByRequirement,
                                        liveSurfaceConfigJson,
@@ -56,7 +60,7 @@ adminRosterGroupsLiveSurface :: (?context :: ControllerContext) => Maybe LiveSur
 adminRosterGroupsLiveSurface =
     Just (mkTypedDefinedLiveSurface adminRosterGroupsLiveSurfaceDefinition ())
 
-adminRosterGroupsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminRosterGroupsSurface () AdminRosterGroupsLiveFragment
+adminRosterGroupsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminRosterGroupsSurface () AdminRosterGroupsLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 adminRosterGroupsLiveSurfaceDefinition =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "admin-roster-groups"
@@ -71,6 +75,7 @@ adminRosterGroupsLiveSurfaceDefinition =
                 (liveFragmentDependsOn (AdminRosterGroupsResource currentVenueScopeId) [])
         , typedSurfaceDecorateRequestsWithin = const ["#admin-roster-groups-fragment"]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId))
+        , typedSurfaceInteraction = const emptyInteractionCapability
         }
 
 adminRosterGroupsLiveFragmentRef :: (?context :: ControllerContext) => AdminRosterGroupsLiveFragment -> SurfaceFragmentRef AdminRosterGroupsSurface

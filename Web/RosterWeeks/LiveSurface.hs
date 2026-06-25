@@ -38,7 +38,7 @@ import Web.RosterWeeks.Types
 
 data RosterLiveSurface
 
-rosterLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition RosterLiveSurface RosterProjectionScope RosterProjectionFragment
+rosterLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition RosterLiveSurface RosterProjectionScope RosterProjectionFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 rosterLiveSurfaceDefinition =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "roster"
@@ -51,6 +51,7 @@ rosterLiveSurfaceDefinition =
                 (rosterFragmentDependencies scope fragment)
         , typedSurfaceDecorateRequestsWithin = const ["#roster-week-shell"]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\scope -> RequireCurrentVenueRosterGroup (unpackId currentVenueId) (unpackId scope.rosterProjectionGroupId))
+        , typedSurfaceInteraction = const emptyInteractionCapability
         }
     where
         rosterSurfaceScope scope =

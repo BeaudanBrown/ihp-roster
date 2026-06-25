@@ -72,7 +72,7 @@ fetchVisibleLeaveRequests = do
                         |> orderByDesc #startDate
                         |> fetch
 
-leaveRequestsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition LeaveRequestsSurface () LeaveRequestsProjectionFragment
+leaveRequestsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition LeaveRequestsSurface () LeaveRequestsProjectionFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 leaveRequestsLiveSurfaceDefinition =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "leave-requests"
@@ -87,6 +87,7 @@ leaveRequestsLiveSurfaceDefinition =
                 (liveFragmentDependsOn (LeaveRequestsResource (unpackId currentVenueId)) [])
         , typedSurfaceDecorateRequestsWithin = const ["#" <> leaveRequestsShellId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueManager (unpackId currentVenueId)))
+        , typedSurfaceInteraction = const emptyInteractionCapability
         }
 
 leaveRequestsProjectionDefinition :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ProjectionLiveSurfaceDefinition LeaveRequestsSurface () LeaveRequestsProjection LeaveRequestsProjectionFragment

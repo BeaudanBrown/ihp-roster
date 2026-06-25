@@ -28,7 +28,7 @@ currentBillingSurfaceKey :: (?context :: ControllerContext) => BillingSurfaceKey
 currentBillingSurfaceKey =
     BillingSurfaceKey { billingSurfaceVenueId = currentVenueScopeId }
 
-billingLiveSurfaceDefinition :: TypedLiveSurfaceDefinition BillingSurface BillingSurfaceKey BillingLiveFragment
+billingLiveSurfaceDefinition :: TypedLiveSurfaceDefinition BillingSurface BillingSurfaceKey BillingLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 billingLiveSurfaceDefinition =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "billing"
@@ -43,6 +43,7 @@ billingLiveSurfaceDefinition =
                 (liveFragmentDependsOn (BillingResource key.billingSurfaceVenueId) [])
         , typedSurfaceDecorateRequestsWithin = const ["#billing-live-surface", "#billing-status-fragment"]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\key -> RequireCurrentVenueOwner key.billingSurfaceVenueId)
+        , typedSurfaceInteraction = const emptyInteractionCapability
         }
 
 billingLiveFragmentRef :: BillingLiveFragment -> SurfaceFragmentRef BillingSurface

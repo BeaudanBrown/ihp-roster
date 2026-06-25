@@ -177,6 +177,7 @@ tests = describe "SurfaceProjection helper" do
                             (liveFragmentResyncOnly "surface projection test fragment has no live-resource dependency")
                     , typedSurfaceDecorateRequestsWithin = const []
                     , typedSurfaceAuthorize = LiveSurfaceAuthorization { authorizeLiveSurfaceScope = const (pure True) }
+        , typedSurfaceInteraction = const emptyInteractionCapability
                     }
         let definition =
                 mkSurfaceProjectionDefinition

@@ -1,5 +1,8 @@
 module Application.Helper.LiveSurface
     ( AuthorizedLiveFragment (..)
+    , EmptyInteractionIntent
+    , EmptyInteractionLayer
+    , EmptyInteractionSession
     , FragmentContract (..)
     , FragmentDependencies (..)
     , FragmentRenderMode (..)
@@ -10,6 +13,7 @@ module Application.Helper.LiveSurface
     , SurfaceFragmentRef
     , SurfaceScope (..)
     , TypedLiveSurfaceDefinition (..)
+    , emptyInteractionCapability
     , authorizeLiveScopeRequirement
     , authorizeTypedLiveSurfaceScope
     , authorizeTypedLiveSurfaceWireScope
@@ -45,6 +49,12 @@ module Application.Helper.LiveSurface
     , warmLiveSurfaceProjectionFromStore
     ) where
 
+import Application.Helper.Interaction.Types
+    ( EmptyInteractionIntent
+    , EmptyInteractionLayer
+    , EmptyInteractionSession
+    , emptyInteractionCapability
+    )
 import qualified Application.Helper.LiveSurface.Internal as Internal
 import Application.Helper.LiveSurface.Internal
     ( AuthorizedLiveFragment (..)
@@ -96,7 +106,7 @@ import IHP.Prelude
 import qualified Text.Blaze.Html as Blaze
 
 mkTypedSurfaceProjectionDefinition ::
-    TypedLiveSurfaceDefinition surface scope fragment ->
+    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
     Text ->
     SurfaceProjectionCachePolicy ->
     (scope -> Text) ->

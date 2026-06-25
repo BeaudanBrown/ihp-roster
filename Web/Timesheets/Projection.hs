@@ -185,11 +185,11 @@ fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWeekOffset =
             , timesheetCurrentViewerStaffId = currentViewerStaffId
             }
 
-timesheetLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition TimesheetLiveSurface TimesheetProjectionRequest TimesheetProjectionFragment
+timesheetLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition TimesheetLiveSurface TimesheetProjectionRequest TimesheetProjectionFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 timesheetLiveSurfaceDefinition =
     timesheetLiveSurfaceDefinitionForVenue (unpackId currentVenueId)
 
-timesheetLiveSurfaceDefinitionForVenue :: UUID.UUID -> TypedLiveSurfaceDefinition TimesheetLiveSurface TimesheetProjectionRequest TimesheetProjectionFragment
+timesheetLiveSurfaceDefinitionForVenue :: UUID.UUID -> TypedLiveSurfaceDefinition TimesheetLiveSurface TimesheetProjectionRequest TimesheetProjectionFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 timesheetLiveSurfaceDefinitionForVenue surfaceVenueId =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "timesheets"
@@ -202,6 +202,7 @@ timesheetLiveSurfaceDefinitionForVenue surfaceVenueId =
                 (timesheetFragmentDependencies surfaceVenueId requestKey fragment)
         , typedSurfaceDecorateRequestsWithin = const ["#" <> timesheetDayColumnsId, "#roster-staff-self-service-timesheet-live-surface"]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenue surfaceVenueId))
+        , typedSurfaceInteraction = const emptyInteractionCapability
         }
     where
         timesheetSurfaceScope requestKey =

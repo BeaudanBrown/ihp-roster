@@ -11,16 +11,16 @@ tests :: Spec
 tests = describe "Typed interaction surface capabilities" do
     it "wraps typed live surfaces with empty interaction capabilities" do
         let definition :: TypedInteractionSurfaceDefinition TestInteractionSurface () TestInteractionFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
-            definition = emptyInteractionSurfaceDefinition testLiveSurfaceDefinition
+            definition = emptyInteractionSurfaceDefinition emptyTestLiveSurfaceDefinition
         let mount = mkInteractionSurfaceMount () (InteractionMountKey "primary")
 
         interactionSurfaceLiveConfig definition mount
-            `shouldBe` mkTypedDefinedLiveSurface testLiveSurfaceDefinition ()
+            `shouldBe` mkTypedDefinedLiveSurface emptyTestLiveSurfaceDefinition ()
         typedInteractionCapabilityFor definition ()
             `shouldBe` emptyInteractionCapability
 
     it "uses concrete mount keys to derive distinct mount-local ids" do
-        let definition = emptyInteractionSurfaceDefinition testLiveSurfaceDefinition
+        let definition = testLiveSurfaceDefinition
         let primaryMount = mkInteractionSurfaceMount () (InteractionMountKey "primary")
         let duplicateMount = mkInteractionSurfaceMount () (InteractionMountKey "duplicate")
         let layer = DisposableLayerDefinition DragPreviewLayer "drag-preview" "drag-preview"
@@ -78,7 +78,7 @@ data TestInteractionSession = DragSession deriving (Eq, Show)
 
 data TestInteractionIntent = MoveCardIntent deriving (Eq, Show)
 
-testLiveSurfaceDefinition :: TypedLiveSurfaceDefinition TestInteractionSurface () TestInteractionFragment
+testLiveSurfaceDefinition :: TypedLiveSurfaceDefinition TestInteractionSurface () TestInteractionFragment TestDisposableLayer TestInteractionSession TestInteractionIntent
 testLiveSurfaceDefinition =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "test-interaction"
@@ -91,9 +91,14 @@ testLiveSurfaceDefinition =
                 (liveFragmentResyncOnly "test interaction fragment")
         , typedSurfaceDecorateRequestsWithin = const []
         , typedSurfaceAuthorize = LiveSurfaceAuthorization { authorizeLiveSurfaceScope = const (pure True) }
+        , typedSurfaceInteraction = testInteractionCapability
         }
 
-testInteractionCapability :: () -> InteractionCapability TestInteractionSurface TestInteractionFragment TestDisposableLayer TestInteractionSession TestInteractionIntent
+emptyTestLiveSurfaceDefinition :: TypedLiveSurfaceDefinition TestInteractionSurface () TestInteractionFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
+emptyTestLiveSurfaceDefinition =
+    testLiveSurfaceDefinition { typedSurfaceInteraction = const emptyInteractionCapability }
+
+testInteractionCapability :: () -> InteractionCapability (SurfaceFragmentRef TestInteractionSurface) TestInteractionFragment TestDisposableLayer TestInteractionSession TestInteractionIntent
 testInteractionCapability () =
     InteractionCapability
         { interactionServerLayers =
@@ -127,7 +132,7 @@ testInteractionCapability () =
             ]
         }
 
-moveIntentForm :: SurfaceFragmentRef TestInteractionSurface -> IntentFormContract TestInteractionSurface TestInteractionIntent
+moveIntentForm :: SurfaceFragmentRef TestInteractionSurface -> IntentFormContract (SurfaceFragmentRef TestInteractionSurface) TestInteractionIntent
 moveIntentForm targetRef =
     IntentFormContract
         { intentFormIntent = MoveCardIntent

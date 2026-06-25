@@ -29,11 +29,11 @@ adminVenueSettingsFragment =
 adminVenueSettingsFragmentId :: Text
 adminVenueSettingsFragmentId = "admin-venue-settings-fragment"
 
-adminVenueSettingsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminVenueSettingsSurface () AdminVenueSettingsLiveFragment
+adminVenueSettingsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminVenueSettingsSurface () AdminVenueSettingsLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 adminVenueSettingsLiveSurfaceDefinition =
     adminVenueSettingsLiveSurfaceDefinitionForVenue currentVenueScopeId
 
-adminVenueSettingsLiveSurfaceDefinitionForVenue :: UUID -> TypedLiveSurfaceDefinition AdminVenueSettingsSurface () AdminVenueSettingsLiveFragment
+adminVenueSettingsLiveSurfaceDefinitionForVenue :: UUID -> TypedLiveSurfaceDefinition AdminVenueSettingsSurface () AdminVenueSettingsLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 adminVenueSettingsLiveSurfaceDefinitionForVenue surfaceVenueId =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "admin-venue-config"
@@ -48,6 +48,7 @@ adminVenueSettingsLiveSurfaceDefinitionForVenue surfaceVenueId =
                 (liveFragmentDependsOn (AdminVenueSettingsResource surfaceVenueId) [])
         , typedSurfaceDecorateRequestsWithin = const ["#" <> adminVenueSettingsFragmentId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin surfaceVenueId))
+        , typedSurfaceInteraction = const emptyInteractionCapability
         }
 
 adminVenueSettingsLiveFragmentRef :: AdminVenueSettingsLiveFragment -> SurfaceFragmentRef AdminVenueSettingsSurface

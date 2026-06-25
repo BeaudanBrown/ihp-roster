@@ -47,6 +47,12 @@ module Application.Helper.LiveSurface.Internal
     , warmLiveSurfaceProjectionFromStore
     ) where
 
+import Application.Helper.Interaction.Types
+    ( EmptyInteractionIntent
+    , EmptyInteractionLayer
+    , EmptyInteractionSession
+    , InteractionCapability
+    )
 import Application.Helper.LiveResource (LiveResource)
 import Application.Helper.LiveUpdate.Internal
 import Application.Helper.Profiling (respondHtmlProfiled)
@@ -123,7 +129,7 @@ data FragmentContract surface = FragmentContract
     }
     deriving (Eq, Show)
 
-data TypedLiveSurfaceDefinition surface scope fragment = TypedLiveSurfaceDefinition
+data TypedLiveSurfaceDefinition surface scope fragment layer session intent = TypedLiveSurfaceDefinition
     { typedSurfaceFeature                :: !Text
     , typedSurfaceScope                  :: scope -> SurfaceScope surface
     , typedSurfaceScopeFromWire          :: LiveUpdateScope -> Maybe scope
@@ -131,6 +137,7 @@ data TypedLiveSurfaceDefinition surface scope fragment = TypedLiveSurfaceDefinit
     , typedSurfaceFragmentContract       :: scope -> fragment -> FragmentContract surface
     , typedSurfaceDecorateRequestsWithin :: scope -> [Text]
     , typedSurfaceAuthorize              :: !(LiveSurfaceAuthorization scope)
+    , typedSurfaceInteraction            :: scope -> InteractionCapability (SurfaceFragmentRef surface) fragment layer session intent
     }
 
 data LiveScopeAuthorizationRequirement
@@ -207,7 +214,7 @@ mkSurfaceFragmentContract :: SurfaceFragmentRef surface -> FragmentDependencies 
 mkSurfaceFragmentContract fragmentContractRef fragmentContractDependencies =
     FragmentContract { fragmentContractRef, fragmentContractDependencies }
 
-mkTypedDefinedLiveSurface :: TypedLiveSurfaceDefinition surface scope fragment -> scope -> LiveSurfaceConfig
+mkTypedDefinedLiveSurface :: TypedLiveSurfaceDefinition surface scope fragment layer session intent -> scope -> LiveSurfaceConfig
 mkTypedDefinedLiveSurface definition surfaceKey =
     let surfaceScope = unSurfaceScope (definition.typedSurfaceScope surfaceKey)
      in LiveSurfaceConfig
@@ -219,22 +226,22 @@ mkTypedDefinedLiveSurface definition surfaceKey =
             , decorateRequestsWithin = definition.typedSurfaceDecorateRequestsWithin surfaceKey
             }
 
-typedLiveSurfaceFragmentRef :: TypedLiveSurfaceDefinition surface scope fragment -> scope -> fragment -> SurfaceFragmentRef surface
+typedLiveSurfaceFragmentRef :: TypedLiveSurfaceDefinition surface scope fragment layer session intent -> scope -> fragment -> SurfaceFragmentRef surface
 typedLiveSurfaceFragmentRef definition surfaceKey fragment =
     (definition.typedSurfaceFragmentContract surfaceKey fragment).fragmentContractRef
 
-typedLiveSurfaceFragmentRefs :: TypedLiveSurfaceDefinition surface scope fragment -> scope -> [fragment] -> [SurfaceFragmentRef surface]
+typedLiveSurfaceFragmentRefs :: TypedLiveSurfaceDefinition surface scope fragment layer session intent -> scope -> [fragment] -> [SurfaceFragmentRef surface]
 typedLiveSurfaceFragmentRefs definition surfaceKey =
     map (typedLiveSurfaceFragmentRef definition surfaceKey)
 
-typedLiveSurfaceAffectedFragments :: TypedLiveSurfaceDefinition surface scope fragment -> scope -> Set.Set LiveResource -> [fragment] -> [fragment]
+typedLiveSurfaceAffectedFragments :: TypedLiveSurfaceDefinition surface scope fragment layer session intent -> scope -> Set.Set LiveResource -> [fragment] -> [fragment]
 typedLiveSurfaceAffectedFragments definition surfaceKey touchedResources candidates =
     filter dependsOnTouchedResource candidates
     where
         dependsOnTouchedResource fragment =
             not (Set.null (Set.intersection touchedResources (Set.fromList (typedSurfaceDependsOn definition surfaceKey fragment))))
 
-typedSurfaceDependsOn :: TypedLiveSurfaceDefinition surface scope fragment -> scope -> fragment -> [LiveResource]
+typedSurfaceDependsOn :: TypedLiveSurfaceDefinition surface scope fragment layer session intent -> scope -> fragment -> [LiveResource]
 typedSurfaceDependsOn definition surfaceKey fragment =
     case (definition.typedSurfaceFragmentContract surfaceKey fragment).fragmentContractDependencies of
         DependsOnLiveResources resources -> NonEmpty.toList resources
@@ -258,7 +265,7 @@ normalizeSurfaceFragmentRefs fragmentRefs =
             length prefix < length path && prefix `List.isPrefixOf` path
 
 normalizeTypedLiveSurfaceFragments ::
-    TypedLiveSurfaceDefinition surface scope fragment ->
+    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
     scope ->
     [fragment] ->
     [fragment]
@@ -316,7 +323,7 @@ normalizeTypedLiveSurfaceFragmentsFromProjection definition surfaceKey fragments
 
 authorizeTypedLiveSurfaceScope ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    TypedLiveSurfaceDefinition surface scope fragment ->
+    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
     scope ->
     IO Bool
 authorizeTypedLiveSurfaceScope definition =
@@ -324,7 +331,7 @@ authorizeTypedLiveSurfaceScope definition =
 
 authorizeTypedLiveSurfaceWireScope ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    TypedLiveSurfaceDefinition surface scope fragment ->
+    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
     LiveUpdateScope ->
     IO (Maybe Bool)
 authorizeTypedLiveSurfaceWireScope definition wireScope =
@@ -336,7 +343,7 @@ authorizeTypedLiveSurfaceWireScope definition wireScope =
 
 ensureTypedLiveSurfaceAuthorized ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    TypedLiveSurfaceDefinition surface scope fragment ->
+    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
     scope ->
     IO ()
 ensureTypedLiveSurfaceAuthorized definition surfaceKey = do
@@ -345,7 +352,7 @@ ensureTypedLiveSurfaceAuthorized definition surfaceKey = do
 
 serveTypedLiveFragment ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    TypedLiveSurfaceDefinition surface scope fragment ->
+    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
     scope ->
     fragment ->
     (AuthorizedLiveFragment surface scope fragment -> IO ()) ->
@@ -452,7 +459,7 @@ isAuthorizedCurrentVenueRosterGroupScope rosterGroupId = do
 
 setTypedLiveSurfaceActorRefresh ::
     (?context :: ControllerContext, ?request :: Request) =>
-    TypedLiveSurfaceDefinition surface scope fragment ->
+    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
     scope ->
     [fragment] ->
     IO ()
@@ -473,7 +480,7 @@ liveUpdateWireRefreshTriggerPayload fragments =
             ]
 
 mkSurfaceProjectionDefinition ::
-    TypedLiveSurfaceDefinition surface scope fragment ->
+    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
     Text ->
     SurfaceProjectionCachePolicy ->
     (scope -> Text) ->

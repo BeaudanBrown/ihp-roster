@@ -39,7 +39,7 @@ responseShouldMountLiveSurface response surface = do
         response `responseBodyShouldContain` fragment.targetId
 
 typedLiveSurfaceConfigShouldExposeDefaultRefs ::
-    TypedLiveSurfaceDefinition surface scope fragment ->
+    TypedLiveSurfaceDefinition surface scope fragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent ->
     scope ->
     [fragment] ->
     Expectation
@@ -49,7 +49,7 @@ typedLiveSurfaceConfigShouldExposeDefaultRefs definition surfaceKey expectedDefa
         (unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs definition surfaceKey expectedDefaultFragments))
 
 typedLiveSurfaceFragmentShouldMapTo ::
-    TypedLiveSurfaceDefinition surface scope fragment ->
+    TypedLiveSurfaceDefinition surface scope fragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent ->
     scope ->
     fragment ->
     LiveFragmentKey ->

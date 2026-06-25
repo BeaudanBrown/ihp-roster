@@ -29,7 +29,7 @@ adminExportsFragment =
 adminExportsFragmentId :: Text
 adminExportsFragmentId = "admin-exports-fragment"
 
-adminExportsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminExportsSurface () AdminExportsLiveFragment
+adminExportsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminExportsSurface () AdminExportsLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 adminExportsLiveSurfaceDefinition =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "admin-exports"
@@ -44,6 +44,7 @@ adminExportsLiveSurfaceDefinition =
                 (liveFragmentDependsOn (AdminExportsResource currentVenueScopeId) [])
         , typedSurfaceDecorateRequestsWithin = const ["#" <> adminExportsFragmentId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId))
+        , typedSurfaceInteraction = const emptyInteractionCapability
         }
 
 adminExportsLiveFragmentRef :: (?context :: ControllerContext) => AdminExportsLiveFragment -> SurfaceFragmentRef AdminExportsSurface
