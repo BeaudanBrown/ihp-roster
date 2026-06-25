@@ -1,7 +1,7 @@
 ---
 id: ir-ojl5
 status: open
-deps: [ir-4uuy, ir-95e7]
+deps: [ir-4uuy, ir-95e7, ir-w50d]
 links: []
 created: 2026-06-16T13:45:33Z
 type: task
@@ -40,3 +40,9 @@ The bridge must not construct domain URLs, call `fetch` for persistence, infer H
 - Frontend unit/DOM tests cover event dispatch, cancellation, strict field validation, form filling, and trigger dispatch.
 - `bash ./bin/in-env frontend-check` passes.
 
+
+## Notes
+
+**2026-06-25T07:32:55Z**
+
+Implementation note after roster launcher/render-helper work: the runtime should discover only helper-rendered `data-bepis-*` markup. If TypeScript needs stable selector/attribute names, extend the Haskell-owned generated frontend contracts (or another generated constants module) rather than inventing canonical attr strings in handwritten TS. Use the `ir-w50d` helper output as the DOM contract for form lookup, field validation, and trigger dispatch.

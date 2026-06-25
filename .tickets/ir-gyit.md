@@ -31,3 +31,9 @@ Candidate classes include simple select/toggle/filter actions that already round
 - Focused regression coverage proves the golden path, including field/schema validation and successful HTMX response.
 - `bash ./bin/in-env frontend-check`, `bash ./bin/in-env typecheck`, and relevant focused Hspec/Playwright checks pass.
 
+
+## Notes
+
+**2026-06-25T07:32:55Z**
+
+Prototype note after `d643fbc3`: if the low-risk prototype touches roster row-grid shifts, target the new single editable launcher wrapper shape (`.roster-shift-unit.roster-shift-launcher`) as the activation/item boundary. Inner Start/End/Staff/Role cells are visual-only, and read-only row-grid shifts intentionally remain non-launchers. Prefer a lower-risk non-roster surface if available, but do not build against the old per-cell launcher assumption.
