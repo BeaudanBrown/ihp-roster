@@ -10,6 +10,7 @@ module Application.Helper.Interaction.Types
     , InteractionFieldPresence (..)
     , InteractionFragmentSelector (..)
     , InteractionIntentTarget (..)
+    , InteractionMarkerKind (..)
     , InteractionMountKey (..)
     , InteractionMountLocalTarget (..)
     , InteractionSessionSelector (..)
@@ -104,6 +105,15 @@ data HtmxSwap
 newtype InteractionMountLocalTarget = InteractionMountLocalTarget
     { unInteractionMountLocalTarget :: Text
     }
+    deriving (Eq, Show)
+
+data InteractionMarkerKind
+    = InteractionItemMarker
+    | InteractionContainerMarker
+    | InteractionSlotMarker
+    | InteractionDropzoneMarker
+    | InteractionResizeHandleMarker
+    | InteractionActivationMarker
     deriving (Eq, Show)
 
 data InteractionIntentTarget fragmentRef

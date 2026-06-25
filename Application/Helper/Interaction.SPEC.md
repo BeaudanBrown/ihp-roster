@@ -87,9 +87,9 @@ from closed feature-local contracts.
 
 A surface family/scope may move across pages or appear more than once on the
 same page. Every concrete mount has a stable mount key. The mount key must
-participate in generated DOM ids, live-fragment target ids, disposable layer
-ids, intent form ids, HTMX targets, and any runtime lookup key that could
-otherwise collide.
+participate in generated DOM ids, live-fragment target ids, server layer ids,
+disposable layer ids, intent form ids, HTMX targets, and any runtime lookup key
+that could otherwise collide.
 
 Generic TypeScript must resolve markers, forms, disposable layers, and fragment
 refs inside the same concrete mount. It must not use global hardcoded target ids
@@ -103,7 +103,12 @@ or infer a singleton surface for a scope.
    live surface definition and define field schemas, HTMX form metadata, and
    live-fragment conflict policy. Existing surfaces can use empty capability.
 3. Haskell helpers render surface mounts, server layers, disposable layers,
-   typed item/slot/handle markers, and generated HTMX intent forms.
+   typed item/slot/handle markers, and generated HTMX intent forms. Use
+   `renderInteractionCapabilityShell` for the standard mount/layer/form shell,
+   `renderInteractionSurfaceMount`/`renderInteractionServerLayer`/
+   `renderInteractionDisposableLayer` for custom layouts, `renderInteraction*Marker`
+   for item/container/slot/dropzone/resize/activation markers, and
+   `renderInteractionIntentForm` for server-owned HTMX intent submission forms.
 4. Haskell-generated TypeScript exposes narrow browser DTOs/unions for surface
    metadata, layers, session kinds, intents, fields, live fragments, and
    conflict policy.
@@ -141,6 +146,17 @@ On commit the generic bridge must:
 
 The bridge must not construct mutation URLs, call `fetch` for persistence,
 change HTMX routes/targets/swaps, or mutate server-owned business DOM.
+
+The standard Haskell helper output is intentionally ordinary HTML/HTMX. For a
+mount key `primary`, a helper-rendered shell includes the live-update surface
+metadata plus interaction metadata on the same owner, e.g.
+`data-live-update-surface=...`, `data-bepis-surface="true"`,
+`data-bepis-surface-family="..."`, `data-bepis-scope-key="..."`, and
+`data-bepis-mount-key="primary"`. `renderInteractionIntentForm` renders the
+server-owned `action`, `hx-post`/`hx-patch`/etc., `hx-trigger`, `hx-target`,
+`hx-swap`, optional `hx-sync`/`hx-disabled-elt`, declared field inputs marked
+with `data-bepis-intent-field`, and fixed hidden inputs marked with
+`data-bepis-intent-hidden-field`.
 
 Use standard HTMX first: generated forms, custom event `hx-trigger`, lifecycle
 events for cleanup, `hx-sync`/`hx-disabled-elt` for request concurrency where

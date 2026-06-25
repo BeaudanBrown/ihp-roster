@@ -2,9 +2,13 @@ module Test.InteractionSpec where
 
 import Application.Helper.Interaction
 import Application.Helper.LiveSurface
-import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..), LiveUpdateScope (..))
+import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..),
+                                              LiveUpdateScope (..))
+import qualified Data.Text as Text
 import IHP.Prelude
 import Test.Hspec
+import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
+import qualified Text.Blaze.Html5 as Html5
 
 
 tests :: Spec
@@ -30,6 +34,8 @@ tests = describe "Typed interaction surface capabilities" do
             `shouldBe` "bepis-surface--test-interaction--support-platform--primary"
         interactionMountDomId definition duplicateMount
             `shouldBe` "bepis-surface--test-interaction--support-platform--duplicate"
+        serverLayerDomId definition primaryMount ServerLayerDefinition { serverLayerName = "server", serverLayerDomIdSuffix = "server" }
+            `shouldBe` "bepis-surface--test-interaction--support-platform--primary--server-layer--server"
         disposableLayerDomId definition primaryMount layer
             `shouldBe` "bepis-surface--test-interaction--support-platform--primary--disposable-layer--drag-preview"
         interactionFormDomId definition duplicateMount form
@@ -66,6 +72,41 @@ tests = describe "Typed interaction surface capabilities" do
                     , conflictPolicyTimeoutMs = Just 1500
                     }
                 ]
+
+    it "renders mount, layers, markers, and HTMX intent forms from typed contracts" do
+        let mount = mkInteractionSurfaceMount () (InteractionMountKey "primary")
+        let html = renderText do
+                renderInteractionCapabilityShell testLiveSurfaceDefinition mount do
+                    renderInteractionItemMarker "card-1" (Html5.toHtml ("Card 1" :: Text))
+
+        html `shouldContainText` "id=\"bepis-surface--test-interaction--support-platform--primary\""
+        html `shouldContainText` "data-live-update-surface=\"{&quot;decorateRequestsWithin&quot;:[],&quot;feature&quot;:&quot;test-interaction&quot;"
+        html `shouldContainText` "data-bepis-surface=\"true\""
+        html `shouldContainText` "id=\"bepis-surface--test-interaction--support-platform--primary--server-layer--server\""
+        html `shouldContainText` "data-bepis-server-layer=\"server\""
+        html `shouldContainText` "data-bepis-marker=\"item\" data-bepis-item=\"card-1\""
+        html `shouldContainText` "data-bepis-disposable-layer=\"drag-preview\""
+        html `shouldContainText` "data-bepis-intent-form=\"move-card\""
+        html `shouldContainText` "action=\"/MoveCard\" hx-post=\"/MoveCard\""
+        html `shouldContainText` "hx-trigger=\"bepis:intent-submit from:this\""
+        html `shouldContainText` "hx-target=\"#test-interaction-content\""
+        html `shouldContainText` "hx-swap=\"outerHTML\""
+        html `shouldContainText` "hx-sync=\"closest [data-bepis-surface]:queue\""
+        html `shouldContainText` "hx-disabled-elt=\"find button\""
+        html `shouldContainText` "name=\"cardId\" value=\"\" data-bepis-intent-field=\"cardId\" data-bepis-field-presence=\"required\""
+        html `shouldContainText` "name=\"intent\" value=\"move-card\" data-bepis-intent-hidden-field=\"intent\""
+
+    it "derives mount-local intent targets for duplicate mounts" do
+        let form = (moveIntentForm (testFragmentRef TestInteractionContent))
+                { intentFormTarget = IntentTargetMountLocal (InteractionMountLocalTarget "selection-panel")
+                }
+        let primaryMount = mkInteractionSurfaceMount () (InteractionMountKey "primary")
+        let duplicateMount = mkInteractionSurfaceMount () (InteractionMountKey "duplicate")
+
+        interactionIntentTargetSelector testLiveSurfaceDefinition primaryMount form.intentFormTarget
+            `shouldBe` "#bepis-surface--test-interaction--support-platform--primary--selection-panel"
+        renderText (renderInteractionIntentForm testLiveSurfaceDefinition duplicateMount form)
+            `shouldContainText` "hx-target=\"#bepis-surface--test-interaction--support-platform--duplicate--selection-panel\""
 
 
 data TestInteractionSurface
@@ -154,3 +195,12 @@ moveIntentForm targetRef =
 testFragmentRef :: TestInteractionFragment -> SurfaceFragmentRef TestInteractionSurface
 testFragmentRef TestInteractionContent =
     mkSurfaceFragmentRef RosterContentFragment "test-interaction-content" "/test-interaction-content"
+
+renderText :: Html5.Html -> Text
+renderText =
+    cs . HtmlRenderer.renderHtml
+
+shouldContainText :: Text -> Text -> Expectation
+shouldContainText haystack needle =
+    unless (needle `Text.isInfixOf` haystack) do
+        expectationFailure (cs ("Expected rendered HTML to contain: " <> needle <> "\nRendered HTML:\n" <> haystack :: Text))

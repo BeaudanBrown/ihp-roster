@@ -4,7 +4,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import IHP.Prelude
 import System.Directory
-import System.FilePath ((</>), takeExtension)
+import System.FilePath (takeExtension, (</>))
 import Test.Hspec
 
 tests :: Spec
@@ -12,6 +12,11 @@ tests = describe "LiveSurface strict API guard" do
     it "keeps raw live-update authoring out of feature modules" do
         files <- featureSourceFiles
         violations <- concat <$> forM files forbiddenReferencesInFile
+        violations `shouldBe` []
+
+    it "keeps raw interaction attributes out of feature modules" do
+        files <- featureSourceFiles
+        violations <- concat <$> forM files rawInteractionAttributesInFile
         violations `shouldBe` []
 
     it "keeps feature live fragment selectors as closed constructors" do
@@ -26,6 +31,15 @@ forbiddenReferencesInFile path = do
         [ cs path <> ": forbidden " <> forbiddenName forbidden
         | forbidden <- forbiddenReferences
         , forbiddenMatches forbidden source
+        ]
+
+rawInteractionAttributesInFile :: FilePath -> IO [Text]
+rawInteractionAttributesInFile path = do
+    source <- Text.readFile path
+    pure
+        [ cs path <> ":" <> tshow lineNumber <> ": raw data-bepis-* interaction attribute"
+        | (lineNumber, line) <- zip [(1 :: Int)..] (Text.lines source)
+        , "data-bepis-" `Text.isInfixOf` line
         ]
 
 textBackedFragmentSelectorsInFile :: FilePath -> IO [Text]
@@ -72,11 +86,11 @@ forbiddenReferences =
     ]
 
 forbiddenName :: ForbiddenReference -> Text
-forbiddenName (ExactIdentifier value) = value
+forbiddenName (ExactIdentifier value)  = value
 forbiddenName (IdentifierPrefix value) = value <> "*"
 
 forbiddenMatches :: ForbiddenReference -> Text -> Bool
-forbiddenMatches (ExactIdentifier token) = containsIdentifier token True
+forbiddenMatches (ExactIdentifier token)  = containsIdentifier token True
 forbiddenMatches (IdentifierPrefix token) = containsIdentifier token False
 
 containsIdentifier :: Text -> Bool -> Text -> Bool
@@ -90,13 +104,13 @@ containsIdentifier token requireTrailingBoundary source =
 boundaryBefore :: Text -> Bool
 boundaryBefore value =
     case Text.unsnoc value of
-        Nothing -> True
+        Nothing                -> True
         Just (_, previousChar) -> not (isIdentifierChar previousChar)
 
 boundaryAfter :: Text -> Bool
 boundaryAfter value =
     case Text.uncons value of
-        Nothing -> True
+        Nothing            -> True
         Just (nextChar, _) -> not (isIdentifierChar nextChar)
 
 isIdentifierChar :: Char -> Bool
@@ -130,6 +144,7 @@ isAllowedInfrastructureFile path =
     path
         `elem`
             [ "Application/Helper/Frontend/Contracts.hs"
+            , "Application/Helper/Interaction.hs"
             , "Application/Helper/LiveUpdate.hs"
             , "Application/Helper/LiveUpdate/Internal.hs"
             , "Application/Helper/LiveUpdate/Runtime.hs"

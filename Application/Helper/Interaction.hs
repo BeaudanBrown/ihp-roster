@@ -10,6 +10,7 @@ module Application.Helper.Interaction
     , InteractionFieldPresence (..)
     , InteractionFragmentSelector (..)
     , InteractionIntentTarget (..)
+    , InteractionMarkerKind (..)
     , InteractionMountKey (..)
     , InteractionMountLocalTarget (..)
     , InteractionSessionSelector (..)
@@ -32,46 +33,64 @@ module Application.Helper.Interaction
     , interactionConflictResolutionValues
     , interactionFieldPresenceValues
     , interactionFormDomId
+    , interactionIntentTargetSelector
+    , interactionMarkerKindAttribute
     , interactionSurfaceLiveConfig
     , interactionMountDomId
     , mkInteractionSurfaceMount
+    , renderInteractionActivationMarker
+    , renderInteractionCapabilityShell
+    , renderInteractionContainerMarker
+    , renderInteractionDisposableLayer
+    , renderInteractionDropzoneMarker
+    , renderInteractionIntentForm
+    , renderInteractionItemMarker
+    , renderInteractionMarker
+    , renderInteractionResizeHandleMarker
+    , renderInteractionServerLayer
+    , renderInteractionSlotMarker
+    , renderInteractionSurfaceMount
+    , serverLayerDomId
     , typedInteractionCapabilityFor
     ) where
 
-import Application.Helper.Interaction.Types
-    ( EmptyInteractionIntent
-    , EmptyInteractionLayer
-    , EmptyInteractionSession
-    , HtmxMethod (..)
-    , HtmxSwap (..)
-    , InteractionCapability (..)
-    , InteractionConflictPolicy (..)
-    , InteractionConflictResolution (..)
-    , InteractionFieldPresence (..)
-    , InteractionFragmentSelector (..)
-    , InteractionIntentTarget (..)
-    , InteractionMountKey (..)
-    , InteractionMountLocalTarget (..)
-    , InteractionSessionSelector (..)
-    , IntentFieldName (..)
-    , IntentFieldSchema (..)
-    , IntentFormContract (..)
-    , IntentHiddenField (..)
-    , ServerLayerDefinition (..)
-    , DisposableLayerDefinition (..)
-    , SessionKindDefinition (..)
-    , emptyInteractionCapability
-    , htmxMethodValues
-    , htmxSwapValues
-    , interactionConflictResolutionValues
-    , interactionFieldPresenceValues
-    )
+import Application.Helper.Interaction.Types (DisposableLayerDefinition (..),
+                                             EmptyInteractionIntent,
+                                             EmptyInteractionLayer,
+                                             EmptyInteractionSession,
+                                             HtmxMethod (..), HtmxSwap (..),
+                                             IntentFieldName (..),
+                                             IntentFieldSchema (..),
+                                             IntentFormContract (..),
+                                             IntentHiddenField (..),
+                                             InteractionCapability (..),
+                                             InteractionConflictPolicy (..),
+                                             InteractionConflictResolution (..),
+                                             InteractionFieldPresence (..),
+                                             InteractionFragmentSelector (..),
+                                             InteractionIntentTarget (..),
+                                             InteractionMarkerKind (..),
+                                             InteractionMountKey (..),
+                                             InteractionMountLocalTarget (..),
+                                             InteractionSessionSelector (..),
+                                             ServerLayerDefinition (..),
+                                             SessionKindDefinition (..),
+                                             emptyInteractionCapability,
+                                             htmxMethodValues, htmxSwapValues,
+                                             interactionConflictResolutionValues,
+                                             interactionFieldPresenceValues)
 import qualified Application.Helper.Interaction.Types as Types
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (liveUpdateScopeKey)
+import Application.Helper.LiveUpdate.Runtime (LiveUpdateWireFragment (..))
 import qualified Data.Char as Char
 import qualified Data.Text as Text
 import IHP.Prelude
+import qualified Text.Blaze.Html as Blaze
+import qualified Text.Blaze.Html5 as Html5
+import Text.Blaze.Html5 ((!))
+
+type Html = Blaze.Html
 
 type TypedInteractionSurfaceDefinition surface scope fragment layer session intent =
     TypedLiveSurfaceDefinition surface scope fragment layer session intent
@@ -128,6 +147,14 @@ interactionFormDomId ::
 interactionFormDomId definition mount form =
     interactionMountDomId definition mount <> "--intent-form--" <> domIdSegment form.intentFormName
 
+serverLayerDomId ::
+    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
+    InteractionSurfaceMount scope ->
+    ServerLayerDefinition ->
+    Text
+serverLayerDomId definition mount layer =
+    interactionMountDomId definition mount <> "--server-layer--" <> domIdSegment layer.serverLayerDomIdSuffix
+
 disposableLayerDomId ::
     TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
     InteractionSurfaceMount scope ->
@@ -144,6 +171,161 @@ htmxSwapAttribute :: HtmxSwap -> Text
 htmxSwapAttribute (HtmxSwapCustom value) = value
 htmxSwapAttribute swap =
     fromMaybe (error "Unknown HTMX swap") (lookup swap htmxSwapValues)
+
+renderInteractionSurfaceMount ::
+    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
+    InteractionSurfaceMount scope ->
+    Html ->
+    Html
+renderInteractionSurfaceMount definition mount inner =
+    Html5.div
+        ! attr "id" mountId
+        ! attr "data-live-update-surface" (liveSurfaceConfigJson (interactionSurfaceLiveConfig definition mount))
+        ! attr "data-bepis-surface" "true"
+        ! attr "data-bepis-surface-family" definition.typedSurfaceFeature
+        ! attr "data-bepis-scope-key" (liveUpdateScopeKey surfaceScope)
+        ! attr "data-bepis-mount-key" mount.interactionMountKey.unInteractionMountKey
+        $ inner
+    where
+        mountId = interactionMountDomId definition mount
+        surfaceScope = unSurfaceScope (definition.typedSurfaceScope mount.interactionMountScope)
+
+renderInteractionCapabilityShell ::
+    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
+    InteractionSurfaceMount scope ->
+    Html ->
+    Html
+renderInteractionCapabilityShell definition mount serverHtml =
+    renderInteractionSurfaceMount definition mount do
+        renderInteractionServerLayer definition mount serverLayer serverHtml
+        mapM_ (renderInteractionDisposableLayer definition mount) capability.interactionDisposableLayers
+        mapM_ (renderInteractionIntentForm definition mount) capability.interactionIntentForms
+    where
+        capability = typedInteractionCapabilityFor definition mount.interactionMountScope
+        serverLayer = fromMaybe defaultServerLayer (listToMaybe capability.interactionServerLayers)
+        defaultServerLayer = ServerLayerDefinition { serverLayerName = "server", serverLayerDomIdSuffix = "server" }
+
+renderInteractionServerLayer ::
+    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
+    InteractionSurfaceMount scope ->
+    ServerLayerDefinition ->
+    Html ->
+    Html
+renderInteractionServerLayer definition mount layer inner =
+    Html5.div
+        ! attr "data-bepis-server-layer" layer.serverLayerName
+        ! attr "data-bepis-layer" layer.serverLayerName
+        ! attr "id" (serverLayerDomId definition mount layer)
+        $ inner
+
+renderInteractionDisposableLayer ::
+    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
+    InteractionSurfaceMount scope ->
+    DisposableLayerDefinition layer ->
+    Html
+renderInteractionDisposableLayer definition mount layer =
+    Html5.div
+        ! attr "id" (disposableLayerDomId definition mount layer)
+        ! attr "data-bepis-disposable-layer" layer.disposableLayerName
+        ! attr "data-bepis-layer" layer.disposableLayerName
+        $ mempty
+
+renderInteractionIntentForm ::
+    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
+    InteractionSurfaceMount scope ->
+    IntentFormContract (SurfaceFragmentRef surface) intent ->
+    Html
+renderInteractionIntentForm definition mount form =
+    Html5.form
+        ! attr "id" (interactionFormDomId definition mount form)
+        ! attr "data-bepis-intent-form" form.intentFormName
+        ! attr "data-bepis-intent" form.intentFormName
+        ! attr "action" form.intentFormAction
+        ! attr htmxAttributeName form.intentFormAction
+        ! attr "hx-trigger" form.intentFormTrigger
+        ! attr "hx-target" (interactionIntentTargetSelector definition mount form.intentFormTarget)
+        ! attr "hx-swap" (htmxSwapAttribute form.intentFormSwap)
+        ! maybeAttr "hx-sync" form.intentFormSync
+        ! maybeAttr "hx-disabled-elt" form.intentFormDisabledElement
+        $ do
+            mapM_ renderIntentSchemaInput form.intentFormFields
+            mapM_ renderIntentHiddenInput form.intentFormHiddenFields
+    where
+        htmxAttributeName = "hx-" <> htmxMethodAttribute form.intentFormMethod
+
+renderIntentSchemaInput :: IntentFieldSchema -> Html
+renderIntentSchemaInput field =
+    Html5.input
+        ! attr "type" "hidden"
+        ! attr "name" field.intentFieldName.unIntentFieldName
+        ! attr "value" (fromMaybe "" field.intentFieldDefaultValue)
+        ! attr "data-bepis-intent-field" field.intentFieldName.unIntentFieldName
+        ! attr "data-bepis-field-presence" (fieldPresenceAttribute field.intentFieldPresence)
+
+renderIntentHiddenInput :: IntentHiddenField -> Html
+renderIntentHiddenInput field =
+    Html5.input
+        ! attr "type" "hidden"
+        ! attr "name" field.intentHiddenFieldName.unIntentFieldName
+        ! attr "value" field.intentHiddenFieldValue
+        ! attr "data-bepis-intent-hidden-field" field.intentHiddenFieldName.unIntentFieldName
+
+interactionIntentTargetSelector ::
+    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
+    InteractionSurfaceMount scope ->
+    InteractionIntentTarget (SurfaceFragmentRef surface) ->
+    Text
+interactionIntentTargetSelector _ _ (IntentTargetLiveFragment fragmentRef) =
+    case unSurfaceFragmentRefs [fragmentRef] of
+        [LiveUpdateWireFragment { targetId }] -> "#" <> targetId
+        _                                     -> "#"
+interactionIntentTargetSelector definition mount (IntentTargetMountLocal target) =
+    "#" <> interactionMountDomId definition mount <> "--" <> domIdSegment target.unInteractionMountLocalTarget
+
+renderInteractionMarker :: InteractionMarkerKind -> Text -> Html -> Html
+renderInteractionMarker markerKind markerKey inner =
+    Html5.div
+        ! attr "data-bepis-marker" (interactionMarkerKindAttribute markerKind)
+        ! attr ("data-bepis-" <> interactionMarkerKindAttribute markerKind) markerKey
+        $ inner
+
+renderInteractionItemMarker :: Text -> Html -> Html
+renderInteractionItemMarker = renderInteractionMarker InteractionItemMarker
+
+renderInteractionContainerMarker :: Text -> Html -> Html
+renderInteractionContainerMarker = renderInteractionMarker InteractionContainerMarker
+
+renderInteractionSlotMarker :: Text -> Html -> Html
+renderInteractionSlotMarker = renderInteractionMarker InteractionSlotMarker
+
+renderInteractionDropzoneMarker :: Text -> Html -> Html
+renderInteractionDropzoneMarker = renderInteractionMarker InteractionDropzoneMarker
+
+renderInteractionResizeHandleMarker :: Text -> Html -> Html
+renderInteractionResizeHandleMarker = renderInteractionMarker InteractionResizeHandleMarker
+
+renderInteractionActivationMarker :: Text -> Html -> Html
+renderInteractionActivationMarker = renderInteractionMarker InteractionActivationMarker
+
+interactionMarkerKindAttribute :: InteractionMarkerKind -> Text
+interactionMarkerKindAttribute InteractionItemMarker         = "item"
+interactionMarkerKindAttribute InteractionContainerMarker    = "container"
+interactionMarkerKindAttribute InteractionSlotMarker         = "slot"
+interactionMarkerKindAttribute InteractionDropzoneMarker     = "dropzone"
+interactionMarkerKindAttribute InteractionResizeHandleMarker = "resize-handle"
+interactionMarkerKindAttribute InteractionActivationMarker   = "activation"
+
+fieldPresenceAttribute :: InteractionFieldPresence -> Text
+fieldPresenceAttribute presence =
+    fromMaybe (error "Unknown interaction field presence") (lookup presence interactionFieldPresenceValues)
+
+attr :: Text -> Text -> Blaze.Attribute
+attr name value =
+    Blaze.customAttribute (Blaze.textTag name) (Blaze.toValue value)
+
+maybeAttr :: Text -> Maybe Text -> Blaze.Attribute
+maybeAttr name maybeValue =
+    maybe mempty (attr name) maybeValue
 
 domIdSegment :: Text -> Text
 domIdSegment value =
