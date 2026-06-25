@@ -729,6 +729,59 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-bepis-activation-trigger=\"change\""
                 response `responseBodyShouldContain` "data-bepis-activation-value-field=\"rosterLayoutMode\""
 
+        it "renders typed drag/drop intent markup for editable row-grid shifts" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-drag-intent@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                _ <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekAction 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "data-bepis-disposable-layer=\"drag-preview\""
+                response `responseBodyShouldContain` "data-bepis-intent-form=\"move-roster-shift-to-slot\""
+                response `responseBodyShouldContain` "name=\"sourceItemKey\" value=\"\" data-bepis-intent-field=\"sourceItemKey\" data-bepis-field-presence=\"required\""
+                response `responseBodyShouldContain` "name=\"targetDropzoneKey\" value=\"\" data-bepis-intent-field=\"targetDropzoneKey\" data-bepis-field-presence=\"required\""
+                response `responseBodyShouldContain` "data-bepis-pointer-session=\"true\""
+                response `responseBodyShouldContain` "data-bepis-session-kind=\"drag\""
+                response `responseBodyShouldContain` "data-bepis-session-intent=\"move-roster-shift-to-slot\""
+                response `responseBodyShouldContain` "data-bepis-item=\"existing:"
+                response `responseBodyShouldContain` "data-bepis-dropzone=\"new:"
+
+        it "moves an editable roster shift to a typed empty dropzone intent target" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-drag-move@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                sourceSlot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+                let sourceToken = "existing:" <> tshow sourceSlot.id
+                let targetToken = "new:" <> tshow rosterDay.id <> ":" <> tshow sourceSlot.rosterWeekSlotDefinitionId <> ":1"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams MoveRosterShiftToSlotAction { weekOffset = 0 }
+                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                            , ("sourceItemKey", cs sourceToken)
+                            , ("targetDropzoneKey", cs targetToken)
+                            ]
+
+                response `responseStatusShouldBe` status200
+                updatedSlot <- fetch sourceSlot.id
+                updatedSlot.rosterDayId `shouldBe` unpackId rosterDay.id
+                updatedSlot.rosterWeekSlotDefinitionId `shouldBe` sourceSlot.rosterWeekSlotDefinitionId
+                updatedSlot.rowIndex `shouldBe` 1
+                response `responseBodyShouldContain` "Roster shift moved."
+
         it "month overview fragment includes other weeks in the same month and counts assigned shifts rather than unique staff" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

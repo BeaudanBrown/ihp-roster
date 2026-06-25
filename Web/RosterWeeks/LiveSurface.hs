@@ -10,8 +10,10 @@ module Web.RosterWeeks.LiveSurface
     , RosterInteractionSession (..)
     , RosterLiveSurface
     , rosterInteractionMountKey
+    , rosterDragSessionKindName
     , rosterLayoutModeIntentField
     , rosterLayoutModeIntentName
+    , rosterMoveShiftIntentName
     , mkRosterProjectionDefinition
     , rosterLiveSurfaceDefinition
     , rosterProjectionVersion
@@ -32,7 +34,7 @@ import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Filters
-import Web.RosterWeeks.Paths (rosterLayoutPreferenceUrl,
+import Web.RosterWeeks.Paths (rosterLayoutPreferenceUrl, rosterMoveShiftUrl,
                               rosterWeekContentFragmentUrl,
                               rosterWeekDayColumnsFragmentUrl,
                               rosterWeekDayRailFragmentUrl,
@@ -48,15 +50,24 @@ import Web.RosterWeeks.Types
 
 data RosterLiveSurface
 
-data RosterInteractionLayer deriving (Eq, Show)
-data RosterInteractionSession deriving (Eq, Show)
-data RosterInteractionIntent = SetRosterLayoutModeIntent deriving (Eq, Show)
+data RosterInteractionLayer = RosterDragPreviewLayer deriving (Eq, Show)
+data RosterInteractionSession = RosterDragSession deriving (Eq, Show)
+data RosterInteractionIntent
+    = SetRosterLayoutModeIntent
+    | MoveRosterShiftToSlotIntent
+    deriving (Eq, Show)
 
 rosterInteractionMountKey :: InteractionMountKey
 rosterInteractionMountKey = InteractionMountKey "primary"
 
 rosterLayoutModeIntentName :: Text
 rosterLayoutModeIntentName = "set-roster-layout-mode"
+
+rosterMoveShiftIntentName :: Text
+rosterMoveShiftIntentName = "move-roster-shift-to-slot"
+
+rosterDragSessionKindName :: Text
+rosterDragSessionKindName = "drag"
 
 rosterLayoutModeIntentField :: IntentFieldName
 rosterLayoutModeIntentField = IntentFieldName "rosterLayoutMode"
@@ -93,7 +104,29 @@ rosterLiveSurfaceDefinition =
 rosterInteractionCapability :: (?context :: ControllerContext) => RosterProjectionScope -> InteractionCapability (SurfaceFragmentRef RosterLiveSurface) RosterProjectionFragment RosterInteractionLayer RosterInteractionSession RosterInteractionIntent
 rosterInteractionCapability scope =
     emptyInteractionCapability
-        { interactionIntentForms = [rosterLayoutModeIntentForm scope]
+        { interactionDisposableLayers =
+            [ DisposableLayerDefinition
+                { disposableLayerKind = RosterDragPreviewLayer
+                , disposableLayerName = "drag-preview"
+                , disposableLayerDomIdSuffix = "drag-preview"
+                }
+            ]
+        , interactionSessionKinds =
+            [ SessionKindDefinition
+                { sessionKind = RosterDragSession
+                , sessionKindName = rosterDragSessionKindName
+                , sessionDescription = "Roster drag/drop prototype"
+                }
+            ]
+        , interactionIntentForms = [rosterLayoutModeIntentForm scope, rosterMoveShiftIntentForm scope]
+        , interactionConflictPolicies =
+            [ InteractionConflictPolicy
+                { conflictPolicySession = InteractionSessionKind RosterDragSession
+                , conflictPolicyFragment = AnyInteractionFragment
+                , conflictPolicyResolution = DeferLiveFragmentUntilSessionEnds
+                , conflictPolicyTimeoutMs = Just 5000
+                }
+            ]
         }
 
 rosterLayoutModeIntentForm :: (?context :: ControllerContext) => RosterProjectionScope -> IntentFormContract (SurfaceFragmentRef RosterLiveSurface) RosterInteractionIntent
@@ -111,6 +144,37 @@ rosterLayoutModeIntentForm scope =
         , intentFormSync = Just ("#" <> rosterWeekShellId <> ":replace")
         , intentFormDisabledElement = Nothing
         }
+
+rosterMoveShiftIntentForm :: (?context :: ControllerContext) => RosterProjectionScope -> IntentFormContract (SurfaceFragmentRef RosterLiveSurface) RosterInteractionIntent
+rosterMoveShiftIntentForm scope =
+    IntentFormContract
+        { intentFormIntent = MoveRosterShiftToSlotIntent
+        , intentFormName = rosterMoveShiftIntentName
+        , intentFormAction = rosterMoveShiftUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId
+        , intentFormMethod = HtmxPost
+        , intentFormTrigger = "bepis:intent-submit"
+        , intentFormTarget = IntentTargetLiveFragment (rosterFragmentRef scope RosterProjectionContent)
+        , intentFormSwap = HtmxSwapNone
+        , intentFormFields = rosterMoveShiftIntentFields
+        , intentFormHiddenFields = []
+        , intentFormSync = Just ("#" <> rosterWeekShellId <> ":replace")
+        , intentFormDisabledElement = Nothing
+        }
+
+rosterMoveShiftIntentFields :: [IntentFieldSchema]
+rosterMoveShiftIntentFields =
+    [ IntentFieldSchema (IntentFieldName "sourceItemKey") IntentFieldRequired Nothing
+    , IntentFieldSchema (IntentFieldName "targetDropzoneKey") IntentFieldRequired Nothing
+    , IntentFieldSchema (IntentFieldName "sessionKind") IntentFieldOptional Nothing
+    , IntentFieldSchema (IntentFieldName "pointerId") IntentFieldOptional Nothing
+    , IntentFieldSchema (IntentFieldName "pointerType") IntentFieldOptional Nothing
+    , IntentFieldSchema (IntentFieldName "startClientX") IntentFieldOptional Nothing
+    , IntentFieldSchema (IntentFieldName "startClientY") IntentFieldOptional Nothing
+    , IntentFieldSchema (IntentFieldName "currentClientX") IntentFieldOptional Nothing
+    , IntentFieldSchema (IntentFieldName "currentClientY") IntentFieldOptional Nothing
+    , IntentFieldSchema (IntentFieldName "deltaX") IntentFieldOptional Nothing
+    , IntentFieldSchema (IntentFieldName "deltaY") IntentFieldOptional Nothing
+    ]
 
 rosterFragmentRef :: RosterProjectionScope -> RosterProjectionFragment -> SurfaceFragmentRef RosterLiveSurface
 rosterFragmentRef scope = \case

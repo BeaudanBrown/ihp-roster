@@ -58,6 +58,7 @@ module Application.Helper.Interaction
     , serverLayerDomId
     , typedInteractionCapabilityFor
     , withInteractionActivationIntentMarker
+    , withInteractionDropzoneMarker
     , withInteractionPointerSessionMarker
     ) where
 
@@ -324,6 +325,12 @@ renderInteractionSlotMarker = renderInteractionMarker InteractionSlotMarker
 
 renderInteractionDropzoneMarker :: Text -> Html -> Html
 renderInteractionDropzoneMarker = renderInteractionMarker InteractionDropzoneMarker
+
+withInteractionDropzoneMarker :: Text -> Html -> Html
+withInteractionDropzoneMarker markerKey html =
+    html
+        ! attr "data-bepis-marker" (interactionMarkerKindAttribute InteractionDropzoneMarker)
+        ! attr "data-bepis-dropzone" markerKey
 
 renderInteractionResizeHandleMarker :: Text -> Html -> Html
 renderInteractionResizeHandleMarker = renderInteractionMarker InteractionResizeHandleMarker

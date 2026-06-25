@@ -51,7 +51,9 @@ export type ActivePointerSession = {
 const attrs = InteractionDom.attributes;
 const values = InteractionDom.values;
 const sessionSelector = `[${attrs.pointerSession}="${values.enabled}"]`;
+const dropzoneSelector = `[${attrs.dropzone}]`;
 const disposableLayerSelector = `[${attrs.disposableLayer}]`;
+const pointerFields = InteractionDom.pointerFields;
 const defaultThresholdPx = 4;
 
 export function enableGenericPointerSessions(options: PointerSessionOptions = {}): () => void {
@@ -65,6 +67,7 @@ export function enableGenericPointerSessions(options: PointerSessionOptions = {}
     root.addEventListener("pointerup", controller.handlePointerUp);
     root.addEventListener("pointercancel", controller.handlePointerCancel);
     root.addEventListener("keydown", controller.handleKeyDown);
+    root.addEventListener("click", controller.handleClick, true);
     root.addEventListener("htmx:beforeSwap", controller.handleExternalCleanup);
     root.addEventListener("htmx:beforeCleanupElement", controller.handleExternalCleanup);
     root.addEventListener(interactionSessionCancelRequestEventName, controller.handleCancelRequest);
@@ -75,6 +78,7 @@ export function enableGenericPointerSessions(options: PointerSessionOptions = {}
         root.removeEventListener("pointerup", controller.handlePointerUp);
         root.removeEventListener("pointercancel", controller.handlePointerCancel);
         root.removeEventListener("keydown", controller.handleKeyDown);
+        root.removeEventListener("click", controller.handleClick, true);
         root.removeEventListener("htmx:beforeSwap", controller.handleExternalCleanup);
         root.removeEventListener("htmx:beforeCleanupElement", controller.handleExternalCleanup);
         root.removeEventListener(interactionSessionCancelRequestEventName, controller.handleCancelRequest);
@@ -87,6 +91,7 @@ export function createPointerSessionController(options: PointerSessionOptions = 
     const fallbackThresholdPx = options.thresholdPx ?? defaultThresholdPx;
     let activeSession: ActivePointerSession | null = null;
     let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+    let suppressNextClickMarker: ElementLike | null = null;
 
     const clearTimeoutHandle = () => {
         if (timeoutHandle !== null) clearTimeout(timeoutHandle);
@@ -119,6 +124,7 @@ export function createPointerSessionController(options: PointerSessionOptions = 
             marker: session.marker,
             sourceEvent,
         });
+        if (session.activated) suppressNextClickMarker = session.marker;
         cleanupSession(session, sourceEvent?.type ?? "cancel");
     };
 
@@ -132,6 +138,7 @@ export function createPointerSessionController(options: PointerSessionOptions = 
             sourceEvent,
         });
         if (result.canceled && sourceEvent.cancelable) sourceEvent.preventDefault();
+        suppressNextClickMarker = session.marker;
         cleanupSession(session, sourceEvent.type);
     };
 
@@ -140,6 +147,7 @@ export function createPointerSessionController(options: PointerSessionOptions = 
         session.currentClientY = numberValue(event.clientY);
         if (!session.activated && movementDistance(session) < session.thresholdPx) return;
         session.activated = true;
+        renderDropPreview(session);
         runtime.emit({
             phase: "preview",
             intent: session.intent,
@@ -207,12 +215,21 @@ export function createPointerSessionController(options: PointerSessionOptions = 
             if (detail?.sessionKind && detail.sessionKind !== activeSession.sessionKind) return;
             cancelSession(activeSession, event);
         },
+        handleClick(event: Event) {
+            if (!suppressNextClickMarker) return;
+            const marker = closestPointerSessionMarker(event.target);
+            if (marker !== suppressNextClickMarker) return;
+            suppressNextClickMarker = null;
+            if (event.cancelable) event.preventDefault();
+            event.stopImmediatePropagation?.();
+        },
         currentSession() {
             return activeSession;
         },
         stop() {
             if (activeSession) cancelSession(activeSession, null);
             clearTimeoutHandle();
+            suppressNextClickMarker = null;
         },
     };
 }
@@ -273,17 +290,44 @@ function sessionSnapshot(session: ActivePointerSession, reason?: string) {
 function pointerSessionFields(session: ActivePointerSession): Record<string, string> {
     const deltaX = session.currentClientX - session.startClientX;
     const deltaY = session.currentClientY - session.startClientY;
-    return {
-        sessionKind: session.sessionKind,
-        pointerId: String(session.pointerId),
-        pointerType: session.pointerType,
-        startClientX: String(session.startClientX),
-        startClientY: String(session.startClientY),
-        currentClientX: String(session.currentClientX),
-        currentClientY: String(session.currentClientY),
-        deltaX: String(deltaX),
-        deltaY: String(deltaY),
+    const fields: Record<string, string> = {
+        [pointerFields.sessionKind]: session.sessionKind,
+        [pointerFields.pointerId]: String(session.pointerId),
+        [pointerFields.pointerType]: session.pointerType,
+        [pointerFields.startClientX]: String(session.startClientX),
+        [pointerFields.startClientY]: String(session.startClientY),
+        [pointerFields.currentClientX]: String(session.currentClientX),
+        [pointerFields.currentClientY]: String(session.currentClientY),
+        [pointerFields.deltaX]: String(deltaX),
+        [pointerFields.deltaY]: String(deltaY),
     };
+
+    const sourceItemKey = session.marker.getAttribute(attrs.item);
+    if (sourceItemKey) fields[pointerFields.sourceItemKey] = sourceItemKey;
+
+    const targetDropzone = activeDropzone(session);
+    const targetDropzoneKey = targetDropzone?.getAttribute(attrs.dropzone);
+    if (targetDropzoneKey) fields[pointerFields.targetDropzoneKey] = targetDropzoneKey;
+
+    return fields;
+}
+
+function activeDropzone(session: ActivePointerSession): Element | null {
+    return hitTestClosest(session.mount, session.currentClientX, session.currentClientY, dropzoneSelector);
+}
+
+function renderDropPreview(session: ActivePointerSession): void {
+    const targetDropzone = activeDropzone(session);
+    for (const layer of session.mount.querySelectorAll(disposableLayerSelector)) {
+        clearElement(layer);
+        if (!targetDropzone) continue;
+        const doc = layer.ownerDocument ?? (typeof document !== "undefined" ? document : null);
+        const preview = doc?.createElement?.("div");
+        if (!preview) continue;
+        preview.className = "bepis-drop-preview";
+        preview.textContent = "Drop target selected";
+        layer.appendChild(preview);
+    }
 }
 
 function movementDistance(session: ActivePointerSession): number {

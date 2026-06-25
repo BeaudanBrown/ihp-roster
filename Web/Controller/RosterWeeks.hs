@@ -21,6 +21,7 @@ import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 dialogOverlayMountId, errorToast,
                                 renderDialogOverlay, renderToastOob,
                                 successToast)
+import Control.Monad (guard)
 import Data.Coerce (coerce)
 import Data.List (nub)
 import qualified Data.Map.Strict as Map
@@ -32,6 +33,7 @@ import qualified Data.Time.Calendar as Calendar
 import Data.Time.LocalTime (TimeOfDay)
 import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
+import qualified Text.Read as TextRead
 import Web.Controller.Prelude
 import Web.Controller.Sessions (passkeySetupPromptSessionKey)
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
@@ -472,6 +474,25 @@ instance Controller RosterWeeksController where
                         setSuccessMessage "Roster layout preference saved."
                         redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
 
+    action MoveRosterShiftToSlotAction { weekOffset } = do
+        ensureManagerRole
+        ensureVenueWritable
+        rosterGroup <- resolveRequestedRosterGroup
+        result <- validateMoveRosterShiftIntent rosterGroup.id weekOffset
+        case result of
+            Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+            Right MoveRosterShiftIntent { sourceSlot, sourceRosterDay, targetRosterDay, targetSlotDefinition, targetRowIndex } -> do
+                let updatedSlot = sourceSlot
+                        |> set #rosterDayId (unpackId targetRosterDay.id)
+                        |> set #rosterWeekSlotDefinitionId (unpackId targetSlotDefinition.id)
+                        |> set #slotSortOrder targetSlotDefinition.sortOrder
+                        |> set #rowIndex targetRowIndex
+                rosterWeek <- fetch (Id targetRosterDay.rosterWeekId :: Id RosterWeek)
+                mutationResult <- moveRosterSlotMutation rosterGroup.id rosterWeek sourceRosterDay targetRosterDay sourceSlot updatedSlot
+                let RosterSlotMutationResult { rosterSlotMutationPreviousStaffId = previousStaffId, rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged } = mutationResult.liveMutationValue
+                let impactedRows = nub [(sourceSlot.rosterDayId, sourceSlot.rowIndex), (unpackId targetRosterDay.id, targetRowIndex)]
+                respondToRosterSlotMove rosterGroup.id rosterWeek mutationResult previousStaffId impactedRows shouldWarnSourceTimesheetUnchanged
+
     action UpdateRosterWarningPreferenceAction { weekOffset } = do
         ensureManagerRole
         rosterGroup <- resolveRequestedRosterGroup
@@ -565,6 +586,79 @@ data ValidatedRosterShift = ValidatedRosterShift
     , validRosterShiftEndTime   :: !(Maybe TimeOfDay)
     , validRosterShiftTypeId    :: !UUID.UUID
     }
+
+data MoveRosterShiftIntent = MoveRosterShiftIntent
+    { sourceSlot           :: !RosterSlot
+    , sourceRosterDay      :: !RosterDay
+    , targetRosterDay      :: !RosterDay
+    , targetSlotDefinition :: !RosterWeekSlotDefinition
+    , targetRowIndex       :: !Int
+    }
+
+validateMoveRosterShiftIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Either Text MoveRosterShiftIntent)
+validateMoveRosterShiftIntent rosterGroupId weekOffset = do
+    let sourceToken = paramOrDefault @Text "" "sourceItemKey"
+    let targetToken = paramOrDefault @Text "" "targetDropzoneKey"
+    case (parseExistingSlotToken sourceToken, parseNewSlotToken targetToken) of
+        (Just sourceSlotId, Just (targetRosterDayId, targetSlotDefinitionId, targetRowIndex)) -> do
+            maybeResult <- validateMoveRosterShiftTarget rosterGroupId weekOffset sourceSlotId targetRosterDayId targetSlotDefinitionId targetRowIndex
+            pure (maybe (Left "Choose an empty roster slot in this week.") Right maybeResult)
+        _ -> pure (Left "Drag the shift onto an empty roster slot.")
+
+validateMoveRosterShiftTarget :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> Id RosterSlot -> Id RosterDay -> Id RosterWeekSlotDefinition -> Int -> IO (Maybe MoveRosterShiftIntent)
+validateMoveRosterShiftTarget rosterGroupId weekOffset sourceSlotId targetRosterDayId targetSlotDefinitionId targetRowIndex = do
+    maybeSourceSlot <- fetchOneOrNothing (query @RosterSlot |> filterWhere (#id, sourceSlotId))
+    maybeTargetRosterDay <- fetchOneOrNothing (query @RosterDay |> filterWhere (#id, targetRosterDayId))
+    maybeTargetSlotDefinition <- fetchOneOrNothing (query @RosterWeekSlotDefinition |> filterWhere (#id, targetSlotDefinitionId))
+    case (maybeSourceSlot, maybeTargetRosterDay, maybeTargetSlotDefinition) of
+        (Just sourceSlot, Just targetRosterDay, Just targetSlotDefinition) -> do
+            sourceRosterDay <- fetch (Id sourceSlot.rosterDayId :: Id RosterDay)
+            sourceRosterWeek <- fetch (Id sourceRosterDay.rosterWeekId :: Id RosterWeek)
+            targetRosterWeek <- fetch (Id targetRosterDay.rosterWeekId :: Id RosterWeek)
+            targetExists <- query @RosterSlot
+                |> filterWhere (#rosterDayId, unpackId targetRosterDay.id)
+                |> filterWhere (#rosterWeekSlotDefinitionId, unpackId targetSlotDefinition.id)
+                |> filterWhere (#rowIndex, targetRowIndex)
+                |> filterWhere (#deletedAt, Nothing)
+                |> fetchExists
+            let sourceMatchesScope = sourceRosterWeek.rosterGroupId == unpackId rosterGroupId && sourceRosterWeek.weekOffset == weekOffset
+            let targetMatchesScope = targetRosterWeek.rosterGroupId == unpackId rosterGroupId && targetRosterWeek.weekOffset == weekOffset
+            let targetDefinitionMatchesWeek = targetSlotDefinition.rosterWeekId == unpackId targetRosterWeek.id
+            let sourceIsStaffed = isJust sourceSlot.staffId
+            let targetIsOpen = not targetRosterDay.isClosed && targetRowIndex >= 0 && targetRowIndex < targetRosterDay.rowCount
+            pure do
+                guard sourceMatchesScope
+                guard targetMatchesScope
+                guard targetDefinitionMatchesWeek
+                guard sourceIsStaffed
+                guard targetIsOpen
+                guard (not targetExists)
+                pure MoveRosterShiftIntent { sourceSlot, sourceRosterDay, targetRosterDay, targetSlotDefinition, targetRowIndex }
+        _ -> pure Nothing
+
+parseExistingSlotToken :: Text -> Maybe (Id RosterSlot)
+parseExistingSlotToken token =
+    case Text.splitOn ":" token of
+        ["existing", rawSlotId] -> Id <$> parseUUIDText rawSlotId
+        _                       -> Nothing
+
+parseNewSlotToken :: Text -> Maybe (Id RosterDay, Id RosterWeekSlotDefinition, Int)
+parseNewSlotToken token =
+    case Text.splitOn ":" token of
+        ["new", rawRosterDayId, rawSlotDefinitionId, rawRowIndex] -> do
+            rosterDayId <- Id <$> parseUUIDText rawRosterDayId
+            slotDefinitionId <- Id <$> parseUUIDText rawSlotDefinitionId
+            rowIndex <- TextRead.readMaybe (cs rawRowIndex)
+            pure (rosterDayId, slotDefinitionId, rowIndex)
+        _ -> Nothing
+
+respondWithMoveRosterShiftFailure :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO ()
+respondWithMoveRosterShiftFailure rosterGroupId weekOffset message =
+    if isHtmxRequest
+        then respondWithRosterActorRefreshWithToast rosterGroupId weekOffset [] (Just message)
+        else do
+            setErrorMessage message
+            redirectToPath (rosterWeekUrl weekOffset rosterGroupId)
 
 fetchRosterSlotCreateContext :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterDay -> Id RosterWeekSlotDefinition -> Int -> IO (RosterDay, RosterWeek, RosterWeekSlotDefinition)
 fetchRosterSlotCreateContext rosterDayId rosterWeekSlotDefinitionId rowIndex = do
@@ -766,6 +860,32 @@ respondToRosterSlotMutation rosterGroupId rosterWeek rosterDay rowIndex mutation
         else do
             setSuccessMessage successMessage
             redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+
+respondToRosterSlotMove :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> LiveMutationResult RosterSlotMutationResult -> Maybe UUID.UUID -> [(UUID.UUID, Int)] -> Bool -> IO ()
+respondToRosterSlotMove rosterGroupId rosterWeek mutationResult maybeStaffId impactedRowKeys shouldWarnSourceTimesheetUnchanged = do
+    layoutMode <- fetchCurrentRosterLayoutMode
+    let maybeStaffParam = tshow <$> maybeStaffId
+    let actorFragmentCandidates =
+            case rosterLayoutModeValue layoutMode of
+                "day_columns" -> rosterGridInnerAndStaffPanelFragments
+                _ -> rosterGridInnerAndStaffPanelFragments
+                    <> actorRosterRowFragments maybeStaffParam impactedRowKeys
+                    <> assignmentRefreshFragments maybeStaffParam
+    let actorFragments =
+            rosterActorFragmentsForTouchedResources
+                rosterGroupId
+                rosterWeek.weekOffset
+                mutationResult.liveMutationTouchedResources
+                actorFragmentCandidates
+    let warningHtml =
+            if shouldWarnSourceTimesheetUnchanged
+                then renderToastOob ToastBottomCenter (errorToast "A pending timesheet already exists for this roster slot, so the timesheet was not changed. Edit the timesheet entry directly.")
+                else mempty
+    respondWithRosterActorFragments
+        rosterGroupId
+        rosterWeek.weekOffset
+        actorFragments
+        (clearDialogOverlayOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> warningHtml)
 
 respondToRosterSlotUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> LiveMutationResult RosterSlotMutationResult -> Maybe UUID.UUID -> [(UUID.UUID, Int)] -> Bool -> IO ()
 respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult maybeStaffId impactedRowKeys shouldWarnSourceTimesheetUnchanged = do

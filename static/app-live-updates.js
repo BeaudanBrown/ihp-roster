@@ -8,6 +8,8 @@
       scopeKey: "data-bepis-scope-key",
       mountKey: "data-bepis-mount-key",
       marker: "data-bepis-marker",
+      item: "data-bepis-item",
+      dropzone: "data-bepis-dropzone",
       activation: "data-bepis-activation",
       activationIntent: "data-bepis-activation-intent",
       activationTrigger: "data-bepis-activation-trigger",
@@ -30,6 +32,19 @@
     values: {
       enabled: "true",
       activationMarker: "activation"
+    },
+    pointerFields: {
+      sessionKind: "sessionKind",
+      pointerId: "pointerId",
+      pointerType: "pointerType",
+      startClientX: "startClientX",
+      startClientY: "startClientY",
+      currentClientX: "currentClientX",
+      currentClientY: "currentClientY",
+      deltaX: "deltaX",
+      deltaY: "deltaY",
+      sourceItemKey: "sourceItemKey",
+      targetDropzoneKey: "targetDropzoneKey"
     }
   };
 

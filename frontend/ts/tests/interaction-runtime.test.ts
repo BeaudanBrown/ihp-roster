@@ -16,7 +16,7 @@ class MiniElement extends EventTarget {
     innerHTML = "";
     capturedPointerId: number | null = null;
     releasedPointerId: number | null = null;
-    ownerDocument?: { elementFromPoint: (x: number, y: number) => MiniElement | null };
+    ownerDocument?: { elementFromPoint: (x: number, y: number) => MiniElement | null; createElement?: (tag: string) => MiniElement };
     private readonly attrs = new Map<string, string>();
 
     constructor(attrs: Record<string, string> = {}) {
@@ -30,6 +30,10 @@ class MiniElement extends EventTarget {
         child.parent = this;
         this.children.push(child);
         return child;
+    }
+
+    appendChild(child: MiniElement): MiniElement {
+        return this.append(child);
     }
 
     getAttribute(name: string): string | null {
@@ -287,21 +291,35 @@ test("pointer session markers start only from enabled mounted handles", () => {
 test("pointer sessions emit start preview commit and clean disposable layers", () => {
     const phases: string[] = [];
     const deltas: string[] = [];
+    const dropTargets: string[] = [];
     const mount = new MiniElement({ [attrs.surface]: "true" });
     const marker = mount.append(new MiniElement({
         [attrs.pointerSession]: "true",
         [attrs.sessionKind]: "drag",
         [attrs.sessionIntent]: "move-shift",
         [attrs.sessionThreshold]: "3",
+        [attrs.item]: "existing:source-slot",
     }));
+    const dropzone = mount.append(new MiniElement({ [attrs.dropzone]: "new:target-slot" }));
+    const doc = {
+        elementFromPoint: (_x: number, _y: number) => dropzone,
+        createElement: (_tag: string) => new MiniElement(),
+    };
+    mount.ownerDocument = doc;
+    marker.ownerDocument = doc;
+    dropzone.ownerDocument = doc;
     const layer = mount.append(new MiniElement({ [attrs.disposableLayer]: "preview" }));
+    layer.ownerDocument = doc;
     layer.append(new MiniElement());
 
     const controller = createPointerSessionController({
         runtime: {
             emit(payload) {
                 phases.push(payload.phase);
-                if (payload.phase === "preview" || payload.phase === "commit") deltas.push(payload.fields?.deltaX ?? "");
+                if (payload.phase === "preview" || payload.phase === "commit") {
+                    deltas.push(payload.fields?.deltaX ?? "");
+                    dropTargets.push(`${payload.fields?.sourceItemKey ?? ""}->${payload.fields?.targetDropzoneKey ?? ""}`);
+                }
                 return { canceled: false };
             },
         },
@@ -315,6 +333,7 @@ test("pointer sessions emit start preview commit and clean disposable layers", (
 
     assertEqual(phases.join(","), "start,preview,preview,commit");
     assertEqual(deltas.join(","), "5,8,8");
+    assertEqual(dropTargets.join(","), "existing:source-slot->new:target-slot,existing:source-slot->new:target-slot,existing:source-slot->new:target-slot");
     assertEqual(marker.capturedPointerId, 1);
     assertEqual(marker.releasedPointerId, 1);
     assertEqual(layer.children.length, 0);

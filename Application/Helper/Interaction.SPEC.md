@@ -214,6 +214,13 @@ render a ghost and insertion guide in disposable layers while dragging. On drop,
 it submits the generated form. The server validates assignment ownership, target
 scope, ordering, conflicts, and permissions before returning OOB fragments.
 
+The first roster prototype uses editable row-grid shift launchers as draggable
+items and empty row-grid create launchers as dropzones. The browser submits
+opaque `sourceItemKey` and `targetDropzoneKey` tokens through the generated
+`move-roster-shift-to-slot` form; the controller parses those tokens, validates
+venue/roster-week scope and empty target slots, and returns authoritative roster
+fragments plus toast feedback.
+
 ### Resize
 
 A timeline item exposes typed edge handles. The capability declares a

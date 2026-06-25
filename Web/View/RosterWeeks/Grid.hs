@@ -26,7 +26,9 @@ module Web.View.RosterWeeks.Grid
     ) where
 
 import Application.Helper.Interaction (InteractionSurfaceMount (..),
-                                       renderInteractionCapabilityShell)
+                                       renderInteractionCapabilityShell,
+                                       withInteractionDropzoneMarker,
+                                       withInteractionPointerSessionMarker)
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
 import Application.Helper.RosterWagePrediction
 import Application.Helper.ShiftTypeColours (shiftTypeColourPaletteKeys)
@@ -45,8 +47,10 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (TimeOfDay)
 import Data.UUID (UUID)
 import Web.RosterWeeks.Dom
-import Web.RosterWeeks.LiveSurface (rosterInteractionMountKey,
-                                    rosterLiveSurfaceDefinition)
+import Web.RosterWeeks.LiveSurface (rosterDragSessionKindName,
+                                    rosterInteractionMountKey,
+                                    rosterLiveSurfaceDefinition,
+                                    rosterMoveShiftIntentName)
 import Web.RosterWeeks.Projection (buildRosterProjectionScope)
 import Web.RosterWeeks.Types
 import Web.View.Prelude
@@ -915,23 +919,24 @@ renderEditableNoEndTimeSlotCells display target groupKey blockIndex slot =
 -- subgrid, preserving the Start/End/Staff/Role layout without duplicating HTMX
 -- attributes across every cell.
 renderEditableShiftUnit :: (?context :: ControllerContext) => RosterSlotCellTarget -> Text -> RosterSlot -> Int -> [ReadOnlyExistingSlotCell] -> Html
-renderEditableShiftUnit target groupKey slot gridSpan cells = [hsx|
-    <div role="gridcell"
-         class="roster-shift-unit roster-shift-launcher"
-         style={rosterGridColumnSpanStyle gridSpan}
-         data-roster-shift-colour={shiftUnitColour cells}
-         data-roster-staff-id={maybe "" tshow slot.staffId}
-         data-roster-slot-id={tshow slot.id}
-         data-roster-shift-group-key={groupKey}
-         data-roster-shift-launcher="true"
-         tabindex="0"
-         hx-get={pathTo (rosterSlotDialogAction target)}
-         hx-target={"#" <> dialogOverlayMountId}
-         hx-swap="innerHTML"
-         hx-push-url="false">
-        {forEach cells renderEditableShiftUnitCell}
-    </div>
-|]
+renderEditableShiftUnit target groupKey slot gridSpan cells =
+    withInteractionPointerSessionMarker groupKey rosterDragSessionKindName rosterMoveShiftIntentName [hsx|
+        <div role="gridcell"
+             class="roster-shift-unit roster-shift-launcher"
+             style={rosterGridColumnSpanStyle gridSpan}
+             data-roster-shift-colour={shiftUnitColour cells}
+             data-roster-staff-id={maybe "" tshow slot.staffId}
+             data-roster-slot-id={tshow slot.id}
+             data-roster-shift-group-key={groupKey}
+             data-roster-shift-launcher="true"
+             tabindex="0"
+             hx-get={pathTo (rosterSlotDialogAction target)}
+             hx-target={"#" <> dialogOverlayMountId}
+             hx-swap="innerHTML"
+             hx-push-url="false">
+            {forEach cells renderEditableShiftUnitCell}
+        </div>
+    |]
 
 shiftUnitColour :: [ReadOnlyExistingSlotCell] -> Text
 shiftUnitColour []       = ""
@@ -1197,21 +1202,22 @@ createShiftUnitVisualCellClasses False blockIndex =
     ]
 
 renderCreateShiftUnit :: (?context :: ControllerContext) => RosterSlotCellTarget -> Text -> [Text] -> Int -> Html
-renderCreateShiftUnit target groupKey visualCellClasses gridSpan = [hsx|
-    <div role="gridcell"
-         class="roster-shift-unit roster-shift-launcher roster-shift-create-unit"
-         style={rosterGridColumnSpanStyle gridSpan}
-         data-roster-shift-group-key={groupKey}
-         data-roster-shift-launcher="true"
-         tabindex="0"
-         hx-get={pathTo (rosterSlotDialogAction target)}
-         hx-target={"#" <> dialogOverlayMountId}
-         hx-swap="innerHTML"
-         hx-push-url="false">
-        {forEach visualCellClasses renderCreateShiftUnitVisualCell}
-        <div class="roster-shift-create-plus-overlay" aria-hidden="true">+</div>
-    </div>
-|]
+renderCreateShiftUnit target groupKey visualCellClasses gridSpan =
+    withInteractionDropzoneMarker groupKey [hsx|
+        <div role="gridcell"
+             class="roster-shift-unit roster-shift-launcher roster-shift-create-unit"
+             style={rosterGridColumnSpanStyle gridSpan}
+             data-roster-shift-group-key={groupKey}
+             data-roster-shift-launcher="true"
+             tabindex="0"
+             hx-get={pathTo (rosterSlotDialogAction target)}
+             hx-target={"#" <> dialogOverlayMountId}
+             hx-swap="innerHTML"
+             hx-push-url="false">
+            {forEach visualCellClasses renderCreateShiftUnitVisualCell}
+            <div class="roster-shift-create-plus-overlay" aria-hidden="true">+</div>
+        </div>
+    |]
 
 renderCreateShiftUnitVisualCell :: Text -> Html
 renderCreateShiftUnitVisualCell cellClasses = [hsx|<div class={cellClasses}></div>|]

@@ -4,6 +4,7 @@ module Web.RosterWeeks.Mutations
     , appendRosterWeekSlotDefinitionMutation
     , copyRosterWeekFromSourceMutation
     , ensureRosterWeekExistsMutation
+    , moveRosterSlotMutation
     , removeRosterDayRowMutation
     , renameRosterWeekSlotDefinitionMutation
     , repackRosterWeekMutation
@@ -23,6 +24,7 @@ import Application.RosterTimesheets.Automation (cancelPendingRosterTimesheetCrea
                                                 enqueueRosterTimesheetCreationJobsForWeek,
                                                 rosterSlotHasGeneratedTimesheet)
 import Data.Coerce (coerce)
+import Data.List (nub)
 import Data.Time (getCurrentTime)
 import Data.UUID (UUID)
 import Web.Controller.Prelude
@@ -129,6 +131,22 @@ saveRosterSlotMutation rosterGroupId rosterWeek rosterDay existingSlot newSlot =
             Just _  -> updateRecord newSlot
             Nothing -> createRecord newSlot
     invalidateTouchedResources "roster.slot.save" (liveMutationResult (RosterSlotMutationResult (Just persistedSlot) Nothing False) (rosterSlotTouchedResources rosterGroupId rosterWeek.weekOffset rosterDay (Just persistedSlot)))
+
+moveRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> RosterDay -> RosterSlot -> RosterSlot -> IO (LiveMutationResult RosterSlotMutationResult)
+moveRosterSlotMutation rosterGroupId rosterWeek sourceRosterDay targetRosterDay originalSlot updatedSlot = do
+    let previousStaffId = originalSlot.staffId
+    sourceTimesheetExists <- rosterSlotHasGeneratedTimesheet originalSlot
+    persistedSlot <- updateRecord updatedSlot
+    let shouldWarnSourceTimesheetUnchanged =
+            sourceTimesheetExists && rosterSlotTimesheetSourceChanged originalSlot updatedSlot
+    invalidateTouchedResources "roster.slot.move" $
+        liveMutationResult
+            RosterSlotMutationResult
+                { rosterSlotMutationSlot = Just persistedSlot
+                , rosterSlotMutationPreviousStaffId = previousStaffId
+                , rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged
+                }
+            (nub (rosterDayTouchedResources rosterGroupId rosterWeek.weekOffset sourceRosterDay <> rosterSlotTouchedResources rosterGroupId rosterWeek.weekOffset targetRosterDay (Just persistedSlot)))
 
 updateRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> RosterSlot -> RosterSlot -> IO (LiveMutationResult RosterSlotMutationResult)
 updateRosterSlotMutation rosterGroupId rosterWeek rosterDay originalSlot updatedSlot = do

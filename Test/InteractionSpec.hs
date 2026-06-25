@@ -121,6 +121,8 @@ tests = describe "Typed interaction surface capabilities" do
         html `shouldContainText` "data-bepis-pointer-session=\"true\""
         html `shouldContainText` "data-bepis-session-kind=\"drag\""
         html `shouldContainText` "data-bepis-session-intent=\"move-card\""
+        renderText (withInteractionDropzoneMarker "slot-1" (Html5.div (Html5.toHtml ("Slot 1" :: Text))))
+            `shouldContainText` "data-bepis-marker=\"dropzone\" data-bepis-dropzone=\"slot-1\""
 
     it "derives mount-local intent targets for duplicate mounts" do
         let form = (moveIntentForm (testFragmentRef TestInteractionContent))
