@@ -1,6 +1,113 @@
 "use strict";
 (() => {
   // frontend/ts/generated/contracts.ts
+  function isLiveUpdateRecord(value) {
+    return value !== null && typeof value === "object" && !Array.isArray(value);
+  }
+  function isLiveUpdateString(value) {
+    return typeof value === "string";
+  }
+  function isLiveUpdateBoolean(value) {
+    return typeof value === "boolean";
+  }
+  function isLiveUpdateInteger(value) {
+    return Number.isInteger(value);
+  }
+  function isLiveUpdateNullableString(value) {
+    return value === null || typeof value === "string";
+  }
+  function isLiveUpdateStringArray(value) {
+    return Array.isArray(value) && value.every(isLiveUpdateString);
+  }
+  function isLiveUpdateScope(value) {
+    if (!isLiveUpdateRecord(value) || typeof value.kind !== "string") return false;
+    switch (value.kind) {
+      case "roster_week":
+        return isLiveUpdateString(value.venueId) && isLiveUpdateString(value.rosterGroupId) && isLiveUpdateInteger(value.weekOffset);
+      case "admin_venue_config":
+      case "admin_shift_types":
+      case "admin_roster_groups":
+      case "admin_invites":
+      case "admin_exports":
+      case "admin_xero":
+      case "billing":
+      case "leave_requests":
+        return isLiveUpdateString(value.venueId);
+      case "timesheet_week":
+        return isLiveUpdateString(value.venueId) && isLiveUpdateInteger(value.weekOffset);
+      case "profile":
+        return isLiveUpdateString(value.venueId) && isLiveUpdateString(value.staffId);
+      case "support_platform":
+        return true;
+      default:
+        return false;
+    }
+  }
+  function isLiveFragmentKey(value) {
+    if (!isLiveUpdateRecord(value) || typeof value.kind !== "string") return false;
+    switch (value.kind) {
+      case "roster_day_section":
+        return isLiveUpdateString(value.rosterDayId);
+      case "roster_row":
+        return isLiveUpdateString(value.rosterDayId) && isLiveUpdateInteger(value.rowIndex);
+      case "timesheet_day_section":
+        return isLiveUpdateInteger(value.dayOffset);
+      case "roster_content":
+      case "roster_grid_toolbar":
+      case "roster_grid_frame":
+      case "roster_day_columns":
+      case "roster_day_rail":
+      case "roster_wage_rail":
+      case "roster_slots_grid":
+      case "roster_staff_panel":
+      case "leave_requests_content":
+      case "timesheet_toolbar":
+      case "timesheet_day_columns":
+      case "admin_venue_config":
+      case "admin_invites":
+      case "admin_exports":
+      case "admin_shift_types":
+      case "admin_roster_groups":
+      case "admin_xero":
+      case "admin_xero_staff_mappings":
+      case "admin_xero_pay_items":
+      case "admin_xero_timesheets":
+      case "billing_status":
+      case "profile_content":
+      case "profile_leave_requests_content":
+      case "support_award_rates_section":
+      case "support_public_holidays_section":
+        return true;
+      default:
+        return false;
+    }
+  }
+  function isLiveFragmentProtection(value) {
+    if (value === null) return true;
+    return isLiveUpdateRecord(value) && value.kind === "focused_field" && isLiveUpdateString(value.activeSelector) && isLiveUpdateString(value.fieldKeyAttr) && isLiveUpdateBoolean(value.fieldNameFallback) && isLiveUpdateNullableString(value.containerSelector);
+  }
+  function isLiveUpdateWireFragment(value) {
+    return isLiveUpdateRecord(value) && isLiveFragmentKey(value.fragmentKey) && isLiveUpdateString(value.targetId) && isLiveUpdateString(value.url) && isLiveUpdateBoolean(value.deferUntilBlur) && isLiveFragmentProtection(value.protectionPolicy);
+  }
+  function isLiveUpdateWireFragmentArray(value) {
+    return Array.isArray(value) && value.every(isLiveUpdateWireFragment);
+  }
+  function isLiveSurfaceConfig(value) {
+    return isLiveUpdateRecord(value) && isLiveUpdateString(value.feature) && isLiveUpdateString(value.socketPath) && isLiveUpdateScope(value.scope) && isLiveUpdateString(value.scopeKey) && isLiveUpdateWireFragmentArray(value.resyncFragments) && isLiveUpdateStringArray(value.decorateRequestsWithin);
+  }
+  function isLiveUpdateMessage(value) {
+    if (!isLiveUpdateRecord(value) || typeof value.type !== "string") return false;
+    switch (value.type) {
+      case "subscribed":
+        return isLiveUpdateScope(value.scope) && isLiveUpdateString(value.scopeKey) && isLiveUpdateInteger(value.currentVersion) && isLiveUpdateBoolean(value.resync);
+      case "invalidate":
+        return isLiveUpdateScope(value.scope) && isLiveUpdateString(value.scopeKey) && isLiveUpdateInteger(value.version) && isLiveUpdateWireFragmentArray(value.fragments) && isLiveUpdateNullableString(value.sourceClientId);
+      case "error":
+        return isLiveUpdateString(value.message);
+      default:
+        return false;
+    }
+  }
   var InteractionDom = {
     attributes: {
       surface: "data-bepis-surface",
@@ -176,37 +283,8 @@
   }
 
   // frontend/ts/live-updates/validation.ts
-  function isRecord(value) {
-    return value !== null && typeof value === "object" && !Array.isArray(value);
-  }
-  function optionalString(value) {
-    return typeof value === "string" && value.length > 0 ? value : null;
-  }
-  function stringList(value) {
-    return Array.isArray(value) ? value.filter((item) => typeof item === "string" && item.length > 0) : [];
-  }
-  function fragmentList(value) {
-    return Array.isArray(value) ? value.filter(isLiveUpdateWireFragment) : [];
-  }
-  function isLiveUpdateScope(value) {
-    return isRecord(value) && typeof value.kind === "string" && value.kind.length > 0;
-  }
-  function isLiveUpdateWireFragment(value) {
-    return isRecord(value) && typeof value.targetId === "string" && value.targetId.length > 0 && typeof value.url === "string" && value.url.length > 0 && isRecord(value.fragmentKey) && typeof value.fragmentKey.kind === "string";
-  }
   function parseLiveUpdateSurfaceConfig(value) {
-    if (!isRecord(value)) return null;
-    if (!isLiveUpdateScope(value.scope)) return null;
-    const scopeKey = optionalString(value.scopeKey);
-    if (scopeKey === null) return null;
-    return {
-      feature: optionalString(value.feature),
-      scope: value.scope,
-      scopeKey,
-      socketPath: optionalString(value.socketPath) ?? "/live-updates",
-      resyncFragments: fragmentList(value.resyncFragments),
-      decorateRequestsWithin: stringList(value.decorateRequestsWithin)
-    };
+    return isLiveSurfaceConfig(value) ? value : null;
   }
 
   // frontend/ts/app-live-updates.ts
@@ -859,13 +937,14 @@
         });
       };
       socket.onmessage = function(event) {
-        let message = null;
+        let parsedMessage = null;
         try {
-          message = JSON.parse(event.data);
+          parsedMessage = JSON.parse(event.data);
         } catch (_error) {
           return;
         }
-        if (!message || typeof message.type !== "string") return;
+        if (!isLiveUpdateMessage(parsedMessage)) return;
+        const message = parsedMessage;
         if (message.type === "subscribed") {
           handleSubscribedMessage(message);
           return;

@@ -1,4 +1,5 @@
 import type { LiveUpdateCommand, LiveUpdateMessage, LiveUpdateScope, LiveUpdateWireFragment } from "./generated/contracts";
+import { isLiveUpdateMessage } from "./generated/contracts";
 import { resolveLiveFragmentInteractionConflict } from "./interaction/live-conflicts";
 import { createActiveInteractionSessionTracker } from "./interaction/session-state";
 import {
@@ -857,14 +858,15 @@ type HtmxConfigRequestEvent = Event & {
         };
 
         socket.onmessage = function (event) {
-            let message = null;
+            let parsedMessage: unknown = null;
             try {
-                message = JSON.parse(event.data);
+                parsedMessage = JSON.parse(event.data);
             } catch (_error) {
                 return;
             }
 
-            if (!message || typeof message.type !== 'string') return;
+            if (!isLiveUpdateMessage(parsedMessage)) return;
+            const message = parsedMessage;
 
             if (message.type === 'subscribed') {
                 handleSubscribedMessage(message);
