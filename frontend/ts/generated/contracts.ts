@@ -408,6 +408,7 @@ export function isLiveUpdateMessage(value: unknown): value is LiveUpdateMessage 
     }
 }
 
+// Interaction contracts generated from Haskell static interaction schemas.
 export const InteractionDom = {
     attributes: {
         surface: "data-bepis-surface",
@@ -488,8 +489,35 @@ export type InteractionConflictResolution =
     | "defer"
     | "cancel";
 
+export type InteractionSurfaceFamily =
+    | "roster";
+
+export type InteractionDisposableLayerName =
+    | "drag-preview";
+
+export type InteractionSessionKindName =
+    | "drag";
+
+export type InteractionIntentName =
+    | "set-roster-layout-mode"
+    | "move-roster-shift-to-slot";
+
+export type InteractionIntentFieldName =
+    | "rosterLayoutMode"
+    | "sourceItemKey"
+    | "targetDropzoneKey"
+    | "sessionKind"
+    | "pointerId"
+    | "pointerType"
+    | "startClientX"
+    | "startClientY"
+    | "currentClientX"
+    | "currentClientY"
+    | "deltaX"
+    | "deltaY";
+
 export type InteractionMountMetadata = {
-    surfaceFamily: string;
+    surfaceFamily: InteractionSurfaceFamily | string;
     scopeKey: string;
     mountKey: string;
     mountId: string;
@@ -497,12 +525,12 @@ export type InteractionMountMetadata = {
 
 export type ServerLayerContract = { name: string; domId: string };
 
-export type DisposableLayerContract = { kind: string; name: string; domId: string };
+export type DisposableLayerContract = { kind: InteractionDisposableLayerName | string; name: string; domId: string };
 
-export type SessionKindContract = { kind: string; description: string };
+export type SessionKindContract = { kind: InteractionSessionKindName | string; description: string };
 
 export type IntentFieldSchema = {
-    name: string;
+    name: InteractionIntentFieldName | string;
     presence: InteractionFieldPresence;
     defaultValue?: string | null;
 };
@@ -514,8 +542,8 @@ export type InteractionIntentTarget =
     | { kind: "mount_local"; target: string };
 
 export type IntentFormContract = {
-    intent: string;
-    name: string;
+    intent: InteractionIntentName | string;
+    name: InteractionIntentName | string;
     action: string;
     method: HtmxMethod;
     trigger: string;
@@ -528,7 +556,7 @@ export type IntentFormContract = {
 };
 
 export type InteractionConflictPolicy = {
-    session: string | "*";
+    session: InteractionSessionKindName | "*" | string;
     fragment: LiveFragmentKey | "*";
     resolution: InteractionConflictResolution;
     timeoutMs?: number | null;
@@ -542,6 +570,11 @@ export type InteractionCapabilityContract = {
     intentForms: IntentFormContract[];
     conflictPolicies: InteractionConflictPolicy[];
 };
+
+export const InteractionStaticSchemas = {"roster":{"conflictPolicies":[{"fragment":"*","resolution":"defer","session":"drag","timeoutMs":5000}],"disposableLayers":[{"domIdSuffix":"drag-preview","name":"drag-preview"}],"intents":[{"fields":[{"defaultValue":null,"name":"rosterLayoutMode","presence":"required"}],"name":"set-roster-layout-mode"},{"fields":[{"defaultValue":null,"name":"sourceItemKey","presence":"required"},{"defaultValue":null,"name":"targetDropzoneKey","presence":"required"},{"defaultValue":null,"name":"sessionKind","presence":"optional"},{"defaultValue":null,"name":"pointerId","presence":"optional"},{"defaultValue":null,"name":"pointerType","presence":"optional"},{"defaultValue":null,"name":"startClientX","presence":"optional"},{"defaultValue":null,"name":"startClientY","presence":"optional"},{"defaultValue":null,"name":"currentClientX","presence":"optional"},{"defaultValue":null,"name":"currentClientY","presence":"optional"},{"defaultValue":null,"name":"deltaX","presence":"optional"},{"defaultValue":null,"name":"deltaY","presence":"optional"}],"name":"move-roster-shift-to-slot"}],"serverLayers":[],"sessionKinds":[{"description":"Roster drag/drop prototype","kind":"drag"}]}} as const;
+
+export type InteractionStaticSchemaRegistry = typeof InteractionStaticSchemas;
+
 
 // Spike proof-of-viability for aeson-typescript-generated browser wire contracts.
 // Keep this narrow until the live-update/interaction protocol migrates in later tickets.

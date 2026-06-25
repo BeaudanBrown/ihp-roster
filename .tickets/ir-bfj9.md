@@ -1,6 +1,6 @@
 ---
 id: ir-bfj9
-status: open
+status: closed
 deps: [ir-99gy]
 links: []
 created: 2026-06-25T11:57:30Z
@@ -22,3 +22,9 @@ Use the static interaction schema and generator foundation to emit TypeScript li
 
 Adding a Haskell static interaction intent changes generated TypeScript after frontend-contracts; roster move-shift intent name and fields are generated, not handwritten; generic interaction runtime imports generated types/constants; frontend interaction tests and frontend-contracts-check pass.
 
+
+## Notes
+
+**2026-06-25T13:23:07Z**
+
+Generated interaction frontend contracts from Haskell static schemas. Added Application.Helper.Frontend.InteractionSchema as HaskellSchemaGenerated source for InteractionDom, interaction unions, generic interaction contract DTOs, and InteractionStaticSchemas. Roster static schema now emits move-roster-shift-to-slot and set-roster-layout-mode intent names and fields into generated contracts.ts. Replaced Contracts.hs use of LegacyManualContracts with generated interactionSchemaDeclaration and reduced LegacyManualContracts to an empty compatibility sentinel. Updated TS and Hspec guard tests to assert generated interaction contract origin and roster static schema output. Verified frontend-check, frontend-contracts-check, typecheck, focused FrontendContracts/Interaction Hspec, and LSP diagnostics.

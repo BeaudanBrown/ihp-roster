@@ -1,4 +1,4 @@
-import { InteractionDom, type InteractionCapabilityContract, type IntentFormContract } from "../generated/contracts";
+import { InteractionDom, InteractionStaticSchemas, type InteractionCapabilityContract, type IntentFormContract } from "../generated/contracts";
 import { assertDeepEqual, assertEqual, test } from "./harness";
 
 test("generated interaction contracts describe mount-local intent forms", () => {
@@ -38,4 +38,27 @@ test("generated interaction contracts describe mount-local intent forms", () => 
     assertEqual(InteractionDom.pointerFields.sourceItemKey, "sourceItemKey");
     assertEqual(InteractionDom.pointerFields.targetDropzoneKey, "targetDropzoneKey");
     assertDeepEqual(capability.intentForms[0]?.fields, [{ name: "cellId", presence: "required" }]);
+});
+
+test("generated interaction static schemas expose roster intents and fields", () => {
+    assertEqual(InteractionStaticSchemas.roster.sessionKinds[0]?.kind, "drag");
+    assertEqual(InteractionStaticSchemas.roster.disposableLayers[0]?.name, "drag-preview");
+    assertEqual(InteractionStaticSchemas.roster.intents[0]?.name, "set-roster-layout-mode");
+    assertEqual(InteractionStaticSchemas.roster.intents[1]?.name, "move-roster-shift-to-slot");
+    assertDeepEqual(
+        InteractionStaticSchemas.roster.intents[1]?.fields.map((field) => field.name),
+        [
+            "sourceItemKey",
+            "targetDropzoneKey",
+            "sessionKind",
+            "pointerId",
+            "pointerType",
+            "startClientX",
+            "startClientY",
+            "currentClientX",
+            "currentClientY",
+            "deltaX",
+            "deltaY",
+        ],
+    );
 });

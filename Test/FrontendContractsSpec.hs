@@ -25,6 +25,7 @@ tests = describe "Frontend contract generator foundation" do
         let declarationOrigins = [(declaration.name, declaration.origin) | declaration <- frontendContractDeclarations]
         declarationOrigins `shouldContain` [("AesonTypeScriptSpike", HaskellSchemaGenerated)]
         declarationOrigins `shouldContain` [("LiveUpdateContracts", HaskellSchemaGenerated)]
+        declarationOrigins `shouldContain` [("InteractionContracts", HaskellSchemaGenerated)]
 
     it "keeps the composition root free of large handwritten protocol blocks" do
         source <- Text.readFile "Application/Helper/Frontend/Contracts.hs"
@@ -45,8 +46,10 @@ tests = describe "Frontend contract generator foundation" do
                     else Nothing
         offenders `shouldBe` []
 
-    it "does not leave the migrated live-update protocol in the legacy manual block" do
+    it "does not leave migrated protocols in the legacy manual block" do
         source <- Text.readFile "Application/Helper/Frontend/LegacyManualContracts.hs"
         source `shouldNotSatisfy` Text.isInfixOf "export type LiveUpdateScope"
         source `shouldNotSatisfy` Text.isInfixOf "export type LiveUpdateMessage"
         source `shouldNotSatisfy` Text.isInfixOf "export type LiveUpdateCommand"
+        source `shouldNotSatisfy` Text.isInfixOf "export const InteractionDom"
+        source `shouldNotSatisfy` Text.isInfixOf "IntentFormContract"

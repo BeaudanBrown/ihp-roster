@@ -6,7 +6,7 @@ module Application.Helper.Frontend.Contracts
 where
 
 import Application.Helper.Frontend.AesonTypeScriptSpike (aesonTypeScriptSpikeDeclaration)
-import Application.Helper.Frontend.LegacyManualContracts (interactionContracts)
+import Application.Helper.Frontend.InteractionSchema (interactionSchemaDeclaration)
 import Application.Helper.Frontend.LiveUpdateSchema (liveUpdateSchemaDeclaration)
 import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..),
                                                renderTypeScriptDeclarations,
@@ -36,11 +36,8 @@ overlayLaneValues =
 frontendContractDeclarations :: [TypeScriptDeclaration]
 frontendContractDeclarations =
     [ stringUnionDeclaration overlayLaneTypeName (fmap snd overlayLaneValues)
-    -- Legacy manual compatibility blocks are isolated in
-    -- Application.Helper.Frontend.LegacyManualContracts until ir-k3q0/ir-bfj9
-    -- migrate live-update and interaction contracts onto generated schemas.
     , liveUpdateSchemaDeclaration
-    , interactionContracts
+    , interactionSchemaDeclaration
     , aesonTypeScriptSpikeDeclaration
     ]
 
