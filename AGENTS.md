@@ -143,11 +143,15 @@ the linked repo-local `ir-*` ticket for implementation details.
 - Do not use production CSS `@import` for app-owned files, because imports
   bypass IHP's `assetPath` cache busting.
 - App JavaScript source lives under `frontend/ts/`; generated checked-in output
-  is split by concern under `static/app-*.js` and must not be hand-edited.
+  is split by concern under `static/app*.js` and must not be hand-edited.
 - Haskell-owned frontend contracts generate TypeScript under
   `frontend/ts/generated/`; use them for backend-emitted JSON/data boundaries.
+  For typed interaction-surface work, Haskell must also own canonical surface,
+  disposable-layer, intent, intent-field, and conflict-policy contracts consumed
+  by TypeScript.
 - Static and frontend runtime rules live in `static/AGENTS.md` and
-  `frontend/AGENTS.md`.
+  `frontend/AGENTS.md`; read `docs/workstreams/typed-interaction-surfaces.md`
+  before adding interaction runtime or `data-bepis-*` markup.
 
 ## Roster Week Navigation
 

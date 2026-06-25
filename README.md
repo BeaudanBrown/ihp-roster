@@ -67,17 +67,22 @@ Do not hand-edit generated app JS.
 - IHP-provided Flatpickr and Morphdom assets
 - App CSS files: split under `static/css/` and linked directly from
   `Web/View/Layout.hs` with `assetPath`
-- Compatibility CSS: `static/app.css` is linked last but should stay minimal;
-  do not use it as an `@import` manifest for app-owned CSS
+- Do not recreate a catch-all `static/app.css` unless a compatibility ticket
+  explicitly requires it; app-owned CSS should stay split under `static/css/`
 - App JS entrypoints: generated `static/app-bootstrap.js`,
   `static/app-date-pickers.js`, `static/app-dialog-overlays.js`,
-  `static/app-live-updates.js`, `static/app-passkeys.js`,
-  `static/app-preferences.js`, `static/app-roster.js`,
+  `static/app-horizontal-scroll.js`, `static/app-live-updates.js`,
+  `static/app-passkeys.js`, `static/app-preferences.js`,
+  `static/app-roster.js`, `static/app-scrollbars.js`,
   `static/app-time-picker.js`, `static/app-timesheets.js`,
-  `static/app-toasts.js`, and `static/app.js`
+  `static/app-toasts.js`, `static/app-toggle-buttons.js`,
+  `static/app-xero.js`, and `static/app.js`
 - Frontend contracts: Haskell-owned DTOs/enums generate TypeScript under
   `frontend/ts/generated/`; use them for backend-emitted JSON/data boundaries
-  instead of duplicating broad backend or database models in browser code
+  instead of duplicating broad backend or database models in browser code.
+  Planned typed interaction-surface work should also derive surface, disposable
+  layer, intent, intent-field, and conflict-policy browser contracts from
+  Haskell instead of hand-defining canonical strings in TypeScript.
 
 Feature CSS is split under `static/css/`; update the narrowest matching file
 and keep linked stylesheet paths mirrored in `Web/View/Layout.hs` and

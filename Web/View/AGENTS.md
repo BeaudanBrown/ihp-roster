@@ -87,6 +87,13 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
   - export job/recent exports/report definitions can become a live surface when job progress or cross-admin report-definition edits matter while the page is open
   - support venue switching, venue creation, owner invitations, passkeys, and auth/session flows should stay full-page or explicit HTMX workflows unless there is a concrete collaborative stale-DOM requirement
 
+## Typed Interaction Surface Pattern
+- Typed interaction work is planned under `docs/workstreams/typed-interaction-surfaces.md` and `ir-jsyd`. Read that workstream before adding `data-bepis-*` markup or frontend interaction behavior.
+- Interaction-capable views should render surface mounts, server layers, disposable layers, activation markers, item/slot/handle attrs, and HTMX intent forms through Haskell helpers generated from typed contracts. Do not handwrite raw interaction attrs/forms in feature views once those helpers exist.
+- Keep concrete surface mounts portable: derive ids, HTMX targets, and form ids from the typed surface scope plus mount key so the same surface can move across pages or appear more than once.
+- Disposable UI belongs in declared disposable layers and is not authoritative. Views should keep server-owned business DOM separate from disposable layers so live fragments can update behind non-conflicting active sessions.
+- Mutating interaction intents submit through Haskell-rendered HTMX forms. TypeScript fills generated hidden fields and dispatches generated triggers; views/controllers keep routes, methods, targets, swaps, and validation server-owned.
+
 ## Reusable Time Picker Pattern
 - Use a shared picker overlay + JS behavior for quarter-hour time selection instead of native `<input type="time">` in dense grids.
 - Markup contract:

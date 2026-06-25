@@ -30,7 +30,7 @@ require_text Web/View/Layout.hs 'renderDesktopNavLink "unavailability"'
 require_text Web/View/Layout.hs 'renderWhenAudience XeroAudience (renderDesktopNavLink "xero"'
 
 require_text AGENTS.md 'frontend/ts/'
-require_text AGENTS.md 'static/app-*.js'
+require_text AGENTS.md 'static/app*.js'
 require_text AGENTS.md 'frontend/ts/generated/'
 require_text AGENTS.md 'static/AGENTS.md'
 require_text AGENTS.md 'frontend/AGENTS.md'
@@ -42,14 +42,18 @@ require_text static/AGENTS.md 'Do not edit generated'
 for script in \
     app-bootstrap.js \
     app-date-pickers.js \
+    app-dialog-overlays.js \
+    app-horizontal-scroll.js \
     app-passkeys.js \
     app-live-updates.js \
-    app-dialog-overlays.js \
-    app-toasts.js \
-    app-time-picker.js \
-    app-roster.js \
-    app-timesheets.js \
     app-preferences.js \
+    app-roster.js \
+    app-scrollbars.js \
+    app-time-picker.js \
+    app-timesheets.js \
+    app-toasts.js \
+    app-toggle-buttons.js \
+    app-xero.js \
     app.js
 do
     require_text Web/View/Layout.hs "assetPath \"/$script\""
