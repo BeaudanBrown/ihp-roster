@@ -18,6 +18,18 @@
 - `Web/RosterWeeks/Service.hs` - roster workflow/domain service helpers.
 - `Web/View/RosterWeeks/` - HSX rendering.
 
+## Row-Grid Rendering Contract
+
+Editable row-grid shifts are rendered as one interactive shift launcher per
+shift. The visual Start/End/Staff/Role cells remain separate child elements and
+align via CSS `subgrid`; modal launcher `hx-*`/`data-*` attributes belong on the
+shift wrapper, not on each visual cell. Editable create slots follow the same
+single-wrapper shape, keep unmerged empty visual cells by default, and show a
+centered merged `+` affordance only on hover/focus/highlight.
+
+Read-only row-grid shifts intentionally use separate non-launcher cells and must
+not emit edit/create launcher attributes.
+
 ## Related Docs
 
 - `SPEC.md` - implemented roster behavior.

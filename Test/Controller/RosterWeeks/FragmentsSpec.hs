@@ -11,6 +11,7 @@ import Config
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import Data.Time.Calendar (addDays)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
@@ -32,6 +33,16 @@ import Web.RosterWeeks.Dom (rosterDayColumnsFragmentId, rosterDaySectionDomId,
                             rosterStaffPanelFragmentId)
 import Web.Routes
 import Web.Types
+
+countText :: Text -> Text -> Int
+countText needle haystack
+    | Text.null needle = 0
+    | otherwise = go haystack 0
+    where
+        go remaining count =
+            case Text.breakOn needle remaining of
+                (_, "") -> count
+                (_, afterMatch) -> go (Text.drop (Text.length needle) afterMatch) (count + 1)
 
 tests :: Spec
 tests = beforeAll testContext do
@@ -262,7 +273,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` ">Ended</option>"
                 response `responseBodyShouldContain` ">Future</option>"
 
-        it "renders unique roster shift launchers in a multi-slot row fragment" $ withContext do
+        it "renders one launcher wrapper per editable existing and create row-grid shift" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-field-keys@example.com" "staff" True
@@ -283,13 +294,20 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 body <- responseBody response
                 let bodyText = cs body :: String
-                bodyText `shouldContain` ("data-roster-shift-group-key=\"existing:" <> cs (tshow firstSlot.id) <> "\"")
+                let bodyTextValue = cs body :: Text
+                let existingGroupKey = "existing:" <> tshow firstSlot.id
+                let createGroupKey = "new:" <> tshow rosterDay.id <> ":" <> tshow lateDefinition.id <> ":0"
+                bodyText `shouldContain` ("class=\"roster-shift-unit roster-shift-launcher\"")
+                bodyText `shouldContain` ("class=\"roster-shift-unit roster-shift-launcher roster-shift-create-unit\"")
+                bodyText `shouldContain` ("data-roster-shift-group-key=\"" <> cs existingGroupKey <> "\"")
                 bodyText `shouldContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow firstSlot.id) <> "\"")
-                bodyText `shouldContain` ("data-roster-shift-group-key=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow lateDefinition.id) <> ":0\"")
+                bodyText `shouldContain` ("data-roster-shift-group-key=\"" <> cs createGroupKey <> "\"")
                 bodyText `shouldContain` ("hx-get=\"/NewRosterSlotDialog?rosterDayId=" <> cs (tshow rosterDay.id) <> "&amp;rosterWeekSlotDefinitionId=" <> cs (tshow lateDefinition.id) <> "&amp;rowIndex=0\"")
+                countText ("data-roster-shift-group-key=\"" <> existingGroupKey <> "\"") bodyTextValue `shouldBe` 1
+                countText ("data-roster-shift-group-key=\"" <> createGroupKey <> "\"") bodyTextValue `shouldBe` 1
                 bodyText `shouldNotContain` "data-roster-field-key="
 
-        it "renders draft empty day-row shifts with a hover-only staff-cell create marker" $ withContext do
+        it "renders draft empty day-row shifts as unmerged visual cells with a hover-only merged create marker" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-empty-create@example.com" "staff" True
@@ -305,7 +323,9 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 body <- responseBody response
                 let bodyText = cs body :: String
-                bodyText `shouldContain` "roster-shift-create-plus-cell"
+                bodyText `shouldContain` "roster-shift-unit roster-shift-launcher roster-shift-create-unit"
+                bodyText `shouldContain` "roster-shift-unit-cell slot-empty-cell"
+                bodyText `shouldContain` "roster-shift-create-plus-overlay"
                 bodyText `shouldContain` ("data-roster-shift-group-key=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
                 bodyText `shouldContain` ">+</div>"
                 bodyText `shouldNotContain` ">Add</div>"
@@ -348,6 +368,31 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "roster-shift-create-plus-cell"
                 response `responseBodyShouldNotContain` ">+</div>"
                 response `responseBodyShouldNotContain` ">Add</div>"
+
+        it "renders read-only existing row-grid shifts without launcher attrs" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-live-existing-readonly@example.com" "staff" True
+                staffUser <- createUserRecord "roster-staff-live-existing-readonly@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue staffUser "worker"
+                early <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue (Just staffUser) "Alpha" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slot <- createRosterSlotRecord rosterDay early (Just staffMember) 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekRowFragmentAction 0 rosterDay.id 0)
+
+                response `responseStatusShouldBe` status200
+                body <- responseBody response
+                let bodyText = cs body :: String
+                bodyText `shouldContain` "slot-staff-cell position-relative"
+                bodyText `shouldContain` "Alpha"
+                bodyText `shouldNotContain` ("data-roster-shift-group-key=\"existing:" <> cs (tshow slot.id) <> "\"")
+                bodyText `shouldNotContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow slot.id) <> "\"")
+                bodyText `shouldNotContain` "data-roster-shift-launcher=\"true\""
 
         it "keeps create markers, row controls, and conflict staff-cell depth styling in CSS" $ withContext do
             cssBytes <- ByteString.readFile "static/css/features/roster/grid-cells.css"

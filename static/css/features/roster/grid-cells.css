@@ -37,6 +37,29 @@
     padding-bottom: 0 !important;
 }
 
+/* Editable row-grid shifts use one interactive wrapper per shift. Subgrid keeps
+   the visual cells aligned with the parent row tracks while avoiding per-cell
+   HTMX/data launcher attrs. */
+.roster-grid .day-row > .roster-shift-unit {
+    display: grid;
+    grid-column: span var(--roster-grid-column-span, 1);
+    grid-template-columns: subgrid;
+    padding: 0 !important;
+    border: 0;
+}
+
+.roster-grid .roster-shift-unit-cell {
+    height: var(--roster-grid-row-height);
+    min-height: var(--roster-grid-row-height);
+    min-width: 0;
+    border-top: 1px solid var(--app-border);
+    border-bottom: 0;
+    border-left: 0;
+    border-right: 1px solid var(--app-border);
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+
 .roster-grid .roster-block-start {
     border-left: 2px solid var(--app-border-strong) !important;
 }
@@ -53,7 +76,8 @@
     grid-column: span var(--roster-grid-column-span, 1);
 }
 
-.roster-grid .roster-shift-create-plus-cell .slot-cell-static {
+.roster-grid .roster-shift-create-plus-cell .slot-cell-static,
+.roster-grid .roster-shift-create-plus-overlay {
     color: var(--bs-success);
     font-size: 1.15rem;
     font-weight: 800;
@@ -61,6 +85,18 @@
     opacity: 0;
     text-align: center;
     transition: opacity 140ms ease;
+}
+
+/* Create shift units remain visually unmerged by default; the overlay gives the
+   requested merged, centered plus affordance only on hover/focus/highlight. */
+.roster-grid .roster-shift-create-plus-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
 }
 
 .roster-shift-dialog-time-picker .time-picker-trigger-button .js-time-picker-label {
@@ -84,7 +120,10 @@
 
 .roster-grid .roster-shift-create-plus-cell:hover .slot-cell-static,
 .roster-grid .roster-shift-create-plus-cell:focus-visible .slot-cell-static,
-.roster-grid .roster-shift-create-plus-cell.is-roster-shift-group-highlighted .slot-cell-static {
+.roster-grid .roster-shift-create-plus-cell.is-roster-shift-group-highlighted .slot-cell-static,
+.roster-grid .roster-shift-create-unit:hover .roster-shift-create-plus-overlay,
+.roster-grid .roster-shift-create-unit:focus-visible .roster-shift-create-plus-overlay,
+.roster-grid .roster-shift-create-unit.is-roster-shift-group-highlighted .roster-shift-create-plus-overlay {
     opacity: 1;
 }
 
