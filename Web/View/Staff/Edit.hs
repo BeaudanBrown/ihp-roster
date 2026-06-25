@@ -1,6 +1,7 @@
 module Web.View.Staff.Edit where
 
-import Application.Helper.Controller (VenueRole (VenueOwnerRole), currentUserIsSuperAdmin, hasRole)
+import Application.Helper.Controller (VenueRole (VenueOwnerRole),
+                                      currentUserIsSuperAdmin, hasRole)
 import Application.Helper.StaffShiftPreferences
 import Web.View.LeaveRequests.New (renderLeaveRequestFormFields)
 import Web.View.Prelude
@@ -28,24 +29,24 @@ instance View NewView where
             (renderNewStaffBody PageOverlayForm staff rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds weekOffset maybeRosterGroupId)
 
 data EditView = EditView
-    { staff                    :: Staff
-    , maybeLinkedUserEmail     :: Maybe Text
+    { staff                       :: Staff
+    , maybeLinkedUserEmail        :: Maybe Text
     , pendingTrialStaffInvitation :: Maybe VenueInvitation
-    , rosterGroups             :: [RosterGroup]
-    , awardLevels              :: [AwardLevel]
-    , awardLevelBaseRates      :: [AwardLevelBaseRate]
-    , importedPayItems         :: [XeroImportedPayItem]
-    , selectedRosterGroupIds   :: [Id RosterGroup]
-    , maybeVenueMembership     :: Maybe VenueMembership
-    , preferenceWeekdays       :: [PreferenceWeekday]
-    , selectedShiftPreferences :: [ShiftPreferenceSelection]
-    , staffRsaDocument         :: Maybe StaffDocument
-    , leaveRequest             :: LeaveRequest
-    , leaveRequests            :: [LeaveRequest]
-    , today                    :: Day
-    , weekOffset               :: Int
-    , maybeRosterGroupId       :: Maybe (Id RosterGroup)
-    , openSection              :: Text
+    , rosterGroups                :: [RosterGroup]
+    , awardLevels                 :: [AwardLevel]
+    , awardLevelBaseRates         :: [AwardLevelBaseRate]
+    , importedPayItems            :: [XeroImportedPayItem]
+    , selectedRosterGroupIds      :: [Id RosterGroup]
+    , maybeVenueMembership        :: Maybe VenueMembership
+    , preferenceWeekdays          :: [PreferenceWeekday]
+    , selectedShiftPreferences    :: [ShiftPreferenceSelection]
+    , staffRsaDocument            :: Maybe StaffDocument
+    , leaveRequest                :: LeaveRequest
+    , leaveRequests               :: [LeaveRequest]
+    , today                       :: Day
+    , weekOffset                  :: Int
+    , maybeRosterGroupId          :: Maybe (Id RosterGroup)
+    , openSection                 :: Text
     }
 
 instance View EditView where

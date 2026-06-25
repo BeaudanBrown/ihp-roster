@@ -174,7 +174,7 @@ labelledDate labels lines =
 
 secondDate :: [Day] -> Maybe Day
 secondDate (_first:second:_) = Just second
-secondDate _ = Nothing
+secondDate _                 = Nothing
 
 findDocumentNumber :: [Text] -> Maybe Text
 findDocumentNumber lines =

@@ -149,23 +149,23 @@ data XeroTimesheetPreviewLineView = XeroTimesheetPreviewLineView
     deriving (Eq, Show)
 
 data XeroTimesheetPreviewRowView = XeroTimesheetPreviewRowView
-    { previewRowXeroEmployeeId :: Text
-    , previewRowEmployeeName   :: Text
-    , previewRowOperation      :: Text
+    { previewRowXeroEmployeeId  :: Text
+    , previewRowEmployeeName    :: Text
+    , previewRowOperation       :: Text
     , previewRowXeroTimesheetId :: Maybe Text
-    , previewRowPeriodStart    :: Day
-    , previewRowPeriodEnd      :: Day
-    , previewRowTotalUnits     :: Scientific
-    , previewRowLines          :: [XeroTimesheetPreviewLineView]
-    , previewRowSourceCount    :: Int
+    , previewRowPeriodStart     :: Day
+    , previewRowPeriodEnd       :: Day
+    , previewRowTotalUnits      :: Scientific
+    , previewRowLines           :: [XeroTimesheetPreviewLineView]
+    , previewRowSourceCount     :: Int
     }
     deriving (Eq, Show)
 
 data XeroPreparationReviewRow = XeroPreparationReviewRow
-    { reviewRowStaff        :: Staff
-    , reviewRowEntryCount   :: Int
-    , reviewRowTotalUnits   :: Scientific
-    , reviewRowTotalAmount  :: Scientific
+    { reviewRowStaff       :: Staff
+    , reviewRowEntryCount  :: Int
+    , reviewRowTotalUnits  :: Scientific
+    , reviewRowTotalAmount :: Scientific
     }
     deriving (Eq, Show)
 
@@ -233,16 +233,16 @@ data XeroTimesheetPreparationState
 xeroPreparationStateFromStatus :: Text -> XeroTimesheetPreparationState
 xeroPreparationStateFromStatus status =
     case status of
-        "needs_reconnect" -> XeroPreparationNeedsReconnect
-        "needs_approval" -> XeroPreparationNeedsDecision
-        "resolved" -> XeroPreparationNeedsDecision
-        "blocked" -> XeroPreparationBlocked
+        "needs_reconnect"   -> XeroPreparationNeedsReconnect
+        "needs_approval"    -> XeroPreparationNeedsDecision
+        "resolved"          -> XeroPreparationNeedsDecision
+        "blocked"           -> XeroPreparationBlocked
         "ready_for_preview" -> XeroPreparationReadyForPreview
-        "previewed" -> XeroPreparationPreviewed
-        "submitted" -> XeroPreparationSubmitted
-        "failed" -> XeroPreparationFailed
-        "cancelled" -> XeroPreparationFailed
-        _ -> XeroPreparationPreparing
+        "previewed"         -> XeroPreparationPreviewed
+        "submitted"         -> XeroPreparationSubmitted
+        "failed"            -> XeroPreparationFailed
+        "cancelled"         -> XeroPreparationFailed
+        _                   -> XeroPreparationPreparing
 
 data XeroTimesheetPreparationView = XeroTimesheetPreparationView
     { preparationRun                         :: XeroTimesheetPreparationRun

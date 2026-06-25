@@ -23,9 +23,9 @@ import Test.Hspec
 import Test.Support
 import Web.Controller.Users ()
 import Web.FrontController ()
-import Web.Users.Mutations (acceptedVenueInvitationTouchedResources)
 import Web.Routes
 import Web.Types
+import Web.Users.Mutations (acceptedVenueInvitationTouchedResources)
 
 signupStaffParams :: [(ByteString, ByteString)]
 signupStaffParams =

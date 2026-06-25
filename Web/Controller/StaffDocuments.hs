@@ -9,12 +9,12 @@ import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
-import System.Directory (removeFile)
-import System.IO (hClose, openTempFile)
-import Text.Read (readMaybe)
 import Network.HTTP.Types.Header (hContentDisposition, hContentType)
 import Network.HTTP.Types.Status (status200)
 import Network.Wai (responseLBS)
+import System.Directory (removeFile)
+import System.IO (hClose, openTempFile)
+import Text.Read (readMaybe)
 import Web.Controller.Prelude
 import Web.StaffDocuments.Mutations (reviewStaffDocument, uploadRsaDocument)
 import Web.View.StaffDocuments.Rsa (RsaReturnContext (..))

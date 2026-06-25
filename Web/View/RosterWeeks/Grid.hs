@@ -45,8 +45,8 @@ import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Types
 import Web.View.Prelude
 import Web.View.RosterWeeks.Header (renderRosterGridHeader)
-import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServicePanelFragment)
 import Web.View.RosterWeeks.StaffPanel (renderRosterStaffPanelFragment)
+import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServicePanelFragment)
 
 data RosterSlotCellTarget
     = ExistingRosterSlotTarget (Id RosterSlot)
@@ -978,7 +978,7 @@ renderDayColumnSlotCardContent isEditable _assignmentFilters _staffMembers shift
         currentShiftType = findShiftTypeForSlot shiftTypes shiftTypeId
         rosterSlotDataId = case target of
             ExistingRosterSlotTarget slotId -> tshow slotId
-            NewRosterSlotTarget {} -> ""
+            NewRosterSlotTarget {}          -> ""
         currentShiftTypeColourKey = shiftTypeBadgeColourKey currentShiftType
         missingStartTime = publishAttempted && isJust staffId && isNothing startTime
         missingEndTime = publishAttempted && isJust staffId && isNothing endTime

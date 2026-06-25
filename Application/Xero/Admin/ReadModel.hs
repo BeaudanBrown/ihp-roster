@@ -727,13 +727,13 @@ previewRowsFromJson employees earningsRates value =
         earningsRateNames = Map.fromList (map (\rate -> (rate.xeroEarningsRateId, rate.name)) earningsRates)
 
 data RawPreviewRow = RawPreviewRow
-    { rawPreviewEmployeeId        :: Text
-    , rawPreviewOperation         :: Text
-    , rawPreviewXeroTimesheetId   :: Maybe Text
-    , rawPreviewStart             :: Day
-    , rawPreviewEnd               :: Day
-    , rawPreviewSourceIds         :: [UUID]
-    , rawPreviewLines             :: [RawPreviewLine]
+    { rawPreviewEmployeeId      :: Text
+    , rawPreviewOperation       :: Text
+    , rawPreviewXeroTimesheetId :: Maybe Text
+    , rawPreviewStart           :: Day
+    , rawPreviewEnd             :: Day
+    , rawPreviewSourceIds       :: [UUID]
+    , rawPreviewLines           :: [RawPreviewLine]
     }
 
 data RawPreviewLine = RawPreviewLine

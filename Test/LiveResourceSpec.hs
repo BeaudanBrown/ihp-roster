@@ -1,9 +1,9 @@
 module Test.LiveResourceSpec where
 
 import Application.Helper.LiveResource
-import IHP.Prelude
 import qualified Data.Set as Set
 import Data.UUID (nil)
+import IHP.Prelude
 import System.Environment (unsetEnv)
 import Test.Hspec
 

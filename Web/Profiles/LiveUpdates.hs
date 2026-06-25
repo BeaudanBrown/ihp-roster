@@ -76,10 +76,10 @@ profileContentLiveSurfaceDefinition =
 profileContentFragment :: Text -> ProfileContentFragment
 profileContentFragment section =
     case section of
-        "rsa" -> ProfileRsaContentFragment
-        "leave" -> ProfileLeaveContentFragment
+        "rsa"      -> ProfileRsaContentFragment
+        "leave"    -> ProfileLeaveContentFragment
         "security" -> ProfileSecurityContentFragment
-        _ -> ProfileDetailsContentFragment
+        _          -> ProfileDetailsContentFragment
 
 profileContentFragmentSectionParam :: ProfileContentFragment -> Text
 profileContentFragmentSectionParam ProfileDetailsContentFragment =
@@ -161,5 +161,5 @@ currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =
     case currentVenueOrNothing of
         Just venue -> unpackId venue.id
-        Nothing -> error "Profile live surface requires a current venue"
+        Nothing    -> error "Profile live surface requires a current venue"
 

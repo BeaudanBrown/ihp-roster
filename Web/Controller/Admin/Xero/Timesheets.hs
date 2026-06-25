@@ -17,11 +17,14 @@ module Web.Controller.Admin.Xero.Timesheets
     ) where
 
 import Application.Helper.LiveResource (LiveMutationResult (..))
-import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter), renderToastOverlayHostOob)
+import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter),
+                                renderToastOverlayHostOob)
+import Application.Helper.XeroAdminTypes (XeroTimesheetPreparationState (XeroPreparationSubmitted),
+                                          XeroTimesheetPreparationView (..))
 import Application.Helper.XeroTimesheetReadiness
-import Application.Helper.XeroAdminTypes (XeroTimesheetPreparationState (XeroPreparationSubmitted), XeroTimesheetPreparationView (..))
 import Application.Xero.Admin.ReadModel
-import Application.Xero.Timesheets.Prepare (XeroPreparationStaffDecision (..), loadXeroTimesheetPreparationView)
+import Application.Xero.Timesheets.Prepare (XeroPreparationStaffDecision (..),
+                                            loadXeroTimesheetPreparationView)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import Web.Admin.Xero.Mutations (applyXeroTimesheetPreparationStaffDecisionMutation,
@@ -112,7 +115,7 @@ approveXeroTimesheetPreparationPayItemsAction runId = do
     result <- liveMutationValue <$> approveXeroTimesheetPreparationPayItemsMutation runId maybeAccountCode
     case result of
         Left message -> respondWithPreparationDialog (Left message)
-        Right _ -> showXeroTimesheetPreparationSummaryAction runId
+        Right _      -> showXeroTimesheetPreparationSummaryAction runId
 
 showXeroTimesheetPreparationSummaryAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

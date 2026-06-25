@@ -37,13 +37,13 @@ import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       currentLiveUpdateVersion)
 import Application.Helper.Profiling
 import Application.Helper.SurfaceProjection
+import Application.Helper.VenueScopedQueries (fetchLinkedActiveVenueStaff)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays, diffDays)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
-import Application.Helper.VenueScopedQueries (fetchLinkedActiveVenueStaff)
 import Web.Timesheets.Paths (timesheetDayColumnsFragmentUrl,
                              timesheetDaySectionFragmentUrl,
                              timesheetToolbarFragmentUrl)
@@ -270,13 +270,13 @@ renderTimesheetProjectionFragmentFromProjection renderMode projection fragment =
             Just (dayRenderer (timesheetDayRenderModelFromProjection projection dayOffset))
     where
         toolbarRenderer = case renderMode of
-            FragmentPlain -> renderTimesheetWeekToolbar
+            FragmentPlain        -> renderTimesheetWeekToolbar
             FragmentOob swapAttr -> renderTimesheetWeekToolbarWithSwap swapAttr
         columnsRenderer = case renderMode of
-            FragmentPlain -> renderTimesheetDayColumns
+            FragmentPlain        -> renderTimesheetDayColumns
             FragmentOob swapAttr -> renderTimesheetDayColumnsWithSwap swapAttr
         dayRenderer = case renderMode of
-            FragmentPlain -> renderDaySection
+            FragmentPlain        -> renderDaySection
             FragmentOob swapAttr -> renderDaySectionWithSwap swapAttr
 
 timesheetDayRenderModelFromProjection :: TimesheetWeekProjection -> Int -> TimesheetDayRenderModel

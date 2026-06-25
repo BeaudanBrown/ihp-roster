@@ -33,13 +33,13 @@ import Test.Hspec
 import Test.Support
 import Web.Controller.Admin ()
 import Web.Controller.LeaveRequests ()
-import Web.LiveSurfaceRegistry (authorizeRegisteredLiveSurfaceScope)
 import Web.Controller.RosterWeeks ()
 import Web.Controller.Sessions ()
 import Web.Controller.Staff ()
 import Web.Controller.Support ()
 import Web.Controller.Timesheets ()
 import Web.FrontController ()
+import Web.LiveSurfaceRegistry (authorizeRegisteredLiveSurfaceScope)
 import Web.Types
 
 tests :: Spec

@@ -17,8 +17,8 @@ import Data.Time.Clock.POSIX (getPOSIXTime)
 import qualified Data.Vault.Lazy as Vault
 import Generated.Types
 import IHP.Controller.Session (sessionVaultKey)
-import IHP.ControllerSupport (runActionWithNewContext)
 import IHP.ControllerPrelude
+import IHP.ControllerSupport (runActionWithNewContext)
 import IHP.Server (initMiddlewareStack)
 import IHP.Test.Mocking
 import Network.HTTP.Types.Header (hContentType)

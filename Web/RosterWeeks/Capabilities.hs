@@ -3,8 +3,7 @@ module Web.RosterWeeks.Capabilities
     ) where
 
 import Application.Helper.View (ViewAudience (ManagerAudience),
-                                currentUserIsAdmin,
-                                currentUserMatchesAudience)
+                                currentUserIsAdmin, currentUserMatchesAudience)
 import Generated.Types
 import IHP.Controller.Context (ControllerContext)
 import IHP.Prelude

@@ -9,7 +9,9 @@ module Application.Xero.Admin.PayItems
 
 import Application.Helper.ControllerContext
 import Application.Helper.Xero
-import Application.Helper.XeroAdminTypes (XeroPayItemAccountCodeOption (..), XeroPayItemRequirement (..), xeroPayItemAccountCodeOptionValues)
+import Application.Helper.XeroAdminTypes (XeroPayItemAccountCodeOption (..),
+                                          XeroPayItemRequirement (..),
+                                          xeroPayItemAccountCodeOptionValues)
 import Application.Helper.XeroPayItems (xeroManagedPayItemNamePrefix)
 import Application.Xero.Admin.ReferenceData
 import Application.Xero.Connection (xeroClientErrorText)

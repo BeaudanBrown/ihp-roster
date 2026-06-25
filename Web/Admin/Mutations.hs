@@ -22,12 +22,12 @@ module Web.Admin.Mutations
 
 import Application.Helper.LiveResource
 import Application.Helper.Pay (ensureShiftTypePayVersionForShiftType)
-import Application.Helper.ShiftTypeColours (assignShiftTypeColourKey,
-                                            blankShiftTypeColourKey,
-                                            normalizeShiftTypeColourKey)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         ensureDefaultRosterSlots,
                                         syncVenueDefaultRosterGroupToTopActive)
+import Application.Helper.ShiftTypeColours (assignShiftTypeColourKey,
+                                            blankShiftTypeColourKey,
+                                            normalizeShiftTypeColourKey)
 import Application.Helper.VenueInvitation
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
 import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob)

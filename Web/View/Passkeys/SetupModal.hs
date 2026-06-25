@@ -66,9 +66,9 @@ renderPasskeySetupBody mode successRedirect = [hsx|
 |]
 
 passkeySetupTitle :: PasskeySetupMode -> Text
-passkeySetupTitle OptionalFirstPasskey = "Set up faster sign-in"
+passkeySetupTitle OptionalFirstPasskey     = "Set up faster sign-in"
 passkeySetupTitle OptionalAdditionalDevice = "Add this device as a passkey"
-passkeySetupTitle MandatoryFirstPasskey = "Create a passkey for admin access"
+passkeySetupTitle MandatoryFirstPasskey    = "Create a passkey for admin access"
 
 passkeySetupBodyText :: PasskeySetupMode -> Text
 passkeySetupBodyText OptionalFirstPasskey =

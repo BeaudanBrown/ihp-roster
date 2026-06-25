@@ -9,11 +9,11 @@ module Web.Timesheets.Validation
     , timesheetEntryHasPayrollProvenance
     ) where
 
+import Application.Helper.Staff (isLinkedActiveStaff)
 import Application.Helper.Url (appendQueryParams)
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
-import Application.Helper.Staff (isLinkedActiveStaff)
 import Web.Timesheets.Paths (timesheetWeekUrl)
 import Web.Timesheets.Responses (respondWithTimesheetDaySectionUpdate)
 

@@ -3,19 +3,19 @@ module Test.Controller.StaffSpec where
 import Application.Helper.LiveResource (LiveResource (..))
 import qualified Application.Helper.LiveUpdate as LiveUpdate
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
-import Application.InvitationDelivery.Job (venueInvitationDeliveryJobKind)
 import Application.Helper.StaffShiftPreferences (encodeShiftPreferenceKey,
                                                  shiftPreferenceEndHourParamName,
                                                  shiftPreferenceStartHourParamName)
+import Application.InvitationDelivery.Job (venueInvitationDeliveryJobKind)
 import Config
+import qualified Data.List as List
+import qualified Data.Set as Set
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import IHP.Prelude
 import IHP.Test.Mocking
-import qualified Data.List as List
-import qualified Data.Set as Set
 import Network.HTTP.Types.Status
 import Network.Wai
 import Test.Hspec
@@ -23,7 +23,8 @@ import Test.Support
 import Web.Controller.Staff ()
 import Web.FrontController ()
 import Web.Routes
-import Web.Staff.Mutations (staffCreateTouchedResources, staffUpdateTouchedResources)
+import Web.Staff.Mutations (staffCreateTouchedResources,
+                            staffUpdateTouchedResources)
 import Web.Types
 
 tests :: Spec
@@ -669,5 +670,5 @@ shouldContainInOrder haystack needles =
 
         findNeedle needle value =
             case List.dropWhile (not . List.isPrefixOf needle) (List.tails value) of
-                [] -> Nothing
+                []        -> Nothing
                 match : _ -> Just (drop (length needle) match)

@@ -6,9 +6,9 @@ import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..),
                                               LiveUpdateBroadcastResult (..),
                                               LiveUpdateScope (..),
                                               LiveUpdateWireFragment (..))
-import IHP.Prelude
 import qualified Data.Set as Set
 import Data.UUID (fromWords)
+import IHP.Prelude
 import Test.Hspec
 import Web.LiveResourceInvalidation
 import Web.LiveSurfaceRegistry (LiveSurfaceInvalidationTarget (..))

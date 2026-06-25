@@ -4,8 +4,8 @@ import Application.Helper.LiveSurface
 import Application.Helper.LiveSurface.Internal (mkSurfaceProjectionDefinition)
 import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (RosterContentFragment),
                                               LiveFragmentProtection (NoProtection),
-                                              LiveUpdateWireFragment (..),
-                                              LiveUpdateScope (SupportPlatformScope))
+                                              LiveUpdateScope (SupportPlatformScope),
+                                              LiveUpdateWireFragment (..))
 import Application.Helper.SurfaceProjection
 import Data.IORef
 import Data.Time.Calendar (fromGregorian)

@@ -32,8 +32,8 @@ import IHP.ControllerPrelude
 import IHP.ControllerSupport (Respond)
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
-import IHP.LoginSupport.Middleware (initAuthentication)
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
+import IHP.LoginSupport.Middleware (initAuthentication)
 import IHP.ModelSupport (sqlExecDiscardResult)
 import IHP.Prelude
 import IHP.Test.Mocking

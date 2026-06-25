@@ -9,8 +9,9 @@ import Application.Helper.Controller (PlatformRole (SuperAdminRole),
                                       passkeyVerifiedUserSessionKey,
                                       unsafeEnumFromText)
 import Application.Helper.PasskeyRecoveryCodes (hashRecoveryCode)
-import Application.Helper.PasskeySetupTokens (PasskeySetupTokenPurpose (SelfNewDevicePasskeySetup), issuePasskeySetupToken)
 import Application.Helper.Passkeys (allowedOrigins, rpIdTextFromRequest)
+import Application.Helper.PasskeySetupTokens (PasskeySetupTokenPurpose (SelfNewDevicePasskeySetup),
+                                              issuePasskeySetupToken)
 import Config
 import Crypto.WebAuthn.Model.Types (Origin (..))
 import qualified Data.Aeson as Aeson
@@ -18,7 +19,8 @@ import qualified Data.ByteString.Char8 as ByteString
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.Serialize as Serialize
 import Data.Time.Calendar (fromGregorian)
-import Data.Time.Clock (UTCTime (..), addUTCTime, getCurrentTime, secondsToDiffTime)
+import Data.Time.Clock (UTCTime (..), addUTCTime, getCurrentTime,
+                        secondsToDiffTime)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig

@@ -8,28 +8,28 @@ import qualified Data.Text as Text
 import IHP.ViewPrelude
 
 data AppToggleButtonConfig = AppToggleButtonConfig
-    { appToggleInputId                         :: !Text
-    , appToggleInputName                       :: !(Maybe Text)
-    , appToggleInputValue                      :: !Text
-    , appToggleChecked                         :: !Bool
-    , appToggleLabel                           :: !Html
-    , appToggleButtonClass                     :: !Text
-    , appToggleInputClass                      :: !Text
-    , appToggleRoleSwitch                      :: !Bool
-    , appToggleOnChange                        :: !(Maybe Text)
-    , appToggleHxGet                           :: !(Maybe Text)
-    , appToggleHxPost                          :: !(Maybe Text)
-    , appToggleHxTrigger                       :: !(Maybe Text)
-    , appToggleHxInclude                       :: !(Maybe Text)
-    , appToggleHxTarget                        :: !(Maybe Text)
-    , appToggleHxSwap                          :: !(Maybe Text)
-    , appToggleHxPushUrl                       :: !(Maybe Text)
-    , appToggleHxSync                          :: !(Maybe Text)
-    , appToggleHiddenInputId                   :: !(Maybe Text)
-    , appToggleHiddenInputCheckedValue         :: !(Maybe Text)
-    , appToggleHiddenInputUncheckedValue       :: !(Maybe Text)
-    , appToggleBreakTarget                     :: !(Maybe Text)
-    , appToggleShiftPreferenceAvailable        :: !Bool
+    { appToggleInputId                   :: !Text
+    , appToggleInputName                 :: !(Maybe Text)
+    , appToggleInputValue                :: !Text
+    , appToggleChecked                   :: !Bool
+    , appToggleLabel                     :: !Html
+    , appToggleButtonClass               :: !Text
+    , appToggleInputClass                :: !Text
+    , appToggleRoleSwitch                :: !Bool
+    , appToggleOnChange                  :: !(Maybe Text)
+    , appToggleHxGet                     :: !(Maybe Text)
+    , appToggleHxPost                    :: !(Maybe Text)
+    , appToggleHxTrigger                 :: !(Maybe Text)
+    , appToggleHxInclude                 :: !(Maybe Text)
+    , appToggleHxTarget                  :: !(Maybe Text)
+    , appToggleHxSwap                    :: !(Maybe Text)
+    , appToggleHxPushUrl                 :: !(Maybe Text)
+    , appToggleHxSync                    :: !(Maybe Text)
+    , appToggleHiddenInputId             :: !(Maybe Text)
+    , appToggleHiddenInputCheckedValue   :: !(Maybe Text)
+    , appToggleHiddenInputUncheckedValue :: !(Maybe Text)
+    , appToggleBreakTarget               :: !(Maybe Text)
+    , appToggleShiftPreferenceAvailable  :: !Bool
     }
 
 defaultAppToggleButtonConfig :: Text -> Bool -> Html -> AppToggleButtonConfig
@@ -111,21 +111,21 @@ appToggleInputClasses AppToggleButtonConfig { appToggleInputClass } =
         ]
 
 switchRoleAttr :: Bool -> Maybe Text
-switchRoleAttr True = Just "switch"
+switchRoleAttr True  = Just "switch"
 switchRoleAttr False = Nothing
 
 switchAriaCheckedAttr :: Bool -> Bool -> Maybe Text
 switchAriaCheckedAttr True checked = Just (boolAttr checked)
-switchAriaCheckedAttr False _ = Nothing
+switchAriaCheckedAttr False _      = Nothing
 
 breakToggleAttr :: Maybe Text -> Maybe Text
 breakToggleAttr (Just _) = Just "true"
-breakToggleAttr Nothing = Nothing
+breakToggleAttr Nothing  = Nothing
 
 boolDataAttr :: Bool -> Maybe Text
-boolDataAttr True = Just "true"
+boolDataAttr True  = Just "true"
 boolDataAttr False = Nothing
 
 boolAttr :: Bool -> Text
-boolAttr True = "true"
+boolAttr True  = "true"
 boolAttr False = "false"

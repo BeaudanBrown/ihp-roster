@@ -1,7 +1,9 @@
 module Test.LiveSurfaceRegistrySpec where
 
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..), LiveUpdateScope (..), LiveUpdateWireFragment (..))
+import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..),
+                                              LiveUpdateScope (..),
+                                              LiveUpdateWireFragment (..))
 import qualified Data.Set as Set
 import Data.UUID (fromWords)
 import IHP.Prelude

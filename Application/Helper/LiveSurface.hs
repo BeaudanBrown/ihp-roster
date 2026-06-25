@@ -49,58 +49,54 @@ module Application.Helper.LiveSurface
     , warmLiveSurfaceProjectionFromStore
     ) where
 
-import Application.Helper.Interaction.Types
-    ( EmptyInteractionIntent
-    , EmptyInteractionLayer
-    , EmptyInteractionSession
-    , emptyInteractionCapability
-    )
+import Application.Helper.Interaction.Types (EmptyInteractionIntent,
+                                             EmptyInteractionLayer,
+                                             EmptyInteractionSession,
+                                             emptyInteractionCapability)
+import Application.Helper.LiveSurface.Internal (AuthorizedLiveFragment (..),
+                                                FragmentContract (..),
+                                                FragmentDependencies (..),
+                                                FragmentRenderMode (..),
+                                                LiveScopeAuthorizationRequirement (..),
+                                                LiveSurfaceAuthorization (..),
+                                                LiveSurfaceConfig (..),
+                                                ProjectionLiveSurfaceDefinition (..),
+                                                SurfaceFragmentRef,
+                                                SurfaceScope (..),
+                                                TypedLiveSurfaceDefinition (..),
+                                                authorizeLiveScopeRequirement,
+                                                authorizeTypedLiveSurfaceScope,
+                                                authorizeTypedLiveSurfaceWireScope,
+                                                liveFragmentDependsOn,
+                                                liveFragmentResyncOnly,
+                                                liveSurfaceAuthorizationByRequirement,
+                                                liveSurfaceConfigJson,
+                                                liveSurfaceProjectionFragmentRef,
+                                                loadLiveSurfaceProjection,
+                                                loadLiveSurfaceProjectionFromStore,
+                                                mkSurfaceFragmentContract,
+                                                mkSurfaceFragmentRef,
+                                                mkTypedDefinedLiveSurface,
+                                                normalizeSurfaceFragmentRefs,
+                                                normalizeTypedLiveSurfaceFragments,
+                                                renderLiveSurfaceProjectionFragment,
+                                                renderLiveSurfaceProjectionFragmentFromStore,
+                                                renderTypedLiveSurfaceFragmentsFromSnapshot,
+                                                respondWithTypedLiveSurfaceFragments,
+                                                serveTypedLiveFragment,
+                                                setTypedLiveSurfaceActorRefresh,
+                                                surfaceFragmentRefWithDeferUntilBlur,
+                                                surfaceFragmentRefWithFocusedProtection,
+                                                surfaceFragmentRefWithPath,
+                                                surfaceFragmentRefWithProtection,
+                                                typedLiveSurfaceAffectedFragments,
+                                                typedLiveSurfaceFragmentRef,
+                                                typedLiveSurfaceFragmentRefs,
+                                                typedSurfaceDependsOn,
+                                                unSurfaceFragmentRefs,
+                                                warmLiveSurfaceProjection,
+                                                warmLiveSurfaceProjectionFromStore)
 import qualified Application.Helper.LiveSurface.Internal as Internal
-import Application.Helper.LiveSurface.Internal
-    ( AuthorizedLiveFragment (..)
-    , FragmentContract (..)
-    , FragmentDependencies (..)
-    , FragmentRenderMode (..)
-    , LiveScopeAuthorizationRequirement (..)
-    , LiveSurfaceAuthorization (..)
-    , LiveSurfaceConfig (..)
-    , ProjectionLiveSurfaceDefinition (..)
-    , SurfaceFragmentRef
-    , SurfaceScope (..)
-    , TypedLiveSurfaceDefinition (..)
-    , authorizeLiveScopeRequirement
-    , authorizeTypedLiveSurfaceScope
-    , authorizeTypedLiveSurfaceWireScope
-    , liveFragmentDependsOn
-    , liveFragmentResyncOnly
-    , liveSurfaceAuthorizationByRequirement
-    , liveSurfaceConfigJson
-    , liveSurfaceProjectionFragmentRef
-    , loadLiveSurfaceProjection
-    , loadLiveSurfaceProjectionFromStore
-    , mkSurfaceFragmentContract
-    , mkSurfaceFragmentRef
-    , mkTypedDefinedLiveSurface
-    , normalizeSurfaceFragmentRefs
-    , normalizeTypedLiveSurfaceFragments
-    , renderLiveSurfaceProjectionFragment
-    , renderLiveSurfaceProjectionFragmentFromStore
-    , renderTypedLiveSurfaceFragmentsFromSnapshot
-    , respondWithTypedLiveSurfaceFragments
-    , serveTypedLiveFragment
-    , setTypedLiveSurfaceActorRefresh
-    , surfaceFragmentRefWithDeferUntilBlur
-    , surfaceFragmentRefWithFocusedProtection
-    , surfaceFragmentRefWithPath
-    , surfaceFragmentRefWithProtection
-    , typedLiveSurfaceAffectedFragments
-    , typedLiveSurfaceFragmentRef
-    , typedLiveSurfaceFragmentRefs
-    , typedSurfaceDependsOn
-    , unSurfaceFragmentRefs
-    , warmLiveSurfaceProjection
-    , warmLiveSurfaceProjectionFromStore
-    )
 import Application.Helper.SurfaceProjection (SurfaceProjectionCachePolicy)
 import IHP.Prelude
 import qualified Text.Blaze.Html as Blaze

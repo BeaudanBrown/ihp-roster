@@ -325,13 +325,13 @@ preparationPeriodOptionLabel option =
 preparationPeriodSubmissionStatusLabel :: Maybe Text -> Text
 preparationPeriodSubmissionStatusLabel status =
     case Text.toCaseFold . Text.strip <$> status of
-        Just "submitted" -> " · submitted already"
+        Just "submitted"        -> " · submitted already"
         Just "partially_failed" -> " · partially submitted"
-        Just "failed" -> " · failed previously"
-        Just "previewed" -> " · previewed previously"
-        Just "pending" -> " · submission pending"
-        Just "blocked" -> " · blocked previously"
-        _ -> ""
+        Just "failed"           -> " · failed previously"
+        Just "previewed"        -> " · previewed previously"
+        Just "pending"          -> " · submission pending"
+        Just "blocked"          -> " · blocked previously"
+        _                       -> ""
 
 renderFinalSummaryCards :: XeroTimesheetPreparationView -> Html
 renderFinalSummaryCards view = [hsx|
@@ -611,7 +611,7 @@ currentStaffEmployeeSelection row =
             decision <- row.preparationStaffDecision
             case decision.decisionKind of
                 "staff_not_paid" -> Just "not_applicable"
-                _ -> decision.xeroEmployeeId
+                _                -> decision.xeroEmployeeId
         verifiedMappingSelection = do
             guard (mapping.mappingStatus == "verified")
             mapping.xeroEmployeeId
@@ -939,7 +939,7 @@ renderStatusBadge status = renderAppStatusBadge (statusTone status) (statusLabel
 
 statusLabel :: Text -> Text
 statusLabel "ready_for_preview" = "ready"
-statusLabel value = Text.replace "_" " " value
+statusLabel value               = Text.replace "_" " " value
 
 statusTone :: Text -> AppStatusTone
 statusTone "ready"             = AppStatusSuccess

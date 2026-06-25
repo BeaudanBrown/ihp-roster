@@ -5,8 +5,8 @@ import Application.Xero.Admin.ImportedPayItems
 import qualified Data.Aeson as Aeson
 import Data.Scientific (Scientific)
 import Generated.Types
-import IHP.Prelude
 import IHP.ModelSupport
+import IHP.Prelude
 import Test.Hspec
 
 tests :: Spec

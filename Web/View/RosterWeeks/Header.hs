@@ -3,7 +3,7 @@ module Web.View.RosterWeeks.Header
     ) where
 
 import Application.Helper.RosterWagePrediction (RosterWagePrediction (..),
-                                                 formatMoneyAmount)
+                                                formatMoneyAmount)
 import Application.Helper.UserPreferences (rosterLayoutModeLabel,
                                            rosterLayoutModeValue,
                                            rosterLayoutModes)

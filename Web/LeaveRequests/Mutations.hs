@@ -97,7 +97,7 @@ leaveReviewTouchedResources venueConfig decision wasApproved leaveRequest =
 
 reviewDecisionStatus :: LeaveReviewDecision -> LeaveRequestStatus
 reviewDecisionStatus ApproveLeave = LeaveApproved
-reviewDecisionStatus DenyLeave = LeaveDenied
+reviewDecisionStatus DenyLeave    = LeaveDenied
 
 reviewDecisionEventType :: LeaveReviewDecision -> LeaveRequestEventTypeEnum
 reviewDecisionEventType ApproveLeave = unsafeEnumFromText @LeaveRequestEventTypeEnum "approved"
@@ -105,8 +105,8 @@ reviewDecisionEventType DenyLeave = unsafeEnumFromText @LeaveRequestEventTypeEnu
 
 reviewDecisionAuditAction :: LeaveReviewDecision -> Text
 reviewDecisionAuditAction ApproveLeave = "leave_approved"
-reviewDecisionAuditAction DenyLeave = "leave_denied"
+reviewDecisionAuditAction DenyLeave    = "leave_denied"
 
 reviewDecisionChangesRoster :: LeaveReviewDecision -> Bool -> Bool
 reviewDecisionChangesRoster ApproveLeave wasApproved = not wasApproved
-reviewDecisionChangesRoster DenyLeave wasApproved = wasApproved
+reviewDecisionChangesRoster DenyLeave wasApproved    = wasApproved

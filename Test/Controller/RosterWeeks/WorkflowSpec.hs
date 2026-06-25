@@ -34,8 +34,9 @@ import Test.Hspec
 import Test.Support
 import Web.Controller.RosterWeeks ()
 import Web.FrontController ()
-import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterDayColumnsFragmentId, rosterDaySectionDomId,
-                            rosterGridFrameFragmentId, rosterRowDomIdText, rosterStaffPanelFragmentId)
+import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterDayColumnsFragmentId,
+                            rosterDaySectionDomId, rosterGridFrameFragmentId,
+                            rosterRowDomIdText, rosterStaffPanelFragmentId)
 import Web.RosterWeeks.Mutations (rosterDayTouchedResources,
                                   rosterSlotTouchedResources,
                                   rosterWeekTouchedResources)

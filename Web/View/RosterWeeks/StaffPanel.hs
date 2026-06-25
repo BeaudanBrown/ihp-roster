@@ -8,7 +8,8 @@ import Application.Helper.View (staffDisplayName)
 import Data.List (sortBy)
 import qualified Data.Text as Text
 import Web.RosterWeeks.Dom (rosterStaffPanelFragmentId)
-import Web.RosterWeeks.Types (RosterStaffPanelEntry (..), RosterStaffPanelScope (..))
+import Web.RosterWeeks.Types (RosterStaffPanelEntry (..),
+                              RosterStaffPanelScope (..))
 import Web.View.Prelude
 
 renderRosterStaffPanelFragment :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Bool -> RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Html

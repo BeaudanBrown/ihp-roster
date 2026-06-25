@@ -6,15 +6,15 @@ import IHP.MailPrelude
 import Web.Mail.Shared
 
 data RsaReminderMail = RsaReminderMail
-    { recipient      :: User
-    , venue          :: Venue
-    , staff          :: Staff
-    , staffDocument  :: StaffDocument
+    { recipient       :: User
+    , venue           :: Venue
+    , staff           :: Staff
+    , staffDocument   :: StaffDocument
     , reminderSubject :: Text
-    , reminderIntro  :: Text
-    , fromAddress    :: Text
-    , replyToAddress :: Text
-    , supportEmail   :: Text
+    , reminderIntro   :: Text
+    , fromAddress     :: Text
+    , replyToAddress  :: Text
+    , supportEmail    :: Text
     }
 
 instance BuildMail RsaReminderMail where

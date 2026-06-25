@@ -11,8 +11,8 @@ module Web.View.Admin.Xero.PayItems
 import Application.Helper.Xero (XeroEarningsRateRef (..))
 import Application.Helper.XeroAdminTypes
 import Application.Xero.Admin.ImportedPayItems (XeroImportedPayItemCandidate (..))
-import Data.Scientific (FPFormat (Fixed), Scientific, formatScientific)
 import qualified Data.List as List
+import Data.Scientific (FPFormat (Fixed), Scientific, formatScientific)
 import qualified Data.Text as Text
 import Web.View.Prelude
 
@@ -266,7 +266,7 @@ renderImportedPayItemAccount accountCodeOptions item =
         Just accountCode ->
             case List.find (\option -> option.accountCodeOptionValue == accountCode) accountCodeOptions of
                 Just option -> option.accountCodeOptionLabel
-                Nothing -> accountCode
+                Nothing     -> accountCode
 
 renderXeroImportedPayItemImportLoadingDialog :: Html
 renderXeroImportedPayItemImportLoadingDialog =

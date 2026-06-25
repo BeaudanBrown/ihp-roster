@@ -43,15 +43,15 @@ data ShowView = ShowView
     , slotConflicts         :: [(Id RosterSlot, [RosterConflict])]
     , renderIndexes         :: RosterRenderIndexes
     , liveUpdateScope       :: Maybe LiveUpdateScope
-    , viewCapabilities         :: RosterViewCapabilities
-    , rosterLayoutMode         :: RosterLayoutModeEnum
-    , rosterEndTimesEnabled    :: Bool
-    , rosterWagePrediction     :: Maybe RosterWagePrediction
-    , showWageEstimates        :: Bool
-    , showRosterWarnings       :: Bool
-    , publicHolidays           :: Map Day Text
-    , shiftTypes               :: [ShiftType]
-    , passkeySetupPrompt       :: Maybe PasskeySetupPromptMode
+    , viewCapabilities      :: RosterViewCapabilities
+    , rosterLayoutMode      :: RosterLayoutModeEnum
+    , rosterEndTimesEnabled :: Bool
+    , rosterWagePrediction  :: Maybe RosterWagePrediction
+    , showWageEstimates     :: Bool
+    , showRosterWarnings    :: Bool
+    , publicHolidays        :: Map Day Text
+    , shiftTypes            :: [ShiftType]
+    , passkeySetupPrompt    :: Maybe PasskeySetupPromptMode
     }
 
 data RosterViewCapabilities = RosterViewCapabilities
@@ -93,15 +93,15 @@ data RosterStaffPanelEntry = RosterStaffPanelEntry
     }
 
 data RosterStaffSelfServicePanel = RosterStaffSelfServicePanel
-    { quickToolsLeaveRequest             :: LeaveRequest
-    , quickToolsVenueId                  :: Id Venue
-    , quickToolsTimesheetEntries         :: [TimesheetEntry]
-    , quickToolsStaffMembers             :: [Staff]
-    , quickToolsShiftTypes               :: [ShiftType]
-    , quickToolsOperationalDay           :: Day
-    , quickToolsTimesheetWeekOffset      :: Int
-    , quickToolsTimesheetWeekStartDate   :: Day
-    , quickToolsTimesheetEditWindowDays  :: Int
+    { quickToolsLeaveRequest            :: LeaveRequest
+    , quickToolsVenueId                 :: Id Venue
+    , quickToolsTimesheetEntries        :: [TimesheetEntry]
+    , quickToolsStaffMembers            :: [Staff]
+    , quickToolsShiftTypes              :: [ShiftType]
+    , quickToolsOperationalDay          :: Day
+    , quickToolsTimesheetWeekOffset     :: Int
+    , quickToolsTimesheetWeekStartDate  :: Day
+    , quickToolsTimesheetEditWindowDays :: Int
     }
 
 data RosterAssignmentFilters = RosterAssignmentFilters
@@ -159,14 +159,14 @@ data RosterGridRenderModel = RosterGridRenderModel
     , gridAllSlots              :: [RosterSlot]
     , gridSlotConflicts         :: [(Id RosterSlot, [RosterConflict])]
     , gridRenderIndexes         :: RosterRenderIndexes
-    , gridViewCapabilities         :: RosterViewCapabilities
-    , gridRosterLayoutMode         :: RosterLayoutModeEnum
-    , gridRosterEndTimesEnabled    :: Bool
-    , gridRosterWagePrediction     :: Maybe RosterWagePrediction
-    , gridShowWageEstimates        :: Bool
-    , gridShowRosterWarnings       :: Bool
-    , gridPublicHolidays           :: Map Day Text
-    , gridPublishAttempted         :: Bool
+    , gridViewCapabilities      :: RosterViewCapabilities
+    , gridRosterLayoutMode      :: RosterLayoutModeEnum
+    , gridRosterEndTimesEnabled :: Bool
+    , gridRosterWagePrediction  :: Maybe RosterWagePrediction
+    , gridShowWageEstimates     :: Bool
+    , gridShowRosterWarnings    :: Bool
+    , gridPublicHolidays        :: Map Day Text
+    , gridPublishAttempted      :: Bool
     }
 
 data RosterDayRenderModel = RosterDayRenderModel

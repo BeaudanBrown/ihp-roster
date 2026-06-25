@@ -80,4 +80,4 @@ recordBillingWebhookMutation result =
 billingWebhookResultVenueId :: BillingWebhookResult -> Maybe UUID
 billingWebhookResultVenueId (BillingWebhookProcessed event) = event.venueId
 billingWebhookResultVenueId (BillingWebhookDuplicate event) = event.venueId
-billingWebhookResultVenueId (BillingWebhookIgnored event) = event.venueId
+billingWebhookResultVenueId (BillingWebhookIgnored event)   = event.venueId

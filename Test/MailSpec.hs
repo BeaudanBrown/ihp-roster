@@ -244,5 +244,5 @@ withEnv name value action =
     bracket (Environment.lookupEnv name <* apply value) restore (const action)
   where
     restore previous = apply previous
-    apply Nothing = Environment.unsetEnv name
+    apply Nothing        = Environment.unsetEnv name
     apply (Just current) = Environment.setEnv name current

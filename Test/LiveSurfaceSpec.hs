@@ -2,23 +2,25 @@ module Test.LiveSurfaceSpec where
 
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
-import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..), LiveUpdateScope (..), LiveUpdateWireFragment (..))
+import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..),
+                                              LiveUpdateScope (..),
+                                              LiveUpdateWireFragment (..))
 import Application.Helper.SurfaceProjection (defaultSurfaceProjectionCachePolicy)
 import Application.Support.LiveUpdates
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.Prelude
-import Web.Billing.LiveUpdates
-import Web.Timesheets.Projection
-import Web.View.Admin.Invites
-import Web.View.Admin.VenueSettings
-import Web.View.Admin.Xero
 import Test.Hspec
 import Test.Support.LiveSurfaceContract
 import qualified Text.Blaze.Html as Blaze
 import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
 import qualified Text.Blaze.Html5 as Html5
+import Web.Billing.LiveUpdates
+import Web.Timesheets.Projection
+import Web.View.Admin.Invites
+import Web.View.Admin.VenueSettings
+import Web.View.Admin.Xero
 
 tests :: Spec
 tests = describe "LiveSurface contract helpers" do
@@ -203,15 +205,15 @@ renderTestActorFragment renderMode snapshot fragment =
     Just (Html5.toHtml (modeLabel renderMode <> ":" <> snapshot <> ":" <> fragmentLabel fragment))
 
 modeLabel :: FragmentRenderMode -> Text
-modeLabel FragmentPlain = "plain"
-modeLabel (FragmentOob Nothing) = "oob:none"
+modeLabel FragmentPlain                 = "plain"
+modeLabel (FragmentOob Nothing)         = "oob:none"
 modeLabel (FragmentOob (Just swapAttr)) = "oob:" <> swapAttr
 
 fragmentLabel :: TestActorFragment -> Text
-fragmentLabel TestActorParent = "parent"
-fragmentLabel TestActorChild = "child"
+fragmentLabel TestActorParent         = "parent"
+fragmentLabel TestActorChild          = "child"
 fragmentLabel TestActorDuplicateChild = "duplicate-child"
-fragmentLabel TestActorSibling = "sibling"
+fragmentLabel TestActorSibling        = "sibling"
 
 expectUuid :: Text -> UUID.UUID
 expectUuid value =

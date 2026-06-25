@@ -42,13 +42,13 @@ periodOptionLabel option =
 periodSubmissionStatusLabel :: Maybe Text -> Text
 periodSubmissionStatusLabel status =
     case Text.toCaseFold . Text.strip <$> status of
-        Just "submitted" -> " · submitted already"
+        Just "submitted"        -> " · submitted already"
         Just "partially_failed" -> " · partially submitted"
-        Just "failed" -> " · failed previously"
-        Just "previewed" -> " · previewed previously"
-        Just "pending" -> " · submission pending"
-        Just "blocked" -> " · blocked previously"
-        _ -> ""
+        Just "failed"           -> " · failed previously"
+        Just "previewed"        -> " · previewed previously"
+        Just "pending"          -> " · submission pending"
+        Just "blocked"          -> " · blocked previously"
+        _                       -> ""
 
 renderPeriodNotice :: XeroTimesheetPanelData -> Html
 renderPeriodNotice panel =

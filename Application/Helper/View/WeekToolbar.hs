@@ -14,19 +14,19 @@ data WeekToolbarVariant
     | WeekToolbarTimesheets
 
 instance Eq WeekToolbarVariant where
-    WeekToolbarRoster == WeekToolbarRoster = True
+    WeekToolbarRoster == WeekToolbarRoster         = True
     WeekToolbarTimesheets == WeekToolbarTimesheets = True
-    _ == _ = False
+    _ == _                                         = False
 
 data WeekToolbarConfig = WeekToolbarConfig
-    { weekToolbarVariant       :: !WeekToolbarVariant
-    , weekToolbarAriaLabel     :: !Text
-    , weekToolbarExtraClass    :: !Text
-    , weekToolbarPrimary       :: !Html
-    , weekToolbarReset         :: !Html
-    , weekToolbarNavigation    :: !Html
-    , weekToolbarSettings      :: !Html
-    , weekToolbarAuxiliary     :: !Html
+    { weekToolbarVariant    :: !WeekToolbarVariant
+    , weekToolbarAriaLabel  :: !Text
+    , weekToolbarExtraClass :: !Text
+    , weekToolbarPrimary    :: !Html
+    , weekToolbarReset      :: !Html
+    , weekToolbarNavigation :: !Html
+    , weekToolbarSettings   :: !Html
+    , weekToolbarAuxiliary  :: !Html
     }
 
 renderWeekToolbar :: WeekToolbarConfig -> Html

@@ -57,5 +57,5 @@ currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =
     case currentVenueOrNothing of
         Just venue -> unpackId venue.id
-        Nothing -> error "Billing live surface requires a current venue"
+        Nothing    -> error "Billing live surface requires a current venue"
 

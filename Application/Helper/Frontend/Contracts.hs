@@ -6,14 +6,11 @@ module Application.Helper.Frontend.Contracts
 )
 where
 
-import Application.Helper.Interaction
-    ( htmxMethodValues
-    , htmxSwapValues
-    , interactionConflictResolutionValues
-    , interactionFieldPresenceValues
-    )
-import IHP.Prelude
+import Application.Helper.Interaction (htmxMethodValues, htmxSwapValues,
+                                       interactionConflictResolutionValues,
+                                       interactionFieldPresenceValues)
 import qualified Data.Text as Text
+import IHP.Prelude
 
 data OverlayLane
     = DialogLane
@@ -32,7 +29,7 @@ overlayLaneValues =
     ]
 
 data TypeScriptDeclaration = TypeScriptDeclaration
-    { name :: Text
+    { name   :: Text
     , source :: Text
     } deriving (Eq, Show)
 

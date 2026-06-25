@@ -49,7 +49,7 @@ enqueueAppJob request = do
             Just key -> fetchActiveAppJobByDedupeKey key
     case existingJob of
         Just appJob -> pure (ExistingActiveAppJob appJob)
-        Nothing -> insertAppJobHandlingDedupeRace request
+        Nothing     -> insertAppJobHandlingDedupeRace request
 
 fetchActiveAppJobByDedupeKey ::
     (?modelContext :: ModelContext) =>

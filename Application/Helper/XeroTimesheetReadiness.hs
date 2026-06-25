@@ -56,17 +56,17 @@ data XeroTimesheetReadiness = XeroTimesheetReadiness
     deriving (Eq, Show)
 
 data XeroTimesheetReadinessRequest = XeroTimesheetReadinessRequest
-    { readinessVenueId            :: !(Id Venue)
-    , readinessPayrollCalendarId  :: !(Maybe Text)
+    { readinessVenueId             :: !(Id Venue)
+    , readinessPayrollCalendarId   :: !(Maybe Text)
     , readinessPayrollCalendarName :: !(Maybe Text)
-    , readinessSelectedPeriodKey  :: !(Maybe Text)
-    , readinessPeriodStart        :: !Day
-    , readinessPeriodEnd          :: !Day
-    , readinessPaymentDate        :: !(Maybe Day)
-    , readinessXeroPayRunId       :: !(Maybe Text)
-    , readinessXeroPayRunStatus   :: !(Maybe Text)
-    , readinessRemoteTimesheets   :: ![XeroTimesheetRef]
-    , readinessSkippedStaffIds    :: ![UUID]
+    , readinessSelectedPeriodKey   :: !(Maybe Text)
+    , readinessPeriodStart         :: !Day
+    , readinessPeriodEnd           :: !Day
+    , readinessPaymentDate         :: !(Maybe Day)
+    , readinessXeroPayRunId        :: !(Maybe Text)
+    , readinessXeroPayRunStatus    :: !(Maybe Text)
+    , readinessRemoteTimesheets    :: ![XeroTimesheetRef]
+    , readinessSkippedStaffIds     :: ![UUID]
     }
     deriving (Eq, Show)
 

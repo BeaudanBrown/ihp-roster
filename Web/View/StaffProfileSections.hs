@@ -5,9 +5,9 @@ import Web.View.Prelude
 import Web.View.StaffProfileForm
 
 data StaffProfileAccordionConfig = StaffProfileAccordionConfig
-    { staffProfileAccordionId           :: Text
-    , staffProfileAccordionOpenSection  :: Text
-    , staffProfileAccordionSections     :: [StaffProfileAccordionSection]
+    { staffProfileAccordionId          :: Text
+    , staffProfileAccordionOpenSection :: Text
+    , staffProfileAccordionSections    :: [StaffProfileAccordionSection]
     }
 
 data StaffProfileAccordionSection = StaffProfileAccordionSection
@@ -24,19 +24,19 @@ data StaffProfileFormHtmxConfig = StaffProfileFormHtmxConfig
     }
 
 data StaffProfileDetailsFormConfig = StaffProfileDetailsFormConfig
-    { staffProfileDetailsFormId               :: Text
-    , staffProfileDetailsFormAction           :: Text
-    , staffProfileDetailsFormClass            :: Text
-    , staffProfileDetailsFormHtmx             :: Maybe StaffProfileFormHtmxConfig
-    , staffProfileDetailsFormAttributes       :: [(Text, Text)]
-    , staffProfileDetailsFormHiddenInputs     :: Html
-    , staffProfileDetailsFormBeforeFields     :: Html
-    , staffProfileDetailsFormFieldsHeading    :: Maybe Text
-    , staffProfileDetailsFormEmailField       :: Staff -> Maybe Text -> Html
-    , staffProfileDetailsFormAfterFields      :: Html
-    , staffProfileDetailsFormManagement       :: Maybe StaffManagementFieldData
-    , staffProfileDetailsFormManagementBody   :: StaffManagementFieldData -> Html
-    , staffProfileDetailsFormSubmitLabel      :: Text
+    { staffProfileDetailsFormId             :: Text
+    , staffProfileDetailsFormAction         :: Text
+    , staffProfileDetailsFormClass          :: Text
+    , staffProfileDetailsFormHtmx           :: Maybe StaffProfileFormHtmxConfig
+    , staffProfileDetailsFormAttributes     :: [(Text, Text)]
+    , staffProfileDetailsFormHiddenInputs   :: Html
+    , staffProfileDetailsFormBeforeFields   :: Html
+    , staffProfileDetailsFormFieldsHeading  :: Maybe Text
+    , staffProfileDetailsFormEmailField     :: Staff -> Maybe Text -> Html
+    , staffProfileDetailsFormAfterFields    :: Html
+    , staffProfileDetailsFormManagement     :: Maybe StaffManagementFieldData
+    , staffProfileDetailsFormManagementBody :: StaffManagementFieldData -> Html
+    , staffProfileDetailsFormSubmitLabel    :: Text
     }
 
 data StaffShiftPreferencesFormConfig = StaffShiftPreferencesFormConfig

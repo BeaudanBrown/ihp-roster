@@ -1,14 +1,16 @@
 module Test.LiveSurfaceDependencySpec where
 
 import Application.Helper.LiveResource
-import Application.Helper.LiveSurface (TypedLiveSurfaceDefinition (..), typedLiveSurfaceAffectedFragments, typedSurfaceDependsOn)
+import Application.Helper.LiveSurface (TypedLiveSurfaceDefinition (..),
+                                       typedLiveSurfaceAffectedFragments,
+                                       typedSurfaceDependsOn)
+import Application.Support.LiveUpdates (SupportLiveFragment (..),
+                                        supportLiveSurfaceDefinition)
 import qualified Data.Set as Set
 import Data.UUID (fromWords)
 import IHP.Controller.Context (ControllerContext)
 import IHP.Prelude
 import Test.Hspec
-import Application.Support.LiveUpdates (SupportLiveFragment (..),
-                                        supportLiveSurfaceDefinition)
 import Web.Billing.LiveUpdates (BillingLiveFragment (..),
                                 BillingSurfaceKey (..),
                                 billingLiveSurfaceDefinition)
@@ -27,8 +29,7 @@ import Web.View.Admin.Invites (AdminInvitesSurfaceKey (..),
 import Web.View.Admin.VenueSettings (adminVenueSettingsFragment,
                                      adminVenueSettingsLiveSurfaceDefinitionForVenue)
 import Web.View.Admin.Xero (adminXeroLiveSurfaceDefinitionForVenue,
-                            adminXeroPayItemsFragment,
-                            adminXeroShellFragment,
+                            adminXeroPayItemsFragment, adminXeroShellFragment,
                             adminXeroStaffMappingsFragment,
                             adminXeroTimesheetsFragment)
 

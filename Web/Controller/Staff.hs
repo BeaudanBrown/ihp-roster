@@ -1,23 +1,24 @@
 module Web.Controller.Staff where
 
-import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
-                                        fetchStaffLeaveRequests)
 import Application.Helper.Controller (VenueRole (..), parseVenueRole,
                                       venueRoleToEnum)
+import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
+                                        fetchStaffLeaveRequests)
 import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
                                         fetchCurrentVenueRosterGroupIds,
                                         fetchCurrentVenueRosterGroups,
                                         fetchStaffRosterGroupIds)
 import Application.Helper.StaffShiftPreferences
+import Application.Helper.Url (appendQueryParams)
+import Application.Helper.View (ToastOverlayConfig, ToastOverlayPosition (..),
+                                renderToastOob, successToast)
+import Application.StaffDocuments.Rsa (latestRsaDocumentForStaff)
+import Data.Time.Calendar (Day)
+import Data.Time.Clock (getCurrentTime, utctDay)
 import Web.Controller.Admin.Support (SubmittedPayRateSelection (..),
                                      fetchActiveImportedXeroPayItems,
                                      parseRequiredEmail,
                                      parseSubmittedPayRateSelection)
-import Application.Helper.Url (appendQueryParams)
-import Application.Helper.View (ToastOverlayConfig, ToastOverlayPosition (..), renderToastOob, successToast)
-import Application.StaffDocuments.Rsa (latestRsaDocumentForStaff)
-import Data.Time.Calendar (Day)
-import Data.Time.Clock (getCurrentTime, utctDay)
 import Web.Controller.Prelude
 import Web.RosterWeeks.Responses (respondWithRosterContentOob)
 import Web.Staff.Mutations

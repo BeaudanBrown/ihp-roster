@@ -90,4 +90,4 @@ applyEnv :: String -> Maybe String -> IO ()
 applyEnv name maybeValue =
     case maybeValue of
         Just value -> Environment.setEnv name value
-        Nothing -> Environment.unsetEnv name
+        Nothing    -> Environment.unsetEnv name

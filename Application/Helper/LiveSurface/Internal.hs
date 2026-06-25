@@ -47,22 +47,20 @@ module Application.Helper.LiveSurface.Internal
     , warmLiveSurfaceProjectionFromStore
     ) where
 
-import Application.Helper.Interaction.Types
-    ( EmptyInteractionIntent
-    , EmptyInteractionLayer
-    , EmptyInteractionSession
-    , InteractionCapability
-    )
-import Application.Helper.LiveResource (LiveResource)
-import Application.Helper.LiveUpdate.Internal
-import Application.Helper.Profiling (respondHtmlProfiled)
-import Application.Helper.SurfaceProjection
-import Application.Helper.View.Oob (OobSwapAttr, outerHtmlOobSwap)
 import Application.Helper.ControllerAccess (hasRole)
 import Application.Helper.ControllerContext (authenticatedCurrentUser,
                                              currentUserIsSuperAdmin,
                                              currentVenueOrNothing)
 import Application.Helper.ControllerSupport (VenueRole (..))
+import Application.Helper.Interaction.Types (EmptyInteractionIntent,
+                                             EmptyInteractionLayer,
+                                             EmptyInteractionSession,
+                                             InteractionCapability)
+import Application.Helper.LiveResource (LiveResource)
+import Application.Helper.LiveUpdate.Internal
+import Application.Helper.Profiling (respondHtmlProfiled)
+import Application.Helper.SurfaceProjection
+import Application.Helper.View.Oob (OobSwapAttr, outerHtmlOobSwap)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import Data.Coerce (coerce)
@@ -98,7 +96,7 @@ newtype SurfaceScope surface = SurfaceScope
     deriving (Eq, Show)
 
 data SurfaceFragmentRef surface = SurfaceFragmentRef
-    { unSurfaceFragmentRef             :: !LiveUpdateWireFragment
+    { unSurfaceFragmentRef           :: !LiveUpdateWireFragment
     , surfaceFragmentContainmentPath :: ![Text]
     }
     deriving (Eq, Show)
@@ -245,7 +243,7 @@ typedSurfaceDependsOn :: TypedLiveSurfaceDefinition surface scope fragment layer
 typedSurfaceDependsOn definition surfaceKey fragment =
     case (definition.typedSurfaceFragmentContract surfaceKey fragment).fragmentContractDependencies of
         DependsOnLiveResources resources -> NonEmpty.toList resources
-        ResyncOnlyFragment _ -> []
+        ResyncOnlyFragment _             -> []
 
 unSurfaceFragmentRefs :: [SurfaceFragmentRef surface] -> [LiveUpdateWireFragment]
 unSurfaceFragmentRefs =

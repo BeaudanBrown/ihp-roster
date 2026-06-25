@@ -50,8 +50,8 @@ import Web.View.Admin.Xero.Timesheets
 import Web.View.Prelude
 
 data XeroView = XeroView
-    { xeroSectionData             :: XeroAdminSectionData
-    , xeroAutoSyncAfterConnect    :: Bool
+    { xeroSectionData          :: XeroAdminSectionData
+    , xeroAutoSyncAfterConnect :: Bool
     }
 
 instance View XeroView where
@@ -174,7 +174,7 @@ currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =
     case currentVenueOrNothing of
         Just venue -> unpackId venue.id
-        Nothing -> error "Admin Xero live surface requires a current venue"
+        Nothing    -> error "Admin Xero live surface requires a current venue"
 
 renderXeroSection :: XeroAdminSectionData -> Html
 renderXeroSection XeroAdminSectionData { xeroConnection = maybeConnection, .. } =

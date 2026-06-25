@@ -5,15 +5,21 @@ module Web.Controller.Admin.Xero.ImportedPayItems
     ) where
 
 import Application.Helper.LiveResource (LiveMutationResult (..))
-import Application.Helper.View (ToastOverlayConfig (..), ToastOverlayPosition (ToastBottomCenter), renderToastOverlayHostOob)
+import Application.Helper.View (ToastOverlayConfig (..),
+                                ToastOverlayPosition (ToastBottomCenter),
+                                renderToastOverlayHostOob)
 import Application.Helper.Xero
 import Application.Xero.Admin.ImportedPayItems
 import Application.Xero.Admin.ReadModel (fetchActiveCurrentVenueXeroConnection)
 import Application.Xero.Connection
 import Web.Admin.Xero.Mutations
-import Web.Controller.Admin.Xero.Responses (respondWithXeroPayItemsFragmentAndToast, respondWithXeroPayItemsFragmentAndToastAndCloseDialog, xeroErrorToast, xeroSuccessToast)
+import Web.Controller.Admin.Xero.Responses (respondWithXeroPayItemsFragmentAndToast,
+                                            respondWithXeroPayItemsFragmentAndToastAndCloseDialog,
+                                            xeroErrorToast, xeroSuccessToast)
 import Web.Controller.Prelude
-import Web.View.Admin.Xero.PayItems (renderXeroImportedPayItemImportDialog, renderXeroImportedPayItemImportErrorDialog, renderXeroImportedPayItemImportLoadingDialog)
+import Web.View.Admin.Xero.PayItems (renderXeroImportedPayItemImportDialog,
+                                     renderXeroImportedPayItemImportErrorDialog,
+                                     renderXeroImportedPayItemImportLoadingDialog)
 
 openXeroPayItemImportAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 openXeroPayItemImportAction = do

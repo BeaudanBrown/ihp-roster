@@ -68,11 +68,11 @@ data StaffRsaComplianceStatus
     deriving (Eq, Show)
 
 data StaffRsaEffectiveState = StaffRsaEffectiveState
-    { rsaCurrentDocument      :: !(Maybe StaffDocument)
-    , rsaPendingDocument      :: !(Maybe StaffDocument)
-    , rsaPendingReplacement   :: !(Maybe StaffDocument)
-    , rsaRejectedReplacement  :: !(Maybe StaffDocument)
-    , rsaEffectiveStatus      :: !StaffRsaComplianceStatus
+    { rsaCurrentDocument     :: !(Maybe StaffDocument)
+    , rsaPendingDocument     :: !(Maybe StaffDocument)
+    , rsaPendingReplacement  :: !(Maybe StaffDocument)
+    , rsaRejectedReplacement :: !(Maybe StaffDocument)
+    , rsaEffectiveStatus     :: !StaffRsaComplianceStatus
     }
     deriving (Eq, Show)
 

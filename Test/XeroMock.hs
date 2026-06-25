@@ -13,7 +13,8 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (addDays, diffDays, fromGregorian)
-import Data.Time.Clock (UTCTime (..), getCurrentTime, secondsToDiffTime, utctDay)
+import Data.Time.Clock (UTCTime (..), getCurrentTime, secondsToDiffTime,
+                        utctDay)
 import qualified Data.Vector as Vector
 import IHP.Prelude
 import Network.HTTP.Simple (Request, parseRequest, setRequestBodyJSON,

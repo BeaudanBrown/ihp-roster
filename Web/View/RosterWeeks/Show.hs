@@ -6,8 +6,8 @@ import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
 import Application.Helper.LiveUpdate (LiveUpdateScope)
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.Dom
-import Web.RosterWeeks.Projection (buildRosterProjectionScope)
 import Web.RosterWeeks.LiveSurface (rosterLiveSurfaceDefinition)
+import Web.RosterWeeks.Projection (buildRosterProjectionScope)
 import Web.RosterWeeks.Types
 import Web.View.Passkeys.SetupModal
 import Web.View.Prelude

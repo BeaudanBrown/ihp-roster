@@ -87,8 +87,8 @@ data LiveUpdateScope
         , weekOffset :: !Int
         }
     | ProfileScope
-        { venueId  :: !UUID.UUID
-        , staffId  :: !UUID.UUID
+        { venueId :: !UUID.UUID
+        , staffId :: !UUID.UUID
         }
     | SupportPlatformScope
     deriving (Eq, Ord, Show)

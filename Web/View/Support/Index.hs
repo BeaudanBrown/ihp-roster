@@ -32,9 +32,9 @@ data IndexView = IndexView
     }
 
 data SupportFeedbackRow = SupportFeedbackRow
-    { supportFeedbackItem       :: UserFeedbackItem
-    , supportFeedbackVenueName  :: Text
-    , supportFeedbackSubmitter  :: Text
+    { supportFeedbackItem      :: UserFeedbackItem
+    , supportFeedbackVenueName :: Text
+    , supportFeedbackSubmitter :: Text
     }
 
 instance View IndexView where
@@ -192,10 +192,10 @@ renderFeedbackTypeBadge feedbackType = [hsx|<span class="badge text-bg-info">{fe
 feedbackTypeLabel :: Text -> Text
 feedbackTypeLabel feedbackType =
     case feedbackType of
-        "bug" -> "bug"
+        "bug"        -> "bug"
         "suggestion" -> "suggestion"
-        "other" -> "other"
-        _ -> feedbackType
+        "other"      -> "other"
+        _            -> feedbackType
 
 renderFeedbackStatusForm :: UserFeedbackItem -> Html
 renderFeedbackStatusForm feedbackItem = [hsx|

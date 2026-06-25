@@ -9,7 +9,8 @@ module Application.Helper.View.Staff
     , staffDisplayName
     ) where
 
-import Application.Helper.Staff (isTrialStaff, linkedActiveStaff, rosterableStaff)
+import Application.Helper.Staff (isTrialStaff, linkedActiveStaff,
+                                 rosterableStaff)
 import qualified Data.Char as Char
 import Data.List (sortBy)
 import qualified Data.Text as Text

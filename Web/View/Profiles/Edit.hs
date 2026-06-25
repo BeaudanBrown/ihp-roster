@@ -6,10 +6,10 @@ import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
 import Application.Helper.StaffShiftPreferences
 import Data.List (sortOn)
 import Data.Ord (Down (..))
+import Web.Profiles.LiveUpdates
 import Web.View.LeaveRequests.Index (renderStatusBadge)
 import Web.View.LeaveRequests.New (renderLeaveRequestFormFields)
 import Web.View.Passkeys.Management (renderPasskeyManagement)
-import Web.Profiles.LiveUpdates
 import Web.View.Prelude
 import Web.View.StaffDocuments.Rsa
 import Web.View.StaffProfileForm

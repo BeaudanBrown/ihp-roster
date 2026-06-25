@@ -286,13 +286,13 @@ usageText =
 parseIntList :: Text -> Text -> [Int]
 parseIntList optionName value =
     case map (parseNonNegativeInt optionName) (Text.splitOn "," value) of
-        [] -> error (cs optionName <> " requires at least one value")
+        []     -> error (cs optionName <> " requires at least one value")
         values -> values
 
 parseScenarioList :: Text -> [LiveInvalidationBenchmarkScenario]
 parseScenarioList value =
     case map parseScenario (Text.splitOn "," value) of
-        [] -> error "--scenario requires at least one value"
+        []     -> error "--scenario requires at least one value"
         values -> values
 
 parseScenario :: Text -> LiveInvalidationBenchmarkScenario

@@ -437,7 +437,7 @@ stripMeridiem label =
         Just clock -> Just (clock, "AM")
         Nothing -> case Text.stripSuffix " PM" label of
             Just clock -> Just (clock, "PM")
-            Nothing -> Nothing
+            Nothing    -> Nothing
 
 renderDuration :: TimesheetEntry -> Html
 renderDuration entry =

@@ -335,7 +335,7 @@ renderManagerLeaveRequestRow staffMembers currentViewerStaffId showActions leave
 
 renderManagerActionsHeader :: Bool -> Html
 renderManagerActionsHeader False = mempty
-renderManagerActionsHeader True = [hsx|<div>Actions</div>|]
+renderManagerActionsHeader True  = [hsx|<div>Actions</div>|]
 
 renderManagerActionsCell :: (?context :: ControllerContext) => Maybe UUID -> Bool -> LeaveRequest -> Html
 renderManagerActionsCell _currentViewerStaffId False _leaveRequest = mempty

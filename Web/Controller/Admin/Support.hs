@@ -12,8 +12,7 @@ import Control.Monad (void)
 import Data.Functor ((<&>))
 import qualified Data.List as List
 import qualified Data.Text as Text
-import Data.Time.Clock (NominalDiffTime, UTCTime, addUTCTime,
-                        getCurrentTime)
+import Data.Time.Clock (NominalDiffTime, UTCTime, addUTCTime, getCurrentTime)
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.View.Admin.Invites
@@ -287,7 +286,7 @@ parseRequiredEmail paramName emptyMessage =
 parseIsActiveParam :: (?context :: ControllerContext, ?request :: Request) => Bool
 parseIsActiveParam =
     case paramList @Text "isActive" of
-        [] -> True
+        []     -> True
         values -> "true" `elem` values
 
 parseShowInactiveParam :: (?context :: ControllerContext, ?request :: Request) => ByteString -> Bool
@@ -330,9 +329,9 @@ parseLegacySubmittedPayRateSelection = do
                 Just value -> Just value
                 Nothing    -> paramOrNothing @Text "defaultAwardLevelId"
     case maybeAwardLevelText of
-        Just "" -> parseLegacyImportedPayItemSelection
+        Just ""             -> parseLegacyImportedPayItemSelection
         Just awardLevelText -> validateSubmittedAwardLevelId awardLevelText
-        Nothing -> parseLegacyImportedPayItemSelection
+        Nothing             -> parseLegacyImportedPayItemSelection
 
 parseLegacyImportedPayItemSelection ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

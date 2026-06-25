@@ -2,8 +2,8 @@ module Web.Controller.Auth where
 
 import Application.Helper.Audit (recordUserAuthenticationAuditEvent)
 import Application.Helper.PasskeyRecoveryCodes (issueInitialRecoveryCodeIfMissing)
-import Application.Helper.PasskeySetupTokens
 import Application.Helper.Passkeys
+import Application.Helper.PasskeySetupTokens
 import Application.Helper.Url (appendQueryParams)
 import Control.Monad (void)
 import qualified Crypto.WebAuthn.Encoding.WebAuthnJson as WebAuthnJson

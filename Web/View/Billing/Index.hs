@@ -1,7 +1,8 @@
 module Web.View.Billing.Index where
 
 import Application.Helper.Controller (currentVenueOrNothing)
-import Application.Helper.LiveSurface (liveSurfaceConfigJson, mkTypedDefinedLiveSurface)
+import Application.Helper.LiveSurface (liveSurfaceConfigJson,
+                                       mkTypedDefinedLiveSurface)
 import Application.Helper.Url (appendQueryParams)
 import qualified Data.Text as Text
 import Web.Billing.LiveUpdates

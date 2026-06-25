@@ -1,9 +1,10 @@
 module Web.Controller.Admin where
 
 import Application.Helper.Export
-import Application.Helper.PasskeySetupTokens
+import Application.Helper.LiveResource (LiveMutationResult (..),
+                                        LiveResource (..), liveMutationResult)
 import Application.Helper.LiveSurface (serveTypedLiveFragment)
-import Application.Helper.LiveResource (LiveMutationResult (..), LiveResource (..), liveMutationResult)
+import Application.Helper.PasskeySetupTokens
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.Url (appendQueryParams)
@@ -135,7 +136,7 @@ fetchCurrentVenueStaffUser staffId = do
             |> filterWhere (#venueId, unpackId currentVenueId)
             |> fetchOneOrNothing
     case maybeStaff >>= (.userId) of
-        Nothing -> pure Nothing
+        Nothing     -> pure Nothing
         Just userId -> Just <$> fetch (Id userId :: Id User)
 
 instance Controller AdminController where

@@ -47,19 +47,19 @@ import Application.Helper.SurfaceProjection
 import Application.Helper.UserPreferences
 import Data.Coerce (coerce)
 import Data.List (find, nubBy)
-import Data.Maybe (isNothing)
 import qualified Data.Map.Strict as Map
+import Data.Maybe (isNothing)
 import qualified Data.Time.Calendar as Calendar
 import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.RosterWeeks.Capabilities
 import Web.RosterWeeks.Conflicts
-import Web.RosterWeeks.Filters
-import Web.RosterWeeks.Projection
 import Web.RosterWeeks.DirectReadModel
 import Web.RosterWeeks.Dom
+import Web.RosterWeeks.Filters
 import Web.RosterWeeks.LiveSurface
+import Web.RosterWeeks.Projection
 import Web.RosterWeeks.Rows
 import Web.RosterWeeks.Service
 import Web.RosterWeeks.StaffOptions
@@ -191,7 +191,7 @@ renderRosterProjectionFragmentWithMode renderMode rosterData fragment =
             let viewCapabilities = buildRosterViewCapabilities visibleRosterWeek
             let gridModel = rosterGridRenderModelFromProjection viewCapabilities projection
             pure $ case renderMode of
-                FragmentPlain -> plainRenderer gridModel
+                FragmentPlain        -> plainRenderer gridModel
                 FragmentOob swapAttr -> swapRenderer swapAttr gridModel
         renderDayColumnsFragment maybeRosterData = do
             projection <- maybeRosterData

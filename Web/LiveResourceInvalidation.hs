@@ -12,15 +12,16 @@ module Web.LiveResourceInvalidation
 
 import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate.Runtime (LiveUpdateBroadcastResult (..),
-                                              LiveUpdateScope (..), activeLiveUpdateScopes,
+                                              LiveUpdateScope (..),
+                                              activeLiveUpdateScopes,
                                               activeRosterWeekScopes)
 import Application.Helper.Profiling (profileActionSpanWithDetail)
 import Application.Helper.RosterGroups (fetchStaffRosterGroupIds)
-import GHC.Clock (getMonotonicTimeNSec)
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Data.UUID (UUID)
+import GHC.Clock (getMonotonicTimeNSec)
 import qualified System.Environment as Environment
 import Web.Controller.Prelude
 import Web.LiveSurfaceRegistry (LiveSurfaceInvalidationTarget (..),
@@ -129,18 +130,18 @@ invalidateTouchedResourcesWithoutContext label result = do
     pure observed
 
 data LiveInvalidationProfile = LiveInvalidationProfile
-    { profileLabel                 :: !Text
-    , profileTotalDurationMs       :: !Double
-    , profileTouchedResourceCount  :: !Int
-    , profileActiveScopeCount      :: !Int
-    , profileExpandedResourceCount :: !Int
-    , profileCandidateScopeCount   :: !Int
-    , profilePlanningScopeCount    :: !Int
-    , profileTargetCount           :: !Int
-    , profileTargetFragmentCount   :: !Int
-    , profileBroadcastCount        :: !Int
+    { profileLabel                    :: !Text
+    , profileTotalDurationMs          :: !Double
+    , profileTouchedResourceCount     :: !Int
+    , profileActiveScopeCount         :: !Int
+    , profileExpandedResourceCount    :: !Int
+    , profileCandidateScopeCount      :: !Int
+    , profilePlanningScopeCount       :: !Int
+    , profileTargetCount              :: !Int
+    , profileTargetFragmentCount      :: !Int
+    , profileBroadcastCount           :: !Int
     , profileBroadcastSubscriberCount :: !Int
-    , profileStageDurations        :: !LiveInvalidationStageDurations
+    , profileStageDurations           :: !LiveInvalidationStageDurations
     }
     deriving (Eq, Show)
 

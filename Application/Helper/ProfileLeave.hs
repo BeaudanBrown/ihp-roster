@@ -16,7 +16,7 @@ fetchCurrentUserLeaveRequests :: (?context :: ControllerContext, ?modelContext :
 fetchCurrentUserLeaveRequests = do
     maybeStaff <- fetchCurrentUserStaff
     case maybeStaff of
-        Nothing -> pure []
+        Nothing    -> pure []
         Just staff -> fetchStaffLeaveRequests staff
 
 fetchStaffLeaveRequests :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Staff -> IO [LeaveRequest]

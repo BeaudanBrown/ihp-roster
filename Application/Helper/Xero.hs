@@ -126,11 +126,11 @@ instance Aeson.FromJSON XeroTenant where
             <*> object Aeson..:? "tenantName"
 
 data XeroEmployeeRef = XeroEmployeeRef
-    { xeroEmployeeId         :: !Text
-    , xeroEmployeeName       :: !Text
-    , xeroEmployeeEmail      :: !(Maybe Text)
-    , xeroEmployeeStatus     :: !(Maybe Text)
-    , xeroEmployeeRaw        :: !Aeson.Value
+    { xeroEmployeeId     :: !Text
+    , xeroEmployeeName   :: !Text
+    , xeroEmployeeEmail  :: !(Maybe Text)
+    , xeroEmployeeStatus :: !(Maybe Text)
+    , xeroEmployeeRaw    :: !Aeson.Value
     }
     deriving (Eq, Show)
 
@@ -308,11 +308,11 @@ data XeroHttpRequest = XeroHttpRequest
     deriving (Eq, Show)
 
 data XeroRequestBaseUrls = XeroRequestBaseUrls
-    { xeroIdentityTokenUrl   :: !Text
-    , xeroConnectionsUrl     :: !Text
-    , xeroPayrollBaseUrl     :: !Text
-    , xeroPayrollV2BaseUrl   :: !Text
-    , xeroAccountingBaseUrl  :: !Text
+    { xeroIdentityTokenUrl  :: !Text
+    , xeroConnectionsUrl    :: !Text
+    , xeroPayrollBaseUrl    :: !Text
+    , xeroPayrollV2BaseUrl  :: !Text
+    , xeroAccountingBaseUrl :: !Text
     }
     deriving (Eq, Show)
 
@@ -998,11 +998,11 @@ instance Aeson.FromJSON XeroPayrollSettingsAccountsResponse where
     parseJSON = Aeson.withObject "XeroPayrollSettingsAccountsResponse" \object -> do
         settingsValue <- case firstPresent object ["Settings", "settings"] of
             Just value -> pure value
-            Nothing -> fail "Missing Xero payroll settings"
+            Nothing    -> fail "Missing Xero payroll settings"
         accounts <- Aeson.withObject "Xero payroll settings" (\settingsObject -> do
             accountsValue <- case firstPresent settingsObject ["Accounts", "accounts"] of
                 Just value -> pure value
-                Nothing -> fail "Missing Xero payroll settings accounts"
+                Nothing    -> fail "Missing Xero payroll settings accounts"
             Aeson.parseJSON accountsValue) settingsValue
         pure (XeroPayrollSettingsAccountsResponse accounts)
 

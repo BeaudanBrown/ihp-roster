@@ -13,8 +13,8 @@ module Application.Xero.Admin.ReferenceData
 import Application.Helper.ControllerContext
 import Application.Helper.Xero
 import Control.Monad (void)
-import qualified Data.List as List
 import Data.Functor ((<&>))
+import qualified Data.List as List
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude

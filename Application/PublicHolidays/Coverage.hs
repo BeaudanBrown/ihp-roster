@@ -6,7 +6,7 @@ module Application.PublicHolidays.Coverage
     ) where
 
 import Application.PublicHolidays.Policy (publicHolidayFreshnessWarningAge,
-                                           targetPublicHolidayYears)
+                                          targetPublicHolidayYears)
 import qualified Application.PublicHolidays.Policy as PublicHolidayPolicy
 import qualified Data.Map.Strict as Map
 import Data.Time.Calendar (toGregorian)

@@ -14,7 +14,9 @@ module Web.RosterWeeks.LiveSurface
 import Application.Helper.Controller
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
-import Application.Helper.LiveUpdate (LiveFragmentKey (..), LiveUpdateScope (..), currentLiveUpdateVersion)
+import Application.Helper.LiveUpdate (LiveFragmentKey (..),
+                                      LiveUpdateScope (..),
+                                      currentLiveUpdateVersion)
 import Application.Helper.SurfaceProjection
 import Application.Helper.UserPreferences
 import Data.Coerce (coerce)

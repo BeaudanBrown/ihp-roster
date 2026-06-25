@@ -2,11 +2,11 @@ module Web.Controller.Billing where
 
 import Application.Billing.Stripe
 import Application.Helper.LiveResource (LiveMutationResult (..))
+import Application.Helper.LiveSurface (serveTypedLiveFragment)
 import Application.Helper.Url (appendQueryParams)
 import Control.Monad (guard, void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
-import Application.Helper.LiveSurface (serveTypedLiveFragment)
 import Web.Billing.LiveUpdates
 import Web.Billing.Mutations
 import Web.Controller.Prelude
@@ -80,7 +80,7 @@ classifyCheckoutOutcome _ (Just subscription) _ = BillingCheckoutConfirmed subsc
 classifyCheckoutOutcome checkoutSessionId Nothing recentEvents =
     case find (isCheckoutFailure checkoutSessionId) recentEvents of
         Just event -> BillingCheckoutFailed event
-        Nothing -> BillingCheckoutPending
+        Nothing    -> BillingCheckoutPending
 
 isCheckoutFailure :: Maybe Text -> BillingEvent -> Bool
 isCheckoutFailure checkoutSessionId event =

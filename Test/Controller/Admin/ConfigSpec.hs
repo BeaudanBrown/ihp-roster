@@ -20,8 +20,8 @@ import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.ByteString.Lazy.Char8 as LByteString
 import qualified Data.IORef as IORef
 import qualified Data.List as List
-import qualified Data.Set as Set
 import Data.Scientific (Scientific)
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (NominalDiffTime, addUTCTime, diffUTCTime,

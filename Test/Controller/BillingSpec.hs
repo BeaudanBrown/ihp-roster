@@ -3,14 +3,14 @@ module Test.Controller.BillingSpec where
 import Application.Billing.Stripe
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Config
+import qualified Data.ByteString as ByteString
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Test.Mocking
-import qualified Data.ByteString as ByteString
-import qualified Network.HTTP.Types.URI as URI
 import Network.HTTP.Types.Status
-import qualified Network.Wai as Wai
+import qualified Network.HTTP.Types.URI as URI
 import Network.Wai (responseHeaders)
+import qualified Network.Wai as Wai
 import Test.Hspec
 import Test.Support
 import Web.Controller.Billing ()

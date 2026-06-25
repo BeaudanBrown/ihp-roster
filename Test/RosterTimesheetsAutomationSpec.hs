@@ -1,6 +1,7 @@
 module Test.RosterTimesheetsAutomationSpec where
 
-import Application.Async.Queue (AppJobRequest (..), EnqueueAppJobResult (..), enqueueAppJob)
+import Application.Async.Queue (AppJobRequest (..), EnqueueAppJobResult (..),
+                                enqueueAppJob)
 import Application.Helper.Controller (venueWeekStartDate)
 import Application.RosterTimesheets.Automation
 import qualified Data.Aeson as Aeson

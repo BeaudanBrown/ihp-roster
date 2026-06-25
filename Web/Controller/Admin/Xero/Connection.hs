@@ -251,7 +251,7 @@ chooseXeroTenantForOAuth tenants = do
         Nothing ->
             case tenants of
                 tenant : _ -> Right tenant
-                [] -> Left "Xero returned no connected tenants."
+                []         -> Left "Xero returned no connected tenants."
 
 failXeroConnectionAttempt ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

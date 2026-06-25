@@ -1,6 +1,7 @@
 module Test.Controller.ProfilesSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
+import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
@@ -9,6 +10,7 @@ import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..),
                                                  shiftPreferenceEndHourParamName,
                                                  shiftPreferenceStartHourParamName)
 import Config
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
@@ -20,12 +22,10 @@ import Network.HTTP.Types.Status
 import Network.Wai
 import Test.Hspec
 import Test.Support
-import Application.Helper.LiveResource (LiveResource (..))
-import qualified Data.Set as Set
+import Web.FrontController ()
 import Web.Profiles.Mutations (fetchProfileRosterInvalidationTargets,
                                fetchProfileRosterInvalidationTargetsForScopes,
                                profileUpdateTouchedResources)
-import Web.FrontController ()
 import Web.Routes
 import Web.Types
 

@@ -39,13 +39,13 @@ import qualified Test.DatabaseProtectionSpec
 import qualified Test.DevSeedSpec
 import qualified Test.FwcMapdSyncSpec
 import qualified Test.InteractionSpec
-import qualified Test.LiveUpdateSpec
-import qualified Test.LiveSurfaceGuardSpec
-import qualified Test.LiveSurfaceRegistrySpec
 import qualified Test.LiveResourceInvalidationSpec
 import qualified Test.LiveResourceSpec
 import qualified Test.LiveSurfaceDependencySpec
+import qualified Test.LiveSurfaceGuardSpec
+import qualified Test.LiveSurfaceRegistrySpec
 import qualified Test.LiveSurfaceSpec
+import qualified Test.LiveUpdateSpec
 import qualified Test.MailSpec
 import qualified Test.MutationBoundarySpec
 import qualified Test.PaySpec

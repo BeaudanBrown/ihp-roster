@@ -60,14 +60,14 @@ data XeroTimesheetPreviewLine = XeroTimesheetPreviewLine
     deriving (Eq, Show)
 
 data XeroTimesheetPreview = XeroTimesheetPreview
-    { previewStaffIds           :: ![UUID]
-    , previewXeroEmployeeId     :: !Text
-    , previewPayPeriodStart     :: !Day
-    , previewPayPeriodEnd       :: !Day
-    , previewSourceEntryIds     :: ![UUID]
-    , previewStaffPayVersionIds :: ![UUID]
-    , previewShiftPayVersionIds :: ![UUID]
-    , previewLines              :: ![XeroTimesheetPreviewLine]
+    { previewStaffIds                :: ![UUID]
+    , previewXeroEmployeeId          :: !Text
+    , previewPayPeriodStart          :: !Day
+    , previewPayPeriodEnd            :: !Day
+    , previewSourceEntryIds          :: ![UUID]
+    , previewStaffPayVersionIds      :: ![UUID]
+    , previewShiftPayVersionIds      :: ![UUID]
+    , previewLines                   :: ![XeroTimesheetPreviewLine]
     , previewExistingXeroTimesheetId :: !(Maybe Text)
     , previewRequestObjectJson       :: !Aeson.Value
     }

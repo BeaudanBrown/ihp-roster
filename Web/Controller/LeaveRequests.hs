@@ -1,5 +1,6 @@
 module Web.Controller.LeaveRequests where
 
+import Application.Helper.LiveSurface (serveTypedLiveFragment)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchCurrentUserLeaveRequests,
                                         fetchStaffLeaveRequests)
@@ -10,7 +11,6 @@ import Data.Coerce (coerce)
 import qualified Data.Text.IO as TextIO
 import qualified Data.Time.Calendar as Calendar
 import Web.Controller.Prelude
-import Application.Helper.LiveSurface (serveTypedLiveFragment)
 import Web.LeaveRequests.Mutations
 import Web.LeaveRequests.ProfileSelfService
 import Web.LeaveRequests.Projection

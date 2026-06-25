@@ -11,14 +11,16 @@ module Application.Xero.Timesheets.Prepare
     , submitXeroTimesheetPreparation
     ) where
 
-import Application.Helper.Pay (PayTotals (..), TimesheetPayResult (..), fetchTimesheetPayResultsForEntries, timesheetEntryIdKey)
-import Application.Helper.Xero
-import Application.Helper.XeroAdminTypes
-import Application.Helper.TimeRules (shiftDurationMinutes)
-import Application.Helper.XeroTimesheetReadiness
 import Application.Helper.Audit (recordCurrentUserAuditEvent)
 import Application.Helper.ControllerContext (currentVenueId)
+import Application.Helper.Pay (PayTotals (..), TimesheetPayResult (..),
+                               fetchTimesheetPayResultsForEntries,
+                               timesheetEntryIdKey)
 import Application.Helper.Staff (isLinkedActiveStaff)
+import Application.Helper.TimeRules (shiftDurationMinutes)
+import Application.Helper.Xero
+import Application.Helper.XeroAdminTypes
+import Application.Helper.XeroTimesheetReadiness
 import Application.Xero.Admin.PayItems
 import Application.Xero.Admin.ReadModel
 import Application.Xero.Admin.ReferenceData
@@ -652,7 +654,7 @@ totalEntryAmount payResultsByEntryId entries =
     where
         entryAmount entry =
             case Map.lookup (timesheetEntryIdKey entry.id) payResultsByEntryId of
-                Nothing -> 0
+                Nothing     -> 0
                 Just result -> result.totals.totalAmount
 
 totalEntryUnits :: [TimesheetEntry] -> Scientific

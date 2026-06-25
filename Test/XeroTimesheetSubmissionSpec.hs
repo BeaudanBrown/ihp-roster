@@ -19,8 +19,9 @@ import Test.Hspec
 import Test.Support
 import qualified Test.XeroMock as XeroMock
 import Test.XeroTimesheetPreviewSpec (EntrySpec (..), PreviewFixture (..),
-                                      createPreviewFixture, createPreviewFixtureAtPeriod, fixtureStaffA,
-                                      fixtureStaffB)
+                                      createPreviewFixture,
+                                      createPreviewFixtureAtPeriod,
+                                      fixtureStaffA, fixtureStaffB)
 
 tests :: Spec
 tests =

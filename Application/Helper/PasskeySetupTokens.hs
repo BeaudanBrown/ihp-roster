@@ -95,9 +95,9 @@ hashPasskeySetupToken rawToken =
     bytesToHex (ByteArray.convert (Hash.hash (TextEncoding.encodeUtf8 rawToken) :: Hash.Digest Hash.SHA256))
 
 passkeySetupTokenPurposeText :: PasskeySetupTokenPurpose -> Text
-passkeySetupTokenPurposeText SelfNewDevicePasskeySetup = "self_new_device"
+passkeySetupTokenPurposeText SelfNewDevicePasskeySetup  = "self_new_device"
 passkeySetupTokenPurposeText StaffNewDevicePasskeySetup = "staff_new_device"
-passkeySetupTokenPurposeText StaffPasskeyRecovery = "staff_recovery"
+passkeySetupTokenPurposeText StaffPasskeyRecovery       = "staff_recovery"
 
 passkeySetupTokenPurposeEmailLabel :: PasskeySetupTokenPurpose -> Text
 passkeySetupTokenPurposeEmailLabel SelfNewDevicePasskeySetup = "Set up a new passkey"

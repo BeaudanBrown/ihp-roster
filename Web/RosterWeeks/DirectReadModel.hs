@@ -20,8 +20,8 @@ import Application.Helper.Profiling
 import Application.Helper.RosterGroups (fetchCurrentVenueActiveStaff)
 import Data.Coerce (coerce)
 import Data.List (nubBy)
-import Data.Maybe (mapMaybe)
 import qualified Data.Map.Strict as Map
+import Data.Maybe (mapMaybe)
 import qualified Data.Time.Calendar as Calendar
 import qualified Data.UUID as UUID
 import qualified Database.PostgreSQL.Simple as PG

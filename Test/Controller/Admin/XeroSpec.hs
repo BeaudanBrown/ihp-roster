@@ -10,7 +10,7 @@ import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes (XeroLocalEarningsBucket (..))
 import Application.Helper.XeroTimesheetReadiness (readinessBlockerCodes,
-                                                 validateXeroTimesheetReadiness)
+                                                  validateXeroTimesheetReadiness)
 import Config
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
@@ -19,8 +19,8 @@ import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.ByteString.Lazy.Char8 as LByteString
 import qualified Data.IORef as IORef
 import qualified Data.List as List
-import qualified Data.Set as Set
 import Data.Scientific (Scientific)
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.Clock (NominalDiffTime, addUTCTime, diffUTCTime,
@@ -2318,7 +2318,7 @@ wagesExpenseAccountRefsFromEarningsRates :: [XeroEarningsRateRef] -> [XeroAccoun
 wagesExpenseAccountRefsFromEarningsRates earningsRates =
     case accountRefsFromEarningsRates earningsRates of
         account : _ -> [account { xeroAccountType = Just "WAGESEXPENSE" }]
-        [] -> []
+        []          -> []
 
 payItemCreateXeroClient :: XeroTokenResponse -> IORef.IORef [(Text, Aeson.Value)] -> XeroClient
 payItemCreateXeroClient tokenResponse requestsRef =
@@ -2407,7 +2407,7 @@ xeroPayItemRequestHas expectedName expectedRate =
 
 xeroTestAccountCodeFromExpenseAccountId :: Maybe Text -> Maybe Text
 xeroTestAccountCodeFromExpenseAccountId (Just "account-477") = Just "477"
-xeroTestAccountCodeFromExpenseAccountId _ = Nothing
+xeroTestAccountCodeFromExpenseAccountId _                    = Nothing
 
 xeroPayItemRequestIsSingleEarningsRate :: Aeson.Value -> Bool
 xeroPayItemRequestIsSingleEarningsRate (Aeson.Object object) =
@@ -2543,7 +2543,7 @@ ensureXeroAccountRecord connection accountCode name = do
                 |> set #syncedAt now
     case existing of
         Just account -> fillRecord account |> updateRecord
-        Nothing -> fillRecord (newRecord @XeroAccount) |> createRecord
+        Nothing      -> fillRecord (newRecord @XeroAccount) |> createRecord
 
 createXeroEarningsRateRecord ::
     (?modelContext :: ModelContext) =>

@@ -9,11 +9,11 @@ import Application.Async.Queue
 import Application.Helper.LiveResource
 import qualified Application.PublicHolidays.Policy as PublicHolidayPolicy
 import Application.PublicHolidays.Sync
-import Web.LiveResourceInvalidation (invalidateTouchedResourcesWithoutContext)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Generated.Types
 import IHP.ControllerPrelude
+import Web.LiveResourceInvalidation (invalidateTouchedResourcesWithoutContext)
 
 publicHolidayRefreshJobKind :: Text
 publicHolidayRefreshJobKind = "public_holiday_refresh"
