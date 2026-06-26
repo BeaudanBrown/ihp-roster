@@ -148,7 +148,10 @@ export type InteractionDomAttributes = {
     mountKey: string;
     marker: string;
     item: string;
+    container: string;
+    slot: string;
     dropzone: string;
+    resizeHandle: string;
     activation: string;
     activationIntent: string;
     activationTrigger: string;
@@ -161,7 +164,9 @@ export type InteractionDomAttributes = {
     sessionThreshold: string;
     sessionTimeoutMs: string;
     interactionActive: string;
+    serverLayer: string;
     disposableLayer: string;
+    layer: string;
     conflictPolicies: string;
     intentForm: string;
     intent: string;
@@ -171,17 +176,22 @@ export type InteractionDomAttributes = {
 };
 
 export function isInteractionDomAttributes(value: unknown): value is InteractionDomAttributes {
-    return __isInteractionDomAttributesExactRecord(value, ["surface", "surfaceFamily", "scopeKey", "mountKey", "marker", "item", "dropzone", "activation", "activationIntent", "activationTrigger", "activationValueField", "pointerSession", "sessionKind", "sessionIntent", "sessionDisabled", "sessionReadOnly", "sessionThreshold", "sessionTimeoutMs", "interactionActive", "disposableLayer", "conflictPolicies", "intentForm", "intent", "intentField", "fieldPresence", "intentHiddenField"], []) && (typeof value["surface"] === "string") && (typeof value["surfaceFamily"] === "string") && (typeof value["scopeKey"] === "string") && (typeof value["mountKey"] === "string") && (typeof value["marker"] === "string") && (typeof value["item"] === "string") && (typeof value["dropzone"] === "string") && (typeof value["activation"] === "string") && (typeof value["activationIntent"] === "string") && (typeof value["activationTrigger"] === "string") && (typeof value["activationValueField"] === "string") && (typeof value["pointerSession"] === "string") && (typeof value["sessionKind"] === "string") && (typeof value["sessionIntent"] === "string") && (typeof value["sessionDisabled"] === "string") && (typeof value["sessionReadOnly"] === "string") && (typeof value["sessionThreshold"] === "string") && (typeof value["sessionTimeoutMs"] === "string") && (typeof value["interactionActive"] === "string") && (typeof value["disposableLayer"] === "string") && (typeof value["conflictPolicies"] === "string") && (typeof value["intentForm"] === "string") && (typeof value["intent"] === "string") && (typeof value["intentField"] === "string") && (typeof value["fieldPresence"] === "string") && (typeof value["intentHiddenField"] === "string");
+    return __isInteractionDomAttributesExactRecord(value, ["surface", "surfaceFamily", "scopeKey", "mountKey", "marker", "item", "container", "slot", "dropzone", "resizeHandle", "activation", "activationIntent", "activationTrigger", "activationValueField", "pointerSession", "sessionKind", "sessionIntent", "sessionDisabled", "sessionReadOnly", "sessionThreshold", "sessionTimeoutMs", "interactionActive", "serverLayer", "disposableLayer", "layer", "conflictPolicies", "intentForm", "intent", "intentField", "fieldPresence", "intentHiddenField"], []) && (typeof value["surface"] === "string") && (typeof value["surfaceFamily"] === "string") && (typeof value["scopeKey"] === "string") && (typeof value["mountKey"] === "string") && (typeof value["marker"] === "string") && (typeof value["item"] === "string") && (typeof value["container"] === "string") && (typeof value["slot"] === "string") && (typeof value["dropzone"] === "string") && (typeof value["resizeHandle"] === "string") && (typeof value["activation"] === "string") && (typeof value["activationIntent"] === "string") && (typeof value["activationTrigger"] === "string") && (typeof value["activationValueField"] === "string") && (typeof value["pointerSession"] === "string") && (typeof value["sessionKind"] === "string") && (typeof value["sessionIntent"] === "string") && (typeof value["sessionDisabled"] === "string") && (typeof value["sessionReadOnly"] === "string") && (typeof value["sessionThreshold"] === "string") && (typeof value["sessionTimeoutMs"] === "string") && (typeof value["interactionActive"] === "string") && (typeof value["serverLayer"] === "string") && (typeof value["disposableLayer"] === "string") && (typeof value["layer"] === "string") && (typeof value["conflictPolicies"] === "string") && (typeof value["intentForm"] === "string") && (typeof value["intent"] === "string") && (typeof value["intentField"] === "string") && (typeof value["fieldPresence"] === "string") && (typeof value["intentHiddenField"] === "string");
 }
 
 
 export type InteractionDomValues = {
     enabled: string;
+    itemMarker: string;
+    containerMarker: string;
+    slotMarker: string;
+    dropzoneMarker: string;
+    resizeHandleMarker: string;
     activationMarker: string;
 };
 
 export function isInteractionDomValues(value: unknown): value is InteractionDomValues {
-    return __isInteractionDomAttributesExactRecord(value, ["enabled", "activationMarker"], []) && (typeof value["enabled"] === "string") && (typeof value["activationMarker"] === "string");
+    return __isInteractionDomAttributesExactRecord(value, ["enabled", "itemMarker", "containerMarker", "slotMarker", "dropzoneMarker", "resizeHandleMarker", "activationMarker"], []) && (typeof value["enabled"] === "string") && (typeof value["itemMarker"] === "string") && (typeof value["containerMarker"] === "string") && (typeof value["slotMarker"] === "string") && (typeof value["dropzoneMarker"] === "string") && (typeof value["resizeHandleMarker"] === "string") && (typeof value["activationMarker"] === "string");
 }
 
 
@@ -222,7 +232,10 @@ export type InteractionDomAttribute =
     | "data-bepis-mount-key"
     | "data-bepis-marker"
     | "data-bepis-item"
+    | "data-bepis-container"
+    | "data-bepis-slot"
     | "data-bepis-dropzone"
+    | "data-bepis-resize-handle"
     | "data-bepis-activation"
     | "data-bepis-activation-intent"
     | "data-bepis-activation-trigger"
@@ -235,7 +248,9 @@ export type InteractionDomAttribute =
     | "data-bepis-session-threshold"
     | "data-bepis-session-timeout-ms"
     | "data-bepis-interaction-active"
+    | "data-bepis-server-layer"
     | "data-bepis-disposable-layer"
+    | "data-bepis-layer"
     | "data-bepis-conflict-policies"
     | "data-bepis-intent-form"
     | "data-bepis-intent"
@@ -244,7 +259,7 @@ export type InteractionDomAttribute =
     | "data-bepis-intent-hidden-field";
 
 export function isInteractionDomAttribute(value: unknown): value is InteractionDomAttribute {
-    return value === "data-bepis-surface" || value === "data-bepis-surface-family" || value === "data-bepis-scope-key" || value === "data-bepis-mount-key" || value === "data-bepis-marker" || value === "data-bepis-item" || value === "data-bepis-dropzone" || value === "data-bepis-activation" || value === "data-bepis-activation-intent" || value === "data-bepis-activation-trigger" || value === "data-bepis-activation-value-field" || value === "data-bepis-pointer-session" || value === "data-bepis-session-kind" || value === "data-bepis-session-intent" || value === "data-bepis-session-disabled" || value === "data-bepis-session-read-only" || value === "data-bepis-session-threshold" || value === "data-bepis-session-timeout-ms" || value === "data-bepis-interaction-active" || value === "data-bepis-disposable-layer" || value === "data-bepis-conflict-policies" || value === "data-bepis-intent-form" || value === "data-bepis-intent" || value === "data-bepis-intent-field" || value === "data-bepis-field-presence" || value === "data-bepis-intent-hidden-field";
+    return value === "data-bepis-surface" || value === "data-bepis-surface-family" || value === "data-bepis-scope-key" || value === "data-bepis-mount-key" || value === "data-bepis-marker" || value === "data-bepis-item" || value === "data-bepis-container" || value === "data-bepis-slot" || value === "data-bepis-dropzone" || value === "data-bepis-resize-handle" || value === "data-bepis-activation" || value === "data-bepis-activation-intent" || value === "data-bepis-activation-trigger" || value === "data-bepis-activation-value-field" || value === "data-bepis-pointer-session" || value === "data-bepis-session-kind" || value === "data-bepis-session-intent" || value === "data-bepis-session-disabled" || value === "data-bepis-session-read-only" || value === "data-bepis-session-threshold" || value === "data-bepis-session-timeout-ms" || value === "data-bepis-interaction-active" || value === "data-bepis-server-layer" || value === "data-bepis-disposable-layer" || value === "data-bepis-layer" || value === "data-bepis-conflict-policies" || value === "data-bepis-intent-form" || value === "data-bepis-intent" || value === "data-bepis-intent-field" || value === "data-bepis-field-presence" || value === "data-bepis-intent-hidden-field";
 }
 
 
@@ -553,7 +568,7 @@ export function isInteractionStaticSchemaRegistry(value: unknown): value is Inte
 
 
 
-export const InteractionDom: InteractionDom = {"attributes":{"activation":"data-bepis-activation","activationIntent":"data-bepis-activation-intent","activationTrigger":"data-bepis-activation-trigger","activationValueField":"data-bepis-activation-value-field","conflictPolicies":"data-bepis-conflict-policies","disposableLayer":"data-bepis-disposable-layer","dropzone":"data-bepis-dropzone","fieldPresence":"data-bepis-field-presence","intent":"data-bepis-intent","intentField":"data-bepis-intent-field","intentForm":"data-bepis-intent-form","intentHiddenField":"data-bepis-intent-hidden-field","interactionActive":"data-bepis-interaction-active","item":"data-bepis-item","marker":"data-bepis-marker","mountKey":"data-bepis-mount-key","pointerSession":"data-bepis-pointer-session","scopeKey":"data-bepis-scope-key","sessionDisabled":"data-bepis-session-disabled","sessionIntent":"data-bepis-session-intent","sessionKind":"data-bepis-session-kind","sessionReadOnly":"data-bepis-session-read-only","sessionThreshold":"data-bepis-session-threshold","sessionTimeoutMs":"data-bepis-session-timeout-ms","surface":"data-bepis-surface","surfaceFamily":"data-bepis-surface-family"},"pointerFields":{"currentClientX":"currentClientX","currentClientY":"currentClientY","deltaX":"deltaX","deltaY":"deltaY","pointerId":"pointerId","pointerType":"pointerType","sessionKind":"sessionKind","sourceItemKey":"sourceItemKey","startClientX":"startClientX","startClientY":"startClientY","targetDropzoneKey":"targetDropzoneKey"},"values":{"activationMarker":"activation","enabled":"true"}};
+export const InteractionDom: InteractionDom = {"attributes":{"activation":"data-bepis-activation","activationIntent":"data-bepis-activation-intent","activationTrigger":"data-bepis-activation-trigger","activationValueField":"data-bepis-activation-value-field","conflictPolicies":"data-bepis-conflict-policies","container":"data-bepis-container","disposableLayer":"data-bepis-disposable-layer","dropzone":"data-bepis-dropzone","fieldPresence":"data-bepis-field-presence","intent":"data-bepis-intent","intentField":"data-bepis-intent-field","intentForm":"data-bepis-intent-form","intentHiddenField":"data-bepis-intent-hidden-field","interactionActive":"data-bepis-interaction-active","item":"data-bepis-item","layer":"data-bepis-layer","marker":"data-bepis-marker","mountKey":"data-bepis-mount-key","pointerSession":"data-bepis-pointer-session","resizeHandle":"data-bepis-resize-handle","scopeKey":"data-bepis-scope-key","serverLayer":"data-bepis-server-layer","sessionDisabled":"data-bepis-session-disabled","sessionIntent":"data-bepis-session-intent","sessionKind":"data-bepis-session-kind","sessionReadOnly":"data-bepis-session-read-only","sessionThreshold":"data-bepis-session-threshold","sessionTimeoutMs":"data-bepis-session-timeout-ms","slot":"data-bepis-slot","surface":"data-bepis-surface","surfaceFamily":"data-bepis-surface-family"},"pointerFields":{"currentClientX":"currentClientX","currentClientY":"currentClientY","deltaX":"deltaX","deltaY":"deltaY","pointerId":"pointerId","pointerType":"pointerType","sessionKind":"sessionKind","sourceItemKey":"sourceItemKey","startClientX":"startClientX","startClientY":"startClientY","targetDropzoneKey":"targetDropzoneKey"},"values":{"activationMarker":"activation","containerMarker":"container","dropzoneMarker":"dropzone","enabled":"true","itemMarker":"item","resizeHandleMarker":"resize-handle","slotMarker":"slot"}};
 export const InteractionStaticSchemas: InteractionStaticSchemaRegistry = {"roster":{"conflictPolicies":[{"fragment":{"kind":"any"},"resolution":"defer","session":{"kind":"session","session":"drag"},"timeoutMs":5000}],"disposableLayers":[{"domIdSuffix":"drag-preview","name":"drag-preview"}],"intents":[{"fields":[{"defaultValue":null,"name":"rosterLayoutMode","presence":"required"}],"name":"set-roster-layout-mode"},{"fields":[{"defaultValue":null,"name":"sourceItemKey","presence":"required"},{"defaultValue":null,"name":"targetDropzoneKey","presence":"required"},{"defaultValue":null,"name":"sessionKind","presence":"optional"},{"defaultValue":null,"name":"pointerId","presence":"optional"},{"defaultValue":null,"name":"pointerType","presence":"optional"},{"defaultValue":null,"name":"startClientX","presence":"optional"},{"defaultValue":null,"name":"startClientY","presence":"optional"},{"defaultValue":null,"name":"currentClientX","presence":"optional"},{"defaultValue":null,"name":"currentClientY","presence":"optional"},{"defaultValue":null,"name":"deltaX","presence":"optional"},{"defaultValue":null,"name":"deltaY","presence":"optional"}],"name":"move-roster-shift-to-slot"}],"serverLayers":[],"sessionKinds":[{"description":"Roster drag/drop prototype","kind":"drag"}]}};
 
 // Live-surface manifest generated from the registered Haskell surface registry.

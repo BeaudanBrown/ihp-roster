@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Application.Helper.Frontend.InteractionSchema
     ( interactionSchemaDeclaration
     ) where
@@ -14,6 +16,7 @@ import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..),
 import Application.Helper.Interaction
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
+import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.Text as Text
 import IHP.Prelude
 import Web.RosterWeeks.LiveSurface (rosterInteractionStaticSchema)
@@ -39,7 +42,7 @@ interactionContractTypesSource =
 
 interactionDomConstantSource :: Text
 interactionDomConstantSource =
-    renderTypedConstant "InteractionDom" interactionDomCodec interactionDomJson
+    renderTypedConstant "InteractionDom" interactionDomCodec canonicalInteractionDom
 
 interactionStaticSchemasSource :: Text
 interactionStaticSchemasSource =
@@ -88,15 +91,26 @@ interactionContractCodecs =
     , SomeFrontendCodec interactionStaticSchemaRegistryCodec
     ]
 
-interactionDomAttributesCodec :: FrontendCodec Aeson.Value
-interactionDomAttributesCodec = valueCodec "InteractionDomAttributes" $ SchemaRecord "InteractionDomAttributes"
+interactionDomAttributesCodec :: FrontendCodec InteractionDomAttributes
+interactionDomAttributesCodec = FrontendCodec
+    { codecName = Just "InteractionDomAttributes"
+    , codecSchema = interactionDomAttributesSchema
+    , codecEncode = interactionDomAttributesJson
+    , codecParse = parseInteractionDomAttributes
+    }
+
+interactionDomAttributesSchema :: FrontendSchema
+interactionDomAttributesSchema = SchemaRecord "InteractionDomAttributes"
     [ FrontendField "surface" SchemaString
     , FrontendField "surfaceFamily" SchemaString
     , FrontendField "scopeKey" SchemaString
     , FrontendField "mountKey" SchemaString
     , FrontendField "marker" SchemaString
     , FrontendField "item" SchemaString
+    , FrontendField "container" SchemaString
+    , FrontendField "slot" SchemaString
     , FrontendField "dropzone" SchemaString
+    , FrontendField "resizeHandle" SchemaString
     , FrontendField "activation" SchemaString
     , FrontendField "activationIntent" SchemaString
     , FrontendField "activationTrigger" SchemaString
@@ -109,7 +123,9 @@ interactionDomAttributesCodec = valueCodec "InteractionDomAttributes" $ SchemaRe
     , FrontendField "sessionThreshold" SchemaString
     , FrontendField "sessionTimeoutMs" SchemaString
     , FrontendField "interactionActive" SchemaString
+    , FrontendField "serverLayer" SchemaString
     , FrontendField "disposableLayer" SchemaString
+    , FrontendField "layer" SchemaString
     , FrontendField "conflictPolicies" SchemaString
     , FrontendField "intentForm" SchemaString
     , FrontendField "intent" SchemaString
@@ -118,14 +134,35 @@ interactionDomAttributesCodec = valueCodec "InteractionDomAttributes" $ SchemaRe
     , FrontendField "intentHiddenField" SchemaString
     ]
 
-interactionDomValuesCodec :: FrontendCodec Aeson.Value
-interactionDomValuesCodec = valueCodec "InteractionDomValues" $ SchemaRecord "InteractionDomValues"
+interactionDomValuesCodec :: FrontendCodec InteractionDomValues
+interactionDomValuesCodec = FrontendCodec
+    { codecName = Just "InteractionDomValues"
+    , codecSchema = interactionDomValuesSchema
+    , codecEncode = interactionDomValuesJson
+    , codecParse = parseInteractionDomValues
+    }
+
+interactionDomValuesSchema :: FrontendSchema
+interactionDomValuesSchema = SchemaRecord "InteractionDomValues"
     [ FrontendField "enabled" SchemaString
+    , FrontendField "itemMarker" SchemaString
+    , FrontendField "containerMarker" SchemaString
+    , FrontendField "slotMarker" SchemaString
+    , FrontendField "dropzoneMarker" SchemaString
+    , FrontendField "resizeHandleMarker" SchemaString
     , FrontendField "activationMarker" SchemaString
     ]
 
-interactionPointerFieldsCodec :: FrontendCodec Aeson.Value
-interactionPointerFieldsCodec = valueCodec "InteractionPointerFields" $ SchemaRecord "InteractionPointerFields"
+interactionPointerFieldsCodec :: FrontendCodec InteractionPointerFields
+interactionPointerFieldsCodec = FrontendCodec
+    { codecName = Just "InteractionPointerFields"
+    , codecSchema = interactionPointerFieldsSchema
+    , codecEncode = interactionPointerFieldsJson
+    , codecParse = parseInteractionPointerFields
+    }
+
+interactionPointerFieldsSchema :: FrontendSchema
+interactionPointerFieldsSchema = SchemaRecord "InteractionPointerFields"
     [ FrontendField "sessionKind" SchemaString
     , FrontendField "pointerId" SchemaString
     , FrontendField "pointerType" SchemaString
@@ -139,7 +176,7 @@ interactionPointerFieldsCodec = valueCodec "InteractionPointerFields" $ SchemaRe
     , FrontendField "targetDropzoneKey" SchemaString
     ]
 
-interactionDomCodec :: FrontendCodec Aeson.Value
+interactionDomCodec :: FrontendCodec InteractionDom
 interactionDomCodec = FrontendCodec
     { codecName = Just "InteractionDom"
     , codecSchema = SchemaRecord "InteractionDom"
@@ -147,8 +184,8 @@ interactionDomCodec = FrontendCodec
         , FrontendField "values" (SchemaRef "InteractionDomValues")
         , FrontendField "pointerFields" (SchemaRef "InteractionPointerFields")
         ]
-    , codecEncode = const interactionDomJson
-    , codecParse = pure
+    , codecEncode = interactionDomJson
+    , codecParse = parseInteractionDom
     }
 
 interactionDomAttributeCodec :: FrontendCodec Text
@@ -402,84 +439,177 @@ fieldPresenceText value = fromMaybe (error "Unknown interaction field presence")
 conflictResolutionText :: InteractionConflictResolution -> Text
 conflictResolutionText value = fromMaybe (error "Unknown interaction conflict resolution") (lookup value interactionConflictResolutionValues)
 
-interactionDomJson :: Aeson.Value
-interactionDomJson = Aeson.object
-    [ "attributes" Aeson..= Aeson.object
-        [ "surface" Aeson..= ("data-bepis-surface" :: Text)
-        , "surfaceFamily" Aeson..= ("data-bepis-surface-family" :: Text)
-        , "scopeKey" Aeson..= ("data-bepis-scope-key" :: Text)
-        , "mountKey" Aeson..= ("data-bepis-mount-key" :: Text)
-        , "marker" Aeson..= ("data-bepis-marker" :: Text)
-        , "item" Aeson..= ("data-bepis-item" :: Text)
-        , "dropzone" Aeson..= ("data-bepis-dropzone" :: Text)
-        , "activation" Aeson..= ("data-bepis-activation" :: Text)
-        , "activationIntent" Aeson..= ("data-bepis-activation-intent" :: Text)
-        , "activationTrigger" Aeson..= ("data-bepis-activation-trigger" :: Text)
-        , "activationValueField" Aeson..= ("data-bepis-activation-value-field" :: Text)
-        , "pointerSession" Aeson..= ("data-bepis-pointer-session" :: Text)
-        , "sessionKind" Aeson..= ("data-bepis-session-kind" :: Text)
-        , "sessionIntent" Aeson..= ("data-bepis-session-intent" :: Text)
-        , "sessionDisabled" Aeson..= ("data-bepis-session-disabled" :: Text)
-        , "sessionReadOnly" Aeson..= ("data-bepis-session-read-only" :: Text)
-        , "sessionThreshold" Aeson..= ("data-bepis-session-threshold" :: Text)
-        , "sessionTimeoutMs" Aeson..= ("data-bepis-session-timeout-ms" :: Text)
-        , "interactionActive" Aeson..= ("data-bepis-interaction-active" :: Text)
-        , "disposableLayer" Aeson..= ("data-bepis-disposable-layer" :: Text)
-        , "conflictPolicies" Aeson..= ("data-bepis-conflict-policies" :: Text)
-        , "intentForm" Aeson..= ("data-bepis-intent-form" :: Text)
-        , "intent" Aeson..= ("data-bepis-intent" :: Text)
-        , "intentField" Aeson..= ("data-bepis-intent-field" :: Text)
-        , "fieldPresence" Aeson..= ("data-bepis-field-presence" :: Text)
-        , "intentHiddenField" Aeson..= ("data-bepis-intent-hidden-field" :: Text)
-        ]
-    , "values" Aeson..= Aeson.object
-        [ "enabled" Aeson..= ("true" :: Text)
-        , "activationMarker" Aeson..= ("activation" :: Text)
-        ]
-    , "pointerFields" Aeson..= Aeson.object
-        [ "sessionKind" Aeson..= ("sessionKind" :: Text)
-        , "pointerId" Aeson..= ("pointerId" :: Text)
-        , "pointerType" Aeson..= ("pointerType" :: Text)
-        , "startClientX" Aeson..= ("startClientX" :: Text)
-        , "startClientY" Aeson..= ("startClientY" :: Text)
-        , "currentClientX" Aeson..= ("currentClientX" :: Text)
-        , "currentClientY" Aeson..= ("currentClientY" :: Text)
-        , "deltaX" Aeson..= ("deltaX" :: Text)
-        , "deltaY" Aeson..= ("deltaY" :: Text)
-        , "sourceItemKey" Aeson..= ("sourceItemKey" :: Text)
-        , "targetDropzoneKey" Aeson..= ("targetDropzoneKey" :: Text)
-        ]
+interactionDomJson :: InteractionDom -> Aeson.Value
+interactionDomJson dom = Aeson.object
+    [ "attributes" Aeson..= interactionDomAttributesJson dom.interactionDomAttributes
+    , "values" Aeson..= interactionDomValuesJson dom.interactionDomValues
+    , "pointerFields" Aeson..= interactionPointerFieldsJson dom.interactionDomPointerFields
     ]
+
+parseInteractionDom :: Aeson.Value -> AesonTypes.Parser InteractionDom
+parseInteractionDom = Aeson.withObject "InteractionDom" \object -> do
+    interactionDomAttributes <- (object Aeson..: "attributes") >>= parseInteractionDomAttributes
+    interactionDomValues <- (object Aeson..: "values") >>= parseInteractionDomValues
+    interactionDomPointerFields <- (object Aeson..: "pointerFields") >>= parseInteractionPointerFields
+    pure InteractionDom { interactionDomAttributes, interactionDomValues, interactionDomPointerFields }
+
+interactionDomAttributesJson :: InteractionDomAttributes -> Aeson.Value
+interactionDomAttributesJson attrs = Aeson.object
+    [ "surface" Aeson..= attrs.interactionDomSurfaceAttribute
+    , "surfaceFamily" Aeson..= attrs.interactionDomSurfaceFamilyAttribute
+    , "scopeKey" Aeson..= attrs.interactionDomScopeKeyAttribute
+    , "mountKey" Aeson..= attrs.interactionDomMountKeyAttribute
+    , "marker" Aeson..= attrs.interactionDomMarkerAttribute
+    , "item" Aeson..= attrs.interactionDomItemAttribute
+    , "container" Aeson..= attrs.interactionDomContainerAttribute
+    , "slot" Aeson..= attrs.interactionDomSlotAttribute
+    , "dropzone" Aeson..= attrs.interactionDomDropzoneAttribute
+    , "resizeHandle" Aeson..= attrs.interactionDomResizeHandleAttribute
+    , "activation" Aeson..= attrs.interactionDomActivationAttribute
+    , "activationIntent" Aeson..= attrs.interactionDomActivationIntentAttribute
+    , "activationTrigger" Aeson..= attrs.interactionDomActivationTriggerAttribute
+    , "activationValueField" Aeson..= attrs.interactionDomActivationValueFieldAttribute
+    , "pointerSession" Aeson..= attrs.interactionDomPointerSessionAttribute
+    , "sessionKind" Aeson..= attrs.interactionDomSessionKindAttribute
+    , "sessionIntent" Aeson..= attrs.interactionDomSessionIntentAttribute
+    , "sessionDisabled" Aeson..= attrs.interactionDomSessionDisabledAttribute
+    , "sessionReadOnly" Aeson..= attrs.interactionDomSessionReadOnlyAttribute
+    , "sessionThreshold" Aeson..= attrs.interactionDomSessionThresholdAttribute
+    , "sessionTimeoutMs" Aeson..= attrs.interactionDomSessionTimeoutMsAttribute
+    , "interactionActive" Aeson..= attrs.interactionDomInteractionActiveAttribute
+    , "serverLayer" Aeson..= attrs.interactionDomServerLayerAttribute
+    , "disposableLayer" Aeson..= attrs.interactionDomDisposableLayerAttribute
+    , "layer" Aeson..= attrs.interactionDomLayerAttribute
+    , "conflictPolicies" Aeson..= attrs.interactionDomConflictPoliciesAttribute
+    , "intentForm" Aeson..= attrs.interactionDomIntentFormAttribute
+    , "intent" Aeson..= attrs.interactionDomIntentAttribute
+    , "intentField" Aeson..= attrs.interactionDomIntentFieldAttribute
+    , "fieldPresence" Aeson..= attrs.interactionDomFieldPresenceAttribute
+    , "intentHiddenField" Aeson..= attrs.interactionDomIntentHiddenFieldAttribute
+    ]
+
+parseInteractionDomAttributes :: Aeson.Value -> AesonTypes.Parser InteractionDomAttributes
+parseInteractionDomAttributes = Aeson.withObject "InteractionDomAttributes" \object -> do
+    interactionDomSurfaceAttribute <- object Aeson..: "surface"
+    interactionDomSurfaceFamilyAttribute <- object Aeson..: "surfaceFamily"
+    interactionDomScopeKeyAttribute <- object Aeson..: "scopeKey"
+    interactionDomMountKeyAttribute <- object Aeson..: "mountKey"
+    interactionDomMarkerAttribute <- object Aeson..: "marker"
+    interactionDomItemAttribute <- object Aeson..: "item"
+    interactionDomContainerAttribute <- object Aeson..: "container"
+    interactionDomSlotAttribute <- object Aeson..: "slot"
+    interactionDomDropzoneAttribute <- object Aeson..: "dropzone"
+    interactionDomResizeHandleAttribute <- object Aeson..: "resizeHandle"
+    interactionDomActivationAttribute <- object Aeson..: "activation"
+    interactionDomActivationIntentAttribute <- object Aeson..: "activationIntent"
+    interactionDomActivationTriggerAttribute <- object Aeson..: "activationTrigger"
+    interactionDomActivationValueFieldAttribute <- object Aeson..: "activationValueField"
+    interactionDomPointerSessionAttribute <- object Aeson..: "pointerSession"
+    interactionDomSessionKindAttribute <- object Aeson..: "sessionKind"
+    interactionDomSessionIntentAttribute <- object Aeson..: "sessionIntent"
+    interactionDomSessionDisabledAttribute <- object Aeson..: "sessionDisabled"
+    interactionDomSessionReadOnlyAttribute <- object Aeson..: "sessionReadOnly"
+    interactionDomSessionThresholdAttribute <- object Aeson..: "sessionThreshold"
+    interactionDomSessionTimeoutMsAttribute <- object Aeson..: "sessionTimeoutMs"
+    interactionDomInteractionActiveAttribute <- object Aeson..: "interactionActive"
+    interactionDomServerLayerAttribute <- object Aeson..: "serverLayer"
+    interactionDomDisposableLayerAttribute <- object Aeson..: "disposableLayer"
+    interactionDomLayerAttribute <- object Aeson..: "layer"
+    interactionDomConflictPoliciesAttribute <- object Aeson..: "conflictPolicies"
+    interactionDomIntentFormAttribute <- object Aeson..: "intentForm"
+    interactionDomIntentAttribute <- object Aeson..: "intent"
+    interactionDomIntentFieldAttribute <- object Aeson..: "intentField"
+    interactionDomFieldPresenceAttribute <- object Aeson..: "fieldPresence"
+    interactionDomIntentHiddenFieldAttribute <- object Aeson..: "intentHiddenField"
+    pure InteractionDomAttributes {..}
+
+interactionDomValuesJson :: InteractionDomValues -> Aeson.Value
+interactionDomValuesJson values = Aeson.object
+    [ "enabled" Aeson..= values.interactionDomEnabledValue
+    , "itemMarker" Aeson..= values.interactionDomItemMarkerValue
+    , "containerMarker" Aeson..= values.interactionDomContainerMarkerValue
+    , "slotMarker" Aeson..= values.interactionDomSlotMarkerValue
+    , "dropzoneMarker" Aeson..= values.interactionDomDropzoneMarkerValue
+    , "resizeHandleMarker" Aeson..= values.interactionDomResizeHandleMarkerValue
+    , "activationMarker" Aeson..= values.interactionDomActivationMarkerValue
+    ]
+
+parseInteractionDomValues :: Aeson.Value -> AesonTypes.Parser InteractionDomValues
+parseInteractionDomValues = Aeson.withObject "InteractionDomValues" \object -> do
+    interactionDomEnabledValue <- object Aeson..: "enabled"
+    interactionDomItemMarkerValue <- object Aeson..: "itemMarker"
+    interactionDomContainerMarkerValue <- object Aeson..: "containerMarker"
+    interactionDomSlotMarkerValue <- object Aeson..: "slotMarker"
+    interactionDomDropzoneMarkerValue <- object Aeson..: "dropzoneMarker"
+    interactionDomResizeHandleMarkerValue <- object Aeson..: "resizeHandleMarker"
+    interactionDomActivationMarkerValue <- object Aeson..: "activationMarker"
+    pure InteractionDomValues {..}
+
+interactionPointerFieldsJson :: InteractionPointerFields -> Aeson.Value
+interactionPointerFieldsJson fields = Aeson.object
+    [ "sessionKind" Aeson..= fields.interactionPointerSessionKindField
+    , "pointerId" Aeson..= fields.interactionPointerIdField
+    , "pointerType" Aeson..= fields.interactionPointerTypeField
+    , "startClientX" Aeson..= fields.interactionPointerStartClientXField
+    , "startClientY" Aeson..= fields.interactionPointerStartClientYField
+    , "currentClientX" Aeson..= fields.interactionPointerCurrentClientXField
+    , "currentClientY" Aeson..= fields.interactionPointerCurrentClientYField
+    , "deltaX" Aeson..= fields.interactionPointerDeltaXField
+    , "deltaY" Aeson..= fields.interactionPointerDeltaYField
+    , "sourceItemKey" Aeson..= fields.interactionPointerSourceItemKeyField
+    , "targetDropzoneKey" Aeson..= fields.interactionPointerTargetDropzoneKeyField
+    ]
+
+parseInteractionPointerFields :: Aeson.Value -> AesonTypes.Parser InteractionPointerFields
+parseInteractionPointerFields = Aeson.withObject "InteractionPointerFields" \object -> do
+    interactionPointerSessionKindField <- object Aeson..: "sessionKind"
+    interactionPointerIdField <- object Aeson..: "pointerId"
+    interactionPointerTypeField <- object Aeson..: "pointerType"
+    interactionPointerStartClientXField <- object Aeson..: "startClientX"
+    interactionPointerStartClientYField <- object Aeson..: "startClientY"
+    interactionPointerCurrentClientXField <- object Aeson..: "currentClientX"
+    interactionPointerCurrentClientYField <- object Aeson..: "currentClientY"
+    interactionPointerDeltaXField <- object Aeson..: "deltaX"
+    interactionPointerDeltaYField <- object Aeson..: "deltaY"
+    interactionPointerSourceItemKeyField <- object Aeson..: "sourceItemKey"
+    interactionPointerTargetDropzoneKeyField <- object Aeson..: "targetDropzoneKey"
+    pure InteractionPointerFields {..}
 
 interactionDomAttributeValues :: [Text]
 interactionDomAttributeValues =
-    [ "data-bepis-surface"
-    , "data-bepis-surface-family"
-    , "data-bepis-scope-key"
-    , "data-bepis-mount-key"
-    , "data-bepis-marker"
-    , "data-bepis-item"
-    , "data-bepis-dropzone"
-    , "data-bepis-activation"
-    , "data-bepis-activation-intent"
-    , "data-bepis-activation-trigger"
-    , "data-bepis-activation-value-field"
-    , "data-bepis-pointer-session"
-    , "data-bepis-session-kind"
-    , "data-bepis-session-intent"
-    , "data-bepis-session-disabled"
-    , "data-bepis-session-read-only"
-    , "data-bepis-session-threshold"
-    , "data-bepis-session-timeout-ms"
-    , "data-bepis-interaction-active"
-    , "data-bepis-disposable-layer"
-    , "data-bepis-conflict-policies"
-    , "data-bepis-intent-form"
-    , "data-bepis-intent"
-    , "data-bepis-intent-field"
-    , "data-bepis-field-presence"
-    , "data-bepis-intent-hidden-field"
-    ]
+    let attrs = canonicalInteractionDom.interactionDomAttributes
+     in [ attrs.interactionDomSurfaceAttribute
+        , attrs.interactionDomSurfaceFamilyAttribute
+        , attrs.interactionDomScopeKeyAttribute
+        , attrs.interactionDomMountKeyAttribute
+        , attrs.interactionDomMarkerAttribute
+        , attrs.interactionDomItemAttribute
+        , attrs.interactionDomContainerAttribute
+        , attrs.interactionDomSlotAttribute
+        , attrs.interactionDomDropzoneAttribute
+        , attrs.interactionDomResizeHandleAttribute
+        , attrs.interactionDomActivationAttribute
+        , attrs.interactionDomActivationIntentAttribute
+        , attrs.interactionDomActivationTriggerAttribute
+        , attrs.interactionDomActivationValueFieldAttribute
+        , attrs.interactionDomPointerSessionAttribute
+        , attrs.interactionDomSessionKindAttribute
+        , attrs.interactionDomSessionIntentAttribute
+        , attrs.interactionDomSessionDisabledAttribute
+        , attrs.interactionDomSessionReadOnlyAttribute
+        , attrs.interactionDomSessionThresholdAttribute
+        , attrs.interactionDomSessionTimeoutMsAttribute
+        , attrs.interactionDomInteractionActiveAttribute
+        , attrs.interactionDomServerLayerAttribute
+        , attrs.interactionDomDisposableLayerAttribute
+        , attrs.interactionDomLayerAttribute
+        , attrs.interactionDomConflictPoliciesAttribute
+        , attrs.interactionDomIntentFormAttribute
+        , attrs.interactionDomIntentAttribute
+        , attrs.interactionDomIntentFieldAttribute
+        , attrs.interactionDomFieldPresenceAttribute
+        , attrs.interactionDomIntentHiddenFieldAttribute
+        ]
 
 valueCodec :: Text -> FrontendSchema -> FrontendCodec Aeson.Value
 valueCodec name schema =

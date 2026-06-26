@@ -8,7 +8,11 @@ module Application.Helper.Interaction
     , InteractionCapability (..)
     , InteractionConflictPolicy (..)
     , InteractionConflictResolution (..)
+    , InteractionDom (..)
+    , InteractionDomAttributes (..)
+    , InteractionDomValues (..)
     , InteractionFieldPresence (..)
+    , InteractionPointerFields (..)
     , InteractionFragmentSelector (..)
     , InteractionIntentSchema (..)
     , InteractionIntentTarget (..)
@@ -26,6 +30,7 @@ module Application.Helper.Interaction
     , DisposableLayerDefinition (..)
     , SessionKindDefinition (..)
     , TypedInteractionSurfaceDefinition
+    , canonicalInteractionDom
     , disposableLayerDomId
     , emptyInteractionCapability
     , emptyInteractionStaticSchema
@@ -80,6 +85,9 @@ import Application.Helper.Interaction.Types (DisposableLayerDefinition (..),
                                              InteractionCapability (..),
                                              InteractionConflictPolicy (..),
                                              InteractionConflictResolution (..),
+                                             InteractionDom (..),
+                                             InteractionDomAttributes (..),
+                                             InteractionDomValues (..),
                                              InteractionFieldPresence (..),
                                              InteractionFragmentSelector (..),
                                              InteractionIntentSchema (..),
@@ -87,10 +95,12 @@ import Application.Helper.Interaction.Types (DisposableLayerDefinition (..),
                                              InteractionMarkerKind (..),
                                              InteractionMountKey (..),
                                              InteractionMountLocalTarget (..),
+                                             InteractionPointerFields (..),
                                              InteractionSessionSelector (..),
                                              InteractionStaticSchema (..),
                                              ServerLayerDefinition (..),
                                              SessionKindDefinition (..),
+                                             canonicalInteractionDom,
                                              emptyInteractionCapability,
                                              emptyInteractionStaticSchema,
                                              htmxMethodValues, htmxSwapValues,
@@ -113,6 +123,12 @@ import qualified Text.Blaze.Html5 as Html5
 import Text.Blaze.Html5 ((!))
 
 type Html = Blaze.Html
+
+interactionDomAttrs :: InteractionDomAttributes
+interactionDomAttrs = canonicalInteractionDom.interactionDomAttributes
+
+interactionDomVals :: InteractionDomValues
+interactionDomVals = canonicalInteractionDom.interactionDomValues
 
 type TypedInteractionSurfaceDefinition surface scope fragment layer session intent =
     TypedLiveSurfaceDefinition surface scope fragment layer session intent
@@ -218,10 +234,10 @@ renderInteractionSurfaceMountWithAttrs definition mount extraAttrs inner =
     Html5.div
         ! attr "id" mountId
         ! attr "data-live-update-surface" (liveSurfaceConfigJson (interactionSurfaceLiveConfig definition mount))
-        ! attr "data-bepis-surface" "true"
-        ! attr "data-bepis-surface-family" definition.typedSurfaceFeature
-        ! attr "data-bepis-scope-key" (liveUpdateScopeKey surfaceScope)
-        ! attr "data-bepis-mount-key" mount.interactionMountKey.unInteractionMountKey
+        ! attr interactionDomAttrs.interactionDomSurfaceAttribute interactionDomVals.interactionDomEnabledValue
+        ! attr interactionDomAttrs.interactionDomSurfaceFamilyAttribute definition.typedSurfaceFeature
+        ! attr interactionDomAttrs.interactionDomScopeKeyAttribute (liveUpdateScopeKey surfaceScope)
+        ! attr interactionDomAttrs.interactionDomMountKeyAttribute mount.interactionMountKey.unInteractionMountKey
         ! extraAttrs
         $ inner
     where
@@ -244,7 +260,7 @@ renderInteractionCapabilityShell definition mount serverHtml =
         staticSchema = typedInteractionStaticSchemaFor definition
         serverLayer = fromMaybe defaultServerLayer (listToMaybe staticSchema.interactionStaticServerLayers)
         defaultServerLayer = ServerLayerDefinition { serverLayerName = "server", serverLayerDomIdSuffix = "server" }
-        conflictPoliciesAttr = attr "data-bepis-conflict-policies" (interactionConflictPoliciesJson definition mount.interactionMountScope staticSchema)
+        conflictPoliciesAttr = attr interactionDomAttrs.interactionDomConflictPoliciesAttribute (interactionConflictPoliciesJson definition mount.interactionMountScope staticSchema)
 
 renderInteractionServerLayer ::
     TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
@@ -254,8 +270,8 @@ renderInteractionServerLayer ::
     Html
 renderInteractionServerLayer definition mount layer inner =
     Html5.div
-        ! attr "data-bepis-server-layer" layer.serverLayerName
-        ! attr "data-bepis-layer" layer.serverLayerName
+        ! attr interactionDomAttrs.interactionDomServerLayerAttribute layer.serverLayerName
+        ! attr interactionDomAttrs.interactionDomLayerAttribute layer.serverLayerName
         ! attr "id" (serverLayerDomId definition mount layer)
         $ inner
 
@@ -267,8 +283,8 @@ renderInteractionDisposableLayer ::
 renderInteractionDisposableLayer definition mount layer =
     Html5.div
         ! attr "id" (disposableLayerDomId definition mount layer)
-        ! attr "data-bepis-disposable-layer" layer.disposableLayerName
-        ! attr "data-bepis-layer" layer.disposableLayerName
+        ! attr interactionDomAttrs.interactionDomDisposableLayerAttribute layer.disposableLayerName
+        ! attr interactionDomAttrs.interactionDomLayerAttribute layer.disposableLayerName
         $ mempty
 
 renderInteractionIntentForm ::
@@ -279,8 +295,8 @@ renderInteractionIntentForm ::
 renderInteractionIntentForm definition mount form =
     Html5.form
         ! attr "id" (interactionFormDomId definition mount form)
-        ! attr "data-bepis-intent-form" form.intentFormName
-        ! attr "data-bepis-intent" form.intentFormName
+        ! attr interactionDomAttrs.interactionDomIntentFormAttribute form.intentFormName
+        ! attr interactionDomAttrs.interactionDomIntentAttribute form.intentFormName
         ! attr "action" form.intentFormAction
         ! attr htmxAttributeName form.intentFormAction
         ! attr "hx-trigger" form.intentFormTrigger
@@ -300,8 +316,8 @@ renderIntentSchemaInput field =
         ! attr "type" "hidden"
         ! attr "name" field.intentFieldName.unIntentFieldName
         ! attr "value" (fromMaybe "" field.intentFieldDefaultValue)
-        ! attr "data-bepis-intent-field" field.intentFieldName.unIntentFieldName
-        ! attr "data-bepis-field-presence" (fieldPresenceAttribute field.intentFieldPresence)
+        ! attr interactionDomAttrs.interactionDomIntentFieldAttribute field.intentFieldName.unIntentFieldName
+        ! attr interactionDomAttrs.interactionDomFieldPresenceAttribute (fieldPresenceAttribute field.intentFieldPresence)
 
 renderIntentHiddenInput :: IntentHiddenField -> Html
 renderIntentHiddenInput field =
@@ -309,7 +325,7 @@ renderIntentHiddenInput field =
         ! attr "type" "hidden"
         ! attr "name" field.intentHiddenFieldName.unIntentFieldName
         ! attr "value" field.intentHiddenFieldValue
-        ! attr "data-bepis-intent-hidden-field" field.intentHiddenFieldName.unIntentFieldName
+        ! attr interactionDomAttrs.interactionDomIntentHiddenFieldAttribute field.intentHiddenFieldName.unIntentFieldName
 
 interactionIntentTargetSelector ::
     TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
@@ -326,8 +342,8 @@ interactionIntentTargetSelector definition mount (IntentTargetMountLocal target)
 renderInteractionMarker :: InteractionMarkerKind -> Text -> Html -> Html
 renderInteractionMarker markerKind markerKey inner =
     Html5.div
-        ! attr "data-bepis-marker" (interactionMarkerKindAttribute markerKind)
-        ! attr ("data-bepis-" <> interactionMarkerKindAttribute markerKind) markerKey
+        ! attr interactionDomAttrs.interactionDomMarkerAttribute (interactionMarkerKindAttribute markerKind)
+        ! attr (interactionMarkerKindDataAttribute markerKind) markerKey
         $ inner
 
 renderInteractionItemMarker :: Text -> Html -> Html
@@ -345,8 +361,8 @@ renderInteractionDropzoneMarker = renderInteractionMarker InteractionDropzoneMar
 withInteractionDropzoneMarker :: Text -> Html -> Html
 withInteractionDropzoneMarker markerKey html =
     html
-        ! attr "data-bepis-marker" (interactionMarkerKindAttribute InteractionDropzoneMarker)
-        ! attr "data-bepis-dropzone" markerKey
+        ! attr interactionDomAttrs.interactionDomMarkerAttribute (interactionMarkerKindAttribute InteractionDropzoneMarker)
+        ! attr interactionDomAttrs.interactionDomDropzoneAttribute markerKey
 
 renderInteractionResizeHandleMarker :: Text -> Html -> Html
 renderInteractionResizeHandleMarker = renderInteractionMarker InteractionResizeHandleMarker
@@ -357,48 +373,56 @@ renderInteractionActivationMarker = renderInteractionMarker InteractionActivatio
 renderInteractionActivationIntentMarker :: Text -> Text -> InteractionActivationTrigger -> Maybe IntentFieldName -> Html -> Html
 renderInteractionActivationIntentMarker markerKey intentName trigger valueFieldName inner =
     Html5.div
-        ! attr "data-bepis-marker" (interactionMarkerKindAttribute InteractionActivationMarker)
-        ! attr "data-bepis-activation" markerKey
-        ! attr "data-bepis-activation-intent" intentName
-        ! attr "data-bepis-activation-trigger" (interactionActivationTriggerAttribute trigger)
-        ! maybeAttr "data-bepis-activation-value-field" (unIntentFieldName <$> valueFieldName)
+        ! attr interactionDomAttrs.interactionDomMarkerAttribute (interactionMarkerKindAttribute InteractionActivationMarker)
+        ! attr interactionDomAttrs.interactionDomActivationAttribute markerKey
+        ! attr interactionDomAttrs.interactionDomActivationIntentAttribute intentName
+        ! attr interactionDomAttrs.interactionDomActivationTriggerAttribute (interactionActivationTriggerAttribute trigger)
+        ! maybeAttr interactionDomAttrs.interactionDomActivationValueFieldAttribute (unIntentFieldName <$> valueFieldName)
         $ inner
 
 withInteractionActivationIntentMarker :: Text -> Text -> InteractionActivationTrigger -> Maybe IntentFieldName -> Html -> Html
 withInteractionActivationIntentMarker markerKey intentName trigger valueFieldName html =
     html
-        ! attr "data-bepis-marker" (interactionMarkerKindAttribute InteractionActivationMarker)
-        ! attr "data-bepis-activation" markerKey
-        ! attr "data-bepis-activation-intent" intentName
-        ! attr "data-bepis-activation-trigger" (interactionActivationTriggerAttribute trigger)
-        ! maybeAttr "data-bepis-activation-value-field" (unIntentFieldName <$> valueFieldName)
+        ! attr interactionDomAttrs.interactionDomMarkerAttribute (interactionMarkerKindAttribute InteractionActivationMarker)
+        ! attr interactionDomAttrs.interactionDomActivationAttribute markerKey
+        ! attr interactionDomAttrs.interactionDomActivationIntentAttribute intentName
+        ! attr interactionDomAttrs.interactionDomActivationTriggerAttribute (interactionActivationTriggerAttribute trigger)
+        ! maybeAttr interactionDomAttrs.interactionDomActivationValueFieldAttribute (unIntentFieldName <$> valueFieldName)
 
 renderInteractionPointerSessionMarker :: Text -> Text -> Text -> Html -> Html
 renderInteractionPointerSessionMarker markerKey sessionKindName intentName inner =
     Html5.div
-        ! attr "data-bepis-marker" (interactionMarkerKindAttribute InteractionItemMarker)
-        ! attr "data-bepis-item" markerKey
-        ! attr "data-bepis-pointer-session" "true"
-        ! attr "data-bepis-session-kind" sessionKindName
-        ! attr "data-bepis-session-intent" intentName
+        ! attr interactionDomAttrs.interactionDomMarkerAttribute (interactionMarkerKindAttribute InteractionItemMarker)
+        ! attr interactionDomAttrs.interactionDomItemAttribute markerKey
+        ! attr interactionDomAttrs.interactionDomPointerSessionAttribute interactionDomVals.interactionDomEnabledValue
+        ! attr interactionDomAttrs.interactionDomSessionKindAttribute sessionKindName
+        ! attr interactionDomAttrs.interactionDomSessionIntentAttribute intentName
         $ inner
 
 withInteractionPointerSessionMarker :: Text -> Text -> Text -> Html -> Html
 withInteractionPointerSessionMarker markerKey sessionKindName intentName html =
     html
-        ! attr "data-bepis-marker" (interactionMarkerKindAttribute InteractionItemMarker)
-        ! attr "data-bepis-item" markerKey
-        ! attr "data-bepis-pointer-session" "true"
-        ! attr "data-bepis-session-kind" sessionKindName
-        ! attr "data-bepis-session-intent" intentName
+        ! attr interactionDomAttrs.interactionDomMarkerAttribute (interactionMarkerKindAttribute InteractionItemMarker)
+        ! attr interactionDomAttrs.interactionDomItemAttribute markerKey
+        ! attr interactionDomAttrs.interactionDomPointerSessionAttribute interactionDomVals.interactionDomEnabledValue
+        ! attr interactionDomAttrs.interactionDomSessionKindAttribute sessionKindName
+        ! attr interactionDomAttrs.interactionDomSessionIntentAttribute intentName
 
 interactionMarkerKindAttribute :: InteractionMarkerKind -> Text
-interactionMarkerKindAttribute InteractionItemMarker         = "item"
-interactionMarkerKindAttribute InteractionContainerMarker    = "container"
-interactionMarkerKindAttribute InteractionSlotMarker         = "slot"
-interactionMarkerKindAttribute InteractionDropzoneMarker     = "dropzone"
-interactionMarkerKindAttribute InteractionResizeHandleMarker = "resize-handle"
-interactionMarkerKindAttribute InteractionActivationMarker   = "activation"
+interactionMarkerKindAttribute InteractionItemMarker         = interactionDomVals.interactionDomItemMarkerValue
+interactionMarkerKindAttribute InteractionContainerMarker    = interactionDomVals.interactionDomContainerMarkerValue
+interactionMarkerKindAttribute InteractionSlotMarker         = interactionDomVals.interactionDomSlotMarkerValue
+interactionMarkerKindAttribute InteractionDropzoneMarker     = interactionDomVals.interactionDomDropzoneMarkerValue
+interactionMarkerKindAttribute InteractionResizeHandleMarker = interactionDomVals.interactionDomResizeHandleMarkerValue
+interactionMarkerKindAttribute InteractionActivationMarker   = interactionDomVals.interactionDomActivationMarkerValue
+
+interactionMarkerKindDataAttribute :: InteractionMarkerKind -> Text
+interactionMarkerKindDataAttribute InteractionItemMarker         = interactionDomAttrs.interactionDomItemAttribute
+interactionMarkerKindDataAttribute InteractionContainerMarker    = interactionDomAttrs.interactionDomContainerAttribute
+interactionMarkerKindDataAttribute InteractionSlotMarker         = interactionDomAttrs.interactionDomSlotAttribute
+interactionMarkerKindDataAttribute InteractionDropzoneMarker     = interactionDomAttrs.interactionDomDropzoneAttribute
+interactionMarkerKindDataAttribute InteractionResizeHandleMarker = interactionDomAttrs.interactionDomResizeHandleAttribute
+interactionMarkerKindDataAttribute InteractionActivationMarker   = interactionDomAttrs.interactionDomActivationAttribute
 
 interactionActivationTriggerAttribute :: InteractionActivationTrigger -> Text
 interactionActivationTriggerAttribute trigger =

@@ -1,6 +1,6 @@
 ---
 id: ir-8nr6
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-06-26T07:25:29Z
@@ -22,3 +22,9 @@ Introduce Haskell-owned InteractionDom constant records or accessors. Build Inte
 
 Application.Helper.Interaction no longer repeats canonical data-bepis-* attribute names or fixed values that are present in InteractionDom; generated contracts are unchanged or intentionally regenerated; Interaction/Frontend contract tests pass.
 
+
+## Notes
+
+**2026-06-26T07:43:32Z**
+
+Centralized InteractionDom attributes, marker values, pointer-field keys, server/disposable/layer attrs, and interaction enabled value in Haskell-owned canonicalInteractionDom. Application.Helper.Interaction now renders markup from those constants, and the generated TypeScript InteractionDom/InteractionDomAttribute contracts are derived from the same record. Added deterministic coverage for container/slot/resize/server/layer fields through generated contracts. Verification passed: typecheck, frontend-contracts-check, frontend-check, hspec-test --match 'Frontend contract' --match 'Interaction'.
