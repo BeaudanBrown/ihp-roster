@@ -1,6 +1,15 @@
 "use strict";
 (() => {
   // frontend/ts/generated/contracts.ts
+  function isExactRecord(value, requiredKeys, optionalKeys) {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+    const actualKeys = Object.keys(value);
+    const allowedKeys = /* @__PURE__ */ new Set([...requiredKeys, ...optionalKeys]);
+    return requiredKeys.every((key) => Object.prototype.hasOwnProperty.call(value, key)) && actualKeys.every((key) => allowedKeys.has(key));
+  }
+  function isLiveFragmentProtection(value) {
+    return isExactRecord(value, ["kind"], []) && value["kind"] === "none" || isExactRecord(value, ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback"], ["containerSelector"]) && value["kind"] === "focused_field" && typeof value["activeSelector"] === "string" && typeof value["fieldKeyAttr"] === "string" && typeof value["fieldNameFallback"] === "boolean" && (!Object.prototype.hasOwnProperty.call(value, "containerSelector") || typeof value["containerSelector"] === "string");
+  }
   function isLiveUpdateRecord(value) {
     return value !== null && typeof value === "object" && !Array.isArray(value);
   }
@@ -81,10 +90,6 @@
       default:
         return false;
     }
-  }
-  function isLiveFragmentProtection(value) {
-    if (value === null) return true;
-    return isLiveUpdateRecord(value) && value.kind === "focused_field" && isLiveUpdateString(value.activeSelector) && isLiveUpdateString(value.fieldKeyAttr) && isLiveUpdateBoolean(value.fieldNameFallback) && isLiveUpdateNullableString(value.containerSelector);
   }
   function isLiveUpdateWireFragment(value) {
     return isLiveUpdateRecord(value) && isLiveFragmentKey(value.fragmentKey) && isLiveUpdateString(value.targetId) && isLiveUpdateString(value.url) && isLiveUpdateBoolean(value.deferUntilBlur) && isLiveFragmentProtection(value.protectionPolicy);
@@ -567,15 +572,14 @@
         }
       };
     }
-    const protectionPolicies = {
-      focused_field: focusedFieldProtection
-    };
     function matchingFragmentProtection(fragment, _target) {
-      if (fragment && fragment.protectionPolicy && fragment.protectionPolicy.kind) {
-        const factory = protectionPolicies[fragment.protectionPolicy.kind];
-        return typeof factory === "function" ? factory(fragment.protectionPolicy) : null;
+      if (!fragment) return null;
+      switch (fragment.protectionPolicy.kind) {
+        case "focused_field":
+          return focusedFieldProtection(fragment.protectionPolicy);
+        case "none":
+          return null;
       }
-      return null;
     }
     function hasProtectedActiveInput(target, fragment) {
       const adapter = matchingFragmentProtection(fragment, target);

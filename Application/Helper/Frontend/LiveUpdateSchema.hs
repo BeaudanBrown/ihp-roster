@@ -15,16 +15,24 @@ module Application.Helper.Frontend.LiveUpdateSchema
 import Application.Helper.Frontend.AesonTypeScriptOptions (liveUpdateMessageOptions,
                                                            liveUpdateRecordOptions,
                                                            liveUpdateTaggedOptions)
-import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration,
+import Application.Helper.Frontend.Codec (FrontendCodec (..),
+                                          FrontendField (..),
+                                          FrontendSchema (..),
+                                          FrontendVariant (..),
+                                          SomeFrontendCodec (..),
+                                          renderFrontendContracts)
+import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..),
+                                               TypeScriptDeclarationOrigin (HaskellSchemaGenerated),
                                                aesonTypeScriptDeclaration)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.TH as Aeson
 import qualified Data.Aeson.Types as Aeson
 import Data.Aeson.TypeScript.Recursive (getTypeScriptDeclarationsRecursively)
-import Data.Aeson.TypeScript.TH (TSDeclaration (TSRawDeclaration), TSType (..),
+import Data.Aeson.TypeScript.TH (TSDeclaration (TSRawDeclaration),
                                  TypeScript (..), deriveJSONAndTypeScript)
 import qualified Data.List as List
 import Data.Proxy (Proxy (..))
+import qualified Data.Text as Text
 import IHP.Prelude
 
 data LiveUpdateScope
@@ -114,9 +122,9 @@ data FocusedFieldProtectionConfig = FocusedFieldProtectionConfig
     }
     deriving (Eq, Show)
 
-newtype LiveFragmentProtection = LiveFragmentProtection
-    { focusedFieldProtection :: Maybe FocusedFieldProtectionConfig
-    }
+data LiveFragmentProtection
+    = NoProtection
+    | FocusedFieldProtection !FocusedFieldProtectionConfig
     deriving (Eq, Show)
 
 data LiveUpdateWireFragment = LiveUpdateWireFragment
@@ -124,7 +132,7 @@ data LiveUpdateWireFragment = LiveUpdateWireFragment
     , targetId         :: !Text
     , url              :: !Text
     , deferUntilBlur   :: !Bool
-    , protectionPolicy :: !(Maybe LiveFragmentProtection)
+    , protectionPolicy :: !LiveFragmentProtection
     }
     deriving (Eq, Show)
 
@@ -173,25 +181,47 @@ $(deriveJSONAndTypeScript liveUpdateTaggedOptions ''LiveFragmentKey)
 $(deriveJSONAndTypeScript liveUpdateRecordOptions ''FocusedFieldProtectionConfig)
 
 instance Aeson.ToJSON LiveFragmentProtection where
-    toJSON (LiveFragmentProtection Nothing) = Aeson.Null
-    toJSON (LiveFragmentProtection (Just FocusedFieldProtectionConfig { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector })) =
-        Aeson.object
-            [ "kind" Aeson..= ("focused_field" :: Text)
-            , "activeSelector" Aeson..= activeSelector
-            , "fieldKeyAttr" Aeson..= fieldKeyAttr
-            , "fieldNameFallback" Aeson..= fieldNameFallback
-            , "containerSelector" Aeson..= containerSelector
-            ]
+    toJSON = liveFragmentProtectionCodec.codecEncode
 
 instance Aeson.FromJSON LiveFragmentProtection where
-    parseJSON Aeson.Null = pure (LiveFragmentProtection Nothing)
-    parseJSON value = Aeson.withObject "LiveFragmentProtection" parseProtection value
-      where
-        parseProtection object = do
+    parseJSON = liveFragmentProtectionCodec.codecParse
+
+instance TypeScript LiveFragmentProtection where
+    getTypeScriptType _ = "LiveFragmentProtection"
+    getParentTypes _ = []
+    getTypeScriptDeclarations _ = []
+
+liveFragmentProtectionCodec :: FrontendCodec LiveFragmentProtection
+liveFragmentProtectionCodec =
+    FrontendCodec
+        { codecName = Just "LiveFragmentProtection"
+        , codecSchema = SchemaTaggedUnion "LiveFragmentProtection" "kind"
+            [ FrontendVariant "none" []
+            , FrontendVariant "focused_field"
+                [ FrontendField "activeSelector" SchemaString
+                , FrontendField "fieldKeyAttr" SchemaString
+                , FrontendField "fieldNameFallback" SchemaBool
+                , FrontendField "containerSelector" (SchemaOptional SchemaString)
+                ]
+            ]
+        , codecEncode = \case
+            NoProtection ->
+                Aeson.object
+                    [ "kind" Aeson..= ("none" :: Text)
+                    ]
+            FocusedFieldProtection FocusedFieldProtectionConfig { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector } ->
+                Aeson.object $
+                    [ "kind" Aeson..= ("focused_field" :: Text)
+                    , "activeSelector" Aeson..= activeSelector
+                    , "fieldKeyAttr" Aeson..= fieldKeyAttr
+                    , "fieldNameFallback" Aeson..= fieldNameFallback
+                    ] <> maybe [] (\selector -> ["containerSelector" Aeson..= selector]) containerSelector
+        , codecParse = Aeson.withObject "LiveFragmentProtection" \object -> do
             kind <- object Aeson..: "kind"
             case (kind :: Text) of
+                "none" -> pure NoProtection
                 "focused_field" ->
-                    LiveFragmentProtection . Just
+                    FocusedFieldProtection
                         <$> (FocusedFieldProtectionConfig
                             <$> object Aeson..: "activeSelector"
                             <*> object Aeson..: "fieldKeyAttr"
@@ -199,13 +229,7 @@ instance Aeson.FromJSON LiveFragmentProtection where
                             <*> object Aeson..:? "containerSelector"
                             )
                 _ -> fail ("Unknown live fragment protection kind: " <> cs kind)
-
-instance TypeScript LiveFragmentProtection where
-    getTypeScriptType _ = "LiveFragmentProtection"
-    getParentTypes _ = [TSType (Proxy :: Proxy FocusedFieldProtectionConfig)]
-    getTypeScriptDeclarations _ =
-        [ TSRawDeclaration "export type LiveFragmentProtection = null | { kind: \"focused_field\"; activeSelector: string; fieldKeyAttr: string; fieldNameFallback: boolean; containerSelector: string | null };"
-        ]
+        }
 
 $(deriveJSONAndTypeScript liveUpdateRecordOptions ''LiveUpdateWireFragment)
 $(deriveJSONAndTypeScript liveUpdateMessageOptions ''LiveUpdateCommand)
@@ -214,11 +238,21 @@ $(deriveJSONAndTypeScript liveUpdateRecordOptions ''LiveSurfaceConfig)
 
 liveUpdateSchemaDeclaration :: TypeScriptDeclaration
 liveUpdateSchemaDeclaration =
-    aesonTypeScriptDeclaration
-        "LiveUpdateContracts"
-        [ "// Live-update wire protocol generated from Haskell schema types."
-        ]
-        liveUpdateSchemaDeclarations
+    TypeScriptDeclaration
+        { name = "LiveUpdateContracts"
+        , origin = HaskellSchemaGenerated
+        , source = Text.unlines
+            [ "// Live-update wire protocol generated from Haskell schema types."
+            , liveFragmentProtectionContractSource
+            , (aesonTypeScriptDeclaration "LiveUpdateContractsAeson" [] liveUpdateSchemaDeclarations).source
+            ]
+        }
+
+liveFragmentProtectionContractSource :: Text
+liveFragmentProtectionContractSource =
+    case renderFrontendContracts [SomeFrontendCodec liveFragmentProtectionCodec] of
+        Right source -> source
+        Left message -> error ("Unable to render LiveFragmentProtection contract: " <> cs message)
 
 liveUpdateSchemaDeclarations :: [TSDeclaration]
 liveUpdateSchemaDeclarations =
@@ -318,16 +352,6 @@ liveUpdateValidatorDeclaration =
         , "        default:"
         , "            return false;"
         , "    }"
-        , "}"
-        , ""
-        , "export function isLiveFragmentProtection(value: unknown): value is LiveFragmentProtection {"
-        , "    if (value === null) return true;"
-        , "    return isLiveUpdateRecord(value)"
-        , "        && value.kind === \"focused_field\""
-        , "        && isLiveUpdateString(value.activeSelector)"
-        , "        && isLiveUpdateString(value.fieldKeyAttr)"
-        , "        && isLiveUpdateBoolean(value.fieldNameFallback)"
-        , "        && isLiveUpdateNullableString(value.containerSelector);"
         , "}"
         , ""
         , "export function isLiveUpdateWireFragment(value: unknown): value is LiveUpdateWireFragment {"

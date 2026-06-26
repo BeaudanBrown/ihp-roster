@@ -7,6 +7,24 @@ export type OverlayLane =
     | "toast";
 
 // Live-update wire protocol generated from Haskell schema types.
+function isExactRecord(value: unknown, requiredKeys: string[], optionalKeys: string[]): value is Record<string, unknown> {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+    const actualKeys = Object.keys(value);
+    const allowedKeys = new Set([...requiredKeys, ...optionalKeys]);
+    return requiredKeys.every((key) => Object.prototype.hasOwnProperty.call(value, key)) && actualKeys.every((key) => allowedKeys.has(key));
+}
+
+
+export type LiveFragmentProtection =
+    | { kind: "none" }
+    | { kind: "focused_field"; activeSelector: string; fieldKeyAttr: string; fieldNameFallback: boolean; containerSelector?: string };
+
+export function isLiveFragmentProtection(value: unknown): value is LiveFragmentProtection {
+    return (isExactRecord(value, ["kind"], []) && value["kind"] === "none") || (isExactRecord(value, ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback"], ["containerSelector"]) && value["kind"] === "focused_field" && typeof value["activeSelector"] === "string" && typeof value["fieldKeyAttr"] === "string" && typeof value["fieldNameFallback"] === "boolean" && (!Object.prototype.hasOwnProperty.call(value, "containerSelector") || typeof value["containerSelector"] === "string"));
+}
+
+
+
 export interface IAdminExports {
     kind: "admin_exports";
     venueId: string;
@@ -82,13 +100,6 @@ export interface IBillingStatus {
     kind: "billing_status";
 }
 
-export interface IFocusedFieldProtectionConfig {
-    activeSelector: string;
-    fieldKeyAttr: string;
-    fieldNameFallback: boolean;
-    containerSelector: string | null;
-}
-
 export interface ILeaveRequests {
     kind: "leave_requests";
     venueId: string;
@@ -112,7 +123,7 @@ export interface ILiveUpdateWireFragment {
     targetId: string;
     url: string;
     deferUntilBlur: boolean;
-    protectionPolicy: LiveFragmentProtection | null;
+    protectionPolicy: LiveFragmentProtection;
 }
 
 export interface IProfile {
@@ -210,8 +221,6 @@ export interface ITimesheetWeek {
     weekOffset: number;
 }
 
-export type FocusedFieldProtectionConfig = IFocusedFieldProtectionConfig;
-
 export type LiveFragmentKey = IRosterContent | IRosterGridToolbar | IRosterGridFrame | IRosterDayColumns | IRosterDayRail | IRosterWageRail | IRosterSlotsGrid | IRosterStaffPanel | IRosterDaySection | IRosterRow | ILeaveRequestsContent | ITimesheetToolbar | ITimesheetDayColumns | ITimesheetDaySection | IAdminVenueConfigFragment | IAdminInvitesFragment | IAdminExportsFragment | IAdminShiftTypesFragment | IAdminRosterGroupsFragment | IAdminXeroFragment | IAdminXeroStaffMappings | IAdminXeroPayItems | IAdminXeroTimesheets | IBillingStatus | IProfileContent | IProfileLeaveRequestsContent | ISupportAwardRatesSection | ISupportPublicHolidaysSection;
 
 export type LiveSurfaceConfig = ILiveSurfaceConfig;
@@ -219,8 +228,6 @@ export type LiveSurfaceConfig = ILiveSurfaceConfig;
 export type LiveUpdateScope = IRosterWeek | IAdminVenueConfig | IAdminShiftTypes | IAdminRosterGroups | IAdminInvites | IAdminExports | IAdminXero | IBilling | ILeaveRequests | ITimesheetWeek | IProfile | ISupportPlatform;
 
 export type LiveUpdateWireFragment = ILiveUpdateWireFragment;
-
-export type LiveFragmentProtection = null | { kind: "focused_field"; activeSelector: string; fieldKeyAttr: string; fieldNameFallback: boolean; containerSelector: string | null };
 
 export interface ISubscribe {
     type: "subscribe";
@@ -349,16 +356,6 @@ export function isLiveFragmentKey(value: unknown): value is LiveFragmentKey {
     }
 }
 
-export function isLiveFragmentProtection(value: unknown): value is LiveFragmentProtection {
-    if (value === null) return true;
-    return isLiveUpdateRecord(value)
-        && value.kind === "focused_field"
-        && isLiveUpdateString(value.activeSelector)
-        && isLiveUpdateString(value.fieldKeyAttr)
-        && isLiveUpdateBoolean(value.fieldNameFallback)
-        && isLiveUpdateNullableString(value.containerSelector);
-}
-
 export function isLiveUpdateWireFragment(value: unknown): value is LiveUpdateWireFragment {
     return isLiveUpdateRecord(value)
         && isLiveFragmentKey(value.fragmentKey)
@@ -407,6 +404,7 @@ export function isLiveUpdateMessage(value: unknown): value is LiveUpdateMessage 
             return false;
     }
 }
+
 
 // Interaction contracts generated from Haskell static interaction schemas.
 export const InteractionDom = {

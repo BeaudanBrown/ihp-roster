@@ -7,7 +7,7 @@ const validFragment = {
     targetId: "timesheet-toolbar",
     url: "/TimesheetToolbar",
     deferUntilBlur: false,
-    protectionPolicy: null,
+    protectionPolicy: { kind: "none" },
 };
 
 const validScope = { kind: "timesheet_week", venueId: "venue-1", weekOffset: 0 };

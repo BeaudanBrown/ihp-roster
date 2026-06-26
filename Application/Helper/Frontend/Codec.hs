@@ -224,7 +224,7 @@ guardExpr valueExpr = \case
     SchemaRef name -> "is" <> name <> "(" <> valueExpr <> ")"
     SchemaRecord _ fields -> recordGuard valueExpr fields
     SchemaStringEnum _ values -> Text.intercalate " || " (fmap (\value -> valueExpr <> " === " <> quote value) values)
-    SchemaTaggedUnion _ tagField variants -> Text.intercalate " || " (fmap (variantGuard valueExpr tagField) variants)
+    SchemaTaggedUnion _ tagField variants -> Text.intercalate " || " (fmap (\variant -> "(" <> variantGuard valueExpr tagField variant <> ")") variants)
 
 recordGuard :: Text -> [FrontendField] -> Text
 recordGuard valueExpr fields =

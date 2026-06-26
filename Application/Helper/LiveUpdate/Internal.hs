@@ -613,21 +613,21 @@ focusedFieldProtectionConfigFromWire Wire.FocusedFieldProtectionConfig { activeS
     FocusedFieldProtectionConfig { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector }
 
 liveFragmentProtectionToWire :: LiveFragmentProtection -> Wire.LiveFragmentProtection
-liveFragmentProtectionToWire NoProtection = Wire.LiveFragmentProtection Nothing
-liveFragmentProtectionToWire (FocusedFieldProtection config) = Wire.LiveFragmentProtection (Just (focusedFieldProtectionConfigToWire config))
+liveFragmentProtectionToWire NoProtection = Wire.NoProtection
+liveFragmentProtectionToWire (FocusedFieldProtection config) = Wire.FocusedFieldProtection (focusedFieldProtectionConfigToWire config)
 
 liveFragmentProtectionFromWire :: Wire.LiveFragmentProtection -> LiveFragmentProtection
-liveFragmentProtectionFromWire (Wire.LiveFragmentProtection Nothing) = NoProtection
-liveFragmentProtectionFromWire (Wire.LiveFragmentProtection (Just config)) = FocusedFieldProtection (focusedFieldProtectionConfigFromWire config)
+liveFragmentProtectionFromWire Wire.NoProtection = NoProtection
+liveFragmentProtectionFromWire (Wire.FocusedFieldProtection config) = FocusedFieldProtection (focusedFieldProtectionConfigFromWire config)
 
 liveUpdateWireFragmentToWire :: LiveUpdateWireFragment -> Wire.LiveUpdateWireFragment
 liveUpdateWireFragmentToWire LiveUpdateWireFragment { fragmentKey, targetId, url, deferUntilBlur, protectionPolicy } =
-    Wire.LiveUpdateWireFragment (liveFragmentKeyToWire fragmentKey) targetId url deferUntilBlur (Just (liveFragmentProtectionToWire protectionPolicy))
+    Wire.LiveUpdateWireFragment (liveFragmentKeyToWire fragmentKey) targetId url deferUntilBlur (liveFragmentProtectionToWire protectionPolicy)
 
 liveUpdateWireFragmentFromWire :: Wire.LiveUpdateWireFragment -> Aeson.Parser LiveUpdateWireFragment
 liveUpdateWireFragmentFromWire Wire.LiveUpdateWireFragment { fragmentKey, targetId, url, deferUntilBlur, protectionPolicy } = do
     parsedFragmentKey <- liveFragmentKeyFromWire fragmentKey
-    pure LiveUpdateWireFragment { fragmentKey = parsedFragmentKey, targetId, url, deferUntilBlur, protectionPolicy = maybe NoProtection liveFragmentProtectionFromWire protectionPolicy }
+    pure LiveUpdateWireFragment { fragmentKey = parsedFragmentKey, targetId, url, deferUntilBlur, protectionPolicy = liveFragmentProtectionFromWire protectionPolicy }
 
 liveUpdateCommandToWire :: LiveUpdateCommand -> Wire.LiveUpdateCommand
 liveUpdateCommandToWire SubscribeLiveUpdates { scope, clientId, lastSeenVersion } = Wire.Subscribe (liveUpdateScopeToWire scope) clientId lastSeenVersion

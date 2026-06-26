@@ -14,6 +14,13 @@ typed constants from one narrow app-specific source of truth. See
 `frontend-codec-contracts-ir-b797-spike.md` for the comparison and prototype
 shapes.
 
+Wire-shape note (ir-akhw, 2026-06-26): for app-owned domain alternatives,
+prefer closed tagged unions over `null` sentinel states. `null` remains
+available in `FrontendCodec` for external/legacy JSON boundaries, but contracts
+such as `LiveFragmentProtection` should encode absence explicitly, e.g.
+`{ kind: "none" }`, so future variants remain regular and validator generation
+stays deterministic.
+
 Tickets:
 
 - `ir-o5qk` - parent epic, codec-first generated frontend contracts

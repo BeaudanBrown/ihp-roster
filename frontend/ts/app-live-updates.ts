@@ -56,7 +56,7 @@ type FragmentProtectionAdapter = {
     captureState: (target: HTMLElement, fragment: LiveUpdateFragmentWithState) => LiveUpdateFragmentWithState;
     restoreState: (target: HTMLElement, fragment: LiveUpdateFragmentWithState) => void;
 };
-type FocusedFieldProtectionPolicy = NonNullable<LiveUpdateWireFragment["protectionPolicy"]> & { kind: "focused_field" };
+type FocusedFieldProtectionPolicy = Extract<LiveUpdateWireFragment["protectionPolicy"], { kind: "focused_field" }>;
 type LiveUpdateSubscribedMessage = Extract<LiveUpdateMessage, { type: "subscribed" }>;
 type LiveUpdateInvalidateMessage = Extract<LiveUpdateMessage, { type: "invalidate" }>;
 type HtmxConfigRequestEvent = Event & {
@@ -411,17 +411,15 @@ type HtmxConfigRequestEvent = Event & {
         };
     }
 
-    const protectionPolicies: Record<string, (policy: FocusedFieldProtectionPolicy) => FragmentProtectionAdapter> = {
-        focused_field: focusedFieldProtection,
-    };
-
     function matchingFragmentProtection(fragment: LiveUpdateFragmentWithState | undefined, _target: HTMLElement): FragmentProtectionAdapter | null {
-        if (fragment && fragment.protectionPolicy && fragment.protectionPolicy.kind) {
-            const factory = protectionPolicies[fragment.protectionPolicy.kind];
-            return typeof factory === 'function' ? factory(fragment.protectionPolicy) : null;
-        }
+        if (!fragment) return null;
 
-        return null;
+        switch (fragment.protectionPolicy.kind) {
+            case 'focused_field':
+                return focusedFieldProtection(fragment.protectionPolicy);
+            case 'none':
+                return null;
+        }
     }
 
     function hasProtectedActiveInput(target: HTMLElement, fragment: LiveUpdateFragmentWithState | undefined): boolean {
