@@ -28,7 +28,6 @@ executable App
   	ihp,
   	ihp-mail,
     aeson,
-    aeson-typescript,
   	base,
   	wai,
     process,

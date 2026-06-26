@@ -1,27 +1,16 @@
 module Application.Helper.Frontend.TypeScript
     ( TypeScriptDeclaration (..)
     , TypeScriptDeclarationOrigin (..)
-    , aesonTypeScriptDeclaration
     , renderTypeScriptDeclarations
-    , smallCompositionDeclaration
-    , stringUnionDeclaration
     ) where
 
-import Data.Aeson.TypeScript.TH (ExportMode (ExportEach),
-                                 FormattingOptions (..),
-                                 SumTypeFormat (TypeAlias), TSDeclaration,
-                                 defaultFormattingOptions,
-                                 formatTSDeclarations')
 import qualified Data.Text as Text
 import IHP.Prelude
 
 -- | Where a frontend contract block came from. Browser-boundary DTOs shared
--- between Haskell and TypeScript should use HaskellSchemaGenerated. Small
--- composition declarations are reserved for narrow app constants such as
--- OverlayLane that do not need a full JSON schema.
+-- between Haskell and TypeScript should use HaskellSchemaGenerated.
 data TypeScriptDeclarationOrigin
     = HaskellSchemaGenerated
-    | SmallComposition
     deriving (Eq, Show)
 
 data TypeScriptDeclaration = TypeScriptDeclaration
@@ -29,46 +18,6 @@ data TypeScriptDeclaration = TypeScriptDeclaration
     , origin :: !TypeScriptDeclarationOrigin
     , source :: !Text
     } deriving (Eq, Show)
-
-aesonTypeScriptDeclaration :: Text -> [Text] -> [TSDeclaration] -> TypeScriptDeclaration
-aesonTypeScriptDeclaration name headerLines declarations =
-    TypeScriptDeclaration
-        { name
-        , origin = HaskellSchemaGenerated
-        , source = Text.unlines headerLines <> formattedDeclarations
-        }
-    where
-        formattedDeclarations =
-            Text.pack $
-                formatTSDeclarations'
-                    defaultFormattingOptions
-                        { numIndentSpaces = 4
-                        , exportMode = ExportEach
-                        , typeAlternativesFormat = TypeAlias
-                        }
-                    declarations
-
-smallCompositionDeclaration :: Text -> Text -> TypeScriptDeclaration
-smallCompositionDeclaration name source =
-    TypeScriptDeclaration
-        { name
-        , origin = SmallComposition
-        , source
-        }
-
-stringUnionDeclaration :: Text -> [Text] -> TypeScriptDeclaration
-stringUnionDeclaration name values =
-    smallCompositionDeclaration name $
-        Text.unlines $
-            [ "export type " <> name <> " =" ]
-                <> unionLines
-    where
-        quotedValues = fmap (\value -> "\"" <> value <> "\"") values
-        unionLines = case reverse quotedValues of
-            [] -> [ "    never;" ]
-            lastValue : reversedPrefix ->
-                fmap ("    | " <>) (reverse reversedPrefix)
-                    <> [ "    | " <> lastValue <> ";" ]
 
 renderTypeScriptDeclarations :: [TypeScriptDeclaration] -> Text
 renderTypeScriptDeclarations declarations =

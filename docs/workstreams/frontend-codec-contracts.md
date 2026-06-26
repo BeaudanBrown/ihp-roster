@@ -21,6 +21,12 @@ such as `LiveFragmentProtection` should encode absence explicitly, e.g.
 `{ kind: "none" }`, so future variants remain regular and validator generation
 stays deterministic.
 
+Closeout rule (ir-ccxt, 2026-06-26): production frontend contract modules must
+not hand-write TypeScript declarations, validators, constants, or `| string`
+escape hatches. Add or extend a `FrontendCodec` schema instead, render typed
+constants with `renderTypedConstant`, and keep any dependency/tooling changes in
+Nix/devenv/package configuration.
+
 Tickets:
 
 - `ir-o5qk` - parent epic, codec-first generated frontend contracts

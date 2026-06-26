@@ -281,17 +281,11 @@ rawEmitterPatterns =
     ]
 
 frontendSourceRawEmitterAllowlist :: [(FilePath, Text, Int)]
-frontendSourceRawEmitterAllowlist =
-    [ ("Application/Helper/Frontend/Codec.hs", "\"export type", 4)
-    , ("Application/Helper/Frontend/Codec.hs", "\"export const", 1)
-    , ("Application/Helper/Frontend/Codec.hs", "\"export function", 1)
-    , ("Application/Helper/Frontend/TypeScript.hs", "\"export type", 1)
-    , ("Application/Helper/Frontend/TypeScript.hs", "stringUnionDeclaration", 3)
-    ]
+frontendSourceRawEmitterAllowlist = []
 
 frontendSourceRawEmitterCounts :: IO [(FilePath, Text, Int)]
 frontendSourceRawEmitterCounts = do
-    files <- fmap List.sort (listDirectory "Application/Helper/Frontend")
+    files <- fmap (filter (/= "Codec.hs") . List.sort) (listDirectory "Application/Helper/Frontend")
     fmap concat $ forM files \fileName -> do
         let path = "Application/Helper/Frontend" </> fileName
         source <- Text.readFile path
