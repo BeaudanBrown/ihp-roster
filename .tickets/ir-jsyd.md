@@ -2,7 +2,7 @@
 id: ir-jsyd
 status: open
 deps: []
-links: [ir-vpmd, ir-o5qk]
+links: [ir-vpmd, ir-o5qk, ir-ewlr]
 created: 2026-06-16T13:44:46Z
 type: epic
 priority: 2

@@ -2,7 +2,7 @@
 id: ir-o5qk
 status: closed
 deps: []
-links: [ir-jsyd, ir-vpmd]
+links: [ir-jsyd, ir-vpmd, ir-ewlr]
 created: 2026-06-26T04:23:02Z
 type: epic
 priority: 2
