@@ -1,6 +1,18 @@
 # Codec-First Frontend Contracts
 
-Status: proposed
+Status: active
+
+Decision note (ir-b797, 2026-06-26): choose a small project-owned
+`FrontendCodec` foundation over an `autodocodec`/external schema-tooling chain
+for the initial implementation. `autodocodec` is feasible through the pinned
+Nix Haskell package set, but TypeScript declarations, runtime guards, typed
+constants, and registry-derived closed enums would still require additional
+schema-to-TypeScript/validator tooling or custom rendering. The custom codec
+keeps the existing Haskell generator entrypoints, adds no initial Nix
+dependencies, and can produce JSON encode/decode, declarations, guards, and
+typed constants from one narrow app-specific source of truth. See
+`frontend-codec-contracts-ir-b797-spike.md` for the comparison and prototype
+shapes.
 
 Tickets:
 
