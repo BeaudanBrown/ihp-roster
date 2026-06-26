@@ -128,7 +128,7 @@ renderFrontendContracts :: [SomeFrontendCodec] -> Either Text Text
 renderFrontendContracts codecs = do
     namedSchemas <- mapM namedCodecSchema codecs
     case duplicateNames (fmap fst namedSchemas) of
-        [] -> Right (Text.unlines (helperSource : concatMap renderNamed namedSchemas))
+        [] -> Right (Text.unlines (optionalHelperSource namedSchemas <> concatMap renderNamed namedSchemas))
         duplicates -> Left ("Duplicate frontend codec names: " <> Text.intercalate ", " duplicates)
 
 renderTypedConstant :: Text -> FrontendCodec a -> a -> Text
@@ -253,6 +253,20 @@ variantGuard valueExpr tagField variant =
             case field.fieldSchema of
                 SchemaOptional inner -> "(!Object.prototype.hasOwnProperty.call(" <> valueExpr <> ", " <> quote field.fieldName <> ") || " <> guardExpr (valueExpr <> "[" <> quote field.fieldName <> "]") inner <> ")"
                 schema -> "(" <> guardExpr (valueExpr <> "[" <> quote field.fieldName <> "]") schema <> ")"
+
+optionalHelperSource :: [(Text, FrontendSchema)] -> [Text]
+optionalHelperSource namedSchemas
+    | any (schemaNeedsExactRecordHelper . snd) namedSchemas = [helperSource]
+    | otherwise = []
+
+schemaNeedsExactRecordHelper :: FrontendSchema -> Bool
+schemaNeedsExactRecordHelper = \case
+    SchemaRecord _ _ -> True
+    SchemaTaggedUnion _ _ _ -> True
+    SchemaNullable schema -> schemaNeedsExactRecordHelper schema
+    SchemaOptional schema -> schemaNeedsExactRecordHelper schema
+    SchemaArray schema -> schemaNeedsExactRecordHelper schema
+    _ -> False
 
 helperSource :: Text
 helperSource = Text.unlines

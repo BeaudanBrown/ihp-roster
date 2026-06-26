@@ -6,6 +6,12 @@ export type OverlayLane =
     | "picker"
     | "toast";
 
+export function isOverlayLane(value: unknown): value is OverlayLane {
+    return value === "dialog" || value === "picker" || value === "toast";
+}
+
+
+
 // Live-update wire protocol generated from Haskell schema types.
 function isExactRecord(value: unknown, requiredKeys: string[], optionalKeys: string[]): value is Record<string, unknown> {
     if (typeof value !== "object" || value === null || Array.isArray(value)) return false;

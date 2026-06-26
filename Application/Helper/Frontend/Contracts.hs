@@ -5,12 +5,15 @@ module Application.Helper.Frontend.Contracts
     )
 where
 
+import Application.Helper.Frontend.Codec (FrontendCodec, SomeFrontendCodec (..),
+                                          renderFrontendContracts,
+                                          stringEnumCodec)
 import Application.Helper.Frontend.InteractionSchema (interactionSchemaDeclaration)
 import Application.Helper.Frontend.LiveUpdateSchema (liveUpdateSchemaDeclaration)
 import Application.Helper.Frontend.SurfaceManifestSchema (surfaceManifestDeclaration)
 import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..),
-                                               renderTypeScriptDeclarations,
-                                               stringUnionDeclaration)
+                                               TypeScriptDeclarationOrigin (HaskellSchemaGenerated),
+                                               renderTypeScriptDeclarations)
 import IHP.Prelude
 
 -- Keep this module as the small composition root for frontend contracts. New
@@ -23,19 +26,27 @@ data OverlayLane
     | ToastLane
     deriving (Eq, Show)
 
-overlayLaneTypeName :: Text
-overlayLaneTypeName = "OverlayLane"
+overlayLaneCodec :: FrontendCodec OverlayLane
+overlayLaneCodec =
+    stringEnumCodec "OverlayLane"
+        [ (DialogLane, "dialog")
+        , (PickerLane, "picker")
+        , (ToastLane, "toast")
+        ]
 
-overlayLaneValues :: [(OverlayLane, Text)]
-overlayLaneValues =
-    [ (DialogLane, "dialog")
-    , (PickerLane, "picker")
-    , (ToastLane, "toast")
-    ]
+overlayLaneDeclaration :: TypeScriptDeclaration
+overlayLaneDeclaration =
+    TypeScriptDeclaration
+        { name = "OverlayLane"
+        , origin = HaskellSchemaGenerated
+        , source = case renderFrontendContracts [SomeFrontendCodec overlayLaneCodec] of
+            Right generated -> generated
+            Left message -> error ("Unable to render OverlayLane contract: " <> cs message)
+        }
 
 frontendContractDeclarations :: [TypeScriptDeclaration]
 frontendContractDeclarations =
-    [ stringUnionDeclaration overlayLaneTypeName (fmap snd overlayLaneValues)
+    [ overlayLaneDeclaration
     , liveUpdateSchemaDeclaration
     , interactionSchemaDeclaration
     , surfaceManifestDeclaration
