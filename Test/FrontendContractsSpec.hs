@@ -2,6 +2,9 @@ module Test.FrontendContractsSpec
     ( tests
     ) where
 
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson
+import Data.Either (isLeft)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import IHP.Prelude
@@ -9,6 +12,7 @@ import System.Directory (listDirectory)
 import System.FilePath ((</>))
 import Test.Hspec
 
+import Application.Helper.Frontend.Codec
 import Application.Helper.Frontend.Contracts (frontendContractDeclarations,
                                               frontendContractsTypeScript)
 import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..),
@@ -60,3 +64,196 @@ tests = describe "Frontend contract generator foundation" do
                     then Just path
                     else Nothing
         offenders `shouldBe` []
+
+    describe "FrontendCodec foundation" do
+        it "uses one enum codec for JSON and TypeScript output" do
+            encodeFrontend htmxMethodCodec HtmxPost `shouldBe` Aeson.String "post"
+            Aeson.parseEither (parseFrontend htmxMethodCodec) (Aeson.String "get") `shouldBe` Right HtmxGet
+            Aeson.parseEither (parseFrontend htmxMethodCodec) (Aeson.String "trace") `shouldSatisfy` isLeft
+
+            rendered <- renderShouldSucceed [SomeFrontendCodec htmxMethodCodec]
+            rendered `shouldSatisfy` Text.isInfixOf "export type HtmxMethod ="
+            rendered `shouldSatisfy` Text.isInfixOf "| \"post\";"
+            rendered `shouldSatisfy` Text.isInfixOf "export function isHtmxMethod(value: unknown): value is HtmxMethod"
+            rendered `shouldSatisfy` Text.isInfixOf "value === \"get\" || value === \"post\""
+
+        it "renders records, arrays, nullable fields, nested refs, and exact object guards" do
+            let config = SpikeLiveSurfaceConfig
+                    { spikeFeature = "roster"
+                    , spikeScope = SpikeRosterWeek "venue-1" 0
+                    , spikeFragments = ["roster_content"]
+                    , spikeProtection = Just (SpikeLiveFragmentProtection "input:focus")
+                    }
+            encodeFrontend liveSurfaceConfigCodec config `shouldBe` Aeson.object
+                [ "feature" Aeson..= ("roster" :: Text)
+                , "scope" Aeson..= Aeson.object
+                    [ "kind" Aeson..= ("roster_week" :: Text)
+                    , "venueId" Aeson..= ("venue-1" :: Text)
+                    , "weekOffset" Aeson..= (0 :: Int)
+                    ]
+                , "fragments" Aeson..= ["roster_content" :: Text]
+                , "protection" Aeson..= Aeson.object ["activeSelector" Aeson..= ("input:focus" :: Text)]
+                ]
+
+            rendered <- renderShouldSucceed
+                [ SomeFrontendCodec liveUpdateScopeCodec
+                , SomeFrontendCodec liveFragmentProtectionCodec
+                , SomeFrontendCodec liveSurfaceConfigCodec
+                ]
+            rendered `shouldSatisfy` Text.isInfixOf "export type LiveSurfaceConfig = {"
+            rendered `shouldSatisfy` Text.isInfixOf "scope: LiveUpdateScope;"
+            rendered `shouldSatisfy` Text.isInfixOf "fragments: string[];"
+            rendered `shouldSatisfy` Text.isInfixOf "protection: LiveFragmentProtection | null;"
+            rendered `shouldSatisfy` Text.isInfixOf "sync?: string;"
+            rendered `shouldSatisfy` Text.isInfixOf "isExactRecord(value, [\"feature\", \"scope\", \"fragments\", \"protection\"], [\"sync\"])"
+            rendered `shouldSatisfy` Text.isInfixOf "isLiveUpdateScope(value[\"scope\"])"
+            rendered `shouldSatisfy` Text.isInfixOf "Array.isArray(value[\"fragments\"])"
+
+        it "renders tagged unions and decodes matching JSON" do
+            let rosterJson = Aeson.object
+                    [ "kind" Aeson..= ("roster_week" :: Text)
+                    , "venueId" Aeson..= ("venue-1" :: Text)
+                    , "weekOffset" Aeson..= (1 :: Int)
+                    ]
+            Aeson.parseEither (parseFrontend liveUpdateScopeCodec) rosterJson
+                `shouldBe` Right (SpikeRosterWeek "venue-1" 1)
+            Aeson.parseEither (parseFrontend liveUpdateScopeCodec) (Aeson.object ["kind" Aeson..= ("unknown" :: Text)])
+                `shouldSatisfy` isLeft
+
+            rendered <- renderShouldSucceed [SomeFrontendCodec liveUpdateScopeCodec]
+            rendered `shouldSatisfy` Text.isInfixOf "| { kind: \"roster_week\"; venueId: string; weekOffset: number }"
+            rendered `shouldSatisfy` Text.isInfixOf "value[\"kind\"] === \"support_platform\""
+
+        it "renders typed constants from the same codec" do
+            let constantSource = renderTypedConstant "InteractionDom" interactionDomCodec (InteractionDom "data-bepis-surface" "true")
+            constantSource `shouldBe` "export const InteractionDom: InteractionDom = {\"enabled\":\"true\",\"surface\":\"data-bepis-surface\"};"
+
+        it "rejects duplicate top-level codec names" do
+            renderFrontendContracts [SomeFrontendCodec htmxMethodCodec, SomeFrontendCodec htmxMethodCodec]
+                `shouldBe` Left "Duplicate frontend codec names: HtmxMethod"
+
+data HtmxMethod
+    = HtmxGet
+    | HtmxPost
+    deriving (Eq, Show)
+
+htmxMethodCodec :: FrontendCodec HtmxMethod
+htmxMethodCodec =
+    stringEnumCodec
+        "HtmxMethod"
+        [ (HtmxGet, "get")
+        , (HtmxPost, "post")
+        ]
+
+data SpikeLiveUpdateScope
+    = SpikeRosterWeek !Text !Int
+    | SpikeSupportPlatform
+    deriving (Eq, Show)
+
+liveUpdateScopeCodec :: FrontendCodec SpikeLiveUpdateScope
+liveUpdateScopeCodec = FrontendCodec
+    { codecName = Just "LiveUpdateScope"
+    , codecSchema = SchemaTaggedUnion "LiveUpdateScope" "kind"
+        [ FrontendVariant "roster_week"
+            [ FrontendField "venueId" SchemaString
+            , FrontendField "weekOffset" SchemaInt
+            ]
+        , FrontendVariant "support_platform" []
+        ]
+    , codecEncode = \case
+        SpikeRosterWeek venueId weekOffset -> Aeson.object
+            [ "kind" Aeson..= ("roster_week" :: Text)
+            , "venueId" Aeson..= venueId
+            , "weekOffset" Aeson..= weekOffset
+            ]
+        SpikeSupportPlatform -> Aeson.object
+            [ "kind" Aeson..= ("support_platform" :: Text)
+            ]
+    , codecParse = Aeson.withObject "LiveUpdateScope" \object -> do
+        kind <- object Aeson..: "kind"
+        case (kind :: Text) of
+            "roster_week" -> SpikeRosterWeek
+                <$> object Aeson..: "venueId"
+                <*> object Aeson..: "weekOffset"
+            "support_platform" -> pure SpikeSupportPlatform
+            _ -> fail ("Unknown LiveUpdateScope kind: " <> cs kind)
+    }
+
+data SpikeLiveFragmentProtection = SpikeLiveFragmentProtection
+    { spikeActiveSelector :: !Text
+    }
+    deriving (Eq, Show)
+
+liveFragmentProtectionCodec :: FrontendCodec SpikeLiveFragmentProtection
+liveFragmentProtectionCodec = FrontendCodec
+    { codecName = Just "LiveFragmentProtection"
+    , codecSchema = SchemaRecord "LiveFragmentProtection"
+        [ FrontendField "activeSelector" SchemaString
+        ]
+    , codecEncode = \protection -> Aeson.object
+        [ "activeSelector" Aeson..= protection.spikeActiveSelector
+        ]
+    , codecParse = Aeson.withObject "LiveFragmentProtection" \object ->
+        SpikeLiveFragmentProtection <$> object Aeson..: "activeSelector"
+    }
+
+data SpikeLiveSurfaceConfig = SpikeLiveSurfaceConfig
+    { spikeFeature    :: !Text
+    , spikeScope      :: !SpikeLiveUpdateScope
+    , spikeFragments  :: ![Text]
+    , spikeProtection :: !(Maybe SpikeLiveFragmentProtection)
+    }
+    deriving (Eq, Show)
+
+liveSurfaceConfigCodec :: FrontendCodec SpikeLiveSurfaceConfig
+liveSurfaceConfigCodec = FrontendCodec
+    { codecName = Just "LiveSurfaceConfig"
+    , codecSchema = SchemaRecord "LiveSurfaceConfig"
+        [ FrontendField "feature" SchemaString
+        , FrontendField "scope" (SchemaRef "LiveUpdateScope")
+        , FrontendField "fragments" (SchemaArray SchemaString)
+        , FrontendField "protection" (SchemaNullable (SchemaRef "LiveFragmentProtection"))
+        , FrontendField "sync" (SchemaOptional SchemaString)
+        ]
+    , codecEncode = \config -> Aeson.object
+        [ "feature" Aeson..= config.spikeFeature
+        , "scope" Aeson..= encodeFrontend liveUpdateScopeCodec config.spikeScope
+        , "fragments" Aeson..= config.spikeFragments
+        , "protection" Aeson..= maybe Aeson.Null (encodeFrontend liveFragmentProtectionCodec) config.spikeProtection
+        ]
+    , codecParse = Aeson.withObject "LiveSurfaceConfig" \object ->
+        SpikeLiveSurfaceConfig
+            <$> object Aeson..: "feature"
+            <*> (object Aeson..: "scope" >>= parseFrontend liveUpdateScopeCodec)
+            <*> object Aeson..: "fragments"
+            <*> (object Aeson..: "protection" >>= parseFrontend (nullableCodec liveFragmentProtectionCodec))
+    }
+
+data InteractionDom = InteractionDom
+    { domSurface :: !Text
+    , domEnabled :: !Text
+    }
+    deriving (Eq, Show)
+
+interactionDomCodec :: FrontendCodec InteractionDom
+interactionDomCodec = FrontendCodec
+    { codecName = Just "InteractionDom"
+    , codecSchema = SchemaRecord "InteractionDom"
+        [ FrontendField "surface" SchemaString
+        , FrontendField "enabled" SchemaString
+        ]
+    , codecEncode = \dom -> Aeson.object
+        [ "surface" Aeson..= dom.domSurface
+        , "enabled" Aeson..= dom.domEnabled
+        ]
+    , codecParse = Aeson.withObject "InteractionDom" \object ->
+        InteractionDom
+            <$> object Aeson..: "surface"
+            <*> object Aeson..: "enabled"
+    }
+
+renderShouldSucceed :: HasCallStack => [SomeFrontendCodec] -> IO Text
+renderShouldSucceed codecs =
+    case renderFrontendContracts codecs of
+        Left message -> expectationFailure (cs message) >> pure ""
+        Right source -> pure source
