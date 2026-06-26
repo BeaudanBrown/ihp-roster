@@ -16,9 +16,11 @@ Make low-rate profile runs start/use an OpenTelemetry backend and emit compact a
 
 ## Design
 
-Extend the profile-load-suite workflow or adjacent scripts to support an ephemeral/local OTLP collector and Tempo/Jaeger-compatible trace store. Export summaries such as slowest traces, largest components, component bytes by route, render span p95s, and counter/attribute comparisons as JSON and markdown. Preserve the current k6 summary shape during transition.
+Extend the profile-load-suite workflow or adjacent scripts to support a Nix-managed ephemeral/local OTLP collector. The first-class local backend should be collector file/export artifacts in the profile run directory so AI agents can inspect bounded data without a live UI. Tempo/Jaeger/Grafana can be supported as optional richer backends later, but should not be required for the initial agent workflow.
+
+Export summaries such as slowest traces, representative slow spans, largest components, component bytes by route/action, render span p95s, and counter/attribute comparisons as JSON and markdown. Preserve the current k6 summary shape during transition, and add OTel-derived `otel-summary.json`/`otel-summary.md` style artifacts beside existing suite outputs.
 
 ## Acceptance Criteria
 
-A standard low-rate roster-wide profile produces suite-summary.md plus OTel-derived summary artifacts; artifacts include enough data for before/after comparison without a live UI; failures are reported clearly when the collector/backend is unavailable; docs show the exact local command path.
+A standard low-rate roster-wide profile produces `suite-summary.md` plus OTel-derived JSON/Markdown summary artifacts from local collector export files; artifacts include enough data for before/after comparison and representative trace inspection without a live UI; failures are reported clearly when the collector/backend is unavailable; docs show the exact Nix-managed local command path.
 

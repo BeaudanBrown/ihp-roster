@@ -16,7 +16,7 @@ Give coding agents first-class tools to run profile scenarios and query OpenTele
 
 ## Design
 
-Implement a project-local Pi extension before relying on external MCP. Candidate tools: roster_profile_run, roster_profile_summary, otel_trace_search, otel_trace_get, otel_metric_query, otel_compare_runs. Keep commands safe by default: low rate, local/staging only unless explicit, compact summaries, PII redaction. Also document Grafana MCP as the preferred richer integration once Grafana/Tempo is running.
+Implement a project-local Pi extension before relying on external MCP. Candidate tools: `roster_profile_run`, `roster_profile_summary`, `otel_trace_search`, `otel_trace_get`, `otel_compare_runs`, and later `otel_metric_query` once metrics are promoted. Prefer artifact-backed tools first: read the profile run's OTel JSON/Markdown summaries and local collector export files, with bounded output and representative trace drill-downs. Keep commands safe by default: low rate, local/staging only unless explicit, compact summaries, PII redaction. Also document Grafana MCP as the preferred richer integration once Grafana/Tempo is running.
 
 ## Acceptance Criteria
 

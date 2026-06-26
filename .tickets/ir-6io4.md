@@ -16,7 +16,9 @@ Replace the request-counter spine for roster grid/render diagnostics with OpenTe
 
 ## Design
 
-Request-shape counters such as grid cells, shift launchers, launcher attr bundles, hx attrs, data attrs, editable/read-only cells, and conflict attrs should attach to the relevant roster render span, especially slots_grid_body/component. Promote only stable low-cardinality signals to metrics: response bytes, component bytes, render duration, grid cell count, shift launcher count. Labels should be route/component/layout/week_status/editable_state only.
+Request-shape counters such as grid cells, shift launchers, launcher attr bundles, hx attrs, data attrs, editable/read-only cells, and conflict attrs should attach to the relevant roster render span, especially slots_grid_body/component, when diagnostic profiling is enabled. Lightweight production OTel should avoid doing extra render-counter work unless the relevant data is already cheaply available.
+
+Promote only stable low-cardinality signals to metrics once the tracing spine is in place: response bytes, component bytes, render duration, grid cell count, shift launcher count. Metrics are not the first milestone; do not block initial WAI/action tracing on metric export. Labels should be route/action/component/layout/week_status/editable_state only.
 
 ## Acceptance Criteria
 

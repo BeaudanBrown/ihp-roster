@@ -16,9 +16,11 @@ Make the existing semantic span helpers emit OpenTelemetry child spans while pre
 
 ## Design
 
-Introduce Application.Helper.Telemetry or equivalent as the standard abstraction. profileActionSpan/profileActionSpanWithDetail/respondHtmlProfiled/profileHtmlComponent should create OTel child spans when OTel is enabled. Component byte details should become typed attributes such as html.bytes rather than string-encoded desc values. Keep Server-Timing generation only under IHP_ROSTER_PROFILING.
+Introduce `Application.Helper.Telemetry` or equivalent as the standard abstraction. `profileActionSpan` and `profileActionSpanWithDetail` should create cheap OTel child spans when OTel is enabled, while preserving the current diagnostic headers under `IHP_ROSTER_PROFILING`.
+
+Do not make production/lightweight OTel force HTML rendering or byte measurement. `respondHtmlProfiled` and `profileHtmlComponent` currently render to bytes to measure payload/component size; that cost should stay behind `IHP_ROSTER_PROFILING=1` or a similarly explicit diagnostic gate. In diagnostic/profile runs, component byte details should become typed OTel attributes such as `html.bytes` rather than string-encoded `desc` values. Keep `Server-Timing` generation only under `IHP_ROSTER_PROFILING`.
 
 ## Acceptance Criteria
 
-Roster traces show nested render spans for full shell/layout/content/grid/body/respond_html; html.bytes is visible on component/response spans; existing profile headers and profile-load reports still work when IHP_ROSTER_PROFILING=1; tests or smoke tooling verify both enabled and disabled modes.
+Roster traces show nested cheap spans for action/render boundaries under `IHP_ROSTER_OTEL=1`; diagnostic profile traces under `IHP_ROSTER_PROFILING=1` expose full shell/layout/content/grid/body/respond_html spans plus `html.bytes` on component/response spans; existing profile headers and profile-load reports still work when `IHP_ROSTER_PROFILING=1`; tests or smoke tooling verify off, lightweight OTel, and diagnostic profiling modes.
 

@@ -16,7 +16,7 @@ After OpenTelemetry traces/artifacts/tooling cover the existing workflow, remove
 
 ## Design
 
-Keep Server-Timing only if still useful for browser devtools behind IHP_ROSTER_PROFILING. Remove or mark X-Profile-Counters as legacy once OTel summaries and agent tools support the same comparisons. Preserve production-safe defaults and document the migration path for existing profile scripts.
+Keep `Server-Timing` only if still useful for browser devtools behind `IHP_ROSTER_PROFILING`. Remove or mark `X-Profile-Counters` as legacy once OTel summaries and agent tools support the same comparisons from trace attributes/events and local collector artifacts. Preserve production-safe defaults: normal `IHP_ROSTER_OTEL` tracing remains lightweight and sampled, while heavy component byte/counter collection remains diagnostic-only. Document the migration path for existing profile scripts.
 
 ## Acceptance Criteria
 
