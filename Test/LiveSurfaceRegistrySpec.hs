@@ -12,6 +12,27 @@ import Web.LiveSurfaceRegistry
 
 tests :: Spec
 tests = do
+    describe "Live surface registry manifest" do
+        it "derives scope and fragment kind tags from typed live-update constructors" do
+            let rosterManifest = find ((== "roster") . (.surfaceFamily)) registeredLiveSurfaceManifest
+            fmap (.scopeKinds) rosterManifest `shouldBe` Just ["roster_week"]
+            fmap (.fragmentKinds) rosterManifest `shouldBe` Just
+                [ "roster_content"
+                , "roster_grid_toolbar"
+                , "roster_grid_frame"
+                , "roster_day_columns"
+                , "roster_day_rail"
+                , "roster_wage_rail"
+                , "roster_slots_grid"
+                , "roster_staff_panel"
+                , "roster_day_section"
+                , "roster_row"
+                ]
+
+        it "keeps registered surface families unique" do
+            let families = fmap (.surfaceFamily) registeredLiveSurfaceManifest
+            length families `shouldBe` length (Set.fromList families)
+
     describe "Live surface registry dependency planning" do
         it "plans context-free billing, invites, and support targets from dependencies" do
             let venueId = fromWords 1 0 0 0

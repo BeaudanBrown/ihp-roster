@@ -29,9 +29,11 @@ import Application.Helper.LiveUpdate.Runtime (LiveUpdateBroadcastResult,
                                               broadcastLiveInvalidationDetailedWithoutContext,
                                               coalesceLiveUpdateWireFragments,
                                               liveUpdateSourceClientId)
+import qualified Application.Helper.LiveUpdate.Runtime as LiveRuntime
 import Application.Support.LiveUpdates (supportLiveSurfaceDefinition)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+import qualified Data.UUID as UUID
 import Web.Billing.LiveUpdates (billingLiveSurfaceDefinition)
 import Web.Controller.Prelude
 import Web.LeaveRequests.Projection (leaveRequestsLiveSurfaceDefinition)
@@ -80,26 +82,90 @@ registeredLiveSurfaceManifest =
 
 registeredLiveSurfaceDescriptors :: [RegisteredLiveSurfaceDescriptor]
 registeredLiveSurfaceDescriptors =
-    [ manifestDescriptor "support" ["support_platform"] ["support_award_rates_section", "support_public_holidays_section"] Nothing
-    , manifestDescriptor "admin-venue-config" ["admin_venue_config"] ["admin_venue_config"] Nothing
-    , manifestDescriptor "admin-invites" ["admin_invites"] ["admin_invites"] Nothing
-    , manifestDescriptor "admin-exports" ["admin_exports"] ["admin_exports"] Nothing
-    , manifestDescriptor "admin-shift-types" ["admin_shift_types"] ["admin_shift_types"] Nothing
-    , manifestDescriptor "admin-roster-groups" ["admin_roster_groups"] ["admin_roster_groups"] Nothing
-    , manifestDescriptor "admin-xero" ["admin_xero"] ["admin_xero", "admin_xero_staff_mappings", "admin_xero_pay_items", "admin_xero_timesheets"] Nothing
-    , manifestDescriptor "billing" ["billing"] ["billing_status"] Nothing
-    , manifestDescriptor "leave-requests" ["leave_requests"] ["leave_requests_content"] Nothing
-    , manifestDescriptor "profile" ["profile"] ["profile_content"] Nothing
-    , manifestDescriptor "profile-leave-requests" ["profile"] ["profile_leave_requests_content"] Nothing
-    , manifestDescriptor "timesheets" ["timesheet_week"] ["timesheet_toolbar", "timesheet_day_columns", "timesheet_day_section"] Nothing
-    , manifestDescriptor "roster" ["roster_week"] ["roster_content", "roster_grid_toolbar", "roster_grid_frame", "roster_day_columns", "roster_day_rail", "roster_wage_rail", "roster_slots_grid", "roster_staff_panel", "roster_day_section", "roster_row"] (Just "roster")
+    [ manifestDescriptor "support" [SupportPlatformScope] [LiveRuntime.SupportAwardRatesSectionFragment, LiveRuntime.SupportPublicHolidaysSectionFragment] Nothing
+    , manifestDescriptor "admin-venue-config" [AdminVenueConfigScope sampleVenueId] [LiveRuntime.AdminVenueConfigFragment] Nothing
+    , manifestDescriptor "admin-invites" [AdminInvitesScope sampleVenueId] [LiveRuntime.AdminInvitesFragment] Nothing
+    , manifestDescriptor "admin-exports" [AdminExportsScope sampleVenueId] [LiveRuntime.AdminExportsFragment] Nothing
+    , manifestDescriptor "admin-shift-types" [AdminShiftTypesScope sampleVenueId] [LiveRuntime.AdminShiftTypesFragment] Nothing
+    , manifestDescriptor "admin-roster-groups" [AdminRosterGroupsScope sampleVenueId] [LiveRuntime.AdminRosterGroupsFragment] Nothing
+    , manifestDescriptor "admin-xero" [AdminXeroScope sampleVenueId] [LiveRuntime.AdminXeroFragment, LiveRuntime.AdminXeroStaffMappingsFragment, LiveRuntime.AdminXeroPayItemsFragment, LiveRuntime.AdminXeroTimesheetsFragment] Nothing
+    , manifestDescriptor "billing" [BillingScope sampleVenueId] [LiveRuntime.BillingStatusFragment] Nothing
+    , manifestDescriptor "leave-requests" [LeaveRequestsScope sampleVenueId] [LiveRuntime.LeaveRequestsContentFragment] Nothing
+    , manifestDescriptor "profile" [ProfileScope sampleVenueId sampleStaffId] [LiveRuntime.ProfileContentFragment] Nothing
+    , manifestDescriptor "profile-leave-requests" [ProfileScope sampleVenueId sampleStaffId] [LiveRuntime.ProfileLeaveRequestsContentFragment] Nothing
+    , manifestDescriptor "timesheets" [TimesheetWeekScope sampleVenueId 0] [LiveRuntime.TimesheetToolbarFragment, LiveRuntime.TimesheetDayColumnsFragment, LiveRuntime.TimesheetDaySectionFragment 0] Nothing
+    , manifestDescriptor "roster" [RosterWeekScope sampleVenueId sampleRosterGroupId 0] [LiveRuntime.RosterContentFragment, LiveRuntime.RosterGridToolbarFragment, LiveRuntime.RosterGridFrameFragment, LiveRuntime.RosterDayColumnsFragment, LiveRuntime.RosterDayRailFragment, LiveRuntime.RosterWageRailFragment, LiveRuntime.RosterSlotsGridFragment, LiveRuntime.RosterStaffPanelFragment, LiveRuntime.RosterDaySectionFragment sampleRosterDayId, LiveRuntime.RosterRowFragment sampleRosterDayId 0] (Just "roster")
     ]
 
-manifestDescriptor :: Text -> [Text] -> [Text] -> Maybe Text -> RegisteredLiveSurfaceDescriptor
-manifestDescriptor surfaceFamily scopeKinds fragmentKinds interactionSchema =
+manifestDescriptor :: Text -> [LiveUpdateScope] -> [LiveRuntime.LiveFragmentKey] -> Maybe Text -> RegisteredLiveSurfaceDescriptor
+manifestDescriptor surfaceFamily scopeSamples fragmentSamples interactionSchema =
     RegisteredLiveSurfaceDescriptor
-        { descriptorManifest = RegisteredLiveSurfaceManifest { surfaceFamily, scopeKinds, fragmentKinds, interactionSchema }
+        { descriptorManifest = RegisteredLiveSurfaceManifest
+            { surfaceFamily
+            , scopeKinds = unique (fmap liveUpdateScopeKind scopeSamples)
+            , fragmentKinds = unique (fmap liveFragmentKeyKind fragmentSamples)
+            , interactionSchema
+            }
         }
+
+sampleVenueId :: UUID
+sampleVenueId = UUID.fromWords 0 0 0 0
+
+sampleStaffId :: UUID
+sampleStaffId = UUID.fromWords 1 0 0 0
+
+sampleRosterGroupId :: UUID
+sampleRosterGroupId = UUID.fromWords 2 0 0 0
+
+sampleRosterDayId :: UUID
+sampleRosterDayId = UUID.fromWords 3 0 0 0
+
+liveUpdateScopeKind :: LiveUpdateScope -> Text
+liveUpdateScopeKind RosterWeekScope {}        = "roster_week"
+liveUpdateScopeKind AdminVenueConfigScope {}  = "admin_venue_config"
+liveUpdateScopeKind AdminShiftTypesScope {}   = "admin_shift_types"
+liveUpdateScopeKind AdminRosterGroupsScope {} = "admin_roster_groups"
+liveUpdateScopeKind AdminInvitesScope {}      = "admin_invites"
+liveUpdateScopeKind AdminExportsScope {}      = "admin_exports"
+liveUpdateScopeKind AdminXeroScope {}         = "admin_xero"
+liveUpdateScopeKind BillingScope {}           = "billing"
+liveUpdateScopeKind LeaveRequestsScope {}     = "leave_requests"
+liveUpdateScopeKind TimesheetWeekScope {}     = "timesheet_week"
+liveUpdateScopeKind ProfileScope {}           = "profile"
+liveUpdateScopeKind SupportPlatformScope      = "support_platform"
+
+liveFragmentKeyKind :: LiveRuntime.LiveFragmentKey -> Text
+liveFragmentKeyKind LiveRuntime.RosterContentFragment = "roster_content"
+liveFragmentKeyKind LiveRuntime.RosterGridToolbarFragment = "roster_grid_toolbar"
+liveFragmentKeyKind LiveRuntime.RosterGridFrameFragment = "roster_grid_frame"
+liveFragmentKeyKind LiveRuntime.RosterDayColumnsFragment = "roster_day_columns"
+liveFragmentKeyKind LiveRuntime.RosterDayRailFragment = "roster_day_rail"
+liveFragmentKeyKind LiveRuntime.RosterWageRailFragment = "roster_wage_rail"
+liveFragmentKeyKind LiveRuntime.RosterSlotsGridFragment = "roster_slots_grid"
+liveFragmentKeyKind LiveRuntime.RosterStaffPanelFragment = "roster_staff_panel"
+liveFragmentKeyKind LiveRuntime.RosterDaySectionFragment {} = "roster_day_section"
+liveFragmentKeyKind LiveRuntime.RosterRowFragment {} = "roster_row"
+liveFragmentKeyKind LiveRuntime.LeaveRequestsContentFragment = "leave_requests_content"
+liveFragmentKeyKind LiveRuntime.TimesheetToolbarFragment = "timesheet_toolbar"
+liveFragmentKeyKind LiveRuntime.TimesheetDayColumnsFragment = "timesheet_day_columns"
+liveFragmentKeyKind LiveRuntime.TimesheetDaySectionFragment {} = "timesheet_day_section"
+liveFragmentKeyKind LiveRuntime.AdminVenueConfigFragment = "admin_venue_config"
+liveFragmentKeyKind LiveRuntime.AdminInvitesFragment = "admin_invites"
+liveFragmentKeyKind LiveRuntime.AdminExportsFragment = "admin_exports"
+liveFragmentKeyKind LiveRuntime.AdminShiftTypesFragment = "admin_shift_types"
+liveFragmentKeyKind LiveRuntime.AdminRosterGroupsFragment = "admin_roster_groups"
+liveFragmentKeyKind LiveRuntime.AdminXeroFragment = "admin_xero"
+liveFragmentKeyKind LiveRuntime.AdminXeroStaffMappingsFragment = "admin_xero_staff_mappings"
+liveFragmentKeyKind LiveRuntime.AdminXeroPayItemsFragment = "admin_xero_pay_items"
+liveFragmentKeyKind LiveRuntime.AdminXeroTimesheetsFragment = "admin_xero_timesheets"
+liveFragmentKeyKind LiveRuntime.BillingStatusFragment = "billing_status"
+liveFragmentKeyKind LiveRuntime.ProfileContentFragment = "profile_content"
+liveFragmentKeyKind LiveRuntime.ProfileLeaveRequestsContentFragment = "profile_leave_requests_content"
+liveFragmentKeyKind LiveRuntime.SupportAwardRatesSectionFragment = "support_award_rates_section"
+liveFragmentKeyKind LiveRuntime.SupportPublicHolidaysSectionFragment = "support_public_holidays_section"
+
+unique :: Eq a => [a] -> [a]
+unique = foldr (\value acc -> if value `elem` acc then acc else value : acc) []
 
 authorizeRegisteredLiveSurfaceScope ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
