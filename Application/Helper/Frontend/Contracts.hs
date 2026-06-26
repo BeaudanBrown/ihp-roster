@@ -11,6 +11,7 @@ import Application.Helper.Frontend.Codec (FrontendCodec, SomeFrontendCodec (..),
                                           stringEnumCodec)
 import Application.Helper.Frontend.InteractionSchema (interactionSchemaDeclaration)
 import Application.Helper.Frontend.LiveUpdateSchema (liveUpdateSchemaDeclaration)
+import Application.Helper.Frontend.RosterSchema (rosterContractsDeclaration)
 import Application.Helper.Frontend.SurfaceManifestSchema (surfaceManifestDeclaration)
 import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..),
                                                TypeScriptDeclarationOrigin (HaskellSchemaGenerated),
@@ -51,6 +52,7 @@ frontendContractDeclarations =
     , appSharedConstantsDeclaration
     , liveUpdateSchemaDeclaration
     , interactionSchemaDeclaration
+    , rosterContractsDeclaration
     , surfaceManifestDeclaration
     ]
 

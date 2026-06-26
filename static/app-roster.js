@@ -2,6 +2,9 @@
 (() => {
   // frontend/ts/generated/contracts.ts
   var AppEvents = { "interactionIntent": "bepis:interaction-intent", "interactionIntentSubmit": "bepis:intent-submit", "interactionSessionCancelRequest": "bepis:interaction-session-cancel-request", "interactionSessionEnd": "bepis:interaction-session-end", "interactionSessionStart": "bepis:interaction-session-start", "liveFragmentsRefresh": "app-live-fragments-refresh", "pageReady": "app:page-ready" };
+  function isRosterStaffSortKey(value) {
+    return value === "name" || value === "role" || value === "shifts";
+  }
 
   // frontend/ts/shared/lifecycle.ts
   function onAppPageReady(handler) {
@@ -635,6 +638,9 @@
     const parsed = Number.parseInt(value || "0", 10);
     return Number.isFinite(parsed) ? parsed : 0;
   }
+  function rosterStaffSortKeyFrom(value) {
+    return isRosterStaffSortKey(value) ? value : "name";
+  }
   function compareRosterStaffData(left, right, key, direction) {
     const directionMultiplier = direction === "descending" ? -1 : 1;
     const compareText = (leftValue, rightValue) => leftValue.localeCompare(rightValue, void 0, { sensitivity: "base" });
@@ -703,7 +709,7 @@
   function initRosterStaffPanelSortingWithin(root) {
     root.querySelectorAll(".roster-staff-table").forEach((tableEl) => {
       if (!(tableEl instanceof HTMLTableElement)) return;
-      const defaultKey = tableEl.dataset.rosterStaffSortKey || "name";
+      const defaultKey = rosterStaffSortKeyFrom(tableEl.dataset.rosterStaffSortKey);
       const defaultDirection = normalizeSortDirection(tableEl.dataset.rosterStaffSortDirection);
       sortRosterStaffTable(tableEl, defaultKey, defaultDirection);
     });
@@ -720,7 +726,7 @@
       if (!(buttonEl instanceof HTMLButtonElement)) return;
       const tableEl = buttonEl.closest(".roster-staff-table");
       if (!(tableEl instanceof HTMLTableElement)) return;
-      const key = buttonEl.dataset.rosterStaffSortKey || "name";
+      const key = rosterStaffSortKeyFrom(buttonEl.dataset.rosterStaffSortKey);
       const direction = nextDirection(tableEl, key);
       sortRosterStaffTable(tableEl, key, direction);
     });

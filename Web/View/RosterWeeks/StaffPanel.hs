@@ -4,6 +4,8 @@ module Web.View.RosterWeeks.StaffPanel
     , renderRosterStaffPanelFragmentWithSwap
     ) where
 
+import Application.Helper.Frontend.RosterConstants (RosterStaffSortKey (..),
+                                                    rosterStaffSortKeyAttribute)
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
 import Application.Helper.View (staffDisplayName)
 import Data.List (sortBy)
@@ -61,17 +63,17 @@ renderRosterStaffPanel weekOffset currentRosterGroupId hasMultipleRosterGroups p
                     <thead class="roster-staff-table-head">
                         <tr>
                             <th scope="col" aria-sort="none">
-                                <button type="button" class="roster-staff-sort-button" data-roster-staff-sort-key="name">
+                                <button type="button" class="roster-staff-sort-button" data-roster-staff-sort-key={rosterStaffSortKeyAttribute RosterStaffSortByName}>
                                     Name
                                 </button>
                             </th>
                             <th scope="col" class="roster-staff-role-head" aria-sort="none">
-                                <button type="button" class="roster-staff-sort-button" data-roster-staff-sort-key="role">
+                                <button type="button" class="roster-staff-sort-button" data-roster-staff-sort-key={rosterStaffSortKeyAttribute RosterStaffSortByRole}>
                                     Role
                                 </button>
                             </th>
                             <th scope="col" class="roster-staff-metric-head" aria-sort="none">
-                                <button type="button" class="roster-staff-sort-button roster-staff-sort-button-metric" data-roster-staff-sort-key="shifts">
+                                <button type="button" class="roster-staff-sort-button roster-staff-sort-button-metric" data-roster-staff-sort-key={rosterStaffSortKeyAttribute RosterStaffSortByShifts}>
                                     Shifts
                                 </button>
                             </th>

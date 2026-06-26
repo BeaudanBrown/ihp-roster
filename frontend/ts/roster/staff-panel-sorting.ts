@@ -1,5 +1,5 @@
 import { onAppPageReady } from "../shared/lifecycle";
-import { compareRosterStaffData, type RosterStaffSortDirection, type RosterStaffSortKey } from "./staff-sort";
+import { compareRosterStaffData, rosterStaffSortKeyFrom, type RosterStaffSortDirection, type RosterStaffSortKey } from "./staff-sort";
 
 function rowSortData(row: HTMLElement) {
     return {
@@ -32,7 +32,7 @@ function syncSortButtonStates(tableEl: HTMLTableElement, activeKey: string, dire
     });
 }
 
-function sortRosterStaffTable(tableEl: HTMLTableElement, key: string, direction: RosterStaffSortDirection): void {
+function sortRosterStaffTable(tableEl: HTMLTableElement, key: RosterStaffSortKey, direction: RosterStaffSortDirection): void {
     const tbodyEl = tableEl.querySelector(".roster-staff-table-body");
     if (!(tbodyEl instanceof HTMLTableSectionElement)) return;
 
@@ -48,7 +48,7 @@ function sortRosterStaffTable(tableEl: HTMLTableElement, key: string, direction:
     syncSortButtonStates(tableEl, key, direction);
 }
 
-function nextDirection(tableEl: HTMLTableElement, key: string): RosterStaffSortDirection {
+function nextDirection(tableEl: HTMLTableElement, key: RosterStaffSortKey): RosterStaffSortDirection {
     const currentKey = tableEl.dataset.rosterStaffSortKey || "";
     const currentDirection = tableEl.dataset.rosterStaffSortDirection || "none";
 
@@ -63,7 +63,7 @@ function initRosterStaffPanelSortingWithin(root: Document | Element): void {
     root.querySelectorAll(".roster-staff-table").forEach((tableEl) => {
         if (!(tableEl instanceof HTMLTableElement)) return;
 
-        const defaultKey = tableEl.dataset.rosterStaffSortKey || "name";
+        const defaultKey = rosterStaffSortKeyFrom(tableEl.dataset.rosterStaffSortKey);
         const defaultDirection = normalizeSortDirection(tableEl.dataset.rosterStaffSortDirection);
         sortRosterStaffTable(tableEl, defaultKey, defaultDirection);
     });
@@ -92,7 +92,7 @@ export function enableRosterStaffPanelSorting(): void {
         const tableEl = buttonEl.closest(".roster-staff-table");
         if (!(tableEl instanceof HTMLTableElement)) return;
 
-        const key = buttonEl.dataset.rosterStaffSortKey || "name";
+        const key = rosterStaffSortKeyFrom(buttonEl.dataset.rosterStaffSortKey);
         const direction = nextDirection(tableEl, key);
         sortRosterStaffTable(tableEl, key, direction);
     });

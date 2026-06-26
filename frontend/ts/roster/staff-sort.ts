@@ -1,4 +1,6 @@
-export type RosterStaffSortKey = "shifts" | "role" | "name" | string;
+import { isRosterStaffSortKey, type RosterStaffSortKey } from "../generated/contracts";
+
+export type { RosterStaffSortKey };
 export type RosterStaffSortDirection = "ascending" | "descending";
 export type RosterStaffSortData = {
     name?: string;
@@ -10,6 +12,10 @@ export type RosterStaffSortData = {
 export function rosterParseNumber(value: string | null | undefined): number {
     const parsed = Number.parseInt(value || "0", 10);
     return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function rosterStaffSortKeyFrom(value: string | null | undefined): RosterStaffSortKey {
+    return isRosterStaffSortKey(value) ? value : "name";
 }
 
 export function compareRosterStaffData(left: RosterStaffSortData, right: RosterStaffSortData, key: RosterStaffSortKey, direction: RosterStaffSortDirection): number {
