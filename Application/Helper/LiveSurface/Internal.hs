@@ -52,6 +52,8 @@ import Application.Helper.ControllerContext (authenticatedCurrentUser,
                                              currentUserIsSuperAdmin,
                                              currentVenueOrNothing)
 import Application.Helper.ControllerSupport (VenueRole (..))
+import Application.Helper.Frontend.AppConstants (AppEvents (..),
+                                                 canonicalAppEvents)
 import qualified Application.Helper.Frontend.LiveUpdateSchema as Wire
 import Application.Helper.Interaction.Types (EmptyInteractionIntent,
                                              EmptyInteractionLayer,
@@ -64,6 +66,7 @@ import Application.Helper.Profiling (respondHtmlProfiled)
 import Application.Helper.SurfaceProjection
 import Application.Helper.View.Oob (OobSwapAttr, outerHtmlOobSwap)
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import Data.Coerce (coerce)
@@ -488,7 +491,7 @@ liveUpdateWireRefreshTriggerPayload fragments =
                 [ "fragments" Aeson..= coalesceLiveUpdateWireFragments fragments
                 ]
      in Aeson.object
-            [ "app-live-fragments-refresh" Aeson..= detail
+            [ AesonKey.fromText canonicalAppEvents.appLiveFragmentsRefreshEventName Aeson..= detail
             ]
 
 mkSurfaceProjectionDefinition ::

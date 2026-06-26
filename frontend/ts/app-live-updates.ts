@@ -1,5 +1,5 @@
 import type { LiveUpdateCommand, LiveUpdateMessage, LiveUpdateScope, LiveUpdateWireFragment } from "./generated/contracts";
-import { isLiveUpdateMessage } from "./generated/contracts";
+import { AppEvents, isLiveUpdateMessage } from "./generated/contracts";
 import { resolveLiveFragmentInteractionConflict } from "./interaction/live-conflicts";
 import { createActiveInteractionSessionTracker } from "./interaction/session-state";
 import {
@@ -70,7 +70,7 @@ type HtmxConfigRequestEvent = Event & {
 (function enableLiveUpdates() {
     if (typeof window === 'undefined') return;
 
-    const actorFragmentRefreshEventName = 'app-live-fragments-refresh';
+    const actorFragmentRefreshEventName = AppEvents.liveFragmentsRefresh;
     const pendingDeferredFragments = new Map<string, LiveUpdateFragmentWithState>();
     const pendingInteractionDeferredFragments = new Map<string, LiveUpdateFragmentWithState>();
     const pendingInteractionTimers = new Map<string, ReturnType<typeof window.setTimeout>>();
@@ -968,7 +968,7 @@ type HtmxConfigRequestEvent = Event & {
 
     document.addEventListener(actorFragmentRefreshEventName, handleActorFragmentRefreshEvent);
 
-    document.addEventListener('bepis:interaction-session-end', function () {
+    document.addEventListener(AppEvents.interactionSessionEnd, function () {
         flushInteractionDeferredFragmentsWithoutActiveSessions();
         flushDeferredFragmentsWithoutActiveInputs();
     });
@@ -999,5 +999,5 @@ type HtmxConfigRequestEvent = Event & {
         }, 0);
     });
 
-    document.addEventListener('app:page-ready', syncConnection);
+    document.addEventListener(AppEvents.pageReady, syncConnection);
 })();

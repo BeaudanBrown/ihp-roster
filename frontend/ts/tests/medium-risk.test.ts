@@ -1,5 +1,6 @@
 import { appPageReadyEventName, pageReadyDetailFrom } from "../app-bootstrap";
 import { dialogSubmitLoadingHtml } from "../app-dialog-overlays";
+import { AppEvents } from "../generated/contracts";
 import { clampHorizontalScrollLeft, parsePositiveIntegerForHorizontalScroll } from "../horizontal-scroll/math";
 import { arrayBufferToBase64Url, base64UrlToArrayBuffer } from "../passkeys/base64url";
 import { localStorageKeyForPasskey } from "../passkeys/storage";
@@ -7,7 +8,7 @@ import { buildTimeOptionsWithStepForRange, displayLabelFromTimeValue, minuteOfDa
 import { assertDeepEqual, assertEqual, test } from "./harness";
 
 test("app bootstrap preserves page-ready event contract defaults", () => {
-    assertEqual(appPageReadyEventName, "app:page-ready");
+    assertEqual(appPageReadyEventName, AppEvents.pageReady);
     assertDeepEqual(pageReadyDetailFrom({ source: "htmx-after-swap", isFullPage: false }), {
         source: "htmx-after-swap",
         isFullPage: false,

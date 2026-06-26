@@ -17,6 +17,9 @@
     return isDomRoot(target) ? target : fallback;
   }
 
+  // frontend/ts/generated/contracts.ts
+  var AppEvents = { "interactionIntent": "bepis:interaction-intent", "interactionIntentSubmit": "bepis:intent-submit", "interactionSessionCancelRequest": "bepis:interaction-session-cancel-request", "interactionSessionEnd": "bepis:interaction-session-end", "interactionSessionStart": "bepis:interaction-session-start", "liveFragmentsRefresh": "app-live-fragments-refresh", "pageReady": "app:page-ready" };
+
   // frontend/ts/shared/lifecycle.ts
   function eventDetailRecord(event) {
     if (typeof CustomEvent === "undefined" || !(event instanceof CustomEvent)) return null;
@@ -28,7 +31,7 @@
   }
   function onAppPageReady(handler) {
     if (typeof document === "undefined") return;
-    document.addEventListener("app:page-ready", handler);
+    document.addEventListener(AppEvents.pageReady, handler);
   }
   function onHtmxLoad(handler) {
     if (typeof document === "undefined") return;

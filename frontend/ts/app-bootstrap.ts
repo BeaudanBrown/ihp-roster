@@ -1,7 +1,8 @@
+import { AppEvents } from "./generated/contracts";
 import { isDocument, isHTMLElement } from "./shared/dom";
 import { detailTarget } from "./shared/lifecycle";
 
-export const appPageReadyEventName = "app:page-ready";
+export const appPageReadyEventName = AppEvents.pageReady;
 
 export type PageReadyDetailInput = unknown;
 

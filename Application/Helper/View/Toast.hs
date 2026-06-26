@@ -1,5 +1,6 @@
 module Application.Helper.View.Toast where
 
+import Application.Helper.Frontend.AppConstants (sharedToastOverlayMountId)
 import Application.Helper.View.Oob
 import Generated.Types
 import IHP.ViewPrelude
@@ -8,7 +9,7 @@ import Web.Routes ()
 import Web.Types
 
 toastOverlayMountId :: Text
-toastOverlayMountId = "toast-overlay-mount"
+toastOverlayMountId = sharedToastOverlayMountId
 
 data ToastOverlayConfig = ToastOverlayConfig
     { toastOverlayTitle      :: !(Maybe Text)

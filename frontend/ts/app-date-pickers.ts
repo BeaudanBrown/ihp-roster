@@ -1,3 +1,5 @@
+import { onAppPageReady } from "./shared/lifecycle";
+
 // Keep the date/datetime picker enhancement app-local so it survives after helpers.js is removed.
 type FlatpickrConfig = {
     enableTime?: boolean;
@@ -58,7 +60,7 @@ function handleSwap(event: Event): void {
 function enableDatePickers(): void {
     if (typeof window === "undefined") return;
 
-    document.addEventListener("app:page-ready", (event) => {
+    onAppPageReady((event) => {
         initWithin(rootFromPageEvent(event));
     });
     document.addEventListener("htmx:afterSwap", handleSwap);

@@ -1,8 +1,8 @@
-import { InteractionDom, type InteractionConflictResolution } from "../generated/contracts";
+import { AppEvents, InteractionDom, type InteractionConflictResolution } from "../generated/contracts";
 
-export const interactionSessionStartEventName = "bepis:interaction-session-start";
-export const interactionSessionEndEventName = "bepis:interaction-session-end";
-export const interactionSessionCancelRequestEventName = "bepis:interaction-session-cancel-request";
+export const interactionSessionStartEventName = AppEvents.interactionSessionStart;
+export const interactionSessionEndEventName = AppEvents.interactionSessionEnd;
+export const interactionSessionCancelRequestEventName = AppEvents.interactionSessionCancelRequest;
 
 export type InteractionSessionSnapshot = {
     mount: Element;

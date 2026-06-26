@@ -14,6 +14,9 @@
     return isElement(value) || isDocument(value) || isDocumentFragment(value);
   }
 
+  // frontend/ts/generated/contracts.ts
+  var AppEvents = { "interactionIntent": "bepis:interaction-intent", "interactionIntentSubmit": "bepis:intent-submit", "interactionSessionCancelRequest": "bepis:interaction-session-cancel-request", "interactionSessionEnd": "bepis:interaction-session-end", "interactionSessionStart": "bepis:interaction-session-start", "liveFragmentsRefresh": "app-live-fragments-refresh", "pageReady": "app:page-ready" };
+
   // frontend/ts/shared/lifecycle.ts
   function eventDetailRecord(event) {
     if (typeof CustomEvent === "undefined" || !(event instanceof CustomEvent)) return null;
@@ -22,6 +25,10 @@
   }
   function detailTarget(event, key) {
     return eventDetailRecord(event)?.[key];
+  }
+  function onAppPageReady(handler) {
+    if (typeof document === "undefined") return;
+    document.addEventListener(AppEvents.pageReady, handler);
   }
 
   // frontend/ts/passkeys/base64url.ts
@@ -338,6 +345,6 @@
     function passkeysAreAvailable() {
       return typeof window.PublicKeyCredential === "function" && window.navigator.credentials !== void 0;
     }
-    document.addEventListener("app:page-ready", initPasskeyAuth);
+    onAppPageReady(initPasskeyAuth);
   })();
 })();

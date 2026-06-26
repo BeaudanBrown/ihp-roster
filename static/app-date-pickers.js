@@ -1,5 +1,14 @@
 "use strict";
 (() => {
+  // frontend/ts/generated/contracts.ts
+  var AppEvents = { "interactionIntent": "bepis:interaction-intent", "interactionIntentSubmit": "bepis:intent-submit", "interactionSessionCancelRequest": "bepis:interaction-session-cancel-request", "interactionSessionEnd": "bepis:interaction-session-end", "interactionSessionStart": "bepis:interaction-session-start", "liveFragmentsRefresh": "app-live-fragments-refresh", "pageReady": "app:page-ready" };
+
+  // frontend/ts/shared/lifecycle.ts
+  function onAppPageReady(handler) {
+    if (typeof document === "undefined") return;
+    document.addEventListener(AppEvents.pageReady, handler);
+  }
+
   // frontend/ts/app-date-pickers.ts
   var initializedKey = "appDatePickerInitialized";
   function datePickerConfigFor(inputType) {
@@ -41,7 +50,7 @@
   }
   function enableDatePickers() {
     if (typeof window === "undefined") return;
-    document.addEventListener("app:page-ready", (event) => {
+    onAppPageReady((event) => {
       initWithin(rootFromPageEvent(event));
     });
     document.addEventListener("htmx:afterSwap", handleSwap);

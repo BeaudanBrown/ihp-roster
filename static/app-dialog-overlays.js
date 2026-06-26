@@ -1,5 +1,9 @@
 "use strict";
 (() => {
+  // frontend/ts/generated/contracts.ts
+  var AppOverlayDom = { "dialogOverlayMountId": "dialog-overlay-mount", "toastOverlayMountId": "toast-overlay-mount" };
+  var AppEvents = { "interactionIntent": "bepis:interaction-intent", "interactionIntentSubmit": "bepis:intent-submit", "interactionSessionCancelRequest": "bepis:interaction-session-cancel-request", "interactionSessionEnd": "bepis:interaction-session-end", "interactionSessionStart": "bepis:interaction-session-start", "liveFragmentsRefresh": "app-live-fragments-refresh", "pageReady": "app:page-ready" };
+
   // frontend/ts/shared/dom.ts
   function isElement(value) {
     return typeof Element !== "undefined" && value instanceof Element;
@@ -29,7 +33,7 @@
   }
   (function enableDialogOverlayMount() {
     if (typeof window === "undefined") return;
-    const mountId = "dialog-overlay-mount";
+    const mountId = AppOverlayDom.dialogOverlayMountId;
     function getMount() {
       const mountEl = document.getElementById(mountId);
       return isHTMLElement(mountEl) ? mountEl : null;
@@ -135,6 +139,6 @@
     });
     document.addEventListener("shown.bs.modal", syncDialogState);
     document.addEventListener("hidden.bs.modal", syncDialogState);
-    document.addEventListener("app:page-ready", syncDialogState);
+    document.addEventListener(AppEvents.pageReady, syncDialogState);
   })();
 })();

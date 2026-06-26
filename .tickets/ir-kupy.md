@@ -1,6 +1,6 @@
 ---
 id: ir-kupy
-status: open
+status: closed
 deps: [ir-8nr6]
 links: []
 created: 2026-06-26T07:25:29Z
@@ -22,3 +22,9 @@ Inventory constants such as dialog-overlay-mount, toast-overlay-mount, app:page-
 
 Shared overlay/event constants used on both sides are generated from Haskell-owned codec constants; local-only constants are explicitly documented or left untouched; frontend and focused Hspec tests pass.
 
+
+## Notes
+
+**2026-06-26T07:59:21Z**
+
+Added Haskell-owned AppOverlayDom and AppEvents constants plus codec-generated AppOverlayDom/AppEvents TypeScript types, guards, and typed constants. Haskell overlay/toast/live refresh/roster interaction forms now consume shared constants; TypeScript page-ready listeners, overlay mounts, live refresh, interaction bus/session events, and app tests consume generated constants or onAppPageReady. Existing frontend-watch/dev-start already regenerates static JS for dev, and pre-commit/frontend-check continue to enforce generated JS/contract drift. Verification passed: typecheck, frontend-contracts-check, frontend-check, hspec-test --match 'Frontend contract' --match 'Interaction' --match 'LiveSurface'.

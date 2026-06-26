@@ -1,3 +1,5 @@
+import { onAppPageReady } from "../shared/lifecycle";
+
 function editorFrames(): HTMLElement[] {
     return Array.from(document.querySelectorAll('[data-roster-column-editor="available"]'))
         .filter((frameEl): frameEl is HTMLElement => frameEl instanceof HTMLElement);
@@ -59,5 +61,5 @@ export function enableRosterColumnEditMode(): void {
         finishColumnEditing();
     });
 
-    document.addEventListener("app:page-ready", syncColumnEditMode);
+    onAppPageReady(syncColumnEditMode);
 }

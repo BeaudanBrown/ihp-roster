@@ -1,3 +1,4 @@
+import { AppEvents, AppOverlayDom } from "./generated/contracts";
 import { closestHTMLElement, isHTMLElement } from "./shared/dom";
 import { detailTarget } from "./shared/lifecycle";
 
@@ -9,7 +10,7 @@ export function dialogSubmitLoadingHtml(label: string): string {
 (function enableDialogOverlayMount() {
     if (typeof window === "undefined") return;
 
-    const mountId = "dialog-overlay-mount";
+    const mountId = AppOverlayDom.dialogOverlayMountId;
     function getMount(): HTMLElement | null {
         const mountEl = document.getElementById(mountId);
         return isHTMLElement(mountEl) ? mountEl : null;
@@ -140,5 +141,5 @@ export function dialogSubmitLoadingHtml(label: string): string {
 
     document.addEventListener("shown.bs.modal", syncDialogState);
     document.addEventListener("hidden.bs.modal", syncDialogState);
-    document.addEventListener("app:page-ready", syncDialogState);
+    document.addEventListener(AppEvents.pageReady, syncDialogState);
 })();

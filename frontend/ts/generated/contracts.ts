@@ -12,6 +12,44 @@ export function isOverlayLane(value: unknown): value is OverlayLane {
 
 
 
+// Shared app DOM and browser event constants generated from Haskell.
+function __isAppOverlayDomExactRecord(value: unknown, requiredKeys: string[], optionalKeys: string[]): value is Record<string, unknown> {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+    const actualKeys = Object.keys(value);
+    const allowedKeys = new Set([...requiredKeys, ...optionalKeys]);
+    return requiredKeys.every((key) => Object.prototype.hasOwnProperty.call(value, key)) && actualKeys.every((key) => allowedKeys.has(key));
+}
+
+
+export type AppOverlayDom = {
+    dialogOverlayMountId: string;
+    toastOverlayMountId: string;
+};
+
+export function isAppOverlayDom(value: unknown): value is AppOverlayDom {
+    return __isAppOverlayDomExactRecord(value, ["dialogOverlayMountId", "toastOverlayMountId"], []) && (typeof value["dialogOverlayMountId"] === "string") && (typeof value["toastOverlayMountId"] === "string");
+}
+
+
+export type AppEvents = {
+    pageReady: string;
+    liveFragmentsRefresh: string;
+    interactionIntent: string;
+    interactionIntentSubmit: string;
+    interactionSessionStart: string;
+    interactionSessionEnd: string;
+    interactionSessionCancelRequest: string;
+};
+
+export function isAppEvents(value: unknown): value is AppEvents {
+    return __isAppOverlayDomExactRecord(value, ["pageReady", "liveFragmentsRefresh", "interactionIntent", "interactionIntentSubmit", "interactionSessionStart", "interactionSessionEnd", "interactionSessionCancelRequest"], []) && (typeof value["pageReady"] === "string") && (typeof value["liveFragmentsRefresh"] === "string") && (typeof value["interactionIntent"] === "string") && (typeof value["interactionIntentSubmit"] === "string") && (typeof value["interactionSessionStart"] === "string") && (typeof value["interactionSessionEnd"] === "string") && (typeof value["interactionSessionCancelRequest"] === "string");
+}
+
+
+
+export const AppOverlayDom: AppOverlayDom = {"dialogOverlayMountId":"dialog-overlay-mount","toastOverlayMountId":"toast-overlay-mount"};
+export const AppEvents: AppEvents = {"interactionIntent":"bepis:interaction-intent","interactionIntentSubmit":"bepis:intent-submit","interactionSessionCancelRequest":"bepis:interaction-session-cancel-request","interactionSessionEnd":"bepis:interaction-session-end","interactionSessionStart":"bepis:interaction-session-start","liveFragmentsRefresh":"app-live-fragments-refresh","pageReady":"app:page-ready"};
+
 // Live-update wire protocol generated from Haskell schema types.
 function __isLiveUpdateScopeExactRecord(value: unknown, requiredKeys: string[], optionalKeys: string[]): value is Record<string, unknown> {
     if (typeof value !== "object" || value === null || Array.isArray(value)) return false;

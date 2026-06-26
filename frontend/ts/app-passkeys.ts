@@ -1,5 +1,5 @@
 import { isDomRoot } from "./shared/dom";
-import { detailTarget } from "./shared/lifecycle";
+import { detailTarget, onAppPageReady } from "./shared/lifecycle";
 import { arrayBufferToBase64Url, base64UrlToArrayBuffer } from "./passkeys/base64url";
 import { localStorageKeyForPasskey, type PasskeyStorageKey } from "./passkeys/storage";
 
@@ -382,5 +382,5 @@ type AuthenticationCredentialPayload = {
         return typeof window.PublicKeyCredential === "function" && window.navigator.credentials !== undefined;
     }
 
-    document.addEventListener("app:page-ready", initPasskeyAuth);
+    onAppPageReady(initPasskeyAuth);
 })();

@@ -5,6 +5,7 @@ module Application.Helper.Frontend.Contracts
     )
 where
 
+import Application.Helper.Frontend.AppSchema (appSharedConstantsDeclaration)
 import Application.Helper.Frontend.Codec (FrontendCodec, SomeFrontendCodec (..),
                                           renderFrontendContracts,
                                           stringEnumCodec)
@@ -47,6 +48,7 @@ overlayLaneDeclaration =
 frontendContractDeclarations :: [TypeScriptDeclaration]
 frontendContractDeclarations =
     [ overlayLaneDeclaration
+    , appSharedConstantsDeclaration
     , liveUpdateSchemaDeclaration
     , interactionSchemaDeclaration
     , surfaceManifestDeclaration

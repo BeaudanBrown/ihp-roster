@@ -1,4 +1,4 @@
-import { InteractionDom } from "../generated/contracts";
+import { AppEvents, InteractionDom } from "../generated/contracts";
 import { readActivationIntentPayload } from "../interaction/activation";
 import { submitCommittedInteractionIntent } from "../interaction/form-bridge";
 import { resolveLiveFragmentInteractionConflict } from "../interaction/live-conflicts";
@@ -126,7 +126,7 @@ function buildMount(): { mount: MiniElement; form: MiniElement; required: MiniEl
     const form = mount.append(new MiniElement({
         [attrs.intentForm]: "select-cell",
         [attrs.intent]: "select-cell",
-        "hx-trigger": "bepis:intent-submit from:this",
+        "hx-trigger": `${AppEvents.interactionIntentSubmit} from:this`,
     }));
     const required = form.append(new MiniElement({
         name: "cellId",
@@ -193,7 +193,7 @@ test("generic activation markers ignore non-matching triggers", () => {
 test("committed intents fill the matching helper-rendered form and dispatch the generated trigger", () => {
     const { mount, form, required, optional } = buildMount();
     let dispatchedTrigger = "";
-    form.addEventListener("bepis:intent-submit", (event) => {
+    form.addEventListener(AppEvents.interactionIntentSubmit, (event) => {
         dispatchedTrigger = event.type;
     });
 
@@ -210,7 +210,7 @@ test("committed intents fill the matching helper-rendered form and dispatch the 
     assertEqual(required.value, "cell-1");
     assertEqual(required.getAttribute("value"), "cell-1");
     assertEqual(optional.value, "replace");
-    assertEqual(dispatchedTrigger, "bepis:intent-submit");
+    assertEqual(dispatchedTrigger, AppEvents.interactionIntentSubmit);
 });
 
 test("bridge resolves the concrete mount from an activation marker", () => {

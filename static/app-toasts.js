@@ -1,7 +1,11 @@
 "use strict";
 (() => {
+  // frontend/ts/generated/contracts.ts
+  var AppOverlayDom = { "dialogOverlayMountId": "dialog-overlay-mount", "toastOverlayMountId": "toast-overlay-mount" };
+  var AppEvents = { "interactionIntent": "bepis:interaction-intent", "interactionIntentSubmit": "bepis:intent-submit", "interactionSessionCancelRequest": "bepis:interaction-session-cancel-request", "interactionSessionEnd": "bepis:interaction-session-end", "interactionSessionStart": "bepis:interaction-session-start", "liveFragmentsRefresh": "app-live-fragments-refresh", "pageReady": "app:page-ready" };
+
   // frontend/ts/app-toasts.ts
-  var hostId = "toast-overlay-mount";
+  var hostId = AppOverlayDom.toastOverlayMountId;
   var initializedKey = "toastInitialized";
   function getHost() {
     return document.getElementById(hostId);
@@ -40,7 +44,7 @@
         dismissToast(toastEl);
       }
     });
-    document.addEventListener("app:page-ready", initHostToasts);
+    document.addEventListener(AppEvents.pageReady, initHostToasts);
   }
   enableToastOverlayHost();
 })();

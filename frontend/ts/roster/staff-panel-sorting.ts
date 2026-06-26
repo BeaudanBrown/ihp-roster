@@ -1,3 +1,4 @@
+import { onAppPageReady } from "../shared/lifecycle";
 import { compareRosterStaffData, type RosterStaffSortDirection, type RosterStaffSortKey } from "./staff-sort";
 
 function rowSortData(row: HTMLElement) {
@@ -96,7 +97,7 @@ export function enableRosterStaffPanelSorting(): void {
         sortRosterStaffTable(tableEl, key, direction);
     });
 
-    document.addEventListener("app:page-ready", (event) => {
+    onAppPageReady((event) => {
         initRosterStaffPanelSortingWithin(rootFromPageReadyEvent(event));
     });
 }

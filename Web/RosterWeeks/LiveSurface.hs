@@ -21,6 +21,7 @@ module Web.RosterWeeks.LiveSurface
     ) where
 
 import Application.Helper.Controller
+import Application.Helper.Frontend.AppConstants (interactionIntentSubmitHtmxTrigger)
 import Application.Helper.Interaction
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
@@ -160,7 +161,7 @@ rosterLayoutModeIntentForm scope =
         , intentFormName = rosterLayoutModeIntentName
         , intentFormAction = rosterLayoutPreferenceUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId
         , intentFormMethod = HtmxPost
-        , intentFormTrigger = "bepis:intent-submit"
+        , intentFormTrigger = interactionIntentSubmitHtmxTrigger
         , intentFormTarget = IntentTargetLiveFragment (rosterFragmentRef scope RosterProjectionContent)
         , intentFormSwap = HtmxSwapNone
         , intentFormFields = [IntentFieldSchema rosterLayoutModeIntentField IntentFieldRequired Nothing]
@@ -176,7 +177,7 @@ rosterMoveShiftIntentForm scope =
         , intentFormName = rosterMoveShiftIntentName
         , intentFormAction = rosterMoveShiftUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId
         , intentFormMethod = HtmxPost
-        , intentFormTrigger = "bepis:intent-submit"
+        , intentFormTrigger = interactionIntentSubmitHtmxTrigger
         , intentFormTarget = IntentTargetLiveFragment (rosterFragmentRef scope RosterProjectionContent)
         , intentFormSwap = HtmxSwapNone
         , intentFormFields = rosterMoveShiftIntentFields

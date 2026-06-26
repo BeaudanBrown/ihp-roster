@@ -1,5 +1,5 @@
 import { type DomRoot, closestHTMLElement, isDomRoot, isHTMLElement } from "./shared/dom";
-import { detailTarget } from "./shared/lifecycle";
+import { detailTarget, onAppPageReady } from "./shared/lifecycle";
 import {
     buildTimeOptionsWithStepForRange,
     displayLabelFromTimeValue,
@@ -327,7 +327,7 @@ export { buildTimeOptionsWithStepForRange, displayLabelFromTimeValue, minuteOfDa
         syncFieldLabelsWithin(isDomRoot(target) ? target : document);
     }
 
-    document.addEventListener("app:page-ready", function (event) {
+    onAppPageReady(function (event) {
         syncFieldLabelsForTarget(detailTarget(event, "target"));
     });
 

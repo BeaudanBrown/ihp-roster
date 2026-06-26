@@ -1,3 +1,5 @@
+import { onAppPageReady } from "../shared/lifecycle";
+
 const rosterStaffRowSelector = ".roster-staff-panel-entry[data-roster-staff-id]";
 const rowHighlightClass = "is-roster-staff-highlighted";
 const slotHighlightClass = "is-roster-staff-slot-highlighted";
@@ -229,7 +231,7 @@ export function enableRosterStaffShiftHighlight(): void {
         row.click();
     });
 
-    document.addEventListener("app:page-ready", () => {
+    onAppPageReady(() => {
         if (pinnedRosterStaffId && !staffElements(rosterStaffRowSelector, pinnedRosterStaffId).length) {
             pinnedRosterStaffId = "";
         }

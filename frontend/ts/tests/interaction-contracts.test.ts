@@ -1,4 +1,4 @@
-import { InteractionDom, InteractionStaticSchemas, LiveSurfaceManifest, type InteractionCapabilityContract, type IntentFormContract } from "../generated/contracts";
+import { AppEvents, InteractionDom, InteractionStaticSchemas, LiveSurfaceManifest, type InteractionCapabilityContract, type IntentFormContract } from "../generated/contracts";
 import { assertDeepEqual, assertEqual, test } from "./harness";
 
 test("generated interaction contracts describe mount-local intent forms", () => {
@@ -7,7 +7,7 @@ test("generated interaction contracts describe mount-local intent forms", () => 
         name: "move-roster-shift-to-slot",
         action: "/MoveRosterShiftToSlot",
         method: "post",
-        trigger: "bepis:intent-submit from:this",
+        trigger: `${AppEvents.interactionIntentSubmit} from:this`,
         target: { kind: "mount_local", target: "#surface-primary" },
         swap: "outerHTML",
         fields: [{ name: "sourceItemKey", presence: "required" }],

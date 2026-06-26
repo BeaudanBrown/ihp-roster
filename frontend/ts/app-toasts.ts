@@ -1,5 +1,7 @@
+import { AppEvents, AppOverlayDom } from "./generated/contracts";
+
 // Bottom-right toast host for redirects and HTMX-triggered transient messages.
-const hostId = "toast-overlay-mount";
+const hostId = AppOverlayDom.toastOverlayMountId;
 const initializedKey = "toastInitialized";
 
 function getHost(): HTMLElement | null {
@@ -47,7 +49,7 @@ function enableToastOverlayHost(): void {
         }
     });
 
-    document.addEventListener("app:page-ready", initHostToasts);
+    document.addEventListener(AppEvents.pageReady, initHostToasts);
 }
 
 enableToastOverlayHost();

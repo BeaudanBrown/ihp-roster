@@ -1,3 +1,4 @@
+import { AppOverlayDom } from "./generated/contracts";
 import { type DomRoot } from "./shared/dom";
 import { detailRoot, onAppPageReady } from "./shared/lifecycle";
 
@@ -39,7 +40,7 @@ function enableBreakTimeToggle(): void {
 
 enableBreakTimeToggle();
 
-const dialogMountId = "dialog-overlay-mount";
+const dialogMountId = AppOverlayDom.dialogOverlayMountId;
 const entryLinkSelector = ".timesheet-entry-card-link";
 let pointerOpenedEntryLink: HTMLElement | null = null;
 let mountObserver: MutationObserver | null = null;
@@ -101,7 +102,7 @@ function blurPointerOpenedTimesheetEntryAfterDialogClose(): void {
     document.addEventListener("keydown", clearTrackedEntryLink, true);
 
     document.addEventListener("DOMContentLoaded", ensureMountObserver);
-    document.addEventListener("app:page-ready", () => {
+    onAppPageReady(() => {
         ensureMountObserver();
         handlePossibleDialogClose();
     });

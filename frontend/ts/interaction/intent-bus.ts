@@ -1,3 +1,5 @@
+import { AppEvents } from "../generated/contracts";
+
 export type InteractionIntentPhase = "start" | "preview" | "commit" | "cancel" | "error";
 
 export type InteractionIntentFields = Record<string, string>;
@@ -22,7 +24,7 @@ export type NormalizedInteractionIntent = {
 
 export type InteractionIntentListener = (event: CustomEvent<NormalizedInteractionIntent>) => void;
 
-export const interactionIntentEventName = "bepis:interaction-intent";
+export const interactionIntentEventName = AppEvents.interactionIntent;
 
 function normalizeFields(fields: InteractionIntentPayload["fields"]): InteractionIntentFields {
     if (!fields) return {};

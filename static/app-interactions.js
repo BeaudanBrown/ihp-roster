@@ -1,6 +1,7 @@
 "use strict";
 (() => {
   // frontend/ts/generated/contracts.ts
+  var AppEvents = { "interactionIntent": "bepis:interaction-intent", "interactionIntentSubmit": "bepis:intent-submit", "interactionSessionCancelRequest": "bepis:interaction-session-cancel-request", "interactionSessionEnd": "bepis:interaction-session-end", "interactionSessionStart": "bepis:interaction-session-start", "liveFragmentsRefresh": "app-live-fragments-refresh", "pageReady": "app:page-ready" };
   var InteractionDom = { "attributes": { "activation": "data-bepis-activation", "activationIntent": "data-bepis-activation-intent", "activationTrigger": "data-bepis-activation-trigger", "activationValueField": "data-bepis-activation-value-field", "conflictPolicies": "data-bepis-conflict-policies", "container": "data-bepis-container", "disposableLayer": "data-bepis-disposable-layer", "dropzone": "data-bepis-dropzone", "fieldPresence": "data-bepis-field-presence", "intent": "data-bepis-intent", "intentField": "data-bepis-intent-field", "intentForm": "data-bepis-intent-form", "intentHiddenField": "data-bepis-intent-hidden-field", "interactionActive": "data-bepis-interaction-active", "item": "data-bepis-item", "layer": "data-bepis-layer", "marker": "data-bepis-marker", "mountKey": "data-bepis-mount-key", "pointerSession": "data-bepis-pointer-session", "resizeHandle": "data-bepis-resize-handle", "scopeKey": "data-bepis-scope-key", "serverLayer": "data-bepis-server-layer", "sessionDisabled": "data-bepis-session-disabled", "sessionIntent": "data-bepis-session-intent", "sessionKind": "data-bepis-session-kind", "sessionReadOnly": "data-bepis-session-read-only", "sessionThreshold": "data-bepis-session-threshold", "sessionTimeoutMs": "data-bepis-session-timeout-ms", "slot": "data-bepis-slot", "surface": "data-bepis-surface", "surfaceFamily": "data-bepis-surface-family" }, "pointerFields": { "currentClientX": "currentClientX", "currentClientY": "currentClientY", "deltaX": "deltaX", "deltaY": "deltaY", "pointerId": "pointerId", "pointerType": "pointerType", "sessionKind": "sessionKind", "sourceItemKey": "sourceItemKey", "startClientX": "startClientX", "startClientY": "startClientY", "targetDropzoneKey": "targetDropzoneKey" }, "values": { "activationMarker": "activation", "containerMarker": "container", "dropzoneMarker": "dropzone", "enabled": "true", "itemMarker": "item", "resizeHandleMarker": "resize-handle", "slotMarker": "slot" } };
 
   // frontend/ts/interaction/form-bridge.ts
@@ -105,7 +106,7 @@
   }
 
   // frontend/ts/interaction/intent-bus.ts
-  var interactionIntentEventName = "bepis:interaction-intent";
+  var interactionIntentEventName = AppEvents.interactionIntent;
   function normalizeFields(fields) {
     if (!fields) return {};
     const normalized = {};
@@ -247,9 +248,9 @@
   }
 
   // frontend/ts/interaction/session-state.ts
-  var interactionSessionStartEventName = "bepis:interaction-session-start";
-  var interactionSessionEndEventName = "bepis:interaction-session-end";
-  var interactionSessionCancelRequestEventName = "bepis:interaction-session-cancel-request";
+  var interactionSessionStartEventName = AppEvents.interactionSessionStart;
+  var interactionSessionEndEventName = AppEvents.interactionSessionEnd;
+  var interactionSessionCancelRequestEventName = AppEvents.interactionSessionCancelRequest;
   var attrs3 = InteractionDom.attributes;
   function dispatchInteractionSessionStart(detail, root) {
     const eventRoot = root ?? defaultDocument();

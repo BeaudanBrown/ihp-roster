@@ -1,5 +1,6 @@
 module Application.Helper.View.Overlay where
 
+import Application.Helper.Frontend.AppConstants (sharedDialogOverlayMountId)
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ViewPrelude
@@ -7,7 +8,7 @@ import Web.Routes ()
 import Web.Types
 
 dialogOverlayMountId :: Text
-dialogOverlayMountId = "dialog-overlay-mount"
+dialogOverlayMountId = sharedDialogOverlayMountId
 
 htmxModalMountId :: Text
 htmxModalMountId = dialogOverlayMountId

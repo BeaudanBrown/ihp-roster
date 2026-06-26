@@ -1,6 +1,7 @@
 "use strict";
 (() => {
   // frontend/ts/generated/contracts.ts
+  var AppEvents = { "interactionIntent": "bepis:interaction-intent", "interactionIntentSubmit": "bepis:intent-submit", "interactionSessionCancelRequest": "bepis:interaction-session-cancel-request", "interactionSessionEnd": "bepis:interaction-session-end", "interactionSessionStart": "bepis:interaction-session-start", "liveFragmentsRefresh": "app-live-fragments-refresh", "pageReady": "app:page-ready" };
   function __isLiveUpdateScopeExactRecord(value, requiredKeys, optionalKeys) {
     if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
     const actualKeys = Object.keys(value);
@@ -72,9 +73,9 @@
   }
 
   // frontend/ts/interaction/session-state.ts
-  var interactionSessionStartEventName = "bepis:interaction-session-start";
-  var interactionSessionEndEventName = "bepis:interaction-session-end";
-  var interactionSessionCancelRequestEventName = "bepis:interaction-session-cancel-request";
+  var interactionSessionStartEventName = AppEvents.interactionSessionStart;
+  var interactionSessionEndEventName = AppEvents.interactionSessionEnd;
+  var interactionSessionCancelRequestEventName = AppEvents.interactionSessionCancelRequest;
   var attrs2 = InteractionDom.attributes;
   function requestInteractionSessionCancel(detail, root) {
     const eventRoot = root ?? defaultDocument();
@@ -161,7 +162,7 @@
   // frontend/ts/app-live-updates.ts
   (function enableLiveUpdates() {
     if (typeof window === "undefined") return;
-    const actorFragmentRefreshEventName = "app-live-fragments-refresh";
+    const actorFragmentRefreshEventName = AppEvents.liveFragmentsRefresh;
     const pendingDeferredFragments = /* @__PURE__ */ new Map();
     const pendingInteractionDeferredFragments = /* @__PURE__ */ new Map();
     const pendingInteractionTimers = /* @__PURE__ */ new Map();
@@ -900,7 +901,7 @@
       fragments.forEach(handleFragmentRefreshRequest);
     }
     document.addEventListener(actorFragmentRefreshEventName, handleActorFragmentRefreshEvent);
-    document.addEventListener("bepis:interaction-session-end", function() {
+    document.addEventListener(AppEvents.interactionSessionEnd, function() {
       flushInteractionDeferredFragmentsWithoutActiveSessions();
       flushDeferredFragmentsWithoutActiveInputs();
     });
@@ -925,6 +926,6 @@
         flushDeferredFragmentsWithoutActiveInputs();
       }, 0);
     });
-    document.addEventListener("app:page-ready", syncConnection);
+    document.addEventListener(AppEvents.pageReady, syncConnection);
   })();
 })();

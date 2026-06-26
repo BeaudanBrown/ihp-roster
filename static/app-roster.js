@@ -1,5 +1,14 @@
 "use strict";
 (() => {
+  // frontend/ts/generated/contracts.ts
+  var AppEvents = { "interactionIntent": "bepis:interaction-intent", "interactionIntentSubmit": "bepis:intent-submit", "interactionSessionCancelRequest": "bepis:interaction-session-cancel-request", "interactionSessionEnd": "bepis:interaction-session-end", "interactionSessionStart": "bepis:interaction-session-start", "liveFragmentsRefresh": "app-live-fragments-refresh", "pageReady": "app:page-ready" };
+
+  // frontend/ts/shared/lifecycle.ts
+  function onAppPageReady(handler) {
+    if (typeof document === "undefined") return;
+    document.addEventListener(AppEvents.pageReady, handler);
+  }
+
   // frontend/ts/roster/column-edit.ts
   function editorFrames() {
     return Array.from(document.querySelectorAll('[data-roster-column-editor="available"]')).filter((frameEl) => frameEl instanceof HTMLElement);
@@ -47,7 +56,7 @@
       event.preventDefault();
       finishColumnEditing();
     });
-    document.addEventListener("app:page-ready", syncColumnEditMode);
+    onAppPageReady(syncColumnEditMode);
   }
 
   // frontend/ts/roster/fullscreen.ts
@@ -613,7 +622,7 @@
       event.preventDefault();
       row.click();
     });
-    document.addEventListener("app:page-ready", () => {
+    onAppPageReady(() => {
       if (pinnedRosterStaffId && !staffElements(rosterStaffRowSelector, pinnedRosterStaffId).length) {
         pinnedRosterStaffId = "";
       }
@@ -715,7 +724,7 @@
       const direction = nextDirection(tableEl, key);
       sortRosterStaffTable(tableEl, key, direction);
     });
-    document.addEventListener("app:page-ready", (event) => {
+    onAppPageReady((event) => {
       initRosterStaffPanelSortingWithin(rootFromPageReadyEvent(event));
     });
   }

@@ -22,6 +22,9 @@
     return isHTMLElement(element) ? element : null;
   }
 
+  // frontend/ts/generated/contracts.ts
+  var AppEvents = { "interactionIntent": "bepis:interaction-intent", "interactionIntentSubmit": "bepis:intent-submit", "interactionSessionCancelRequest": "bepis:interaction-session-cancel-request", "interactionSessionEnd": "bepis:interaction-session-end", "interactionSessionStart": "bepis:interaction-session-start", "liveFragmentsRefresh": "app-live-fragments-refresh", "pageReady": "app:page-ready" };
+
   // frontend/ts/shared/lifecycle.ts
   function eventDetailRecord(event) {
     if (typeof CustomEvent === "undefined" || !(event instanceof CustomEvent)) return null;
@@ -30,6 +33,10 @@
   }
   function detailTarget(event, key) {
     return eventDetailRecord(event)?.[key];
+  }
+  function onAppPageReady(handler) {
+    if (typeof document === "undefined") return;
+    document.addEventListener(AppEvents.pageReady, handler);
   }
 
   // frontend/ts/time-picker/options.ts
@@ -313,7 +320,7 @@
     function syncFieldLabelsForTarget(target) {
       syncFieldLabelsWithin(isDomRoot(target) ? target : document);
     }
-    document.addEventListener("app:page-ready", function(event) {
+    onAppPageReady(function(event) {
       syncFieldLabelsForTarget(detailTarget(event, "target"));
     });
     document.addEventListener("time-picker:sync", function(event) {
