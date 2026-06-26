@@ -1,6 +1,6 @@
 ---
 id: ir-gwsv
-status: open
+status: closed
 deps: [ir-b797]
 links: []
 created: 2026-06-26T04:23:33Z
@@ -22,3 +22,9 @@ Scan production frontend contract generator modules, excluding docs/tests/genera
 
 Guard tests fail on new handwritten TS declaration/validator emitters, new stringUnionDeclaration-style shared unions, and new canonical string escape hatches outside the allowlist; tests are documented as the enforcement point for the codec-first migration.
 
+
+## Notes
+
+**2026-06-26T04:48:11Z**
+
+Added FrontendContracts guard tests as the codec-first migration enforcement point. Source guard scans Application/Helper/Frontend/*.hs for TSRawDeclaration, raw export type/interface/const/function strings, and stringUnionDeclaration uses behind an explicit shrinking allowlist. Generated-output guard scans frontendContractsTypeScript for canonical '| string' escape hatches behind an explicit shrinking allowlist. Verification passed: hspec-test --match 'Frontend contract', typecheck, frontend-contracts-check.

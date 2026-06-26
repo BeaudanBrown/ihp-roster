@@ -5,6 +5,7 @@ module Test.FrontendContractsSpec
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import Data.Either (isLeft)
+import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import IHP.Prelude
@@ -64,6 +65,17 @@ tests = describe "Frontend contract generator foundation" do
                     then Just path
                     else Nothing
         offenders `shouldBe` []
+
+    -- Enforcement point for ir-o5qk: this allowlist is intentionally explicit
+    -- and must shrink as codec-first migration tickets remove handwritten TS.
+    it "locks down raw TypeScript emitters behind a shrinking source allowlist" do
+        actual <- frontendSourceRawEmitterCounts
+        actual `shouldBe` frontendSourceRawEmitterAllowlist
+
+    -- Enforcement point for ir-o5qk: canonical app names should become closed
+    -- generated unions. Existing escape hatches stay listed until migrated.
+    it "locks down canonical generated | string escape hatches behind an allowlist" do
+        generatedStringEscapeHatches frontendContractsTypeScript `shouldBe` generatedStringEscapeHatchAllowlist
 
     describe "FrontendCodec foundation" do
         it "uses one enum codec for JSON and TypeScript output" do
@@ -257,3 +269,72 @@ renderShouldSucceed codecs =
     case renderFrontendContracts codecs of
         Left message -> expectationFailure (cs message) >> pure ""
         Right source -> pure source
+
+rawEmitterPatterns :: [Text]
+rawEmitterPatterns =
+    [ "TSRawDeclaration"
+    , "\"export type"
+    , "\"export interface"
+    , "\"export const"
+    , "\"export function"
+    , "stringUnionDeclaration"
+    ]
+
+frontendSourceRawEmitterAllowlist :: [(FilePath, Text, Int)]
+frontendSourceRawEmitterAllowlist =
+    [ ("Application/Helper/Frontend/Codec.hs", "\"export type", 4)
+    , ("Application/Helper/Frontend/Codec.hs", "\"export const", 1)
+    , ("Application/Helper/Frontend/Codec.hs", "\"export function", 1)
+    , ("Application/Helper/Frontend/Contracts.hs", "stringUnionDeclaration", 2)
+    , ("Application/Helper/Frontend/InteractionSchema.hs", "\"export type", 12)
+    , ("Application/Helper/Frontend/InteractionSchema.hs", "\"export const", 2)
+    , ("Application/Helper/Frontend/InteractionSchema.hs", "stringUnionDeclaration", 2)
+    , ("Application/Helper/Frontend/LiveUpdateSchema.hs", "TSRawDeclaration", 3)
+    , ("Application/Helper/Frontend/LiveUpdateSchema.hs", "\"export type", 1)
+    , ("Application/Helper/Frontend/LiveUpdateSchema.hs", "\"export function", 7)
+    , ("Application/Helper/Frontend/SurfaceManifestSchema.hs", "\"export type", 1)
+    , ("Application/Helper/Frontend/SurfaceManifestSchema.hs", "\"export const", 1)
+    , ("Application/Helper/Frontend/SurfaceManifestSchema.hs", "stringUnionDeclaration", 2)
+    , ("Application/Helper/Frontend/TypeScript.hs", "\"export type", 1)
+    , ("Application/Helper/Frontend/TypeScript.hs", "stringUnionDeclaration", 3)
+    ]
+
+frontendSourceRawEmitterCounts :: IO [(FilePath, Text, Int)]
+frontendSourceRawEmitterCounts = do
+    files <- fmap List.sort (listDirectory "Application/Helper/Frontend")
+    fmap concat $ forM files \fileName -> do
+        let path = "Application/Helper/Frontend" </> fileName
+        source <- Text.readFile path
+        pure
+            [ (path, pattern, countText pattern source)
+            | pattern <- rawEmitterPatterns
+            , countText pattern source > 0
+            ]
+
+countText :: Text -> Text -> Int
+countText needle haystack
+    | Text.null needle = 0
+    | otherwise = go haystack
+    where
+        go text =
+            case Text.breakOn needle text of
+                (_, rest) | Text.null rest -> 0
+                (_, rest) -> 1 + go (Text.drop (Text.length needle) rest)
+
+generatedStringEscapeHatchAllowlist :: [Text]
+generatedStringEscapeHatchAllowlist =
+    [ "surfaceFamily: InteractionSurfaceFamily | string;"
+    , "export type DisposableLayerContract = { kind: InteractionDisposableLayerName | string; name: string; domId: string };"
+    , "export type SessionKindContract = { kind: InteractionSessionKindName | string; description: string };"
+    , "name: InteractionIntentFieldName | string;"
+    , "intent: InteractionIntentName | string;"
+    , "name: InteractionIntentName | string;"
+    , "session: InteractionSessionKindName | \"*\" | string;"
+    ]
+
+generatedStringEscapeHatches :: Text -> [Text]
+generatedStringEscapeHatches source =
+    [ Text.strip line
+    | line <- Text.lines source
+    , "| string" `Text.isInfixOf` line
+    ]
