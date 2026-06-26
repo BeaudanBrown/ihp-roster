@@ -2,7 +2,7 @@
 id: ir-vpmd
 status: closed
 deps: []
-links: [ir-jsyd]
+links: [ir-jsyd, ir-o5qk]
 created: 2026-06-25T11:56:58Z
 type: epic
 priority: 2

@@ -43,6 +43,8 @@ for forward-looking design.
   live-update compatibility primitives and protocol simplification decisions.
 - `typed-interaction-surfaces.md` - typed disposable interaction layers,
   generated intent contracts, and HTMX form bridge on top of live surfaces.
+- `frontend-codec-contracts.md` - codec/schema-first replacement for any
+  remaining handwritten TypeScript contract emission.
 - `roster-sql-read-model-trial.md` - trial replacing roster projection-cache
   reads with a direct SQL/database-near read model.
 - `backlog.md` - smaller open streams that do not yet need dedicated files.
