@@ -7,111 +7,23 @@
     const allowedKeys = /* @__PURE__ */ new Set([...requiredKeys, ...optionalKeys]);
     return requiredKeys.every((key) => Object.prototype.hasOwnProperty.call(value, key)) && actualKeys.every((key) => allowedKeys.has(key));
   }
+  function isLiveUpdateScope(value) {
+    return isExactRecord(value, ["kind", "venueId", "rosterGroupId", "weekOffset"], []) && value["kind"] === "roster_week" && typeof value["venueId"] === "string" && typeof value["rosterGroupId"] === "string" && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) || isExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "admin_venue_config" && typeof value["venueId"] === "string" || isExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "admin_shift_types" && typeof value["venueId"] === "string" || isExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "admin_roster_groups" && typeof value["venueId"] === "string" || isExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "admin_invites" && typeof value["venueId"] === "string" || isExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "admin_exports" && typeof value["venueId"] === "string" || isExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "admin_xero" && typeof value["venueId"] === "string" || isExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "billing" && typeof value["venueId"] === "string" || isExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "leave_requests" && typeof value["venueId"] === "string" || isExactRecord(value, ["kind", "venueId", "weekOffset"], []) && value["kind"] === "timesheet_week" && typeof value["venueId"] === "string" && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) || isExactRecord(value, ["kind", "venueId", "staffId"], []) && value["kind"] === "profile" && typeof value["venueId"] === "string" && typeof value["staffId"] === "string" || isExactRecord(value, ["kind"], []) && value["kind"] === "support_platform";
+  }
+  function isLiveFragmentKey(value) {
+    return isExactRecord(value, ["kind"], []) && value["kind"] === "roster_content" || isExactRecord(value, ["kind"], []) && value["kind"] === "roster_grid_toolbar" || isExactRecord(value, ["kind"], []) && value["kind"] === "roster_grid_frame" || isExactRecord(value, ["kind"], []) && value["kind"] === "roster_day_columns" || isExactRecord(value, ["kind"], []) && value["kind"] === "roster_day_rail" || isExactRecord(value, ["kind"], []) && value["kind"] === "roster_wage_rail" || isExactRecord(value, ["kind"], []) && value["kind"] === "roster_slots_grid" || isExactRecord(value, ["kind"], []) && value["kind"] === "roster_staff_panel" || isExactRecord(value, ["kind", "rosterDayId"], []) && value["kind"] === "roster_day_section" && typeof value["rosterDayId"] === "string" || isExactRecord(value, ["kind", "rosterDayId", "rowIndex"], []) && value["kind"] === "roster_row" && typeof value["rosterDayId"] === "string" && (typeof value["rowIndex"] === "number" && Number.isInteger(value["rowIndex"])) || isExactRecord(value, ["kind"], []) && value["kind"] === "leave_requests_content" || isExactRecord(value, ["kind"], []) && value["kind"] === "timesheet_toolbar" || isExactRecord(value, ["kind"], []) && value["kind"] === "timesheet_day_columns" || isExactRecord(value, ["kind", "dayOffset"], []) && value["kind"] === "timesheet_day_section" && (typeof value["dayOffset"] === "number" && Number.isInteger(value["dayOffset"])) || isExactRecord(value, ["kind"], []) && value["kind"] === "admin_venue_config" || isExactRecord(value, ["kind"], []) && value["kind"] === "admin_invites" || isExactRecord(value, ["kind"], []) && value["kind"] === "admin_exports" || isExactRecord(value, ["kind"], []) && value["kind"] === "admin_shift_types" || isExactRecord(value, ["kind"], []) && value["kind"] === "admin_roster_groups" || isExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero" || isExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero_staff_mappings" || isExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero_pay_items" || isExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero_timesheets" || isExactRecord(value, ["kind"], []) && value["kind"] === "billing_status" || isExactRecord(value, ["kind"], []) && value["kind"] === "profile_content" || isExactRecord(value, ["kind"], []) && value["kind"] === "profile_leave_requests_content" || isExactRecord(value, ["kind"], []) && value["kind"] === "support_award_rates_section" || isExactRecord(value, ["kind"], []) && value["kind"] === "support_public_holidays_section";
+  }
   function isLiveFragmentProtection(value) {
     return isExactRecord(value, ["kind"], []) && value["kind"] === "none" || isExactRecord(value, ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback"], ["containerSelector"]) && value["kind"] === "focused_field" && typeof value["activeSelector"] === "string" && typeof value["fieldKeyAttr"] === "string" && typeof value["fieldNameFallback"] === "boolean" && (!Object.prototype.hasOwnProperty.call(value, "containerSelector") || typeof value["containerSelector"] === "string");
   }
-  function isLiveUpdateRecord(value) {
-    return value !== null && typeof value === "object" && !Array.isArray(value);
-  }
-  function isLiveUpdateString(value) {
-    return typeof value === "string";
-  }
-  function isLiveUpdateBoolean(value) {
-    return typeof value === "boolean";
-  }
-  function isLiveUpdateInteger(value) {
-    return Number.isInteger(value);
-  }
-  function isLiveUpdateNullableString(value) {
-    return value === null || typeof value === "string";
-  }
-  function isLiveUpdateStringArray(value) {
-    return Array.isArray(value) && value.every(isLiveUpdateString);
-  }
-  function isLiveUpdateScope(value) {
-    if (!isLiveUpdateRecord(value) || typeof value.kind !== "string") return false;
-    switch (value.kind) {
-      case "roster_week":
-        return isLiveUpdateString(value.venueId) && isLiveUpdateString(value.rosterGroupId) && isLiveUpdateInteger(value.weekOffset);
-      case "admin_venue_config":
-      case "admin_shift_types":
-      case "admin_roster_groups":
-      case "admin_invites":
-      case "admin_exports":
-      case "admin_xero":
-      case "billing":
-      case "leave_requests":
-        return isLiveUpdateString(value.venueId);
-      case "timesheet_week":
-        return isLiveUpdateString(value.venueId) && isLiveUpdateInteger(value.weekOffset);
-      case "profile":
-        return isLiveUpdateString(value.venueId) && isLiveUpdateString(value.staffId);
-      case "support_platform":
-        return true;
-      default:
-        return false;
-    }
-  }
-  function isLiveFragmentKey(value) {
-    if (!isLiveUpdateRecord(value) || typeof value.kind !== "string") return false;
-    switch (value.kind) {
-      case "roster_day_section":
-        return isLiveUpdateString(value.rosterDayId);
-      case "roster_row":
-        return isLiveUpdateString(value.rosterDayId) && isLiveUpdateInteger(value.rowIndex);
-      case "timesheet_day_section":
-        return isLiveUpdateInteger(value.dayOffset);
-      case "roster_content":
-      case "roster_grid_toolbar":
-      case "roster_grid_frame":
-      case "roster_day_columns":
-      case "roster_day_rail":
-      case "roster_wage_rail":
-      case "roster_slots_grid":
-      case "roster_staff_panel":
-      case "leave_requests_content":
-      case "timesheet_toolbar":
-      case "timesheet_day_columns":
-      case "admin_venue_config":
-      case "admin_invites":
-      case "admin_exports":
-      case "admin_shift_types":
-      case "admin_roster_groups":
-      case "admin_xero":
-      case "admin_xero_staff_mappings":
-      case "admin_xero_pay_items":
-      case "admin_xero_timesheets":
-      case "billing_status":
-      case "profile_content":
-      case "profile_leave_requests_content":
-      case "support_award_rates_section":
-      case "support_public_holidays_section":
-        return true;
-      default:
-        return false;
-    }
-  }
   function isLiveUpdateWireFragment(value) {
-    return isLiveUpdateRecord(value) && isLiveFragmentKey(value.fragmentKey) && isLiveUpdateString(value.targetId) && isLiveUpdateString(value.url) && isLiveUpdateBoolean(value.deferUntilBlur) && isLiveFragmentProtection(value.protectionPolicy);
-  }
-  function isLiveUpdateWireFragmentArray(value) {
-    return Array.isArray(value) && value.every(isLiveUpdateWireFragment);
+    return isExactRecord(value, ["fragmentKey", "targetId", "url", "deferUntilBlur", "protectionPolicy"], []) && isLiveFragmentKey(value["fragmentKey"]) && typeof value["targetId"] === "string" && typeof value["url"] === "string" && typeof value["deferUntilBlur"] === "boolean" && isLiveFragmentProtection(value["protectionPolicy"]);
   }
   function isLiveSurfaceConfig(value) {
-    return isLiveUpdateRecord(value) && isLiveUpdateString(value.feature) && isLiveUpdateString(value.socketPath) && isLiveUpdateScope(value.scope) && isLiveUpdateString(value.scopeKey) && isLiveUpdateWireFragmentArray(value.resyncFragments) && isLiveUpdateStringArray(value.decorateRequestsWithin);
+    return isExactRecord(value, ["feature", "socketPath", "scope", "scopeKey", "resyncFragments", "decorateRequestsWithin"], []) && typeof value["feature"] === "string" && typeof value["socketPath"] === "string" && isLiveUpdateScope(value["scope"]) && typeof value["scopeKey"] === "string" && (Array.isArray(value["resyncFragments"]) && value["resyncFragments"].every((item) => isLiveUpdateWireFragment(item))) && (Array.isArray(value["decorateRequestsWithin"]) && value["decorateRequestsWithin"].every((item) => typeof item === "string"));
   }
   function isLiveUpdateMessage(value) {
-    if (!isLiveUpdateRecord(value) || typeof value.type !== "string") return false;
-    switch (value.type) {
-      case "subscribed":
-        return isLiveUpdateScope(value.scope) && isLiveUpdateString(value.scopeKey) && isLiveUpdateInteger(value.currentVersion) && isLiveUpdateBoolean(value.resync);
-      case "invalidate":
-        return isLiveUpdateScope(value.scope) && isLiveUpdateString(value.scopeKey) && isLiveUpdateInteger(value.version) && isLiveUpdateWireFragmentArray(value.fragments) && isLiveUpdateNullableString(value.sourceClientId);
-      case "error":
-        return isLiveUpdateString(value.message);
-      default:
-        return false;
-    }
+    return isExactRecord(value, ["type", "scope", "scopeKey", "currentVersion", "resync"], []) && value["type"] === "subscribed" && isLiveUpdateScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && typeof value["resync"] === "boolean" || isExactRecord(value, ["type", "scope", "scopeKey", "version", "fragments", "sourceClientId"], []) && value["type"] === "invalidate" && isLiveUpdateScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isLiveUpdateWireFragment(item))) && (value["sourceClientId"] === null || typeof value["sourceClientId"] === "string") || isExactRecord(value, ["type", "message"], []) && value["type"] === "error" && typeof value["message"] === "string";
   }
   var InteractionDom = {
     attributes: {

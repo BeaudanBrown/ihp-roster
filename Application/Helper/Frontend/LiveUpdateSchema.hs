@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Application.Helper.Frontend.LiveUpdateSchema
     ( FocusedFieldProtectionConfig (..)
     , LiveFragmentKey (..)
@@ -12,9 +10,6 @@ module Application.Helper.Frontend.LiveUpdateSchema
     , liveUpdateSchemaDeclaration
     ) where
 
-import Application.Helper.Frontend.AesonTypeScriptOptions (liveUpdateMessageOptions,
-                                                           liveUpdateRecordOptions,
-                                                           liveUpdateTaggedOptions)
 import Application.Helper.Frontend.Codec (FrontendCodec (..),
                                           FrontendField (..),
                                           FrontendSchema (..),
@@ -22,17 +17,12 @@ import Application.Helper.Frontend.Codec (FrontendCodec (..),
                                           SomeFrontendCodec (..),
                                           renderFrontendContracts)
 import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..),
-                                               TypeScriptDeclarationOrigin (HaskellSchemaGenerated),
-                                               aesonTypeScriptDeclaration)
+                                               TypeScriptDeclarationOrigin (HaskellSchemaGenerated))
 import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.TH as Aeson
+import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.Types as Aeson
-import Data.Aeson.TypeScript.Recursive (getTypeScriptDeclarationsRecursively)
-import Data.Aeson.TypeScript.TH (TSDeclaration (TSRawDeclaration),
-                                 TypeScript (..), deriveJSONAndTypeScript)
-import qualified Data.List as List
-import Data.Proxy (Proxy (..))
 import qualified Data.Text as Text
+import qualified Data.Vector as Vector
 import IHP.Prelude
 
 data LiveUpdateScope
@@ -176,9 +166,23 @@ data LiveSurfaceConfig = LiveSurfaceConfig
     }
     deriving (Eq, Show)
 
-$(deriveJSONAndTypeScript liveUpdateTaggedOptions ''LiveUpdateScope)
-$(deriveJSONAndTypeScript liveUpdateTaggedOptions ''LiveFragmentKey)
-$(deriveJSONAndTypeScript liveUpdateRecordOptions ''FocusedFieldProtectionConfig)
+instance Aeson.ToJSON LiveUpdateScope where
+    toJSON = liveUpdateScopeCodec.codecEncode
+
+instance Aeson.FromJSON LiveUpdateScope where
+    parseJSON = liveUpdateScopeCodec.codecParse
+
+instance Aeson.ToJSON LiveFragmentKey where
+    toJSON = liveFragmentKeyCodec.codecEncode
+
+instance Aeson.FromJSON LiveFragmentKey where
+    parseJSON = liveFragmentKeyCodec.codecParse
+
+instance Aeson.ToJSON FocusedFieldProtectionConfig where
+    toJSON = focusedFieldProtectionConfigCodec.codecEncode
+
+instance Aeson.FromJSON FocusedFieldProtectionConfig where
+    parseJSON = focusedFieldProtectionConfigCodec.codecParse
 
 instance Aeson.ToJSON LiveFragmentProtection where
     toJSON = liveFragmentProtectionCodec.codecEncode
@@ -186,10 +190,207 @@ instance Aeson.ToJSON LiveFragmentProtection where
 instance Aeson.FromJSON LiveFragmentProtection where
     parseJSON = liveFragmentProtectionCodec.codecParse
 
-instance TypeScript LiveFragmentProtection where
-    getTypeScriptType _ = "LiveFragmentProtection"
-    getParentTypes _ = []
-    getTypeScriptDeclarations _ = []
+instance Aeson.ToJSON LiveUpdateWireFragment where
+    toJSON = liveUpdateWireFragmentCodec.codecEncode
+
+instance Aeson.FromJSON LiveUpdateWireFragment where
+    parseJSON = liveUpdateWireFragmentCodec.codecParse
+
+instance Aeson.ToJSON LiveUpdateCommand where
+    toJSON = liveUpdateCommandCodec.codecEncode
+
+instance Aeson.FromJSON LiveUpdateCommand where
+    parseJSON = liveUpdateCommandCodec.codecParse
+
+instance Aeson.ToJSON LiveUpdateMessage where
+    toJSON = liveUpdateMessageCodec.codecEncode
+
+instance Aeson.FromJSON LiveUpdateMessage where
+    parseJSON = liveUpdateMessageCodec.codecParse
+
+instance Aeson.ToJSON LiveSurfaceConfig where
+    toJSON = liveSurfaceConfigCodec.codecEncode
+
+instance Aeson.FromJSON LiveSurfaceConfig where
+    parseJSON = liveSurfaceConfigCodec.codecParse
+
+liveUpdateScopeCodec :: FrontendCodec LiveUpdateScope
+liveUpdateScopeCodec =
+    FrontendCodec
+        { codecName = Just "LiveUpdateScope"
+        , codecSchema = SchemaTaggedUnion "LiveUpdateScope" "kind"
+            [ FrontendVariant "roster_week"
+                [ FrontendField "venueId" SchemaString
+                , FrontendField "rosterGroupId" SchemaString
+                , FrontendField "weekOffset" SchemaInt
+                ]
+            , FrontendVariant "admin_venue_config" [FrontendField "venueId" SchemaString]
+            , FrontendVariant "admin_shift_types" [FrontendField "venueId" SchemaString]
+            , FrontendVariant "admin_roster_groups" [FrontendField "venueId" SchemaString]
+            , FrontendVariant "admin_invites" [FrontendField "venueId" SchemaString]
+            , FrontendVariant "admin_exports" [FrontendField "venueId" SchemaString]
+            , FrontendVariant "admin_xero" [FrontendField "venueId" SchemaString]
+            , FrontendVariant "billing" [FrontendField "venueId" SchemaString]
+            , FrontendVariant "leave_requests" [FrontendField "venueId" SchemaString]
+            , FrontendVariant "timesheet_week"
+                [ FrontendField "venueId" SchemaString
+                , FrontendField "weekOffset" SchemaInt
+                ]
+            , FrontendVariant "profile"
+                [ FrontendField "venueId" SchemaString
+                , FrontendField "staffId" SchemaString
+                ]
+            , FrontendVariant "support_platform" []
+            ]
+        , codecEncode = \case
+            RosterWeek { venueId, rosterGroupId, weekOffset } -> taggedObject "kind" "roster_week" ["venueId" Aeson..= venueId, "rosterGroupId" Aeson..= rosterGroupId, "weekOffset" Aeson..= weekOffset]
+            AdminVenueConfig { venueId } -> venueOnly "admin_venue_config" venueId
+            AdminShiftTypes { venueId } -> venueOnly "admin_shift_types" venueId
+            AdminRosterGroups { venueId } -> venueOnly "admin_roster_groups" venueId
+            AdminInvites { venueId } -> venueOnly "admin_invites" venueId
+            AdminExports { venueId } -> venueOnly "admin_exports" venueId
+            AdminXero { venueId } -> venueOnly "admin_xero" venueId
+            Billing { venueId } -> venueOnly "billing" venueId
+            LeaveRequests { venueId } -> venueOnly "leave_requests" venueId
+            TimesheetWeek { venueId, weekOffset } -> taggedObject "kind" "timesheet_week" ["venueId" Aeson..= venueId, "weekOffset" Aeson..= weekOffset]
+            Profile { venueId, staffId } -> taggedObject "kind" "profile" ["venueId" Aeson..= venueId, "staffId" Aeson..= staffId]
+            SupportPlatform -> taggedObject "kind" "support_platform" []
+        , codecParse = Aeson.withObject "LiveUpdateScope" \object -> do
+            kind <- object Aeson..: "kind"
+            case (kind :: Text) of
+                "roster_week" -> RosterWeek <$> object Aeson..: "venueId" <*> object Aeson..: "rosterGroupId" <*> object Aeson..: "weekOffset"
+                "admin_venue_config" -> AdminVenueConfig <$> object Aeson..: "venueId"
+                "admin_shift_types" -> AdminShiftTypes <$> object Aeson..: "venueId"
+                "admin_roster_groups" -> AdminRosterGroups <$> object Aeson..: "venueId"
+                "admin_invites" -> AdminInvites <$> object Aeson..: "venueId"
+                "admin_exports" -> AdminExports <$> object Aeson..: "venueId"
+                "admin_xero" -> AdminXero <$> object Aeson..: "venueId"
+                "billing" -> Billing <$> object Aeson..: "venueId"
+                "leave_requests" -> LeaveRequests <$> object Aeson..: "venueId"
+                "timesheet_week" -> TimesheetWeek <$> object Aeson..: "venueId" <*> object Aeson..: "weekOffset"
+                "profile" -> Profile <$> object Aeson..: "venueId" <*> object Aeson..: "staffId"
+                "support_platform" -> pure SupportPlatform
+                _ -> fail ("Unknown live update scope kind: " <> cs kind)
+        }
+
+liveFragmentKeyCodec :: FrontendCodec LiveFragmentKey
+liveFragmentKeyCodec =
+    FrontendCodec
+        { codecName = Just "LiveFragmentKey"
+        , codecSchema = SchemaTaggedUnion "LiveFragmentKey" "kind"
+            [ FrontendVariant "roster_content" []
+            , FrontendVariant "roster_grid_toolbar" []
+            , FrontendVariant "roster_grid_frame" []
+            , FrontendVariant "roster_day_columns" []
+            , FrontendVariant "roster_day_rail" []
+            , FrontendVariant "roster_wage_rail" []
+            , FrontendVariant "roster_slots_grid" []
+            , FrontendVariant "roster_staff_panel" []
+            , FrontendVariant "roster_day_section" [FrontendField "rosterDayId" SchemaString]
+            , FrontendVariant "roster_row"
+                [ FrontendField "rosterDayId" SchemaString
+                , FrontendField "rowIndex" SchemaInt
+                ]
+            , FrontendVariant "leave_requests_content" []
+            , FrontendVariant "timesheet_toolbar" []
+            , FrontendVariant "timesheet_day_columns" []
+            , FrontendVariant "timesheet_day_section" [FrontendField "dayOffset" SchemaInt]
+            , FrontendVariant "admin_venue_config" []
+            , FrontendVariant "admin_invites" []
+            , FrontendVariant "admin_exports" []
+            , FrontendVariant "admin_shift_types" []
+            , FrontendVariant "admin_roster_groups" []
+            , FrontendVariant "admin_xero" []
+            , FrontendVariant "admin_xero_staff_mappings" []
+            , FrontendVariant "admin_xero_pay_items" []
+            , FrontendVariant "admin_xero_timesheets" []
+            , FrontendVariant "billing_status" []
+            , FrontendVariant "profile_content" []
+            , FrontendVariant "profile_leave_requests_content" []
+            , FrontendVariant "support_award_rates_section" []
+            , FrontendVariant "support_public_holidays_section" []
+            ]
+        , codecEncode = \case
+            RosterContent -> keyOnly "roster_content"
+            RosterGridToolbar -> keyOnly "roster_grid_toolbar"
+            RosterGridFrame -> keyOnly "roster_grid_frame"
+            RosterDayColumns -> keyOnly "roster_day_columns"
+            RosterDayRail -> keyOnly "roster_day_rail"
+            RosterWageRail -> keyOnly "roster_wage_rail"
+            RosterSlotsGrid -> keyOnly "roster_slots_grid"
+            RosterStaffPanel -> keyOnly "roster_staff_panel"
+            RosterDaySection { rosterDayId } -> taggedObject "kind" "roster_day_section" ["rosterDayId" Aeson..= rosterDayId]
+            RosterRow { rosterDayId, rowIndex } -> taggedObject "kind" "roster_row" ["rosterDayId" Aeson..= rosterDayId, "rowIndex" Aeson..= rowIndex]
+            LeaveRequestsContent -> keyOnly "leave_requests_content"
+            TimesheetToolbar -> keyOnly "timesheet_toolbar"
+            TimesheetDayColumns -> keyOnly "timesheet_day_columns"
+            TimesheetDaySection { dayOffset } -> taggedObject "kind" "timesheet_day_section" ["dayOffset" Aeson..= dayOffset]
+            AdminVenueConfigFragment -> keyOnly "admin_venue_config"
+            AdminInvitesFragment -> keyOnly "admin_invites"
+            AdminExportsFragment -> keyOnly "admin_exports"
+            AdminShiftTypesFragment -> keyOnly "admin_shift_types"
+            AdminRosterGroupsFragment -> keyOnly "admin_roster_groups"
+            AdminXeroFragment -> keyOnly "admin_xero"
+            AdminXeroStaffMappings -> keyOnly "admin_xero_staff_mappings"
+            AdminXeroPayItems -> keyOnly "admin_xero_pay_items"
+            AdminXeroTimesheets -> keyOnly "admin_xero_timesheets"
+            BillingStatus -> keyOnly "billing_status"
+            ProfileContent -> keyOnly "profile_content"
+            ProfileLeaveRequestsContent -> keyOnly "profile_leave_requests_content"
+            SupportAwardRatesSection -> keyOnly "support_award_rates_section"
+            SupportPublicHolidaysSection -> keyOnly "support_public_holidays_section"
+        , codecParse = Aeson.withObject "LiveFragmentKey" \object -> do
+            kind <- object Aeson..: "kind"
+            case (kind :: Text) of
+                "roster_content" -> pure RosterContent
+                "roster_grid_toolbar" -> pure RosterGridToolbar
+                "roster_grid_frame" -> pure RosterGridFrame
+                "roster_day_columns" -> pure RosterDayColumns
+                "roster_day_rail" -> pure RosterDayRail
+                "roster_wage_rail" -> pure RosterWageRail
+                "roster_slots_grid" -> pure RosterSlotsGrid
+                "roster_staff_panel" -> pure RosterStaffPanel
+                "roster_day_section" -> RosterDaySection <$> object Aeson..: "rosterDayId"
+                "roster_row" -> RosterRow <$> object Aeson..: "rosterDayId" <*> object Aeson..: "rowIndex"
+                "leave_requests_content" -> pure LeaveRequestsContent
+                "timesheet_toolbar" -> pure TimesheetToolbar
+                "timesheet_day_columns" -> pure TimesheetDayColumns
+                "timesheet_day_section" -> TimesheetDaySection <$> object Aeson..: "dayOffset"
+                "admin_venue_config" -> pure AdminVenueConfigFragment
+                "admin_invites" -> pure AdminInvitesFragment
+                "admin_exports" -> pure AdminExportsFragment
+                "admin_shift_types" -> pure AdminShiftTypesFragment
+                "admin_roster_groups" -> pure AdminRosterGroupsFragment
+                "admin_xero" -> pure AdminXeroFragment
+                "admin_xero_staff_mappings" -> pure AdminXeroStaffMappings
+                "admin_xero_pay_items" -> pure AdminXeroPayItems
+                "admin_xero_timesheets" -> pure AdminXeroTimesheets
+                "billing_status" -> pure BillingStatus
+                "profile_content" -> pure ProfileContent
+                "profile_leave_requests_content" -> pure ProfileLeaveRequestsContent
+                "support_award_rates_section" -> pure SupportAwardRatesSection
+                "support_public_holidays_section" -> pure SupportPublicHolidaysSection
+                _ -> fail ("Unknown live fragment key kind: " <> cs kind)
+        }
+
+focusedFieldProtectionConfigCodec :: FrontendCodec FocusedFieldProtectionConfig
+focusedFieldProtectionConfigCodec =
+    FrontendCodec
+        { codecName = Just "FocusedFieldProtectionConfig"
+        , codecSchema = SchemaRecord "FocusedFieldProtectionConfig"
+            [ FrontendField "activeSelector" SchemaString
+            , FrontendField "fieldKeyAttr" SchemaString
+            , FrontendField "fieldNameFallback" SchemaBool
+            , FrontendField "containerSelector" (SchemaOptional SchemaString)
+            ]
+        , codecEncode = \FocusedFieldProtectionConfig { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector } ->
+            Aeson.object $
+                [ "activeSelector" Aeson..= activeSelector
+                , "fieldKeyAttr" Aeson..= fieldKeyAttr
+                , "fieldNameFallback" Aeson..= fieldNameFallback
+                ] <> maybe [] (\selector -> ["containerSelector" Aeson..= selector]) containerSelector
+        , codecParse = liveFragmentFocusedConfigParser
+        }
 
 liveFragmentProtectionCodec :: FrontendCodec LiveFragmentProtection
 liveFragmentProtectionCodec =
@@ -205,14 +406,10 @@ liveFragmentProtectionCodec =
                 ]
             ]
         , codecEncode = \case
-            NoProtection ->
-                Aeson.object
-                    [ "kind" Aeson..= ("none" :: Text)
-                    ]
+            NoProtection -> taggedObject "kind" "none" []
             FocusedFieldProtection FocusedFieldProtectionConfig { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector } ->
-                Aeson.object $
-                    [ "kind" Aeson..= ("focused_field" :: Text)
-                    , "activeSelector" Aeson..= activeSelector
+                taggedObject "kind" "focused_field" $
+                    [ "activeSelector" Aeson..= activeSelector
                     , "fieldKeyAttr" Aeson..= fieldKeyAttr
                     , "fieldNameFallback" Aeson..= fieldNameFallback
                     ] <> maybe [] (\selector -> ["containerSelector" Aeson..= selector]) containerSelector
@@ -220,21 +417,152 @@ liveFragmentProtectionCodec =
             kind <- object Aeson..: "kind"
             case (kind :: Text) of
                 "none" -> pure NoProtection
-                "focused_field" ->
-                    FocusedFieldProtection
-                        <$> (FocusedFieldProtectionConfig
-                            <$> object Aeson..: "activeSelector"
-                            <*> object Aeson..: "fieldKeyAttr"
-                            <*> object Aeson..: "fieldNameFallback"
-                            <*> object Aeson..:? "containerSelector"
-                            )
+                "focused_field" -> FocusedFieldProtection <$> liveFragmentFocusedConfigFromObject object
                 _ -> fail ("Unknown live fragment protection kind: " <> cs kind)
         }
 
-$(deriveJSONAndTypeScript liveUpdateRecordOptions ''LiveUpdateWireFragment)
-$(deriveJSONAndTypeScript liveUpdateMessageOptions ''LiveUpdateCommand)
-$(deriveJSONAndTypeScript liveUpdateMessageOptions ''LiveUpdateMessage)
-$(deriveJSONAndTypeScript liveUpdateRecordOptions ''LiveSurfaceConfig)
+liveUpdateWireFragmentCodec :: FrontendCodec LiveUpdateWireFragment
+liveUpdateWireFragmentCodec =
+    FrontendCodec
+        { codecName = Just "LiveUpdateWireFragment"
+        , codecSchema = SchemaRecord "LiveUpdateWireFragment"
+            [ FrontendField "fragmentKey" (SchemaRef "LiveFragmentKey")
+            , FrontendField "targetId" SchemaString
+            , FrontendField "url" SchemaString
+            , FrontendField "deferUntilBlur" SchemaBool
+            , FrontendField "protectionPolicy" (SchemaRef "LiveFragmentProtection")
+            ]
+        , codecEncode = \LiveUpdateWireFragment { fragmentKey, targetId, url, deferUntilBlur, protectionPolicy } ->
+            Aeson.object
+                [ "fragmentKey" Aeson..= encodeWith liveFragmentKeyCodec fragmentKey
+                , "targetId" Aeson..= targetId
+                , "url" Aeson..= url
+                , "deferUntilBlur" Aeson..= deferUntilBlur
+                , "protectionPolicy" Aeson..= encodeWith liveFragmentProtectionCodec protectionPolicy
+                ]
+        , codecParse = Aeson.withObject "LiveUpdateWireFragment" \object ->
+            LiveUpdateWireFragment
+                <$> parseField liveFragmentKeyCodec object "fragmentKey"
+                <*> object Aeson..: "targetId"
+                <*> object Aeson..: "url"
+                <*> object Aeson..: "deferUntilBlur"
+                <*> parseField liveFragmentProtectionCodec object "protectionPolicy"
+        }
+
+liveUpdateCommandCodec :: FrontendCodec LiveUpdateCommand
+liveUpdateCommandCodec =
+    FrontendCodec
+        { codecName = Just "LiveUpdateCommand"
+        , codecSchema = SchemaTaggedUnion "LiveUpdateCommand" "type"
+            [ FrontendVariant "subscribe"
+                [ FrontendField "scope" (SchemaRef "LiveUpdateScope")
+                , FrontendField "clientId" SchemaString
+                , FrontendField "lastSeenVersion" (SchemaNullable SchemaInt)
+                ]
+            , FrontendVariant "unsubscribe"
+                [ FrontendField "scope" (SchemaRef "LiveUpdateScope")
+                ]
+            ]
+        , codecEncode = \case
+            Subscribe { scope, clientId, lastSeenVersion } ->
+                taggedObject "type" "subscribe"
+                    [ "scope" Aeson..= encodeWith liveUpdateScopeCodec scope
+                    , "clientId" Aeson..= clientId
+                    , "lastSeenVersion" Aeson..= lastSeenVersion
+                    ]
+            Unsubscribe { scope } ->
+                taggedObject "type" "unsubscribe"
+                    [ "scope" Aeson..= encodeWith liveUpdateScopeCodec scope
+                    ]
+        , codecParse = Aeson.withObject "LiveUpdateCommand" \object -> do
+            messageType <- object Aeson..: "type"
+            case (messageType :: Text) of
+                "subscribe" -> Subscribe <$> parseField liveUpdateScopeCodec object "scope" <*> object Aeson..: "clientId" <*> object Aeson..: "lastSeenVersion"
+                "unsubscribe" -> Unsubscribe <$> parseField liveUpdateScopeCodec object "scope"
+                _ -> fail ("Unknown live update command type: " <> cs messageType)
+        }
+
+liveUpdateMessageCodec :: FrontendCodec LiveUpdateMessage
+liveUpdateMessageCodec =
+    FrontendCodec
+        { codecName = Just "LiveUpdateMessage"
+        , codecSchema = SchemaTaggedUnion "LiveUpdateMessage" "type"
+            [ FrontendVariant "subscribed"
+                [ FrontendField "scope" (SchemaRef "LiveUpdateScope")
+                , FrontendField "scopeKey" SchemaString
+                , FrontendField "currentVersion" SchemaInt
+                , FrontendField "resync" SchemaBool
+                ]
+            , FrontendVariant "invalidate"
+                [ FrontendField "scope" (SchemaRef "LiveUpdateScope")
+                , FrontendField "scopeKey" SchemaString
+                , FrontendField "version" SchemaInt
+                , FrontendField "fragments" (SchemaArray (SchemaRef "LiveUpdateWireFragment"))
+                , FrontendField "sourceClientId" (SchemaNullable SchemaString)
+                ]
+            , FrontendVariant "error"
+                [ FrontendField "message" SchemaString
+                ]
+            ]
+        , codecEncode = \case
+            Subscribed { scope, scopeKey, currentVersion, resync } ->
+                taggedObject "type" "subscribed"
+                    [ "scope" Aeson..= encodeWith liveUpdateScopeCodec scope
+                    , "scopeKey" Aeson..= scopeKey
+                    , "currentVersion" Aeson..= currentVersion
+                    , "resync" Aeson..= resync
+                    ]
+            Invalidate { scope, scopeKey, version, fragments, sourceClientId } ->
+                taggedObject "type" "invalidate"
+                    [ "scope" Aeson..= encodeWith liveUpdateScopeCodec scope
+                    , "scopeKey" Aeson..= scopeKey
+                    , "version" Aeson..= version
+                    , "fragments" Aeson..= fmap (encodeWith liveUpdateWireFragmentCodec) fragments
+                    , "sourceClientId" Aeson..= sourceClientId
+                    ]
+            Error { message } ->
+                taggedObject "type" "error"
+                    [ "message" Aeson..= message
+                    ]
+        , codecParse = Aeson.withObject "LiveUpdateMessage" \object -> do
+            messageType <- object Aeson..: "type"
+            case (messageType :: Text) of
+                "subscribed" -> Subscribed <$> parseField liveUpdateScopeCodec object "scope" <*> object Aeson..: "scopeKey" <*> object Aeson..: "currentVersion" <*> object Aeson..: "resync"
+                "invalidate" -> Invalidate <$> parseField liveUpdateScopeCodec object "scope" <*> object Aeson..: "scopeKey" <*> object Aeson..: "version" <*> parseField (listCodec liveUpdateWireFragmentCodec) object "fragments" <*> object Aeson..: "sourceClientId"
+                "error" -> Error <$> object Aeson..: "message"
+                _ -> fail ("Unknown live update message type: " <> cs messageType)
+        }
+
+liveSurfaceConfigCodec :: FrontendCodec LiveSurfaceConfig
+liveSurfaceConfigCodec =
+    FrontendCodec
+        { codecName = Just "LiveSurfaceConfig"
+        , codecSchema = SchemaRecord "LiveSurfaceConfig"
+            [ FrontendField "feature" SchemaString
+            , FrontendField "socketPath" SchemaString
+            , FrontendField "scope" (SchemaRef "LiveUpdateScope")
+            , FrontendField "scopeKey" SchemaString
+            , FrontendField "resyncFragments" (SchemaArray (SchemaRef "LiveUpdateWireFragment"))
+            , FrontendField "decorateRequestsWithin" (SchemaArray SchemaString)
+            ]
+        , codecEncode = \LiveSurfaceConfig { feature, socketPath, scope, scopeKey, resyncFragments, decorateRequestsWithin } ->
+            Aeson.object
+                [ "feature" Aeson..= feature
+                , "socketPath" Aeson..= socketPath
+                , "scope" Aeson..= encodeWith liveUpdateScopeCodec scope
+                , "scopeKey" Aeson..= scopeKey
+                , "resyncFragments" Aeson..= fmap (encodeWith liveUpdateWireFragmentCodec) resyncFragments
+                , "decorateRequestsWithin" Aeson..= decorateRequestsWithin
+                ]
+        , codecParse = Aeson.withObject "LiveSurfaceConfig" \object ->
+            LiveSurfaceConfig
+                <$> object Aeson..: "feature"
+                <*> object Aeson..: "socketPath"
+                <*> parseField liveUpdateScopeCodec object "scope"
+                <*> object Aeson..: "scopeKey"
+                <*> parseField (listCodec liveUpdateWireFragmentCodec) object "resyncFragments"
+                <*> object Aeson..: "decorateRequestsWithin"
+        }
 
 liveUpdateSchemaDeclaration :: TypeScriptDeclaration
 liveUpdateSchemaDeclaration =
@@ -243,163 +571,63 @@ liveUpdateSchemaDeclaration =
         , origin = HaskellSchemaGenerated
         , source = Text.unlines
             [ "// Live-update wire protocol generated from Haskell schema types."
-            , liveFragmentProtectionContractSource
-            , (aesonTypeScriptDeclaration "LiveUpdateContractsAeson" [] liveUpdateSchemaDeclarations).source
+            , liveUpdateContractSource
             ]
         }
 
-liveFragmentProtectionContractSource :: Text
-liveFragmentProtectionContractSource =
-    case renderFrontendContracts [SomeFrontendCodec liveFragmentProtectionCodec] of
+liveUpdateContractSource :: Text
+liveUpdateContractSource =
+    case renderFrontendContracts liveUpdateContractCodecs of
         Right source -> source
-        Left message -> error ("Unable to render LiveFragmentProtection contract: " <> cs message)
+        Left message -> error ("Unable to render live-update contracts: " <> cs message)
 
-liveUpdateSchemaDeclarations :: [TSDeclaration]
-liveUpdateSchemaDeclarations =
-    List.nub $
-        getTypeScriptDeclarationsRecursively (Proxy :: Proxy LiveSurfaceConfig)
-            <> getTypeScriptDeclarationsRecursively (Proxy :: Proxy LiveUpdateCommand)
-            <> getTypeScriptDeclarationsRecursively (Proxy :: Proxy LiveUpdateMessage)
-            <> [liveUpdateValidatorDeclaration]
+liveUpdateContractCodecs :: [SomeFrontendCodec]
+liveUpdateContractCodecs =
+    [ SomeFrontendCodec liveUpdateScopeCodec
+    , SomeFrontendCodec liveFragmentKeyCodec
+    , SomeFrontendCodec liveFragmentProtectionCodec
+    , SomeFrontendCodec liveUpdateWireFragmentCodec
+    , SomeFrontendCodec liveSurfaceConfigCodec
+    , SomeFrontendCodec liveUpdateCommandCodec
+    , SomeFrontendCodec liveUpdateMessageCodec
+    ]
 
-liveUpdateValidatorDeclaration :: TSDeclaration
-liveUpdateValidatorDeclaration =
-    TSRawDeclaration $ cs $ unlines
-        [ "function isLiveUpdateRecord(value: unknown): value is Record<string, unknown> {"
-        , "    return value !== null && typeof value === \"object\" && !Array.isArray(value);"
-        , "}"
-        , ""
-        , "function isLiveUpdateString(value: unknown): value is string {"
-        , "    return typeof value === \"string\";"
-        , "}"
-        , ""
-        , "function isLiveUpdateBoolean(value: unknown): value is boolean {"
-        , "    return typeof value === \"boolean\";"
-        , "}"
-        , ""
-        , "function isLiveUpdateInteger(value: unknown): value is number {"
-        , "    return Number.isInteger(value);"
-        , "}"
-        , ""
-        , "function isLiveUpdateNullableString(value: unknown): value is string | null {"
-        , "    return value === null || typeof value === \"string\";"
-        , "}"
-        , ""
-        , "function isLiveUpdateStringArray(value: unknown): value is string[] {"
-        , "    return Array.isArray(value) && value.every(isLiveUpdateString);"
-        , "}"
-        , ""
-        , "export function isLiveUpdateScope(value: unknown): value is LiveUpdateScope {"
-        , "    if (!isLiveUpdateRecord(value) || typeof value.kind !== \"string\") return false;"
-        , "    switch (value.kind) {"
-        , "        case \"roster_week\":"
-        , "            return isLiveUpdateString(value.venueId) && isLiveUpdateString(value.rosterGroupId) && isLiveUpdateInteger(value.weekOffset);"
-        , "        case \"admin_venue_config\":"
-        , "        case \"admin_shift_types\":"
-        , "        case \"admin_roster_groups\":"
-        , "        case \"admin_invites\":"
-        , "        case \"admin_exports\":"
-        , "        case \"admin_xero\":"
-        , "        case \"billing\":"
-        , "        case \"leave_requests\":"
-        , "            return isLiveUpdateString(value.venueId);"
-        , "        case \"timesheet_week\":"
-        , "            return isLiveUpdateString(value.venueId) && isLiveUpdateInteger(value.weekOffset);"
-        , "        case \"profile\":"
-        , "            return isLiveUpdateString(value.venueId) && isLiveUpdateString(value.staffId);"
-        , "        case \"support_platform\":"
-        , "            return true;"
-        , "        default:"
-        , "            return false;"
-        , "    }"
-        , "}"
-        , ""
-        , "export function isLiveFragmentKey(value: unknown): value is LiveFragmentKey {"
-        , "    if (!isLiveUpdateRecord(value) || typeof value.kind !== \"string\") return false;"
-        , "    switch (value.kind) {"
-        , "        case \"roster_day_section\":"
-        , "            return isLiveUpdateString(value.rosterDayId);"
-        , "        case \"roster_row\":"
-        , "            return isLiveUpdateString(value.rosterDayId) && isLiveUpdateInteger(value.rowIndex);"
-        , "        case \"timesheet_day_section\":"
-        , "            return isLiveUpdateInteger(value.dayOffset);"
-        , "        case \"roster_content\":"
-        , "        case \"roster_grid_toolbar\":"
-        , "        case \"roster_grid_frame\":"
-        , "        case \"roster_day_columns\":"
-        , "        case \"roster_day_rail\":"
-        , "        case \"roster_wage_rail\":"
-        , "        case \"roster_slots_grid\":"
-        , "        case \"roster_staff_panel\":"
-        , "        case \"leave_requests_content\":"
-        , "        case \"timesheet_toolbar\":"
-        , "        case \"timesheet_day_columns\":"
-        , "        case \"admin_venue_config\":"
-        , "        case \"admin_invites\":"
-        , "        case \"admin_exports\":"
-        , "        case \"admin_shift_types\":"
-        , "        case \"admin_roster_groups\":"
-        , "        case \"admin_xero\":"
-        , "        case \"admin_xero_staff_mappings\":"
-        , "        case \"admin_xero_pay_items\":"
-        , "        case \"admin_xero_timesheets\":"
-        , "        case \"billing_status\":"
-        , "        case \"profile_content\":"
-        , "        case \"profile_leave_requests_content\":"
-        , "        case \"support_award_rates_section\":"
-        , "        case \"support_public_holidays_section\":"
-        , "            return true;"
-        , "        default:"
-        , "            return false;"
-        , "    }"
-        , "}"
-        , ""
-        , "export function isLiveUpdateWireFragment(value: unknown): value is LiveUpdateWireFragment {"
-        , "    return isLiveUpdateRecord(value)"
-        , "        && isLiveFragmentKey(value.fragmentKey)"
-        , "        && isLiveUpdateString(value.targetId)"
-        , "        && isLiveUpdateString(value.url)"
-        , "        && isLiveUpdateBoolean(value.deferUntilBlur)"
-        , "        && isLiveFragmentProtection(value.protectionPolicy);"
-        , "}"
-        , ""
-        , "function isLiveUpdateWireFragmentArray(value: unknown): value is LiveUpdateWireFragment[] {"
-        , "    return Array.isArray(value) && value.every(isLiveUpdateWireFragment);"
-        , "}"
-        , ""
-        , "export function isLiveSurfaceConfig(value: unknown): value is LiveSurfaceConfig {"
-        , "    return isLiveUpdateRecord(value)"
-        , "        && isLiveUpdateString(value.feature)"
-        , "        && isLiveUpdateString(value.socketPath)"
-        , "        && isLiveUpdateScope(value.scope)"
-        , "        && isLiveUpdateString(value.scopeKey)"
-        , "        && isLiveUpdateWireFragmentArray(value.resyncFragments)"
-        , "        && isLiveUpdateStringArray(value.decorateRequestsWithin);"
-        , "}"
-        , ""
-        , "export function isLiveUpdateCommand(value: unknown): value is LiveUpdateCommand {"
-        , "    if (!isLiveUpdateRecord(value) || typeof value.type !== \"string\") return false;"
-        , "    switch (value.type) {"
-        , "        case \"subscribe\":"
-        , "            return isLiveUpdateScope(value.scope) && isLiveUpdateString(value.clientId) && (value.lastSeenVersion === null || isLiveUpdateInteger(value.lastSeenVersion));"
-        , "        case \"unsubscribe\":"
-        , "            return isLiveUpdateScope(value.scope);"
-        , "        default:"
-        , "            return false;"
-        , "    }"
-        , "}"
-        , ""
-        , "export function isLiveUpdateMessage(value: unknown): value is LiveUpdateMessage {"
-        , "    if (!isLiveUpdateRecord(value) || typeof value.type !== \"string\") return false;"
-        , "    switch (value.type) {"
-        , "        case \"subscribed\":"
-        , "            return isLiveUpdateScope(value.scope) && isLiveUpdateString(value.scopeKey) && isLiveUpdateInteger(value.currentVersion) && isLiveUpdateBoolean(value.resync);"
-        , "        case \"invalidate\":"
-        , "            return isLiveUpdateScope(value.scope) && isLiveUpdateString(value.scopeKey) && isLiveUpdateInteger(value.version) && isLiveUpdateWireFragmentArray(value.fragments) && isLiveUpdateNullableString(value.sourceClientId);"
-        , "        case \"error\":"
-        , "            return isLiveUpdateString(value.message);"
-        , "        default:"
-        , "            return false;"
-        , "    }"
-        , "}"
-        ]
+liveFragmentFocusedConfigParser :: Aeson.Value -> Aeson.Parser FocusedFieldProtectionConfig
+liveFragmentFocusedConfigParser =
+    Aeson.withObject "FocusedFieldProtectionConfig" liveFragmentFocusedConfigFromObject
+
+liveFragmentFocusedConfigFromObject :: Aeson.Object -> Aeson.Parser FocusedFieldProtectionConfig
+liveFragmentFocusedConfigFromObject object =
+    FocusedFieldProtectionConfig
+        <$> object Aeson..: "activeSelector"
+        <*> object Aeson..: "fieldKeyAttr"
+        <*> object Aeson..: "fieldNameFallback"
+        <*> object Aeson..:? "containerSelector"
+
+taggedObject :: Text -> Text -> [Aeson.Pair] -> Aeson.Value
+taggedObject tagField tagValue fields =
+    Aeson.object ((AesonKey.fromText tagField Aeson..= tagValue) : fields)
+
+venueOnly :: Text -> Text -> Aeson.Value
+venueOnly kind venueId =
+    taggedObject "kind" kind ["venueId" Aeson..= venueId]
+
+keyOnly :: Text -> Aeson.Value
+keyOnly kind =
+    taggedObject "kind" kind []
+
+encodeWith :: FrontendCodec a -> a -> Aeson.Value
+encodeWith codec = codec.codecEncode
+
+parseField :: FrontendCodec a -> Aeson.Object -> Text -> Aeson.Parser a
+parseField codec object field =
+    codec.codecParse =<< object Aeson..: AesonKey.fromText field
+
+listCodec :: FrontendCodec a -> FrontendCodec [a]
+listCodec itemCodec =
+    FrontendCodec
+        { codecName = Nothing
+        , codecSchema = SchemaArray itemCodec.codecSchema
+        , codecEncode = Aeson.toJSON . fmap itemCodec.codecEncode
+        , codecParse = Aeson.withArray "array" (mapM itemCodec.codecParse . Vector.toList)
+        }

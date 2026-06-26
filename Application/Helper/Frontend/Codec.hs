@@ -237,7 +237,7 @@ recordGuard valueExpr fields =
         fieldGuard field =
             case field.fieldSchema of
                 SchemaOptional inner -> "(!Object.prototype.hasOwnProperty.call(" <> valueExpr <> ", " <> quote field.fieldName <> ") || " <> guardExpr (valueExpr <> "[" <> quote field.fieldName <> "]") inner <> ")"
-                schema -> guardExpr (valueExpr <> "[" <> quote field.fieldName <> "]") schema
+                schema -> "(" <> guardExpr (valueExpr <> "[" <> quote field.fieldName <> "]") schema <> ")"
 
 variantGuard :: Text -> Text -> FrontendVariant -> Text
 variantGuard valueExpr tagField variant =
@@ -252,7 +252,7 @@ variantGuard valueExpr tagField variant =
         fieldGuard field =
             case field.fieldSchema of
                 SchemaOptional inner -> "(!Object.prototype.hasOwnProperty.call(" <> valueExpr <> ", " <> quote field.fieldName <> ") || " <> guardExpr (valueExpr <> "[" <> quote field.fieldName <> "]") inner <> ")"
-                schema -> guardExpr (valueExpr <> "[" <> quote field.fieldName <> "]") schema
+                schema -> "(" <> guardExpr (valueExpr <> "[" <> quote field.fieldName <> "]") schema <> ")"
 
 helperSource :: Text
 helperSource = Text.unlines

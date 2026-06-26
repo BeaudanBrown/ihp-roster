@@ -289,8 +289,6 @@ frontendSourceRawEmitterAllowlist =
     , ("Application/Helper/Frontend/InteractionSchema.hs", "\"export type", 12)
     , ("Application/Helper/Frontend/InteractionSchema.hs", "\"export const", 2)
     , ("Application/Helper/Frontend/InteractionSchema.hs", "stringUnionDeclaration", 2)
-    , ("Application/Helper/Frontend/LiveUpdateSchema.hs", "TSRawDeclaration", 2)
-    , ("Application/Helper/Frontend/LiveUpdateSchema.hs", "\"export function", 6)
     , ("Application/Helper/Frontend/SurfaceManifestSchema.hs", "\"export type", 1)
     , ("Application/Helper/Frontend/SurfaceManifestSchema.hs", "\"export const", 1)
     , ("Application/Helper/Frontend/SurfaceManifestSchema.hs", "stringUnionDeclaration", 2)

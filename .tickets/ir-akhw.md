@@ -1,6 +1,6 @@
 ---
 id: ir-akhw
-status: in_progress
+status: closed
 deps: [ir-a6do]
 links: []
 created: 2026-06-26T04:23:33Z
@@ -28,3 +28,7 @@ Live-update TS types and isLiveUpdate* validators are generated from the codec/s
 **2026-06-26T05:05:11Z**
 
 Started live-update codec migration with LiveFragmentProtection as the first production contract. Documented wire-shape rule: prefer explicit closed tagged unions over null sentinels for app-owned domain alternatives. Changed LiveFragmentProtection wire JSON from null/focused_field to {kind:'none'} | {kind:'focused_field', ...}; generated its TS type and isLiveFragmentProtection guard from FrontendCodec; removed the corresponding raw TypeScript declaration and handwritten validator. Updated frontend runtime/tests, generated contracts, static bundle, live-update specs, and shrank guardrail allowlist. Verification passed: typecheck, frontend-contracts-check, frontend-check, hspec-test --match 'Frontend contract' --match 'LiveUpdate'.
+
+**2026-06-26T06:42:21Z**
+
+Completed the full live-update codec migration. LiveUpdateScope, LiveFragmentKey, LiveUpdateWireFragment, LiveSurfaceConfig, LiveUpdateCommand, and LiveUpdateMessage now use FrontendCodec for JSON and generated TypeScript/guards; LiveUpdateSchema no longer contains TSRawDeclaration or handwritten validator blocks. Verification passed: typecheck, frontend-contracts-check, frontend-check, and hspec-test --match 'Frontend contract' --match 'LiveUpdate'.
