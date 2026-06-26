@@ -13,7 +13,7 @@ export function isOverlayLane(value: unknown): value is OverlayLane {
 
 
 // Live-update wire protocol generated from Haskell schema types.
-function isExactRecord(value: unknown, requiredKeys: string[], optionalKeys: string[]): value is Record<string, unknown> {
+function __isLiveUpdateScopeExactRecord(value: unknown, requiredKeys: string[], optionalKeys: string[]): value is Record<string, unknown> {
     if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
     const actualKeys = Object.keys(value);
     const allowedKeys = new Set([...requiredKeys, ...optionalKeys]);
@@ -36,7 +36,7 @@ export type LiveUpdateScope =
     | { kind: "support_platform" };
 
 export function isLiveUpdateScope(value: unknown): value is LiveUpdateScope {
-    return (isExactRecord(value, ["kind", "venueId", "rosterGroupId", "weekOffset"], []) && value["kind"] === "roster_week" && (typeof value["venueId"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]))) || (isExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "admin_venue_config" && (typeof value["venueId"] === "string")) || (isExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "admin_shift_types" && (typeof value["venueId"] === "string")) || (isExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "admin_roster_groups" && (typeof value["venueId"] === "string")) || (isExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "admin_invites" && (typeof value["venueId"] === "string")) || (isExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "admin_exports" && (typeof value["venueId"] === "string")) || (isExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "admin_xero" && (typeof value["venueId"] === "string")) || (isExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "billing" && (typeof value["venueId"] === "string")) || (isExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "leave_requests" && (typeof value["venueId"] === "string")) || (isExactRecord(value, ["kind", "venueId", "weekOffset"], []) && value["kind"] === "timesheet_week" && (typeof value["venueId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]))) || (isExactRecord(value, ["kind", "venueId", "staffId"], []) && value["kind"] === "profile" && (typeof value["venueId"] === "string") && (typeof value["staffId"] === "string")) || (isExactRecord(value, ["kind"], []) && value["kind"] === "support_platform");
+    return (__isLiveUpdateScopeExactRecord(value, ["kind", "venueId", "rosterGroupId", "weekOffset"], []) && value["kind"] === "roster_week" && (typeof value["venueId"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]))) || (__isLiveUpdateScopeExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "admin_venue_config" && (typeof value["venueId"] === "string")) || (__isLiveUpdateScopeExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "admin_shift_types" && (typeof value["venueId"] === "string")) || (__isLiveUpdateScopeExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "admin_roster_groups" && (typeof value["venueId"] === "string")) || (__isLiveUpdateScopeExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "admin_invites" && (typeof value["venueId"] === "string")) || (__isLiveUpdateScopeExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "admin_exports" && (typeof value["venueId"] === "string")) || (__isLiveUpdateScopeExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "admin_xero" && (typeof value["venueId"] === "string")) || (__isLiveUpdateScopeExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "billing" && (typeof value["venueId"] === "string")) || (__isLiveUpdateScopeExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "leave_requests" && (typeof value["venueId"] === "string")) || (__isLiveUpdateScopeExactRecord(value, ["kind", "venueId", "weekOffset"], []) && value["kind"] === "timesheet_week" && (typeof value["venueId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]))) || (__isLiveUpdateScopeExactRecord(value, ["kind", "venueId", "staffId"], []) && value["kind"] === "profile" && (typeof value["venueId"] === "string") && (typeof value["staffId"] === "string")) || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "support_platform");
 }
 
 
@@ -71,7 +71,7 @@ export type LiveFragmentKey =
     | { kind: "support_public_holidays_section" };
 
 export function isLiveFragmentKey(value: unknown): value is LiveFragmentKey {
-    return (isExactRecord(value, ["kind"], []) && value["kind"] === "roster_content") || (isExactRecord(value, ["kind"], []) && value["kind"] === "roster_grid_toolbar") || (isExactRecord(value, ["kind"], []) && value["kind"] === "roster_grid_frame") || (isExactRecord(value, ["kind"], []) && value["kind"] === "roster_day_columns") || (isExactRecord(value, ["kind"], []) && value["kind"] === "roster_day_rail") || (isExactRecord(value, ["kind"], []) && value["kind"] === "roster_wage_rail") || (isExactRecord(value, ["kind"], []) && value["kind"] === "roster_slots_grid") || (isExactRecord(value, ["kind"], []) && value["kind"] === "roster_staff_panel") || (isExactRecord(value, ["kind", "rosterDayId"], []) && value["kind"] === "roster_day_section" && (typeof value["rosterDayId"] === "string")) || (isExactRecord(value, ["kind", "rosterDayId", "rowIndex"], []) && value["kind"] === "roster_row" && (typeof value["rosterDayId"] === "string") && (typeof value["rowIndex"] === "number" && Number.isInteger(value["rowIndex"]))) || (isExactRecord(value, ["kind"], []) && value["kind"] === "leave_requests_content") || (isExactRecord(value, ["kind"], []) && value["kind"] === "timesheet_toolbar") || (isExactRecord(value, ["kind"], []) && value["kind"] === "timesheet_day_columns") || (isExactRecord(value, ["kind", "dayOffset"], []) && value["kind"] === "timesheet_day_section" && (typeof value["dayOffset"] === "number" && Number.isInteger(value["dayOffset"]))) || (isExactRecord(value, ["kind"], []) && value["kind"] === "admin_venue_config") || (isExactRecord(value, ["kind"], []) && value["kind"] === "admin_invites") || (isExactRecord(value, ["kind"], []) && value["kind"] === "admin_exports") || (isExactRecord(value, ["kind"], []) && value["kind"] === "admin_shift_types") || (isExactRecord(value, ["kind"], []) && value["kind"] === "admin_roster_groups") || (isExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero") || (isExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero_staff_mappings") || (isExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero_pay_items") || (isExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero_timesheets") || (isExactRecord(value, ["kind"], []) && value["kind"] === "billing_status") || (isExactRecord(value, ["kind"], []) && value["kind"] === "profile_content") || (isExactRecord(value, ["kind"], []) && value["kind"] === "profile_leave_requests_content") || (isExactRecord(value, ["kind"], []) && value["kind"] === "support_award_rates_section") || (isExactRecord(value, ["kind"], []) && value["kind"] === "support_public_holidays_section");
+    return (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_content") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_grid_toolbar") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_grid_frame") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_day_columns") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_day_rail") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_wage_rail") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_slots_grid") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_staff_panel") || (__isLiveUpdateScopeExactRecord(value, ["kind", "rosterDayId"], []) && value["kind"] === "roster_day_section" && (typeof value["rosterDayId"] === "string")) || (__isLiveUpdateScopeExactRecord(value, ["kind", "rosterDayId", "rowIndex"], []) && value["kind"] === "roster_row" && (typeof value["rosterDayId"] === "string") && (typeof value["rowIndex"] === "number" && Number.isInteger(value["rowIndex"]))) || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "leave_requests_content") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "timesheet_toolbar") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "timesheet_day_columns") || (__isLiveUpdateScopeExactRecord(value, ["kind", "dayOffset"], []) && value["kind"] === "timesheet_day_section" && (typeof value["dayOffset"] === "number" && Number.isInteger(value["dayOffset"]))) || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_venue_config") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_invites") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_exports") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_shift_types") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_roster_groups") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero_staff_mappings") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero_pay_items") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero_timesheets") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "billing_status") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "profile_content") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "profile_leave_requests_content") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "support_award_rates_section") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "support_public_holidays_section");
 }
 
 
@@ -80,7 +80,7 @@ export type LiveFragmentProtection =
     | { kind: "focused_field"; activeSelector: string; fieldKeyAttr: string; fieldNameFallback: boolean; containerSelector?: string };
 
 export function isLiveFragmentProtection(value: unknown): value is LiveFragmentProtection {
-    return (isExactRecord(value, ["kind"], []) && value["kind"] === "none") || (isExactRecord(value, ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback"], ["containerSelector"]) && value["kind"] === "focused_field" && (typeof value["activeSelector"] === "string") && (typeof value["fieldKeyAttr"] === "string") && (typeof value["fieldNameFallback"] === "boolean") && (!Object.prototype.hasOwnProperty.call(value, "containerSelector") || typeof value["containerSelector"] === "string"));
+    return (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "none") || (__isLiveUpdateScopeExactRecord(value, ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback"], ["containerSelector"]) && value["kind"] === "focused_field" && (typeof value["activeSelector"] === "string") && (typeof value["fieldKeyAttr"] === "string") && (typeof value["fieldNameFallback"] === "boolean") && (!Object.prototype.hasOwnProperty.call(value, "containerSelector") || typeof value["containerSelector"] === "string"));
 }
 
 
@@ -93,7 +93,7 @@ export type LiveUpdateWireFragment = {
 };
 
 export function isLiveUpdateWireFragment(value: unknown): value is LiveUpdateWireFragment {
-    return isExactRecord(value, ["fragmentKey", "targetId", "url", "deferUntilBlur", "protectionPolicy"], []) && (isLiveFragmentKey(value["fragmentKey"])) && (typeof value["targetId"] === "string") && (typeof value["url"] === "string") && (typeof value["deferUntilBlur"] === "boolean") && (isLiveFragmentProtection(value["protectionPolicy"]));
+    return __isLiveUpdateScopeExactRecord(value, ["fragmentKey", "targetId", "url", "deferUntilBlur", "protectionPolicy"], []) && (isLiveFragmentKey(value["fragmentKey"])) && (typeof value["targetId"] === "string") && (typeof value["url"] === "string") && (typeof value["deferUntilBlur"] === "boolean") && (isLiveFragmentProtection(value["protectionPolicy"]));
 }
 
 
@@ -107,7 +107,7 @@ export type LiveSurfaceConfig = {
 };
 
 export function isLiveSurfaceConfig(value: unknown): value is LiveSurfaceConfig {
-    return isExactRecord(value, ["feature", "socketPath", "scope", "scopeKey", "resyncFragments", "decorateRequestsWithin"], []) && (typeof value["feature"] === "string") && (typeof value["socketPath"] === "string") && (isLiveUpdateScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (Array.isArray(value["resyncFragments"]) && value["resyncFragments"].every((item) => isLiveUpdateWireFragment(item))) && (Array.isArray(value["decorateRequestsWithin"]) && value["decorateRequestsWithin"].every((item) => typeof item === "string"));
+    return __isLiveUpdateScopeExactRecord(value, ["feature", "socketPath", "scope", "scopeKey", "resyncFragments", "decorateRequestsWithin"], []) && (typeof value["feature"] === "string") && (typeof value["socketPath"] === "string") && (isLiveUpdateScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (Array.isArray(value["resyncFragments"]) && value["resyncFragments"].every((item) => isLiveUpdateWireFragment(item))) && (Array.isArray(value["decorateRequestsWithin"]) && value["decorateRequestsWithin"].every((item) => typeof item === "string"));
 }
 
 
@@ -116,7 +116,7 @@ export type LiveUpdateCommand =
     | { type: "unsubscribe"; scope: LiveUpdateScope };
 
 export function isLiveUpdateCommand(value: unknown): value is LiveUpdateCommand {
-    return (isExactRecord(value, ["type", "scope", "clientId", "lastSeenVersion"], []) && value["type"] === "subscribe" && (isLiveUpdateScope(value["scope"])) && (typeof value["clientId"] === "string") && (value["lastSeenVersion"] === null || (typeof value["lastSeenVersion"] === "number" && Number.isInteger(value["lastSeenVersion"])))) || (isExactRecord(value, ["type", "scope"], []) && value["type"] === "unsubscribe" && (isLiveUpdateScope(value["scope"])));
+    return (__isLiveUpdateScopeExactRecord(value, ["type", "scope", "clientId", "lastSeenVersion"], []) && value["type"] === "subscribe" && (isLiveUpdateScope(value["scope"])) && (typeof value["clientId"] === "string") && (value["lastSeenVersion"] === null || (typeof value["lastSeenVersion"] === "number" && Number.isInteger(value["lastSeenVersion"])))) || (__isLiveUpdateScopeExactRecord(value, ["type", "scope"], []) && value["type"] === "unsubscribe" && (isLiveUpdateScope(value["scope"])));
 }
 
 
@@ -126,62 +126,127 @@ export type LiveUpdateMessage =
     | { type: "error"; message: string };
 
 export function isLiveUpdateMessage(value: unknown): value is LiveUpdateMessage {
-    return (isExactRecord(value, ["type", "scope", "scopeKey", "currentVersion", "resync"], []) && value["type"] === "subscribed" && (isLiveUpdateScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && (typeof value["resync"] === "boolean")) || (isExactRecord(value, ["type", "scope", "scopeKey", "version", "fragments", "sourceClientId"], []) && value["type"] === "invalidate" && (isLiveUpdateScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isLiveUpdateWireFragment(item))) && (value["sourceClientId"] === null || (typeof value["sourceClientId"] === "string"))) || (isExactRecord(value, ["type", "message"], []) && value["type"] === "error" && (typeof value["message"] === "string"));
+    return (__isLiveUpdateScopeExactRecord(value, ["type", "scope", "scopeKey", "currentVersion", "resync"], []) && value["type"] === "subscribed" && (isLiveUpdateScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && (typeof value["resync"] === "boolean")) || (__isLiveUpdateScopeExactRecord(value, ["type", "scope", "scopeKey", "version", "fragments", "sourceClientId"], []) && value["type"] === "invalidate" && (isLiveUpdateScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isLiveUpdateWireFragment(item))) && (value["sourceClientId"] === null || (typeof value["sourceClientId"] === "string"))) || (__isLiveUpdateScopeExactRecord(value, ["type", "message"], []) && value["type"] === "error" && (typeof value["message"] === "string"));
 }
 
 
 
 
 // Interaction contracts generated from Haskell static interaction schemas.
-export const InteractionDom = {
-    attributes: {
-        surface: "data-bepis-surface",
-        surfaceFamily: "data-bepis-surface-family",
-        scopeKey: "data-bepis-scope-key",
-        mountKey: "data-bepis-mount-key",
-        marker: "data-bepis-marker",
-        item: "data-bepis-item",
-        dropzone: "data-bepis-dropzone",
-        activation: "data-bepis-activation",
-        activationIntent: "data-bepis-activation-intent",
-        activationTrigger: "data-bepis-activation-trigger",
-        activationValueField: "data-bepis-activation-value-field",
-        pointerSession: "data-bepis-pointer-session",
-        sessionKind: "data-bepis-session-kind",
-        sessionIntent: "data-bepis-session-intent",
-        sessionDisabled: "data-bepis-session-disabled",
-        sessionReadOnly: "data-bepis-session-read-only",
-        sessionThreshold: "data-bepis-session-threshold",
-        sessionTimeoutMs: "data-bepis-session-timeout-ms",
-        interactionActive: "data-bepis-interaction-active",
-        disposableLayer: "data-bepis-disposable-layer",
-        conflictPolicies: "data-bepis-conflict-policies",
-        intentForm: "data-bepis-intent-form",
-        intent: "data-bepis-intent",
-        intentField: "data-bepis-intent-field",
-        fieldPresence: "data-bepis-field-presence",
-        intentHiddenField: "data-bepis-intent-hidden-field"
-    },
-    values: {
-        enabled: "true",
-        activationMarker: "activation"
-    },
-    pointerFields: {
-        sessionKind: "sessionKind",
-        pointerId: "pointerId",
-        pointerType: "pointerType",
-        startClientX: "startClientX",
-        startClientY: "startClientY",
-        currentClientX: "currentClientX",
-        currentClientY: "currentClientY",
-        deltaX: "deltaX",
-        deltaY: "deltaY",
-        sourceItemKey: "sourceItemKey",
-        targetDropzoneKey: "targetDropzoneKey"
-    }
-} as const;
+function __isInteractionDomAttributesExactRecord(value: unknown, requiredKeys: string[], optionalKeys: string[]): value is Record<string, unknown> {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+    const actualKeys = Object.keys(value);
+    const allowedKeys = new Set([...requiredKeys, ...optionalKeys]);
+    return requiredKeys.every((key) => Object.prototype.hasOwnProperty.call(value, key)) && actualKeys.every((key) => allowedKeys.has(key));
+}
 
-export type InteractionDomAttribute = typeof InteractionDom.attributes[keyof typeof InteractionDom.attributes];
+
+export type InteractionDomAttributes = {
+    surface: string;
+    surfaceFamily: string;
+    scopeKey: string;
+    mountKey: string;
+    marker: string;
+    item: string;
+    dropzone: string;
+    activation: string;
+    activationIntent: string;
+    activationTrigger: string;
+    activationValueField: string;
+    pointerSession: string;
+    sessionKind: string;
+    sessionIntent: string;
+    sessionDisabled: string;
+    sessionReadOnly: string;
+    sessionThreshold: string;
+    sessionTimeoutMs: string;
+    interactionActive: string;
+    disposableLayer: string;
+    conflictPolicies: string;
+    intentForm: string;
+    intent: string;
+    intentField: string;
+    fieldPresence: string;
+    intentHiddenField: string;
+};
+
+export function isInteractionDomAttributes(value: unknown): value is InteractionDomAttributes {
+    return __isInteractionDomAttributesExactRecord(value, ["surface", "surfaceFamily", "scopeKey", "mountKey", "marker", "item", "dropzone", "activation", "activationIntent", "activationTrigger", "activationValueField", "pointerSession", "sessionKind", "sessionIntent", "sessionDisabled", "sessionReadOnly", "sessionThreshold", "sessionTimeoutMs", "interactionActive", "disposableLayer", "conflictPolicies", "intentForm", "intent", "intentField", "fieldPresence", "intentHiddenField"], []) && (typeof value["surface"] === "string") && (typeof value["surfaceFamily"] === "string") && (typeof value["scopeKey"] === "string") && (typeof value["mountKey"] === "string") && (typeof value["marker"] === "string") && (typeof value["item"] === "string") && (typeof value["dropzone"] === "string") && (typeof value["activation"] === "string") && (typeof value["activationIntent"] === "string") && (typeof value["activationTrigger"] === "string") && (typeof value["activationValueField"] === "string") && (typeof value["pointerSession"] === "string") && (typeof value["sessionKind"] === "string") && (typeof value["sessionIntent"] === "string") && (typeof value["sessionDisabled"] === "string") && (typeof value["sessionReadOnly"] === "string") && (typeof value["sessionThreshold"] === "string") && (typeof value["sessionTimeoutMs"] === "string") && (typeof value["interactionActive"] === "string") && (typeof value["disposableLayer"] === "string") && (typeof value["conflictPolicies"] === "string") && (typeof value["intentForm"] === "string") && (typeof value["intent"] === "string") && (typeof value["intentField"] === "string") && (typeof value["fieldPresence"] === "string") && (typeof value["intentHiddenField"] === "string");
+}
+
+
+export type InteractionDomValues = {
+    enabled: string;
+    activationMarker: string;
+};
+
+export function isInteractionDomValues(value: unknown): value is InteractionDomValues {
+    return __isInteractionDomAttributesExactRecord(value, ["enabled", "activationMarker"], []) && (typeof value["enabled"] === "string") && (typeof value["activationMarker"] === "string");
+}
+
+
+export type InteractionPointerFields = {
+    sessionKind: string;
+    pointerId: string;
+    pointerType: string;
+    startClientX: string;
+    startClientY: string;
+    currentClientX: string;
+    currentClientY: string;
+    deltaX: string;
+    deltaY: string;
+    sourceItemKey: string;
+    targetDropzoneKey: string;
+};
+
+export function isInteractionPointerFields(value: unknown): value is InteractionPointerFields {
+    return __isInteractionDomAttributesExactRecord(value, ["sessionKind", "pointerId", "pointerType", "startClientX", "startClientY", "currentClientX", "currentClientY", "deltaX", "deltaY", "sourceItemKey", "targetDropzoneKey"], []) && (typeof value["sessionKind"] === "string") && (typeof value["pointerId"] === "string") && (typeof value["pointerType"] === "string") && (typeof value["startClientX"] === "string") && (typeof value["startClientY"] === "string") && (typeof value["currentClientX"] === "string") && (typeof value["currentClientY"] === "string") && (typeof value["deltaX"] === "string") && (typeof value["deltaY"] === "string") && (typeof value["sourceItemKey"] === "string") && (typeof value["targetDropzoneKey"] === "string");
+}
+
+
+export type InteractionDom = {
+    attributes: InteractionDomAttributes;
+    values: InteractionDomValues;
+    pointerFields: InteractionPointerFields;
+};
+
+export function isInteractionDom(value: unknown): value is InteractionDom {
+    return __isInteractionDomAttributesExactRecord(value, ["attributes", "values", "pointerFields"], []) && (isInteractionDomAttributes(value["attributes"])) && (isInteractionDomValues(value["values"])) && (isInteractionPointerFields(value["pointerFields"]));
+}
+
+
+export type InteractionDomAttribute =
+    | "data-bepis-surface"
+    | "data-bepis-surface-family"
+    | "data-bepis-scope-key"
+    | "data-bepis-mount-key"
+    | "data-bepis-marker"
+    | "data-bepis-item"
+    | "data-bepis-dropzone"
+    | "data-bepis-activation"
+    | "data-bepis-activation-intent"
+    | "data-bepis-activation-trigger"
+    | "data-bepis-activation-value-field"
+    | "data-bepis-pointer-session"
+    | "data-bepis-session-kind"
+    | "data-bepis-session-intent"
+    | "data-bepis-session-disabled"
+    | "data-bepis-session-read-only"
+    | "data-bepis-session-threshold"
+    | "data-bepis-session-timeout-ms"
+    | "data-bepis-interaction-active"
+    | "data-bepis-disposable-layer"
+    | "data-bepis-conflict-policies"
+    | "data-bepis-intent-form"
+    | "data-bepis-intent"
+    | "data-bepis-intent-field"
+    | "data-bepis-field-presence"
+    | "data-bepis-intent-hidden-field";
+
+export function isInteractionDomAttribute(value: unknown): value is InteractionDomAttribute {
+    return value === "data-bepis-surface" || value === "data-bepis-surface-family" || value === "data-bepis-scope-key" || value === "data-bepis-mount-key" || value === "data-bepis-marker" || value === "data-bepis-item" || value === "data-bepis-dropzone" || value === "data-bepis-activation" || value === "data-bepis-activation-intent" || value === "data-bepis-activation-trigger" || value === "data-bepis-activation-value-field" || value === "data-bepis-pointer-session" || value === "data-bepis-session-kind" || value === "data-bepis-session-intent" || value === "data-bepis-session-disabled" || value === "data-bepis-session-read-only" || value === "data-bepis-session-threshold" || value === "data-bepis-session-timeout-ms" || value === "data-bepis-interaction-active" || value === "data-bepis-disposable-layer" || value === "data-bepis-conflict-policies" || value === "data-bepis-intent-form" || value === "data-bepis-intent" || value === "data-bepis-intent-field" || value === "data-bepis-field-presence" || value === "data-bepis-intent-hidden-field";
+}
+
 
 export type InteractionActivationTrigger =
     | "click"
@@ -189,9 +254,19 @@ export type InteractionActivationTrigger =
     | "keydown-enter"
     | "keydown-space";
 
+export function isInteractionActivationTrigger(value: unknown): value is InteractionActivationTrigger {
+    return value === "click" || value === "change" || value === "keydown-enter" || value === "keydown-space";
+}
+
+
 export type InteractionFieldPresence =
     | "required"
     | "optional";
+
+export function isInteractionFieldPresence(value: unknown): value is InteractionFieldPresence {
+    return value === "required" || value === "optional";
+}
+
 
 export type HtmxMethod =
     | "get"
@@ -200,31 +275,65 @@ export type HtmxMethod =
     | "patch"
     | "delete";
 
+export function isHtmxMethod(value: unknown): value is HtmxMethod {
+    return value === "get" || value === "post" || value === "put" || value === "patch" || value === "delete";
+}
+
+
 export type HtmxSwap =
     | "innerHTML"
     | "outerHTML"
     | "beforeend"
     | "afterbegin"
-    | "none"
-    | "custom";
+    | "none";
+
+export function isHtmxSwap(value: unknown): value is HtmxSwap {
+    return value === "innerHTML" || value === "outerHTML" || value === "beforeend" || value === "afterbegin" || value === "none";
+}
+
 
 export type InteractionConflictResolution =
     | "apply"
     | "defer"
     | "cancel";
 
+export function isInteractionConflictResolution(value: unknown): value is InteractionConflictResolution {
+    return value === "apply" || value === "defer" || value === "cancel";
+}
+
+
 export type InteractionSurfaceFamily =
     | "roster";
+
+export function isInteractionSurfaceFamily(value: unknown): value is InteractionSurfaceFamily {
+    return value === "roster";
+}
+
 
 export type InteractionDisposableLayerName =
     | "drag-preview";
 
+export function isInteractionDisposableLayerName(value: unknown): value is InteractionDisposableLayerName {
+    return value === "drag-preview";
+}
+
+
 export type InteractionSessionKindName =
     | "drag";
+
+export function isInteractionSessionKindName(value: unknown): value is InteractionSessionKindName {
+    return value === "drag";
+}
+
 
 export type InteractionIntentName =
     | "set-roster-layout-mode"
     | "move-roster-shift-to-slot";
+
+export function isInteractionIntentName(value: unknown): value is InteractionIntentName {
+    return value === "set-roster-layout-mode" || value === "move-roster-shift-to-slot";
+}
+
 
 export type InteractionIntentFieldName =
     | "rosterLayoutMode"
@@ -240,51 +349,132 @@ export type InteractionIntentFieldName =
     | "deltaX"
     | "deltaY";
 
+export function isInteractionIntentFieldName(value: unknown): value is InteractionIntentFieldName {
+    return value === "rosterLayoutMode" || value === "sourceItemKey" || value === "targetDropzoneKey" || value === "sessionKind" || value === "pointerId" || value === "pointerType" || value === "startClientX" || value === "startClientY" || value === "currentClientX" || value === "currentClientY" || value === "deltaX" || value === "deltaY";
+}
+
+
+export type InteractionSessionSelector =
+    | { kind: "any" }
+    | { kind: "session"; session: InteractionSessionKindName };
+
+export function isInteractionSessionSelector(value: unknown): value is InteractionSessionSelector {
+    return (__isInteractionDomAttributesExactRecord(value, ["kind"], []) && value["kind"] === "any") || (__isInteractionDomAttributesExactRecord(value, ["kind", "session"], []) && value["kind"] === "session" && (isInteractionSessionKindName(value["session"])));
+}
+
+
+export type InteractionFragmentSelector =
+    | { kind: "any" }
+    | { kind: "live_fragment"; fragment: LiveFragmentKey };
+
+export function isInteractionFragmentSelector(value: unknown): value is InteractionFragmentSelector {
+    return (__isInteractionDomAttributesExactRecord(value, ["kind"], []) && value["kind"] === "any") || (__isInteractionDomAttributesExactRecord(value, ["kind", "fragment"], []) && value["kind"] === "live_fragment" && (isLiveFragmentKey(value["fragment"])));
+}
+
+
 export type InteractionMountMetadata = {
-    surfaceFamily: InteractionSurfaceFamily | string;
+    surfaceFamily: InteractionSurfaceFamily;
     scopeKey: string;
     mountKey: string;
     mountId: string;
 };
 
-export type ServerLayerContract = { name: string; domId: string };
+export function isInteractionMountMetadata(value: unknown): value is InteractionMountMetadata {
+    return __isInteractionDomAttributesExactRecord(value, ["surfaceFamily", "scopeKey", "mountKey", "mountId"], []) && (isInteractionSurfaceFamily(value["surfaceFamily"])) && (typeof value["scopeKey"] === "string") && (typeof value["mountKey"] === "string") && (typeof value["mountId"] === "string");
+}
 
-export type DisposableLayerContract = { kind: InteractionDisposableLayerName | string; name: string; domId: string };
 
-export type SessionKindContract = { kind: InteractionSessionKindName | string; description: string };
+export type ServerLayerContract = {
+    name: string;
+    domId: string;
+};
+
+export function isServerLayerContract(value: unknown): value is ServerLayerContract {
+    return __isInteractionDomAttributesExactRecord(value, ["name", "domId"], []) && (typeof value["name"] === "string") && (typeof value["domId"] === "string");
+}
+
+
+export type DisposableLayerContract = {
+    kind: InteractionDisposableLayerName;
+    name: string;
+    domId: string;
+};
+
+export function isDisposableLayerContract(value: unknown): value is DisposableLayerContract {
+    return __isInteractionDomAttributesExactRecord(value, ["kind", "name", "domId"], []) && (isInteractionDisposableLayerName(value["kind"])) && (typeof value["name"] === "string") && (typeof value["domId"] === "string");
+}
+
+
+export type SessionKindContract = {
+    kind: InteractionSessionKindName;
+    description: string;
+};
+
+export function isSessionKindContract(value: unknown): value is SessionKindContract {
+    return __isInteractionDomAttributesExactRecord(value, ["kind", "description"], []) && (isInteractionSessionKindName(value["kind"])) && (typeof value["description"] === "string");
+}
+
 
 export type IntentFieldSchema = {
-    name: InteractionIntentFieldName | string;
+    name: InteractionIntentFieldName;
     presence: InteractionFieldPresence;
     defaultValue?: string | null;
 };
 
-export type IntentHiddenField = { name: string; value: string };
+export function isIntentFieldSchema(value: unknown): value is IntentFieldSchema {
+    return __isInteractionDomAttributesExactRecord(value, ["name", "presence"], ["defaultValue"]) && (isInteractionIntentFieldName(value["name"])) && (isInteractionFieldPresence(value["presence"])) && (!Object.prototype.hasOwnProperty.call(value, "defaultValue") || value["defaultValue"] === null || (typeof value["defaultValue"] === "string"));
+}
+
+
+export type IntentHiddenField = {
+    name: string;
+    value: string;
+};
+
+export function isIntentHiddenField(value: unknown): value is IntentHiddenField {
+    return __isInteractionDomAttributesExactRecord(value, ["name", "value"], []) && (typeof value["name"] === "string") && (typeof value["value"] === "string");
+}
+
 
 export type InteractionIntentTarget =
     | { kind: "live_fragment"; fragment: LiveUpdateWireFragment }
     | { kind: "mount_local"; target: string };
 
+export function isInteractionIntentTarget(value: unknown): value is InteractionIntentTarget {
+    return (__isInteractionDomAttributesExactRecord(value, ["kind", "fragment"], []) && value["kind"] === "live_fragment" && (isLiveUpdateWireFragment(value["fragment"]))) || (__isInteractionDomAttributesExactRecord(value, ["kind", "target"], []) && value["kind"] === "mount_local" && (typeof value["target"] === "string"));
+}
+
+
 export type IntentFormContract = {
-    intent: InteractionIntentName | string;
-    name: InteractionIntentName | string;
+    intent: InteractionIntentName;
+    name: InteractionIntentName;
     action: string;
     method: HtmxMethod;
     trigger: string;
     target: InteractionIntentTarget;
-    swap: HtmxSwap | { kind: "custom"; value: string };
+    swap: HtmxSwap;
     fields: IntentFieldSchema[];
     hiddenFields: IntentHiddenField[];
     sync?: string | null;
     disabledElement?: string | null;
 };
 
+export function isIntentFormContract(value: unknown): value is IntentFormContract {
+    return __isInteractionDomAttributesExactRecord(value, ["intent", "name", "action", "method", "trigger", "target", "swap", "fields", "hiddenFields"], ["sync", "disabledElement"]) && (isInteractionIntentName(value["intent"])) && (isInteractionIntentName(value["name"])) && (typeof value["action"] === "string") && (isHtmxMethod(value["method"])) && (typeof value["trigger"] === "string") && (isInteractionIntentTarget(value["target"])) && (isHtmxSwap(value["swap"])) && (Array.isArray(value["fields"]) && value["fields"].every((item) => isIntentFieldSchema(item))) && (Array.isArray(value["hiddenFields"]) && value["hiddenFields"].every((item) => isIntentHiddenField(item))) && (!Object.prototype.hasOwnProperty.call(value, "sync") || value["sync"] === null || (typeof value["sync"] === "string")) && (!Object.prototype.hasOwnProperty.call(value, "disabledElement") || value["disabledElement"] === null || (typeof value["disabledElement"] === "string"));
+}
+
+
 export type InteractionConflictPolicy = {
-    session: InteractionSessionKindName | "*" | string;
-    fragment: LiveFragmentKey | "*";
+    session: InteractionSessionSelector;
+    fragment: InteractionFragmentSelector;
     resolution: InteractionConflictResolution;
     timeoutMs?: number | null;
 };
+
+export function isInteractionConflictPolicy(value: unknown): value is InteractionConflictPolicy {
+    return __isInteractionDomAttributesExactRecord(value, ["session", "fragment", "resolution"], ["timeoutMs"]) && (isInteractionSessionSelector(value["session"])) && (isInteractionFragmentSelector(value["fragment"])) && (isInteractionConflictResolution(value["resolution"])) && (!Object.prototype.hasOwnProperty.call(value, "timeoutMs") || value["timeoutMs"] === null || (typeof value["timeoutMs"] === "number" && Number.isInteger(value["timeoutMs"])));
+}
+
 
 export type InteractionCapabilityContract = {
     mount: InteractionMountMetadata;
@@ -295,10 +485,76 @@ export type InteractionCapabilityContract = {
     conflictPolicies: InteractionConflictPolicy[];
 };
 
-export const InteractionStaticSchemas = {"roster":{"conflictPolicies":[{"fragment":"*","resolution":"defer","session":"drag","timeoutMs":5000}],"disposableLayers":[{"domIdSuffix":"drag-preview","name":"drag-preview"}],"intents":[{"fields":[{"defaultValue":null,"name":"rosterLayoutMode","presence":"required"}],"name":"set-roster-layout-mode"},{"fields":[{"defaultValue":null,"name":"sourceItemKey","presence":"required"},{"defaultValue":null,"name":"targetDropzoneKey","presence":"required"},{"defaultValue":null,"name":"sessionKind","presence":"optional"},{"defaultValue":null,"name":"pointerId","presence":"optional"},{"defaultValue":null,"name":"pointerType","presence":"optional"},{"defaultValue":null,"name":"startClientX","presence":"optional"},{"defaultValue":null,"name":"startClientY","presence":"optional"},{"defaultValue":null,"name":"currentClientX","presence":"optional"},{"defaultValue":null,"name":"currentClientY","presence":"optional"},{"defaultValue":null,"name":"deltaX","presence":"optional"},{"defaultValue":null,"name":"deltaY","presence":"optional"}],"name":"move-roster-shift-to-slot"}],"serverLayers":[],"sessionKinds":[{"description":"Roster drag/drop prototype","kind":"drag"}]}} as const;
+export function isInteractionCapabilityContract(value: unknown): value is InteractionCapabilityContract {
+    return __isInteractionDomAttributesExactRecord(value, ["mount", "serverLayers", "disposableLayers", "sessionKinds", "intentForms", "conflictPolicies"], []) && (isInteractionMountMetadata(value["mount"])) && (Array.isArray(value["serverLayers"]) && value["serverLayers"].every((item) => isServerLayerContract(item))) && (Array.isArray(value["disposableLayers"]) && value["disposableLayers"].every((item) => isDisposableLayerContract(item))) && (Array.isArray(value["sessionKinds"]) && value["sessionKinds"].every((item) => isSessionKindContract(item))) && (Array.isArray(value["intentForms"]) && value["intentForms"].every((item) => isIntentFormContract(item))) && (Array.isArray(value["conflictPolicies"]) && value["conflictPolicies"].every((item) => isInteractionConflictPolicy(item)));
+}
 
-export type InteractionStaticSchemaRegistry = typeof InteractionStaticSchemas;
 
+export type InteractionStaticServerLayer = {
+    name: string;
+    domIdSuffix: string;
+};
+
+export function isInteractionStaticServerLayer(value: unknown): value is InteractionStaticServerLayer {
+    return __isInteractionDomAttributesExactRecord(value, ["name", "domIdSuffix"], []) && (typeof value["name"] === "string") && (typeof value["domIdSuffix"] === "string");
+}
+
+
+export type InteractionStaticDisposableLayer = {
+    name: InteractionDisposableLayerName;
+    domIdSuffix: string;
+};
+
+export function isInteractionStaticDisposableLayer(value: unknown): value is InteractionStaticDisposableLayer {
+    return __isInteractionDomAttributesExactRecord(value, ["name", "domIdSuffix"], []) && (isInteractionDisposableLayerName(value["name"])) && (typeof value["domIdSuffix"] === "string");
+}
+
+
+export type InteractionStaticSessionKind = {
+    kind: InteractionSessionKindName;
+    description: string;
+};
+
+export function isInteractionStaticSessionKind(value: unknown): value is InteractionStaticSessionKind {
+    return __isInteractionDomAttributesExactRecord(value, ["kind", "description"], []) && (isInteractionSessionKindName(value["kind"])) && (typeof value["description"] === "string");
+}
+
+
+export type InteractionStaticIntent = {
+    name: InteractionIntentName;
+    fields: IntentFieldSchema[];
+};
+
+export function isInteractionStaticIntent(value: unknown): value is InteractionStaticIntent {
+    return __isInteractionDomAttributesExactRecord(value, ["name", "fields"], []) && (isInteractionIntentName(value["name"])) && (Array.isArray(value["fields"]) && value["fields"].every((item) => isIntentFieldSchema(item)));
+}
+
+
+export type InteractionStaticSchema = {
+    serverLayers: InteractionStaticServerLayer[];
+    disposableLayers: InteractionStaticDisposableLayer[];
+    sessionKinds: InteractionStaticSessionKind[];
+    intents: InteractionStaticIntent[];
+    conflictPolicies: InteractionConflictPolicy[];
+};
+
+export function isInteractionStaticSchema(value: unknown): value is InteractionStaticSchema {
+    return __isInteractionDomAttributesExactRecord(value, ["serverLayers", "disposableLayers", "sessionKinds", "intents", "conflictPolicies"], []) && (Array.isArray(value["serverLayers"]) && value["serverLayers"].every((item) => isInteractionStaticServerLayer(item))) && (Array.isArray(value["disposableLayers"]) && value["disposableLayers"].every((item) => isInteractionStaticDisposableLayer(item))) && (Array.isArray(value["sessionKinds"]) && value["sessionKinds"].every((item) => isInteractionStaticSessionKind(item))) && (Array.isArray(value["intents"]) && value["intents"].every((item) => isInteractionStaticIntent(item))) && (Array.isArray(value["conflictPolicies"]) && value["conflictPolicies"].every((item) => isInteractionConflictPolicy(item)));
+}
+
+
+export type InteractionStaticSchemaRegistry = {
+    roster: InteractionStaticSchema;
+};
+
+export function isInteractionStaticSchemaRegistry(value: unknown): value is InteractionStaticSchemaRegistry {
+    return __isInteractionDomAttributesExactRecord(value, ["roster"], []) && (isInteractionStaticSchema(value["roster"]));
+}
+
+
+
+export const InteractionDom: InteractionDom = {"attributes":{"activation":"data-bepis-activation","activationIntent":"data-bepis-activation-intent","activationTrigger":"data-bepis-activation-trigger","activationValueField":"data-bepis-activation-value-field","conflictPolicies":"data-bepis-conflict-policies","disposableLayer":"data-bepis-disposable-layer","dropzone":"data-bepis-dropzone","fieldPresence":"data-bepis-field-presence","intent":"data-bepis-intent","intentField":"data-bepis-intent-field","intentForm":"data-bepis-intent-form","intentHiddenField":"data-bepis-intent-hidden-field","interactionActive":"data-bepis-interaction-active","item":"data-bepis-item","marker":"data-bepis-marker","mountKey":"data-bepis-mount-key","pointerSession":"data-bepis-pointer-session","scopeKey":"data-bepis-scope-key","sessionDisabled":"data-bepis-session-disabled","sessionIntent":"data-bepis-session-intent","sessionKind":"data-bepis-session-kind","sessionReadOnly":"data-bepis-session-read-only","sessionThreshold":"data-bepis-session-threshold","sessionTimeoutMs":"data-bepis-session-timeout-ms","surface":"data-bepis-surface","surfaceFamily":"data-bepis-surface-family"},"pointerFields":{"currentClientX":"currentClientX","currentClientY":"currentClientY","deltaX":"deltaX","deltaY":"deltaY","pointerId":"pointerId","pointerType":"pointerType","sessionKind":"sessionKind","sourceItemKey":"sourceItemKey","startClientX":"startClientX","startClientY":"startClientY","targetDropzoneKey":"targetDropzoneKey"},"values":{"activationMarker":"activation","enabled":"true"}};
+export const InteractionStaticSchemas: InteractionStaticSchemaRegistry = {"roster":{"conflictPolicies":[{"fragment":{"kind":"any"},"resolution":"defer","session":{"kind":"session","session":"drag"},"timeoutMs":5000}],"disposableLayers":[{"domIdSuffix":"drag-preview","name":"drag-preview"}],"intents":[{"fields":[{"defaultValue":null,"name":"rosterLayoutMode","presence":"required"}],"name":"set-roster-layout-mode"},{"fields":[{"defaultValue":null,"name":"sourceItemKey","presence":"required"},{"defaultValue":null,"name":"targetDropzoneKey","presence":"required"},{"defaultValue":null,"name":"sessionKind","presence":"optional"},{"defaultValue":null,"name":"pointerId","presence":"optional"},{"defaultValue":null,"name":"pointerType","presence":"optional"},{"defaultValue":null,"name":"startClientX","presence":"optional"},{"defaultValue":null,"name":"startClientY","presence":"optional"},{"defaultValue":null,"name":"currentClientX","presence":"optional"},{"defaultValue":null,"name":"currentClientY","presence":"optional"},{"defaultValue":null,"name":"deltaX","presence":"optional"},{"defaultValue":null,"name":"deltaY","presence":"optional"}],"name":"move-roster-shift-to-slot"}],"serverLayers":[],"sessionKinds":[{"description":"Roster drag/drop prototype","kind":"drag"}]}};
 
 // Live-surface manifest generated from the registered Haskell surface registry.
 export type LiveSurfaceFamily =

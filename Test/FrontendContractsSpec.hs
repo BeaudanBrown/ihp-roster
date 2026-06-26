@@ -117,7 +117,7 @@ tests = describe "Frontend contract generator foundation" do
             rendered `shouldSatisfy` Text.isInfixOf "fragments: string[];"
             rendered `shouldSatisfy` Text.isInfixOf "protection: LiveFragmentProtection | null;"
             rendered `shouldSatisfy` Text.isInfixOf "sync?: string;"
-            rendered `shouldSatisfy` Text.isInfixOf "isExactRecord(value, [\"feature\", \"scope\", \"fragments\", \"protection\"], [\"sync\"])"
+            rendered `shouldSatisfy` Text.isInfixOf "__isLiveUpdateScopeExactRecord(value, [\"feature\", \"scope\", \"fragments\", \"protection\"], [\"sync\"])"
             rendered `shouldSatisfy` Text.isInfixOf "isLiveUpdateScope(value[\"scope\"])"
             rendered `shouldSatisfy` Text.isInfixOf "Array.isArray(value[\"fragments\"])"
 
@@ -285,9 +285,6 @@ frontendSourceRawEmitterAllowlist =
     [ ("Application/Helper/Frontend/Codec.hs", "\"export type", 4)
     , ("Application/Helper/Frontend/Codec.hs", "\"export const", 1)
     , ("Application/Helper/Frontend/Codec.hs", "\"export function", 1)
-    , ("Application/Helper/Frontend/InteractionSchema.hs", "\"export type", 12)
-    , ("Application/Helper/Frontend/InteractionSchema.hs", "\"export const", 2)
-    , ("Application/Helper/Frontend/InteractionSchema.hs", "stringUnionDeclaration", 2)
     , ("Application/Helper/Frontend/SurfaceManifestSchema.hs", "\"export type", 1)
     , ("Application/Helper/Frontend/SurfaceManifestSchema.hs", "\"export const", 1)
     , ("Application/Helper/Frontend/SurfaceManifestSchema.hs", "stringUnionDeclaration", 2)
@@ -318,15 +315,7 @@ countText needle haystack
                 (_, rest) -> 1 + go (Text.drop (Text.length needle) rest)
 
 generatedStringEscapeHatchAllowlist :: [Text]
-generatedStringEscapeHatchAllowlist =
-    [ "surfaceFamily: InteractionSurfaceFamily | string;"
-    , "export type DisposableLayerContract = { kind: InteractionDisposableLayerName | string; name: string; domId: string };"
-    , "export type SessionKindContract = { kind: InteractionSessionKindName | string; description: string };"
-    , "name: InteractionIntentFieldName | string;"
-    , "intent: InteractionIntentName | string;"
-    , "name: InteractionIntentName | string;"
-    , "session: InteractionSessionKindName | \"*\" | string;"
-    ]
+generatedStringEscapeHatchAllowlist = []
 
 generatedStringEscapeHatches :: Text -> [Text]
 generatedStringEscapeHatches source =

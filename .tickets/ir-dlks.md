@@ -1,6 +1,6 @@
 ---
 id: ir-dlks
-status: open
+status: closed
 deps: [ir-akhw, ir-5467]
 links: []
 created: 2026-06-26T04:23:33Z
@@ -22,3 +22,9 @@ Generate InteractionDom, InteractionMountMetadata, ServerLayerContract, Disposab
 
 InteractionSchema no longer emits hand-written TypeScript declarations; generated interaction types are closed over canonical names; InteractionStaticSchemas is a typed generated constant; frontend interaction runtime/tests compile without string escape hatches; focused Interaction and frontend tests pass.
 
+
+## Notes
+
+**2026-06-26T07:00:00Z**
+
+Migrated interaction contracts to FrontendCodec rendering. InteractionDom, interaction enums/name unions, DTO contract types, generated validators, and InteractionStaticSchemas are now emitted from codec schemas and typed constants; removed interaction string escape hatches. Verification passed: typecheck, frontend-contracts-check, frontend-check, and hspec-test --match 'Frontend contract' --match 'Interaction'.

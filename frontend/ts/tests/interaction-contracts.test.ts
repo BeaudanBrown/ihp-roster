@@ -3,15 +3,15 @@ import { assertDeepEqual, assertEqual, test } from "./harness";
 
 test("generated interaction contracts describe mount-local intent forms", () => {
     const form: IntentFormContract = {
-        intent: "select-cell",
-        name: "select-cell",
-        action: "/SelectCell",
+        intent: "move-roster-shift-to-slot",
+        name: "move-roster-shift-to-slot",
+        action: "/MoveRosterShiftToSlot",
         method: "post",
         trigger: "bepis:intent-submit from:this",
         target: { kind: "mount_local", target: "#surface-primary" },
         swap: "outerHTML",
-        fields: [{ name: "cellId", presence: "required" }],
-        hiddenFields: [{ name: "intent", value: "select-cell" }],
+        fields: [{ name: "sourceItemKey", presence: "required" }],
+        hiddenFields: [{ name: "intent", value: "move-roster-shift-to-slot" }],
         sync: "closest [data-bepis-surface]:queue",
         disabledElement: null,
     };
@@ -24,10 +24,10 @@ test("generated interaction contracts describe mount-local intent forms", () => 
             mountId: "bepis-surface--roster--primary",
         },
         serverLayers: [{ name: "server", domId: "server-layer" }],
-        disposableLayers: [{ kind: "selection", name: "selection", domId: "selection-layer" }],
-        sessionKinds: [{ kind: "click-select", description: "Click selection" }],
+        disposableLayers: [{ kind: "drag-preview", name: "drag-preview", domId: "drag-preview-layer" }],
+        sessionKinds: [{ kind: "drag", description: "Drag" }],
         intentForms: [form],
-        conflictPolicies: [{ session: "click-select", fragment: "*", resolution: "defer", timeoutMs: 1500 }],
+        conflictPolicies: [{ session: { kind: "session", session: "drag" }, fragment: { kind: "any" }, resolution: "defer", timeoutMs: 1500 }],
     };
 
     assertEqual(capability.intentForms[0]?.method, "post");
@@ -37,7 +37,7 @@ test("generated interaction contracts describe mount-local intent forms", () => 
     assertEqual(InteractionDom.attributes.interactionActive, "data-bepis-interaction-active");
     assertEqual(InteractionDom.pointerFields.sourceItemKey, "sourceItemKey");
     assertEqual(InteractionDom.pointerFields.targetDropzoneKey, "targetDropzoneKey");
-    assertDeepEqual(capability.intentForms[0]?.fields, [{ name: "cellId", presence: "required" }]);
+    assertDeepEqual(capability.intentForms[0]?.fields, [{ name: "sourceItemKey", presence: "required" }]);
 });
 
 test("generated live surface manifest exposes registered surface schemas without runtime urls", () => {
