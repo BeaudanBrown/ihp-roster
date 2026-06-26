@@ -1,6 +1,6 @@
 ---
 id: ir-udbq
-status: open
+status: closed
 deps: [ir-dlks]
 links: []
 created: 2026-06-26T04:23:33Z
@@ -22,3 +22,9 @@ Introduce RegisteredLiveSurfaceDescriptor values capable of exposing feature nam
 
 Adding a typed live surface requires one descriptor registration for runtime and generated manifest coverage; manifest content is derived, typed, and generated from descriptors; omission guard tests compare descriptors to generated contracts; existing live invalidation and authorization tests pass.
 
+
+## Notes
+
+**2026-06-26T07:12:18Z**
+
+Introduced registeredLiveSurfaceDescriptors as the pure registry source for manifest coverage and derives registeredLiveSurfaceManifest from it. Migrated LiveSurfaceManifest contracts/constants to FrontendCodec typed generation, including quoted generated TS property names for hyphenated surface families. Verification passed: typecheck, frontend-contracts-check, frontend-check, and hspec-test --match 'Frontend contract' --match 'LiveSurface'.

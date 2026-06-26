@@ -6,6 +6,7 @@ module Web.LiveSurfaceRegistry
     , performLiveSurfaceInvalidationTargetWithoutContext
     , planRegisteredLiveSurfaceInvalidations
     , planRegisteredLiveSurfaceInvalidationsWithoutContext
+    , registeredLiveSurfaceDescriptors
     , registeredLiveSurfaceManifest
     ) where
 
@@ -61,6 +62,10 @@ data RegisteredLiveSurface = RegisteredLiveSurface
     { planRegisteredSurfaceInvalidation :: Set.Set LiveResource -> LiveUpdateScope -> Maybe LiveSurfaceInvalidationTarget
     }
 
+data RegisteredLiveSurfaceDescriptor = RegisteredLiveSurfaceDescriptor
+    { descriptorManifest :: !RegisteredLiveSurfaceManifest
+    }
+
 data RegisteredLiveSurfaceManifest = RegisteredLiveSurfaceManifest
     { surfaceFamily     :: !Text
     , scopeKinds        :: ![Text]
@@ -71,20 +76,30 @@ data RegisteredLiveSurfaceManifest = RegisteredLiveSurfaceManifest
 
 registeredLiveSurfaceManifest :: [RegisteredLiveSurfaceManifest]
 registeredLiveSurfaceManifest =
-    [ RegisteredLiveSurfaceManifest "support" ["support_platform"] ["support_award_rates_section", "support_public_holidays_section"] Nothing
-    , RegisteredLiveSurfaceManifest "admin-venue-config" ["admin_venue_config"] ["admin_venue_config"] Nothing
-    , RegisteredLiveSurfaceManifest "admin-invites" ["admin_invites"] ["admin_invites"] Nothing
-    , RegisteredLiveSurfaceManifest "admin-exports" ["admin_exports"] ["admin_exports"] Nothing
-    , RegisteredLiveSurfaceManifest "admin-shift-types" ["admin_shift_types"] ["admin_shift_types"] Nothing
-    , RegisteredLiveSurfaceManifest "admin-roster-groups" ["admin_roster_groups"] ["admin_roster_groups"] Nothing
-    , RegisteredLiveSurfaceManifest "admin-xero" ["admin_xero"] ["admin_xero", "admin_xero_staff_mappings", "admin_xero_pay_items", "admin_xero_timesheets"] Nothing
-    , RegisteredLiveSurfaceManifest "billing" ["billing"] ["billing_status"] Nothing
-    , RegisteredLiveSurfaceManifest "leave-requests" ["leave_requests"] ["leave_requests_content"] Nothing
-    , RegisteredLiveSurfaceManifest "profile" ["profile"] ["profile_content"] Nothing
-    , RegisteredLiveSurfaceManifest "profile-leave-requests" ["profile"] ["profile_leave_requests_content"] Nothing
-    , RegisteredLiveSurfaceManifest "timesheets" ["timesheet_week"] ["timesheet_toolbar", "timesheet_day_columns", "timesheet_day_section"] Nothing
-    , RegisteredLiveSurfaceManifest "roster" ["roster_week"] ["roster_content", "roster_grid_toolbar", "roster_grid_frame", "roster_day_columns", "roster_day_rail", "roster_wage_rail", "roster_slots_grid", "roster_staff_panel", "roster_day_section", "roster_row"] (Just "roster")
+    fmap (.descriptorManifest) registeredLiveSurfaceDescriptors
+
+registeredLiveSurfaceDescriptors :: [RegisteredLiveSurfaceDescriptor]
+registeredLiveSurfaceDescriptors =
+    [ manifestDescriptor "support" ["support_platform"] ["support_award_rates_section", "support_public_holidays_section"] Nothing
+    , manifestDescriptor "admin-venue-config" ["admin_venue_config"] ["admin_venue_config"] Nothing
+    , manifestDescriptor "admin-invites" ["admin_invites"] ["admin_invites"] Nothing
+    , manifestDescriptor "admin-exports" ["admin_exports"] ["admin_exports"] Nothing
+    , manifestDescriptor "admin-shift-types" ["admin_shift_types"] ["admin_shift_types"] Nothing
+    , manifestDescriptor "admin-roster-groups" ["admin_roster_groups"] ["admin_roster_groups"] Nothing
+    , manifestDescriptor "admin-xero" ["admin_xero"] ["admin_xero", "admin_xero_staff_mappings", "admin_xero_pay_items", "admin_xero_timesheets"] Nothing
+    , manifestDescriptor "billing" ["billing"] ["billing_status"] Nothing
+    , manifestDescriptor "leave-requests" ["leave_requests"] ["leave_requests_content"] Nothing
+    , manifestDescriptor "profile" ["profile"] ["profile_content"] Nothing
+    , manifestDescriptor "profile-leave-requests" ["profile"] ["profile_leave_requests_content"] Nothing
+    , manifestDescriptor "timesheets" ["timesheet_week"] ["timesheet_toolbar", "timesheet_day_columns", "timesheet_day_section"] Nothing
+    , manifestDescriptor "roster" ["roster_week"] ["roster_content", "roster_grid_toolbar", "roster_grid_frame", "roster_day_columns", "roster_day_rail", "roster_wage_rail", "roster_slots_grid", "roster_staff_panel", "roster_day_section", "roster_row"] (Just "roster")
     ]
+
+manifestDescriptor :: Text -> [Text] -> [Text] -> Maybe Text -> RegisteredLiveSurfaceDescriptor
+manifestDescriptor surfaceFamily scopeKinds fragmentKinds interactionSchema =
+    RegisteredLiveSurfaceDescriptor
+        { descriptorManifest = RegisteredLiveSurfaceManifest { surfaceFamily, scopeKinds, fragmentKinds, interactionSchema }
+        }
 
 authorizeRegisteredLiveSurfaceScope ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>

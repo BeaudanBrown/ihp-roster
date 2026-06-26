@@ -285,9 +285,6 @@ frontendSourceRawEmitterAllowlist =
     [ ("Application/Helper/Frontend/Codec.hs", "\"export type", 4)
     , ("Application/Helper/Frontend/Codec.hs", "\"export const", 1)
     , ("Application/Helper/Frontend/Codec.hs", "\"export function", 1)
-    , ("Application/Helper/Frontend/SurfaceManifestSchema.hs", "\"export type", 1)
-    , ("Application/Helper/Frontend/SurfaceManifestSchema.hs", "\"export const", 1)
-    , ("Application/Helper/Frontend/SurfaceManifestSchema.hs", "stringUnionDeclaration", 2)
     , ("Application/Helper/Frontend/TypeScript.hs", "\"export type", 1)
     , ("Application/Helper/Frontend/TypeScript.hs", "stringUnionDeclaration", 3)
     ]

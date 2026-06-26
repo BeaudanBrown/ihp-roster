@@ -2,14 +2,17 @@ module Application.Helper.Frontend.SurfaceManifestSchema
     ( surfaceManifestDeclaration
     ) where
 
+import Application.Helper.Frontend.Codec (FrontendCodec (..),
+                                          FrontendField (..),
+                                          FrontendSchema (..),
+                                          SomeFrontendCodec (..),
+                                          renderFrontendContracts,
+                                          renderTypedConstant, stringEnumCodec)
 import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..),
-                                               TypeScriptDeclarationOrigin (HaskellSchemaGenerated),
-                                               stringUnionDeclaration)
+                                               TypeScriptDeclarationOrigin (HaskellSchemaGenerated))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
-import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as Text
-import qualified Data.Text.Encoding as TextEncoding
 import IHP.Prelude
 import Web.LiveSurfaceRegistry (RegisteredLiveSurfaceManifest (..),
                                 registeredLiveSurfaceManifest)
@@ -21,18 +24,51 @@ surfaceManifestDeclaration =
         , origin = HaskellSchemaGenerated
         , source = Text.unlines
             [ "// Live-surface manifest generated from the registered Haskell surface registry."
-            , stringUnionSource "LiveSurfaceFamily" (fmap (.surfaceFamily) registeredLiveSurfaceManifest)
-            , stringUnionSource "RegisteredLiveSurfaceScopeKind" (unique (concatMap (.scopeKinds) registeredLiveSurfaceManifest))
-            , stringUnionSource "RegisteredLiveSurfaceFragmentKind" (unique (concatMap (.fragmentKinds) registeredLiveSurfaceManifest))
-            , "export const LiveSurfaceManifest = " <> encodeJsonText liveSurfaceManifestJson <> " as const;"
-            , ""
-            , "export type LiveSurfaceManifestRegistry = typeof LiveSurfaceManifest;"
+            , surfaceManifestTypesSource
+            , surfaceManifestConstantSource
             ]
         }
 
-stringUnionSource :: Text -> [Text] -> Text
-stringUnionSource name values =
-    (stringUnionDeclaration name values).source
+surfaceManifestTypesSource :: Text
+surfaceManifestTypesSource =
+    case renderFrontendContracts surfaceManifestCodecs of
+        Right source -> source
+        Left message -> error ("Unable to render live-surface manifest contracts: " <> cs message)
+
+surfaceManifestConstantSource :: Text
+surfaceManifestConstantSource =
+    renderTypedConstant "LiveSurfaceManifest" liveSurfaceManifestRegistryCodec liveSurfaceManifestJson
+
+surfaceManifestCodecs :: [SomeFrontendCodec]
+surfaceManifestCodecs =
+    [ SomeFrontendCodec liveSurfaceFamilyCodec
+    , SomeFrontendCodec registeredLiveSurfaceScopeKindCodec
+    , SomeFrontendCodec registeredLiveSurfaceFragmentKindCodec
+    , SomeFrontendCodec liveSurfaceManifestEntryCodec
+    , SomeFrontendCodec liveSurfaceManifestRegistryCodec
+    ]
+
+liveSurfaceFamilyCodec :: FrontendCodec Text
+liveSurfaceFamilyCodec = textEnumCodec "LiveSurfaceFamily" (fmap (.surfaceFamily) registeredLiveSurfaceManifest)
+
+registeredLiveSurfaceScopeKindCodec :: FrontendCodec Text
+registeredLiveSurfaceScopeKindCodec = textEnumCodec "RegisteredLiveSurfaceScopeKind" (unique (concatMap (.scopeKinds) registeredLiveSurfaceManifest))
+
+registeredLiveSurfaceFragmentKindCodec :: FrontendCodec Text
+registeredLiveSurfaceFragmentKindCodec = textEnumCodec "RegisteredLiveSurfaceFragmentKind" (unique (concatMap (.fragmentKinds) registeredLiveSurfaceManifest))
+
+liveSurfaceManifestEntryCodec :: FrontendCodec Aeson.Value
+liveSurfaceManifestEntryCodec = valueCodec "LiveSurfaceManifestEntry" $ SchemaRecord "LiveSurfaceManifestEntry"
+    [ FrontendField "scopeKinds" (SchemaArray (SchemaRef "RegisteredLiveSurfaceScopeKind"))
+    , FrontendField "fragmentKinds" (SchemaArray (SchemaRef "RegisteredLiveSurfaceFragmentKind"))
+    , FrontendField "interactionSchema" (SchemaNullable (SchemaRef "InteractionSurfaceFamily"))
+    ]
+
+liveSurfaceManifestRegistryCodec :: FrontendCodec Aeson.Value
+liveSurfaceManifestRegistryCodec = valueCodec "LiveSurfaceManifestRegistry" $ SchemaRecord "LiveSurfaceManifestRegistry"
+    [ FrontendField surface.surfaceFamily (SchemaRef "LiveSurfaceManifestEntry")
+    | surface <- registeredLiveSurfaceManifest
+    ]
 
 liveSurfaceManifestJson :: Aeson.Value
 liveSurfaceManifestJson =
@@ -47,8 +83,18 @@ surfaceJson surface = Aeson.object
     , "interactionSchema" Aeson..= surface.interactionSchema
     ]
 
-encodeJsonText :: Aeson.Value -> Text
-encodeJsonText = TextEncoding.decodeUtf8 . LBS.toStrict . Aeson.encode
+valueCodec :: Text -> FrontendSchema -> FrontendCodec Aeson.Value
+valueCodec name schema =
+    FrontendCodec
+        { codecName = Just name
+        , codecSchema = schema
+        , codecEncode = id
+        , codecParse = pure
+        }
+
+textEnumCodec :: Text -> [Text] -> FrontendCodec Text
+textEnumCodec name values =
+    stringEnumCodec name [(value, value) | value <- values]
 
 unique :: [Text] -> [Text]
 unique = foldr (\value acc -> if value `elem` acc then acc else value : acc) []

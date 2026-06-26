@@ -22,6 +22,7 @@ module Application.Helper.Frontend.Codec
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
@@ -168,7 +169,7 @@ renderTypeDeclaration name = \case
 
 renderField :: FrontendField -> Text
 renderField field =
-    "    " <> field.fieldName <> optionalMarker field.fieldSchema <> ": " <> schemaType (stripOptional field.fieldSchema) <> ";"
+    "    " <> renderPropertyName field.fieldName <> optionalMarker field.fieldSchema <> ": " <> schemaType (stripOptional field.fieldSchema) <> ";"
 
 renderUnionValues :: [Text] -> [Text]
 renderUnionValues values =
@@ -190,7 +191,7 @@ renderVariantType tagField variant =
     "{ " <> Text.intercalate "; " (tagPart : fmap renderVariantField variant.variantFields) <> " }"
     where
         tagPart = tagField <> ": " <> quote variant.variantTag
-        renderVariantField field = field.fieldName <> optionalMarker field.fieldSchema <> ": " <> schemaType (stripOptional field.fieldSchema)
+        renderVariantField field = renderPropertyName field.fieldName <> optionalMarker field.fieldSchema <> ": " <> schemaType (stripOptional field.fieldSchema)
 
 schemaType :: FrontendSchema -> Text
 schemaType = \case
@@ -300,6 +301,20 @@ isOptionalSchema = \case
 
 stringArray :: [Text] -> Text
 stringArray values = "[" <> Text.intercalate ", " (fmap quote values) <> "]"
+
+renderPropertyName :: Text -> Text
+renderPropertyName name
+    | isTypeScriptIdentifier name = name
+    | otherwise = quote name
+
+isTypeScriptIdentifier :: Text -> Bool
+isTypeScriptIdentifier name =
+    case Text.uncons name of
+        Nothing -> False
+        Just (firstChar, rest) -> isIdentifierStart firstChar && Text.all isIdentifierPart rest
+    where
+        isIdentifierStart char = Char.isLetter char || char == '_' || char == '$'
+        isIdentifierPart char = Char.isAlphaNum char || char == '_' || char == '$'
 
 quote :: Text -> Text
 quote value =

@@ -557,6 +557,14 @@ export const InteractionDom: InteractionDom = {"attributes":{"activation":"data-
 export const InteractionStaticSchemas: InteractionStaticSchemaRegistry = {"roster":{"conflictPolicies":[{"fragment":{"kind":"any"},"resolution":"defer","session":{"kind":"session","session":"drag"},"timeoutMs":5000}],"disposableLayers":[{"domIdSuffix":"drag-preview","name":"drag-preview"}],"intents":[{"fields":[{"defaultValue":null,"name":"rosterLayoutMode","presence":"required"}],"name":"set-roster-layout-mode"},{"fields":[{"defaultValue":null,"name":"sourceItemKey","presence":"required"},{"defaultValue":null,"name":"targetDropzoneKey","presence":"required"},{"defaultValue":null,"name":"sessionKind","presence":"optional"},{"defaultValue":null,"name":"pointerId","presence":"optional"},{"defaultValue":null,"name":"pointerType","presence":"optional"},{"defaultValue":null,"name":"startClientX","presence":"optional"},{"defaultValue":null,"name":"startClientY","presence":"optional"},{"defaultValue":null,"name":"currentClientX","presence":"optional"},{"defaultValue":null,"name":"currentClientY","presence":"optional"},{"defaultValue":null,"name":"deltaX","presence":"optional"},{"defaultValue":null,"name":"deltaY","presence":"optional"}],"name":"move-roster-shift-to-slot"}],"serverLayers":[],"sessionKinds":[{"description":"Roster drag/drop prototype","kind":"drag"}]}};
 
 // Live-surface manifest generated from the registered Haskell surface registry.
+function __isLiveSurfaceFamilyExactRecord(value: unknown, requiredKeys: string[], optionalKeys: string[]): value is Record<string, unknown> {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+    const actualKeys = Object.keys(value);
+    const allowedKeys = new Set([...requiredKeys, ...optionalKeys]);
+    return requiredKeys.every((key) => Object.prototype.hasOwnProperty.call(value, key)) && actualKeys.every((key) => allowedKeys.has(key));
+}
+
+
 export type LiveSurfaceFamily =
     | "support"
     | "admin-venue-config"
@@ -572,6 +580,11 @@ export type LiveSurfaceFamily =
     | "timesheets"
     | "roster";
 
+export function isLiveSurfaceFamily(value: unknown): value is LiveSurfaceFamily {
+    return value === "support" || value === "admin-venue-config" || value === "admin-invites" || value === "admin-exports" || value === "admin-shift-types" || value === "admin-roster-groups" || value === "admin-xero" || value === "billing" || value === "leave-requests" || value === "profile" || value === "profile-leave-requests" || value === "timesheets" || value === "roster";
+}
+
+
 export type RegisteredLiveSurfaceScopeKind =
     | "support_platform"
     | "admin_venue_config"
@@ -585,6 +598,11 @@ export type RegisteredLiveSurfaceScopeKind =
     | "profile"
     | "timesheet_week"
     | "roster_week";
+
+export function isRegisteredLiveSurfaceScopeKind(value: unknown): value is RegisteredLiveSurfaceScopeKind {
+    return value === "support_platform" || value === "admin_venue_config" || value === "admin_invites" || value === "admin_exports" || value === "admin_shift_types" || value === "admin_roster_groups" || value === "admin_xero" || value === "billing" || value === "leave_requests" || value === "profile" || value === "timesheet_week" || value === "roster_week";
+}
+
 
 export type RegisteredLiveSurfaceFragmentKind =
     | "support_award_rates_section"
@@ -616,7 +634,43 @@ export type RegisteredLiveSurfaceFragmentKind =
     | "roster_day_section"
     | "roster_row";
 
-export const LiveSurfaceManifest = {"admin-exports":{"fragmentKinds":["admin_exports"],"interactionSchema":null,"scopeKinds":["admin_exports"]},"admin-invites":{"fragmentKinds":["admin_invites"],"interactionSchema":null,"scopeKinds":["admin_invites"]},"admin-roster-groups":{"fragmentKinds":["admin_roster_groups"],"interactionSchema":null,"scopeKinds":["admin_roster_groups"]},"admin-shift-types":{"fragmentKinds":["admin_shift_types"],"interactionSchema":null,"scopeKinds":["admin_shift_types"]},"admin-venue-config":{"fragmentKinds":["admin_venue_config"],"interactionSchema":null,"scopeKinds":["admin_venue_config"]},"admin-xero":{"fragmentKinds":["admin_xero","admin_xero_staff_mappings","admin_xero_pay_items","admin_xero_timesheets"],"interactionSchema":null,"scopeKinds":["admin_xero"]},"billing":{"fragmentKinds":["billing_status"],"interactionSchema":null,"scopeKinds":["billing"]},"leave-requests":{"fragmentKinds":["leave_requests_content"],"interactionSchema":null,"scopeKinds":["leave_requests"]},"profile":{"fragmentKinds":["profile_content"],"interactionSchema":null,"scopeKinds":["profile"]},"profile-leave-requests":{"fragmentKinds":["profile_leave_requests_content"],"interactionSchema":null,"scopeKinds":["profile"]},"roster":{"fragmentKinds":["roster_content","roster_grid_toolbar","roster_grid_frame","roster_day_columns","roster_day_rail","roster_wage_rail","roster_slots_grid","roster_staff_panel","roster_day_section","roster_row"],"interactionSchema":"roster","scopeKinds":["roster_week"]},"support":{"fragmentKinds":["support_award_rates_section","support_public_holidays_section"],"interactionSchema":null,"scopeKinds":["support_platform"]},"timesheets":{"fragmentKinds":["timesheet_toolbar","timesheet_day_columns","timesheet_day_section"],"interactionSchema":null,"scopeKinds":["timesheet_week"]}} as const;
+export function isRegisteredLiveSurfaceFragmentKind(value: unknown): value is RegisteredLiveSurfaceFragmentKind {
+    return value === "support_award_rates_section" || value === "support_public_holidays_section" || value === "admin_venue_config" || value === "admin_invites" || value === "admin_exports" || value === "admin_shift_types" || value === "admin_roster_groups" || value === "admin_xero" || value === "admin_xero_staff_mappings" || value === "admin_xero_pay_items" || value === "admin_xero_timesheets" || value === "billing_status" || value === "leave_requests_content" || value === "profile_content" || value === "profile_leave_requests_content" || value === "timesheet_toolbar" || value === "timesheet_day_columns" || value === "timesheet_day_section" || value === "roster_content" || value === "roster_grid_toolbar" || value === "roster_grid_frame" || value === "roster_day_columns" || value === "roster_day_rail" || value === "roster_wage_rail" || value === "roster_slots_grid" || value === "roster_staff_panel" || value === "roster_day_section" || value === "roster_row";
+}
 
-export type LiveSurfaceManifestRegistry = typeof LiveSurfaceManifest;
+
+export type LiveSurfaceManifestEntry = {
+    scopeKinds: RegisteredLiveSurfaceScopeKind[];
+    fragmentKinds: RegisteredLiveSurfaceFragmentKind[];
+    interactionSchema: InteractionSurfaceFamily | null;
+};
+
+export function isLiveSurfaceManifestEntry(value: unknown): value is LiveSurfaceManifestEntry {
+    return __isLiveSurfaceFamilyExactRecord(value, ["scopeKinds", "fragmentKinds", "interactionSchema"], []) && (Array.isArray(value["scopeKinds"]) && value["scopeKinds"].every((item) => isRegisteredLiveSurfaceScopeKind(item))) && (Array.isArray(value["fragmentKinds"]) && value["fragmentKinds"].every((item) => isRegisteredLiveSurfaceFragmentKind(item))) && (value["interactionSchema"] === null || (isInteractionSurfaceFamily(value["interactionSchema"])));
+}
+
+
+export type LiveSurfaceManifestRegistry = {
+    support: LiveSurfaceManifestEntry;
+    "admin-venue-config": LiveSurfaceManifestEntry;
+    "admin-invites": LiveSurfaceManifestEntry;
+    "admin-exports": LiveSurfaceManifestEntry;
+    "admin-shift-types": LiveSurfaceManifestEntry;
+    "admin-roster-groups": LiveSurfaceManifestEntry;
+    "admin-xero": LiveSurfaceManifestEntry;
+    billing: LiveSurfaceManifestEntry;
+    "leave-requests": LiveSurfaceManifestEntry;
+    profile: LiveSurfaceManifestEntry;
+    "profile-leave-requests": LiveSurfaceManifestEntry;
+    timesheets: LiveSurfaceManifestEntry;
+    roster: LiveSurfaceManifestEntry;
+};
+
+export function isLiveSurfaceManifestRegistry(value: unknown): value is LiveSurfaceManifestRegistry {
+    return __isLiveSurfaceFamilyExactRecord(value, ["support", "admin-venue-config", "admin-invites", "admin-exports", "admin-shift-types", "admin-roster-groups", "admin-xero", "billing", "leave-requests", "profile", "profile-leave-requests", "timesheets", "roster"], []) && (isLiveSurfaceManifestEntry(value["support"])) && (isLiveSurfaceManifestEntry(value["admin-venue-config"])) && (isLiveSurfaceManifestEntry(value["admin-invites"])) && (isLiveSurfaceManifestEntry(value["admin-exports"])) && (isLiveSurfaceManifestEntry(value["admin-shift-types"])) && (isLiveSurfaceManifestEntry(value["admin-roster-groups"])) && (isLiveSurfaceManifestEntry(value["admin-xero"])) && (isLiveSurfaceManifestEntry(value["billing"])) && (isLiveSurfaceManifestEntry(value["leave-requests"])) && (isLiveSurfaceManifestEntry(value["profile"])) && (isLiveSurfaceManifestEntry(value["profile-leave-requests"])) && (isLiveSurfaceManifestEntry(value["timesheets"])) && (isLiveSurfaceManifestEntry(value["roster"]));
+}
+
+
+
+export const LiveSurfaceManifest: LiveSurfaceManifestRegistry = {"admin-exports":{"fragmentKinds":["admin_exports"],"interactionSchema":null,"scopeKinds":["admin_exports"]},"admin-invites":{"fragmentKinds":["admin_invites"],"interactionSchema":null,"scopeKinds":["admin_invites"]},"admin-roster-groups":{"fragmentKinds":["admin_roster_groups"],"interactionSchema":null,"scopeKinds":["admin_roster_groups"]},"admin-shift-types":{"fragmentKinds":["admin_shift_types"],"interactionSchema":null,"scopeKinds":["admin_shift_types"]},"admin-venue-config":{"fragmentKinds":["admin_venue_config"],"interactionSchema":null,"scopeKinds":["admin_venue_config"]},"admin-xero":{"fragmentKinds":["admin_xero","admin_xero_staff_mappings","admin_xero_pay_items","admin_xero_timesheets"],"interactionSchema":null,"scopeKinds":["admin_xero"]},"billing":{"fragmentKinds":["billing_status"],"interactionSchema":null,"scopeKinds":["billing"]},"leave-requests":{"fragmentKinds":["leave_requests_content"],"interactionSchema":null,"scopeKinds":["leave_requests"]},"profile":{"fragmentKinds":["profile_content"],"interactionSchema":null,"scopeKinds":["profile"]},"profile-leave-requests":{"fragmentKinds":["profile_leave_requests_content"],"interactionSchema":null,"scopeKinds":["profile"]},"roster":{"fragmentKinds":["roster_content","roster_grid_toolbar","roster_grid_frame","roster_day_columns","roster_day_rail","roster_wage_rail","roster_slots_grid","roster_staff_panel","roster_day_section","roster_row"],"interactionSchema":"roster","scopeKinds":["roster_week"]},"support":{"fragmentKinds":["support_award_rates_section","support_public_holidays_section"],"interactionSchema":null,"scopeKinds":["support_platform"]},"timesheets":{"fragmentKinds":["timesheet_toolbar","timesheet_day_columns","timesheet_day_section"],"interactionSchema":null,"scopeKinds":["timesheet_week"]}};
 
