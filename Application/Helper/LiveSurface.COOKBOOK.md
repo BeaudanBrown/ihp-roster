@@ -21,12 +21,26 @@ URLs, authorization, and protection policy.
   mutation.
 - **Passive invalidation**: the websocket message that tells other mounted
   browsers to refetch authorized fragments.
-- **Projection**: a cached server render snapshot used when a fragment can be
-  regenerated from the same read model.
+- **Projection**: an optional legacy/future cached server render snapshot used
+  when a fragment can be regenerated from the same read model. Projection is not
+  part of the golden live-surface path; prefer direct DB reads unless profiling
+  proves a cache/read-model adapter is needed.
+- **Registered surface catalog**: the explicit list in `Web.LiveSurfaceRegistry`
+  that owns authorization, manifest generation, and invalidation planning for
+  every surface. Haskell cannot reliably discover all surface values
+  automatically, so the explicit catalog is intentional and guarded.
+- **Background-plannable surface**: a registered surface whose invalidations can
+  be planned from touched resources and subscribed wire scopes without a request
+  context. Use this for webhooks, async workers, and background jobs.
+- **Request-context-only surface**: a registered surface whose planning or
+  authorization depends on the active controller context, usually current venue
+  or current user state.
 - **Interaction capability**: optional typed metadata attached to the same
   surface origin for disposable UI layers, user intents, generated HTMX intent
-  forms, and live-fragment conflict policy. The durable interaction contract is
-  `Application/Helper/Interaction.SPEC.md`.
+  forms, and live-fragment conflict policy. Attach it with
+  `liveSurfaceDescriptorWithInteraction` when using descriptors; complex
+  adapter surfaces may attach it directly to their typed definition. The durable
+  interaction contract is `Application/Helper/Interaction.SPEC.md`.
 - **Disposable layer**: a Haskell-declared client-owned region for temporary UI
   such as drag previews, resize ghosts, selection rectangles, context menus, or
   command overlays. It is not authoritative and must be safe to clear.
@@ -105,10 +119,20 @@ staticLiveFragmentDescriptor fragment wireKey targetId url dependencies
 
 For multi-fragment surfaces, declare one `staticLiveFragmentDescriptor` or
 `liveFragmentDescriptor` per feature-local fragment and let the descriptor lower
-them into default resync fragments and decorate selectors. Complex surfaces such
-as roster or timesheets may still use the full `TypedLiveSurfaceDefinition` or
-projection helpers where they need custom candidate fragments, containment,
-interaction capability, or projection behavior.
+them into default resync fragments and decorate selectors. If the surface has a
+typed interaction layer, attach it at the descriptor boundary:
+
+```haskell
+adminExampleDescriptor
+    |> liveSurfaceDescriptorWithInteraction adminExampleInteractionSchema adminExampleInteractionCapability
+    |> descriptorToTypedLiveSurfaceDefinition
+```
+
+Complex surfaces such as roster or timesheets may still use a descriptor-shaped
+adapter/full `TypedLiveSurfaceDefinition` where they need custom candidate
+fragments, containment, interaction capability, or legacy projection behavior.
+Keep projection as an implementation detail, not as the required live-surface
+abstraction.
 
 ## Add A Fragment
 
@@ -134,10 +158,12 @@ interaction capability, or projection behavior.
    definition that created the fragment contract.
 7. Render `data-live-update-surface={liveSurfaceConfigJson surface}` on a
    stable owner shell, where `surface` comes from `mkTypedDefinedLiveSurface`.
-8. Register the surface in `Web.LiveSurfaceRegistry` so touched resources can be
-   matched to subscribed scopes and fragments. Prefer
-   `manifestDescriptorFromTypedSurface` for descriptor-backed surfaces with a
-   sample key so the generated TypeScript manifest follows the typed definition.
+8. Register the surface in the explicit `registeredLiveSurfaceManifestCatalog`,
+   authorization catalog, and planning branches in `Web.LiveSurfaceRegistry` via
+   `registeredLiveSurface`. Pick `BackgroundPlannable` only when invalidations
+   can run without `?context`; otherwise use `RequestContextOnly`. The generated
+   TypeScript manifest must flow from the registered typed surface entry, not a
+   hand-written manifest descriptor.
 9. Make the business mutation return touched resources and call
    `invalidateTouchedResources` or `invalidateTouchedResourcesWithoutContext`
    after the write commits.
@@ -172,8 +198,9 @@ interaction capability, or projection behavior.
 
 - The fragment enum is local to the feature and uses closed constructors rather
   than free-text selectors.
-- The typed surface definition is registered in `Web.LiveSurfaceRegistry` when
-  websocket authorization needs it.
+- The typed surface definition is registered in `Web.LiveSurfaceRegistry` via a
+  `RegisteredLiveSurface` catalog entry. There should be no hand-written
+  manifest descriptor for the surface.
 - The rendered shell has stable `data-live-update-surface` metadata.
 - The fragment GET action returns plain target HTML, not actor-only OOB wrappers
   or sibling live-fragment targets.
