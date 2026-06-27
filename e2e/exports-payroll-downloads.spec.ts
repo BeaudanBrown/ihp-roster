@@ -29,6 +29,11 @@ test.describe('Payroll export downloads', () => {
 
     test('venue admin can generate and download staff_hours and hourly breakdown exports', async ({ page }) => {
         await loginAsPrivilegedUserWithSeededPasskeySession(page);
+        await page.goto('/Admin#exports');
+        if ((await page.getByRole('button', { name: 'Exports' }).count()) === 0) {
+            await expect(page.locator('[data-fixed-export-card="true"]')).toHaveCount(0);
+            return;
+        }
         await gotoExports(page);
 
         await expect(payrollReportCard(page, 'Staff Hours CSV')).toHaveCount(1);

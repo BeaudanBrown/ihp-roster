@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
-import { gotoWhenReady } from './test-helpers';
+import { dismissOptionalPasskeySetupPrompt, gotoWhenReady } from './test-helpers';
 
 test.describe('Authentication', () => {
     test('login page does not expose public request access', async ({ page }) => {
@@ -26,6 +26,7 @@ test.describe('Authentication', () => {
         await expect(page.getByRole('button', { name: 'Open roster week overview' })).toHaveCount(0);
         await expect(page.locator('.roster-week-nav-label')).toContainText('Week of');
         await expect(page.getByRole('link', { name: 'roster' })).toBeVisible();
+        await dismissOptionalPasskeySetupPrompt(page);
 
         // Logout
         await page.click('a:has-text("logout"), button:has-text("logout")');

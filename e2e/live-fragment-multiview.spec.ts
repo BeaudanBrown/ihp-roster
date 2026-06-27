@@ -14,15 +14,15 @@ const workerCreds = {
     password: 'test-password-123',
 };
 
-async function loginManager(page) {
+async function loginManager(page: Page) {
     await loginAs(page, managerCreds.email, managerCreds.password);
 }
 
-async function loginWorker(page) {
+async function loginWorker(page: Page) {
     await loginAs(page, workerCreds.email, workerCreds.password);
 }
 
-async function loginAndOpenRoster(page) {
+async function loginAndOpenRoster(page: Page) {
     await openRoster(page, { email: managerCreds.email, password: managerCreds.password });
     await expect(page.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
 }
@@ -271,7 +271,7 @@ test.describe('Live fragment multi-view coverage', () => {
         await createTimesheetForDaySection(timesheetPage, dayOffset!, '16:30', '19:30');
 
         await expect(timesheetPage.locator(`#timesheet-day-section-${dayOffset}`)).toContainText(timesheetCreatedRange);
-        await expect(rosterPage.locator('#roster-staff-self-service-timesheet-live-surface')).toContainText(timesheetCreatedRange, { timeout: E2E_TIMEOUT.liveUpdate });
+        await expect(rosterPage.locator('#roster-staff-self-service-timesheet-live-surface')).toContainText(rosterCreatedRange);
 
         await rosterContext.close();
         await timesheetContext.close();

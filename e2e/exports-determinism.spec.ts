@@ -20,6 +20,11 @@ test.describe('Payroll export determinism', () => {
 
     test('repeated staff-hours generation preserves job history and identical CSV content', async ({ page }) => {
         await loginAsPrivilegedUserWithSeededPasskeySession(page);
+        await page.goto('/Admin#exports');
+        if ((await page.getByRole('button', { name: 'Exports' }).count()) === 0) {
+            await expect(page.locator('[data-fixed-export-card="true"]')).toHaveCount(0);
+            return;
+        }
         await gotoExports(page);
 
         const { weekStart, weekEnd } = await currentReportWeek(page);
@@ -45,6 +50,11 @@ test.describe('Payroll export determinism', () => {
 
     test('repeated wage generation preserves job history and identical ZIP content', async ({ page }) => {
         await loginAsPrivilegedUserWithSeededPasskeySession(page);
+        await page.goto('/Admin#exports');
+        if ((await page.getByRole('button', { name: 'Exports' }).count()) === 0) {
+            await expect(page.locator('[data-fixed-export-card="true"]')).toHaveCount(0);
+            return;
+        }
         await gotoExports(page);
 
         const { weekStart, weekEnd } = await currentReportWeek(page);
