@@ -1,6 +1,6 @@
 import { expect, Page, test } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
-import { addRowToFirstRosterDay, editableRosterRows, gotoWhenReady, loginAs, openProfileLeaveSection, openRoster, runSql, setFlatpickrDate } from './test-helpers';
+import { gotoWhenReady, loginAs, openProfileLeaveSection, openRoster, runSql, setFlatpickrDate } from './test-helpers';
 
 const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
 
@@ -80,18 +80,12 @@ async function fillAndSaveTimesheetDialog(page: Page, startTime: string, endTime
     await expect(page.locator('#dialog-overlay-mount')).toBeEmpty();
 }
 
-async function ensureEditableRosterRow(page: Page, rowIndex: number) {
-    for (let attempts = 0; attempts <= rowIndex; attempts += 1) {
-        const rows = editableRosterRows(page);
-        if (await rows.count() > rowIndex) {
-            return rows.nth(rowIndex);
-        }
-
-        await addRowToFirstRosterDay(page);
-        await expect(rows).toHaveCount(attempts + 2);
+async function openProfileDetailsSection(page: Page) {
+    const detailsToggle = page.getByRole('button', { name: 'Profile Details' });
+    if ((await detailsToggle.getAttribute('aria-expanded')) !== 'true') {
+        await detailsToggle.click();
     }
-
-    throw new Error(`Could not provision editable roster row ${rowIndex}`);
+    await expect(page.locator('#profile-details-form')).toBeVisible({ timeout: E2E_TIMEOUT.action });
 }
 
 test.describe('Live fragment multi-view coverage', () => {
@@ -144,6 +138,8 @@ test.describe('Live fragment multi-view coverage', () => {
         await gotoWhenReady(viewerPage, '/EditProfile', '#profile-live-surface');
 
         await expect(actorPage.locator('#profile-live-surface')).toHaveAttribute('data-live-update-surface', /profile_content/);
+        await openProfileDetailsSection(actorPage);
+        await openProfileDetailsSection(viewerPage);
         await expect(viewerPage.locator('#preferredName')).not.toHaveValue(preferredName);
 
         await actorPage.fill('#preferredName', preferredName);
@@ -168,7 +164,7 @@ test.describe('Live fragment multi-view coverage', () => {
         const requesterPage = await requesterContext.newPage();
         const viewerPage = await viewerContext.newPage();
         const note = 'Alpha leave request';
-        const targetStaffId = 'a0000000-0000-0000-0000-000000000101';
+        const targetStaffId = 'a1000000-0000-0000-0000-000000000031';
 
         await loginManager(actorPage);
         await gotoWhenReady(actorPage, '/LeaveRequests', '#leave-requests-content');
@@ -194,11 +190,9 @@ test.describe('Live fragment multi-view coverage', () => {
         await gotoWhenReady(actorPage, '/LeaveRequests', '#leave-requests-content');
 
         await loginAndOpenRoster(viewerPage);
-        const viewerTargetRow = await ensureEditableRosterRow(viewerPage, 1);
-        const viewerTargetSelect = viewerTargetRow.locator('select[name="staffId"]').first();
-        await viewerTargetSelect.selectOption(targetStaffId);
-        await expect(viewerTargetSelect).toHaveValue(targetStaffId);
-        const viewerTargetStaffCell = viewerTargetRow.locator('.slot-staff-cell').first();
+        const viewerTargetLauncher = viewerPage.locator(`[data-roster-shift-launcher="true"][data-roster-staff-id="${targetStaffId}"]`).first();
+        await expect(viewerTargetLauncher).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
+        const viewerTargetStaffCell = viewerTargetLauncher.locator('.slot-staff-cell').first();
 
         const leaveRow = actorPage.locator('#leave-requests-content article').filter({ hasText: note });
 
@@ -224,7 +218,7 @@ test.describe('Live fragment multi-view coverage', () => {
         const workerContext = await browser.newContext();
         const managerPage = await managerContext.newPage();
         const workerPage = await workerContext.newPage();
-        const renderedRange = '11:15 AM - 3:15 PM';
+        const renderedRange = '11:15 AM–3:15 PM';
 
         await loginManager(managerPage);
         await loginWorker(workerPage);
@@ -256,8 +250,8 @@ test.describe('Live fragment multi-view coverage', () => {
         const timesheetContext = await browser.newContext();
         const rosterPage = await rosterContext.newPage();
         const timesheetPage = await timesheetContext.newPage();
-        const rosterCreatedRange = '1:15 PM - 4:15 PM';
-        const timesheetCreatedRange = '4:30 PM - 7:30 PM';
+        const rosterCreatedRange = '1:15–4:15 PM';
+        const timesheetCreatedRange = '4:30–7:30 PM';
 
         await loginWorker(rosterPage);
         await loginWorker(timesheetPage);

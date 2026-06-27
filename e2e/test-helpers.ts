@@ -177,6 +177,23 @@ export async function loginAs(page: Page, email: string, password: string) {
     await page.click('button[type="submit"]');
     await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
     await expect(page.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
+    await dismissOptionalPasskeySetupPrompt(page);
+}
+
+export async function dismissOptionalPasskeySetupPrompt(page: Page) {
+    const prompts = page.locator('.js-passkey-setup-prompt');
+    await prompts.first().waitFor({ state: 'attached', timeout: E2E_TIMEOUT.quick }).catch(() => {});
+    if (await prompts.count() === 0) return;
+
+    await prompts.evaluateAll((elements) => {
+        for (const element of elements) {
+            element.remove();
+        }
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+    });
+
+    await expect(prompts).toHaveCount(0, { timeout: E2E_TIMEOUT.action });
 }
 
 function e2eDatabaseArgs() {
