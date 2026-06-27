@@ -28,6 +28,18 @@ tests = describe "LiveSurface strict API guard" do
         violations <- concat <$> forM simpleDescriptorBackedSurfaceFiles rawTypedSurfaceConstructorsInFile
         violations `shouldBe` []
 
+    it "keeps live surface manifests derived from registered surface catalog entries" do
+        violations <- registryManualManifestViolations
+        violations `shouldBe` []
+
+registryManualManifestViolations :: IO [Text]
+registryManualManifestViolations = do
+    source <- Text.readFile "Web/LiveSurfaceRegistry.hs"
+    pure
+        [ "Web/LiveSurfaceRegistry.hs: manual manifestDescriptor entry bypasses RegisteredLiveSurface catalog"
+        | "manifestDescriptor \"" `Text.isInfixOf` source
+        ]
+
 forbiddenReferencesInFile :: FilePath -> IO [Text]
 forbiddenReferencesInFile path = do
     source <- Text.readFile path
