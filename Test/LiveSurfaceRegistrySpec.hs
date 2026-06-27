@@ -34,6 +34,9 @@ tests = do
             manifestSummary "admin-venue-config" `shouldBe` Just (["admin_venue_config"], ["admin_venue_config"])
             manifestSummary "billing" `shouldBe` Just (["billing"], ["billing_status"])
             manifestSummary "admin-invites" `shouldBe` Just (["admin_invites"], ["admin_invites"])
+            manifestSummary "admin-exports" `shouldBe` Just (["admin_exports"], ["admin_exports"])
+            manifestSummary "admin-shift-types" `shouldBe` Just (["admin_shift_types"], ["admin_shift_types"])
+            manifestSummary "admin-roster-groups" `shouldBe` Just (["admin_roster_groups"], ["admin_roster_groups"])
 
         it "keeps registered surface families unique" do
             let families = fmap (.surfaceFamily) registeredLiveSurfaceManifest

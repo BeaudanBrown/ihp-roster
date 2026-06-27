@@ -38,19 +38,93 @@ The living interaction contract is `Application/Helper/Interaction.SPEC.md`.
 Use it for typed surface/layer/intent/form/conflict-policy details; this
 cookbook remains the checklist for live fragments.
 
+## Preferred Simple Surface Path
+
+For a small current-venue surface with one or more static fragments, prefer the
+refined descriptor helpers instead of hand-writing the full
+`TypedLiveSurfaceDefinition` record:
+
+```haskell
+adminExampleLiveSurfaceDefinition ::
+    (?context :: ControllerContext) =>
+    TypedLiveSurfaceDefinition AdminExampleSurface () AdminExampleLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
+adminExampleLiveSurfaceDefinition =
+    adminExampleLiveSurfaceDefinitionForVenue currentVenueScopeId
+
+adminExampleLiveSurfaceDefinitionForVenue ::
+    UUID ->
+    TypedLiveSurfaceDefinition AdminExampleSurface () AdminExampleLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
+adminExampleLiveSurfaceDefinitionForVenue surfaceVenueId =
+    currentVenueUnitScopeSurfaceForVenue
+        "admin-example"
+        surfaceVenueId
+        adminExampleVenueScope
+        RequireCurrentVenueAdmin
+        [ staticLiveFragmentDescriptor
+            AdminExampleFragment
+            AdminExampleWireFragment
+            "admin-example-fragment"
+            (pathTo ShowAdminExampleFragmentAction)
+            (const (liveFragmentDependsOn (AdminExampleResource surfaceVenueId) []))
+        ]
+
+adminExampleVenueScope :: VenueLiveUpdateScope
+adminExampleVenueScope =
+    venueLiveUpdateScope
+        AdminExampleScope
+        (\case
+            AdminExampleScope { venueId } -> Just venueId
+            _ -> Nothing)
+```
+
+Use `currentVenueUnitScopeSurface` when no context-free/test/sample definition is
+needed. Use the `...ForVenue` form when `Web.LiveSurfaceRegistry` should derive
+manifest metadata from the typed definition without a request context.
+
+For a fragment whose URL depends on a local key, keep the URL explicit with
+`liveFragmentDescriptor`:
+
+```haskell
+liveFragmentDescriptor
+    AdminInvitesFragment
+    (\key ->
+        mkSurfaceFragmentRef
+            AdminInvitesWireFragment
+            "admin-invites-fragment"
+            (appendQueryParams (pathTo ShowAdminInvitesFragmentAction) (inviteQuery key)))
+    (const (liveFragmentDependsOn (AdminInvitesResource surfaceVenueId) []))
+```
+
+For focused-field protection or nested fragments, compose descriptor modifiers:
+
+```haskell
+staticLiveFragmentDescriptor fragment wireKey targetId url dependencies
+    |> liveFragmentDescriptorWithFocusedProtection focusProtection
+    |> liveFragmentDescriptorWithPath ["parent-fragment", targetId]
+```
+
+For multi-fragment surfaces, declare one `staticLiveFragmentDescriptor` or
+`liveFragmentDescriptor` per feature-local fragment and let the descriptor lower
+them into default resync fragments and decorate selectors. Complex surfaces such
+as roster or timesheets may still use the full `TypedLiveSurfaceDefinition` or
+projection helpers where they need custom candidate fragments, containment,
+interaction capability, or projection behavior.
+
 ## Add A Fragment
 
 1. Add feature-local closed ADT constructors, for example
    `RosterProjectionRow` or `TimesheetProjectionDaySection`. Do not model
    fragment selectors as free `Text`; parse external section/query values into
    the closed fragment type first.
-2. Map that constructor in the feature's `typedSurfaceFragmentContract` with a
-   `FragmentContract` built by `mkSurfaceFragmentContract`.
-3. Give the contract a stable `targetId`, canonical fragment GET URL, protection
-   policy, and containment path. Use `surfaceFragmentRefWithPath` when the target
-   is nested inside another live fragment target; otherwise the default path is
-   the target id.
-4. Declare the fragment's dependency intent in the same contract with
+2. Map that constructor with `staticLiveFragmentDescriptor` when the fragment has
+   a fixed wire key, target id, URL, and dependency function. Use
+   `liveFragmentDescriptor` only when the ref is key-dependent, such as query
+   parameters derived from the surface key.
+3. Give the descriptor a stable `targetId`, canonical fragment GET URL,
+   protection policy, and containment path. Use
+   `liveFragmentDescriptorWithPath` when the target is nested inside another
+   live fragment target; otherwise the default path is the target id.
+4. Declare the fragment's dependency intent in the same descriptor with
    `liveFragmentDependsOn` for passive `LiveResource` dependencies or
    `liveFragmentResyncOnly` when the fragment is only refreshed by resync/actor
    paths.
@@ -61,9 +135,9 @@ cookbook remains the checklist for live fragments.
 7. Render `data-live-update-surface={liveSurfaceConfigJson surface}` on a
    stable owner shell, where `surface` comes from `mkTypedDefinedLiveSurface`.
 8. Register the surface in `Web.LiveSurfaceRegistry` so touched resources can be
-   matched to subscribed scopes and fragments. Keep the static
-   `registeredLiveSurfaceManifest` entry in the same module in sync; generated
-   TypeScript exports this manifest for frontend discovery and tests.
+   matched to subscribed scopes and fragments. Prefer
+   `manifestDescriptorFromTypedSurface` for descriptor-backed surfaces with a
+   sample key so the generated TypeScript manifest follows the typed definition.
 9. Make the business mutation return touched resources and call
    `invalidateTouchedResources` or `invalidateTouchedResourcesWithoutContext`
    after the write commits.

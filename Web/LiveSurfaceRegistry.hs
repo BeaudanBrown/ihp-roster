@@ -45,12 +45,15 @@ import Web.RosterWeeks.LiveSurface (rosterLiveSurfaceDefinition)
 import Web.Timesheets.Projection (timesheetLiveSurfaceCandidateFragments,
                                   timesheetLiveSurfaceDefinition,
                                   timesheetLiveSurfaceDefinitionForVenue)
-import Web.View.Admin.Exports (adminExportsLiveSurfaceDefinition)
+import Web.View.Admin.Exports (adminExportsLiveSurfaceDefinition,
+                               adminExportsLiveSurfaceDefinitionForVenue)
 import Web.View.Admin.Invites (AdminInvitesSurfaceKey (..),
                                adminInvitesLiveSurfaceDefinition,
                                adminInvitesLiveSurfaceDefinitionForVenue)
-import Web.View.Admin.RosterGroups (adminRosterGroupsLiveSurfaceDefinition)
-import Web.View.Admin.ShiftTypes (adminShiftTypesLiveSurfaceDefinition)
+import Web.View.Admin.RosterGroups (adminRosterGroupsLiveSurfaceDefinition,
+                                    adminRosterGroupsLiveSurfaceDefinitionForVenue)
+import Web.View.Admin.ShiftTypes (adminShiftTypesLiveSurfaceDefinition,
+                                  adminShiftTypesLiveSurfaceDefinitionForVenue)
 import Web.View.Admin.VenueSettings (adminVenueSettingsLiveSurfaceDefinition,
                                      adminVenueSettingsLiveSurfaceDefinitionForVenue)
 import Web.View.Admin.Xero (adminXeroLiveSurfaceDefinition,
@@ -87,9 +90,9 @@ registeredLiveSurfaceDescriptors =
     [ manifestDescriptorFromTypedSurface supportLiveSurfaceDefinition () Nothing
     , manifestDescriptorFromTypedSurface (adminVenueSettingsLiveSurfaceDefinitionForVenue sampleVenueId) () Nothing
     , manifestDescriptorFromTypedSurface (adminInvitesLiveSurfaceDefinitionForVenue sampleVenueId) AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing } Nothing
-    , manifestDescriptor "admin-exports" [AdminExportsScope sampleVenueId] [LiveRuntime.AdminExportsFragment] Nothing
-    , manifestDescriptor "admin-shift-types" [AdminShiftTypesScope sampleVenueId] [LiveRuntime.AdminShiftTypesFragment] Nothing
-    , manifestDescriptor "admin-roster-groups" [AdminRosterGroupsScope sampleVenueId] [LiveRuntime.AdminRosterGroupsFragment] Nothing
+    , manifestDescriptorFromTypedSurface (adminExportsLiveSurfaceDefinitionForVenue sampleVenueId) () Nothing
+    , manifestDescriptorFromTypedSurface (adminShiftTypesLiveSurfaceDefinitionForVenue sampleVenueId) () Nothing
+    , manifestDescriptorFromTypedSurface (adminRosterGroupsLiveSurfaceDefinitionForVenue sampleVenueId) () Nothing
     , manifestDescriptor "admin-xero" [AdminXeroScope sampleVenueId] [LiveRuntime.AdminXeroFragment, LiveRuntime.AdminXeroStaffMappingsFragment, LiveRuntime.AdminXeroPayItemsFragment, LiveRuntime.AdminXeroTimesheetsFragment] Nothing
     , manifestDescriptorFromTypedSurface billingLiveSurfaceDefinition BillingSurfaceKey { billingSurfaceVenueId = sampleVenueId } Nothing
     , manifestDescriptor "leave-requests" [LeaveRequestsScope sampleVenueId] [LiveRuntime.LeaveRequestsContentFragment] Nothing

@@ -4,9 +4,11 @@ module Web.View.Admin.RosterGroups
     ( AdminRosterGroupsLiveFragment (..)
     , adminRosterGroupsFragment
     , adminRosterGroupsLiveSurfaceDefinition
+    , adminRosterGroupsLiveSurfaceDefinitionForVenue
     , renderRosterGroupsSectionFragment
     ) where
 
+import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
@@ -48,16 +50,21 @@ adminRosterGroupsLiveSurface =
 
 adminRosterGroupsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminRosterGroupsSurface () AdminRosterGroupsLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 adminRosterGroupsLiveSurfaceDefinition =
-    currentVenueUnitScopeSurface
+    adminRosterGroupsLiveSurfaceDefinitionForVenue currentVenueScopeId
+
+adminRosterGroupsLiveSurfaceDefinitionForVenue :: UUID -> TypedLiveSurfaceDefinition AdminRosterGroupsSurface () AdminRosterGroupsLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
+adminRosterGroupsLiveSurfaceDefinitionForVenue surfaceVenueId =
+    currentVenueUnitScopeSurfaceForVenue
         "admin-roster-groups"
+        surfaceVenueId
         adminRosterGroupsVenueScope
         RequireCurrentVenueAdmin
-        [ currentVenueLiveFragmentDescriptor
+        [ staticLiveFragmentDescriptor
             adminRosterGroupsFragment
             AdminRosterGroupsFragment
             "admin-roster-groups-fragment"
             (pathTo ShowAdminRosterGroupsFragmentAction)
-            AdminRosterGroupsResource
+            (const (liveFragmentDependsOn (AdminRosterGroupsResource surfaceVenueId) []))
         ]
 
 adminRosterGroupsVenueScope :: VenueLiveUpdateScope
@@ -67,6 +74,12 @@ adminRosterGroupsVenueScope =
         (\case
             AdminRosterGroupsScope { venueId } -> Just venueId
             _ -> Nothing)
+
+currentVenueScopeId :: (?context :: ControllerContext) => UUID
+currentVenueScopeId =
+    case currentVenueOrNothing of
+        Just venue -> unpackId venue.id
+        Nothing -> error "Admin roster groups live surface requires a current venue"
 
 renderRosterGroupCreateForm :: Bool -> Html
 renderRosterGroupCreateForm showInactive = [hsx|

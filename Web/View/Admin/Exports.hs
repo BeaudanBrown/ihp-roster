@@ -4,10 +4,12 @@ module Web.View.Admin.Exports
     ( AdminExportsLiveFragment (..)
     , adminExportsFragment
     , adminExportsLiveSurfaceDefinition
+    , adminExportsLiveSurfaceDefinitionForVenue
     , renderExportsSection
     , renderExportsSectionFragment
     ) where
 
+import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.Export
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
@@ -30,16 +32,21 @@ adminExportsFragmentId = "admin-exports-fragment"
 
 adminExportsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminExportsSurface () AdminExportsLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 adminExportsLiveSurfaceDefinition =
-    currentVenueUnitScopeSurface
+    adminExportsLiveSurfaceDefinitionForVenue currentVenueScopeId
+
+adminExportsLiveSurfaceDefinitionForVenue :: UUID -> TypedLiveSurfaceDefinition AdminExportsSurface () AdminExportsLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
+adminExportsLiveSurfaceDefinitionForVenue surfaceVenueId =
+    currentVenueUnitScopeSurfaceForVenue
         "admin-exports"
+        surfaceVenueId
         adminExportsVenueScope
         RequireCurrentVenueAdmin
-        [ currentVenueLiveFragmentDescriptor
+        [ staticLiveFragmentDescriptor
             adminExportsFragment
             AdminExportsFragment
             adminExportsFragmentId
             (pathTo ShowAdminExportsFragmentAction)
-            AdminExportsResource
+            (const (liveFragmentDependsOn (AdminExportsResource surfaceVenueId) []))
         ]
 
 adminExportsVenueScope :: VenueLiveUpdateScope
@@ -49,6 +56,12 @@ adminExportsVenueScope =
         (\case
             AdminExportsScope { venueId } -> Just venueId
             _ -> Nothing)
+
+currentVenueScopeId :: (?context :: ControllerContext) => UUID
+currentVenueScopeId =
+    case currentVenueOrNothing of
+        Just venue -> unpackId venue.id
+        Nothing -> error "Admin exports live surface requires a current venue"
 
 renderExportsSectionFragment :: ReportWeekSelection -> Day -> Day -> [ExportJob] -> Html
 renderExportsSectionFragment reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs = [hsx|
