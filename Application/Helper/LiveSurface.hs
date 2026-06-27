@@ -6,9 +6,11 @@ module Application.Helper.LiveSurface
     , FragmentContract (..)
     , FragmentDependencies (..)
     , FragmentRenderMode (..)
+    , LiveFragmentDescriptor (..)
     , LiveScopeAuthorizationRequirement (..)
     , LiveSurfaceAuthorization (..)
     , LiveSurfaceConfig (..)
+    , LiveSurfaceDescriptor (..)
     , ProjectionLiveSurfaceDefinition (..)
     , SurfaceFragmentRef
     , SurfaceScope (..)
@@ -18,16 +20,23 @@ module Application.Helper.LiveSurface
     , authorizeLiveScopeRequirement
     , authorizeTypedLiveSurfaceScope
     , authorizeTypedLiveSurfaceWireScope
+    , defaultLiveFragmentTargetId
+    , descriptorToTypedLiveSurfaceDefinition
     , liveFragmentDependsOn
+    , liveFragmentDescriptor
     , liveFragmentResyncOnly
     , liveSurfaceAuthorizationByRequirement
     , liveSurfaceConfigJson
+    , liveSurfaceDescriptor
+    , liveSurfaceDescriptorWithDecorateRequestsWithin
     , liveSurfaceProjectionFragmentRef
     , loadLiveSurfaceProjection
     , loadLiveSurfaceProjectionFromStore
     , mkSurfaceFragmentContract
     , mkSurfaceFragmentRef
     , mkTypedDefinedLiveSurface
+    , nameToKebab
+    , nameToSnake
     , mkTypedSurfaceProjectionDefinition
     , normalizeSurfaceFragmentRefs
     , normalizeTypedLiveSurfaceFragments
@@ -59,9 +68,11 @@ import Application.Helper.LiveSurface.Internal (AuthorizedLiveFragment (..),
                                                 FragmentContract (..),
                                                 FragmentDependencies (..),
                                                 FragmentRenderMode (..),
+                                                LiveFragmentDescriptor (..),
                                                 LiveScopeAuthorizationRequirement (..),
                                                 LiveSurfaceAuthorization (..),
                                                 LiveSurfaceConfig (..),
+                                                LiveSurfaceDescriptor (..),
                                                 ProjectionLiveSurfaceDefinition (..),
                                                 SurfaceFragmentRef,
                                                 SurfaceScope (..),
@@ -69,16 +80,22 @@ import Application.Helper.LiveSurface.Internal (AuthorizedLiveFragment (..),
                                                 authorizeLiveScopeRequirement,
                                                 authorizeTypedLiveSurfaceScope,
                                                 authorizeTypedLiveSurfaceWireScope,
+                                                defaultLiveFragmentTargetId,
+                                                descriptorToTypedLiveSurfaceDefinition,
                                                 liveFragmentDependsOn,
+                                                liveFragmentDescriptor,
                                                 liveFragmentResyncOnly,
                                                 liveSurfaceAuthorizationByRequirement,
                                                 liveSurfaceConfigJson,
+                                                liveSurfaceDescriptor,
+                                                liveSurfaceDescriptorWithDecorateRequestsWithin,
                                                 liveSurfaceProjectionFragmentRef,
                                                 loadLiveSurfaceProjection,
                                                 loadLiveSurfaceProjectionFromStore,
                                                 mkSurfaceFragmentContract,
                                                 mkSurfaceFragmentRef,
                                                 mkTypedDefinedLiveSurface,
+                                                nameToKebab, nameToSnake,
                                                 normalizeSurfaceFragmentRefs,
                                                 normalizeTypedLiveSurfaceFragments,
                                                 renderLiveSurfaceProjectionFragment,

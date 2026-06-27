@@ -5,7 +5,9 @@ module Application.Helper.LiveSurface.Internal
     , FragmentRenderMode (..)
     , AuthorizedLiveFragment (..)
     , LiveScopeAuthorizationRequirement (..)
+    , LiveFragmentDescriptor (..)
     , LiveSurfaceAuthorization (..)
+    , LiveSurfaceDescriptor (..)
     , ProjectionLiveSurfaceDefinition (..)
     , SurfaceFragmentRef (..)
     , SurfaceScope (..)
@@ -15,9 +17,14 @@ module Application.Helper.LiveSurface.Internal
     , authorizeTypedLiveSurfaceWireScope
     , defaultLiveUpdateScopeAuthorizationRequirement
     , ensureTypedLiveSurfaceAuthorized
+    , defaultLiveFragmentTargetId
+    , descriptorToTypedLiveSurfaceDefinition
     , liveFragmentDependsOn
+    , liveFragmentDescriptor
     , liveFragmentResyncOnly
     , liveSurfaceAuthorizationByRequirement
+    , liveSurfaceDescriptor
+    , liveSurfaceDescriptorWithDecorateRequestsWithin
     , liveSurfaceProjectionFragmentRef
     , liveSurfaceConfigJson
     , loadLiveSurfaceProjection
@@ -25,6 +32,8 @@ module Application.Helper.LiveSurface.Internal
     , mkSurfaceFragmentContract
     , mkSurfaceFragmentRef
     , mkSurfaceProjectionDefinition
+    , nameToKebab
+    , nameToSnake
     , mkTypedDefinedLiveSurface
     , normalizeSurfaceFragmentRefs
     , normalizeTypedLiveSurfaceFragments
@@ -59,7 +68,9 @@ import Application.Helper.Interaction.Types (EmptyInteractionIntent,
                                              EmptyInteractionLayer,
                                              EmptyInteractionSession,
                                              InteractionCapability,
-                                             InteractionStaticSchema)
+                                             InteractionStaticSchema,
+                                             emptyInteractionCapability,
+                                             emptyInteractionStaticSchema)
 import Application.Helper.LiveResource (LiveResource)
 import Application.Helper.LiveUpdate.Internal
 import Application.Helper.Profiling (respondHtmlProfiled)
@@ -69,13 +80,15 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Char as Char
 import Data.Coerce (coerce)
 import qualified Data.Dynamic as Dynamic
 import qualified Data.List as List
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Set as Set
-import qualified Data.Text.Encoding as Text
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text.Encoding
 import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.Controller.Context (ControllerContext)
@@ -132,6 +145,23 @@ data FragmentContract surface = FragmentContract
     , fragmentContractDependencies :: !FragmentDependencies
     }
     deriving (Eq, Show)
+
+data LiveFragmentDescriptor surface scope fragment = LiveFragmentDescriptor
+    { liveFragmentDescriptorFragment     :: !fragment
+    , liveFragmentDescriptorRef          :: scope -> SurfaceFragmentRef surface
+    , liveFragmentDescriptorDependencies :: scope -> FragmentDependencies
+    }
+
+data LiveSurfaceDescriptor surface scope fragment layer session intent = LiveSurfaceDescriptor
+    { liveSurfaceDescriptorFeature                :: !Text
+    , liveSurfaceDescriptorScope                  :: scope -> SurfaceScope surface
+    , liveSurfaceDescriptorScopeFromWire          :: LiveUpdateScope -> Maybe scope
+    , liveSurfaceDescriptorFragments              :: ![LiveFragmentDescriptor surface scope fragment]
+    , liveSurfaceDescriptorDecorateRequestsWithin :: !(Maybe (scope -> [Text]))
+    , liveSurfaceDescriptorAuthorize              :: !(LiveSurfaceAuthorization scope)
+    , liveSurfaceDescriptorInteractionSchema      :: !(InteractionStaticSchema fragment layer session intent)
+    , liveSurfaceDescriptorInteraction            :: scope -> InteractionCapability (SurfaceFragmentRef surface) fragment layer session intent
+    }
 
 data TypedLiveSurfaceDefinition surface scope fragment layer session intent = TypedLiveSurfaceDefinition
     { typedSurfaceFeature                :: !Text
@@ -228,6 +258,87 @@ liveFragmentResyncOnly =
 mkSurfaceFragmentContract :: SurfaceFragmentRef surface -> FragmentDependencies -> FragmentContract surface
 mkSurfaceFragmentContract fragmentContractRef fragmentContractDependencies =
     FragmentContract { fragmentContractRef, fragmentContractDependencies }
+
+liveFragmentDescriptor :: fragment -> (scope -> SurfaceFragmentRef surface) -> (scope -> FragmentDependencies) -> LiveFragmentDescriptor surface scope fragment
+liveFragmentDescriptor liveFragmentDescriptorFragment liveFragmentDescriptorRef liveFragmentDescriptorDependencies =
+    LiveFragmentDescriptor { liveFragmentDescriptorFragment, liveFragmentDescriptorRef, liveFragmentDescriptorDependencies }
+
+liveSurfaceDescriptor ::
+    Text ->
+    (scope -> SurfaceScope surface) ->
+    (LiveUpdateScope -> Maybe scope) ->
+    LiveSurfaceAuthorization scope ->
+    [LiveFragmentDescriptor surface scope fragment] ->
+    LiveSurfaceDescriptor surface scope fragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
+liveSurfaceDescriptor liveSurfaceDescriptorFeature liveSurfaceDescriptorScope liveSurfaceDescriptorScopeFromWire liveSurfaceDescriptorAuthorize liveSurfaceDescriptorFragments =
+    LiveSurfaceDescriptor
+        { liveSurfaceDescriptorFeature
+        , liveSurfaceDescriptorScope
+        , liveSurfaceDescriptorScopeFromWire
+        , liveSurfaceDescriptorFragments
+        , liveSurfaceDescriptorDecorateRequestsWithin = Nothing
+        , liveSurfaceDescriptorAuthorize
+        , liveSurfaceDescriptorInteractionSchema = emptyInteractionStaticSchema
+        , liveSurfaceDescriptorInteraction = const emptyInteractionCapability
+        }
+
+liveSurfaceDescriptorWithDecorateRequestsWithin ::
+    (scope -> [Text]) ->
+    LiveSurfaceDescriptor surface scope fragment layer session intent ->
+    LiveSurfaceDescriptor surface scope fragment layer session intent
+liveSurfaceDescriptorWithDecorateRequestsWithin decorateRequestsWithin descriptor =
+    descriptor { liveSurfaceDescriptorDecorateRequestsWithin = Just decorateRequestsWithin }
+
+descriptorToTypedLiveSurfaceDefinition ::
+    Eq fragment =>
+    LiveSurfaceDescriptor surface scope fragment layer session intent ->
+    TypedLiveSurfaceDefinition surface scope fragment layer session intent
+descriptorToTypedLiveSurfaceDefinition descriptor =
+    TypedLiveSurfaceDefinition
+        { typedSurfaceFeature = descriptor.liveSurfaceDescriptorFeature
+        , typedSurfaceScope = descriptor.liveSurfaceDescriptorScope
+        , typedSurfaceScopeFromWire = descriptor.liveSurfaceDescriptorScopeFromWire
+        , typedSurfaceDefaultFragments = \_ -> map (.liveFragmentDescriptorFragment) descriptor.liveSurfaceDescriptorFragments
+        , typedSurfaceFragmentContract = \surfaceKey fragment ->
+            case List.find ((== fragment) . (.liveFragmentDescriptorFragment)) descriptor.liveSurfaceDescriptorFragments of
+                Just fragmentDescriptor ->
+                    mkSurfaceFragmentContract
+                        (fragmentDescriptor.liveFragmentDescriptorRef surfaceKey)
+                        (fragmentDescriptor.liveFragmentDescriptorDependencies surfaceKey)
+                Nothing -> error ("Unknown live surface fragment for " <> cs descriptor.liveSurfaceDescriptorFeature)
+        , typedSurfaceDecorateRequestsWithin = fromMaybe (defaultDecorateRequestsWithin descriptor) descriptor.liveSurfaceDescriptorDecorateRequestsWithin
+        , typedSurfaceAuthorize = descriptor.liveSurfaceDescriptorAuthorize
+        , typedSurfaceInteractionSchema = descriptor.liveSurfaceDescriptorInteractionSchema
+        , typedSurfaceInteraction = descriptor.liveSurfaceDescriptorInteraction
+        }
+
+defaultDecorateRequestsWithin :: LiveSurfaceDescriptor surface scope fragment layer session intent -> scope -> [Text]
+defaultDecorateRequestsWithin descriptor surfaceKey =
+    List.nub (map (("#" <>) . (.targetId) . unSurfaceFragmentRef . (\fragmentDescriptor -> fragmentDescriptor.liveFragmentDescriptorRef surfaceKey)) descriptor.liveSurfaceDescriptorFragments)
+
+nameToKebab :: Text -> Text
+nameToKebab = Text.intercalate "-" . wordsFromName
+
+nameToSnake :: Text -> Text
+nameToSnake = Text.intercalate "_" . wordsFromName
+
+defaultLiveFragmentTargetId :: Text -> Text -> Text
+defaultLiveFragmentTargetId surfaceName fragmentName =
+    nameToKebab surfaceName <> "-" <> nameToKebab fragmentName <> "-fragment"
+
+wordsFromName :: Text -> [Text]
+wordsFromName name =
+    filter (not . Text.null) (map (Text.toLower . Text.pack) (go [] [] (Text.unpack name)))
+    where
+        go current acc [] =
+            reverse (finish current acc)
+        go current acc (char : rest)
+            | isSeparator char = go [] (finish current acc) rest
+            | Char.isUpper char && not (null current) = go [char] (finish current acc) rest
+            | otherwise = go (char : current) acc rest
+        finish [] acc      = acc
+        finish current acc = reverse current : acc
+        isSeparator char = char == '-' || char == '_' || Char.isSpace char
 
 mkTypedDefinedLiveSurface :: TypedLiveSurfaceDefinition surface scope fragment layer session intent -> scope -> LiveSurfaceConfig
 mkTypedDefinedLiveSurface definition surfaceKey =
@@ -608,4 +719,4 @@ renderLiveSurfaceProjectionFragmentFromStore store definition =
 
 liveSurfaceConfigJson :: LiveSurfaceConfig -> Text
 liveSurfaceConfigJson =
-    Text.decodeUtf8 . LBS.toStrict . Aeson.encode
+    Text.Encoding.decodeUtf8 . LBS.toStrict . Aeson.encode

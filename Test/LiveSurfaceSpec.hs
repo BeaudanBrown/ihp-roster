@@ -79,6 +79,28 @@ tests = describe "LiveSurface contract helpers" do
         fragmentContractDependencies dependent `shouldBe` DependsOnLiveResources (BillingResource (expectUuid "11111111-1111-1111-1111-111111111111") :| [])
         fragmentContractDependencies resyncOnly `shouldBe` ResyncOnlyFragment "no passive dependency"
 
+    it "lowers descriptor defaults into a typed live surface definition" do
+        let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
+        let definition = descriptorToTypedLiveSurfaceDefinition (testDescriptorSurface venueId)
+        let config = mkTypedDefinedLiveSurface definition ()
+
+        config.feature `shouldBe` "test-descriptor"
+        config.decorateRequestsWithin `shouldBe` ["#test-descriptor-primary-fragment", "#test-descriptor-secondary-fragment"]
+        map (.targetId) config.resyncFragments `shouldBe` ["test-descriptor-primary-fragment", "test-descriptor-secondary-fragment"]
+        typedSurfaceDependsOn definition () TestDescriptorPrimary `shouldBe` [BillingResource venueId]
+        typedSurfaceDependsOn definition () TestDescriptorSecondary `shouldBe` []
+
+    it "allows descriptor decorate selectors to be overridden" do
+        let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
+        let definition = descriptorToTypedLiveSurfaceDefinition ((testDescriptorSurface venueId) |> liveSurfaceDescriptorWithDecorateRequestsWithin (const ["#test-shell"]))
+
+        (mkTypedDefinedLiveSurface definition ()).decorateRequestsWithin `shouldBe` ["#test-shell"]
+
+    it "derives stable kebab and snake names for descriptor defaults" do
+        nameToKebab "AdminAnnouncementFragment" `shouldBe` "admin-announcement-fragment"
+        nameToSnake "AdminAnnouncementFragment" `shouldBe` "admin_announcement_fragment"
+        defaultLiveFragmentTargetId "AdminAnnouncement" "Content" `shouldBe` "admin-announcement-content-fragment"
+
     it "verifies the typed support surface config contract" do
         liveSurfaceConfigShouldRoundTrip supportLiveSurface
         liveSurfaceConfigShouldExposeRefs
@@ -150,6 +172,32 @@ testFragmentRef fragmentKey target path =
 targetIds :: [SurfaceFragmentRef surface] -> [Text]
 targetIds refs =
     map (.targetId) (unSurfaceFragmentRefs refs)
+
+data TestDescriptorSurface
+
+data TestDescriptorFragment
+    = TestDescriptorPrimary
+    | TestDescriptorSecondary
+    deriving (Eq, Show)
+
+testDescriptorSurface :: UUID.UUID -> LiveSurfaceDescriptor TestDescriptorSurface () TestDescriptorFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
+testDescriptorSurface venueId =
+    liveSurfaceDescriptor
+        "test-descriptor"
+        (const (SurfaceScope BillingScope { venueId }))
+        (\wireScope -> case wireScope of
+            BillingScope { venueId = wireVenueId } | wireVenueId == venueId -> Just ()
+            _ -> Nothing)
+        (liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueOwner venueId)))
+        [ liveFragmentDescriptor
+            TestDescriptorPrimary
+            (const (mkSurfaceFragmentRef BillingStatusFragment "test-descriptor-primary-fragment" "/test-primary"))
+            (const (liveFragmentDependsOn (BillingResource venueId) []))
+        , liveFragmentDescriptor
+            TestDescriptorSecondary
+            (const (mkSurfaceFragmentRef SupportAwardRatesSectionFragment "test-descriptor-secondary-fragment" "/test-secondary"))
+            (const (liveFragmentResyncOnly "secondary is resync-only"))
+        ]
 
 data TestActorSurface
 
