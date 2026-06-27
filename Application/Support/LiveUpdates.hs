@@ -26,27 +26,30 @@ supportLiveUpdateScope = SupportPlatformScope
 
 supportLiveSurfaceDefinition :: TypedLiveSurfaceDefinition SupportSurface () SupportLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 supportLiveSurfaceDefinition =
-    TypedLiveSurfaceDefinition
-        { typedSurfaceFeature = "support"
-        , typedSurfaceScope = const (SurfaceScope supportLiveUpdateScope)
-        , typedSurfaceScopeFromWire = \case
-            SupportPlatformScope -> Just ()
-            _ -> Nothing
-        , typedSurfaceDefaultFragments = const supportLiveFragmentRefs
-        , typedSurfaceFragmentContract = \() fragment ->
-            mkSurfaceFragmentContract
-                (supportLiveFragmentRef fragment)
-                (supportLiveFragmentDependencies fragment)
-        , typedSurfaceDecorateRequestsWithin =
-            const
-                [ "#support-shell"
-                , "#support-award-rates-section"
-                , "#support-public-holidays-section"
-                ]
-        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const RequireSupportSuperAdmin)
-        , typedSurfaceInteractionSchema = emptyInteractionStaticSchema
-        , typedSurfaceInteraction = const emptyInteractionCapability
-        }
+    descriptorToTypedLiveSurfaceDefinition
+        ( liveSurfaceDescriptor
+            "support"
+            (const (SurfaceScope supportLiveUpdateScope))
+            (\case
+                SupportPlatformScope -> Just ()
+                _ -> Nothing)
+            (liveSurfaceAuthorizationByRequirement (const RequireSupportSuperAdmin))
+            ( map
+                (\fragment ->
+                    liveFragmentDescriptor
+                        fragment
+                        (const (supportLiveFragmentRef fragment))
+                        (const (supportLiveFragmentDependencies fragment)))
+                supportLiveFragmentRefs
+            )
+            |> liveSurfaceDescriptorWithDecorateRequestsWithin
+                ( const
+                    [ "#support-shell"
+                    , "#support-award-rates-section"
+                    , "#support-public-holidays-section"
+                    ]
+                )
+        )
 
 supportLiveFragmentRefs :: [SupportLiveFragment]
 supportLiveFragmentRefs =

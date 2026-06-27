@@ -31,22 +31,20 @@ adminExportsFragmentId = "admin-exports-fragment"
 
 adminExportsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminExportsSurface () AdminExportsLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 adminExportsLiveSurfaceDefinition =
-    TypedLiveSurfaceDefinition
-        { typedSurfaceFeature = "admin-exports"
-        , typedSurfaceScope = const (SurfaceScope AdminExportsScope { venueId = currentVenueScopeId })
-        , typedSurfaceScopeFromWire = \case
-            AdminExportsScope { venueId } | venueId == currentVenueScopeId -> Just ()
-            _ -> Nothing
-        , typedSurfaceDefaultFragments = const [adminExportsFragment]
-        , typedSurfaceFragmentContract = \() fragment ->
-            mkSurfaceFragmentContract
-                (adminExportsLiveFragmentRef fragment)
-                (liveFragmentDependsOn (AdminExportsResource currentVenueScopeId) [])
-        , typedSurfaceDecorateRequestsWithin = const ["#" <> adminExportsFragmentId]
-        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId))
-        , typedSurfaceInteractionSchema = emptyInteractionStaticSchema
-        , typedSurfaceInteraction = const emptyInteractionCapability
-        }
+    descriptorToTypedLiveSurfaceDefinition
+        ( liveSurfaceDescriptor
+            "admin-exports"
+            (const (SurfaceScope AdminExportsScope { venueId = currentVenueScopeId }))
+            (\case
+                AdminExportsScope { venueId } | venueId == currentVenueScopeId -> Just ()
+                _ -> Nothing)
+            (liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId)))
+            [ liveFragmentDescriptor
+                adminExportsFragment
+                (const (adminExportsLiveFragmentRef adminExportsFragment))
+                (const (liveFragmentDependsOn (AdminExportsResource currentVenueScopeId) []))
+            ]
+        )
 
 adminExportsLiveFragmentRef :: (?context :: ControllerContext) => AdminExportsLiveFragment -> SurfaceFragmentRef AdminExportsSurface
 adminExportsLiveFragmentRef AdminExportsLiveFragment =

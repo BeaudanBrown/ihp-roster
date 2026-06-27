@@ -35,22 +35,20 @@ adminVenueSettingsLiveSurfaceDefinition =
 
 adminVenueSettingsLiveSurfaceDefinitionForVenue :: UUID -> TypedLiveSurfaceDefinition AdminVenueSettingsSurface () AdminVenueSettingsLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 adminVenueSettingsLiveSurfaceDefinitionForVenue surfaceVenueId =
-    TypedLiveSurfaceDefinition
-        { typedSurfaceFeature = "admin-venue-config"
-        , typedSurfaceScope = const (SurfaceScope AdminVenueConfigScope { venueId = surfaceVenueId })
-        , typedSurfaceScopeFromWire = \case
-            AdminVenueConfigScope { venueId } | venueId == surfaceVenueId -> Just ()
-            _ -> Nothing
-        , typedSurfaceDefaultFragments = const [adminVenueSettingsFragment]
-        , typedSurfaceFragmentContract = \() fragment ->
-            mkSurfaceFragmentContract
-                (adminVenueSettingsLiveFragmentRef fragment)
-                (liveFragmentDependsOn (AdminVenueSettingsResource surfaceVenueId) [])
-        , typedSurfaceDecorateRequestsWithin = const ["#" <> adminVenueSettingsFragmentId]
-        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin surfaceVenueId))
-        , typedSurfaceInteractionSchema = emptyInteractionStaticSchema
-        , typedSurfaceInteraction = const emptyInteractionCapability
-        }
+    descriptorToTypedLiveSurfaceDefinition
+        ( liveSurfaceDescriptor
+            "admin-venue-config"
+            (const (SurfaceScope AdminVenueConfigScope { venueId = surfaceVenueId }))
+            (\case
+                AdminVenueConfigScope { venueId } | venueId == surfaceVenueId -> Just ()
+                _ -> Nothing)
+            (liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin surfaceVenueId)))
+            [ liveFragmentDescriptor
+                adminVenueSettingsFragment
+                (const (adminVenueSettingsLiveFragmentRef adminVenueSettingsFragment))
+                (const (liveFragmentDependsOn (AdminVenueSettingsResource surfaceVenueId) []))
+            ]
+        )
 
 adminVenueSettingsLiveFragmentRef :: AdminVenueSettingsLiveFragment -> SurfaceFragmentRef AdminVenueSettingsSurface
 adminVenueSettingsLiveFragmentRef AdminVenueSettingsLiveFragment =

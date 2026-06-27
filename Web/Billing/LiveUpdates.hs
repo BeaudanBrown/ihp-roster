@@ -30,22 +30,21 @@ currentBillingSurfaceKey =
 
 billingLiveSurfaceDefinition :: TypedLiveSurfaceDefinition BillingSurface BillingSurfaceKey BillingLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 billingLiveSurfaceDefinition =
-    TypedLiveSurfaceDefinition
-        { typedSurfaceFeature = "billing"
-        , typedSurfaceScope = \key -> SurfaceScope BillingScope { venueId = key.billingSurfaceVenueId }
-        , typedSurfaceScopeFromWire = \case
-            BillingScope { venueId } -> Just BillingSurfaceKey { billingSurfaceVenueId = venueId }
-            _ -> Nothing
-        , typedSurfaceDefaultFragments = const [BillingStatusLiveFragment]
-        , typedSurfaceFragmentContract = \key fragment ->
-            mkSurfaceFragmentContract
-                (billingLiveFragmentRef fragment)
-                (liveFragmentDependsOn (BillingResource key.billingSurfaceVenueId) [])
-        , typedSurfaceDecorateRequestsWithin = const ["#billing-live-surface", "#billing-status-fragment"]
-        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\key -> RequireCurrentVenueOwner key.billingSurfaceVenueId)
-        , typedSurfaceInteractionSchema = emptyInteractionStaticSchema
-        , typedSurfaceInteraction = const emptyInteractionCapability
-        }
+    descriptorToTypedLiveSurfaceDefinition
+        ( liveSurfaceDescriptor
+            "billing"
+            (\key -> SurfaceScope BillingScope { venueId = key.billingSurfaceVenueId })
+            (\case
+                BillingScope { venueId } -> Just BillingSurfaceKey { billingSurfaceVenueId = venueId }
+                _ -> Nothing)
+            (liveSurfaceAuthorizationByRequirement (\key -> RequireCurrentVenueOwner key.billingSurfaceVenueId))
+            [ liveFragmentDescriptor
+                BillingStatusLiveFragment
+                (const (billingLiveFragmentRef BillingStatusLiveFragment))
+                (\key -> liveFragmentDependsOn (BillingResource key.billingSurfaceVenueId) [])
+            ]
+            |> liveSurfaceDescriptorWithDecorateRequestsWithin (const ["#billing-live-surface", "#billing-status-fragment"])
+        )
 
 billingLiveFragmentRef :: BillingLiveFragment -> SurfaceFragmentRef BillingSurface
 billingLiveFragmentRef BillingStatusLiveFragment =
