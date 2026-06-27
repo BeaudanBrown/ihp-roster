@@ -29,6 +29,11 @@ tests = do
                 , "roster_row"
                 ]
 
+        it "derives descriptor-backed manifest entries from typed surface defaults" do
+            manifestSummary "support" `shouldBe` Just (["support_platform"], ["support_award_rates_section", "support_public_holidays_section"])
+            manifestSummary "admin-venue-config" `shouldBe` Just (["admin_venue_config"], ["admin_venue_config"])
+            manifestSummary "billing" `shouldBe` Just (["billing"], ["billing_status"])
+
         it "keeps registered surface families unique" do
             let families = fmap (.surfaceFamily) registeredLiveSurfaceManifest
             length families `shouldBe` length (Set.fromList families)
@@ -89,6 +94,10 @@ tests = do
                 (Set.singleton (BillingResource otherVenueId))
                 [BillingScope venueId]
                 `shouldBe` []
+
+manifestSummary :: Text -> Maybe ([Text], [Text])
+manifestSummary familyName =
+    fmap (\manifest -> (manifest.scopeKinds, manifest.fragmentKinds)) (find ((== familyName) . (.surfaceFamily)) registeredLiveSurfaceManifest)
 
 targetSummary :: [LiveSurfaceInvalidationTarget] -> Set.Set (LiveUpdateScope, [LiveFragmentKey])
 targetSummary targets =

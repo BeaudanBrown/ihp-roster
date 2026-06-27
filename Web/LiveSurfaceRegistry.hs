@@ -34,7 +34,8 @@ import Application.Support.LiveUpdates (supportLiveSurfaceDefinition)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.UUID as UUID
-import Web.Billing.LiveUpdates (billingLiveSurfaceDefinition)
+import Web.Billing.LiveUpdates (BillingSurfaceKey (..),
+                                billingLiveSurfaceDefinition)
 import Web.Controller.Prelude
 import Web.LeaveRequests.Projection (leaveRequestsLiveSurfaceDefinition)
 import Web.Profiles.LiveUpdates (ProfileContentFragment (..),
@@ -82,20 +83,31 @@ registeredLiveSurfaceManifest =
 
 registeredLiveSurfaceDescriptors :: [RegisteredLiveSurfaceDescriptor]
 registeredLiveSurfaceDescriptors =
-    [ manifestDescriptor "support" [SupportPlatformScope] [LiveRuntime.SupportAwardRatesSectionFragment, LiveRuntime.SupportPublicHolidaysSectionFragment] Nothing
-    , manifestDescriptor "admin-venue-config" [AdminVenueConfigScope sampleVenueId] [LiveRuntime.AdminVenueConfigFragment] Nothing
+    [ manifestDescriptorFromTypedSurface supportLiveSurfaceDefinition () Nothing
+    , manifestDescriptorFromTypedSurface (adminVenueSettingsLiveSurfaceDefinitionForVenue sampleVenueId) () Nothing
     , manifestDescriptor "admin-invites" [AdminInvitesScope sampleVenueId] [LiveRuntime.AdminInvitesFragment] Nothing
     , manifestDescriptor "admin-exports" [AdminExportsScope sampleVenueId] [LiveRuntime.AdminExportsFragment] Nothing
     , manifestDescriptor "admin-shift-types" [AdminShiftTypesScope sampleVenueId] [LiveRuntime.AdminShiftTypesFragment] Nothing
     , manifestDescriptor "admin-roster-groups" [AdminRosterGroupsScope sampleVenueId] [LiveRuntime.AdminRosterGroupsFragment] Nothing
     , manifestDescriptor "admin-xero" [AdminXeroScope sampleVenueId] [LiveRuntime.AdminXeroFragment, LiveRuntime.AdminXeroStaffMappingsFragment, LiveRuntime.AdminXeroPayItemsFragment, LiveRuntime.AdminXeroTimesheetsFragment] Nothing
-    , manifestDescriptor "billing" [BillingScope sampleVenueId] [LiveRuntime.BillingStatusFragment] Nothing
+    , manifestDescriptorFromTypedSurface billingLiveSurfaceDefinition BillingSurfaceKey { billingSurfaceVenueId = sampleVenueId } Nothing
     , manifestDescriptor "leave-requests" [LeaveRequestsScope sampleVenueId] [LiveRuntime.LeaveRequestsContentFragment] Nothing
     , manifestDescriptor "profile" [ProfileScope sampleVenueId sampleStaffId] [LiveRuntime.ProfileContentFragment] Nothing
     , manifestDescriptor "profile-leave-requests" [ProfileScope sampleVenueId sampleStaffId] [LiveRuntime.ProfileLeaveRequestsContentFragment] Nothing
     , manifestDescriptor "timesheets" [TimesheetWeekScope sampleVenueId 0] [LiveRuntime.TimesheetToolbarFragment, LiveRuntime.TimesheetDayColumnsFragment, LiveRuntime.TimesheetDaySectionFragment 0] Nothing
     , manifestDescriptor "roster" [RosterWeekScope sampleVenueId sampleRosterGroupId 0] [LiveRuntime.RosterContentFragment, LiveRuntime.RosterGridToolbarFragment, LiveRuntime.RosterGridFrameFragment, LiveRuntime.RosterDayColumnsFragment, LiveRuntime.RosterDayRailFragment, LiveRuntime.RosterWageRailFragment, LiveRuntime.RosterSlotsGridFragment, LiveRuntime.RosterStaffPanelFragment, LiveRuntime.RosterDaySectionFragment sampleRosterDayId, LiveRuntime.RosterRowFragment sampleRosterDayId 0] (Just "roster")
     ]
+
+manifestDescriptorFromTypedSurface ::
+    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
+    scope ->
+    Maybe Text ->
+    RegisteredLiveSurfaceDescriptor
+manifestDescriptorFromTypedSurface definition surfaceKey =
+    manifestDescriptor
+        definition.typedSurfaceFeature
+        [unSurfaceScope (definition.typedSurfaceScope surfaceKey)]
+        (map (.fragmentKey) (unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs definition surfaceKey (definition.typedSurfaceDefaultFragments surfaceKey))))
 
 manifestDescriptor :: Text -> [LiveUpdateScope] -> [LiveRuntime.LiveFragmentKey] -> Maybe Text -> RegisteredLiveSurfaceDescriptor
 manifestDescriptor surfaceFamily scopeSamples fragmentSamples interactionSchema =
