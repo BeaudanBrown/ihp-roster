@@ -1,6 +1,6 @@
 ---
 id: ir-0qiq
-status: open
+status: closed
 deps: [ir-0dyi, ir-3npt]
 links: []
 created: 2026-06-27T09:16:06Z
@@ -22,3 +22,9 @@ Keep dynamic fragments, containment, interaction capability, and custom candidat
 
 Roster and timesheets expose canonical registration objects; registry no longer has bespoke raw registration paths except documented infrastructure adapters.
 
+
+## Notes
+
+**2026-06-27T09:43:22Z**
+
+Completed by the registered catalog work: timesheets and roster now have context-free ForVenue typed definitions for manifest/planning samples, and the registry consumes them through RegisteredLiveSurface entries. Roster interaction remains attached to the request-context typed definition, while the ForVenue adapter preserves the static interaction schema for manifest generation. Projection remains outside the core registered surface abstraction.
