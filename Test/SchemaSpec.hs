@@ -186,7 +186,7 @@ tests = describe "Schema" do
 
     it "exposes normalized legacy user roles, venue roles, and leave statuses via shared helpers" do
         allUserRoleValues `shouldBe` ["staff", "manager", "admin"]
-        allVenueRoleValues `shouldBe` ["worker", "manager", "venue_admin", "venue_owner"]
+        allVenueRoleValues `shouldBe` ["worker", "supervisor", "manager", "venue_admin", "venue_owner"]
         allPlatformRoleValues `shouldBe` ["super_admin"]
         allLeaveRequestStatusValues `shouldBe` ["pending", "approved", "denied"]
         allAuditEventTypeValues `shouldBe`
@@ -246,7 +246,7 @@ tests = describe "Schema" do
         parseExportJobStatus "deleted" `shouldBe` Nothing
 
         map userRoleToText [StaffRole, ManagerRole, AdminRole] `shouldBe` allUserRoleValues
-        map venueRoleToText [WorkerRole, ManagerRole', VenueAdminRole, VenueOwnerRole] `shouldBe` allVenueRoleValues
+        map venueRoleToText [WorkerRole, SupervisorRole, ManagerRole', VenueAdminRole, VenueOwnerRole] `shouldBe` allVenueRoleValues
         map platformRoleToText [SuperAdminRole] `shouldBe` allPlatformRoleValues
         map leaveRequestStatusToText [LeavePending, LeaveApproved, LeaveDenied] `shouldBe` allLeaveRequestStatusValues
         map exportJobTypeToText [ApprovedTimesheetsCsv, StaffPayCsv, HourlyBreakdownZip, PayrollEarningsCsv] `shouldBe` allExportJobTypeValues
