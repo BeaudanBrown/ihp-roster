@@ -305,7 +305,7 @@ test.describe('Styling regression contracts', () => {
         await page.evaluate(() => window.scrollTo(0, 240));
         const beforeScrollY = await page.evaluate(() => window.scrollY);
 
-        const saveButton = page.locator('#profile-details-collapse form button[type="submit"]');
+        const saveButton = page.locator('#profile-shift-preferences-form button[type="submit"]');
         await Promise.all([
             page.waitForResponse((response) => response.url().includes('/UpdateProfile') && response.request().method() === 'POST'),
             saveButton.click(),
