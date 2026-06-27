@@ -142,7 +142,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "disabled=\"disabled\""
                 response `responseBodyShouldNotContain` "id=\"staff-email\""
                 response `responseBodyShouldNotContain` "id=\"invite-email\""
-                response `responseBodyShouldContain` "Roster end times"
+                response `responseBodyShouldContain` "Show shift end times in roster"
                 response `responseBodyShouldContain` "Auto-create pending timesheets"
                 response `responseBodyShouldNotContain` "venue-timezone"
                 response `responseBodyShouldNotContain` "Already have an account?"

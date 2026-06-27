@@ -498,7 +498,7 @@ tests = beforeAll testContext do
             let source = cs sourceBytes :: String
             source `shouldContain` "const beginResponse = await postJson(container.dataset.beginUrl);"
             source `shouldNotContain` "postJson(container.dataset.beginUrl, {})"
-            source `shouldContain` "body: hasPayload ? JSON.stringify(payload) : undefined"
+            source `shouldContain` "body: hasPayload ? JSON.stringify(payload) : void 0"
 
         it "rejects consumed and expired passkey setup links" $ withContext do
             withCleanDb do

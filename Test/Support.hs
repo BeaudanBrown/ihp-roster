@@ -40,11 +40,14 @@ import IHP.Test.Mocking
 import Network.HTTP.Types.Header (RequestHeaders)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Session.Maybe as WaiSession
+import System.Environment (setEnv)
 import Web.FrontController ()
 import Web.Types
 
 testContext :: IO (MockContext WebApplication)
-testContext = mockContextNoDatabase WebApplication config
+testContext = do
+    setEnv "IHP_ROSTER_REQUIRE_PRIVILEGED_STRONG_AUTH" "true"
+    mockContextNoDatabase WebApplication config
 
 withCleanDb :: (?modelContext :: ModelContext) => IO a -> IO a
 withCleanDb action = do
