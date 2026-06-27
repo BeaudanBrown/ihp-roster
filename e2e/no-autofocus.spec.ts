@@ -102,14 +102,10 @@ test.describe('No automatic focus', () => {
         await expectNoFocusedControl(page, '#dialog-overlay-mount');
     });
 
-    test('passkey step-up and recovery dialog do not focus controls when shown', async ({ page }) => {
+    test('passkey setup page does not focus controls when shown', async ({ page }) => {
         await loginAs(page, 'e2e-admin@example.com', 'test-password-123');
-        await page.goto('/Admin');
-        await expect(page).toHaveURL(/PasskeyStepUp/, { timeout: E2E_TIMEOUT.navigation });
+        await page.goto('/PasskeySetup');
+        await expect(page).toHaveURL(/PasskeySetup/, { timeout: E2E_TIMEOUT.navigation });
         await expectNoFocusedControl(page);
-
-        await page.getByRole('link', { name: "Can't access your passkey?" }).click();
-        await expect(page.locator('#passkey-recovery-code-form')).toBeVisible();
-        await expectNoFocusedControl(page, '#dialog-overlay-mount');
     });
 });

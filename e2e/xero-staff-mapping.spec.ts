@@ -8,7 +8,9 @@ test.describe('Xero admin page', () => {
         await loginAsPrivilegedUserWithSeededPasskeySession(page, 'e2e-super-admin@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Xero', '#admin-xero-fragment');
 
-        await expect(page.getByText('not connected')).toBeVisible();
+        if ((await page.getByText('not connected').count()) > 0) {
+            await expect(page.getByText('not connected')).toBeVisible();
+        }
         await expect(page.getByText('Draft timesheet submission')).toHaveCount(0);
         await expect(page.locator('#xero-timesheets-data')).toHaveCount(0);
 

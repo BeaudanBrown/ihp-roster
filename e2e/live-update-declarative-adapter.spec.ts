@@ -217,7 +217,8 @@ test.describe('Declarative live-update adapter', () => {
             feature: 'synthetic-server-key',
             socketPath: '/live-updates',
             scope: {
-                kind: 'server_only_scope',
+                kind: 'admin_xero',
+                venueId: fixtureVenueId,
             },
             scopeKey: 'server-only:synthetic',
             resyncFragments: [],
@@ -226,7 +227,7 @@ test.describe('Declarative live-update adapter', () => {
 
         await expect
             .poll(async () => (await liveUpdateCommands(page)).map((command: any) => `${command.type}:${command.scope?.kind}`))
-            .toContain('subscribe:server_only_scope');
+            .toContain('subscribe:admin_xero');
     });
 
     test('matches subscribed messages by server-emitted scope key', async ({ page }) => {
@@ -258,7 +259,8 @@ test.describe('Declarative live-update adapter', () => {
             feature: 'synthetic-server-message-key',
             socketPath: '/live-updates',
             scope: {
-                kind: 'server_only_scope',
+                kind: 'admin_xero',
+                venueId: fixtureVenueId,
             },
             scopeKey: 'server-message-key:synthetic',
             resyncFragments: [
@@ -267,7 +269,7 @@ test.describe('Declarative live-update adapter', () => {
                     targetId: 'synthetic-fragment',
                     url: '/SyntheticServerKeyFragment',
                     deferUntilBlur: false,
-                    protectionPolicy: null,
+                    protectionPolicy: { kind: 'none' },
                 },
             ],
             decorateRequestsWithin: [],
@@ -275,7 +277,7 @@ test.describe('Declarative live-update adapter', () => {
 
         await expect
             .poll(async () => (await liveUpdateCommands(page)).map((command: any) => `${command.type}:${command.scope?.kind}`))
-            .toContain('subscribe:server_only_scope');
+            .toContain('subscribe:admin_xero');
 
         await page.evaluate(() => {
             const win = window as Window & {
@@ -290,7 +292,7 @@ test.describe('Declarative live-update adapter', () => {
             socket.onmessage({
                 data: JSON.stringify({
                     type: 'subscribed',
-                    scope: { kind: 'unknown_to_client' },
+                    scope: { kind: 'admin_xero', venueId: '11111111-1111-1111-1111-111111111111' },
                     scopeKey: 'server-message-key:synthetic',
                     currentVersion: 3,
                     resync: true,
@@ -320,7 +322,7 @@ test.describe('Declarative live-update adapter', () => {
                     targetId: 'synthetic-fragment',
                     url: '/SyntheticLiveFragment',
                     deferUntilBlur: false,
-                    protectionPolicy: null,
+                    protectionPolicy: { kind: 'none' },
                 },
             ],
             decorateRequestsWithin: [],
@@ -424,7 +426,7 @@ test.describe('Declarative live-update adapter', () => {
                         targetId: 'synthetic-fragment-one',
                         url: '/SyntheticMergedFragment?fragment=one',
                         deferUntilBlur: false,
-                        protectionPolicy: null,
+                        protectionPolicy: { kind: 'none' },
                     },
                 ],
                 decorateRequestsWithin: [],
@@ -438,7 +440,7 @@ test.describe('Declarative live-update adapter', () => {
                         targetId: 'synthetic-fragment-two',
                         url: '/SyntheticMergedFragment?fragment=two',
                         deferUntilBlur: false,
-                        protectionPolicy: null,
+                        protectionPolicy: { kind: 'none' },
                     },
                 ],
             };
@@ -597,14 +599,14 @@ test.describe('Declarative live-update adapter', () => {
         expect(config.resyncFragments).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({
-                    targetId: 'roster-content',
+                    targetId: 'roster-slots-grid',
                     deferUntilBlur: false,
-                    protectionPolicy: null,
+                    protectionPolicy: { kind: 'none' },
                 }),
                 expect.objectContaining({
                     targetId: 'roster-staff-panel-fragment',
                     deferUntilBlur: false,
-                    protectionPolicy: null,
+                    protectionPolicy: { kind: 'none' },
                 }),
             ]),
         );

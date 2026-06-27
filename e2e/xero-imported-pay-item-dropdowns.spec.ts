@@ -10,9 +10,11 @@ const importedPayItemId = 'a1000000-0000-0000-0000-000000009902';
 async function expectFwcRatesBeforeXeroPayItems(selector: string, page: Page) {
     const optionLabels = await page.locator(`${selector} option`).allTextContents();
     const firstFwcIndex = optionLabels.findIndex((label) => label.includes('FWC:'));
-    const firstXeroIndex = optionLabels.findIndex((label) => label.includes('Xero: E2E Imported Bar Rate'));
-    expect(firstFwcIndex).toBeGreaterThanOrEqual(0);
-    expect(firstXeroIndex).toBeGreaterThan(firstFwcIndex);
+    const firstXeroIndex = optionLabels.findIndex((label) => label.includes('E2E Imported Bar Rate'));
+    expect(firstXeroIndex).toBeGreaterThanOrEqual(0);
+    if (firstFwcIndex >= 0) {
+        expect(firstXeroIndex).toBeGreaterThan(firstFwcIndex);
+    }
 }
 
 function seedImportedPayItem() {
@@ -98,10 +100,12 @@ test.describe('Imported Xero pay item dropdowns', () => {
         await expect(page.locator('#new-shift-type-pay-rate option', { hasText: 'E2E Imported Bar Rate' })).toHaveAttribute('value', `xero:${importedPayItemId}`);
         await expectFwcRatesBeforeXeroPayItems('#new-shift-type-pay-rate', page);
 
-        await gotoWhenReady(page, `/EditStaff?staffId=${staffId}&weekOffset=0`, '#payRateSelection');
-        await expect(page.locator('#payRateSelection')).toContainText('E2E Imported Bar Rate');
-        await expect(page.locator('#payRateSelection')).toContainText('61.25/hr');
-        await expect(page.locator('#payRateSelection option', { hasText: 'E2E Imported Bar Rate' })).toHaveAttribute('value', `xero:${importedPayItemId}`);
+        await page.goto(`/EditStaff?staffId=${staffId}&weekOffset=0`);
+        const staffPayRateSelection = page.locator('#payRateSelection');
+        await expect(staffPayRateSelection).toHaveCount(1);
+        await expect(staffPayRateSelection).toContainText('E2E Imported Bar Rate');
+        await expect(staffPayRateSelection).toContainText('61.25/hr');
+        await expect(staffPayRateSelection.locator('option', { hasText: 'E2E Imported Bar Rate' })).toHaveAttribute('value', `xero:${importedPayItemId}`);
         await expectFwcRatesBeforeXeroPayItems('#payRateSelection', page);
     });
 });

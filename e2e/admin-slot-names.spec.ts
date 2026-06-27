@@ -18,8 +18,8 @@ test.describe('Roster week columns', () => {
 
         const editorGrid = editorPage.locator('.roster-grid');
         const viewerGrid = viewerPage.locator('.roster-grid');
-        const initialEditorStaffSelects = await editorGrid.locator('select[name="staffId"]').count();
-        const initialViewerStaffSelects = await viewerGrid.locator('select[name="staffId"]').count();
+        const initialEditorLaunchers = await editorGrid.locator('[data-roster-shift-launcher="true"]').count();
+        const initialViewerLaunchers = await viewerGrid.locator('[data-roster-shift-launcher="true"]').count();
         const initialEditorColumnHeaders = await editorGrid.locator('.roster-block-header').count();
         const initialViewerColumnHeaders = await viewerGrid.locator('.roster-block-header').count();
 
@@ -42,8 +42,8 @@ test.describe('Roster week columns', () => {
         await expect(editorPage.locator('.roster-slot-column-name-input')).toHaveCount(0);
         await expect.poll(() => editorGrid.locator('.roster-block-header').count()).toBeGreaterThan(initialEditorColumnHeaders);
         await expect.poll(() => viewerGrid.locator('.roster-block-header').count(), { timeout: E2E_TIMEOUT.liveUpdate }).toBeGreaterThan(initialViewerColumnHeaders);
-        await expect.poll(() => editorGrid.locator('select[name="staffId"]').count()).toBeGreaterThan(initialEditorStaffSelects);
-        await expect.poll(() => viewerGrid.locator('select[name="staffId"]').count(), { timeout: E2E_TIMEOUT.liveUpdate }).toBeGreaterThan(initialViewerStaffSelects);
+        await expect.poll(() => editorGrid.locator('[data-roster-shift-launcher="true"]').count()).toBeGreaterThan(initialEditorLaunchers);
+        await expect.poll(() => viewerGrid.locator('[data-roster-shift-launcher="true"]').count(), { timeout: E2E_TIMEOUT.liveUpdate }).toBeGreaterThan(initialViewerLaunchers);
 
         const deleteResponsePromise = editorPage.waitForResponse((response) => {
             return response.request().method() === 'DELETE' && response.url().includes('/DeleteRosterWeekSlotDefinition');
