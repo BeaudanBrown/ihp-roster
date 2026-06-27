@@ -24,6 +24,10 @@ tests = describe "LiveSurface strict API guard" do
         violations <- concat <$> forM files textBackedFragmentSelectorsInFile
         violations `shouldBe` []
 
+    it "keeps simple descriptor-backed surfaces off the raw record constructor" do
+        violations <- concat <$> forM simpleDescriptorBackedSurfaceFiles rawTypedSurfaceConstructorsInFile
+        violations `shouldBe` []
+
 forbiddenReferencesInFile :: FilePath -> IO [Text]
 forbiddenReferencesInFile path = do
     source <- Text.readFile path
@@ -40,6 +44,14 @@ rawInteractionAttributesInFile path = do
         [ cs path <> ":" <> tshow lineNumber <> ": raw data-bepis-* interaction attribute"
         | (lineNumber, line) <- zip [(1 :: Int)..] (Text.lines source)
         , "data-bepis-" `Text.isInfixOf` line
+        ]
+
+rawTypedSurfaceConstructorsInFile :: FilePath -> IO [Text]
+rawTypedSurfaceConstructorsInFile path = do
+    source <- Text.readFile path
+    pure
+        [ cs path <> ": raw TypedLiveSurfaceDefinition constructor in simple descriptor-backed surface"
+        | "TypedLiveSurfaceDefinition\n        {" `Text.isInfixOf` source
         ]
 
 textBackedFragmentSelectorsInFile :: FilePath -> IO [Text]
@@ -116,6 +128,17 @@ boundaryAfter value =
 isIdentifierChar :: Char -> Bool
 isIdentifierChar value =
     value == '_' || value == '\'' || ('a' <= value && value <= 'z') || ('A' <= value && value <= 'Z') || ('0' <= value && value <= '9')
+
+simpleDescriptorBackedSurfaceFiles :: [FilePath]
+simpleDescriptorBackedSurfaceFiles =
+    [ "Application/Support/LiveUpdates.hs"
+    , "Web/Billing/LiveUpdates.hs"
+    , "Web/View/Admin/Exports.hs"
+    , "Web/View/Admin/Invites.hs"
+    , "Web/View/Admin/RosterGroups.hs"
+    , "Web/View/Admin/ShiftTypes.hs"
+    , "Web/View/Admin/VenueSettings.hs"
+    ]
 
 featureSourceFiles :: IO [FilePath]
 featureSourceFiles = do
