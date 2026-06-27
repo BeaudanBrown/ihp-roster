@@ -31,18 +31,18 @@ async function logout(page: import('@playwright/test').Page) {
     await expect(page).toHaveURL(/NewSession/, { timeout: E2E_TIMEOUT.navigation });
 }
 
-test.describe('Mandatory venue-admin passkeys', () => {
+test.describe('Venue-admin passkeys', () => {
     test.setTimeout(E2E_TIMEOUT.slowTest);
 
-    test('password login forces venue admins without passkeys to security setup', async ({ page }) => {
+    test('password login lets venue admins use roster and admin pages when strong auth is optional', async ({ page }) => {
         clearE2EUserPasskeys(adminEmail);
 
         await passwordLogin(page);
 
-        await expect(page).toHaveURL(/EditProfile.*section=security/, { timeout: E2E_TIMEOUT.navigation });
-        await openProfileSecuritySection(page);
-        await expect(page.getByRole('button', { name: 'Add passkey' })).toBeVisible();
-        await expect(page.locator('body')).toContainText('No passkeys registered yet.');
+        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
+        await gotoWhenReady(page, '/Admin', '#admin-config-sections');
+        await expect(page.locator('#admin-config-sections')).toBeVisible();
     });
 
     test('venue admin can register the first passkey and access admin pages', async ({ page }) => {
@@ -55,18 +55,21 @@ test.describe('Mandatory venue-admin passkeys', () => {
         await expect(page.getByRole('button', { name: 'Roster Groups' }).first()).toHaveAttribute('aria-expanded', 'false');
     });
 
-    test('password login with an existing passkey requires step-up before admin pages', async ({ page }) => {
+    test('password login with an existing passkey keeps passkey settings available in the seeded e2e session', async ({ page }) => {
         await loginAsPrivilegedUserWithFreshPasskey(page);
         await logout(page);
 
         await loginAs(page, adminEmail, password);
-        await page.goto('/Admin');
+        await openProfileSecuritySection(page);
+        await page.getByRole('button', { name: 'Email setup link for another device' }).click();
 
+        await expect(page).toHaveURL(/EditProfile.*section=security/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('body')).toContainText('Verify with your passkey before sending a new-device setup link.');
+        await gotoWhenReady(page, '/PasskeyStepUp', '.js-passkey-login-button');
         await verifyCurrentUserPasskeyStepUp(page);
-        if (!new URL(page.url()).pathname.includes('/Admin')) {
-            await gotoWhenReady(page, '/Admin', '#admin-config-sections');
-        }
-        await expect(page.locator('#admin-config-sections')).toBeVisible();
+        await openProfileSecuritySection(page);
+        await page.getByRole('button', { name: 'Email setup link for another device' }).click();
+        await expect(page.locator('body')).toContainText('New-device passkey setup email sent.', { timeout: E2E_TIMEOUT.navigation });
     });
 
     test('passkey login marks venue-admin access as freshly verified', async ({ page }) => {
@@ -83,7 +86,7 @@ test.describe('Mandatory venue-admin passkeys', () => {
         await expect(page.locator('#admin-config-sections')).toBeVisible();
     });
 
-    test('venue admin cannot delete their last passkey', async ({ page }) => {
+    test('venue admin can delete their last passkey after fresh verification when strong auth is optional', async ({ page }) => {
         await loginAsPrivilegedUserWithFreshPasskey(page);
         await openProfileSecuritySection(page);
         await expect(page.locator('#profile-security-collapse table')).toBeVisible();
@@ -94,9 +97,10 @@ test.describe('Mandatory venue-admin passkeys', () => {
         });
         await page.getByRole('button', { name: 'Delete' }).first().click();
 
-        await expect(page).toHaveURL(/EditProfile.*section=security/, { timeout: E2E_TIMEOUT.navigation });
-        await expect(page.locator('#profile-security-collapse table tbody tr')).toHaveCount(1);
-        await expect(page.locator('body')).toContainText('must keep at least one passkey');
+        await expect(page).toHaveURL(/EditProfile/, { timeout: E2E_TIMEOUT.navigation });
+        await openProfileSecuritySection(page);
+        await expect(page.locator('#profile-security-collapse table tbody tr')).toHaveCount(0);
+        await expect(page.locator('body')).toContainText('No passkeys registered yet.');
     });
 
     test('adding another admin passkey uses the emailed setup-link path after password login', async ({ page }) => {
@@ -104,18 +108,19 @@ test.describe('Mandatory venue-admin passkeys', () => {
         const firstAuthenticator = await enableVirtualPasskeyAuthenticator(page);
 
         await passwordLogin(page);
-        await expect(page).toHaveURL(/EditProfile.*section=security/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
         await registerFirstPasskeyForCurrentUser(page);
         await logout(page);
 
         await loginAs(page, adminEmail, password);
         await openProfileSecuritySection(page);
-        await expect(page.getByRole('button', { name: 'Add passkey' })).toHaveCount(0);
+        await expect(page.getByRole('link', { name: 'Create passkey' })).toHaveCount(0);
         await page.getByRole('button', { name: 'Email setup link for another device' }).click();
 
-        await verifyCurrentUserPasskeyStepUp(page);
         await expect(page).toHaveURL(/EditProfile.*section=security/, { timeout: E2E_TIMEOUT.navigation });
-
+        await expect(page.locator('body')).toContainText('Verify with your passkey before sending a new-device setup link.');
+        await gotoWhenReady(page, '/PasskeyStepUp', '.js-passkey-login-button');
+        await verifyCurrentUserPasskeyStepUp(page);
         await openProfileSecuritySection(page);
         await page.getByRole('button', { name: 'Email setup link for another device' }).click();
         await expect(page.locator('body')).toContainText('New-device passkey setup email sent.', { timeout: E2E_TIMEOUT.navigation });

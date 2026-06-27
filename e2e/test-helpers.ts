@@ -249,6 +249,10 @@ export async function removeVirtualPasskeyAuthenticator(authenticator: Awaited<R
 
 export async function registerFirstPasskeyForCurrentUser(page: Page) {
     await openProfileSecuritySection(page);
+    if (!(await page.locator('.js-passkey-register-button').first().isVisible().catch(() => false))) {
+        await currentPasskeyManagement(page).getByRole('link', { name: 'Create passkey' }).click();
+        await expect(page.locator('.js-passkey-register')).toBeVisible({ timeout: E2E_TIMEOUT.action });
+    }
     await registerFirstPasskeyFromVisibleControl(page);
     await openProfileSecuritySection(page);
     await expect(currentPasskeyManagement(page).locator('table tbody tr')).toHaveCount(1, { timeout: E2E_TIMEOUT.passkey });
@@ -261,14 +265,15 @@ export async function registerFirstSupportPasskeyForCurrentUser(page: Page) {
     await expect(currentPasskeyManagement(page).locator('table tbody tr')).toHaveCount(1, { timeout: E2E_TIMEOUT.passkey });
 }
 
-async function registerFirstPasskeyFromVisibleControl(page: Page) {
-    await expect(page.getByRole('button', { name: 'Add passkey' })).toBeVisible();
+export async function registerFirstPasskeyFromVisibleControl(page: Page) {
+    const registerButton = page.locator('.js-passkey-register-button').first();
+    await expect(registerButton).toBeVisible({ timeout: E2E_TIMEOUT.action });
     await Promise.all([
         page.waitForResponse(
             (response) => new URL(response.url()).pathname.includes('FinishPasskeyRegistration') && response.status() === 200,
             { timeout: E2E_TIMEOUT.passkey },
         ),
-        page.getByRole('button', { name: 'Add passkey' }).click(),
+        registerButton.click(),
     ]);
 }
 
@@ -364,12 +369,12 @@ export async function loginAsPrivilegedUserWithFreshPasskey(
     await page.fill('#email', email);
     await page.fill('#password', password);
     await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/(EditProfile|RosterWeeks|ShowRosterWeek|Support)/, { timeout: E2E_TIMEOUT.navigation });
+    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek|Support)/, { timeout: E2E_TIMEOUT.navigation });
 
-    if (page.url().includes('/EditProfile')) {
-        await registerFirstPasskeyForCurrentUser(page);
-    } else if (page.url().includes('/Support')) {
+    if (page.url().includes('/Support')) {
         await registerFirstSupportPasskeyForCurrentUser(page);
+    } else {
+        await registerFirstPasskeyForCurrentUser(page);
     }
 
     await gotoWhenReady(page, '/RosterWeeks', '#roster-content');
@@ -518,6 +523,79 @@ export function firstRemovableRosterDaySection(scope: Page | Locator) {
 
 export function editableRosterRows(scope: Page | Locator) {
     return scope.locator('[data-roster-row]:has([data-roster-shift-launcher="true"])');
+}
+
+export function rosterShiftLaunchers(scope: Page | Locator) {
+    return scope.locator('[data-roster-shift-launcher="true"]');
+}
+
+export function existingRosterShiftLaunchers(scope: Page | Locator) {
+    return scope.locator('[data-roster-shift-launcher="true"][data-roster-slot-id]:not([data-roster-slot-id=""])');
+}
+
+export function rosterShiftLaunchersForDaySection(daySection: Locator) {
+    return rosterShiftLaunchers(daySection);
+}
+
+export async function openRosterShiftDialog(page: Page, launcher: Locator) {
+    await expect(launcher).toBeVisible({ timeout: E2E_TIMEOUT.action });
+    await launcher.scrollIntoViewIfNeeded();
+    const responsePromise = page.waitForResponse((response) =>
+        response.request().method() === 'GET'
+        && (response.url().includes('/EditRosterSlotDialog') || response.url().includes('/NewRosterSlotDialog')),
+    );
+    await launcher.click({ force: true });
+    const response = await responsePromise;
+    expect(response.status(), await response.text()).toBe(200);
+    await expect(page.locator('#dialog-overlay-mount [data-dialog-overlay="true"]')).toBeVisible({ timeout: E2E_TIMEOUT.action });
+}
+
+export async function rosterShiftDialogStaffOptionValues(page: Page) {
+    return page.locator('#roster-shift-staff-id option').evaluateAll((options) =>
+        options
+            .map((option) => (option instanceof HTMLOptionElement ? option.value : ''))
+            .filter((value) => value !== ''),
+    );
+}
+
+export async function fillRosterShiftDialogDefaults(page: Page) {
+    const firstShiftType = await page.locator('#roster-shift-type-id option').evaluateAll((options) =>
+        options
+            .map((option) => (option instanceof HTMLOptionElement ? option.value : ''))
+            .find((value) => value !== '') ?? '',
+    );
+    if (firstShiftType !== '' && await page.locator('#roster-shift-type-id').inputValue() === '') {
+        await page.locator('#roster-shift-type-id').selectOption(firstShiftType);
+    }
+
+    await page.locator('input[name="startTime"]').evaluate((input) => {
+        if ((input as HTMLInputElement).value === '') {
+            (input as HTMLInputElement).value = '09:00';
+        }
+    });
+    await page.locator('input[name="endTime"]').evaluate((input) => {
+        if ((input as HTMLInputElement).value === '') {
+            (input as HTMLInputElement).value = '17:00';
+        }
+    });
+}
+
+export async function saveRosterShiftDialog(page: Page) {
+    const responsePromise = page.waitForResponse((response) =>
+        response.request().method() === 'POST'
+        && (response.url().includes('/UpdateRosterSlot') || response.url().includes('/CreateRosterSlot')),
+    );
+    await page.getByRole('button', { name: 'Save' }).click();
+    const response = await responsePromise;
+    expect(response.status(), await response.text()).toBe(200);
+    await expect(page.locator('#dialog-overlay-mount')).toBeEmpty({ timeout: E2E_TIMEOUT.liveUpdate });
+}
+
+export async function assignRosterShiftStaff(page: Page, launcher: Locator, staffId: string) {
+    await openRosterShiftDialog(page, launcher);
+    await fillRosterShiftDialogDefaults(page);
+    await page.locator('#roster-shift-staff-id').selectOption(staffId);
+    await saveRosterShiftDialog(page);
 }
 
 export function rosterDayAddButton(scope: Page | Locator) {
