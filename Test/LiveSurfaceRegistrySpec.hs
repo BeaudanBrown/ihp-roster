@@ -33,6 +33,7 @@ tests = do
             manifestSummary "support" `shouldBe` Just (["support_platform"], ["support_award_rates_section", "support_public_holidays_section"])
             manifestSummary "admin-venue-config" `shouldBe` Just (["admin_venue_config"], ["admin_venue_config"])
             manifestSummary "billing" `shouldBe` Just (["billing"], ["billing_status"])
+            manifestSummary "admin-invites" `shouldBe` Just (["admin_invites"], ["admin_invites"])
 
         it "keeps registered surface families unique" do
             let families = fmap (.surfaceFamily) registeredLiveSurfaceManifest

@@ -12,21 +12,7 @@ module Web.View.Admin.Invites
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.LiveResource (LiveResource (..))
-import Application.Helper.LiveSurface (EmptyInteractionIntent,
-                                       EmptyInteractionLayer,
-                                       EmptyInteractionSession,
-                                       LiveScopeAuthorizationRequirement (..),
-                                       LiveSurfaceConfig (..),
-                                       SurfaceFragmentRef, SurfaceScope (..),
-                                       TypedLiveSurfaceDefinition (..),
-                                       emptyInteractionCapability,
-                                       emptyInteractionStaticSchema,
-                                       liveFragmentDependsOn,
-                                       liveSurfaceAuthorizationByRequirement,
-                                       liveSurfaceConfigJson,
-                                       mkSurfaceFragmentContract,
-                                       mkSurfaceFragmentRef,
-                                       mkTypedDefinedLiveSurface)
+import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveUpdateScope (..))
 import Web.View.Admin.Common
@@ -98,22 +84,20 @@ adminInvitesLiveSurfaceDefinition =
 
 adminInvitesLiveSurfaceDefinitionForVenue :: UUID -> TypedLiveSurfaceDefinition AdminInvitesSurface AdminInvitesSurfaceKey AdminInvitesLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 adminInvitesLiveSurfaceDefinitionForVenue surfaceVenueId =
-    TypedLiveSurfaceDefinition
-        { typedSurfaceFeature = "admin-invites"
-        , typedSurfaceScope = const (SurfaceScope AdminInvitesScope { venueId = surfaceVenueId })
-        , typedSurfaceScopeFromWire = \case
-            AdminInvitesScope { venueId } | venueId == surfaceVenueId -> Just AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing }
-            _ -> Nothing
-        , typedSurfaceDefaultFragments = const [adminInvitesFragment]
-        , typedSurfaceFragmentContract = \key fragment ->
-            mkSurfaceFragmentContract
-                (adminInvitesLiveFragmentRef key fragment)
-                (liveFragmentDependsOn (AdminInvitesResource surfaceVenueId) [])
-        , typedSurfaceDecorateRequestsWithin = const ["#admin-invites-fragment"]
-        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin surfaceVenueId))
-        , typedSurfaceInteractionSchema = emptyInteractionStaticSchema
-        , typedSurfaceInteraction = const emptyInteractionCapability
-        }
+    descriptorToTypedLiveSurfaceDefinition
+        ( liveSurfaceDescriptor
+            "admin-invites"
+            (const (SurfaceScope AdminInvitesScope { venueId = surfaceVenueId }))
+            (\case
+                AdminInvitesScope { venueId } | venueId == surfaceVenueId -> Just AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing }
+                _ -> Nothing)
+            (liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin surfaceVenueId)))
+            [ liveFragmentDescriptor
+                adminInvitesFragment
+                (\key -> adminInvitesLiveFragmentRef key adminInvitesFragment)
+                (const (liveFragmentDependsOn (AdminInvitesResource surfaceVenueId) []))
+            ]
+        )
 
 adminInvitesLiveFragmentRef :: AdminInvitesSurfaceKey -> AdminInvitesLiveFragment -> SurfaceFragmentRef AdminInvitesSurface
 adminInvitesLiveFragmentRef AdminInvitesSurfaceKey { adminInvitesRosterGroupId } AdminInvitesLiveFragment =

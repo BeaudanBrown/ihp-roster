@@ -9,22 +9,7 @@ module Web.View.Admin.ShiftTypes
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.LiveResource (LiveResource (..))
-import Application.Helper.LiveSurface (EmptyInteractionIntent,
-                                       EmptyInteractionLayer,
-                                       EmptyInteractionSession,
-                                       LiveScopeAuthorizationRequirement (..),
-                                       LiveSurfaceConfig (..),
-                                       SurfaceFragmentRef, SurfaceScope (..),
-                                       TypedLiveSurfaceDefinition (..),
-                                       emptyInteractionCapability,
-                                       emptyInteractionStaticSchema,
-                                       liveFragmentDependsOn,
-                                       liveSurfaceAuthorizationByRequirement,
-                                       liveSurfaceConfigJson,
-                                       mkSurfaceFragmentContract,
-                                       mkSurfaceFragmentRef,
-                                       mkTypedDefinedLiveSurface,
-                                       surfaceFragmentRefWithFocusedProtection)
+import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (FocusedFieldProtectionConfig (..),
                                       LiveFragmentKey (..),
                                       LiveFragmentProtection (..),
@@ -68,23 +53,21 @@ adminShiftTypesLiveSurface =
 
 adminShiftTypesLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminShiftTypesSurface () AdminShiftTypesLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 adminShiftTypesLiveSurfaceDefinition =
-    TypedLiveSurfaceDefinition
-        { typedSurfaceFeature = "admin-shift-types"
-        , typedSurfaceScope = adminShiftTypesSurfaceScope
-        , typedSurfaceScopeFromWire = \scope ->
-            case (currentVenueOrNothing, scope) of
-                (Just _, AdminShiftTypesScope {}) -> Just ()
-                _                                 -> Nothing
-        , typedSurfaceDefaultFragments = const [adminShiftTypesFragment]
-        , typedSurfaceFragmentContract = \() fragment ->
-            mkSurfaceFragmentContract
-                (adminShiftTypesLiveFragmentRef fragment)
-                (liveFragmentDependsOn (AdminShiftTypesResource currentVenueScopeId) [])
-        , typedSurfaceDecorateRequestsWithin = const ["#admin-shift-types-fragment"]
-        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId))
-        , typedSurfaceInteractionSchema = emptyInteractionStaticSchema
-        , typedSurfaceInteraction = const emptyInteractionCapability
-        }
+    descriptorToTypedLiveSurfaceDefinition
+        ( liveSurfaceDescriptor
+            "admin-shift-types"
+            adminShiftTypesSurfaceScope
+            (\scope ->
+                case (currentVenueOrNothing, scope) of
+                    (Just _, AdminShiftTypesScope {}) -> Just ()
+                    _                                 -> Nothing)
+            (liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId)))
+            [ liveFragmentDescriptor
+                adminShiftTypesFragment
+                (const (adminShiftTypesLiveFragmentRef adminShiftTypesFragment))
+                (const (liveFragmentDependsOn (AdminShiftTypesResource currentVenueScopeId) []))
+            ]
+        )
 
 adminShiftTypesSurfaceScope :: (?context :: ControllerContext) => () -> SurfaceScope AdminShiftTypesSurface
 adminShiftTypesSurfaceScope () =

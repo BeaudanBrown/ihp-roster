@@ -46,7 +46,8 @@ import Web.Timesheets.Projection (timesheetLiveSurfaceCandidateFragments,
                                   timesheetLiveSurfaceDefinition,
                                   timesheetLiveSurfaceDefinitionForVenue)
 import Web.View.Admin.Exports (adminExportsLiveSurfaceDefinition)
-import Web.View.Admin.Invites (adminInvitesLiveSurfaceDefinition,
+import Web.View.Admin.Invites (AdminInvitesSurfaceKey (..),
+                               adminInvitesLiveSurfaceDefinition,
                                adminInvitesLiveSurfaceDefinitionForVenue)
 import Web.View.Admin.RosterGroups (adminRosterGroupsLiveSurfaceDefinition)
 import Web.View.Admin.ShiftTypes (adminShiftTypesLiveSurfaceDefinition)
@@ -85,7 +86,7 @@ registeredLiveSurfaceDescriptors :: [RegisteredLiveSurfaceDescriptor]
 registeredLiveSurfaceDescriptors =
     [ manifestDescriptorFromTypedSurface supportLiveSurfaceDefinition () Nothing
     , manifestDescriptorFromTypedSurface (adminVenueSettingsLiveSurfaceDefinitionForVenue sampleVenueId) () Nothing
-    , manifestDescriptor "admin-invites" [AdminInvitesScope sampleVenueId] [LiveRuntime.AdminInvitesFragment] Nothing
+    , manifestDescriptorFromTypedSurface (adminInvitesLiveSurfaceDefinitionForVenue sampleVenueId) AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing } Nothing
     , manifestDescriptor "admin-exports" [AdminExportsScope sampleVenueId] [LiveRuntime.AdminExportsFragment] Nothing
     , manifestDescriptor "admin-shift-types" [AdminShiftTypesScope sampleVenueId] [LiveRuntime.AdminShiftTypesFragment] Nothing
     , manifestDescriptor "admin-roster-groups" [AdminRosterGroupsScope sampleVenueId] [LiveRuntime.AdminRosterGroupsFragment] Nothing

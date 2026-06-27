@@ -9,21 +9,7 @@ module Web.View.Admin.RosterGroups
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.LiveResource (LiveResource (..))
-import Application.Helper.LiveSurface (EmptyInteractionIntent,
-                                       EmptyInteractionLayer,
-                                       EmptyInteractionSession,
-                                       LiveScopeAuthorizationRequirement (..),
-                                       LiveSurfaceConfig (..),
-                                       SurfaceFragmentRef, SurfaceScope (..),
-                                       TypedLiveSurfaceDefinition (..),
-                                       emptyInteractionCapability,
-                                       emptyInteractionStaticSchema,
-                                       liveFragmentDependsOn,
-                                       liveSurfaceAuthorizationByRequirement,
-                                       liveSurfaceConfigJson,
-                                       mkSurfaceFragmentContract,
-                                       mkSurfaceFragmentRef,
-                                       mkTypedDefinedLiveSurface)
+import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveUpdateScope (..))
 import Web.View.Admin.Common
@@ -63,22 +49,20 @@ adminRosterGroupsLiveSurface =
 
 adminRosterGroupsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminRosterGroupsSurface () AdminRosterGroupsLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 adminRosterGroupsLiveSurfaceDefinition =
-    TypedLiveSurfaceDefinition
-        { typedSurfaceFeature = "admin-roster-groups"
-        , typedSurfaceScope = const (SurfaceScope AdminRosterGroupsScope { venueId = currentVenueScopeId })
-        , typedSurfaceScopeFromWire = \case
-            AdminRosterGroupsScope { venueId } | venueId == currentVenueScopeId -> Just ()
-            _ -> Nothing
-        , typedSurfaceDefaultFragments = const [adminRosterGroupsFragment]
-        , typedSurfaceFragmentContract = \() fragment ->
-            mkSurfaceFragmentContract
-                (adminRosterGroupsLiveFragmentRef fragment)
-                (liveFragmentDependsOn (AdminRosterGroupsResource currentVenueScopeId) [])
-        , typedSurfaceDecorateRequestsWithin = const ["#admin-roster-groups-fragment"]
-        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId))
-        , typedSurfaceInteractionSchema = emptyInteractionStaticSchema
-        , typedSurfaceInteraction = const emptyInteractionCapability
-        }
+    descriptorToTypedLiveSurfaceDefinition
+        ( liveSurfaceDescriptor
+            "admin-roster-groups"
+            (const (SurfaceScope AdminRosterGroupsScope { venueId = currentVenueScopeId }))
+            (\case
+                AdminRosterGroupsScope { venueId } | venueId == currentVenueScopeId -> Just ()
+                _ -> Nothing)
+            (liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId)))
+            [ liveFragmentDescriptor
+                adminRosterGroupsFragment
+                (const (adminRosterGroupsLiveFragmentRef adminRosterGroupsFragment))
+                (const (liveFragmentDependsOn (AdminRosterGroupsResource currentVenueScopeId) []))
+            ]
+        )
 
 adminRosterGroupsLiveFragmentRef :: (?context :: ControllerContext) => AdminRosterGroupsLiveFragment -> SurfaceFragmentRef AdminRosterGroupsSurface
 adminRosterGroupsLiveFragmentRef AdminRosterGroupsLiveFragment =
