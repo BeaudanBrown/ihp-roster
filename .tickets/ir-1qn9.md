@@ -1,6 +1,6 @@
 ---
 id: ir-1qn9
-status: open
+status: closed
 deps: [ir-zaug]
 links: []
 created: 2026-06-27T06:57:15Z
@@ -18,3 +18,9 @@ Add venue scope descriptors and current-venue unit/general surface helpers that 
 
 Helpers compile and tests cover accepted/rejected venue wire scopes and generated surface config defaults.
 
+
+## Notes
+
+**2026-06-27T07:06:02Z**
+
+Added VenueLiveUpdateScope, venueLiveSurfaceDescriptorForVenue, currentVenueLiveSurfaceDescriptor, currentVenueUnitScopeSurface, and test-only/current-venue-for-venue helpers. Tests cover safe venue wire-scope acceptance/rejection, unit-scope config defaults, and keyed local scope preservation. Verification passed: typecheck and focused LiveSurface Hspec.

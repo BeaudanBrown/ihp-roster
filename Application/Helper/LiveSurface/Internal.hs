@@ -9,12 +9,16 @@ module Application.Helper.LiveSurface.Internal
     , LiveSurfaceAuthorization (..)
     , LiveSurfaceDescriptor (..)
     , ProjectionLiveSurfaceDefinition (..)
+    , VenueLiveUpdateScope (..)
     , SurfaceFragmentRef (..)
     , SurfaceScope (..)
     , TypedLiveSurfaceDefinition (..)
     , authorizeLiveScopeRequirement
     , authorizeTypedLiveSurfaceScope
     , authorizeTypedLiveSurfaceWireScope
+    , currentVenueLiveSurfaceDescriptor
+    , currentVenueUnitScopeSurface
+    , currentVenueUnitScopeSurfaceForVenue
     , defaultLiveUpdateScopeAuthorizationRequirement
     , ensureTypedLiveSurfaceAuthorized
     , defaultLiveFragmentTargetId
@@ -59,6 +63,8 @@ module Application.Helper.LiveSurface.Internal
     , typedLiveSurfaceFragmentRefs
     , typedSurfaceDependsOn
     , unSurfaceFragmentRefs
+    , venueLiveSurfaceDescriptorForVenue
+    , venueLiveUpdateScope
     , warmLiveSurfaceProjection
     , warmLiveSurfaceProjectionFromStore
     ) where
@@ -168,6 +174,11 @@ data LiveSurfaceDescriptor surface scope fragment layer session intent = LiveSur
     , liveSurfaceDescriptorAuthorize              :: !(LiveSurfaceAuthorization scope)
     , liveSurfaceDescriptorInteractionSchema      :: !(InteractionStaticSchema fragment layer session intent)
     , liveSurfaceDescriptorInteraction            :: scope -> InteractionCapability (SurfaceFragmentRef surface) fragment layer session intent
+    }
+
+data VenueLiveUpdateScope = VenueLiveUpdateScope
+    { venueLiveUpdateScopeToWire     :: UUID.UUID -> LiveUpdateScope
+    , venueLiveUpdateScopeFromWireId :: LiveUpdateScope -> Maybe UUID.UUID
     }
 
 data TypedLiveSurfaceDefinition surface scope fragment layer session intent = TypedLiveSurfaceDefinition
@@ -335,6 +346,73 @@ liveSurfaceDescriptor liveSurfaceDescriptorFeature liveSurfaceDescriptorScope li
         , liveSurfaceDescriptorInteractionSchema = emptyInteractionStaticSchema
         , liveSurfaceDescriptorInteraction = const emptyInteractionCapability
         }
+
+venueLiveUpdateScope :: (UUID.UUID -> LiveUpdateScope) -> (LiveUpdateScope -> Maybe UUID.UUID) -> VenueLiveUpdateScope
+venueLiveUpdateScope venueLiveUpdateScopeToWire venueLiveUpdateScopeFromWireId =
+    VenueLiveUpdateScope { venueLiveUpdateScopeToWire, venueLiveUpdateScopeFromWireId }
+
+venueLiveSurfaceDescriptorForVenue ::
+    Text ->
+    UUID.UUID ->
+    VenueLiveUpdateScope ->
+    (UUID.UUID -> LiveScopeAuthorizationRequirement) ->
+    (scope -> UUID.UUID) ->
+    (UUID.UUID -> scope) ->
+    [LiveFragmentDescriptor surface scope fragment] ->
+    LiveSurfaceDescriptor surface scope fragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
+venueLiveSurfaceDescriptorForVenue surfaceFeature allowedVenueId venueScope authorizationRequirement scopeVenueId scopeFromVenueId fragments =
+    liveSurfaceDescriptor
+        surfaceFeature
+        (\surfaceKey -> SurfaceScope (venueScope.venueLiveUpdateScopeToWire (scopeVenueId surfaceKey)))
+        (\wireScope -> do
+            wireVenueId <- venueScope.venueLiveUpdateScopeFromWireId wireScope
+            if wireVenueId == allowedVenueId
+                then Just (scopeFromVenueId wireVenueId)
+                else Nothing)
+        (liveSurfaceAuthorizationByRequirement (authorizationRequirement . scopeVenueId))
+        fragments
+
+currentVenueLiveSurfaceDescriptor ::
+    (?context :: ControllerContext) =>
+    Text ->
+    VenueLiveUpdateScope ->
+    (UUID.UUID -> LiveScopeAuthorizationRequirement) ->
+    (scope -> UUID.UUID) ->
+    (UUID.UUID -> scope) ->
+    [LiveFragmentDescriptor surface scope fragment] ->
+    LiveSurfaceDescriptor surface scope fragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
+currentVenueLiveSurfaceDescriptor surfaceFeature venueScope authorizationRequirement scopeVenueId scopeFromVenueId =
+    venueLiveSurfaceDescriptorForVenue surfaceFeature currentVenueScopeId venueScope authorizationRequirement scopeVenueId scopeFromVenueId
+
+currentVenueUnitScopeSurfaceForVenue ::
+    Eq fragment =>
+    Text ->
+    UUID.UUID ->
+    VenueLiveUpdateScope ->
+    (UUID.UUID -> LiveScopeAuthorizationRequirement) ->
+    [LiveFragmentDescriptor surface () fragment] ->
+    TypedLiveSurfaceDefinition surface () fragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
+currentVenueUnitScopeSurfaceForVenue surfaceFeature venueId venueScope authorizationRequirement fragments =
+    descriptorToTypedLiveSurfaceDefinition
+        ( venueLiveSurfaceDescriptorForVenue
+            surfaceFeature
+            venueId
+            venueScope
+            authorizationRequirement
+            (const venueId)
+            (const ())
+            fragments
+        )
+
+currentVenueUnitScopeSurface ::
+    (?context :: ControllerContext, Eq fragment) =>
+    Text ->
+    VenueLiveUpdateScope ->
+    (UUID.UUID -> LiveScopeAuthorizationRequirement) ->
+    [LiveFragmentDescriptor surface () fragment] ->
+    TypedLiveSurfaceDefinition surface () fragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
+currentVenueUnitScopeSurface surfaceFeature venueScope authorizationRequirement =
+    currentVenueUnitScopeSurfaceForVenue surfaceFeature currentVenueScopeId venueScope authorizationRequirement
 
 liveSurfaceDescriptorWithDecorateRequestsWithin ::
     (scope -> [Text]) ->

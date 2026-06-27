@@ -12,6 +12,7 @@ module Application.Helper.LiveSurface
     , LiveSurfaceConfig (..)
     , LiveSurfaceDescriptor (..)
     , ProjectionLiveSurfaceDefinition (..)
+    , VenueLiveUpdateScope (..)
     , SurfaceFragmentRef
     , SurfaceScope (..)
     , TypedLiveSurfaceDefinition (..)
@@ -21,6 +22,9 @@ module Application.Helper.LiveSurface
     , authorizeTypedLiveSurfaceScope
     , authorizeTypedLiveSurfaceWireScope
     , currentVenueLiveFragmentDescriptor
+    , currentVenueLiveSurfaceDescriptor
+    , currentVenueUnitScopeSurface
+    , currentVenueUnitScopeSurfaceForVenue
     , defaultLiveFragmentTargetId
     , descriptorToTypedLiveSurfaceDefinition
     , liveFragmentDependsOn
@@ -62,6 +66,8 @@ module Application.Helper.LiveSurface
     , typedLiveSurfaceFragmentRefs
     , typedSurfaceDependsOn
     , unSurfaceFragmentRefs
+    , venueLiveSurfaceDescriptorForVenue
+    , venueLiveUpdateScope
     , warmLiveSurfaceProjection
     , warmLiveSurfaceProjectionFromStore
     ) where
@@ -84,10 +90,14 @@ import Application.Helper.LiveSurface.Internal (AuthorizedLiveFragment (..),
                                                 SurfaceFragmentRef,
                                                 SurfaceScope (..),
                                                 TypedLiveSurfaceDefinition (..),
+                                                VenueLiveUpdateScope (..),
                                                 authorizeLiveScopeRequirement,
                                                 authorizeTypedLiveSurfaceScope,
                                                 authorizeTypedLiveSurfaceWireScope,
                                                 currentVenueLiveFragmentDescriptor,
+                                                currentVenueLiveSurfaceDescriptor,
+                                                currentVenueUnitScopeSurface,
+                                                currentVenueUnitScopeSurfaceForVenue,
                                                 defaultLiveFragmentTargetId,
                                                 descriptorToTypedLiveSurfaceDefinition,
                                                 liveFragmentDependsOn,
@@ -127,6 +137,8 @@ import Application.Helper.LiveSurface.Internal (AuthorizedLiveFragment (..),
                                                 typedLiveSurfaceFragmentRefs,
                                                 typedSurfaceDependsOn,
                                                 unSurfaceFragmentRefs,
+                                                venueLiveSurfaceDescriptorForVenue,
+                                                venueLiveUpdateScope,
                                                 warmLiveSurfaceProjection,
                                                 warmLiveSurfaceProjectionFromStore)
 import qualified Application.Helper.LiveSurface.Internal as Internal

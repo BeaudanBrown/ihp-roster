@@ -99,6 +99,45 @@ tests = describe "LiveSurface contract helpers" do
 
         (mkTypedDefinedLiveSurface definition ()).decorateRequestsWithin `shouldBe` ["#test-shell"]
 
+    it "builds current-venue unit-scope surfaces with safe wire-scope parsing" do
+        let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
+        let otherVenueId = expectUuid "22222222-2222-2222-2222-222222222222"
+        let definition =
+                currentVenueUnitScopeSurfaceForVenue
+                    "test-current-venue"
+                    venueId
+                    testBillingVenueScope
+                    RequireCurrentVenueOwner
+                    [ staticLiveFragmentDescriptor TestDescriptorPrimary BillingStatusFragment "billing-status-fragment" "/billing" (const (liveFragmentDependsOn (BillingResource venueId) []))
+                    ]
+
+        unSurfaceScope (definition.typedSurfaceScope ()) `shouldBe` BillingScope venueId
+        definition.typedSurfaceScopeFromWire (BillingScope venueId) `shouldBe` Just ()
+        definition.typedSurfaceScopeFromWire (BillingScope otherVenueId) `shouldBe` Nothing
+        definition.typedSurfaceScopeFromWire SupportPlatformScope `shouldBe` Nothing
+        (mkTypedDefinedLiveSurface definition ()).decorateRequestsWithin `shouldBe` ["#billing-status-fragment"]
+
+    it "builds keyed current-venue descriptors while preserving explicit local keys" do
+        let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
+        let otherVenueId = expectUuid "22222222-2222-2222-2222-222222222222"
+        let descriptor =
+                venueLiveSurfaceDescriptorForVenue
+                    "test-keyed-current-venue"
+                    venueId
+                    testBillingVenueScope
+                    RequireCurrentVenueOwner
+                    testVenueKeyVenueId
+                    TestVenueKey
+                    [ staticLiveFragmentDescriptor TestDescriptorPrimary BillingStatusFragment "billing-status-fragment" "/billing" (\key -> liveFragmentDependsOn (BillingResource key.testVenueKeyVenueId) [])
+                    ]
+        let definition = descriptorToTypedLiveSurfaceDefinition descriptor
+        let key = TestVenueKey venueId
+
+        unSurfaceScope (definition.typedSurfaceScope key) `shouldBe` BillingScope venueId
+        definition.typedSurfaceScopeFromWire (BillingScope venueId) `shouldBe` Just key
+        definition.typedSurfaceScopeFromWire (BillingScope otherVenueId) `shouldBe` Nothing
+        typedSurfaceDependsOn definition key TestDescriptorPrimary `shouldBe` [BillingResource venueId]
+
     it "builds static fragment descriptors with protection and containment modifiers" do
         let descriptor =
                 staticLiveFragmentDescriptor TestDescriptorPrimary BillingStatusFragment "initial-target" "/initial" (const (liveFragmentResyncOnly "static"))
@@ -207,6 +246,19 @@ data TestDescriptorFragment
     = TestDescriptorPrimary
     | TestDescriptorSecondary
     deriving (Eq, Show)
+
+data TestVenueKey = TestVenueKey
+    { testVenueKeyVenueId :: !UUID.UUID
+    }
+    deriving (Eq, Show)
+
+testBillingVenueScope :: VenueLiveUpdateScope
+testBillingVenueScope =
+    venueLiveUpdateScope
+        BillingScope
+        (\scope -> case scope of
+            BillingScope { venueId } -> Just venueId
+            _                        -> Nothing)
 
 testFocusedProtection :: LiveFragmentProtection
 testFocusedProtection =
