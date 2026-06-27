@@ -29,7 +29,7 @@ tests = do
                 , "roster_row"
                 ]
 
-        it "derives descriptor-backed manifest entries from typed surface defaults" do
+        it "derives registered manifest entries from typed surface registrations" do
             manifestSummary "support" `shouldBe` Just (["support_platform"], ["support_award_rates_section", "support_public_holidays_section"])
             manifestSummary "admin-venue-config" `shouldBe` Just (["admin_venue_config"], ["admin_venue_config"])
             manifestSummary "billing" `shouldBe` Just (["billing"], ["billing_status"])
@@ -37,6 +37,10 @@ tests = do
             manifestSummary "admin-exports" `shouldBe` Just (["admin_exports"], ["admin_exports"])
             manifestSummary "admin-shift-types" `shouldBe` Just (["admin_shift_types"], ["admin_shift_types"])
             manifestSummary "admin-roster-groups" `shouldBe` Just (["admin_roster_groups"], ["admin_roster_groups"])
+            manifestSummary "admin-xero" `shouldBe` Just (["admin_xero"], ["admin_xero", "admin_xero_staff_mappings", "admin_xero_pay_items", "admin_xero_timesheets"])
+            manifestSummary "leave-requests" `shouldBe` Just (["leave_requests"], ["leave_requests_content"])
+            manifestSummary "profile" `shouldBe` Just (["profile"], ["profile_content"])
+            manifestSummary "profile-leave-requests" `shouldBe` Just (["profile"], ["profile_leave_requests_content"])
 
         it "keeps registered surface families unique" do
             let families = fmap (.surfaceFamily) registeredLiveSurfaceManifest
