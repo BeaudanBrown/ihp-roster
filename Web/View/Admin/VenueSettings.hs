@@ -35,27 +35,26 @@ adminVenueSettingsLiveSurfaceDefinition =
 
 adminVenueSettingsLiveSurfaceDefinitionForVenue :: UUID -> TypedLiveSurfaceDefinition AdminVenueSettingsSurface () AdminVenueSettingsLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 adminVenueSettingsLiveSurfaceDefinitionForVenue surfaceVenueId =
-    descriptorToTypedLiveSurfaceDefinition
-        ( liveSurfaceDescriptor
-            "admin-venue-config"
-            (const (SurfaceScope AdminVenueConfigScope { venueId = surfaceVenueId }))
-            (\case
-                AdminVenueConfigScope { venueId } | venueId == surfaceVenueId -> Just ()
-                _ -> Nothing)
-            (liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin surfaceVenueId)))
-            [ liveFragmentDescriptor
-                adminVenueSettingsFragment
-                (const (adminVenueSettingsLiveFragmentRef adminVenueSettingsFragment))
-                (const (liveFragmentDependsOn (AdminVenueSettingsResource surfaceVenueId) []))
-            ]
-        )
+    currentVenueUnitScopeSurfaceForVenue
+        "admin-venue-config"
+        surfaceVenueId
+        adminVenueSettingsVenueScope
+        RequireCurrentVenueAdmin
+        [ staticLiveFragmentDescriptor
+            adminVenueSettingsFragment
+            AdminVenueConfigFragment
+            adminVenueSettingsFragmentId
+            (pathTo ShowAdminVenueSettingsFragmentAction)
+            (const (liveFragmentDependsOn (AdminVenueSettingsResource surfaceVenueId) []))
+        ]
 
-adminVenueSettingsLiveFragmentRef :: AdminVenueSettingsLiveFragment -> SurfaceFragmentRef AdminVenueSettingsSurface
-adminVenueSettingsLiveFragmentRef AdminVenueSettingsLiveFragment =
-    mkSurfaceFragmentRef
-        AdminVenueConfigFragment
-        adminVenueSettingsFragmentId
-        (pathTo ShowAdminVenueSettingsFragmentAction)
+adminVenueSettingsVenueScope :: VenueLiveUpdateScope
+adminVenueSettingsVenueScope =
+    venueLiveUpdateScope
+        AdminVenueConfigScope
+        (\case
+            AdminVenueConfigScope { venueId } -> Just venueId
+            _ -> Nothing)
 
 currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =

@@ -34,14 +34,7 @@ supportLiveSurfaceDefinition =
                 SupportPlatformScope -> Just ()
                 _ -> Nothing)
             (liveSurfaceAuthorizationByRequirement (const RequireSupportSuperAdmin))
-            ( map
-                (\fragment ->
-                    liveFragmentDescriptor
-                        fragment
-                        (const (supportLiveFragmentRef fragment))
-                        (const (supportLiveFragmentDependencies fragment)))
-                supportLiveFragmentRefs
-            )
+            (map supportLiveFragmentDescriptor supportLiveFragmentRefs)
             |> liveSurfaceDescriptorWithDecorateRequestsWithin
                 ( const
                     [ "#support-shell"
@@ -57,23 +50,21 @@ supportLiveFragmentRefs =
     , SupportPublicHolidaysLiveFragment
     ]
 
-supportLiveFragmentDependencies :: SupportLiveFragment -> FragmentDependencies
-supportLiveFragmentDependencies SupportAwardRatesLiveFragment =
-    liveFragmentDependsOn SupportAwardRatesResource []
-supportLiveFragmentDependencies SupportPublicHolidaysLiveFragment =
-    liveFragmentDependsOn SupportPublicHolidaysResource []
-
-supportLiveFragmentRef :: SupportLiveFragment -> SurfaceFragmentRef SupportSurface
-supportLiveFragmentRef SupportAwardRatesLiveFragment =
-    mkSurfaceFragmentRef
+supportLiveFragmentDescriptor :: SupportLiveFragment -> LiveFragmentDescriptor SupportSurface () SupportLiveFragment
+supportLiveFragmentDescriptor SupportAwardRatesLiveFragment =
+    staticLiveFragmentDescriptor
+        SupportAwardRatesLiveFragment
         SupportAwardRatesSectionFragment
         "support-award-rates-section"
         "/ShowFwcMapdAwardRatesSection"
-supportLiveFragmentRef SupportPublicHolidaysLiveFragment =
-    mkSurfaceFragmentRef
+        (const (liveFragmentDependsOn SupportAwardRatesResource []))
+supportLiveFragmentDescriptor SupportPublicHolidaysLiveFragment =
+    staticLiveFragmentDescriptor
+        SupportPublicHolidaysLiveFragment
         SupportPublicHolidaysSectionFragment
         "support-public-holidays-section"
         "/ShowPublicHolidaysSection"
+        (const (liveFragmentDependsOn SupportPublicHolidaysResource []))
 
 supportLiveSurface :: LiveSurfaceConfig
 supportLiveSurface =

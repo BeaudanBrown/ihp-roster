@@ -7,7 +7,6 @@ module Web.View.Admin.ShiftTypes
     , renderShiftTypesSectionFragment
     ) where
 
-import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (FocusedFieldProtectionConfig (..),
@@ -53,39 +52,26 @@ adminShiftTypesLiveSurface =
 
 adminShiftTypesLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminShiftTypesSurface () AdminShiftTypesLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 adminShiftTypesLiveSurfaceDefinition =
-    descriptorToTypedLiveSurfaceDefinition
-        ( liveSurfaceDescriptor
-            "admin-shift-types"
-            adminShiftTypesSurfaceScope
-            (\scope ->
-                case (currentVenueOrNothing, scope) of
-                    (Just _, AdminShiftTypesScope {}) -> Just ()
-                    _                                 -> Nothing)
-            (liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId)))
-            [ liveFragmentDescriptor
-                adminShiftTypesFragment
-                (const (adminShiftTypesLiveFragmentRef adminShiftTypesFragment))
-                (const (liveFragmentDependsOn (AdminShiftTypesResource currentVenueScopeId) []))
-            ]
-        )
+    currentVenueUnitScopeSurface
+        "admin-shift-types"
+        adminShiftTypesVenueScope
+        RequireCurrentVenueAdmin
+        [ currentVenueLiveFragmentDescriptor
+            adminShiftTypesFragment
+            AdminShiftTypesFragment
+            "admin-shift-types-fragment"
+            (pathTo ShowAdminShiftTypesFragmentAction)
+            AdminShiftTypesResource
+            |> liveFragmentDescriptorWithFocusedProtection adminShiftTypesFocusProtection
+        ]
 
-adminShiftTypesSurfaceScope :: (?context :: ControllerContext) => () -> SurfaceScope AdminShiftTypesSurface
-adminShiftTypesSurfaceScope () =
-    SurfaceScope AdminShiftTypesScope { venueId = currentVenueScopeId }
-
-currentVenueScopeId :: (?context :: ControllerContext) => UUID
-currentVenueScopeId =
-    case currentVenueOrNothing of
-        Just venue -> unpackId venue.id
-        Nothing    -> error "Typed live surface requires a current venue"
-
-adminShiftTypesLiveFragmentRef :: (?context :: ControllerContext) => AdminShiftTypesLiveFragment -> SurfaceFragmentRef AdminShiftTypesSurface
-adminShiftTypesLiveFragmentRef AdminShiftTypesLiveFragment =
-    mkSurfaceFragmentRef
-        AdminShiftTypesFragment
-        "admin-shift-types-fragment"
-        (pathTo ShowAdminShiftTypesFragmentAction)
-        |> surfaceFragmentRefWithFocusedProtection adminShiftTypesFocusProtection
+adminShiftTypesVenueScope :: VenueLiveUpdateScope
+adminShiftTypesVenueScope =
+    venueLiveUpdateScope
+        AdminShiftTypesScope
+        (\case
+            AdminShiftTypesScope { venueId } -> Just venueId
+            _ -> Nothing)
 
 adminShiftTypesFocusProtection :: LiveFragmentProtection
 adminShiftTypesFocusProtection =

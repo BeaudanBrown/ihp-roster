@@ -7,7 +7,6 @@ module Web.View.Admin.RosterGroups
     , renderRosterGroupsSectionFragment
     ) where
 
-import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
@@ -49,33 +48,25 @@ adminRosterGroupsLiveSurface =
 
 adminRosterGroupsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminRosterGroupsSurface () AdminRosterGroupsLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 adminRosterGroupsLiveSurfaceDefinition =
-    descriptorToTypedLiveSurfaceDefinition
-        ( liveSurfaceDescriptor
-            "admin-roster-groups"
-            (const (SurfaceScope AdminRosterGroupsScope { venueId = currentVenueScopeId }))
-            (\case
-                AdminRosterGroupsScope { venueId } | venueId == currentVenueScopeId -> Just ()
-                _ -> Nothing)
-            (liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId)))
-            [ liveFragmentDescriptor
-                adminRosterGroupsFragment
-                (const (adminRosterGroupsLiveFragmentRef adminRosterGroupsFragment))
-                (const (liveFragmentDependsOn (AdminRosterGroupsResource currentVenueScopeId) []))
-            ]
-        )
+    currentVenueUnitScopeSurface
+        "admin-roster-groups"
+        adminRosterGroupsVenueScope
+        RequireCurrentVenueAdmin
+        [ currentVenueLiveFragmentDescriptor
+            adminRosterGroupsFragment
+            AdminRosterGroupsFragment
+            "admin-roster-groups-fragment"
+            (pathTo ShowAdminRosterGroupsFragmentAction)
+            AdminRosterGroupsResource
+        ]
 
-adminRosterGroupsLiveFragmentRef :: (?context :: ControllerContext) => AdminRosterGroupsLiveFragment -> SurfaceFragmentRef AdminRosterGroupsSurface
-adminRosterGroupsLiveFragmentRef AdminRosterGroupsLiveFragment =
-    mkSurfaceFragmentRef
-        AdminRosterGroupsFragment
-        "admin-roster-groups-fragment"
-        (pathTo ShowAdminRosterGroupsFragmentAction)
-
-currentVenueScopeId :: (?context :: ControllerContext) => UUID
-currentVenueScopeId =
-    case currentVenueOrNothing of
-        Just venue -> unpackId venue.id
-        Nothing -> error "Admin roster groups live surface requires a current venue"
+adminRosterGroupsVenueScope :: VenueLiveUpdateScope
+adminRosterGroupsVenueScope =
+    venueLiveUpdateScope
+        AdminRosterGroupsScope
+        (\case
+            AdminRosterGroupsScope { venueId } -> Just venueId
+            _ -> Nothing)
 
 renderRosterGroupCreateForm :: Bool -> Html
 renderRosterGroupCreateForm showInactive = [hsx|

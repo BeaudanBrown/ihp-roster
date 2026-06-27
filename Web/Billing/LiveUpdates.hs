@@ -38,20 +38,15 @@ billingLiveSurfaceDefinition =
                 BillingScope { venueId } -> Just BillingSurfaceKey { billingSurfaceVenueId = venueId }
                 _ -> Nothing)
             (liveSurfaceAuthorizationByRequirement (\key -> RequireCurrentVenueOwner key.billingSurfaceVenueId))
-            [ liveFragmentDescriptor
+            [ staticLiveFragmentDescriptor
                 BillingStatusLiveFragment
-                (const (billingLiveFragmentRef BillingStatusLiveFragment))
+                BillingStatusFragment
+                "billing-status-fragment"
+                (pathTo ShowBillingStatusFragmentAction)
                 (\key -> liveFragmentDependsOn (BillingResource key.billingSurfaceVenueId) [])
             ]
             |> liveSurfaceDescriptorWithDecorateRequestsWithin (const ["#billing-live-surface", "#billing-status-fragment"])
         )
-
-billingLiveFragmentRef :: BillingLiveFragment -> SurfaceFragmentRef BillingSurface
-billingLiveFragmentRef BillingStatusLiveFragment =
-    mkSurfaceFragmentRef
-        BillingStatusFragment
-        "billing-status-fragment"
-        (pathTo ShowBillingStatusFragmentAction)
 
 currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =

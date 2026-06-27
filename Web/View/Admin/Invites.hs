@@ -85,19 +85,27 @@ adminInvitesLiveSurfaceDefinition =
 adminInvitesLiveSurfaceDefinitionForVenue :: UUID -> TypedLiveSurfaceDefinition AdminInvitesSurface AdminInvitesSurfaceKey AdminInvitesLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 adminInvitesLiveSurfaceDefinitionForVenue surfaceVenueId =
     descriptorToTypedLiveSurfaceDefinition
-        ( liveSurfaceDescriptor
+        ( venueLiveSurfaceDescriptorForVenue
             "admin-invites"
-            (const (SurfaceScope AdminInvitesScope { venueId = surfaceVenueId }))
-            (\case
-                AdminInvitesScope { venueId } | venueId == surfaceVenueId -> Just AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing }
-                _ -> Nothing)
-            (liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin surfaceVenueId)))
+            surfaceVenueId
+            adminInvitesVenueScope
+            RequireCurrentVenueAdmin
+            (const surfaceVenueId)
+            (const AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing })
             [ liveFragmentDescriptor
                 adminInvitesFragment
                 (\key -> adminInvitesLiveFragmentRef key adminInvitesFragment)
                 (const (liveFragmentDependsOn (AdminInvitesResource surfaceVenueId) []))
             ]
         )
+
+adminInvitesVenueScope :: VenueLiveUpdateScope
+adminInvitesVenueScope =
+    venueLiveUpdateScope
+        AdminInvitesScope
+        (\case
+            AdminInvitesScope { venueId } -> Just venueId
+            _ -> Nothing)
 
 adminInvitesLiveFragmentRef :: AdminInvitesSurfaceKey -> AdminInvitesLiveFragment -> SurfaceFragmentRef AdminInvitesSurface
 adminInvitesLiveFragmentRef AdminInvitesSurfaceKey { adminInvitesRosterGroupId } AdminInvitesLiveFragment =

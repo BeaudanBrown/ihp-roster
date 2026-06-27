@@ -8,7 +8,6 @@ module Web.View.Admin.Exports
     , renderExportsSectionFragment
     ) where
 
-import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.Export
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
@@ -31,33 +30,25 @@ adminExportsFragmentId = "admin-exports-fragment"
 
 adminExportsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminExportsSurface () AdminExportsLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 adminExportsLiveSurfaceDefinition =
-    descriptorToTypedLiveSurfaceDefinition
-        ( liveSurfaceDescriptor
-            "admin-exports"
-            (const (SurfaceScope AdminExportsScope { venueId = currentVenueScopeId }))
-            (\case
-                AdminExportsScope { venueId } | venueId == currentVenueScopeId -> Just ()
-                _ -> Nothing)
-            (liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId)))
-            [ liveFragmentDescriptor
-                adminExportsFragment
-                (const (adminExportsLiveFragmentRef adminExportsFragment))
-                (const (liveFragmentDependsOn (AdminExportsResource currentVenueScopeId) []))
-            ]
-        )
+    currentVenueUnitScopeSurface
+        "admin-exports"
+        adminExportsVenueScope
+        RequireCurrentVenueAdmin
+        [ currentVenueLiveFragmentDescriptor
+            adminExportsFragment
+            AdminExportsFragment
+            adminExportsFragmentId
+            (pathTo ShowAdminExportsFragmentAction)
+            AdminExportsResource
+        ]
 
-adminExportsLiveFragmentRef :: (?context :: ControllerContext) => AdminExportsLiveFragment -> SurfaceFragmentRef AdminExportsSurface
-adminExportsLiveFragmentRef AdminExportsLiveFragment =
-    mkSurfaceFragmentRef
-        AdminExportsFragment
-        adminExportsFragmentId
-        (pathTo ShowAdminExportsFragmentAction)
-
-currentVenueScopeId :: (?context :: ControllerContext) => UUID
-currentVenueScopeId =
-    case currentVenueOrNothing of
-        Just venue -> unpackId venue.id
-        Nothing -> error "Admin exports live surface requires a current venue"
+adminExportsVenueScope :: VenueLiveUpdateScope
+adminExportsVenueScope =
+    venueLiveUpdateScope
+        AdminExportsScope
+        (\case
+            AdminExportsScope { venueId } -> Just venueId
+            _ -> Nothing)
 
 renderExportsSectionFragment :: ReportWeekSelection -> Day -> Day -> [ExportJob] -> Html
 renderExportsSectionFragment reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs = [hsx|
