@@ -19,8 +19,14 @@ module Application.Helper.LiveSurface.Internal
     , ensureTypedLiveSurfaceAuthorized
     , defaultLiveFragmentTargetId
     , descriptorToTypedLiveSurfaceDefinition
+    , currentVenueLiveFragmentDescriptor
     , liveFragmentDependsOn
     , liveFragmentDescriptor
+    , liveFragmentDescriptorWithDeferUntilBlur
+    , liveFragmentDescriptorWithFocusedProtection
+    , liveFragmentDescriptorWithPath
+    , liveFragmentDescriptorWithProtection
+    , liveFragmentDescriptorWithTargetId
     , liveFragmentResyncOnly
     , liveSurfaceAuthorizationByRequirement
     , liveSurfaceDescriptor
@@ -43,6 +49,7 @@ module Application.Helper.LiveSurface.Internal
     , respondWithTypedLiveSurfaceFragments
     , serveTypedLiveFragment
     , setTypedLiveSurfaceActorRefresh
+    , staticLiveFragmentDescriptor
     , surfaceFragmentRefWithDeferUntilBlur
     , surfaceFragmentRefWithFocusedProtection
     , surfaceFragmentRefWithPath
@@ -262,6 +269,53 @@ mkSurfaceFragmentContract fragmentContractRef fragmentContractDependencies =
 liveFragmentDescriptor :: fragment -> (scope -> SurfaceFragmentRef surface) -> (scope -> FragmentDependencies) -> LiveFragmentDescriptor surface scope fragment
 liveFragmentDescriptor liveFragmentDescriptorFragment liveFragmentDescriptorRef liveFragmentDescriptorDependencies =
     LiveFragmentDescriptor { liveFragmentDescriptorFragment, liveFragmentDescriptorRef, liveFragmentDescriptorDependencies }
+
+staticLiveFragmentDescriptor :: fragment -> LiveFragmentKey -> Text -> Text -> (scope -> FragmentDependencies) -> LiveFragmentDescriptor surface scope fragment
+staticLiveFragmentDescriptor fragment fragmentKey targetId url dependencies =
+    liveFragmentDescriptor
+        fragment
+        (const (mkSurfaceFragmentRef fragmentKey targetId url))
+        dependencies
+
+currentVenueLiveFragmentDescriptor :: (?context :: ControllerContext) => fragment -> LiveFragmentKey -> Text -> Text -> (UUID.UUID -> LiveResource) -> LiveFragmentDescriptor surface () fragment
+currentVenueLiveFragmentDescriptor fragment fragmentKey targetId url resource =
+    staticLiveFragmentDescriptor
+        fragment
+        fragmentKey
+        targetId
+        url
+        (const (liveFragmentDependsOn (resource currentVenueScopeId) []))
+
+liveFragmentDescriptorWithProtection :: LiveFragmentProtection -> LiveFragmentDescriptor surface scope fragment -> LiveFragmentDescriptor surface scope fragment
+liveFragmentDescriptorWithProtection protection =
+    mapLiveFragmentDescriptorRef (surfaceFragmentRefWithProtection protection)
+
+liveFragmentDescriptorWithDeferUntilBlur :: Bool -> LiveFragmentDescriptor surface scope fragment -> LiveFragmentDescriptor surface scope fragment
+liveFragmentDescriptorWithDeferUntilBlur defer =
+    mapLiveFragmentDescriptorRef (surfaceFragmentRefWithDeferUntilBlur defer)
+
+liveFragmentDescriptorWithFocusedProtection :: LiveFragmentProtection -> LiveFragmentDescriptor surface scope fragment -> LiveFragmentDescriptor surface scope fragment
+liveFragmentDescriptorWithFocusedProtection protection =
+    mapLiveFragmentDescriptorRef (surfaceFragmentRefWithFocusedProtection protection)
+
+liveFragmentDescriptorWithPath :: [Text] -> LiveFragmentDescriptor surface scope fragment -> LiveFragmentDescriptor surface scope fragment
+liveFragmentDescriptorWithPath containmentPath =
+    mapLiveFragmentDescriptorRef (surfaceFragmentRefWithPath containmentPath)
+
+liveFragmentDescriptorWithTargetId :: Text -> LiveFragmentDescriptor surface scope fragment -> LiveFragmentDescriptor surface scope fragment
+liveFragmentDescriptorWithTargetId targetId =
+    mapLiveFragmentDescriptorRef setTargetId
+    where
+        setTargetId ref =
+            let LiveUpdateWireFragment { fragmentKey, url, deferUntilBlur, protectionPolicy } = unSurfaceFragmentRef ref
+             in SurfaceFragmentRef
+                    { unSurfaceFragmentRef = LiveUpdateWireFragment { fragmentKey, targetId, url, deferUntilBlur, protectionPolicy }
+                    , surfaceFragmentContainmentPath = [targetId]
+                    }
+
+mapLiveFragmentDescriptorRef :: (SurfaceFragmentRef surface -> SurfaceFragmentRef surface) -> LiveFragmentDescriptor surface scope fragment -> LiveFragmentDescriptor surface scope fragment
+mapLiveFragmentDescriptorRef transform descriptor =
+    descriptor { liveFragmentDescriptorRef = transform . descriptor.liveFragmentDescriptorRef }
 
 liveSurfaceDescriptor ::
     Text ->
@@ -563,6 +617,12 @@ authorizeLiveScopeRequirement (RequireCurrentVenueAdminRosterGroup venueId roste
         else pure False
 authorizeLiveScopeRequirement RequireSupportSuperAdmin =
     pure currentUserIsSuperAdmin
+
+currentVenueScopeId :: (?context :: ControllerContext) => UUID.UUID
+currentVenueScopeId =
+    case currentVenueOrNothing of
+        Just venue -> unpackId venue.id
+        Nothing -> error "Current-venue live surface helper requires a current venue"
 
 currentVenueMatches :: (?context :: ControllerContext) => UUID.UUID -> Bool
 currentVenueMatches venueId =

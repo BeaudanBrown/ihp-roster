@@ -2,7 +2,10 @@ module Test.LiveSurfaceSpec where
 
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
-import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..),
+import Application.Helper.LiveSurface.Internal (SurfaceFragmentRef (..))
+import Application.Helper.LiveUpdate.Runtime (FocusedFieldProtectionConfig (..),
+                                              LiveFragmentKey (..),
+                                              LiveFragmentProtection (..),
                                               LiveUpdateScope (..),
                                               LiveUpdateWireFragment (..))
 import Application.Helper.SurfaceProjection (defaultSurfaceProjectionCachePolicy)
@@ -96,6 +99,31 @@ tests = describe "LiveSurface contract helpers" do
 
         (mkTypedDefinedLiveSurface definition ()).decorateRequestsWithin `shouldBe` ["#test-shell"]
 
+    it "builds static fragment descriptors with protection and containment modifiers" do
+        let descriptor =
+                staticLiveFragmentDescriptor TestDescriptorPrimary BillingStatusFragment "initial-target" "/initial" (const (liveFragmentResyncOnly "static"))
+                    |> liveFragmentDescriptorWithFocusedProtection testFocusedProtection
+                    |> liveFragmentDescriptorWithPath ["outer", "inner"]
+        let ref = descriptor.liveFragmentDescriptorRef ()
+
+        ref.surfaceFragmentContainmentPath `shouldBe` ["outer", "inner"]
+        ref.unSurfaceFragmentRef.fragmentKey `shouldBe` BillingStatusFragment
+        ref.unSurfaceFragmentRef.targetId `shouldBe` "initial-target"
+        ref.unSurfaceFragmentRef.url `shouldBe` "/initial"
+        ref.unSurfaceFragmentRef.deferUntilBlur `shouldBe` True
+        ref.unSurfaceFragmentRef.protectionPolicy `shouldBe` testFocusedProtection
+
+    it "can retarget fragment descriptors while keeping URL and fragment key stable" do
+        let descriptor =
+                staticLiveFragmentDescriptor TestDescriptorPrimary BillingStatusFragment "old-target" "/fragment" (const (liveFragmentResyncOnly "static"))
+                    |> liveFragmentDescriptorWithTargetId "new-target"
+        let ref = descriptor.liveFragmentDescriptorRef ()
+
+        ref.surfaceFragmentContainmentPath `shouldBe` ["new-target"]
+        ref.unSurfaceFragmentRef.fragmentKey `shouldBe` BillingStatusFragment
+        ref.unSurfaceFragmentRef.targetId `shouldBe` "new-target"
+        ref.unSurfaceFragmentRef.url `shouldBe` "/fragment"
+
     it "derives stable kebab and snake names for descriptor defaults" do
         nameToKebab "AdminAnnouncementFragment" `shouldBe` "admin-announcement-fragment"
         nameToSnake "AdminAnnouncementFragment" `shouldBe` "admin_announcement_fragment"
@@ -179,6 +207,16 @@ data TestDescriptorFragment
     = TestDescriptorPrimary
     | TestDescriptorSecondary
     deriving (Eq, Show)
+
+testFocusedProtection :: LiveFragmentProtection
+testFocusedProtection =
+    FocusedFieldProtection
+        FocusedFieldProtectionConfig
+            { activeSelector = "input:focus"
+            , fieldKeyAttr = "data-test-field"
+            , fieldNameFallback = True
+            , containerSelector = Just "form"
+            }
 
 testDescriptorSurface :: UUID.UUID -> LiveSurfaceDescriptor TestDescriptorSurface () TestDescriptorFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 testDescriptorSurface venueId =

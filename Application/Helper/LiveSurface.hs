@@ -20,10 +20,16 @@ module Application.Helper.LiveSurface
     , authorizeLiveScopeRequirement
     , authorizeTypedLiveSurfaceScope
     , authorizeTypedLiveSurfaceWireScope
+    , currentVenueLiveFragmentDescriptor
     , defaultLiveFragmentTargetId
     , descriptorToTypedLiveSurfaceDefinition
     , liveFragmentDependsOn
     , liveFragmentDescriptor
+    , liveFragmentDescriptorWithDeferUntilBlur
+    , liveFragmentDescriptorWithFocusedProtection
+    , liveFragmentDescriptorWithPath
+    , liveFragmentDescriptorWithProtection
+    , liveFragmentDescriptorWithTargetId
     , liveFragmentResyncOnly
     , liveSurfaceAuthorizationByRequirement
     , liveSurfaceConfigJson
@@ -46,6 +52,7 @@ module Application.Helper.LiveSurface
     , respondWithTypedLiveSurfaceFragments
     , serveTypedLiveFragment
     , setTypedLiveSurfaceActorRefresh
+    , staticLiveFragmentDescriptor
     , surfaceFragmentRefWithDeferUntilBlur
     , surfaceFragmentRefWithFocusedProtection
     , surfaceFragmentRefWithPath
@@ -80,10 +87,16 @@ import Application.Helper.LiveSurface.Internal (AuthorizedLiveFragment (..),
                                                 authorizeLiveScopeRequirement,
                                                 authorizeTypedLiveSurfaceScope,
                                                 authorizeTypedLiveSurfaceWireScope,
+                                                currentVenueLiveFragmentDescriptor,
                                                 defaultLiveFragmentTargetId,
                                                 descriptorToTypedLiveSurfaceDefinition,
                                                 liveFragmentDependsOn,
                                                 liveFragmentDescriptor,
+                                                liveFragmentDescriptorWithDeferUntilBlur,
+                                                liveFragmentDescriptorWithFocusedProtection,
+                                                liveFragmentDescriptorWithPath,
+                                                liveFragmentDescriptorWithProtection,
+                                                liveFragmentDescriptorWithTargetId,
                                                 liveFragmentResyncOnly,
                                                 liveSurfaceAuthorizationByRequirement,
                                                 liveSurfaceConfigJson,
@@ -104,6 +117,7 @@ import Application.Helper.LiveSurface.Internal (AuthorizedLiveFragment (..),
                                                 respondWithTypedLiveSurfaceFragments,
                                                 serveTypedLiveFragment,
                                                 setTypedLiveSurfaceActorRefresh,
+                                                staticLiveFragmentDescriptor,
                                                 surfaceFragmentRefWithDeferUntilBlur,
                                                 surfaceFragmentRefWithFocusedProtection,
                                                 surfaceFragmentRefWithPath,
