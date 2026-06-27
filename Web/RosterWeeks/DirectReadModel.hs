@@ -188,8 +188,8 @@ buildRosterStaffOptionStatesDirect assignmentFilters weekStartDate visibleSlots 
 buildRosterStaffOptionStatesForSlotsDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterAssignmentFilters -> Calendar.Day -> [RosterSlot] -> [RosterSlot] -> [Staff] -> IO (Map.Map (UUID.UUID, UUID.UUID) RosterAssignmentOptionState)
 buildRosterStaffOptionStatesForSlotsDirect assignmentFilters weekStartDate factSlots targetSlots staffMembers
     | null targetSlots || null staffMembers = pure Map.empty
-    | otherwise = do
-        rows <- (sqlQuery
+    | otherwise =
+        Map.fromList . map optionStateEntry <$> (sqlQuery
             "WITH params AS ( \
             \    SELECT ?::date AS week_start, ?::uuid AS venue_id, ?::boolean AS hide_ideal, ?::boolean AS hide_unavailable, ?::boolean AS hide_leave, ?::boolean AS hide_today \
             \), fact_slots AS ( \
@@ -236,7 +236,6 @@ buildRosterStaffOptionStatesForSlotsDirect assignmentFilters weekStartDate factS
             , map (coerce . (.id)) targetSlots :: [UUID.UUID]
             , map (coerce . (.id)) staffMembers :: [UUID.UUID]
             ) :: IO [(UUID.UUID, UUID.UUID, Int, Int)])
-        pure $ Map.fromList (map optionStateEntry rows)
     where
         optionStateEntry (slotId, staffId, assignedShiftCount, hiddenFlags) =
             let hiddenByIdeal = hiddenFlags `mod` 2 == 1

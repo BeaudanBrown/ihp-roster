@@ -369,8 +369,8 @@ renderStatusBadge status =
         _                  -> renderAppStatusBadge AppStatusWarning "Pending"
 
 renderActions :: (?context :: ControllerContext) => Maybe UUID -> LeaveRequest -> Html
-renderActions _currentViewerStaffId leaveRequest =
-    renderReviewActions leaveRequest
+renderActions _currentViewerStaffId =
+    renderReviewActions
 
 renderReviewActions :: (?context :: ControllerContext) => LeaveRequest -> Html
 renderReviewActions leaveRequest

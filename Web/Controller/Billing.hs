@@ -78,9 +78,10 @@ billingCheckoutReturnFromRequest maybeSubscription recentEvents = do
 classifyCheckoutOutcome :: Maybe Text -> Maybe VenueSubscription -> [BillingEvent] -> BillingCheckoutOutcome
 classifyCheckoutOutcome _ (Just subscription) _ = BillingCheckoutConfirmed subscription
 classifyCheckoutOutcome checkoutSessionId Nothing recentEvents =
-    case find (isCheckoutFailure checkoutSessionId) recentEvents of
-        Just event -> BillingCheckoutFailed event
-        Nothing    -> BillingCheckoutPending
+    maybe
+        BillingCheckoutPending
+        BillingCheckoutFailed
+        (find (isCheckoutFailure checkoutSessionId) recentEvents)
 
 isCheckoutFailure :: Maybe Text -> BillingEvent -> Bool
 isCheckoutFailure checkoutSessionId event =

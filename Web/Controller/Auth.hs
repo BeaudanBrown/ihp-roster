@@ -451,7 +451,7 @@ instance Aeson.FromJSON PasskeyRegistrationRequest where
     parseJSON value =
         PasskeyRegistrationRequest
             <$> Aeson.parseJSON value
-            <*> Aeson.withObject "PasskeyRegistrationRequest" (\object -> object Aeson..:? "name") value
+            <*> Aeson.withObject "PasskeyRegistrationRequest" (Aeson..:? "name") value
 
 normalizeSubmittedPasskeyName :: (?request :: Request) => Maybe Text -> IO Text
 normalizeSubmittedPasskeyName maybeName = do

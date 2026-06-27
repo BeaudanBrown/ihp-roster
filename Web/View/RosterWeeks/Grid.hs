@@ -980,7 +980,7 @@ buildExistingSlotDisplay shiftTypes publishAttempted renderIndexes slot =
         , displayEndLabel = renderTimePickerDisplayLabel "End" currentEndTime
         , displayTimeLabel = renderTimePickerDisplayLabel "Time" currentStartTime
         , displayStaffLabel = fromMaybe "" (renderAssignedStaffLabel slot.staffId renderIndexes)
-        , displayShiftTypeLabel = fromMaybe "" (renderShiftTypeOptionLabel <$> currentShiftType)
+        , displayShiftTypeLabel = maybe "" renderShiftTypeOptionLabel currentShiftType
         , displayShiftTypeColourKey = shiftTypeBadgeColourKey currentShiftType
         , displayPrimaryConflict = primaryConflict (lookupConflicts (get #id slot) renderIndexes)
         , displayMissingStartTime = publishAttempted && isJust slot.staffId && isNothing slot.startTime
@@ -999,7 +999,7 @@ profileExistingSlotCounters display endTimesEnabled cellCount = mconcat
     , profileRenderCounter "render.roster.shift_type_label" 1
     , profileRenderCounter "render.roster.conflict_cell" (if isJust display.displayPrimaryConflict then 1 else 0)
     , profileRenderCounter "render.roster.conflict_attr" (if isJust display.displayPrimaryConflict then 2 else 0)
-    , profileRenderCounter "render.roster.publish_required_marker" (length (filter (== True) [display.displayMissingStartTime, display.displayMissingEndTime, display.displayMissingShiftType]))
+    , profileRenderCounter "render.roster.publish_required_marker" (sum (map fromEnum [display.displayMissingStartTime, display.displayMissingEndTime, display.displayMissingShiftType]))
     ]
 
 profileEditableLauncherCounters :: Int -> Html
@@ -1158,8 +1158,8 @@ targetHasExistingSlot ExistingRosterSlotTarget {} = True
 targetHasExistingSlot NewRosterSlotTarget {}      = False
 
 renderEmptyBlockCells :: (?context :: ControllerContext) => Bool -> Int -> Html
-renderEmptyBlockCells endTimesEnabled blockIndex =
-    renderBlankBlockCells "render.roster.empty_block" "slot-empty-cell" endTimesEnabled blockIndex
+renderEmptyBlockCells =
+    renderBlankBlockCells "render.roster.empty_block" "slot-empty-cell"
 
 -- Create slots use the same single-launcher shape as existing editable shifts,
 -- but keep unmerged visual empty cells until hover/focus/highlight reveals the
@@ -1223,8 +1223,8 @@ renderCreateShiftUnitVisualCell :: Text -> Html
 renderCreateShiftUnitVisualCell cellClasses = [hsx|<div class={cellClasses}></div>|]
 
 renderClosedBlockCells :: (?context :: ControllerContext) => Bool -> Int -> Html
-renderClosedBlockCells endTimesEnabled blockIndex =
-    renderBlankBlockCells "render.roster.closed_block" "slot-closed-cell" endTimesEnabled blockIndex
+renderClosedBlockCells =
+    renderBlankBlockCells "render.roster.closed_block" "slot-closed-cell"
 
 renderBlankBlockCells :: (?context :: ControllerContext) => Text -> Text -> Bool -> Int -> Html
 renderBlankBlockCells counterName baseClass endTimesEnabled blockIndex =
@@ -1254,8 +1254,8 @@ findShiftTypeForSlot shiftTypes (Just selectedShiftTypeId) =
     find (\shiftType -> coerce shiftType.id == selectedShiftTypeId) shiftTypes
 
 shiftTypeBadgeColourKey :: Maybe ShiftType -> Text
-shiftTypeBadgeColourKey maybeShiftType =
-    maybe "" normaliseShiftTypeBadgeColourKey maybeShiftType
+shiftTypeBadgeColourKey =
+    maybe "" normaliseShiftTypeBadgeColourKey
 
 normaliseShiftTypeBadgeColourKey :: ShiftType -> Text
 normaliseShiftTypeBadgeColourKey shiftType
@@ -1263,8 +1263,8 @@ normaliseShiftTypeBadgeColourKey shiftType
     | otherwise = ""
 
 shiftTypeBadgeLabel :: Maybe UUID -> Maybe ShiftType -> Text
-shiftTypeBadgeLabel staffId maybeShiftType =
-    fromMaybe (if isJust staffId then "Role required" else "Role") (renderShiftTypeOptionLabel <$> maybeShiftType)
+shiftTypeBadgeLabel staffId =
+    maybe (if isJust staffId then "Role required" else "Role") renderShiftTypeOptionLabel
 
 renderReadOnlyDayColumnShiftTypeBadge :: Maybe UUID -> Maybe ShiftType -> Bool -> Html
 renderReadOnlyDayColumnShiftTypeBadge staffId selectedShiftType isPublishRequired = [hsx|

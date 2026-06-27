@@ -985,11 +985,10 @@ respondWithRosterRows rosterGroupId weekOffset requestedRowKeys =
     respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys False
 
 rosterActorFragmentsForTouchedResources :: (?context :: ControllerContext) => Id RosterGroup -> Int -> Set.Set LiveResource -> [RosterProjectionFragment] -> [RosterProjectionFragment]
-rosterActorFragmentsForTouchedResources rosterGroupId weekOffset touchedResources =
+rosterActorFragmentsForTouchedResources rosterGroupId weekOffset =
     typedLiveSurfaceAffectedFragments
         rosterLiveSurfaceDefinition
         (buildRosterProjectionScope rosterGroupId weekOffset)
-        touchedResources
 
 respondWithRosterActorRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> IO ()
 respondWithRosterActorRefresh rosterGroupId weekOffset fragments =

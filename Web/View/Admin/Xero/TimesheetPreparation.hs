@@ -320,7 +320,7 @@ preparationPeriodOptionLabel option =
         <> formatDateDisplay option.periodOptionEnd
         <> maybe "" (\status -> " · " <> Text.toUpper status) option.periodOptionXeroPayRunStatus
         <> preparationPeriodSubmissionStatusLabel option.periodOptionLatestSubmissionStatus
-        <> maybe "" (\reason -> " · blocked: " <> reason) option.periodOptionBlockReason
+        <> maybe "" (" · blocked: " <>) option.periodOptionBlockReason
 
 preparationPeriodSubmissionStatusLabel :: Maybe Text -> Text
 preparationPeriodSubmissionStatusLabel status =

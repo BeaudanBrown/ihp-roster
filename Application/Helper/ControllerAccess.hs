@@ -73,7 +73,6 @@ ensureProfileCompleted = do
         withRequestContext do
             setErrorMessage "Please complete your profile to continue."
             redirectTo EditProfileAction
-    pure ()
 
 hasVenueRole :: VenueRole -> VenueRole -> Bool
 hasVenueRole actualRole minimumRole = actualRole >= minimumRole

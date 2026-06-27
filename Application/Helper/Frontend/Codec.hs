@@ -110,7 +110,7 @@ stringEnumCodec name values =
     FrontendCodec
         { codecName = Just name
         , codecSchema = SchemaStringEnum name (fmap snd values)
-        , codecEncode = \value -> Aeson.String (enumText value)
+        , codecEncode = Aeson.String . enumText
         , codecParse = Aeson.withText (cs name) parseEnum
         }
     where
@@ -176,14 +176,14 @@ renderUnionValues values =
     case reverse values of
         [] -> [ "    never;" ]
         lastValue : reversedPrefix ->
-            fmap ("    | " <>) (fmap quote (reverse reversedPrefix)) <> [ "    | " <> quote lastValue <> ";" ]
+            fmap (("    | " <>) . quote) (reverse reversedPrefix) <> [ "    | " <> quote lastValue <> ";" ]
 
 renderUnionVariants :: Text -> [FrontendVariant] -> [Text]
 renderUnionVariants tagField variants =
     case reverse variants of
         [] -> [ "    never;" ]
         lastVariant : reversedPrefix ->
-            fmap ("    | " <>) (fmap (renderVariantType tagField) (reverse reversedPrefix))
+            fmap (("    | " <>) . renderVariantType tagField) (reverse reversedPrefix)
                 <> [ "    | " <> renderVariantType tagField lastVariant <> ";" ]
 
 renderVariantType :: Text -> FrontendVariant -> Text
@@ -267,7 +267,7 @@ optionalHelperSource namedSchemas
 schemaNeedsExactRecordHelper :: FrontendSchema -> Bool
 schemaNeedsExactRecordHelper = \case
     SchemaRecord _ _ -> True
-    SchemaTaggedUnion _ _ _ -> True
+    SchemaTaggedUnion {} -> True
     SchemaNullable schema -> schemaNeedsExactRecordHelper schema
     SchemaOptional schema -> schemaNeedsExactRecordHelper schema
     SchemaArray schema -> schemaNeedsExactRecordHelper schema

@@ -696,12 +696,12 @@ keepCurrentRosterWeekProjectionHot rosterGroupId weekOffset =
         DirectRosterReadModel -> pure ()
 
 fetchHiddenRosterRenderDataDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (RosterWeek, [RosterDay], Calendar.Day, [RosterWeekSlotDefinition], [ShiftType], [RosterSlot])
-fetchHiddenRosterRenderDataDirect rosterGroupId weekOffset =
-    fetchHiddenRosterRenderDataWith fetchRosterRenderDataDirect rosterGroupId weekOffset
+fetchHiddenRosterRenderDataDirect =
+    fetchHiddenRosterRenderDataWith fetchRosterRenderDataDirect
 
 fetchHiddenRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (RosterWeek, [RosterDay], Calendar.Day, [RosterWeekSlotDefinition], [ShiftType], [RosterSlot])
-fetchHiddenRosterRenderData rosterGroupId weekOffset =
-    fetchHiddenRosterRenderDataWith fetchRosterRenderData rosterGroupId weekOffset
+fetchHiddenRosterRenderData =
+    fetchHiddenRosterRenderDataWith fetchRosterRenderData
 
 fetchHiddenRosterRenderDataWith :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => (Id RosterGroup -> Int -> IO (Maybe RosterRenderData)) -> Id RosterGroup -> Int -> IO (RosterWeek, [RosterDay], Calendar.Day, [RosterWeekSlotDefinition], [ShiftType], [RosterSlot])
 fetchHiddenRosterRenderDataWith fetchRenderData rosterGroupId weekOffset = do

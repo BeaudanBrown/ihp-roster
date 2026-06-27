@@ -223,7 +223,7 @@ renderFeedbackSelectOption current value = [hsx|
 |]
 
 feedbackOptionLabel :: Text -> Text
-feedbackOptionLabel value = Text.replace "_" " " value
+feedbackOptionLabel = Text.replace "_" " "
 
 renderMarkFeedbackReadForm :: UserFeedbackItem -> Html
 renderMarkFeedbackReadForm feedbackItem

@@ -283,11 +283,10 @@ liveFragmentDescriptor liveFragmentDescriptorFragment liveFragmentDescriptorRef 
     LiveFragmentDescriptor { liveFragmentDescriptorFragment, liveFragmentDescriptorRef, liveFragmentDescriptorDependencies }
 
 staticLiveFragmentDescriptor :: fragment -> LiveFragmentKey -> Text -> Text -> (scope -> FragmentDependencies) -> LiveFragmentDescriptor surface scope fragment
-staticLiveFragmentDescriptor fragment fragmentKey targetId url dependencies =
+staticLiveFragmentDescriptor fragment fragmentKey targetId url =
     liveFragmentDescriptor
         fragment
         (const (mkSurfaceFragmentRef fragmentKey targetId url))
-        dependencies
 
 currentVenueLiveFragmentDescriptor :: (?context :: ControllerContext) => fragment -> LiveFragmentKey -> Text -> Text -> (UUID.UUID -> LiveResource) -> LiveFragmentDescriptor surface () fragment
 currentVenueLiveFragmentDescriptor fragment fragmentKey targetId url resource =
@@ -361,7 +360,7 @@ venueLiveSurfaceDescriptorForVenue ::
     (UUID.UUID -> scope) ->
     [LiveFragmentDescriptor surface scope fragment] ->
     LiveSurfaceDescriptor surface scope fragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
-venueLiveSurfaceDescriptorForVenue surfaceFeature allowedVenueId venueScope authorizationRequirement scopeVenueId scopeFromVenueId fragments =
+venueLiveSurfaceDescriptorForVenue surfaceFeature allowedVenueId venueScope authorizationRequirement scopeVenueId scopeFromVenueId =
     liveSurfaceDescriptor
         surfaceFeature
         (\surfaceKey -> SurfaceScope (venueScope.venueLiveUpdateScopeToWire (scopeVenueId surfaceKey)))
@@ -371,7 +370,6 @@ venueLiveSurfaceDescriptorForVenue surfaceFeature allowedVenueId venueScope auth
                 then Just (scopeFromVenueId wireVenueId)
                 else Nothing)
         (liveSurfaceAuthorizationByRequirement (authorizationRequirement . scopeVenueId))
-        fragments
 
 currentVenueLiveSurfaceDescriptor ::
     (?context :: ControllerContext) =>
@@ -382,8 +380,8 @@ currentVenueLiveSurfaceDescriptor ::
     (UUID.UUID -> scope) ->
     [LiveFragmentDescriptor surface scope fragment] ->
     LiveSurfaceDescriptor surface scope fragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
-currentVenueLiveSurfaceDescriptor surfaceFeature venueScope authorizationRequirement scopeVenueId scopeFromVenueId =
-    venueLiveSurfaceDescriptorForVenue surfaceFeature currentVenueScopeId venueScope authorizationRequirement scopeVenueId scopeFromVenueId
+currentVenueLiveSurfaceDescriptor surfaceFeature =
+    venueLiveSurfaceDescriptorForVenue surfaceFeature currentVenueScopeId
 
 currentVenueUnitScopeSurfaceForVenue ::
     Eq fragment =>
@@ -412,8 +410,8 @@ currentVenueUnitScopeSurface ::
     (UUID.UUID -> LiveScopeAuthorizationRequirement) ->
     [LiveFragmentDescriptor surface () fragment] ->
     TypedLiveSurfaceDefinition surface () fragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
-currentVenueUnitScopeSurface surfaceFeature venueScope authorizationRequirement =
-    currentVenueUnitScopeSurfaceForVenue surfaceFeature currentVenueScopeId venueScope authorizationRequirement
+currentVenueUnitScopeSurface surfaceFeature =
+    currentVenueUnitScopeSurfaceForVenue surfaceFeature currentVenueScopeId
 
 liveSurfaceDescriptorWithDecorateRequestsWithin ::
     (scope -> [Text]) ->
@@ -511,8 +509,8 @@ typedLiveSurfaceFragmentRefs definition surfaceKey =
     map (typedLiveSurfaceFragmentRef definition surfaceKey)
 
 typedLiveSurfaceAffectedFragments :: TypedLiveSurfaceDefinition surface scope fragment layer session intent -> scope -> Set.Set LiveResource -> [fragment] -> [fragment]
-typedLiveSurfaceAffectedFragments definition surfaceKey touchedResources candidates =
-    filter dependsOnTouchedResource candidates
+typedLiveSurfaceAffectedFragments definition surfaceKey touchedResources =
+    filter dependsOnTouchedResource
     where
         dependsOnTouchedResource fragment =
             not (Set.null (Set.intersection touchedResources (Set.fromList (typedSurfaceDependsOn definition surfaceKey fragment))))

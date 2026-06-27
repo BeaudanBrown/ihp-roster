@@ -230,7 +230,7 @@ renderInteractionSurfaceMountWithAttrs ::
     Blaze.Attribute ->
     Html ->
     Html
-renderInteractionSurfaceMountWithAttrs definition mount extraAttrs inner =
+renderInteractionSurfaceMountWithAttrs definition mount extraAttrs =
     Html5.div
         ! attr "id" mountId
         ! attr "data-live-update-surface" (liveSurfaceConfigJson (interactionSurfaceLiveConfig definition mount))
@@ -239,7 +239,6 @@ renderInteractionSurfaceMountWithAttrs definition mount extraAttrs inner =
         ! attr interactionDomAttrs.interactionDomScopeKeyAttribute (liveUpdateScopeKey surfaceScope)
         ! attr interactionDomAttrs.interactionDomMountKeyAttribute mount.interactionMountKey.unInteractionMountKey
         ! extraAttrs
-        $ inner
     where
         mountId = interactionMountDomId definition mount
         surfaceScope = unSurfaceScope (definition.typedSurfaceScope mount.interactionMountScope)
@@ -268,12 +267,11 @@ renderInteractionServerLayer ::
     ServerLayerDefinition ->
     Html ->
     Html
-renderInteractionServerLayer definition mount layer inner =
+renderInteractionServerLayer definition mount layer =
     Html5.div
         ! attr interactionDomAttrs.interactionDomServerLayerAttribute layer.serverLayerName
         ! attr interactionDomAttrs.interactionDomLayerAttribute layer.serverLayerName
         ! attr "id" (serverLayerDomId definition mount layer)
-        $ inner
 
 renderInteractionDisposableLayer ::
     TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
@@ -340,11 +338,10 @@ interactionIntentTargetSelector definition mount (IntentTargetMountLocal target)
     "#" <> interactionMountDomId definition mount <> "--" <> domIdSegment target.unInteractionMountLocalTarget
 
 renderInteractionMarker :: InteractionMarkerKind -> Text -> Html -> Html
-renderInteractionMarker markerKind markerKey inner =
+renderInteractionMarker markerKind markerKey =
     Html5.div
         ! attr interactionDomAttrs.interactionDomMarkerAttribute (interactionMarkerKindAttribute markerKind)
         ! attr (interactionMarkerKindDataAttribute markerKind) markerKey
-        $ inner
 
 renderInteractionItemMarker :: Text -> Html -> Html
 renderInteractionItemMarker = renderInteractionMarker InteractionItemMarker
@@ -371,14 +368,13 @@ renderInteractionActivationMarker :: Text -> Html -> Html
 renderInteractionActivationMarker = renderInteractionMarker InteractionActivationMarker
 
 renderInteractionActivationIntentMarker :: Text -> Text -> InteractionActivationTrigger -> Maybe IntentFieldName -> Html -> Html
-renderInteractionActivationIntentMarker markerKey intentName trigger valueFieldName inner =
+renderInteractionActivationIntentMarker markerKey intentName trigger valueFieldName =
     Html5.div
         ! attr interactionDomAttrs.interactionDomMarkerAttribute (interactionMarkerKindAttribute InteractionActivationMarker)
         ! attr interactionDomAttrs.interactionDomActivationAttribute markerKey
         ! attr interactionDomAttrs.interactionDomActivationIntentAttribute intentName
         ! attr interactionDomAttrs.interactionDomActivationTriggerAttribute (interactionActivationTriggerAttribute trigger)
         ! maybeAttr interactionDomAttrs.interactionDomActivationValueFieldAttribute (unIntentFieldName <$> valueFieldName)
-        $ inner
 
 withInteractionActivationIntentMarker :: Text -> Text -> InteractionActivationTrigger -> Maybe IntentFieldName -> Html -> Html
 withInteractionActivationIntentMarker markerKey intentName trigger valueFieldName html =
@@ -390,14 +386,13 @@ withInteractionActivationIntentMarker markerKey intentName trigger valueFieldNam
         ! maybeAttr interactionDomAttrs.interactionDomActivationValueFieldAttribute (unIntentFieldName <$> valueFieldName)
 
 renderInteractionPointerSessionMarker :: Text -> Text -> Text -> Html -> Html
-renderInteractionPointerSessionMarker markerKey sessionKindName intentName inner =
+renderInteractionPointerSessionMarker markerKey sessionKindName intentName =
     Html5.div
         ! attr interactionDomAttrs.interactionDomMarkerAttribute (interactionMarkerKindAttribute InteractionItemMarker)
         ! attr interactionDomAttrs.interactionDomItemAttribute markerKey
         ! attr interactionDomAttrs.interactionDomPointerSessionAttribute interactionDomVals.interactionDomEnabledValue
         ! attr interactionDomAttrs.interactionDomSessionKindAttribute sessionKindName
         ! attr interactionDomAttrs.interactionDomSessionIntentAttribute intentName
-        $ inner
 
 withInteractionPointerSessionMarker :: Text -> Text -> Text -> Html -> Html
 withInteractionPointerSessionMarker markerKey sessionKindName intentName html =
@@ -468,8 +463,8 @@ attr name value =
     Blaze.customAttribute (Blaze.textTag name) (Blaze.toValue value)
 
 maybeAttr :: Text -> Maybe Text -> Blaze.Attribute
-maybeAttr name maybeValue =
-    maybe mempty (attr name) maybeValue
+maybeAttr name =
+    maybe mempty (attr name)
 
 domIdSegment :: Text -> Text
 domIdSegment value =

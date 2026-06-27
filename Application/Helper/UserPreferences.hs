@@ -63,8 +63,7 @@ fetchCurrentUserPreferenceRecord =
 
 fetchCurrentUserRosterPreferences :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO UserRosterPreferences
 fetchCurrentUserRosterPreferences =
-    fetchCurrentUserPreferenceRecord
-        >>= pure . normaliseUserRosterPreferences
+    normaliseUserRosterPreferences <$> fetchCurrentUserPreferenceRecord
 
 fetchCurrentRosterLayoutMode :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO RosterLayoutModeEnum
 fetchCurrentRosterLayoutMode =

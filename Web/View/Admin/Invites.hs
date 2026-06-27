@@ -94,7 +94,7 @@ adminInvitesLiveSurfaceDefinitionForVenue surfaceVenueId =
             (const AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing })
             [ liveFragmentDescriptor
                 adminInvitesFragment
-                (\key -> adminInvitesLiveFragmentRef key adminInvitesFragment)
+                (`adminInvitesLiveFragmentRef` adminInvitesFragment)
                 (const (liveFragmentDependsOn (AdminInvitesResource surfaceVenueId) []))
             ]
         )

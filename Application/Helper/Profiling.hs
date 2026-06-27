@@ -254,9 +254,9 @@ finalizeRequestProfile request profile = do
             counters <- readIORef profile.countersRef
             let totalDurationMs = durationBetweenMs profile.startedAtNs completedAtNs
             let counterHeaders =
-                    if Map.null counters
-                        then []
-                        else [("X-Profile-Counters", cs (renderProfileCounters counters))]
+                    [ ("X-Profile-Counters", cs (renderProfileCounters counters))
+                    | not (Map.null counters)
+                    ]
             let headers =
                     [ ("X-Request-Id", cs profile.requestProfileId)
                     , ("Server-Timing", cs (renderServerTiming totalDurationMs spans))
