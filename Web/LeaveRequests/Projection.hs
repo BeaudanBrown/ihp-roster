@@ -13,6 +13,7 @@ module Web.LeaveRequests.Projection
     , fetchLeaveRequestsProjectionCached
     , leaveRequestsIndexView
     , leaveRequestsLiveSurfaceDefinition
+    , leaveRequestsLiveSurfaceDefinitionForVenue
     , leaveRequestsProjectionDefinition
     , renderLeaveRequestsProjectionFragment
     , renderLeaveRequestsProjectionHtml
@@ -74,19 +75,23 @@ fetchVisibleLeaveRequests = do
 
 leaveRequestsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition LeaveRequestsSurface () LeaveRequestsProjectionFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 leaveRequestsLiveSurfaceDefinition =
+    leaveRequestsLiveSurfaceDefinitionForVenue (unpackId currentVenueId)
+
+leaveRequestsLiveSurfaceDefinitionForVenue :: UUID.UUID -> TypedLiveSurfaceDefinition LeaveRequestsSurface () LeaveRequestsProjectionFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
+leaveRequestsLiveSurfaceDefinitionForVenue surfaceVenueId =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "leave-requests"
-        , typedSurfaceScope = const (SurfaceScope (buildLeaveRequestsScope currentVenueId))
+        , typedSurfaceScope = const (SurfaceScope LeaveRequestsScope { venueId = surfaceVenueId })
         , typedSurfaceScopeFromWire = \case
-            LeaveRequestsScope { venueId } | venueId == unpackId currentVenueId -> Just ()
+            LeaveRequestsScope { venueId } | venueId == surfaceVenueId -> Just ()
             _ -> Nothing
         , typedSurfaceDefaultFragments = const [LeaveRequestsProjectionContent]
         , typedSurfaceFragmentContract = \() fragment ->
             mkSurfaceFragmentContract
                 (leaveRequestsFragmentRef fragment)
-                (liveFragmentDependsOn (LeaveRequestsResource (unpackId currentVenueId)) [])
+                (liveFragmentDependsOn (LeaveRequestsResource surfaceVenueId) [])
         , typedSurfaceDecorateRequestsWithin = const ["#" <> leaveRequestsShellId]
-        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueManager (unpackId currentVenueId)))
+        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueManager surfaceVenueId))
         , typedSurfaceInteractionSchema = emptyInteractionStaticSchema
         , typedSurfaceInteraction = const emptyInteractionCapability
         }
@@ -191,20 +196,20 @@ buildLeaveRequestsScope venueId =
         { venueId = unpackId venueId
         }
 
-leaveRequestsFragmentRef :: (?context :: ControllerContext) => LeaveRequestsProjectionFragment -> SurfaceFragmentRef LeaveRequestsSurface
+leaveRequestsFragmentRef :: LeaveRequestsProjectionFragment -> SurfaceFragmentRef LeaveRequestsSurface
 leaveRequestsFragmentRef LeaveRequestsProjectionPage =
     buildLeaveRequestsPageFragmentRef
 leaveRequestsFragmentRef LeaveRequestsProjectionContent =
     buildLeaveRequestsContentFragmentRef
 
-buildLeaveRequestsContentFragmentRef :: (?context :: ControllerContext) => SurfaceFragmentRef LeaveRequestsSurface
+buildLeaveRequestsContentFragmentRef :: SurfaceFragmentRef LeaveRequestsSurface
 buildLeaveRequestsContentFragmentRef =
     mkSurfaceFragmentRef
         LeaveRequestsContentFragment
         leaveRequestsContentFragmentId
         (pathTo ShowLeaveRequestsContentFragmentAction)
 
-buildLeaveRequestsPageFragmentRef :: (?context :: ControllerContext) => SurfaceFragmentRef LeaveRequestsSurface
+buildLeaveRequestsPageFragmentRef :: SurfaceFragmentRef LeaveRequestsSurface
 buildLeaveRequestsPageFragmentRef =
     mkSurfaceFragmentRef
         LeaveRequestsContentFragment

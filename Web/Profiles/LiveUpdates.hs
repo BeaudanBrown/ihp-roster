@@ -10,8 +10,10 @@ module Web.Profiles.LiveUpdates
     , profileContentFragment
     , profileContentFragmentSectionParam
     , profileContentLiveSurfaceDefinition
+    , profileContentLiveSurfaceDefinitionForVenue
     , profileLeaveRequestsFragment
     , profileLeaveRequestsLiveSurfaceDefinition
+    , profileLeaveRequestsLiveSurfaceDefinitionForVenue
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
@@ -56,11 +58,15 @@ currentProfileContentSurfaceKey staff openSection =
 
 profileContentLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition ProfileContentSurface ProfileContentSurfaceKey ProfileContentFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 profileContentLiveSurfaceDefinition =
+    profileContentLiveSurfaceDefinitionForVenue currentVenueScopeId
+
+profileContentLiveSurfaceDefinitionForVenue :: UUID -> TypedLiveSurfaceDefinition ProfileContentSurface ProfileContentSurfaceKey ProfileContentFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
+profileContentLiveSurfaceDefinitionForVenue allowedVenueId =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "profile"
         , typedSurfaceScope = \key -> SurfaceScope ProfileScope { venueId = key.profileContentVenueId, staffId = key.profileContentStaffId }
         , typedSurfaceScopeFromWire = \case
-            ProfileScope { venueId, staffId } ->
+            ProfileScope { venueId, staffId } | venueId == allowedVenueId ->
                 Just ProfileContentSurfaceKey { profileContentVenueId = venueId, profileContentStaffId = staffId, profileContentOpenSection = "profile" }
             _ -> Nothing
         , typedSurfaceDefaultFragments = \key -> [profileContentFragment key.profileContentOpenSection]
@@ -102,7 +108,7 @@ profileContentDependsOn key ProfileLeaveContentFragment =
 profileContentDependsOn _ ProfileSecurityContentFragment =
     liveFragmentResyncOnly "security profile section has no passive live-resource dependency"
 
-profileContentFragmentRef :: (?context :: ControllerContext) => ProfileContentFragment -> SurfaceFragmentRef ProfileContentSurface
+profileContentFragmentRef :: ProfileContentFragment -> SurfaceFragmentRef ProfileContentSurface
 profileContentFragmentRef fragment =
     mkSurfaceFragmentRef
         ProfileContentFragment
@@ -130,11 +136,15 @@ currentProfileLeaveSurfaceKey staff =
 
 profileLeaveRequestsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition ProfileLeaveSurface ProfileLeaveSurfaceKey ProfileLeaveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 profileLeaveRequestsLiveSurfaceDefinition =
+    profileLeaveRequestsLiveSurfaceDefinitionForVenue currentVenueScopeId
+
+profileLeaveRequestsLiveSurfaceDefinitionForVenue :: UUID -> TypedLiveSurfaceDefinition ProfileLeaveSurface ProfileLeaveSurfaceKey ProfileLeaveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
+profileLeaveRequestsLiveSurfaceDefinitionForVenue allowedVenueId =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "profile-leave-requests"
         , typedSurfaceScope = \key -> SurfaceScope ProfileScope { venueId = key.profileLeaveVenueId, staffId = key.profileLeaveStaffId }
         , typedSurfaceScopeFromWire = \case
-            ProfileScope { venueId, staffId } ->
+            ProfileScope { venueId, staffId } | venueId == allowedVenueId ->
                 Just ProfileLeaveSurfaceKey { profileLeaveVenueId = venueId, profileLeaveStaffId = staffId }
             _ -> Nothing
         , typedSurfaceDefaultFragments = const [profileLeaveRequestsFragment]
@@ -152,7 +162,7 @@ profileLeaveRequestsFragment :: ProfileLeaveFragment
 profileLeaveRequestsFragment =
     ProfileLeaveRequestsLiveFragment
 
-profileLeaveRequestsContentFragmentRef :: (?context :: ControllerContext) => ProfileLeaveFragment -> SurfaceFragmentRef ProfileLeaveSurface
+profileLeaveRequestsContentFragmentRef :: ProfileLeaveFragment -> SurfaceFragmentRef ProfileLeaveSurface
 profileLeaveRequestsContentFragmentRef ProfileLeaveRequestsLiveFragment =
     mkSurfaceFragmentRef
         ProfileLeaveRequestsContentFragment

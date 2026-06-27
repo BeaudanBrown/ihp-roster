@@ -17,6 +17,7 @@ module Web.RosterWeeks.LiveSurface
     , rosterMoveShiftIntentName
     , mkRosterProjectionDefinition
     , rosterLiveSurfaceDefinition
+    , rosterLiveSurfaceDefinitionForVenue
     , rosterProjectionVersion
     ) where
 
@@ -32,6 +33,7 @@ import Application.Helper.SurfaceProjection
 import Application.Helper.UserPreferences
 import Data.Coerce (coerce)
 import qualified Data.Time.Calendar as Calendar
+import Data.UUID (UUID)
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.RosterWeeks.Dom
@@ -76,6 +78,12 @@ rosterLayoutModeIntentField = IntentFieldName "rosterLayoutMode"
 
 rosterLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition RosterLiveSurface RosterProjectionScope RosterProjectionFragment RosterInteractionLayer RosterInteractionSession RosterInteractionIntent
 rosterLiveSurfaceDefinition =
+    (rosterLiveSurfaceDefinitionForVenue (unpackId currentVenueId))
+        { typedSurfaceInteraction = rosterInteractionCapability
+        }
+
+rosterLiveSurfaceDefinitionForVenue :: UUID -> TypedLiveSurfaceDefinition RosterLiveSurface RosterProjectionScope RosterProjectionFragment RosterInteractionLayer RosterInteractionSession RosterInteractionIntent
+rosterLiveSurfaceDefinitionForVenue surfaceVenueId =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "roster"
         , typedSurfaceScope = rosterSurfaceScope
@@ -84,19 +92,23 @@ rosterLiveSurfaceDefinition =
         , typedSurfaceFragmentContract = \scope fragment ->
             mkSurfaceFragmentContract
                 (rosterFragmentRef scope fragment)
-                (rosterFragmentDependencies scope fragment)
+                (rosterFragmentDependencies surfaceVenueId scope fragment)
         , typedSurfaceDecorateRequestsWithin = const ["#roster-week-shell"]
-        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\scope -> RequireCurrentVenueRosterGroup (unpackId currentVenueId) (unpackId scope.rosterProjectionGroupId))
+        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\scope -> RequireCurrentVenueRosterGroup surfaceVenueId (unpackId scope.rosterProjectionGroupId))
         , typedSurfaceInteractionSchema = rosterInteractionStaticSchema
-        , typedSurfaceInteraction = rosterInteractionCapability
+        , typedSurfaceInteraction = const rosterStaticInteractionCapability
         }
     where
         rosterSurfaceScope scope =
-            SurfaceScope (buildRosterWeekScope scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset)
+            SurfaceScope RosterWeekScope
+                { venueId = surfaceVenueId
+                , rosterGroupId = unpackId scope.rosterProjectionGroupId
+                , weekOffset = scope.rosterProjectionWeekOffset
+                }
 
         rosterSurfaceScopeFromWire scope =
-            case (currentVenueOrNothing, scope) of
-                (Just _, RosterWeekScope { rosterGroupId, weekOffset }) ->
+            case scope of
+                RosterWeekScope { venueId, rosterGroupId, weekOffset } | venueId == surfaceVenueId ->
                     Just RosterProjectionScope
                         { rosterProjectionGroupId = coerce rosterGroupId
                         , rosterProjectionWeekOffset = weekOffset
@@ -141,6 +153,16 @@ rosterInteractionStaticSchema =
                 , conflictPolicyTimeoutMs = Just 5000
                 }
             ]
+        }
+
+rosterStaticInteractionCapability :: InteractionCapability (SurfaceFragmentRef RosterLiveSurface) RosterProjectionFragment RosterInteractionLayer RosterInteractionSession RosterInteractionIntent
+rosterStaticInteractionCapability =
+    emptyInteractionCapability
+        { interactionStaticSchema = rosterInteractionStaticSchema
+        , interactionServerLayers = rosterInteractionStaticSchema.interactionStaticServerLayers
+        , interactionDisposableLayers = rosterInteractionStaticSchema.interactionStaticDisposableLayers
+        , interactionSessionKinds = rosterInteractionStaticSchema.interactionStaticSessionKinds
+        , interactionConflictPolicies = rosterInteractionStaticSchema.interactionStaticConflictPolicies
         }
 
 rosterInteractionCapability :: (?context :: ControllerContext) => RosterProjectionScope -> InteractionCapability (SurfaceFragmentRef RosterLiveSurface) RosterProjectionFragment RosterInteractionLayer RosterInteractionSession RosterInteractionIntent
@@ -264,10 +286,9 @@ rosterFragmentRef scope = \case
             (rosterWeekRowFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId (coerce rosterDayId) rowIndex)
             |> surfaceFragmentRefWithPath (rosterFragmentContainmentPath (RosterProjectionRow rosterDayId rowIndex))
 
-rosterFragmentDependencies :: (?context :: ControllerContext) => RosterProjectionScope -> RosterProjectionFragment -> FragmentDependencies
-rosterFragmentDependencies scope =
-    let venueId = unpackId currentVenueId
-     in \case
+rosterFragmentDependencies :: UUID -> RosterProjectionScope -> RosterProjectionFragment -> FragmentDependencies
+rosterFragmentDependencies venueId scope =
+    \case
             RosterProjectionContent ->
                 liveFragmentDependsOn
                     (RosterWeekResource (unpackId scope.rosterProjectionGroupId) scope.rosterProjectionWeekOffset)
