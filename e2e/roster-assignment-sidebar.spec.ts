@@ -1,7 +1,7 @@
-import { test, expect } from '@playwright/test';
-import { openRoster } from './test-helpers';
+import { test, expect, type Page } from '@playwright/test';
+import { assignRosterShiftStaff, existingRosterShiftLaunchers, openRoster } from './test-helpers';
 
-async function loginAndOpenRoster(page) {
+async function loginAndOpenRoster(page: Page) {
     await openRoster(page, { email: 'e2e-test@example.com' });
     await expect(page.locator('#roster-staff-panel-fragment')).toBeVisible();
 }
@@ -16,8 +16,8 @@ test.describe('Roster assignment sidebar refresh', () => {
 
         await expect(managerEntry).toContainText('0');
 
-        const assignmentSelect = page.locator('select[name="staffId"]').first();
-        await assignmentSelect.selectOption('a0000000-0000-0000-0000-000000000101');
+        const assignmentLauncher = existingRosterShiftLaunchers(page).first();
+        await assignRosterShiftStaff(page, assignmentLauncher, 'a0000000-0000-0000-0000-000000000101');
 
         await expect(managerEntry).toContainText('1');
     });

@@ -1,6 +1,6 @@
 import { test, expect, type Page, type Locator } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
-import { ensureRosterLayout, openRoster } from './test-helpers';
+import { ensureRosterLayout, fillRosterShiftDialogDefaults, openRoster, openRosterShiftDialog, saveRosterShiftDialog } from './test-helpers';
 
 async function loginAndOpenRoster(page: Page) {
     await openRoster(page);
@@ -75,16 +75,7 @@ async function shiftGroupStaffId(page: Page, groupKey: string): Promise<string> 
 
 async function changeShiftToAlternateStaff(page: Page, groupKey: string): Promise<string> {
     const launcher = page.locator(`[data-roster-shift-group-key="${groupKey}"][hx-get*="EditRosterSlotDialog"]`).first();
-    await expect(launcher).toBeVisible();
-    await launcher.scrollIntoViewIfNeeded();
-    const dialogResponsePromise = page.waitForResponse((response) =>
-        response.request().method() === 'GET' && response.url().includes('/EditRosterSlotDialog')
-    );
-    await launcher.click({ force: true });
-    const dialogResponse = await dialogResponsePromise;
-    expect(dialogResponse.status(), await dialogResponse.text()).toBe(200);
-    const dialog = page.locator('#dialog-overlay-mount [data-dialog-overlay="true"]');
-    await expect(dialog).toBeVisible();
+    await openRosterShiftDialog(page, launcher);
 
     const staffSelect = page.locator('#roster-shift-staff-id');
     const currentStaffId = await staffSelect.inputValue();
@@ -96,14 +87,9 @@ async function changeShiftToAlternateStaff(page: Page, groupKey: string): Promis
     }, currentStaffId);
     expect(nextStaffId).not.toBe('');
 
+    await fillRosterShiftDialogDefaults(page);
     await staffSelect.selectOption(nextStaffId);
-    const updateResponsePromise = page.waitForResponse((response) =>
-        response.request().method() === 'POST' && response.url().includes('/UpdateRosterSlot')
-    );
-    await page.getByRole('button', { name: 'Save' }).click();
-    const updateResponse = await updateResponsePromise;
-    expect(updateResponse.status(), await updateResponse.text()).toBe(200);
-    await expect(dialog).toHaveCount(0);
+    await saveRosterShiftDialog(page);
     return nextStaffId;
 }
 

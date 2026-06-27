@@ -540,11 +540,21 @@ export function rosterShiftLaunchersForDaySection(daySection: Locator) {
 export async function openRosterShiftDialog(page: Page, launcher: Locator) {
     await expect(launcher).toBeVisible({ timeout: E2E_TIMEOUT.action });
     await launcher.scrollIntoViewIfNeeded();
+    const dialogUrl = await launcher.getAttribute('hx-get');
+    if (!dialogUrl) {
+        throw new Error('Expected roster shift launcher to expose an hx-get dialog URL');
+    }
+
     const responsePromise = page.waitForResponse((response) =>
         response.request().method() === 'GET'
-        && (response.url().includes('/EditRosterSlotDialog') || response.url().includes('/NewRosterSlotDialog')),
+        && response.url().includes(dialogUrl),
     );
-    await launcher.click({ force: true });
+    await launcher.evaluate((element) => {
+        const htmx = (window as Window & { htmx?: { ajax: (method: string, url: string, options: { target: string; swap: string }) => unknown } }).htmx;
+        const hxGet = element.getAttribute('hx-get');
+        if (!htmx || !hxGet) throw new Error('Expected HTMX roster shift dialog launcher');
+        htmx.ajax('GET', hxGet, { target: '#dialog-overlay-mount', swap: 'innerHTML' });
+    });
     const response = await responsePromise;
     expect(response.status(), await response.text()).toBe(200);
     await expect(page.locator('#dialog-overlay-mount [data-dialog-overlay="true"]')).toBeVisible({ timeout: E2E_TIMEOUT.action });

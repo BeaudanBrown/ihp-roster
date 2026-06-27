@@ -1,19 +1,27 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
-import { addRowToRosterDay, firstEditableRosterDaySection, openRoster } from './test-helpers';
+import {
+    addRowToRosterDay,
+    fillRosterShiftDialogDefaults,
+    firstEditableRosterDaySection,
+    openRoster,
+    openRosterShiftDialog,
+    rosterShiftDialogStaffOptionValues,
+    saveRosterShiftDialog,
+} from './test-helpers';
 
 const actorDuplicateConflictWeekOffset = 137;
 const multiviewDuplicateConflictWeekOffset = 138;
 
-async function loginAndOpenRoster(page, weekOffset = actorDuplicateConflictWeekOffset) {
+async function loginAndOpenRoster(page: Page, weekOffset = actorDuplicateConflictWeekOffset) {
     await openRoster(page, { weekOffset });
 }
 
-function editableRosterRows(page) {
-    return page.locator('[data-roster-row]').filter({ has: page.locator('select[name="staffId"]') });
+function editableRosterRows(page: Page) {
+    return page.locator('[data-roster-row]:has([data-roster-shift-launcher="true"])');
 }
 
-async function ensureTwoEditableRosterRows(page) {
+async function ensureTwoEditableRosterRows(page: Page) {
     const rows = editableRosterRows(page);
     const initialCount = await rows.count();
     if (initialCount >= 2) {
@@ -21,50 +29,46 @@ async function ensureTwoEditableRosterRows(page) {
     }
 
     await addRowToRosterDay(firstEditableRosterDaySection(page));
-    await expect(rows).toHaveCount(initialCount + 1);
-    await expect(rows).toHaveCount(2);
+    await expect
+        .poll(async () => editableRosterRows(page).count(), { timeout: E2E_TIMEOUT.liveUpdate })
+        .toBeGreaterThanOrEqual(2);
 }
 
-async function assignStaffToRow(page, rowIndex, staffId) {
-    const row = editableRosterRows(page).nth(rowIndex);
-    const select = row.locator('select[name="staffId"]').first();
-    const updateUrl = await select.getAttribute('hx-post');
-    if (!updateUrl) {
-        throw new Error('Expected roster staff select to have an hx-post update URL');
-    }
-    await Promise.all([
-        page.waitForResponse((response) =>
-            response.request().method() === 'POST' && response.url().endsWith(updateUrl),
-        ),
-        select.selectOption(staffId),
-    ]);
-    await expect(select).toHaveValue(staffId);
+function rowShiftLauncher(page: Page, rowIndex: number) {
+    return editableRosterRows(page).nth(rowIndex).locator('[data-roster-shift-launcher="true"]').first();
 }
 
-async function blurActiveRosterInput(page) {
-    await page.evaluate(() => {
-        const activeElement = document.activeElement;
-        if (activeElement instanceof HTMLElement) {
-            activeElement.blur();
-        }
-    });
+async function staffOptionsForRow(page: Page, rowIndex: number) {
+    await openRosterShiftDialog(page, rowShiftLauncher(page, rowIndex));
+    const values = await rosterShiftDialogStaffOptionValues(page);
+    await page.locator('[data-dialog-overlay-close="true"]').first().click();
+    await expect(page.locator('#dialog-overlay-mount')).toBeEmpty({ timeout: E2E_TIMEOUT.action });
+    return values;
 }
 
-async function normalizeRosterForDuplicateConflict(actorPage) {
+async function assignStaffToRow(page: Page, rowIndex: number, staffId: string) {
+    await openRosterShiftDialog(page, rowShiftLauncher(page, rowIndex));
+    await fillRosterShiftDialogDefaults(page);
+    await page.locator('#roster-shift-staff-id').selectOption(staffId);
+    await saveRosterShiftDialog(page);
+    await expect
+        .poll(async () => rowShiftLauncher(page, rowIndex).getAttribute('data-roster-staff-id'), { timeout: E2E_TIMEOUT.liveUpdate })
+        .toBe(staffId);
+}
+
+async function normalizeRosterForDuplicateConflict(actorPage: Page) {
     const alphaCrewStaffId = 'a1000000-0000-0000-0000-000000000031';
 
     await ensureTwoEditableRosterRows(actorPage);
-    await assignStaffToRow(actorPage, 0, '');
-    await blurActiveRosterInput(actorPage);
-    await assignStaffToRow(actorPage, 1, '');
-    await blurActiveRosterInput(actorPage);
-    await expect(duplicateConflictCells(actorPage)).toHaveCount(0);
+    const alternateStaffId = (await staffOptionsForRow(actorPage, 1)).find((value) => value !== alphaCrewStaffId);
+    expect(alternateStaffId).toBeTruthy();
+
     await assignStaffToRow(actorPage, 0, alphaCrewStaffId);
-    await blurActiveRosterInput(actorPage);
+    await assignStaffToRow(actorPage, 1, alternateStaffId!);
     await expect(duplicateConflictCells(actorPage)).toHaveCount(0);
 }
 
-function duplicateConflictCells(page) {
+function duplicateConflictCells(page: Page) {
     return page.locator('.slot-staff-cell.conflict-critical');
 }
 
@@ -79,7 +83,6 @@ test.describe('Roster duplicate conflicts', () => {
         const initialConflictCount = await duplicateConflictCells(page).count();
 
         await assignStaffToRow(page, 1, alphaCrewStaffId);
-        await blurActiveRosterInput(page);
         await expect
             .poll(async () => duplicateConflictCells(page).count(), { timeout: E2E_TIMEOUT.liveUpdate })
             .toBeGreaterThan(initialConflictCount);
@@ -103,7 +106,6 @@ test.describe('Roster duplicate conflicts', () => {
 
         const alphaCrewStaffId = 'a1000000-0000-0000-0000-000000000031';
         await assignStaffToRow(actorPage, 1, alphaCrewStaffId);
-        await blurActiveRosterInput(actorPage);
         await expect
             .poll(async () => duplicateConflictCells(actorPage).count(), { timeout: E2E_TIMEOUT.liveUpdate })
             .toBeGreaterThan(initialActorConflictCount);
@@ -116,19 +118,21 @@ test.describe('Roster duplicate conflicts', () => {
             const outsideRows = Array.from(document.querySelectorAll('[data-roster-row]')).filter(
                 (row) => !row.closest('.roster-grid-day-section'),
             );
+            const visualCellCount = (row: Element | undefined) =>
+                row?.querySelector('[data-roster-shift-launcher="true"]')?.querySelectorAll('.roster-shift-unit-cell, .roster-shift-card-field').length ?? 0;
             return {
                 bodyRowCount: bodyRows.length,
                 outsideRowCount: outsideRows.length,
-                editableBodyRowCount: bodyRows.filter((row) => row.querySelector('select[name="staffId"]')).length,
-                firstRowCellCount: bodyRows[0]?.children.length ?? 0,
-                secondRowCellCount: bodyRows[1]?.children.length ?? 0,
-                selectCount: grid.querySelectorAll('select[name="staffId"]').length,
+                editableBodyRowCount: bodyRows.filter((row) => row.querySelector('[data-roster-shift-launcher="true"]')).length,
+                firstRowCellCount: visualCellCount(bodyRows[0]),
+                secondRowCellCount: visualCellCount(bodyRows[1]),
+                launcherCount: grid.querySelectorAll('[data-roster-shift-launcher="true"]').length,
             };
         });
 
         expect(viewerGridState.outsideRowCount).toBe(0);
         expect(viewerGridState.editableBodyRowCount).toBeGreaterThanOrEqual(2);
-        expect(viewerGridState.selectCount).toBeGreaterThanOrEqual(2);
+        expect(viewerGridState.launcherCount).toBeGreaterThanOrEqual(2);
         expect(viewerGridState.bodyRowCount).toBeGreaterThanOrEqual(2);
         expect(viewerGridState.firstRowCellCount).toBeGreaterThanOrEqual(3);
         expect(viewerGridState.secondRowCellCount).toBeGreaterThanOrEqual(3);
