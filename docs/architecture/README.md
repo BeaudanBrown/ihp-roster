@@ -42,3 +42,6 @@ behavior belongs in subsystem-local docs.
 - Passive viewer freshness uses websocket invalidation plus authorized fragment
   refetch.
 - Static assets are app-owned under `static/` and loaded via `assetPath`.
+- Planned observability topology is described in `observability.md`: lightweight
+  OpenTelemetry request tracing, diagnostic profiling, local agent artifacts,
+  production Tempo/Loki capture, and tailnet Grafana viewing.

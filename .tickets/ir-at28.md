@@ -1,6 +1,6 @@
 ---
 id: ir-at28
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-06-25T13:30:47Z
@@ -30,3 +30,9 @@ Record that observability/profiling deployment configuration belongs in the proj
 
 A short living design note exists in the appropriate docs/spec location; package/backend/env decisions are recorded; naming and attribute policy covers current roster profiling spans/counters; follow-on tickets have enough detail to implement without reopening architecture decisions.
 
+
+## Notes
+
+**2026-06-27T23:58:26Z**
+
+Created docs/architecture/observability.md and docs/workstreams/opentelemetry-observability.md with package decisions, env modes, route/action naming policy, local agent artifact topology, production Tempo/Loki split, NAS Grafana frontend, and NixOS option direction.

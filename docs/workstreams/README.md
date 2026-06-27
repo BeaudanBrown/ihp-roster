@@ -47,6 +47,8 @@ for forward-looking design.
   remaining handwritten TypeScript contract emission.
 - `roster-sql-read-model-trial.md` - trial replacing roster projection-cache
   reads with a direct SQL/database-near read model.
+- `opentelemetry-observability.md` - OpenTelemetry traces, agent profile
+  artifacts, production trace/log capture, and tailnet Grafana viewing.
 - `backlog.md` - smaller open streams that do not yet need dedicated files.
 
 ## Workstream Exit Criteria
