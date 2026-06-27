@@ -1,7 +1,7 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { openRoster } from './test-helpers';
 
-async function loginAndOpenRoster(page) {
+async function loginAndOpenRoster(page: Page) {
     await openRoster(page, { email: 'e2e-test@example.com' });
     await expect(page.locator('.roster-staff-panel')).toBeVisible();
 }
@@ -12,7 +12,7 @@ test.describe('Roster Staff Modal', () => {
 
         const initialUrl = page.url();
         const modalMount = page.locator('#dialog-overlay-mount');
-        const staffEntry = page.locator('.roster-staff-panel-entry').first();
+        const staffEntry = page.locator('.roster-staff-panel-entry:visible').first();
         const nameLabel = staffEntry.locator('.roster-staff-name-primary');
         const originalName = (await nameLabel.textContent())?.trim() || 'E2E Manager';
         const updatedName = 'Roster Modal Spec';
@@ -22,8 +22,10 @@ test.describe('Roster Staff Modal', () => {
         await expect(page).toHaveURL(initialUrl);
         await expect(modalMount.locator('[data-dialog-overlay="true"]')).toBeVisible();
         await expect(modalMount).toContainText('Edit Staff Member');
+        await modalMount.getByRole('button', { name: 'Profile Details' }).click();
 
-        const staffEditForm = modalMount.locator('#staff-edit-form');
+        const staffEditForm = modalMount.locator('#staff-edit-form:visible');
+        await expect(staffEditForm).toBeVisible();
         const firstNameField = staffEditForm.locator('#firstName');
         const lastNameField = staffEditForm.locator('#lastName');
         const formAction = await staffEditForm.getAttribute('action');

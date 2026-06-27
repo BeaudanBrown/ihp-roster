@@ -1,12 +1,12 @@
-import { test, expect } from '@playwright/test';
-import { openRoster } from './test-helpers';
+import { test, expect, type Page } from '@playwright/test';
+import { assignRosterShiftStaff, existingRosterShiftLaunchers, openRoster } from './test-helpers';
 
-async function loginAndOpenRoster(page) {
+async function loginAndOpenRoster(page: Page) {
     await openRoster(page, { email: 'e2e-test@example.com' });
     await expect(page.locator('#roster-staff-panel-fragment')).toBeVisible();
 }
 
-async function readPanelRows(page) {
+async function readPanelRows(page: Page) {
     return page.locator('#roster-staff-panel-fragment .roster-staff-panel-entry').evaluateAll((rows) => {
         return rows.map((row) => {
             const element = row;
@@ -24,12 +24,6 @@ async function readPanelRows(page) {
 
 function compareText(leftValue: string, rightValue: string) {
     return leftValue.localeCompare(rightValue, undefined, { sensitivity: 'base' });
-}
-
-function panelNameFromOptionLabel(label: string) {
-    const [lastName, firstName] = label.split(',').map((part) => part.trim());
-    if (!firstName || !lastName) return label.trim();
-    return `${firstName} ${lastName}`;
 }
 
 test.describe('Roster staff panel sorting', () => {
@@ -60,16 +54,18 @@ test.describe('Roster staff panel sorting', () => {
             expectedRoleAsc.map((row) => `${row.role}|${row.name}`),
         );
 
-        const assignmentSelect = page.locator('select[name="staffId"]').first();
-        await assignmentSelect.selectOption('a0000000-0000-0000-0000-000000000101');
-        const selectedStaffName = panelNameFromOptionLabel(
-            (await assignmentSelect.locator('option:checked').textContent()) ?? '',
-        );
+        const targetStaffId = 'a0000000-0000-0000-0000-000000000101';
+        const targetStaffName = await page
+            .locator(`#roster-staff-panel-fragment .roster-staff-panel-entry[data-roster-staff-id="${targetStaffId}"]`)
+            .getAttribute('data-roster-staff-name');
+        expect(targetStaffName).toBeTruthy();
+
+        await assignRosterShiftStaff(page, existingRosterShiftLaunchers(page).first(), targetStaffId);
 
         await expect
             .poll(async () => {
                 const rows = await readPanelRows(page);
-                return rows.find((row) => row.name === selectedStaffName)?.assigned ?? 0;
+                return rows.find((row) => row.name === targetStaffName)?.assigned ?? 0;
             })
             .toBe(1);
 
