@@ -39,6 +39,7 @@ module Application.Helper.LiveSurface
     , liveSurfaceConfigJson
     , liveSurfaceDescriptor
     , liveSurfaceDescriptorWithDecorateRequestsWithin
+    , liveSurfaceDescriptorWithInteraction
     , liveSurfaceProjectionFragmentRef
     , loadLiveSurfaceProjection
     , loadLiveSurfaceProjectionFromStore
@@ -112,6 +113,7 @@ import Application.Helper.LiveSurface.Internal (AuthorizedLiveFragment (..),
                                                 liveSurfaceConfigJson,
                                                 liveSurfaceDescriptor,
                                                 liveSurfaceDescriptorWithDecorateRequestsWithin,
+                                                liveSurfaceDescriptorWithInteraction,
                                                 liveSurfaceProjectionFragmentRef,
                                                 loadLiveSurfaceProjection,
                                                 loadLiveSurfaceProjectionFromStore,

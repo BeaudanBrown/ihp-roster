@@ -1,5 +1,11 @@
 module Test.LiveSurfaceSpec where
 
+import Application.Helper.Interaction.Types (InteractionCapability (..),
+                                             InteractionConflictPolicy (..),
+                                             InteractionConflictResolution (..),
+                                             InteractionFragmentSelector (..),
+                                             InteractionSessionSelector (..),
+                                             InteractionStaticSchema (..))
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
 import Application.Helper.LiveSurface.Internal (SurfaceFragmentRef (..))
@@ -92,6 +98,17 @@ tests = describe "LiveSurface contract helpers" do
         map (.targetId) config.resyncFragments `shouldBe` ["test-descriptor-primary-fragment", "test-descriptor-secondary-fragment"]
         typedSurfaceDependsOn definition () TestDescriptorPrimary `shouldBe` [BillingResource venueId]
         typedSurfaceDependsOn definition () TestDescriptorSecondary `shouldBe` []
+
+    it "attaches interaction metadata through descriptors" do
+        let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
+        let definition =
+                descriptorToTypedLiveSurfaceDefinition
+                    ( testDescriptorSurface venueId
+                        |> liveSurfaceDescriptorWithInteraction testInteractionStaticSchema (const testInteractionCapability)
+                    )
+
+        definition.typedSurfaceInteractionSchema `shouldBe` testInteractionStaticSchema
+        definition.typedSurfaceInteraction () `shouldBe` testInteractionCapability
 
     it "allows descriptor decorate selectors to be overridden" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
@@ -246,6 +263,32 @@ data TestDescriptorFragment
     = TestDescriptorPrimary
     | TestDescriptorSecondary
     deriving (Eq, Show)
+
+data TestInteractionLayer = TestInteractionLayer deriving (Eq, Show)
+
+data TestInteractionSession = TestInteractionSession deriving (Eq, Show)
+
+data TestInteractionIntent = TestInteractionIntent deriving (Eq, Show)
+
+testInteractionStaticSchema :: InteractionStaticSchema TestDescriptorFragment TestInteractionLayer TestInteractionSession TestInteractionIntent
+testInteractionStaticSchema =
+    emptyInteractionStaticSchema
+        { interactionStaticConflictPolicies =
+            [ InteractionConflictPolicy
+                { conflictPolicySession = InteractionSessionKind TestInteractionSession
+                , conflictPolicyFragment = InteractionFragment TestDescriptorPrimary
+                , conflictPolicyResolution = DeferLiveFragmentUntilSessionEnds
+                , conflictPolicyTimeoutMs = Just 250
+                }
+            ]
+        }
+
+testInteractionCapability :: InteractionCapability (SurfaceFragmentRef TestDescriptorSurface) TestDescriptorFragment TestInteractionLayer TestInteractionSession TestInteractionIntent
+testInteractionCapability =
+    emptyInteractionCapability
+        { interactionStaticSchema = testInteractionStaticSchema
+        , interactionConflictPolicies = testInteractionStaticSchema.interactionStaticConflictPolicies
+        }
 
 data TestVenueKey = TestVenueKey
     { testVenueKeyVenueId :: !UUID.UUID

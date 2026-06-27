@@ -35,6 +35,7 @@ module Application.Helper.LiveSurface.Internal
     , liveSurfaceAuthorizationByRequirement
     , liveSurfaceDescriptor
     , liveSurfaceDescriptorWithDecorateRequestsWithin
+    , liveSurfaceDescriptorWithInteraction
     , liveSurfaceProjectionFragmentRef
     , liveSurfaceConfigJson
     , loadLiveSurfaceProjection
@@ -420,6 +421,23 @@ liveSurfaceDescriptorWithDecorateRequestsWithin ::
     LiveSurfaceDescriptor surface scope fragment layer session intent
 liveSurfaceDescriptorWithDecorateRequestsWithin decorateRequestsWithin descriptor =
     descriptor { liveSurfaceDescriptorDecorateRequestsWithin = Just decorateRequestsWithin }
+
+liveSurfaceDescriptorWithInteraction ::
+    InteractionStaticSchema fragment layer session intent ->
+    (scope -> InteractionCapability (SurfaceFragmentRef surface) fragment layer session intent) ->
+    LiveSurfaceDescriptor surface scope fragment oldLayer oldSession oldIntent ->
+    LiveSurfaceDescriptor surface scope fragment layer session intent
+liveSurfaceDescriptorWithInteraction interactionSchema interaction descriptor =
+    LiveSurfaceDescriptor
+        { liveSurfaceDescriptorFeature = descriptor.liveSurfaceDescriptorFeature
+        , liveSurfaceDescriptorScope = descriptor.liveSurfaceDescriptorScope
+        , liveSurfaceDescriptorScopeFromWire = descriptor.liveSurfaceDescriptorScopeFromWire
+        , liveSurfaceDescriptorFragments = descriptor.liveSurfaceDescriptorFragments
+        , liveSurfaceDescriptorDecorateRequestsWithin = descriptor.liveSurfaceDescriptorDecorateRequestsWithin
+        , liveSurfaceDescriptorAuthorize = descriptor.liveSurfaceDescriptorAuthorize
+        , liveSurfaceDescriptorInteractionSchema = interactionSchema
+        , liveSurfaceDescriptorInteraction = interaction
+        }
 
 descriptorToTypedLiveSurfaceDefinition ::
     Eq fragment =>
