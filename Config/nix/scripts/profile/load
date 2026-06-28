@@ -12,6 +12,7 @@ PROFILE_LOAD_RATE="${PROFILE_LOAD_RATE:-10}"
 PROFILE_LOAD_DURATION="${PROFILE_LOAD_DURATION:-30s}"
 PROFILE_LOAD_VUS="${PROFILE_LOAD_VUS:-10}"
 PROFILE_LOAD_MAX_VUS="${PROFILE_LOAD_MAX_VUS:-}"
+PROFILE_LOAD_OTEL="${PROFILE_LOAD_OTEL:-0}"
 PROFILE_K6_ARGS=()
 
 while [ "$#" -gt 0 ]; do
@@ -33,6 +34,8 @@ Options:
   --max-vus=N                    Maximum k6 virtual users
   --email=email                  Override manifest login email
   --password=password            Override manifest login password
+  --otel                         Run local OTel collector and emit otel-summary artifacts
+  --no-otel                      Disable local OTel collector (default)
 EOF
             exit 0
             ;;
@@ -84,6 +87,14 @@ EOF
             export PROFILE_PASSWORD="${1#--password=}"
             shift
             ;;
+        --otel)
+            PROFILE_LOAD_OTEL=1
+            shift
+            ;;
+        --no-otel)
+            PROFILE_LOAD_OTEL=0
+            shift
+            ;;
         --)
             shift
             PROFILE_K6_ARGS+=("$@")
@@ -130,6 +141,9 @@ PROFILE_PID_FILE="$PROFILE_LOAD_OUTPUT_DIR/server.pid"
 PROFILE_K6_METRICS="$PROFILE_LOAD_OUTPUT_DIR/k6-metrics.ndjson"
 PROFILE_K6_STDOUT="$PROFILE_LOAD_OUTPUT_DIR/k6.stdout"
 PROFILE_LOAD_METADATA="$PROFILE_LOAD_OUTPUT_DIR/metadata.json"
+PROFILE_OTEL_TRACE_FILE="$PROFILE_LOAD_OUTPUT_DIR/otel-traces.json"
+PROFILE_OTEL_LOG="$PROFILE_LOAD_OUTPUT_DIR/otel-collector.log"
+PROFILE_OTEL_PID_FILE="$PROFILE_LOAD_OUTPUT_DIR/otel-collector.pid"
 
 if [ "$PROFILE_SHOULD_SEED" = "1" ]; then
     seed-profile "$PROFILE_DATABASE_NAME" --output-dir="$PROFILE_SEED_OUTPUT_DIR" "${PROFILE_SEED_ARGS[@]}"
@@ -146,12 +160,83 @@ fi
 
 # shellcheck source=../lib/profile-server.sh
 . "@scriptsRoot@/lib/profile-server.sh"
-trap cleanup_profile_server EXIT INT TERM
+
+cleanup_profile_load() {
+    cleanup_profile_server
+    if [ -f "$PROFILE_OTEL_PID_FILE" ]; then
+        local otel_pid
+        otel_pid=$(cat "$PROFILE_OTEL_PID_FILE")
+        kill -TERM "$otel_pid" 2>/dev/null || true
+        wait "$otel_pid" 2>/dev/null || true
+        rm -f "$PROFILE_OTEL_PID_FILE"
+    fi
+}
+
+trap cleanup_profile_load EXIT INT TERM
+
+if [ "$PROFILE_LOAD_OTEL" = "1" ]; then
+    if ! command -v otelcol-contrib >/dev/null 2>&1; then
+        echo "profile-load --otel requires otelcol-contrib in the Nix shell" >&2
+        echo "Run via: bash ./bin/in-env profile-load --otel ..." >&2
+        exit 1
+    fi
+    mkdir -p "$(dirname "$PROFILE_OTEL_TRACE_FILE")"
+    rm -f "$PROFILE_OTEL_TRACE_FILE"
+    (
+        export OTEL_FILE_EXPORTER_PATH="$PROFILE_OTEL_TRACE_FILE"
+        exec otelcol-contrib --config ./Config/otel/profile-file-collector.yaml
+    ) >>"$PROFILE_OTEL_LOG" 2>&1 &
+    echo "$!" > "$PROFILE_OTEL_PID_FILE"
+    sleep 1
+    if ! kill -0 "$(cat "$PROFILE_OTEL_PID_FILE")" 2>/dev/null; then
+        echo "OpenTelemetry collector failed to start" >&2
+        cat "$PROFILE_OTEL_LOG" >&2 || true
+        exit 1
+    fi
+fi
+
+finalize_profile_otel() {
+    if [ "$PROFILE_LOAD_OTEL" != "1" ]; then
+        return 0
+    fi
+    sleep 1
+    if [ -f "$PROFILE_OTEL_PID_FILE" ]; then
+        local otel_pid
+        otel_pid=$(cat "$PROFILE_OTEL_PID_FILE")
+        kill -TERM "$otel_pid" 2>/dev/null || true
+        wait "$otel_pid" 2>/dev/null || true
+        rm -f "$PROFILE_OTEL_PID_FILE"
+    fi
+    if [ ! -s "$PROFILE_OTEL_TRACE_FILE" ]; then
+        echo "OpenTelemetry collector did not produce $PROFILE_OTEL_TRACE_FILE" >&2
+        echo "Collector log: $PROFILE_OTEL_LOG" >&2
+        return 1
+    fi
+    node ./e2e/otel-profile-summary.mjs \
+        "$PROFILE_OTEL_TRACE_FILE" \
+        "$PROFILE_LOAD_OUTPUT_DIR" \
+        "$PROFILE_LOAD_METADATA"
+}
+
+otel_env=()
+if [ "$PROFILE_LOAD_OTEL" = "1" ]; then
+    otel_env=(
+        IHP_ROSTER_OTEL=1
+        OTEL_SERVICE_NAME=ihp-roster-profile
+        OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
+        OTEL_TRACES_SAMPLER=always_on
+        OTEL_BSP_SCHEDULE_DELAY=200
+        OTEL_BSP_EXPORT_TIMEOUT=5000
+    )
+fi
 
 (
     export PROFILE_DATABASE_NAME
     export PROFILE_DB_SOCKET
     export IHP_ROSTER_PROFILING=1
+    if [ "${#otel_env[@]}" -gt 0 ]; then
+        export "${otel_env[@]}"
+    fi
     setsid profile-test-server </dev/null >>"$PROFILE_LOG" 2>&1 &
     echo "$!" > "$PROFILE_PID_FILE"
     wait "$!"
@@ -201,6 +286,7 @@ for _ in $(seq 1 120); do
             "$PROFILE_K6_METRICS" \
             "$PROFILE_LOAD_OUTPUT_DIR" \
             "$PROFILE_LOAD_METADATA"
+        finalize_profile_otel
         ln -sfn "$PROFILE_LOAD_OUTPUT_DIR" "$PWD/output/profile-load/latest"
         echo "Profile load artifacts: $PROFILE_LOAD_OUTPUT_DIR"
         exit 0

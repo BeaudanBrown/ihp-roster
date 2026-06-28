@@ -1,6 +1,6 @@
 ---
 id: ir-0c2u
-status: open
+status: closed
 deps: [ir-6io4]
 links: []
 created: 2026-06-25T13:30:47Z
@@ -24,3 +24,9 @@ Export summaries such as slowest traces, representative slow spans, largest comp
 
 A standard low-rate roster-wide profile produces `suite-summary.md` plus OTel-derived JSON/Markdown summary artifacts from local collector export files; artifacts include enough data for before/after comparison and representative trace inspection without a live UI; failures are reported clearly when the collector/backend is unavailable; docs show the exact Nix-managed local command path.
 
+
+## Notes
+
+**2026-06-28T02:20:33Z**
+
+Added --otel support to profile-load/profile-load-suite. profile-load starts a Nix-shell otelcol-contrib collector, exports per-run otel-traces.json, and generates otel-summary.json/md. profile-load-suite passes --otel to scenarios and aggregates root otel-summary.json/md. Added summary parsers plus profile collector config. Verified with bash -n/node --check/otelcol validate and a live 1s profile-load --otel smoke run.

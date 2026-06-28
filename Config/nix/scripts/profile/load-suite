@@ -12,6 +12,7 @@ PROFILE_SUITE_RATE_OVERRIDE=""
 PROFILE_SUITE_DURATION_OVERRIDE=""
 PROFILE_SUITE_VUS_OVERRIDE=""
 PROFILE_SUITE_MAX_VUS_OVERRIDE=""
+PROFILE_SUITE_OTEL="${PROFILE_SUITE_OTEL:-0}"
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -30,6 +31,8 @@ Options:
   --duration=30s                 Override all scenario durations
   --vus=N                        Override all scenario preallocated VUs
   --max-vus=N                    Override all scenario maximum VUs
+  --otel                         Run local OTel collector for each scenario and emit suite OTel summaries
+  --no-otel                      Disable local OTel collectors (default)
 
 Default scenarios:
   roster-hot, roster-wide, roster-overview, roster-projections, fragments, timesheets, leave, admin, profile, mixed-app
@@ -74,6 +77,14 @@ EOF
             ;;
         --max-vus=*)
             PROFILE_SUITE_MAX_VUS_OVERRIDE="${1#--max-vus=}"
+            shift
+            ;;
+        --otel)
+            PROFILE_SUITE_OTEL=1
+            shift
+            ;;
+        --no-otel)
+            PROFILE_SUITE_OTEL=0
             shift
             ;;
         *)
@@ -189,6 +200,9 @@ for scenario in "${PROFILE_SUITE_SCENARIOS[@]}"; do
     if [ -n "$max_vus" ]; then
         args+=(--max-vus="$max_vus")
     fi
+    if [ "$PROFILE_SUITE_OTEL" = "1" ]; then
+        args+=(--otel)
+    fi
     profile-load "${args[@]}"
     completed_scenarios+=("$scenario")
 done
@@ -196,5 +210,10 @@ done
 node ./e2e/profile-load-suite-report.mjs \
     "$PROFILE_SUITE_OUTPUT_DIR" \
     "${completed_scenarios[@]}"
+if [ "$PROFILE_SUITE_OTEL" = "1" ]; then
+    node ./e2e/otel-suite-summary.mjs \
+        "$PROFILE_SUITE_OUTPUT_DIR" \
+        "${completed_scenarios[@]}"
+fi
 ln -sfn "$PROFILE_SUITE_OUTPUT_DIR" "$PWD/output/profile-load-suite/latest"
 echo "Profile load suite artifacts: $PROFILE_SUITE_OUTPUT_DIR"

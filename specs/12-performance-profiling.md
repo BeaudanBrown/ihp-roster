@@ -106,6 +106,22 @@ output/profile-load/<run-id>/server.log
 output/profile-load/<run-id>/seed/manifest.json
 ```
 
+Add `--otel` to start a Nix-provided local OpenTelemetry Collector and export
+agent-readable trace artifacts beside the k6 report:
+
+```bash
+bash ./bin/in-env profile-load --scenario=roster-wide --rate=2 --duration=15s --vus=2 --otel
+```
+
+Additional OTel outputs:
+
+```text
+output/profile-load/<run-id>/otel-collector.log
+output/profile-load/<run-id>/otel-traces.json
+output/profile-load/<run-id>/otel-summary.json
+output/profile-load/<run-id>/otel-summary.md
+```
+
 Available scenarios:
 
 - `roster-hot`: current full roster, content fragment, overview fragment.
@@ -138,6 +154,15 @@ output/profile-load-suite/<run-id>/<scenario>/load-profile.json
 output/profile-load-suite/<run-id>/<scenario>/load-profile.md
 output/profile-load-suite/<run-id>/suite-summary.json
 output/profile-load-suite/<run-id>/suite-summary.md
+```
+
+With `--otel`, each scenario also writes `otel-traces.json`,
+`otel-summary.json`, and `otel-summary.md`, and the suite root writes
+`otel-summary.json` plus `otel-summary.md` aggregating slow spans, large HTML
+components, and render counters:
+
+```bash
+bash ./bin/in-env profile-load-suite --scenario=roster-wide --rate=2 --duration=15s --vus=2 --otel
 ```
 
 Default rates:

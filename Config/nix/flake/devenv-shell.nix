@@ -22,6 +22,7 @@
                     pkgs.poppler-utils
                     pkgs.k6
                     pkgs.jq
+                    pkgs.opentelemetry-collector-contrib
                     pkgs.stripe-cli
                 ];
 
