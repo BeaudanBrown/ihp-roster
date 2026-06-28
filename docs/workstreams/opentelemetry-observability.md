@@ -152,6 +152,16 @@ profile-load-suite --otel
   -> Pi tools
 ```
 
+### Local live trace UI
+
+```text
+dev-start-otel
+  -> app with IHP_ROSTER_OTEL=1
+  -> local OTel collector
+  -> local Tempo
+  -> local Grafana Explore
+```
+
 ### Production and human viewing
 
 ```text

@@ -23,6 +23,8 @@
                     pkgs.k6
                     pkgs.jq
                     pkgs.opentelemetry-collector-contrib
+                    pkgs.tempo
+                    pkgs.grafana
                     pkgs.stripe-cli
                 ];
 

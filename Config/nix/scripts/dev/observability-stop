@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+STATE_DIR="$(dev-agent-state-dir)"
+PID_FILES=(
+    "$STATE_DIR/grafana.pid:grafana"
+    "$STATE_DIR/otel-collector.pid:otel-collector"
+    "$STATE_DIR/tempo.pid:tempo"
+)
+
+stop_tracked_process() {
+    local pid_file="$1"
+    local label="$2"
+
+    if [ ! -f "$pid_file" ]; then
+        return 0
+    fi
+
+    local tracked_pid
+    tracked_pid=$(cat "$pid_file")
+    if ! kill -0 "$tracked_pid" 2>/dev/null; then
+        rm -f "$pid_file"
+        echo "$label not running (stale pid removed)"
+        return 0
+    fi
+
+    kill -TERM -"$tracked_pid" 2>/dev/null || kill -TERM "$tracked_pid" 2>/dev/null || true
+
+    for _ in $(seq 1 20); do
+        if ! kill -0 "$tracked_pid" 2>/dev/null; then
+            rm -f "$pid_file"
+            echo "$label stopped"
+            return 0
+        fi
+        sleep 1
+    done
+
+    kill -KILL -"$tracked_pid" 2>/dev/null || kill -KILL "$tracked_pid" 2>/dev/null || true
+    rm -f "$pid_file"
+    echo "$label killed"
+}
+
+for entry in "${PID_FILES[@]}"; do
+    stop_tracked_process "${entry%%:*}" "${entry#*:}"
+done

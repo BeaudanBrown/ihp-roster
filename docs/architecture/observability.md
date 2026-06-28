@@ -140,6 +140,20 @@ OTEL_TRACES_SAMPLER=always_on
 `ir-0c2u` owns turning this into a checked-in profile-run collector config and
 bounded summary artifacts.
 
+## Dev Live Frontend Topology
+
+For interactive local debugging, the repo provides a disposable localhost-only
+Tempo/Grafana/collector stack:
+
+```text
+dev-start-otel -> dev app with IHP_ROSTER_OTEL=1 -> localhost OTel Collector -> localhost Tempo -> localhost Grafana Explore
+```
+
+Use `bash ./bin/in-env dev-start-otel`, make requests against the dev app, then
+open `http://127.0.0.1:3300/explore` and search the Tempo datasource for service
+`ihp-roster-dev`. This flow is for live inspection; profile artifact flows
+remain the repeatable before/after comparison path.
+
 ## Production Topology
 
 Production should keep critical capture/storage near the app:

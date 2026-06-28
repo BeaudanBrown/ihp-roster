@@ -1,0 +1,232 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+STATE_DIR="$(dev-agent-state-dir)"
+OBS_DIR="${IHP_ROSTER_DEV_OBSERVABILITY_DIR:-$PWD/build/dev-observability}"
+TEMPO_PID_FILE="$STATE_DIR/tempo.pid"
+COLLECTOR_PID_FILE="$STATE_DIR/otel-collector.pid"
+GRAFANA_PID_FILE="$STATE_DIR/grafana.pid"
+TEMPO_LOG_FILE="$STATE_DIR/tempo.log"
+COLLECTOR_LOG_FILE="$STATE_DIR/otel-collector.log"
+GRAFANA_LOG_FILE="$STATE_DIR/grafana.log"
+TEMPO_PORT="${IHP_ROSTER_DEV_TEMPO_PORT:-3200}"
+TEMPO_OTLP_GRPC_PORT="${IHP_ROSTER_DEV_TEMPO_OTLP_GRPC_PORT:-14317}"
+TEMPO_OTLP_HTTP_PORT="${IHP_ROSTER_DEV_TEMPO_OTLP_HTTP_PORT:-14318}"
+COLLECTOR_OTLP_GRPC_PORT="${IHP_ROSTER_DEV_OTLP_GRPC_PORT:-4317}"
+COLLECTOR_OTLP_HTTP_PORT="${IHP_ROSTER_DEV_OTLP_HTTP_PORT:-4318}"
+COLLECTOR_HEALTH_PORT="${IHP_ROSTER_DEV_COLLECTOR_HEALTH_PORT:-13133}"
+GRAFANA_PORT="${IHP_ROSTER_DEV_GRAFANA_PORT:-3300}"
+
+mkdir -p "$STATE_DIR" \
+    "$OBS_DIR/tempo/traces" \
+    "$OBS_DIR/tempo/wal" \
+    "$OBS_DIR/grafana/data" \
+    "$OBS_DIR/grafana/logs" \
+    "$OBS_DIR/grafana/plugins" \
+    "$OBS_DIR/grafana/provisioning/datasources" \
+    "$OBS_DIR/collector"
+
+require_command() {
+    if ! command -v "$1" >/dev/null 2>&1; then
+        echo "Missing required command: $1" >&2
+        echo "Run through bash ./bin/in-env so the Nix dev shell provides observability tools." >&2
+        exit 1
+    fi
+}
+
+require_command tempo
+require_command otelcol-contrib
+require_command grafana
+
+cat > "$OBS_DIR/tempo.yaml" <<EOF_TEMPO
+server:
+  http_listen_address: 127.0.0.1
+  http_listen_port: ${TEMPO_PORT}
+  grpc_listen_address: 127.0.0.1
+  grpc_listen_port: 9095
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 127.0.0.1:${TEMPO_OTLP_GRPC_PORT}
+        http:
+          endpoint: 127.0.0.1:${TEMPO_OTLP_HTTP_PORT}
+
+storage:
+  trace:
+    backend: local
+    wal:
+      path: ${OBS_DIR}/tempo/wal
+    local:
+      path: ${OBS_DIR}/tempo/traces
+
+compactor:
+  compaction:
+    block_retention: 24h
+EOF_TEMPO
+
+cat > "$OBS_DIR/collector/config.yaml" <<EOF_COLLECTOR
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 127.0.0.1:${COLLECTOR_OTLP_GRPC_PORT}
+      http:
+        endpoint: 127.0.0.1:${COLLECTOR_OTLP_HTTP_PORT}
+
+processors:
+  batch:
+    timeout: 1s
+
+exporters:
+  otlp/tempo:
+    endpoint: 127.0.0.1:${TEMPO_OTLP_GRPC_PORT}
+    tls:
+      insecure: true
+
+extensions:
+  health_check:
+    endpoint: 127.0.0.1:${COLLECTOR_HEALTH_PORT}
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/tempo]
+EOF_COLLECTOR
+
+cat > "$OBS_DIR/grafana/provisioning/datasources/datasources.yaml" <<EOF_DATASOURCES
+apiVersion: 1
+
+datasources:
+  - name: Bepis Tempo Dev
+    uid: bepis-tempo-dev
+    type: tempo
+    access: proxy
+    url: http://127.0.0.1:${TEMPO_PORT}
+    isDefault: true
+    jsonData:
+      httpMethod: GET
+      serviceMap:
+        datasourceUid: bepis-tempo-dev
+EOF_DATASOURCES
+
+cat > "$OBS_DIR/grafana.ini" <<EOF_GRAFANA
+[paths]
+data = ${OBS_DIR}/grafana/data
+logs = ${OBS_DIR}/grafana/logs
+plugins = ${OBS_DIR}/grafana/plugins
+provisioning = ${OBS_DIR}/grafana/provisioning
+
+[server]
+http_addr = 127.0.0.1
+http_port = ${GRAFANA_PORT}
+domain = 127.0.0.1
+root_url = http://127.0.0.1:${GRAFANA_PORT}/
+
+[security]
+admin_user = admin
+admin_password = admin
+allow_embedding = false
+
+[auth.anonymous]
+enabled = true
+org_role = Admin
+
+[analytics]
+reporting_enabled = false
+check_for_updates = false
+check_for_plugin_updates = false
+
+[log]
+mode = console
+level = warn
+EOF_GRAFANA
+
+start_tracked_process() {
+    local pid_file="$1"
+    local log_file="$2"
+    local label="$3"
+    shift 3
+
+    if [ -f "$pid_file" ]; then
+        local existing_pid
+        existing_pid=$(cat "$pid_file")
+        if kill -0 "$existing_pid" 2>/dev/null; then
+            echo "$label already running (pid=$existing_pid, log=$log_file)"
+            return 0
+        fi
+        rm -f "$pid_file"
+    fi
+
+    : > "$log_file"
+    echo "[dev-observability-start] launching $label: $*" >>"$log_file"
+    setsid nohup "$@" </dev/null >>"$log_file" 2>&1 &
+    local pid=$!
+    echo "$pid" > "$pid_file"
+    disown "$pid" 2>/dev/null || true
+
+    for _ in $(seq 1 3); do
+        sleep 1
+        if ! kill -0 "$pid" 2>/dev/null; then
+            echo "$label failed to start; recent log output:" >&2
+            tail -n 80 "$log_file" >&2 || true
+            rm -f "$pid_file"
+            exit 1
+        fi
+    done
+
+    echo "$label started (pid=$pid, log=$log_file)"
+}
+
+wait_for_url() {
+    local label="$1"
+    local url="$2"
+    local log_file="$3"
+    for _ in $(seq 1 30); do
+        if curl --connect-timeout 1 --max-time 2 -fsS "$url" >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 1
+    done
+    echo "$label did not become ready at $url; recent log output:" >&2
+    tail -n 80 "$log_file" >&2 || true
+    exit 1
+}
+
+GRAFANA_BIN=$(command -v grafana)
+GRAFANA_HOME="${GRAFANA_HOME:-$(cd "$(dirname "$GRAFANA_BIN")/../share/grafana" && pwd)}"
+
+start_tracked_process "$TEMPO_PID_FILE" "$TEMPO_LOG_FILE" "tempo" \
+    tempo --config.file="$OBS_DIR/tempo.yaml"
+wait_for_url "tempo" "http://127.0.0.1:${TEMPO_PORT}/ready" "$TEMPO_LOG_FILE"
+
+start_tracked_process "$COLLECTOR_PID_FILE" "$COLLECTOR_LOG_FILE" "otel-collector" \
+    otelcol-contrib --config "$OBS_DIR/collector/config.yaml"
+wait_for_url "otel-collector" "http://127.0.0.1:${COLLECTOR_HEALTH_PORT}/" "$COLLECTOR_LOG_FILE"
+
+start_tracked_process "$GRAFANA_PID_FILE" "$GRAFANA_LOG_FILE" "grafana" \
+    grafana server --homepath "$GRAFANA_HOME" --config "$OBS_DIR/grafana.ini"
+wait_for_url "grafana" "http://127.0.0.1:${GRAFANA_PORT}/api/health" "$GRAFANA_LOG_FILE"
+
+cat <<EOF_READY
+
+Dev observability frontend is ready:
+  Grafana: http://127.0.0.1:${GRAFANA_PORT}/explore?schemaVersion=1&panes=%7B%22trace%22:%7B%22datasource%22:%22bepis-tempo-dev%22,%22queries%22:%5B%7B%22queryType%22:%22serviceSearch%22,%22serviceName%22:%22ihp-roster-dev%22,%22refId%22:%22A%22%7D%5D%7D%7D&orgId=1
+  Tempo:   http://127.0.0.1:${TEMPO_PORT}
+  OTLP:    http://127.0.0.1:${COLLECTOR_OTLP_HTTP_PORT}
+
+Start or restart the dev app with tracing enabled:
+  IHP_ROSTER_OTEL=1 \\
+  OTEL_SERVICE_NAME=ihp-roster-dev \\
+  OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:${COLLECTOR_OTLP_HTTP_PORT} \\
+  OTEL_TRACES_SAMPLER=always_on \\
+  bash ./bin/in-env dev-start
+
+Or use:
+  bash ./bin/in-env dev-start-otel
+EOF_READY

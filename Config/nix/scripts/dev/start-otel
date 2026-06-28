@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+OTLP_HTTP_PORT="${IHP_ROSTER_DEV_OTLP_HTTP_PORT:-4318}"
+
+dev-observability-start
+
+if dev-status >/dev/null 2>&1; then
+    echo "dev app is already running; it was left unchanged."
+    echo "If it was not started with OTel enabled, run:"
+    echo "  bash ./bin/in-env dev-stop"
+    echo "  bash ./bin/in-env dev-start-otel"
+    exit 0
+fi
+
+export IHP_ROSTER_OTEL=1
+export OTEL_SERVICE_NAME="${OTEL_SERVICE_NAME:-ihp-roster-dev}"
+export OTEL_EXPORTER_OTLP_ENDPOINT="${OTEL_EXPORTER_OTLP_ENDPOINT:-http://127.0.0.1:${OTLP_HTTP_PORT}}"
+export OTEL_TRACES_SAMPLER="${OTEL_TRACES_SAMPLER:-always_on}"
+export OTEL_BSP_SCHEDULE_DELAY="${OTEL_BSP_SCHEDULE_DELAY:-1000}"
+export OTEL_BSP_EXPORT_TIMEOUT="${OTEL_BSP_EXPORT_TIMEOUT:-5000}"
+
+dev-start
+
+echo ""
+echo "Tracing env for this dev app start:"
+echo "  OTEL_SERVICE_NAME=$OTEL_SERVICE_NAME"
+echo "  OTEL_EXPORTER_OTLP_ENDPOINT=$OTEL_EXPORTER_OTLP_ENDPOINT"
+echo "  OTEL_TRACES_SAMPLER=$OTEL_TRACES_SAMPLER"
+echo "Open Grafana Explore at http://127.0.0.1:${IHP_ROSTER_DEV_GRAFANA_PORT:-3300}/explore and search service ihp-roster-dev after making app requests."

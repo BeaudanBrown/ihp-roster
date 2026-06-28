@@ -28,6 +28,10 @@ in
         dev-ensure-postgres = script ../scripts/dev/ensure-postgres;
         dev-ensure-mailhog = script ../scripts/dev/ensure-mailhog;
         dev-foreground = script ../scripts/dev/foreground;
+        dev-observability-start = script ../scripts/dev/observability-start;
+        dev-observability-stop = script ../scripts/dev/observability-stop;
+        dev-observability-status = script ../scripts/dev/observability-status;
+        dev-start-otel = script ../scripts/dev/start-otel;
         frontend-build = script ../scripts/frontend/build;
         frontend-check = script ../scripts/frontend/check;
         frontend-contracts = script ../scripts/frontend/contracts;

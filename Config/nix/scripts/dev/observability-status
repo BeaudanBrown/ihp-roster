@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+STATE_DIR="$(dev-agent-state-dir)"
+TEMPO_PORT="${IHP_ROSTER_DEV_TEMPO_PORT:-3200}"
+COLLECTOR_HEALTH_PORT="${IHP_ROSTER_DEV_COLLECTOR_HEALTH_PORT:-13133}"
+GRAFANA_PORT="${IHP_ROSTER_DEV_GRAFANA_PORT:-3300}"
+
+check_pid() {
+    local pid_file="$1"
+    if [ -f "$pid_file" ]; then
+        local pid
+        pid=$(cat "$pid_file")
+        if kill -0 "$pid" 2>/dev/null; then
+            printf '%s' "$pid"
+            return 0
+        fi
+        rm -f "$pid_file"
+    fi
+    printf 'none'
+    return 1
+}
+
+check_url() {
+    local url="$1"
+    curl --connect-timeout 1 --max-time 2 -fsS "$url" >/dev/null 2>&1
+}
+
+TEMPO_PID=$(check_pid "$STATE_DIR/tempo.pid" || true)
+COLLECTOR_PID=$(check_pid "$STATE_DIR/otel-collector.pid" || true)
+GRAFANA_PID=$(check_pid "$STATE_DIR/grafana.pid" || true)
+
+TEMPO_OK=false
+COLLECTOR_OK=false
+GRAFANA_OK=false
+check_url "http://127.0.0.1:${TEMPO_PORT}/ready" && TEMPO_OK=true
+check_url "http://127.0.0.1:${COLLECTOR_HEALTH_PORT}/" && COLLECTOR_OK=true
+check_url "http://127.0.0.1:${GRAFANA_PORT}/api/health" && GRAFANA_OK=true
+
+echo "tempo_ok=$TEMPO_OK tempo_pid=$TEMPO_PID collector_ok=$COLLECTOR_OK collector_pid=$COLLECTOR_PID grafana_ok=$GRAFANA_OK grafana_pid=$GRAFANA_PID grafana_url=http://127.0.0.1:${GRAFANA_PORT} otlp_endpoint=http://127.0.0.1:${IHP_ROSTER_DEV_OTLP_HTTP_PORT:-4318}"
+
+if [ "$TEMPO_OK" = true ] && [ "$COLLECTOR_OK" = true ] && [ "$GRAFANA_OK" = true ]; then
+    exit 0
+fi
+exit 1

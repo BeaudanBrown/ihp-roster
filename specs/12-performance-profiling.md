@@ -122,6 +122,35 @@ output/profile-load/<run-id>/otel-summary.json
 output/profile-load/<run-id>/otel-summary.md
 ```
 
+## Live Dev Trace Frontend
+
+For interactive local debugging, start the dev-only Tempo/Grafana/collector
+stack and then start the app with OTel enabled:
+
+```bash
+bash ./bin/in-env dev-start-otel
+```
+
+This starts local-only services:
+
+- OTel Collector OTLP/HTTP: `http://127.0.0.1:4318`
+- Tempo: `http://127.0.0.1:3200`
+- Grafana: `http://127.0.0.1:3300`
+
+After making requests against the dev app, open Grafana Explore and search the
+Tempo datasource for service `ihp-roster-dev`.
+
+Useful controls:
+
+```bash
+bash ./bin/in-env dev-observability-status
+bash ./bin/in-env dev-observability-stop
+```
+
+Use `IHP_ROSTER_PROFILING=1 bash ./bin/in-env dev-start-otel` only when you
+need the heavier diagnostic render counters/HTML byte spans in the live trace
+view.
+
 Available scenarios:
 
 - `roster-hot`: current full roster, content fragment, overview fragment.
