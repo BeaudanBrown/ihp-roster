@@ -55,6 +55,8 @@ in
         seed-profile = script ../scripts/db/seed-profile;
         profile-test-server = script ../scripts/profile/test-server;
         profile-app = script ../scripts/profile/app;
+        otel-browser = script ../scripts/profile/otel-browser;
+        otel-summary = script ../scripts/profile/otel-summary;
         profile-compare = script ../scripts/profile/compare;
         profile-load = script ../scripts/profile/load;
         profile-load-suite = script ../scripts/profile/load-suite;

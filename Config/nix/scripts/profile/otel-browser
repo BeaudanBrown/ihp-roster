@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+RUN_ID="${OTEL_TRACE_RUN_ID:-$(uuidgen 2>/dev/null || python - <<'PY'
+import uuid
+print(uuid.uuid4())
+PY
+)}"
+OUTPUT_DIR="${OTEL_BROWSER_OUTPUT_DIR:-$PWD/output/otel-browser/$(date +%Y%m%d-%H%M%S)-$RUN_ID}"
+TEMPO_URL="${TEMPO_URL:-http://127.0.0.1:3200}"
+SERVICE_NAME="${OTEL_SERVICE_NAME:-ihp-roster-dev}"
+
+if [ "${1:-}" = "--help" ]; then
+    exec node ./e2e/otel-browser.mjs --help
+fi
+
+mkdir -p "$OUTPUT_DIR"
+
+if ! curl --connect-timeout 1 --max-time 2 -fsS "$TEMPO_URL/api/search?limit=1" >/dev/null 2>&1; then
+    echo "Tempo is not reachable at $TEMPO_URL" >&2
+    echo "Start dev observability with: bash ./bin/in-env dev-start-otel" >&2
+    exit 1
+fi
+
+BROWSER_STATUS=0
+node ./e2e/otel-browser.mjs \
+    --run-id "$RUN_ID" \
+    --output-dir "$OUTPUT_DIR" \
+    "$@" || BROWSER_STATUS=$?
+
+# Give the batch span processor and collector a moment to flush into Tempo.
+sleep "${OTEL_BROWSER_INGEST_WAIT_SECONDS:-10}"
+
+node ./e2e/otel-trace-summary.mjs \
+    --tempo-url "$TEMPO_URL" \
+    --service "$SERVICE_NAME" \
+    --run-id "$RUN_ID" \
+    --output-dir "$OUTPUT_DIR"
+
+ln -sfn "$OUTPUT_DIR" "$PWD/output/otel-browser/latest"
+echo "OTel browser artifacts: $OUTPUT_DIR"
+exit "$BROWSER_STATUS"

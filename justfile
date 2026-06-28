@@ -43,6 +43,12 @@ profile-load *args:
 profile-load-suite *args:
     profile-load-suite {{args}}
 
+otel-browser *args:
+    otel-browser {{args}}
+
+otel-summary *args:
+    otel-summary {{args}}
+
 profile-compare before after output="":
     if [ -z "{{output}}" ]; then profile-compare "{{before}}" "{{after}}"; else profile-compare "{{before}}" "{{after}}" "{{output}}"; fi
 
