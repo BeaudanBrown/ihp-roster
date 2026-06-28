@@ -14,6 +14,8 @@ module Application.Helper.Profiling
     , respondHtmlProfiled
     ) where
 
+import Application.Helper.Telemetry (addTelemetryAttributes, withTelemetrySpan,
+                                     withTelemetrySpanAttributes)
 import Control.Exception (evaluate)
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.Char as Char
@@ -36,6 +38,7 @@ import Network.HTTP.Types (status200)
 import Network.HTTP.Types.Header (Header, hConnection, hContentType)
 import Network.Wai (Middleware, Request, Response, responseLBS)
 import qualified Network.Wai as Wai
+import OpenTelemetry.Attributes (toAttribute)
 import qualified System.Environment as Environment
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Text.Blaze.Html as Blaze
@@ -108,19 +111,21 @@ profileHtmlComponent name html =
         maybeProfile :: Maybe RequestProfile <- maybeFromContext
         case maybeProfile of
             Nothing -> pure html
-            Just profile -> do
-                startedAtNs <- getMonotonicTimeNSec
-                let !htmlBytes = BlazeUtf8.renderHtml html
-                byteCount <- evaluate (LByteString.length htmlBytes)
-                completedAtNs <- getMonotonicTimeNSec
-                appendRequestProfileSpan profile
-                    RequestProfileSpan
-                        { spanOrder = 0
-                        , spanName = name
-                        , durationMs = durationBetweenMs startedAtNs completedAtNs
-                        , detail = Just ("bytes=" <> tshow byteCount)
-                        }
-                pure (Blaze.preEscapedToHtml (LazyTextEncoding.decodeUtf8 htmlBytes))
+            Just profile ->
+                withTelemetrySpanAttributes name [("bepis.profile.diagnostic", toAttribute True)] do
+                    startedAtNs <- getMonotonicTimeNSec
+                    let !htmlBytes = BlazeUtf8.renderHtml html
+                    byteCount <- evaluate (LByteString.length htmlBytes)
+                    completedAtNs <- getMonotonicTimeNSec
+                    addTelemetryAttributes [("html.bytes", toAttribute (fromIntegral byteCount :: Int))]
+                    appendRequestProfileSpan profile
+                        RequestProfileSpan
+                            { spanOrder = 0
+                            , spanName = name
+                            , durationMs = durationBetweenMs startedAtNs completedAtNs
+                            , detail = Just ("bytes=" <> tshow byteCount)
+                            }
+                    pure (Blaze.preEscapedToHtml (LazyTextEncoding.decodeUtf8 htmlBytes))
 {-# NOINLINE profileHtmlComponent #-}
 
 renderProfiled :: (View view, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => view -> IO ()
@@ -134,17 +139,21 @@ respondHtmlProfiled html = do
     case maybeProfile of
         Nothing -> respondHtml html
         Just profile -> do
-            startedAtNs <- getMonotonicTimeNSec
-            let !htmlBytes = BlazeUtf8.renderHtml html
-            byteCount <- evaluate (LByteString.length htmlBytes)
-            completedAtNs <- getMonotonicTimeNSec
-            appendRequestProfileSpan profile
-                RequestProfileSpan
-                    { spanOrder = 0
-                    , spanName = "render.respond_html"
-                    , durationMs = durationBetweenMs startedAtNs completedAtNs
-                    , detail = Just ("bytes=" <> tshow byteCount)
-                    }
+            (htmlBytes, byteCount) <-
+                withTelemetrySpanAttributes "render.respond_html" [("bepis.profile.diagnostic", toAttribute True)] do
+                    startedAtNs <- getMonotonicTimeNSec
+                    let !htmlBytes = BlazeUtf8.renderHtml html
+                    byteCount <- evaluate (LByteString.length htmlBytes)
+                    completedAtNs <- getMonotonicTimeNSec
+                    addTelemetryAttributes [("html.bytes", toAttribute (fromIntegral byteCount :: Int))]
+                    appendRequestProfileSpan profile
+                        RequestProfileSpan
+                            { spanOrder = 0
+                            , spanName = "render.respond_html"
+                            , durationMs = durationBetweenMs startedAtNs completedAtNs
+                            , detail = Just ("bytes=" <> tshow byteCount)
+                            }
+                    pure (htmlBytes, byteCount)
             respondAndExitWithHeaders $
                 responseLBS
                     status200
@@ -170,22 +179,23 @@ isRequestProfilingEnabled = do
             value `elem` ["1", "true", "TRUE", "yes", "YES", "on", "ON"]
 
 profileActionSpanWithDetail :: (?context :: ControllerContext) => Text -> IO (a, Maybe Text) -> IO a
-profileActionSpanWithDetail name action = do
-    maybeProfile :: Maybe RequestProfile <- maybeFromContext
-    case maybeProfile of
-        Nothing -> fst <$> action
-        Just profile -> do
-            startedAtNs <- getMonotonicTimeNSec
-            (result, detail) <- action
-            completedAtNs <- getMonotonicTimeNSec
-            appendRequestProfileSpan profile
-                RequestProfileSpan
-                    { spanOrder = 0
-                    , spanName = name
-                    , durationMs = durationBetweenMs startedAtNs completedAtNs
-                    , detail
-                    }
-            pure result
+profileActionSpanWithDetail name action =
+    withTelemetrySpan name do
+        maybeProfile :: Maybe RequestProfile <- maybeFromContext
+        case maybeProfile of
+            Nothing -> fst <$> action
+            Just profile -> do
+                startedAtNs <- getMonotonicTimeNSec
+                (result, detail) <- action
+                completedAtNs <- getMonotonicTimeNSec
+                appendRequestProfileSpan profile
+                    RequestProfileSpan
+                        { spanOrder = 0
+                        , spanName = name
+                        , durationMs = durationBetweenMs startedAtNs completedAtNs
+                        , detail
+                        }
+                pure result
 
 appendRequestProfileSpan :: RequestProfile -> RequestProfileSpan -> IO ()
 appendRequestProfileSpan profile span = do

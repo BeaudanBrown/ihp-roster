@@ -2,8 +2,10 @@
 
 module Application.Helper.Telemetry
     ( annotateTelemetryAction
+    , addTelemetryAttributes
     , telemetryMiddleware
     , withTelemetrySpan
+    , withTelemetrySpanAttributes
     ) where
 
 import Control.Exception (SomeException, try)
@@ -11,8 +13,9 @@ import Data.Data (Data, toConstr)
 import qualified Data.HashMap.Strict as HashMap
 import IHP.Prelude
 import qualified Network.Wai as Wai
-import OpenTelemetry.Attributes (toAttribute)
+import OpenTelemetry.Attributes (Attribute, toAttribute)
 import qualified OpenTelemetry.Context as OtelContext
+import qualified OpenTelemetry.Context.ThreadLocal as OtelContextThreadLocal
 import qualified OpenTelemetry.Instrumentation.Wai as OtelWai
 import qualified OpenTelemetry.Trace as Otel
 import System.Environment (lookupEnv)
@@ -45,15 +48,28 @@ annotateTelemetryAction = whenTelemetryEnabled do
 
 -- | Runs an action in a named child span when OTel is enabled. This is the
 -- lightweight hook used by the existing profiling helpers in later slices.
+addTelemetryAttributes :: [(Text, Attribute)] -> IO ()
+addTelemetryAttributes attributes = whenTelemetryEnabled do
+    context <- OtelContextThreadLocal.getContext
+    forEach (OtelContext.lookupSpan context) \span' ->
+        Otel.addAttributes span' (HashMap.fromList attributes)
+
 withTelemetrySpan :: Text -> IO a -> IO a
-withTelemetrySpan name action = do
+withTelemetrySpan name = withTelemetrySpanAttributes name []
+
+withTelemetrySpanAttributes :: Text -> [(Text, Attribute)] -> IO a -> IO a
+withTelemetrySpanAttributes name attributes action = do
     enabled <- telemetryEnabled
     if enabled
         then do
             tracerProvider <- Otel.getGlobalTracerProvider
             let tracer = Otel.makeTracer tracerProvider "ihp-roster" Otel.tracerOptions
-            Otel.inSpan tracer name Otel.defaultSpanArguments action
+            Otel.inSpan tracer name (spanArguments attributes) action
         else action
+
+spanArguments :: [(Text, Attribute)] -> Otel.SpanArguments
+spanArguments attributes =
+    Otel.defaultSpanArguments { Otel.attributes = HashMap.fromList attributes }
 
 getTelemetryMiddleware :: IO Wai.Middleware
 getTelemetryMiddleware = do
