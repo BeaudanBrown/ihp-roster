@@ -69,6 +69,9 @@ let
 
   boolEnv = value: if value then "true" else "false";
   otelCfg = cfg.observability.otel;
+  collectorCfg = cfg.observability.collector;
+  tempoCfg = cfg.observability.tempo;
+  lokiCfg = cfg.observability.loki;
   profilingCfg = cfg.observability.profiling;
   observabilityEnv =
     optionalAttrs otelCfg.enable {
@@ -307,8 +310,9 @@ in
 
         endpoint = mkOption {
           type = types.str;
-          default = "http://127.0.0.1:4318";
-          description = "OTLP HTTP endpoint used by the app exporter. Keep this localhost for production ingestion unless a ticket explicitly changes the topology.";
+          default = "http://${cfg.observability.collector.receiverAddress}:${toString cfg.observability.collector.otlpHttpPort}";
+          defaultText = "http://<collector.receiverAddress>:<collector.otlpHttpPort>";
+          description = "OTLP HTTP endpoint used by the app exporter. Defaults to the local collector receiver and should remain localhost for production ingestion.";
         };
 
         sampler = mkOption {
@@ -326,6 +330,76 @@ in
 
       profiling = {
         enable = mkEnableOption "diagnostic request/render profiling for ihp-roster";
+      };
+
+      collector = {
+        enable = mkEnableOption "local OpenTelemetry collector for ihp-roster telemetry capture";
+
+        package = mkOption {
+          type = types.package;
+          default = pkgs.opentelemetry-collector-contrib;
+          defaultText = "pkgs.opentelemetry-collector-contrib";
+          description = "Collector package to use when production collector services are enabled by follow-on infrastructure tickets.";
+        };
+
+        receiverAddress = mkOption {
+          type = types.str;
+          default = "127.0.0.1";
+          description = "Address for OTLP ingestion. Keep this localhost in production; tailnet exposure is for query APIs, not ingestion.";
+        };
+
+        otlpHttpPort = mkOption {
+          type = types.port;
+          default = 4318;
+          description = "Local OTLP/HTTP receiver port.";
+        };
+
+        otlpGrpcPort = mkOption {
+          type = types.port;
+          default = 4317;
+          description = "Local OTLP/gRPC receiver port.";
+        };
+
+        tailnetQueryAddress = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          example = "100.64.0.10";
+          description = "Optional tailnet address for collector diagnostics/query surfaces. Does not affect OTLP ingestion, which defaults to localhost.";
+        };
+      };
+
+      tempo = {
+        enable = mkEnableOption "local Tempo trace storage for ihp-roster observability";
+
+        dataDir = mkOption {
+          type = types.path;
+          default = "/var/lib/ihp-roster/tempo";
+          description = "Local Tempo data directory. Production trace storage stays on the production host so NAS/Grafana outages do not lose capture-critical data.";
+        };
+
+        queryAddress = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          example = "100.64.0.10";
+          description = "Optional tailnet-only Tempo query listen address. Leave null to avoid exposing query APIs.";
+        };
+      };
+
+      loki = {
+        enable = mkEnableOption "local Loki log storage for ihp-roster observability";
+
+        dataDir = mkOption {
+          type = types.path;
+          default = "/var/lib/ihp-roster/loki";
+          description = "Local Loki data directory for app logs and future trace/log correlation.";
+        };
+
+        queryAddress = mkOption {
+          type = types.nullOr types.str;
+          default = null;
+          example = "100.64.0.10";
+          description = "Optional tailnet-only Loki query listen address. Leave null to avoid exposing query APIs.";
+        };
       };
     };
 
@@ -740,6 +814,22 @@ in
         {
           assertion = !(legalCfg.cancellationFile != null && legalCfg.cancellationText != null);
           message = "services.ihpRoster.legalDocuments.cancellationFile and cancellationText are mutually exclusive.";
+        }
+        {
+          assertion = otelCfg.enable -> collectorCfg.enable || lib.hasPrefix "http://127.0.0.1:" otelCfg.endpoint || lib.hasPrefix "http://localhost:" otelCfg.endpoint;
+          message = "services.ihpRoster.observability.otel.endpoint should use the local collector by default; enable observability.collector or set an explicit localhost endpoint.";
+        }
+        {
+          assertion = collectorCfg.receiverAddress == "127.0.0.1" || collectorCfg.receiverAddress == "localhost";
+          message = "services.ihpRoster.observability.collector.receiverAddress must remain localhost; use Tempo/Loki queryAddress for tailnet query exposure.";
+        }
+        {
+          assertion = tempoCfg.queryAddress == null || tempoCfg.enable;
+          message = "services.ihpRoster.observability.tempo.queryAddress requires tempo.enable.";
+        }
+        {
+          assertion = lokiCfg.queryAddress == null || lokiCfg.enable;
+          message = "services.ihpRoster.observability.loki.queryAddress requires loki.enable.";
         }
         {
           assertion =

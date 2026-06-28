@@ -29,6 +29,28 @@ render-counter diagnostics remain explicitly gated.
 production deployment may enable lightweight sampled OTel without enabling the
 heavier profiling path.
 
+Production should configure these through the NixOS module rather than ad-hoc
+environment variables:
+
+```nix
+services.ihpRoster.observability = {
+  otel = {
+    enable = true;
+    serviceName = "ihp-roster-prod";
+    sampler = "parentbased_traceidratio";
+    samplerArg = "0.01";
+  };
+  collector = {
+    enable = true;
+    receiverAddress = "127.0.0.1";
+  };
+};
+```
+
+The module keeps OTLP ingestion on localhost by default. Tailnet exposure is
+reserved for query APIs such as Tempo/Loki/Grafana, and remains opt-in through
+separate `queryAddress` options.
+
 ## Haskell Package Choice
 
 Use the `hs-opentelemetry-*` package family:

@@ -1,6 +1,6 @@
 ---
 id: ir-3dbl
-status: open
+status: closed
 deps: [ir-myon]
 links: []
 created: 2026-06-27T23:56:50Z
@@ -22,3 +22,9 @@ Add services.ihpRoster.observability options for otel enable/serviceName/endpoin
 
 Production can enable lightweight OTel tracing with module options; diagnostic profiling remains explicit; collector ingestion defaults to localhost; tailnet exposure is opt-in; module option docs describe safe defaults.
 
+
+## Notes
+
+**2026-06-28T02:31:11Z**
+
+Expanded services.ihpRoster.observability beyond app env vars: added collector package/localhost receiver options, Tempo and Loki enable/data/query options, safer default app endpoint derived from collector receiver, and assertions keeping OTLP ingestion localhost while tailnet query exposure remains opt-in. Documented safe module defaults. Verified Nix syntax with nix-instantiate --parse; full nixosSystem eval was attempted but failed during dirty flake source materialization with a local no-space error before module evaluation.
