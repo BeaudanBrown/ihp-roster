@@ -36,6 +36,7 @@ in
         frontend-check = script ../scripts/frontend/check;
         frontend-contracts = script ../scripts/frontend/contracts;
         frontend-contracts-check = script ../scripts/frontend/contracts-check;
+        frontend-contracts-watch = script ../scripts/frontend/contracts-watch;
         frontend-drift-check = script ../scripts/frontend/drift-check;
         frontend-no-ts-nocheck = script ../scripts/frontend/no-ts-nocheck;
         frontend-test = script ../scripts/frontend/test;

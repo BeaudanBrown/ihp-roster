@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+cd "$repo_root"
+
+STATE_DIR="${FRONTEND_CONTRACTS_WATCH_STATE_DIR:-$(dev-agent-state-dir)/frontend-contracts-watch}"
+INTERVAL="${FRONTEND_CONTRACTS_WATCH_INTERVAL:-2}"
+BUILD_DIR="$STATE_DIR/build"
+mkdir -p "$STATE_DIR" "$BUILD_DIR"
+
+fingerprint_contract_sources() {
+    {
+        printf '%s\0' App.cabal Application/Script/GenerateFrontendContracts.hs
+        find Application Web -type f \( -name '*.hs' -o -name '*.lhs' \) -print0
+    } | sort -z | xargs -0 --no-run-if-empty stat -c '%n:%Y:%s' | sha256sum | cut -d ' ' -f 1
+}
+
+run_generation() {
+    echo "[frontend-contracts-watch] regenerating frontend contracts"
+    FRONTEND_CONTRACTS_BUILD_DIR="$BUILD_DIR" frontend-contracts
+}
+
+last_fingerprint=""
+
+while true; do
+    current_fingerprint="$(fingerprint_contract_sources)"
+    if [ "$current_fingerprint" != "$last_fingerprint" ]; then
+        if run_generation; then
+            last_fingerprint="$current_fingerprint"
+        else
+            echo "[frontend-contracts-watch] generation failed; waiting for source changes" >&2
+        fi
+    fi
+    sleep "$INTERVAL"
+done

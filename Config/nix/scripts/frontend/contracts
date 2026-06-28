@@ -11,17 +11,32 @@ else
     . "Config/nix/scripts/lib/ghc.sh"
 fi
 
-tmp_dir="$(mktemp -d)"
-cleanup() {
-    rm -rf "$tmp_dir"
-}
+output_path="${1:-frontend/ts/generated/contracts.ts}"
+
+if [ -n "${FRONTEND_CONTRACTS_BUILD_DIR:-}" ]; then
+    build_dir="$FRONTEND_CONTRACTS_BUILD_DIR"
+    cleanup() { :; }
+else
+    build_dir="$(mktemp -d)"
+    cleanup() {
+        rm -rf "$build_dir"
+    }
+fi
 trap cleanup EXIT
 
-mkdir -p "$tmp_dir/obj" "$tmp_dir/hi"
+mkdir -p "$build_dir/obj" "$build_dir/hi" "$(dirname "$output_path")"
 GHC_OPTS="$(ihp_roster_ghc_opts)"
 ghc $GHC_OPTS Application/Script/GenerateFrontendContracts.hs \
     -main-is Application.Script.GenerateFrontendContracts \
-    -odir "$tmp_dir/obj" \
-    -hidir "$tmp_dir/hi" \
-    -o "$tmp_dir/generate-frontend-contracts" >/dev/null
-"$tmp_dir/generate-frontend-contracts" frontend/ts/generated/contracts.ts
+    -odir "$build_dir/obj" \
+    -hidir "$build_dir/hi" \
+    -o "$build_dir/generate-frontend-contracts" >/dev/null
+
+tmp_output="$(mktemp "$(dirname "$output_path")/.contracts.ts.XXXXXX")"
+"$build_dir/generate-frontend-contracts" "$tmp_output"
+
+if [ -f "$output_path" ] && cmp -s "$tmp_output" "$output_path"; then
+    rm -f "$tmp_output"
+else
+    mv "$tmp_output" "$output_path"
+fi

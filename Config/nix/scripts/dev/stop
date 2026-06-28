@@ -3,6 +3,7 @@ set -euo pipefail
 STATE_DIR="$(dev-agent-state-dir)"
 PID_FILE="$STATE_DIR/devenv.pid"
 FRONTEND_WATCH_PID_FILE="$STATE_DIR/frontend-watch.pid"
+FRONTEND_CONTRACTS_WATCH_PID_FILE="$STATE_DIR/frontend-contracts-watch.pid"
 POSTGRES_PID_FILE="$STATE_DIR/postgres.pid"
 MAILHOG_PID_FILE="$STATE_DIR/mailhog.pid"
 STRIPE_PID_FILE="$STATE_DIR/stripe-listen.pid"
@@ -39,6 +40,7 @@ stop_tracked_process() {
 
 if [ ! -f "$PID_FILE" ]; then
     stop_tracked_process "$FRONTEND_WATCH_PID_FILE" "frontend-watch"
+    stop_tracked_process "$FRONTEND_CONTRACTS_WATCH_PID_FILE" "frontend-contracts-watch"
     stop_tracked_process "$STRIPE_PID_FILE" "stripe-listen"
     if dev-status >/dev/null 2>&1; then
         echo "devenv is healthy but unmanaged (no pid file); not stopping"
@@ -61,6 +63,7 @@ fi
 
 stop_tracked_process "$PID_FILE" "devenv"
 stop_tracked_process "$FRONTEND_WATCH_PID_FILE" "frontend-watch"
+stop_tracked_process "$FRONTEND_CONTRACTS_WATCH_PID_FILE" "frontend-contracts-watch"
 stop_tracked_process "$STRIPE_PID_FILE" "stripe-listen"
 stop_tracked_process "$POSTGRES_PID_FILE" "postgres"
 stop_tracked_process "$MAILHOG_PID_FILE" "mailhog"

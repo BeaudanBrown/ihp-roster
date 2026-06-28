@@ -15,9 +15,10 @@ Read this before editing `frontend/ts/`.
   - `bash ./bin/in-env frontend-test` runs fast TypeScript unit/DOM tests.
   - `bash ./bin/in-env frontend-contracts` regenerates generated contracts.
   - `bash ./bin/in-env frontend-contracts-check` checks generated contract drift.
+  - `bash ./bin/in-env frontend-contracts-watch` watches Haskell contract sources and atomically regenerates generated contracts.
   - `bash ./bin/in-env frontend-watch` watches TS entrypoints and rebuilds generated JS.
-- `dev-start` and `just dev` start `frontend-watch`; `dev-stop` cleans up the managed watcher.
-- There is no Vite dev server or true HMR requirement. Existing browser reload/live-update behavior sees checked-in generated JS changes.
+- `dev-start` and `just dev` start `frontend-contracts-watch` plus `frontend-watch`; `dev-stop` cleans up both managed watchers.
+- There is no Vite dev server or true HMR requirement. Existing browser reload/live-update behavior sees checked-in generated JS changes; contract-source edits regenerate `frontend/ts/generated/contracts.ts`, then `frontend-watch` rebundles dependent JS.
 - Production/live NixOS runtime serves generated static assets and must not require Node/esbuild/TypeScript/frontend test tooling.
 
 ## Testing
