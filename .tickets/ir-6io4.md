@@ -1,6 +1,6 @@
 ---
 id: ir-6io4
-status: open
+status: closed
 deps: [ir-st8a]
 links: []
 created: 2026-06-25T13:30:47Z
@@ -24,3 +24,9 @@ Promote only stable low-cardinality signals to metrics once the tracing spine is
 
 A future editable row-grid trace exposes launcher_attr_bundle=210, launcher_hx_attr=840, launcher_data_attr=1050, and component bytes on the appropriate span; a read-only trace exposes no launcher attrs; stable metrics can be queried without high-cardinality labels; X-Profile-Counters remains compatibility-only or is clearly marked diagnostic.
 
+
+## Notes
+
+**2026-06-28T02:10:27Z**
+
+Implemented diagnostic render-counter bridging: profileHtmlComponent now opens a thread-local nested counter scope, profileRenderCounter aggregates into all active render spans, and each diagnostic span emits matching OTel attributes plus a bepis.render.counters event. This keeps counter collection under IHP_ROSTER_PROFILING while making slots_grid_body/components expose existing low-cardinality render counters.

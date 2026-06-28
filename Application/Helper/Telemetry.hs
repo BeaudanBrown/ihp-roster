@@ -3,6 +3,7 @@
 module Application.Helper.Telemetry
     ( annotateTelemetryAction
     , addTelemetryAttributes
+    , addTelemetryEvent
     , telemetryMiddleware
     , withTelemetrySpan
     , withTelemetrySpanAttributes
@@ -53,6 +54,16 @@ addTelemetryAttributes attributes = whenTelemetryEnabled do
     context <- OtelContextThreadLocal.getContext
     forEach (OtelContext.lookupSpan context) \span' ->
         Otel.addAttributes span' (HashMap.fromList attributes)
+
+addTelemetryEvent :: Text -> [(Text, Attribute)] -> IO ()
+addTelemetryEvent name attributes = whenTelemetryEnabled do
+    context <- OtelContextThreadLocal.getContext
+    forEach (OtelContext.lookupSpan context) \span' ->
+        Otel.addEvent span' Otel.NewEvent
+            { Otel.newEventName = name
+            , Otel.newEventAttributes = HashMap.fromList attributes
+            , Otel.newEventTimestamp = Nothing
+            }
 
 withTelemetrySpan :: Text -> IO a -> IO a
 withTelemetrySpan name = withTelemetrySpanAttributes name []
