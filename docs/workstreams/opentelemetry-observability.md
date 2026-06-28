@@ -70,7 +70,9 @@ Ticket: `ir-0c2u`
 
 Extend profile scripts with a Nix-managed local OTLP collector that exports
 bounded trace files and OTel-derived JSON/Markdown summaries next to existing
-profile outputs.
+profile outputs. Implemented entrypoints are `profile-load --otel` and
+`profile-load-suite --otel`, producing `otel-traces.json`, `otel-summary.json`,
+and `otel-summary.md` artifacts.
 
 ### 6. Pi/agent tools
 
@@ -78,7 +80,19 @@ Ticket: `ir-7hzq`
 
 Add project-local tools for running low-rate profile scenarios, summarizing
 profile artifacts, finding slow traces/spans, inspecting representative traces,
-and comparing before/after runs.
+and comparing before/after runs. Project-local Pi tools live in
+`.pi/extensions/observability.ts`:
+
+- `roster_profile_run` - safe low-rate local profile run with OTel artifacts.
+- `roster_profile_summary` - bounded Markdown summary reader.
+- `otel_trace_search` - compact slow-span/component/counter rows.
+- `otel_trace_get` - bounded trace inspection from `otel-traces.json`.
+- `otel_compare_runs` - before/after artifact comparison scaffold.
+
+These tools are artifact-backed and do not require a live dashboard. Once
+Grafana/Tempo exists, Grafana MCP is the preferred richer query path for humans
+and agents that need dashboard/backend exploration; keep it tailnet-only and do
+not expose OTLP ingestion publicly.
 
 ### 7. Production NixOS options
 
@@ -130,7 +144,7 @@ browser-devtools value.
 ### Local agent/profile runs
 
 ```text
-profile-load-suite
+profile-load-suite --otel
   -> app with IHP_ROSTER_OTEL=1 and optionally IHP_ROSTER_PROFILING=1
   -> local Nix-managed OTel collector
   -> local collector export files

@@ -1,6 +1,6 @@
 ---
 id: ir-7hzq
-status: open
+status: closed
 deps: [ir-0c2u]
 links: []
 created: 2026-06-25T13:30:47Z
@@ -22,3 +22,9 @@ Implement a project-local Pi extension before relying on external MCP. Candidate
 
 An agent can run a low-rate roster profile, retrieve slowest route/span summaries, inspect a representative trace, and compare against a previous profile artifact without manually parsing NDJSON; Grafana MCP setup notes exist for teams that want dashboard/backend querying; tools have bounded output suitable for LLM use.
 
+
+## Notes
+
+**2026-06-28T02:23:48Z**
+
+Added project-local Pi observability extension with artifact-backed tools: roster_profile_run, roster_profile_summary, otel_trace_search, otel_trace_get, and otel_compare_runs. Tools use safe low-rate defaults, bounded output, and restrict artifact reads to output/profile-load, output/profile-load-suite, and build/otel. Documented Grafana MCP as richer future tailnet-only path. Verified TS parses with esbuild bundling using Pi/typebox externals.
