@@ -1,6 +1,6 @@
 ---
 id: ir-imlz
-status: open
+status: closed
 deps: [ir-grmo]
 links: []
 created: 2026-06-28T12:17:09Z
@@ -22,3 +22,9 @@ Add a small placeholder renderer and CSS component, likely under Application.Hel
 
 All lazy placeholders use shared styles; no feature-specific loading animation is required for roster staff panel; CSS audit/Layout sync conventions are satisfied; placeholder markup is accessible and Bootstrap-compatible.
 
+
+## Notes
+
+**2026-06-28T12:59:20Z**
+
+Added shared lazy surface placeholder renderer and component CSS with panel/table/list/spinner/custom variants, accessibility labels, error/retry classes, and Layout/Makefile stylesheet registration. Verification: style-audit passed; typecheck is blocked before changed modules by missing OpenTelemetry.* packages in the current environment.

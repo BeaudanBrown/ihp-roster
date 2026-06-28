@@ -1,0 +1,117 @@
+.app-lazy-surface {
+    display: block;
+    width: 100%;
+    min-height: 4rem;
+    padding: var(--app-space-3);
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-lg);
+    background: var(--app-surface-muted);
+    color: var(--app-muted);
+}
+
+.app-lazy-surface-spinner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 3rem;
+    color: var(--app-accent);
+}
+
+.app-lazy-surface-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: var(--app-space-3);
+}
+
+.app-lazy-surface-stack,
+.app-lazy-surface-list-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: var(--app-space-2);
+}
+
+.app-lazy-surface-row {
+    display: grid;
+    grid-template-columns: minmax(7rem, 1fr) minmax(4rem, 0.45fr);
+    gap: var(--app-space-2);
+    align-items: center;
+}
+
+.app-lazy-surface-bar {
+    display: block;
+    min-height: 0.75rem;
+    border-radius: var(--app-radius-pill);
+    background: linear-gradient(
+        90deg,
+        var(--app-white-alpha-05),
+        var(--app-slate-alpha-18),
+        var(--app-white-alpha-05)
+    );
+    background-size: 200% 100%;
+    animation: app-lazy-surface-pulse 1.4s ease-in-out infinite;
+}
+
+.app-lazy-surface-bar-title {
+    width: min(12rem, 70%);
+    min-height: 1rem;
+}
+
+.app-lazy-surface-bar-muted {
+    opacity: 0.72;
+}
+
+.app-lazy-surface-bar-short {
+    width: 68%;
+}
+
+.app-lazy-surface-table-skeleton {
+    gap: var(--app-space-2);
+}
+
+.app-lazy-surface-table-row {
+    display: grid;
+    grid-template-columns: minmax(7rem, 1fr) minmax(4rem, 0.7fr) minmax(4rem, 0.45fr) minmax(3rem, 0.25fr);
+    gap: var(--app-space-2);
+    align-items: center;
+}
+
+.app-lazy-surface-table-row-head .app-lazy-surface-bar {
+    min-height: 0.55rem;
+    opacity: 0.62;
+}
+
+.app-lazy-surface-cell {
+    min-width: 0;
+}
+
+.app-lazy-surface-cell-narrow .app-lazy-surface-bar {
+    width: 60%;
+}
+
+.app-lazy-surface-error {
+    border-color: var(--app-danger-border);
+    background: var(--app-danger-tint);
+    color: var(--app-danger-contrast);
+}
+
+.app-lazy-surface-retry {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--app-space-1);
+}
+
+@keyframes app-lazy-surface-pulse {
+    0% {
+        background-position: 200% 0;
+    }
+
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app-lazy-surface-bar {
+        animation: none;
+    }
+}
