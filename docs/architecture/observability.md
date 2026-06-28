@@ -98,6 +98,26 @@ artifacts should live beside existing profile outputs and include slow traces,
 representative spans, component bytes, counters, and before/after comparison
 inputs.
 
+A minimal local smoke-test collector can be run from Nix without installing
+anything globally:
+
+```bash
+nix shell nixpkgs#opentelemetry-collector-contrib -c otelcol-contrib \
+  --config ./Config/otel/local-file-collector.yaml
+```
+
+The app side of that smoke test should use:
+
+```bash
+IHP_ROSTER_OTEL=1 \
+OTEL_SERVICE_NAME=ihp-roster-dev \
+OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318 \
+OTEL_TRACES_SAMPLER=always_on
+```
+
+`ir-0c2u` owns turning this into a checked-in profile-run collector config and
+bounded summary artifacts.
+
 ## Production Topology
 
 Production should keep critical capture/storage near the app:
