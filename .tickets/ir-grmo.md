@@ -1,6 +1,6 @@
 ---
 id: ir-grmo
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-06-28T12:17:09Z
@@ -22,3 +22,9 @@ Add FragmentLoadPolicy and LazyFragmentConfig types near LiveFragmentDescriptor 
 
 Existing live surface definitions compile unchanged; new helpers are exported from Application.Helper.LiveSurface; unit/type-level usage is straightforward for a descriptor; no behavior changes occur before renderer adoption.
 
+
+## Notes
+
+**2026-06-28T12:56:13Z**
+
+Implemented eager-by-default FragmentLoadPolicy/LazyFragmentConfig metadata on live fragment descriptors/contracts with lazy/eager helpers and type-level coverage. Verification attempt: bash ./bin/in-env typecheck is currently blocked before these modules by missing OpenTelemetry.* packages in the project environment.

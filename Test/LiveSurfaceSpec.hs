@@ -87,6 +87,37 @@ tests = describe "LiveSurface contract helpers" do
 
         fragmentContractDependencies dependent `shouldBe` DependsOnLiveResources (BillingResource (expectUuid "11111111-1111-1111-1111-111111111111") :| [])
         fragmentContractDependencies resyncOnly `shouldBe` ResyncOnlyFragment "no passive dependency"
+        fragmentContractLoadPolicy dependent `shouldBe` FragmentEager
+        fragmentContractLoadPolicy resyncOnly `shouldBe` FragmentEager
+
+    it "attaches lazy load policy metadata to descriptors and typed contracts" do
+        let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
+        let lazyConfig =
+                LazyFragmentConfig
+                    { lazyFragmentTrigger = "revealed"
+                    , lazyFragmentPlaceholderKind = "skeleton"
+                    , lazyFragmentAccessibleLabel = "Loading secondary test fragment"
+                    , lazyFragmentClasses = ["test-secondary-placeholder"]
+                    , lazyFragmentDelayMs = Just 150
+                    }
+        let lazyDescriptor =
+                liveFragmentDescriptor
+                    TestDescriptorSecondary
+                    (const (mkSurfaceFragmentRef SupportAwardRatesSectionFragment "test-secondary-fragment" "/test-secondary"))
+                    (const (liveFragmentResyncOnly "secondary is resync-only"))
+                    |> liveFragmentDescriptorWithLazyLoad lazyConfig
+        let eagerDescriptor = lazyDescriptor |> liveFragmentDescriptorWithEagerLoad
+        let definition = descriptorToTypedLiveSurfaceDefinition (testDescriptorSurfaceWithFragments venueId [lazyDescriptor])
+        let manualContract =
+                mkSurfaceFragmentContract
+                    (testFragmentRef BillingStatusFragment "billing-status-fragment" ["billing-status-fragment"])
+                    (liveFragmentResyncOnly "manual")
+                    |> fragmentContractWithLazyLoad lazyConfig
+
+        liveFragmentDescriptorLoadPolicy () lazyDescriptor `shouldBe` FragmentLazy lazyConfig
+        liveFragmentDescriptorLoadPolicy () eagerDescriptor `shouldBe` FragmentEager
+        typedLiveSurfaceFragmentLoadPolicy definition () TestDescriptorSecondary `shouldBe` FragmentLazy lazyConfig
+        fragmentContractLoadPolicy manualContract `shouldBe` FragmentLazy lazyConfig
 
     it "lowers descriptor defaults into a typed live surface definition" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
@@ -98,6 +129,8 @@ tests = describe "LiveSurface contract helpers" do
         map (.targetId) config.resyncFragments `shouldBe` ["test-descriptor-primary-fragment", "test-descriptor-secondary-fragment"]
         typedSurfaceDependsOn definition () TestDescriptorPrimary `shouldBe` [BillingResource venueId]
         typedSurfaceDependsOn definition () TestDescriptorSecondary `shouldBe` []
+        typedLiveSurfaceFragmentLoadPolicy definition () TestDescriptorPrimary `shouldBe` FragmentEager
+        typedLiveSurfaceFragmentLoadPolicy definition () TestDescriptorSecondary `shouldBe` FragmentEager
 
     it "attaches interaction metadata through descriptors" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
@@ -315,13 +348,8 @@ testFocusedProtection =
 
 testDescriptorSurface :: UUID.UUID -> LiveSurfaceDescriptor TestDescriptorSurface () TestDescriptorFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 testDescriptorSurface venueId =
-    liveSurfaceDescriptor
-        "test-descriptor"
-        (const (SurfaceScope BillingScope { venueId }))
-        (\wireScope -> case wireScope of
-            BillingScope { venueId = wireVenueId } | wireVenueId == venueId -> Just ()
-            _ -> Nothing)
-        (liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueOwner venueId)))
+    testDescriptorSurfaceWithFragments
+        venueId
         [ liveFragmentDescriptor
             TestDescriptorPrimary
             (const (mkSurfaceFragmentRef BillingStatusFragment "test-descriptor-primary-fragment" "/test-primary"))
@@ -331,6 +359,17 @@ testDescriptorSurface venueId =
             (const (mkSurfaceFragmentRef SupportAwardRatesSectionFragment "test-descriptor-secondary-fragment" "/test-secondary"))
             (const (liveFragmentResyncOnly "secondary is resync-only"))
         ]
+
+testDescriptorSurfaceWithFragments :: UUID.UUID -> [LiveFragmentDescriptor TestDescriptorSurface () TestDescriptorFragment] -> LiveSurfaceDescriptor TestDescriptorSurface () TestDescriptorFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
+testDescriptorSurfaceWithFragments venueId fragments =
+    liveSurfaceDescriptor
+        "test-descriptor"
+        (const (SurfaceScope BillingScope { venueId }))
+        (\wireScope -> case wireScope of
+            BillingScope { venueId = wireVenueId } | wireVenueId == venueId -> Just ()
+            _ -> Nothing)
+        (liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueOwner venueId)))
+        fragments
 
 data TestActorSurface
 

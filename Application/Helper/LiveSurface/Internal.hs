@@ -2,7 +2,9 @@ module Application.Helper.LiveSurface.Internal
     ( LiveSurfaceConfig (..)
     , FragmentContract (..)
     , FragmentDependencies (..)
+    , FragmentLoadPolicy (..)
     , FragmentRenderMode (..)
+    , LazyFragmentConfig (..)
     , AuthorizedLiveFragment (..)
     , LiveScopeAuthorizationRequirement (..)
     , LiveFragmentDescriptor (..)
@@ -24,10 +26,15 @@ module Application.Helper.LiveSurface.Internal
     , defaultLiveFragmentTargetId
     , descriptorToTypedLiveSurfaceDefinition
     , currentVenueLiveFragmentDescriptor
+    , fragmentContractWithEagerLoad
+    , fragmentContractWithLazyLoad
     , liveFragmentDependsOn
     , liveFragmentDescriptor
+    , liveFragmentDescriptorLoadPolicy
     , liveFragmentDescriptorWithDeferUntilBlur
+    , liveFragmentDescriptorWithEagerLoad
     , liveFragmentDescriptorWithFocusedProtection
+    , liveFragmentDescriptorWithLazyLoad
     , liveFragmentDescriptorWithPath
     , liveFragmentDescriptorWithProtection
     , liveFragmentDescriptorWithTargetId
@@ -60,6 +67,7 @@ module Application.Helper.LiveSurface.Internal
     , surfaceFragmentRefWithPath
     , surfaceFragmentRefWithProtection
     , typedLiveSurfaceAffectedFragments
+    , typedLiveSurfaceFragmentLoadPolicy
     , typedLiveSurfaceFragmentRef
     , typedLiveSurfaceFragmentRefs
     , typedSurfaceDependsOn
@@ -149,6 +157,20 @@ data FragmentDependencies
     | ResyncOnlyFragment !Text
     deriving (Eq, Show)
 
+data FragmentLoadPolicy
+    = FragmentEager
+    | FragmentLazy !LazyFragmentConfig
+    deriving (Eq, Show)
+
+data LazyFragmentConfig = LazyFragmentConfig
+    { lazyFragmentTrigger         :: !Text
+    , lazyFragmentPlaceholderKind :: !Text
+    , lazyFragmentAccessibleLabel :: !Text
+    , lazyFragmentClasses         :: ![Text]
+    , lazyFragmentDelayMs         :: !(Maybe Int)
+    }
+    deriving (Eq, Show)
+
 data FragmentRenderMode
     = FragmentPlain
     | FragmentOob !OobSwapAttr
@@ -157,6 +179,7 @@ data FragmentRenderMode
 data FragmentContract surface = FragmentContract
     { fragmentContractRef          :: !(SurfaceFragmentRef surface)
     , fragmentContractDependencies :: !FragmentDependencies
+    , fragmentContractLoadPolicy   :: !FragmentLoadPolicy
     }
     deriving (Eq, Show)
 
@@ -164,6 +187,7 @@ data LiveFragmentDescriptor surface scope fragment = LiveFragmentDescriptor
     { liveFragmentDescriptorFragment     :: !fragment
     , liveFragmentDescriptorRef          :: scope -> SurfaceFragmentRef surface
     , liveFragmentDescriptorDependencies :: scope -> FragmentDependencies
+    , liveFragmentDescriptorPolicy       :: scope -> FragmentLoadPolicy
     }
 
 data LiveSurfaceDescriptor surface scope fragment layer session intent = LiveSurfaceDescriptor
@@ -276,11 +300,23 @@ liveFragmentResyncOnly =
 
 mkSurfaceFragmentContract :: SurfaceFragmentRef surface -> FragmentDependencies -> FragmentContract surface
 mkSurfaceFragmentContract fragmentContractRef fragmentContractDependencies =
-    FragmentContract { fragmentContractRef, fragmentContractDependencies }
+    FragmentContract { fragmentContractRef, fragmentContractDependencies, fragmentContractLoadPolicy = FragmentEager }
+
+fragmentContractWithEagerLoad :: FragmentContract surface -> FragmentContract surface
+fragmentContractWithEagerLoad contract =
+    contract { fragmentContractLoadPolicy = FragmentEager }
+
+fragmentContractWithLazyLoad :: LazyFragmentConfig -> FragmentContract surface -> FragmentContract surface
+fragmentContractWithLazyLoad config contract =
+    contract { fragmentContractLoadPolicy = FragmentLazy config }
 
 liveFragmentDescriptor :: fragment -> (scope -> SurfaceFragmentRef surface) -> (scope -> FragmentDependencies) -> LiveFragmentDescriptor surface scope fragment
 liveFragmentDescriptor liveFragmentDescriptorFragment liveFragmentDescriptorRef liveFragmentDescriptorDependencies =
-    LiveFragmentDescriptor { liveFragmentDescriptorFragment, liveFragmentDescriptorRef, liveFragmentDescriptorDependencies }
+    LiveFragmentDescriptor { liveFragmentDescriptorFragment, liveFragmentDescriptorRef, liveFragmentDescriptorDependencies, liveFragmentDescriptorPolicy = const FragmentEager }
+
+liveFragmentDescriptorLoadPolicy :: scope -> LiveFragmentDescriptor surface scope fragment -> FragmentLoadPolicy
+liveFragmentDescriptorLoadPolicy scope descriptor =
+    descriptor.liveFragmentDescriptorPolicy scope
 
 staticLiveFragmentDescriptor :: fragment -> LiveFragmentKey -> Text -> Text -> (scope -> FragmentDependencies) -> LiveFragmentDescriptor surface scope fragment
 staticLiveFragmentDescriptor fragment fragmentKey targetId url =
@@ -305,6 +341,14 @@ liveFragmentDescriptorWithDeferUntilBlur :: Bool -> LiveFragmentDescriptor surfa
 liveFragmentDescriptorWithDeferUntilBlur defer =
     mapLiveFragmentDescriptorRef (surfaceFragmentRefWithDeferUntilBlur defer)
 
+liveFragmentDescriptorWithEagerLoad :: LiveFragmentDescriptor surface scope fragment -> LiveFragmentDescriptor surface scope fragment
+liveFragmentDescriptorWithEagerLoad =
+    liveFragmentDescriptorWithLoadPolicy FragmentEager
+
+liveFragmentDescriptorWithLazyLoad :: LazyFragmentConfig -> LiveFragmentDescriptor surface scope fragment -> LiveFragmentDescriptor surface scope fragment
+liveFragmentDescriptorWithLazyLoad config =
+    liveFragmentDescriptorWithLoadPolicy (FragmentLazy config)
+
 liveFragmentDescriptorWithFocusedProtection :: LiveFragmentProtection -> LiveFragmentDescriptor surface scope fragment -> LiveFragmentDescriptor surface scope fragment
 liveFragmentDescriptorWithFocusedProtection protection =
     mapLiveFragmentDescriptorRef (surfaceFragmentRefWithFocusedProtection protection)
@@ -327,6 +371,10 @@ liveFragmentDescriptorWithTargetId targetId =
 mapLiveFragmentDescriptorRef :: (SurfaceFragmentRef surface -> SurfaceFragmentRef surface) -> LiveFragmentDescriptor surface scope fragment -> LiveFragmentDescriptor surface scope fragment
 mapLiveFragmentDescriptorRef transform descriptor =
     descriptor { liveFragmentDescriptorRef = transform . descriptor.liveFragmentDescriptorRef }
+
+liveFragmentDescriptorWithLoadPolicy :: FragmentLoadPolicy -> LiveFragmentDescriptor surface scope fragment -> LiveFragmentDescriptor surface scope fragment
+liveFragmentDescriptorWithLoadPolicy loadPolicy descriptor =
+    descriptor { liveFragmentDescriptorPolicy = const loadPolicy }
 
 liveSurfaceDescriptor ::
     Text ->
@@ -450,9 +498,10 @@ descriptorToTypedLiveSurfaceDefinition descriptor =
         , typedSurfaceFragmentContract = \surfaceKey fragment ->
             case List.find ((== fragment) . (.liveFragmentDescriptorFragment)) descriptor.liveSurfaceDescriptorFragments of
                 Just fragmentDescriptor ->
-                    mkSurfaceFragmentContract
+                    ( mkSurfaceFragmentContract
                         (fragmentDescriptor.liveFragmentDescriptorRef surfaceKey)
                         (fragmentDescriptor.liveFragmentDescriptorDependencies surfaceKey)
+                    ) { fragmentContractLoadPolicy = fragmentDescriptor.liveFragmentDescriptorPolicy surfaceKey }
                 Nothing -> error ("Unknown live surface fragment for " <> cs descriptor.liveSurfaceDescriptorFeature)
         , typedSurfaceDecorateRequestsWithin = fromMaybe (defaultDecorateRequestsWithin descriptor) descriptor.liveSurfaceDescriptorDecorateRequestsWithin
         , typedSurfaceAuthorize = descriptor.liveSurfaceDescriptorAuthorize
@@ -507,6 +556,10 @@ typedLiveSurfaceFragmentRef definition surfaceKey fragment =
 typedLiveSurfaceFragmentRefs :: TypedLiveSurfaceDefinition surface scope fragment layer session intent -> scope -> [fragment] -> [SurfaceFragmentRef surface]
 typedLiveSurfaceFragmentRefs definition surfaceKey =
     map (typedLiveSurfaceFragmentRef definition surfaceKey)
+
+typedLiveSurfaceFragmentLoadPolicy :: TypedLiveSurfaceDefinition surface scope fragment layer session intent -> scope -> fragment -> FragmentLoadPolicy
+typedLiveSurfaceFragmentLoadPolicy definition surfaceKey fragment =
+    (definition.typedSurfaceFragmentContract surfaceKey fragment).fragmentContractLoadPolicy
 
 typedLiveSurfaceAffectedFragments :: TypedLiveSurfaceDefinition surface scope fragment layer session intent -> scope -> Set.Set LiveResource -> [fragment] -> [fragment]
 typedLiveSurfaceAffectedFragments definition surfaceKey touchedResources =

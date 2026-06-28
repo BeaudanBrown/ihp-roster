@@ -5,7 +5,9 @@ module Application.Helper.LiveSurface
     , EmptyInteractionSession
     , FragmentContract (..)
     , FragmentDependencies (..)
+    , FragmentLoadPolicy (..)
     , FragmentRenderMode (..)
+    , LazyFragmentConfig (..)
     , LiveFragmentDescriptor (..)
     , LiveScopeAuthorizationRequirement (..)
     , LiveSurfaceAuthorization (..)
@@ -27,10 +29,15 @@ module Application.Helper.LiveSurface
     , currentVenueUnitScopeSurfaceForVenue
     , defaultLiveFragmentTargetId
     , descriptorToTypedLiveSurfaceDefinition
+    , fragmentContractWithEagerLoad
+    , fragmentContractWithLazyLoad
     , liveFragmentDependsOn
     , liveFragmentDescriptor
+    , liveFragmentDescriptorLoadPolicy
     , liveFragmentDescriptorWithDeferUntilBlur
+    , liveFragmentDescriptorWithEagerLoad
     , liveFragmentDescriptorWithFocusedProtection
+    , liveFragmentDescriptorWithLazyLoad
     , liveFragmentDescriptorWithPath
     , liveFragmentDescriptorWithProtection
     , liveFragmentDescriptorWithTargetId
@@ -63,6 +70,7 @@ module Application.Helper.LiveSurface
     , surfaceFragmentRefWithPath
     , surfaceFragmentRefWithProtection
     , typedLiveSurfaceAffectedFragments
+    , typedLiveSurfaceFragmentLoadPolicy
     , typedLiveSurfaceFragmentRef
     , typedLiveSurfaceFragmentRefs
     , typedSurfaceDependsOn
@@ -81,7 +89,9 @@ import Application.Helper.Interaction.Types (EmptyInteractionIntent,
 import Application.Helper.LiveSurface.Internal (AuthorizedLiveFragment (..),
                                                 FragmentContract (..),
                                                 FragmentDependencies (..),
+                                                FragmentLoadPolicy (..),
                                                 FragmentRenderMode (..),
+                                                LazyFragmentConfig (..),
                                                 LiveFragmentDescriptor (..),
                                                 LiveScopeAuthorizationRequirement (..),
                                                 LiveSurfaceAuthorization (..),
@@ -101,10 +111,15 @@ import Application.Helper.LiveSurface.Internal (AuthorizedLiveFragment (..),
                                                 currentVenueUnitScopeSurfaceForVenue,
                                                 defaultLiveFragmentTargetId,
                                                 descriptorToTypedLiveSurfaceDefinition,
+                                                fragmentContractWithEagerLoad,
+                                                fragmentContractWithLazyLoad,
                                                 liveFragmentDependsOn,
                                                 liveFragmentDescriptor,
+                                                liveFragmentDescriptorLoadPolicy,
                                                 liveFragmentDescriptorWithDeferUntilBlur,
+                                                liveFragmentDescriptorWithEagerLoad,
                                                 liveFragmentDescriptorWithFocusedProtection,
+                                                liveFragmentDescriptorWithLazyLoad,
                                                 liveFragmentDescriptorWithPath,
                                                 liveFragmentDescriptorWithProtection,
                                                 liveFragmentDescriptorWithTargetId,
@@ -135,6 +150,7 @@ import Application.Helper.LiveSurface.Internal (AuthorizedLiveFragment (..),
                                                 surfaceFragmentRefWithPath,
                                                 surfaceFragmentRefWithProtection,
                                                 typedLiveSurfaceAffectedFragments,
+                                                typedLiveSurfaceFragmentLoadPolicy,
                                                 typedLiveSurfaceFragmentRef,
                                                 typedLiveSurfaceFragmentRefs,
                                                 typedSurfaceDependsOn,
