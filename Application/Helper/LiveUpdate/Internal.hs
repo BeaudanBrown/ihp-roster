@@ -30,6 +30,7 @@ module Application.Helper.LiveUpdate.Internal
     , liveUpdateScopeKey
     , liveUpdateScopeKind
     , liveUpdateScopeToWire
+    , liveFragmentKeyKind
     , liveUpdateWireFragmentFromWire
     , liveUpdateWireFragmentKind
     , liveUpdateWireFragmentToWire
@@ -152,35 +153,38 @@ data LiveFragmentKey
     | SupportPublicHolidaysSectionFragment
     deriving (Eq, Ord, Show)
 
-liveUpdateWireFragmentKind :: LiveFragmentKey -> Text
-liveUpdateWireFragmentKind RosterContentFragment = "roster_content"
-liveUpdateWireFragmentKind RosterGridToolbarFragment = "roster_grid_toolbar"
-liveUpdateWireFragmentKind RosterGridFrameFragment = "roster_grid_frame"
-liveUpdateWireFragmentKind RosterDayColumnsFragment = "roster_day_columns"
-liveUpdateWireFragmentKind RosterDayRailFragment = "roster_day_rail"
-liveUpdateWireFragmentKind RosterWageRailFragment = "roster_wage_rail"
-liveUpdateWireFragmentKind RosterSlotsGridFragment = "roster_slots_grid"
-liveUpdateWireFragmentKind RosterStaffPanelFragment = "roster_staff_panel"
-liveUpdateWireFragmentKind RosterDaySectionFragment {} = "roster_day_section"
-liveUpdateWireFragmentKind RosterRowFragment {} = "roster_row"
-liveUpdateWireFragmentKind LeaveRequestsContentFragment = "leave_requests_content"
-liveUpdateWireFragmentKind TimesheetToolbarFragment = "timesheet_toolbar"
-liveUpdateWireFragmentKind TimesheetDayColumnsFragment = "timesheet_day_columns"
-liveUpdateWireFragmentKind TimesheetDaySectionFragment {} = "timesheet_day_section"
-liveUpdateWireFragmentKind AdminVenueConfigFragment = "admin_venue_config"
-liveUpdateWireFragmentKind AdminInvitesFragment = "admin_invites"
-liveUpdateWireFragmentKind AdminExportsFragment = "admin_exports"
-liveUpdateWireFragmentKind AdminShiftTypesFragment = "admin_shift_types"
-liveUpdateWireFragmentKind AdminRosterGroupsFragment = "admin_roster_groups"
-liveUpdateWireFragmentKind AdminXeroFragment = "admin_xero"
-liveUpdateWireFragmentKind AdminXeroStaffMappingsFragment = "admin_xero_staff_mappings"
-liveUpdateWireFragmentKind AdminXeroPayItemsFragment = "admin_xero_pay_items"
-liveUpdateWireFragmentKind AdminXeroTimesheetsFragment = "admin_xero_timesheets"
-liveUpdateWireFragmentKind BillingStatusFragment = "billing_status"
-liveUpdateWireFragmentKind ProfileContentFragment = "profile_content"
-liveUpdateWireFragmentKind ProfileLeaveRequestsContentFragment = "profile_leave_requests_content"
-liveUpdateWireFragmentKind SupportAwardRatesSectionFragment = "support_award_rates_section"
-liveUpdateWireFragmentKind SupportPublicHolidaysSectionFragment = "support_public_holidays_section"
+liveFragmentKeyKind :: LiveFragmentKey -> Text
+liveFragmentKeyKind RosterContentFragment = "roster_content"
+liveFragmentKeyKind RosterGridToolbarFragment = "roster_grid_toolbar"
+liveFragmentKeyKind RosterGridFrameFragment = "roster_grid_frame"
+liveFragmentKeyKind RosterDayColumnsFragment = "roster_day_columns"
+liveFragmentKeyKind RosterDayRailFragment = "roster_day_rail"
+liveFragmentKeyKind RosterWageRailFragment = "roster_wage_rail"
+liveFragmentKeyKind RosterSlotsGridFragment = "roster_slots_grid"
+liveFragmentKeyKind RosterStaffPanelFragment = "roster_staff_panel"
+liveFragmentKeyKind RosterDaySectionFragment {} = "roster_day_section"
+liveFragmentKeyKind RosterRowFragment {} = "roster_row"
+liveFragmentKeyKind LeaveRequestsContentFragment = "leave_requests_content"
+liveFragmentKeyKind TimesheetToolbarFragment = "timesheet_toolbar"
+liveFragmentKeyKind TimesheetDayColumnsFragment = "timesheet_day_columns"
+liveFragmentKeyKind TimesheetDaySectionFragment {} = "timesheet_day_section"
+liveFragmentKeyKind AdminVenueConfigFragment = "admin_venue_config"
+liveFragmentKeyKind AdminInvitesFragment = "admin_invites"
+liveFragmentKeyKind AdminExportsFragment = "admin_exports"
+liveFragmentKeyKind AdminShiftTypesFragment = "admin_shift_types"
+liveFragmentKeyKind AdminRosterGroupsFragment = "admin_roster_groups"
+liveFragmentKeyKind AdminXeroFragment = "admin_xero"
+liveFragmentKeyKind AdminXeroStaffMappingsFragment = "admin_xero_staff_mappings"
+liveFragmentKeyKind AdminXeroPayItemsFragment = "admin_xero_pay_items"
+liveFragmentKeyKind AdminXeroTimesheetsFragment = "admin_xero_timesheets"
+liveFragmentKeyKind BillingStatusFragment = "billing_status"
+liveFragmentKeyKind ProfileContentFragment = "profile_content"
+liveFragmentKeyKind ProfileLeaveRequestsContentFragment = "profile_leave_requests_content"
+liveFragmentKeyKind SupportAwardRatesSectionFragment = "support_award_rates_section"
+liveFragmentKeyKind SupportPublicHolidaysSectionFragment = "support_public_holidays_section"
+
+liveUpdateWireFragmentKind :: LiveUpdateWireFragment -> Text
+liveUpdateWireFragmentKind fragment = liveFragmentKeyKind fragment.fragmentKey
 
 data FocusedFieldProtectionConfig = FocusedFieldProtectionConfig
     { activeSelector    :: !Text

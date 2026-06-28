@@ -28,6 +28,7 @@ module Application.Helper.LiveUpdate.Runtime
     , liveUpdateScopeKey
     , liveUpdateScopeKind
     , liveUpdateScopeToWire
+    , liveFragmentKeyKind
     , liveUpdateSourceClientId
     , liveUpdateWireFragmentKind
     , liveUpdateWireFragmentToWire

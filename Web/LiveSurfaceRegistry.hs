@@ -178,7 +178,7 @@ manifestDescriptorFromRegisteredSurface RegisteredLiveSurface { registeredSurfac
         { descriptorManifest = RegisteredLiveSurfaceManifest
             { surfaceFamily = definition.typedSurfaceFeature
             , scopeKinds = unique [liveUpdateScopeKind (unSurfaceScope (definition.typedSurfaceScope surfaceKey))]
-            , fragmentKinds = unique (map (liveUpdateWireFragmentKind . (.fragmentKey)) (unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs definition surfaceKey (candidateFragments definition surfaceKey))))
+            , fragmentKinds = unique (map liveUpdateWireFragmentKind (unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs definition surfaceKey (candidateFragments definition surfaceKey))))
             , interactionSchema
             }
         }

@@ -24,3 +24,7 @@ Guard tests cover contract watcher scripts and registry/generator assumptions; s
 **2026-06-28T12:39:32Z**
 
 Moved live update scope/fragment kind helpers into Application.Helper.LiveUpdate.Internal/Runtime, added registry and frontend-contract watcher guard tests, and updated README/frontend docs. Haskell tests remain blocked by pre-existing missing OpenTelemetry modules; frontend unit/ts/drift, script syntax, format, and doc drift checks pass.
+
+**2026-06-28T12:45:12Z**
+
+After forcing direnv to reload the updated flake, frontend-check, focused hspec LiveSurface match, and typecheck pass.
