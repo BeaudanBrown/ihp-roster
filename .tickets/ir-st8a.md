@@ -1,6 +1,6 @@
 ---
 id: ir-st8a
-status: open
+status: closed
 deps: [ir-myon]
 links: []
 created: 2026-06-25T13:30:47Z
@@ -24,3 +24,9 @@ Do not make production/lightweight OTel force HTML rendering or byte measurement
 
 Roster traces show nested cheap spans for action/render boundaries under `IHP_ROSTER_OTEL=1`; diagnostic profile traces under `IHP_ROSTER_PROFILING=1` expose full shell/layout/content/grid/body/respond_html spans plus `html.bytes` on component/response spans; existing profile headers and profile-load reports still work when `IHP_ROSTER_PROFILING=1`; tests or smoke tooling verify off, lightweight OTel, and diagnostic profiling modes.
 
+
+## Notes
+
+**2026-06-28T00:47:12Z**
+
+Bridged profiling helpers into OTel: profileActionSpan/profileActionSpanWithDetail now run inside lightweight child spans; diagnostic profileHtmlComponent/respondHtmlProfiled spans add html.bytes and diagnostic attributes while keeping existing Server-Timing/X-Profile headers behind IHP_ROSTER_PROFILING. Verified with typecheck and TEST_SHARDS=1 hspec-test --match Profiling.
