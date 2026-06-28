@@ -15,8 +15,10 @@ import Application.Helper.LiveUpdate.Runtime (FocusedFieldProtectionConfig (..),
                                               LiveUpdateScope (..),
                                               LiveUpdateWireFragment (..))
 import Application.Helper.SurfaceProjection (defaultSurfaceProjectionCachePolicy)
+import Application.Helper.View.LazySurface
 import Application.Support.LiveUpdates
 import Data.List.NonEmpty (NonEmpty (..))
+import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.Prelude
@@ -70,6 +72,35 @@ tests = describe "LiveSurface contract helpers" do
 
         HtmlRenderer.renderHtml html
             `shouldBe` "oob:outerHTML:snapshot:parentoob:outerHTML:snapshot:siblingextra"
+
+    it "renders lazy live fragment mounts from typed surface contracts" do
+        let lazyConfig =
+                LazyFragmentConfig
+                    { lazyFragmentTrigger = "load"
+                    , lazyFragmentPlaceholderKind = lazyFragmentPlaceholderSpinner
+                    , lazyFragmentAccessibleLabel = "Loading actor parent"
+                    , lazyFragmentClasses = ["test-lazy-actor"]
+                    , lazyFragmentDelayMs = Just 25
+                    }
+        let lazyDefinition =
+                testActorLiveSurfaceDefinition
+                    { typedSurfaceFragmentContract = \() fragment ->
+                        mkSurfaceFragmentContract
+                            (testActorFragmentRef fragment)
+                            (liveFragmentResyncOnly "lazy actor fragment")
+                            |> fragmentContractWithLazyLoad lazyConfig
+                    }
+        let eagerHtml = renderLiveSurfaceFragmentMount testActorLiveSurfaceDefinition () TestActorParent (Html5.toHtml ("eager" :: Text))
+        let lazyHtml = renderLiveSurfaceFragmentMount lazyDefinition () TestActorParent (Html5.toHtml ("eager" :: Text))
+        let lazyOutput = cs (HtmlRenderer.renderHtml lazyHtml)
+
+        HtmlRenderer.renderHtml eagerHtml `shouldBe` "eager"
+        lazyOutput `shouldContainText` "id=\"actor-parent\""
+        lazyOutput `shouldContainText` "data-bepis-lazy-surface=\"true\""
+        lazyOutput `shouldContainText` "hx-get=\"/actor-parent\""
+        lazyOutput `shouldContainText` "hx-trigger=\"load delay:25ms\""
+        lazyOutput `shouldContainText` "hx-target=\"this\""
+        lazyOutput `shouldContainText` "hx-swap=\"outerHTML\""
 
     it "derives live fragment refs and dependencies from a single fragment contract" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
@@ -435,6 +466,10 @@ fragmentLabel TestActorParent         = "parent"
 fragmentLabel TestActorChild          = "child"
 fragmentLabel TestActorDuplicateChild = "duplicate-child"
 fragmentLabel TestActorSibling        = "sibling"
+
+shouldContainText :: HasCallStack => Text -> Text -> Expectation
+shouldContainText actual expected =
+    Text.isInfixOf expected actual `shouldBe` True
 
 expectUuid :: Text -> UUID.UUID
 expectUuid value =

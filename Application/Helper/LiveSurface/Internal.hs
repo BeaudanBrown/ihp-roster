@@ -62,6 +62,8 @@ module Application.Helper.LiveSurface.Internal
     , serveTypedLiveFragment
     , setTypedLiveSurfaceActorRefresh
     , staticLiveFragmentDescriptor
+    , surfaceFragmentRefTargetId
+    , surfaceFragmentRefUrl
     , surfaceFragmentRefWithDeferUntilBlur
     , surfaceFragmentRefWithFocusedProtection
     , surfaceFragmentRefWithPath
@@ -273,6 +275,14 @@ mkSurfaceFragmentRef fragmentKey targetId url =
         { unSurfaceFragmentRef = mkLiveUpdateWireFragment fragmentKey targetId url
         , surfaceFragmentContainmentPath = [targetId]
         }
+
+surfaceFragmentRefTargetId :: SurfaceFragmentRef surface -> Text
+surfaceFragmentRefTargetId ref =
+    ref.unSurfaceFragmentRef.targetId
+
+surfaceFragmentRefUrl :: SurfaceFragmentRef surface -> Text
+surfaceFragmentRefUrl ref =
+    ref.unSurfaceFragmentRef.url
 
 surfaceFragmentRefWithProtection :: LiveFragmentProtection -> SurfaceFragmentRef surface -> SurfaceFragmentRef surface
 surfaceFragmentRefWithProtection protection ref =

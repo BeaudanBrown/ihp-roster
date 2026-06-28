@@ -5,12 +5,20 @@ module Application.Helper.View.LazySurface
     , lazyFragmentPlaceholderSpinner
     , lazyFragmentPlaceholderTable
     , lazySurfacePlaceholderRootClasses
+    , renderLazyLiveFragmentMount
     , renderLazySurfacePlaceholder
     , renderLazySurfacePlaceholderBody
     , renderLazySurfacePlaceholderWithCustom
+    , renderLiveSurfaceFragmentMount
     ) where
 
-import Application.Helper.LiveSurface (LazyFragmentConfig (..))
+import Application.Helper.LiveSurface (FragmentContract (..),
+                                       FragmentLoadPolicy (..),
+                                       LazyFragmentConfig (..),
+                                       SurfaceFragmentRef,
+                                       TypedLiveSurfaceDefinition (..),
+                                       surfaceFragmentRefTargetId,
+                                       surfaceFragmentRefUrl)
 import qualified Data.Text as Text
 import IHP.ViewPrelude
 
@@ -28,6 +36,39 @@ lazyFragmentPlaceholderSpinner = "spinner"
 
 lazyFragmentPlaceholderCustom :: Text
 lazyFragmentPlaceholderCustom = "custom"
+
+renderLiveSurfaceFragmentMount ::
+    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
+    scope ->
+    fragment ->
+    Html ->
+    Html
+renderLiveSurfaceFragmentMount definition scope fragment eagerHtml =
+    case contract.fragmentContractLoadPolicy of
+        FragmentEager -> eagerHtml
+        FragmentLazy config -> renderLazyLiveFragmentMount config contract.fragmentContractRef
+    where
+        contract = definition.typedSurfaceFragmentContract scope fragment
+
+renderLazyLiveFragmentMount :: LazyFragmentConfig -> SurfaceFragmentRef surface -> Html
+renderLazyLiveFragmentMount config fragmentRef = [hsx|
+    <div id={surfaceFragmentRefTargetId fragmentRef}
+         class={lazySurfacePlaceholderRootClasses config}
+         data-bepis-lazy-surface="true"
+         data-bepis-lazy-fragment={surfaceFragmentRefTargetId fragmentRef}
+         hx-get={surfaceFragmentRefUrl fragmentRef}
+         hx-trigger={lazySurfaceHtmxTrigger config}
+         hx-target="this"
+         hx-swap="outerHTML"
+         hx-push-url="false"
+         role="status"
+         aria-live="polite"
+         aria-busy="true"
+         aria-label={config.lazyFragmentAccessibleLabel}>
+        <span class="visually-hidden">{config.lazyFragmentAccessibleLabel}</span>
+        {renderLazySurfacePlaceholderBody config mempty}
+    </div>
+|]
 
 renderLazySurfacePlaceholder :: LazyFragmentConfig -> Html
 renderLazySurfacePlaceholder config =
@@ -64,6 +105,17 @@ lazySurfacePlaceholderRootClasses config =
               ]
                 <> config.lazyFragmentClasses
             )
+
+lazySurfaceHtmxTrigger :: LazyFragmentConfig -> Text
+lazySurfaceHtmxTrigger config =
+    case config.lazyFragmentDelayMs of
+        Just delayMs -> trigger <> " delay:" <> tshow delayMs <> "ms"
+        Nothing      -> trigger
+    where
+        trigger =
+            if Text.null config.lazyFragmentTrigger
+                then "revealed"
+                else config.lazyFragmentTrigger
 
 lazySurfacePlaceholderKindClass :: Text -> Text
 lazySurfacePlaceholderKindClass kind

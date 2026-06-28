@@ -1,6 +1,6 @@
 ---
 id: ir-a8o9
-status: open
+status: closed
 deps: [ir-grmo]
 links: []
 created: 2026-06-28T12:17:09Z
@@ -22,3 +22,9 @@ Create helper(s) that take a TypedLiveSurfaceDefinition, scope, fragment, and ea
 
 A caller can replace ad-hoc eager rendering with the helper; generated lazy placeholders use the existing fragment URL/target id; eager mode output remains unchanged except for unavoidable wrapper decisions documented in code; fragment permission/authorization remains on the server endpoint.
 
+
+## Notes
+
+**2026-06-28T13:02:03Z**
+
+Added renderLiveSurfaceFragmentMount/renderLazyLiveFragmentMount helpers that render eager HTML unchanged or lazy HTMX placeholders from typed fragment contracts/refs. Added ref URL/target accessors and Hspec coverage. Verification: style-audit passed; typecheck is still blocked before changed modules by missing OpenTelemetry.* packages in the current environment.

@@ -65,6 +65,8 @@ module Application.Helper.LiveSurface
     , serveTypedLiveFragment
     , setTypedLiveSurfaceActorRefresh
     , staticLiveFragmentDescriptor
+    , surfaceFragmentRefTargetId
+    , surfaceFragmentRefUrl
     , surfaceFragmentRefWithDeferUntilBlur
     , surfaceFragmentRefWithFocusedProtection
     , surfaceFragmentRefWithPath
@@ -145,6 +147,8 @@ import Application.Helper.LiveSurface.Internal (AuthorizedLiveFragment (..),
                                                 serveTypedLiveFragment,
                                                 setTypedLiveSurfaceActorRefresh,
                                                 staticLiveFragmentDescriptor,
+                                                surfaceFragmentRefTargetId,
+                                                surfaceFragmentRefUrl,
                                                 surfaceFragmentRefWithDeferUntilBlur,
                                                 surfaceFragmentRefWithFocusedProtection,
                                                 surfaceFragmentRefWithPath,
