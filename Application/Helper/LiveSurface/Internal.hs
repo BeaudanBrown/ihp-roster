@@ -39,6 +39,11 @@ module Application.Helper.LiveSurface.Internal
     , liveFragmentDescriptorWithProtection
     , liveFragmentDescriptorWithTargetId
     , liveFragmentResyncOnly
+    , lazyFragmentPlaceholderCustom
+    , lazyFragmentPlaceholderList
+    , lazyFragmentPlaceholderPanel
+    , lazyFragmentPlaceholderSpinner
+    , lazyFragmentPlaceholderTable
     , liveSurfaceAuthorizationByRequirement
     , liveSurfaceDescriptor
     , liveSurfaceDescriptorWithDecorateRequestsWithin
@@ -172,6 +177,21 @@ data LazyFragmentConfig = LazyFragmentConfig
     , lazyFragmentDelayMs         :: !(Maybe Int)
     }
     deriving (Eq, Show)
+
+lazyFragmentPlaceholderPanel :: Text
+lazyFragmentPlaceholderPanel = "panel"
+
+lazyFragmentPlaceholderTable :: Text
+lazyFragmentPlaceholderTable = "table"
+
+lazyFragmentPlaceholderList :: Text
+lazyFragmentPlaceholderList = "list"
+
+lazyFragmentPlaceholderSpinner :: Text
+lazyFragmentPlaceholderSpinner = "spinner"
+
+lazyFragmentPlaceholderCustom :: Text
+lazyFragmentPlaceholderCustom = "custom"
 
 data FragmentRenderMode
     = FragmentPlain

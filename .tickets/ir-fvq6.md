@@ -1,6 +1,6 @@
 ---
 id: ir-fvq6
-status: open
+status: closed
 deps: [ir-a8o9, ir-imlz]
 links: []
 created: 2026-06-28T12:17:09Z
@@ -22,3 +22,9 @@ Mark RosterProjectionStaffPanel lazy, likely LazyOnLoadDelay or a thresholded po
 
 Initial ShowRosterWeekAction no longer eagerly renders all staff panel rows when the lazy policy applies; the staff panel appears after HTMX fetch; clicking a staff row still lazy-loads EditStaffAction modal; staff panel scope toggle works; live-update refetches still target the same fragment; focused roster e2e/profile run passes.
 
+
+## Notes
+
+**2026-06-28T13:04:59Z**
+
+Marked RosterProjectionStaffPanel lazy with a load-delayed table placeholder, rendered the full-page staff side panel through renderLiveSurfaceFragmentMount, and preserved manager-only visibility plus the authoritative ShowRosterWeekStaffPanelFragmentAction target/root id. Verification: style-audit passed; typecheck (and therefore focused e2e/profile) is blocked before changed modules by missing OpenTelemetry.* packages in the current environment.

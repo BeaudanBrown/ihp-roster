@@ -42,6 +42,11 @@ module Application.Helper.LiveSurface
     , liveFragmentDescriptorWithProtection
     , liveFragmentDescriptorWithTargetId
     , liveFragmentResyncOnly
+    , lazyFragmentPlaceholderCustom
+    , lazyFragmentPlaceholderList
+    , lazyFragmentPlaceholderPanel
+    , lazyFragmentPlaceholderSpinner
+    , lazyFragmentPlaceholderTable
     , liveSurfaceAuthorizationByRequirement
     , liveSurfaceConfigJson
     , liveSurfaceDescriptor
@@ -115,6 +120,11 @@ import Application.Helper.LiveSurface.Internal (AuthorizedLiveFragment (..),
                                                 descriptorToTypedLiveSurfaceDefinition,
                                                 fragmentContractWithEagerLoad,
                                                 fragmentContractWithLazyLoad,
+                                                lazyFragmentPlaceholderCustom,
+                                                lazyFragmentPlaceholderList,
+                                                lazyFragmentPlaceholderPanel,
+                                                lazyFragmentPlaceholderSpinner,
+                                                lazyFragmentPlaceholderTable,
                                                 liveFragmentDependsOn,
                                                 liveFragmentDescriptor,
                                                 liveFragmentDescriptorLoadPolicy,

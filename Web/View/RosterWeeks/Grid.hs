@@ -35,7 +35,9 @@ import Application.Helper.ShiftTypeColours (shiftTypeColourPaletteKeys)
 import Application.Helper.TimeRules (rosterOperationalFinalSelectableTimeText,
                                      rosterOperationalStartTimeText)
 import Application.Helper.UserPreferences (rosterLayoutModeValue)
-import Application.Helper.View (dialogOverlayMountId, staffDisplayName)
+import Application.Helper.View (dialogOverlayMountId,
+                                renderLiveSurfaceFragmentMount,
+                                staffDisplayName)
 import Data.Coerce (coerce)
 import Data.List (find, sortOn)
 import qualified Data.Map.Strict as Map
@@ -107,11 +109,20 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridWeekOff
             { interactionMountScope = buildRosterProjectionScope gridCurrentRosterGroup.id gridWeekOffset
             , interactionMountKey = rosterInteractionMountKey
             }
+        renderStaffPanelMount rosterWeek =
+            if currentUserIsManager
+                then
+                    renderLiveSurfaceFragmentMount
+                        rosterLiveSurfaceDefinition
+                        mount.interactionMountScope
+                        RosterProjectionStaffPanel
+                        (renderRosterStaffPanelFragment gridWeekOffset (coerce rosterWeek.rosterGroupId) (length gridRosterGroups > 1) RosterStaffPanelCurrentGroup gridPanelStaff)
+                else mempty
      in profileHtmlComponent "render.roster.layout" do
         renderInteractionCapabilityShell rosterLiveSurfaceDefinition mount [hsx|
             <div class="row g-4 align-items-start roster-layout">
                 {renderRosterContentFragment gridModel}
-                {forEach gridRosterWeek (\rosterWeek -> renderRosterStaffPanelFragment gridWeekOffset (coerce rosterWeek.rosterGroupId) (length gridRosterGroups > 1) RosterStaffPanelCurrentGroup gridPanelStaff)}
+                {forEach gridRosterWeek renderStaffPanelMount}
                 {renderRosterStaffSelfServicePanelFragment gridStaffSelfServicePanel}
             </div>
         |]

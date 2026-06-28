@@ -28,6 +28,9 @@ import qualified Text.Blaze.Html as Blaze
 import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
 import qualified Text.Blaze.Html5 as Html5
 import Web.Billing.LiveUpdates
+import Web.RosterWeeks.LiveSurface (rosterLiveSurfaceDefinitionForVenue)
+import Web.RosterWeeks.Types (RosterProjectionFragment (..),
+                              RosterProjectionScope (..))
 import Web.Timesheets.Projection
 import Web.View.Admin.Invites
 import Web.View.Admin.VenueSettings
@@ -254,6 +257,19 @@ tests = describe "LiveSurface contract helpers" do
         liveSurfaceConfigShouldExposeRefs
             supportLiveSurface
             (unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs supportLiveSurfaceDefinition () supportLiveFragmentRefs))
+
+    it "marks the roster staff panel as a lazy live fragment" do
+        let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
+        let rosterGroupId = "22222222-2222-2222-2222-222222222222" :: Id RosterGroup
+        let scope = RosterProjectionScope { rosterProjectionGroupId = rosterGroupId, rosterProjectionWeekOffset = 0 }
+        let loadPolicy = typedLiveSurfaceFragmentLoadPolicy (rosterLiveSurfaceDefinitionForVenue venueId) scope RosterProjectionStaffPanel
+
+        case loadPolicy of
+            FragmentLazy config -> do
+                config.lazyFragmentPlaceholderKind `shouldBe` lazyFragmentPlaceholderTable
+                config.lazyFragmentAccessibleLabel `shouldBe` "Loading roster staff panel"
+                config.lazyFragmentClasses `shouldBe` ["col-12", "col-xl-4", "col-xxl-3", "roster-layout-side"]
+            FragmentEager -> expectationFailure "expected roster staff panel to be lazy"
 
     it "verifies context-free typed surface contracts used by background updates" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"

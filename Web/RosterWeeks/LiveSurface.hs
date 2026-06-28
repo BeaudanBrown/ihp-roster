@@ -93,6 +93,7 @@ rosterLiveSurfaceDefinitionForVenue surfaceVenueId =
             mkSurfaceFragmentContract
                 (rosterFragmentRef scope fragment)
                 (rosterFragmentDependencies surfaceVenueId scope fragment)
+                |> rosterFragmentLoadPolicy fragment
         , typedSurfaceDecorateRequestsWithin = const ["#roster-week-shell"]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\scope -> RequireCurrentVenueRosterGroup surfaceVenueId (unpackId scope.rosterProjectionGroupId))
         , typedSurfaceInteractionSchema = rosterInteractionStaticSchema
@@ -285,6 +286,22 @@ rosterFragmentRef scope = \case
             (rosterRowDomIdText (coerce rosterDayId) rowIndex)
             (rosterWeekRowFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId (coerce rosterDayId) rowIndex)
             |> surfaceFragmentRefWithPath (rosterFragmentContainmentPath (RosterProjectionRow rosterDayId rowIndex))
+
+rosterFragmentLoadPolicy :: RosterProjectionFragment -> FragmentContract RosterLiveSurface -> FragmentContract RosterLiveSurface
+rosterFragmentLoadPolicy RosterProjectionStaffPanel =
+    fragmentContractWithLazyLoad rosterStaffPanelLazyConfig
+rosterFragmentLoadPolicy _ =
+    id
+
+rosterStaffPanelLazyConfig :: LazyFragmentConfig
+rosterStaffPanelLazyConfig =
+    LazyFragmentConfig
+        { lazyFragmentTrigger = "load"
+        , lazyFragmentPlaceholderKind = lazyFragmentPlaceholderTable
+        , lazyFragmentAccessibleLabel = "Loading roster staff panel"
+        , lazyFragmentClasses = ["col-12", "col-xl-4", "col-xxl-3", "roster-layout-side"]
+        , lazyFragmentDelayMs = Just 50
+        }
 
 rosterFragmentDependencies :: UUID -> RosterProjectionScope -> RosterProjectionFragment -> FragmentDependencies
 rosterFragmentDependencies venueId scope =

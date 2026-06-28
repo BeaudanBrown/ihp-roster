@@ -17,25 +17,15 @@ import Application.Helper.LiveSurface (FragmentContract (..),
                                        LazyFragmentConfig (..),
                                        SurfaceFragmentRef,
                                        TypedLiveSurfaceDefinition (..),
+                                       lazyFragmentPlaceholderCustom,
+                                       lazyFragmentPlaceholderList,
+                                       lazyFragmentPlaceholderPanel,
+                                       lazyFragmentPlaceholderSpinner,
+                                       lazyFragmentPlaceholderTable,
                                        surfaceFragmentRefTargetId,
                                        surfaceFragmentRefUrl)
 import qualified Data.Text as Text
 import IHP.ViewPrelude
-
-lazyFragmentPlaceholderPanel :: Text
-lazyFragmentPlaceholderPanel = "panel"
-
-lazyFragmentPlaceholderTable :: Text
-lazyFragmentPlaceholderTable = "table"
-
-lazyFragmentPlaceholderList :: Text
-lazyFragmentPlaceholderList = "list"
-
-lazyFragmentPlaceholderSpinner :: Text
-lazyFragmentPlaceholderSpinner = "spinner"
-
-lazyFragmentPlaceholderCustom :: Text
-lazyFragmentPlaceholderCustom = "custom"
 
 renderLiveSurfaceFragmentMount ::
     TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
