@@ -7,7 +7,9 @@ import qualified System.Environment as Environment
 import Web.Controller.Prelude
 
 instance Controller E2ETestController where
-    beforeAction = ensureIsUser
+    beforeAction = do
+        annotateTelemetryAction
+        ensureIsUser
 
     action MarkE2EPasskeyVerifiedAction = do
         ensureE2ETestEndpointEnabled

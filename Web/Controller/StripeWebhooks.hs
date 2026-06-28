@@ -9,6 +9,8 @@ import Web.Billing.Mutations (recordBillingWebhookMutation)
 import Web.Controller.Prelude
 
 instance Controller StripeWebhooksController where
+    beforeAction = annotateTelemetryAction
+
     action StripeWebhookAction = do
         rawBody <- getRequestBody
         signatureHeader <- requireStripeSignatureHeader

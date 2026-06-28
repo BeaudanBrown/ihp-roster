@@ -8,7 +8,9 @@ import Web.View.Passkeys.SetupModal
 import Web.View.Passkeys.StepUp
 
 instance Controller PasskeysController where
-    beforeAction = ensureIsUser
+    beforeAction = do
+        annotateTelemetryAction
+        ensureIsUser
 
     action PasskeyStepUpAction = do
         rawStepUpRedirectTo <- getSession @Text passkeyStepUpRedirectSessionKey

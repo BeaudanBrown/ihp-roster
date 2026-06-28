@@ -62,6 +62,7 @@ import Web.View.RosterWeeks.StaffPanel (renderRosterStaffPanelFragment,
 
 instance Controller RosterWeeksController where
     beforeAction = do
+        annotateTelemetryAction
         ensureIsUser
         ensureCurrentVenueOrSupportRedirect
         ensureProfileCompleted

@@ -14,7 +14,19 @@
             # 0.3.0.0 with the stale bound removed, so keep this local
             # jailbreak until nixpkgs/Hackage carries a compatible release.
             hs-opentelemetry-instrumentation-wai =
-                prev.haskell.lib.doJailbreak hprev.hs-opentelemetry-instrumentation-wai;
+                prev.haskell.lib.markUnbroken (
+                    prev.haskell.lib.overrideCabal
+                        (prev.haskell.lib.doJailbreak hprev.hs-opentelemetry-instrumentation-wai)
+                        (old: {
+                            postPatch = (old.postPatch or "") + ''
+                                substituteInPlace src/OpenTelemetry/Instrumentation/Wai.hs \
+                                    --replace '("url.query", toAttribute $ T.decodeUtf8 $ rawQueryString req)' \
+                                              '("bepis.http.query_redacted", toAttribute True)' \
+                                    --replace '("http.target", toAttribute $ T.decodeUtf8 (rawPathInfo req <> rawQueryString req))' \
+                                              '("http.target", toAttribute $ T.decodeUtf8 (rawPathInfo req))'
+                            '';
+                        })
+                );
         });
 
         stripe-cli =

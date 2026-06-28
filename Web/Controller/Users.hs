@@ -22,6 +22,8 @@ import Web.Users.Mutations (acceptVenueInvitation)
 import Web.View.Users.New
 
 instance Controller UsersController where
+    beforeAction = annotateTelemetryAction
+
     action NewUserAction = do
         let invitationId = paramOrNothing @(Id VenueInvitation) "invitationId"
         case invitationId of

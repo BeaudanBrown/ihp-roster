@@ -31,6 +31,7 @@ import Web.View.Support.Index
 
 instance Controller SupportController where
     beforeAction = do
+        annotateTelemetryAction
         ensureIsUser
         redirectPermissionDeniedUnless currentUserIsSuperAdmin "You need super admin access to view that page."
         ensureProfileCompleted

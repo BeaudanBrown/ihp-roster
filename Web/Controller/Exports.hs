@@ -29,6 +29,7 @@ respondToAdminExportsSectionMutation =
 
 instance Controller ExportsController where
     beforeAction = do
+        annotateTelemetryAction
         ensureIsUser
         ensureCurrentVenue
         ensureProfileCompleted

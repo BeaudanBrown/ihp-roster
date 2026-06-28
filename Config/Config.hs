@@ -1,6 +1,7 @@
 module Config where
 
 import Application.Helper.Profiling (profilingMiddleware)
+import Application.Helper.Telemetry (telemetryMiddleware)
 import IHP.Environment
 import IHP.EnvVar
 import IHP.FrameworkConfig
@@ -30,6 +31,6 @@ config = do
             , credentials = smtpCredentials
             , encryption = smtpEncryption
             }
-    option $ CustomMiddleware profilingMiddleware
+    option $ CustomMiddleware (telemetryMiddleware . profilingMiddleware)
 
     pure ()

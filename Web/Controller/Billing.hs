@@ -14,6 +14,7 @@ import Web.View.Billing.Index
 
 instance Controller BillingController where
     beforeAction = do
+        annotateTelemetryAction
         ensureIsUser
         ensureCurrentVenue
         ensureProfileCompleted

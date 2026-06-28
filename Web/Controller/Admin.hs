@@ -141,6 +141,7 @@ fetchCurrentVenueStaffUser staffId = do
 
 instance Controller AdminController where
     beforeAction = do
+        annotateTelemetryAction
         ensureIsUser
         ensureCurrentVenueOrSupportRedirect
         ensureProfileCompleted

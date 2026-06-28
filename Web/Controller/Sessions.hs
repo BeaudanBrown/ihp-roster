@@ -20,6 +20,8 @@ passkeySetupPromptSessionKey :: ByteString
 passkeySetupPromptSessionKey = "passkeySetupPrompt"
 
 instance Controller SessionsController where
+    beforeAction = annotateTelemetryAction
+
     action NewSessionAction = do
         case currentUserOrNothing @User of
             Just user -> do

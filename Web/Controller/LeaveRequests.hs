@@ -22,6 +22,7 @@ import Web.View.Staff.Edit (renderStaffLeaveRequestFormFragment,
 
 instance Controller LeaveRequestsController where
     beforeAction = do
+        annotateTelemetryAction
         ensureIsUser
         ensureCurrentVenueOrSupportRedirect
 

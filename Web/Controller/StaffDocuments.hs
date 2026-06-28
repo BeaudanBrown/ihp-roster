@@ -22,6 +22,7 @@ import Web.View.StaffDocuments.RsaScan
 
 instance Controller StaffDocumentsController where
     beforeAction = do
+        annotateTelemetryAction
         ensureIsUser
         ensureCurrentVenue
 

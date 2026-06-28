@@ -43,6 +43,12 @@ CSS_FILES += static/css/features/roster/export-print.css
 CSS_FILES += static/css/features/timesheets.css
 CSS_FILES += static/css/features/xero.css
 
+GHC_OPTIONS += -package hs-opentelemetry-api
+GHC_OPTIONS += -package hs-opentelemetry-exporter-otlp
+GHC_OPTIONS += -package hs-opentelemetry-instrumentation-wai
+GHC_OPTIONS += -package hs-opentelemetry-propagator-w3c
+GHC_OPTIONS += -package hs-opentelemetry-sdk
+
 # Resolve IHPSchema.sql across IHP env layouts.
 # Some environments expose IHP_LIB without IHPSchema.sql (e.g. env-var compatibility wrapper).
 IHP_LIB_FALLBACK := $(firstword \

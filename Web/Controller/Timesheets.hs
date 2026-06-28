@@ -13,6 +13,7 @@ import Web.View.Timesheets.New
 
 instance Controller TimesheetsController where
     beforeAction = do
+        annotateTelemetryAction
         ensureIsUser
         ensureCurrentVenueOrSupportRedirect
         ensureProfileCompleted

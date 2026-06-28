@@ -26,6 +26,7 @@ import Web.View.Staff.Edit
 
 instance Controller StaffController where
     beforeAction = do
+        annotateTelemetryAction
         ensureIsUser
         ensureCurrentVenue
         ensureProfileCompleted

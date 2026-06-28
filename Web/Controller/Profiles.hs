@@ -28,6 +28,7 @@ import Web.View.StaffProfileForm (StaffManagementFieldData (..))
 
 instance Controller ProfilesController where
     beforeAction = do
+        annotateTelemetryAction
         ensureIsUser
         ensureCurrentVenue
         ensureStaffSelfServiceAccess

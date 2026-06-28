@@ -15,6 +15,7 @@ import Web.View.Feedback.New
 
 instance Controller FeedbackController where
     beforeAction = do
+        annotateTelemetryAction
         ensureIsUser
         ensureCurrentVenueOrSupportRedirect
 

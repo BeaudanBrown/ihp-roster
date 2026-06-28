@@ -28,6 +28,8 @@ import Web.Controller.Sessions ()
 import Web.View.Passkeys.NewSetup
 
 instance Controller AuthController where
+    beforeAction = annotateTelemetryAction
+
     action BeginPasskeyRegistrationAction = do
         ensureIsUser
         existingPasskeys <-
