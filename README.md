@@ -41,8 +41,9 @@ bash ./bin/in-env dev-wait
 bash ./bin/in-env dev-stop
 ```
 
-For foreground local development, `just dev` starts the app, frontend watcher,
-postgres, MailHog, and the localhost-only observability stack. After making app
+For foreground local development, `just dev` starts the app, frontend contract
+watcher, frontend asset watcher, postgres, MailHog, and the localhost-only
+observability stack. After making app
 requests, open Grafana Explore at `http://127.0.0.1:3300/explore` and search the
 Tempo datasource for service `ihp-roster-dev`.
 
@@ -104,14 +105,17 @@ bash ./bin/in-env frontend-check
 bash ./bin/in-env frontend-test
 bash ./bin/in-env frontend-contracts
 bash ./bin/in-env frontend-contracts-check
+bash ./bin/in-env frontend-contracts-watch
 bash ./bin/in-env frontend-watch
 ```
 
 `frontend-check` runs contract drift, TypeScript validation, frontend unit/DOM
 tests, and generated JS drift. `dev-start` and `just dev` run the frontend
-watcher; `just dev` also runs the local observability stack in foreground dev;
-`dev-stop` cleans up detached dev processes. There is no Vite dev server or true
-HMR requirement. Frontend unit tests and Playwright E2E are not pre-commit hooks;
+contract watcher plus frontend asset watcher; `just dev` also runs the local
+observability stack in foreground dev; `dev-stop` cleans up detached dev
+processes. There is no Vite dev server or true HMR requirement. Contract-source
+edits regenerate `frontend/ts/generated/contracts.ts` atomically and the asset
+watcher rebundles dependent JS. Frontend unit tests and Playwright E2E are not pre-commit hooks;
 the tracked pre-commit hook only guards generated JS drift. Production/live
 NixOS runtime serves checked-in generated static JS and does not require
 Node/esbuild/TypeScript/frontend test tooling.

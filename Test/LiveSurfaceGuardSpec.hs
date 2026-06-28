@@ -32,12 +32,47 @@ tests = describe "LiveSurface strict API guard" do
         violations <- registryManualManifestViolations
         violations `shouldBe` []
 
+    it "keeps live surface registry metadata on the canonical catalog path" do
+        violations <- registryCatalogViolations
+        violations `shouldBe` []
+
+    it "keeps frontend contract generation wired into the dev hot-reload path" do
+        violations <- frontendContractWatcherViolations
+        violations `shouldBe` []
+
 registryManualManifestViolations :: IO [Text]
 registryManualManifestViolations = do
     source <- Text.readFile "Web/LiveSurfaceRegistry.hs"
     pure
         [ "Web/LiveSurfaceRegistry.hs: manual manifestDescriptor entry bypasses RegisteredLiveSurface catalog"
         | "manifestDescriptor \"" `Text.isInfixOf` source
+        ]
+
+registryCatalogViolations :: IO [Text]
+registryCatalogViolations = do
+    registry <- Text.readFile "Web/LiveSurfaceRegistry.hs"
+    pure $ concat
+        [ ["Web/LiveSurfaceRegistry.hs: registeredLiveSurfaceManifestCatalog should not return as a parallel registry list" | "registeredLiveSurfaceManifestCatalog" `Text.isInfixOf` registry]
+        , ["Web/LiveSurfaceRegistry.hs: wire kind helpers belong in Application.Helper.LiveUpdate.Internal" | "liveUpdateScopeKind ::" `Text.isInfixOf` registry || "liveFragmentKeyKind ::" `Text.isInfixOf` registry]
+        , ["Web/LiveSurfaceRegistry.hs: registeredLiveSurfaceCatalog should be the canonical entry list" | not ("registeredLiveSurfaceCatalog :: [RegisteredLiveSurfaceEntry]" `Text.isInfixOf` registry)]
+        ]
+
+frontendContractWatcherViolations :: IO [Text]
+frontendContractWatcherViolations = do
+    scripts <- Text.readFile "Config/nix/flake/scripts.nix"
+    startScript <- Text.readFile "Config/nix/scripts/dev/start"
+    statusScript <- Text.readFile "Config/nix/scripts/dev/status"
+    stopScript <- Text.readFile "Config/nix/scripts/dev/stop"
+    contractsScript <- Text.readFile "Config/nix/scripts/frontend/contracts"
+    watchExists <- doesFileExist "Config/nix/scripts/frontend/contracts-watch"
+    pure $ concat
+        [ ["Config/nix/flake/scripts.nix: missing frontend-contracts-watch command" | not ("frontend-contracts-watch" `Text.isInfixOf` scripts)]
+        , ["Config/nix/scripts/frontend/contracts-watch: missing watcher script" | not watchExists]
+        , ["Config/nix/scripts/dev/start: does not launch frontend-contracts-watch" | not ("frontend-contracts-watch" `Text.isInfixOf` startScript)]
+        , ["Config/nix/scripts/dev/status: does not report frontend_contracts_watch_ok" | not ("frontend_contracts_watch_ok" `Text.isInfixOf` statusScript)]
+        , ["Config/nix/scripts/dev/stop: does not stop frontend-contracts-watch" | not ("frontend-contracts-watch" `Text.isInfixOf` stopScript)]
+        , ["Config/nix/scripts/frontend/contracts: generated writes should be atomic" | not ("cmp -s \"$tmp_output\" \"$output_path\"" `Text.isInfixOf` contractsScript && "mv \"$tmp_output\" \"$output_path\"" `Text.isInfixOf` contractsScript)]
+        , ["Config/nix/scripts/frontend/contracts: watcher should be able to reuse a persistent GHC build dir" | not ("FRONTEND_CONTRACTS_BUILD_DIR" `Text.isInfixOf` contractsScript)]
         ]
 
 forbiddenReferencesInFile :: FilePath -> IO [Text]

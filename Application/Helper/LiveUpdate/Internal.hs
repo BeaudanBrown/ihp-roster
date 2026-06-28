@@ -28,8 +28,10 @@ module Application.Helper.LiveUpdate.Internal
     , liveUpdateSourceClientId
     , liveUpdateScopeFromWire
     , liveUpdateScopeKey
+    , liveUpdateScopeKind
     , liveUpdateScopeToWire
     , liveUpdateWireFragmentFromWire
+    , liveUpdateWireFragmentKind
     , liveUpdateWireFragmentToWire
     , mkLiveUpdateWireFragment
     , newInMemoryLiveBus
@@ -98,6 +100,20 @@ data LiveUpdateScope
     | SupportPlatformScope
     deriving (Eq, Ord, Show)
 
+liveUpdateScopeKind :: LiveUpdateScope -> Text
+liveUpdateScopeKind RosterWeekScope {}        = "roster_week"
+liveUpdateScopeKind AdminVenueConfigScope {}  = "admin_venue_config"
+liveUpdateScopeKind AdminShiftTypesScope {}   = "admin_shift_types"
+liveUpdateScopeKind AdminRosterGroupsScope {} = "admin_roster_groups"
+liveUpdateScopeKind AdminInvitesScope {}      = "admin_invites"
+liveUpdateScopeKind AdminExportsScope {}      = "admin_exports"
+liveUpdateScopeKind AdminXeroScope {}         = "admin_xero"
+liveUpdateScopeKind BillingScope {}           = "billing"
+liveUpdateScopeKind LeaveRequestsScope {}     = "leave_requests"
+liveUpdateScopeKind TimesheetWeekScope {}     = "timesheet_week"
+liveUpdateScopeKind ProfileScope {}           = "profile"
+liveUpdateScopeKind SupportPlatformScope      = "support_platform"
+
 data LiveFragmentKey
     = RosterContentFragment
     | RosterGridToolbarFragment
@@ -135,6 +151,36 @@ data LiveFragmentKey
     | SupportAwardRatesSectionFragment
     | SupportPublicHolidaysSectionFragment
     deriving (Eq, Ord, Show)
+
+liveUpdateWireFragmentKind :: LiveFragmentKey -> Text
+liveUpdateWireFragmentKind RosterContentFragment = "roster_content"
+liveUpdateWireFragmentKind RosterGridToolbarFragment = "roster_grid_toolbar"
+liveUpdateWireFragmentKind RosterGridFrameFragment = "roster_grid_frame"
+liveUpdateWireFragmentKind RosterDayColumnsFragment = "roster_day_columns"
+liveUpdateWireFragmentKind RosterDayRailFragment = "roster_day_rail"
+liveUpdateWireFragmentKind RosterWageRailFragment = "roster_wage_rail"
+liveUpdateWireFragmentKind RosterSlotsGridFragment = "roster_slots_grid"
+liveUpdateWireFragmentKind RosterStaffPanelFragment = "roster_staff_panel"
+liveUpdateWireFragmentKind RosterDaySectionFragment {} = "roster_day_section"
+liveUpdateWireFragmentKind RosterRowFragment {} = "roster_row"
+liveUpdateWireFragmentKind LeaveRequestsContentFragment = "leave_requests_content"
+liveUpdateWireFragmentKind TimesheetToolbarFragment = "timesheet_toolbar"
+liveUpdateWireFragmentKind TimesheetDayColumnsFragment = "timesheet_day_columns"
+liveUpdateWireFragmentKind TimesheetDaySectionFragment {} = "timesheet_day_section"
+liveUpdateWireFragmentKind AdminVenueConfigFragment = "admin_venue_config"
+liveUpdateWireFragmentKind AdminInvitesFragment = "admin_invites"
+liveUpdateWireFragmentKind AdminExportsFragment = "admin_exports"
+liveUpdateWireFragmentKind AdminShiftTypesFragment = "admin_shift_types"
+liveUpdateWireFragmentKind AdminRosterGroupsFragment = "admin_roster_groups"
+liveUpdateWireFragmentKind AdminXeroFragment = "admin_xero"
+liveUpdateWireFragmentKind AdminXeroStaffMappingsFragment = "admin_xero_staff_mappings"
+liveUpdateWireFragmentKind AdminXeroPayItemsFragment = "admin_xero_pay_items"
+liveUpdateWireFragmentKind AdminXeroTimesheetsFragment = "admin_xero_timesheets"
+liveUpdateWireFragmentKind BillingStatusFragment = "billing_status"
+liveUpdateWireFragmentKind ProfileContentFragment = "profile_content"
+liveUpdateWireFragmentKind ProfileLeaveRequestsContentFragment = "profile_leave_requests_content"
+liveUpdateWireFragmentKind SupportAwardRatesSectionFragment = "support_award_rates_section"
+liveUpdateWireFragmentKind SupportPublicHolidaysSectionFragment = "support_public_holidays_section"
 
 data FocusedFieldProtectionConfig = FocusedFieldProtectionConfig
     { activeSelector    :: !Text

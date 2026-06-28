@@ -26,8 +26,10 @@ module Application.Helper.LiveUpdate.Runtime
     , currentLiveUpdateVersionWithBus
     , incrementLiveUpdateVersionWithBus
     , liveUpdateScopeKey
+    , liveUpdateScopeKind
     , liveUpdateScopeToWire
     , liveUpdateSourceClientId
+    , liveUpdateWireFragmentKind
     , liveUpdateWireFragmentToWire
     , newInMemoryLiveBus
     , registerLiveSubscription

@@ -29,8 +29,9 @@ import Application.Helper.LiveUpdate.Runtime (LiveUpdateBroadcastResult,
                                               broadcastLiveInvalidationDetailed,
                                               broadcastLiveInvalidationDetailedWithoutContext,
                                               coalesceLiveUpdateWireFragments,
-                                              liveUpdateSourceClientId)
-import qualified Application.Helper.LiveUpdate.Runtime as LiveRuntime
+                                              liveUpdateScopeKind,
+                                              liveUpdateSourceClientId,
+                                              liveUpdateWireFragmentKind)
 import Application.Support.LiveUpdates (supportLiveSurfaceDefinition)
 import Data.Coerce (coerce)
 import qualified Data.Map.Strict as Map
@@ -177,7 +178,7 @@ manifestDescriptorFromRegisteredSurface RegisteredLiveSurface { registeredSurfac
         { descriptorManifest = RegisteredLiveSurfaceManifest
             { surfaceFamily = definition.typedSurfaceFeature
             , scopeKinds = unique [liveUpdateScopeKind (unSurfaceScope (definition.typedSurfaceScope surfaceKey))]
-            , fragmentKinds = unique (map (liveFragmentKeyKind . (.fragmentKey)) (unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs definition surfaceKey (candidateFragments definition surfaceKey))))
+            , fragmentKinds = unique (map (liveUpdateWireFragmentKind . (.fragmentKey)) (unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs definition surfaceKey (candidateFragments definition surfaceKey))))
             , interactionSchema
             }
         }
@@ -205,50 +206,6 @@ sampleTimesheetSurfaceKey = TimesheetProjectionRequest 0 False False Nothing
 
 sampleRosterSurfaceKey :: RosterProjectionScope
 sampleRosterSurfaceKey = RosterProjectionScope (coerce sampleRosterGroupId) 0
-
-liveUpdateScopeKind :: LiveUpdateScope -> Text
-liveUpdateScopeKind RosterWeekScope {}        = "roster_week"
-liveUpdateScopeKind AdminVenueConfigScope {}  = "admin_venue_config"
-liveUpdateScopeKind AdminShiftTypesScope {}   = "admin_shift_types"
-liveUpdateScopeKind AdminRosterGroupsScope {} = "admin_roster_groups"
-liveUpdateScopeKind AdminInvitesScope {}      = "admin_invites"
-liveUpdateScopeKind AdminExportsScope {}      = "admin_exports"
-liveUpdateScopeKind AdminXeroScope {}         = "admin_xero"
-liveUpdateScopeKind BillingScope {}           = "billing"
-liveUpdateScopeKind LeaveRequestsScope {}     = "leave_requests"
-liveUpdateScopeKind TimesheetWeekScope {}     = "timesheet_week"
-liveUpdateScopeKind ProfileScope {}           = "profile"
-liveUpdateScopeKind SupportPlatformScope      = "support_platform"
-
-liveFragmentKeyKind :: LiveRuntime.LiveFragmentKey -> Text
-liveFragmentKeyKind LiveRuntime.RosterContentFragment = "roster_content"
-liveFragmentKeyKind LiveRuntime.RosterGridToolbarFragment = "roster_grid_toolbar"
-liveFragmentKeyKind LiveRuntime.RosterGridFrameFragment = "roster_grid_frame"
-liveFragmentKeyKind LiveRuntime.RosterDayColumnsFragment = "roster_day_columns"
-liveFragmentKeyKind LiveRuntime.RosterDayRailFragment = "roster_day_rail"
-liveFragmentKeyKind LiveRuntime.RosterWageRailFragment = "roster_wage_rail"
-liveFragmentKeyKind LiveRuntime.RosterSlotsGridFragment = "roster_slots_grid"
-liveFragmentKeyKind LiveRuntime.RosterStaffPanelFragment = "roster_staff_panel"
-liveFragmentKeyKind LiveRuntime.RosterDaySectionFragment {} = "roster_day_section"
-liveFragmentKeyKind LiveRuntime.RosterRowFragment {} = "roster_row"
-liveFragmentKeyKind LiveRuntime.LeaveRequestsContentFragment = "leave_requests_content"
-liveFragmentKeyKind LiveRuntime.TimesheetToolbarFragment = "timesheet_toolbar"
-liveFragmentKeyKind LiveRuntime.TimesheetDayColumnsFragment = "timesheet_day_columns"
-liveFragmentKeyKind LiveRuntime.TimesheetDaySectionFragment {} = "timesheet_day_section"
-liveFragmentKeyKind LiveRuntime.AdminVenueConfigFragment = "admin_venue_config"
-liveFragmentKeyKind LiveRuntime.AdminInvitesFragment = "admin_invites"
-liveFragmentKeyKind LiveRuntime.AdminExportsFragment = "admin_exports"
-liveFragmentKeyKind LiveRuntime.AdminShiftTypesFragment = "admin_shift_types"
-liveFragmentKeyKind LiveRuntime.AdminRosterGroupsFragment = "admin_roster_groups"
-liveFragmentKeyKind LiveRuntime.AdminXeroFragment = "admin_xero"
-liveFragmentKeyKind LiveRuntime.AdminXeroStaffMappingsFragment = "admin_xero_staff_mappings"
-liveFragmentKeyKind LiveRuntime.AdminXeroPayItemsFragment = "admin_xero_pay_items"
-liveFragmentKeyKind LiveRuntime.AdminXeroTimesheetsFragment = "admin_xero_timesheets"
-liveFragmentKeyKind LiveRuntime.BillingStatusFragment = "billing_status"
-liveFragmentKeyKind LiveRuntime.ProfileContentFragment = "profile_content"
-liveFragmentKeyKind LiveRuntime.ProfileLeaveRequestsContentFragment = "profile_leave_requests_content"
-liveFragmentKeyKind LiveRuntime.SupportAwardRatesSectionFragment = "support_award_rates_section"
-liveFragmentKeyKind LiveRuntime.SupportPublicHolidaysSectionFragment = "support_public_holidays_section"
 
 unique :: Eq a => [a] -> [a]
 unique = foldr (\value acc -> if value `elem` acc then acc else value : acc) []
