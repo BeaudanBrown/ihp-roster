@@ -1,6 +1,6 @@
 ---
 id: ir-vliw
-status: in_progress
+status: closed
 deps: [ir-hw6a]
 links: []
 created: 2026-06-28T12:23:42Z

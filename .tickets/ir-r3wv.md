@@ -1,6 +1,6 @@
 ---
 id: ir-r3wv
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-06-28T12:23:42Z
@@ -21,3 +21,9 @@ Implement in small commits: contract watcher integrated with dev lifecycle; sing
 
 frontend-contracts-watch is integrated with dev-start/status/stop; live surface registry duplication is reduced; stale/manual protocol paths are guarded or removed; frontend/type/Hspec checks pass.
 
+
+## Notes
+
+**2026-06-28T12:45:33Z**
+
+Implemented contract hot reload, registry catalog unification, kind-helper relocation, guard tests, and docs updates. Verified with frontend-check, focused hspec LiveSurface match, typecheck, doc drift, script syntax, and frontend TS/drift checks.
