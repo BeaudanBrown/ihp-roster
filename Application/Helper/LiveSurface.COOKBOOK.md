@@ -119,8 +119,16 @@ staticLiveFragmentDescriptor fragment wireKey targetId url dependencies
 
 For multi-fragment surfaces, declare one `staticLiveFragmentDescriptor` or
 `liveFragmentDescriptor` per feature-local fragment and let the descriptor lower
-them into default resync fragments and decorate selectors. If the surface has a
-typed interaction layer, attach it at the descriptor boundary:
+them into default resync fragments and decorate selectors. Eager rendering is the
+default load policy for every fragment. Opt into lazy rendering per fragment with
+`liveFragmentDescriptorWithLazyLoad`; use `liveFragmentDescriptorWithEagerLoad`
+to override a shared descriptor back to eager. Descriptor load policies lower
+into `FragmentContract`, so hand-written `TypedLiveSurfaceDefinition` values can
+use `fragmentContractWithLazyLoad`/`fragmentContractWithEagerLoad` at the same
+boundary.
+
+If the surface has a typed interaction layer, attach it at the descriptor
+boundary:
 
 ```haskell
 adminExampleDescriptor
@@ -133,6 +141,98 @@ adapter/full `TypedLiveSurfaceDefinition` where they need custom candidate
 fragments, containment, interaction capability, or legacy projection behavior.
 Keep projection as an implementation detail, not as the required live-surface
 abstraction.
+
+## Lazy Fragment Loading
+
+Use lazy loading for secondary or expensive fragments that are not required for
+the first meaningful page paint. Keep critical navigation, primary content,
+authoritative forms, and fragments needed above the fold eager unless profiling
+shows a better trade-off. Laziness is a **per-fragment policy**, not a separate
+HTMX helper path, so a surface can mix eager and lazy fragments in one typed
+surface definition.
+
+A lazy fragment still has the same feature-local enum, `FragmentContract`, target
+id, GET URL, live-update identity, protection policy, containment path, resource
+dependencies, and endpoint authorization as an eager fragment. The generic view
+helper `renderLiveSurfaceFragmentMount` reads that contract: `FragmentEager`
+returns the eager HTML unchanged, while `FragmentLazy` renders a placeholder root
+with the contract's target id and URL (`hx-get`, `hx-trigger`, `hx-target=this`,
+`hx-swap=outerHTML`). The fragment GET action must continue returning the real
+root node with the same id.
+
+Choose `LazyFragmentConfig` deliberately:
+
+- `lazyFragmentTrigger`: use `"load"` with a small delay for content that should
+  appear immediately after the shell, or `"revealed"`/HTMX intersection-style
+  triggers for below-the-fold content.
+- `lazyFragmentPlaceholderKind`: prefer the shared constants
+  `lazyFragmentPlaceholderPanel`, `lazyFragmentPlaceholderTable`,
+  `lazyFragmentPlaceholderList`, `lazyFragmentPlaceholderSpinner`, or
+  `lazyFragmentPlaceholderCustom` so placeholders use shared markup/styles.
+- `lazyFragmentAccessibleLabel`: describe the region being loaded, e.g.
+  `"Loading roster staff panel"`.
+- `lazyFragmentClasses`: include any layout classes that the real fragment root
+  contributes, so the placeholder occupies the same grid/column space.
+- `lazyFragmentDelayMs`: use only to defer non-critical work behind the initial
+  shell; keep it short and measured.
+
+Example descriptor opt-in:
+
+```haskell
+staticLiveFragmentDescriptor fragment wireKey targetId url dependencies
+    |> liveFragmentDescriptorWithLazyLoad LazyFragmentConfig
+        { lazyFragmentTrigger = "load"
+        , lazyFragmentPlaceholderKind = lazyFragmentPlaceholderPanel
+        , lazyFragmentAccessibleLabel = "Loading example panel"
+        , lazyFragmentClasses = ["col-12", "col-xl-4"]
+        , lazyFragmentDelayMs = Just 50
+        }
+```
+
+Example hand-written typed contract opt-in, used by the roster staff panel:
+
+```haskell
+mkSurfaceFragmentContract (rosterFragmentRef scope RosterProjectionStaffPanel) dependencies
+    |> fragmentContractWithLazyLoad rosterStaffPanelLazyConfig
+```
+
+Then render the page location through the generic helper instead of manually
+choosing between eager/lazy paths:
+
+```haskell
+renderLiveSurfaceFragmentMount definition scope fragment eagerHtml
+```
+
+For unloaded fragments, passive live invalidations remain safe because the
+placeholder uses the same target id and authoritative URL. A passive invalidation
+may refetch and replace the placeholder before its lazy trigger fires; that is
+acceptable and should not require feature-specific JavaScript. Failed lazy HTMX
+requests are handled by the shared live-update runtime with
+`.app-lazy-surface-error` and retry markup. Do not add per-feature retry code.
+
+Before adopting laziness, capture or at least inspect the baseline expensive
+render path. After adoption, verify the initial page response, lazy fragment GET,
+live invalidation path, and retry behavior. Useful commands:
+
+```bash
+bash ./bin/in-env typecheck
+bash ./bin/in-env hspec-test --match "LiveSurface"
+bash ./bin/in-env frontend-test
+bash ./bin/in-env e2e e2e/roster-live-fragments.spec.ts
+bash ./bin/in-env ./bin/style-audit
+```
+
+For performance work use the profile tooling and keep artifacts/notes on the
+relevant ticket:
+
+```bash
+bash ./bin/in-env profile-load --scenario=roster-wide --rate=1 --duration=5s
+```
+
+Record initial page response time/bytes, the lazy fragment response time/bytes,
+failed request count, and any remaining bottleneck. If profiling is blocked by
+local environment issues, leave the measurement ticket open with the failed
+artifact path rather than claiming a timing improvement.
 
 ## Add A Fragment
 

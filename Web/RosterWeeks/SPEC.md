@@ -117,6 +117,12 @@ lands.
 - `#roster-staff-panel-fragment` is a sibling side-panel fragment. Broad roster
   week refreshes may request content and staff panel together because their
   containment paths are siblings.
+- The manager staff panel is lazy-loaded from the typed live fragment contract:
+  the full roster shell renders the shared lazy placeholder with the staff panel
+  target id and `ShowRosterWeekStaffPanelFragmentAction` URL, then HTMX replaces
+  it with the authoritative fragment. The fragment endpoint remains the same
+  permission-checked source of truth and must keep returning the root node with
+  id `roster-staff-panel-fragment`.
 - Day and row fragments remain descendants of `#roster-content`; when a parent
   content refresh is selected, actor/passive planning drops overlapping day or
   row refs.

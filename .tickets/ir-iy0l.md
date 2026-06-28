@@ -1,6 +1,6 @@
 ---
 id: ir-iy0l
-status: open
+status: closed
 deps: [ir-fvq6]
 links: []
 created: 2026-06-28T12:17:09Z
@@ -22,3 +22,9 @@ Update the nearest living docs/specs for live surfaces and observability as appr
 
 A new agent can implement another lazy fragment by following docs; docs state that eager is default and lazy is a descriptor policy; docs mention verification commands and profile tooling.
 
+
+## Notes
+
+**2026-06-28T13:14:04Z**
+
+Documented lazy live fragment policy in LiveSurface cookbook, LiveUpdate spec, and roster spec, including eager default, descriptor/contract opt-in helpers, trigger/placeholder choices, authoritative endpoint requirements, live invalidation behavior, retry handling, and verification/profile commands. Verification: doc-drift-check passed.

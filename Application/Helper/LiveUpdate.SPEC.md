@@ -51,8 +51,12 @@ A surface owns:
 Each fragment is declared through `typedSurfaceFragmentContract`, usually by
 building a `FragmentContract` with `mkSurfaceFragmentContract`. The contract is
 the single source for the fragment ref (`targetId`, URL, protection policy, and
-containment path) and dependency intent. Use `liveFragmentDependsOn` when a
-fragment is passively invalidated by semantic `LiveResource` changes, and use
+containment path), dependency intent, and load policy. Fragments are eager by
+default. Use `liveFragmentDescriptorWithLazyLoad` on descriptor-based surfaces or
+`fragmentContractWithLazyLoad` on hand-written typed definitions when a
+secondary expensive fragment should render a shared lazy placeholder first and
+fetch the same authoritative GET URL on demand. Use `liveFragmentDependsOn` when
+a fragment is passively invalidated by semantic `LiveResource` changes, and use
 `liveFragmentResyncOnly` only for fragments that have no passive resource
 subscription and are refreshed by resync or actor paths.
 
@@ -118,6 +122,9 @@ enforces this across `Web/` and feature `Application/` modules.
 - Focused-field protection is policy-driven. Do not hard-code feature selectors
   in the shared runtime.
 - Reconnect/version gaps should trigger configured resync fragments.
+- Lazy placeholders use the same target id and GET URL as the loaded fragment,
+  so live invalidations before the lazy trigger may safely replace the
+  placeholder with authorized server-rendered HTML.
 
 ## LiveBus Boundary
 

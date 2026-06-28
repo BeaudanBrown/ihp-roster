@@ -22,3 +22,9 @@ Run focused profile/OTel scenarios before and after implementation where possibl
 
 Artifacts or notes record before/after timings; expected initial roster response time/size improvement is demonstrated on the huge/profile dataset; no trace errors are introduced; any remaining bottlenecks are documented as follow-up tickets rather than hidden.
 
+
+## Notes
+
+**2026-06-28T13:12:28Z**
+
+Attempted measurement with roster_profile_run roster-wide (1 rps, 5s) but the profile run failed before serving roster requests because the current Haskell environment cannot load OpenTelemetry.* modules; latest failed artifact dir: output/profile-load/1782652131-2623154-16262. Leaving ticket open because before/after timings could not be captured.
