@@ -20,7 +20,7 @@ import Application.Helper.Telemetry (addTelemetryAttributes, addTelemetryEvent,
                                      withTelemetrySpan,
                                      withTelemetrySpanAttributes)
 import Control.Concurrent (ThreadId, myThreadId)
-import Control.Exception (bracket, evaluate)
+import Control.Exception (bracket, bracket_, evaluate)
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.Char as Char
 import Data.IORef
@@ -246,10 +246,10 @@ withRenderCounterScope :: (IORef (Map Text Int) -> IO a) -> IO a
 withRenderCounterScope action = do
     threadId <- myThreadId
     counterRef <- newIORef Map.empty
-    bracket
+    bracket_
         (atomicModifyIORef' activeRenderCounterRefs \refsByThread -> (Map.insertWith (<>) threadId [counterRef] refsByThread, ()))
-        (const $ atomicModifyIORef' activeRenderCounterRefs \refsByThread -> (removeRenderCounterRef threadId counterRef refsByThread, ()))
-        (const $ action counterRef)
+        (atomicModifyIORef' activeRenderCounterRefs \refsByThread -> (removeRenderCounterRef threadId counterRef refsByThread, ()))
+        (action counterRef)
 
 removeRenderCounterRef :: ThreadId -> IORef (Map Text Int) -> Map ThreadId [IORef (Map Text Int)] -> Map ThreadId [IORef (Map Text Int)]
 removeRenderCounterRef threadId counterRef refsByThread =
