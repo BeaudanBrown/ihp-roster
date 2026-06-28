@@ -29,6 +29,11 @@ executable App
   	ihp-mail,
     aeson,
   	base,
+    hs-opentelemetry-api,
+    hs-opentelemetry-exporter-otlp,
+    hs-opentelemetry-instrumentation-wai,
+    hs-opentelemetry-propagator-w3c,
+    hs-opentelemetry-sdk,
   	wai,
     process,
     text

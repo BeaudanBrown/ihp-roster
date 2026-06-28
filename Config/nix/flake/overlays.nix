@@ -7,6 +7,14 @@
                         --replace "Socket.tupleToHostAddress (127, 0, 0, 1)" "Socket.tupleToHostAddress (0, 0, 0, 0)"
                 '';
             });
+
+            # The published hs-opentelemetry-instrumentation-wai-0.1.1.0 Cabal
+            # file still bounds hs-opentelemetry-api ==0.2.*, while nixpkgs
+            # ships hs-opentelemetry-api-0.3.0.0. The source builds against
+            # 0.3.0.0 with the stale bound removed, so keep this local
+            # jailbreak until nixpkgs/Hackage carries a compatible release.
+            hs-opentelemetry-instrumentation-wai =
+                prev.haskell.lib.doJailbreak hprev.hs-opentelemetry-instrumentation-wai;
         });
 
         stripe-cli =

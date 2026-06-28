@@ -35,6 +35,11 @@
                         base
                         crypton
                         hourglass
+                        hs-opentelemetry-api
+                        hs-opentelemetry-exporter-otlp
+                        hs-opentelemetry-instrumentation-wai
+                        hs-opentelemetry-propagator-w3c
+                        hs-opentelemetry-sdk
                         http-conduit
                         ip
                         postgresql-simple
