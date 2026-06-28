@@ -1,6 +1,6 @@
 ---
 id: ir-9ykn
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-06-28T12:23:42Z
