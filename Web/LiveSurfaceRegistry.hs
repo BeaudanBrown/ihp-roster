@@ -92,6 +92,22 @@ data RegisteredLiveSurface where
         } ->
         RegisteredLiveSurface
 
+data RegisteredLiveSurfaceEntry
+    = SupportSurfaceEntry
+    | AdminVenueSettingsSurfaceEntry
+    | AdminInvitesSurfaceEntry
+    | AdminExportsSurfaceEntry
+    | AdminShiftTypesSurfaceEntry
+    | AdminRosterGroupsSurfaceEntry
+    | AdminXeroSurfaceEntry
+    | BillingSurfaceEntry
+    | LeaveRequestsSurfaceEntry
+    | ProfileContentSurfaceEntry
+    | ProfileLeaveRequestsSurfaceEntry
+    | TimesheetSurfaceEntry
+    | RosterSurfaceEntry
+    deriving (Eq, Show)
+
 data RegisteredLiveSurfaceDescriptor = RegisteredLiveSurfaceDescriptor
     { descriptorManifest :: !RegisteredLiveSurfaceManifest
     }
@@ -110,24 +126,40 @@ registeredLiveSurfaceManifest =
 
 registeredLiveSurfaceDescriptors :: [RegisteredLiveSurfaceDescriptor]
 registeredLiveSurfaceDescriptors =
-    fmap manifestDescriptorFromRegisteredSurface registeredLiveSurfaceManifestCatalog
+    fmap (manifestDescriptorFromRegisteredSurface . manifestSurfaceForEntry) registeredLiveSurfaceCatalog
 
-registeredLiveSurfaceManifestCatalog :: [RegisteredLiveSurface]
-registeredLiveSurfaceManifestCatalog =
-    [ registeredLiveSurface supportLiveSurfaceDefinition () BackgroundPlannable defaultCandidateFragments Nothing
-    , registeredLiveSurface (adminVenueSettingsLiveSurfaceDefinitionForVenue sampleVenueId) () BackgroundPlannable defaultCandidateFragments Nothing
-    , registeredLiveSurface (adminInvitesLiveSurfaceDefinitionForVenue sampleVenueId) AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing } BackgroundPlannable defaultCandidateFragments Nothing
-    , registeredLiveSurface (adminExportsLiveSurfaceDefinitionForVenue sampleVenueId) () RequestContextOnly defaultCandidateFragments Nothing
-    , registeredLiveSurface (adminShiftTypesLiveSurfaceDefinitionForVenue sampleVenueId) () RequestContextOnly defaultCandidateFragments Nothing
-    , registeredLiveSurface (adminRosterGroupsLiveSurfaceDefinitionForVenue sampleVenueId) () RequestContextOnly defaultCandidateFragments Nothing
-    , registeredLiveSurface (adminXeroLiveSurfaceDefinitionForVenue sampleVenueId) () BackgroundPlannable adminXeroManifestCandidateFragments Nothing
-    , registeredLiveSurface billingLiveSurfaceDefinition BillingSurfaceKey { billingSurfaceVenueId = sampleVenueId } BackgroundPlannable defaultCandidateFragments Nothing
-    , registeredLiveSurface (leaveRequestsLiveSurfaceDefinitionForVenue sampleVenueId) () RequestContextOnly defaultCandidateFragments Nothing
-    , registeredLiveSurface (profileContentLiveSurfaceDefinitionForVenue sampleVenueId) sampleProfileContentSurfaceKey RequestContextOnly profileContentCandidateFragments Nothing
-    , registeredLiveSurface (profileLeaveRequestsLiveSurfaceDefinitionForVenue sampleVenueId) sampleProfileLeaveSurfaceKey RequestContextOnly defaultCandidateFragments Nothing
-    , registeredLiveSurface (timesheetLiveSurfaceDefinitionForVenue sampleVenueId) sampleTimesheetSurfaceKey BackgroundPlannable (const timesheetLiveSurfaceCandidateFragments) Nothing
-    , registeredLiveSurface (rosterLiveSurfaceDefinitionForVenue sampleVenueId) sampleRosterSurfaceKey RequestContextOnly rosterManifestCandidateFragments (Just "roster")
+registeredLiveSurfaceCatalog :: [RegisteredLiveSurfaceEntry]
+registeredLiveSurfaceCatalog =
+    [ SupportSurfaceEntry
+    , AdminVenueSettingsSurfaceEntry
+    , AdminInvitesSurfaceEntry
+    , AdminExportsSurfaceEntry
+    , AdminShiftTypesSurfaceEntry
+    , AdminRosterGroupsSurfaceEntry
+    , AdminXeroSurfaceEntry
+    , BillingSurfaceEntry
+    , LeaveRequestsSurfaceEntry
+    , ProfileContentSurfaceEntry
+    , ProfileLeaveRequestsSurfaceEntry
+    , TimesheetSurfaceEntry
+    , RosterSurfaceEntry
     ]
+
+manifestSurfaceForEntry :: RegisteredLiveSurfaceEntry -> RegisteredLiveSurface
+manifestSurfaceForEntry = \case
+    SupportSurfaceEntry -> registeredLiveSurface supportLiveSurfaceDefinition () BackgroundPlannable defaultCandidateFragments Nothing
+    AdminVenueSettingsSurfaceEntry -> registeredLiveSurface (adminVenueSettingsLiveSurfaceDefinitionForVenue sampleVenueId) () BackgroundPlannable defaultCandidateFragments Nothing
+    AdminInvitesSurfaceEntry -> registeredLiveSurface (adminInvitesLiveSurfaceDefinitionForVenue sampleVenueId) AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing } BackgroundPlannable defaultCandidateFragments Nothing
+    AdminExportsSurfaceEntry -> registeredLiveSurface (adminExportsLiveSurfaceDefinitionForVenue sampleVenueId) () RequestContextOnly defaultCandidateFragments Nothing
+    AdminShiftTypesSurfaceEntry -> registeredLiveSurface (adminShiftTypesLiveSurfaceDefinitionForVenue sampleVenueId) () RequestContextOnly defaultCandidateFragments Nothing
+    AdminRosterGroupsSurfaceEntry -> registeredLiveSurface (adminRosterGroupsLiveSurfaceDefinitionForVenue sampleVenueId) () RequestContextOnly defaultCandidateFragments Nothing
+    AdminXeroSurfaceEntry -> registeredLiveSurface (adminXeroLiveSurfaceDefinitionForVenue sampleVenueId) () BackgroundPlannable adminXeroManifestCandidateFragments Nothing
+    BillingSurfaceEntry -> registeredLiveSurface billingLiveSurfaceDefinition BillingSurfaceKey { billingSurfaceVenueId = sampleVenueId } BackgroundPlannable defaultCandidateFragments Nothing
+    LeaveRequestsSurfaceEntry -> registeredLiveSurface (leaveRequestsLiveSurfaceDefinitionForVenue sampleVenueId) () RequestContextOnly defaultCandidateFragments Nothing
+    ProfileContentSurfaceEntry -> registeredLiveSurface (profileContentLiveSurfaceDefinitionForVenue sampleVenueId) sampleProfileContentSurfaceKey RequestContextOnly profileContentCandidateFragments Nothing
+    ProfileLeaveRequestsSurfaceEntry -> registeredLiveSurface (profileLeaveRequestsLiveSurfaceDefinitionForVenue sampleVenueId) sampleProfileLeaveSurfaceKey RequestContextOnly defaultCandidateFragments Nothing
+    TimesheetSurfaceEntry -> registeredLiveSurface (timesheetLiveSurfaceDefinitionForVenue sampleVenueId) sampleTimesheetSurfaceKey BackgroundPlannable (const timesheetLiveSurfaceCandidateFragments) Nothing
+    RosterSurfaceEntry -> registeredLiveSurface (rosterLiveSurfaceDefinitionForVenue sampleVenueId) sampleRosterSurfaceKey RequestContextOnly rosterManifestCandidateFragments (Just "roster")
 
 registeredLiveSurface ::
     TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
@@ -231,20 +263,23 @@ authorizeRegisteredLiveSurfaceScope scope = do
 
 registeredLiveSurfaceAuthorizationCatalog :: (?context :: ControllerContext) => [RegisteredLiveSurface]
 registeredLiveSurfaceAuthorizationCatalog =
-    [ registeredLiveSurface supportLiveSurfaceDefinition () BackgroundPlannable defaultCandidateFragments Nothing
-    , registeredLiveSurface adminVenueSettingsLiveSurfaceDefinition () BackgroundPlannable defaultCandidateFragments Nothing
-    , registeredLiveSurface adminInvitesLiveSurfaceDefinition AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing } BackgroundPlannable defaultCandidateFragments Nothing
-    , registeredLiveSurface adminExportsLiveSurfaceDefinition () RequestContextOnly defaultCandidateFragments Nothing
-    , registeredLiveSurface adminShiftTypesLiveSurfaceDefinition () RequestContextOnly defaultCandidateFragments Nothing
-    , registeredLiveSurface adminRosterGroupsLiveSurfaceDefinition () RequestContextOnly defaultCandidateFragments Nothing
-    , registeredLiveSurface adminXeroLiveSurfaceDefinition () BackgroundPlannable defaultCandidateFragments Nothing
-    , registeredLiveSurface billingLiveSurfaceDefinition BillingSurfaceKey { billingSurfaceVenueId = sampleVenueId } BackgroundPlannable defaultCandidateFragments Nothing
-    , registeredLiveSurface leaveRequestsLiveSurfaceDefinition () RequestContextOnly defaultCandidateFragments Nothing
-    , registeredLiveSurface profileContentLiveSurfaceDefinition sampleProfileContentSurfaceKey RequestContextOnly profileContentCandidateFragments Nothing
-    , registeredLiveSurface profileLeaveRequestsLiveSurfaceDefinition sampleProfileLeaveSurfaceKey RequestContextOnly defaultCandidateFragments Nothing
-    , registeredLiveSurface timesheetLiveSurfaceDefinition sampleTimesheetSurfaceKey BackgroundPlannable (const timesheetLiveSurfaceCandidateFragments) Nothing
-    , registeredLiveSurface rosterLiveSurfaceDefinition sampleRosterSurfaceKey RequestContextOnly defaultCandidateFragments (Just "roster")
-    ]
+    fmap authorizationSurfaceForEntry registeredLiveSurfaceCatalog
+
+authorizationSurfaceForEntry :: (?context :: ControllerContext) => RegisteredLiveSurfaceEntry -> RegisteredLiveSurface
+authorizationSurfaceForEntry = \case
+    SupportSurfaceEntry -> registeredLiveSurface supportLiveSurfaceDefinition () BackgroundPlannable defaultCandidateFragments Nothing
+    AdminVenueSettingsSurfaceEntry -> registeredLiveSurface adminVenueSettingsLiveSurfaceDefinition () BackgroundPlannable defaultCandidateFragments Nothing
+    AdminInvitesSurfaceEntry -> registeredLiveSurface adminInvitesLiveSurfaceDefinition AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing } BackgroundPlannable defaultCandidateFragments Nothing
+    AdminExportsSurfaceEntry -> registeredLiveSurface adminExportsLiveSurfaceDefinition () RequestContextOnly defaultCandidateFragments Nothing
+    AdminShiftTypesSurfaceEntry -> registeredLiveSurface adminShiftTypesLiveSurfaceDefinition () RequestContextOnly defaultCandidateFragments Nothing
+    AdminRosterGroupsSurfaceEntry -> registeredLiveSurface adminRosterGroupsLiveSurfaceDefinition () RequestContextOnly defaultCandidateFragments Nothing
+    AdminXeroSurfaceEntry -> registeredLiveSurface adminXeroLiveSurfaceDefinition () BackgroundPlannable defaultCandidateFragments Nothing
+    BillingSurfaceEntry -> registeredLiveSurface billingLiveSurfaceDefinition BillingSurfaceKey { billingSurfaceVenueId = sampleVenueId } BackgroundPlannable defaultCandidateFragments Nothing
+    LeaveRequestsSurfaceEntry -> registeredLiveSurface leaveRequestsLiveSurfaceDefinition () RequestContextOnly defaultCandidateFragments Nothing
+    ProfileContentSurfaceEntry -> registeredLiveSurface profileContentLiveSurfaceDefinition sampleProfileContentSurfaceKey RequestContextOnly profileContentCandidateFragments Nothing
+    ProfileLeaveRequestsSurfaceEntry -> registeredLiveSurface profileLeaveRequestsLiveSurfaceDefinition sampleProfileLeaveSurfaceKey RequestContextOnly defaultCandidateFragments Nothing
+    TimesheetSurfaceEntry -> registeredLiveSurface timesheetLiveSurfaceDefinition sampleTimesheetSurfaceKey BackgroundPlannable (const timesheetLiveSurfaceCandidateFragments) Nothing
+    RosterSurfaceEntry -> registeredLiveSurface rosterLiveSurfaceDefinition sampleRosterSurfaceKey RequestContextOnly defaultCandidateFragments (Just "roster")
 
 planRegisteredLiveSurfaceInvalidations ::
     (?context :: ControllerContext) =>
@@ -292,36 +327,42 @@ requestContextSurfacesForScope :: (?context :: ControllerContext) => LiveUpdateS
 requestContextSurfacesForScope scope =
     case currentVenueOrNothing of
         Nothing -> []
-        Just _ ->
-            case scope of
-                AdminVenueConfigScope {} -> [registeredLiveSurface adminVenueSettingsLiveSurfaceDefinition () RequestContextOnly defaultCandidateFragments Nothing]
-                AdminExportsScope {} -> [registeredLiveSurface adminExportsLiveSurfaceDefinition () RequestContextOnly defaultCandidateFragments Nothing]
-                AdminShiftTypesScope {} -> [registeredLiveSurface adminShiftTypesLiveSurfaceDefinition () RequestContextOnly defaultCandidateFragments Nothing]
-                AdminRosterGroupsScope {} -> [registeredLiveSurface adminRosterGroupsLiveSurfaceDefinition () RequestContextOnly defaultCandidateFragments Nothing]
-                LeaveRequestsScope {} -> [registeredLiveSurface leaveRequestsLiveSurfaceDefinition () RequestContextOnly defaultCandidateFragments Nothing]
-                ProfileScope {} ->
-                    [ registeredLiveSurface profileContentLiveSurfaceDefinition sampleProfileContentSurfaceKey RequestContextOnly profileContentCandidateFragments Nothing
-                    , registeredLiveSurface profileLeaveRequestsLiveSurfaceDefinition sampleProfileLeaveSurfaceKey RequestContextOnly defaultCandidateFragments Nothing
-                    ]
-                RosterWeekScope {} -> [registeredLiveSurface rosterLiveSurfaceDefinition sampleRosterSurfaceKey RequestContextOnly defaultCandidateFragments (Just "roster")]
-                _ -> []
+        Just _ -> concatMap (`requestContextSurfaceForEntry` scope) registeredLiveSurfaceCatalog
+
+requestContextSurfaceForEntry :: (?context :: ControllerContext) => RegisteredLiveSurfaceEntry -> LiveUpdateScope -> [RegisteredLiveSurface]
+requestContextSurfaceForEntry entry scope =
+    case (entry, scope) of
+        (AdminVenueSettingsSurfaceEntry, AdminVenueConfigScope {}) -> [registeredLiveSurface adminVenueSettingsLiveSurfaceDefinition () RequestContextOnly defaultCandidateFragments Nothing]
+        (AdminExportsSurfaceEntry, AdminExportsScope {}) -> [registeredLiveSurface adminExportsLiveSurfaceDefinition () RequestContextOnly defaultCandidateFragments Nothing]
+        (AdminShiftTypesSurfaceEntry, AdminShiftTypesScope {}) -> [registeredLiveSurface adminShiftTypesLiveSurfaceDefinition () RequestContextOnly defaultCandidateFragments Nothing]
+        (AdminRosterGroupsSurfaceEntry, AdminRosterGroupsScope {}) -> [registeredLiveSurface adminRosterGroupsLiveSurfaceDefinition () RequestContextOnly defaultCandidateFragments Nothing]
+        (LeaveRequestsSurfaceEntry, LeaveRequestsScope {}) -> [registeredLiveSurface leaveRequestsLiveSurfaceDefinition () RequestContextOnly defaultCandidateFragments Nothing]
+        (ProfileContentSurfaceEntry, ProfileScope {}) -> [registeredLiveSurface profileContentLiveSurfaceDefinition sampleProfileContentSurfaceKey RequestContextOnly profileContentCandidateFragments Nothing]
+        (ProfileLeaveRequestsSurfaceEntry, ProfileScope {}) -> [registeredLiveSurface profileLeaveRequestsLiveSurfaceDefinition sampleProfileLeaveSurfaceKey RequestContextOnly defaultCandidateFragments Nothing]
+        (RosterSurfaceEntry, RosterWeekScope {}) -> [registeredLiveSurface rosterLiveSurfaceDefinition sampleRosterSurfaceKey RequestContextOnly defaultCandidateFragments (Just "roster")]
+        _ -> []
 
 backgroundPlannableSurfacesForScope :: LiveUpdateScope -> [RegisteredLiveSurface]
-backgroundPlannableSurfacesForScope = \case
-    SupportPlatformScope ->
-        [registeredLiveSurface supportLiveSurfaceDefinition () BackgroundPlannable defaultCandidateFragments Nothing]
-    BillingScope { venueId } ->
-        [registeredLiveSurface billingLiveSurfaceDefinition BillingSurfaceKey { billingSurfaceVenueId = venueId } BackgroundPlannable defaultCandidateFragments Nothing]
-    AdminInvitesScope { venueId } ->
-        [registeredLiveSurface (adminInvitesLiveSurfaceDefinitionForVenue venueId) AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing } BackgroundPlannable defaultCandidateFragments Nothing]
-    AdminVenueConfigScope { venueId } ->
-        [registeredLiveSurface (adminVenueSettingsLiveSurfaceDefinitionForVenue venueId) () BackgroundPlannable defaultCandidateFragments Nothing]
-    TimesheetWeekScope { venueId } ->
-        [registeredLiveSurface (timesheetLiveSurfaceDefinitionForVenue venueId) sampleTimesheetSurfaceKey BackgroundPlannable (const timesheetLiveSurfaceCandidateFragments) Nothing]
-    AdminXeroScope { venueId } ->
-        [registeredLiveSurface (adminXeroLiveSurfaceDefinitionForVenue venueId) () BackgroundPlannable defaultCandidateFragments Nothing]
-    _ ->
-        []
+backgroundPlannableSurfacesForScope scope =
+    concatMap (`backgroundPlannableSurfaceForEntry` scope) registeredLiveSurfaceCatalog
+
+backgroundPlannableSurfaceForEntry :: RegisteredLiveSurfaceEntry -> LiveUpdateScope -> [RegisteredLiveSurface]
+backgroundPlannableSurfaceForEntry entry scope =
+    case (entry, scope) of
+        (SupportSurfaceEntry, SupportPlatformScope) ->
+            [registeredLiveSurface supportLiveSurfaceDefinition () BackgroundPlannable defaultCandidateFragments Nothing]
+        (BillingSurfaceEntry, BillingScope { venueId }) ->
+            [registeredLiveSurface billingLiveSurfaceDefinition BillingSurfaceKey { billingSurfaceVenueId = venueId } BackgroundPlannable defaultCandidateFragments Nothing]
+        (AdminInvitesSurfaceEntry, AdminInvitesScope { venueId }) ->
+            [registeredLiveSurface (adminInvitesLiveSurfaceDefinitionForVenue venueId) AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing } BackgroundPlannable defaultCandidateFragments Nothing]
+        (AdminVenueSettingsSurfaceEntry, AdminVenueConfigScope { venueId }) ->
+            [registeredLiveSurface (adminVenueSettingsLiveSurfaceDefinitionForVenue venueId) () BackgroundPlannable defaultCandidateFragments Nothing]
+        (TimesheetSurfaceEntry, TimesheetWeekScope { venueId }) ->
+            [registeredLiveSurface (timesheetLiveSurfaceDefinitionForVenue venueId) sampleTimesheetSurfaceKey BackgroundPlannable (const timesheetLiveSurfaceCandidateFragments) Nothing]
+        (AdminXeroSurfaceEntry, AdminXeroScope { venueId }) ->
+            [registeredLiveSurface (adminXeroLiveSurfaceDefinitionForVenue venueId) () BackgroundPlannable defaultCandidateFragments Nothing]
+        _ ->
+            []
 
 defaultCandidateFragments ::
     TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
