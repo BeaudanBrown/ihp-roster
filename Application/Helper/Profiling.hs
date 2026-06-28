@@ -5,6 +5,8 @@ module Application.Helper.Profiling
     , initRequestProfiling
     , isRequestProfilingEnabled
     , profileActionSpan
+    , profileActionSpanPrefixed
+    , profileActionSpanPrefixedWithDetail
     , profileActionSpanWithDetail
     , profileCounter
     , profileHtmlComponent
@@ -98,6 +100,14 @@ initRequestProfiling = do
 profileActionSpan :: (?context :: ControllerContext) => Text -> IO a -> IO a
 profileActionSpan name action =
     profileActionSpanWithDetail name (fmap (, Nothing) action)
+
+profileActionSpanPrefixed :: (?context :: ControllerContext) => Text -> Text -> IO a -> IO a
+profileActionSpanPrefixed prefix name =
+    profileActionSpan (prefix <> "." <> name)
+
+profileActionSpanPrefixedWithDetail :: (?context :: ControllerContext) => Text -> Text -> IO (a, Maybe Text) -> IO a
+profileActionSpanPrefixedWithDetail prefix name =
+    profileActionSpanWithDetail (prefix <> "." <> name)
 
 profileCounter :: (?context :: ControllerContext) => Text -> Int -> IO ()
 profileCounter name amount = do
