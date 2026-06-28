@@ -26,30 +26,33 @@ instance Controller LeaveRequestsController where
         ensureIsUser
         ensureCurrentVenueOrSupportRedirect
 
-    action LeaveRequestsAction = do
-        ensureProfileCompleted
-        ensureManagerRole
-        renderProfiled . leaveRequestsIndexView =<< fetchLeaveRequestsProjectionCached
+    action LeaveRequestsAction =
+        profileActionSpan "leave.page.render" do
+            ensureProfileCompleted
+            ensureManagerRole
+            projection <- profileActionSpan "leave.page.fetch_projection" fetchLeaveRequestsProjectionCached
+            profileActionSpan "leave.page.render_response" (renderProfiled (leaveRequestsIndexView projection))
 
-    action ShowLeaveRequestsContentFragmentAction = do
-        ensureProfileCompleted
-        ensureManagerRole
-        if paramOrDefault @Text "" "swapOob" == "true"
-            then do
-                projection <- fetchLeaveRequestsProjectionCached
-                respondHtmlProfiled $
-                    renderArchivePageContentOob
-                        projection.leaveProjectionRequests
-                        projection.leaveProjectionStaffMembers
-                        projection.leaveProjectionCurrentViewerStaffId
-                        projection.leaveProjectionToday
-                        currentLeaveArchivePage
-            else do
-                serveTypedLiveFragment leaveRequestsLiveSurfaceDefinition () LeaveRequestsProjectionContent \_ -> do
-                    maybeHtml <- renderLeaveRequestsProjectionFragment LeaveRequestsProjectionContent
-                    when (isNothing maybeHtml) do
-                        TextIO.putStrLn "leave_projection_miss: fragment=content"
-                    respondHtmlProfiled (fromMaybe mempty maybeHtml)
+    action ShowLeaveRequestsContentFragmentAction =
+        profileActionSpan "leave.fragment.respond" do
+            ensureProfileCompleted
+            ensureManagerRole
+            if paramOrDefault @Text "" "swapOob" == "true"
+                then do
+                    projection <- profileActionSpan "leave.fragment.fetch_projection" fetchLeaveRequestsProjectionCached
+                    respondHtmlProfiled $
+                        renderArchivePageContentOob
+                            projection.leaveProjectionRequests
+                            projection.leaveProjectionStaffMembers
+                            projection.leaveProjectionCurrentViewerStaffId
+                            projection.leaveProjectionToday
+                            currentLeaveArchivePage
+                else do
+                    serveTypedLiveFragment leaveRequestsLiveSurfaceDefinition () LeaveRequestsProjectionContent \_ -> do
+                        maybeHtml <- profileActionSpan "leave.fragment.render" (renderLeaveRequestsProjectionFragment LeaveRequestsProjectionContent)
+                        when (isNothing maybeHtml) do
+                            TextIO.putStrLn "leave_projection_miss: fragment=content"
+                        respondHtmlProfiled (fromMaybe mempty maybeHtml)
 
     action NewLeaveRequestAction = do
         ensureStaffSelfServiceAccess

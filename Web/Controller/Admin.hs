@@ -147,31 +147,33 @@ instance Controller AdminController where
         ensureProfileCompleted
         ensureAdminRole
 
-    action AdminAction = do
-        _ <- ensureAdminRosterGroupsNormalizedMutation
-        rosterGroups <- fetchCurrentVenueRosterGroups
-        currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
-        shiftTypes <- fetchCurrentVenueShiftTypes
-        venueConfig <- fetchVenueConfig
-        awardLevels <- fetchActiveAwardLevels
-        awardLevelBaseRates <- fetchCurrentAwardLevelBaseRates
-        importedPayItems <- fetchActiveImportedXeroPayItems
-        currentWeekOffset <- currentReportWeekOffset
-        reportWeekSelection <- fetchReportWeekSelection currentWeekOffset
-        let defaultRangeStart = reportWeekSelection.weekStart
-        let defaultRangeEnd = reportWeekSelection.weekEnd
-        exportJobs <- fetchCurrentVenueExportJobs
-        let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
-        let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
-        invitations <- fetchCurrentVenueInvitations
-        today <- utctDay <$> getCurrentTime
-        render IndexView { .. }
+    action AdminAction =
+        profileActionSpan "admin.page.render" do
+            _ <- profileActionSpan "admin.page.normalize_roster_groups" ensureAdminRosterGroupsNormalizedMutation
+            rosterGroups <- profileActionSpan "admin.page.fetch_roster_groups" fetchCurrentVenueRosterGroups
+            currentRosterGroup <- profileActionSpan "admin.page.resolve_current_group" (fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId"))
+            shiftTypes <- profileActionSpan "admin.page.fetch_shift_types" fetchCurrentVenueShiftTypes
+            venueConfig <- profileActionSpan "admin.page.fetch_venue_config" fetchVenueConfig
+            awardLevels <- profileActionSpan "admin.page.fetch_award_levels" fetchActiveAwardLevels
+            awardLevelBaseRates <- profileActionSpan "admin.page.fetch_award_rates" fetchCurrentAwardLevelBaseRates
+            importedPayItems <- profileActionSpan "admin.page.fetch_imported_pay_items" fetchActiveImportedXeroPayItems
+            currentWeekOffset <- profileActionSpan "admin.page.current_report_week" currentReportWeekOffset
+            reportWeekSelection <- profileActionSpan "admin.page.fetch_report_week_selection" (fetchReportWeekSelection currentWeekOffset)
+            let defaultRangeStart = reportWeekSelection.weekStart
+            let defaultRangeEnd = reportWeekSelection.weekEnd
+            exportJobs <- profileActionSpan "admin.page.fetch_export_jobs" fetchCurrentVenueExportJobs
+            let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
+            let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
+            invitations <- profileActionSpan "admin.page.fetch_invitations" fetchCurrentVenueInvitations
+            today <- utctDay <$> getCurrentTime
+            profileActionSpan "admin.page.render_response" (render IndexView { .. })
 
-    action XeroAction = do
-        redirectPermissionDeniedUnless currentUserCanManageXeroIntegration "Only the venue owner or a super admin can manage Xero for this venue."
-        let xeroAutoSyncAfterConnect = paramOrDefault @Text "false" "syncAfterConnect" == "true"
-        xeroSectionData <- fetchCurrentVenueXeroAdminSectionData
-        render XeroView { .. }
+    action XeroAction =
+        profileActionSpan "admin.xero.page.render" do
+            redirectPermissionDeniedUnless currentUserCanManageXeroIntegration "Only the venue owner or a super admin can manage Xero for this venue."
+            let xeroAutoSyncAfterConnect = paramOrDefault @Text "false" "syncAfterConnect" == "true"
+            xeroSectionData <- profileActionSpan "admin.xero.page.fetch_section_data" fetchCurrentVenueXeroAdminSectionData
+            profileActionSpan "admin.xero.page.render_response" (render XeroView { .. })
 
     action ProfileLiveInvalidateVenueAction = do
         profilingEnabled <- liftIO isRequestProfilingEnabled
@@ -335,44 +337,50 @@ instance Controller AdminController where
                                 respondToVenueSettingsMutation
 
     action ShowAdminVenueSettingsFragmentAction =
-        serveTypedLiveFragment adminVenueSettingsLiveSurfaceDefinition () adminVenueSettingsFragment \_ -> do
-            venueConfig <- fetchVenueConfig
-            respondHtml (renderVenueSettingsSectionFragment venueConfig)
+        profileActionSpan "admin.venue_settings_fragment.respond" do
+            serveTypedLiveFragment adminVenueSettingsLiveSurfaceDefinition () adminVenueSettingsFragment \_ -> do
+                venueConfig <- profileActionSpan "admin.venue_settings_fragment.fetch_venue_config" fetchVenueConfig
+                profileActionSpan "admin.venue_settings_fragment.render_response" (respondHtml (renderVenueSettingsSectionFragment venueConfig))
 
-    action ShowAdminInvitesFragmentAction = do
-        currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
-        serveTypedLiveFragment adminInvitesLiveSurfaceDefinition AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Just currentRosterGroup.id } adminInvitesFragment \_ -> do
-            invitations <- fetchCurrentVenueInvitations
-            respondHtml (renderInvitesSectionFragment invitations currentRosterGroup.id)
+    action ShowAdminInvitesFragmentAction =
+        profileActionSpan "admin.invites_fragment.respond" do
+            currentRosterGroup <- profileActionSpan "admin.invites_fragment.resolve_current_group" (fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId"))
+            serveTypedLiveFragment adminInvitesLiveSurfaceDefinition AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Just currentRosterGroup.id } adminInvitesFragment \_ -> do
+                invitations <- profileActionSpan "admin.invites_fragment.fetch_invitations" fetchCurrentVenueInvitations
+                profileActionSpan "admin.invites_fragment.render_response" (respondHtml (renderInvitesSectionFragment invitations currentRosterGroup.id))
 
     action ShowAdminShiftTypesFragmentAction =
-        serveTypedLiveFragment adminShiftTypesLiveSurfaceDefinition () adminShiftTypesFragment \_ -> do
-            shiftTypes <- fetchCurrentVenueShiftTypes
-            awardLevels <- fetchActiveAwardLevels
-            awardLevelBaseRates <- fetchCurrentAwardLevelBaseRates
-            importedPayItems <- fetchActiveImportedXeroPayItems
-            let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
-            respondHtml (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates importedPayItems)
+        profileActionSpan "admin.shift_types_fragment.respond" do
+            serveTypedLiveFragment adminShiftTypesLiveSurfaceDefinition () adminShiftTypesFragment \_ -> do
+                shiftTypes <- profileActionSpan "admin.shift_types_fragment.fetch_shift_types" fetchCurrentVenueShiftTypes
+                awardLevels <- profileActionSpan "admin.shift_types_fragment.fetch_award_levels" fetchActiveAwardLevels
+                awardLevelBaseRates <- profileActionSpan "admin.shift_types_fragment.fetch_award_rates" fetchCurrentAwardLevelBaseRates
+                importedPayItems <- profileActionSpan "admin.shift_types_fragment.fetch_imported_pay_items" fetchActiveImportedXeroPayItems
+                let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
+                profileActionSpan "admin.shift_types_fragment.render_response" (respondHtml (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates importedPayItems))
 
     action ShowAdminRosterGroupsFragmentAction =
-        serveTypedLiveFragment adminRosterGroupsLiveSurfaceDefinition () adminRosterGroupsFragment \_ -> do
-            _ <- ensureAdminRosterGroupsNormalizedMutation
-            rosterGroups <- fetchCurrentVenueRosterGroups
-            let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
-            respondHtml (renderRosterGroupsSectionFragment rosterGroups showInactiveRosterGroups)
+        profileActionSpan "admin.roster_groups_fragment.respond" do
+            serveTypedLiveFragment adminRosterGroupsLiveSurfaceDefinition () adminRosterGroupsFragment \_ -> do
+                _ <- profileActionSpan "admin.roster_groups_fragment.normalize_roster_groups" ensureAdminRosterGroupsNormalizedMutation
+                rosterGroups <- profileActionSpan "admin.roster_groups_fragment.fetch_roster_groups" fetchCurrentVenueRosterGroups
+                let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
+                profileActionSpan "admin.roster_groups_fragment.render_response" (respondHtml (renderRosterGroupsSectionFragment rosterGroups showInactiveRosterGroups))
 
     action ShowAdminExportsFragmentAction =
-        serveTypedLiveFragment adminExportsLiveSurfaceDefinition () adminExportsFragment \_ -> do
-            currentWeekOffset <- currentReportWeekOffset
-            reportWeekSelection <- fetchReportWeekSelection currentWeekOffset
-            let defaultRangeStart = reportWeekSelection.weekStart
-            let defaultRangeEnd = reportWeekSelection.weekEnd
-            exportJobs <- fetchCurrentVenueExportJobs
-            respondHtml (renderExportsSectionFragment reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs)
+        profileActionSpan "admin.exports_fragment.respond" do
+            serveTypedLiveFragment adminExportsLiveSurfaceDefinition () adminExportsFragment \_ -> do
+                currentWeekOffset <- profileActionSpan "admin.exports_fragment.current_report_week" currentReportWeekOffset
+                reportWeekSelection <- profileActionSpan "admin.exports_fragment.fetch_report_week_selection" (fetchReportWeekSelection currentWeekOffset)
+                let defaultRangeStart = reportWeekSelection.weekStart
+                let defaultRangeEnd = reportWeekSelection.weekEnd
+                exportJobs <- profileActionSpan "admin.exports_fragment.fetch_export_jobs" fetchCurrentVenueExportJobs
+                profileActionSpan "admin.exports_fragment.render_response" (respondHtml (renderExportsSectionFragment reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs))
 
     action ShowAdminXeroFragmentAction =
-        serveTypedLiveFragment adminXeroLiveSurfaceDefinition () adminXeroShellFragment \_ ->
-            requireCurrentVenueOwnerForXero respondWithXeroSectionFragment
+        profileActionSpan "admin.xero_fragment.respond" do
+            serveTypedLiveFragment adminXeroLiveSurfaceDefinition () adminXeroShellFragment \_ ->
+                requireCurrentVenueOwnerForXero respondWithXeroSectionFragment
 
     action ShowAdminXeroStaffMappingsFragmentAction =
         serveTypedLiveFragment adminXeroLiveSurfaceDefinition () adminXeroStaffMappingsFragment \_ ->

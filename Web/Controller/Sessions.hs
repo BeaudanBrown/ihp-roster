@@ -3,7 +3,9 @@ module Web.Controller.Sessions where
 import Application.Helper.Audit (recordUserAuthenticationAuditEvent)
 import Application.Helper.EmailVerification (findActiveVerificationTokenByToken,
                                              sendEmailVerification)
-import Application.Helper.Profiling (isRequestProfilingEnabled)
+import Application.Helper.Profiling (isRequestProfilingEnabled,
+                                     profileActionSpan)
+import Control.Exception (evaluate)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import IHP.AuthSupport.Authentication (verifyPassword)
@@ -33,79 +35,88 @@ instance Controller SessionsController where
         pendingVerificationEmail <- getSessionAndClear pendingVerificationEmailSessionKey
         render NewView { .. }
 
-    action CreateSessionAction = do
-        let submittedEmail = param @Text "email"
-        query @User
-            |> filterWhereCaseInsensitive (#email, submittedEmail)
-            |> fetchOneOrNothing
-            >>= \case
-                Just user -> do
-                    isLocked <- Lockable.isLocked user
-                    when isLocked do
-                        void $
-                            recordUserAuthenticationAuditEvent
-                                user
-                                "login_blocked"
-                                (Aeson.object
-                                    [ "authMethod" Aeson..= ("password" :: Text)
-                                    , "email" Aeson..= submittedEmail
-                                    , "reason" Aeson..= ("locked" :: Text)
-                                    ]
-                                )
-                        setErrorMessage "User is locked"
-                        redirectTo NewSessionAction
-
-                    if verifyPassword user (param @Text "password")
-                        then do
-                            Sessions.beforeLogin user
-                            LoginSupport.login user
-                            clearCurrentUserPasskeyVerification
-                            _ <- user
-                                |> set #failedLoginAttempts 0
-                                |> updateRecord
-                            void $
-                                recordUserAuthenticationAuditEvent
-                                    user
-                                    "login_succeeded"
-                                    (Aeson.object
-                                        [ "authMethod" Aeson..= ("password" :: Text)
-                                        , "email" Aeson..= submittedEmail
-                                        ]
-                                    )
-                            passkeyCount <-
-                                query @Passkey
-                                    |> filterWhere (#userId, unpackId (get #id user))
-                                    |> fetchCount
-                            markProfilingSessionPasskeyVerifiedIfSeeded user passkeyCount
-                            setSession passkeySetupPromptSessionKey
-                                if passkeyCount == 0
-                                    then ("first-passkey" :: Text)
-                                    else ("additional-device" :: Text)
-                            redirectUrl <- getSessionAndClear "IHP.LoginSupport.redirectAfterLogin"
-                            defaultRedirectPath <- defaultLoginRedirectPath user
-                            redirectToPath (fromMaybe defaultRedirectPath redirectUrl)
-                        else do
-                            setErrorMessage "Invalid Credentials"
-                            user' <- user
-                                |> incrementField #failedLoginAttempts
-                                |> updateRecord
-                            void $
-                                recordUserAuthenticationAuditEvent
-                                    user'
-                                    "login_failed"
-                                    (Aeson.object
-                                        [ "authMethod" Aeson..= ("password" :: Text)
-                                        , "email" Aeson..= submittedEmail
-                                        , "failedLoginAttempts" Aeson..= user'.failedLoginAttempts
-                                        ]
-                                    )
-                            when (user'.failedLoginAttempts >= Sessions.maxFailedLoginAttempts user') do
-                                Lockable.lock user'
-                                pure ()
+    action CreateSessionAction =
+        profileActionSpan "auth.password_login" do
+            let submittedEmail = param @Text "email"
+            profileActionSpan "auth.password_login.find_user"
+                ( query @User
+                    |> filterWhereCaseInsensitive (#email, submittedEmail)
+                    |> fetchOneOrNothing
+                )
+                >>= \case
+                    Just user -> do
+                        isLocked <- profileActionSpan "auth.password_login.check_lock" (Lockable.isLocked user)
+                        when isLocked do
+                            profileActionSpan "auth.password_login.audit_blocked" $
+                                void $
+                                    recordUserAuthenticationAuditEvent
+                                        user
+                                        "login_blocked"
+                                        (Aeson.object
+                                            [ "authMethod" Aeson..= ("password" :: Text)
+                                            , "email" Aeson..= submittedEmail
+                                            , "reason" Aeson..= ("locked" :: Text)
+                                            ]
+                                        )
+                            setErrorMessage "User is locked"
                             redirectTo NewSessionAction
-                Nothing -> do
-                    setErrorMessage "Invalid Credentials"
-                    redirectTo NewSessionAction
+
+                        passwordMatches <- profileActionSpan "auth.password_login.verify_password" (evaluate (verifyPassword user (param @Text "password")))
+                        if passwordMatches
+                            then do
+                                profileActionSpan "auth.password_login.before_login" (Sessions.beforeLogin user)
+                                profileActionSpan "auth.password_login.create_session" (LoginSupport.login user)
+                                clearCurrentUserPasskeyVerification
+                                _ <- profileActionSpan "auth.password_login.reset_failed_attempts" $
+                                    user
+                                        |> set #failedLoginAttempts 0
+                                        |> updateRecord
+                                profileActionSpan "auth.password_login.audit_succeeded" $
+                                    void $
+                                        recordUserAuthenticationAuditEvent
+                                            user
+                                            "login_succeeded"
+                                            (Aeson.object
+                                                [ "authMethod" Aeson..= ("password" :: Text)
+                                                , "email" Aeson..= submittedEmail
+                                                ]
+                                            )
+                                passkeyCount <- profileActionSpan "auth.password_login.fetch_passkey_count" $
+                                    query @Passkey
+                                        |> filterWhere (#userId, unpackId (get #id user))
+                                        |> fetchCount
+                                markProfilingSessionPasskeyVerifiedIfSeeded user passkeyCount
+                                setSession passkeySetupPromptSessionKey
+                                    if passkeyCount == 0
+                                        then ("first-passkey" :: Text)
+                                        else ("additional-device" :: Text)
+                                redirectUrl <- getSessionAndClear "IHP.LoginSupport.redirectAfterLogin"
+                                defaultRedirectPath <- profileActionSpan "auth.password_login.default_redirect" (defaultLoginRedirectPath user)
+                                redirectToPath (fromMaybe defaultRedirectPath redirectUrl)
+                            else do
+                                setErrorMessage "Invalid Credentials"
+                                user' <- profileActionSpan "auth.password_login.increment_failed_attempts" $
+                                    user
+                                        |> incrementField #failedLoginAttempts
+                                        |> updateRecord
+                                profileActionSpan "auth.password_login.audit_failed" $
+                                    void $
+                                        recordUserAuthenticationAuditEvent
+                                            user'
+                                            "login_failed"
+                                            (Aeson.object
+                                                [ "authMethod" Aeson..= ("password" :: Text)
+                                                , "email" Aeson..= submittedEmail
+                                                , "failedLoginAttempts" Aeson..= user'.failedLoginAttempts
+                                                ]
+                                            )
+                                when (user'.failedLoginAttempts >= Sessions.maxFailedLoginAttempts user') do
+                                    profileActionSpan "auth.password_login.lock_user" (Lockable.lock user')
+                                    pure ()
+                                redirectTo NewSessionAction
+                    Nothing -> do
+                        setErrorMessage "Invalid Credentials"
+                        redirectTo NewSessionAction
 
     action DeleteSessionAction = Sessions.deleteSessionAction @User
 

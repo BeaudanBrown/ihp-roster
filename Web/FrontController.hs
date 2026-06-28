@@ -4,7 +4,7 @@ import Application.Helper.Controller (currentUserIsSuperAdmin,
                                       currentVenueSessionKey)
 import Application.Helper.Feedback (SupportUnreadFeedbackCount (..),
                                     fetchSupportUnreadFeedbackCount)
-import Application.Helper.Profiling (initRequestProfiling)
+import Application.Helper.Profiling (initRequestProfiling, profileActionSpan)
 import qualified Control.Exception as Exception
 import qualified Data.Text.IO as TextIO
 import IHP.Controller.Context (putContext)
@@ -77,9 +77,10 @@ instance InitControllerContext WebApplication where
         initFeedbackContext
 
 initFeedbackContext :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
-initFeedbackContext = do
-    unreadCount <-
-        if currentUserIsSuperAdmin
-            then fetchSupportUnreadFeedbackCount
-            else pure (SupportUnreadFeedbackCount 0)
-    putContext unreadCount
+initFeedbackContext =
+    profileActionSpan "context.feedback.init" do
+        unreadCount <-
+            if currentUserIsSuperAdmin
+                then profileActionSpan "context.feedback.fetch_support_unread_count" fetchSupportUnreadFeedbackCount
+                else pure (SupportUnreadFeedbackCount 0)
+        putContext unreadCount

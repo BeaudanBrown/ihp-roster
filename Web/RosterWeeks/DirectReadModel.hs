@@ -47,66 +47,70 @@ data RosterBaseFacts = RosterBaseFacts
     }
 
 fetchRosterBaseFactsDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO (Maybe RosterBaseFacts)
-fetchRosterBaseFactsDirect rosterGroupId weekOffset = do
-    rosterGroupInVenue <- query @RosterGroup
-        |> filterWhere (#id, rosterGroupId)
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> fetchExists
-    if not rosterGroupInVenue
-        then pure Nothing
-        else do
-            _ <- profileActionSpan "roster.direct.ensure_week_exists" (ensureRosterWeekExists rosterGroupId weekOffset)
-            rosterWeekOrNothing <- query @RosterWeek
+fetchRosterBaseFactsDirect rosterGroupId weekOffset =
+    profileActionSpan "roster.direct.base_facts" do
+        rosterGroupInVenue <- profileActionSpan "roster.direct.validate_group_scope" do
+            query @RosterGroup
+                |> filterWhere (#id, rosterGroupId)
                 |> filterWhere (#venueId, unpackId currentVenueId)
-                |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
-                |> filterWhere (#weekOffset, weekOffset)
-                |> fetchOneOrNothing
-            case rosterWeekOrNothing of
-                Nothing -> pure Nothing
-                Just rosterWeek -> Just <$> fetchRosterBaseFactsForWeekDirect rosterGroupId rosterWeek
+                |> fetchExists
+        if not rosterGroupInVenue
+            then pure Nothing
+            else do
+                _ <- profileActionSpan "roster.direct.ensure_week_exists" (ensureRosterWeekExists rosterGroupId weekOffset)
+                rosterWeekOrNothing <- profileActionSpan "roster.direct.fetch_week" do
+                    query @RosterWeek
+                        |> filterWhere (#venueId, unpackId currentVenueId)
+                        |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
+                        |> filterWhere (#weekOffset, weekOffset)
+                        |> fetchOneOrNothing
+                case rosterWeekOrNothing of
+                    Nothing -> pure Nothing
+                    Just rosterWeek -> Just <$> fetchRosterBaseFactsForWeekDirect rosterGroupId rosterWeek
 
 fetchRosterBaseFactsForWeekDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> RosterWeek -> IO RosterBaseFacts
-fetchRosterBaseFactsForWeekDirect rosterGroupId rosterWeek = do
-    rosterDays <- profileActionSpan "roster.direct.fetch_days" do
-        query @RosterDay
-            |> filterWhere (#rosterWeekId, coerce (get #id rosterWeek))
-            |> orderBy #dayOffset
-            |> fetch
+fetchRosterBaseFactsForWeekDirect rosterGroupId rosterWeek =
+    profileActionSpan "roster.direct.base_facts_for_week" do
+        rosterDays <- profileActionSpan "roster.direct.fetch_days" do
+            query @RosterDay
+                |> filterWhere (#rosterWeekId, coerce (get #id rosterWeek))
+                |> orderBy #dayOffset
+                |> fetch
 
-    allSlots <- profileActionSpan "roster.direct.fetch_slots" do
-        sqlQuery
-            "SELECT roster_slots.* \
-            \FROM roster_slots \
-            \JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
-            \WHERE roster_days.roster_week_id = ? \
-            \AND roster_slots.deleted_at IS NULL \
-            \ORDER BY roster_days.day_offset, roster_slots.row_index, roster_slots.slot_sort_order, roster_slots.created_at"
-            (PG.Only (unpackId rosterWeek.id))
+        allSlots <- profileActionSpan "roster.direct.fetch_slots" do
+            sqlQuery
+                "SELECT roster_slots.* \
+                \FROM roster_slots \
+                \JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
+                \WHERE roster_days.roster_week_id = ? \
+                \AND roster_slots.deleted_at IS NULL \
+                \ORDER BY roster_days.day_offset, roster_slots.row_index, roster_slots.slot_sort_order, roster_slots.created_at"
+                (PG.Only (unpackId rosterWeek.id))
 
-    orderedSlotDefinitions <- profileActionSpan "roster.direct.fetch_slot_definitions" do
-        query @RosterWeekSlotDefinition
-            |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
-            |> filterWhere (#deletedAt, Nothing)
-            |> orderByAsc #sortOrder
-            |> orderByAsc #createdAt
-            |> fetch
+        orderedSlotDefinitions <- profileActionSpan "roster.direct.fetch_slot_definitions" do
+            query @RosterWeekSlotDefinition
+                |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+                |> filterWhere (#deletedAt, Nothing)
+                |> orderByAsc #sortOrder
+                |> orderByAsc #createdAt
+                |> fetch
 
-    let visibleSlots = filterVisibleRosterSlots rosterDays allSlots
-    eligibleStaffMembers <- profileActionSpan "roster.direct.fetch_eligible_staff" (fetchEligibleRosterGroupStaffDirect rosterGroupId)
-    assignedStaffMembers <- profileActionSpan "roster.direct.fetch_assigned_staff" (fetchAssignedRosterWeekStaff visibleSlots)
-    shiftTypes <- profileActionSpan "roster.direct.fetch_shift_types" fetchCurrentVenueRosterShiftTypesDirect
-    let staffMembers = nubBy (\left right -> left.id == right.id) (eligibleStaffMembers <> assignedStaffMembers)
-    pure RosterBaseFacts
-        { baseRosterWeek = rosterWeek
-        , baseRosterDays = rosterDays
-        , baseAllSlots = allSlots
-        , baseVisibleSlots = visibleSlots
-        , baseOrderedSlotDefinitions = orderedSlotDefinitions
-        , baseShiftTypes = shiftTypes
-        , baseEligibleStaff = eligibleStaffMembers
-        , baseAssignedStaff = assignedStaffMembers
-        , baseStaffMembers = staffMembers
-        }
+        let visibleSlots = filterVisibleRosterSlots rosterDays allSlots
+        eligibleStaffMembers <- profileActionSpan "roster.direct.fetch_eligible_staff" (fetchEligibleRosterGroupStaffDirect rosterGroupId)
+        assignedStaffMembers <- profileActionSpan "roster.direct.fetch_assigned_staff" (fetchAssignedRosterWeekStaff visibleSlots)
+        shiftTypes <- profileActionSpan "roster.direct.fetch_shift_types" fetchCurrentVenueRosterShiftTypesDirect
+        let staffMembers = nubBy (\left right -> left.id == right.id) (eligibleStaffMembers <> assignedStaffMembers)
+        pure RosterBaseFacts
+            { baseRosterWeek = rosterWeek
+            , baseRosterDays = rosterDays
+            , baseAllSlots = allSlots
+            , baseVisibleSlots = visibleSlots
+            , baseOrderedSlotDefinitions = orderedSlotDefinitions
+            , baseShiftTypes = shiftTypes
+            , baseEligibleStaff = eligibleStaffMembers
+            , baseAssignedStaff = assignedStaffMembers
+            , baseStaffMembers = staffMembers
+            }
 
 fetchEligibleRosterGroupStaffDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> IO [Staff]
 fetchEligibleRosterGroupStaffDirect rosterGroupId =

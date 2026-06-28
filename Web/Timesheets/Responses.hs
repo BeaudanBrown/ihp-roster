@@ -23,11 +23,12 @@ import Web.Timesheets.Projection
 import Web.View.Timesheets.Index
 
 respondWithTimesheetFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetProjectionRequest -> TimesheetProjectionFragment -> IO ()
-respondWithTimesheetFragment requestKey fragment = do
-    maybeHtml <- renderTimesheetProjectionFragment requestKey fragment
-    when (isNothing maybeHtml) do
-        TextIO.putStrLn ("timesheet_projection_miss: request=" <> tshow requestKey <> " fragment=" <> tshow fragment)
-    respondHtmlProfiled (fromMaybe mempty maybeHtml)
+respondWithTimesheetFragment requestKey fragment =
+    profileActionSpan "timesheets.fragment.respond" do
+        maybeHtml <- profileActionSpan "timesheets.fragment.render" (renderTimesheetProjectionFragment requestKey fragment)
+        when (isNothing maybeHtml) do
+            TextIO.putStrLn ("timesheet_projection_miss: request=" <> tshow requestKey <> " fragment=" <> tshow fragment)
+        respondHtmlProfiled (fromMaybe mempty maybeHtml)
 
 respondWithTimesheetFragments :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetProjectionRequest -> [TimesheetProjectionFragment] -> Blaze.Html -> IO ()
 respondWithTimesheetFragments requestKey fragments extraHtml =
@@ -39,10 +40,11 @@ respondWithTimesheetFragments requestKey fragments extraHtml =
         renderTimesheetProjectionFragmentFromProjection
 
 respondWithTimesheetWeekFragmentsUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Bool -> Bool -> Maybe UUID.UUID -> IO ()
-respondWithTimesheetWeekFragmentsUpdate weekOffset showApproved showAllStaff staffFilterId = do
-    let requestKey = TimesheetProjectionRequest weekOffset showApproved showAllStaff staffFilterId
-    setHtmxPushUrl (timesheetWeekUrl weekOffset showApproved showAllStaff staffFilterId)
-    respondWithTimesheetFragments requestKey [TimesheetProjectionToolbar, TimesheetProjectionDayColumns] mempty
+respondWithTimesheetWeekFragmentsUpdate weekOffset showApproved showAllStaff staffFilterId =
+    profileActionSpan "timesheets.page.fragments_update" do
+        let requestKey = TimesheetProjectionRequest weekOffset showApproved showAllStaff staffFilterId
+        setHtmxPushUrl (timesheetWeekUrl weekOffset showApproved showAllStaff staffFilterId)
+        respondWithTimesheetFragments requestKey [TimesheetProjectionToolbar, TimesheetProjectionDayColumns] mempty
 
 respondWithTimesheetDaySectionUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Day -> Bool -> Bool -> Maybe UUID.UUID -> Text -> Bool -> IO ()
 respondWithTimesheetDaySectionUpdate weekOffset workedOn showApproved showAllStaff staffFilterId successMessage closeDialog = do
@@ -76,10 +78,14 @@ respondWithTimesheetDateMoveUpdate weekOffset oldWorkedOn newWorkedOn showApprov
 
 renderTimesheetWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Int -> Bool -> Bool -> Maybe UUID.UUID -> IO ()
 renderTimesheetWeekPage weekOffset showApproved showAllStaff staffFilterId =
-    respondWithTimesheetWeekView . timesheetIndexView =<< fetchTimesheetWeekProjectionCached (TimesheetProjectionRequest weekOffset showApproved showAllStaff staffFilterId)
+    profileActionSpan "timesheets.page.render" do
+        projection <- profileActionSpan "timesheets.page.fetch_projection" (fetchTimesheetWeekProjectionCached requestKey)
+        profileActionSpan "timesheets.page.respond" (respondWithTimesheetWeekView (timesheetIndexView projection))
+    where
+        requestKey = TimesheetProjectionRequest weekOffset showApproved showAllStaff staffFilterId
 
 respondWithTimesheetWeekView :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => IndexView -> IO ()
 respondWithTimesheetWeekView indexView =
     if isHtmxRequest
         then respondWithTimesheetWeekFragmentsUpdate indexView.weekOffset indexView.showApproved indexView.showAllStaff indexView.selectedStaffFilterId
-        else renderProfiled indexView
+        else profileActionSpan "timesheets.page.render_response" (renderProfiled indexView)

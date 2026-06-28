@@ -13,6 +13,8 @@ import Web.Routes ()
 import Web.Types ()
 
 import Application.Helper.ControllerSupport
+import Application.Helper.Profiling (profileActionSpan)
+import Application.Helper.Telemetry (withTelemetrySpan)
 
 currentVenueSessionKey :: ByteString
 currentVenueSessionKey = "currentVenueId"
@@ -85,45 +87,49 @@ selectCurrentVenueMembership sessionVenueId memberships =
             Nothing         -> listToMaybe orderedMemberships
 
 initCurrentVenueContext :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
-initCurrentVenueContext = do
-    supportVenues <-
-        query @Venue
-            |> filterWhere (#status, unsafeEnumFromText @VenueStatusEnum "active")
-            |> orderByAsc #createdAt
-            |> fetch
+initCurrentVenueContext =
+    profileActionSpan "context.current_venue.init" do
+        supportVenues <-
+            profileActionSpan "context.current_venue.fetch_support_options" do
+                query @Venue
+                    |> filterWhere (#status, unsafeEnumFromText @VenueStatusEnum "active")
+                    |> orderByAsc #createdAt
+                    |> fetch
 
-    putContext (Nothing :: Maybe Venue)
-    putContext (Nothing :: Maybe VenueMembership)
-    putContext (Nothing :: Maybe VenueRole)
-    putContext (SupportVenueOptions supportVenues)
+        putContext (Nothing :: Maybe Venue)
+        putContext (Nothing :: Maybe VenueMembership)
+        putContext (Nothing :: Maybe VenueRole)
+        putContext (SupportVenueOptions supportVenues)
 
-    forM_ (currentUserOrNothing @User) \user -> do
-        sessionVenueId <- withRequestContext (getSession @(Id Venue) currentVenueSessionKey)
-        maybeVenueContext <- resolveVenueContextForUser sessionVenueId user
-        case maybeVenueContext of
-            Nothing -> withRequestContext (deleteSession currentVenueSessionKey)
-            Just (membership, venue, role) -> do
-                putContext (Just venue)
-                putContext membership
-                putContext role
-                withRequestContext (setSession currentVenueSessionKey (get #id venue))
+        forM_ (currentUserOrNothing @User) \user -> do
+            sessionVenueId <- withRequestContext (getSession @(Id Venue) currentVenueSessionKey)
+            maybeVenueContext <- profileActionSpan "context.current_venue.resolve_for_user" (resolveVenueContextForUser sessionVenueId user)
+            case maybeVenueContext of
+                Nothing -> withRequestContext (deleteSession currentVenueSessionKey)
+                Just (membership, venue, role) -> do
+                    putContext (Just venue)
+                    putContext membership
+                    putContext role
+                    withRequestContext (setSession currentVenueSessionKey (get #id venue))
 
 resolveVenueContextForUser :: (?modelContext :: ModelContext) => Maybe (Id Venue) -> User -> IO (Maybe (Maybe VenueMembership, Venue, Maybe VenueRole))
 resolveVenueContextForUser sessionVenueId user = do
-    memberships <- query @VenueMembership
-        |> filterWhere (#userId, unpackId (get #id user))
-        |> filterWhere (#isActive, True)
-        |> orderByAsc #createdAt
-        |> fetch
+    memberships <- withTelemetrySpan "context.current_venue.fetch_memberships" do
+        query @VenueMembership
+            |> filterWhere (#userId, unpackId (get #id user))
+            |> filterWhere (#isActive, True)
+            |> orderByAsc #createdAt
+            |> fetch
 
     let venueIds = map (Id . (.venueId)) memberships
     venues <-
-        if null venueIds
-            then pure []
-            else query @Venue
-                |> filterWhereIn (#id, venueIds)
-                |> filterWhere (#status, unsafeEnumFromText @VenueStatusEnum "active")
-                |> fetch
+        withTelemetrySpan "context.current_venue.fetch_member_venues" do
+            if null venueIds
+                then pure []
+                else query @Venue
+                    |> filterWhereIn (#id, venueIds)
+                    |> filterWhere (#status, unsafeEnumFromText @VenueStatusEnum "active")
+                    |> fetch
 
     let activeVenueIds = map (coerce . (.id)) venues
     let activeMemberships = filter (\membership -> membership.venueId `elem` activeVenueIds) memberships
@@ -136,10 +142,11 @@ resolveVenueContextForUser sessionVenueId user = do
 
     if user.platformRole == Just (platformRoleToEnum SuperAdminRole)
         then do
-            activeVenues <- query @Venue
-                |> filterWhere (#status, unsafeEnumFromText @VenueStatusEnum "active")
-                |> orderByAsc #createdAt
-                |> fetch
+            activeVenues <- withTelemetrySpan "context.current_venue.fetch_super_admin_venues" do
+                query @Venue
+                    |> filterWhere (#status, unsafeEnumFromText @VenueStatusEnum "active")
+                    |> orderByAsc #createdAt
+                    |> fetch
 
             let selectedVenue =
                     (sessionVenueId >>= \venueId -> find (\candidate -> get #id candidate == venueId) activeVenues)

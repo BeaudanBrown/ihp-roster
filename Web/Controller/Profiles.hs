@@ -4,6 +4,7 @@ import Application.Helper.LiveResource (LiveMutationResult (..))
 import Application.Helper.LiveSurface (serveTypedLiveFragment)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchCurrentUserLeaveRequests)
+import Application.Helper.Profiling (profileActionSpan)
 import Application.Helper.RosterGroups (fetchCurrentVenueRosterGroups,
                                         fetchStaffRosterGroupIds)
 import Application.Helper.StaffShiftPreferences
@@ -33,47 +34,50 @@ instance Controller ProfilesController where
         ensureCurrentVenue
         ensureStaffSelfServiceAccess
 
-    action EditProfileAction = do
-        maybeExistingStaff <- fetchCurrentUserStaff
-        let staff = fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff
-        let currentUserEmail = currentUser.email
-        let openSection = normalizeProfileOpenSection (paramOrDefault @Text "" "section")
-        (preferenceWeekdays, selectedShiftPreferences) <- profilePreferenceViewData maybeExistingStaff
-        passkeys <- fetchCurrentUserPasskeys
-        leaveRequests <- fetchCurrentUserLeaveRequests
-        leaveRequestForm <- buildDefaultLeaveRequest
-        staffRsaDocument <- maybe (pure Nothing) latestRsaDocumentForStaff maybeExistingStaff
-        staffManagementFields <- fetchProfileStaffManagementFields maybeExistingStaff Nothing
-        now <- getCurrentTime
-        let today = utctDay now
-        render EditView { .. }
+    action EditProfileAction =
+        profileActionSpan "profile.page.render" do
+            maybeExistingStaff <- profileActionSpan "profile.page.fetch_staff" fetchCurrentUserStaff
+            let staff = fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff
+            let currentUserEmail = currentUser.email
+            let openSection = normalizeProfileOpenSection (paramOrDefault @Text "" "section")
+            (preferenceWeekdays, selectedShiftPreferences) <- profileActionSpan "profile.page.fetch_preferences" (profilePreferenceViewData maybeExistingStaff)
+            passkeys <- profileActionSpan "profile.page.fetch_passkeys" fetchCurrentUserPasskeys
+            leaveRequests <- profileActionSpan "profile.page.fetch_leave_requests" fetchCurrentUserLeaveRequests
+            leaveRequestForm <- profileActionSpan "profile.page.build_leave_form" buildDefaultLeaveRequest
+            staffRsaDocument <- profileActionSpan "profile.page.fetch_rsa_document" (maybe (pure Nothing) latestRsaDocumentForStaff maybeExistingStaff)
+            staffManagementFields <- profileActionSpan "profile.page.fetch_management_fields" (fetchProfileStaffManagementFields maybeExistingStaff Nothing)
+            now <- getCurrentTime
+            let today = utctDay now
+            profileActionSpan "profile.page.render_response" (render EditView { .. })
 
-    action ShowProfileLeaveRequestsContentFragmentAction = do
-        maybeExistingStaff <- fetchCurrentUserStaff
-        case maybeExistingStaff of
-            Nothing -> accessDeniedUnless False
-            Just staff ->
-                serveTypedLiveFragment profileLeaveRequestsLiveSurfaceDefinition (currentProfileLeaveSurfaceKey staff) profileLeaveRequestsFragment \_ -> do
-                    leaveRequests <- fetchCurrentUserLeaveRequests
-                    leaveRequestForm <- buildDefaultLeaveRequest
-                    respondHtml (renderProfileLeaveRequestsContentFragment staff leaveRequestForm leaveRequests)
+    action ShowProfileLeaveRequestsContentFragmentAction =
+        profileActionSpan "profile.leave_fragment.respond" do
+            maybeExistingStaff <- profileActionSpan "profile.leave_fragment.fetch_staff" fetchCurrentUserStaff
+            case maybeExistingStaff of
+                Nothing -> accessDeniedUnless False
+                Just staff ->
+                    serveTypedLiveFragment profileLeaveRequestsLiveSurfaceDefinition (currentProfileLeaveSurfaceKey staff) profileLeaveRequestsFragment \_ -> do
+                        leaveRequests <- profileActionSpan "profile.leave_fragment.fetch_leave_requests" fetchCurrentUserLeaveRequests
+                        leaveRequestForm <- profileActionSpan "profile.leave_fragment.build_leave_form" buildDefaultLeaveRequest
+                        profileActionSpan "profile.leave_fragment.render_response" (respondHtml (renderProfileLeaveRequestsContentFragment staff leaveRequestForm leaveRequests))
 
-    action ShowProfileContentFragmentAction = do
-        let openSection = normalizeProfileOpenSection (paramOrDefault @Text "" "section")
-        fetchCurrentUserStaff >>= \case
-            Nothing -> accessDeniedUnless False
-            Just staff ->
-                serveTypedLiveFragment profileContentLiveSurfaceDefinition (currentProfileContentSurfaceKey staff openSection) (profileContentFragment openSection) \_ -> do
-                    let currentUserEmail = currentUser.email
-                    (preferenceWeekdays, selectedShiftPreferences) <- profilePreferenceViewData (Just staff)
-                    passkeys <- fetchCurrentUserPasskeys
-                    leaveRequests <- fetchCurrentUserLeaveRequests
-                    leaveRequestForm <- buildDefaultLeaveRequest
-                    staffRsaDocument <- latestRsaDocumentForStaff staff
-                    staffManagementFields <- fetchProfileStaffManagementFields (Just staff) Nothing
-                    now <- getCurrentTime
-                    let today = utctDay now
-                    respondHtml (renderProfileContentFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection)
+    action ShowProfileContentFragmentAction =
+        profileActionSpan "profile.content_fragment.respond" do
+            let openSection = normalizeProfileOpenSection (paramOrDefault @Text "" "section")
+            profileActionSpan "profile.content_fragment.fetch_staff" fetchCurrentUserStaff >>= \case
+                Nothing -> accessDeniedUnless False
+                Just staff ->
+                    serveTypedLiveFragment profileContentLiveSurfaceDefinition (currentProfileContentSurfaceKey staff openSection) (profileContentFragment openSection) \_ -> do
+                        let currentUserEmail = currentUser.email
+                        (preferenceWeekdays, selectedShiftPreferences) <- profileActionSpan "profile.content_fragment.fetch_preferences" (profilePreferenceViewData (Just staff))
+                        passkeys <- profileActionSpan "profile.content_fragment.fetch_passkeys" fetchCurrentUserPasskeys
+                        leaveRequests <- profileActionSpan "profile.content_fragment.fetch_leave_requests" fetchCurrentUserLeaveRequests
+                        leaveRequestForm <- profileActionSpan "profile.content_fragment.build_leave_form" buildDefaultLeaveRequest
+                        staffRsaDocument <- profileActionSpan "profile.content_fragment.fetch_rsa_document" (latestRsaDocumentForStaff staff)
+                        staffManagementFields <- profileActionSpan "profile.content_fragment.fetch_management_fields" (fetchProfileStaffManagementFields (Just staff) Nothing)
+                        now <- getCurrentTime
+                        let today = utctDay now
+                        profileActionSpan "profile.content_fragment.render_response" (respondHtml (renderProfileContentFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection))
 
     action UpdateProfileAction = do
         maybeExistingStaff <- fetchCurrentUserStaff

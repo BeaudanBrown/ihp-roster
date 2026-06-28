@@ -1040,60 +1040,63 @@ respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys shouldRefresh
             respondHtmlProfiled (mconcat (renderedRows <> renderedStaffPanel))
 
 renderRosterWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Int -> Id RosterGroup -> IO ()
-renderRosterWeekPage weekOffset requestedRosterGroupId = do
-    venueConfig <- fetchVenueConfig
-    let weekStartDate = venueWeekStartDate venueConfig weekOffset
-    let weekEndDate = Calendar.addDays 6 weekStartDate
-    setTitle "Roster"
-    rosterGroups <- fetchCurrentVenueRosterGroups
-    currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just requestedRosterGroupId)
-    _ <- ensureRosterWeekExists currentRosterGroup.id weekOffset
-    keepCurrentRosterWeekProjectionHot currentRosterGroup.id weekOffset
-    rosterDataOrNothing <- fetchVisibleRosterReadModel currentRosterGroup.id weekOffset
-    passkeySetupPrompt <- passkeySetupPromptFromSession
+renderRosterWeekPage weekOffset requestedRosterGroupId =
+    profileActionSpan "roster.page.render" do
+        venueConfig <- profileActionSpan "roster.page.fetch_venue_config" fetchVenueConfig
+        let weekStartDate = venueWeekStartDate venueConfig weekOffset
+        let weekEndDate = Calendar.addDays 6 weekStartDate
+        setTitle "Roster"
+        rosterGroups <- profileActionSpan "roster.page.fetch_roster_groups" fetchCurrentVenueRosterGroups
+        currentRosterGroup <- profileActionSpan "roster.page.resolve_current_group" (fetchCurrentVenueRosterGroupOrDefault (Just requestedRosterGroupId))
+        _ <- profileActionSpan "roster.page.ensure_week_exists" (ensureRosterWeekExists currentRosterGroup.id weekOffset)
+        profileActionSpan "roster.page.keep_projection_hot" (keepCurrentRosterWeekProjectionHot currentRosterGroup.id weekOffset)
+        rosterDataOrNothing <- profileActionSpan "roster.page.fetch_read_model" (fetchVisibleRosterReadModel currentRosterGroup.id weekOffset)
+        passkeySetupPrompt <- profileActionSpan "roster.page.passkey_prompt" passkeySetupPromptFromSession
 
-    case rosterDataOrNothing of
-        Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } ->
-            let visibleRosterWeek =
-                    if rosterWeek.isLive || hasRole ManagerRole'
-                        then Just rosterWeek
-                        else Nothing
-             in respondWithRosterWeekView
-                    ShowView
-                        { rosterWeek = visibleRosterWeek
-                        , rosterDays
-                        , weekOffset
-                        , rosterGroups
-                        , currentRosterGroup
-                        , weekStartDate
-                        , weekEndDate
-                        , assignmentFilters
-                        , staffMembers
-                        , panelStaff
-                        , staffSelfServicePanel
-                        , slotNames = orderedSlotNames
-                        , shiftTypes
-                        , allSlots
-                        , slotConflicts
-                        , renderIndexes
-                        , liveUpdateScope = Just (RosterWeekScope { venueId = unpackId currentVenueId, rosterGroupId = unpackId currentRosterGroup.id, weekOffset })
-                        , viewCapabilities = buildRosterViewCapabilities visibleRosterWeek
-                        , rosterLayoutMode
-                        , rosterEndTimesEnabled
-                        , rosterWagePrediction
-                        , showWageEstimates
-                        , showRosterWarnings
-                        , publicHolidays = rosterPublicHolidays
-                        , passkeySetupPrompt
-                        }
-        Nothing ->
-            error "Roster week should exist after ensureRosterWeekExists"
+        case rosterDataOrNothing of
+            Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } ->
+                let visibleRosterWeek =
+                        if rosterWeek.isLive || hasRole ManagerRole'
+                            then Just rosterWeek
+                            else Nothing
+                 in profileActionSpan "roster.page.respond" $
+                        respondWithRosterWeekView
+                            ShowView
+                                { rosterWeek = visibleRosterWeek
+                                , rosterDays
+                                , weekOffset
+                                , rosterGroups
+                                , currentRosterGroup
+                                , weekStartDate
+                                , weekEndDate
+                                , assignmentFilters
+                                , staffMembers
+                                , panelStaff
+                                , staffSelfServicePanel
+                                , slotNames = orderedSlotNames
+                                , shiftTypes
+                                , allSlots
+                                , slotConflicts
+                                , renderIndexes
+                                , liveUpdateScope = Just (RosterWeekScope { venueId = unpackId currentVenueId, rosterGroupId = unpackId currentRosterGroup.id, weekOffset })
+                                , viewCapabilities = buildRosterViewCapabilities visibleRosterWeek
+                                , rosterLayoutMode
+                                , rosterEndTimesEnabled
+                                , rosterWagePrediction
+                                , showWageEstimates
+                                , showRosterWarnings
+                                , publicHolidays = rosterPublicHolidays
+                                , passkeySetupPrompt
+                                }
+            Nothing ->
+                error "Roster week should exist after ensureRosterWeekExists"
 
 respondWithRosterWeekView :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => ShowView -> IO ()
 respondWithRosterWeekView showView =
-    if isHtmxRequest
-        then respondHtmlProfiled (renderRosterWeekShell showView)
-        else renderProfiled showView
+    profileActionSpan "roster.page.render_response" do
+        if isHtmxRequest
+            then respondHtmlProfiled (renderRosterWeekShell showView)
+            else renderProfiled showView
 
 passkeySetupPromptFromSession :: (?request :: Request) => IO (Maybe PasskeySetupPromptMode)
 passkeySetupPromptFromSession =

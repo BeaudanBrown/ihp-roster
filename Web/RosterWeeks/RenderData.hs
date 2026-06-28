@@ -107,24 +107,26 @@ rosterProjectionDefinition =
 
 fetchVisibleRosterReadModel :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe RosterRenderData)
 fetchVisibleRosterReadModel rosterGroupId weekOffset =
-    case currentRosterReadModelBackend of
-        ProjectionRosterReadModel -> fetchVisibleRosterRenderDataCached rosterGroupId weekOffset
-        DirectRosterReadModel -> fetchVisibleRosterReadModelDirect rosterGroupId weekOffset
+    profileActionSpan "roster.read_model.fetch_visible" do
+        case currentRosterReadModelBackend of
+            ProjectionRosterReadModel -> fetchVisibleRosterRenderDataCached rosterGroupId weekOffset
+            DirectRosterReadModel -> fetchVisibleRosterReadModelDirect rosterGroupId weekOffset
 
 renderVisibleRosterReadModelFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> RosterProjectionFragment -> IO (Maybe Blaze.Html)
 renderVisibleRosterReadModelFragment rosterGroupId weekOffset fragment =
-    case currentRosterReadModelBackend of
-        ProjectionRosterReadModel -> renderVisibleRosterProjectionFragment rosterGroupId weekOffset fragment
-        DirectRosterReadModel ->
-            case fragment of
-                RosterProjectionContent -> do
-                    rosterGroups <- fetchCurrentVenueRosterGroups
-                    currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
-                    rosterData <- fetchVisibleRosterReadModelDirect rosterGroupId weekOffset
-                    Just <$> renderRosterContentFromProjection rosterGroups currentRosterGroup rosterData
-                RosterProjectionGridToolbar -> renderVisibleRosterReadModelFragmentDirect rosterGroupId weekOffset fragment
-                RosterProjectionGridFrame -> renderVisibleRosterReadModelFragmentDirect rosterGroupId weekOffset fragment
-                _ -> renderVisibleRosterReadModelFragmentDirect rosterGroupId weekOffset fragment
+    profileActionSpan "roster.read_model.render_fragment" do
+        case currentRosterReadModelBackend of
+            ProjectionRosterReadModel -> renderVisibleRosterProjectionFragment rosterGroupId weekOffset fragment
+            DirectRosterReadModel ->
+                case fragment of
+                    RosterProjectionContent -> do
+                        rosterGroups <- profileActionSpan "roster.fragment.fetch_roster_groups" fetchCurrentVenueRosterGroups
+                        currentRosterGroup <- profileActionSpan "roster.fragment.resolve_current_group" (fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId))
+                        rosterData <- fetchVisibleRosterReadModelDirect rosterGroupId weekOffset
+                        Just <$> renderRosterContentFromProjection rosterGroups currentRosterGroup rosterData
+                    RosterProjectionGridToolbar -> renderVisibleRosterReadModelFragmentDirect rosterGroupId weekOffset fragment
+                    RosterProjectionGridFrame -> renderVisibleRosterReadModelFragmentDirect rosterGroupId weekOffset fragment
+                    _ -> renderVisibleRosterReadModelFragmentDirect rosterGroupId weekOffset fragment
 
 fetchVisibleRosterRenderDataCached :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe RosterRenderData)
 fetchVisibleRosterRenderDataCached rosterGroupId weekOffset =
@@ -341,9 +343,9 @@ renderRequestedDaySectionFragmentFromProjectionWithMode renderMode RosterRenderD
 
 fetchVisibleRosterReadModelDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe RosterRenderData)
 fetchVisibleRosterReadModelDirect rosterGroupId weekOffset = do
-    visibleRosterWeek <- fetchVisibleRosterWeek rosterGroupId weekOffset
-    rosterGroups <- fetchCurrentVenueRosterGroups
-    currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
+    visibleRosterWeek <- profileActionSpan "roster.direct.fetch_visible_week" (fetchVisibleRosterWeek rosterGroupId weekOffset)
+    rosterGroups <- profileActionSpan "roster.direct.fetch_roster_groups" fetchCurrentVenueRosterGroups
+    currentRosterGroup <- profileActionSpan "roster.direct.resolve_current_group" (fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId))
     case visibleRosterWeek of
         Nothing -> do
             (backingRosterWeek, rosterDays, weekStartDate, orderedSlotNames, shiftTypes, maskedSlots) <- fetchHiddenRosterRenderDataDirect rosterGroupId weekOffset
@@ -383,18 +385,18 @@ fetchVisibleRosterReadModelDirect rosterGroupId weekOffset = do
 
 fetchRosterRenderDataDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe RosterRenderData)
 fetchRosterRenderDataDirect rosterGroupId weekOffset = do
-    venueConfig <- fetchVenueConfig
-    rosterGroups <- fetchCurrentVenueRosterGroups
-    currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
-    assignmentFilters <- fetchRosterAssignmentFilters
-    rosterLayoutMode <- fetchCurrentRosterLayoutMode
-    userShowWageEstimates <- fetchCurrentUserShowWageEstimates
-    showRosterWarnings <- fetchCurrentUserShowRosterWarnings
+    venueConfig <- profileActionSpan "roster.direct.fetch_venue_config" fetchVenueConfig
+    rosterGroups <- profileActionSpan "roster.direct.fetch_roster_groups" fetchCurrentVenueRosterGroups
+    currentRosterGroup <- profileActionSpan "roster.direct.resolve_current_group" (fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId))
+    assignmentFilters <- profileActionSpan "roster.direct.fetch_assignment_filters" fetchRosterAssignmentFilters
+    rosterLayoutMode <- profileActionSpan "roster.direct.fetch_layout_preference" fetchCurrentRosterLayoutMode
+    userShowWageEstimates <- profileActionSpan "roster.direct.fetch_wage_preference" fetchCurrentUserShowWageEstimates
+    showRosterWarnings <- profileActionSpan "roster.direct.fetch_warning_preference" fetchCurrentUserShowRosterWarnings
     let showWageEstimates = shouldShowRosterWageEstimates userShowWageEstimates
     let weekStartDate = venueWeekStartDate venueConfig weekOffset
-    rosterPublicHolidays <- fetchRosterPublicHolidayMap venueConfig weekStartDate
+    rosterPublicHolidays <- profileActionSpan "roster.direct.fetch_public_holidays" (fetchRosterPublicHolidayMap venueConfig weekStartDate)
 
-    baseFactsOrNothing <- fetchRosterBaseFactsDirect rosterGroupId weekOffset
+    baseFactsOrNothing <- profileActionSpan "roster.direct.fetch_base_facts" (fetchRosterBaseFactsDirect rosterGroupId weekOffset)
     case baseFactsOrNothing of
         Nothing -> pure Nothing
         Just RosterBaseFacts { baseRosterWeek = rosterWeek, baseRosterDays = rosterDays, baseAllSlots = allSlots, baseVisibleSlots = visibleSlots, baseOrderedSlotDefinitions = orderedSlotNames, baseShiftTypes = shiftTypes, baseEligibleStaff = eligibleStaffMembers, baseStaffMembers = staffMembers } -> do
@@ -545,12 +547,13 @@ fetchVisibleRosterRenderData rosterGroupId weekOffset = do
 
 fetchVisibleRosterWeek :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe RosterWeek)
 fetchVisibleRosterWeek rosterGroupId weekOffset = do
-    _ <- ensureRosterWeekExists rosterGroupId weekOffset
+    _ <- profileActionSpan "roster.visible_week.ensure_exists" (ensureRosterWeekExists rosterGroupId weekOffset)
     rosterWeekOrNothing <-
-        query @RosterWeek
-            |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
-            |> filterWhere (#weekOffset, weekOffset)
-            |> fetchOneOrNothing
+        profileActionSpan "roster.visible_week.fetch" do
+            query @RosterWeek
+                |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
+                |> filterWhere (#weekOffset, weekOffset)
+                |> fetchOneOrNothing
 
     pure $
         case rosterWeekOrNothing of
