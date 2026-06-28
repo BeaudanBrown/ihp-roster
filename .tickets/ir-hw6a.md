@@ -1,6 +1,6 @@
 ---
 id: ir-hw6a
-status: in_progress
+status: closed
 deps: [ir-9ykn]
 links: []
 created: 2026-06-28T12:23:42Z
