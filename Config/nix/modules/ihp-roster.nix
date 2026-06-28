@@ -68,6 +68,19 @@ let
     // legalFileEnv "BEPIS_LEGAL_CANCELLATION_FILE" legalCancellationFile;
 
   boolEnv = value: if value then "true" else "false";
+  otelCfg = cfg.observability.otel;
+  profilingCfg = cfg.observability.profiling;
+  observabilityEnv =
+    optionalAttrs otelCfg.enable {
+      IHP_ROSTER_OTEL = "1";
+      OTEL_SERVICE_NAME = otelCfg.serviceName;
+      OTEL_EXPORTER_OTLP_ENDPOINT = otelCfg.endpoint;
+      OTEL_TRACES_SAMPLER = otelCfg.sampler;
+      OTEL_TRACES_SAMPLER_ARG = otelCfg.samplerArg;
+    }
+    // optionalAttrs profilingCfg.enable {
+      IHP_ROSTER_PROFILING = "1";
+    };
   stripeEnv = optionalAttrs stripeCfg.enable (
     {
       STRIPE_SECRET_KEY_FILE = "%d/stripe-secret-key";
@@ -280,6 +293,40 @@ in
       type = types.attrsOf types.str;
       default = { };
       description = "Additional non-secret environment variables for the app runtime.";
+    };
+
+    observability = {
+      otel = {
+        enable = mkEnableOption "lightweight OpenTelemetry tracing for ihp-roster";
+
+        serviceName = mkOption {
+          type = types.str;
+          default = "ihp-roster";
+          description = "OTEL_SERVICE_NAME exposed to the app when OpenTelemetry tracing is enabled.";
+        };
+
+        endpoint = mkOption {
+          type = types.str;
+          default = "http://127.0.0.1:4318";
+          description = "OTLP HTTP endpoint used by the app exporter. Keep this localhost for production ingestion unless a ticket explicitly changes the topology.";
+        };
+
+        sampler = mkOption {
+          type = types.str;
+          default = "parentbased_traceidratio";
+          description = "OTEL_TRACES_SAMPLER used for lightweight production tracing.";
+        };
+
+        samplerArg = mkOption {
+          type = types.str;
+          default = "0.01";
+          description = "OTEL_TRACES_SAMPLER_ARG used with the configured sampler.";
+        };
+      };
+
+      profiling = {
+        enable = mkEnableOption "diagnostic request/render profiling for ihp-roster";
+      };
     };
 
     databaseUrl = mkOption {
@@ -744,6 +791,7 @@ in
         // mailEnv
         // legalEnv
         // stripeEnv
+        // observabilityEnv
         // cfg.additionalEnvVars;
         appPort = cfg.appPort;
         package = if cfg.package != null then cfg.package else defaultPackage;
