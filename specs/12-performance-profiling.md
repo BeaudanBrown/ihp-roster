@@ -133,12 +133,16 @@ bash ./bin/in-env dev-start-otel
 
 This starts local-only services:
 
-- OTel Collector OTLP/HTTP: `http://127.0.0.1:4318`
-- Tempo: `http://127.0.0.1:3200`
-- Grafana: `http://127.0.0.1:3300`
+- Grafana frontend: `http://127.0.0.1:3300/explore`
+- Tempo health/API: `http://127.0.0.1:3200/ready`
+- OTel Collector health: `http://127.0.0.1:13133/`
+- App OTLP/HTTP ingestion endpoint: `http://127.0.0.1:4318`
 
-After making requests against the dev app, open Grafana Explore and search the
-Tempo datasource for service `ihp-roster-dev`.
+Tempo and the OTLP ingestion endpoint are APIs, not browser frontends; `404`
+from `/` on ports `3200` or `4318` is normal. After making requests against the
+dev app, open Grafana Explore and search the Tempo datasource for service
+`ihp-roster-dev`. Trace search can lag a few seconds behind requests while the
+batch processor exports spans.
 
 Useful controls:
 

@@ -216,9 +216,13 @@ wait_for_url "grafana" "http://127.0.0.1:${GRAFANA_PORT}/api/health" "$GRAFANA_L
 cat <<EOF_READY
 
 Dev observability frontend is ready:
-  Grafana: http://127.0.0.1:${GRAFANA_PORT}/explore?schemaVersion=1&panes=%7B%22trace%22:%7B%22datasource%22:%22bepis-tempo-dev%22,%22queries%22:%5B%7B%22queryType%22:%22serviceSearch%22,%22serviceName%22:%22ihp-roster-dev%22,%22refId%22:%22A%22%7D%5D%7D%7D&orgId=1
-  Tempo:   http://127.0.0.1:${TEMPO_PORT}
-  OTLP:    http://127.0.0.1:${COLLECTOR_OTLP_HTTP_PORT}
+  Grafana Explore:   http://127.0.0.1:${GRAFANA_PORT}/explore?schemaVersion=1&panes=%7B%22trace%22:%7B%22datasource%22:%22bepis-tempo-dev%22,%22queries%22:%5B%7B%22queryType%22:%22serviceSearch%22,%22serviceName%22:%22ihp-roster-dev%22,%22refId%22:%22A%22%7D%5D%7D%7D&orgId=1
+  Tempo health:      http://127.0.0.1:${TEMPO_PORT}/ready
+  Collector health:  http://127.0.0.1:${COLLECTOR_HEALTH_PORT}/
+  App OTLP endpoint: http://127.0.0.1:${COLLECTOR_OTLP_HTTP_PORT}
+
+Tempo and OTLP ingestion are APIs, not browser frontends. A 404 from
+http://127.0.0.1:${TEMPO_PORT}/ or http://127.0.0.1:${COLLECTOR_OTLP_HTTP_PORT}/ is normal.
 
 Start or restart the dev app with tracing enabled:
   IHP_ROSTER_OTEL=1 \\
