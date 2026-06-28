@@ -1,6 +1,6 @@
 ---
 id: ir-5gxe
-status: open
+status: closed
 deps: [ir-a8o9]
 links: []
 created: 2026-06-28T12:17:09Z
@@ -22,3 +22,9 @@ Prefer declarative HTMX. Add a tiny TypeScript module only if standard HTMX even
 
 Failed lazy fragment requests show a reusable error/retry state; successful loads clear busy/error states; node/type checks pass; no large client framework or duplicated per-surface JS is introduced.
 
+
+## Notes
+
+**2026-06-28T13:08:24Z**
+
+Added generic HTMX lazy-surface error handling in app-live-updates: failed response/send/timeout events render a shared app-lazy-surface-error state with retry HTMX markup; successful retry goes back through the authoritative fragment URL. Verification: frontend-build passed, frontend-test passed (42 tests), style-audit passed; frontend-check/typecheck are blocked by missing OpenTelemetry.* Haskell packages before frontend drift/typecheck completes.

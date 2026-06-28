@@ -130,6 +130,89 @@
     return value !== null && typeof value === "object" && typeof value.id === "string";
   }
 
+  // frontend/ts/shared/dom.ts
+  function isElement(value) {
+    return typeof Element !== "undefined" && value instanceof Element;
+  }
+  function isHTMLElement(value) {
+    return typeof HTMLElement !== "undefined" && value instanceof HTMLElement;
+  }
+  function closestHTMLElement(target, selector) {
+    if (!isElement(target)) return null;
+    const element = target.closest(selector);
+    return isHTMLElement(element) ? element : null;
+  }
+
+  // frontend/ts/shared/lifecycle.ts
+  function eventDetailRecord(event) {
+    if (typeof CustomEvent === "undefined" || !(event instanceof CustomEvent)) return null;
+    if (event.detail === null || typeof event.detail !== "object") return null;
+    return event.detail;
+  }
+  function detailTarget(event, key) {
+    return eventDetailRecord(event)?.[key];
+  }
+
+  // frontend/ts/live-updates/lazy-surface.ts
+  var lazySurfaceSelector = '[data-bepis-lazy-surface="true"]';
+  function lazySurfaceFromEvent(event) {
+    const elt = detailTarget(event, "elt");
+    if (isHTMLElement(elt)) {
+      if (elt.matches(lazySurfaceSelector)) return elt;
+      const closest = elt.closest(lazySurfaceSelector);
+      return isHTMLElement(closest) ? closest : null;
+    }
+    return closestHTMLElement(event.target, lazySurfaceSelector);
+  }
+  function markLazySurfaceLoading(surface) {
+    surface.classList.remove("app-lazy-surface-error");
+    surface.setAttribute("aria-busy", "true");
+  }
+  function renderLazySurfaceError(surface, message = "We couldn't load this section.") {
+    const retryUrl = surface.getAttribute("hx-get") || surface.getAttribute("data-hx-get") || "";
+    surface.classList.add("app-lazy-surface-error");
+    surface.setAttribute("aria-busy", "false");
+    const body = document.createElement("div");
+    body.className = "app-lazy-surface-error-body";
+    const text = document.createElement("p");
+    text.className = "app-lazy-surface-error-message";
+    text.textContent = message;
+    body.appendChild(text);
+    const retryButton = document.createElement("button");
+    retryButton.type = "button";
+    retryButton.className = "btn btn-sm btn-outline-light app-lazy-surface-retry";
+    retryButton.textContent = "Retry";
+    retryButton.setAttribute("hx-get", retryUrl);
+    retryButton.setAttribute("hx-target", `closest ${lazySurfaceSelector}`);
+    retryButton.setAttribute("hx-swap", "outerHTML");
+    retryButton.setAttribute("hx-push-url", "false");
+    body.appendChild(retryButton);
+    surface.replaceChildren(body);
+    window.htmx?.process?.(surface);
+  }
+  function enableLazySurfaceErrorHandling(root = document) {
+    root.addEventListener("htmx:beforeRequest", function(event) {
+      const surface = lazySurfaceFromEvent(event);
+      if (surface === null) return;
+      markLazySurfaceLoading(surface);
+    });
+    root.addEventListener("htmx:responseError", function(event) {
+      const surface = lazySurfaceFromEvent(event);
+      if (surface === null) return;
+      renderLazySurfaceError(surface);
+    });
+    root.addEventListener("htmx:sendError", function(event) {
+      const surface = lazySurfaceFromEvent(event);
+      if (surface === null) return;
+      renderLazySurfaceError(surface);
+    });
+    root.addEventListener("htmx:timeout", function(event) {
+      const surface = lazySurfaceFromEvent(event);
+      if (surface === null) return;
+      renderLazySurfaceError(surface, "This section took too long to load.");
+    });
+  }
+
   // frontend/ts/live-updates/protocol.ts
   function liveUpdateMessageScopeKey(message) {
     if (message && typeof message.scopeKey === "string" && message.scopeKey.length > 0) {
@@ -160,6 +243,7 @@
   }
 
   // frontend/ts/app-live-updates.ts
+  enableLazySurfaceErrorHandling();
   (function enableLiveUpdates() {
     if (typeof window === "undefined") return;
     const actorFragmentRefreshEventName = AppEvents.liveFragmentsRefresh;

@@ -94,6 +94,18 @@
     color: var(--app-danger-contrast);
 }
 
+.app-lazy-surface-error-body {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--app-space-2);
+}
+
+.app-lazy-surface-error-message {
+    margin: 0;
+    font-size: var(--text-sm);
+}
+
 .app-lazy-surface-retry {
     display: inline-flex;
     align-items: center;

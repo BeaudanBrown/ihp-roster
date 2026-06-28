@@ -2,6 +2,7 @@ import type { LiveUpdateCommand, LiveUpdateMessage, LiveUpdateScope, LiveUpdateW
 import { AppEvents, isLiveUpdateMessage } from "./generated/contracts";
 import { resolveLiveFragmentInteractionConflict } from "./interaction/live-conflicts";
 import { createActiveInteractionSessionTracker } from "./interaction/session-state";
+import { enableLazySurfaceErrorHandling } from "./live-updates/lazy-surface";
 import {
     buildLiveUpdateSubscribeCommand,
     liveUpdateFragmentMergeKey,
@@ -9,6 +10,9 @@ import {
     normalizeLiveUpdateVersion,
 } from "./live-updates/protocol";
 import { parseLiveUpdateSurfaceConfig } from "./live-updates/validation";
+
+
+enableLazySurfaceErrorHandling();
 
 export type LiveUpdateSurfaceConfig = {
     feature?: string | null;
