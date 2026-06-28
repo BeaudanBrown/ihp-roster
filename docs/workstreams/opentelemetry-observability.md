@@ -155,12 +155,14 @@ profile-load-suite --otel
 ### Local live trace UI
 
 ```text
-dev-start-otel
+just dev
   -> app with IHP_ROSTER_OTEL=1
   -> local OTel collector
   -> local Tempo
   -> local Grafana Explore
 ```
+
+`dev-start-otel` remains available as the detached explicit OTel dev-start path.
 
 ### Production and human viewing
 

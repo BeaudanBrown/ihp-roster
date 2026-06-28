@@ -41,6 +41,11 @@ bash ./bin/in-env dev-wait
 bash ./bin/in-env dev-stop
 ```
 
+For foreground local development, `just dev` starts the app, frontend watcher,
+postgres, MailHog, and the localhost-only observability stack. After making app
+requests, open Grafana Explore at `http://127.0.0.1:3300/explore` and search the
+Tempo datasource for service `ihp-roster-dev`.
+
 After schema edits, run:
 
 ```bash
@@ -104,8 +109,9 @@ bash ./bin/in-env frontend-watch
 
 `frontend-check` runs contract drift, TypeScript validation, frontend unit/DOM
 tests, and generated JS drift. `dev-start` and `just dev` run the frontend
-watcher; `dev-stop` cleans it up. There is no Vite dev server or true HMR
-requirement. Frontend unit tests and Playwright E2E are not pre-commit hooks;
+watcher; `just dev` also runs the local observability stack in foreground dev;
+`dev-stop` cleans up detached dev processes. There is no Vite dev server or true
+HMR requirement. Frontend unit tests and Playwright E2E are not pre-commit hooks;
 the tracked pre-commit hook only guards generated JS drift. Production/live
 NixOS runtime serves checked-in generated static JS and does not require
 Node/esbuild/TypeScript/frontend test tooling.

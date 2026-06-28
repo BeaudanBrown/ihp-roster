@@ -146,13 +146,40 @@ For interactive local debugging, the repo provides a disposable localhost-only
 Tempo/Grafana/collector stack:
 
 ```text
-dev-start-otel -> dev app with IHP_ROSTER_OTEL=1 -> localhost OTel Collector -> localhost Tempo -> localhost Grafana Explore
+just dev -> dev app with IHP_ROSTER_OTEL=1 -> localhost OTel Collector -> localhost Tempo -> localhost Grafana Explore
 ```
 
-Use `bash ./bin/in-env dev-start-otel`, make requests against the dev app, then
-open `http://127.0.0.1:3300/explore` and search the Tempo datasource for service
-`ihp-roster-dev`. This flow is for live inspection; profile artifact flows
-remain the repeatable before/after comparison path.
+Use `just dev` for the default foreground path: it starts the dev app with
+`IHP_ROSTER_OTEL=1` and the matching `OTEL_*` defaults, plus the localhost-only
+collector, Tempo, and Grafana stack. Local dev also enables
+`IHP_ROSTER_OTEL_DIAGNOSTIC_HEADERS=1`, which lets trusted local tools attach
+low-cardinality `bepis.trace.run` and `bepis.trace.step` attributes from
+`X-Bepis-Trace-Run` / `X-Bepis-Trace-Step` request headers. These headers are for
+local/agent diagnostics and are not part of the normal production contract.
+
+Make requests against the dev app, then open `http://127.0.0.1:3300/explore` and
+search the Tempo datasource for service `ihp-roster-dev`. The detached
+compatibility entrypoint `bash ./bin/in-env dev-start-otel` remains available.
+This flow is for live inspection; profile artifact flows remain the repeatable
+before/after comparison path.
+
+Agent-facing browser trace runs are available through:
+
+```bash
+# Exercise the shared scenario catalog with Playwright, tag each request, then
+# write journey + Tempo summaries under output/otel-browser/.
+bash ./bin/in-env otel-browser --scenario full --role owner
+
+# Summarize an existing tagged run or recent service traces.
+bash ./bin/in-env otel-summary --run-id <uuid>
+bash ./bin/in-env otel-summary --limit 200
+```
+
+The summary artifacts include slow spans, largest exclusive-time gaps, repeated
+span names, and error-status classification. This is the preferred AI-agent
+entrypoint before changing performance-sensitive code because it preserves a
+bounded browser journey and a machine-readable trace summary beside the Markdown
+report.
 
 ## Production Topology
 
