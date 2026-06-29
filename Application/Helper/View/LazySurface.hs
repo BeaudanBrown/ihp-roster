@@ -25,7 +25,9 @@ import Application.Helper.LiveSurface (FragmentContract (..),
                                        lazyFragmentPlaceholderTable,
                                        surfaceFragmentRefTargetId,
                                        surfaceFragmentRefUrl)
-import Application.Helper.UiRegion (uiRegionFragmentEnabledValue,
+import Application.Helper.UiRegion (UiRegionDomAttributes (..),
+                                    canonicalUiRegionDomAttributes,
+                                    uiRegionFragmentEnabledValue,
                                     uiRegionTransitionProfileText)
 import qualified Data.Text as Text
 import IHP.ViewPrelude
@@ -65,11 +67,11 @@ renderLazyLiveFragmentMountWithPlaceholder config fragmentRef placeholderHtml =
     Html5.div
         ! attr "id" (surfaceFragmentRefTargetId fragmentRef)
         ! attr "class" (lazySurfacePlaceholderRootClasses config)
-        ! attr "data-bepis-fragment" uiRegionFragmentEnabledValue
-        ! attr "data-bepis-lazy-surface" uiRegionFragmentEnabledValue
-        ! attr "data-bepis-lazy-fragment" (surfaceFragmentRefTargetId fragmentRef)
-        ! attr "data-bepis-lazy-retry" uiRegionFragmentEnabledValue
-        ! attr "data-bepis-region-transition" (uiRegionTransitionProfileText config.lazyFragmentTransition)
+        ! attr canonicalUiRegionDomAttributes.uiRegionFragmentAttribute uiRegionFragmentEnabledValue
+        ! attr canonicalUiRegionDomAttributes.uiRegionLazySurfaceAttribute uiRegionFragmentEnabledValue
+        ! attr canonicalUiRegionDomAttributes.uiRegionLazyFragmentAttribute (surfaceFragmentRefTargetId fragmentRef)
+        ! attr canonicalUiRegionDomAttributes.uiRegionLazyRetryAttribute uiRegionFragmentEnabledValue
+        ! attr canonicalUiRegionDomAttributes.uiRegionTransitionAttribute (uiRegionTransitionProfileText config.lazyFragmentTransition)
         ! attr "hx-get" (surfaceFragmentRefUrl fragmentRef)
         ! attr "hx-trigger" (lazySurfaceHtmxTrigger config)
         ! attr "hx-target" "this"

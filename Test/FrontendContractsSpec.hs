@@ -9,8 +9,8 @@ import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import IHP.Prelude
-import System.Directory (listDirectory)
-import System.FilePath ((</>))
+import System.Directory (doesDirectoryExist, listDirectory)
+import System.FilePath (takeExtension, (</>))
 import Test.Hspec
 
 import Application.Helper.Frontend.Codec
@@ -29,12 +29,17 @@ tests = describe "Frontend contract generator foundation" do
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export type LiveUpdateScope"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export type UiRegionTransitionProfile"
 
-    it "marks Haskell-owned schema declarations as generated" do
+    it "registers each Haskell-owned frontend contract group exactly once" do
         let declarationOrigins = [(declaration.name, declaration.origin) | declaration <- frontendContractDeclarations]
-        declarationOrigins `shouldContain` [("LiveUpdateContracts", HaskellSchemaGenerated)]
-        declarationOrigins `shouldContain` [("InteractionContracts", HaskellSchemaGenerated)]
-        declarationOrigins `shouldContain` [("UiRegionContracts", HaskellSchemaGenerated)]
-        declarationOrigins `shouldContain` [("LiveSurfaceManifest", HaskellSchemaGenerated)]
+        declarationOrigins
+            `shouldBe` [ ("OverlayLane", HaskellSchemaGenerated)
+                       , ("AppSharedConstants", HaskellSchemaGenerated)
+                       , ("LiveUpdateContracts", HaskellSchemaGenerated)
+                       , ("InteractionContracts", HaskellSchemaGenerated)
+                       , ("UiRegionContracts", HaskellSchemaGenerated)
+                       , ("RosterContracts", HaskellSchemaGenerated)
+                       , ("LiveSurfaceManifest", HaskellSchemaGenerated)
+                       ]
 
     it "keeps the composition root free of large handwritten protocol blocks" do
         source <- Text.readFile "Application/Helper/Frontend/Contracts.hs"
@@ -49,6 +54,20 @@ tests = describe "Frontend contract generator foundation" do
         files `shouldNotContain` ["AesonTypeScriptSpike.hs"]
         frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "AesonTypeScriptSpike"
         frontendContractsTypeScript `shouldNotSatisfy` Text.isInfixOf "LegacyManualContracts"
+
+    it "keeps every frontend schema module represented in the contract registry" do
+        files <- fmap List.sort (listDirectory "Application/Helper/Frontend")
+        let schemaModules = filter (Text.isSuffixOf "Schema.hs" . cs) files
+        schemaModules
+            `shouldBe` [ "AppSchema.hs"
+                       , "InteractionSchema.hs"
+                       , "LiveUpdateSchema.hs"
+                       , "RosterSchema.hs"
+                       , "SurfaceManifestSchema.hs"
+                       , "UiRegionSchema.hs"
+                       ]
+        let declarationNames = fmap (.name) frontendContractDeclarations
+        List.sort declarationNames `shouldBe` List.sort ["AppSharedConstants", "InteractionContracts", "LiveUpdateContracts", "RosterContracts", "LiveSurfaceManifest", "OverlayLane", "UiRegionContracts"]
 
     it "generates a manifest for every registered live surface family" do
         let generatedSource = frontendContractsTypeScript
@@ -74,6 +93,12 @@ tests = describe "Frontend contract generator foundation" do
     it "locks down raw TypeScript emitters behind a shrinking source allowlist" do
         actual <- frontendSourceRawEmitterCounts
         actual `shouldBe` frontendSourceRawEmitterAllowlist
+
+    it "keeps UI region canonical strings confined to Haskell vocabulary and generated TS" do
+        haskellOffenders <- canonicalStringOffenders ["Application", "Web"] ["Application/Helper/UiRegion.hs"] [".hs"] uiRegionCanonicalStrings
+        frontendOffenders <- canonicalStringOffenders ["frontend/ts"] ["frontend/ts/generated/contracts.ts"] [".ts"] uiRegionCanonicalStrings
+        haskellOffenders `shouldBe` []
+        frontendOffenders `shouldBe` []
 
     -- Enforcement point for ir-o5qk: canonical app names should become closed
     -- generated unions. Existing escape hatches stay listed until migrated.
@@ -317,3 +342,37 @@ generatedStringEscapeHatches source =
     | line <- Text.lines source
     , "| string" `Text.isInfixOf` line
     ]
+
+uiRegionCanonicalStrings :: [Text]
+uiRegionCanonicalStrings =
+    [ "data-bepis-fragment"
+    , "data-bepis-lazy-surface"
+    , "data-bepis-lazy-fragment"
+    , "data-bepis-lazy-retry"
+    , "data-bepis-region-transition"
+    , "bepis:region-request-start"
+    , "bepis:region-before-swap"
+    , "bepis:region-after-swap"
+    , "bepis:region-settle"
+    , "bepis:region-error"
+    ]
+
+canonicalStringOffenders :: [FilePath] -> [FilePath] -> [String] -> [Text] -> IO [(FilePath, Text)]
+canonicalStringOffenders roots allowedPaths extensions needles = do
+    files <- fmap concat (mapM collectSourceFiles roots)
+    fmap concat $ forM files \path -> do
+        if path `elem` allowedPaths || takeExtension path `notElem` extensions
+            then pure []
+            else do
+                source <- Text.readFile path
+                pure [(path, needle) | needle <- needles, needle `Text.isInfixOf` source]
+
+collectSourceFiles :: FilePath -> IO [FilePath]
+collectSourceFiles root = do
+    entries <- listDirectory root
+    fmap concat $ forM entries \entry -> do
+        let path = root </> entry
+        isDirectory <- doesDirectoryExist path
+        if isDirectory
+            then collectSourceFiles path
+            else pure [path]

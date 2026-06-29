@@ -3,7 +3,9 @@ module Application.Helper.View.UiRegion
     , uiRegionTransitionAttrs
     ) where
 
-import Application.Helper.UiRegion (UiRegionTransitionProfile (..),
+import Application.Helper.UiRegion (UiRegionDomAttributes (..),
+                                    UiRegionTransitionProfile (..),
+                                    canonicalUiRegionDomAttributes,
                                     uiRegionFragmentEnabledValue,
                                     uiRegionTransitionProfileText)
 import IHP.Prelude
@@ -15,8 +17,8 @@ uiRegionAttrs =
 
 uiRegionTransitionAttrs :: UiRegionTransitionProfile -> Blaze.Attribute
 uiRegionTransitionAttrs transitionProfile =
-    attr "data-bepis-fragment" uiRegionFragmentEnabledValue
-        <> attr "data-bepis-region-transition" (uiRegionTransitionProfileText transitionProfile)
+    attr canonicalUiRegionDomAttributes.uiRegionFragmentAttribute uiRegionFragmentEnabledValue
+        <> attr canonicalUiRegionDomAttributes.uiRegionTransitionAttribute (uiRegionTransitionProfileText transitionProfile)
 
 attr :: Text -> Text -> Blaze.Attribute
 attr name value =
