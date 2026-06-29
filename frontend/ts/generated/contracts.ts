@@ -609,6 +609,68 @@ export function isInteractionStaticSchemaRegistry(value: unknown): value is Inte
 export const InteractionDom: InteractionDom = {"attributes":{"activation":"data-bepis-activation","activationIntent":"data-bepis-activation-intent","activationTrigger":"data-bepis-activation-trigger","activationValueField":"data-bepis-activation-value-field","conflictPolicies":"data-bepis-conflict-policies","container":"data-bepis-container","disposableLayer":"data-bepis-disposable-layer","dropzone":"data-bepis-dropzone","fieldPresence":"data-bepis-field-presence","intent":"data-bepis-intent","intentField":"data-bepis-intent-field","intentForm":"data-bepis-intent-form","intentHiddenField":"data-bepis-intent-hidden-field","interactionActive":"data-bepis-interaction-active","item":"data-bepis-item","layer":"data-bepis-layer","marker":"data-bepis-marker","mountKey":"data-bepis-mount-key","pointerSession":"data-bepis-pointer-session","resizeHandle":"data-bepis-resize-handle","scopeKey":"data-bepis-scope-key","serverLayer":"data-bepis-server-layer","sessionDisabled":"data-bepis-session-disabled","sessionIntent":"data-bepis-session-intent","sessionKind":"data-bepis-session-kind","sessionReadOnly":"data-bepis-session-read-only","sessionThreshold":"data-bepis-session-threshold","sessionTimeoutMs":"data-bepis-session-timeout-ms","slot":"data-bepis-slot","surface":"data-bepis-surface","surfaceFamily":"data-bepis-surface-family"},"pointerFields":{"currentClientX":"currentClientX","currentClientY":"currentClientY","deltaX":"deltaX","deltaY":"deltaY","pointerId":"pointerId","pointerType":"pointerType","sessionKind":"sessionKind","sourceItemKey":"sourceItemKey","startClientX":"startClientX","startClientY":"startClientY","targetDropzoneKey":"targetDropzoneKey"},"values":{"activationMarker":"activation","containerMarker":"container","dropzoneMarker":"dropzone","enabled":"true","itemMarker":"item","resizeHandleMarker":"resize-handle","slotMarker":"slot"}};
 export const InteractionStaticSchemas: InteractionStaticSchemaRegistry = {"roster":{"conflictPolicies":[{"fragment":{"kind":"any"},"resolution":"defer","session":{"kind":"session","session":"drag"},"timeoutMs":5000}],"disposableLayers":[{"domIdSuffix":"drag-preview","name":"drag-preview"}],"intents":[{"fields":[{"defaultValue":null,"name":"rosterLayoutMode","presence":"required"}],"name":"set-roster-layout-mode"},{"fields":[{"defaultValue":null,"name":"sourceItemKey","presence":"required"},{"defaultValue":null,"name":"targetDropzoneKey","presence":"required"},{"defaultValue":null,"name":"sessionKind","presence":"optional"},{"defaultValue":null,"name":"pointerId","presence":"optional"},{"defaultValue":null,"name":"pointerType","presence":"optional"},{"defaultValue":null,"name":"startClientX","presence":"optional"},{"defaultValue":null,"name":"startClientY","presence":"optional"},{"defaultValue":null,"name":"currentClientX","presence":"optional"},{"defaultValue":null,"name":"currentClientY","presence":"optional"},{"defaultValue":null,"name":"deltaX","presence":"optional"},{"defaultValue":null,"name":"deltaY","presence":"optional"}],"name":"move-roster-shift-to-slot"}],"serverLayers":[],"sessionKinds":[{"description":"Roster drag/drop prototype","kind":"drag"}]}};
 
+// UI region capability vocabulary generated from Haskell.
+function __isUiRegionDomExactRecord(value: unknown, requiredKeys: string[], optionalKeys: string[]): value is Record<string, unknown> {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+    const actualKeys = Object.keys(value);
+    const allowedKeys = new Set([...requiredKeys, ...optionalKeys]);
+    return requiredKeys.every((key) => Object.prototype.hasOwnProperty.call(value, key)) && actualKeys.every((key) => allowedKeys.has(key));
+}
+
+
+export type UiRegionDom = {
+    fragment: string;
+    lazySurface: string;
+    lazyFragment: string;
+    lazyRetry: string;
+    transition: string;
+};
+
+export function isUiRegionDom(value: unknown): value is UiRegionDom {
+    return __isUiRegionDomExactRecord(value, ["fragment", "lazySurface", "lazyFragment", "lazyRetry", "transition"], []) && (typeof value["fragment"] === "string") && (typeof value["lazySurface"] === "string") && (typeof value["lazyFragment"] === "string") && (typeof value["lazyRetry"] === "string") && (typeof value["transition"] === "string");
+}
+
+
+export type UiRegionTransitionProfile =
+    | "none"
+    | "fade"
+    | "fade-slide"
+    | "panel";
+
+export function isUiRegionTransitionProfile(value: unknown): value is UiRegionTransitionProfile {
+    return value === "none" || value === "fade" || value === "fade-slide" || value === "panel";
+}
+
+
+export type UiRegionLifecycleEvent =
+    | "bepis:region-request-start"
+    | "bepis:region-before-swap"
+    | "bepis:region-after-swap"
+    | "bepis:region-settle"
+    | "bepis:region-error";
+
+export function isUiRegionLifecycleEvent(value: unknown): value is UiRegionLifecycleEvent {
+    return value === "bepis:region-request-start" || value === "bepis:region-before-swap" || value === "bepis:region-after-swap" || value === "bepis:region-settle" || value === "bepis:region-error";
+}
+
+
+export type UiRegionEvents = {
+    requestStart: string;
+    beforeSwap: string;
+    afterSwap: string;
+    settle: string;
+    error: string;
+};
+
+export function isUiRegionEvents(value: unknown): value is UiRegionEvents {
+    return __isUiRegionDomExactRecord(value, ["requestStart", "beforeSwap", "afterSwap", "settle", "error"], []) && (typeof value["requestStart"] === "string") && (typeof value["beforeSwap"] === "string") && (typeof value["afterSwap"] === "string") && (typeof value["settle"] === "string") && (typeof value["error"] === "string");
+}
+
+
+
+export const UiRegionDom: UiRegionDom = {"fragment":"data-bepis-fragment","lazyFragment":"data-bepis-lazy-fragment","lazyRetry":"data-bepis-lazy-retry","lazySurface":"data-bepis-lazy-surface","transition":"data-bepis-region-transition"};
+export const UiRegionEvents: UiRegionEvents = {"afterSwap":"bepis:region-after-swap","beforeSwap":"bepis:region-before-swap","error":"bepis:region-error","requestStart":"bepis:region-request-start","settle":"bepis:region-settle"};
+
 export type RosterStaffSortKey =
     | "name"
     | "role"

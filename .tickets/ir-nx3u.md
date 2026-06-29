@@ -1,6 +1,6 @@
 ---
 id: ir-nx3u
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-06-29T13:12:15Z
@@ -22,3 +22,9 @@ Define canonical attr/capability vocabulary for region markers, transition profi
 
 Haskell has canonical names for UI region attrs/capability values; generated TypeScript exposes matching unions/guards; frontend-contracts-check catches drift.
 
+
+## Notes
+
+**2026-06-29T13:20:46Z**
+
+Implemented Haskell-owned UI region attrs/events/transition profile vocabulary and generated TS unions/guards/constants. Verification: typecheck, frontend-contracts-check, frontend-check passed. Focused hspec-test --match 'Frontend contract' is currently blocked by pre-existing Test/LiveSurfaceSpec implicit ?context/?request compile error around renderLiveSurfaceFragmentMount.

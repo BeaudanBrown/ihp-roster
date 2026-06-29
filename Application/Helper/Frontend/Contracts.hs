@@ -16,6 +16,7 @@ import Application.Helper.Frontend.SurfaceManifestSchema (surfaceManifestDeclara
 import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..),
                                                TypeScriptDeclarationOrigin (HaskellSchemaGenerated),
                                                renderTypeScriptDeclarations)
+import Application.Helper.Frontend.UiRegionSchema (uiRegionSchemaDeclaration)
 import IHP.Prelude
 
 -- Keep this module as the small composition root for frontend contracts. New
@@ -52,6 +53,7 @@ frontendContractDeclarations =
     , appSharedConstantsDeclaration
     , liveUpdateSchemaDeclaration
     , interactionSchemaDeclaration
+    , uiRegionSchemaDeclaration
     , rosterContractsDeclaration
     , surfaceManifestDeclaration
     ]
