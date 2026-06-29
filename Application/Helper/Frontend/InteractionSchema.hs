@@ -5,48 +5,32 @@ module Application.Helper.Frontend.InteractionSchema
     ) where
 
 import Application.Helper.Frontend.Codec (FrontendCodec (..),
-                                          FrontendField (..),
                                           FrontendSchema (..),
-                                          FrontendVariant (..),
-                                          SomeFrontendCodec (..),
-                                          renderFrontendContracts,
-                                          renderTypedConstant, stringEnumCodec)
-import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..),
-                                               TypeScriptDeclarationOrigin (HaskellSchemaGenerated))
+                                          SomeFrontendCodec (..), field,
+                                          recordSchema, stringEnumCodec,
+                                          taggedUnionSchema, variant)
+import Application.Helper.Frontend.ContractGroup (FrontendContractGroup (..),
+                                                  renderFrontendContractGroup,
+                                                  typedConstant)
+import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..))
 import Application.Helper.Interaction
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.Types as AesonTypes
-import qualified Data.Text as Text
 import IHP.Prelude
 import Web.RosterWeeks.LiveSurface (rosterInteractionStaticSchema)
 
 interactionSchemaDeclaration :: TypeScriptDeclaration
 interactionSchemaDeclaration =
-    TypeScriptDeclaration
-        { name = "InteractionContracts"
-        , origin = HaskellSchemaGenerated
-        , source = Text.unlines
-            [ "// Interaction contracts generated from Haskell static interaction schemas."
-            , interactionContractTypesSource
-            , interactionDomConstantSource
-            , interactionStaticSchemasSource
+    renderFrontendContractGroup FrontendContractGroup
+        { contractGroupName = "InteractionContracts"
+        , contractGroupComment = Just "Interaction contracts generated from Haskell static interaction schemas."
+        , contractGroupCodecs = interactionContractCodecs
+        , contractGroupConstants =
+            [ typedConstant "InteractionDom" interactionDomCodec canonicalInteractionDom
+            , typedConstant "InteractionStaticSchemas" interactionStaticSchemaRegistryCodec interactionStaticSchemasJson
             ]
         }
-
-interactionContractTypesSource :: Text
-interactionContractTypesSource =
-    case renderFrontendContracts interactionContractCodecs of
-        Right source -> source
-        Left message -> error ("Unable to render interaction contracts: " <> cs message)
-
-interactionDomConstantSource :: Text
-interactionDomConstantSource =
-    renderTypedConstant "InteractionDom" interactionDomCodec canonicalInteractionDom
-
-interactionStaticSchemasSource :: Text
-interactionStaticSchemasSource =
-    renderTypedConstant "InteractionStaticSchemas" interactionStaticSchemaRegistryCodec interactionStaticSchemasJson
 
 interactionStaticSchemasJson :: Aeson.Value
 interactionStaticSchemasJson =
@@ -100,38 +84,38 @@ interactionDomAttributesCodec = FrontendCodec
     }
 
 interactionDomAttributesSchema :: FrontendSchema
-interactionDomAttributesSchema = SchemaRecord "InteractionDomAttributes"
-    [ FrontendField "surface" SchemaString
-    , FrontendField "surfaceFamily" SchemaString
-    , FrontendField "scopeKey" SchemaString
-    , FrontendField "mountKey" SchemaString
-    , FrontendField "marker" SchemaString
-    , FrontendField "item" SchemaString
-    , FrontendField "container" SchemaString
-    , FrontendField "slot" SchemaString
-    , FrontendField "dropzone" SchemaString
-    , FrontendField "resizeHandle" SchemaString
-    , FrontendField "activation" SchemaString
-    , FrontendField "activationIntent" SchemaString
-    , FrontendField "activationTrigger" SchemaString
-    , FrontendField "activationValueField" SchemaString
-    , FrontendField "pointerSession" SchemaString
-    , FrontendField "sessionKind" SchemaString
-    , FrontendField "sessionIntent" SchemaString
-    , FrontendField "sessionDisabled" SchemaString
-    , FrontendField "sessionReadOnly" SchemaString
-    , FrontendField "sessionThreshold" SchemaString
-    , FrontendField "sessionTimeoutMs" SchemaString
-    , FrontendField "interactionActive" SchemaString
-    , FrontendField "serverLayer" SchemaString
-    , FrontendField "disposableLayer" SchemaString
-    , FrontendField "layer" SchemaString
-    , FrontendField "conflictPolicies" SchemaString
-    , FrontendField "intentForm" SchemaString
-    , FrontendField "intent" SchemaString
-    , FrontendField "intentField" SchemaString
-    , FrontendField "fieldPresence" SchemaString
-    , FrontendField "intentHiddenField" SchemaString
+interactionDomAttributesSchema = recordSchema "InteractionDomAttributes"
+    [ field "surface" SchemaString
+    , field "surfaceFamily" SchemaString
+    , field "scopeKey" SchemaString
+    , field "mountKey" SchemaString
+    , field "marker" SchemaString
+    , field "item" SchemaString
+    , field "container" SchemaString
+    , field "slot" SchemaString
+    , field "dropzone" SchemaString
+    , field "resizeHandle" SchemaString
+    , field "activation" SchemaString
+    , field "activationIntent" SchemaString
+    , field "activationTrigger" SchemaString
+    , field "activationValueField" SchemaString
+    , field "pointerSession" SchemaString
+    , field "sessionKind" SchemaString
+    , field "sessionIntent" SchemaString
+    , field "sessionDisabled" SchemaString
+    , field "sessionReadOnly" SchemaString
+    , field "sessionThreshold" SchemaString
+    , field "sessionTimeoutMs" SchemaString
+    , field "interactionActive" SchemaString
+    , field "serverLayer" SchemaString
+    , field "disposableLayer" SchemaString
+    , field "layer" SchemaString
+    , field "conflictPolicies" SchemaString
+    , field "intentForm" SchemaString
+    , field "intent" SchemaString
+    , field "intentField" SchemaString
+    , field "fieldPresence" SchemaString
+    , field "intentHiddenField" SchemaString
     ]
 
 interactionDomValuesCodec :: FrontendCodec InteractionDomValues
@@ -143,14 +127,14 @@ interactionDomValuesCodec = FrontendCodec
     }
 
 interactionDomValuesSchema :: FrontendSchema
-interactionDomValuesSchema = SchemaRecord "InteractionDomValues"
-    [ FrontendField "enabled" SchemaString
-    , FrontendField "itemMarker" SchemaString
-    , FrontendField "containerMarker" SchemaString
-    , FrontendField "slotMarker" SchemaString
-    , FrontendField "dropzoneMarker" SchemaString
-    , FrontendField "resizeHandleMarker" SchemaString
-    , FrontendField "activationMarker" SchemaString
+interactionDomValuesSchema = recordSchema "InteractionDomValues"
+    [ field "enabled" SchemaString
+    , field "itemMarker" SchemaString
+    , field "containerMarker" SchemaString
+    , field "slotMarker" SchemaString
+    , field "dropzoneMarker" SchemaString
+    , field "resizeHandleMarker" SchemaString
+    , field "activationMarker" SchemaString
     ]
 
 interactionPointerFieldsCodec :: FrontendCodec InteractionPointerFields
@@ -162,27 +146,27 @@ interactionPointerFieldsCodec = FrontendCodec
     }
 
 interactionPointerFieldsSchema :: FrontendSchema
-interactionPointerFieldsSchema = SchemaRecord "InteractionPointerFields"
-    [ FrontendField "sessionKind" SchemaString
-    , FrontendField "pointerId" SchemaString
-    , FrontendField "pointerType" SchemaString
-    , FrontendField "startClientX" SchemaString
-    , FrontendField "startClientY" SchemaString
-    , FrontendField "currentClientX" SchemaString
-    , FrontendField "currentClientY" SchemaString
-    , FrontendField "deltaX" SchemaString
-    , FrontendField "deltaY" SchemaString
-    , FrontendField "sourceItemKey" SchemaString
-    , FrontendField "targetDropzoneKey" SchemaString
+interactionPointerFieldsSchema = recordSchema "InteractionPointerFields"
+    [ field "sessionKind" SchemaString
+    , field "pointerId" SchemaString
+    , field "pointerType" SchemaString
+    , field "startClientX" SchemaString
+    , field "startClientY" SchemaString
+    , field "currentClientX" SchemaString
+    , field "currentClientY" SchemaString
+    , field "deltaX" SchemaString
+    , field "deltaY" SchemaString
+    , field "sourceItemKey" SchemaString
+    , field "targetDropzoneKey" SchemaString
     ]
 
 interactionDomCodec :: FrontendCodec InteractionDom
 interactionDomCodec = FrontendCodec
     { codecName = Just "InteractionDom"
-    , codecSchema = SchemaRecord "InteractionDom"
-        [ FrontendField "attributes" (SchemaRef "InteractionDomAttributes")
-        , FrontendField "values" (SchemaRef "InteractionDomValues")
-        , FrontendField "pointerFields" (SchemaRef "InteractionPointerFields")
+    , codecSchema = recordSchema "InteractionDom"
+        [ field "attributes" (SchemaRef "InteractionDomAttributes")
+        , field "values" (SchemaRef "InteractionDomValues")
+        , field "pointerFields" (SchemaRef "InteractionPointerFields")
         ]
     , codecEncode = interactionDomJson
     , codecParse = parseInteractionDom
@@ -222,132 +206,132 @@ interactionIntentFieldNameCodec :: FrontendCodec Text
 interactionIntentFieldNameCodec = textEnumCodec "InteractionIntentFieldName" (unique (concatMap (.intentFieldNames) knownInteractionSchemas))
 
 interactionSessionSelectorCodec :: FrontendCodec Aeson.Value
-interactionSessionSelectorCodec = valueCodec "InteractionSessionSelector" $ SchemaTaggedUnion "InteractionSessionSelector" "kind"
-    [ FrontendVariant "any" []
-    , FrontendVariant "session" [FrontendField "session" (SchemaRef "InteractionSessionKindName")]
+interactionSessionSelectorCodec = valueCodec "InteractionSessionSelector" $ taggedUnionSchema "InteractionSessionSelector" "kind"
+    [ variant "any" []
+    , variant "session" [field "session" (SchemaRef "InteractionSessionKindName")]
     ]
 
 interactionFragmentSelectorCodec :: FrontendCodec Aeson.Value
-interactionFragmentSelectorCodec = valueCodec "InteractionFragmentSelector" $ SchemaTaggedUnion "InteractionFragmentSelector" "kind"
-    [ FrontendVariant "any" []
-    , FrontendVariant "live_fragment" [FrontendField "fragment" (SchemaRef "LiveFragmentKey")]
+interactionFragmentSelectorCodec = valueCodec "InteractionFragmentSelector" $ taggedUnionSchema "InteractionFragmentSelector" "kind"
+    [ variant "any" []
+    , variant "live_fragment" [field "fragment" (SchemaRef "LiveFragmentKey")]
     ]
 
 interactionMountMetadataCodec :: FrontendCodec Aeson.Value
-interactionMountMetadataCodec = valueCodec "InteractionMountMetadata" $ SchemaRecord "InteractionMountMetadata"
-    [ FrontendField "surfaceFamily" (SchemaRef "InteractionSurfaceFamily")
-    , FrontendField "scopeKey" SchemaString
-    , FrontendField "mountKey" SchemaString
-    , FrontendField "mountId" SchemaString
+interactionMountMetadataCodec = valueCodec "InteractionMountMetadata" $ recordSchema "InteractionMountMetadata"
+    [ field "surfaceFamily" (SchemaRef "InteractionSurfaceFamily")
+    , field "scopeKey" SchemaString
+    , field "mountKey" SchemaString
+    , field "mountId" SchemaString
     ]
 
 serverLayerContractCodec :: FrontendCodec Aeson.Value
-serverLayerContractCodec = valueCodec "ServerLayerContract" $ SchemaRecord "ServerLayerContract"
-    [ FrontendField "name" SchemaString
-    , FrontendField "domId" SchemaString
+serverLayerContractCodec = valueCodec "ServerLayerContract" $ recordSchema "ServerLayerContract"
+    [ field "name" SchemaString
+    , field "domId" SchemaString
     ]
 
 disposableLayerContractCodec :: FrontendCodec Aeson.Value
-disposableLayerContractCodec = valueCodec "DisposableLayerContract" $ SchemaRecord "DisposableLayerContract"
-    [ FrontendField "kind" (SchemaRef "InteractionDisposableLayerName")
-    , FrontendField "name" SchemaString
-    , FrontendField "domId" SchemaString
+disposableLayerContractCodec = valueCodec "DisposableLayerContract" $ recordSchema "DisposableLayerContract"
+    [ field "kind" (SchemaRef "InteractionDisposableLayerName")
+    , field "name" SchemaString
+    , field "domId" SchemaString
     ]
 
 sessionKindContractCodec :: FrontendCodec Aeson.Value
-sessionKindContractCodec = valueCodec "SessionKindContract" $ SchemaRecord "SessionKindContract"
-    [ FrontendField "kind" (SchemaRef "InteractionSessionKindName")
-    , FrontendField "description" SchemaString
+sessionKindContractCodec = valueCodec "SessionKindContract" $ recordSchema "SessionKindContract"
+    [ field "kind" (SchemaRef "InteractionSessionKindName")
+    , field "description" SchemaString
     ]
 
 intentFieldSchemaCodec :: FrontendCodec Aeson.Value
-intentFieldSchemaCodec = valueCodec "IntentFieldSchema" $ SchemaRecord "IntentFieldSchema"
-    [ FrontendField "name" (SchemaRef "InteractionIntentFieldName")
-    , FrontendField "presence" (SchemaRef "InteractionFieldPresence")
-    , FrontendField "defaultValue" (SchemaOptional (SchemaNullable SchemaString))
+intentFieldSchemaCodec = valueCodec "IntentFieldSchema" $ recordSchema "IntentFieldSchema"
+    [ field "name" (SchemaRef "InteractionIntentFieldName")
+    , field "presence" (SchemaRef "InteractionFieldPresence")
+    , field "defaultValue" (SchemaOptional (SchemaNullable SchemaString))
     ]
 
 intentHiddenFieldCodec :: FrontendCodec Aeson.Value
-intentHiddenFieldCodec = valueCodec "IntentHiddenField" $ SchemaRecord "IntentHiddenField"
-    [ FrontendField "name" SchemaString
-    , FrontendField "value" SchemaString
+intentHiddenFieldCodec = valueCodec "IntentHiddenField" $ recordSchema "IntentHiddenField"
+    [ field "name" SchemaString
+    , field "value" SchemaString
     ]
 
 interactionIntentTargetCodec :: FrontendCodec Aeson.Value
-interactionIntentTargetCodec = valueCodec "InteractionIntentTarget" $ SchemaTaggedUnion "InteractionIntentTarget" "kind"
-    [ FrontendVariant "live_fragment" [FrontendField "fragment" (SchemaRef "LiveUpdateWireFragment")]
-    , FrontendVariant "mount_local" [FrontendField "target" SchemaString]
+interactionIntentTargetCodec = valueCodec "InteractionIntentTarget" $ taggedUnionSchema "InteractionIntentTarget" "kind"
+    [ variant "live_fragment" [field "fragment" (SchemaRef "LiveUpdateWireFragment")]
+    , variant "mount_local" [field "target" SchemaString]
     ]
 
 intentFormContractCodec :: FrontendCodec Aeson.Value
-intentFormContractCodec = valueCodec "IntentFormContract" $ SchemaRecord "IntentFormContract"
-    [ FrontendField "intent" (SchemaRef "InteractionIntentName")
-    , FrontendField "name" (SchemaRef "InteractionIntentName")
-    , FrontendField "action" SchemaString
-    , FrontendField "method" (SchemaRef "HtmxMethod")
-    , FrontendField "trigger" SchemaString
-    , FrontendField "target" (SchemaRef "InteractionIntentTarget")
-    , FrontendField "swap" (SchemaRef "HtmxSwap")
-    , FrontendField "fields" (SchemaArray (SchemaRef "IntentFieldSchema"))
-    , FrontendField "hiddenFields" (SchemaArray (SchemaRef "IntentHiddenField"))
-    , FrontendField "sync" (SchemaOptional (SchemaNullable SchemaString))
-    , FrontendField "disabledElement" (SchemaOptional (SchemaNullable SchemaString))
+intentFormContractCodec = valueCodec "IntentFormContract" $ recordSchema "IntentFormContract"
+    [ field "intent" (SchemaRef "InteractionIntentName")
+    , field "name" (SchemaRef "InteractionIntentName")
+    , field "action" SchemaString
+    , field "method" (SchemaRef "HtmxMethod")
+    , field "trigger" SchemaString
+    , field "target" (SchemaRef "InteractionIntentTarget")
+    , field "swap" (SchemaRef "HtmxSwap")
+    , field "fields" (SchemaArray (SchemaRef "IntentFieldSchema"))
+    , field "hiddenFields" (SchemaArray (SchemaRef "IntentHiddenField"))
+    , field "sync" (SchemaOptional (SchemaNullable SchemaString))
+    , field "disabledElement" (SchemaOptional (SchemaNullable SchemaString))
     ]
 
 interactionConflictPolicyCodec :: FrontendCodec Aeson.Value
-interactionConflictPolicyCodec = valueCodec "InteractionConflictPolicy" $ SchemaRecord "InteractionConflictPolicy"
-    [ FrontendField "session" (SchemaRef "InteractionSessionSelector")
-    , FrontendField "fragment" (SchemaRef "InteractionFragmentSelector")
-    , FrontendField "resolution" (SchemaRef "InteractionConflictResolution")
-    , FrontendField "timeoutMs" (SchemaOptional (SchemaNullable SchemaInt))
+interactionConflictPolicyCodec = valueCodec "InteractionConflictPolicy" $ recordSchema "InteractionConflictPolicy"
+    [ field "session" (SchemaRef "InteractionSessionSelector")
+    , field "fragment" (SchemaRef "InteractionFragmentSelector")
+    , field "resolution" (SchemaRef "InteractionConflictResolution")
+    , field "timeoutMs" (SchemaOptional (SchemaNullable SchemaInt))
     ]
 
 interactionCapabilityContractCodec :: FrontendCodec Aeson.Value
-interactionCapabilityContractCodec = valueCodec "InteractionCapabilityContract" $ SchemaRecord "InteractionCapabilityContract"
-    [ FrontendField "mount" (SchemaRef "InteractionMountMetadata")
-    , FrontendField "serverLayers" (SchemaArray (SchemaRef "ServerLayerContract"))
-    , FrontendField "disposableLayers" (SchemaArray (SchemaRef "DisposableLayerContract"))
-    , FrontendField "sessionKinds" (SchemaArray (SchemaRef "SessionKindContract"))
-    , FrontendField "intentForms" (SchemaArray (SchemaRef "IntentFormContract"))
-    , FrontendField "conflictPolicies" (SchemaArray (SchemaRef "InteractionConflictPolicy"))
+interactionCapabilityContractCodec = valueCodec "InteractionCapabilityContract" $ recordSchema "InteractionCapabilityContract"
+    [ field "mount" (SchemaRef "InteractionMountMetadata")
+    , field "serverLayers" (SchemaArray (SchemaRef "ServerLayerContract"))
+    , field "disposableLayers" (SchemaArray (SchemaRef "DisposableLayerContract"))
+    , field "sessionKinds" (SchemaArray (SchemaRef "SessionKindContract"))
+    , field "intentForms" (SchemaArray (SchemaRef "IntentFormContract"))
+    , field "conflictPolicies" (SchemaArray (SchemaRef "InteractionConflictPolicy"))
     ]
 
 interactionStaticServerLayerCodec :: FrontendCodec Aeson.Value
-interactionStaticServerLayerCodec = valueCodec "InteractionStaticServerLayer" $ SchemaRecord "InteractionStaticServerLayer"
-    [ FrontendField "name" SchemaString
-    , FrontendField "domIdSuffix" SchemaString
+interactionStaticServerLayerCodec = valueCodec "InteractionStaticServerLayer" $ recordSchema "InteractionStaticServerLayer"
+    [ field "name" SchemaString
+    , field "domIdSuffix" SchemaString
     ]
 
 interactionStaticDisposableLayerCodec :: FrontendCodec Aeson.Value
-interactionStaticDisposableLayerCodec = valueCodec "InteractionStaticDisposableLayer" $ SchemaRecord "InteractionStaticDisposableLayer"
-    [ FrontendField "name" (SchemaRef "InteractionDisposableLayerName")
-    , FrontendField "domIdSuffix" SchemaString
+interactionStaticDisposableLayerCodec = valueCodec "InteractionStaticDisposableLayer" $ recordSchema "InteractionStaticDisposableLayer"
+    [ field "name" (SchemaRef "InteractionDisposableLayerName")
+    , field "domIdSuffix" SchemaString
     ]
 
 interactionStaticSessionKindCodec :: FrontendCodec Aeson.Value
-interactionStaticSessionKindCodec = valueCodec "InteractionStaticSessionKind" $ SchemaRecord "InteractionStaticSessionKind"
-    [ FrontendField "kind" (SchemaRef "InteractionSessionKindName")
-    , FrontendField "description" SchemaString
+interactionStaticSessionKindCodec = valueCodec "InteractionStaticSessionKind" $ recordSchema "InteractionStaticSessionKind"
+    [ field "kind" (SchemaRef "InteractionSessionKindName")
+    , field "description" SchemaString
     ]
 
 interactionStaticIntentCodec :: FrontendCodec Aeson.Value
-interactionStaticIntentCodec = valueCodec "InteractionStaticIntent" $ SchemaRecord "InteractionStaticIntent"
-    [ FrontendField "name" (SchemaRef "InteractionIntentName")
-    , FrontendField "fields" (SchemaArray (SchemaRef "IntentFieldSchema"))
+interactionStaticIntentCodec = valueCodec "InteractionStaticIntent" $ recordSchema "InteractionStaticIntent"
+    [ field "name" (SchemaRef "InteractionIntentName")
+    , field "fields" (SchemaArray (SchemaRef "IntentFieldSchema"))
     ]
 
 interactionStaticSchemaCodec :: FrontendCodec Aeson.Value
-interactionStaticSchemaCodec = valueCodec "InteractionStaticSchema" $ SchemaRecord "InteractionStaticSchema"
-    [ FrontendField "serverLayers" (SchemaArray (SchemaRef "InteractionStaticServerLayer"))
-    , FrontendField "disposableLayers" (SchemaArray (SchemaRef "InteractionStaticDisposableLayer"))
-    , FrontendField "sessionKinds" (SchemaArray (SchemaRef "InteractionStaticSessionKind"))
-    , FrontendField "intents" (SchemaArray (SchemaRef "InteractionStaticIntent"))
-    , FrontendField "conflictPolicies" (SchemaArray (SchemaRef "InteractionConflictPolicy"))
+interactionStaticSchemaCodec = valueCodec "InteractionStaticSchema" $ recordSchema "InteractionStaticSchema"
+    [ field "serverLayers" (SchemaArray (SchemaRef "InteractionStaticServerLayer"))
+    , field "disposableLayers" (SchemaArray (SchemaRef "InteractionStaticDisposableLayer"))
+    , field "sessionKinds" (SchemaArray (SchemaRef "InteractionStaticSessionKind"))
+    , field "intents" (SchemaArray (SchemaRef "InteractionStaticIntent"))
+    , field "conflictPolicies" (SchemaArray (SchemaRef "InteractionConflictPolicy"))
     ]
 
 interactionStaticSchemaRegistryCodec :: FrontendCodec Aeson.Value
-interactionStaticSchemaRegistryCodec = valueCodec "InteractionStaticSchemaRegistry" $ SchemaRecord "InteractionStaticSchemaRegistry"
-    [ FrontendField schema.familyName (SchemaRef "InteractionStaticSchema")
+interactionStaticSchemaRegistryCodec = valueCodec "InteractionStaticSchemaRegistry" $ recordSchema "InteractionStaticSchemaRegistry"
+    [ field schema.familyName (SchemaRef "InteractionStaticSchema")
     | schema <- knownInteractionSchemas
     ]
 
