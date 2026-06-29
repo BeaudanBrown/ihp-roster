@@ -12,15 +12,21 @@ module Application.Helper.Frontend.Codec
     , arrayCodec
     , boolCodec
     , encodeFrontend
+    , field
     , intCodec
     , nullableCodec
+    , nullableField
+    , optionalField
     , parseFrontend
+    , recordSchema
     , refCodec
     , renderFrontendContracts
     , renderTypedConstant
     , someFrontendCodec
     , stringCodec
     , stringEnumCodec
+    , taggedUnionSchema
+    , variant
     ) where
 
 import qualified Data.Aeson as Aeson
@@ -70,6 +76,24 @@ data FrontendVariant = FrontendVariant
     deriving (Eq, Show)
 
 data SomeFrontendCodec = forall a. SomeFrontendCodec (FrontendCodec a)
+
+field :: Text -> FrontendSchema -> FrontendField
+field = FrontendField
+
+optionalField :: Text -> FrontendSchema -> FrontendField
+optionalField name schema = FrontendField name (SchemaOptional schema)
+
+nullableField :: Text -> FrontendSchema -> FrontendField
+nullableField name schema = FrontendField name (SchemaNullable schema)
+
+recordSchema :: Text -> [FrontendField] -> FrontendSchema
+recordSchema = SchemaRecord
+
+variant :: Text -> [FrontendField] -> FrontendVariant
+variant = FrontendVariant
+
+taggedUnionSchema :: Text -> Text -> [FrontendVariant] -> FrontendSchema
+taggedUnionSchema = SchemaTaggedUnion
 
 class HasFrontendCodec a where
     frontendCodec :: FrontendCodec a

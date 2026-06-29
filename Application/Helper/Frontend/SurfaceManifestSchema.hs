@@ -3,41 +3,28 @@ module Application.Helper.Frontend.SurfaceManifestSchema
     ) where
 
 import Application.Helper.Frontend.Codec (FrontendCodec (..),
-                                          FrontendField (..),
                                           FrontendSchema (..),
-                                          SomeFrontendCodec (..),
-                                          renderFrontendContracts,
-                                          renderTypedConstant, stringEnumCodec)
-import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..),
-                                               TypeScriptDeclarationOrigin (HaskellSchemaGenerated))
+                                          SomeFrontendCodec (..), field,
+                                          nullableField, recordSchema,
+                                          stringEnumCodec)
+import Application.Helper.Frontend.ContractGroup (FrontendContractGroup (..),
+                                                  renderFrontendContractGroup,
+                                                  typedConstant)
+import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
-import qualified Data.Text as Text
 import IHP.Prelude
 import Web.LiveSurfaceRegistry (RegisteredLiveSurfaceManifest (..),
                                 registeredLiveSurfaceManifest)
 
 surfaceManifestDeclaration :: TypeScriptDeclaration
 surfaceManifestDeclaration =
-    TypeScriptDeclaration
-        { name = "LiveSurfaceManifest"
-        , origin = HaskellSchemaGenerated
-        , source = Text.unlines
-            [ "// Live-surface manifest generated from the registered Haskell surface registry."
-            , surfaceManifestTypesSource
-            , surfaceManifestConstantSource
-            ]
+    renderFrontendContractGroup FrontendContractGroup
+        { contractGroupName = "LiveSurfaceManifest"
+        , contractGroupComment = Just "Live-surface manifest generated from the registered Haskell surface registry."
+        , contractGroupCodecs = surfaceManifestCodecs
+        , contractGroupConstants = [typedConstant "LiveSurfaceManifest" liveSurfaceManifestRegistryCodec liveSurfaceManifestJson]
         }
-
-surfaceManifestTypesSource :: Text
-surfaceManifestTypesSource =
-    case renderFrontendContracts surfaceManifestCodecs of
-        Right source -> source
-        Left message -> error ("Unable to render live-surface manifest contracts: " <> cs message)
-
-surfaceManifestConstantSource :: Text
-surfaceManifestConstantSource =
-    renderTypedConstant "LiveSurfaceManifest" liveSurfaceManifestRegistryCodec liveSurfaceManifestJson
 
 surfaceManifestCodecs :: [SomeFrontendCodec]
 surfaceManifestCodecs =
@@ -58,15 +45,15 @@ registeredLiveSurfaceFragmentKindCodec :: FrontendCodec Text
 registeredLiveSurfaceFragmentKindCodec = textEnumCodec "RegisteredLiveSurfaceFragmentKind" (unique (concatMap (.fragmentKinds) registeredLiveSurfaceManifest))
 
 liveSurfaceManifestEntryCodec :: FrontendCodec Aeson.Value
-liveSurfaceManifestEntryCodec = valueCodec "LiveSurfaceManifestEntry" $ SchemaRecord "LiveSurfaceManifestEntry"
-    [ FrontendField "scopeKinds" (SchemaArray (SchemaRef "RegisteredLiveSurfaceScopeKind"))
-    , FrontendField "fragmentKinds" (SchemaArray (SchemaRef "RegisteredLiveSurfaceFragmentKind"))
-    , FrontendField "interactionSchema" (SchemaNullable (SchemaRef "InteractionSurfaceFamily"))
+liveSurfaceManifestEntryCodec = valueCodec "LiveSurfaceManifestEntry" $ recordSchema "LiveSurfaceManifestEntry"
+    [ field "scopeKinds" (SchemaArray (SchemaRef "RegisteredLiveSurfaceScopeKind"))
+    , field "fragmentKinds" (SchemaArray (SchemaRef "RegisteredLiveSurfaceFragmentKind"))
+    , nullableField "interactionSchema" (SchemaRef "InteractionSurfaceFamily")
     ]
 
 liveSurfaceManifestRegistryCodec :: FrontendCodec Aeson.Value
-liveSurfaceManifestRegistryCodec = valueCodec "LiveSurfaceManifestRegistry" $ SchemaRecord "LiveSurfaceManifestRegistry"
-    [ FrontendField surface.surfaceFamily (SchemaRef "LiveSurfaceManifestEntry")
+liveSurfaceManifestRegistryCodec = valueCodec "LiveSurfaceManifestRegistry" $ recordSchema "LiveSurfaceManifestRegistry"
+    [ field surface.surfaceFamily (SchemaRef "LiveSurfaceManifestEntry")
     | surface <- registeredLiveSurfaceManifest
     ]
 

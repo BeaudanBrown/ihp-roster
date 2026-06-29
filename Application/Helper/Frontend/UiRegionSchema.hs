@@ -1,53 +1,48 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Application.Helper.Frontend.UiRegionSchema
     ( uiRegionSchemaDeclaration
     ) where
 
 import Application.Helper.Frontend.Codec (FrontendCodec (..),
-                                          FrontendField (..),
                                           FrontendSchema (..),
-                                          SomeFrontendCodec (..),
-                                          renderFrontendContracts,
-                                          renderTypedConstant, stringEnumCodec)
-import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..),
-                                               TypeScriptDeclarationOrigin (HaskellSchemaGenerated))
+                                          HasFrontendCodec (..), field,
+                                          recordSchema, someFrontendCodec,
+                                          stringEnumCodec)
+import Application.Helper.Frontend.ContractGroup (FrontendContractGroup (..),
+                                                  renderFrontendContractGroup,
+                                                  typedConstant)
+import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..))
 import Application.Helper.UiRegion
 import qualified Data.Aeson as Aeson
-import qualified Data.Text as Text
 import IHP.Prelude
 
 uiRegionSchemaDeclaration :: TypeScriptDeclaration
 uiRegionSchemaDeclaration =
-    TypeScriptDeclaration
-        { name = "UiRegionContracts"
-        , origin = HaskellSchemaGenerated
-        , source = Text.unlines
-            [ "// UI region capability vocabulary generated from Haskell."
-            , uiRegionTypesSource
-            , renderTypedConstant "UiRegionDom" uiRegionDomAttributesCodec canonicalUiRegionDomAttributes
-            , renderTypedConstant "UiRegionEvents" uiRegionEventsCodec canonicalUiRegionEvents
+    renderFrontendContractGroup FrontendContractGroup
+        { contractGroupName = "UiRegionContracts"
+        , contractGroupComment = Just "UI region capability vocabulary generated from Haskell."
+        , contractGroupCodecs =
+            [ someFrontendCodec @UiRegionDomAttributes
+            , someFrontendCodec @UiRegionTransitionProfile
+            , someFrontendCodec @UiRegionLifecycleEvent
+            , someFrontendCodec @UiRegionEvents
+            ]
+        , contractGroupConstants =
+            [ typedConstant "UiRegionDom" (frontendCodec @UiRegionDomAttributes) canonicalUiRegionDomAttributes
+            , typedConstant "UiRegionEvents" (frontendCodec @UiRegionEvents) canonicalUiRegionEvents
             ]
         }
 
-uiRegionTypesSource :: Text
-uiRegionTypesSource =
-    case renderFrontendContracts
-        [ SomeFrontendCodec uiRegionDomAttributesCodec
-        , SomeFrontendCodec uiRegionTransitionProfileCodec
-        , SomeFrontendCodec uiRegionLifecycleEventCodec
-        , SomeFrontendCodec uiRegionEventsCodec
-        ] of
-        Right source -> source
-        Left message -> error ("Unable to render UI region contracts: " <> cs message)
-
-uiRegionDomAttributesCodec :: FrontendCodec UiRegionDomAttributes
-uiRegionDomAttributesCodec = FrontendCodec
-    { codecName = Just "UiRegionDom"
-    , codecSchema = SchemaRecord "UiRegionDom"
-        [ FrontendField "fragment" SchemaString
-        , FrontendField "lazySurface" SchemaString
-        , FrontendField "lazyFragment" SchemaString
-        , FrontendField "lazyRetry" SchemaString
-        , FrontendField "transition" SchemaString
+instance HasFrontendCodec UiRegionDomAttributes where
+    frontendCodec = FrontendCodec
+        { codecName = Just "UiRegionDom"
+    , codecSchema = recordSchema "UiRegionDom"
+        [ field "fragment" SchemaString
+        , field "lazySurface" SchemaString
+        , field "lazyFragment" SchemaString
+        , field "lazyRetry" SchemaString
+        , field "transition" SchemaString
         ]
     , codecEncode = \dom -> Aeson.object
         [ "fragment" Aeson..= dom.uiRegionFragmentAttribute
@@ -65,18 +60,18 @@ uiRegionDomAttributesCodec = FrontendCodec
             <*> object Aeson..: "transition"
     }
 
-uiRegionTransitionProfileCodec :: FrontendCodec UiRegionTransitionProfile
-uiRegionTransitionProfileCodec =
-    stringEnumCodec "UiRegionTransitionProfile"
-        [ (UiRegionTransitionNone, uiRegionTransitionProfileText UiRegionTransitionNone)
-        , (UiRegionTransitionFade, uiRegionTransitionProfileText UiRegionTransitionFade)
-        , (UiRegionTransitionFadeSlide, uiRegionTransitionProfileText UiRegionTransitionFadeSlide)
-        , (UiRegionTransitionPanel, uiRegionTransitionProfileText UiRegionTransitionPanel)
-        ]
+instance HasFrontendCodec UiRegionTransitionProfile where
+    frontendCodec =
+        stringEnumCodec "UiRegionTransitionProfile"
+            [ (UiRegionTransitionNone, uiRegionTransitionProfileText UiRegionTransitionNone)
+            , (UiRegionTransitionFade, uiRegionTransitionProfileText UiRegionTransitionFade)
+            , (UiRegionTransitionFadeSlide, uiRegionTransitionProfileText UiRegionTransitionFadeSlide)
+            , (UiRegionTransitionPanel, uiRegionTransitionProfileText UiRegionTransitionPanel)
+            ]
 
-uiRegionLifecycleEventCodec :: FrontendCodec UiRegionLifecycleEvent
-uiRegionLifecycleEventCodec =
-    stringEnumCodec "UiRegionLifecycleEvent" canonicalUiRegionLifecycleEvents
+instance HasFrontendCodec UiRegionLifecycleEvent where
+    frontendCodec =
+        stringEnumCodec "UiRegionLifecycleEvent" canonicalUiRegionLifecycleEvents
 
 data UiRegionEvents = UiRegionEvents
     { regionRequestStart :: !Text
@@ -96,15 +91,15 @@ canonicalUiRegionEvents = UiRegionEvents
     , regionError = uiRegionLifecycleEventName UiRegionError
     }
 
-uiRegionEventsCodec :: FrontendCodec UiRegionEvents
-uiRegionEventsCodec = FrontendCodec
-    { codecName = Just "UiRegionEvents"
-    , codecSchema = SchemaRecord "UiRegionEvents"
-        [ FrontendField "requestStart" SchemaString
-        , FrontendField "beforeSwap" SchemaString
-        , FrontendField "afterSwap" SchemaString
-        , FrontendField "settle" SchemaString
-        , FrontendField "error" SchemaString
+instance HasFrontendCodec UiRegionEvents where
+    frontendCodec = FrontendCodec
+        { codecName = Just "UiRegionEvents"
+    , codecSchema = recordSchema "UiRegionEvents"
+        [ field "requestStart" SchemaString
+        , field "beforeSwap" SchemaString
+        , field "afterSwap" SchemaString
+        , field "settle" SchemaString
+        , field "error" SchemaString
         ]
     , codecEncode = \events -> Aeson.object
         [ "requestStart" Aeson..= events.regionRequestStart

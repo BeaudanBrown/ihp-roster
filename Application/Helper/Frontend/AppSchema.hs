@@ -1,46 +1,40 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Application.Helper.Frontend.AppSchema
     ( appSharedConstantsDeclaration
     ) where
 
 import Application.Helper.Frontend.AppConstants
 import Application.Helper.Frontend.Codec (FrontendCodec (..),
-                                          FrontendField (..),
                                           FrontendSchema (..),
-                                          SomeFrontendCodec (..),
-                                          renderFrontendContracts,
-                                          renderTypedConstant)
-import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..),
-                                               TypeScriptDeclarationOrigin (HaskellSchemaGenerated))
+                                          HasFrontendCodec (..), field,
+                                          recordSchema, someFrontendCodec)
+import Application.Helper.Frontend.ContractGroup (FrontendContractGroup (..),
+                                                  renderFrontendContractGroup,
+                                                  typedConstant)
+import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
-import qualified Data.Text as Text
 import IHP.Prelude
 
 appSharedConstantsDeclaration :: TypeScriptDeclaration
 appSharedConstantsDeclaration =
-    TypeScriptDeclaration
-        { name = "AppSharedConstants"
-        , origin = HaskellSchemaGenerated
-        , source = Text.unlines
-            [ "// Shared app DOM and browser event constants generated from Haskell."
-            , appSharedConstantsTypesSource
-            , renderTypedConstant "AppOverlayDom" appOverlayDomCodec canonicalAppOverlayDom
-            , renderTypedConstant "AppEvents" appEventsCodec canonicalAppEvents
+    renderFrontendContractGroup FrontendContractGroup
+        { contractGroupName = "AppSharedConstants"
+        , contractGroupComment = Just "Shared app DOM and browser event constants generated from Haskell."
+        , contractGroupCodecs = [someFrontendCodec @AppOverlayDom, someFrontendCodec @AppEvents]
+        , contractGroupConstants =
+            [ typedConstant "AppOverlayDom" (frontendCodec @AppOverlayDom) canonicalAppOverlayDom
+            , typedConstant "AppEvents" (frontendCodec @AppEvents) canonicalAppEvents
             ]
         }
 
-appSharedConstantsTypesSource :: Text
-appSharedConstantsTypesSource =
-    case renderFrontendContracts [SomeFrontendCodec appOverlayDomCodec, SomeFrontendCodec appEventsCodec] of
-        Right source -> source
-        Left message -> error ("Unable to render shared app constants: " <> cs message)
-
-appOverlayDomCodec :: FrontendCodec AppOverlayDom
-appOverlayDomCodec = FrontendCodec
-    { codecName = Just "AppOverlayDom"
-    , codecSchema = SchemaRecord "AppOverlayDom"
-        [ FrontendField "dialogOverlayMountId" SchemaString
-        , FrontendField "toastOverlayMountId" SchemaString
+instance HasFrontendCodec AppOverlayDom where
+    frontendCodec = FrontendCodec
+        { codecName = Just "AppOverlayDom"
+    , codecSchema = recordSchema "AppOverlayDom"
+        [ field "dialogOverlayMountId" SchemaString
+        , field "toastOverlayMountId" SchemaString
         ]
     , codecEncode = \dom -> Aeson.object
         [ "dialogOverlayMountId" Aeson..= dom.appDialogOverlayMountId
@@ -52,17 +46,17 @@ appOverlayDomCodec = FrontendCodec
             <*> object Aeson..: "toastOverlayMountId"
     }
 
-appEventsCodec :: FrontendCodec AppEvents
-appEventsCodec = FrontendCodec
-    { codecName = Just "AppEvents"
-    , codecSchema = SchemaRecord "AppEvents"
-        [ FrontendField "pageReady" SchemaString
-        , FrontendField "liveFragmentsRefresh" SchemaString
-        , FrontendField "interactionIntent" SchemaString
-        , FrontendField "interactionIntentSubmit" SchemaString
-        , FrontendField "interactionSessionStart" SchemaString
-        , FrontendField "interactionSessionEnd" SchemaString
-        , FrontendField "interactionSessionCancelRequest" SchemaString
+instance HasFrontendCodec AppEvents where
+    frontendCodec = FrontendCodec
+        { codecName = Just "AppEvents"
+    , codecSchema = recordSchema "AppEvents"
+        [ field "pageReady" SchemaString
+        , field "liveFragmentsRefresh" SchemaString
+        , field "interactionIntent" SchemaString
+        , field "interactionIntentSubmit" SchemaString
+        , field "interactionSessionStart" SchemaString
+        , field "interactionSessionEnd" SchemaString
+        , field "interactionSessionCancelRequest" SchemaString
         ]
     , codecEncode = appEventsJson
     , codecParse = parseAppEvents
