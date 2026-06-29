@@ -1,6 +1,6 @@
 ---
 id: ir-oj76
-status: open
+status: closed
 deps: [ir-nx3u, ir-fp76, ir-vgwk, ir-5dd9, ir-a02h, ir-t4g3, ir-pbuf, ir-agmx]
 links: []
 created: 2026-06-29T13:12:16Z
@@ -22,3 +22,9 @@ Update LiveUpdate.SPEC, LiveSurface.COOKBOOK, Interaction.SPEC if needed, and fr
 
 A future agent can add a declarative region from docs; docs explicitly prohibit TypeScript from inventing routes, target ids, fragment names, or business semantics; verification commands are listed.
 
+
+## Notes
+
+**2026-06-29T13:47:51Z**
+
+Updated living docs for UI region capability vocabulary, generated TS contracts, HTMX-to-Bepis adapter, lazy retry, transition profiles, server/frontend boundaries, non-goals, anti-patterns, and verification commands.

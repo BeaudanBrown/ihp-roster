@@ -28,6 +28,15 @@ For the step-by-step checklist and glossary used when adding a fragment, see
 intent forms, generated browser contracts, and live-fragment conflict policy,
 see `Application/Helper/Interaction.SPEC.md`.
 
+Declarative UI region capabilities are a browser-facing layer on top of
+server-owned fragments. Haskell owns the allowed `data-bepis-*` names,
+transition profile vocabulary, and lifecycle event names in
+`Application.Helper.UiRegion`; `frontend/ts/generated/contracts.ts` exposes
+matching unions, guards, and constants. The frontend HTMX adapter is deliberately
+thin: it translates raw HTMX events into Bepis region events only for
+`data-bepis-fragment="true"` roots, and downstream lazy/retry/transition code is
+parameterized by those server-rendered attrs.
+
 Ordinary live surfaces should be declared in Haskell with
 `Application.Helper.LiveSurface.TypedLiveSurfaceDefinition` and rendered on a
 stable owner element as `data-live-update-surface` via
@@ -137,7 +146,10 @@ ticket deliberately defines a typed region contract for them:
 When a current HTMX interaction should become a region, migrate it through the
 Haskell contract first: closed fragment/region identity, stable target id,
 authoritative GET URL, optional lazy/retry/transition attrs, and focused-field
-or interaction conflict policy if needed. After that, the generic adapter may
+or interaction conflict policy if needed. TypeScript may read the generated
+`UiRegionDom`, `UiRegionEvents`, and `UiRegionTransitionProfile` contracts, but
+it must not invent attribute names, fragment names, routes, target ids, or
+business semantics. After that, the generic adapter may
 emit `bepis:region-request-start`, `bepis:region-before-swap`,
 `bepis:region-after-swap`, `bepis:region-settle`, and `bepis:region-error` for
 that region only.
@@ -315,8 +327,15 @@ stress probes to find failure thresholds rather than as routine verification.
 
 ```bash
 bash ./bin/in-env typecheck
+bash ./bin/in-env frontend-contracts-check
+bash ./bin/in-env frontend-check
 bash ./bin/in-env hspec-test --match "LiveUpdate"
 bash ./bin/in-env hspec-test --match "Surface"
+bash ./bin/in-env ./bin/style-audit
 bash ./bin/in-env e2e e2e/live-update-declarative-adapter.spec.ts
 bash ./bin/in-env e2e e2e/live-fragment-multiview.spec.ts
 ```
+
+For UI region-only frontend changes, `frontend-check` covers the generated
+contract drift, TypeScript unit/DOM tests for the HTMX adapter, lazy retry, and
+transition profiles, plus checked-in JS drift.

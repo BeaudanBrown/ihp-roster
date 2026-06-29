@@ -43,12 +43,18 @@ Read this before editing `frontend/ts/`.
   boundaries must use Haskell-owned generated contracts rather than duplicated
   TypeScript domain models.
 - TypeScript must consume Haskell-generated live-update, registered-surface,
-  disposable-layer, intent, intent-field, live-fragment, and conflict-policy
-  contracts; do not define canonical `data-bepis-*`, surface, fragment, layer,
-  or intent string names by hand in runtime code.
+  UI-region, disposable-layer, intent, intent-field, live-fragment, and
+  conflict-policy contracts; do not define canonical `data-bepis-*`, surface,
+  region capability, fragment, layer, or intent string names by hand in runtime
+  code.
 - Generic interaction code may create, move, and clear disposable UI inside
   Haskell-declared disposable layers, but must not mutate server-owned business
   DOM or construct persistence URLs. Committed intents submit through
   Haskell-rendered HTMX forms.
+- Generic UI region runtime may adapt HTMX lifecycle events, lazy retry UI, and
+  transition classes only for `data-bepis-fragment="true"` roots rendered by
+  Haskell helpers/contracts. Do not make ordinary HTMX, dialogs, validation
+  responses, partial navigation, or autosave controls participate without a
+  future server-owned region contract.
 - Production/live packaging serves checked-in generated static assets and must
   stay Node-free.

@@ -175,6 +175,10 @@ Choose `LazyFragmentConfig` deliberately:
   contributes, so the placeholder occupies the same grid/column space.
 - `lazyFragmentDelayMs`: use only to defer non-critical work behind the initial
   shell; keep it short and measured.
+- `lazyFragmentTransition`: choose a Haskell-owned `UiRegionTransitionProfile`
+  (`none`, `fade`, `fade-slide`, or `panel`). Prefer `none` unless the region is
+  visually replaced as a coherent panel/section and reduced-motion behavior has
+  been covered by the generic runtime.
 
 Example descriptor opt-in:
 
@@ -186,6 +190,7 @@ staticLiveFragmentDescriptor fragment wireKey targetId url dependencies
         , lazyFragmentAccessibleLabel = "Loading example panel"
         , lazyFragmentClasses = ["col-12", "col-xl-4"]
         , lazyFragmentDelayMs = Just 50
+        , lazyFragmentTransition = UiRegionTransitionFade
         }
 ```
 
@@ -206,9 +211,11 @@ renderLiveSurfaceFragmentMount definition scope fragment eagerHtml
 For unloaded fragments, passive live invalidations remain safe because the
 placeholder uses the same target id and authoritative URL. A passive invalidation
 may refetch and replace the placeholder before its lazy trigger fires; that is
-acceptable and should not require feature-specific JavaScript. Failed lazy HTMX
-requests are handled by the shared live-update runtime with
-`.app-lazy-surface-error` and retry markup. Do not add per-feature retry code.
+acceptable and should not require feature-specific JavaScript. Failed lazy HTMX requests are handled by the shared region runtime: HTMX events
+for `data-bepis-fragment="true"` roots are adapted into `bepis:region-*` events,
+and lazy roots with `data-bepis-lazy-retry="true"` render the reusable
+`.app-lazy-surface-error` retry markup. Do not add per-feature retry code or raw
+HTMX listeners for lazy fragments.
 
 Before adopting laziness, capture or at least inspect the baseline expensive
 render path. After adoption, verify the initial page response, lazy fragment GET,
@@ -286,8 +293,12 @@ declared its target id, authoritative URL, and ownership semantics.
 
 When migrating an existing HTMX target into the region lifecycle, add the
 Haskell helper/contract first, then let the generic TypeScript adapter consume
-the resulting `data-bepis-*` attrs. TypeScript must not derive routes, target
-ids, or business semantics from the raw HTMX event.
+the resulting `data-bepis-*` attrs. For non-lazy eager regions, use shared
+helpers such as `uiRegionTransitionAttrs` on the authoritative fragment root;
+for lazy fragments, prefer `renderLiveSurfaceFragmentMount` so the root gets the
+same target id, lazy/retry flags, transition profile, and HTMX refetch attrs from
+the `FragmentContract`. TypeScript must not derive routes, target ids, or
+business semantics from the raw HTMX event.
 
 ## Safety Rules
 
@@ -308,6 +319,9 @@ ids, or business semantics from the raw HTMX event.
   intent HTMX forms in feature views. Interaction markup should be generated
   from typed Haskell contracts so duplicate/moved surface mounts keep valid
   target ids and form attributes.
+- Do not handwrite UI region attrs in feature views. Use Haskell helpers such as
+  `renderLiveSurfaceFragmentMount` or `uiRegionTransitionAttrs` so the generated
+  TypeScript contracts remain the browser vocabulary source of truth.
 
 ## Review Checklist
 

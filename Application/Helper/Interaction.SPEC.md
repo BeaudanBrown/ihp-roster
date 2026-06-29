@@ -24,8 +24,9 @@ Haskell owns the canonical definitions for:
 - live-fragment/disposable-session conflict policy.
 
 TypeScript consumes generated browser-boundary contracts and stays generic. It
-must not invent canonical `data-bepis-*` names, fragment keys, layer names,
-intent names, field names, target ids, mutation URLs, or business rules.
+must not invent canonical `data-bepis-*` names, UI region capability values,
+fragment keys, layer names, intent names, field names, target ids, mutation
+URLs, or business rules.
 
 ## Vocabulary And Hierarchy
 
@@ -196,8 +197,11 @@ with `data-bepis-intent-field`, and fixed hidden inputs marked with
 Use standard HTMX first: generated forms, custom event `hx-trigger`, lifecycle
 events for cleanup, `hx-sync`/`hx-disabled-elt` for request concurrency where
 useful, and OOB swaps for authoritative actor responses, toasts, and dialog
-cleanup. Do not start with HTMX extensions or custom elements; revisit them only
-after repeated stable lifecycle behavior justifies consolidation.
+cleanup. Generic UI region lifecycle events (`bepis:region-*`) belong only on
+server-declared fragment roots and complement, but do not replace, typed
+interaction session events. Do not start with HTMX extensions or custom
+elements; revisit them only after repeated stable lifecycle behavior justifies
+consolidation.
 
 ## Examples
 
