@@ -1,6 +1,6 @@
 ---
 id: ir-t4g3
-status: open
+status: closed
 deps: [ir-fp76, ir-5dd9, ir-a02h]
 links: []
 created: 2026-06-29T13:12:15Z
@@ -22,3 +22,9 @@ Keep ShowRosterWeekStaffPanelFragmentAction as the authoritative endpoint, prese
 
 Roster shell renders first; staff panel placeholder has matching layout geometry; staff panel loads via HTMX into the same root id; retry/error and transition behaviour work through generic region events; focus/live-update compatibility remains unchanged.
 
+
+## Notes
+
+**2026-06-29T13:40:15Z**
+
+Roster staff panel lazy contract now explicitly uses custom server placeholder geometry, immediate load, canonical roster-staff-panel-fragment target/refetch URL, and panel transition profile through declarative region capabilities. Verification: typecheck, frontend-contracts-check, frontend-check, and hspec-test --match 'marks the roster staff panel' passed.

@@ -302,7 +302,7 @@ rosterStaffPanelLazyConfig =
         , lazyFragmentAccessibleLabel = "Loading roster staff panel"
         , lazyFragmentClasses = rosterStaffPanelFragmentClasses
         , lazyFragmentDelayMs = Nothing
-        , lazyFragmentTransition = UiRegionTransitionNone
+        , lazyFragmentTransition = UiRegionTransitionPanel
         }
 
 rosterFragmentDependencies :: UUID -> RosterProjectionScope -> RosterProjectionFragment -> FragmentDependencies

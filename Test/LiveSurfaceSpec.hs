@@ -272,9 +272,14 @@ tests = describe "LiveSurface contract helpers" do
 
         case loadPolicy of
             FragmentLazy config -> do
-                config.lazyFragmentPlaceholderKind `shouldBe` lazyFragmentPlaceholderTable
+                config.lazyFragmentPlaceholderKind `shouldBe` lazyFragmentPlaceholderCustom
                 config.lazyFragmentAccessibleLabel `shouldBe` "Loading roster staff panel"
                 config.lazyFragmentClasses `shouldBe` ["col-12", "col-xl-4", "col-xxl-3", "roster-layout-side"]
+                config.lazyFragmentDelayMs `shouldBe` Nothing
+                config.lazyFragmentTransition `shouldBe` UiRegionTransitionPanel
+                let ref = typedLiveSurfaceFragmentRef (rosterLiveSurfaceDefinitionForVenue venueId) scope RosterProjectionStaffPanel
+                surfaceFragmentRefTargetId ref `shouldBe` "roster-staff-panel-fragment"
+                surfaceFragmentRefUrl ref `shouldContainText` "rosterGroupId="
             FragmentEager -> expectationFailure "expected roster staff panel to be lazy"
 
     it "verifies context-free typed surface contracts used by background updates" do
