@@ -30,6 +30,7 @@ import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
 import Application.Helper.SurfaceProjection
+import Application.Helper.UiRegion (UiRegionTransitionProfile (..))
 import Application.Helper.UserPreferences
 import Data.Coerce (coerce)
 import qualified Data.Time.Calendar as Calendar
@@ -301,6 +302,7 @@ rosterStaffPanelLazyConfig =
         , lazyFragmentAccessibleLabel = "Loading roster staff panel"
         , lazyFragmentClasses = rosterStaffPanelFragmentClasses
         , lazyFragmentDelayMs = Nothing
+        , lazyFragmentTransition = UiRegionTransitionNone
         }
 
 rosterFragmentDependencies :: UUID -> RosterProjectionScope -> RosterProjectionFragment -> FragmentDependencies

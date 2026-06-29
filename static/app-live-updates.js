@@ -27,6 +27,9 @@
     return __isLiveUpdateScopeExactRecord(value, ["type", "scope", "scopeKey", "currentVersion", "resync"], []) && value["type"] === "subscribed" && isLiveUpdateScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && typeof value["resync"] === "boolean" || __isLiveUpdateScopeExactRecord(value, ["type", "scope", "scopeKey", "version", "fragments", "sourceClientId"], []) && value["type"] === "invalidate" && isLiveUpdateScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isLiveUpdateWireFragment(item))) && (value["sourceClientId"] === null || typeof value["sourceClientId"] === "string") || __isLiveUpdateScopeExactRecord(value, ["type", "message"], []) && value["type"] === "error" && typeof value["message"] === "string";
   }
   var InteractionDom = { "attributes": { "activation": "data-bepis-activation", "activationIntent": "data-bepis-activation-intent", "activationTrigger": "data-bepis-activation-trigger", "activationValueField": "data-bepis-activation-value-field", "conflictPolicies": "data-bepis-conflict-policies", "container": "data-bepis-container", "disposableLayer": "data-bepis-disposable-layer", "dropzone": "data-bepis-dropzone", "fieldPresence": "data-bepis-field-presence", "intent": "data-bepis-intent", "intentField": "data-bepis-intent-field", "intentForm": "data-bepis-intent-form", "intentHiddenField": "data-bepis-intent-hidden-field", "interactionActive": "data-bepis-interaction-active", "item": "data-bepis-item", "layer": "data-bepis-layer", "marker": "data-bepis-marker", "mountKey": "data-bepis-mount-key", "pointerSession": "data-bepis-pointer-session", "resizeHandle": "data-bepis-resize-handle", "scopeKey": "data-bepis-scope-key", "serverLayer": "data-bepis-server-layer", "sessionDisabled": "data-bepis-session-disabled", "sessionIntent": "data-bepis-session-intent", "sessionKind": "data-bepis-session-kind", "sessionReadOnly": "data-bepis-session-read-only", "sessionThreshold": "data-bepis-session-threshold", "sessionTimeoutMs": "data-bepis-session-timeout-ms", "slot": "data-bepis-slot", "surface": "data-bepis-surface", "surfaceFamily": "data-bepis-surface-family" }, "pointerFields": { "currentClientX": "currentClientX", "currentClientY": "currentClientY", "deltaX": "deltaX", "deltaY": "deltaY", "pointerId": "pointerId", "pointerType": "pointerType", "sessionKind": "sessionKind", "sourceItemKey": "sourceItemKey", "startClientX": "startClientX", "startClientY": "startClientY", "targetDropzoneKey": "targetDropzoneKey" }, "values": { "activationMarker": "activation", "containerMarker": "container", "dropzoneMarker": "dropzone", "enabled": "true", "itemMarker": "item", "resizeHandleMarker": "resize-handle", "slotMarker": "slot" } };
+  function isUiRegionTransitionProfile(value) {
+    return value === "none" || value === "fade" || value === "fade-slide" || value === "panel";
+  }
   function isUiRegionLifecycleEvent(value) {
     return value === "bepis:region-request-start" || value === "bepis:region-before-swap" || value === "bepis:region-after-swap" || value === "bepis:region-settle" || value === "bepis:region-error";
   }
@@ -123,6 +126,73 @@
     });
     return function disableHtmxUiRegionEventAdapter() {
       listeners.forEach(({ spec, listener }) => root.removeEventListener(spec.htmxEventName, listener));
+    };
+  }
+
+  // frontend/ts/fragments/transitions.ts
+  var transitionProfiles = ["fade", "fade-slide", "panel"];
+  var transitionPhaseClasses = ["app-region-transition-before-swap", "app-region-transition-after-swap"];
+  var transitionProfileClasses = transitionProfiles.map((profile) => regionTransitionProfileClass(profile));
+  function regionTransitionProfile(region) {
+    const rawProfile = region.getAttribute(UiRegionDom.transition);
+    return isUiRegionTransitionProfile(rawProfile) ? rawProfile : "none";
+  }
+  function regionTransitionProfileClass(profile) {
+    return `app-region-transition-${profile}`;
+  }
+  function prefersReducedMotion() {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+  function shouldAnimateRegionTransition(profile, reducedMotion = prefersReducedMotion()) {
+    return profile !== "none" && !reducedMotion;
+  }
+  function clearRegionTransitionClasses(region) {
+    region.classList.remove("app-region-transition", ...transitionProfileClasses, ...transitionPhaseClasses);
+  }
+  function applyRegionTransitionPhase(region, phase, reducedMotion = prefersReducedMotion()) {
+    const profile = regionTransitionProfile(region);
+    clearRegionTransitionClasses(region);
+    if (!shouldAnimateRegionTransition(profile, reducedMotion)) return false;
+    region.classList.add(
+      "app-region-transition",
+      regionTransitionProfileClass(profile),
+      `app-region-transition-${phase}`
+    );
+    return true;
+  }
+  function lifecycleDetail(event) {
+    if (typeof CustomEvent === "undefined" || !(event instanceof CustomEvent)) return null;
+    const detail = event.detail;
+    if (detail === null || typeof detail !== "object") return null;
+    const record = detail;
+    return record.region instanceof HTMLElement ? record : null;
+  }
+  function enableUiRegionTransitions(root = document) {
+    const onBeforeSwap = (event) => {
+      const detail = lifecycleDetail(event);
+      if (detail === null) return;
+      applyRegionTransitionPhase(detail.region, "before-swap");
+    };
+    const onAfterSwap = (event) => {
+      const detail = lifecycleDetail(event);
+      if (detail === null) return;
+      applyRegionTransitionPhase(detail.region, "after-swap");
+    };
+    const onDone = (event) => {
+      const detail = lifecycleDetail(event);
+      if (detail === null) return;
+      clearRegionTransitionClasses(detail.region);
+    };
+    root.addEventListener(UiRegionEvents.beforeSwap, onBeforeSwap);
+    root.addEventListener(UiRegionEvents.afterSwap, onAfterSwap);
+    root.addEventListener(UiRegionEvents.settle, onDone);
+    root.addEventListener(UiRegionEvents.error, onDone);
+    return function disableUiRegionTransitions() {
+      root.removeEventListener(UiRegionEvents.beforeSwap, onBeforeSwap);
+      root.removeEventListener(UiRegionEvents.afterSwap, onAfterSwap);
+      root.removeEventListener(UiRegionEvents.settle, onDone);
+      root.removeEventListener(UiRegionEvents.error, onDone);
     };
   }
 
@@ -331,6 +401,7 @@
 
   // frontend/ts/app-live-updates.ts
   enableHtmxUiRegionEventAdapter();
+  enableUiRegionTransitions();
   enableLazySurfaceErrorHandling();
   (function enableLiveUpdates() {
     if (typeof window === "undefined") return;

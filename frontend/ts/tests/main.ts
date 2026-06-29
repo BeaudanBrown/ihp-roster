@@ -8,6 +8,7 @@ import "./live-updates.test";
 import "./live-updates-validation.test";
 import "./lazy-surface.test";
 import "./ui-region-events.test";
+import "./ui-region-transitions.test";
 import "./roster.test";
 import { runTests } from "./harness";
 

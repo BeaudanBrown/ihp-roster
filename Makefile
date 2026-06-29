@@ -11,6 +11,7 @@ CSS_FILES += static/css/bootstrap-bridge.css
 CSS_FILES += static/css/layout.css
 CSS_FILES += static/css/components/surfaces.css
 CSS_FILES += static/css/components/lazy-surface.css
+CSS_FILES += static/css/components/region-transitions.css
 CSS_FILES += static/css/components/menus.css
 CSS_FILES += static/css/components/horizontal.css
 CSS_FILES += static/css/components/week-nav.css

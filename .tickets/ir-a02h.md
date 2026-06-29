@@ -1,6 +1,6 @@
 ---
 id: ir-a02h
-status: open
+status: closed
 deps: [ir-vgwk]
 links: []
 created: 2026-06-29T13:12:15Z
@@ -22,3 +22,9 @@ Support none, fade, fade-slide, and panel profiles with lightweight class toggli
 
 Marked regions animate according to server-declared profile; unmarked HTMX swaps do not animate; reduced-motion disables non-essential motion; frontend tests cover profile parsing/class decisions.
 
+
+## Notes
+
+**2026-06-29T13:37:17Z**
+
+Added generic UI region transition runtime for none/fade/fade-slide/panel using generated region contracts, reduced-motion suppression, CSS profiles, and lazy fragment transition config. Verification: typecheck, frontend-test/frontend-check, frontend-contracts-check, focused hspec lazy mount test, and style-audit passed.

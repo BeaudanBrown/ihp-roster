@@ -104,6 +104,7 @@ import Application.Helper.LiveResource (LiveResource)
 import Application.Helper.LiveUpdate.Internal
 import Application.Helper.Profiling (respondHtmlProfiled)
 import Application.Helper.SurfaceProjection
+import Application.Helper.UiRegion (UiRegionTransitionProfile)
 import Application.Helper.View.Oob (OobSwapAttr, outerHtmlOobSwap)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
@@ -175,6 +176,7 @@ data LazyFragmentConfig = LazyFragmentConfig
     , lazyFragmentAccessibleLabel :: !Text
     , lazyFragmentClasses         :: ![Text]
     , lazyFragmentDelayMs         :: !(Maybe Int)
+    , lazyFragmentTransition      :: !UiRegionTransitionProfile
     }
     deriving (Eq, Show)
 

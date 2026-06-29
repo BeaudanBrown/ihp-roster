@@ -15,6 +15,7 @@ import Application.Helper.LiveUpdate.Runtime (FocusedFieldProtectionConfig (..),
                                               LiveUpdateScope (..),
                                               LiveUpdateWireFragment (..))
 import Application.Helper.SurfaceProjection (defaultSurfaceProjectionCachePolicy)
+import Application.Helper.UiRegion (UiRegionTransitionProfile (..))
 import Application.Helper.View.LazySurface
 import Application.Support.LiveUpdates
 import Data.List.NonEmpty (NonEmpty (..))
@@ -84,6 +85,7 @@ tests = describe "LiveSurface contract helpers" do
                     , lazyFragmentAccessibleLabel = "Loading actor parent"
                     , lazyFragmentClasses = ["test-lazy-actor"]
                     , lazyFragmentDelayMs = Just 25
+                    , lazyFragmentTransition = UiRegionTransitionNone
                     }
         let lazyDefinition =
                 testActorLiveSurfaceDefinition
@@ -136,6 +138,7 @@ tests = describe "LiveSurface contract helpers" do
                     , lazyFragmentAccessibleLabel = "Loading secondary test fragment"
                     , lazyFragmentClasses = ["test-secondary-placeholder"]
                     , lazyFragmentDelayMs = Just 150
+                    , lazyFragmentTransition = UiRegionTransitionFade
                     }
         let lazyDescriptor =
                 liveFragmentDescriptor

@@ -25,8 +25,7 @@ import Application.Helper.LiveSurface (FragmentContract (..),
                                        lazyFragmentPlaceholderTable,
                                        surfaceFragmentRefTargetId,
                                        surfaceFragmentRefUrl)
-import Application.Helper.UiRegion (UiRegionTransitionProfile (..),
-                                    uiRegionFragmentEnabledValue,
+import Application.Helper.UiRegion (uiRegionFragmentEnabledValue,
                                     uiRegionTransitionProfileText)
 import qualified Data.Text as Text
 import IHP.ViewPrelude
@@ -70,7 +69,7 @@ renderLazyLiveFragmentMountWithPlaceholder config fragmentRef placeholderHtml =
         ! attr "data-bepis-lazy-surface" uiRegionFragmentEnabledValue
         ! attr "data-bepis-lazy-fragment" (surfaceFragmentRefTargetId fragmentRef)
         ! attr "data-bepis-lazy-retry" uiRegionFragmentEnabledValue
-        ! attr "data-bepis-region-transition" (uiRegionTransitionProfileText UiRegionTransitionNone)
+        ! attr "data-bepis-region-transition" (uiRegionTransitionProfileText config.lazyFragmentTransition)
         ! attr "hx-get" (surfaceFragmentRefUrl fragmentRef)
         ! attr "hx-trigger" (lazySurfaceHtmxTrigger config)
         ! attr "hx-target" "this"
