@@ -1,6 +1,6 @@
 ---
 id: ir-21jr
-status: open
+status: closed
 deps: []
 links: [ir-cfcr, ir-osr3, ir-jsyd]
 created: 2026-06-29T13:12:15Z
@@ -21,3 +21,9 @@ A UI region is a server-declared DOM ownership unit. Capabilities are independen
 
 Haskell owns UI region capability vocabulary and generates matching TypeScript unions/guards; server helpers render data-bepis attrs for declared UI regions; a small TypeScript adapter translates relevant HTMX lifecycle events into Bepis region events only for marked regions; lazy retry/error uses Bepis region events; opt-in transition profiles exist and respect reduced motion; roster staff panel lazy loading uses the declarative region/capability system; docs explain capability boundaries and when not to mark ordinary HTMX as a region; typecheck, frontend-check, and focused helper/runtime tests pass.
 
+
+## Notes
+
+**2026-06-29T13:48:33Z**
+
+Closeout: all child tickets are closed. Implemented Haskell-owned UI region contracts/TS generation, helper-rendered region attrs, HTMX-to-Bepis adapter, lazy retry via region events, transition profiles with reduced-motion handling, roster staff panel migration, admin invites pilot, and living docs/non-region guidance. Verification across children included typecheck, frontend-contracts-check, frontend-check, focused hspec helper tests, style-audit, and doc-drift-check.
