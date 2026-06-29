@@ -17,6 +17,7 @@ import Application.Helper.LiveUpdate.Runtime (FocusedFieldProtectionConfig (..),
 import Application.Helper.SurfaceProjection (defaultSurfaceProjectionCachePolicy)
 import Application.Helper.UiRegion (UiRegionTransitionProfile (..))
 import Application.Helper.View.LazySurface
+import Application.Helper.View.UiRegion
 import Application.Support.LiveUpdates
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Text as Text
@@ -26,6 +27,7 @@ import IHP.Prelude
 import Test.Hspec
 import Test.Support.LiveSurfaceContract
 import qualified Text.Blaze.Html as Blaze
+import Text.Blaze.Html ((!))
 import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
 import qualified Text.Blaze.Html5 as Html5
 import Web.Billing.LiveUpdates
@@ -252,6 +254,12 @@ tests = describe "LiveSurface contract helpers" do
         ref.unSurfaceFragmentRef.fragmentKey `shouldBe` BillingStatusFragment
         ref.unSurfaceFragmentRef.targetId `shouldBe` "new-target"
         ref.unSurfaceFragmentRef.url `shouldBe` "/fragment"
+
+    it "renders reusable UI region transition attrs" do
+        let html = Html5.div ! uiRegionTransitionAttrs UiRegionTransitionFade $ mempty
+        let output = cs (HtmlRenderer.renderHtml html)
+        output `shouldContainText` "data-bepis-fragment=\"true\""
+        output `shouldContainText` "data-bepis-region-transition=\"fade\""
 
     it "derives stable kebab and snake names for descriptor defaults" do
         nameToKebab "AdminAnnouncementFragment" `shouldBe` "admin-announcement-fragment"

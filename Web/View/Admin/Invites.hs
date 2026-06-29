@@ -15,6 +15,10 @@ import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveUpdateScope (..))
+import Application.Helper.UiRegion (UiRegionTransitionProfile (..))
+import qualified Text.Blaze.Html as Blaze
+import Text.Blaze.Html ((!))
+import qualified Text.Blaze.Html5 as Html5
 import Web.View.Admin.Common
 import Web.View.Prelude
 
@@ -52,12 +56,12 @@ renderInviteCreateForm rosterGroupId = [hsx|
 |]
 
 renderInvitesSectionFragment :: [VenueInvitation] -> Id RosterGroup -> Html
-renderInvitesSectionFragment invitations rosterGroupId = [hsx|
-    <div id="admin-invites-fragment"
-         data-live-update-surface={liveSurfaceConfigJson (adminInvitesLiveSurface rosterGroupId)}>
-        {renderInvitesSection invitations rosterGroupId}
-    </div>
-|]
+renderInvitesSectionFragment invitations rosterGroupId =
+    Html5.div
+        ! attr "id" "admin-invites-fragment"
+        ! attr "data-live-update-surface" (liveSurfaceConfigJson (adminInvitesLiveSurface rosterGroupId))
+        ! uiRegionTransitionAttrs UiRegionTransitionFade
+        $ renderInvitesSection invitations rosterGroupId
 
 data AdminInvitesSurface
 
@@ -113,6 +117,10 @@ adminInvitesLiveFragmentRef AdminInvitesSurfaceKey { adminInvitesRosterGroupId }
         AdminInvitesFragment
         "admin-invites-fragment"
         (appendQueryParams (pathTo ShowAdminInvitesFragmentAction) (maybe [] (\rosterGroupId -> [("rosterGroupId", tshow rosterGroupId)]) adminInvitesRosterGroupId))
+
+attr :: Text -> Text -> Blaze.Attribute
+attr name value =
+    Blaze.customAttribute (Blaze.textTag name) (Blaze.toValue value)
 
 currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =
