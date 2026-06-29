@@ -1,6 +1,6 @@
 ---
 id: ir-s2d9
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-06-29T14:49:08Z
@@ -23,3 +23,7 @@ Focused UI-region browser/E2E coverage exists and passes; frontend contract test
 **2026-06-29T14:49:16Z**
 
 Implementation plan: 1) add focused browser/E2E tests for UI region lifecycle, lazy retry, transitions, and non-region HTMX isolation; 2) strengthen contract guardrails and real codec parity tests; 3) document the required authoring/adoption checklist for future boundary contracts; 4) run focused verification and close only when clean.
+
+**2026-06-29T14:57:49Z**
+
+Completed foundation hardening: added focused Playwright coverage for UI region lifecycle/transition/lazy retry behavior; strengthened frontend contract Hspec guardrails for generated-only runtime strings and real live-update DTO round trips; documented adoption checklist. Verification passed: typecheck, frontend-contracts-check, frontend-check, hspec-test --match 'Frontend contract', e2e e2e/ui-region-capabilities.spec.ts, doc-drift-check.
