@@ -274,6 +274,21 @@ artifact path rather than claiming a timing improvement.
    target, fragment URL, containment behavior, default resync fragments, and
    fragment GET target.
 
+## Non-Region HTMX Boundaries
+
+Only server-declared fragment roots should opt into `data-bepis-fragment="true"`
+and the Bepis region lifecycle. Dialog overlays, validation-local responses,
+partial navigation, ordinary filter/sort controls, autosave helpers, and
+feature-specific HTMX snippets should remain plain HTMX unless a future ticket
+first gives them a Haskell-owned region contract. Do not mark an element as a
+Bepis region to obtain generic retry UI or animation if Haskell has not also
+declared its target id, authoritative URL, and ownership semantics.
+
+When migrating an existing HTMX target into the region lifecycle, add the
+Haskell helper/contract first, then let the generic TypeScript adapter consume
+the resulting `data-bepis-*` attrs. TypeScript must not derive routes, target
+ids, or business semantics from the raw HTMX event.
+
 ## Safety Rules
 
 - Do not hand-build websocket JSON, raw `LiveUpdateWireFragment` values, or raw

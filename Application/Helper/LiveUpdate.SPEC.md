@@ -111,6 +111,37 @@ raw live broadcasts, raw actor-refresh payloads, or fallback
 `authorizeLiveUpdateScope` checks. The `LiveSurfaceGuard` Hspec coverage
 enforces this across `Web/` and feature `Application/` modules.
 
+## UI Region Lifecycle Boundaries
+
+`data-bepis-fragment="true"` is the opt-in boundary for generic Bepis UI
+region lifecycle events. The HTMX adapter listens to raw HTMX lifecycle events,
+but it only emits `bepis:region-*` events when the HTMX source or target is
+inside a server-declared fragment region. TypeScript must not infer regions from
+routes, target ids, CSS classes, or feature names.
+
+Use UI region attrs for server-owned DOM that is intentionally replaceable as a
+unit, such as typed live fragments and lazy fragment placeholders. Do not add
+`data-bepis-fragment` to ordinary HTMX controls just to reuse a spinner or
+animation. In particular, keep these out of the region lifecycle unless a future
+ticket deliberately defines a typed region contract for them:
+
+- dialog, picker, and toast overlay lanes;
+- validation-local form or dialog responses that must preserve field errors at
+  the submitted target;
+- partial navigation, page-shell swaps, and auth/layout transitions;
+- ordinary local controls, autosave widgets, filters, sort buttons, and form
+  helpers that are not live-fragment roots;
+- feature-specific one-off HTMX snippets whose routes, target ids, or business
+  meaning are not declared by Haskell live-surface/region helpers.
+
+When a current HTMX interaction should become a region, migrate it through the
+Haskell contract first: closed fragment/region identity, stable target id,
+authoritative GET URL, optional lazy/retry/transition attrs, and focused-field
+or interaction conflict policy if needed. After that, the generic adapter may
+emit `bepis:region-request-start`, `bepis:region-before-swap`,
+`bepis:region-after-swap`, `bepis:region-settle`, and `bepis:region-error` for
+that region only.
+
 ## Refetch And Protection
 
 - Clients refetch only mounted invalidated fragments.
