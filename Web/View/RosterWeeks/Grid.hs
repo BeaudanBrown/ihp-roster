@@ -36,7 +36,7 @@ import Application.Helper.TimeRules (rosterOperationalFinalSelectableTimeText,
                                      rosterOperationalStartTimeText)
 import Application.Helper.UserPreferences (rosterLayoutModeValue)
 import Application.Helper.View (dialogOverlayMountId,
-                                renderLiveSurfaceFragmentMount,
+                                renderLiveSurfaceFragmentMountWithPlaceholder,
                                 staffDisplayName)
 import Data.Coerce (coerce)
 import Data.List (find, sortOn)
@@ -57,7 +57,8 @@ import Web.RosterWeeks.Projection (buildRosterProjectionScope)
 import Web.RosterWeeks.Types
 import Web.View.Prelude
 import Web.View.RosterWeeks.Header (renderRosterGridHeader)
-import Web.View.RosterWeeks.StaffPanel (renderRosterStaffPanelFragment)
+import Web.View.RosterWeeks.StaffPanel (renderRosterStaffPanelFragment,
+                                        renderRosterStaffPanelPlaceholder)
 import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServicePanelFragment)
 
 data RosterSlotCellTarget
@@ -112,10 +113,11 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridWeekOff
         renderStaffPanelMount rosterWeek =
             if currentUserIsManager
                 then
-                    renderLiveSurfaceFragmentMount
+                    renderLiveSurfaceFragmentMountWithPlaceholder
                         rosterLiveSurfaceDefinition
                         mount.interactionMountScope
                         RosterProjectionStaffPanel
+                        (renderRosterStaffPanelPlaceholder (length gridRosterGroups > 1))
                         (renderRosterStaffPanelFragment gridWeekOffset (coerce rosterWeek.rosterGroupId) (length gridRosterGroups > 1) RosterStaffPanelCurrentGroup gridPanelStaff)
                 else mempty
      in profileHtmlComponent "render.roster.layout" do

@@ -288,19 +288,19 @@ rosterFragmentRef scope = \case
             |> surfaceFragmentRefWithPath (rosterFragmentContainmentPath (RosterProjectionRow rosterDayId rowIndex))
 
 rosterFragmentLoadPolicy :: RosterProjectionFragment -> FragmentContract RosterLiveSurface -> FragmentContract RosterLiveSurface
-rosterFragmentLoadPolicy RosterProjectionStaffPanel =
-    fragmentContractWithLazyLoad rosterStaffPanelLazyConfig
-rosterFragmentLoadPolicy _ =
-    id
+rosterFragmentLoadPolicy RosterProjectionStaffPanel contract =
+    fragmentContractWithLazyLoad rosterStaffPanelLazyConfig contract
+rosterFragmentLoadPolicy _ contract =
+    contract
 
 rosterStaffPanelLazyConfig :: LazyFragmentConfig
 rosterStaffPanelLazyConfig =
     LazyFragmentConfig
         { lazyFragmentTrigger = "load"
-        , lazyFragmentPlaceholderKind = lazyFragmentPlaceholderTable
+        , lazyFragmentPlaceholderKind = lazyFragmentPlaceholderCustom
         , lazyFragmentAccessibleLabel = "Loading roster staff panel"
-        , lazyFragmentClasses = ["col-12", "col-xl-4", "col-xxl-3", "roster-layout-side"]
-        , lazyFragmentDelayMs = Just 50
+        , lazyFragmentClasses = rosterStaffPanelFragmentClasses
+        , lazyFragmentDelayMs = Nothing
         }
 
 rosterFragmentDependencies :: UUID -> RosterProjectionScope -> RosterProjectionFragment -> FragmentDependencies

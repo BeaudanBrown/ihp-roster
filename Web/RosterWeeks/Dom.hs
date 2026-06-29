@@ -10,6 +10,7 @@ module Web.RosterWeeks.Dom
     , rosterWageRailFragmentId
     , rosterDaySectionDomId
     , rosterRowDomIdText
+    , rosterStaffPanelFragmentClasses
     , rosterStaffPanelFragmentId
     , rosterWeekShellId
     ) where
@@ -49,6 +50,9 @@ rosterSlotsGridFragmentId = "roster-slots-grid"
 
 rosterStaffPanelFragmentId :: Text
 rosterStaffPanelFragmentId = "roster-staff-panel-fragment"
+
+rosterStaffPanelFragmentClasses :: [Text]
+rosterStaffPanelFragmentClasses = ["col-12", "col-xl-4", "col-xxl-3", "roster-layout-side"]
 
 rosterDaySectionDomId :: Id RosterDay -> Text
 rosterDaySectionDomId rosterDayId = "roster-day-section-" <> tshow rosterDayId

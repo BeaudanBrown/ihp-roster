@@ -10,6 +10,7 @@ module Application.Helper.View.LazySurface
     , renderLazySurfacePlaceholderBody
     , renderLazySurfacePlaceholderWithCustom
     , renderLiveSurfaceFragmentMount
+    , renderLiveSurfaceFragmentMountWithPlaceholder
     ) where
 
 import Application.Helper.LiveSurface (FragmentContract (..),
@@ -34,14 +35,28 @@ renderLiveSurfaceFragmentMount ::
     Html ->
     Html
 renderLiveSurfaceFragmentMount definition scope fragment eagerHtml =
+    renderLiveSurfaceFragmentMountWithPlaceholder definition scope fragment mempty eagerHtml
+
+renderLiveSurfaceFragmentMountWithPlaceholder ::
+    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
+    scope ->
+    fragment ->
+    Html ->
+    Html ->
+    Html
+renderLiveSurfaceFragmentMountWithPlaceholder definition scope fragment placeholderHtml eagerHtml =
     case contract.fragmentContractLoadPolicy of
         FragmentEager -> eagerHtml
-        FragmentLazy config -> renderLazyLiveFragmentMount config contract.fragmentContractRef
+        FragmentLazy config -> renderLazyLiveFragmentMountWithPlaceholder config contract.fragmentContractRef placeholderHtml
     where
         contract = definition.typedSurfaceFragmentContract scope fragment
 
 renderLazyLiveFragmentMount :: LazyFragmentConfig -> SurfaceFragmentRef surface -> Html
-renderLazyLiveFragmentMount config fragmentRef = [hsx|
+renderLazyLiveFragmentMount config fragmentRef =
+    renderLazyLiveFragmentMountWithPlaceholder config fragmentRef mempty
+
+renderLazyLiveFragmentMountWithPlaceholder :: LazyFragmentConfig -> SurfaceFragmentRef surface -> Html -> Html
+renderLazyLiveFragmentMountWithPlaceholder config fragmentRef placeholderHtml = [hsx|
     <div id={surfaceFragmentRefTargetId fragmentRef}
          class={lazySurfacePlaceholderRootClasses config}
          data-bepis-lazy-surface="true"
@@ -56,7 +71,7 @@ renderLazyLiveFragmentMount config fragmentRef = [hsx|
          aria-busy="true"
          aria-label={config.lazyFragmentAccessibleLabel}>
         <span class="visually-hidden">{config.lazyFragmentAccessibleLabel}</span>
-        {renderLazySurfacePlaceholderBody config mempty}
+        {renderLazySurfacePlaceholderBody config placeholderHtml}
     </div>
 |]
 
@@ -121,7 +136,7 @@ renderPanelSkeleton = [hsx|
     <div class="app-lazy-surface-skeleton app-lazy-surface-panel-skeleton" aria-hidden="true">
         <div class="app-lazy-surface-bar app-lazy-surface-bar-title"></div>
         <div class="app-lazy-surface-stack">
-            {forEach ([1..4] :: [Int]) renderSkeletonRow}
+            {forEach skeletonPlaceholderItems4 renderSkeletonRow}
         </div>
     </div>
 |]
@@ -130,16 +145,16 @@ renderTableSkeleton :: Html
 renderTableSkeleton = [hsx|
     <div class="app-lazy-surface-skeleton app-lazy-surface-table-skeleton" aria-hidden="true">
         <div class="app-lazy-surface-table-row app-lazy-surface-table-row-head">
-            {forEach ([1..4] :: [Int]) renderSkeletonCell}
+            {forEach skeletonPlaceholderItems4 renderSkeletonCell}
         </div>
-        {forEach ([1..4] :: [Int]) renderSkeletonTableRow}
+        {forEach skeletonPlaceholderItems4 renderSkeletonTableRow}
     </div>
 |]
 
 renderListSkeleton :: Html
 renderListSkeleton = [hsx|
     <div class="app-lazy-surface-skeleton app-lazy-surface-list-skeleton" aria-hidden="true">
-        {forEach ([1..5] :: [Int]) renderSkeletonRow}
+        {forEach skeletonPlaceholderItems5 renderSkeletonRow}
     </div>
 |]
 
@@ -149,6 +164,12 @@ renderCompactSpinner = [hsx|
         <span class="spinner-border spinner-border-sm" role="presentation"></span>
     </div>
 |]
+
+skeletonPlaceholderItems4 :: [Int]
+skeletonPlaceholderItems4 = [1, 2, 3, 4]
+
+skeletonPlaceholderItems5 :: [Int]
+skeletonPlaceholderItems5 = [1, 2, 3, 4, 5]
 
 renderSkeletonRow :: Int -> Html
 renderSkeletonRow index = [hsx|
@@ -161,7 +182,7 @@ renderSkeletonRow index = [hsx|
 renderSkeletonTableRow :: Int -> Html
 renderSkeletonTableRow _ = [hsx|
     <div class="app-lazy-surface-table-row">
-        {forEach ([1..4] :: [Int]) renderSkeletonCell}
+        {forEach skeletonPlaceholderItems4 renderSkeletonCell}
     </div>
 |]
 

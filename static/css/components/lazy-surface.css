@@ -1,12 +1,60 @@
 .app-lazy-surface {
     display: block;
-    width: 100%;
+    box-sizing: border-box;
     min-height: 4rem;
     padding: var(--app-space-3);
     border: 1px solid var(--app-border);
     border-radius: var(--app-radius-lg);
     background: var(--app-surface-muted);
     color: var(--app-muted);
+}
+
+.app-lazy-surface-custom {
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+}
+
+.app-lazy-surface-custom.app-lazy-surface-error {
+    min-height: 4rem;
+    padding: var(--app-space-3);
+    border: 1px solid var(--app-danger-border);
+    background: var(--app-danger-tint);
+    color: var(--app-danger-contrast);
+}
+
+.app-lazy-surface-button-placeholder,
+.app-lazy-surface-toggle-placeholder {
+    display: block;
+    border-radius: var(--app-radius-pill);
+    background: linear-gradient(
+        90deg,
+        var(--app-white-alpha-05),
+        var(--app-slate-alpha-18),
+        var(--app-white-alpha-05)
+    );
+    background-size: 200% 100%;
+    animation: app-lazy-surface-pulse 1.4s ease-in-out infinite;
+}
+
+.app-lazy-surface-button-placeholder {
+    width: 7rem;
+    min-height: 1.9rem;
+}
+
+.app-lazy-surface-toggle-placeholder {
+    width: 5.5rem;
+    min-height: 1.5rem;
+}
+
+.app-lazy-surface-icon-placeholder {
+    display: inline-block;
+    width: 1.85rem;
+    min-height: 1.85rem;
+    border-radius: var(--app-radius-pill);
+    background: var(--app-slate-alpha-18);
 }
 
 .app-lazy-surface-spinner {
@@ -123,7 +171,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .app-lazy-surface-bar {
+    .app-lazy-surface-bar,
+    .app-lazy-surface-button-placeholder,
+    .app-lazy-surface-toggle-placeholder {
         animation: none;
     }
 }
