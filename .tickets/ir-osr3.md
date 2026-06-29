@@ -2,7 +2,7 @@
 id: ir-osr3
 status: open
 deps: []
-links: []
+links: [ir-cfcr, ir-jsyd, ir-21jr]
 created: 2026-06-28T12:17:09Z
 type: epic
 priority: 1

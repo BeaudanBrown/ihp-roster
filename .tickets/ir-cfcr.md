@@ -2,7 +2,7 @@
 id: ir-cfcr
 status: open
 deps: []
-links: []
+links: [ir-osr3, ir-jsyd, ir-21jr]
 created: 2026-05-29T03:16:06Z
 type: epic
 priority: 2
