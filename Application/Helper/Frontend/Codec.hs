@@ -18,6 +18,7 @@ module Application.Helper.Frontend.Codec
     , nullableField
     , optionalField
     , parseFrontend
+    , parseFrontendField
     , recordSchema
     , refCodec
     , renderFrontendContracts
@@ -30,6 +31,7 @@ module Application.Helper.Frontend.Codec
     ) where
 
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Char as Char
@@ -158,6 +160,10 @@ encodeFrontend = codecEncode
 
 parseFrontend :: FrontendCodec a -> Aeson.Value -> Aeson.Parser a
 parseFrontend = codecParse
+
+parseFrontendField :: FrontendCodec a -> Aeson.Object -> Text -> Aeson.Parser a
+parseFrontendField codec object fieldName =
+    parseFrontend codec =<< object Aeson..: AesonKey.fromText fieldName
 
 renderFrontendContracts :: [SomeFrontendCodec] -> Either Text Text
 renderFrontendContracts codecs = do

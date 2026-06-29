@@ -168,7 +168,6 @@ export function isLiveUpdateMessage(value: unknown): value is LiveUpdateMessage 
 
 
 
-
 // Interaction contracts generated from Haskell static interaction schemas.
 function __isInteractionDomAttributesExactRecord(value: unknown, requiredKeys: string[], optionalKeys: string[]): value is Record<string, unknown> {
     if (typeof value !== "object" || value === null || Array.isArray(value)) return false;

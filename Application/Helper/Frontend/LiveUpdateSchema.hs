@@ -14,15 +14,14 @@ import Application.Helper.Frontend.Codec (FrontendCodec (..),
                                           FrontendField (..),
                                           FrontendSchema (..),
                                           FrontendVariant (..),
-                                          SomeFrontendCodec (..),
-                                          renderFrontendContracts)
-import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..),
-                                               TypeScriptDeclarationOrigin (HaskellSchemaGenerated))
+                                          SomeFrontendCodec (..), arrayCodec,
+                                          encodeFrontend, parseFrontendField)
+import Application.Helper.Frontend.ContractGroup (FrontendContractGroup (..),
+                                                  renderFrontendContractGroup)
+import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.Types as Aeson
-import qualified Data.Text as Text
-import qualified Data.Vector as Vector
 import IHP.Prelude
 
 data LiveUpdateScope
@@ -434,19 +433,19 @@ liveUpdateWireFragmentCodec =
             ]
         , codecEncode = \LiveUpdateWireFragment { fragmentKey, targetId, url, deferUntilBlur, protectionPolicy } ->
             Aeson.object
-                [ "fragmentKey" Aeson..= encodeWith liveFragmentKeyCodec fragmentKey
+                [ "fragmentKey" Aeson..= encodeFrontend liveFragmentKeyCodec fragmentKey
                 , "targetId" Aeson..= targetId
                 , "url" Aeson..= url
                 , "deferUntilBlur" Aeson..= deferUntilBlur
-                , "protectionPolicy" Aeson..= encodeWith liveFragmentProtectionCodec protectionPolicy
+                , "protectionPolicy" Aeson..= encodeFrontend liveFragmentProtectionCodec protectionPolicy
                 ]
         , codecParse = Aeson.withObject "LiveUpdateWireFragment" \object ->
             LiveUpdateWireFragment
-                <$> parseField liveFragmentKeyCodec object "fragmentKey"
+                <$> parseFrontendField liveFragmentKeyCodec object "fragmentKey"
                 <*> object Aeson..: "targetId"
                 <*> object Aeson..: "url"
                 <*> object Aeson..: "deferUntilBlur"
-                <*> parseField liveFragmentProtectionCodec object "protectionPolicy"
+                <*> parseFrontendField liveFragmentProtectionCodec object "protectionPolicy"
         }
 
 liveUpdateCommandCodec :: FrontendCodec LiveUpdateCommand
@@ -466,19 +465,19 @@ liveUpdateCommandCodec =
         , codecEncode = \case
             Subscribe { scope, clientId, lastSeenVersion } ->
                 taggedObject "type" "subscribe"
-                    [ "scope" Aeson..= encodeWith liveUpdateScopeCodec scope
+                    [ "scope" Aeson..= encodeFrontend liveUpdateScopeCodec scope
                     , "clientId" Aeson..= clientId
                     , "lastSeenVersion" Aeson..= lastSeenVersion
                     ]
             Unsubscribe { scope } ->
                 taggedObject "type" "unsubscribe"
-                    [ "scope" Aeson..= encodeWith liveUpdateScopeCodec scope
+                    [ "scope" Aeson..= encodeFrontend liveUpdateScopeCodec scope
                     ]
         , codecParse = Aeson.withObject "LiveUpdateCommand" \object -> do
             messageType <- object Aeson..: "type"
             case (messageType :: Text) of
-                "subscribe" -> Subscribe <$> parseField liveUpdateScopeCodec object "scope" <*> object Aeson..: "clientId" <*> object Aeson..: "lastSeenVersion"
-                "unsubscribe" -> Unsubscribe <$> parseField liveUpdateScopeCodec object "scope"
+                "subscribe" -> Subscribe <$> parseFrontendField liveUpdateScopeCodec object "scope" <*> object Aeson..: "clientId" <*> object Aeson..: "lastSeenVersion"
+                "unsubscribe" -> Unsubscribe <$> parseFrontendField liveUpdateScopeCodec object "scope"
                 _ -> fail ("Unknown live update command type: " <> cs messageType)
         }
 
@@ -507,17 +506,17 @@ liveUpdateMessageCodec =
         , codecEncode = \case
             Subscribed { scope, scopeKey, currentVersion, resync } ->
                 taggedObject "type" "subscribed"
-                    [ "scope" Aeson..= encodeWith liveUpdateScopeCodec scope
+                    [ "scope" Aeson..= encodeFrontend liveUpdateScopeCodec scope
                     , "scopeKey" Aeson..= scopeKey
                     , "currentVersion" Aeson..= currentVersion
                     , "resync" Aeson..= resync
                     ]
             Invalidate { scope, scopeKey, version, fragments, sourceClientId } ->
                 taggedObject "type" "invalidate"
-                    [ "scope" Aeson..= encodeWith liveUpdateScopeCodec scope
+                    [ "scope" Aeson..= encodeFrontend liveUpdateScopeCodec scope
                     , "scopeKey" Aeson..= scopeKey
                     , "version" Aeson..= version
-                    , "fragments" Aeson..= fmap (encodeWith liveUpdateWireFragmentCodec) fragments
+                    , "fragments" Aeson..= fmap (encodeFrontend liveUpdateWireFragmentCodec) fragments
                     , "sourceClientId" Aeson..= sourceClientId
                     ]
             Error { message } ->
@@ -527,8 +526,8 @@ liveUpdateMessageCodec =
         , codecParse = Aeson.withObject "LiveUpdateMessage" \object -> do
             messageType <- object Aeson..: "type"
             case (messageType :: Text) of
-                "subscribed" -> Subscribed <$> parseField liveUpdateScopeCodec object "scope" <*> object Aeson..: "scopeKey" <*> object Aeson..: "currentVersion" <*> object Aeson..: "resync"
-                "invalidate" -> Invalidate <$> parseField liveUpdateScopeCodec object "scope" <*> object Aeson..: "scopeKey" <*> object Aeson..: "version" <*> parseField (listCodec liveUpdateWireFragmentCodec) object "fragments" <*> object Aeson..: "sourceClientId"
+                "subscribed" -> Subscribed <$> parseFrontendField liveUpdateScopeCodec object "scope" <*> object Aeson..: "scopeKey" <*> object Aeson..: "currentVersion" <*> object Aeson..: "resync"
+                "invalidate" -> Invalidate <$> parseFrontendField liveUpdateScopeCodec object "scope" <*> object Aeson..: "scopeKey" <*> object Aeson..: "version" <*> parseFrontendField (arrayCodec liveUpdateWireFragmentCodec) object "fragments" <*> object Aeson..: "sourceClientId"
                 "error" -> Error <$> object Aeson..: "message"
                 _ -> fail ("Unknown live update message type: " <> cs messageType)
         }
@@ -549,37 +548,29 @@ liveSurfaceConfigCodec =
             Aeson.object
                 [ "feature" Aeson..= feature
                 , "socketPath" Aeson..= socketPath
-                , "scope" Aeson..= encodeWith liveUpdateScopeCodec scope
+                , "scope" Aeson..= encodeFrontend liveUpdateScopeCodec scope
                 , "scopeKey" Aeson..= scopeKey
-                , "resyncFragments" Aeson..= fmap (encodeWith liveUpdateWireFragmentCodec) resyncFragments
+                , "resyncFragments" Aeson..= fmap (encodeFrontend liveUpdateWireFragmentCodec) resyncFragments
                 , "decorateRequestsWithin" Aeson..= decorateRequestsWithin
                 ]
         , codecParse = Aeson.withObject "LiveSurfaceConfig" \object ->
             LiveSurfaceConfig
                 <$> object Aeson..: "feature"
                 <*> object Aeson..: "socketPath"
-                <*> parseField liveUpdateScopeCodec object "scope"
+                <*> parseFrontendField liveUpdateScopeCodec object "scope"
                 <*> object Aeson..: "scopeKey"
-                <*> parseField (listCodec liveUpdateWireFragmentCodec) object "resyncFragments"
+                <*> parseFrontendField (arrayCodec liveUpdateWireFragmentCodec) object "resyncFragments"
                 <*> object Aeson..: "decorateRequestsWithin"
         }
 
 liveUpdateSchemaDeclaration :: TypeScriptDeclaration
 liveUpdateSchemaDeclaration =
-    TypeScriptDeclaration
-        { name = "LiveUpdateContracts"
-        , origin = HaskellSchemaGenerated
-        , source = Text.unlines
-            [ "// Live-update wire protocol generated from Haskell schema types."
-            , liveUpdateContractSource
-            ]
+    renderFrontendContractGroup FrontendContractGroup
+        { contractGroupName = "LiveUpdateContracts"
+        , contractGroupComment = Just "Live-update wire protocol generated from Haskell schema types."
+        , contractGroupCodecs = liveUpdateContractCodecs
+        , contractGroupConstants = []
         }
-
-liveUpdateContractSource :: Text
-liveUpdateContractSource =
-    case renderFrontendContracts liveUpdateContractCodecs of
-        Right source -> source
-        Left message -> error ("Unable to render live-update contracts: " <> cs message)
 
 liveUpdateContractCodecs :: [SomeFrontendCodec]
 liveUpdateContractCodecs =
@@ -616,18 +607,3 @@ keyOnly :: Text -> Aeson.Value
 keyOnly kind =
     taggedObject "kind" kind []
 
-encodeWith :: FrontendCodec a -> a -> Aeson.Value
-encodeWith codec = codec.codecEncode
-
-parseField :: FrontendCodec a -> Aeson.Object -> Text -> Aeson.Parser a
-parseField codec object field =
-    codec.codecParse =<< object Aeson..: AesonKey.fromText field
-
-listCodec :: FrontendCodec a -> FrontendCodec [a]
-listCodec itemCodec =
-    FrontendCodec
-        { codecName = Nothing
-        , codecSchema = SchemaArray itemCodec.codecSchema
-        , codecEncode = Aeson.toJSON . fmap itemCodec.codecEncode
-        , codecParse = Aeson.withArray "array" (mapM itemCodec.codecParse . Vector.toList)
-        }
