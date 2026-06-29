@@ -27,6 +27,104 @@
     return __isLiveUpdateScopeExactRecord(value, ["type", "scope", "scopeKey", "currentVersion", "resync"], []) && value["type"] === "subscribed" && isLiveUpdateScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && typeof value["resync"] === "boolean" || __isLiveUpdateScopeExactRecord(value, ["type", "scope", "scopeKey", "version", "fragments", "sourceClientId"], []) && value["type"] === "invalidate" && isLiveUpdateScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isLiveUpdateWireFragment(item))) && (value["sourceClientId"] === null || typeof value["sourceClientId"] === "string") || __isLiveUpdateScopeExactRecord(value, ["type", "message"], []) && value["type"] === "error" && typeof value["message"] === "string";
   }
   var InteractionDom = { "attributes": { "activation": "data-bepis-activation", "activationIntent": "data-bepis-activation-intent", "activationTrigger": "data-bepis-activation-trigger", "activationValueField": "data-bepis-activation-value-field", "conflictPolicies": "data-bepis-conflict-policies", "container": "data-bepis-container", "disposableLayer": "data-bepis-disposable-layer", "dropzone": "data-bepis-dropzone", "fieldPresence": "data-bepis-field-presence", "intent": "data-bepis-intent", "intentField": "data-bepis-intent-field", "intentForm": "data-bepis-intent-form", "intentHiddenField": "data-bepis-intent-hidden-field", "interactionActive": "data-bepis-interaction-active", "item": "data-bepis-item", "layer": "data-bepis-layer", "marker": "data-bepis-marker", "mountKey": "data-bepis-mount-key", "pointerSession": "data-bepis-pointer-session", "resizeHandle": "data-bepis-resize-handle", "scopeKey": "data-bepis-scope-key", "serverLayer": "data-bepis-server-layer", "sessionDisabled": "data-bepis-session-disabled", "sessionIntent": "data-bepis-session-intent", "sessionKind": "data-bepis-session-kind", "sessionReadOnly": "data-bepis-session-read-only", "sessionThreshold": "data-bepis-session-threshold", "sessionTimeoutMs": "data-bepis-session-timeout-ms", "slot": "data-bepis-slot", "surface": "data-bepis-surface", "surfaceFamily": "data-bepis-surface-family" }, "pointerFields": { "currentClientX": "currentClientX", "currentClientY": "currentClientY", "deltaX": "deltaX", "deltaY": "deltaY", "pointerId": "pointerId", "pointerType": "pointerType", "sessionKind": "sessionKind", "sourceItemKey": "sourceItemKey", "startClientX": "startClientX", "startClientY": "startClientY", "targetDropzoneKey": "targetDropzoneKey" }, "values": { "activationMarker": "activation", "containerMarker": "container", "dropzoneMarker": "dropzone", "enabled": "true", "itemMarker": "item", "resizeHandleMarker": "resize-handle", "slotMarker": "slot" } };
+  function isUiRegionLifecycleEvent(value) {
+    return value === "bepis:region-request-start" || value === "bepis:region-before-swap" || value === "bepis:region-after-swap" || value === "bepis:region-settle" || value === "bepis:region-error";
+  }
+  var UiRegionDom = { "fragment": "data-bepis-fragment", "lazyFragment": "data-bepis-lazy-fragment", "lazyRetry": "data-bepis-lazy-retry", "lazySurface": "data-bepis-lazy-surface", "transition": "data-bepis-region-transition" };
+  var UiRegionEvents = { "afterSwap": "bepis:region-after-swap", "beforeSwap": "bepis:region-before-swap", "error": "bepis:region-error", "requestStart": "bepis:region-request-start", "settle": "bepis:region-settle" };
+
+  // frontend/ts/shared/dom.ts
+  function isElement(value) {
+    return typeof Element !== "undefined" && value instanceof Element;
+  }
+  function isHTMLElement(value) {
+    return typeof HTMLElement !== "undefined" && value instanceof HTMLElement;
+  }
+  function closestHTMLElement(target, selector) {
+    if (!isElement(target)) return null;
+    const element = target.closest(selector);
+    return isHTMLElement(element) ? element : null;
+  }
+
+  // frontend/ts/shared/lifecycle.ts
+  function eventDetailRecord(event) {
+    if (typeof CustomEvent === "undefined" || !(event instanceof CustomEvent)) return null;
+    if (event.detail === null || typeof event.detail !== "object") return null;
+    return event.detail;
+  }
+  function detailTarget(event, key) {
+    return eventDetailRecord(event)?.[key];
+  }
+
+  // frontend/ts/fragments/dom.ts
+  var uiRegionFragmentSelector = `[${UiRegionDom.fragment}="true"]`;
+  function closestUiRegionFragment(value) {
+    if (isHTMLElement(value)) {
+      if (value.matches(uiRegionFragmentSelector)) return value;
+      return closestHTMLElement(value, uiRegionFragmentSelector);
+    }
+    return closestHTMLElement(value, uiRegionFragmentSelector);
+  }
+
+  // frontend/ts/fragments/events.ts
+  function uiRegionEventName(lifecycleEvent) {
+    return lifecycleEvent;
+  }
+  function emitUiRegionLifecycleEvent(region, detail) {
+    region.dispatchEvent(new CustomEvent(uiRegionEventName(detail.lifecycleEvent), {
+      bubbles: true,
+      detail
+    }));
+  }
+
+  // frontend/ts/fragments/htmx-adapter.ts
+  function regionLifecycleEvent(value) {
+    if (isUiRegionLifecycleEvent(value)) return value;
+    throw new Error(`Invalid generated UI region lifecycle event: ${value}`);
+  }
+  var htmxRegionEventSpecs = [
+    { htmxEventName: "htmx:beforeRequest", lifecycleEvent: regionLifecycleEvent(UiRegionEvents.requestStart) },
+    { htmxEventName: "htmx:beforeSwap", lifecycleEvent: regionLifecycleEvent(UiRegionEvents.beforeSwap) },
+    { htmxEventName: "htmx:afterSwap", lifecycleEvent: regionLifecycleEvent(UiRegionEvents.afterSwap) },
+    { htmxEventName: "htmx:afterSettle", lifecycleEvent: regionLifecycleEvent(UiRegionEvents.settle) },
+    { htmxEventName: "htmx:responseError", lifecycleEvent: regionLifecycleEvent(UiRegionEvents.error), errorKind: "response-error" },
+    { htmxEventName: "htmx:sendError", lifecycleEvent: regionLifecycleEvent(UiRegionEvents.error), errorKind: "send-error" },
+    { htmxEventName: "htmx:timeout", lifecycleEvent: regionLifecycleEvent(UiRegionEvents.error), errorKind: "timeout" }
+  ];
+  function htmxRegionEventSource(event) {
+    const source = detailTarget(event, "elt");
+    return isHTMLElement(source) ? source : null;
+  }
+  function htmxRegionEventTarget(event) {
+    const target = detailTarget(event, "target");
+    return isHTMLElement(target) ? target : null;
+  }
+  function regionFromHtmxEvent(event) {
+    return closestUiRegionFragment(htmxRegionEventTarget(event)) || closestUiRegionFragment(htmxRegionEventSource(event)) || closestUiRegionFragment(event.target);
+  }
+  function dispatchRegionLifecycleFromHtmx(event, spec) {
+    const region = regionFromHtmxEvent(event);
+    if (region === null) return;
+    emitUiRegionLifecycleEvent(region, {
+      lifecycleEvent: spec.lifecycleEvent,
+      htmxEventName: spec.htmxEventName,
+      region,
+      source: htmxRegionEventSource(event),
+      target: htmxRegionEventTarget(event),
+      originalEvent: event,
+      ...spec.errorKind ? { errorKind: spec.errorKind } : {}
+    });
+  }
+  function enableHtmxUiRegionEventAdapter(root = document) {
+    const listeners = htmxRegionEventSpecs.map((spec) => {
+      const listener = (event) => dispatchRegionLifecycleFromHtmx(event, spec);
+      root.addEventListener(spec.htmxEventName, listener);
+      return { spec, listener };
+    });
+    return function disableHtmxUiRegionEventAdapter() {
+      listeners.forEach(({ spec, listener }) => root.removeEventListener(spec.htmxEventName, listener));
+    };
+  }
 
   // frontend/ts/interaction/live-conflicts.ts
   var attrs = InteractionDom.attributes;
@@ -130,29 +228,6 @@
     return value !== null && typeof value === "object" && typeof value.id === "string";
   }
 
-  // frontend/ts/shared/dom.ts
-  function isElement(value) {
-    return typeof Element !== "undefined" && value instanceof Element;
-  }
-  function isHTMLElement(value) {
-    return typeof HTMLElement !== "undefined" && value instanceof HTMLElement;
-  }
-  function closestHTMLElement(target, selector) {
-    if (!isElement(target)) return null;
-    const element = target.closest(selector);
-    return isHTMLElement(element) ? element : null;
-  }
-
-  // frontend/ts/shared/lifecycle.ts
-  function eventDetailRecord(event) {
-    if (typeof CustomEvent === "undefined" || !(event instanceof CustomEvent)) return null;
-    if (event.detail === null || typeof event.detail !== "object") return null;
-    return event.detail;
-  }
-  function detailTarget(event, key) {
-    return eventDetailRecord(event)?.[key];
-  }
-
   // frontend/ts/live-updates/lazy-surface.ts
   var lazySurfaceSelector = '[data-bepis-lazy-surface="true"]';
   function lazySurfaceFromEvent(event) {
@@ -243,6 +318,7 @@
   }
 
   // frontend/ts/app-live-updates.ts
+  enableHtmxUiRegionEventAdapter();
   enableLazySurfaceErrorHandling();
   (function enableLiveUpdates() {
     if (typeof window === "undefined") return;

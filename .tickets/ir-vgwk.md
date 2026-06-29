@@ -1,6 +1,6 @@
 ---
 id: ir-vgwk
-status: open
+status: closed
 deps: [ir-fp76]
 links: []
 created: 2026-06-29T13:12:15Z
@@ -22,3 +22,9 @@ Create small modules such as frontend/ts/fragments/dom.ts, events.ts, and htmx-a
 
 Adapter ignores ordinary HTMX outside declared regions; event detail is normalized and tested; no feature names, URLs, or target ids are hardcoded.
 
+
+## Notes
+
+**2026-06-29T13:29:39Z**
+
+Added generic HTMX-to-Bepis region adapter using generated UiRegionDom/UiRegionEvents constants. It dispatches normalized lifecycle details only for data-bepis-fragment=true regions and has frontend DOM coverage for ignored ordinary HTMX, swap, settle, and error events. Verification: frontend-test, frontend-contracts-check, frontend-check, typecheck passed.

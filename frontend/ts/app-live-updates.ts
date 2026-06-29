@@ -1,5 +1,6 @@
 import type { LiveUpdateCommand, LiveUpdateMessage, LiveUpdateScope, LiveUpdateWireFragment } from "./generated/contracts";
 import { AppEvents, isLiveUpdateMessage } from "./generated/contracts";
+import { enableHtmxUiRegionEventAdapter } from "./fragments/htmx-adapter";
 import { resolveLiveFragmentInteractionConflict } from "./interaction/live-conflicts";
 import { createActiveInteractionSessionTracker } from "./interaction/session-state";
 import { enableLazySurfaceErrorHandling } from "./live-updates/lazy-surface";
@@ -12,6 +13,7 @@ import {
 import { parseLiveUpdateSurfaceConfig } from "./live-updates/validation";
 
 
+enableHtmxUiRegionEventAdapter();
 enableLazySurfaceErrorHandling();
 
 export type LiveUpdateSurfaceConfig = {
