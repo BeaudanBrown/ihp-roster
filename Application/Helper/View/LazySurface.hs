@@ -25,15 +25,21 @@ import Application.Helper.LiveSurface (FragmentContract (..),
                                        lazyFragmentPlaceholderTable,
                                        surfaceFragmentRefTargetId,
                                        surfaceFragmentRefUrl)
+import Application.Helper.UiRegion (UiRegionTransitionProfile (..),
+                                    uiRegionFragmentEnabledValue,
+                                    uiRegionTransitionProfileText)
 import qualified Data.Text as Text
 import IHP.ViewPrelude
+import qualified Text.Blaze.Html as Blaze
+import Text.Blaze.Html ((!))
+import qualified Text.Blaze.Html5 as Html5
 
 renderLiveSurfaceFragmentMount ::
     TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
     scope ->
     fragment ->
-    Html ->
-    Html
+    Blaze.Html ->
+    Blaze.Html
 renderLiveSurfaceFragmentMount definition scope fragment eagerHtml =
     renderLiveSurfaceFragmentMountWithPlaceholder definition scope fragment mempty eagerHtml
 
@@ -41,9 +47,9 @@ renderLiveSurfaceFragmentMountWithPlaceholder ::
     TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
     scope ->
     fragment ->
-    Html ->
-    Html ->
-    Html
+    Blaze.Html ->
+    Blaze.Html ->
+    Blaze.Html
 renderLiveSurfaceFragmentMountWithPlaceholder definition scope fragment placeholderHtml eagerHtml =
     case contract.fragmentContractLoadPolicy of
         FragmentEager -> eagerHtml
@@ -51,47 +57,50 @@ renderLiveSurfaceFragmentMountWithPlaceholder definition scope fragment placehol
     where
         contract = definition.typedSurfaceFragmentContract scope fragment
 
-renderLazyLiveFragmentMount :: LazyFragmentConfig -> SurfaceFragmentRef surface -> Html
+renderLazyLiveFragmentMount :: LazyFragmentConfig -> SurfaceFragmentRef surface -> Blaze.Html
 renderLazyLiveFragmentMount config fragmentRef =
     renderLazyLiveFragmentMountWithPlaceholder config fragmentRef mempty
 
-renderLazyLiveFragmentMountWithPlaceholder :: LazyFragmentConfig -> SurfaceFragmentRef surface -> Html -> Html
-renderLazyLiveFragmentMountWithPlaceholder config fragmentRef placeholderHtml = [hsx|
-    <div id={surfaceFragmentRefTargetId fragmentRef}
-         class={lazySurfacePlaceholderRootClasses config}
-         data-bepis-lazy-surface="true"
-         data-bepis-lazy-fragment={surfaceFragmentRefTargetId fragmentRef}
-         hx-get={surfaceFragmentRefUrl fragmentRef}
-         hx-trigger={lazySurfaceHtmxTrigger config}
-         hx-target="this"
-         hx-swap="outerHTML"
-         hx-push-url="false"
-         role="status"
-         aria-live="polite"
-         aria-busy="true"
-         aria-label={config.lazyFragmentAccessibleLabel}>
-        <span class="visually-hidden">{config.lazyFragmentAccessibleLabel}</span>
-        {renderLazySurfacePlaceholderBody config placeholderHtml}
-    </div>
-|]
+renderLazyLiveFragmentMountWithPlaceholder :: LazyFragmentConfig -> SurfaceFragmentRef surface -> Blaze.Html -> Blaze.Html
+renderLazyLiveFragmentMountWithPlaceholder config fragmentRef placeholderHtml =
+    Html5.div
+        ! attr "id" (surfaceFragmentRefTargetId fragmentRef)
+        ! attr "class" (lazySurfacePlaceholderRootClasses config)
+        ! attr "data-bepis-fragment" uiRegionFragmentEnabledValue
+        ! attr "data-bepis-lazy-surface" uiRegionFragmentEnabledValue
+        ! attr "data-bepis-lazy-fragment" (surfaceFragmentRefTargetId fragmentRef)
+        ! attr "data-bepis-lazy-retry" uiRegionFragmentEnabledValue
+        ! attr "data-bepis-region-transition" (uiRegionTransitionProfileText UiRegionTransitionNone)
+        ! attr "hx-get" (surfaceFragmentRefUrl fragmentRef)
+        ! attr "hx-trigger" (lazySurfaceHtmxTrigger config)
+        ! attr "hx-target" "this"
+        ! attr "hx-swap" "outerHTML"
+        ! attr "hx-push-url" "false"
+        ! attr "role" "status"
+        ! attr "aria-live" "polite"
+        ! attr "aria-busy" "true"
+        ! attr "aria-label" config.lazyFragmentAccessibleLabel
+        $ do
+            Html5.span ! attr "class" "visually-hidden" $ Html5.toHtml config.lazyFragmentAccessibleLabel
+            renderLazySurfacePlaceholderBody config placeholderHtml
 
-renderLazySurfacePlaceholder :: LazyFragmentConfig -> Html
+renderLazySurfacePlaceholder :: LazyFragmentConfig -> Blaze.Html
 renderLazySurfacePlaceholder config =
     renderLazySurfacePlaceholderWithCustom config mempty
 
-renderLazySurfacePlaceholderWithCustom :: LazyFragmentConfig -> Html -> Html
-renderLazySurfacePlaceholderWithCustom config customBody = [hsx|
-    <div class={lazySurfacePlaceholderRootClasses config}
-         role="status"
-         aria-live="polite"
-         aria-busy="true"
-         aria-label={config.lazyFragmentAccessibleLabel}>
-        <span class="visually-hidden">{config.lazyFragmentAccessibleLabel}</span>
-        {renderLazySurfacePlaceholderBody config customBody}
-    </div>
-|]
+renderLazySurfacePlaceholderWithCustom :: LazyFragmentConfig -> Blaze.Html -> Blaze.Html
+renderLazySurfacePlaceholderWithCustom config customBody =
+    Html5.div
+        ! attr "class" (lazySurfacePlaceholderRootClasses config)
+        ! attr "role" "status"
+        ! attr "aria-live" "polite"
+        ! attr "aria-busy" "true"
+        ! attr "aria-label" config.lazyFragmentAccessibleLabel
+        $ do
+            Html5.span ! attr "class" "visually-hidden" $ Html5.toHtml config.lazyFragmentAccessibleLabel
+            renderLazySurfacePlaceholderBody config customBody
 
-renderLazySurfacePlaceholderBody :: LazyFragmentConfig -> Html -> Html
+renderLazySurfacePlaceholderBody :: LazyFragmentConfig -> Blaze.Html -> Blaze.Html
 renderLazySurfacePlaceholderBody config customBody
     | config.lazyFragmentPlaceholderKind == lazyFragmentPlaceholderPanel = renderPanelSkeleton
     | config.lazyFragmentPlaceholderKind == lazyFragmentPlaceholderTable = renderTableSkeleton
@@ -131,7 +140,7 @@ lazySurfacePlaceholderKindClass kind
     | kind == lazyFragmentPlaceholderCustom = "custom"
     | otherwise = "spinner"
 
-renderPanelSkeleton :: Html
+renderPanelSkeleton :: Blaze.Html
 renderPanelSkeleton = [hsx|
     <div class="app-lazy-surface-skeleton app-lazy-surface-panel-skeleton" aria-hidden="true">
         <div class="app-lazy-surface-bar app-lazy-surface-bar-title"></div>
@@ -141,7 +150,7 @@ renderPanelSkeleton = [hsx|
     </div>
 |]
 
-renderTableSkeleton :: Html
+renderTableSkeleton :: Blaze.Html
 renderTableSkeleton = [hsx|
     <div class="app-lazy-surface-skeleton app-lazy-surface-table-skeleton" aria-hidden="true">
         <div class="app-lazy-surface-table-row app-lazy-surface-table-row-head">
@@ -151,14 +160,14 @@ renderTableSkeleton = [hsx|
     </div>
 |]
 
-renderListSkeleton :: Html
+renderListSkeleton :: Blaze.Html
 renderListSkeleton = [hsx|
     <div class="app-lazy-surface-skeleton app-lazy-surface-list-skeleton" aria-hidden="true">
         {forEach skeletonPlaceholderItems5 renderSkeletonRow}
     </div>
 |]
 
-renderCompactSpinner :: Html
+renderCompactSpinner :: Blaze.Html
 renderCompactSpinner = [hsx|
     <div class="app-lazy-surface-spinner" aria-hidden="true">
         <span class="spinner-border spinner-border-sm" role="presentation"></span>
@@ -171,7 +180,7 @@ skeletonPlaceholderItems4 = [1, 2, 3, 4]
 skeletonPlaceholderItems5 :: [Int]
 skeletonPlaceholderItems5 = [1, 2, 3, 4, 5]
 
-renderSkeletonRow :: Int -> Html
+renderSkeletonRow :: Int -> Blaze.Html
 renderSkeletonRow index = [hsx|
     <div class="app-lazy-surface-row">
         <div class={classes [("app-lazy-surface-bar", True), ("app-lazy-surface-bar-short", index `mod` 3 == 0)]}></div>
@@ -179,16 +188,20 @@ renderSkeletonRow index = [hsx|
     </div>
 |]
 
-renderSkeletonTableRow :: Int -> Html
+renderSkeletonTableRow :: Int -> Blaze.Html
 renderSkeletonTableRow _ = [hsx|
     <div class="app-lazy-surface-table-row">
         {forEach skeletonPlaceholderItems4 renderSkeletonCell}
     </div>
 |]
 
-renderSkeletonCell :: Int -> Html
+renderSkeletonCell :: Int -> Blaze.Html
 renderSkeletonCell index = [hsx|
     <div class={classes [("app-lazy-surface-cell", True), ("app-lazy-surface-cell-narrow", index == 4)]}>
         <div class="app-lazy-surface-bar"></div>
     </div>
 |]
+
+attr :: Text -> Text -> Blaze.Attribute
+attr name value =
+    Blaze.customAttribute (Blaze.textTag name) (Blaze.toValue value)

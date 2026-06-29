@@ -99,7 +99,10 @@ tests = describe "LiveSurface contract helpers" do
 
         HtmlRenderer.renderHtml eagerHtml `shouldBe` "eager"
         lazyOutput `shouldContainText` "id=\"actor-parent\""
+        lazyOutput `shouldContainText` "data-bepis-fragment=\"true\""
         lazyOutput `shouldContainText` "data-bepis-lazy-surface=\"true\""
+        lazyOutput `shouldContainText` "data-bepis-lazy-retry=\"true\""
+        lazyOutput `shouldContainText` "data-bepis-region-transition=\"none\""
         lazyOutput `shouldContainText` "hx-get=\"/actor-parent\""
         lazyOutput `shouldContainText` "hx-trigger=\"load delay:25ms\""
         lazyOutput `shouldContainText` "hx-target=\"this\""
