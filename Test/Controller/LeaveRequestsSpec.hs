@@ -182,6 +182,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Pending (1)"
                 response `responseBodyShouldContain` "Approve"
+                response `responseBodyShouldContain` "hx-swap=\"none\""
                 response `responseBodyShouldNotContain` "Add unavailable time"
 
         it "denies super-admin self-service leave creation" $ withContext do
@@ -540,8 +541,8 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 body <- responseBody response
                 let bodyText = cs (LByteString.unpack body)
-                bodyText `shouldContain` "id=\"leave-requests-content\""
-                bodyText `shouldNotContain` "id=\"leave-requests-content\" hx-swap-oob="
+                bodyText `shouldContain` "id=\"leave-requests-content\" hx-swap-oob=\"outerHTML\""
+                bodyText `shouldContain` "id=\"dialog-overlay-mount\" hx-swap-oob=\"innerHTML\""
                 versionAfter <- currentLiveUpdateVersion LeaveRequestsScope { venueId = unpackId venue.id }
                 versionAfter `shouldBe` versionBefore + 1
 

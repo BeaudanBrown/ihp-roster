@@ -1,6 +1,7 @@
 module Web.Controller.LeaveRequests where
 
-import Application.Helper.LiveSurface (serveTypedLiveFragment)
+import Application.Helper.LiveSurface (respondWithTypedLiveSurfaceFragments,
+                                       serveTypedLiveFragment)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchCurrentUserLeaveRequests,
                                         fetchStaffLeaveRequests)
@@ -94,7 +95,7 @@ instance Controller LeaveRequestsController where
                         Right leaveRequest -> do
                             _ <- submitLeaveRequest leaveRequest
                             if isHtmxRequest
-                                then respondWithLeaveMutationSuccess responseContext "Unavailable period submitted" True
+                                then respondWithLeaveMutationSuccess responseContext "Unavailable period submitted"
                                 else do
                                     setSuccessMessage "Unavailable period submitted"
                                     redirectToPath (leaveFallbackPath responseContext)
@@ -108,7 +109,7 @@ instance Controller LeaveRequestsController where
         accessDeniedUnless (isNothing leaveRequest.deletedAt)
         _ <- reviewLeaveRequest ApproveLeave leaveRequest
         if isHtmxRequest
-            then respondWithLeaveRequestsContent "Unavailable period approved" False
+            then respondWithLeaveRequestsContent "Unavailable period approved"
             else do
                 setSuccessMessage "Unavailable period approved"
                 redirectTo LeaveRequestsAction
@@ -122,24 +123,21 @@ instance Controller LeaveRequestsController where
         accessDeniedUnless (isNothing leaveRequest.deletedAt)
         _ <- reviewLeaveRequest DenyLeave leaveRequest
         if isHtmxRequest
-            then respondWithLeaveRequestsContent "Unavailable period denied" False
+            then respondWithLeaveRequestsContent "Unavailable period denied"
             else do
                 setSuccessMessage "Unavailable period denied"
                 redirectTo LeaveRequestsAction
 
-respondWithLeaveRequestsContent :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => Text -> Bool -> IO ()
-respondWithLeaveRequestsContent successMessage renderMainFragmentOob = do
-    projection <- fetchLeaveRequestsProjectionCached
-    let mainFragment =
-            if renderMainFragmentOob
-                then renderLeaveRequestsContentFragmentOob projection.leaveProjectionRequests projection.leaveProjectionStaffMembers projection.leaveProjectionCurrentViewerStaffId projection.leaveProjectionToday currentLeaveArchivePage currentLeaveArchiveOpen
-                else renderLeaveRequestsContentFragment projection.leaveProjectionRequests projection.leaveProjectionStaffMembers projection.leaveProjectionCurrentViewerStaffId projection.leaveProjectionToday currentLeaveArchivePage currentLeaveArchiveOpen
-    respondHtmlProfiled $
-        mconcat
-            [ mainFragment
-            , [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
-            , renderToastOob ToastBottomCenter (successToast successMessage)
-            ]
+respondWithLeaveRequestsContent :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => Text -> IO ()
+respondWithLeaveRequestsContent successMessage =
+    respondWithTypedLiveSurfaceFragments
+        leaveRequestsProjectionDefinition
+        ()
+        [LeaveRequestsProjectionContent]
+        ( [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
+            <> renderToastOob ToastBottomCenter (successToast successMessage)
+        )
+        renderLeaveRequestsProjectionFragmentFromProjection
 
 data LeaveResponseContext
     = LeavePageResponseContext
@@ -191,11 +189,11 @@ respondWithLeaveRequestValidationFailure responseContext leaveRequest =
         LeaveStaffResponseContext ->
             respondHtml (renderStaffLeaveRequestFormFragment (Id leaveRequest.staffId) leaveRequest)
 
-respondWithLeaveMutationSuccess :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => LeaveResponseContext -> Text -> Bool -> IO ()
-respondWithLeaveMutationSuccess responseContext successMessage renderMainFragmentOob =
+respondWithLeaveMutationSuccess :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => LeaveResponseContext -> Text -> IO ()
+respondWithLeaveMutationSuccess responseContext successMessage =
     case responseContext of
         LeavePageResponseContext ->
-            respondWithLeaveRequestsContent successMessage renderMainFragmentOob
+            respondWithLeaveRequestsContent successMessage
         LeaveProfileResponseContext -> do
             leaveRequests <- fetchCurrentUserLeaveRequests
             leaveRequest <- buildDefaultLeaveRequest

@@ -5,7 +5,6 @@ module Web.LeaveRequests.Projection
     , LeaveRequestsProjectionFragment (..)
     , affectedRosterWeekInvalidationTargetsForScopes
     , buildLeaveRequestsContentFragmentRef
-    , buildLeaveRequestsPageFragmentRef
     , buildLeaveRequestsScope
     , currentLeaveArchiveOpen
     , currentLeaveArchivePage
@@ -16,6 +15,7 @@ module Web.LeaveRequests.Projection
     , leaveRequestsLiveSurfaceDefinitionForVenue
     , leaveRequestsProjectionDefinition
     , renderLeaveRequestsProjectionFragment
+    , renderLeaveRequestsProjectionFragmentFromProjection
     , renderLeaveRequestsProjectionHtml
     ) where
 
@@ -42,8 +42,7 @@ data LeaveRequestsProjection = LeaveRequestsProjection
     }
 
 data LeaveRequestsProjectionFragment
-    = LeaveRequestsProjectionPage
-    | LeaveRequestsProjectionContent
+    = LeaveRequestsProjectionContent
     deriving (Eq, Show)
 
 data LeaveRequestsSurface
@@ -133,20 +132,24 @@ fetchLeaveRequestsProjection = do
     pure LeaveRequestsProjection { .. }
 
 renderLeaveRequestsProjectionHtml :: (?context :: ControllerContext, ?request :: Request) => LeaveRequestsProjection -> LeaveRequestsProjectionFragment -> Maybe Blaze.Html
-renderLeaveRequestsProjectionHtml projection fragment =
-    case fragment of
-        LeaveRequestsProjectionPage ->
-            Just (renderLeaveRequestsShell (leaveRequestsIndexView projection))
-        LeaveRequestsProjectionContent ->
-            Just
-                (renderLeaveRequestsContentFragment
-                    projection.leaveProjectionRequests
-                    projection.leaveProjectionStaffMembers
-                    projection.leaveProjectionCurrentViewerStaffId
-                    projection.leaveProjectionToday
-                    currentLeaveArchivePage
-                    currentLeaveArchiveOpen
-                )
+renderLeaveRequestsProjectionHtml =
+    renderLeaveRequestsProjectionFragmentFromProjection FragmentPlain
+
+renderLeaveRequestsProjectionFragmentFromProjection :: (?context :: ControllerContext, ?request :: Request) => FragmentRenderMode -> LeaveRequestsProjection -> LeaveRequestsProjectionFragment -> Maybe Blaze.Html
+renderLeaveRequestsProjectionFragmentFromProjection renderMode projection LeaveRequestsProjectionContent =
+    Just
+        (contentRenderer
+            projection.leaveProjectionRequests
+            projection.leaveProjectionStaffMembers
+            projection.leaveProjectionCurrentViewerStaffId
+            projection.leaveProjectionToday
+            currentLeaveArchivePage
+            currentLeaveArchiveOpen
+        )
+    where
+        contentRenderer = case renderMode of
+            FragmentPlain        -> renderLeaveRequestsContentFragment
+            FragmentOob swapAttr -> renderLeaveRequestsContentFragmentWithSwap swapAttr
 
 leaveRequestsIndexView :: (?context :: ControllerContext, ?request :: Request) => LeaveRequestsProjection -> IndexView
 leaveRequestsIndexView LeaveRequestsProjection { leaveProjectionRequests, leaveProjectionStaffMembers, leaveProjectionCurrentViewerStaffId, leaveProjectionToday } =
@@ -197,8 +200,6 @@ buildLeaveRequestsScope venueId =
         }
 
 leaveRequestsFragmentRef :: LeaveRequestsProjectionFragment -> SurfaceFragmentRef LeaveRequestsSurface
-leaveRequestsFragmentRef LeaveRequestsProjectionPage =
-    buildLeaveRequestsPageFragmentRef
 leaveRequestsFragmentRef LeaveRequestsProjectionContent =
     buildLeaveRequestsContentFragmentRef
 
@@ -209,10 +210,4 @@ buildLeaveRequestsContentFragmentRef =
         leaveRequestsContentFragmentId
         (pathTo ShowLeaveRequestsContentFragmentAction)
 
-buildLeaveRequestsPageFragmentRef :: SurfaceFragmentRef LeaveRequestsSurface
-buildLeaveRequestsPageFragmentRef =
-    mkSurfaceFragmentRef
-        LeaveRequestsContentFragment
-        leaveRequestsShellId
-        (pathTo LeaveRequestsAction)
 

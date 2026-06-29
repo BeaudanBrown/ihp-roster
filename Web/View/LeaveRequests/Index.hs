@@ -60,10 +60,6 @@ renderLeaveRequestsContentFragment :: (?context :: ControllerContext) => [LeaveR
 renderLeaveRequestsContentFragment =
     renderLeaveRequestsContentFragmentWithSwap Nothing
 
-renderLeaveRequestsContentFragmentOob :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> Int -> Bool -> Html
-renderLeaveRequestsContentFragmentOob =
-    renderLeaveRequestsContentFragmentWithSwap (Just "outerHTML")
-
 renderLeaveRequestsContentFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> Int -> Bool -> Html
 renderLeaveRequestsContentFragmentWithSwap maybeSwapOob leaveRequests staffMembers currentViewerStaffId today archivePage archiveIsOpen = [hsx|
     <div id={leaveRequestsContentFragmentId} hx-swap-oob={maybeSwapOob}>
@@ -377,50 +373,23 @@ renderReviewActions leaveRequest
     | not currentUserIsManager = mempty
     | otherwise =
         case parseLeaveRequestStatus leaveRequest.status of
-            Just LeaveApproved -> [hsx|
-                <form method="POST"
-                      action={DenyLeaveRequestAction leaveRequest.id}
-                      class="d-inline"
-                      data-disable-javascript-submission="true"
-                      hx-post={DenyLeaveRequestAction leaveRequest.id}
-                      hx-target={"#" <> leaveRequestsContentFragmentId}
-                      hx-swap="outerHTML"
-                      hx-push-url="false">
-                    <button type="submit" class="btn btn-sm btn-outline-danger me-1">Deny</button>
-                </form>
-            |]
-            Just LeaveDenied -> [hsx|
-                <form method="POST"
-                      action={ApproveLeaveRequestAction leaveRequest.id}
-                      class="d-inline"
-                      data-disable-javascript-submission="true"
-                      hx-post={ApproveLeaveRequestAction leaveRequest.id}
-                      hx-target={"#" <> leaveRequestsContentFragmentId}
-                      hx-swap="outerHTML"
-                      hx-push-url="false">
-                    <button type="submit" class="btn btn-sm btn-outline-success me-1">Approve</button>
-                </form>
-            |]
-            _ -> [hsx|
-                <form method="POST"
-                      action={ApproveLeaveRequestAction leaveRequest.id}
-                      class="d-inline"
-                      data-disable-javascript-submission="true"
-                      hx-post={ApproveLeaveRequestAction leaveRequest.id}
-                      hx-target={"#" <> leaveRequestsContentFragmentId}
-                      hx-swap="outerHTML"
-                      hx-push-url="false">
-                    <button type="submit" class="btn btn-sm btn-outline-success me-1">Approve</button>
-                </form>
-                <form method="POST"
-                      action={DenyLeaveRequestAction leaveRequest.id}
-                      class="d-inline"
-                      data-disable-javascript-submission="true"
-                      hx-post={DenyLeaveRequestAction leaveRequest.id}
-                      hx-target={"#" <> leaveRequestsContentFragmentId}
-                      hx-swap="outerHTML"
-                      hx-push-url="false">
-                    <button type="submit" class="btn btn-sm btn-outline-danger me-1">Deny</button>
-                </form>
-            |]
+            Just LeaveApproved -> renderReviewActionForm (DenyLeaveRequestAction leaveRequest.id) "btn btn-sm btn-outline-danger me-1" "Deny"
+            Just LeaveDenied   -> renderReviewActionForm (ApproveLeaveRequestAction leaveRequest.id) "btn btn-sm btn-outline-success me-1" "Approve"
+            _ ->
+                renderReviewActionForm (ApproveLeaveRequestAction leaveRequest.id) "btn btn-sm btn-outline-success me-1" "Approve"
+                    <> renderReviewActionForm (DenyLeaveRequestAction leaveRequest.id) "btn btn-sm btn-outline-danger me-1" "Deny"
+
+renderReviewActionForm :: (?context :: ControllerContext) => LeaveRequestsController -> Text -> Text -> Html
+renderReviewActionForm action buttonClass label = [hsx|
+    <form method="POST"
+          action={action}
+          class="d-inline"
+          data-disable-javascript-submission="true"
+          hx-post={action}
+          hx-target={"#" <> leaveRequestsContentFragmentId}
+          hx-swap="none"
+          hx-push-url="false">
+        <button type="submit" class={buttonClass}>{label}</button>
+    </form>
+|]
 
