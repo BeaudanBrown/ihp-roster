@@ -4,9 +4,11 @@ module Test.FrontendContractsSpec
 
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
+import qualified Data.ByteString.Lazy as LBS
 import Data.Either (isLeft)
 import qualified Data.List as List
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as TextEncoding
 import qualified Data.Text.IO as Text
 import IHP.Prelude
 import System.Directory (doesDirectoryExist, listDirectory)
@@ -16,6 +18,7 @@ import Test.Hspec
 import Application.Helper.Frontend.Codec
 import Application.Helper.Frontend.Contracts (frontendContractDeclarations,
                                               frontendContractsTypeScript)
+import qualified Application.Helper.Frontend.LiveUpdateSchema as Live
 import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..),
                                                TypeScriptDeclarationOrigin (..))
 import Web.LiveSurfaceRegistry (RegisteredLiveSurfaceManifest (..),
@@ -100,6 +103,15 @@ tests = describe "Frontend contract generator foundation" do
         haskellOffenders `shouldBe` []
         frontendOffenders `shouldBe` []
 
+    it "keeps app and interaction canonical strings out of handwritten frontend runtime" do
+        offenders <- canonicalStringOffendersWithAllowedPrefixes
+            ["frontend/ts"]
+            ["frontend/ts/generated/contracts.ts"]
+            ["frontend/ts/tests/"]
+            [".ts"]
+            frontendRuntimeGeneratedOnlyStrings
+        offenders `shouldBe` []
+
     -- Enforcement point for ir-o5qk: canonical app names should become closed
     -- generated unions. Existing escape hatches stay listed until migrated.
     it "locks down canonical generated | string escape hatches behind an allowlist" do
@@ -167,6 +179,27 @@ tests = describe "Frontend contract generator foundation" do
         it "renders typed constants from the same codec" do
             let constantSource = renderTypedConstant "InteractionDom" interactionDomCodec (InteractionDom "data-bepis-surface" "true")
             constantSource `shouldBe` "export const InteractionDom: InteractionDom = {\"enabled\":\"true\",\"surface\":\"data-bepis-surface\"};"
+
+        it "round-trips real live-update wire DTOs through their production codecs" do
+            let scope = Live.TimesheetWeek "venue-1" 4
+            let fragment = Live.LiveUpdateWireFragment
+                    (Live.TimesheetDaySection 2)
+                    "timesheet-day-2"
+                    "/TimesheetDay?offset=2"
+                    True
+                    (Live.FocusedFieldProtection (Live.FocusedFieldProtectionConfig ".timesheet-input:focus" "data-field-key" True (Just ".timesheet-row")))
+            let command = Live.Subscribe scope "client-1" (Just 9)
+            let message = Live.Invalidate scope "timesheet_week:venue-1:4" 10 [fragment] (Just "client-2")
+            let config = Live.LiveSurfaceConfig "timesheets" "/live-updates" scope "timesheet_week:venue-1:4" [fragment] ["#timesheet-week-shell"]
+
+            Aeson.eitherDecode (Aeson.encode command) `shouldBe` Right command
+            Aeson.eitherDecode (Aeson.encode message) `shouldBe` Right message
+            Aeson.eitherDecode (Aeson.encode config) `shouldBe` Right config
+
+            let encodedCommandText = TextEncoding.decodeUtf8 (LBS.toStrict (Aeson.encode command))
+            let encodedConfigText = TextEncoding.decodeUtf8 (LBS.toStrict (Aeson.encode config))
+            encodedCommandText `shouldSatisfy` Text.isInfixOf "\"type\""
+            encodedConfigText `shouldSatisfy` Text.isInfixOf "\"resyncFragments\""
 
         it "rejects duplicate top-level codec names" do
             renderFrontendContracts [SomeFrontendCodec htmxMethodCodec, SomeFrontendCodec htmxMethodCodec]
@@ -343,6 +376,20 @@ generatedStringEscapeHatches source =
     , "| string" `Text.isInfixOf` line
     ]
 
+frontendRuntimeGeneratedOnlyStrings :: [Text]
+frontendRuntimeGeneratedOnlyStrings =
+    [ "data-bepis-"
+    , "app:page-ready"
+    , "app-live-fragments-refresh"
+    , "bepis:interaction-intent"
+    , "bepis:intent-submit"
+    , "bepis:interaction-session-start"
+    , "bepis:interaction-session-end"
+    , "bepis:interaction-session-cancel-request"
+    , "dialog-overlay-mount"
+    , "toast-overlay-mount"
+    ]
+
 uiRegionCanonicalStrings :: [Text]
 uiRegionCanonicalStrings =
     [ "data-bepis-fragment"
@@ -358,10 +405,14 @@ uiRegionCanonicalStrings =
     ]
 
 canonicalStringOffenders :: [FilePath] -> [FilePath] -> [String] -> [Text] -> IO [(FilePath, Text)]
-canonicalStringOffenders roots allowedPaths extensions needles = do
+canonicalStringOffenders roots allowedPaths =
+    canonicalStringOffendersWithAllowedPrefixes roots allowedPaths []
+
+canonicalStringOffendersWithAllowedPrefixes :: [FilePath] -> [FilePath] -> [FilePath] -> [String] -> [Text] -> IO [(FilePath, Text)]
+canonicalStringOffendersWithAllowedPrefixes roots allowedPaths allowedPrefixes extensions needles = do
     files <- fmap concat (mapM collectSourceFiles roots)
     fmap concat $ forM files \path -> do
-        if path `elem` allowedPaths || takeExtension path `notElem` extensions
+        if path `elem` allowedPaths || any (`List.isPrefixOf` path) allowedPrefixes || takeExtension path `notElem` extensions
             then pure []
             else do
                 source <- Text.readFile path
