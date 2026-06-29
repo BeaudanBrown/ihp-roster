@@ -229,15 +229,27 @@
   }
 
   // frontend/ts/live-updates/lazy-surface.ts
-  var lazySurfaceSelector = '[data-bepis-lazy-surface="true"]';
+  var lazySurfaceSelector = `[${UiRegionDom.lazySurface}="true"]`;
+  var lazySurfaceRetrySelector = `[${UiRegionDom.lazySurface}="true"][${UiRegionDom.lazyRetry}="true"]`;
+  function customEventDetail(event) {
+    if (typeof CustomEvent === "undefined" || !(event instanceof CustomEvent)) return null;
+    const detail = event.detail;
+    if (detail === null || typeof detail !== "object") return null;
+    const record = detail;
+    return isHTMLElement(record.region) ? record : null;
+  }
   function lazySurfaceFromEvent(event) {
-    const elt = detailTarget(event, "elt");
-    if (isHTMLElement(elt)) {
-      if (elt.matches(lazySurfaceSelector)) return elt;
-      const closest = elt.closest(lazySurfaceSelector);
-      return isHTMLElement(closest) ? closest : null;
+    const detail = customEventDetail(event);
+    if (detail !== null) {
+      if (detail.region.matches(lazySurfaceSelector)) return detail.region;
+      return closestHTMLElement(detail.region, lazySurfaceSelector);
     }
     return closestHTMLElement(event.target, lazySurfaceSelector);
+  }
+  function lazyRetrySurfaceFromEvent(event) {
+    const surface = lazySurfaceFromEvent(event);
+    if (surface === null) return null;
+    return surface.matches(lazySurfaceRetrySelector) ? surface : null;
   }
   function markLazySurfaceLoading(surface) {
     surface.classList.remove("app-lazy-surface-error");
@@ -265,27 +277,27 @@
     surface.replaceChildren(body);
     window.htmx?.process?.(surface);
   }
+  function lazySurfaceErrorMessage(event) {
+    const detail = customEventDetail(event);
+    return detail?.errorKind === "timeout" ? "This section took too long to load." : "We couldn't load this section.";
+  }
   function enableLazySurfaceErrorHandling(root = document) {
-    root.addEventListener("htmx:beforeRequest", function(event) {
+    const onRequestStart = function(event) {
       const surface = lazySurfaceFromEvent(event);
       if (surface === null) return;
       markLazySurfaceLoading(surface);
-    });
-    root.addEventListener("htmx:responseError", function(event) {
-      const surface = lazySurfaceFromEvent(event);
+    };
+    const onRegionError = function(event) {
+      const surface = lazyRetrySurfaceFromEvent(event);
       if (surface === null) return;
-      renderLazySurfaceError(surface);
-    });
-    root.addEventListener("htmx:sendError", function(event) {
-      const surface = lazySurfaceFromEvent(event);
-      if (surface === null) return;
-      renderLazySurfaceError(surface);
-    });
-    root.addEventListener("htmx:timeout", function(event) {
-      const surface = lazySurfaceFromEvent(event);
-      if (surface === null) return;
-      renderLazySurfaceError(surface, "This section took too long to load.");
-    });
+      renderLazySurfaceError(surface, lazySurfaceErrorMessage(event));
+    };
+    root.addEventListener(UiRegionEvents.requestStart, onRequestStart);
+    root.addEventListener(UiRegionEvents.error, onRegionError);
+    return function disableLazySurfaceErrorHandling() {
+      root.removeEventListener(UiRegionEvents.requestStart, onRequestStart);
+      root.removeEventListener(UiRegionEvents.error, onRegionError);
+    };
   }
 
   // frontend/ts/live-updates/protocol.ts

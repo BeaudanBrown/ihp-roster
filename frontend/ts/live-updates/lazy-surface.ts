@@ -1,17 +1,32 @@
+import { UiRegionDom, UiRegionEvents } from "../generated/contracts";
+import type { UiRegionLifecycleDetail } from "../fragments/events";
 import { closestHTMLElement, isHTMLElement } from "../shared/dom";
-import { detailTarget } from "../shared/lifecycle";
 
-export const lazySurfaceSelector = '[data-bepis-lazy-surface="true"]';
+export const lazySurfaceSelector = `[${UiRegionDom.lazySurface}="true"]`;
+export const lazySurfaceRetrySelector = `[${UiRegionDom.lazySurface}="true"][${UiRegionDom.lazyRetry}="true"]`;
+
+function customEventDetail(event: Event): UiRegionLifecycleDetail | null {
+    if (typeof CustomEvent === "undefined" || !(event instanceof CustomEvent)) return null;
+    const detail = event.detail;
+    if (detail === null || typeof detail !== "object") return null;
+    const record = detail as Partial<UiRegionLifecycleDetail>;
+    return isHTMLElement(record.region) ? (record as UiRegionLifecycleDetail) : null;
+}
 
 export function lazySurfaceFromEvent(event: Event): HTMLElement | null {
-    const elt = detailTarget(event, "elt");
-    if (isHTMLElement(elt)) {
-        if (elt.matches(lazySurfaceSelector)) return elt;
-        const closest = elt.closest(lazySurfaceSelector);
-        return isHTMLElement(closest) ? closest : null;
+    const detail = customEventDetail(event);
+    if (detail !== null) {
+        if (detail.region.matches(lazySurfaceSelector)) return detail.region;
+        return closestHTMLElement(detail.region, lazySurfaceSelector);
     }
 
     return closestHTMLElement(event.target, lazySurfaceSelector);
+}
+
+export function lazyRetrySurfaceFromEvent(event: Event): HTMLElement | null {
+    const surface = lazySurfaceFromEvent(event);
+    if (surface === null) return null;
+    return surface.matches(lazySurfaceRetrySelector) ? surface : null;
 }
 
 export function markLazySurfaceLoading(surface: HTMLElement): void {
@@ -47,28 +62,30 @@ export function renderLazySurfaceError(surface: HTMLElement, message = "We could
     window.htmx?.process?.(surface);
 }
 
-export function enableLazySurfaceErrorHandling(root: Document = document): void {
-    root.addEventListener("htmx:beforeRequest", function (event) {
+export function lazySurfaceErrorMessage(event: Event): string {
+    const detail = customEventDetail(event);
+    return detail?.errorKind === "timeout"
+        ? "This section took too long to load."
+        : "We couldn't load this section.";
+}
+
+export function enableLazySurfaceErrorHandling(root: Document = document): () => void {
+    const onRequestStart = function (event: Event) {
         const surface = lazySurfaceFromEvent(event);
         if (surface === null) return;
         markLazySurfaceLoading(surface);
-    });
-
-    root.addEventListener("htmx:responseError", function (event) {
-        const surface = lazySurfaceFromEvent(event);
+    };
+    const onRegionError = function (event: Event) {
+        const surface = lazyRetrySurfaceFromEvent(event);
         if (surface === null) return;
-        renderLazySurfaceError(surface);
-    });
+        renderLazySurfaceError(surface, lazySurfaceErrorMessage(event));
+    };
 
-    root.addEventListener("htmx:sendError", function (event) {
-        const surface = lazySurfaceFromEvent(event);
-        if (surface === null) return;
-        renderLazySurfaceError(surface);
-    });
+    root.addEventListener(UiRegionEvents.requestStart, onRequestStart);
+    root.addEventListener(UiRegionEvents.error, onRegionError);
 
-    root.addEventListener("htmx:timeout", function (event) {
-        const surface = lazySurfaceFromEvent(event);
-        if (surface === null) return;
-        renderLazySurfaceError(surface, "This section took too long to load.");
-    });
+    return function disableLazySurfaceErrorHandling(): void {
+        root.removeEventListener(UiRegionEvents.requestStart, onRequestStart);
+        root.removeEventListener(UiRegionEvents.error, onRegionError);
+    };
 }

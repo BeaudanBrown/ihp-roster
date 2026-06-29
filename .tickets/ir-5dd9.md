@@ -1,6 +1,6 @@
 ---
 id: ir-5dd9
-status: open
+status: closed
 deps: [ir-vgwk]
 links: []
 created: 2026-06-29T13:12:15Z
@@ -22,3 +22,9 @@ Keep retry/error UI generic and parameterized by server-rendered attrs. Preserve
 
 Existing lazy error/retry behaviour remains; frontend tests cover response error, send error, timeout, and retry markup; no feature-specific lazy JavaScript is introduced.
 
+
+## Notes
+
+**2026-06-29T13:32:21Z**
+
+Lazy surface retry/error handling now consumes generated Bepis region lifecycle events instead of raw HTMX listeners, with retry gated by data-bepis-lazy-retry. Verification: frontend-test, frontend-contracts-check, frontend-check, typecheck passed.
