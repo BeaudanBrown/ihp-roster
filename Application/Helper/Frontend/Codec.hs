@@ -1,7 +1,10 @@
+{-# LANGUAGE AllowAmbiguousTypes       #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE TypeApplications          #-}
 
 module Application.Helper.Frontend.Codec
     ( FrontendCodec (..)
+    , HasFrontendCodec (..)
     , FrontendField (..)
     , FrontendSchema (..)
     , FrontendVariant (..)
@@ -15,6 +18,7 @@ module Application.Helper.Frontend.Codec
     , refCodec
     , renderFrontendContracts
     , renderTypedConstant
+    , someFrontendCodec
     , stringCodec
     , stringEnumCodec
     ) where
@@ -66,6 +70,12 @@ data FrontendVariant = FrontendVariant
     deriving (Eq, Show)
 
 data SomeFrontendCodec = forall a. SomeFrontendCodec (FrontendCodec a)
+
+class HasFrontendCodec a where
+    frontendCodec :: FrontendCodec a
+
+someFrontendCodec :: forall a. HasFrontendCodec a => SomeFrontendCodec
+someFrontendCodec = SomeFrontendCodec (frontendCodec @a)
 
 stringCodec :: FrontendCodec Text
 stringCodec = FrontendCodec Nothing SchemaString Aeson.toJSON (Aeson.withText "string" pure)

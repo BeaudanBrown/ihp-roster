@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Application.Helper.Frontend.Contracts
     ( TypeScriptDeclaration (..)
     , frontendContractDeclarations
@@ -6,15 +8,15 @@ module Application.Helper.Frontend.Contracts
 where
 
 import Application.Helper.Frontend.AppSchema (appSharedConstantsDeclaration)
-import Application.Helper.Frontend.Codec (FrontendCodec, SomeFrontendCodec (..),
-                                          renderFrontendContracts,
-                                          stringEnumCodec)
+import Application.Helper.Frontend.Codec (FrontendCodec, HasFrontendCodec (..),
+                                          someFrontendCodec, stringEnumCodec)
+import Application.Helper.Frontend.ContractGroup (FrontendContractGroup (..),
+                                                  renderFrontendContractGroup)
 import Application.Helper.Frontend.InteractionSchema (interactionSchemaDeclaration)
 import Application.Helper.Frontend.LiveUpdateSchema (liveUpdateSchemaDeclaration)
 import Application.Helper.Frontend.RosterSchema (rosterContractsDeclaration)
 import Application.Helper.Frontend.SurfaceManifestSchema (surfaceManifestDeclaration)
 import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..),
-                                               TypeScriptDeclarationOrigin (HaskellSchemaGenerated),
                                                renderTypeScriptDeclarations)
 import Application.Helper.Frontend.UiRegionSchema (uiRegionSchemaDeclaration)
 import IHP.Prelude
@@ -29,22 +31,21 @@ data OverlayLane
     | ToastLane
     deriving (Eq, Show)
 
-overlayLaneCodec :: FrontendCodec OverlayLane
-overlayLaneCodec =
-    stringEnumCodec "OverlayLane"
-        [ (DialogLane, "dialog")
-        , (PickerLane, "picker")
-        , (ToastLane, "toast")
-        ]
+instance HasFrontendCodec OverlayLane where
+    frontendCodec =
+        stringEnumCodec "OverlayLane"
+            [ (DialogLane, "dialog")
+            , (PickerLane, "picker")
+            , (ToastLane, "toast")
+            ]
 
 overlayLaneDeclaration :: TypeScriptDeclaration
 overlayLaneDeclaration =
-    TypeScriptDeclaration
-        { name = "OverlayLane"
-        , origin = HaskellSchemaGenerated
-        , source = case renderFrontendContracts [SomeFrontendCodec overlayLaneCodec] of
-            Right generated -> generated
-            Left message -> error ("Unable to render OverlayLane contract: " <> cs message)
+    renderFrontendContractGroup FrontendContractGroup
+        { contractGroupName = "OverlayLane"
+        , contractGroupComment = Nothing
+        , contractGroupCodecs = [someFrontendCodec @OverlayLane]
+        , contractGroupConstants = []
         }
 
 frontendContractDeclarations :: [TypeScriptDeclaration]
