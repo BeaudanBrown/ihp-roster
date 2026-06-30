@@ -300,7 +300,45 @@ function parseBepisMutationSpecs(files, policyText) {
   return specs;
 }
 
-function parseHandlers(controllerFiles, tableModels, mutationSpecs, wrapperContracts) {
+function parseBepisMutationPipeline(body, relPath, handlerLine, generatedContracts) {
+  if (!/\bnewMutation\b/.test(body) || !/\brunBepisMutationPipeline\b/.test(body)) return null;
+  const componentContracts = generatedContracts?.mutationComponents || [];
+  const componentNames = componentContracts.map((component) => component.name);
+  const usedComponents = componentNames.filter((name) => new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(body));
+  const labelsFor = (name) => [...body.matchAll(new RegExp(`\\b${name}\\s+"([^"]+)"`, "g"))].map((match) => match[1]);
+  const scopePolicies = unique([
+    /\bscopedToCurrentUser\b/.test(body) ? "current-user" : "",
+    /\bscopedToCurrentVenue\b/.test(body) ? "current-venue" : "",
+    /\bscopedToRosterWeek\b/.test(body) ? "venue-roster-week" : "",
+    /\bscopedToSupport\b/.test(body) ? "support" : "",
+  ]);
+  const auditLabels = labelsFor("auditedAs");
+  const realtimeLabels = labelsFor("fromLiveMutationResult");
+  const noRealtimeLabels = labelsFor("withNoRealtimeInvalidation");
+  const responseKinds = unique([
+    /\brespondsWithFragments\b/.test(body) ? "htmx-fragment" : "",
+    /\brespondsWithRedirect\b/.test(body) ? "redirect" : "",
+    /\brespondsWithJson\b/.test(body) ? "json" : "",
+  ]);
+  const newMutationMatch = body.match(/\bnewMutation\b/);
+  return {
+    source: { path: relPath, line: handlerLine + lineNumberAt(body, newMutationMatch?.index ?? 0) - 1 },
+    confidence: "typed-component-pipeline",
+    provenance: "generated-haskell-contract",
+    components: usedComponents,
+    scopePolicies,
+    auditPolicies: auditLabels.length > 0 ? ["required"] : [],
+    auditLabels,
+    realtimePolicies: unique([
+      realtimeLabels.length > 0 ? "emits-invalidation" : "",
+      noRealtimeLabels.length > 0 ? "none" : "",
+    ]),
+    realtimeLabels: [...realtimeLabels, ...noRealtimeLabels],
+    responseKinds,
+  };
+}
+
+function parseHandlers(controllerFiles, tableModels, mutationSpecs, wrapperContracts, generatedContracts) {
   const handlers = [];
   for (const relPath of controllerFiles) {
     const text = readText(relPath);
@@ -311,6 +349,7 @@ function parseHandlers(controllerFiles, tableModels, mutationSpecs, wrapperContr
       const body = extractActionBody(text, m.index ?? 0, indent);
       const inferred = inferActionDetails(body, tableModels);
       const bepisWrapper = parseBepisActionWrapper(body, relPath, line, m[2], mutationSpecs, wrapperContracts);
+      const mutationPipeline = parseBepisMutationPipeline(body, relPath, line, generatedContracts);
       handlers.push({
         action: m[2],
         module: moduleName,
@@ -320,9 +359,10 @@ function parseHandlers(controllerFiles, tableModels, mutationSpecs, wrapperContr
         kindSource: bepisWrapper ? "typed-wrapper" : "naming-fallback",
         confidence: bepisWrapper ? "typed-wrapper" : "heuristic-static-scan",
         bepisWrapper,
+        mutationPipeline,
         bodyLineCount: body.split("\n").length,
         ...inferred,
-        responseKinds: unique([...(bepisWrapper?.responseKinds || []), ...(inferred.responseKinds || [])]),
+        responseKinds: unique([...(mutationPipeline?.responseKinds || []), ...(bepisWrapper?.responseKinds || []), ...(inferred.responseKinds || [])]),
       });
     }
   }
@@ -442,7 +482,7 @@ const facts = {
     controllers,
     routes: parseRoutes(readText("Web/Routes.hs")),
     frontController: parseFrontController(readText("Web/FrontController.hs")),
-    handlers: parseHandlers(controllerFiles, tableModels, bepisMutationSpecs, bepisActionWrapperContracts),
+    handlers: parseHandlers(controllerFiles, tableModels, bepisMutationSpecs, bepisActionWrapperContracts, bepisArchitectureContracts),
     controllerPolicies: parseControllerPolicies(controllerFiles),
     actionWrapperContracts: [...bepisActionWrapperContracts.entries()].map(([name, contract]) => ({ name, ...contract })),
     bepisArchitectureContracts: bepisArchitectureContracts ? {

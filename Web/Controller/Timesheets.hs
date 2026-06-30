@@ -213,7 +213,14 @@ instance Controller TimesheetsController where
         weekOffset <- weekOffsetFromParamOrEntry timesheetEntry.workedOn
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
 
-        _ <- approveTimesheetEntryMutation weekOffset timesheetEntry
+        _ <-
+            newMutation (approveTimesheetEntryMutation weekOffset timesheetEntry)
+                |> scopedToCurrentVenue
+                |> auditedAs "timesheet_approved"
+                |> fromLiveMutationResult "timesheet.approve"
+                |> respondsWithFragments "timesheet-day-section"
+                |> respondsWithRedirect "timesheet-week"
+                |> runBepisMutationPipeline
         if isHtmxRequest
             then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff selectedStaffFilterId "Timesheet entry approved" False
             else do
