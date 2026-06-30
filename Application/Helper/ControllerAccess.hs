@@ -20,6 +20,9 @@ import Web.Types (PasskeysController (PasskeySetupAction, PasskeyStepUpAction),
                   SessionsController (NewSessionAction),
                   SupportController (SupportAction))
 
+import Application.Bepis.Fact (BepisFact (..), BepisRoleKind (..),
+                               BepisScopeFact (..), BepisScopeKind (..),
+                               emitBepisFact)
 import Application.Helper.ControllerContext
 import Application.Helper.ControllerSupport
 
@@ -107,8 +110,9 @@ redirectPermissionDeniedUnless allowed message =
     unless allowed (redirectPermissionDeniedToFallback message)
 
 ensureCurrentVenue :: (?context :: ControllerContext, ?request :: Request) => IO ()
-ensureCurrentVenue =
+ensureCurrentVenue = do
     redirectPermissionDeniedUnless (isJust currentVenueOrNothing) "You do not have access to that venue."
+    emitScopeFact BepisCurrentVenueScopeFact "current-venue"
 
 isCurrentVenueManuallyReadOnly :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Bool
 isCurrentVenueManuallyReadOnly
@@ -126,14 +130,17 @@ ensureVenueWritable = do
     redirectPermissionDeniedUnless
         (not isReadOnly)
         "This venue is temporarily read-only. The venue owner can manage billing to restore write access."
+    emitScopeFact BepisVenueWritableScopeFact "venue-writable"
 
 ensureManagerRole :: (?context :: ControllerContext, ?request :: Request) => IO ()
-ensureManagerRole =
+ensureManagerRole = do
     redirectPermissionDeniedUnless (hasRole ManagerRole') "You need manager access to view that page."
+    emitScopeFact (BepisRoleScopeFact BepisManagerRole) "manager-role"
 
 ensureAdminRole :: (?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => IO ()
 ensureAdminRole = do
     redirectPermissionDeniedUnless (hasRole VenueAdminRole) "You need admin access to view that page."
+    emitScopeFact (BepisRoleScopeFact BepisAdminRole) "admin-role"
     ensurePrivilegedPasskeyReady
 
 currentUserRequiresMandatoryPasskey :: (?context :: ControllerContext) => Bool
@@ -270,8 +277,9 @@ currentUserCanUseStaffSelfService :: (?context :: ControllerContext) => Bool
 currentUserCanUseStaffSelfService = not currentUserIsSuperAdmin
 
 ensureStaffSelfServiceAccess :: (?context :: ControllerContext, ?request :: Request) => IO ()
-ensureStaffSelfServiceAccess =
+ensureStaffSelfServiceAccess = do
     redirectPermissionDeniedUnless currentUserCanUseStaffSelfService "Use the support page for super admin access."
+    emitScopeFact (BepisRoleScopeFact BepisStaffRole) "staff-self-service"
 
 fetchCurrentUserPasskeys :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [Passkey]
 fetchCurrentUserPasskeys =
@@ -301,5 +309,13 @@ ensureOptionalStaffInCurrentVenue maybeStaffId =
         accessDeniedUnless (isJust maybeStaff)
 
 ensureRecordInCurrentVenue :: (?context :: ControllerContext) => UUID -> IO ()
-ensureRecordInCurrentVenue venueId =
+ensureRecordInCurrentVenue venueId = do
     accessDeniedUnless (venueId == unpackId currentVenueId)
+    emitScopeFact (BepisRecordVenueScopeFact "current-venue-record") "record-in-current-venue"
+
+emitScopeFact :: BepisScopeKind -> Text -> IO ()
+emitScopeFact scopeKind label =
+    emitBepisFact $ BepisScopeFactValue BepisScopeFact
+        { scopeFactKind = scopeKind
+        , scopeFactLabel = label
+        }
