@@ -11,6 +11,7 @@ initially gitignored under `output/architecture/`; focused query diagrams are
 written under `.pi/tmp/architecture-query/` or `.pi/tmp/architecture-trace/`.
 
 ```bash
+bash ./bin/in-env architecture-contracts
 bash ./bin/in-env architecture-facts
 bash ./bin/in-env architecture-schema
 bash ./bin/in-env architecture-web-map
@@ -114,7 +115,8 @@ Typed behavior is preferred over standalone metadata. Architecture facts should
 classify actions and flows in this order:
 
 ```text
-typed Bepis wrappers/specs
+typed Bepis action values, generated Bepis contracts, and mutation pipeline evidence
+  > typed Bepis wrappers/specs
   > app-owned live surface and generated contract registries
   > static source/call scanning
   > naming-convention fallback
@@ -123,6 +125,38 @@ typed Bepis wrappers/specs
 When a query falls back to a heuristic, it must report confidence/provenance so
 agents do not treat inferred request-flow or realtime edges as compiler-perfect
 truth.
+
+### Bepis Component Pipelines
+
+Live-surface descriptors are the exemplar component model: create a small typed
+core, attach visible capabilities with `|>`, then lower/render/run at the IHP or
+browser boundary. The mutation pipeline follows the same rule. A mutation can now
+be written as a typed chain that attaches scope, audit, realtime, and response
+evidence before `runBepisMutationPipeline` returns the application value.
+
+```haskell
+newMutation (approveTimesheetEntryMutation weekOffset timesheetEntry)
+    |> scopedToCurrentVenue
+    |> auditedAs "timesheet_approved"
+    |> fromLiveMutationResult "timesheet.approve"
+    |> respondsWithFragments "timesheet-day-section"
+    |> respondsWithRedirect "timesheet-week"
+    |> runBepisMutationPipeline
+```
+
+Use a pipeline component when the capability is meaningful architecture or
+product policy and should stay visible at the call site. Use an ordinary helper
+function for local mechanics. Use a typeclass only for intrinsic behavior shared
+by a family of values; do not hide business decisions such as audit/realtime
+requirements in invisible instances.
+
+Generated Bepis architecture contracts come from
+`Application.Bepis.Architecture` via `architecture-contracts`. Source scanners may
+still locate usage sites, but wrapper/action/response/mutation vocabularies
+should prefer generated Haskell-owned contract JSON. During migration,
+`BepisMutationSpec` remains a fallback for unmigrated actions and the gate emits
+optional mutation drift warnings when required audit/realtime specs lack visible
+effect evidence.
 
 IHP Auto Refresh is not a replacement for Bepis live scopes. It tracks table
 reads for an action, reruns the action after matching database changes, and

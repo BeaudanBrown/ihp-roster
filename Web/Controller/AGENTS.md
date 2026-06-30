@@ -69,7 +69,9 @@ Every controller requires changes in **four files** (missing any will cause comp
   near the top through wrappers such as `bepisPageAction`,
   `bepisFragmentAction`, `bepisDialogAction`, or `bepisMutationAction` so
   policy, response kind, mutation/realtime/audit intent, and architecture facts
-  are inspectable from code.
+  are inspectable from code. Pass the actual bound action value to wrappers,
+  e.g. `action currentAction@ShowThingAction { thingId } = bepisPageAction currentAction do`,
+  not a manually typed action-name string.
 - Use `param @Type "name"` only when a missing or malformed value should abort the action. For form fields, prefer record builders with `fill`, explicit `requireParam` checks for required fields, and `ifValid` rerender branches.
 - `fill` attaches parser errors to fields, but missing params are ignored. Required dates, ids, numbers, and text fields must be checked server-side; do not rely on HTML `required`, hidden fields, or select options.
 - Normalize user text in builders (`normalizeTextField`, `normalizeMaybeTextField`, `requiredBoundedTextField`) before saving. Trim required text, convert blank optional text to `Nothing`, and apply max lengths that match schema constraints.
@@ -118,6 +120,11 @@ Every controller requires changes in **four files** (missing any will cause comp
 - Keep the roster week shell subscribed even when the week is empty or hidden so create/copy/publish transitions can invalidate passive viewers already sitting on that offset.
 - For server-mutating UI that can leave another mounted copy stale, use the live-fragment path by default while keeping the actor path immediate. Add the controller surface in this order: feature-local fragment enum, typed surface definition with `typedSurfaceFragmentContract`, explicit `liveFragmentDependsOn` or `liveFragmentResyncOnly` intent, registry registration, fragment GET action through `serveTypedLiveFragment`, rendered surface metadata, mutation touched resources plus post-commit invalidation, actor-path HTMX response, Hspec contract coverage for config/target/auth/dependency drift, then Playwright coverage when browser behavior such as resync, focus protection, or no-full-page navigation is part of the feature.
 - Successful actor HTMX responses for typed projection surfaces should use `respondWithTypedLiveSurfaceFragments` so actor OOB swaps and passive live refetches share the same fragment enum, containment normalization, and projection snapshot. Keep validation failures as direct form/dialog rerenders, and keep fragment GET actions plain target-node responses rather than OOB wrappers.
+
+## Bepis Mutation Pipeline Pattern
+- For newly hardened high-risk mutations, prefer a visible Bepis component pipeline over adding more parallel descriptive metadata. Start with `newMutation`, attach scope evidence such as `scopedToCurrentVenue` or `scopedToRosterWeek`, attach audit evidence with `auditedAs` only after the called mutation helper actually writes the audit/version/domain event, attach realtime evidence from `LiveMutationResult` with `fromLiveMutationResult`, attach actor response evidence with `respondsWithFragments`, `respondsWithRedirect`, or `respondsWithJson`, then finish with `runBepisMutationPipeline`.
+- Keep the existing `bepisMutationAction currentAction someMutationSpec do` wrapper until the action-wrapper API is explicitly changed; the inner pipeline supplies stronger evidence for migrated actions and the legacy spec remains a fallback for unmigrated ones.
+- Do not hide business semantics in broad typeclass instances. The pipeline components should remain visible at the mutation call site unless the behavior is purely mechanical and intrinsic to the data type.
 
 ## Typed Interaction Controller Pattern
 - Typed interaction work is planned under `docs/workstreams/typed-interaction-surfaces.md` and `ir-jsyd`. Controllers should not add ad hoc JSON/fetch mutation endpoints for interaction UI when a Haskell-rendered HTMX intent form can own the route, method, target, swap, and validation boundary.

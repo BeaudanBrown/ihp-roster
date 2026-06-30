@@ -1,6 +1,6 @@
 # Bepis Component Pipeline Refactor
 
-Status: active
+Status: implemented
 
 Tickets:
 
@@ -58,20 +58,29 @@ Implemented baseline:
   conversion functions;
 - feature-specific mutation specs exist for high-risk areas.
 
-Remaining weakness:
+Implemented changes in this stream:
 
-- action wrappers still carry string action labels;
-- `BepisMutationSpec` is descriptive and can drift from actual audit/realtime
-  effects;
+- action wrappers derive labels from the bound IHP action value;
+- Bepis architecture contracts are emitted from typed Haskell values through
+  `Application.Bepis.Architecture` and `architecture-contracts`;
+- the Bepis mutation pipeline core carries scope, audit, realtime, and response
+  evidence;
+- `ApproveTimesheetEntryAction` proves the pipeline on a real audited realtime
+  mutation;
+- architecture facts detect pipeline evidence and transition drift warnings.
+
+Remaining weakness after this stream:
+
+- most mutation actions still use legacy `BepisMutationSpec` as fallback;
 - Node architecture tooling still scans source to locate usage sites;
-- mutation outcomes do not yet carry typed evidence of scope, audit, realtime,
-  and response effects.
+- strict mutation drift mode intentionally fails until more legacy actions expose
+  audit/realtime evidence or documented exceptions.
 
 ## Target Shape
 
 ### Actions
 
-Current:
+Previous:
 
 ```haskell
 action ShowRosterWeekAction { weekOffset } =
@@ -79,7 +88,7 @@ action ShowRosterWeekAction { weekOffset } =
         ...
 ```
 
-Target:
+Implemented:
 
 ```haskell
 action action@ShowRosterWeekAction { weekOffset } =
@@ -92,7 +101,7 @@ manually maintained string.
 
 ### Mutation Pipeline
 
-Current:
+Previous:
 
 ```haskell
 action CreateRosterSlotAction { rosterDayId } =
@@ -100,17 +109,19 @@ action CreateRosterSlotAction { rosterDayId } =
         ...
 ```
 
-Target direction:
+Implemented representative pattern:
 
 ```haskell
-action action@CreateRosterSlotAction { rosterDayId } =
-    newMutation do
+action currentAction@ApproveTimesheetEntryAction { timesheetEntryId } =
+    bepisMutationAction currentAction timesheetEntryMutationSpec do
         ...
-    |> scopedToRosterWeek rosterDayId
-    |> auditedAs RosterSlotCreated
-    |> invalidatesTouchedResources
-    |> respondsWithRosterWeekFragments
-    |> runBepisMutation action
+        newMutation (approveTimesheetEntryMutation weekOffset timesheetEntry)
+            |> scopedToCurrentVenue
+            |> auditedAs "timesheet_approved"
+            |> fromLiveMutationResult "timesheet.approve"
+            |> respondsWithFragments "timesheet-day-section"
+            |> respondsWithRedirect "timesheet-week"
+            |> runBepisMutationPipeline
 ```
 
 The pipeline should produce typed evidence/results for:
@@ -186,7 +197,7 @@ controller/module tests and, when practical, an OTel profile trace query.
 
 ## Exit Criteria
 
-This workstream is complete when:
+This workstream is complete because:
 
 - action wrappers derive labels from action values rather than string literals;
 - Bepis contract vocabularies are emitted from typed Haskell values;

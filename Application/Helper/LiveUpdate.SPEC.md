@@ -20,6 +20,10 @@ This file describes the shared live-fragment architecture implemented by
 - Fragment GET endpoints must enforce the same authorization and visibility as
   full-page routes.
 - Scope keys are server-owned and carried through surface config/messages.
+- Bepis mutation pipelines may attach realtime evidence with
+  `fromLiveMutationResult`; this does not replace `LiveResource` or registry
+  planning. It records that the mutation produced the same touched-resource
+  evidence consumed by passive invalidation.
 
 ## Surface Declaration
 
