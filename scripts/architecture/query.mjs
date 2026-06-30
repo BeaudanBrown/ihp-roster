@@ -274,6 +274,7 @@ function tableQuery(facts, args) {
 function conventionsQuery(facts, args) {
   const failOnViolations = Boolean(args.failOnViolations ?? false);
   const requireAllControllers = Boolean(args.requireAllControllers ?? false);
+  const requireExplicitResponseWrappers = Boolean(args.requireExplicitResponseWrappers ?? false);
   const includeInfo = Boolean(args.includeInfo ?? false);
   const limit = Number(args.limit ?? 50);
   const handlers = byAction(facts);
@@ -310,8 +311,10 @@ function conventionsQuery(facts, args) {
         rows.push(row);
         errors.push(`${controller.name}.${action.name} uses a mutation wrapper without a BepisMutationSpec`);
       }
-      if (migrated && handler.calls?.some((call) => /^(render|respondHtml|redirectTo|redirectToPath|json|renderJson)$/.test(call)) && !handler.calls?.some((call) => /^bepis.*Response$/.test(call))) {
-        rows.push({ severity: "info", controller: controller.name, action: action.name, issue: "raw-ihp-response-helper", source: `${handler.path}:${handler.line}` });
+      const hasRawIhpResponseHelper = handler.calls?.some((call) => /^(render|respondHtml|redirectTo|redirectToPath|json|renderJson)$/.test(call));
+      const hasTypedResponseMetadata = (handler.bepisWrapper?.responseKinds || []).length > 0;
+      if (requireExplicitResponseWrappers && migrated && hasRawIhpResponseHelper && !handler.calls?.some((call) => /^bepis.*Response$/.test(call)) && !hasTypedResponseMetadata) {
+        rows.push({ severity: "info", controller: controller.name, action: action.name, issue: "raw-ihp-response-helper-without-bepis-response-metadata", source: `${handler.path}:${handler.line}` });
       }
     }
     if (migrated && !policy) {
@@ -336,6 +339,8 @@ function conventionsQuery(facts, args) {
       handlers: facts.web.handlers.length,
       typedWrapperHandlers: facts.web.handlers.filter((handler) => handler.kindSource === "typed-wrapper").length,
       requireAllControllers,
+      requireExplicitResponseWrappers,
+      typedResponseMetadataHandlers: facts.web.handlers.filter((handler) => (handler.bepisWrapper?.responseKinds || []).length > 0).length,
       conventionRows: rows.length,
       visibleRows: visibleRows.length,
       informationalRows: rows.filter((row) => row.severity === "info").length,
@@ -343,7 +348,7 @@ function conventionsQuery(facts, args) {
     },
     tables: [{ title: "convention findings", rows: visibleRows }],
     sections: [
-      { title: "Enforcement", content: "Controllers with a Bepis controller policy wrapper are treated as migrated. Missing Bepis action wrappers in migrated controllers are blocking; missing wrappers elsewhere are informational during rollout. Set requireAllControllers=true to turn rollout into a strict whole-app gate." },
+      { title: "Enforcement", content: "Controllers with a Bepis controller policy wrapper are treated as migrated. Missing Bepis action wrappers in migrated controllers are blocking; missing wrappers elsewhere are informational during rollout. Set requireAllControllers=true to turn rollout into a strict whole-app gate. Response intent is derived from each typed Bepis action wrapper contract; set requireExplicitResponseWrappers=true only when an action needs additional response-level spans beyond the action contract." },
     ],
   });
   if (failOnViolations && errors.length > 0) process.exitCode = 1;
