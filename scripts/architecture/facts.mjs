@@ -338,7 +338,49 @@ function parseBepisMutationPipeline(body, relPath, handlerLine, generatedContrac
   };
 }
 
-function parseHandlers(controllerFiles, tableModels, mutationSpecs, wrapperContracts, generatedContracts) {
+function extractTopLevelFunctionBodies(files) {
+  const functions = new Map();
+  for (const relPath of files) {
+    const text = readText(relPath);
+    const matches = [...text.matchAll(/^([a-z][A-Za-z0-9_']*)\s*(?:::|[^=\n]*=)/gm)];
+    for (let index = 0; index < matches.length; index += 1) {
+      const match = matches[index];
+      const name = match[1];
+      if (match[0].includes("::")) continue;
+      const start = match.index ?? 0;
+      const end = matches[index + 1]?.index ?? text.length;
+      functions.set(name, { body: text.slice(start, end), source: { path: relPath, line: lineForMatch(text, match) } });
+    }
+  }
+  return functions;
+}
+
+function parseMutationEffectEvidence(body, calls, mutationFunctionBodies, mutationPipeline) {
+  const directAudit = /record[A-Za-z0-9_']*(?:AuditEvent|Version)\b/.test(body);
+  const directRealtime = /\b(?:invalidateTouchedResources|liveMutationResult|LiveMutationResult)\b/.test(body);
+  const helperEvidence = calls
+    .map((call) => ({ call, definition: mutationFunctionBodies.get(call) }))
+    .filter((entry) => entry.definition)
+    .map((entry) => ({
+      call: entry.call,
+      source: entry.definition.source,
+      audit: /record[A-Za-z0-9_']*(?:AuditEvent|Version)\b/.test(entry.definition.body),
+      realtime: /\b(?:invalidateTouchedResources|liveMutationResult|LiveMutationResult)\b/.test(entry.definition.body),
+    }));
+  const auditHelpers = helperEvidence.filter((entry) => entry.audit);
+  const realtimeHelpers = helperEvidence.filter((entry) => entry.realtime);
+  return {
+    source: mutationPipeline ? "typed-component-pipeline" : "static-effect-scan",
+    audit: Boolean(mutationPipeline?.auditPolicies?.length) || directAudit || auditHelpers.length > 0,
+    realtime: Boolean(mutationPipeline?.realtimePolicies?.includes("emits-invalidation")) || directRealtime || realtimeHelpers.length > 0,
+    auditHelpers: auditHelpers.map((entry) => ({ call: entry.call, source: entry.source })),
+    realtimeHelpers: realtimeHelpers.map((entry) => ({ call: entry.call, source: entry.source })),
+    directAudit,
+    directRealtime,
+  };
+}
+
+function parseHandlers(controllerFiles, tableModels, mutationSpecs, wrapperContracts, generatedContracts, mutationFunctionBodies) {
   const handlers = [];
   for (const relPath of controllerFiles) {
     const text = readText(relPath);
@@ -350,6 +392,7 @@ function parseHandlers(controllerFiles, tableModels, mutationSpecs, wrapperContr
       const inferred = inferActionDetails(body, tableModels);
       const bepisWrapper = parseBepisActionWrapper(body, relPath, line, m[2], mutationSpecs, wrapperContracts);
       const mutationPipeline = parseBepisMutationPipeline(body, relPath, line, generatedContracts);
+      const mutationEffectEvidence = parseMutationEffectEvidence(body, inferred.calls, mutationFunctionBodies, mutationPipeline);
       handlers.push({
         action: m[2],
         module: moduleName,
@@ -360,6 +403,7 @@ function parseHandlers(controllerFiles, tableModels, mutationSpecs, wrapperContr
         confidence: bepisWrapper ? "typed-wrapper" : "heuristic-static-scan",
         bepisWrapper,
         mutationPipeline,
+        mutationEffectEvidence,
         bodyLineCount: body.split("\n").length,
         ...inferred,
         responseKinds: unique([...(mutationPipeline?.responseKinds || []), ...(bepisWrapper?.responseKinds || []), ...(inferred.responseKinds || [])]),
@@ -468,6 +512,7 @@ const controllers = parseControllers(readText("Web/Types.hs"));
 const actionNames = controllers.flatMap((controller) => controller.actions.map((action) => action.name));
 const tableModels = new Map(schema.tables.map((table) => [table.model, table.name]));
 const allReferenceFiles = unique([...moduleFiles, ...viewFiles, ...frontendFiles]);
+const mutationFunctionBodies = extractTopLevelFunctionBodies(moduleFiles);
 const bepisArchitectureContracts = loadBepisArchitectureContracts();
 const bepisMutationPolicyText = parseBepisMutationPolicyTextMappings(bepisArchitectureContracts);
 const bepisMutationSpecs = parseBepisMutationSpecs(moduleFiles, bepisMutationPolicyText);
@@ -482,7 +527,7 @@ const facts = {
     controllers,
     routes: parseRoutes(readText("Web/Routes.hs")),
     frontController: parseFrontController(readText("Web/FrontController.hs")),
-    handlers: parseHandlers(controllerFiles, tableModels, bepisMutationSpecs, bepisActionWrapperContracts, bepisArchitectureContracts),
+    handlers: parseHandlers(controllerFiles, tableModels, bepisMutationSpecs, bepisActionWrapperContracts, bepisArchitectureContracts, mutationFunctionBodies),
     controllerPolicies: parseControllerPolicies(controllerFiles),
     actionWrapperContracts: [...bepisActionWrapperContracts.entries()].map(([name, contract]) => ({ name, ...contract })),
     bepisArchitectureContracts: bepisArchitectureContracts ? {

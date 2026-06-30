@@ -19,6 +19,8 @@ const policyModules = new Set((facts.web.controllerPolicies || []).map((policy) 
 const actionWrapperContracts = new Set((facts.web.actionWrapperContracts || []).map((contract) => contract.name));
 const mutationSpecs = new Set((facts.web.mutationSpecs || []).map((spec) => spec.name));
 const errors = [];
+const warnings = [];
+const mutationDriftStrict = process.env.BEPIS_MUTATION_DRIFT_STRICT === "1";
 
 for (const controller of facts.web.controllers || []) {
   const modules = new Set(controller.actions.map((action) => (facts.web.handlers || []).find((handler) => handler.action === action.name)?.module).filter(Boolean));
@@ -52,7 +54,40 @@ for (const handler of facts.web.handlers || []) {
     } else if (!mutationSpecs.has(wrapper.mutationSpecName)) {
       errors.push(`${handler.action} references unknown BepisMutationSpec ${wrapper.mutationSpecName}`);
     }
+
+    const spec = wrapper.mutationSpec;
+    if (spec) {
+      const evidence = handler.mutationEffectEvidence || {};
+      const warnOrFail = (message) => {
+        if (mutationDriftStrict) errors.push(message);
+        else warnings.push(message);
+      };
+      if (spec.auditPolicy === "required" && !evidence.audit) {
+        warnOrFail(`${handler.action} has audit-required ${wrapper.mutationSpecName} without visible audit/version evidence`);
+      }
+      if (spec.realtimePolicy === "emits-invalidation" && !evidence.realtime) {
+        warnOrFail(`${handler.action} has realtime-required ${wrapper.mutationSpecName} without visible LiveMutationResult/invalidation evidence`);
+      }
+      if (handler.mutationPipeline) {
+        if (spec.auditPolicy === "required" && !(handler.mutationPipeline.auditPolicies || []).includes("required")) {
+          errors.push(`${handler.action} is pipeline-backed but lacks required audit evidence`);
+        }
+        if (spec.realtimePolicy === "emits-invalidation" && !(handler.mutationPipeline.realtimePolicies || []).includes("emits-invalidation")) {
+          errors.push(`${handler.action} is pipeline-backed but lacks realtime invalidation evidence`);
+        }
+      }
+    }
   }
+}
+
+if (warnings.length > 0 && process.env.BEPIS_MUTATION_DRIFT_WARN === "1") {
+  console.error(`Bepis mutation drift guard found ${warnings.length} warning(s):`);
+  for (const warning of warnings.slice(0, 30)) console.error(`- ${warning}`);
+  if (warnings.length > 30) console.error(`... ${warnings.length - 30} more`);
+}
+
+if (!mutationDriftStrict && warnings.length > 0) {
+  process.stdout.write(`Bepis mutation drift guard warnings: ${warnings.length} legacy spec-backed action(s) need stronger evidence checks. Set BEPIS_MUTATION_DRIFT_WARN=1 to list them or BEPIS_MUTATION_DRIFT_STRICT=1 to fail.\n`);
 }
 
 if (errors.length > 0) {
