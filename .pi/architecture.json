@@ -13,6 +13,7 @@
       "generated-contracts",
       "focused-diagrams",
       "architecture-conventions",
+      "refactoring-radar",
       "otel-trace-diagrams"
     ],
     "factModel": "project-local v2 entities/relationships with source provenance, heuristic classifiers, and confidence in query results; diagrams are derived views"
@@ -133,6 +134,15 @@
       "parameters": {
         "target": { "type": "string", "required": true },
         "includeAuditEdges": { "type": "boolean", "default": false }
+      }
+    },
+    "hotspots": {
+      "description": "Rank architecture refactoring hotspots from source-derived facts.",
+      "intent": "Give agents a triage radar for high-action controllers, coupled modules, and schema relationship hubs before opening focused queries.",
+      "capabilities": ["controller-metrics", "module-coupling", "schema-relationships", "typed-wrapper-coverage", "tables"],
+      "command": ["bash", "./bin/in-env", "architecture-query"],
+      "parameters": {
+        "limit": { "type": "number", "default": 10 }
       }
     },
     "module": {

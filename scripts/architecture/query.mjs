@@ -521,6 +521,50 @@ function generatedContractsQuery(facts, args) {
   });
 }
 
+function refactoringRadarQuery(facts, args) {
+  const limit = Number(args.limit ?? 10);
+  const handlers = byAction(facts);
+  const references = facts.web.actionReferences || [];
+  const controllerRows = facts.web.controllers.map((controller) => {
+    const controllerHandlers = controller.actions.map((action) => handlers.get(action.name)).filter(Boolean);
+    const mutations = controllerHandlers.filter((handler) => handler.kind === "mutation").length;
+    const fragments = controllerHandlers.filter((handler) => handler.kind === "fragment").length;
+    const missingWrappers = controllerHandlers.filter((handler) => handler.kindSource !== "typed-wrapper").length;
+    const bodyLines = controllerHandlers.reduce((sum, handler) => sum + (handler.bodyLineCount || 0), 0);
+    const refs = controller.actions.reduce((sum, action) => sum + references.filter((ref) => ref.action === action.name).length, 0);
+    const score = controller.actions.length * 2 + mutations * 3 + fragments * 2 + missingWrappers + Math.round(bodyLines / 40) + Math.round(refs / 10);
+    return { controller: controller.name, score, actions: controller.actions.length, mutations, fragments, missingWrappers, bodyLines, references: refs };
+  }).sort((a, b) => b.score - a.score).slice(0, limit);
+
+  const moduleFanIn = new Map();
+  for (const module of facts.modules) for (const imported of module.imports || []) moduleFanIn.set(imported, (moduleFanIn.get(imported) || 0) + 1);
+  const moduleRows = facts.modules.map((module) => ({
+    module: module.name,
+    score: (module.imports?.length || 0) + (moduleFanIn.get(module.name) || 0),
+    imports: module.imports?.length || 0,
+    fanIn: moduleFanIn.get(module.name) || 0,
+    path: module.path,
+  })).filter((row) => !/^Generated\.|^IHP\.|^Prelude$/.test(row.module)).sort((a, b) => b.score - a.score).slice(0, limit);
+
+  const tableRows = facts.schema.tables.map((table) => {
+    const incoming = facts.schema.tables.reduce((sum, source) => sum + source.foreignKeys.filter((fk) => fk.referencesTable === table.name).length, 0);
+    const outgoing = table.foreignKeys.length;
+    const auditEdges = facts.schema.tables.reduce((sum, source) => sum + source.foreignKeys.filter((fk) => fk.referencesTable === table.name && fk.kind === "audit-user").length, 0) + table.foreignKeys.filter((fk) => fk.kind === "audit-user").length;
+    const score = table.columns.length + incoming * 2 + outgoing + auditEdges;
+    return { table: table.name, score, columns: table.columns.length, incomingForeignKeys: incoming, outgoingForeignKeys: outgoing, auditEdges };
+  }).sort((a, b) => b.score - a.score).slice(0, limit);
+
+  architectureResult("Generated architecture refactoring radar.", [], { generatedFrom: "output/architecture/facts.json", confidence: "heuristic-static-scan+typed-wrapper" }, {
+    warnings: ["Scores are heuristics for agent triage, not architectural truth. Use source and focused queries before refactoring."],
+    metrics: { controllers: facts.web.controllers.length, modules: facts.modules.length, tables: facts.schema.tables.length, limit },
+    tables: [
+      { title: "controller hotspots", rows: controllerRows },
+      { title: "module coupling hotspots", rows: moduleRows },
+      { title: "schema relationship hotspots", rows: tableRows },
+    ],
+  });
+}
+
 function moduleQuery(facts, args) {
   const target = args.target;
   const depth = Number(args.depth ?? 1);
@@ -580,6 +624,10 @@ switch (payload.name) {
     break;
   case "generated-contracts":
     generatedContractsQuery(facts, args);
+    break;
+  case "hotspots":
+  case "refactoring-radar":
+    refactoringRadarQuery(facts, args);
     break;
   case "module":
     moduleQuery(facts, args);
