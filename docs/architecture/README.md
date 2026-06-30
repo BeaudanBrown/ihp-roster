@@ -129,7 +129,8 @@ reads for an action, reruns the action after matching database changes, and
 morphs the browser `document.body`. Bepis collaborative surfaces need
 domain/surface/viewer authorization scopes and fragment refetch behavior. Future
 work may reuse or learn from IHP table-read tracking, but Bepis retains the
-scope and authorized-fragment model.
+scope and authorized-fragment model. See `ihp-auto-refresh-spike.md` for the
+current reuse decision.
 
 ## Web Surface
 
