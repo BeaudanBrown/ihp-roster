@@ -17,6 +17,7 @@ module Application.Bepis.Action
     , bepisPageAction
     , bepisPreferenceAction
     , bepisResponseKindText
+    , runBepis
     ) where
 
 import Application.Bepis.Fact (BepisActionFact (..), BepisFact (..),
@@ -66,41 +67,34 @@ bepisActionWrapperContracts =
     , BepisActionWrapperContract "bepisExportAction" BepisExportAction [BepisFileResponse, BepisHtmlResponse, BepisRedirectResponse] False
     ]
 
-bepisPageAction :: Data action => action -> IO a -> IO a
-bepisPageAction action =
+runBepis :: Data action => action -> BepisOperationKind -> IO a -> IO a
+runBepis action operationKind =
+    runBepisWithResponseKinds action operationKind (defaultResponseKinds operationKind)
+
+runBepisWithResponseKinds :: Data action => action -> BepisOperationKind -> [BepisResponseKind] -> IO a -> IO a
+runBepisWithResponseKinds action operationKind responseKinds =
     bepisActionSpan BepisActionInfo
         { actionName = bepisActionName action
-        , actionKind = BepisPageAction
-        , responseKinds = [BepisHtmlResponse, BepisRedirectResponse]
+        , actionKind = operationKind
+        , responseKinds
         , sourceNote = Nothing
         }
+
+bepisPageAction :: Data action => action -> IO a -> IO a
+bepisPageAction action =
+    runBepisWithResponseKinds action BepisPageAction [BepisHtmlResponse, BepisRedirectResponse]
 
 bepisFormAction :: Data action => action -> IO a -> IO a
 bepisFormAction action =
-    bepisActionSpan BepisActionInfo
-        { actionName = bepisActionName action
-        , actionKind = BepisFormAction
-        , responseKinds = [BepisHtmlResponse, BepisRedirectResponse]
-        , sourceNote = Nothing
-        }
+    runBepisWithResponseKinds action BepisFormAction [BepisHtmlResponse, BepisRedirectResponse]
 
 bepisFragmentAction :: Data action => action -> IO a -> IO a
 bepisFragmentAction action =
-    bepisActionSpan BepisActionInfo
-        { actionName = bepisActionName action
-        , actionKind = BepisFragmentAction
-        , responseKinds = [BepisHtmxFragmentResponse]
-        , sourceNote = Nothing
-        }
+    runBepisWithResponseKinds action BepisFragmentAction [BepisHtmxFragmentResponse]
 
 bepisDialogAction :: Data action => action -> IO a -> IO a
 bepisDialogAction action =
-    bepisActionSpan BepisActionInfo
-        { actionName = bepisActionName action
-        , actionKind = BepisDialogAction
-        , responseKinds = [BepisDialogResponse, BepisHtmxFragmentResponse]
-        , sourceNote = Nothing
-        }
+    runBepisWithResponseKinds action BepisDialogAction [BepisDialogResponse, BepisHtmxFragmentResponse]
 
 bepisPreferenceAction :: Data action => action -> BepisMutationSpec -> IO a -> IO a
 bepisPreferenceAction action mutationSpec =
@@ -137,21 +131,11 @@ bepisJsonMutationAction action mutationSpec =
 
 bepisIntegrationAction :: Data action => action -> IO a -> IO a
 bepisIntegrationAction action =
-    bepisActionSpan BepisActionInfo
-        { actionName = bepisActionName action
-        , actionKind = BepisIntegrationAction
-        , responseKinds = [BepisJsonResponse, BepisRedirectResponse, BepisHtmlResponse]
-        , sourceNote = Nothing
-        }
+    runBepisWithResponseKinds action BepisIntegrationAction [BepisJsonResponse, BepisRedirectResponse, BepisHtmlResponse]
 
 bepisExportAction :: Data action => action -> IO a -> IO a
 bepisExportAction action =
-    bepisActionSpan BepisActionInfo
-        { actionName = bepisActionName action
-        , actionKind = BepisExportAction
-        , responseKinds = [BepisFileResponse, BepisHtmlResponse, BepisRedirectResponse]
-        , sourceNote = Nothing
-        }
+    runBepisWithResponseKinds action BepisExportAction [BepisFileResponse, BepisHtmlResponse, BepisRedirectResponse]
 
 bepisActionSpan :: BepisActionInfo -> IO a -> IO a
 bepisActionSpan info = bepisActionSpanWithAttributes info []
@@ -184,6 +168,17 @@ bepisActionSpanWithAttributes info extraAttributes action = do
 
 bepisActionKindText :: BepisActionKind -> Text
 bepisActionKindText = bepisOperationKindText
+
+defaultResponseKinds :: BepisOperationKind -> [BepisResponseKind]
+defaultResponseKinds = \case
+    BepisPageAction -> [BepisHtmlResponse, BepisRedirectResponse]
+    BepisFragmentAction -> [BepisHtmxFragmentResponse]
+    BepisDialogAction -> [BepisDialogResponse, BepisHtmxFragmentResponse]
+    BepisMutationAction -> [BepisRedirectResponse, BepisHtmxFragmentResponse]
+    BepisFormAction -> [BepisHtmlResponse, BepisRedirectResponse]
+    BepisPreferenceAction -> [BepisRedirectResponse, BepisHtmxFragmentResponse]
+    BepisIntegrationAction -> [BepisJsonResponse, BepisRedirectResponse, BepisHtmlResponse]
+    BepisExportAction -> [BepisFileResponse, BepisHtmlResponse, BepisRedirectResponse]
 
 responseKindsText :: [BepisResponseKind] -> Text
 responseKindsText = intercalate "," . map bepisResponseKindText
