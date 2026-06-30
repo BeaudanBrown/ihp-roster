@@ -1,6 +1,6 @@
 ---
 id: ir-cg2x
-status: in_progress
+status: closed
 deps: [ir-hnpv]
 links: []
 created: 2026-05-29T03:16:08Z
@@ -22,3 +22,9 @@ For venue settings, invites, and exports: keep existing fragment contracts, set 
 
 Controller/config specs show OOB fragment responses; direct successful hx-target outerHTML paths are removed for these sections; focused checks pass.
 
+
+## Notes
+
+**2026-06-30T02:01:33Z**
+
+Implemented. Venue settings, invites, and exports now render successful HTMX actor responses as OOB single-fragment refreshes and set HX-Reswap=none. Their forms/toggles now use hx-swap=none where appropriate, while fragment GET endpoints still return plain target nodes. Added WithSwap render variants for the three simple admin fragments and updated focused admin specs to assert HX-Reswap/OOB response shape. Shift types and roster groups remain deferred as planned because of focus/row-editing constraints. Verification passed: bash ./bin/in-env typecheck; bash ./bin/in-env hspec-test --match 'AdminController'.
