@@ -106,9 +106,9 @@ Bepis-owned invariants live inside that IHP shell:
 The migration path is wrapper-first. Existing controller actions should keep the
 normal IHP shape but delegate immediately through small Bepis wrappers, for
 example `bepisBeforeAction`, `bepisPageAction`, `bepisFragmentAction`,
-`bepisDialogAction`, and `bepisMutationAction`. A later `ControllerSpec`
-prototype may replace per-action wrapper calls only if it remains ergonomic with
-IHP action constructors and does not hide the framework boundary.
+`bepisDialogAction`, and `bepisMutationAction`. A typed `ControllerSpec`
+dispatcher is deferred for now; see `controller-spec-prototype.md` for the
+prototype decision and revisit trigger.
 
 Typed behavior is preferred over standalone metadata. Architecture facts should
 classify actions and flows in this order:
