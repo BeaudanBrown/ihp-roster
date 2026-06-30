@@ -1,6 +1,6 @@
 ---
 id: ir-pqis
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-06-30T13:02:20Z
