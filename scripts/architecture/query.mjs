@@ -468,21 +468,42 @@ function realtimeFlowQuery(facts, args) {
   });
 }
 
+function contractConsumerGroup(consumerPath) {
+  if (/\/generated\//.test(consumerPath)) return "generated";
+  if (/Test|\.spec\.|\.test\./.test(consumerPath)) return "tests";
+  if (/frontend\/ts\/interaction\//.test(consumerPath)) return "interaction runtime";
+  if (/frontend\/ts\/fragments\//.test(consumerPath)) return "fragment runtime";
+  if (/frontend\/ts\/app-live-updates/.test(consumerPath)) return "live-update runtime";
+  if (/frontend\/ts\/app-roster|roster/i.test(consumerPath)) return "roster runtime";
+  if (/frontend\/ts\//.test(consumerPath)) return "frontend runtime";
+  return "other";
+}
+
 function generatedContractsQuery(facts, args) {
   const contracts = facts.frontend.contracts;
+  const consumerGroups = new Map();
+  for (const consumer of contracts.consumers) {
+    const group = contractConsumerGroup(consumer.path);
+    if (!consumerGroups.has(group)) consumerGroups.set(group, []);
+    consumerGroups.get(group).push(consumer);
+  }
   const lines = graphHeader("generated_contracts", "LR");
   lines.push(nodeLine("haskell", `Haskell contract sources\n${contracts.sources.length}`, { fillcolor: "#dcfce7", shape: "folder" }));
   lines.push(nodeLine("generator", "GenerateFrontendContracts\nscript", { fillcolor: "#fef3c7", shape: "component" }));
   lines.push(nodeLine("generated", `generated TypeScript\n${contracts.generated.length} files`, { fillcolor: "#dbeafe", highlight: true }));
-  lines.push(nodeLine("consumers", `frontend consumers\n${contracts.consumers.length}`, { fillcolor: "#ffedd5" }));
+  lines.push(nodeLine("consumers", `frontend consumers\n${contracts.consumers.length} files\n${consumerGroups.size} groups`, { fillcolor: "#ffedd5" }));
   lines.push(edgeLine("haskell", "generator"));
   lines.push(edgeLine("generator", "generated"));
   lines.push(edgeLine("generated", "consumers"));
   for (const source of contracts.sources) lines.push(nodeLine(`source:${source}`, source, { fillcolor: "#ecfccb" }));
   for (const source of contracts.sources) lines.push(edgeLine(`source:${source}`, "haskell"));
-  for (const consumer of contracts.consumers.slice(0, 24)) {
-    lines.push(nodeLine(`consumer:${consumer.path}`, `${consumer.path}\n${consumer.imports.slice(0, 4).join(", ")}`, { fillcolor: "#fff7e6" }));
-    lines.push(edgeLine("consumers", `consumer:${consumer.path}`));
+  for (const [group, consumers] of [...consumerGroups.entries()].sort()) {
+    lines.push(nodeLine(`consumer-group:${group}`, `${group}\n${consumers.length} files`, { fillcolor: group === "tests" ? "#f5f5f4" : "#fff7e6", shape: "folder" }));
+    lines.push(edgeLine("consumers", `consumer-group:${group}`));
+    for (const consumer of consumers.slice(0, 4)) {
+      lines.push(nodeLine(`consumer:${consumer.path}`, `${consumer.path}\n${consumer.imports.slice(0, 3).join(", ")}`, { fillcolor: "#fffaf0" }));
+      lines.push(edgeLine(`consumer-group:${group}`, `consumer:${consumer.path}`));
+    }
   }
   lines.push("}");
   const stem = "generated-contracts";
@@ -491,10 +512,11 @@ function generatedContractsQuery(facts, args) {
     { path: svgRel, kind: "diagram", language: "svg" },
     { path: dotRel, kind: "source", language: "dot" },
   ], { generatedFrom: "output/architecture/facts.json", sources: contracts.sources }, {
-    metrics: { sources: contracts.sources.length, generatedFiles: contracts.generated.length, exports: contracts.generated.reduce((n, file) => n + file.exports.length, 0), dataAttributes: unique(contracts.generated.flatMap((file) => file.dataAttributes)).length, consumers: contracts.consumers.length },
+    metrics: { sources: contracts.sources.length, generatedFiles: contracts.generated.length, exports: contracts.generated.reduce((n, file) => n + file.exports.length, 0), dataAttributes: unique(contracts.generated.flatMap((file) => file.dataAttributes)).length, consumers: contracts.consumers.length, consumerGroups: consumerGroups.size },
     tables: [
-      { title: "generated files", rows: contracts.generated.map((file) => ({ path: file.path, exports: file.exports.length, dataAttributes: file.dataAttributes.length })) },
-      { title: "consumer files", rows: contracts.consumers.map((consumer) => ({ path: consumer.path, imports: consumer.imports.join(", ") })) },
+      { title: "generated files", rows: contracts.generated.map((file) => ({ path: file.path, exports: file.exports.length, dataAttributes: file.dataAttributes.length, majorExports: file.exports.slice(0, 12).join(", ") })) },
+      { title: "consumer groups", rows: [...consumerGroups.entries()].sort().map(([group, consumers]) => ({ group, files: consumers.length, imports: unique(consumers.flatMap((consumer) => consumer.imports)).slice(0, 16).join(", ") })) },
+      { title: "consumer files", rows: contracts.consumers.map((consumer) => ({ group: contractConsumerGroup(consumer.path), path: consumer.path, imports: consumer.imports.join(", ") })) },
     ],
   });
 }
