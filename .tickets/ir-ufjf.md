@@ -1,6 +1,6 @@
 ---
 id: ir-ufjf
-status: open
+status: closed
 deps: [ir-mwma]
 links: []
 created: 2026-06-30T11:03:28Z
