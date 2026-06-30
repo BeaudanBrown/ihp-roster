@@ -11,7 +11,9 @@ import Application.Bepis.Action (BepisActionKind (..),
                                  bepisResponseKindText)
 import Application.Bepis.Controller (BepisControllerPolicy (..),
                                      bepisControllerPolicyText)
-import Application.Bepis.Mutation (bepisMutationSpecPolicyVocabulary)
+import Application.Bepis.Mutation (BepisMutationComponentContract (..),
+                                   bepisMutationComponentContracts,
+                                   bepisMutationSpecPolicyVocabulary)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import GHC.Generics (Generic)
@@ -50,6 +52,7 @@ bepisArchitectureContractsValue = Aeson.object
     , "controllerPolicies" Aeson..= controllerPolicyContracts
     , "actionWrappers" Aeson..= actionWrapperContracts
     , "mutationPolicies" Aeson..= mutationPolicyContracts
+    , "mutationComponents" Aeson..= mutationComponentContracts
     ]
 
 actionKindContracts :: [Aeson.Value]
@@ -103,6 +106,21 @@ actionWrapperContractValue contract = Aeson.object
     , "requiresMutationSpec" Aeson..= wrapperRequiresSpec contract
     , "source" Aeson..= Aeson.object
         [ "path" Aeson..= ("Application/Bepis/Action.hs" :: Text)
+        , "mechanism" Aeson..= ("typed-haskell-contract" :: Text)
+        ]
+    , "confidence" Aeson..= bepisArchitectureFactSourceText BepisTypedContractFact
+    ]
+
+mutationComponentContracts :: [Aeson.Value]
+mutationComponentContracts = map mutationComponentContractValue bepisMutationComponentContracts
+
+mutationComponentContractValue :: BepisMutationComponentContract -> Aeson.Value
+mutationComponentContractValue contract = Aeson.object
+    [ "name" Aeson..= mutationComponentName contract
+    , "capability" Aeson..= mutationComponentCapability contract
+    , "description" Aeson..= mutationComponentDescription contract
+    , "source" Aeson..= Aeson.object
+        [ "path" Aeson..= ("Application/Bepis/Mutation.hs" :: Text)
         , "mechanism" Aeson..= ("typed-haskell-contract" :: Text)
         ]
     , "confidence" Aeson..= bepisArchitectureFactSourceText BepisTypedContractFact

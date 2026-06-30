@@ -450,6 +450,7 @@ const facts = {
       generatedBy: bepisArchitectureContracts.generatedBy,
       provenance: bepisArchitectureContracts.provenance,
       source: { path: "output/architecture/bepis-contracts.json" },
+      mutationComponentCount: bepisArchitectureContracts.mutationComponents?.length || 0,
     } : undefined,
     mutationSpecs: [...bepisMutationSpecs.values()],
     views: parseViews(viewFiles),
