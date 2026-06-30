@@ -5,9 +5,14 @@ module Application.Bepis.Action
     , bepisActionKindText
     , bepisActionSpan
     , bepisDialogAction
+    , bepisExportAction
+    , bepisFormAction
     , bepisFragmentAction
+    , bepisIntegrationAction
+    , bepisJsonMutationAction
     , bepisMutationAction
     , bepisPageAction
+    , bepisPreferenceAction
     , bepisResponseKindText
     ) where
 
@@ -63,6 +68,15 @@ bepisPageAction actionName =
         , sourceNote = Nothing
         }
 
+bepisFormAction :: Text -> IO a -> IO a
+bepisFormAction actionName =
+    bepisActionSpan BepisActionInfo
+        { actionName
+        , actionKind = BepisFormAction
+        , responseKinds = [BepisHtmlResponse, BepisRedirectResponse]
+        , sourceNote = Nothing
+        }
+
 bepisFragmentAction :: Text -> IO a -> IO a
 bepisFragmentAction actionName =
     bepisActionSpan BepisActionInfo
@@ -81,6 +95,17 @@ bepisDialogAction actionName =
         , sourceNote = Nothing
         }
 
+bepisPreferenceAction :: Text -> BepisMutationSpec -> IO a -> IO a
+bepisPreferenceAction actionName mutationSpec =
+    bepisActionSpanWithAttributes
+        BepisActionInfo
+            { actionName
+            , actionKind = BepisPreferenceAction
+            , responseKinds = [BepisRedirectResponse, BepisHtmxFragmentResponse]
+            , sourceNote = Nothing
+            }
+        (bepisMutationSpecAttributes mutationSpec)
+
 bepisMutationAction :: Text -> BepisMutationSpec -> IO a -> IO a
 bepisMutationAction actionName mutationSpec =
     bepisActionSpanWithAttributes
@@ -91,6 +116,35 @@ bepisMutationAction actionName mutationSpec =
             , sourceNote = Nothing
             }
         (bepisMutationSpecAttributes mutationSpec)
+
+bepisJsonMutationAction :: Text -> BepisMutationSpec -> IO a -> IO a
+bepisJsonMutationAction actionName mutationSpec =
+    bepisActionSpanWithAttributes
+        BepisActionInfo
+            { actionName
+            , actionKind = BepisMutationAction
+            , responseKinds = [BepisJsonResponse, BepisRedirectResponse]
+            , sourceNote = Nothing
+            }
+        (bepisMutationSpecAttributes mutationSpec)
+
+bepisIntegrationAction :: Text -> IO a -> IO a
+bepisIntegrationAction actionName =
+    bepisActionSpan BepisActionInfo
+        { actionName
+        , actionKind = BepisIntegrationAction
+        , responseKinds = [BepisJsonResponse, BepisRedirectResponse, BepisHtmlResponse]
+        , sourceNote = Nothing
+        }
+
+bepisExportAction :: Text -> IO a -> IO a
+bepisExportAction actionName =
+    bepisActionSpan BepisActionInfo
+        { actionName
+        , actionKind = BepisExportAction
+        , responseKinds = [BepisFileResponse, BepisHtmlResponse, BepisRedirectResponse]
+        , sourceNote = Nothing
+        }
 
 bepisActionSpan :: BepisActionInfo -> IO a -> IO a
 bepisActionSpan info = bepisActionSpanWithAttributes info []

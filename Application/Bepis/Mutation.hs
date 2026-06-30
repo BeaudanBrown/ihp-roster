@@ -5,8 +5,11 @@ module Application.Bepis.Mutation
     , BepisScopePolicy (..)
     , bepisAuditPolicyText
     , bepisCurrentUserMutationSpec
+    , bepisCurrentVenueMutationSpec
     , bepisNoScopeMutationSpec
+    , bepisSupportMutationSpec
     , bepisMutationSpecAttributes
+    , bepisVenueRosterWeekMutationSpec
     , bepisRealtimePolicyText
     , bepisScopePolicyText
     ) where
@@ -61,6 +64,27 @@ bepisCurrentUserMutationSpec = BepisMutationSpec
     { auditPolicy = BepisAuditNotRequired
     , realtimePolicy = BepisRealtimeNotApplicable
     , scopePolicy = BepisCurrentUserScope
+    }
+
+bepisCurrentVenueMutationSpec :: BepisMutationSpec
+bepisCurrentVenueMutationSpec = BepisMutationSpec
+    { auditPolicy = BepisAuditNotRequired
+    , realtimePolicy = BepisNoRealtimeInvalidation
+    , scopePolicy = BepisCurrentVenueScope
+    }
+
+bepisVenueRosterWeekMutationSpec :: BepisMutationSpec
+bepisVenueRosterWeekMutationSpec = BepisMutationSpec
+    { auditPolicy = BepisAuditNotRequired
+    , realtimePolicy = BepisEmitsRealtimeInvalidation
+    , scopePolicy = BepisVenueRosterWeekScope
+    }
+
+bepisSupportMutationSpec :: BepisMutationSpec
+bepisSupportMutationSpec = BepisMutationSpec
+    { auditPolicy = BepisAuditNotRequired
+    , realtimePolicy = BepisNoRealtimeInvalidation
+    , scopePolicy = BepisSupportScope
     }
 
 bepisAuditPolicyText :: BepisAuditPolicy -> Text

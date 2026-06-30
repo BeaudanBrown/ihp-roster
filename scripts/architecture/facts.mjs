@@ -142,13 +142,18 @@ function actionKind(actionName) {
 
 const bepisActionWrappers = {
   bepisPageAction: { kind: "page", responseKinds: ["html", "redirect"] },
+  bepisFormAction: { kind: "form", responseKinds: ["html", "redirect"] },
   bepisFragmentAction: { kind: "fragment", responseKinds: ["htmx-fragment"] },
   bepisDialogAction: { kind: "dialog", responseKinds: ["dialog", "htmx-fragment"] },
-  bepisMutationAction: { kind: "mutation", responseKinds: ["redirect", "htmx-fragment"] },
+  bepisPreferenceAction: { kind: "preference", responseKinds: ["redirect", "htmx-fragment"], requiresMutationSpec: true },
+  bepisMutationAction: { kind: "mutation", responseKinds: ["redirect", "htmx-fragment"], requiresMutationSpec: true },
+  bepisJsonMutationAction: { kind: "mutation", responseKinds: ["json", "redirect"], requiresMutationSpec: true },
+  bepisIntegrationAction: { kind: "integration", responseKinds: ["json", "redirect", "html"] },
+  bepisExportAction: { kind: "export", responseKinds: ["file", "html", "redirect"] },
 };
 
 function parseBepisActionWrapper(body, relPath, handlerLine, mutationSpecs) {
-  const match = body.match(/\b(bepis(?:Page|Fragment|Dialog|Mutation)Action)\s+"([^"]+)"(?:\s+([A-Za-z][A-Za-z0-9_']*))?/);
+  const match = body.match(/\b(bepis(?:Page|Form|Fragment|Dialog|Preference|Mutation|JsonMutation|Integration|Export)Action)\s+"([^"]+)"(?:\s+([A-Za-z][A-Za-z0-9_']*))?/);
   if (!match) return null;
   const wrapper = bepisActionWrappers[match[1]];
   if (!wrapper) return null;
@@ -157,8 +162,8 @@ function parseBepisActionWrapper(body, relPath, handlerLine, mutationSpecs) {
     declaredActionName: match[2],
     kind: wrapper.kind,
     responseKinds: wrapper.responseKinds,
-    mutationSpecName: match[1] === "bepisMutationAction" ? match[3] : undefined,
-    mutationSpec: match[1] === "bepisMutationAction" && match[3] ? mutationSpecs.get(match[3]) : undefined,
+    mutationSpecName: wrapper.requiresMutationSpec ? match[3] : undefined,
+    mutationSpec: wrapper.requiresMutationSpec && match[3] ? mutationSpecs.get(match[3]) : undefined,
     source: { path: relPath, line: handlerLine + lineNumberAt(body, match.index ?? 0) - 1 },
   };
 }

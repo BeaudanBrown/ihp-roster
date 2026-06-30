@@ -273,6 +273,7 @@ function tableQuery(facts, args) {
 
 function conventionsQuery(facts, args) {
   const failOnViolations = Boolean(args.failOnViolations ?? false);
+  const requireAllControllers = Boolean(args.requireAllControllers ?? false);
   const includeInfo = Boolean(args.includeInfo ?? false);
   const limit = Number(args.limit ?? 50);
   const handlers = byAction(facts);
@@ -285,6 +286,11 @@ function conventionsQuery(facts, args) {
     const modules = unique(controllerHandlers.map((entry) => entry.handler?.module));
     const migrated = modules.some((moduleName) => policyByModule.has(moduleName));
     const policy = modules.map((moduleName) => policyByModule.get(moduleName)?.policy).filter(Boolean).join(", ");
+    if (requireAllControllers && !migrated) {
+      const row = { severity: "error", controller: controller.name, action: "*", issue: "missing-bepis-controller-policy", source: `${controller.source.path}:${controller.source.line}` };
+      rows.push(row);
+      errors.push(`${controller.name} has no Bepis controller policy wrapper`);
+    }
     for (const { action, handler } of controllerHandlers) {
       if (!handler) {
         const row = { severity: "error", controller: controller.name, action: action.name, issue: "missing-handler", source: `${action.source.path}:${action.source.line}` };
@@ -294,10 +300,15 @@ function conventionsQuery(facts, args) {
       }
       const hasWrapper = handler.kindSource === "typed-wrapper";
       if (!hasWrapper) {
-        const severity = migrated ? "error" : "info";
+        const severity = migrated || requireAllControllers ? "error" : "info";
         const row = { severity, controller: controller.name, action: action.name, issue: "missing-bepis-action-wrapper", source: `${handler.path}:${handler.line}` };
         rows.push(row);
-        if (migrated) errors.push(`${controller.name}.${action.name} is in a migrated controller but has no Bepis action wrapper`);
+        if (severity === "error") errors.push(`${controller.name}.${action.name} has no Bepis action wrapper`);
+      }
+      if (hasWrapper && handler.bepisWrapper?.name?.match(/bepis(?:Preference|Mutation|JsonMutation)Action/) && !handler.bepisWrapper?.mutationSpecName) {
+        const row = { severity: "error", controller: controller.name, action: action.name, issue: "missing-bepis-mutation-spec", source: `${handler.path}:${handler.line}` };
+        rows.push(row);
+        errors.push(`${controller.name}.${action.name} uses a mutation wrapper without a BepisMutationSpec`);
       }
       if (migrated && handler.calls?.some((call) => /^(render|respondHtml|redirectTo|redirectToPath|json|renderJson)$/.test(call)) && !handler.calls?.some((call) => /^bepis.*Response$/.test(call))) {
         rows.push({ severity: "info", controller: controller.name, action: action.name, issue: "raw-ihp-response-helper", source: `${handler.path}:${handler.line}` });
@@ -324,6 +335,7 @@ function conventionsQuery(facts, args) {
       migratedControllers: migratedControllers.length,
       handlers: facts.web.handlers.length,
       typedWrapperHandlers: facts.web.handlers.filter((handler) => handler.kindSource === "typed-wrapper").length,
+      requireAllControllers,
       conventionRows: rows.length,
       visibleRows: visibleRows.length,
       informationalRows: rows.filter((row) => row.severity === "info").length,
@@ -331,7 +343,7 @@ function conventionsQuery(facts, args) {
     },
     tables: [{ title: "convention findings", rows: visibleRows }],
     sections: [
-      { title: "Enforcement", content: "Controllers with a Bepis controller policy wrapper are treated as migrated. Missing Bepis action wrappers in migrated controllers are blocking; missing wrappers elsewhere are informational during rollout." },
+      { title: "Enforcement", content: "Controllers with a Bepis controller policy wrapper are treated as migrated. Missing Bepis action wrappers in migrated controllers are blocking; missing wrappers elsewhere are informational during rollout. Set requireAllControllers=true to turn rollout into a strict whole-app gate." },
     ],
   });
   if (failOnViolations && errors.length > 0) process.exitCode = 1;
