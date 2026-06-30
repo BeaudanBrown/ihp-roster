@@ -21,7 +21,17 @@ bash ./bin/in-env architecture-check-fresh
 Focused agent queries use Pi's `architecture_queries` and `architecture_query`
 tools. The current project queries are:
 
-- `component`: focused controller/action/table/module diagrams.
+- `component`: generic focused controller/action/table/module diagrams.
+- `controller`: grouped controller/action surface reports with action kind and
+  reference counts.
+- `request-flow`: static action request-flow reports from handler source,
+  references, response/realtime heuristics, and provenance.
+- `realtime-usage`: live freshness usage metrics and diagrams independent of
+  the current websocket/fragment mechanism.
+- `generated-contracts`: Haskell contract/codecs to generated TypeScript and
+  frontend consumer reports.
+- `table`: classified schema neighborhoods with audit edge filtering.
+- `module`: filtered module dependency neighborhoods.
 - `trace`: focused OpenTelemetry trace timing diagrams from profile artifacts.
 
 Do not treat generated diagrams as durable source until a future change promotes
@@ -54,21 +64,24 @@ Rules for future changes:
 
 ### Query Roadmap
 
-The next useful project-local query families are:
+Implemented project-local query families now include:
 
-- `controller`: grouped action inventory with handler module, source locations,
-  route references, and optional inbound links/forms.
-- `request-flow`: action -> handler -> auth/scope checks -> reads/writes ->
-  rendered view/fragment/redirect -> realtime/frontend effects.
-- `realtime-usage`: coverage and flow for surfaces that use live freshness,
-  regardless of whether the current mechanism is websocket invalidation,
-  polling, SSE, or something else.
+- `controller`: grouped action inventory with handler source locations and
+  inbound action reference counts.
+- `request-flow`: action -> controller -> handler -> auth/scope heuristics ->
+  data/response/realtime heuristics.
+- `realtime-usage`: coverage for surfaces that use live freshness, regardless of
+  whether the current mechanism is websocket invalidation, polling, SSE, or
+  something else.
 - `generated-contracts`: Haskell contract/codecs -> generated TypeScript ->
-  frontend consumers/backend emitters.
+  frontend consumers and `data-bepis-*` attributes.
 - `table`: schema neighborhoods with audit/user-tracking edges classified and
-  optionally hidden.
-- `module`: import neighborhoods with common imports hidden and subsystem
-  clusters/summaries by default.
+  hidden by default.
+- `module`: import neighborhoods with common imports hidden by default.
+
+These queries intentionally report warnings/confidence when relationships are
+heuristic. They should be refined with more precise parsers over time rather than
+be treated as complete compiler-grade call graphs.
 
 ## Web Surface
 

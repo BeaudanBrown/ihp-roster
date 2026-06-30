@@ -5,10 +5,14 @@
       "ihp-web-surface",
       "schema-relationships",
       "module-imports",
+      "action-references",
+      "request-flow-heuristics",
+      "realtime-usage",
+      "generated-contracts",
       "focused-diagrams",
       "otel-trace-diagrams"
     ],
-    "factModel": "project-local, versioned entities/relationships with source provenance; diagrams are derived views"
+    "factModel": "project-local v2 entities/relationships with source provenance, heuristic classifiers, and confidence in query results; diagrams are derived views"
   },
   "commands": {
     "facts": {
@@ -34,33 +38,80 @@
   },
   "queries": {
     "component": {
-      "description": "Generate a focused diagram around a controller, action, table, or module.",
-      "intent": "Inspect a project component from observed IHP/schema/module facts while keeping current implementation mechanisms replaceable.",
+      "description": "Generate a generic focused diagram around a controller, action, table, or module.",
+      "intent": "Fallback component neighborhood from observed IHP/schema/module facts.",
       "capabilities": ["focused-diagram", "source-provenance", "schema-neighborhood", "web-surface", "module-neighborhood"],
       "command": ["bash", "./bin/in-env", "architecture-query"],
       "parameters": {
-        "kind": {
-          "type": "string",
-          "enum": ["controller", "action", "table", "module"],
-          "required": true
-        },
-        "target": {
-          "type": "string",
-          "required": true
-        },
-        "depth": {
-          "type": "number",
-          "default": 1
-        },
-        "direction": {
-          "type": "string",
-          "enum": ["upstream", "downstream", "both"],
-          "default": "both"
-        },
-        "include": {
-          "type": "array",
-          "default": []
-        }
+        "kind": { "type": "string", "enum": ["controller", "action", "table", "module"], "required": true },
+        "target": { "type": "string", "required": true },
+        "depth": { "type": "number", "default": 1 },
+        "direction": { "type": "string", "enum": ["upstream", "downstream", "both"], "default": "both" },
+        "include": { "type": "array", "default": [] }
+      }
+    },
+    "controller": {
+      "description": "Generate a grouped controller/action surface report.",
+      "intent": "Inspect a controller by action kind, handler source, and inbound action references.",
+      "capabilities": ["controller-actions", "action-classification", "action-references", "diagram", "metrics"],
+      "command": ["bash", "./bin/in-env", "architecture-query"],
+      "parameters": {
+        "target": { "type": "string", "required": true },
+        "includeCallers": { "type": "boolean", "default": true },
+        "includeHandlers": { "type": "boolean", "default": true }
+      }
+    },
+    "request-flow": {
+      "description": "Generate a static request-flow report for an action.",
+      "intent": "Explain action -> controller -> handler -> auth/scope -> data/response/realtime using source-derived heuristic facts.",
+      "capabilities": ["action-references", "handler-source", "direct-call-heuristics", "response-heuristics", "realtime-heuristics", "diagram", "metrics"],
+      "command": ["bash", "./bin/in-env", "architecture-query"],
+      "parameters": {
+        "action": { "type": "string", "required": true },
+        "includeRealtime": { "type": "boolean", "default": true },
+        "includeCallers": { "type": "boolean", "default": true }
+      }
+    },
+    "realtime-usage": {
+      "description": "Generate realtime/live freshness usage metrics and diagram.",
+      "intent": "Measure usage of live freshness mechanisms without assuming the current websocket/fragment mechanism is permanent.",
+      "capabilities": ["realtime-references", "live-surface-heuristics", "frontend-consumers", "metrics", "diagram"],
+      "command": ["bash", "./bin/in-env", "architecture-query"],
+      "parameters": {
+        "surface": { "type": "string", "default": "all" },
+        "detail": { "type": "string", "enum": ["summary", "actions", "files"], "default": "summary" }
+      }
+    },
+    "generated-contracts": {
+      "description": "Generate Haskell contract/codecs to generated TypeScript report.",
+      "intent": "Show backend-owned frontend contract sources, generated TypeScript, data attributes, and frontend consumers.",
+      "capabilities": ["contract-sources", "generated-typescript", "frontend-consumers", "data-bepis-attributes", "metrics", "diagram"],
+      "command": ["bash", "./bin/in-env", "architecture-query"],
+      "parameters": {
+        "target": { "type": "string", "default": "all" },
+        "includeConsumers": { "type": "boolean", "default": true }
+      }
+    },
+    "table": {
+      "description": "Generate a classified schema neighborhood for a table.",
+      "intent": "Inspect domain vs audit/tenant/integration relationships around a table with optional audit edge expansion.",
+      "capabilities": ["schema-neighborhood", "foreign-key-classification", "audit-edge-filtering", "metrics", "diagram"],
+      "command": ["bash", "./bin/in-env", "architecture-query"],
+      "parameters": {
+        "target": { "type": "string", "required": true },
+        "includeAuditEdges": { "type": "boolean", "default": false }
+      }
+    },
+    "module": {
+      "description": "Generate a filtered module dependency neighborhood.",
+      "intent": "Inspect imports around one module with common framework imports hidden by default.",
+      "capabilities": ["module-neighborhood", "common-import-filtering", "metrics", "diagram"],
+      "command": ["bash", "./bin/in-env", "architecture-query"],
+      "parameters": {
+        "target": { "type": "string", "required": true },
+        "depth": { "type": "number", "default": 1 },
+        "direction": { "type": "string", "enum": ["upstream", "downstream", "both"], "default": "both" },
+        "hideCommonImports": { "type": "boolean", "default": true }
       }
     },
     "trace": {
@@ -69,18 +120,9 @@
       "capabilities": ["runtime-trace", "timing", "provenance", "diagram"],
       "command": ["bash", "./bin/in-env", "architecture-trace-diagram"],
       "parameters": {
-        "runDir": {
-          "type": "string",
-          "default": "output/profile-load/latest"
-        },
-        "traceId": {
-          "type": "string",
-          "required": true
-        },
-        "limit": {
-          "type": "number",
-          "default": 80
-        }
+        "runDir": { "type": "string", "default": "output/profile-load/latest" },
+        "traceId": { "type": "string", "required": true },
+        "limit": { "type": "number", "default": 80 }
       }
     }
   }

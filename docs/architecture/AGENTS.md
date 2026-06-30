@@ -21,7 +21,15 @@ bash ./bin/in-env architecture-check-fresh
 
 For focused questions, prefer structured queries through Pi when available:
 
-- `component`: controller/action/table/module neighborhood diagrams.
+- `component`: generic controller/action/table/module neighborhood diagrams.
+- `controller`: grouped controller/action surface reports.
+- `request-flow`: static action request-flow reports with source provenance and
+  heuristic confidence warnings.
+- `realtime-usage`: live freshness usage metrics/diagrams.
+- `generated-contracts`: backend-owned contract/codecs to generated TypeScript
+  and frontend consumer reports.
+- `table`: classified schema neighborhoods with audit edge filtering.
+- `module`: filtered module dependency neighborhoods.
 - `trace`: OpenTelemetry trace timing diagrams from profile artifacts.
 
 Do not commit generated architecture outputs unless a future ticket explicitly changes that policy.
@@ -31,7 +39,8 @@ Do not commit generated architecture outputs unless a future ticket explicitly c
 Keep architecture tooling adaptable:
 
 - Model observed source facts and relationships before drawing diagrams.
-- Add source provenance and confidence when scanners infer relationships.
+- Add source provenance and confidence when scanners infer relationships; never
+  present heuristic request-flow/call facts as compiler-perfect call graphs.
 - Keep scanners/classifiers project-local and replaceable; keep Pi harness generic.
 - Prefer intent-based query names over current implementation mechanisms.
 - Treat live updates, fragments, generated contracts, and frontend surfaces as mechanisms/classifications that can evolve.
