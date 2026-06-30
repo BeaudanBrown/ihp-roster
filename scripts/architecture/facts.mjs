@@ -148,7 +148,7 @@ function extractActionBody(text, matchIndex, indent) {
   for (let i = 1; i < lines.length; i += 1) {
     const line = lines[i];
     if (actionStart.test(line)) break;
-    if (/^\s*instance\s+Controller\b/.test(line)) break;
+    if (/^[ \t]*instance\s+Controller\b/.test(line)) break;
     bodyLines.push(line);
   }
   return bodyLines.join("\n");
@@ -183,7 +183,7 @@ function parseHandlers(controllerFiles, tableModels) {
   for (const relPath of controllerFiles) {
     const text = readText(relPath);
     const moduleName = moduleNameFromFile(relPath, text);
-    for (const m of text.matchAll(/^(\s*)action\s+([A-Z][A-Za-z0-9_]*Action)\b/gm)) {
+    for (const m of text.matchAll(/^([ \t]*)action\s+([A-Z][A-Za-z0-9_]*Action)\b/gm)) {
       const indent = m[1].length;
       const body = extractActionBody(text, m.index ?? 0, indent);
       handlers.push({
