@@ -11,6 +11,13 @@ import Web.Timesheets.Validation
 import Web.View.Timesheets.Edit
 import Web.View.Timesheets.New
 
+timesheetEntryMutationSpec :: BepisMutationSpec
+timesheetEntryMutationSpec = BepisMutationSpec
+    { auditPolicy = BepisAuditRequired
+    , realtimePolicy = BepisEmitsRealtimeInvalidation
+    , scopePolicy = BepisCurrentVenueScope
+    }
+
 instance Controller TimesheetsController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
         annotateTelemetryAction
@@ -93,7 +100,7 @@ instance Controller TimesheetsController where
                     then respondHtml (renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId)
                     else render NewView { .. }
 
-    action CreateTimesheetEntryAction = bepisMutationAction "CreateTimesheetEntryAction" bepisCurrentVenueMutationSpec do
+    action CreateTimesheetEntryAction = bepisMutationAction "CreateTimesheetEntryAction" timesheetEntryMutationSpec do
         ensureVenueWritable
         weekOffset <- weekOffsetFromParamOrCurrent
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
@@ -139,7 +146,7 @@ instance Controller TimesheetsController where
             then respondHtml (renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId)
             else render EditView { .. }
 
-    action UpdateTimesheetEntryAction { timesheetEntryId } = bepisMutationAction "UpdateTimesheetEntryAction" bepisCurrentVenueMutationSpec do
+    action UpdateTimesheetEntryAction { timesheetEntryId } = bepisMutationAction "UpdateTimesheetEntryAction" timesheetEntryMutationSpec do
         ensureVenueWritable
         existingEntry <- fetch timesheetEntryId
         ensureRecordInCurrentVenue existingEntry.venueId
@@ -180,7 +187,7 @@ instance Controller TimesheetsController where
                             setSuccessMessage successMessage
                             redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
 
-    action DeleteTimesheetEntryAction { timesheetEntryId } = bepisMutationAction "DeleteTimesheetEntryAction" bepisCurrentVenueMutationSpec do
+    action DeleteTimesheetEntryAction { timesheetEntryId } = bepisMutationAction "DeleteTimesheetEntryAction" timesheetEntryMutationSpec do
         ensureVenueWritable
         timesheetEntry <- fetch timesheetEntryId
         ensureRecordInCurrentVenue timesheetEntry.venueId
@@ -197,7 +204,7 @@ instance Controller TimesheetsController where
         unless isHtmxRequest do
             redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
 
-    action ApproveTimesheetEntryAction { timesheetEntryId } = bepisMutationAction "ApproveTimesheetEntryAction" bepisCurrentVenueMutationSpec do
+    action ApproveTimesheetEntryAction { timesheetEntryId } = bepisMutationAction "ApproveTimesheetEntryAction" timesheetEntryMutationSpec do
         ensureManagerRole
         ensureVenueWritable
         timesheetEntry <- fetch timesheetEntryId

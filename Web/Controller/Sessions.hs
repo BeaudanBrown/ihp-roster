@@ -21,6 +21,20 @@ pendingVerificationEmailSessionKey = "pendingVerificationEmail"
 passkeySetupPromptSessionKey :: ByteString
 passkeySetupPromptSessionKey = "passkeySetupPrompt"
 
+sessionMutationSpec :: BepisMutationSpec
+sessionMutationSpec = BepisMutationSpec
+    { auditPolicy = BepisAuditRequired
+    , realtimePolicy = BepisRealtimeNotApplicable
+    , scopePolicy = BepisCurrentUserScope
+    }
+
+sessionPublicMutationSpec :: BepisMutationSpec
+sessionPublicMutationSpec = BepisMutationSpec
+    { auditPolicy = BepisAuditNotRequired
+    , realtimePolicy = BepisRealtimeNotApplicable
+    , scopePolicy = BepisNoScopePolicy
+    }
+
 instance Controller SessionsController where
     beforeAction = bepisBeforeAction BepisPublicController annotateTelemetryAction
 
@@ -36,7 +50,7 @@ instance Controller SessionsController where
         render NewView { .. }
 
     action CreateSessionAction =
-        bepisMutationAction "CreateSessionAction" bepisCurrentUserMutationSpec $ profileActionSpan "auth.password_login" do
+        bepisMutationAction "CreateSessionAction" sessionMutationSpec $ profileActionSpan "auth.password_login" do
             let submittedEmail = param @Text "email"
             profileActionSpan "auth.password_login.find_user"
                 ( query @User
@@ -118,9 +132,9 @@ instance Controller SessionsController where
                         setErrorMessage "Invalid Credentials"
                         redirectTo NewSessionAction
 
-    action DeleteSessionAction = bepisMutationAction "DeleteSessionAction" bepisCurrentUserMutationSpec (Sessions.deleteSessionAction @User)
+    action DeleteSessionAction = bepisMutationAction "DeleteSessionAction" sessionMutationSpec (Sessions.deleteSessionAction @User)
 
-    action VerifyEmailAction = bepisMutationAction "VerifyEmailAction" bepisCurrentUserMutationSpec do
+    action VerifyEmailAction = bepisMutationAction "VerifyEmailAction" sessionMutationSpec do
         let verificationTokenValue = param @Text "token"
         findActiveVerificationTokenByToken verificationTokenValue >>= \case
             Nothing -> do
@@ -144,7 +158,7 @@ instance Controller SessionsController where
                 setSuccessMessage "Email verified."
                 redirectTo EditProfileAction
 
-    action ResendVerificationAction = bepisMutationAction "ResendVerificationAction" bepisNoScopeMutationSpec do
+    action ResendVerificationAction = bepisMutationAction "ResendVerificationAction" sessionPublicMutationSpec do
         let submittedEmail = param @Text "email"
         maybeUser <-
             query @User

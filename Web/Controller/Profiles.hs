@@ -29,6 +29,13 @@ import Web.Staff.Mutations (updateStaffMember)
 import Web.View.Profiles.Edit
 import Web.View.StaffProfileForm (StaffManagementFieldData (..))
 
+profileMutationSpec :: BepisMutationSpec
+profileMutationSpec = BepisMutationSpec
+    { auditPolicy = BepisAuditRequired
+    , realtimePolicy = BepisEmitsRealtimeInvalidation
+    , scopePolicy = BepisCurrentUserScope
+    }
+
 instance Controller ProfilesController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
         annotateTelemetryAction
@@ -80,7 +87,7 @@ instance Controller ProfilesController where
                         let today = utctDay now
                         profileActionSpan "profile.content_fragment.render_response" (respondHtml (renderProfileContentFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection))
 
-    action UpdateProfileAction = bepisMutationAction "UpdateProfileAction" bepisCurrentUserMutationSpec do
+    action UpdateProfileAction = bepisMutationAction "UpdateProfileAction" profileMutationSpec do
         maybeExistingStaff <- fetchCurrentUserStaff
         let submittedShiftPreferenceKeys = nub (paramTexts "shiftPreferenceKeys")
         let staff = fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff

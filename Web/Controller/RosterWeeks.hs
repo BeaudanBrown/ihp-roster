@@ -67,6 +67,20 @@ rosterWarningPreferenceMutationSpec = BepisMutationSpec
     , scopePolicy = BepisCurrentUserScope
     }
 
+rosterWeekMutationSpec :: BepisMutationSpec
+rosterWeekMutationSpec = BepisMutationSpec
+    { auditPolicy = BepisAuditNotRequired
+    , realtimePolicy = BepisEmitsRealtimeInvalidation
+    , scopePolicy = BepisVenueRosterWeekScope
+    }
+
+rosterPreferenceMutationSpec :: BepisMutationSpec
+rosterPreferenceMutationSpec = BepisMutationSpec
+    { auditPolicy = BepisAuditNotRequired
+    , realtimePolicy = BepisEmitsRealtimeInvalidation
+    , scopePolicy = BepisVenueRosterWeekScope
+    }
+
 instance Controller RosterWeeksController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
         annotateTelemetryAction
@@ -167,13 +181,13 @@ instance Controller RosterWeeksController where
             rowHtml <- fetchVisibleRosterRowFragment rosterGroupId weekOffset rosterDayId rowIndex
             respondHtmlProfiled (fromMaybe mempty rowHtml)
 
-    action UpdateRosterAssignmentFiltersAction { weekOffset = _ } = bepisPreferenceAction "UpdateRosterAssignmentFiltersAction" bepisVenueRosterWeekMutationSpec do
+    action UpdateRosterAssignmentFiltersAction { weekOffset = _ } = bepisPreferenceAction "UpdateRosterAssignmentFiltersAction" rosterPreferenceMutationSpec do
         ensureManagerRole
         _ <- resolveRequestedRosterGroup
         setRosterAssignmentFiltersSession rosterAssignmentFiltersFromParams
         respondHtmlProfiled mempty
 
-    action CreateRosterWeekAction { weekOffset } = bepisMutationAction "CreateRosterWeekAction" bepisVenueRosterWeekMutationSpec do
+    action CreateRosterWeekAction { weekOffset } = bepisMutationAction "CreateRosterWeekAction" rosterWeekMutationSpec do
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
@@ -192,7 +206,7 @@ instance Controller RosterWeeksController where
                 setSuccessMessage successMessage
                 redirectToPath targetPath
 
-    action CopyRosterWeekAction { sourceWeekOffset, targetWeekOffset } = bepisMutationAction "CopyRosterWeekAction" bepisVenueRosterWeekMutationSpec do
+    action CopyRosterWeekAction { sourceWeekOffset, targetWeekOffset } = bepisMutationAction "CopyRosterWeekAction" rosterWeekMutationSpec do
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
@@ -230,7 +244,7 @@ instance Controller RosterWeeksController where
                                 setSuccessMessage successMessage
                                 redirectToPath targetPath
 
-    action ToggleRosterWeekLiveStatusAction { rosterWeekId } = bepisMutationAction "ToggleRosterWeekLiveStatusAction" bepisVenueRosterWeekMutationSpec do
+    action ToggleRosterWeekLiveStatusAction { rosterWeekId } = bepisMutationAction "ToggleRosterWeekLiveStatusAction" rosterWeekMutationSpec do
         ensureManagerRole
         ensureVenueWritable
         rosterWeek <- fetch rosterWeekId
@@ -263,7 +277,7 @@ instance Controller RosterWeeksController where
                         setSuccessMessage successMessage
                         redirectToPath targetPath
 
-    action CreateRosterWeekSlotDefinitionAction { rosterWeekId } = bepisMutationAction "CreateRosterWeekSlotDefinitionAction" bepisVenueRosterWeekMutationSpec do
+    action CreateRosterWeekSlotDefinitionAction { rosterWeekId } = bepisMutationAction "CreateRosterWeekSlotDefinitionAction" rosterWeekMutationSpec do
         ensureManagerRole
         ensureVenueWritable
         rosterWeek <- fetch rosterWeekId
@@ -282,7 +296,7 @@ instance Controller RosterWeeksController where
                         _ <- appendRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotName
                         respondToRosterSlotDefinitionSuccess rosterWeek "Roster column added."
 
-    action UpdateRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId } = bepisMutationAction "UpdateRosterWeekSlotDefinitionAction" bepisVenueRosterWeekMutationSpec do
+    action UpdateRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId } = bepisMutationAction "UpdateRosterWeekSlotDefinitionAction" rosterWeekMutationSpec do
         ensureManagerRole
         ensureVenueWritable
         slotDefinition <- fetch rosterWeekSlotDefinitionId
@@ -301,7 +315,7 @@ instance Controller RosterWeeksController where
                         _ <- renameRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotDefinition slotName
                         respondToRosterSlotDefinitionSuccess rosterWeek "Roster column renamed."
 
-    action DeleteRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId } = bepisMutationAction "DeleteRosterWeekSlotDefinitionAction" bepisVenueRosterWeekMutationSpec do
+    action DeleteRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId } = bepisMutationAction "DeleteRosterWeekSlotDefinitionAction" rosterWeekMutationSpec do
         ensureManagerRole
         ensureVenueWritable
         slotDefinition <- fetch rosterWeekSlotDefinitionId
@@ -320,7 +334,7 @@ instance Controller RosterWeeksController where
                 _ <- removeRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotDefinition
                 respondToRosterSlotDefinitionSuccess rosterWeek "Roster column removed."
 
-    action SortRosterWeekAction { rosterWeekId } = bepisMutationAction "SortRosterWeekAction" bepisVenueRosterWeekMutationSpec do
+    action SortRosterWeekAction { rosterWeekId } = bepisMutationAction "SortRosterWeekAction" rosterWeekMutationSpec do
         ensureManagerRole
         ensureVenueWritable
         rosterWeek <- fetch rosterWeekId
@@ -340,7 +354,7 @@ instance Controller RosterWeeksController where
                 setSuccessMessage "Roster sorted."
                 redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
-    action ToggleRosterDayClosedAction { rosterDayId } = bepisMutationAction "ToggleRosterDayClosedAction" bepisVenueRosterWeekMutationSpec do
+    action ToggleRosterDayClosedAction { rosterDayId } = bepisMutationAction "ToggleRosterDayClosedAction" rosterWeekMutationSpec do
         ensureManagerRole
         ensureVenueWritable
 
@@ -371,7 +385,7 @@ instance Controller RosterWeeksController where
                 setSuccessMessage successMessage
                 redirectToPath targetPath
 
-    action AddRosterRowAction { rosterDayId } = bepisMutationAction "AddRosterRowAction" bepisVenueRosterWeekMutationSpec do
+    action AddRosterRowAction { rosterDayId } = bepisMutationAction "AddRosterRowAction" rosterWeekMutationSpec do
         ensureManagerRole
         ensureVenueWritable
 
@@ -414,7 +428,7 @@ instance Controller RosterWeeksController where
                         setSuccessMessage "Roster row added."
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
-    action RemoveRosterRowAction { rosterDayId } = bepisMutationAction "RemoveRosterRowAction" bepisVenueRosterWeekMutationSpec do
+    action RemoveRosterRowAction { rosterDayId } = bepisMutationAction "RemoveRosterRowAction" rosterWeekMutationSpec do
         ensureManagerRole
         ensureVenueWritable
 
@@ -463,7 +477,7 @@ instance Controller RosterWeeksController where
                         setSuccessMessage "Roster row removed."
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
-    action UpdateRosterLayoutPreferenceAction { weekOffset } = bepisPreferenceAction "UpdateRosterLayoutPreferenceAction" bepisVenueRosterWeekMutationSpec do
+    action UpdateRosterLayoutPreferenceAction { weekOffset } = bepisPreferenceAction "UpdateRosterLayoutPreferenceAction" rosterPreferenceMutationSpec do
         rosterGroup <- resolveRequestedRosterGroup
         let requestedLayoutMode = paramOrDefault @Text "day_rows" "rosterLayoutMode"
         case parseRosterLayoutMode requestedLayoutMode of
@@ -482,7 +496,7 @@ instance Controller RosterWeeksController where
                         setSuccessMessage "Roster layout preference saved."
                         redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
 
-    action MoveRosterShiftToSlotAction { weekOffset } = bepisMutationAction "MoveRosterShiftToSlotAction" bepisVenueRosterWeekMutationSpec do
+    action MoveRosterShiftToSlotAction { weekOffset } = bepisMutationAction "MoveRosterShiftToSlotAction" rosterWeekMutationSpec do
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
@@ -513,7 +527,7 @@ instance Controller RosterWeeksController where
                     setSuccessMessage "Roster warning preference saved."
                     redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
 
-    action UpdateRosterWageEstimatePreferenceAction { weekOffset } = bepisPreferenceAction "UpdateRosterWageEstimatePreferenceAction" bepisVenueRosterWeekMutationSpec do
+    action UpdateRosterWageEstimatePreferenceAction { weekOffset } = bepisPreferenceAction "UpdateRosterWageEstimatePreferenceAction" rosterPreferenceMutationSpec do
         accessDeniedUnless (hasRole VenueAdminRole)
         rosterGroup <- resolveRequestedRosterGroup
         let showWageEstimates = paramOrDefault @Text "false" "showWageEstimates" == "true"
@@ -536,7 +550,7 @@ instance Controller RosterWeeksController where
         (rosterSlot, rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlotId
         renderRosterShiftDialogForEdit rosterSlot rosterDay rosterWeek (rosterShiftDialogValuesFromSlot rosterSlot)
 
-    action CreateRosterSlotAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = bepisMutationAction "CreateRosterSlotAction" bepisVenueRosterWeekMutationSpec do
+    action CreateRosterSlotAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = bepisMutationAction "CreateRosterSlotAction" rosterWeekMutationSpec do
         ensureManagerRole
         ensureVenueWritable
         (rosterDay, rosterWeek, slotDefinition) <- fetchRosterSlotCreateContext rosterDayId rosterWeekSlotDefinitionId rowIndex
@@ -564,7 +578,7 @@ instance Controller RosterWeeksController where
                 mutationResult <- saveRosterSlotMutation rosterGroupId rosterWeek rosterDay existingSlot newSlot
                 respondToRosterSlotMutation rosterGroupId rosterWeek rosterDay rowIndex mutationResult (Just valid.validRosterShiftStaffId) "Roster shift saved."
 
-    action UpdateRosterSlotAction { rosterSlotId } = bepisMutationAction "UpdateRosterSlotAction" bepisVenueRosterWeekMutationSpec do
+    action UpdateRosterSlotAction { rosterSlotId } = bepisMutationAction "UpdateRosterSlotAction" rosterWeekMutationSpec do
         ensureManagerRole
         ensureVenueWritable
         (rosterSlot, rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlotId
@@ -580,7 +594,7 @@ instance Controller RosterWeeksController where
                 let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
                 respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult (Just valid.validRosterShiftStaffId) impactedRowKeys shouldWarnSourceTimesheetUnchanged
 
-    action DeleteRosterSlotAction { rosterSlotId } = bepisMutationAction "DeleteRosterSlotAction" bepisVenueRosterWeekMutationSpec do
+    action DeleteRosterSlotAction { rosterSlotId } = bepisMutationAction "DeleteRosterSlotAction" rosterWeekMutationSpec do
         ensureManagerRole
         ensureVenueWritable
         (rosterSlot, rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlotId

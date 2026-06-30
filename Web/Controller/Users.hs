@@ -21,6 +21,13 @@ import Web.Controller.StaffProfileValidation (buildRequiredPersonalProfileStaff)
 import Web.Users.Mutations (acceptVenueInvitation)
 import Web.View.Users.New
 
+userSignupMutationSpec :: BepisMutationSpec
+userSignupMutationSpec = BepisMutationSpec
+    { auditPolicy = BepisAuditRequired
+    , realtimePolicy = BepisRealtimeNotApplicable
+    , scopePolicy = BepisNoScopePolicy
+    }
+
 instance Controller UsersController where
     beforeAction = bepisBeforeAction BepisPublicController annotateTelemetryAction
 
@@ -50,7 +57,7 @@ instance Controller UsersController where
                         setTitle "Request Access"
                         render InviteOnlyView
 
-    action CreateUserAction = bepisMutationAction "CreateUserAction" bepisNoScopeMutationSpec do
+    action CreateUserAction = bepisMutationAction "CreateUserAction" userSignupMutationSpec do
         let invitationId = paramOrNothing @(Id VenueInvitation) "invitationId"
         case invitationId of
             Nothing -> do
@@ -135,7 +142,7 @@ instance Controller UsersController where
                         setTitle "Request Access"
                         render InviteOnlyView
 
-    action CreateVenueOnboardingUserAction = bepisMutationAction "CreateVenueOnboardingUserAction" bepisNoScopeMutationSpec do
+    action CreateVenueOnboardingUserAction = bepisMutationAction "CreateVenueOnboardingUserAction" userSignupMutationSpec do
         let invitationId = paramOrNothing @(Id VenueOnboardingInvitation) "invitationId"
         case invitationId of
             Nothing -> do

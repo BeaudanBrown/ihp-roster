@@ -12,6 +12,13 @@ import Web.Billing.Mutations
 import Web.Controller.Prelude
 import Web.View.Billing.Index
 
+billingMutationSpec :: BepisMutationSpec
+billingMutationSpec = BepisMutationSpec
+    { auditPolicy = BepisAuditRequired
+    , realtimePolicy = BepisNoRealtimeInvalidation
+    , scopePolicy = BepisCurrentVenueScope
+    }
+
 instance Controller BillingController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
         annotateTelemetryAction
@@ -29,10 +36,10 @@ instance Controller BillingController where
             viewModel <- fetchBillingViewModel
             respondHtml (renderBillingStatusFragment viewModel)
 
-    action CreateBillingCheckoutSessionAction = bepisMutationAction "CreateBillingCheckoutSessionAction" bepisCurrentVenueMutationSpec $
+    action CreateBillingCheckoutSessionAction = bepisMutationAction "CreateBillingCheckoutSessionAction" billingMutationSpec $
         createBillingCheckoutSessionAction
 
-    action CreateBillingPortalSessionAction = bepisMutationAction "CreateBillingPortalSessionAction" bepisCurrentVenueMutationSpec $
+    action CreateBillingPortalSessionAction = bepisMutationAction "CreateBillingPortalSessionAction" billingMutationSpec $
         createBillingPortalSessionAction
 
     action BillingSuccessAction = bepisPageAction "BillingSuccessAction" do
@@ -42,7 +49,7 @@ instance Controller BillingController where
     action BillingCancelAction = bepisPageAction "BillingCancelAction" $
         render BillingCancelView
 
-    action UpdateVenueBillingControlAction = bepisMutationAction "UpdateVenueBillingControlAction" bepisCurrentVenueMutationSpec $
+    action UpdateVenueBillingControlAction = bepisMutationAction "UpdateVenueBillingControlAction" billingMutationSpec $
         updateVenueBillingControlAction
 
 ensureBillingAccess :: (?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => IO ()

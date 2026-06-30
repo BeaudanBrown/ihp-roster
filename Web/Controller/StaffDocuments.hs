@@ -20,13 +20,20 @@ import Web.StaffDocuments.Mutations (reviewStaffDocument, uploadRsaDocument)
 import Web.View.StaffDocuments.Rsa (RsaReturnContext (..))
 import Web.View.StaffDocuments.RsaScan
 
+staffDocumentMutationSpec :: BepisMutationSpec
+staffDocumentMutationSpec = BepisMutationSpec
+    { auditPolicy = BepisAuditRequired
+    , realtimePolicy = BepisNoRealtimeInvalidation
+    , scopePolicy = BepisCurrentVenueScope
+    }
+
 instance Controller StaffDocumentsController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
         annotateTelemetryAction
         ensureIsUser
         ensureCurrentVenue
 
-    action ScanStaffDocumentAction = bepisMutationAction "ScanStaffDocumentAction" bepisCurrentVenueMutationSpec do
+    action ScanStaffDocumentAction = bepisMutationAction "ScanStaffDocumentAction" staffDocumentMutationSpec do
         ensureVenueWritable
         maybeStaff <- parseSubmittedStaff
         case maybeStaff of
@@ -57,7 +64,7 @@ instance Controller StaffDocumentsController where
                                 }
                         render ScanView { .. }
 
-    action CreateStaffDocumentAction = bepisMutationAction "CreateStaffDocumentAction" bepisCurrentVenueMutationSpec do
+    action CreateStaffDocumentAction = bepisMutationAction "CreateStaffDocumentAction" staffDocumentMutationSpec do
         ensureVenueWritable
         maybeStaff <- parseSubmittedStaff
         case maybeStaff of
@@ -97,7 +104,7 @@ instance Controller StaffDocumentsController where
                         ]
                         fileContents
 
-    action ReviewStaffDocumentAction { staffDocumentId } = bepisMutationAction "ReviewStaffDocumentAction" bepisCurrentVenueMutationSpec do
+    action ReviewStaffDocumentAction { staffDocumentId } = bepisMutationAction "ReviewStaffDocumentAction" staffDocumentMutationSpec do
         redirectPermissionDeniedUnless (hasRole ManagerRole') "You need manager access to review RSA documents."
         ensureVenueWritable
         staffDocument <- fetch staffDocumentId

@@ -22,6 +22,13 @@ import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServiceL
 import Web.View.Staff.Edit (renderStaffLeaveRequestFormFragment,
                             renderStaffLeaveRequestsListFragmentOob)
 
+leaveRequestMutationSpec :: BepisMutationSpec
+leaveRequestMutationSpec = BepisMutationSpec
+    { auditPolicy = BepisAuditRequired
+    , realtimePolicy = BepisEmitsRealtimeInvalidation
+    , scopePolicy = BepisCurrentVenueScope
+    }
+
 instance Controller LeaveRequestsController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
         annotateTelemetryAction
@@ -70,7 +77,7 @@ instance Controller LeaveRequestsController where
                     then respondHtml (renderNewLeaveRequestDialog leaveRequest)
                     else render NewView { .. }
 
-    action CreateLeaveRequestAction = bepisMutationAction "CreateLeaveRequestAction" bepisCurrentVenueMutationSpec do
+    action CreateLeaveRequestAction = bepisMutationAction "CreateLeaveRequestAction" leaveRequestMutationSpec do
         ensureStaffSelfServiceAccess
         ensureVenueWritable
         let responseContext = requestedLeaveResponseContext
@@ -101,7 +108,7 @@ instance Controller LeaveRequestsController where
                                     setSuccessMessage "Unavailable period submitted"
                                     redirectToPath (leaveFallbackPath responseContext)
 
-    action ApproveLeaveRequestAction { leaveRequestId } = bepisMutationAction "ApproveLeaveRequestAction" bepisCurrentVenueMutationSpec do
+    action ApproveLeaveRequestAction { leaveRequestId } = bepisMutationAction "ApproveLeaveRequestAction" leaveRequestMutationSpec do
         ensureProfileCompleted
         ensureManagerRole
         ensureVenueWritable
@@ -115,7 +122,7 @@ instance Controller LeaveRequestsController where
                 setSuccessMessage "Unavailable period approved"
                 redirectTo LeaveRequestsAction
 
-    action DenyLeaveRequestAction { leaveRequestId } = bepisMutationAction "DenyLeaveRequestAction" bepisCurrentVenueMutationSpec do
+    action DenyLeaveRequestAction { leaveRequestId } = bepisMutationAction "DenyLeaveRequestAction" leaveRequestMutationSpec do
         ensureProfileCompleted
         ensureManagerRole
         ensureVenueWritable

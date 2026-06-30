@@ -24,6 +24,13 @@ import Web.RosterWeeks.Responses (respondWithRosterContentOob)
 import Web.Staff.Mutations
 import Web.View.Staff.Edit
 
+staffManagementMutationSpec :: BepisMutationSpec
+staffManagementMutationSpec = BepisMutationSpec
+    { auditPolicy = BepisAuditRequired
+    , realtimePolicy = BepisNoRealtimeInvalidation
+    , scopePolicy = BepisCurrentVenueScope
+    }
+
 instance Controller StaffController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
         annotateTelemetryAction
@@ -46,7 +53,7 @@ instance Controller StaffController where
             then respondHtml (renderNewStaffModalFragment staff rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds weekOffset maybeRosterGroupId)
             else render NewView { .. }
 
-    action CreateStaffAction = bepisMutationAction "CreateStaffAction" bepisCurrentVenueMutationSpec do
+    action CreateStaffAction = bepisMutationAction "CreateStaffAction" staffManagementMutationSpec do
         ensureVenueWritable
         let weekOffset = paramOrDefault @Int 0 "weekOffset"
         let maybeRosterGroupId = paramOrNothing @(Id RosterGroup) "rosterGroupId"
@@ -107,7 +114,7 @@ instance Controller StaffController where
             then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
             else render EditView { .. }
 
-    action UpdateStaffAction { staffId } = bepisMutationAction "UpdateStaffAction" bepisCurrentVenueMutationSpec do
+    action UpdateStaffAction { staffId } = bepisMutationAction "UpdateStaffAction" staffManagementMutationSpec do
         ensureVenueWritable
         staff <- fetch staffId
         ensureRecordInCurrentVenue staff.venueId
@@ -186,7 +193,7 @@ instance Controller StaffController where
                                     respondStaffUpdateSuccess "Staff member updated"
                                 _ -> renderStaffEditResponse validStaff submittedRosterGroupIds selectedShiftPreferences
 
-    action CreateTrialStaffInvitationAction { staffId } = bepisMutationAction "CreateTrialStaffInvitationAction" bepisCurrentVenueMutationSpec do
+    action CreateTrialStaffInvitationAction { staffId } = bepisMutationAction "CreateTrialStaffInvitationAction" staffManagementMutationSpec do
         ensureVenueWritable
         staff <- fetch staffId
         ensureRecordInCurrentVenue staff.venueId

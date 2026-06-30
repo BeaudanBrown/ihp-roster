@@ -13,6 +13,13 @@ import qualified Network.Wai as Wai
 import Web.Controller.Prelude
 import Web.View.Feedback.New
 
+feedbackMutationSpec :: BepisMutationSpec
+feedbackMutationSpec = BepisMutationSpec
+    { auditPolicy = BepisAuditNotRequired
+    , realtimePolicy = BepisNoRealtimeInvalidation
+    , scopePolicy = BepisCurrentVenueScope
+    }
+
 instance Controller FeedbackController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
         annotateTelemetryAction
@@ -25,7 +32,7 @@ instance Controller FeedbackController where
             then respondHtml (renderNewFeedbackDialog feedbackItem)
             else render NewView { .. }
 
-    action CreateFeedbackAction = bepisMutationAction "CreateFeedbackAction" bepisCurrentVenueMutationSpec do
+    action CreateFeedbackAction = bepisMutationAction "CreateFeedbackAction" feedbackMutationSpec do
         let feedbackItem = buildSubmittedFeedbackItem
         feedbackItem
             |> ifValid \case
