@@ -1,5 +1,9 @@
 module Test.MutationBoundarySpec where
 
+import Application.Bepis.Architecture (bepisArchitectureContractsJson)
+import Application.Bepis.Fact
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import IHP.Prelude
@@ -7,6 +11,56 @@ import Test.Hspec
 
 tests :: Spec
 tests = describe "Mutation boundary guard" do
+    it "captures emitted Bepis runtime facts in the action-local collector" do
+        (result, facts) <- withBepisFactContext do
+            emitBepisFact $ BepisScopeFactValue BepisScopeFact
+                { scopeFactKind = BepisCurrentVenueScopeFact
+                , scopeFactLabel = "current-venue"
+                }
+            emitBepisFact $ BepisResponseFactValue BepisResponseFact
+                { responseFactKind = BepisRedirectResponse
+                , responseFactTarget = Nothing
+                }
+            pure ("ok" :: Text)
+        case result of
+            Right value -> value `shouldBe` "ok"
+            Left _      -> expectationFailure "fact context should not fail"
+        factSetFacts facts `shouldSatisfy` any (\case BepisScopeFactValue _ -> True; _ -> False)
+        factSetFacts facts `shouldSatisfy` any (\case BepisResponseFactValue _ -> True; _ -> False)
+
+    it "generates Bepis runtime fact contracts from Haskell" do
+        case Aeson.decode bepisArchitectureContractsJson of
+            Just (Aeson.Object object) -> do
+                object KeyMap.!? "version" `shouldBe` Just (Aeson.Number 2)
+                object KeyMap.!? "runner" `shouldSatisfy` isJust
+                object KeyMap.!? "factKinds" `shouldSatisfy` hasNonEmptyArray
+                object KeyMap.!? "operationKinds" `shouldSatisfy` hasNonEmptyArray
+            _ -> expectationFailure "Bepis architecture contracts should decode as an object"
+
+    it "does not keep legacy descriptive Bepis mutation APIs in runtime or architecture code" do
+        sources <- mapM Text.readFile
+            [ "Application/Bepis/Action.hs"
+            , "Application/Bepis/Mutation.hs"
+            , "Application/Bepis/Architecture.hs"
+            , "scripts/architecture/facts.mjs"
+            , "scripts/architecture/gate.mjs"
+            , "scripts/architecture/query.mjs"
+            ]
+        let forbiddenTokens =
+                [ "BepisMutationSpec"
+                , "auditedAs"
+                , "scopedToCurrentVenue"
+                , "scopedToRosterWeek"
+                , "fromLiveMutationResult"
+                , "respondsWithFragments"
+                , "respondsWithRedirect"
+                , "respondsWithJson"
+                , "BEPIS_MUTATION_DRIFT"
+                , "runBepisMutationPipeline"
+                , "bepisMutationAction"
+                ]
+        filter (\token -> any (Text.isInfixOf token) sources) forbiddenTokens `shouldBe` []
+
     it "keeps leave request database writes in the mutation module" do
         source <- Text.readFile "Web/Controller/LeaveRequests.hs"
         let forbiddenTokens = ["createRecord", "updateRecord", "withTransaction", "recordCurrentUserLeaveRequestEvent", "recordCurrentUserAuditEvent"]
@@ -188,3 +242,8 @@ tests = describe "Mutation boundary guard" do
         source <- Text.readFile "Web/Admin/Xero/Mutations.hs"
         let forbiddenTokens = ["refreshAdminXeroPayItems", "refreshAdminXero", "broadcastSurface"]
         filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
+
+hasNonEmptyArray :: Maybe Aeson.Value -> Bool
+hasNonEmptyArray = \case
+    Just (Aeson.Array values) -> not (null values)
+    _                         -> False

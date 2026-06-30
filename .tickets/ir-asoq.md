@@ -1,6 +1,6 @@
 ---
 id: ir-asoq
-status: open
+status: closed
 deps: [ir-amxj]
 links: []
 created: 2026-06-30T11:03:28Z
