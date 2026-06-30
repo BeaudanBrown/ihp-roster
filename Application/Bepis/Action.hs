@@ -1,9 +1,11 @@
 module Application.Bepis.Action
     ( BepisActionInfo (..)
     , BepisActionKind (..)
+    , BepisActionWrapperContract (..)
     , BepisResponseKind (..)
     , bepisActionKindText
     , bepisActionSpan
+    , bepisActionWrapperContracts
     , bepisDialogAction
     , bepisExportAction
     , bepisFormAction
@@ -59,6 +61,27 @@ data BepisActionInfo = BepisActionInfo
     , sourceNote    :: !(Maybe Text)
     }
     deriving (Eq, Show, Generic)
+
+data BepisActionWrapperContract = BepisActionWrapperContract
+    { wrapperName          :: !Text
+    , wrapperActionKind    :: !BepisActionKind
+    , wrapperResponseKinds :: ![BepisResponseKind]
+    , wrapperRequiresSpec  :: !Bool
+    }
+    deriving (Eq, Show, Generic)
+
+bepisActionWrapperContracts :: [BepisActionWrapperContract]
+bepisActionWrapperContracts =
+    [ BepisActionWrapperContract "bepisPageAction" BepisPageAction [BepisHtmlResponse, BepisRedirectResponse] False
+    , BepisActionWrapperContract "bepisFormAction" BepisFormAction [BepisHtmlResponse, BepisRedirectResponse] False
+    , BepisActionWrapperContract "bepisFragmentAction" BepisFragmentAction [BepisHtmxFragmentResponse] False
+    , BepisActionWrapperContract "bepisDialogAction" BepisDialogAction [BepisDialogResponse, BepisHtmxFragmentResponse] False
+    , BepisActionWrapperContract "bepisPreferenceAction" BepisPreferenceAction [BepisRedirectResponse, BepisHtmxFragmentResponse] True
+    , BepisActionWrapperContract "bepisMutationAction" BepisMutationAction [BepisRedirectResponse, BepisHtmxFragmentResponse] True
+    , BepisActionWrapperContract "bepisJsonMutationAction" BepisMutationAction [BepisJsonResponse, BepisRedirectResponse] True
+    , BepisActionWrapperContract "bepisIntegrationAction" BepisIntegrationAction [BepisJsonResponse, BepisRedirectResponse, BepisHtmlResponse] False
+    , BepisActionWrapperContract "bepisExportAction" BepisExportAction [BepisFileResponse, BepisHtmlResponse, BepisRedirectResponse] False
+    ]
 
 bepisPageAction :: Data action => action -> IO a -> IO a
 bepisPageAction action =

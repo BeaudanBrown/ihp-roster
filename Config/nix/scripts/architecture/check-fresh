@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+bash ./Config/nix/scripts/architecture/contracts >/dev/null
 node scripts/architecture/facts.mjs >/dev/null
 node scripts/architecture/schema.mjs >/dev/null
 node scripts/architecture/web-map.mjs >/dev/null

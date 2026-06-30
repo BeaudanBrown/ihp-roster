@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repo_root="${ARCHITECTURE_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+cd "$repo_root"
+
+if [ -f "@scriptsRoot@/lib/ghc.sh" ]; then
+    # shellcheck source=../lib/ghc.sh
+    . "@scriptsRoot@/lib/ghc.sh"
+else
+    # shellcheck source=../lib/ghc.sh
+    . "Config/nix/scripts/lib/ghc.sh"
+fi
+
+output_path="${1:-output/architecture/bepis-contracts.json}"
+
+if [ -n "${ARCHITECTURE_CONTRACTS_BUILD_DIR:-}" ]; then
+    build_dir="$ARCHITECTURE_CONTRACTS_BUILD_DIR"
+    cleanup() { :; }
+else
+    build_dir="$(mktemp -d)"
+    cleanup() {
+        rm -rf "$build_dir"
+    }
+fi
+trap cleanup EXIT
+
+mkdir -p "$build_dir/obj" "$build_dir/hi" "$(dirname "$output_path")"
+GHC_OPTS="$(ihp_roster_ghc_opts)"
+ghc $GHC_OPTS Application/Script/GenerateBepisArchitectureContracts.hs \
+    -main-is Application.Script.GenerateBepisArchitectureContracts \
+    -odir "$build_dir/obj" \
+    -hidir "$build_dir/hi" \
+    -o "$build_dir/generate-bepis-architecture-contracts" >/dev/null
+
+tmp_output="$(mktemp "$(dirname "$output_path")/.bepis-contracts.json.XXXXXX")"
+"$build_dir/generate-bepis-architecture-contracts" "$tmp_output"
+
+if [ -f "$output_path" ] && cmp -s "$tmp_output" "$output_path"; then
+    rm -f "$tmp_output"
+else
+    mv "$tmp_output" "$output_path"
+fi

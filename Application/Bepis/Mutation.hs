@@ -9,6 +9,7 @@ module Application.Bepis.Mutation
     , bepisNoScopeMutationSpec
     , bepisSupportMutationSpec
     , bepisMutationSpecAttributes
+    , bepisMutationSpecPolicyVocabulary
     , bepisVenueRosterWeekMutationSpec
     , bepisRealtimePolicyText
     , bepisScopePolicyText
@@ -108,6 +109,23 @@ bepisScopePolicyText = \case
     BepisVenueRosterWeekScope -> "venue-roster-week"
     BepisVenueRosterGroupScope -> "venue-roster-group"
     BepisSupportScope -> "support"
+
+bepisMutationSpecPolicyVocabulary :: [(Text, Text, Text)]
+bepisMutationSpecPolicyVocabulary =
+    [ ("audit", "BepisAuditNotRequired", bepisAuditPolicyText BepisAuditNotRequired)
+    , ("audit", "BepisAuditRequired", bepisAuditPolicyText BepisAuditRequired)
+    , ("audit", "BepisAuditForbidden", bepisAuditPolicyText BepisAuditForbidden)
+    , ("realtime", "BepisRealtimeNotApplicable", bepisRealtimePolicyText BepisRealtimeNotApplicable)
+    , ("realtime", "BepisNoRealtimeInvalidation", bepisRealtimePolicyText BepisNoRealtimeInvalidation)
+    , ("realtime", "BepisEmitsRealtimeInvalidation", bepisRealtimePolicyText BepisEmitsRealtimeInvalidation)
+    , ("realtime", "BepisRefetchesLiveFragment", bepisRealtimePolicyText BepisRefetchesLiveFragment)
+    , ("scope", "BepisNoScopePolicy", bepisScopePolicyText BepisNoScopePolicy)
+    , ("scope", "BepisCurrentUserScope", bepisScopePolicyText BepisCurrentUserScope)
+    , ("scope", "BepisCurrentVenueScope", bepisScopePolicyText BepisCurrentVenueScope)
+    , ("scope", "BepisVenueRosterWeekScope", bepisScopePolicyText BepisVenueRosterWeekScope)
+    , ("scope", "BepisVenueRosterGroupScope", bepisScopePolicyText BepisVenueRosterGroupScope)
+    , ("scope", "BepisSupportScope", bepisScopePolicyText BepisSupportScope)
+    ]
 
 bepisMutationSpecAttributes :: BepisMutationSpec -> [(Text, Attribute)]
 bepisMutationSpecAttributes spec =

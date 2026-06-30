@@ -156,7 +156,26 @@ function extractTopLevelDefinition(text, name) {
   return next === -1 ? after : after.slice(0, match[0].length + next);
 }
 
-function parseBepisActionWrapperContracts() {
+function loadBepisArchitectureContracts() {
+  const relPath = "output/architecture/bepis-contracts.json";
+  const absolutePath = path.join(repoRoot, relPath);
+  if (!fs.existsSync(absolutePath)) return null;
+  return JSON.parse(fs.readFileSync(absolutePath, "utf8"));
+}
+
+function parseBepisActionWrapperContracts(generatedContracts) {
+  const generatedWrappers = generatedContracts?.actionWrappers || [];
+  if (generatedWrappers.length > 0) {
+    return new Map(generatedWrappers.map((contract) => [contract.name, {
+      kind: contract.kind,
+      responseKinds: contract.responseKinds || [],
+      requiresMutationSpec: Boolean(contract.requiresMutationSpec),
+      source: contract.source || { path: "output/architecture/bepis-contracts.json" },
+      confidence: contract.confidence || "typed-contract",
+      provenance: "generated-haskell-contract",
+    }]));
+  }
+
   const relPath = "Application/Bepis/Action.hs";
   const text = readText(relPath);
   const actionKindText = parseConstructorTextMappings(text, "Bepis");
@@ -252,7 +271,11 @@ function inferActionDetails(body, tableModels) {
   return { calls, renderCalls, authScopeCalls, realtimeCalls, tableRefs: unique(tableRefs), dataAccess, responseKinds };
 }
 
-function parseBepisMutationPolicyTextMappings() {
+function parseBepisMutationPolicyTextMappings(generatedContracts) {
+  const generatedPolicies = generatedContracts?.mutationPolicies || [];
+  if (generatedPolicies.length > 0) {
+    return new Map(generatedPolicies.map((policy) => [policy.constructor, policy.label]));
+  }
   return parseConstructorTextMappings(readText("Application/Bepis/Mutation.hs"), "Bepis");
 }
 
@@ -405,13 +428,14 @@ const controllers = parseControllers(readText("Web/Types.hs"));
 const actionNames = controllers.flatMap((controller) => controller.actions.map((action) => action.name));
 const tableModels = new Map(schema.tables.map((table) => [table.model, table.name]));
 const allReferenceFiles = unique([...moduleFiles, ...viewFiles, ...frontendFiles]);
-const bepisMutationPolicyText = parseBepisMutationPolicyTextMappings();
+const bepisArchitectureContracts = loadBepisArchitectureContracts();
+const bepisMutationPolicyText = parseBepisMutationPolicyTextMappings(bepisArchitectureContracts);
 const bepisMutationSpecs = parseBepisMutationSpecs(moduleFiles, bepisMutationPolicyText);
-const bepisActionWrapperContracts = parseBepisActionWrapperContracts();
+const bepisActionWrapperContracts = parseBepisActionWrapperContracts(bepisArchitectureContracts);
 const facts = {
   version: 2,
   generatedBy: "scripts/architecture/facts.mjs",
-  model: "source-scanned entities/relationships with provenance and heuristic confidence",
+  model: "source-scanned entities/relationships with generated typed Bepis contracts, provenance, and heuristic confidence",
   sources: Object.fromEntries([...sourceFiles, ...controllerFiles, ...viewFiles, ...moduleFiles, ...frontendFiles].sort().map((file) => [file, fileHash(file)])),
   schema,
   web: {
@@ -421,6 +445,12 @@ const facts = {
     handlers: parseHandlers(controllerFiles, tableModels, bepisMutationSpecs, bepisActionWrapperContracts),
     controllerPolicies: parseControllerPolicies(controllerFiles),
     actionWrapperContracts: [...bepisActionWrapperContracts.entries()].map(([name, contract]) => ({ name, ...contract })),
+    bepisArchitectureContracts: bepisArchitectureContracts ? {
+      version: bepisArchitectureContracts.version,
+      generatedBy: bepisArchitectureContracts.generatedBy,
+      provenance: bepisArchitectureContracts.provenance,
+      source: { path: "output/architecture/bepis-contracts.json" },
+    } : undefined,
     mutationSpecs: [...bepisMutationSpecs.values()],
     views: parseViews(viewFiles),
     actionReferences: parseActionReferences(allReferenceFiles, actionNames),
