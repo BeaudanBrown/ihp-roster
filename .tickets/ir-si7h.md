@@ -1,6 +1,6 @@
 ---
 id: ir-si7h
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-06-30T09:53:46Z
