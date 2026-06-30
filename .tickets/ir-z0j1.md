@@ -1,6 +1,6 @@
 ---
 id: ir-z0j1
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-06-30T11:02:34Z
