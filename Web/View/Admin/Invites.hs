@@ -8,6 +8,7 @@ module Web.View.Admin.Invites
     , adminInvitesLiveSurfaceDefinition
     , adminInvitesLiveSurfaceDefinitionForVenue
     , renderInvitesSectionFragment
+    , renderInvitesSectionFragmentWithSwap
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
@@ -41,7 +42,7 @@ renderInviteCreateForm rosterGroupId = [hsx|
         data-disable-javascript-submission="true"
         hx-post={appendQueryParams (pathTo CreateVenueInvitationAction) [("rosterGroupId", tshow rosterGroupId)]}
         hx-target="#admin-invites-fragment"
-        hx-swap="outerHTML"
+        hx-swap="none"
     >
         <div class="row g-2 align-items-end">
             <div class="col-12 col-md-9">
@@ -56,9 +57,14 @@ renderInviteCreateForm rosterGroupId = [hsx|
 |]
 
 renderInvitesSectionFragment :: [VenueInvitation] -> Id RosterGroup -> Html
-renderInvitesSectionFragment invitations rosterGroupId =
+renderInvitesSectionFragment =
+    renderInvitesSectionFragmentWithSwap Nothing
+
+renderInvitesSectionFragmentWithSwap :: Maybe Text -> [VenueInvitation] -> Id RosterGroup -> Html
+renderInvitesSectionFragmentWithSwap maybeSwapOob invitations rosterGroupId =
     Html5.div
         ! attr "id" "admin-invites-fragment"
+        ! maybeAttr "hx-swap-oob" maybeSwapOob
         ! attr "data-live-update-surface" (liveSurfaceConfigJson (adminInvitesLiveSurface rosterGroupId))
         ! uiRegionTransitionAttrs UiRegionTransitionFade
         $ renderInvitesSection invitations rosterGroupId
@@ -122,6 +128,10 @@ attr :: Text -> Text -> Blaze.Attribute
 attr name value =
     Blaze.customAttribute (Blaze.textTag name) (Blaze.toValue value)
 
+maybeAttr :: Text -> Maybe Text -> Blaze.Attribute
+maybeAttr _ Nothing         = mempty
+maybeAttr name (Just value) = attr name value
+
 currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =
     case currentVenueOrNothing of
@@ -175,7 +185,7 @@ renderInviteRowActions rosterGroupId invitation
             data-disable-javascript-submission="true"
             hx-post={appendQueryParams (pathTo (RevokeVenueInvitationAction invitation.id)) [("rosterGroupId", tshow rosterGroupId)]}
             hx-target="#admin-invites-fragment"
-            hx-swap="outerHTML"
+            hx-swap="none"
         >
             <button class="btn btn-sm btn-outline-danger" type="submit">Revoke</button>
         </form>

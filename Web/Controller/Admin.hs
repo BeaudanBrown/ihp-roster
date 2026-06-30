@@ -74,8 +74,9 @@ respondToVenueSettingsMutation ::
 respondToVenueSettingsMutation =
     if isHtmxRequest
         then do
+            setHeader ("HX-Reswap", "none")
             venueConfig <- fetchVenueConfig
-            respondHtml (renderVenueSettingsSectionFragment venueConfig)
+            respondHtml (renderVenueSettingsSectionFragmentWithSwap (Just "outerHTML") venueConfig)
         else redirectToAdminFor (paramOrNothing "rosterGroupId")
 
 respondToShiftTypesSectionMutationWithXeroRefresh ::

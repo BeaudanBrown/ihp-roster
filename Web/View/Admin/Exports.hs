@@ -7,6 +7,7 @@ module Web.View.Admin.Exports
     , adminExportsLiveSurfaceDefinitionForVenue
     , renderExportsSection
     , renderExportsSectionFragment
+    , renderExportsSectionFragmentWithSwap
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
@@ -64,8 +65,13 @@ currentVenueScopeId =
         Nothing -> error "Admin exports live surface requires a current venue"
 
 renderExportsSectionFragment :: ReportWeekSelection -> Day -> Day -> [ExportJob] -> Html
-renderExportsSectionFragment reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs = [hsx|
+renderExportsSectionFragment =
+    renderExportsSectionFragmentWithSwap Nothing
+
+renderExportsSectionFragmentWithSwap :: Maybe Text -> ReportWeekSelection -> Day -> Day -> [ExportJob] -> Html
+renderExportsSectionFragmentWithSwap maybeSwapOob reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs = [hsx|
     <div id={adminExportsFragmentId}
+         hx-swap-oob={maybeSwapOob}
          data-live-update-surface={liveSurfaceConfigJson (mkTypedDefinedLiveSurface adminExportsLiveSurfaceDefinition ())}>
         {renderExportsSection reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs}
     </div>
@@ -85,7 +91,7 @@ renderExportsSection _reportWeekSelection defaultRangeStart defaultRangeEnd expo
                   data-disable-javascript-submission="true"
                   hx-post={CreateExportJobAction}
                   hx-target={"#" <> adminExportsFragmentId}
-                  hx-swap="outerHTML"
+                  hx-swap="none"
                   hx-push-url="false">
                 <div class="row g-3 align-items-end">
                     <div class="col-12 col-md-4 col-lg-3">

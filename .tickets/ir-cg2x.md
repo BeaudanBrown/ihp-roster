@@ -1,6 +1,6 @@
 ---
 id: ir-cg2x
-status: open
+status: in_progress
 deps: [ir-hnpv]
 links: []
 created: 2026-05-29T03:16:08Z

@@ -11,7 +11,8 @@ import Network.Wai (responseLBS)
 import Web.Controller.Prelude
 import Web.Exports.Mutations (recordExportDownloadMutation,
                               requestFixedExportMutation)
-import Web.View.Admin.Exports (renderExportsSectionFragment)
+import Web.View.Admin.Exports (renderExportsSectionFragment,
+                               renderExportsSectionFragmentWithSwap)
 
 respondToAdminExportsSectionMutation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -24,7 +25,8 @@ respondToAdminExportsSectionMutation =
             let defaultRangeStart = reportWeekSelection.weekStart
             let defaultRangeEnd = reportWeekSelection.weekEnd
             exportJobs <- fetchCurrentVenueExportJobs
-            respondHtml (renderExportsSectionFragment reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs)
+            setHeader ("HX-Reswap", "none")
+            respondHtml (renderExportsSectionFragmentWithSwap (Just "outerHTML") reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs)
         else redirectToPath (pathTo AdminAction <> "#exports")
 
 instance Controller ExportsController where

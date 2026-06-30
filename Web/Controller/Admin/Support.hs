@@ -101,8 +101,9 @@ respondToInvitesSectionMutation successMessage rosterGroupId =
         { adminSectionSuccessMessage = nonEmptySuccessMessage successMessage
         , adminSectionRedirectGroup = Just rosterGroupId
         , adminSectionRenderFragment = do
+            setHeader ("HX-Reswap", "none")
             invitations <- fetchCurrentVenueInvitations
-            pure (renderInvitesSectionFragment invitations rosterGroupId)
+            pure (renderInvitesSectionFragmentWithSwap (Just "outerHTML") invitations rosterGroupId)
         }
 
 respondToShiftTypesSectionMutation ::

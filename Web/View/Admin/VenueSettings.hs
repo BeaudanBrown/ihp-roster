@@ -7,6 +7,7 @@ module Web.View.Admin.VenueSettings
     , adminVenueSettingsLiveSurfaceDefinitionForVenue
     , renderVenueSettingsSection
     , renderVenueSettingsSectionFragment
+    , renderVenueSettingsSectionFragmentWithSwap
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
@@ -63,8 +64,13 @@ currentVenueScopeId =
         Nothing -> error "Admin venue settings live surface requires a current venue"
 
 renderVenueSettingsSectionFragment :: (?context :: ControllerContext) => VenueConfig -> Html
-renderVenueSettingsSectionFragment venueConfig = [hsx|
+renderVenueSettingsSectionFragment =
+    renderVenueSettingsSectionFragmentWithSwap Nothing
+
+renderVenueSettingsSectionFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> VenueConfig -> Html
+renderVenueSettingsSectionFragmentWithSwap maybeSwapOob venueConfig = [hsx|
     <div id={adminVenueSettingsFragmentId}
+         hx-swap-oob={maybeSwapOob}
          data-live-update-surface={liveSurfaceConfigJson (mkTypedDefinedLiveSurface adminVenueSettingsLiveSurfaceDefinition ())}>
         {renderVenueSettingsSection venueConfig}
     </div>
@@ -91,7 +97,7 @@ renderRosterEndTimesForm venueConfig = [hsx|
           data-disable-javascript-submission="true"
           hx-post={UpdateVenueConfigAction}
           hx-target={"#" <> adminVenueSettingsFragmentId}
-          hx-swap="outerHTML"
+          hx-swap="none"
           hx-push-url="false">
         <input type="hidden" name="configField" value="rosterEndTimesEnabled" />
         <div class="admin-setting-row-copy">
@@ -112,7 +118,7 @@ renderAutoTimesheetCreationForm venueConfig = [hsx|
           data-disable-javascript-submission="true"
           hx-post={UpdateVenueConfigAction}
           hx-target={"#" <> adminVenueSettingsFragmentId}
-          hx-swap="outerHTML"
+          hx-swap="none"
           hx-push-url="false">
         <input type="hidden" name="configField" value="autoTimesheetCreationEnabled" />
         <div class="admin-setting-row-copy">
@@ -137,7 +143,7 @@ renderVenueSettingToggle inputId fieldName isEnabled =
         , appToggleHxTrigger = Just "change"
         , appToggleHxInclude = Just "closest form"
         , appToggleHxTarget = Just ("#" <> adminVenueSettingsFragmentId)
-        , appToggleHxSwap = Just "outerHTML"
+        , appToggleHxSwap = Just "none"
         , appToggleHxPushUrl = Just "false"
         }
 

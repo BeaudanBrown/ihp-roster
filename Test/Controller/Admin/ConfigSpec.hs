@@ -281,6 +281,7 @@ tests = beforeAll testContext do
                 venueSettingsResponse `responseBodyShouldContain` "admin_venue_config"
                 venueSettingsResponse `responseBodyShouldContain` "hx-post=\"/UpdateVenueConfig\""
                 venueSettingsResponse `responseBodyShouldContain` "hx-target=\"#admin-venue-settings-fragment\""
+                venueSettingsResponse `responseBodyShouldContain` "hx-swap=\"none\""
                 venueSettingsResponse `responseBodyShouldContain` "hx-push-url=\"false\""
                 venueSettingsResponse `responseBodyShouldNotContain` "Roster week starts on"
                 venueSettingsResponse `responseBodyShouldNotContain` "admin-roster-week-starts-on"
@@ -296,6 +297,7 @@ tests = beforeAll testContext do
                 exportsResponse `responseBodyShouldContain` "admin_exports"
                 exportsResponse `responseBodyShouldContain` "hx-post=\"/CreateExportJob\""
                 exportsResponse `responseBodyShouldContain` "hx-target=\"#admin-exports-fragment\""
+                exportsResponse `responseBodyShouldContain` "hx-swap=\"none\""
                 exportsResponse `responseBodyShouldNotContain` "id=\"app\""
 
         it "creates export jobs through targeted admin fragments" $ withContext do
@@ -314,7 +316,8 @@ tests = beforeAll testContext do
                             ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "id=\"admin-exports-fragment\""
+                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
+                response `responseBodyShouldContain` "id=\"admin-exports-fragment\" hx-swap-oob=\"outerHTML\""
                 response `responseBodyShouldContain` "approved-timesheets-2025-01-06-to-2025-01-12.csv"
                 response `responseBodyShouldNotContain` "id=\"app\""
                 versionAfter <- currentLiveUpdateVersion AdminExportsScope { venueId = unpackId venue.id }
@@ -646,7 +649,8 @@ tests = beforeAll testContext do
                             ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "id=\"admin-invites-fragment\""
+                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
+                response `responseBodyShouldContain` "id=\"admin-invites-fragment\" hx-swap-oob=\"outerHTML\""
                 invitationCount <- query @VenueInvitation |> fetchCount
                 invitationCount `shouldBe` 0
                 versionAfter <- currentLiveUpdateVersion AdminInvitesScope { venueId = unpackId venue.id }
@@ -691,6 +695,7 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "admin_venue_config"
                 pageResponse `responseBodyShouldContain` "hx-post=\"/UpdateVenueConfig\""
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-venue-settings-fragment\""
+                pageResponse `responseBodyShouldContain` "hx-swap=\"none\""
                 pageResponse `responseBodyShouldNotContain` "Roster week starts on"
                 pageResponse `responseBodyShouldNotContain` "admin-roster-week-starts-on"
                 pageResponse `responseBodyShouldNotContain` "name=\"rosterWeekStartsOn\""
@@ -704,7 +709,8 @@ tests = beforeAll testContext do
                             ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "id=\"admin-venue-settings-fragment\""
+                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
+                response `responseBodyShouldContain` "id=\"admin-venue-settings-fragment\" hx-swap-oob=\"outerHTML\""
                 response `responseBodyShouldContain` "checked=\"checked\""
                 response `responseBodyShouldNotContain` "id=\"app\""
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
