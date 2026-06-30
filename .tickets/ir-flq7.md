@@ -27,3 +27,7 @@ Architecture tooling derives Bepis wrapper metadata from Application.Bepis types
 **2026-06-30T07:59:10Z**
 
 Hardening complete: wrapper metadata and mutation policy labels are derived from Haskell Bepis type/contract definitions, strict conventions have zero rows/errors, high-risk controllers use feature-level mutation specs, and architecture-check-fresh includes a deterministic Bepis architecture gate.
+
+**2026-06-30T08:01:37Z**
+
+Follow-up: E2ETestController now has its own e2eTestMutationSpec, so no controller action relies on generic built-in mutation spec names. typecheck, architecture-check-fresh, and architecture gate passed.
