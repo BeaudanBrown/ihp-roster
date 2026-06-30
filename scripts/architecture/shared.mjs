@@ -94,6 +94,6 @@ export function readStdinJson() {
   return { name: process.env.PI_ARCHITECTURE_QUERY_NAME, args: JSON.parse(process.env.PI_ARCHITECTURE_QUERY_ARGS_JSON || "{}") };
 }
 
-export function architectureResult(summary, artifacts, provenance = {}) {
-  process.stdout.write(`${JSON.stringify({ summary, artifacts, provenance }, null, 2)}\n`);
+export function architectureResult(summary, artifacts = [], provenance = {}, extra = {}) {
+  process.stdout.write(`${JSON.stringify({ summary, ...extra, artifacts, provenance }, null, 2)}\n`);
 }
