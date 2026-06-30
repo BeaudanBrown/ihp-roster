@@ -34,6 +34,33 @@ For focused questions, prefer structured queries through Pi when available:
 
 Do not commit generated architecture outputs unless a future ticket explicitly changes that policy.
 
+## Bepis-IHP Boundary
+
+When documenting or inspecting controller architecture, keep IHP as the outer
+framework boundary. Do not replace IHP routes, `Controller` instances,
+`beforeAction`, request context, HSX rendering, QueryBuilder, generated types, or
+middleware with a parallel app framework. Bepis-specific semantics should be
+thin wrappers inside the IHP lifecycle.
+
+Prefer typed behavior over standalone metadata. Architecture extraction should
+classify controller/action facts in this order:
+
+1. typed Bepis wrappers/specs such as `bepisPageAction`,
+   `bepisFragmentAction`, `bepisDialogAction`, `bepisMutationAction`, and
+   mutation/realtime policy specs;
+2. app-owned live-surface and generated-contract registries;
+3. static source/call scans;
+4. naming-convention fallback.
+
+Report provenance and confidence whenever a query uses source scanning or naming
+fallback. Do not present heuristic request-flow, table-use, or realtime edges as
+compiler-perfect truth.
+
+IHP Auto Refresh is page/action oriented: it tracks table reads, reruns the
+action, and morphs the whole document body. It may inspire or supply table-read
+signals in future work, but it does not replace Bepis domain/surface/viewer
+scopes or authorized fragment refetches.
+
 ## Flexibility
 
 Keep architecture tooling adaptable:

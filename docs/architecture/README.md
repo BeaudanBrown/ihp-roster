@@ -83,10 +83,61 @@ These queries intentionally report warnings/confidence when relationships are
 heuristic. They should be refined with more precise parsers over time rather than
 be treated as complete compiler-grade call graphs.
 
+## Bepis-IHP Boundary
+
+IHP remains the outer framework boundary. `Web/Types.hs`, `Web/Routes.hs`,
+`Web/FrontController.hs`, `Controller` instances, `beforeAction`, request
+context, route parsing, HSX rendering, QueryBuilder, generated model types, and
+framework middleware should stay IHP-native. Bepis should not introduce a custom
+router or parallel controller lifecycle unless a future ticket proves the typed
+prototype is simpler and safer than the IHP default.
+
+Bepis-owned invariants live inside that IHP shell:
+
+- controller policies such as public, authenticated, venue-scoped, admin, and
+  support-only access;
+- action kind and response kind, e.g. page, fragment, dialog, mutation,
+  redirect, JSON, or file response;
+- venue/support scope, request-derived id validation expectations, mutation
+  scope, audit policy, and realtime/live freshness policy;
+- generated frontend contract and live-surface semantics used by architecture
+  facts and convention checks.
+
+The migration path is wrapper-first. Existing controller actions should keep the
+normal IHP shape but delegate immediately through small Bepis wrappers, for
+example `bepisBeforeAction`, `bepisPageAction`, `bepisFragmentAction`,
+`bepisDialogAction`, and `bepisMutationAction`. A later `ControllerSpec`
+prototype may replace per-action wrapper calls only if it remains ergonomic with
+IHP action constructors and does not hide the framework boundary.
+
+Typed behavior is preferred over standalone metadata. Architecture facts should
+classify actions and flows in this order:
+
+```text
+typed Bepis wrappers/specs
+  > app-owned live surface and generated contract registries
+  > static source/call scanning
+  > naming-convention fallback
+```
+
+When a query falls back to a heuristic, it must report confidence/provenance so
+agents do not treat inferred request-flow or realtime edges as compiler-perfect
+truth.
+
+IHP Auto Refresh is not a replacement for Bepis live scopes. It tracks table
+reads for an action, reruns the action after matching database changes, and
+morphs the browser `document.body`. Bepis collaborative surfaces need
+domain/surface/viewer authorization scopes and fragment refetch behavior. Future
+work may reuse or learn from IHP table-read tracking, but Bepis retains the
+scope and authorized-fragment model.
+
 ## Web Surface
 
 - `Web/Controller/` owns request handling, params, redirects, HTMX response
-  shape, and permission response choices.
+  shape, and permission response choices. New or migrated actions should route
+  app-level policy, action kind, mutation policy, response kind, and
+  architecture annotations through Bepis wrappers while preserving IHP
+  controller conventions.
 - `Web/View/` owns HSX rendering and layout structure.
 - Feature modules under `Web/RosterWeeks/`, `Web/Timesheets/`, and
   `Web/LeaveRequests/` own projections, response helpers, paths, and local

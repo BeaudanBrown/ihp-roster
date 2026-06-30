@@ -62,6 +62,14 @@ Every controller requires changes in **four files** (missing any will cause comp
 ## Common Patterns
 
 - Always import `Web.Controller.Prelude` — it re-exports everything needed
+- Keep IHP as the controller framework boundary. New Bepis-specific action
+  semantics should be introduced through thin app-owned wrappers inside normal
+  IHP `beforeAction` and `action` definitions, not through a custom router or
+  parallel controller lifecycle. As controllers migrate, delegate action bodies
+  near the top through wrappers such as `bepisPageAction`,
+  `bepisFragmentAction`, `bepisDialogAction`, or `bepisMutationAction` so
+  policy, response kind, mutation/realtime/audit intent, and architecture facts
+  are inspectable from code.
 - Use `param @Type "name"` only when a missing or malformed value should abort the action. For form fields, prefer record builders with `fill`, explicit `requireParam` checks for required fields, and `ifValid` rerender branches.
 - `fill` attaches parser errors to fields, but missing params are ignored. Required dates, ids, numbers, and text fields must be checked server-side; do not rely on HTML `required`, hidden fields, or select options.
 - Normalize user text in builders (`normalizeTextField`, `normalizeMaybeTextField`, `requiredBoundedTextField`) before saving. Trim required text, convert blank optional text to `Nothing`, and apply max lengths that match schema constraints.
