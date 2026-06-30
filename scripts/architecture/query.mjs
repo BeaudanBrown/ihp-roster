@@ -271,6 +271,72 @@ function tableQuery(facts, args) {
   });
 }
 
+function conventionsQuery(facts, args) {
+  const failOnViolations = Boolean(args.failOnViolations ?? false);
+  const includeInfo = Boolean(args.includeInfo ?? false);
+  const limit = Number(args.limit ?? 50);
+  const handlers = byAction(facts);
+  const policyByModule = new Map((facts.web.controllerPolicies || []).map((entry) => [entry.module, entry.policy]));
+  const rows = [];
+  const errors = [];
+  const warnings = [];
+  for (const controller of facts.web.controllers) {
+    const controllerHandlers = controller.actions.map((action) => ({ action, handler: handlers.get(action.name) }));
+    const modules = unique(controllerHandlers.map((entry) => entry.handler?.module));
+    const migrated = modules.some((moduleName) => policyByModule.has(moduleName));
+    const policy = modules.map((moduleName) => policyByModule.get(moduleName)?.policy).filter(Boolean).join(", ");
+    for (const { action, handler } of controllerHandlers) {
+      if (!handler) {
+        const row = { severity: "error", controller: controller.name, action: action.name, issue: "missing-handler", source: `${action.source.path}:${action.source.line}` };
+        rows.push(row);
+        errors.push(`${controller.name}.${action.name} has no handler`);
+        continue;
+      }
+      const hasWrapper = handler.kindSource === "typed-wrapper";
+      if (!hasWrapper) {
+        const severity = migrated ? "error" : "info";
+        const row = { severity, controller: controller.name, action: action.name, issue: "missing-bepis-action-wrapper", source: `${handler.path}:${handler.line}` };
+        rows.push(row);
+        if (migrated) errors.push(`${controller.name}.${action.name} is in a migrated controller but has no Bepis action wrapper`);
+      }
+      if (migrated && handler.calls?.some((call) => /^(render|respondHtml|redirectTo|redirectToPath|json|renderJson)$/.test(call)) && !handler.calls?.some((call) => /^bepis.*Response$/.test(call))) {
+        rows.push({ severity: "info", controller: controller.name, action: action.name, issue: "raw-ihp-response-helper", source: `${handler.path}:${handler.line}` });
+      }
+    }
+    if (migrated && !policy) {
+      warnings.push(`${controller.name} appears migrated but no controller policy was recorded.`);
+    }
+  }
+  const migratedControllers = facts.web.controllers.filter((controller) => {
+    const modules = unique(controller.actions.map((action) => handlers.get(action.name)?.module));
+    return modules.some((moduleName) => policyByModule.has(moduleName));
+  });
+  const visibleRows = rows.filter((row) => includeInfo || row.severity !== "info").slice(0, limit);
+  const omittedRows = rows.length - visibleRows.length;
+  architectureResult("Generated Bepis architecture convention report.", [], { generatedFrom: "output/architecture/facts.json", confidence: "typed-wrapper+static-scan" }, {
+    warnings: [
+      ...warnings,
+      ...(errors.length ? [`${errors.length} blocking convention violation(s) detected.`] : []),
+      ...(omittedRows ? [`${omittedRows} informational convention finding(s) omitted; set includeInfo=true and/or raise limit to list them.`] : []),
+    ],
+    metrics: {
+      controllers: facts.web.controllers.length,
+      migratedControllers: migratedControllers.length,
+      handlers: facts.web.handlers.length,
+      typedWrapperHandlers: facts.web.handlers.filter((handler) => handler.kindSource === "typed-wrapper").length,
+      conventionRows: rows.length,
+      visibleRows: visibleRows.length,
+      informationalRows: rows.filter((row) => row.severity === "info").length,
+      errors: errors.length,
+    },
+    tables: [{ title: "convention findings", rows: visibleRows }],
+    sections: [
+      { title: "Enforcement", content: "Controllers with a Bepis controller policy wrapper are treated as migrated. Missing Bepis action wrappers in migrated controllers are blocking; missing wrappers elsewhere are informational during rollout." },
+    ],
+  });
+  if (failOnViolations && errors.length > 0) process.exitCode = 1;
+}
+
 function requestFlowQuery(facts, args) {
   const actionName = args.action || args.target;
   const record = actionRecord(facts, actionName);
@@ -437,6 +503,9 @@ switch (payload.name) {
     break;
   case "request-flow":
     requestFlowQuery(facts, args);
+    break;
+  case "conventions":
+    conventionsQuery(facts, args);
     break;
   case "realtime-usage":
     realtimeUsageQuery(facts, args);

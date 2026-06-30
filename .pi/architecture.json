@@ -10,6 +10,7 @@
       "realtime-usage",
       "generated-contracts",
       "focused-diagrams",
+      "architecture-conventions",
       "otel-trace-diagrams"
     ],
     "factModel": "project-local v2 entities/relationships with source provenance, heuristic classifiers, and confidence in query results; diagrams are derived views"
@@ -70,6 +71,17 @@
         "action": { "type": "string", "required": true },
         "includeRealtime": { "type": "boolean", "default": true },
         "includeCallers": { "type": "boolean", "default": true }
+      }
+    },
+    "conventions": {
+      "description": "Report Bepis wrapper and architecture convention drift.",
+      "intent": "Detect migrated controllers that bypass Bepis action wrappers and report rollout coverage for unmigrated controllers.",
+      "capabilities": ["controller-actions", "typed-wrapper-coverage", "convention-checks", "metrics"],
+      "command": ["bash", "./bin/in-env", "architecture-query"],
+      "parameters": {
+        "failOnViolations": { "type": "boolean", "default": false },
+        "includeInfo": { "type": "boolean", "default": false },
+        "limit": { "type": "number", "default": 50 }
       }
     },
     "realtime-usage": {
