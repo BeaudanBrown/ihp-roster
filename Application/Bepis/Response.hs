@@ -1,10 +1,12 @@
 module Application.Bepis.Response
     ( bepisDialogResponse
+    , bepisFileResponse
     , bepisHtmlResponse
     , bepisHtmxFragmentResponse
     , bepisJsonResponse
     , bepisRedirectResponse
     , bepisResponseSpan
+    , bepisResponseSpanWithTarget
     ) where
 
 import Application.Bepis.Action (BepisResponseKind (..), bepisResponseKindText)
@@ -17,14 +19,18 @@ import OpenTelemetry.Attributes (toAttribute)
 -- | Annotate an IHP response helper call with app response semantics without
 -- replacing the helper itself.
 bepisResponseSpan :: BepisResponseKind -> IO a -> IO a
-bepisResponseSpan responseKind action =
+bepisResponseSpan responseKind = bepisResponseSpanWithTarget responseKind Nothing
+
+bepisResponseSpanWithTarget :: BepisResponseKind -> Maybe Text -> IO a -> IO a
+bepisResponseSpanWithTarget responseKind target action =
     withTelemetrySpanAttributes
         ("bepis.response." <> bepisResponseKindText responseKind)
-        [("bepis.response.kind", toAttribute (bepisResponseKindText responseKind))]
+        ([ ("bepis.response.kind", toAttribute (bepisResponseKindText responseKind))
+         ] <> maybe [] (\value -> [("bepis.response.target", toAttribute value)]) target)
         do
             emitBepisFact $ BepisResponseFactValue BepisResponseFact
                 { responseFactKind = responseKind
-                , responseFactTarget = Nothing
+                , responseFactTarget = target
                 }
             action
 
@@ -42,3 +48,6 @@ bepisRedirectResponse = bepisResponseSpan BepisRedirectResponse
 
 bepisJsonResponse :: IO a -> IO a
 bepisJsonResponse = bepisResponseSpan BepisJsonResponse
+
+bepisFileResponse :: IO a -> IO a
+bepisFileResponse = bepisResponseSpan BepisFileResponse

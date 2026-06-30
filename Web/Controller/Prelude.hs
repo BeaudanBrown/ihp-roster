@@ -6,14 +6,74 @@ module Web.Controller.Prelude
 , module Application.Helper.Telemetry
 , module IHP.ControllerPrelude
 , module Generated.Types
+, redirectTo
+, redirectToPath
+, redirectToPathSeeOther
+, redirectToSeeOther
+, redirectToUrl
+, redirectToUrlSeeOther
+, render
+, renderFile
+, renderJson
+, renderJsonWithStatusCode
+, respondHtml
 )
 where
 
 import Application.Bepis.Prelude
+import Application.Bepis.Response (bepisFileResponse, bepisHtmlResponse,
+                                   bepisHtmxFragmentResponse, bepisJsonResponse,
+                                   bepisRedirectResponse)
 import Application.Helper.Conflict
 import Application.Helper.Controller
 import Application.Helper.Telemetry
+import qualified Data.Aeson as Aeson
 import Generated.Types
-import IHP.ControllerPrelude
+import IHP.ControllerPrelude hiding (redirectTo, redirectToPath,
+                              redirectToPathSeeOther, redirectToSeeOther,
+                              redirectToUrl, redirectToUrlSeeOther, render,
+                              renderFile, renderJson, renderJsonWithStatusCode,
+                              respondHtml)
+import qualified IHP.ControllerPrelude as IHP
+import IHP.Router.UrlGenerator (HasPath)
+import qualified IHP.ViewSupport as ViewSupport
+import Network.HTTP.Types.Status (Status)
+import Text.Blaze.Html (Html)
 import Web.Routes
 import Web.Types
+
+render :: forall view. (ViewSupport.View view, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => view -> IO ()
+render view = bepisHtmlResponse (IHP.render view)
+
+respondHtml :: (?context :: ControllerContext, ?request :: Request) => Html -> IO ()
+respondHtml html =
+    if isHtmxRequest
+        then bepisHtmxFragmentResponse (IHP.respondHtml html)
+        else bepisHtmlResponse (IHP.respondHtml html)
+
+renderJson :: (?request :: Request, Aeson.ToJSON json) => json -> IO ()
+renderJson json = bepisJsonResponse (IHP.renderJson json)
+
+renderJsonWithStatusCode :: (?request :: Request, Aeson.ToJSON json) => Status -> json -> IO ()
+renderJsonWithStatusCode status json = bepisJsonResponse (IHP.renderJsonWithStatusCode status json)
+
+renderFile :: (?request :: Request) => String -> ByteString -> IO ()
+renderFile path contentType = bepisFileResponse (IHP.renderFile path contentType)
+
+redirectTo :: (?request :: Request, HasPath action) => action -> IO ()
+redirectTo action = bepisRedirectResponse (IHP.redirectTo action)
+
+redirectToPath :: (?request :: Request) => Text -> IO ()
+redirectToPath path = bepisRedirectResponse (IHP.redirectToPath path)
+
+redirectToUrl :: Text -> IO ()
+redirectToUrl url = bepisRedirectResponse (IHP.redirectToUrl url)
+
+redirectToSeeOther :: (?request :: Request, HasPath action) => action -> IO ()
+redirectToSeeOther action = bepisRedirectResponse (IHP.redirectToSeeOther action)
+
+redirectToPathSeeOther :: (?request :: Request) => Text -> IO ()
+redirectToPathSeeOther path = bepisRedirectResponse (IHP.redirectToPathSeeOther path)
+
+redirectToUrlSeeOther :: Text -> IO ()
+redirectToUrlSeeOther url = bepisRedirectResponse (IHP.redirectToUrlSeeOther url)

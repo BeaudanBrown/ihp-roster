@@ -2,6 +2,7 @@ module Test.MutationBoundarySpec where
 
 import Application.Bepis.Architecture (bepisArchitectureContractsJson)
 import Application.Bepis.Fact
+import Application.Bepis.Response
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Text as Text
@@ -27,6 +28,13 @@ tests = describe "Mutation boundary guard" do
             Left _      -> expectationFailure "fact context should not fail"
         factSetFacts facts `shouldSatisfy` any (\case BepisScopeFactValue _ -> True; _ -> False)
         factSetFacts facts `shouldSatisfy` any (\case BepisResponseFactValue _ -> True; _ -> False)
+
+    it "emits response facts from Bepis response helpers" do
+        (_result, facts) <- withBepisFactContext do
+            bepisJsonResponse (pure ())
+            bepisFileResponse (pure ())
+            bepisRedirectResponse (pure ())
+        responseFactKinds facts `shouldBe` [BepisJsonResponse, BepisFileResponse, BepisRedirectResponse]
 
     it "restores the outer Bepis fact context when an inner context throws" do
         (outerResult, outerFacts) <- withBepisFactContext do
@@ -276,6 +284,14 @@ scopeFactLabels facts =
         scopeLabel = \case
             BepisScopeFactValue fact -> Just fact.scopeFactLabel
             _                        -> Nothing
+
+responseFactKinds :: BepisFactSet -> [BepisResponseKind]
+responseFactKinds facts =
+    mapMaybe responseKind facts.factSetFacts
+    where
+        responseKind = \case
+            BepisResponseFactValue fact -> Just fact.responseFactKind
+            _                           -> Nothing
 
 hasNonEmptyArray :: Maybe Aeson.Value -> Bool
 hasNonEmptyArray = \case

@@ -16,6 +16,7 @@ module Application.Helper.Profiling
     , respondHtmlProfiled
     ) where
 
+import Application.Bepis.Response (bepisHtmlResponse, bepisHtmxFragmentResponse)
 import Application.Helper.Telemetry (addTelemetryAttributes, addTelemetryEvent,
                                      withTelemetrySpan,
                                      withTelemetrySpanAttributes)
@@ -158,34 +159,43 @@ renderProfiled view = do
     respondHtmlProfiled html
 
 respondHtmlProfiled :: (?context :: ControllerContext, ?request :: Request) => Blaze.Html -> IO ()
-respondHtmlProfiled html = do
-    maybeProfile :: Maybe RequestProfile <- maybeFromContext
-    case maybeProfile of
-        Nothing -> respondHtml html
-        Just profile -> do
-            (htmlBytes, byteCount) <-
-                withTelemetrySpanAttributes "render.respond_html" [("bepis.profile.diagnostic", toAttribute True)] do
-                    startedAtNs <- getMonotonicTimeNSec
-                    let !htmlBytes = BlazeUtf8.renderHtml html
-                    byteCount <- evaluate (LByteString.length htmlBytes)
-                    completedAtNs <- getMonotonicTimeNSec
-                    addTelemetryAttributes [("html.bytes", toAttribute (fromIntegral byteCount :: Int))]
-                    appendRequestProfileSpan profile
-                        RequestProfileSpan
-                            { spanOrder = 0
-                            , spanName = "render.respond_html"
-                            , durationMs = durationBetweenMs startedAtNs completedAtNs
-                            , detail = Just ("bytes=" <> tshow byteCount)
-                            }
-                    pure (htmlBytes, byteCount)
-            respondAndExitWithHeaders $
-                responseLBS
-                    status200
-                    [ (hContentType, "text/html; charset=utf-8")
-                    , (hConnection, "keep-alive")
-                    , ("X-Profile-Response-Bytes", cs (tshow byteCount))
-                    ]
-                    htmlBytes
+respondHtmlProfiled html =
+    annotateHtmlResponse do
+        maybeProfile :: Maybe RequestProfile <- maybeFromContext
+        case maybeProfile of
+            Nothing -> respondHtml html
+            Just profile -> do
+                (htmlBytes, byteCount) <-
+                    withTelemetrySpanAttributes "render.respond_html" [("bepis.profile.diagnostic", toAttribute True)] do
+                        startedAtNs <- getMonotonicTimeNSec
+                        let !htmlBytes = BlazeUtf8.renderHtml html
+                        byteCount <- evaluate (LByteString.length htmlBytes)
+                        completedAtNs <- getMonotonicTimeNSec
+                        addTelemetryAttributes [("html.bytes", toAttribute (fromIntegral byteCount :: Int))]
+                        appendRequestProfileSpan profile
+                            RequestProfileSpan
+                                { spanOrder = 0
+                                , spanName = "render.respond_html"
+                                , durationMs = durationBetweenMs startedAtNs completedAtNs
+                                , detail = Just ("bytes=" <> tshow byteCount)
+                                }
+                        pure (htmlBytes, byteCount)
+                respondAndExitWithHeaders $
+                    responseLBS
+                        status200
+                        [ (hContentType, "text/html; charset=utf-8")
+                        , (hConnection, "keep-alive")
+                        , ("X-Profile-Response-Bytes", cs (tshow byteCount))
+                        ]
+                        htmlBytes
+    where
+        annotateHtmlResponse =
+            if isProfilingHtmxRequest
+                then bepisHtmxFragmentResponse
+                else bepisHtmlResponse
+
+isProfilingHtmxRequest :: (?context :: ControllerContext) => Bool
+isProfilingHtmxRequest = lookup "HX-Request" ?context.request.requestHeaders == Just "true"
 
 emitRequestProfileResponseHeaders :: (?context :: ControllerContext, ?request :: Request) => IO ()
 emitRequestProfileResponseHeaders = do
