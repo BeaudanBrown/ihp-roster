@@ -1,6 +1,6 @@
 ---
 id: ir-flq7
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-06-30T07:48:23Z
@@ -21,3 +21,9 @@ Keep IHP as outer boundary. Prefer Haskell typed registries/constructors as the 
 
 Architecture tooling derives Bepis wrapper metadata from Application.Bepis types/definitions; strict conventions pass with no blocking and no raw-response info noise; architecture gate is covered by a test/script check; high-risk mutation specs are named per feature; focused typecheck/checks pass.
 
+
+## Notes
+
+**2026-06-30T07:59:10Z**
+
+Hardening complete: wrapper metadata and mutation policy labels are derived from Haskell Bepis type/contract definitions, strict conventions have zero rows/errors, high-risk controllers use feature-level mutation specs, and architecture-check-fresh includes a deterministic Bepis architecture gate.
