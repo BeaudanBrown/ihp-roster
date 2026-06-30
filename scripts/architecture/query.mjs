@@ -192,7 +192,8 @@ function controllerQuery(facts, args) {
     lines.push(edgeLine(`controller:${controller.name}`, groupId));
     for (const item of items) {
       const refCount = item.refs.filter((ref) => ref.kind !== "reference" || !ref.path.endsWith(item.handler?.path || "")).length;
-      const label = `${item.action.name}\n${item.handler ? `${item.handler.path}:${item.handler.line}` : "no handler"}${refCount ? `\n${refCount} refs` : ""}`;
+      const sourceLabel = item.handler?.kindSource === "typed-wrapper" ? "typed wrapper" : (item.handler ? item.handler.kindSource || "heuristic" : "no handler");
+      const label = `${item.action.name}\n${sourceLabel}\n${item.handler ? `${item.handler.path}:${item.handler.line}` : "no handler"}${refCount ? `\n${refCount} refs` : ""}`;
       lines.push(nodeLine(`action:${item.action.name}`, label, { fillcolor: kindColors[kind] || "#ffffff" }));
       lines.push(edgeLine(groupId, `action:${item.action.name}`));
     }
@@ -209,8 +210,16 @@ function controllerQuery(facts, args) {
     { path: svgRel, kind: "diagram", language: "svg", description: "Grouped controller/action surface" },
     { path: dotRel, kind: "source", language: "dot" },
   ], { generatedFrom: "output/architecture/facts.json", sources: [controller.source] }, {
-    metrics: { actions: controller.actions.length, groups: groups.size, referencedActions: [...groups.values()].flat().filter((item) => item.refs.length > 0).length },
-    tables: [{ title: "action groups", rows: [...groups.entries()].map(([kind, items]) => ({ kind, actions: items.length })) }],
+    warnings: [...groups.values()].flat().some((item) => item.handler && item.handler.kindSource !== "typed-wrapper")
+      ? ["Some action kinds come from static scans or naming fallback; migrate handlers to Bepis wrappers for typed-wrapper confidence."]
+      : [],
+    metrics: {
+      actions: controller.actions.length,
+      groups: groups.size,
+      typedWrapperActions: [...groups.values()].flat().filter((item) => item.handler?.kindSource === "typed-wrapper").length,
+      referencedActions: [...groups.values()].flat().filter((item) => item.refs.length > 0).length,
+    },
+    tables: [{ title: "action groups", rows: [...groups.entries()].map(([kind, items]) => ({ kind, actions: items.length, typedWrapperActions: items.filter((item) => item.handler?.kindSource === "typed-wrapper").length })) }],
   });
 }
 
@@ -269,7 +278,7 @@ function requestFlowQuery(facts, args) {
   const handler = byAction(facts).get(actionName);
   const references = (facts.web.actionReferences || []).filter((ref) => ref.action === actionName && !(handler && ref.path === handler.path && ref.line === handler.line));
   const lines = graphHeader("request_flow", "LR");
-  lines.push(nodeLine(`action:${actionName}`, `${actionName}\n${handler?.kind || "action"}`, { fillcolor: "#fef3c7", highlight: true }));
+  lines.push(nodeLine(`action:${actionName}`, `${actionName}\n${handler?.kind || "action"}\n${handler?.kindSource || "unknown-source"}`, { fillcolor: "#fef3c7", highlight: true }));
   lines.push(nodeLine(`controller:${record.controller.name}`, `${record.controller.name}\ncontroller`, { fillcolor: "#dcfce7" }));
   lines.push(edgeLine(`controller:${record.controller.name}`, `action:${actionName}`));
   if (references.length) {
@@ -277,7 +286,7 @@ function requestFlowQuery(facts, args) {
     lines.push(edgeLine("callers", `action:${actionName}`, { label: "references" }));
   }
   if (handler) {
-    lines.push(nodeLine(`handler:${actionName}`, `${handler.module}\n${handler.path}:${handler.line}`, { fillcolor: "#f4f0ff", shape: "component" }));
+    lines.push(nodeLine(`handler:${actionName}`, `${handler.module}\n${handler.path}:${handler.line}\n${handler.confidence || "heuristic"}`, { fillcolor: "#f4f0ff", shape: "component" }));
     lines.push(edgeLine(`action:${actionName}`, `handler:${actionName}`, { label: "handled by" }));
     if (handler.authScopeCalls?.length) {
       lines.push(nodeLine("auth-scope", `auth/scope checks\n${handler.authScopeCalls.slice(0, 6).join("\n")}`, { fillcolor: "#ecfccb" }));
@@ -302,11 +311,15 @@ function requestFlowQuery(facts, args) {
   architectureResult(`Generated request-flow report for ${actionName}.`, [
     { path: svgRel, kind: "diagram", language: "svg" },
     { path: dotRel, kind: "source", language: "dot" },
-  ], { generatedFrom: "output/architecture/facts.json", sources: [record.action.source, handler ? { path: handler.path, line: handler.line } : undefined].filter(Boolean), confidence: "heuristic-static-scan" }, {
-    warnings: ["Function calls, table usage, and response kinds are heuristic static scans; confirm with source for critical changes."],
-    metrics: { references: references.length, tableRefs: handler?.tableRefs?.length || 0, realtimeRefs: handler?.realtimeCalls?.length || 0, directCalls: handler?.calls?.length || 0 },
+  ], { generatedFrom: "output/architecture/facts.json", sources: [record.action.source, handler ? { path: handler.path, line: handler.line } : undefined].filter(Boolean), confidence: handler?.confidence || "heuristic-static-scan" }, {
+    warnings: [
+      "Function calls, table usage, and response kinds are heuristic static scans; confirm with source for critical changes.",
+      ...(handler && handler.kindSource !== "typed-wrapper" ? ["Action kind is not wrapper-derived; migrate to a Bepis action wrapper for typed-wrapper confidence."] : []),
+    ],
+    metrics: { references: references.length, tableRefs: handler?.tableRefs?.length || 0, realtimeRefs: handler?.realtimeCalls?.length || 0, directCalls: handler?.calls?.length || 0, typedWrapper: handler?.kindSource === "typed-wrapper" },
     sections: [
       { title: "Handler", content: handler ? `${handler.module} at ${handler.path}:${handler.line}` : "No handler found." },
+      { title: "Bepis wrapper", content: handler?.bepisWrapper ? `${handler.bepisWrapper.name} declared ${handler.bepisWrapper.declaredActionName} at ${handler.bepisWrapper.source.path}:${handler.bepisWrapper.source.line}` : "No Bepis action wrapper detected." },
       { title: "Direct calls", tables: [{ rows: (handler?.calls || []).slice(0, 40).map((call) => ({ call })) }] },
     ],
   });

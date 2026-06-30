@@ -140,6 +140,33 @@ function actionKind(actionName) {
   return "page";
 }
 
+const bepisActionWrappers = {
+  bepisPageAction: { kind: "page", responseKinds: ["html", "redirect"] },
+  bepisFragmentAction: { kind: "fragment", responseKinds: ["htmx-fragment"] },
+  bepisDialogAction: { kind: "dialog", responseKinds: ["dialog", "htmx-fragment"] },
+  bepisMutationAction: { kind: "mutation", responseKinds: ["redirect", "htmx-fragment"] },
+};
+
+function parseBepisActionWrapper(body, relPath, handlerLine) {
+  const match = body.match(/\b(bepis(?:Page|Fragment|Dialog|Mutation)Action)\s+"([^"]+)"/);
+  if (!match) return null;
+  const wrapper = bepisActionWrappers[match[1]];
+  if (!wrapper) return null;
+  return {
+    name: match[1],
+    declaredActionName: match[2],
+    kind: wrapper.kind,
+    responseKinds: wrapper.responseKinds,
+    source: { path: relPath, line: handlerLine + lineNumberAt(body, match.index ?? 0) - 1 },
+  };
+}
+
+function parseBepisControllerPolicy(text, relPath) {
+  const match = text.match(/\bbeforeAction\s*=\s*bepisBeforeAction\s+(Bepis[A-Za-z0-9_]+Controller)\b/);
+  if (!match) return null;
+  return { policy: match[1], source: { path: relPath, line: lineForMatch(text, match) }, confidence: "typed-wrapper" };
+}
+
 function extractActionBody(text, matchIndex, indent) {
   const after = text.slice(matchIndex);
   const lines = after.split("\n");
@@ -185,19 +212,37 @@ function parseHandlers(controllerFiles, tableModels) {
     const moduleName = moduleNameFromFile(relPath, text);
     for (const m of text.matchAll(/^([ \t]*)action\s+([A-Z][A-Za-z0-9_]*Action)\b/gm)) {
       const indent = m[1].length;
+      const line = lineForMatch(text, m);
       const body = extractActionBody(text, m.index ?? 0, indent);
+      const inferred = inferActionDetails(body, tableModels);
+      const bepisWrapper = parseBepisActionWrapper(body, relPath, line);
       handlers.push({
         action: m[2],
         module: moduleName,
         path: relPath,
-        line: lineForMatch(text, m),
-        kind: actionKind(m[2]),
+        line,
+        kind: bepisWrapper?.kind || actionKind(m[2]),
+        kindSource: bepisWrapper ? "typed-wrapper" : "naming-fallback",
+        confidence: bepisWrapper ? "typed-wrapper" : "heuristic-static-scan",
+        bepisWrapper,
         bodyLineCount: body.split("\n").length,
-        ...inferActionDetails(body, tableModels),
+        ...inferred,
+        responseKinds: unique([...(bepisWrapper?.responseKinds || []), ...(inferred.responseKinds || [])]),
       });
     }
   }
   return handlers;
+}
+
+function parseControllerPolicies(controllerFiles) {
+  return controllerFiles.map((relPath) => {
+    const text = readText(relPath);
+    return {
+      module: moduleNameFromFile(relPath, text),
+      path: relPath,
+      policy: parseBepisControllerPolicy(text, relPath),
+    };
+  }).filter((entry) => entry.policy);
 }
 
 function parseViews(viewFiles) {
@@ -299,6 +344,7 @@ const facts = {
     routes: parseRoutes(readText("Web/Routes.hs")),
     frontController: parseFrontController(readText("Web/FrontController.hs")),
     handlers: parseHandlers(controllerFiles, tableModels),
+    controllerPolicies: parseControllerPolicies(controllerFiles),
     views: parseViews(viewFiles),
     actionReferences: parseActionReferences(allReferenceFiles, actionNames),
   },
