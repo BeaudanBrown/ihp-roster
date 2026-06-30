@@ -2,7 +2,7 @@
 id: ir-62zx
 status: open
 deps: [ir-7hzq]
-links: []
+links: [ir-f2p4, ir-cfcr, ir-jsyd, ir-jooi, ir-zqp3, ir-p008]
 created: 2026-06-25T13:30:47Z
 type: chore
 priority: 2
