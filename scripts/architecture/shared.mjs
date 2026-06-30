@@ -19,7 +19,9 @@ export function readText(relPath) {
 export function writeText(relPath, content) {
   const full = path.join(repoRoot, relPath);
   ensureDir(path.dirname(full));
-  fs.writeFileSync(full, content);
+  const temp = path.join(path.dirname(full), `.${path.basename(full)}.${process.pid}.${Date.now()}.tmp`);
+  fs.writeFileSync(temp, content);
+  fs.renameSync(temp, full);
   return relPath;
 }
 
