@@ -147,8 +147,8 @@ const bepisActionWrappers = {
   bepisMutationAction: { kind: "mutation", responseKinds: ["redirect", "htmx-fragment"] },
 };
 
-function parseBepisActionWrapper(body, relPath, handlerLine) {
-  const match = body.match(/\b(bepis(?:Page|Fragment|Dialog|Mutation)Action)\s+"([^"]+)"/);
+function parseBepisActionWrapper(body, relPath, handlerLine, mutationSpecs) {
+  const match = body.match(/\b(bepis(?:Page|Fragment|Dialog|Mutation)Action)\s+"([^"]+)"(?:\s+([A-Za-z][A-Za-z0-9_']*))?/);
   if (!match) return null;
   const wrapper = bepisActionWrappers[match[1]];
   if (!wrapper) return null;
@@ -157,6 +157,8 @@ function parseBepisActionWrapper(body, relPath, handlerLine) {
     declaredActionName: match[2],
     kind: wrapper.kind,
     responseKinds: wrapper.responseKinds,
+    mutationSpecName: match[1] === "bepisMutationAction" ? match[3] : undefined,
+    mutationSpec: match[1] === "bepisMutationAction" && match[3] ? mutationSpecs.get(match[3]) : undefined,
     source: { path: relPath, line: handlerLine + lineNumberAt(body, match.index ?? 0) - 1 },
   };
 }
@@ -205,7 +207,47 @@ function inferActionDetails(body, tableModels) {
   return { calls, renderCalls, authScopeCalls, realtimeCalls, tableRefs: unique(tableRefs), dataAccess, responseKinds };
 }
 
-function parseHandlers(controllerFiles, tableModels) {
+function constructorPolicyText(value) {
+  const mapping = {
+    BepisAuditNotRequired: "not-required",
+    BepisAuditRequired: "required",
+    BepisAuditForbidden: "forbidden",
+    BepisRealtimeNotApplicable: "not-applicable",
+    BepisNoRealtimeInvalidation: "none",
+    BepisEmitsRealtimeInvalidation: "emits-invalidation",
+    BepisRefetchesLiveFragment: "refetches-live-fragment",
+    BepisNoScopePolicy: "none",
+    BepisCurrentUserScope: "current-user",
+    BepisCurrentVenueScope: "current-venue",
+    BepisVenueRosterWeekScope: "venue-roster-week",
+    BepisVenueRosterGroupScope: "venue-roster-group",
+    BepisSupportScope: "support",
+  };
+  return mapping[value] || value;
+}
+
+function parseBepisMutationSpecs(files) {
+  const specs = new Map();
+  for (const relPath of files) {
+    const text = readText(relPath);
+    const regex = /^([a-z][A-Za-z0-9_']*)\s*::\s*BepisMutationSpec[\s\S]*?^\1\s*=\s*BepisMutationSpec\s*\{([\s\S]*?)^\s*\}/gm;
+    for (const match of text.matchAll(regex)) {
+      const fields = match[2];
+      const fieldValue = (name) => fields.match(new RegExp(`${name}\\s*=\\s*([A-Za-z][A-Za-z0-9_']*)`))?.[1];
+      specs.set(match[1], {
+        name: match[1],
+        auditPolicy: constructorPolicyText(fieldValue("auditPolicy")),
+        realtimePolicy: constructorPolicyText(fieldValue("realtimePolicy")),
+        scopePolicy: constructorPolicyText(fieldValue("scopePolicy")),
+        source: { path: relPath, line: lineForMatch(text, match) },
+        confidence: "typed-wrapper",
+      });
+    }
+  }
+  return specs;
+}
+
+function parseHandlers(controllerFiles, tableModels, mutationSpecs) {
   const handlers = [];
   for (const relPath of controllerFiles) {
     const text = readText(relPath);
@@ -215,7 +257,7 @@ function parseHandlers(controllerFiles, tableModels) {
       const line = lineForMatch(text, m);
       const body = extractActionBody(text, m.index ?? 0, indent);
       const inferred = inferActionDetails(body, tableModels);
-      const bepisWrapper = parseBepisActionWrapper(body, relPath, line);
+      const bepisWrapper = parseBepisActionWrapper(body, relPath, line, mutationSpecs);
       handlers.push({
         action: m[2],
         module: moduleName,
@@ -333,6 +375,7 @@ const controllers = parseControllers(readText("Web/Types.hs"));
 const actionNames = controllers.flatMap((controller) => controller.actions.map((action) => action.name));
 const tableModels = new Map(schema.tables.map((table) => [table.model, table.name]));
 const allReferenceFiles = unique([...moduleFiles, ...viewFiles, ...frontendFiles]);
+const bepisMutationSpecs = parseBepisMutationSpecs(moduleFiles);
 const facts = {
   version: 2,
   generatedBy: "scripts/architecture/facts.mjs",
@@ -343,8 +386,9 @@ const facts = {
     controllers,
     routes: parseRoutes(readText("Web/Routes.hs")),
     frontController: parseFrontController(readText("Web/FrontController.hs")),
-    handlers: parseHandlers(controllerFiles, tableModels),
+    handlers: parseHandlers(controllerFiles, tableModels, bepisMutationSpecs),
     controllerPolicies: parseControllerPolicies(controllerFiles),
+    mutationSpecs: [...bepisMutationSpecs.values()],
     views: parseViews(viewFiles),
     actionReferences: parseActionReferences(allReferenceFiles, actionNames),
   },

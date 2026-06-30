@@ -60,6 +60,13 @@ import Web.View.RosterWeeks.Show (renderRosterWeekShell)
 import Web.View.RosterWeeks.StaffPanel (renderRosterStaffPanelFragment,
                                         renderRosterStaffPanelFragmentOob)
 
+rosterWarningPreferenceMutationSpec :: BepisMutationSpec
+rosterWarningPreferenceMutationSpec = BepisMutationSpec
+    { auditPolicy = BepisAuditNotRequired
+    , realtimePolicy = BepisRealtimeNotApplicable
+    , scopePolicy = BepisCurrentUserScope
+    }
+
 instance Controller RosterWeeksController where
     beforeAction = do
         annotateTelemetryAction
@@ -494,16 +501,17 @@ instance Controller RosterWeeksController where
                 let impactedRows = nub [(sourceSlot.rosterDayId, sourceSlot.rowIndex), (unpackId targetRosterDay.id, targetRowIndex)]
                 respondToRosterSlotMove rosterGroup.id rosterWeek mutationResult previousStaffId impactedRows shouldWarnSourceTimesheetUnchanged
 
-    action UpdateRosterWarningPreferenceAction { weekOffset } = do
-        ensureManagerRole
-        rosterGroup <- resolveRequestedRosterGroup
-        let showRosterWarnings = paramOrDefault @Text "false" "showRosterWarnings" == "true"
-        _ <- upsertCurrentUserShowRosterWarnings showRosterWarnings
-        if isHtmxRequest
-            then respondWithRosterFragmentsUpdate rosterGroup.id weekOffset [RosterProjectionGridToolbar, RosterProjectionGridFrame] (successToast "Roster warning preference saved.")
-            else do
-                setSuccessMessage "Roster warning preference saved."
-                redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
+    action UpdateRosterWarningPreferenceAction { weekOffset } =
+        bepisMutationAction "UpdateRosterWarningPreferenceAction" rosterWarningPreferenceMutationSpec do
+            ensureManagerRole
+            rosterGroup <- resolveRequestedRosterGroup
+            let showRosterWarnings = paramOrDefault @Text "false" "showRosterWarnings" == "true"
+            _ <- upsertCurrentUserShowRosterWarnings showRosterWarnings
+            if isHtmxRequest
+                then respondWithRosterFragmentsUpdate rosterGroup.id weekOffset [RosterProjectionGridToolbar, RosterProjectionGridFrame] (successToast "Roster warning preference saved.")
+                else do
+                    setSuccessMessage "Roster warning preference saved."
+                    redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
 
     action UpdateRosterWageEstimatePreferenceAction { weekOffset } = do
         accessDeniedUnless (hasRole VenueAdminRole)

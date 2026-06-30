@@ -385,7 +385,7 @@ function requestFlowQuery(facts, args) {
     metrics: { references: references.length, tableRefs: handler?.tableRefs?.length || 0, realtimeRefs: handler?.realtimeCalls?.length || 0, directCalls: handler?.calls?.length || 0, typedWrapper: handler?.kindSource === "typed-wrapper" },
     sections: [
       { title: "Handler", content: handler ? `${handler.module} at ${handler.path}:${handler.line}` : "No handler found." },
-      { title: "Bepis wrapper", content: handler?.bepisWrapper ? `${handler.bepisWrapper.name} declared ${handler.bepisWrapper.declaredActionName} at ${handler.bepisWrapper.source.path}:${handler.bepisWrapper.source.line}` : "No Bepis action wrapper detected." },
+      { title: "Bepis wrapper", content: handler?.bepisWrapper ? `${handler.bepisWrapper.name} declared ${handler.bepisWrapper.declaredActionName}${handler.bepisWrapper.mutationSpecName ? ` with ${handler.bepisWrapper.mutationSpecName}` : ""}${handler.bepisWrapper.mutationSpec ? ` (${handler.bepisWrapper.mutationSpec.auditPolicy}/${handler.bepisWrapper.mutationSpec.realtimePolicy}/${handler.bepisWrapper.mutationSpec.scopePolicy})` : ""} at ${handler.bepisWrapper.source.path}:${handler.bepisWrapper.source.line}` : "No Bepis action wrapper detected." },
       { title: "Direct calls", tables: [{ rows: (handler?.calls || []).slice(0, 40).map((call) => ({ call })) }] },
     ],
   });

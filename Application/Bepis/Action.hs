@@ -11,10 +11,12 @@ module Application.Bepis.Action
     , bepisResponseKindText
     ) where
 
+import Application.Bepis.Mutation (BepisMutationSpec,
+                                   bepisMutationSpecAttributes)
 import Application.Helper.Telemetry (withTelemetrySpanAttributes)
 import GHC.Generics (Generic)
 import IHP.Prelude
-import OpenTelemetry.Attributes (toAttribute)
+import OpenTelemetry.Attributes (Attribute, toAttribute)
 
 -- | App-level action classification layered inside the normal IHP controller
 -- lifecycle. These values are intentionally Bepis-owned and mechanism-agnostic:
@@ -78,23 +80,30 @@ bepisDialogAction actionName =
         , sourceNote = Nothing
         }
 
-bepisMutationAction :: Text -> IO a -> IO a
-bepisMutationAction actionName =
-    bepisActionSpan BepisActionInfo
-        { actionName
-        , actionKind = BepisMutationAction
-        , responseKinds = [BepisRedirectResponse, BepisHtmxFragmentResponse]
-        , sourceNote = Nothing
-        }
+bepisMutationAction :: Text -> BepisMutationSpec -> IO a -> IO a
+bepisMutationAction actionName mutationSpec =
+    bepisActionSpanWithAttributes
+        BepisActionInfo
+            { actionName
+            , actionKind = BepisMutationAction
+            , responseKinds = [BepisRedirectResponse, BepisHtmxFragmentResponse]
+            , sourceNote = Nothing
+            }
+        (bepisMutationSpecAttributes mutationSpec)
 
 bepisActionSpan :: BepisActionInfo -> IO a -> IO a
-bepisActionSpan info =
+bepisActionSpan info = bepisActionSpanWithAttributes info []
+
+bepisActionSpanWithAttributes :: BepisActionInfo -> [(Text, Attribute)] -> IO a -> IO a
+bepisActionSpanWithAttributes info extraAttributes =
     withTelemetrySpanAttributes
         ("bepis.action." <> actionName info)
-        [ ("bepis.action", toAttribute (actionName info))
-        , ("bepis.action.kind", toAttribute (bepisActionKindText info.actionKind))
-        , ("bepis.response.kinds", toAttribute (responseKindsText info.responseKinds))
-        ]
+        ( [ ("bepis.action", toAttribute (actionName info))
+          , ("bepis.action.kind", toAttribute (bepisActionKindText info.actionKind))
+          , ("bepis.response.kinds", toAttribute (responseKindsText info.responseKinds))
+          ]
+            <> extraAttributes
+        )
 
 bepisActionKindText :: BepisActionKind -> Text
 bepisActionKindText = \case

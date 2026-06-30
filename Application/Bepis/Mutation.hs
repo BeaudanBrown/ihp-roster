@@ -4,6 +4,8 @@ module Application.Bepis.Mutation
     , BepisRealtimePolicy (..)
     , BepisScopePolicy (..)
     , bepisAuditPolicyText
+    , bepisCurrentUserMutationSpec
+    , bepisNoScopeMutationSpec
     , bepisMutationSpecAttributes
     , bepisRealtimePolicyText
     , bepisScopePolicyText
@@ -46,6 +48,20 @@ data BepisMutationSpec = BepisMutationSpec
     , scopePolicy    :: !BepisScopePolicy
     }
     deriving (Eq, Show, Generic)
+
+bepisNoScopeMutationSpec :: BepisMutationSpec
+bepisNoScopeMutationSpec = BepisMutationSpec
+    { auditPolicy = BepisAuditNotRequired
+    , realtimePolicy = BepisRealtimeNotApplicable
+    , scopePolicy = BepisNoScopePolicy
+    }
+
+bepisCurrentUserMutationSpec :: BepisMutationSpec
+bepisCurrentUserMutationSpec = BepisMutationSpec
+    { auditPolicy = BepisAuditNotRequired
+    , realtimePolicy = BepisRealtimeNotApplicable
+    , scopePolicy = BepisCurrentUserScope
+    }
 
 bepisAuditPolicyText :: BepisAuditPolicy -> Text
 bepisAuditPolicyText = \case

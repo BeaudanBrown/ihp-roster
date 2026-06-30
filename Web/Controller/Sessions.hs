@@ -36,7 +36,7 @@ instance Controller SessionsController where
         render NewView { .. }
 
     action CreateSessionAction =
-        bepisMutationAction "CreateSessionAction" $ profileActionSpan "auth.password_login" do
+        bepisMutationAction "CreateSessionAction" bepisCurrentUserMutationSpec $ profileActionSpan "auth.password_login" do
             let submittedEmail = param @Text "email"
             profileActionSpan "auth.password_login.find_user"
                 ( query @User
@@ -118,9 +118,9 @@ instance Controller SessionsController where
                         setErrorMessage "Invalid Credentials"
                         redirectTo NewSessionAction
 
-    action DeleteSessionAction = bepisMutationAction "DeleteSessionAction" (Sessions.deleteSessionAction @User)
+    action DeleteSessionAction = bepisMutationAction "DeleteSessionAction" bepisCurrentUserMutationSpec (Sessions.deleteSessionAction @User)
 
-    action VerifyEmailAction = bepisMutationAction "VerifyEmailAction" do
+    action VerifyEmailAction = bepisMutationAction "VerifyEmailAction" bepisCurrentUserMutationSpec do
         let verificationTokenValue = param @Text "token"
         findActiveVerificationTokenByToken verificationTokenValue >>= \case
             Nothing -> do
@@ -144,7 +144,7 @@ instance Controller SessionsController where
                 setSuccessMessage "Email verified."
                 redirectTo EditProfileAction
 
-    action ResendVerificationAction = bepisMutationAction "ResendVerificationAction" do
+    action ResendVerificationAction = bepisMutationAction "ResendVerificationAction" bepisNoScopeMutationSpec do
         let submittedEmail = param @Text "email"
         maybeUser <-
             query @User
