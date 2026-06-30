@@ -19,7 +19,7 @@ instance Controller PasskeysController where
         annotateTelemetryAction
         ensureIsUser
 
-    action PasskeyStepUpAction = bepisPageAction "PasskeyStepUpAction" do
+    action currentAction@PasskeyStepUpAction = bepisPageAction currentAction do
         rawStepUpRedirectTo <- getSession @Text passkeyStepUpRedirectSessionKey
         let stepUpRedirectTo = rawStepUpRedirectTo >>= nonEmptyText
         unless (currentUserRequiresMandatoryPasskey || isJust stepUpRedirectTo) do
@@ -29,21 +29,21 @@ instance Controller PasskeysController where
             redirectTo PasskeySetupAction
         render StepUpView { .. }
 
-    action PasskeySetupAction = bepisPageAction "PasskeySetupAction" do
+    action currentAction@PasskeySetupAction = bepisPageAction currentAction do
         rawRedirectTo <- getSession @Text passkeyStepUpRedirectSessionKey
         let passkeySetupRedirectTo = fromMaybe (pathTo RosterWeeksAction) (rawRedirectTo >>= nonEmptyText)
         render PasskeySetupView { .. }
 
-    action DismissMandatoryPasskeySetupAction = bepisMutationAction "DismissMandatoryPasskeySetupAction" passkeyManagementMutationSpec do
+    action currentAction@DismissMandatoryPasskeySetupAction = bepisMutationAction currentAction passkeyManagementMutationSpec do
         deleteSession passkeyStepUpRedirectSessionKey
         setErrorMessage "Create a passkey before opening restricted admin pages."
         redirectTo RosterWeeksAction
 
-    action ShowPasskeySetupDialogAction = bepisDialogAction "ShowPasskeySetupDialogAction" do
+    action currentAction@ShowPasskeySetupDialogAction = bepisDialogAction currentAction do
         let successRedirect = safeLocalRedirect (paramOrDefault @Text profileSecurityPath "successRedirect")
         respondHtml (renderPasskeySetupDialog OptionalFirstPasskey successRedirect)
 
-    action ShowPasskeyRecoveryCodeDialogAction = bepisDialogAction "ShowPasskeyRecoveryCodeDialogAction" do
+    action currentAction@ShowPasskeyRecoveryCodeDialogAction = bepisDialogAction currentAction do
         unless currentUserRequiresMandatoryPasskey do
             redirectTo RosterWeeksAction
         passkeys <- fetchCurrentUserPasskeys
@@ -52,7 +52,7 @@ instance Controller PasskeysController where
             redirectToPath mandatoryPasskeySetupPath
         respondHtml renderPasskeyRecoveryCodeDialog
 
-    action UsePasskeyRecoveryCodeAction = bepisMutationAction "UsePasskeyRecoveryCodeAction" passkeyManagementMutationSpec do
+    action currentAction@UsePasskeyRecoveryCodeAction = bepisMutationAction currentAction passkeyManagementMutationSpec do
         unless currentUserRequiresMandatoryPasskey do
             redirectTo RosterWeeksAction
         passkeys <- fetchCurrentUserPasskeys
@@ -70,7 +70,7 @@ instance Controller PasskeysController where
                 setErrorMessage "That recovery code was not valid or has already been used."
                 redirectTo PasskeyStepUpAction
 
-    action SendNewDevicePasskeySetupEmailAction = bepisMutationAction "SendNewDevicePasskeySetupEmailAction" passkeyManagementMutationSpec do
+    action currentAction@SendNewDevicePasskeySetupEmailAction = bepisMutationAction currentAction passkeyManagementMutationSpec do
         passkeys <- fetchCurrentUserPasskeys
         when (null passkeys) do
             setErrorMessage "Add your first passkey before sending a new-device setup link."
@@ -88,7 +88,7 @@ instance Controller PasskeysController where
         setSuccessMessage "New-device passkey setup email sent. Open it on the device you want to add."
         redirectToPath profileSecurityPath
 
-    action DeletePasskeyAction { passkeyId } = bepisMutationAction "DeletePasskeyAction" passkeyManagementMutationSpec do
+    action currentAction@DeletePasskeyAction { passkeyId } = bepisMutationAction currentAction passkeyManagementMutationSpec do
         passkey <- fetch passkeyId
         accessDeniedUnless (passkey.userId == unpackId currentUser.id)
         passkeyCount <-

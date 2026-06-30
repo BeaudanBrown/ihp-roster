@@ -33,7 +33,7 @@ instance Controller StaffDocumentsController where
         ensureIsUser
         ensureCurrentVenue
 
-    action ScanStaffDocumentAction = bepisMutationAction "ScanStaffDocumentAction" staffDocumentMutationSpec do
+    action currentAction@ScanStaffDocumentAction = bepisMutationAction currentAction staffDocumentMutationSpec do
         ensureVenueWritable
         maybeStaff <- parseSubmittedStaff
         case maybeStaff of
@@ -64,7 +64,7 @@ instance Controller StaffDocumentsController where
                                 }
                         render ScanView { .. }
 
-    action CreateStaffDocumentAction = bepisMutationAction "CreateStaffDocumentAction" staffDocumentMutationSpec do
+    action currentAction@CreateStaffDocumentAction = bepisMutationAction currentAction staffDocumentMutationSpec do
         ensureVenueWritable
         maybeStaff <- parseSubmittedStaff
         case maybeStaff of
@@ -83,7 +83,7 @@ instance Controller StaffDocumentsController where
                         setSuccessMessage "RSA document uploaded for review."
                         redirectToRsaReturnPath
 
-    action DownloadStaffDocumentAction { staffDocumentId } = bepisExportAction "DownloadStaffDocumentAction" do
+    action currentAction@DownloadStaffDocumentAction { staffDocumentId } = bepisExportAction currentAction do
         staffDocument <- fetch staffDocumentId
         ensureRecordInCurrentVenue staffDocument.venueId
         staff <- fetch (Id staffDocument.staffId :: Id Staff)
@@ -104,7 +104,7 @@ instance Controller StaffDocumentsController where
                         ]
                         fileContents
 
-    action ReviewStaffDocumentAction { staffDocumentId } = bepisMutationAction "ReviewStaffDocumentAction" staffDocumentMutationSpec do
+    action currentAction@ReviewStaffDocumentAction { staffDocumentId } = bepisMutationAction currentAction staffDocumentMutationSpec do
         redirectPermissionDeniedUnless (hasRole ManagerRole') "You need manager access to review RSA documents."
         ensureVenueWritable
         staffDocument <- fetch staffDocumentId

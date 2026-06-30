@@ -43,6 +43,9 @@ for (const handler of facts.web.handlers || []) {
   if ((wrapper.responseKinds || []).length === 0) {
     errors.push(`${handler.action} has no typed Bepis response metadata`);
   }
+  if (wrapper.actionNameSource === "string-literal") {
+    errors.push(`${handler.action} passes a string literal action name to ${wrapper.name}`);
+  }
   if (/bepis(?:Preference|Mutation|JsonMutation)Action/.test(wrapper.name)) {
     if (!wrapper.mutationSpecName) {
       errors.push(`${handler.action} uses ${wrapper.name} without a BepisMutationSpec`);

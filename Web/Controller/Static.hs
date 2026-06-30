@@ -6,23 +6,23 @@ import Web.View.Static.Welcome
 instance Controller StaticController where
     beforeAction = bepisBeforeAction BepisPublicController annotateTelemetryAction
 
-    action WelcomeAction = bepisPageAction "WelcomeAction" do
+    action currentAction@WelcomeAction = bepisPageAction currentAction do
         case currentUserOrNothing of
             Just _ -> redirectTo RosterWeeksAction
             Nothing -> do
                 setTitle "Bepis"
                 render WelcomeView
-    action PublicBillingSupportAction = bepisPageAction "PublicBillingSupportAction" do
+    action currentAction@PublicBillingSupportAction = bepisPageAction currentAction do
         legalPublicConfig <- readLegalPublicConfig
         setTitle "Bepis Billing and Support"
         render PublicBillingSupportView { .. }
-    action LegalTermsAction = bepisPageAction "LegalTermsAction" $
+    action currentAction@LegalTermsAction = bepisPageAction currentAction $
         renderLegalDocument TermsDocument
-    action LegalPrivacyAction = bepisPageAction "LegalPrivacyAction" $
+    action currentAction@LegalPrivacyAction = bepisPageAction currentAction $
         renderLegalDocument PrivacyDocument
-    action LegalRefundsDisputesAction = bepisPageAction "LegalRefundsDisputesAction" $
+    action currentAction@LegalRefundsDisputesAction = bepisPageAction currentAction $
         renderLegalDocument RefundsDisputesDocument
-    action LegalCancellationAction = bepisPageAction "LegalCancellationAction" $
+    action currentAction@LegalCancellationAction = bepisPageAction currentAction $
         renderLegalDocument CancellationDocument
 
 renderLegalDocument kind = do

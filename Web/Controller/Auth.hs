@@ -37,7 +37,7 @@ passkeyAuthMutationSpec = BepisMutationSpec
 instance Controller AuthController where
     beforeAction = bepisBeforeAction BepisPublicController annotateTelemetryAction
 
-    action BeginPasskeyRegistrationAction = bepisJsonMutationAction "BeginPasskeyRegistrationAction" passkeyAuthMutationSpec do
+    action currentAction@BeginPasskeyRegistrationAction = bepisJsonMutationAction currentAction passkeyAuthMutationSpec do
         ensureIsUser
         existingPasskeys <-
             query @Passkey
@@ -61,7 +61,7 @@ instance Controller AuthController where
                     currentUser.email
                     (map passkeyCredentialDescriptor existingPasskeys)
 
-    action FinishPasskeyRegistrationAction = bepisJsonMutationAction "FinishPasskeyRegistrationAction" passkeyAuthMutationSpec do
+    action currentAction@FinishPasskeyRegistrationAction = bepisJsonMutationAction currentAction passkeyAuthMutationSpec do
         ensureIsUser
         challenge <- sessionChallenge registrationChallengeSessionKey
         pendingUserId <- sessionUserId registrationUserIdSessionKey
@@ -129,14 +129,14 @@ instance Controller AuthController where
                 ]
             )
 
-    action BeginPasskeyAuthenticationAction = bepisJsonMutationAction "BeginPasskeyAuthenticationAction" passkeyAuthMutationSpec do
+    action currentAction@BeginPasskeyAuthenticationAction = bepisJsonMutationAction currentAction passkeyAuthMutationSpec do
         challenge <- liftIO generateChallenge
         setSession authenticationChallengeSessionKey (unChallenge challenge)
         renderJson $
             WebAuthnJson.wjEncodeCredentialOptionsAuthentication $
                 authenticationCredentialOptions challenge
 
-    action FinishPasskeyAuthenticationAction = bepisJsonMutationAction "FinishPasskeyAuthenticationAction" passkeyAuthMutationSpec do
+    action currentAction@FinishPasskeyAuthenticationAction = bepisJsonMutationAction currentAction passkeyAuthMutationSpec do
         challenge <- sessionChallenge authenticationChallengeSessionKey
         credentialPayload <- parseWebAuthnJsonBody @WebAuthnJson.WJCredentialAuthentication
         credential <- case WebAuthnJson.wjDecodeCredentialAuthentication credentialPayload of
@@ -202,7 +202,7 @@ instance Controller AuthController where
                 ]
             )
 
-    action BeginPasskeyStepUpAuthenticationAction = bepisJsonMutationAction "BeginPasskeyStepUpAuthenticationAction" passkeyAuthMutationSpec do
+    action currentAction@BeginPasskeyStepUpAuthenticationAction = bepisJsonMutationAction currentAction passkeyAuthMutationSpec do
         ensureIsUser
         passkeys <- fetchCurrentUserPasskeys
         when (null passkeys) do
@@ -214,7 +214,7 @@ instance Controller AuthController where
             WebAuthnJson.wjEncodeCredentialOptionsAuthentication $
                 authenticationCredentialOptionsForPasskeys challenge passkeys
 
-    action FinishPasskeyStepUpAuthenticationAction = bepisJsonMutationAction "FinishPasskeyStepUpAuthenticationAction" passkeyAuthMutationSpec do
+    action currentAction@FinishPasskeyStepUpAuthenticationAction = bepisJsonMutationAction currentAction passkeyAuthMutationSpec do
         ensureIsUser
         challenge <- sessionChallenge stepUpAuthenticationChallengeSessionKey
         credentialPayload <- parseWebAuthnJsonBody @WebAuthnJson.WJCredentialAuthentication
@@ -287,7 +287,7 @@ instance Controller AuthController where
                 ]
             )
 
-    action NewPasskeySetupAction = bepisFormAction "NewPasskeySetupAction" do
+    action currentAction@NewPasskeySetupAction = bepisFormAction currentAction do
         rawToken <- setupTokenParamOrRedirect
         setupToken <- findActivePasskeySetupToken rawToken >>= maybe invalidSetupLink pure
         targetUser <- fetch (Id setupToken.userId :: Id User)
@@ -295,7 +295,7 @@ instance Controller AuthController where
         let beginUrl = appendQueryParams (pathTo BeginPasskeySetupRegistrationAction) [("token", rawToken)]
         render NewSetupView { .. }
 
-    action BeginPasskeySetupRegistrationAction = bepisJsonMutationAction "BeginPasskeySetupRegistrationAction" passkeyAuthMutationSpec do
+    action currentAction@BeginPasskeySetupRegistrationAction = bepisJsonMutationAction currentAction passkeyAuthMutationSpec do
         rawToken <- setupTokenParamOrJsonError
         setupToken <- findActivePasskeySetupToken rawToken >>= maybe (jsonError status422 "This passkey setup link is invalid or has expired.") pure
         targetUser <- fetch (Id setupToken.userId :: Id User)
@@ -313,7 +313,7 @@ instance Controller AuthController where
                     targetUser.email
                     (map passkeyCredentialDescriptor existingPasskeys)
 
-    action FinishPasskeySetupRegistrationAction = bepisJsonMutationAction "FinishPasskeySetupRegistrationAction" passkeyAuthMutationSpec do
+    action currentAction@FinishPasskeySetupRegistrationAction = bepisJsonMutationAction currentAction passkeyAuthMutationSpec do
         challenge <- sessionChallenge setupRegistrationChallengeSessionKey
         setupTokenId <- sessionPasskeySetupTokenId setupRegistrationTokenIdSessionKey
         pendingUserId <- sessionUserId setupRegistrationUserIdSessionKey

@@ -20,6 +20,7 @@ import Application.Bepis.Mutation (BepisMutationSpec,
                                    bepisMutationSpecAttributes)
 import Application.Helper.Telemetry (addTelemetryAttributes,
                                      withTelemetrySpanAttributes)
+import Data.Data (Data, showConstr, toConstr)
 import GHC.Generics (Generic)
 import IHP.Prelude
 import OpenTelemetry.Attributes (Attribute, toAttribute)
@@ -59,88 +60,88 @@ data BepisActionInfo = BepisActionInfo
     }
     deriving (Eq, Show, Generic)
 
-bepisPageAction :: Text -> IO a -> IO a
-bepisPageAction actionName =
+bepisPageAction :: Data action => action -> IO a -> IO a
+bepisPageAction action =
     bepisActionSpan BepisActionInfo
-        { actionName
+        { actionName = bepisActionName action
         , actionKind = BepisPageAction
         , responseKinds = [BepisHtmlResponse, BepisRedirectResponse]
         , sourceNote = Nothing
         }
 
-bepisFormAction :: Text -> IO a -> IO a
-bepisFormAction actionName =
+bepisFormAction :: Data action => action -> IO a -> IO a
+bepisFormAction action =
     bepisActionSpan BepisActionInfo
-        { actionName
+        { actionName = bepisActionName action
         , actionKind = BepisFormAction
         , responseKinds = [BepisHtmlResponse, BepisRedirectResponse]
         , sourceNote = Nothing
         }
 
-bepisFragmentAction :: Text -> IO a -> IO a
-bepisFragmentAction actionName =
+bepisFragmentAction :: Data action => action -> IO a -> IO a
+bepisFragmentAction action =
     bepisActionSpan BepisActionInfo
-        { actionName
+        { actionName = bepisActionName action
         , actionKind = BepisFragmentAction
         , responseKinds = [BepisHtmxFragmentResponse]
         , sourceNote = Nothing
         }
 
-bepisDialogAction :: Text -> IO a -> IO a
-bepisDialogAction actionName =
+bepisDialogAction :: Data action => action -> IO a -> IO a
+bepisDialogAction action =
     bepisActionSpan BepisActionInfo
-        { actionName
+        { actionName = bepisActionName action
         , actionKind = BepisDialogAction
         , responseKinds = [BepisDialogResponse, BepisHtmxFragmentResponse]
         , sourceNote = Nothing
         }
 
-bepisPreferenceAction :: Text -> BepisMutationSpec -> IO a -> IO a
-bepisPreferenceAction actionName mutationSpec =
+bepisPreferenceAction :: Data action => action -> BepisMutationSpec -> IO a -> IO a
+bepisPreferenceAction action mutationSpec =
     bepisActionSpanWithAttributes
         BepisActionInfo
-            { actionName
+            { actionName = bepisActionName action
             , actionKind = BepisPreferenceAction
             , responseKinds = [BepisRedirectResponse, BepisHtmxFragmentResponse]
             , sourceNote = Nothing
             }
         (bepisMutationSpecAttributes mutationSpec)
 
-bepisMutationAction :: Text -> BepisMutationSpec -> IO a -> IO a
-bepisMutationAction actionName mutationSpec =
+bepisMutationAction :: Data action => action -> BepisMutationSpec -> IO a -> IO a
+bepisMutationAction action mutationSpec =
     bepisActionSpanWithAttributes
         BepisActionInfo
-            { actionName
+            { actionName = bepisActionName action
             , actionKind = BepisMutationAction
             , responseKinds = [BepisRedirectResponse, BepisHtmxFragmentResponse]
             , sourceNote = Nothing
             }
         (bepisMutationSpecAttributes mutationSpec)
 
-bepisJsonMutationAction :: Text -> BepisMutationSpec -> IO a -> IO a
-bepisJsonMutationAction actionName mutationSpec =
+bepisJsonMutationAction :: Data action => action -> BepisMutationSpec -> IO a -> IO a
+bepisJsonMutationAction action mutationSpec =
     bepisActionSpanWithAttributes
         BepisActionInfo
-            { actionName
+            { actionName = bepisActionName action
             , actionKind = BepisMutationAction
             , responseKinds = [BepisJsonResponse, BepisRedirectResponse]
             , sourceNote = Nothing
             }
         (bepisMutationSpecAttributes mutationSpec)
 
-bepisIntegrationAction :: Text -> IO a -> IO a
-bepisIntegrationAction actionName =
+bepisIntegrationAction :: Data action => action -> IO a -> IO a
+bepisIntegrationAction action =
     bepisActionSpan BepisActionInfo
-        { actionName
+        { actionName = bepisActionName action
         , actionKind = BepisIntegrationAction
         , responseKinds = [BepisJsonResponse, BepisRedirectResponse, BepisHtmlResponse]
         , sourceNote = Nothing
         }
 
-bepisExportAction :: Text -> IO a -> IO a
-bepisExportAction actionName =
+bepisExportAction :: Data action => action -> IO a -> IO a
+bepisExportAction action =
     bepisActionSpan BepisActionInfo
-        { actionName
+        { actionName = bepisActionName action
         , actionKind = BepisExportAction
         , responseKinds = [BepisFileResponse, BepisHtmlResponse, BepisRedirectResponse]
         , sourceNote = Nothing
@@ -185,3 +186,6 @@ bepisResponseKindText = \case
 
 responseKindsText :: [BepisResponseKind] -> Text
 responseKindsText = intercalate "," . map bepisResponseKindText
+
+bepisActionName :: Data action => action -> Text
+bepisActionName = cs . showConstr . toConstr

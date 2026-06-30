@@ -31,7 +31,7 @@ userSignupMutationSpec = BepisMutationSpec
 instance Controller UsersController where
     beforeAction = bepisBeforeAction BepisPublicController annotateTelemetryAction
 
-    action NewUserAction = bepisFormAction "NewUserAction" do
+    action currentAction@NewUserAction = bepisFormAction currentAction do
         let invitationId = paramOrNothing @(Id VenueInvitation) "invitationId"
         case invitationId of
             Nothing -> do
@@ -57,7 +57,7 @@ instance Controller UsersController where
                         setTitle "Request Access"
                         render InviteOnlyView
 
-    action CreateUserAction = bepisMutationAction "CreateUserAction" userSignupMutationSpec do
+    action currentAction@CreateUserAction = bepisMutationAction currentAction userSignupMutationSpec do
         let invitationId = paramOrNothing @(Id VenueInvitation) "invitationId"
         case invitationId of
             Nothing -> do
@@ -109,7 +109,7 @@ instance Controller UsersController where
                         setTitle "Request Access"
                         render InviteOnlyView
 
-    action NewVenueOnboardingUserAction = bepisFormAction "NewVenueOnboardingUserAction" do
+    action currentAction@NewVenueOnboardingUserAction = bepisFormAction currentAction do
         let invitationId = paramOrNothing @(Id VenueOnboardingInvitation) "invitationId"
         case invitationId of
             Nothing -> do
@@ -142,7 +142,7 @@ instance Controller UsersController where
                         setTitle "Request Access"
                         render InviteOnlyView
 
-    action CreateVenueOnboardingUserAction = bepisMutationAction "CreateVenueOnboardingUserAction" userSignupMutationSpec do
+    action currentAction@CreateVenueOnboardingUserAction = bepisMutationAction currentAction userSignupMutationSpec do
         let invitationId = paramOrNothing @(Id VenueOnboardingInvitation) "invitationId"
         case invitationId of
             Nothing -> do

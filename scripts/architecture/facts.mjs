@@ -148,7 +148,7 @@ function parseConstructorTextMappings(text, prefix) {
 }
 
 function extractTopLevelDefinition(text, name) {
-  const match = text.match(new RegExp(`^${name}\\s+[^=]*=`, "m"));
+  const match = text.match(new RegExp(`^${name}\\s+(?!::)[^=]*=`, "m"));
   if (!match) return "";
   const start = match.index ?? 0;
   const after = text.slice(start);
@@ -184,20 +184,24 @@ function parseBepisActionWrapperContracts() {
   return wrappers;
 }
 
-function parseBepisActionWrapper(body, relPath, handlerLine, mutationSpecs, wrapperContracts) {
+function parseBepisActionWrapper(body, relPath, handlerLine, handlerActionName, mutationSpecs, wrapperContracts) {
   const wrapperNames = [...wrapperContracts.keys()].sort((a, b) => b.length - a.length).map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
   if (wrapperNames.length === 0) return null;
-  const match = body.match(new RegExp(`\\b(${wrapperNames.join("|")})\\s+"([^"]+)"(?:\\s+([A-Za-z][A-Za-z0-9_']*))?`));
+  const match = body.match(new RegExp(`\\b(${wrapperNames.join("|")})\\s+(?:"([^"]+)"|([^\\s$]+))(?:\\s+([A-Za-z][A-Za-z0-9_']*))?`));
   if (!match) return null;
   const wrapper = wrapperContracts.get(match[1]);
   if (!wrapper) return null;
+  const declaredActionName = match[2] || handlerActionName;
+  const actionNameSource = match[2] ? "string-literal" : "typed-action-value";
+  const mutationSpecName = wrapper.requiresMutationSpec ? match[4] : undefined;
   return {
     name: match[1],
-    declaredActionName: match[2],
+    declaredActionName,
+    actionNameSource,
     kind: wrapper.kind,
     responseKinds: wrapper.responseKinds,
-    mutationSpecName: wrapper.requiresMutationSpec ? match[3] : undefined,
-    mutationSpec: wrapper.requiresMutationSpec && match[3] ? mutationSpecs.get(match[3]) : undefined,
+    mutationSpecName,
+    mutationSpec: mutationSpecName ? mutationSpecs.get(mutationSpecName) : undefined,
     source: { path: relPath, line: handlerLine + lineNumberAt(body, match.index ?? 0) - 1 },
     contractSource: wrapper.source,
     contractConfidence: wrapper.confidence,
@@ -214,7 +218,7 @@ function extractActionBody(text, matchIndex, indent) {
   const after = text.slice(matchIndex);
   const lines = after.split("\n");
   const bodyLines = [lines[0]];
-  const actionStart = new RegExp(`^\\s{0,${Math.max(0, indent)}}action\\s+[A-Z][A-Za-z0-9_]*Action\\b`);
+  const actionStart = new RegExp(`^\\s{0,${Math.max(0, indent)}}action\\s+(?:[a-z][A-Za-z0-9_']*@)?[A-Z][A-Za-z0-9_]*Action\\b`);
   for (let i = 1; i < lines.length; i += 1) {
     const line = lines[i];
     if (actionStart.test(line)) break;
@@ -278,12 +282,12 @@ function parseHandlers(controllerFiles, tableModels, mutationSpecs, wrapperContr
   for (const relPath of controllerFiles) {
     const text = readText(relPath);
     const moduleName = moduleNameFromFile(relPath, text);
-    for (const m of text.matchAll(/^([ \t]*)action\s+([A-Z][A-Za-z0-9_]*Action)\b/gm)) {
+    for (const m of text.matchAll(/^([ \t]*)action\s+(?:[a-z][A-Za-z0-9_']*@)?([A-Z][A-Za-z0-9_]*Action)\b/gm)) {
       const indent = m[1].length;
       const line = lineForMatch(text, m);
       const body = extractActionBody(text, m.index ?? 0, indent);
       const inferred = inferActionDetails(body, tableModels);
-      const bepisWrapper = parseBepisActionWrapper(body, relPath, line, mutationSpecs, wrapperContracts);
+      const bepisWrapper = parseBepisActionWrapper(body, relPath, line, m[2], mutationSpecs, wrapperContracts);
       handlers.push({
         action: m[2],
         module: moduleName,

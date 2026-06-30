@@ -1,6 +1,6 @@
 ---
 id: ir-bi2e
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-06-30T09:54:22Z

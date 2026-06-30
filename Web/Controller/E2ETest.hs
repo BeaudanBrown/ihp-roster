@@ -18,7 +18,7 @@ instance Controller E2ETestController where
         annotateTelemetryAction
         ensureIsUser
 
-    action MarkE2EPasskeyVerifiedAction = bepisJsonMutationAction "MarkE2EPasskeyVerifiedAction" e2eTestMutationSpec do
+    action currentAction@MarkE2EPasskeyVerifiedAction = bepisJsonMutationAction currentAction e2eTestMutationSpec do
         ensureE2ETestEndpointEnabled
         ensureE2ETestToken
         hasPasskey <- currentUserHasPasskey

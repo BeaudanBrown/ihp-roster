@@ -26,13 +26,13 @@ instance Controller FeedbackController where
         ensureIsUser
         ensureCurrentVenueOrSupportRedirect
 
-    action NewFeedbackAction = bepisFormAction "NewFeedbackAction" do
+    action currentAction@NewFeedbackAction = bepisFormAction currentAction do
         let feedbackItem = buildNewFeedbackItem
         if isHtmxRequest
             then respondHtml (renderNewFeedbackDialog feedbackItem)
             else render NewView { .. }
 
-    action CreateFeedbackAction = bepisMutationAction "CreateFeedbackAction" feedbackMutationSpec do
+    action currentAction@CreateFeedbackAction = bepisMutationAction currentAction feedbackMutationSpec do
         let feedbackItem = buildSubmittedFeedbackItem
         feedbackItem
             |> ifValid \case
