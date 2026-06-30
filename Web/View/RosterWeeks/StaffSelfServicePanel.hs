@@ -1,6 +1,7 @@
 module Web.View.RosterWeeks.StaffSelfServicePanel
     ( renderRosterStaffSelfServicePanelFragment
     , renderRosterStaffSelfServiceLeaveFormFragment
+    , renderRosterStaffSelfServiceLeaveFormFragmentWithSwap
     , rosterStaffSelfServiceLeaveFormFragmentId
     , rosterStaffSelfServicePanelFragmentId
     , rosterStaffSelfServiceTimesheetLiveSurfaceId
@@ -65,8 +66,12 @@ renderRosterStaffSelfServicePanelFragment (Just panel)
     |]
 
 renderRosterStaffSelfServiceLeaveFormFragment :: (?context :: ControllerContext) => LeaveRequest -> Html
-renderRosterStaffSelfServiceLeaveFormFragment leaveRequest = [hsx|
-    <div id={rosterStaffSelfServiceLeaveFormFragmentId}>
+renderRosterStaffSelfServiceLeaveFormFragment =
+    renderRosterStaffSelfServiceLeaveFormFragmentWithSwap Nothing
+
+renderRosterStaffSelfServiceLeaveFormFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> LeaveRequest -> Html
+renderRosterStaffSelfServiceLeaveFormFragmentWithSwap maybeSwapOob leaveRequest = [hsx|
+    <div id={rosterStaffSelfServiceLeaveFormFragmentId} hx-swap-oob={maybeSwapOob}>
         <form id="roster-staff-self-service-leave-form"
               method="POST"
               action={rosterCreateLeaveRequestPath}

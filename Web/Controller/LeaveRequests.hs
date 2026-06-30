@@ -9,13 +9,13 @@ import Application.Helper.View (ToastOverlayPosition (..), dialogOverlayMountId,
                                 errorToast, renderToastOob, successToast)
 import Data.Coerce (coerce)
 import qualified Data.Text.IO as TextIO
-import qualified Data.Time.Calendar as Calendar
 import Web.Controller.Prelude
 import Web.LeaveRequests.Mutations
 import Web.LeaveRequests.ProfileSelfService
 import Web.LeaveRequests.Projection
 import Web.Profiles.LeaveFragments
 import Web.Profiles.LiveUpdates (profileLeaveRequestsFragment)
+import Web.RosterWeeks.StaffSelfServiceLeaveFragments
 import Web.View.LeaveRequests.Index
 import Web.View.LeaveRequests.New
 import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServiceLeaveFormFragment)
@@ -204,13 +204,10 @@ respondWithLeaveMutationSuccess responseContext successMessage =
                         staff
                         [profileLeaveRequestsFragment]
                         (renderToastOob ToastBottomCenter (successToast successMessage))
-        LeaveRosterResponseContext -> do
-            leaveRequest <- buildDefaultRosterLeaveRequest
-            respondHtmlProfiled $
-                mconcat
-                    [ renderRosterStaffSelfServiceLeaveFormFragment leaveRequest
-                    , renderToastOob ToastBottomCenter (successToast successMessage)
-                    ]
+        LeaveRosterResponseContext ->
+            respondWithRosterStaffSelfServiceLeaveFragments
+                [RosterStaffSelfServiceLeaveFormFragment]
+                (renderToastOob ToastBottomCenter (successToast successMessage))
         LeaveStaffResponseContext -> do
             maybeStaff <- fetchLeaveRequestTargetStaff LeaveStaffResponseContext
             case maybeStaff of
@@ -257,7 +254,7 @@ respondWithLeaveContextError responseContext errorMessage =
                     , renderToastOob ToastBottomCenter (errorToast errorMessage)
                     ]
         LeaveRosterResponseContext -> do
-            leaveRequest <- buildDefaultRosterLeaveRequest
+            leaveRequest <- buildDefaultRosterStaffSelfServiceLeaveRequest
             respondHtmlProfiled $
                 mconcat
                     [ renderRosterStaffSelfServiceLeaveFormFragment leaveRequest
@@ -271,15 +268,6 @@ respondWithLeaveContextError responseContext errorMessage =
                     [ formHtml
                     , renderToastOob ToastBottomCenter (errorToast errorMessage)
                     ]
-
-buildDefaultRosterLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO LeaveRequest
-buildDefaultRosterLeaveRequest = do
-    venueConfig <- fetchVenueConfig
-    operationalDay <- currentOperationalDayForVenue venueConfig
-    pure $
-        newRecord @LeaveRequest
-            |> set #startDate operationalDay
-            |> set #endDate (Calendar.addDays 1 operationalDay)
 
 buildLeaveRequest :: (?context :: ControllerContext, ?request :: Request) => LeaveRequest -> LeaveRequest
 buildLeaveRequest leaveRequest =

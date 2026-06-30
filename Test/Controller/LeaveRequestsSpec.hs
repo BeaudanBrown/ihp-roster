@@ -473,6 +473,31 @@ tests = beforeAll testContext do
                 versionAfter <- currentLiveUpdateVersion LeaveRequestsScope { venueId = unpackId venue.id }
                 versionAfter `shouldBe` versionBefore + 1
 
+        it "creating leave from roster self-service refreshes the declared form fragment" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Leave Venue"
+                user <- createUserRecord "leave-roster-create@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createStaffRecord venue (Just user) "Rae" "Roster"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateLeaveRequestAction
+                            [ ("startDate", "2025-01-13")
+                            , ("endDate", "2025-01-14")
+                            , ("notes", "Roster quick tool")
+                            , ("responseContext", "roster")
+                            ]
+
+                response `responseStatusShouldBe` status200
+                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
+                body <- responseBody response
+                let bodyText = cs (LByteString.unpack body)
+                bodyText `shouldContain` "id=\"roster-staff-self-service-leave-form-fragment\" hx-swap-oob=\"outerHTML\""
+                bodyText `shouldContain` "Unavailable period submitted"
+                bodyText `shouldNotContain` "id=\"profile-leave-requests-content\""
+                bodyText `shouldNotContain` "id=\"leave-requests-content\""
+
         it "returns the profile leave fragment instead of redirecting when no staff record exists on profile leave submit" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"
