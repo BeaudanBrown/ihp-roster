@@ -1,7 +1,8 @@
 module Application.Bepis.Action
     ( BepisActionInfo (..)
-    , BepisActionKind (..)
+    , BepisActionKind
     , BepisActionWrapperContract (..)
+    , BepisOperationKind (..)
     , BepisResponseKind (..)
     , bepisActionKindText
     , bepisActionSpan
@@ -18,6 +19,11 @@ module Application.Bepis.Action
     , bepisResponseKindText
     ) where
 
+import Application.Bepis.Fact (BepisActionFact (..), BepisFact (..),
+                               BepisOperationKind (..), BepisResponseKind (..),
+                               bepisOperationKindText, bepisResponseKindText,
+                               emitBepisFact, summarizeBepisFacts,
+                               withBepisFactContext)
 import Application.Bepis.Mutation (BepisMutationSpec,
                                    bepisMutationSpecAttributes)
 import Application.Helper.Telemetry (addTelemetryAttributes,
@@ -27,32 +33,9 @@ import GHC.Generics (Generic)
 import IHP.Prelude
 import OpenTelemetry.Attributes (Attribute, toAttribute)
 
--- | App-level action classification layered inside the normal IHP controller
--- lifecycle. These values are intentionally Bepis-owned and mechanism-agnostic:
--- IHP still owns routing and controller dispatch, while this type describes the
--- app semantics that architecture tooling and convention checks can inspect.
-data BepisActionKind
-    = BepisPageAction
-    | BepisFragmentAction
-    | BepisDialogAction
-    | BepisMutationAction
-    | BepisFormAction
-    | BepisPreferenceAction
-    | BepisIntegrationAction
-    | BepisExportAction
-    deriving (Eq, Show, Generic)
-
--- | Low-cardinality response shape labels. These are not intended to replace
--- IHP response helpers; they make the app's response intent explicit around
--- those helpers.
-data BepisResponseKind
-    = BepisHtmlResponse
-    | BepisHtmxFragmentResponse
-    | BepisDialogResponse
-    | BepisRedirectResponse
-    | BepisJsonResponse
-    | BepisFileResponse
-    deriving (Eq, Show, Generic)
+-- | Backwards-compatible name for the final Bepis operation kind during the
+-- migration from wrapper metadata to the runBepis/fact model.
+type BepisActionKind = BepisOperationKind
 
 data BepisActionInfo = BepisActionInfo
     { actionName    :: !Text
@@ -182,30 +165,25 @@ bepisActionSpanWithAttributes info extraAttributes action = do
             ]
                 <> extraAttributes
     addTelemetryAttributes attributes
-    withTelemetrySpanAttributes
+    result <- withTelemetrySpanAttributes
         ("bepis.action." <> actionName info)
         attributes
-        action
+        do
+            collected <- withBepisFactContext do
+                emitBepisFact $ BepisActionFactValue BepisActionFact
+                    { actionFactName = actionName info
+                    , actionFactOperationKind = info.actionKind
+                    , actionFactControllerPolicy = Nothing
+                    }
+                action
+            summarizeBepisFacts (snd collected)
+            pure collected
+    case result of
+        (Right value, _facts)    -> pure value
+        (Left exception, _facts) -> throwIO exception
 
 bepisActionKindText :: BepisActionKind -> Text
-bepisActionKindText = \case
-    BepisPageAction -> "page"
-    BepisFragmentAction -> "fragment"
-    BepisDialogAction -> "dialog"
-    BepisMutationAction -> "mutation"
-    BepisFormAction -> "form"
-    BepisPreferenceAction -> "preference"
-    BepisIntegrationAction -> "integration"
-    BepisExportAction -> "export"
-
-bepisResponseKindText :: BepisResponseKind -> Text
-bepisResponseKindText = \case
-    BepisHtmlResponse -> "html"
-    BepisHtmxFragmentResponse -> "htmx-fragment"
-    BepisDialogResponse -> "dialog"
-    BepisRedirectResponse -> "redirect"
-    BepisJsonResponse -> "json"
-    BepisFileResponse -> "file"
+bepisActionKindText = bepisOperationKindText
 
 responseKindsText :: [BepisResponseKind] -> Text
 responseKindsText = intercalate "," . map bepisResponseKindText

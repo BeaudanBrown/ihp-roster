@@ -4,13 +4,14 @@ module Application.Bepis.Architecture
     , bepisArchitectureFactSourceText
     ) where
 
-import Application.Bepis.Action (BepisActionKind (..),
-                                 BepisActionWrapperContract (..),
-                                 BepisResponseKind (..), bepisActionKindText,
+import Application.Bepis.Action (BepisActionWrapperContract (..),
+                                 bepisActionKindText,
                                  bepisActionWrapperContracts,
                                  bepisResponseKindText)
 import Application.Bepis.Controller (BepisControllerPolicy (..),
                                      bepisControllerPolicyText)
+import Application.Bepis.Fact (BepisFactKind (..), BepisOperationKind (..),
+                               BepisResponseKind (..), bepisFactKindText)
 import Application.Bepis.Mutation (BepisMutationComponentContract (..),
                                    bepisMutationComponentContracts,
                                    bepisMutationSpecPolicyVocabulary)
@@ -49,6 +50,7 @@ bepisArchitectureContractsValue = Aeson.object
     , "provenance" Aeson..= bepisArchitectureFactSourceText BepisTypedContractFact
     , "actionKinds" Aeson..= actionKindContracts
     , "responseKinds" Aeson..= responseKindContracts
+    , "factKinds" Aeson..= factKindContracts
     , "controllerPolicies" Aeson..= controllerPolicyContracts
     , "actionWrappers" Aeson..= actionWrapperContracts
     , "mutationPolicies" Aeson..= mutationPolicyContracts
@@ -67,7 +69,7 @@ actionKindContracts =
         , ("BepisPreferenceAction", BepisPreferenceAction)
         , ("BepisIntegrationAction", BepisIntegrationAction)
         , ("BepisExportAction", BepisExportAction)
-        ] :: [(Text, BepisActionKind)])
+        ] :: [(Text, BepisOperationKind)])
     ]
 
 responseKindContracts :: [Aeson.Value]
@@ -81,6 +83,18 @@ responseKindContracts =
         , ("BepisJsonResponse", BepisJsonResponse)
         , ("BepisFileResponse", BepisFileResponse)
         ] :: [(Text, BepisResponseKind)])
+    ]
+
+factKindContracts :: [Aeson.Value]
+factKindContracts =
+    [ Aeson.object ["constructor" Aeson..= constructor, "label" Aeson..= bepisFactKindText value]
+    | (constructor, value) <-
+        ([ ("BepisActionFactKind", BepisActionFactKind)
+        , ("BepisScopeFactKind", BepisScopeFactKind)
+        , ("BepisAuditFactKind", BepisAuditFactKind)
+        , ("BepisLiveFactKind", BepisLiveFactKind)
+        , ("BepisResponseFactKind", BepisResponseFactKind)
+        ] :: [(Text, BepisFactKind)])
     ]
 
 controllerPolicyContracts :: [Aeson.Value]

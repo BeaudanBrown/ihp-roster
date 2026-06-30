@@ -1,6 +1,6 @@
 ---
 id: ir-mwma
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-06-30T11:03:28Z
