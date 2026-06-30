@@ -33,7 +33,7 @@ instance Controller SupportController where
     beforeAction = bepisBeforeAction BepisSupportController do
         annotateTelemetryAction
         ensureIsUser
-        redirectPermissionDeniedUnless currentUserIsSuperAdmin "You need super admin access to view that page."
+        ensureSupportAccess
         ensureProfileCompleted
 
     action currentAction@SupportAction = runBepis currentAction BepisPageAction do

@@ -87,9 +87,13 @@ hasRole minimumRole =
 ensureCurrentVenueOrSupportRedirect :: (?context :: ControllerContext, ?request :: Request) => IO ()
 ensureCurrentVenueOrSupportRedirect =
     case currentVenueOrNothing of
-        Just _                            -> pure ()
-        Nothing | currentUserIsSuperAdmin -> redirectTo SupportAction
-        Nothing                           -> redirectPermissionDeniedToFallback "You do not have access to that venue."
+        Just _ -> do
+            emitScopeFact BepisCurrentVenueScopeFact "current-venue"
+            emitSupportModeScopeFactWhenActive
+        Nothing | currentUserIsSuperAdmin -> do
+            emitScopeFact BepisSupportScopeFact "support-access"
+            redirectTo SupportAction
+        Nothing -> redirectPermissionDeniedToFallback "You do not have access to that venue."
 
 redirectPermissionDeniedToFallback :: (?context :: ControllerContext, ?request :: Request) => Text -> IO ()
 redirectPermissionDeniedToFallback message = do
@@ -113,6 +117,7 @@ ensureCurrentVenue :: (?context :: ControllerContext, ?request :: Request) => IO
 ensureCurrentVenue = do
     redirectPermissionDeniedUnless (isJust currentVenueOrNothing) "You do not have access to that venue."
     emitScopeFact BepisCurrentVenueScopeFact "current-venue"
+    emitSupportModeScopeFactWhenActive
 
 isCurrentVenueManuallyReadOnly :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Bool
 isCurrentVenueManuallyReadOnly
@@ -142,6 +147,11 @@ ensureAdminRole = do
     redirectPermissionDeniedUnless (hasRole VenueAdminRole) "You need admin access to view that page."
     emitScopeFact (BepisRoleScopeFact BepisAdminRole) "admin-role"
     ensurePrivilegedPasskeyReady
+
+ensureSupportAccess :: (?context :: ControllerContext, ?request :: Request) => IO ()
+ensureSupportAccess = do
+    redirectPermissionDeniedUnless currentUserIsSuperAdmin "You need super admin access to view that page."
+    emitScopeFact BepisSupportScopeFact "support-access"
 
 currentUserRequiresMandatoryPasskey :: (?context :: ControllerContext) => Bool
 currentUserRequiresMandatoryPasskey =
@@ -312,6 +322,11 @@ ensureRecordInCurrentVenue :: (?context :: ControllerContext) => UUID -> IO ()
 ensureRecordInCurrentVenue venueId = do
     accessDeniedUnless (venueId == unpackId currentVenueId)
     emitScopeFact (BepisRecordVenueScopeFact "current-venue-record") "record-in-current-venue"
+
+emitSupportModeScopeFactWhenActive :: (?context :: ControllerContext) => IO ()
+emitSupportModeScopeFactWhenActive =
+    when (currentUserIsSuperAdmin && isNothing currentVenueMembershipOrNothing) do
+        emitScopeFact BepisSupportScopeFact "support-mode"
 
 emitScopeFact :: BepisScopeKind -> Text -> IO ()
 emitScopeFact scopeKind label =

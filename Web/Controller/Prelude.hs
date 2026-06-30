@@ -6,6 +6,7 @@ module Web.Controller.Prelude
 , module Application.Helper.Telemetry
 , module IHP.ControllerPrelude
 , module Generated.Types
+, ensureIsUser
 , redirectTo
 , redirectToPath
 , redirectToPathSeeOther
@@ -28,8 +29,9 @@ import Application.Helper.Conflict
 import Application.Helper.Controller
 import Application.Helper.Telemetry
 import qualified Data.Aeson as Aeson
+import Data.Typeable (Typeable)
 import Generated.Types
-import IHP.ControllerPrelude hiding (redirectTo, redirectToPath,
+import IHP.ControllerPrelude hiding (ensureIsUser, redirectTo, redirectToPath,
                               redirectToPathSeeOther, redirectToSeeOther,
                               redirectToUrl, redirectToUrlSeeOther, render,
                               renderFile, renderJson, renderJsonWithStatusCode,
@@ -41,6 +43,14 @@ import Network.HTTP.Types.Status (Status)
 import Text.Blaze.Html (Html)
 import Web.Routes
 import Web.Types
+
+ensureIsUser :: forall user. (?context :: ControllerContext, ?request :: Request, HasNewSessionUrl user, Typeable user, user ~ CurrentUserRecord) => IO ()
+ensureIsUser = do
+    IHP.ensureIsUser @user
+    emitBepisFact $ BepisScopeFactValue BepisScopeFact
+        { scopeFactKind = BepisAuthenticatedUserScopeFact
+        , scopeFactLabel = "authenticated-user"
+        }
 
 render :: forall view. (ViewSupport.View view, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => view -> IO ()
 render view = bepisHtmlResponse (IHP.render view)

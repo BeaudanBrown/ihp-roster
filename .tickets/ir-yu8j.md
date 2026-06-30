@@ -1,6 +1,6 @@
 ---
 id: ir-yu8j
-status: open
+status: closed
 deps: [ir-3cky]
 links: []
 created: 2026-06-30T13:02:20Z
