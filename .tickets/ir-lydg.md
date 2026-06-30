@@ -12,13 +12,12 @@ tags: [architecture, bepis-actions, agent-loop]
 ---
 # Reconcile final Bepis docs and archive superseded plan
 
-Move durable rules into local docs and mark the earlier component-pipeline workstream superseded by the final operation/evidence architecture.
+Move durable rules into local docs and mark the earlier component-pipeline workstream superseded by the final runtime facts architecture.
 
 ## Design
 
-Update docs/architecture, Web/Controller/AGENTS, LiveUpdate spec, Audit docs if present, and workstream tracking. Archive or supersede legacy/transitional wording.
+Update docs/architecture, Web/Controller/AGENTS, LiveUpdate spec, Audit docs if present, and workstream tracking. Archive or supersede legacy/transitional wording. Use “facts” and “telemetry boundary” language rather than manual evidence threading.
 
 ## Acceptance Criteria
 
-Docs describe only the final no-legacy architecture, the evidence-producing helper rule, the single root type, and accepted scanner/gate boundaries.
-
+Docs describe only the final no-legacy architecture, the fact-emitting helper rule, the single root type, the telemetry boundary, and accepted scanner/gate boundaries.

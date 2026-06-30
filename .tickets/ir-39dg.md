@@ -12,13 +12,12 @@ tags: [architecture, bepis-actions, agent-loop]
 ---
 # Big-bang migrate all controllers off legacy Bepis metadata
 
-Apply the final root operation/evidence API across all controller actions without leaving legacy spec-backed mutations behind.
+Apply the final runBepis/fact-emitting helper API across all controller actions without leaving legacy spec-backed mutations behind.
 
 ## Design
 
-Migrate every controller/action to the final API, replacing descriptive scope/audit/realtime/response labels with evidence-producing helper calls. Remove BepisMutationSpec values and feature-specific mutation specs.
+Migrate every controller/action to the final API, replacing descriptive scope/audit/live/response labels with helpers that emit facts while doing real work. Remove BepisMutationSpec values and feature-specific mutation specs in the same change set.
 
 ## Acceptance Criteria
 
-All 175 handlers use final API; rg finds no BepisMutationSpec, auditedAs, scopedTo*, fromLiveMutationResult, respondsWith*, or mutation drift fallback symbols; typecheck and focused controller tests pass.
-
+All 175 handlers use final API; rg finds no BepisMutationSpec, auditedAs, scopedTo*, fromLiveMutationResult, respondsWith*, or mutation drift fallback symbols in runtime code; typecheck and focused controller tests pass.

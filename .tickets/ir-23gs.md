@@ -10,15 +10,14 @@ assignee: Beaudan Brown
 parent: ir-z0j1
 tags: [architecture, bepis-actions, agent-loop]
 ---
-# Replace action wrappers with final Bepis runner API
+# Replace action wrappers with final runBepis fact runner
 
-Collapse page/form/fragment/dialog/mutation/preference/export/integration wrappers around the single root operation model.
+Collapse page/form/fragment/dialog/mutation/preference/export/integration wrappers around the single root operation/fact model.
 
 ## Design
 
-Replace separate wrapper metadata and mutation-spec arguments with one final API, e.g. runBepis currentAction (bepisPage ...), runBepis currentAction (bepisMutation ...), or equivalent. The runner collects evidence produced by inner helpers and emits telemetry/architecture-visible facts.
+Replace separate wrapper metadata and mutation-spec arguments with one final API such as runBepis currentAction BepisMutationOperation do ... . The runner opens the fact collector, emits the action fact, runs the IHP action body, summarizes collected facts to telemetry, and applies only narrow safety checks.
 
 ## Acceptance Criteria
 
-All controllers compile using the final runner API; no BepisMutationSpec parameter remains; no legacy bepis*Action wrapper remains unless it is the final runner facade backed by the root model.
-
+All controllers can compile using the final runner API; no BepisMutationSpec parameter remains; no legacy bepis*Action wrapper remains unless it is a final facade backed by runBepis and BepisFact.

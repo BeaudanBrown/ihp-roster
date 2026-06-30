@@ -12,13 +12,12 @@ tags: [architecture, bepis-actions, agent-loop]
 ---
 # Add final Bepis architecture test suite
 
-Add tests that lock the final operation/evidence model and prevent reintroduction of legacy metadata.
+Add tests that lock the final operation/fact model and prevent reintroduction of legacy metadata.
 
 ## Design
 
-Add pure/unit tests for evidence-producing helpers where possible, focused controller tests for representative paths, generated contract JSON shape tests, no-legacy token tests, and at least one OTel trace check plan for final evidence attrs.
+Add pure/unit tests for BepisFact collection and telemetry summarization, focused controller tests for representative paths, generated contract JSON shape tests, no-legacy token tests, and at least one OTel trace check plan for final fact attrs/events.
 
 ## Acceptance Criteria
 
-Tests fail if BepisMutationSpec or descriptive evidence components return, if contract generation drifts, or if representative effects do not produce evidence.
-
+Tests fail if BepisMutationSpec or descriptive pipeline components return, if contract generation drifts, or if representative effects do not emit facts.
