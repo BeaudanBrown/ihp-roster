@@ -2,6 +2,10 @@
 
 Status: implemented
 
+Finalization note: this transitional stream is superseded for future work by
+`bepis-effect-evidence-finalization.md`, which removes legacy mutation specs and
+requires evidence to be produced by actual effect helpers.
+
 Tickets:
 
 - Epic: `ir-si7h` - Bepis component pipeline refactor

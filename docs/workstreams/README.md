@@ -45,6 +45,8 @@ for forward-looking design.
   generated intent contracts, and HTMX form bridge on top of live surfaces.
 - `bepis-component-pipelines.md` - typed Bepis component pipelines for action
   contracts, mutations, scope/audit/realtime evidence, and generated facts.
+- `bepis-effect-evidence-finalization.md` - final no-legacy Bepis root
+  operation/evidence model where actual effect helpers produce evidence.
 - `frontend-codec-contracts.md` - codec/schema-first replacement for any
   remaining handwritten TypeScript contract emission.
 - `roster-sql-read-model-trial.md` - trial replacing roster projection-cache
