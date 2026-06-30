@@ -13,7 +13,8 @@ module Application.Bepis.Action
 
 import Application.Bepis.Mutation (BepisMutationSpec,
                                    bepisMutationSpecAttributes)
-import Application.Helper.Telemetry (withTelemetrySpanAttributes)
+import Application.Helper.Telemetry (addTelemetryAttributes,
+                                     withTelemetrySpanAttributes)
 import GHC.Generics (Generic)
 import IHP.Prelude
 import OpenTelemetry.Attributes (Attribute, toAttribute)
@@ -95,15 +96,18 @@ bepisActionSpan :: BepisActionInfo -> IO a -> IO a
 bepisActionSpan info = bepisActionSpanWithAttributes info []
 
 bepisActionSpanWithAttributes :: BepisActionInfo -> [(Text, Attribute)] -> IO a -> IO a
-bepisActionSpanWithAttributes info extraAttributes =
+bepisActionSpanWithAttributes info extraAttributes action = do
+    let attributes =
+            [ ("bepis.action", toAttribute (actionName info))
+            , ("bepis.action.kind", toAttribute (bepisActionKindText info.actionKind))
+            , ("bepis.response.kinds", toAttribute (responseKindsText info.responseKinds))
+            ]
+                <> extraAttributes
+    addTelemetryAttributes attributes
     withTelemetrySpanAttributes
         ("bepis.action." <> actionName info)
-        ( [ ("bepis.action", toAttribute (actionName info))
-          , ("bepis.action.kind", toAttribute (bepisActionKindText info.actionKind))
-          , ("bepis.response.kinds", toAttribute (responseKindsText info.responseKinds))
-          ]
-            <> extraAttributes
-        )
+        attributes
+        action
 
 bepisActionKindText :: BepisActionKind -> Text
 bepisActionKindText = \case

@@ -1,6 +1,6 @@
 ---
 id: ir-qc0t
-status: open
+status: in_progress
 deps: [ir-63go, ir-nl8k]
 links: []
 created: 2026-06-30T04:48:17Z
@@ -22,3 +22,9 @@ Emit low-cardinality OTel attributes/spans from Bepis wrappers: bepis.controller
 
 A profile-load trace for a migrated action contains Bepis action/controller/kind attributes. request-flow or trace architecture queries can correlate runtime spans with static wrapper facts.
 
+
+## Notes
+
+**2026-06-30T05:26:32Z**
+
+Implemented wrapper-side low-cardinality OTel attributes on root/current span plus child action spans. Verification: bash ./bin/in-env typecheck passed. Runtime profile trace verification remains to be done before closing.
