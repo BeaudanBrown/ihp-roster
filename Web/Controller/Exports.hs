@@ -30,17 +30,17 @@ respondToAdminExportsSectionMutation =
         else redirectToPath (pathTo AdminAction <> "#exports")
 
 instance Controller ExportsController where
-    beforeAction = do
+    beforeAction = bepisBeforeAction BepisAdminVenueController do
         annotateTelemetryAction
         ensureIsUser
         ensureCurrentVenue
         ensureProfileCompleted
         ensureAdminRole
 
-    action ExportJobsAction = do
+    action ExportJobsAction = bepisExportAction "ExportJobsAction" do
         redirectToPath (pathTo AdminAction <> "#exports")
 
-    action CreateExportJobAction = do
+    action CreateExportJobAction = bepisExportAction "CreateExportJobAction" do
         ensureVenueWritable
         let maybeRangeStart = paramOrNothing @Day "rangeStart"
         let maybeRangeEnd = paramOrNothing @Day "rangeEnd"
@@ -57,7 +57,7 @@ instance Controller ExportsController where
                 setErrorMessage "Choose an export type and a valid start and end date."
                 respondToAdminExportsSectionMutation
 
-    action DownloadExportJobAction { exportJobId } = do
+    action DownloadExportJobAction { exportJobId } = bepisExportAction "DownloadExportJobAction" do
         let downloadToken = param @UUID "token"
         exportJob <- liveMutationValue <$> (authorizeExportDownload exportJobId downloadToken >>= recordExportDownloadMutation)
 

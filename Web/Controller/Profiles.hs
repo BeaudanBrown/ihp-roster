@@ -30,13 +30,13 @@ import Web.View.Profiles.Edit
 import Web.View.StaffProfileForm (StaffManagementFieldData (..))
 
 instance Controller ProfilesController where
-    beforeAction = do
+    beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
         annotateTelemetryAction
         ensureIsUser
         ensureCurrentVenue
         ensureStaffSelfServiceAccess
 
-    action EditProfileAction =
+    action EditProfileAction = bepisFormAction "EditProfileAction" $
         profileActionSpan "profile.page.render" do
             maybeExistingStaff <- profileActionSpan "profile.page.fetch_staff" fetchCurrentUserStaff
             let staff = fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff
@@ -52,7 +52,7 @@ instance Controller ProfilesController where
             let today = utctDay now
             profileActionSpan "profile.page.render_response" (render EditView { .. })
 
-    action ShowProfileLeaveRequestsContentFragmentAction =
+    action ShowProfileLeaveRequestsContentFragmentAction = bepisFragmentAction "ShowProfileLeaveRequestsContentFragmentAction" $
         profileActionSpan "profile.leave_fragment.respond" do
             maybeExistingStaff <- profileActionSpan "profile.leave_fragment.fetch_staff" fetchCurrentUserStaff
             case maybeExistingStaff of
@@ -62,7 +62,7 @@ instance Controller ProfilesController where
                         model <- profileActionSpan "profile.leave_fragment.fetch_model" (fetchProfileLeaveFragmentModel staff)
                         profileActionSpan "profile.leave_fragment.render_response" (respondHtml (renderProfileLeaveFragment FragmentPlain model profileLeaveRequestsFragment))
 
-    action ShowProfileContentFragmentAction =
+    action ShowProfileContentFragmentAction = bepisFragmentAction "ShowProfileContentFragmentAction" $
         profileActionSpan "profile.content_fragment.respond" do
             let openSection = normalizeProfileOpenSection (paramOrDefault @Text "" "section")
             profileActionSpan "profile.content_fragment.fetch_staff" fetchCurrentUserStaff >>= \case
@@ -80,7 +80,7 @@ instance Controller ProfilesController where
                         let today = utctDay now
                         profileActionSpan "profile.content_fragment.render_response" (respondHtml (renderProfileContentFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection))
 
-    action UpdateProfileAction = do
+    action UpdateProfileAction = bepisMutationAction "UpdateProfileAction" bepisCurrentUserMutationSpec do
         maybeExistingStaff <- fetchCurrentUserStaff
         let submittedShiftPreferenceKeys = nub (paramTexts "shiftPreferenceKeys")
         let staff = fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff

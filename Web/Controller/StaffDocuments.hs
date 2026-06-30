@@ -21,12 +21,12 @@ import Web.View.StaffDocuments.Rsa (RsaReturnContext (..))
 import Web.View.StaffDocuments.RsaScan
 
 instance Controller StaffDocumentsController where
-    beforeAction = do
+    beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
         annotateTelemetryAction
         ensureIsUser
         ensureCurrentVenue
 
-    action ScanStaffDocumentAction = do
+    action ScanStaffDocumentAction = bepisMutationAction "ScanStaffDocumentAction" bepisCurrentVenueMutationSpec do
         ensureVenueWritable
         maybeStaff <- parseSubmittedStaff
         case maybeStaff of
@@ -57,7 +57,7 @@ instance Controller StaffDocumentsController where
                                 }
                         render ScanView { .. }
 
-    action CreateStaffDocumentAction = do
+    action CreateStaffDocumentAction = bepisMutationAction "CreateStaffDocumentAction" bepisCurrentVenueMutationSpec do
         ensureVenueWritable
         maybeStaff <- parseSubmittedStaff
         case maybeStaff of
@@ -76,7 +76,7 @@ instance Controller StaffDocumentsController where
                         setSuccessMessage "RSA document uploaded for review."
                         redirectToRsaReturnPath
 
-    action DownloadStaffDocumentAction { staffDocumentId } = do
+    action DownloadStaffDocumentAction { staffDocumentId } = bepisExportAction "DownloadStaffDocumentAction" do
         staffDocument <- fetch staffDocumentId
         ensureRecordInCurrentVenue staffDocument.venueId
         staff <- fetch (Id staffDocument.staffId :: Id Staff)
@@ -97,7 +97,7 @@ instance Controller StaffDocumentsController where
                         ]
                         fileContents
 
-    action ReviewStaffDocumentAction { staffDocumentId } = do
+    action ReviewStaffDocumentAction { staffDocumentId } = bepisMutationAction "ReviewStaffDocumentAction" bepisCurrentVenueMutationSpec do
         redirectPermissionDeniedUnless (hasRole ManagerRole') "You need manager access to review RSA documents."
         ensureVenueWritable
         staffDocument <- fetch staffDocumentId

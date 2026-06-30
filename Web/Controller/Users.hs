@@ -22,9 +22,9 @@ import Web.Users.Mutations (acceptVenueInvitation)
 import Web.View.Users.New
 
 instance Controller UsersController where
-    beforeAction = annotateTelemetryAction
+    beforeAction = bepisBeforeAction BepisPublicController annotateTelemetryAction
 
-    action NewUserAction = do
+    action NewUserAction = bepisFormAction "NewUserAction" do
         let invitationId = paramOrNothing @(Id VenueInvitation) "invitationId"
         case invitationId of
             Nothing -> do
@@ -50,7 +50,7 @@ instance Controller UsersController where
                         setTitle "Request Access"
                         render InviteOnlyView
 
-    action CreateUserAction = do
+    action CreateUserAction = bepisMutationAction "CreateUserAction" bepisNoScopeMutationSpec do
         let invitationId = paramOrNothing @(Id VenueInvitation) "invitationId"
         case invitationId of
             Nothing -> do
@@ -102,7 +102,7 @@ instance Controller UsersController where
                         setTitle "Request Access"
                         render InviteOnlyView
 
-    action NewVenueOnboardingUserAction = do
+    action NewVenueOnboardingUserAction = bepisFormAction "NewVenueOnboardingUserAction" do
         let invitationId = paramOrNothing @(Id VenueOnboardingInvitation) "invitationId"
         case invitationId of
             Nothing -> do
@@ -135,7 +135,7 @@ instance Controller UsersController where
                         setTitle "Request Access"
                         render InviteOnlyView
 
-    action CreateVenueOnboardingUserAction = do
+    action CreateVenueOnboardingUserAction = bepisMutationAction "CreateVenueOnboardingUserAction" bepisNoScopeMutationSpec do
         let invitationId = paramOrNothing @(Id VenueOnboardingInvitation) "invitationId"
         case invitationId of
             Nothing -> do

@@ -25,14 +25,14 @@ import Web.Staff.Mutations
 import Web.View.Staff.Edit
 
 instance Controller StaffController where
-    beforeAction = do
+    beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
         annotateTelemetryAction
         ensureIsUser
         ensureCurrentVenue
         ensureProfileCompleted
         ensureManagerRole
 
-    action NewStaffAction = do
+    action NewStaffAction = bepisFormAction "NewStaffAction" do
         let weekOffset = paramOrDefault @Int 0 "weekOffset"
         let maybeRosterGroupId = paramOrNothing @(Id RosterGroup) "rosterGroupId"
         staff <- buildNewTrialStaff
@@ -46,7 +46,7 @@ instance Controller StaffController where
             then respondHtml (renderNewStaffModalFragment staff rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds weekOffset maybeRosterGroupId)
             else render NewView { .. }
 
-    action CreateStaffAction = do
+    action CreateStaffAction = bepisMutationAction "CreateStaffAction" bepisCurrentVenueMutationSpec do
         ensureVenueWritable
         let weekOffset = paramOrDefault @Int 0 "weekOffset"
         let maybeRosterGroupId = paramOrNothing @(Id RosterGroup) "rosterGroupId"
@@ -82,7 +82,7 @@ instance Controller StaffController where
                                             maybeRosterGroupId
                         _ -> renderNewStaffResponse validStaff submittedRosterGroupIds rosterGroups awardLevels awardLevelBaseRates importedPayItems weekOffset maybeRosterGroupId
 
-    action EditStaffAction { staffId } = do
+    action EditStaffAction { staffId } = bepisFormAction "EditStaffAction" do
         staff <- fetch staffId
         ensureRecordInCurrentVenue staff.venueId
         maybeLinkedUserEmail <- fetchStaffLinkedUserEmail staff
@@ -107,7 +107,7 @@ instance Controller StaffController where
             then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
             else render EditView { .. }
 
-    action UpdateStaffAction { staffId } = do
+    action UpdateStaffAction { staffId } = bepisMutationAction "UpdateStaffAction" bepisCurrentVenueMutationSpec do
         ensureVenueWritable
         staff <- fetch staffId
         ensureRecordInCurrentVenue staff.venueId
@@ -186,7 +186,7 @@ instance Controller StaffController where
                                     respondStaffUpdateSuccess "Staff member updated"
                                 _ -> renderStaffEditResponse validStaff submittedRosterGroupIds selectedShiftPreferences
 
-    action CreateTrialStaffInvitationAction { staffId } = do
+    action CreateTrialStaffInvitationAction { staffId } = bepisMutationAction "CreateTrialStaffInvitationAction" bepisCurrentVenueMutationSpec do
         ensureVenueWritable
         staff <- fetch staffId
         ensureRecordInCurrentVenue staff.venueId

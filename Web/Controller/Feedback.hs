@@ -14,18 +14,18 @@ import Web.Controller.Prelude
 import Web.View.Feedback.New
 
 instance Controller FeedbackController where
-    beforeAction = do
+    beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
         annotateTelemetryAction
         ensureIsUser
         ensureCurrentVenueOrSupportRedirect
 
-    action NewFeedbackAction = do
+    action NewFeedbackAction = bepisFormAction "NewFeedbackAction" do
         let feedbackItem = buildNewFeedbackItem
         if isHtmxRequest
             then respondHtml (renderNewFeedbackDialog feedbackItem)
             else render NewView { .. }
 
-    action CreateFeedbackAction = do
+    action CreateFeedbackAction = bepisMutationAction "CreateFeedbackAction" bepisCurrentVenueMutationSpec do
         let feedbackItem = buildSubmittedFeedbackItem
         feedbackItem
             |> ifValid \case

@@ -7,11 +7,11 @@ import qualified System.Environment as Environment
 import Web.Controller.Prelude
 
 instance Controller E2ETestController where
-    beforeAction = do
+    beforeAction = bepisBeforeAction BepisAuthenticatedController do
         annotateTelemetryAction
         ensureIsUser
 
-    action MarkE2EPasskeyVerifiedAction = do
+    action MarkE2EPasskeyVerifiedAction = bepisJsonMutationAction "MarkE2EPasskeyVerifiedAction" bepisCurrentUserMutationSpec do
         ensureE2ETestEndpointEnabled
         ensureE2ETestToken
         hasPasskey <- currentUserHasPasskey

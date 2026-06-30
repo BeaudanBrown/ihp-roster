@@ -13,36 +13,36 @@ import Web.Controller.Prelude
 import Web.View.Billing.Index
 
 instance Controller BillingController where
-    beforeAction = do
+    beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
         annotateTelemetryAction
         ensureIsUser
         ensureCurrentVenue
         ensureProfileCompleted
         ensureBillingAccess
 
-    action BillingAction = do
+    action BillingAction = bepisPageAction "BillingAction" do
         viewModel <- fetchBillingViewModel
         render BillingView { .. }
 
-    action ShowBillingStatusFragmentAction =
+    action ShowBillingStatusFragmentAction = bepisFragmentAction "ShowBillingStatusFragmentAction" $
         serveTypedLiveFragment billingLiveSurfaceDefinition currentBillingSurfaceKey BillingStatusLiveFragment \_ -> do
             viewModel <- fetchBillingViewModel
             respondHtml (renderBillingStatusFragment viewModel)
 
-    action CreateBillingCheckoutSessionAction =
+    action CreateBillingCheckoutSessionAction = bepisMutationAction "CreateBillingCheckoutSessionAction" bepisCurrentVenueMutationSpec $
         createBillingCheckoutSessionAction
 
-    action CreateBillingPortalSessionAction =
+    action CreateBillingPortalSessionAction = bepisMutationAction "CreateBillingPortalSessionAction" bepisCurrentVenueMutationSpec $
         createBillingPortalSessionAction
 
-    action BillingSuccessAction = do
+    action BillingSuccessAction = bepisPageAction "BillingSuccessAction" do
         let checkoutParams = ("checkout", "success") : maybe [] (\sessionId -> [("session_id", sessionId)]) (paramOrNothing @Text "session_id")
         redirectToPath (appendQueryParams (pathTo BillingAction) checkoutParams)
 
-    action BillingCancelAction =
+    action BillingCancelAction = bepisPageAction "BillingCancelAction" $
         render BillingCancelView
 
-    action UpdateVenueBillingControlAction =
+    action UpdateVenueBillingControlAction = bepisMutationAction "UpdateVenueBillingControlAction" bepisCurrentVenueMutationSpec $
         updateVenueBillingControlAction
 
 ensureBillingAccess :: (?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => IO ()

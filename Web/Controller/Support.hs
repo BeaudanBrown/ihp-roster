@@ -30,13 +30,13 @@ import Web.LiveResourceInvalidation (invalidateTouchedResources)
 import Web.View.Support.Index
 
 instance Controller SupportController where
-    beforeAction = do
+    beforeAction = bepisBeforeAction BepisSupportController do
         annotateTelemetryAction
         ensureIsUser
         redirectPermissionDeniedUnless currentUserIsSuperAdmin "You need super admin access to view that page."
         ensureProfileCompleted
 
-    action SupportAction = do
+    action SupportAction = bepisPageAction "SupportAction" do
         onboardingInvitations <- fetchVenueOnboardingInvitations
         passkeys <- fetchCurrentUserPasskeys
         canAddPasskey <- supportCanAddPasskey passkeys
@@ -48,17 +48,17 @@ instance Controller SupportController where
         let onboardingInvitation = buildSupportVenueOnboardingInvitationForm
         render IndexView { .. }
 
-    action ShowFwcMapdAwardRatesSectionAction =
+    action ShowFwcMapdAwardRatesSectionAction = bepisPageAction "ShowFwcMapdAwardRatesSectionAction" $
         serveTypedLiveFragment supportLiveSurfaceDefinition () SupportAwardRatesLiveFragment \_ -> do
             (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
             respondHtml (renderAwardRatesSection fwcMapdAdminData latestFwcMapdRefreshJob activeFwcMapdRefreshJob)
 
-    action ShowPublicHolidaysSectionAction =
+    action ShowPublicHolidaysSectionAction = bepisPageAction "ShowPublicHolidaysSectionAction" $
         serveTypedLiveFragment supportLiveSurfaceDefinition () SupportPublicHolidaysLiveFragment \_ -> do
             (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
             respondHtml (renderPublicHolidaysSection publicHolidayCoverage latestPublicHolidayRefreshJob activePublicHolidayRefreshJob)
 
-    action CreateSupportVenueOnboardingInvitationAction = do
+    action CreateSupportVenueOnboardingInvitationAction = bepisMutationAction "CreateSupportVenueOnboardingInvitationAction" bepisSupportMutationSpec do
         onboardingInvitations <- fetchVenueOnboardingInvitations
         passkeys <- fetchCurrentUserPasskeys
         canAddPasskey <- supportCanAddPasskey passkeys
@@ -92,7 +92,7 @@ instance Controller SupportController where
                             setSuccessMessage ("Venue owner invitation queued for " <> invitation.email)
                             redirectTo SupportAction
 
-    action CreateFwcMapdRefreshJobAction = do
+    action CreateFwcMapdRefreshJobAction = bepisMutationAction "CreateFwcMapdRefreshJobAction" bepisSupportMutationSpec do
         enqueueResult <- enqueueFwcMapdRefreshJob (Just (unpackId currentUser.id))
         case enqueueResult of
             EnqueuedAppJob _ ->
@@ -104,7 +104,7 @@ instance Controller SupportController where
                 liveMutationResult () [SupportAwardRatesResource]
         respondToAwardRatesRefresh
 
-    action CreatePublicHolidayRefreshJobAction = do
+    action CreatePublicHolidayRefreshJobAction = bepisMutationAction "CreatePublicHolidayRefreshJobAction" bepisSupportMutationSpec do
         enqueueResult <- enqueuePublicHolidayRefreshJob (Just (unpackId currentUser.id))
         case enqueueResult of
             EnqueuedAppJob _ ->
@@ -116,13 +116,13 @@ instance Controller SupportController where
                 liveMutationResult () [SupportPublicHolidaysResource]
         respondToPublicHolidayRefresh
 
-    action MarkFeedbackReadAction { feedbackItemId } = do
+    action MarkFeedbackReadAction { feedbackItemId } = bepisMutationAction "MarkFeedbackReadAction" bepisSupportMutationSpec do
         feedbackItem <- fetch feedbackItemId
         _ <- markFeedbackRead feedbackItem
         setSuccessMessage "Feedback marked read."
         redirectTo SupportAction
 
-    action MarkAllFeedbackReadAction = do
+    action MarkAllFeedbackReadAction = bepisMutationAction "MarkAllFeedbackReadAction" bepisSupportMutationSpec do
         unreadFeedbackItems <- query @UserFeedbackItem
             |> filterWhere (#readAt, Nothing)
             |> fetch
@@ -130,7 +130,7 @@ instance Controller SupportController where
         setSuccessMessage "All feedback marked read."
         redirectTo SupportAction
 
-    action UpdateFeedbackStatusAction { feedbackItemId } = do
+    action UpdateFeedbackStatusAction { feedbackItemId } = bepisMutationAction "UpdateFeedbackStatusAction" bepisSupportMutationSpec do
         let status = param @Text "status"
         if status `elem` allowedFeedbackStatuses
             then do
@@ -145,7 +145,7 @@ instance Controller SupportController where
             else setErrorMessage "Choose a valid feedback status."
         redirectTo SupportAction
 
-    action UpdateFeedbackPriorityAction { feedbackItemId } = do
+    action UpdateFeedbackPriorityAction { feedbackItemId } = bepisMutationAction "UpdateFeedbackPriorityAction" bepisSupportMutationSpec do
         let priority = param @Text "priority"
         if priority `elem` allowedFeedbackPriorities
             then do
@@ -159,7 +159,7 @@ instance Controller SupportController where
             else setErrorMessage "Choose a valid feedback priority."
         redirectTo SupportAction
 
-    action UpdateFeedbackSupportNoteAction { feedbackItemId } = do
+    action UpdateFeedbackSupportNoteAction { feedbackItemId } = bepisMutationAction "UpdateFeedbackSupportNoteAction" bepisSupportMutationSpec do
         feedbackItem <- fetch feedbackItemId
         now <- getCurrentTime
         let supportNote = Text.take 3000 (Text.strip (paramOrDefault @Text "" "supportNote"))
@@ -170,7 +170,7 @@ instance Controller SupportController where
         setSuccessMessage "Feedback note updated."
         redirectTo SupportAction
 
-    action SwitchSupportVenueAction = do
+    action SwitchSupportVenueAction = bepisPageAction "SwitchSupportVenueAction" do
         let venueId = (coerce (param @UUID "venueId") :: Id Venue)
         let nextPath = fromMaybe (pathTo SupportAction) (paramOrNothing @Text "next")
         venue <- query @Venue

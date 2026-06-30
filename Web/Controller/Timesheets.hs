@@ -12,24 +12,24 @@ import Web.View.Timesheets.Edit
 import Web.View.Timesheets.New
 
 instance Controller TimesheetsController where
-    beforeAction = do
+    beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
         annotateTelemetryAction
         ensureIsUser
         ensureCurrentVenueOrSupportRedirect
         ensureProfileCompleted
 
-    action TimesheetsAction = do
+    action TimesheetsAction = bepisPageAction "TimesheetsAction" do
         currentOffset <- currentTimesheetWeekOffset
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         if isHtmxRequest
             then respondWithTimesheetWeekFragmentsUpdate currentOffset showApproved showAllStaff selectedStaffFilterId
             else redirectToPath (timesheetWeekUrl currentOffset showApproved showAllStaff selectedStaffFilterId)
 
-    action ShowTimesheetWeekAction { weekOffset } = do
+    action ShowTimesheetWeekAction { weekOffset } = bepisPageAction "ShowTimesheetWeekAction" do
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         renderTimesheetWeekPage weekOffset showApproved showAllStaff selectedStaffFilterId
 
-    action ShowTimesheetToolbarFragmentAction { weekOffset } = do
+    action ShowTimesheetToolbarFragmentAction { weekOffset } = bepisFragmentAction "ShowTimesheetToolbarFragmentAction" do
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         let requestKey = TimesheetProjectionRequest weekOffset showApproved showAllStaff selectedStaffFilterId
         serveTypedLiveFragment
@@ -38,7 +38,7 @@ instance Controller TimesheetsController where
             TimesheetProjectionToolbar
             \_ -> respondWithTimesheetFragment requestKey TimesheetProjectionToolbar
 
-    action ShowTimesheetDayColumnsFragmentAction { weekOffset } = do
+    action ShowTimesheetDayColumnsFragmentAction { weekOffset } = bepisFragmentAction "ShowTimesheetDayColumnsFragmentAction" do
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         let requestKey = TimesheetProjectionRequest weekOffset showApproved showAllStaff selectedStaffFilterId
         serveTypedLiveFragment
@@ -47,7 +47,7 @@ instance Controller TimesheetsController where
             TimesheetProjectionDayColumns
             \_ -> respondWithTimesheetFragment requestKey TimesheetProjectionDayColumns
 
-    action ShowTimesheetDaySectionFragmentAction { weekOffset, dayOffset } = do
+    action ShowTimesheetDaySectionFragmentAction { weekOffset, dayOffset } = bepisFragmentAction "ShowTimesheetDaySectionFragmentAction" do
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         let requestKey = TimesheetProjectionRequest weekOffset showApproved showAllStaff selectedStaffFilterId
         let fragment = TimesheetProjectionDaySection dayOffset
@@ -57,7 +57,7 @@ instance Controller TimesheetsController where
             fragment
             \_ -> respondWithTimesheetFragment requestKey fragment
 
-    action NewTimesheetEntryAction = do
+    action NewTimesheetEntryAction = bepisFormAction "NewTimesheetEntryAction" do
         weekOffset <- weekOffsetFromParamOrCurrent
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         staffMembers <- fetchStaffForForm
@@ -93,7 +93,7 @@ instance Controller TimesheetsController where
                     then respondHtml (renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId)
                     else render NewView { .. }
 
-    action CreateTimesheetEntryAction = do
+    action CreateTimesheetEntryAction = bepisMutationAction "CreateTimesheetEntryAction" bepisCurrentVenueMutationSpec do
         ensureVenueWritable
         weekOffset <- weekOffsetFromParamOrCurrent
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
@@ -123,7 +123,7 @@ instance Controller TimesheetsController where
                             setSuccessMessage "Timesheet entry created"
                             redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
 
-    action EditTimesheetEntryAction { timesheetEntryId } = do
+    action EditTimesheetEntryAction { timesheetEntryId } = bepisFormAction "EditTimesheetEntryAction" do
         timesheetEntry <- fetch timesheetEntryId
         ensureRecordInCurrentVenue timesheetEntry.venueId
         ensureTimesheetVisibility timesheetEntry
@@ -139,7 +139,7 @@ instance Controller TimesheetsController where
             then respondHtml (renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId)
             else render EditView { .. }
 
-    action UpdateTimesheetEntryAction { timesheetEntryId } = do
+    action UpdateTimesheetEntryAction { timesheetEntryId } = bepisMutationAction "UpdateTimesheetEntryAction" bepisCurrentVenueMutationSpec do
         ensureVenueWritable
         existingEntry <- fetch timesheetEntryId
         ensureRecordInCurrentVenue existingEntry.venueId
@@ -180,7 +180,7 @@ instance Controller TimesheetsController where
                             setSuccessMessage successMessage
                             redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
 
-    action DeleteTimesheetEntryAction { timesheetEntryId } = do
+    action DeleteTimesheetEntryAction { timesheetEntryId } = bepisMutationAction "DeleteTimesheetEntryAction" bepisCurrentVenueMutationSpec do
         ensureVenueWritable
         timesheetEntry <- fetch timesheetEntryId
         ensureRecordInCurrentVenue timesheetEntry.venueId
@@ -197,7 +197,7 @@ instance Controller TimesheetsController where
         unless isHtmxRequest do
             redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
 
-    action ApproveTimesheetEntryAction { timesheetEntryId } = do
+    action ApproveTimesheetEntryAction { timesheetEntryId } = bepisMutationAction "ApproveTimesheetEntryAction" bepisCurrentVenueMutationSpec do
         ensureManagerRole
         ensureVenueWritable
         timesheetEntry <- fetch timesheetEntryId
@@ -213,7 +213,7 @@ instance Controller TimesheetsController where
                 setSuccessMessage "Timesheet entry approved"
                 redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
 
-    action UnapproveTimesheetEntryAction { timesheetEntryId } = do
+    action UnapproveTimesheetEntryAction { timesheetEntryId } = bepisPageAction "UnapproveTimesheetEntryAction" do
         ensureManagerRole
         ensureVenueWritable
         timesheetEntry <- fetch timesheetEntryId

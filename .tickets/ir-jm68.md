@@ -1,6 +1,6 @@
 ---
 id: ir-jm68
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-06-30T07:26:14Z
@@ -21,3 +21,9 @@ Migrate controllers in independently committable chunks. Add wrapper variants wh
 
 Every controller has a Bepis controller policy. Every controller action delegates through an approved Bepis action wrapper. Mutation-like actions declare a BepisMutationSpec. architecture_query conventions failOnViolations=true requireAllControllers=true passes and focused tests/typecheck pass.
 
+
+## Notes
+
+**2026-06-30T07:34:52Z**
+
+Whole-app rollout complete: strict architecture conventions report 18/18 controllers migrated, 175/175 handlers with typed Bepis wrappers, and zero blocking violations. Direct ./Config/nix/scripts/architecture/check-fresh and typecheck passed.

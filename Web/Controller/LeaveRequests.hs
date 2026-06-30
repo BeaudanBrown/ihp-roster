@@ -23,19 +23,19 @@ import Web.View.Staff.Edit (renderStaffLeaveRequestFormFragment,
                             renderStaffLeaveRequestsListFragmentOob)
 
 instance Controller LeaveRequestsController where
-    beforeAction = do
+    beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
         annotateTelemetryAction
         ensureIsUser
         ensureCurrentVenueOrSupportRedirect
 
-    action LeaveRequestsAction =
+    action LeaveRequestsAction = bepisPageAction "LeaveRequestsAction" $
         profileActionSpan "leave.page.render" do
             ensureProfileCompleted
             ensureManagerRole
             projection <- profileActionSpan "leave.page.fetch_projection" fetchLeaveRequestsProjectionCached
             profileActionSpan "leave.page.render_response" (renderProfiled (leaveRequestsIndexView projection))
 
-    action ShowLeaveRequestsContentFragmentAction =
+    action ShowLeaveRequestsContentFragmentAction = bepisFragmentAction "ShowLeaveRequestsContentFragmentAction" $
         profileActionSpan "leave.fragment.respond" do
             ensureProfileCompleted
             ensureManagerRole
@@ -56,7 +56,7 @@ instance Controller LeaveRequestsController where
                             TextIO.putStrLn "leave_projection_miss: fragment=content"
                         respondHtmlProfiled (fromMaybe mempty maybeHtml)
 
-    action NewLeaveRequestAction = do
+    action NewLeaveRequestAction = bepisFormAction "NewLeaveRequestAction" do
         ensureStaffSelfServiceAccess
         maybeStaff <- fetchCurrentUserStaff
         let responseContext = requestedLeaveResponseContext
@@ -70,7 +70,7 @@ instance Controller LeaveRequestsController where
                     then respondHtml (renderNewLeaveRequestDialog leaveRequest)
                     else render NewView { .. }
 
-    action CreateLeaveRequestAction = do
+    action CreateLeaveRequestAction = bepisMutationAction "CreateLeaveRequestAction" bepisCurrentVenueMutationSpec do
         ensureStaffSelfServiceAccess
         ensureVenueWritable
         let responseContext = requestedLeaveResponseContext
@@ -101,7 +101,7 @@ instance Controller LeaveRequestsController where
                                     setSuccessMessage "Unavailable period submitted"
                                     redirectToPath (leaveFallbackPath responseContext)
 
-    action ApproveLeaveRequestAction { leaveRequestId } = do
+    action ApproveLeaveRequestAction { leaveRequestId } = bepisMutationAction "ApproveLeaveRequestAction" bepisCurrentVenueMutationSpec do
         ensureProfileCompleted
         ensureManagerRole
         ensureVenueWritable
@@ -115,7 +115,7 @@ instance Controller LeaveRequestsController where
                 setSuccessMessage "Unavailable period approved"
                 redirectTo LeaveRequestsAction
 
-    action DenyLeaveRequestAction { leaveRequestId } = do
+    action DenyLeaveRequestAction { leaveRequestId } = bepisMutationAction "DenyLeaveRequestAction" bepisCurrentVenueMutationSpec do
         ensureProfileCompleted
         ensureManagerRole
         ensureVenueWritable

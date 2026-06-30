@@ -1,6 +1,6 @@
 ---
 id: ir-2kzx
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-06-30T07:26:22Z
@@ -12,3 +12,9 @@ tags: [architecture, bepis-actions, agent-loop]
 ---
 # Migrate support billing export webhook controllers
 
+
+## Notes
+
+**2026-06-30T07:34:52Z**
+
+Migrated Billing, Exports, StripeWebhooks, and Support controllers to Bepis controller policies and action wrappers. Full worktree typecheck passed.
