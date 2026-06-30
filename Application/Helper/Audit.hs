@@ -4,6 +4,8 @@ import qualified Data.Aeson as Aeson
 import Generated.Types
 import IHP.ControllerPrelude
 
+import Application.Bepis.Fact (BepisAuditFact (..), BepisAuditFactKind (..),
+                               BepisFact (..), emitBepisFact)
 import Application.Helper.ControllerContext (authenticatedCurrentUser,
                                              currentVenueId,
                                              resolveVenueContextForUser)
@@ -19,8 +21,8 @@ recordAuditEvent ::
     Aeson.Value ->
     Text ->
     IO AuditEvent
-recordAuditEvent venueId actorUserId eventType targetTable targetId payload sourceChannel =
-    newRecord @AuditEvent
+recordAuditEvent venueId actorUserId eventType targetTable targetId payload sourceChannel = do
+    event <- newRecord @AuditEvent
         |> set #venueId venueId
         |> set #actorUserId actorUserId
         |> set #eventType eventType
@@ -29,6 +31,8 @@ recordAuditEvent venueId actorUserId eventType targetTable targetId payload sour
         |> set #payload payload
         |> set #sourceChannel sourceChannel
         |> createRecord
+    emitAuditFact BepisAuditEventRecorded eventType targetTable sourceChannel
+    pure event
 
 recordCurrentUserAuditEvent ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -65,6 +69,7 @@ recordUserAuthenticationAuditEvent user eventType payload =
                 (unpackId (get #id user))
                 payload
                 "web"
+            emitAuditFact BepisAuthenticationAuditRecorded eventType "users" "web"
             pure (Just event)
 
 timesheetEntrySnapshot :: TimesheetEntry -> Aeson.Value
@@ -97,8 +102,8 @@ recordTimesheetEntryVersion ::
     TimesheetEntry ->
     Aeson.Value ->
     IO TimesheetEntryVersion
-recordTimesheetEntryVersion venueId actorUserId versionAction entry payload =
-    newRecord @TimesheetEntryVersion
+recordTimesheetEntryVersion venueId actorUserId versionAction entry payload = do
+    version <- newRecord @TimesheetEntryVersion
         |> set #venueId venueId
         |> set #timesheetEntryId (unpackId (get #id entry))
         |> set #actorUserId actorUserId
@@ -106,6 +111,8 @@ recordTimesheetEntryVersion venueId actorUserId versionAction entry payload =
         |> set #snapshot (timesheetEntrySnapshot entry)
         |> set #payload payload
         |> createRecord
+    emitAuditFact BepisVersionEventRecorded (inputValue versionAction) "timesheet_entries" "web"
+    pure version
 
 recordCurrentUserTimesheetEntryVersion ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -128,8 +135,8 @@ recordLeaveRequestEvent ::
     Maybe LeaveRequestStatusEnum ->
     Aeson.Value ->
     IO LeaveRequestEvent
-recordLeaveRequestEvent venueId actorUserId leaveRequestId eventType previousStatus newStatus payload =
-    newRecord @LeaveRequestEvent
+recordLeaveRequestEvent venueId actorUserId leaveRequestId eventType previousStatus newStatus payload = do
+    event <- newRecord @LeaveRequestEvent
         |> set #venueId venueId
         |> set #leaveRequestId leaveRequestId
         |> set #actorUserId actorUserId
@@ -138,6 +145,8 @@ recordLeaveRequestEvent venueId actorUserId leaveRequestId eventType previousSta
         |> set #newStatus newStatus
         |> set #payload payload
         |> createRecord
+    emitAuditFact BepisAuditEventRecorded (inputValue eventType) "leave_requests" "web"
+    pure event
 
 recordCurrentUserLeaveRequestEvent ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -163,8 +172,8 @@ recordVenueMembershipRoleEvent ::
     VenueRoleEnum ->
     Aeson.Value ->
     IO VenueMembershipRoleEvent
-recordVenueMembershipRoleEvent venueId actorUserId membership eventType previousRole newRole payload =
-    newRecord @VenueMembershipRoleEvent
+recordVenueMembershipRoleEvent venueId actorUserId membership eventType previousRole newRole payload = do
+    event <- newRecord @VenueMembershipRoleEvent
         |> set #venueId venueId
         |> set #venueMembershipId (unpackId (get #id membership))
         |> set #actorUserId actorUserId
@@ -173,6 +182,8 @@ recordVenueMembershipRoleEvent venueId actorUserId membership eventType previous
         |> set #newRole newRole
         |> set #payload payload
         |> createRecord
+    emitAuditFact BepisAuditEventRecorded (inputValue eventType) "venue_memberships" "web"
+    pure event
 
 updateVenueMembershipRoleWithAudit ::
     (?modelContext :: ModelContext) =>
@@ -208,3 +219,12 @@ updateVenueMembershipRoleWithAudit actorUserId sourceChannel membership newRole 
             newRole
             payload
         pure updatedMembership
+
+emitAuditFact :: BepisAuditFactKind -> Text -> Text -> Text -> IO ()
+emitAuditFact kind eventType target sourceChannel =
+    emitBepisFact $ BepisAuditFactValue BepisAuditFact
+        { auditFactKind = kind
+        , auditFactEventType = eventType
+        , auditFactTarget = target
+        , auditFactSourceChannel = sourceChannel
+        }
