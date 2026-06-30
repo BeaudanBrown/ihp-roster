@@ -1,6 +1,6 @@
 ---
 id: ir-zqp3
-status: open
+status: closed
 deps: []
 links: [ir-f2p4, ir-cfcr, ir-jsyd, ir-jooi, ir-p008, ir-62zx]
 created: 2026-06-30T04:48:17Z
@@ -21,3 +21,9 @@ IHP remains responsible for Web/Types.hs action constructors, Web/Routes.hs Auto
 
 Epic is complete when new controller actions normally use Bepis wrappers; raw IHP action bodies are detected by a convention check; controller/action diagrams report typed-wrapper facts and confidence; mutation actions declare audit/realtime/scope policy; realtime coverage/flow diagrams distinguish mechanism and coverage; OTel spans can correlate runtime traces to static Bepis action metadata; IHP remains the visible framework boundary rather than being replaced by a hidden parallel framework.
 
+
+## Notes
+
+**2026-06-30T07:11:24Z**
+
+Closeout: typed Bepis boundary slice is complete. Added Bepis action/controller/mutation/realtime/response/prelude modules; documented IHP/Bepis boundary; migrated SessionsController and UpdateRosterWarningPreferenceAction; added wrapper-derived architecture facts, convention checks, realtime coverage/flow, generated-contract grouping, refactoring radar, IHP Auto Refresh and ControllerSpec decisions; verified wrapper OTel attributes with profile trace output/profile-load/otel-qc0t-1782802978 and trace query correlation.

@@ -1,6 +1,6 @@
 ---
 id: ir-qc0t
-status: in_progress
+status: closed
 deps: [ir-63go, ir-nl8k]
 links: []
 created: 2026-06-30T04:48:17Z
@@ -28,3 +28,7 @@ A profile-load trace for a migrated action contains Bepis action/controller/kind
 **2026-06-30T05:26:32Z**
 
 Implemented wrapper-side low-cardinality OTel attributes on root/current span plus child action spans. Verification: bash ./bin/in-env typecheck passed. Runtime profile trace verification remains to be done before closing.
+
+**2026-06-30T07:11:15Z**
+
+Runtime OTel verification passed. profile-load --otel run output/profile-load/otel-qc0t-1782802978 produced 9 traces/410 spans. Trace 564e9e0107a7840e7f55b8ff3f37906e for CreateSessionAction contains Bepis wrapper attributes on both WAI root span and bepis.action child span: bepis.action=CreateSessionAction, bepis.action.kind=mutation, bepis.response.kinds=redirect,htmx-fragment, mutation audit/realtime/scope policy labels. Also fixed local profile collector port conflicts and trace query parsing for collector NDJSON exports.

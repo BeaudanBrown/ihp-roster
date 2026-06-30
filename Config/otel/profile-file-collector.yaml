@@ -2,9 +2,9 @@ receivers:
   otlp:
     protocols:
       http:
-        endpoint: 127.0.0.1:4318
+        endpoint: 127.0.0.1:24318
       grpc:
-        endpoint: 127.0.0.1:4317
+        endpoint: 127.0.0.1:24317
 
 processors:
   batch: {}
@@ -14,6 +14,14 @@ exporters:
     path: ${env:OTEL_FILE_EXPORTER_PATH}
 
 service:
+  telemetry:
+    metrics:
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 127.0.0.1
+                port: 0
   pipelines:
     traces:
       receivers: [otlp]
