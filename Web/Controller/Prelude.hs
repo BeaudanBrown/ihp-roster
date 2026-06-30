@@ -1,5 +1,6 @@
 module Web.Controller.Prelude
 ( module Web.Types
+, module Application.Bepis.Prelude
 , module Application.Helper.Controller
 , module Application.Helper.Conflict
 , module Application.Helper.Telemetry
@@ -8,6 +9,7 @@ module Web.Controller.Prelude
 )
 where
 
+import Application.Bepis.Prelude
 import Application.Helper.Conflict
 import Application.Helper.Controller
 import Application.Helper.Telemetry
