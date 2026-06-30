@@ -10,6 +10,8 @@ module Web.LiveResourceInvalidation
     , renderLiveInvalidationProfile
     ) where
 
+import Application.Bepis.Fact (BepisFact (..), BepisLiveFact (..),
+                               BepisLiveMechanism (..), emitBepisFact)
 import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate.Runtime (LiveUpdateBroadcastResult (..),
                                               LiveUpdateScope (..),
@@ -99,6 +101,7 @@ invalidateTouchedResources label result =
                     broadcastResults
                     LiveInvalidationStageDurations { observeDurationMs, activeDurationMs, expandDurationMs, candidateDurationMs, planDurationMs, broadcastDurationMs }
         emitLiveInvalidationProfileLog profile
+        emitLiveFactFromProfile BepisWebSocketFragmentRefetch profile
         pure (observed, Just (renderLiveInvalidationProfile profile))
 
 invalidateTouchedResourcesWithoutContext :: Text -> LiveMutationResult a -> IO (LiveMutationResult a)
@@ -127,6 +130,7 @@ invalidateTouchedResourcesWithoutContext label result = do
                 broadcastResults
                 LiveInvalidationStageDurations { observeDurationMs, activeDurationMs = activeDurationMs', expandDurationMs, candidateDurationMs, planDurationMs, broadcastDurationMs }
     emitLiveInvalidationProfileLog profile
+    emitLiveFactFromProfile BepisBackgroundLiveInvalidation profile
     pure observed
 
 data LiveInvalidationProfile = LiveInvalidationProfile
@@ -205,6 +209,17 @@ renderLiveInvalidationProfile profile =
         , "plan_ms=" <> renderDuration profile.profileStageDurations.planDurationMs
         , "broadcast_ms=" <> renderDuration profile.profileStageDurations.broadcastDurationMs
         ]
+
+emitLiveFactFromProfile :: BepisLiveMechanism -> LiveInvalidationProfile -> IO ()
+emitLiveFactFromProfile mechanism profile =
+    emitBepisFact $ BepisLiveFactValue BepisLiveFact
+        { liveFactLabel = profile.profileLabel
+        , liveFactTouchedResourceCount = profile.profileTouchedResourceCount
+        , liveFactExpandedResourceCount = profile.profileExpandedResourceCount
+        , liveFactPlannedScopeCount = profile.profilePlanningScopeCount
+        , liveFactPlannedFragmentCount = profile.profileTargetFragmentCount
+        , liveFactMechanism = mechanism
+        }
 
 emitLiveInvalidationProfileLog :: LiveInvalidationProfile -> IO ()
 emitLiveInvalidationProfileLog profile = do
