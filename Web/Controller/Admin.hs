@@ -140,20 +140,6 @@ fetchCurrentVenueStaffUser staffId = do
         Nothing     -> pure Nothing
         Just userId -> Just <$> fetch (Id userId :: Id User)
 
-adminVenueMutationSpec :: BepisMutationSpec
-adminVenueMutationSpec = BepisMutationSpec
-    { auditPolicy = BepisAuditRequired
-    , realtimePolicy = BepisNoRealtimeInvalidation
-    , scopePolicy = BepisCurrentVenueScope
-    }
-
-adminXeroMutationSpec :: BepisMutationSpec
-adminXeroMutationSpec = BepisMutationSpec
-    { auditPolicy = BepisAuditRequired
-    , realtimePolicy = BepisNoRealtimeInvalidation
-    , scopePolicy = BepisCurrentVenueScope
-    }
-
 instance Controller AdminController where
     beforeAction = bepisBeforeAction BepisAdminVenueController do
         annotateTelemetryAction
@@ -162,7 +148,7 @@ instance Controller AdminController where
         ensureProfileCompleted
         ensureAdminRole
 
-    action currentAction@AdminAction = bepisPageAction currentAction $
+    action currentAction@AdminAction = runBepis currentAction BepisPageAction $
         profileActionSpan "admin.page.render" do
             _ <- profileActionSpan "admin.page.normalize_roster_groups" ensureAdminRosterGroupsNormalizedMutation
             rosterGroups <- profileActionSpan "admin.page.fetch_roster_groups" fetchCurrentVenueRosterGroups
@@ -183,14 +169,14 @@ instance Controller AdminController where
             today <- utctDay <$> getCurrentTime
             profileActionSpan "admin.page.render_response" (render IndexView { .. })
 
-    action currentAction@XeroAction = bepisPageAction currentAction $
+    action currentAction@XeroAction = runBepis currentAction BepisPageAction $
         profileActionSpan "admin.xero.page.render" do
             redirectPermissionDeniedUnless currentUserCanManageXeroIntegration "Only the venue owner or a super admin can manage Xero for this venue."
             let xeroAutoSyncAfterConnect = paramOrDefault @Text "false" "syncAfterConnect" == "true"
             xeroSectionData <- profileActionSpan "admin.xero.page.fetch_section_data" fetchCurrentVenueXeroAdminSectionData
             profileActionSpan "admin.xero.page.render_response" (render XeroView { .. })
 
-    action currentAction@ProfileLiveInvalidateVenueAction = bepisPageAction currentAction do
+    action currentAction@ProfileLiveInvalidateVenueAction = runBepis currentAction BepisPageAction do
         profilingEnabled <- liftIO isRequestProfilingEnabled
         redirectPermissionDeniedUnless profilingEnabled "Live profiling endpoints are only available while profiling is enabled."
         let resourceName = param @Text "resource"
@@ -198,124 +184,124 @@ instance Controller AdminController where
         _ <- invalidateTouchedResources ("profile.live." <> resourceName) (liveMutationResult () resources)
         respondHtml "ok"
 
-    action currentAction@SendStaffPasskeySetupEmailAction { staffId } = bepisMutationAction currentAction adminVenueMutationSpec do
+    action currentAction@SendStaffPasskeySetupEmailAction { staffId } = runBepis currentAction BepisMutationAction do
         sendStaffPasskeySetupLink staffId StaffNewDevicePasskeySetup "Passkey setup email sent."
 
-    action currentAction@SendStaffPasskeyRecoveryEmailAction { staffId } = bepisMutationAction currentAction adminVenueMutationSpec do
+    action currentAction@SendStaffPasskeyRecoveryEmailAction { staffId } = runBepis currentAction BepisMutationAction do
         sendStaffPasskeySetupLink staffId StaffPasskeyRecovery "Passkey recovery email sent."
 
-    action currentAction@StartXeroConnectionAction = bepisMutationAction currentAction adminXeroMutationSpec do
+    action currentAction@StartXeroConnectionAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         startXeroConnectionAction
 
-    action currentAction@XeroOAuthCallbackAction = bepisIntegrationAction currentAction $
+    action currentAction@XeroOAuthCallbackAction = runBepis currentAction BepisIntegrationAction $
         xeroOAuthCallbackAction
 
-    action currentAction@DisconnectXeroConnectionAction = bepisMutationAction currentAction adminXeroMutationSpec do
+    action currentAction@DisconnectXeroConnectionAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         disconnectXeroConnectionAction
 
-    action currentAction@SyncXeroPayrollReferenceDataAction = bepisMutationAction currentAction adminXeroMutationSpec do
+    action currentAction@SyncXeroPayrollReferenceDataAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero syncXeroPayrollReferenceDataAction
 
-    action currentAction@CreateMissingXeroPayItemsAction = bepisMutationAction currentAction adminXeroMutationSpec do
+    action currentAction@CreateMissingXeroPayItemsAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero createMissingXeroPayItemsAction
 
-    action currentAction@OpenXeroPayItemImportAction = bepisMutationAction currentAction adminXeroMutationSpec do
+    action currentAction@OpenXeroPayItemImportAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero openXeroPayItemImportAction
 
-    action currentAction@ImportXeroPayItemsAction = bepisMutationAction currentAction adminXeroMutationSpec do
+    action currentAction@ImportXeroPayItemsAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero importXeroPayItemsAction
 
-    action currentAction@ArchiveXeroImportedPayItemAction { xeroImportedPayItemId } = bepisMutationAction currentAction adminXeroMutationSpec do
+    action currentAction@ArchiveXeroImportedPayItemAction { xeroImportedPayItemId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (archiveXeroImportedPayItemAction xeroImportedPayItemId)
 
-    action currentAction@SaveXeroStaffMappingAction = bepisMutationAction currentAction adminXeroMutationSpec do
+    action currentAction@SaveXeroStaffMappingAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero saveXeroStaffMappingAction
 
-    action currentAction@SuggestXeroStaffMappingAction { staffId } = bepisMutationAction currentAction adminXeroMutationSpec do
+    action currentAction@SuggestXeroStaffMappingAction { staffId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (suggestXeroStaffMappingAction staffId)
 
-    action currentAction@SaveXeroEarningsRateMappingAction = bepisMutationAction currentAction adminXeroMutationSpec do
+    action currentAction@SaveXeroEarningsRateMappingAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero saveXeroEarningsRateMappingAction
 
-    action currentAction@SaveXeroPayItemAccountCodeSelectionAction = bepisMutationAction currentAction adminXeroMutationSpec do
+    action currentAction@SaveXeroPayItemAccountCodeSelectionAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero saveXeroPayItemAccountCodeSelectionAction
 
-    action currentAction@SaveXeroPayrollCalendarSelectionAction = bepisMutationAction currentAction adminXeroMutationSpec do
+    action currentAction@SaveXeroPayrollCalendarSelectionAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero saveXeroPayrollCalendarSelectionAction
 
-    action currentAction@OpenXeroTimesheetPreparationAction = bepisMutationAction currentAction adminXeroMutationSpec do
+    action currentAction@OpenXeroTimesheetPreparationAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero openXeroTimesheetPreparationAction
 
-    action currentAction@RunXeroTimesheetPreparationAction = bepisMutationAction currentAction adminXeroMutationSpec do
+    action currentAction@RunXeroTimesheetPreparationAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero runXeroTimesheetPreparationAction
 
-    action currentAction@RefreshXeroTimesheetPreparationAction { xeroTimesheetPreparationRunId } = bepisPageAction currentAction do
+    action currentAction@RefreshXeroTimesheetPreparationAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisPageAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (refreshXeroTimesheetPreparationAction xeroTimesheetPreparationRunId)
 
-    action currentAction@ShowXeroTimesheetPreparationStaffMappingsFragmentAction { xeroTimesheetPreparationRunId } = bepisFragmentAction currentAction do
+    action currentAction@ShowXeroTimesheetPreparationStaffMappingsFragmentAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisFragmentAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (showXeroTimesheetPreparationStaffMappingsFragmentAction xeroTimesheetPreparationRunId)
 
-    action currentAction@ApplyXeroTimesheetPreparationStaffDecisionAction { xeroTimesheetPreparationRunId } = bepisMutationAction currentAction adminXeroMutationSpec do
+    action currentAction@ApplyXeroTimesheetPreparationStaffDecisionAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (applyXeroTimesheetPreparationStaffDecisionAction xeroTimesheetPreparationRunId)
 
-    action currentAction@ContinueXeroTimesheetPreparationStaffStepAction { xeroTimesheetPreparationRunId } = bepisMutationAction currentAction adminXeroMutationSpec do
+    action currentAction@ContinueXeroTimesheetPreparationStaffStepAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (continueXeroTimesheetPreparationStaffStepAction xeroTimesheetPreparationRunId)
 
-    action currentAction@SelectXeroTimesheetPreparationPeriodAction { xeroTimesheetPreparationRunId } = bepisMutationAction currentAction adminXeroMutationSpec do
+    action currentAction@SelectXeroTimesheetPreparationPeriodAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (selectXeroTimesheetPreparationPeriodAction xeroTimesheetPreparationRunId)
 
-    action currentAction@ApproveXeroTimesheetPreparationPayItemsAction { xeroTimesheetPreparationRunId } = bepisMutationAction currentAction adminXeroMutationSpec do
+    action currentAction@ApproveXeroTimesheetPreparationPayItemsAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (approveXeroTimesheetPreparationPayItemsAction xeroTimesheetPreparationRunId)
 
-    action currentAction@ShowXeroTimesheetPreparationSummaryAction { xeroTimesheetPreparationRunId } = bepisPageAction currentAction do
+    action currentAction@ShowXeroTimesheetPreparationSummaryAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisPageAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (showXeroTimesheetPreparationSummaryAction xeroTimesheetPreparationRunId)
 
-    action currentAction@ConfirmXeroTimesheetPreparationSubmissionAction { xeroTimesheetPreparationRunId } = bepisMutationAction currentAction adminXeroMutationSpec do
+    action currentAction@ConfirmXeroTimesheetPreparationSubmissionAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (confirmXeroTimesheetPreparationSubmissionAction xeroTimesheetPreparationRunId)
 
-    action currentAction@RunXeroTimesheetPreparationSubmissionAction { xeroTimesheetPreparationRunId } = bepisMutationAction currentAction adminXeroMutationSpec do
+    action currentAction@RunXeroTimesheetPreparationSubmissionAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (runXeroTimesheetPreparationSubmissionAction xeroTimesheetPreparationRunId)
 
-    action currentAction@SubmitXeroTimesheetPreparationAction { xeroTimesheetPreparationRunId } = bepisMutationAction currentAction adminXeroMutationSpec do
+    action currentAction@SubmitXeroTimesheetPreparationAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (submitXeroTimesheetPreparationAction xeroTimesheetPreparationRunId)
 
-    action currentAction@PreviewXeroDraftTimesheetsAction = bepisPageAction currentAction do
+    action currentAction@PreviewXeroDraftTimesheetsAction = runBepis currentAction BepisPageAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero previewXeroDraftTimesheetsAction
 
-    action currentAction@SubmitXeroDraftTimesheetsAction = bepisMutationAction currentAction adminXeroMutationSpec do
+    action currentAction@SubmitXeroDraftTimesheetsAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero submitXeroDraftTimesheetsAction
 
-    action currentAction@RetryXeroDraftTimesheetSubmissionAction { xeroTimesheetSubmissionId } = bepisMutationAction currentAction adminXeroMutationSpec do
+    action currentAction@RetryXeroDraftTimesheetSubmissionAction { xeroTimesheetSubmissionId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (retryXeroDraftTimesheetSubmissionAction xeroTimesheetSubmissionId)
 
-    action currentAction@UpdateVenueConfigAction = bepisMutationAction currentAction adminVenueMutationSpec do
+    action currentAction@UpdateVenueConfigAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         venueConfig <- fetchVenueConfig
         let configField = paramOrDefault @Text "rosterWeekStartsOn" "configField"
@@ -351,20 +337,20 @@ instance Controller AdminController where
                                 setSuccessMessage ("Roster week will start on " <> weekdayIndexLabel rosterWeekStartsOn)
                                 respondToVenueSettingsMutation
 
-    action currentAction@ShowAdminVenueSettingsFragmentAction = bepisFragmentAction currentAction $
+    action currentAction@ShowAdminVenueSettingsFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.venue_settings_fragment.respond" do
             serveTypedLiveFragment adminVenueSettingsLiveSurfaceDefinition () adminVenueSettingsFragment \_ -> do
                 venueConfig <- profileActionSpan "admin.venue_settings_fragment.fetch_venue_config" fetchVenueConfig
                 profileActionSpan "admin.venue_settings_fragment.render_response" (respondHtml (renderVenueSettingsSectionFragment venueConfig))
 
-    action currentAction@ShowAdminInvitesFragmentAction = bepisFragmentAction currentAction $
+    action currentAction@ShowAdminInvitesFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.invites_fragment.respond" do
             currentRosterGroup <- profileActionSpan "admin.invites_fragment.resolve_current_group" (fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId"))
             serveTypedLiveFragment adminInvitesLiveSurfaceDefinition AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Just currentRosterGroup.id } adminInvitesFragment \_ -> do
                 invitations <- profileActionSpan "admin.invites_fragment.fetch_invitations" fetchCurrentVenueInvitations
                 profileActionSpan "admin.invites_fragment.render_response" (respondHtml (renderInvitesSectionFragment invitations currentRosterGroup.id))
 
-    action currentAction@ShowAdminShiftTypesFragmentAction = bepisFragmentAction currentAction $
+    action currentAction@ShowAdminShiftTypesFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.shift_types_fragment.respond" do
             serveTypedLiveFragment adminShiftTypesLiveSurfaceDefinition () adminShiftTypesFragment \_ -> do
                 shiftTypes <- profileActionSpan "admin.shift_types_fragment.fetch_shift_types" fetchCurrentVenueShiftTypes
@@ -374,7 +360,7 @@ instance Controller AdminController where
                 let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
                 profileActionSpan "admin.shift_types_fragment.render_response" (respondHtml (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates importedPayItems))
 
-    action currentAction@ShowAdminRosterGroupsFragmentAction = bepisFragmentAction currentAction $
+    action currentAction@ShowAdminRosterGroupsFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.roster_groups_fragment.respond" do
             serveTypedLiveFragment adminRosterGroupsLiveSurfaceDefinition () adminRosterGroupsFragment \_ -> do
                 _ <- profileActionSpan "admin.roster_groups_fragment.normalize_roster_groups" ensureAdminRosterGroupsNormalizedMutation
@@ -382,7 +368,7 @@ instance Controller AdminController where
                 let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
                 profileActionSpan "admin.roster_groups_fragment.render_response" (respondHtml (renderRosterGroupsSectionFragment rosterGroups showInactiveRosterGroups))
 
-    action currentAction@ShowAdminExportsFragmentAction = bepisFragmentAction currentAction $
+    action currentAction@ShowAdminExportsFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.exports_fragment.respond" do
             serveTypedLiveFragment adminExportsLiveSurfaceDefinition () adminExportsFragment \_ -> do
                 currentWeekOffset <- profileActionSpan "admin.exports_fragment.current_report_week" currentReportWeekOffset
@@ -392,24 +378,24 @@ instance Controller AdminController where
                 exportJobs <- profileActionSpan "admin.exports_fragment.fetch_export_jobs" fetchCurrentVenueExportJobs
                 profileActionSpan "admin.exports_fragment.render_response" (respondHtml (renderExportsSectionFragment reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs))
 
-    action currentAction@ShowAdminXeroFragmentAction = bepisFragmentAction currentAction $
+    action currentAction@ShowAdminXeroFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.xero_fragment.respond" do
             serveTypedLiveFragment adminXeroLiveSurfaceDefinition () adminXeroShellFragment \_ ->
                 requireCurrentVenueOwnerForXero respondWithXeroSectionFragment
 
-    action currentAction@ShowAdminXeroStaffMappingsFragmentAction = bepisFragmentAction currentAction $
+    action currentAction@ShowAdminXeroStaffMappingsFragmentAction = runBepis currentAction BepisFragmentAction $
         serveTypedLiveFragment adminXeroLiveSurfaceDefinition () adminXeroStaffMappingsFragment \_ ->
             requireCurrentVenueOwnerForXero respondWithXeroStaffMappingsFragment
 
-    action currentAction@ShowAdminXeroPayItemsFragmentAction = bepisFragmentAction currentAction $
+    action currentAction@ShowAdminXeroPayItemsFragmentAction = runBepis currentAction BepisFragmentAction $
         serveTypedLiveFragment adminXeroLiveSurfaceDefinition () adminXeroPayItemsFragment \_ ->
             requireCurrentVenueOwnerForXero respondWithXeroPayItemsFragment
 
-    action currentAction@ShowAdminXeroTimesheetsFragmentAction = bepisFragmentAction currentAction $
+    action currentAction@ShowAdminXeroTimesheetsFragmentAction = runBepis currentAction BepisFragmentAction $
         serveTypedLiveFragment adminXeroLiveSurfaceDefinition () adminXeroTimesheetsFragment \_ ->
             requireCurrentVenueOwnerForXero respondWithXeroTimesheetsFragment
 
-    action currentAction@CreateVenueInvitationAction = bepisMutationAction currentAction adminVenueMutationSpec do
+    action currentAction@CreateVenueInvitationAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
         maybeEmail <- parseRequiredEmail "email" "Invite email is required."
@@ -426,7 +412,7 @@ instance Controller AdminController where
             _ ->
                 respondToInvitesSectionMutation "" currentRosterGroup.id
 
-    action currentAction@RevokeVenueInvitationAction { venueInvitationId } = bepisMutationAction currentAction adminVenueMutationSpec do
+    action currentAction@RevokeVenueInvitationAction { venueInvitationId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
         invitation <- fetch venueInvitationId
@@ -437,7 +423,7 @@ instance Controller AdminController where
                 _ <- revokeVenueInvitationMutation invitation
                 respondToInvitesSectionMutation "Invitation revoked." currentRosterGroup.id
 
-    action currentAction@CreateRosterGroupAction = bepisMutationAction currentAction adminVenueMutationSpec do
+    action currentAction@CreateRosterGroupAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         venue <- fetch currentVenueId
         maybeName <- parseRequiredName "name" "Roster group name is required."
@@ -449,7 +435,7 @@ instance Controller AdminController where
                 setSuccessMessage "Roster group added"
                 respondToRosterGroupsSectionMutation (Just rosterGroup.id)
 
-    action currentAction@UpdateRosterGroupAction { rosterGroupId } = bepisMutationAction currentAction adminVenueMutationSpec do
+    action currentAction@UpdateRosterGroupAction { rosterGroupId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         venue <- fetch currentVenueId
         rosterGroup <- fetch rosterGroupId
@@ -470,7 +456,7 @@ instance Controller AdminController where
                         setSuccessMessage "Roster group updated"
                         respondToRosterGroupsSectionMutation (Just updatedRosterGroup.id)
 
-    action currentAction@MoveRosterGroupUpAction { rosterGroupId } = bepisMutationAction currentAction adminVenueMutationSpec do
+    action currentAction@MoveRosterGroupUpAction { rosterGroupId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         rosterGroup <- fetch rosterGroupId
         ensureRecordInCurrentVenue rosterGroup.venueId
@@ -478,7 +464,7 @@ instance Controller AdminController where
         setSuccessMessage "Roster group order updated"
         respondToRosterGroupsSectionMutation (Just rosterGroup.id)
 
-    action currentAction@MoveRosterGroupDownAction { rosterGroupId } = bepisMutationAction currentAction adminVenueMutationSpec do
+    action currentAction@MoveRosterGroupDownAction { rosterGroupId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         rosterGroup <- fetch rosterGroupId
         ensureRecordInCurrentVenue rosterGroup.venueId
@@ -486,7 +472,7 @@ instance Controller AdminController where
         setSuccessMessage "Roster group order updated"
         respondToRosterGroupsSectionMutation (Just rosterGroup.id)
 
-    action currentAction@CreateShiftTypeAction = bepisMutationAction currentAction adminVenueMutationSpec do
+    action currentAction@CreateShiftTypeAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         maybeName <- parseRequiredName "name" "Shift type name is required."
         case maybeName of
@@ -502,7 +488,7 @@ instance Controller AdminController where
                         respondToShiftTypesSectionMutationWithXeroRefresh shouldRefreshXero
                     Nothing -> respondToShiftTypesSectionMutation
 
-    action currentAction@UpdateShiftTypeAction { shiftTypeId } = bepisMutationAction currentAction adminVenueMutationSpec do
+    action currentAction@UpdateShiftTypeAction { shiftTypeId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         shiftType <- fetch shiftTypeId
         ensureRecordInCurrentVenue shiftType.venueId
@@ -521,7 +507,7 @@ instance Controller AdminController where
                         respondToShiftTypesSectionMutationWithXeroRefresh shouldRefreshXero
                     Nothing -> respondToShiftTypesSectionMutation
 
-    action currentAction@MoveShiftTypeUpAction { shiftTypeId } = bepisMutationAction currentAction adminVenueMutationSpec do
+    action currentAction@MoveShiftTypeUpAction { shiftTypeId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         shiftType <- fetch shiftTypeId
         ensureRecordInCurrentVenue shiftType.venueId
@@ -529,7 +515,7 @@ instance Controller AdminController where
         setSuccessMessage "Shift type order updated"
         respondToShiftTypesSectionMutationWithXeroRefresh False
 
-    action currentAction@MoveShiftTypeDownAction { shiftTypeId } = bepisMutationAction currentAction adminVenueMutationSpec do
+    action currentAction@MoveShiftTypeDownAction { shiftTypeId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         shiftType <- fetch shiftTypeId
         ensureRecordInCurrentVenue shiftType.venueId

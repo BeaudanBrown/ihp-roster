@@ -5,7 +5,6 @@ module Application.Bepis.Realtime
     , bepisLiveSurfaceAttributes
     ) where
 
-import Application.Bepis.Mutation (BepisScopePolicy, bepisScopePolicyText)
 import GHC.Generics (Generic)
 import IHP.Prelude
 import OpenTelemetry.Attributes (Attribute, toAttribute)
@@ -22,7 +21,7 @@ data BepisFreshnessMechanism
 data BepisLiveSurface = BepisLiveSurface
     { surfaceName :: !Text
     , mechanism   :: !BepisFreshnessMechanism
-    , scopePolicy :: !BepisScopePolicy
+    , scopeLabel  :: !Text
     }
     deriving (Eq, Show, Generic)
 
@@ -37,5 +36,5 @@ bepisLiveSurfaceAttributes :: BepisLiveSurface -> [(Text, Attribute)]
 bepisLiveSurfaceAttributes surface =
     [ ("bepis.live.surface", toAttribute surface.surfaceName)
     , ("bepis.live.mechanism", toAttribute (bepisFreshnessMechanismText surface.mechanism))
-    , ("bepis.live.scope_policy", toAttribute (bepisScopePolicyText surface.scopePolicy))
+    , ("bepis.live.scope", toAttribute surface.scopeLabel)
     ]

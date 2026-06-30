@@ -60,27 +60,6 @@ import Web.View.RosterWeeks.Show (renderRosterWeekShell)
 import Web.View.RosterWeeks.StaffPanel (renderRosterStaffPanelFragment,
                                         renderRosterStaffPanelFragmentOob)
 
-rosterWarningPreferenceMutationSpec :: BepisMutationSpec
-rosterWarningPreferenceMutationSpec = BepisMutationSpec
-    { auditPolicy = BepisAuditNotRequired
-    , realtimePolicy = BepisRealtimeNotApplicable
-    , scopePolicy = BepisCurrentUserScope
-    }
-
-rosterWeekMutationSpec :: BepisMutationSpec
-rosterWeekMutationSpec = BepisMutationSpec
-    { auditPolicy = BepisAuditNotRequired
-    , realtimePolicy = BepisEmitsRealtimeInvalidation
-    , scopePolicy = BepisVenueRosterWeekScope
-    }
-
-rosterPreferenceMutationSpec :: BepisMutationSpec
-rosterPreferenceMutationSpec = BepisMutationSpec
-    { auditPolicy = BepisAuditNotRequired
-    , realtimePolicy = BepisEmitsRealtimeInvalidation
-    , scopePolicy = BepisVenueRosterWeekScope
-    }
-
 instance Controller RosterWeeksController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
         annotateTelemetryAction
@@ -88,7 +67,7 @@ instance Controller RosterWeeksController where
         ensureCurrentVenueOrSupportRedirect
         ensureProfileCompleted
 
-    action currentAction@RosterWeeksAction = bepisPageAction currentAction do
+    action currentAction@RosterWeeksAction = runBepis currentAction BepisPageAction do
         -- Redirect to the current week's offset based on today's date
         currentWeekOffset <- fetchCurrentRosterWeekOffset
         currentRosterGroup <- resolveRequestedRosterGroup
@@ -100,7 +79,7 @@ instance Controller RosterWeeksController where
                 renderRosterWeekPage currentWeekOffset currentRosterGroup.id
             else redirectToPath currentWeekPath
 
-    action currentAction@ShowRosterWeekAction { weekOffset } = bepisPageAction currentAction do
+    action currentAction@ShowRosterWeekAction { weekOffset } = runBepis currentAction BepisPageAction do
         rosterGroup <- resolveRequestedRosterGroup
         case paramOrNothing @Calendar.Day "weekDate" of
             Just weekDate -> do
@@ -115,52 +94,52 @@ instance Controller RosterWeeksController where
             Nothing ->
                 renderRosterWeekPage weekOffset rosterGroup.id
 
-    action currentAction@ShowRosterWeekOverviewFragmentAction { weekOffset } = bepisFragmentAction currentAction do
+    action currentAction@ShowRosterWeekOverviewFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         rosterGroup <- resolveRequestedRosterGroup
         respondHtmlProfiled =<< renderRosterWeekOverviewFragment weekOffset rosterGroup.id
 
-    action currentAction@ShowRosterWeekContentFragmentAction { weekOffset } = bepisFragmentAction currentAction do
+    action currentAction@ShowRosterWeekContentFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         rosterGroup <- resolveRequestedRosterGroup
         serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionContent \_ ->
             respondWithRosterContent rosterGroup.id weekOffset
 
-    action currentAction@ShowRosterWeekGridToolbarFragmentAction { weekOffset } = bepisFragmentAction currentAction do
+    action currentAction@ShowRosterWeekGridToolbarFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         rosterGroup <- resolveRequestedRosterGroup
         serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionGridToolbar \_ -> do
             toolbarHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionGridToolbar
             respondHtmlProfiled (fromMaybe mempty toolbarHtml)
 
-    action currentAction@ShowRosterWeekGridFrameFragmentAction { weekOffset } = bepisFragmentAction currentAction do
+    action currentAction@ShowRosterWeekGridFrameFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         rosterGroup <- resolveRequestedRosterGroup
         serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionGridFrame \_ -> do
             frameHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionGridFrame
             respondHtmlProfiled (fromMaybe mempty frameHtml)
 
-    action currentAction@ShowRosterWeekDayColumnsFragmentAction { weekOffset } = bepisFragmentAction currentAction do
+    action currentAction@ShowRosterWeekDayColumnsFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         rosterGroup <- resolveRequestedRosterGroup
         serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionDayColumns \_ -> do
             fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionDayColumns
             respondHtmlProfiled (fromMaybe mempty fragmentHtml)
 
-    action currentAction@ShowRosterWeekDayRailFragmentAction { weekOffset } = bepisFragmentAction currentAction do
+    action currentAction@ShowRosterWeekDayRailFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         rosterGroup <- resolveRequestedRosterGroup
         serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionDayRail \_ -> do
             fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionDayRail
             respondHtmlProfiled (fromMaybe mempty fragmentHtml)
 
-    action currentAction@ShowRosterWeekWageRailFragmentAction { weekOffset } = bepisFragmentAction currentAction do
+    action currentAction@ShowRosterWeekWageRailFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         rosterGroup <- resolveRequestedRosterGroup
         serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionWageRail \_ -> do
             fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionWageRail
             respondHtmlProfiled (fromMaybe mempty fragmentHtml)
 
-    action currentAction@ShowRosterWeekSlotsGridFragmentAction { weekOffset } = bepisFragmentAction currentAction do
+    action currentAction@ShowRosterWeekSlotsGridFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         rosterGroup <- resolveRequestedRosterGroup
         serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionSlotsGrid \_ -> do
             fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionSlotsGrid
             respondHtmlProfiled (fromMaybe mempty fragmentHtml)
 
-    action currentAction@ShowRosterWeekStaffPanelFragmentAction { weekOffset } = bepisFragmentAction currentAction do
+    action currentAction@ShowRosterWeekStaffPanelFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         rosterGroup <- resolveRequestedRosterGroup
         let panelScope = rosterStaffPanelScopeFromParams
         serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionStaffPanel \_ -> do
@@ -169,25 +148,25 @@ instance Controller RosterWeeksController where
             respondHtmlProfiled $
                 maybe mempty (renderRosterStaffPanelFragment weekOffset rosterGroup.id (length rosterGroups > 1) panelScope) panelStaff
 
-    action currentAction@ShowRosterWeekDaySectionFragmentAction { weekOffset, rosterDayId } = bepisFragmentAction currentAction do
+    action currentAction@ShowRosterWeekDaySectionFragmentAction { weekOffset, rosterDayId } = runBepis currentAction BepisFragmentAction do
         rosterGroupId <- resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId
         serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroupId weekOffset) (RosterProjectionDaySection (coerce rosterDayId)) \_ -> do
             daySectionHtml <- fetchVisibleRosterDaySectionFragment rosterGroupId weekOffset rosterDayId
             respondHtmlProfiled (fromMaybe mempty daySectionHtml)
 
-    action currentAction@ShowRosterWeekRowFragmentAction { weekOffset, rosterDayId, rowIndex } = bepisFragmentAction currentAction do
+    action currentAction@ShowRosterWeekRowFragmentAction { weekOffset, rosterDayId, rowIndex } = runBepis currentAction BepisFragmentAction do
         rosterGroupId <- resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId
         serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroupId weekOffset) (RosterProjectionRow (coerce rosterDayId) rowIndex) \_ -> do
             rowHtml <- fetchVisibleRosterRowFragment rosterGroupId weekOffset rosterDayId rowIndex
             respondHtmlProfiled (fromMaybe mempty rowHtml)
 
-    action currentAction@UpdateRosterAssignmentFiltersAction { weekOffset = _ } = bepisPreferenceAction currentAction rosterPreferenceMutationSpec do
+    action currentAction@UpdateRosterAssignmentFiltersAction { weekOffset = _ } = runBepis currentAction BepisPreferenceAction do
         ensureManagerRole
         _ <- resolveRequestedRosterGroup
         setRosterAssignmentFiltersSession rosterAssignmentFiltersFromParams
         respondHtmlProfiled mempty
 
-    action currentAction@CreateRosterWeekAction { weekOffset } = bepisMutationAction currentAction rosterWeekMutationSpec do
+    action currentAction@CreateRosterWeekAction { weekOffset } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
@@ -206,7 +185,7 @@ instance Controller RosterWeeksController where
                 setSuccessMessage successMessage
                 redirectToPath targetPath
 
-    action currentAction@CopyRosterWeekAction { sourceWeekOffset, targetWeekOffset } = bepisMutationAction currentAction rosterWeekMutationSpec do
+    action currentAction@CopyRosterWeekAction { sourceWeekOffset, targetWeekOffset } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
@@ -244,7 +223,7 @@ instance Controller RosterWeeksController where
                                 setSuccessMessage successMessage
                                 redirectToPath targetPath
 
-    action currentAction@ToggleRosterWeekLiveStatusAction { rosterWeekId } = bepisMutationAction currentAction rosterWeekMutationSpec do
+    action currentAction@ToggleRosterWeekLiveStatusAction { rosterWeekId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
         rosterWeek <- fetch rosterWeekId
@@ -277,7 +256,7 @@ instance Controller RosterWeeksController where
                         setSuccessMessage successMessage
                         redirectToPath targetPath
 
-    action currentAction@CreateRosterWeekSlotDefinitionAction { rosterWeekId } = bepisMutationAction currentAction rosterWeekMutationSpec do
+    action currentAction@CreateRosterWeekSlotDefinitionAction { rosterWeekId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
         rosterWeek <- fetch rosterWeekId
@@ -296,7 +275,7 @@ instance Controller RosterWeeksController where
                         _ <- appendRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotName
                         respondToRosterSlotDefinitionSuccess rosterWeek "Roster column added."
 
-    action currentAction@UpdateRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId } = bepisMutationAction currentAction rosterWeekMutationSpec do
+    action currentAction@UpdateRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
         slotDefinition <- fetch rosterWeekSlotDefinitionId
@@ -315,7 +294,7 @@ instance Controller RosterWeeksController where
                         _ <- renameRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotDefinition slotName
                         respondToRosterSlotDefinitionSuccess rosterWeek "Roster column renamed."
 
-    action currentAction@DeleteRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId } = bepisMutationAction currentAction rosterWeekMutationSpec do
+    action currentAction@DeleteRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
         slotDefinition <- fetch rosterWeekSlotDefinitionId
@@ -334,7 +313,7 @@ instance Controller RosterWeeksController where
                 _ <- removeRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotDefinition
                 respondToRosterSlotDefinitionSuccess rosterWeek "Roster column removed."
 
-    action currentAction@SortRosterWeekAction { rosterWeekId } = bepisMutationAction currentAction rosterWeekMutationSpec do
+    action currentAction@SortRosterWeekAction { rosterWeekId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
         rosterWeek <- fetch rosterWeekId
@@ -354,7 +333,7 @@ instance Controller RosterWeeksController where
                 setSuccessMessage "Roster sorted."
                 redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
-    action currentAction@ToggleRosterDayClosedAction { rosterDayId } = bepisMutationAction currentAction rosterWeekMutationSpec do
+    action currentAction@ToggleRosterDayClosedAction { rosterDayId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
 
@@ -385,7 +364,7 @@ instance Controller RosterWeeksController where
                 setSuccessMessage successMessage
                 redirectToPath targetPath
 
-    action currentAction@AddRosterRowAction { rosterDayId } = bepisMutationAction currentAction rosterWeekMutationSpec do
+    action currentAction@AddRosterRowAction { rosterDayId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
 
@@ -428,7 +407,7 @@ instance Controller RosterWeeksController where
                         setSuccessMessage "Roster row added."
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
-    action currentAction@RemoveRosterRowAction { rosterDayId } = bepisMutationAction currentAction rosterWeekMutationSpec do
+    action currentAction@RemoveRosterRowAction { rosterDayId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
 
@@ -477,7 +456,7 @@ instance Controller RosterWeeksController where
                         setSuccessMessage "Roster row removed."
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
-    action currentAction@UpdateRosterLayoutPreferenceAction { weekOffset } = bepisPreferenceAction currentAction rosterPreferenceMutationSpec do
+    action currentAction@UpdateRosterLayoutPreferenceAction { weekOffset } = runBepis currentAction BepisPreferenceAction do
         rosterGroup <- resolveRequestedRosterGroup
         let requestedLayoutMode = paramOrDefault @Text "day_rows" "rosterLayoutMode"
         case parseRosterLayoutMode requestedLayoutMode of
@@ -496,7 +475,7 @@ instance Controller RosterWeeksController where
                         setSuccessMessage "Roster layout preference saved."
                         redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
 
-    action currentAction@MoveRosterShiftToSlotAction { weekOffset } = bepisMutationAction currentAction rosterWeekMutationSpec do
+    action currentAction@MoveRosterShiftToSlotAction { weekOffset } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
@@ -516,7 +495,7 @@ instance Controller RosterWeeksController where
                 respondToRosterSlotMove rosterGroup.id rosterWeek mutationResult previousStaffId impactedRows shouldWarnSourceTimesheetUnchanged
 
     action currentAction@UpdateRosterWarningPreferenceAction { weekOffset } =
-        bepisMutationAction currentAction rosterWarningPreferenceMutationSpec do
+        runBepis currentAction BepisMutationAction do
             ensureManagerRole
             rosterGroup <- resolveRequestedRosterGroup
             let showRosterWarnings = paramOrDefault @Text "false" "showRosterWarnings" == "true"
@@ -527,7 +506,7 @@ instance Controller RosterWeeksController where
                     setSuccessMessage "Roster warning preference saved."
                     redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
 
-    action currentAction@UpdateRosterWageEstimatePreferenceAction { weekOffset } = bepisPreferenceAction currentAction rosterPreferenceMutationSpec do
+    action currentAction@UpdateRosterWageEstimatePreferenceAction { weekOffset } = runBepis currentAction BepisPreferenceAction do
         accessDeniedUnless (hasRole VenueAdminRole)
         rosterGroup <- resolveRequestedRosterGroup
         let showWageEstimates = paramOrDefault @Text "false" "showWageEstimates" == "true"
@@ -538,19 +517,19 @@ instance Controller RosterWeeksController where
                 setSuccessMessage "Roster wage estimate preference saved."
                 redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
 
-    action currentAction@NewRosterSlotDialogAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = bepisDialogAction currentAction do
+    action currentAction@NewRosterSlotDialogAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = runBepis currentAction BepisDialogAction do
         ensureManagerRole
         ensureVenueWritable
         (rosterDay, rosterWeek, slotDefinition) <- fetchRosterSlotCreateContext rosterDayId rosterWeekSlotDefinitionId rowIndex
         renderRosterShiftDialogForCreate rosterDay rosterWeek slotDefinition rowIndex emptyRosterShiftDialogValues
 
-    action currentAction@EditRosterSlotDialogAction { rosterSlotId } = bepisDialogAction currentAction do
+    action currentAction@EditRosterSlotDialogAction { rosterSlotId } = runBepis currentAction BepisDialogAction do
         ensureManagerRole
         ensureVenueWritable
         (rosterSlot, rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlotId
         renderRosterShiftDialogForEdit rosterSlot rosterDay rosterWeek (rosterShiftDialogValuesFromSlot rosterSlot)
 
-    action currentAction@CreateRosterSlotAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = bepisMutationAction currentAction rosterWeekMutationSpec do
+    action currentAction@CreateRosterSlotAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
         (rosterDay, rosterWeek, slotDefinition) <- fetchRosterSlotCreateContext rosterDayId rosterWeekSlotDefinitionId rowIndex
@@ -578,7 +557,7 @@ instance Controller RosterWeeksController where
                 mutationResult <- saveRosterSlotMutation rosterGroupId rosterWeek rosterDay existingSlot newSlot
                 respondToRosterSlotMutation rosterGroupId rosterWeek rosterDay rowIndex mutationResult (Just valid.validRosterShiftStaffId) "Roster shift saved."
 
-    action currentAction@UpdateRosterSlotAction { rosterSlotId } = bepisMutationAction currentAction rosterWeekMutationSpec do
+    action currentAction@UpdateRosterSlotAction { rosterSlotId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
         (rosterSlot, rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlotId
@@ -594,7 +573,7 @@ instance Controller RosterWeeksController where
                 let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
                 respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult (Just valid.validRosterShiftStaffId) impactedRowKeys shouldWarnSourceTimesheetUnchanged
 
-    action currentAction@DeleteRosterSlotAction { rosterSlotId } = bepisMutationAction currentAction rosterWeekMutationSpec do
+    action currentAction@DeleteRosterSlotAction { rosterSlotId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
         ensureVenueWritable
         (rosterSlot, rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlotId

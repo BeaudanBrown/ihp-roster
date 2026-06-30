@@ -29,13 +29,6 @@ import Web.Controller.Prelude
 import Web.LiveResourceInvalidation (invalidateTouchedResources)
 import Web.View.Support.Index
 
-supportMutationSpec :: BepisMutationSpec
-supportMutationSpec = BepisMutationSpec
-    { auditPolicy = BepisAuditRequired
-    , realtimePolicy = BepisNoRealtimeInvalidation
-    , scopePolicy = BepisSupportScope
-    }
-
 instance Controller SupportController where
     beforeAction = bepisBeforeAction BepisSupportController do
         annotateTelemetryAction
@@ -43,7 +36,7 @@ instance Controller SupportController where
         redirectPermissionDeniedUnless currentUserIsSuperAdmin "You need super admin access to view that page."
         ensureProfileCompleted
 
-    action currentAction@SupportAction = bepisPageAction currentAction do
+    action currentAction@SupportAction = runBepis currentAction BepisPageAction do
         onboardingInvitations <- fetchVenueOnboardingInvitations
         passkeys <- fetchCurrentUserPasskeys
         canAddPasskey <- supportCanAddPasskey passkeys
@@ -55,17 +48,17 @@ instance Controller SupportController where
         let onboardingInvitation = buildSupportVenueOnboardingInvitationForm
         render IndexView { .. }
 
-    action currentAction@ShowFwcMapdAwardRatesSectionAction = bepisPageAction currentAction $
+    action currentAction@ShowFwcMapdAwardRatesSectionAction = runBepis currentAction BepisPageAction $
         serveTypedLiveFragment supportLiveSurfaceDefinition () SupportAwardRatesLiveFragment \_ -> do
             (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
             respondHtml (renderAwardRatesSection fwcMapdAdminData latestFwcMapdRefreshJob activeFwcMapdRefreshJob)
 
-    action currentAction@ShowPublicHolidaysSectionAction = bepisPageAction currentAction $
+    action currentAction@ShowPublicHolidaysSectionAction = runBepis currentAction BepisPageAction $
         serveTypedLiveFragment supportLiveSurfaceDefinition () SupportPublicHolidaysLiveFragment \_ -> do
             (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
             respondHtml (renderPublicHolidaysSection publicHolidayCoverage latestPublicHolidayRefreshJob activePublicHolidayRefreshJob)
 
-    action currentAction@CreateSupportVenueOnboardingInvitationAction = bepisMutationAction currentAction supportMutationSpec do
+    action currentAction@CreateSupportVenueOnboardingInvitationAction = runBepis currentAction BepisMutationAction do
         onboardingInvitations <- fetchVenueOnboardingInvitations
         passkeys <- fetchCurrentUserPasskeys
         canAddPasskey <- supportCanAddPasskey passkeys
@@ -99,7 +92,7 @@ instance Controller SupportController where
                             setSuccessMessage ("Venue owner invitation queued for " <> invitation.email)
                             redirectTo SupportAction
 
-    action currentAction@CreateFwcMapdRefreshJobAction = bepisMutationAction currentAction supportMutationSpec do
+    action currentAction@CreateFwcMapdRefreshJobAction = runBepis currentAction BepisMutationAction do
         enqueueResult <- enqueueFwcMapdRefreshJob (Just (unpackId currentUser.id))
         case enqueueResult of
             EnqueuedAppJob _ ->
@@ -111,7 +104,7 @@ instance Controller SupportController where
                 liveMutationResult () [SupportAwardRatesResource]
         respondToAwardRatesRefresh
 
-    action currentAction@CreatePublicHolidayRefreshJobAction = bepisMutationAction currentAction supportMutationSpec do
+    action currentAction@CreatePublicHolidayRefreshJobAction = runBepis currentAction BepisMutationAction do
         enqueueResult <- enqueuePublicHolidayRefreshJob (Just (unpackId currentUser.id))
         case enqueueResult of
             EnqueuedAppJob _ ->
@@ -123,13 +116,13 @@ instance Controller SupportController where
                 liveMutationResult () [SupportPublicHolidaysResource]
         respondToPublicHolidayRefresh
 
-    action currentAction@MarkFeedbackReadAction { feedbackItemId } = bepisMutationAction currentAction supportMutationSpec do
+    action currentAction@MarkFeedbackReadAction { feedbackItemId } = runBepis currentAction BepisMutationAction do
         feedbackItem <- fetch feedbackItemId
         _ <- markFeedbackRead feedbackItem
         setSuccessMessage "Feedback marked read."
         redirectTo SupportAction
 
-    action currentAction@MarkAllFeedbackReadAction = bepisMutationAction currentAction supportMutationSpec do
+    action currentAction@MarkAllFeedbackReadAction = runBepis currentAction BepisMutationAction do
         unreadFeedbackItems <- query @UserFeedbackItem
             |> filterWhere (#readAt, Nothing)
             |> fetch
@@ -137,7 +130,7 @@ instance Controller SupportController where
         setSuccessMessage "All feedback marked read."
         redirectTo SupportAction
 
-    action currentAction@UpdateFeedbackStatusAction { feedbackItemId } = bepisMutationAction currentAction supportMutationSpec do
+    action currentAction@UpdateFeedbackStatusAction { feedbackItemId } = runBepis currentAction BepisMutationAction do
         let status = param @Text "status"
         if status `elem` allowedFeedbackStatuses
             then do
@@ -152,7 +145,7 @@ instance Controller SupportController where
             else setErrorMessage "Choose a valid feedback status."
         redirectTo SupportAction
 
-    action currentAction@UpdateFeedbackPriorityAction { feedbackItemId } = bepisMutationAction currentAction supportMutationSpec do
+    action currentAction@UpdateFeedbackPriorityAction { feedbackItemId } = runBepis currentAction BepisMutationAction do
         let priority = param @Text "priority"
         if priority `elem` allowedFeedbackPriorities
             then do
@@ -166,7 +159,7 @@ instance Controller SupportController where
             else setErrorMessage "Choose a valid feedback priority."
         redirectTo SupportAction
 
-    action currentAction@UpdateFeedbackSupportNoteAction { feedbackItemId } = bepisMutationAction currentAction supportMutationSpec do
+    action currentAction@UpdateFeedbackSupportNoteAction { feedbackItemId } = runBepis currentAction BepisMutationAction do
         feedbackItem <- fetch feedbackItemId
         now <- getCurrentTime
         let supportNote = Text.take 3000 (Text.strip (paramOrDefault @Text "" "supportNote"))
@@ -177,7 +170,7 @@ instance Controller SupportController where
         setSuccessMessage "Feedback note updated."
         redirectTo SupportAction
 
-    action currentAction@SwitchSupportVenueAction = bepisPageAction currentAction do
+    action currentAction@SwitchSupportVenueAction = runBepis currentAction BepisPageAction do
         let venueId = (coerce (param @UUID "venueId") :: Id Venue)
         let nextPath = fromMaybe (pathTo SupportAction) (paramOrNothing @Text "next")
         venue <- query @Venue

@@ -1,6 +1,6 @@
 ---
 id: ir-23gs
-status: in_progress
+status: closed
 deps: [ir-mwma, ir-xz3b, ir-gt0e, ir-glwa, ir-ufjf]
 links: []
 created: 2026-06-30T11:03:28Z

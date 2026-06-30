@@ -163,67 +163,23 @@ function loadBepisArchitectureContracts() {
   return JSON.parse(fs.readFileSync(absolutePath, "utf8"));
 }
 
-function parseBepisActionWrapperContracts(generatedContracts) {
-  const generatedWrappers = generatedContracts?.actionWrappers || [];
-  if (generatedWrappers.length > 0) {
-    return new Map(generatedWrappers.map((contract) => [contract.name, {
-      kind: contract.kind,
-      responseKinds: contract.responseKinds || [],
-      requiresMutationSpec: Boolean(contract.requiresMutationSpec),
-      source: contract.source || { path: "output/architecture/bepis-contracts.json" },
-      confidence: contract.confidence || "typed-contract",
-      provenance: "generated-haskell-contract",
-    }]));
-  }
-
-  const relPath = "Application/Bepis/Action.hs";
-  const text = readText(relPath);
-  const actionKindText = parseConstructorTextMappings(text, "Bepis");
-  const responseKindText = parseConstructorTextMappings(text, "Bepis");
-  const wrappers = new Map();
-  for (const match of text.matchAll(/^(bepis[A-Za-z0-9_']+Action)\s*::\s*([^\n]+)/gm)) {
-    const name = match[1];
-    const signature = match[2];
-    if (name === "bepisActionSpan") continue;
-    const definition = extractTopLevelDefinition(text, name);
-    const actionKindConstructor = definition.match(/actionKind\s*=\s*(Bepis[A-Za-z0-9_']+)/)?.[1];
-    const responseKindConstructors = definition.match(/responseKinds\s*=\s*\[([^\]]*)\]/)?.[1]
-      ?.split(",")
-      .map((value) => value.trim())
-      .filter(Boolean) || [];
-    if (!actionKindConstructor || responseKindConstructors.length === 0) continue;
-    wrappers.set(name, {
-      kind: actionKindText.get(actionKindConstructor) || actionKindConstructor,
-      responseKinds: responseKindConstructors.map((constructor) => responseKindText.get(constructor) || constructor),
-      requiresMutationSpec: /\bBepisMutationSpec\b/.test(signature),
-      source: { path: relPath, line: lineForMatch(text, match) },
-      confidence: "typed-contract",
-    });
-  }
-  return wrappers;
-}
-
-function parseBepisActionWrapper(body, relPath, handlerLine, handlerActionName, mutationSpecs, wrapperContracts) {
-  const wrapperNames = [...wrapperContracts.keys()].sort((a, b) => b.length - a.length).map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  if (wrapperNames.length === 0) return null;
-  const match = body.match(new RegExp(`\\b(${wrapperNames.join("|")})\\s+(?:"([^"]+)"|([^\\s$]+))(?:\\s+([A-Za-z][A-Za-z0-9_']*))?`));
+function parseRunBepis(body, relPath, handlerLine, handlerActionName, generatedContracts) {
+  const match = body.match(/\brunBepis\s+(?:"([^"]+)"|([^\s$]+))\s+(Bepis[A-Za-z0-9_']+)/);
   if (!match) return null;
-  const wrapper = wrapperContracts.get(match[1]);
-  if (!wrapper) return null;
-  const declaredActionName = match[2] || handlerActionName;
-  const actionNameSource = match[2] ? "string-literal" : "typed-action-value";
-  const mutationSpecName = wrapper.requiresMutationSpec ? match[4] : undefined;
+  const operationKindConstructor = match[3];
+  const operationKinds = generatedContracts?.operationKinds || generatedContracts?.actionKinds || [];
+  const responseKinds = generatedContracts?.responseKinds || [];
+  const kindLabel = operationKinds.find((entry) => entry.constructor === operationKindConstructor)?.label || actionKind(handlerActionName);
   return {
-    name: match[1],
-    declaredActionName,
-    actionNameSource,
-    kind: wrapper.kind,
-    responseKinds: wrapper.responseKinds,
-    mutationSpecName,
-    mutationSpec: mutationSpecName ? mutationSpecs.get(mutationSpecName) : undefined,
+    name: "runBepis",
+    declaredActionName: match[1] || handlerActionName,
+    actionNameSource: match[1] ? "string-literal" : "typed-action-value",
+    operationKindConstructor,
+    kind: kindLabel,
+    responseKinds: responseKinds.map((entry) => entry.label).filter(Boolean),
     source: { path: relPath, line: handlerLine + lineNumberAt(body, match.index ?? 0) - 1 },
-    contractSource: wrapper.source,
-    contractConfidence: wrapper.confidence,
+    contractSource: { path: "output/architecture/bepis-contracts.json" },
+    contractConfidence: "typed-contract",
   };
 }
 
@@ -271,73 +227,6 @@ function inferActionDetails(body, tableModels) {
   return { calls, renderCalls, authScopeCalls, realtimeCalls, tableRefs: unique(tableRefs), dataAccess, responseKinds };
 }
 
-function parseBepisMutationPolicyTextMappings(generatedContracts) {
-  const generatedPolicies = generatedContracts?.mutationPolicies || [];
-  if (generatedPolicies.length > 0) {
-    return new Map(generatedPolicies.map((policy) => [policy.constructor, policy.label]));
-  }
-  return parseConstructorTextMappings(readText("Application/Bepis/Mutation.hs"), "Bepis");
-}
-
-function parseBepisMutationSpecs(files, policyText) {
-  const specs = new Map();
-  for (const relPath of files) {
-    const text = readText(relPath);
-    const regex = /^([a-z][A-Za-z0-9_']*)\s*::\s*BepisMutationSpec[\s\S]*?^\1\s*=\s*BepisMutationSpec\s*\{([\s\S]*?)^\s*\}/gm;
-    for (const match of text.matchAll(regex)) {
-      const fields = match[2];
-      const fieldValue = (name) => fields.match(new RegExp(`${name}\\s*=\\s*([A-Za-z][A-Za-z0-9_']*)`))?.[1];
-      specs.set(match[1], {
-        name: match[1],
-        auditPolicy: policyText.get(fieldValue("auditPolicy")) || fieldValue("auditPolicy"),
-        realtimePolicy: policyText.get(fieldValue("realtimePolicy")) || fieldValue("realtimePolicy"),
-        scopePolicy: policyText.get(fieldValue("scopePolicy")) || fieldValue("scopePolicy"),
-        source: { path: relPath, line: lineForMatch(text, match) },
-        confidence: "typed-wrapper",
-      });
-    }
-  }
-  return specs;
-}
-
-function parseBepisMutationPipeline(body, relPath, handlerLine, generatedContracts) {
-  if (!/\bnewMutation\b/.test(body) || !/\brunBepisMutationPipeline\b/.test(body)) return null;
-  const componentContracts = generatedContracts?.mutationComponents || [];
-  const componentNames = componentContracts.map((component) => component.name);
-  const usedComponents = componentNames.filter((name) => new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(body));
-  const labelsFor = (name) => [...body.matchAll(new RegExp(`\\b${name}\\s+"([^"]+)"`, "g"))].map((match) => match[1]);
-  const scopePolicies = unique([
-    /\bscopedToCurrentUser\b/.test(body) ? "current-user" : "",
-    /\bscopedToCurrentVenue\b/.test(body) ? "current-venue" : "",
-    /\bscopedToRosterWeek\b/.test(body) ? "venue-roster-week" : "",
-    /\bscopedToSupport\b/.test(body) ? "support" : "",
-  ]);
-  const auditLabels = labelsFor("auditedAs");
-  const realtimeLabels = labelsFor("fromLiveMutationResult");
-  const noRealtimeLabels = labelsFor("withNoRealtimeInvalidation");
-  const responseKinds = unique([
-    /\brespondsWithFragments\b/.test(body) ? "htmx-fragment" : "",
-    /\brespondsWithRedirect\b/.test(body) ? "redirect" : "",
-    /\brespondsWithJson\b/.test(body) ? "json" : "",
-  ]);
-  const newMutationMatch = body.match(/\bnewMutation\b/);
-  return {
-    source: { path: relPath, line: handlerLine + lineNumberAt(body, newMutationMatch?.index ?? 0) - 1 },
-    confidence: "typed-component-pipeline",
-    provenance: "generated-haskell-contract",
-    components: usedComponents,
-    scopePolicies,
-    auditPolicies: auditLabels.length > 0 ? ["required"] : [],
-    auditLabels,
-    realtimePolicies: unique([
-      realtimeLabels.length > 0 ? "emits-invalidation" : "",
-      noRealtimeLabels.length > 0 ? "none" : "",
-    ]),
-    realtimeLabels: [...realtimeLabels, ...noRealtimeLabels],
-    responseKinds,
-  };
-}
-
 function extractTopLevelFunctionBodies(files) {
   const functions = new Map();
   for (const relPath of files) {
@@ -355,32 +244,7 @@ function extractTopLevelFunctionBodies(files) {
   return functions;
 }
 
-function parseMutationEffectEvidence(body, calls, mutationFunctionBodies, mutationPipeline) {
-  const directAudit = /record[A-Za-z0-9_']*(?:AuditEvent|Version)\b/.test(body);
-  const directRealtime = /\b(?:invalidateTouchedResources|liveMutationResult|LiveMutationResult)\b/.test(body);
-  const helperEvidence = calls
-    .map((call) => ({ call, definition: mutationFunctionBodies.get(call) }))
-    .filter((entry) => entry.definition)
-    .map((entry) => ({
-      call: entry.call,
-      source: entry.definition.source,
-      audit: /record[A-Za-z0-9_']*(?:AuditEvent|Version)\b/.test(entry.definition.body),
-      realtime: /\b(?:invalidateTouchedResources|liveMutationResult|LiveMutationResult)\b/.test(entry.definition.body),
-    }));
-  const auditHelpers = helperEvidence.filter((entry) => entry.audit);
-  const realtimeHelpers = helperEvidence.filter((entry) => entry.realtime);
-  return {
-    source: mutationPipeline ? "typed-component-pipeline" : "static-effect-scan",
-    audit: Boolean(mutationPipeline?.auditPolicies?.length) || directAudit || auditHelpers.length > 0,
-    realtime: Boolean(mutationPipeline?.realtimePolicies?.includes("emits-invalidation")) || directRealtime || realtimeHelpers.length > 0,
-    auditHelpers: auditHelpers.map((entry) => ({ call: entry.call, source: entry.source })),
-    realtimeHelpers: realtimeHelpers.map((entry) => ({ call: entry.call, source: entry.source })),
-    directAudit,
-    directRealtime,
-  };
-}
-
-function parseHandlers(controllerFiles, tableModels, mutationSpecs, wrapperContracts, generatedContracts, mutationFunctionBodies) {
+function parseHandlers(controllerFiles, tableModels, generatedContracts) {
   const handlers = [];
   for (const relPath of controllerFiles) {
     const text = readText(relPath);
@@ -390,23 +254,19 @@ function parseHandlers(controllerFiles, tableModels, mutationSpecs, wrapperContr
       const line = lineForMatch(text, m);
       const body = extractActionBody(text, m.index ?? 0, indent);
       const inferred = inferActionDetails(body, tableModels);
-      const bepisWrapper = parseBepisActionWrapper(body, relPath, line, m[2], mutationSpecs, wrapperContracts);
-      const mutationPipeline = parseBepisMutationPipeline(body, relPath, line, generatedContracts);
-      const mutationEffectEvidence = parseMutationEffectEvidence(body, inferred.calls, mutationFunctionBodies, mutationPipeline);
+      const bepisWrapper = parseRunBepis(body, relPath, line, m[2], generatedContracts);
       handlers.push({
         action: m[2],
         module: moduleName,
         path: relPath,
         line,
         kind: bepisWrapper?.kind || actionKind(m[2]),
-        kindSource: bepisWrapper ? "typed-wrapper" : "naming-fallback",
-        confidence: bepisWrapper ? "typed-wrapper" : "heuristic-static-scan",
+        kindSource: bepisWrapper ? "typed-runner" : "naming-fallback",
+        confidence: bepisWrapper ? "typed-runner" : "heuristic-static-scan",
         bepisWrapper,
-        mutationPipeline,
-        mutationEffectEvidence,
         bodyLineCount: body.split("\n").length,
         ...inferred,
-        responseKinds: unique([...(mutationPipeline?.responseKinds || []), ...(bepisWrapper?.responseKinds || []), ...(inferred.responseKinds || [])]),
+        responseKinds: unique([...(bepisWrapper?.responseKinds || []), ...(inferred.responseKinds || [])]),
       });
     }
   }
@@ -512,11 +372,7 @@ const controllers = parseControllers(readText("Web/Types.hs"));
 const actionNames = controllers.flatMap((controller) => controller.actions.map((action) => action.name));
 const tableModels = new Map(schema.tables.map((table) => [table.model, table.name]));
 const allReferenceFiles = unique([...moduleFiles, ...viewFiles, ...frontendFiles]);
-const mutationFunctionBodies = extractTopLevelFunctionBodies(moduleFiles);
 const bepisArchitectureContracts = loadBepisArchitectureContracts();
-const bepisMutationPolicyText = parseBepisMutationPolicyTextMappings(bepisArchitectureContracts);
-const bepisMutationSpecs = parseBepisMutationSpecs(moduleFiles, bepisMutationPolicyText);
-const bepisActionWrapperContracts = parseBepisActionWrapperContracts(bepisArchitectureContracts);
 const facts = {
   version: 2,
   generatedBy: "scripts/architecture/facts.mjs",
@@ -527,17 +383,15 @@ const facts = {
     controllers,
     routes: parseRoutes(readText("Web/Routes.hs")),
     frontController: parseFrontController(readText("Web/FrontController.hs")),
-    handlers: parseHandlers(controllerFiles, tableModels, bepisMutationSpecs, bepisActionWrapperContracts, bepisArchitectureContracts, mutationFunctionBodies),
+    handlers: parseHandlers(controllerFiles, tableModels, bepisArchitectureContracts),
     controllerPolicies: parseControllerPolicies(controllerFiles),
-    actionWrapperContracts: [...bepisActionWrapperContracts.entries()].map(([name, contract]) => ({ name, ...contract })),
     bepisArchitectureContracts: bepisArchitectureContracts ? {
       version: bepisArchitectureContracts.version,
       generatedBy: bepisArchitectureContracts.generatedBy,
       provenance: bepisArchitectureContracts.provenance,
       source: { path: "output/architecture/bepis-contracts.json" },
-      mutationComponentCount: bepisArchitectureContracts.mutationComponents?.length || 0,
+      factKindCount: bepisArchitectureContracts.factKinds?.length || 0,
     } : undefined,
-    mutationSpecs: [...bepisMutationSpecs.values()],
     views: parseViews(viewFiles),
     actionReferences: parseActionReferences(allReferenceFiles, actionNames),
   },

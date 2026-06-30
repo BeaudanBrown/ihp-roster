@@ -20,20 +20,13 @@ import Web.StaffDocuments.Mutations (reviewStaffDocument, uploadRsaDocument)
 import Web.View.StaffDocuments.Rsa (RsaReturnContext (..))
 import Web.View.StaffDocuments.RsaScan
 
-staffDocumentMutationSpec :: BepisMutationSpec
-staffDocumentMutationSpec = BepisMutationSpec
-    { auditPolicy = BepisAuditRequired
-    , realtimePolicy = BepisNoRealtimeInvalidation
-    , scopePolicy = BepisCurrentVenueScope
-    }
-
 instance Controller StaffDocumentsController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
         annotateTelemetryAction
         ensureIsUser
         ensureCurrentVenue
 
-    action currentAction@ScanStaffDocumentAction = bepisMutationAction currentAction staffDocumentMutationSpec do
+    action currentAction@ScanStaffDocumentAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         maybeStaff <- parseSubmittedStaff
         case maybeStaff of
@@ -64,7 +57,7 @@ instance Controller StaffDocumentsController where
                                 }
                         render ScanView { .. }
 
-    action currentAction@CreateStaffDocumentAction = bepisMutationAction currentAction staffDocumentMutationSpec do
+    action currentAction@CreateStaffDocumentAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         maybeStaff <- parseSubmittedStaff
         case maybeStaff of
@@ -83,7 +76,7 @@ instance Controller StaffDocumentsController where
                         setSuccessMessage "RSA document uploaded for review."
                         redirectToRsaReturnPath
 
-    action currentAction@DownloadStaffDocumentAction { staffDocumentId } = bepisExportAction currentAction do
+    action currentAction@DownloadStaffDocumentAction { staffDocumentId } = runBepis currentAction BepisExportAction do
         staffDocument <- fetch staffDocumentId
         ensureRecordInCurrentVenue staffDocument.venueId
         staff <- fetch (Id staffDocument.staffId :: Id Staff)
@@ -104,7 +97,7 @@ instance Controller StaffDocumentsController where
                         ]
                         fileContents
 
-    action currentAction@ReviewStaffDocumentAction { staffDocumentId } = bepisMutationAction currentAction staffDocumentMutationSpec do
+    action currentAction@ReviewStaffDocumentAction { staffDocumentId } = runBepis currentAction BepisMutationAction do
         redirectPermissionDeniedUnless (hasRole ManagerRole') "You need manager access to review RSA documents."
         ensureVenueWritable
         staffDocument <- fetch staffDocumentId

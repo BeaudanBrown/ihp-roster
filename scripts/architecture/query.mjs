@@ -192,7 +192,7 @@ function controllerQuery(facts, args) {
     lines.push(edgeLine(`controller:${controller.name}`, groupId));
     for (const item of items) {
       const refCount = item.refs.filter((ref) => ref.kind !== "reference" || !ref.path.endsWith(item.handler?.path || "")).length;
-      const sourceLabel = item.handler?.kindSource === "typed-wrapper" ? "typed wrapper" : (item.handler ? item.handler.kindSource || "heuristic" : "no handler");
+      const sourceLabel = item.handler?.kindSource === "typed-runner" ? "typed runner" : (item.handler ? item.handler.kindSource || "heuristic" : "no handler");
       const label = `${item.action.name}\n${sourceLabel}\n${item.handler ? `${item.handler.path}:${item.handler.line}` : "no handler"}${refCount ? `\n${refCount} refs` : ""}`;
       lines.push(nodeLine(`action:${item.action.name}`, label, { fillcolor: kindColors[kind] || "#ffffff" }));
       lines.push(edgeLine(groupId, `action:${item.action.name}`));
@@ -210,16 +210,16 @@ function controllerQuery(facts, args) {
     { path: svgRel, kind: "diagram", language: "svg", description: "Grouped controller/action surface" },
     { path: dotRel, kind: "source", language: "dot" },
   ], { generatedFrom: "output/architecture/facts.json", sources: [controller.source] }, {
-    warnings: [...groups.values()].flat().some((item) => item.handler && item.handler.kindSource !== "typed-wrapper")
-      ? ["Some action kinds come from static scans or naming fallback; migrate handlers to Bepis wrappers for typed-wrapper confidence."]
+    warnings: [...groups.values()].flat().some((item) => item.handler && item.handler.kindSource !== "typed-runner")
+      ? ["Some action kinds come from static scans or naming fallback; migrate handlers to Bepis runners for typed-runner confidence."]
       : [],
     metrics: {
       actions: controller.actions.length,
       groups: groups.size,
-      typedWrapperActions: [...groups.values()].flat().filter((item) => item.handler?.kindSource === "typed-wrapper").length,
+      typedRunnerActions: [...groups.values()].flat().filter((item) => item.handler?.kindSource === "typed-runner").length,
       referencedActions: [...groups.values()].flat().filter((item) => item.refs.length > 0).length,
     },
-    tables: [{ title: "action groups", rows: [...groups.entries()].map(([kind, items]) => ({ kind, actions: items.length, typedWrapperActions: items.filter((item) => item.handler?.kindSource === "typed-wrapper").length })) }],
+    tables: [{ title: "action groups", rows: [...groups.entries()].map(([kind, items]) => ({ kind, actions: items.length, typedRunnerActions: items.filter((item) => item.handler?.kindSource === "typed-runner").length })) }],
   });
 }
 
@@ -290,7 +290,7 @@ function conventionsQuery(facts, args) {
     if (requireAllControllers && !migrated) {
       const row = { severity: "error", controller: controller.name, action: "*", issue: "missing-bepis-controller-policy", source: `${controller.source.path}:${controller.source.line}` };
       rows.push(row);
-      errors.push(`${controller.name} has no Bepis controller policy wrapper`);
+      errors.push(`${controller.name} has no Bepis controller policy runner`);
     }
     for (const { action, handler } of controllerHandlers) {
       if (!handler) {
@@ -299,17 +299,12 @@ function conventionsQuery(facts, args) {
         errors.push(`${controller.name}.${action.name} has no handler`);
         continue;
       }
-      const hasWrapper = handler.kindSource === "typed-wrapper";
+      const hasWrapper = handler.kindSource === "typed-runner";
       if (!hasWrapper) {
         const severity = migrated || requireAllControllers ? "error" : "info";
-        const row = { severity, controller: controller.name, action: action.name, issue: "missing-bepis-action-wrapper", source: `${handler.path}:${handler.line}` };
+        const row = { severity, controller: controller.name, action: action.name, issue: "missing-run-bepis", source: `${handler.path}:${handler.line}` };
         rows.push(row);
-        if (severity === "error") errors.push(`${controller.name}.${action.name} has no Bepis action wrapper`);
-      }
-      if (hasWrapper && handler.bepisWrapper?.name?.match(/bepis(?:Preference|Mutation|JsonMutation)Action/) && !handler.bepisWrapper?.mutationSpecName) {
-        const row = { severity: "error", controller: controller.name, action: action.name, issue: "missing-bepis-mutation-spec", source: `${handler.path}:${handler.line}` };
-        rows.push(row);
-        errors.push(`${controller.name}.${action.name} uses a mutation wrapper without a BepisMutationSpec`);
+        if (severity === "error") errors.push(`${controller.name}.${action.name} has no runBepis boundary`);
       }
       const hasRawIhpResponseHelper = handler.calls?.some((call) => /^(render|respondHtml|redirectTo|redirectToPath|json|renderJson)$/.test(call));
       const hasTypedResponseMetadata = (handler.bepisWrapper?.responseKinds || []).length > 0;
@@ -327,7 +322,7 @@ function conventionsQuery(facts, args) {
   });
   const visibleRows = rows.filter((row) => includeInfo || row.severity !== "info").slice(0, limit);
   const omittedRows = rows.length - visibleRows.length;
-  architectureResult("Generated Bepis architecture convention report.", [], { generatedFrom: "output/architecture/facts.json", confidence: "typed-wrapper+static-scan" }, {
+  architectureResult("Generated Bepis architecture convention report.", [], { generatedFrom: "output/architecture/facts.json", confidence: "typed-runner+static-scan" }, {
     warnings: [
       ...warnings,
       ...(errors.length ? [`${errors.length} blocking convention violation(s) detected.`] : []),
@@ -337,7 +332,7 @@ function conventionsQuery(facts, args) {
       controllers: facts.web.controllers.length,
       migratedControllers: migratedControllers.length,
       handlers: facts.web.handlers.length,
-      typedWrapperHandlers: facts.web.handlers.filter((handler) => handler.kindSource === "typed-wrapper").length,
+      typedRunnerHandlers: facts.web.handlers.filter((handler) => handler.kindSource === "typed-runner").length,
       requireAllControllers,
       requireExplicitResponseWrappers,
       typedResponseMetadataHandlers: facts.web.handlers.filter((handler) => (handler.bepisWrapper?.responseKinds || []).length > 0).length,
@@ -348,7 +343,7 @@ function conventionsQuery(facts, args) {
     },
     tables: [{ title: "convention findings", rows: visibleRows }],
     sections: [
-      { title: "Enforcement", content: "Controllers with a Bepis controller policy wrapper are treated as migrated. Missing Bepis action wrappers in migrated controllers are blocking; missing wrappers elsewhere are informational during rollout. Set requireAllControllers=true to turn rollout into a strict whole-app gate. Response intent is derived from each typed Bepis action wrapper contract; set requireExplicitResponseWrappers=true only when an action needs additional response-level spans beyond the action contract." },
+      { title: "Enforcement", content: "Controllers with a Bepis controller policy runner are treated as migrated. Missing Bepis action runners in migrated controllers are blocking; missing runners elsewhere are informational during rollout. Set requireAllControllers=true to turn rollout into a strict whole-app gate. Response intent is derived from each typed Bepis action runner contract; set requireExplicitResponseWrappers=true only when an action needs additional response-level spans beyond the action contract." },
     ],
   });
   if (failOnViolations && errors.length > 0) process.exitCode = 1;
@@ -397,12 +392,12 @@ function requestFlowQuery(facts, args) {
   ], { generatedFrom: "output/architecture/facts.json", sources: [record.action.source, handler ? { path: handler.path, line: handler.line } : undefined].filter(Boolean), confidence: handler?.confidence || "heuristic-static-scan" }, {
     warnings: [
       "Function calls, table usage, and response kinds are heuristic static scans; confirm with source for critical changes.",
-      ...(handler && handler.kindSource !== "typed-wrapper" ? ["Action kind is not wrapper-derived; migrate to a Bepis action wrapper for typed-wrapper confidence."] : []),
+      ...(handler && handler.kindSource !== "typed-runner" ? ["Action kind is not runner-derived; migrate to a Bepis action runner for typed-runner confidence."] : []),
     ],
-    metrics: { references: references.length, tableRefs: handler?.tableRefs?.length || 0, realtimeRefs: handler?.realtimeCalls?.length || 0, directCalls: handler?.calls?.length || 0, typedWrapper: handler?.kindSource === "typed-wrapper" },
+    metrics: { references: references.length, tableRefs: handler?.tableRefs?.length || 0, realtimeRefs: handler?.realtimeCalls?.length || 0, directCalls: handler?.calls?.length || 0, typedRunner: handler?.kindSource === "typed-runner" },
     sections: [
       { title: "Handler", content: handler ? `${handler.module} at ${handler.path}:${handler.line}` : "No handler found." },
-      { title: "Bepis wrapper", content: handler?.bepisWrapper ? `${handler.bepisWrapper.name} declared ${handler.bepisWrapper.declaredActionName}${handler.bepisWrapper.mutationSpecName ? ` with ${handler.bepisWrapper.mutationSpecName}` : ""}${handler.bepisWrapper.mutationSpec ? ` (${handler.bepisWrapper.mutationSpec.auditPolicy}/${handler.bepisWrapper.mutationSpec.realtimePolicy}/${handler.bepisWrapper.mutationSpec.scopePolicy})` : ""} at ${handler.bepisWrapper.source.path}:${handler.bepisWrapper.source.line}` : "No Bepis action wrapper detected." },
+      { title: "Bepis runner", content: handler?.bepisWrapper ? `${handler.bepisWrapper.name} declared ${handler.bepisWrapper.declaredActionName} as ${handler.bepisWrapper.operationKindConstructor} at ${handler.bepisWrapper.source.path}:${handler.bepisWrapper.source.line}` : "No Bepis action runner detected." },
       { title: "Direct calls", tables: [{ rows: (handler?.calls || []).slice(0, 40).map((call) => ({ call })) }] },
     ],
   });
@@ -454,11 +449,6 @@ function realtimeFlowQuery(facts, args) {
   lines.push(nodeLine(`action:${actionName}`, `${actionName}\n${handler.kind}\n${handler.confidence || "heuristic"}`, { fillcolor: "#fef3c7", highlight: true }));
   lines.push(nodeLine("handler", `${handler.module}\n${handler.path}:${handler.line}`, { fillcolor: "#f4f0ff", shape: "component" }));
   lines.push(edgeLine(`action:${actionName}`, "handler", { label: "handled by" }));
-  if (handler.bepisWrapper?.mutationSpec) {
-    const spec = handler.bepisWrapper.mutationSpec;
-    lines.push(nodeLine("mutation-spec", `mutation policy\naudit: ${spec.auditPolicy}\nrealtime: ${spec.realtimePolicy}\nscope: ${spec.scopePolicy}`, { fillcolor: "#fee2e2" }));
-    lines.push(edgeLine("handler", "mutation-spec", { label: handler.bepisWrapper.mutationSpecName || "spec" }));
-  }
   if (handler.realtimeCalls?.length) {
     lines.push(nodeLine("server-realtime", `server realtime calls\n${handler.realtimeCalls.slice(0, 8).join("\n")}`, { fillcolor: "#ede9fe" }));
     lines.push(edgeLine("handler", "server-realtime"));
@@ -476,11 +466,11 @@ function realtimeFlowQuery(facts, args) {
     { path: svgRel, kind: "diagram", language: "svg" },
     { path: dotRel, kind: "source", language: "dot" },
   ], { generatedFrom: "output/architecture/facts.json", confidence: handler.confidence || "heuristic-static-scan" }, {
-    warnings: ["Realtime flow is source-derived coverage plus wrapper policy; confirm actual transport behavior in live-update modules for critical changes."],
-    metrics: { realtimeCalls: handler.realtimeCalls?.length || 0, frontendConsumers: frontendConsumers.length, hasMutationSpec: Boolean(handler.bepisWrapper?.mutationSpec) },
+    warnings: ["Realtime flow is source-derived coverage plus runner policy; confirm actual transport behavior in live-update modules for critical changes."],
+    metrics: { realtimeCalls: handler.realtimeCalls?.length || 0, frontendConsumers: frontendConsumers.length, hasBepisRunner: Boolean(handler.bepisWrapper) },
     sections: [
       { title: "Handler", content: `${handler.module} at ${handler.path}:${handler.line}` },
-      { title: "Mutation policy", content: handler.bepisWrapper?.mutationSpec ? JSON.stringify(handler.bepisWrapper.mutationSpec) : "No Bepis mutation spec detected." },
+      { title: "Bepis runner", content: handler.bepisWrapper ? `${handler.bepisWrapper.name} ${handler.bepisWrapper.operationKindConstructor}` : "No Bepis runner detected." },
     ],
   });
 }
@@ -546,7 +536,7 @@ function refactoringRadarQuery(facts, args) {
     const controllerHandlers = controller.actions.map((action) => handlers.get(action.name)).filter(Boolean);
     const mutations = controllerHandlers.filter((handler) => handler.kind === "mutation").length;
     const fragments = controllerHandlers.filter((handler) => handler.kind === "fragment").length;
-    const missingWrappers = controllerHandlers.filter((handler) => handler.kindSource !== "typed-wrapper").length;
+    const missingWrappers = controllerHandlers.filter((handler) => handler.kindSource !== "typed-runner").length;
     const bodyLines = controllerHandlers.reduce((sum, handler) => sum + (handler.bodyLineCount || 0), 0);
     const refs = controller.actions.reduce((sum, action) => sum + references.filter((ref) => ref.action === action.name).length, 0);
     const score = controller.actions.length * 2 + mutations * 3 + fragments * 2 + missingWrappers + Math.round(bodyLines / 40) + Math.round(refs / 10);
@@ -571,7 +561,7 @@ function refactoringRadarQuery(facts, args) {
     return { table: table.name, score, columns: table.columns.length, incomingForeignKeys: incoming, outgoingForeignKeys: outgoing, auditEdges };
   }).sort((a, b) => b.score - a.score).slice(0, limit);
 
-  architectureResult("Generated architecture refactoring radar.", [], { generatedFrom: "output/architecture/facts.json", confidence: "heuristic-static-scan+typed-wrapper" }, {
+  architectureResult("Generated architecture refactoring radar.", [], { generatedFrom: "output/architecture/facts.json", confidence: "heuristic-static-scan+typed-runner" }, {
     warnings: ["Scores are heuristics for agent triage, not architectural truth. Use source and focused queries before refactoring."],
     metrics: { controllers: facts.web.controllers.length, modules: facts.modules.length, tables: facts.schema.tables.length, limit },
     tables: [

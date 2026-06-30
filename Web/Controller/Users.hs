@@ -21,17 +21,10 @@ import Web.Controller.StaffProfileValidation (buildRequiredPersonalProfileStaff)
 import Web.Users.Mutations (acceptVenueInvitation)
 import Web.View.Users.New
 
-userSignupMutationSpec :: BepisMutationSpec
-userSignupMutationSpec = BepisMutationSpec
-    { auditPolicy = BepisAuditRequired
-    , realtimePolicy = BepisRealtimeNotApplicable
-    , scopePolicy = BepisNoScopePolicy
-    }
-
 instance Controller UsersController where
     beforeAction = bepisBeforeAction BepisPublicController annotateTelemetryAction
 
-    action currentAction@NewUserAction = bepisFormAction currentAction do
+    action currentAction@NewUserAction = runBepis currentAction BepisFormAction do
         let invitationId = paramOrNothing @(Id VenueInvitation) "invitationId"
         case invitationId of
             Nothing -> do
@@ -57,7 +50,7 @@ instance Controller UsersController where
                         setTitle "Request Access"
                         render InviteOnlyView
 
-    action currentAction@CreateUserAction = bepisMutationAction currentAction userSignupMutationSpec do
+    action currentAction@CreateUserAction = runBepis currentAction BepisMutationAction do
         let invitationId = paramOrNothing @(Id VenueInvitation) "invitationId"
         case invitationId of
             Nothing -> do
@@ -109,7 +102,7 @@ instance Controller UsersController where
                         setTitle "Request Access"
                         render InviteOnlyView
 
-    action currentAction@NewVenueOnboardingUserAction = bepisFormAction currentAction do
+    action currentAction@NewVenueOnboardingUserAction = runBepis currentAction BepisFormAction do
         let invitationId = paramOrNothing @(Id VenueOnboardingInvitation) "invitationId"
         case invitationId of
             Nothing -> do
@@ -142,7 +135,7 @@ instance Controller UsersController where
                         setTitle "Request Access"
                         render InviteOnlyView
 
-    action currentAction@CreateVenueOnboardingUserAction = bepisMutationAction currentAction userSignupMutationSpec do
+    action currentAction@CreateVenueOnboardingUserAction = runBepis currentAction BepisMutationAction do
         let invitationId = paramOrNothing @(Id VenueOnboardingInvitation) "invitationId"
         case invitationId of
             Nothing -> do

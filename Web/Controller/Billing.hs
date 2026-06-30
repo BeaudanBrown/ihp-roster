@@ -12,13 +12,6 @@ import Web.Billing.Mutations
 import Web.Controller.Prelude
 import Web.View.Billing.Index
 
-billingMutationSpec :: BepisMutationSpec
-billingMutationSpec = BepisMutationSpec
-    { auditPolicy = BepisAuditRequired
-    , realtimePolicy = BepisNoRealtimeInvalidation
-    , scopePolicy = BepisCurrentVenueScope
-    }
-
 instance Controller BillingController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
         annotateTelemetryAction
@@ -27,29 +20,29 @@ instance Controller BillingController where
         ensureProfileCompleted
         ensureBillingAccess
 
-    action currentAction@BillingAction = bepisPageAction currentAction do
+    action currentAction@BillingAction = runBepis currentAction BepisPageAction do
         viewModel <- fetchBillingViewModel
         render BillingView { .. }
 
-    action currentAction@ShowBillingStatusFragmentAction = bepisFragmentAction currentAction $
+    action currentAction@ShowBillingStatusFragmentAction = runBepis currentAction BepisFragmentAction $
         serveTypedLiveFragment billingLiveSurfaceDefinition currentBillingSurfaceKey BillingStatusLiveFragment \_ -> do
             viewModel <- fetchBillingViewModel
             respondHtml (renderBillingStatusFragment viewModel)
 
-    action currentAction@CreateBillingCheckoutSessionAction = bepisMutationAction currentAction billingMutationSpec $
+    action currentAction@CreateBillingCheckoutSessionAction = runBepis currentAction BepisMutationAction $
         createBillingCheckoutSessionAction
 
-    action currentAction@CreateBillingPortalSessionAction = bepisMutationAction currentAction billingMutationSpec $
+    action currentAction@CreateBillingPortalSessionAction = runBepis currentAction BepisMutationAction $
         createBillingPortalSessionAction
 
-    action currentAction@BillingSuccessAction = bepisPageAction currentAction do
+    action currentAction@BillingSuccessAction = runBepis currentAction BepisPageAction do
         let checkoutParams = ("checkout", "success") : maybe [] (\sessionId -> [("session_id", sessionId)]) (paramOrNothing @Text "session_id")
         redirectToPath (appendQueryParams (pathTo BillingAction) checkoutParams)
 
-    action currentAction@BillingCancelAction = bepisPageAction currentAction $
+    action currentAction@BillingCancelAction = runBepis currentAction BepisPageAction $
         render BillingCancelView
 
-    action currentAction@UpdateVenueBillingControlAction = bepisMutationAction currentAction billingMutationSpec $
+    action currentAction@UpdateVenueBillingControlAction = runBepis currentAction BepisMutationAction $
         updateVenueBillingControlAction
 
 ensureBillingAccess :: (?context :: ControllerContext, ?request :: Request, ?modelContext :: ModelContext) => IO ()

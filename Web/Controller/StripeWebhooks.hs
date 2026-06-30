@@ -11,7 +11,7 @@ import Web.Controller.Prelude
 instance Controller StripeWebhooksController where
     beforeAction = bepisBeforeAction BepisPublicController annotateTelemetryAction
 
-    action currentAction@StripeWebhookAction = bepisIntegrationAction currentAction do
+    action currentAction@StripeWebhookAction = runBepis currentAction BepisIntegrationAction do
         rawBody <- getRequestBody
         signatureHeader <- requireStripeSignatureHeader
         readStripeConfig >>= \case

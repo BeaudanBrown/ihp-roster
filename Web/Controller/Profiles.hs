@@ -29,13 +29,6 @@ import Web.Staff.Mutations (updateStaffMember)
 import Web.View.Profiles.Edit
 import Web.View.StaffProfileForm (StaffManagementFieldData (..))
 
-profileMutationSpec :: BepisMutationSpec
-profileMutationSpec = BepisMutationSpec
-    { auditPolicy = BepisAuditRequired
-    , realtimePolicy = BepisEmitsRealtimeInvalidation
-    , scopePolicy = BepisCurrentUserScope
-    }
-
 instance Controller ProfilesController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
         annotateTelemetryAction
@@ -43,7 +36,7 @@ instance Controller ProfilesController where
         ensureCurrentVenue
         ensureStaffSelfServiceAccess
 
-    action currentAction@EditProfileAction = bepisFormAction currentAction $
+    action currentAction@EditProfileAction = runBepis currentAction BepisFormAction $
         profileActionSpan "profile.page.render" do
             maybeExistingStaff <- profileActionSpan "profile.page.fetch_staff" fetchCurrentUserStaff
             let staff = fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff
@@ -59,7 +52,7 @@ instance Controller ProfilesController where
             let today = utctDay now
             profileActionSpan "profile.page.render_response" (render EditView { .. })
 
-    action currentAction@ShowProfileLeaveRequestsContentFragmentAction = bepisFragmentAction currentAction $
+    action currentAction@ShowProfileLeaveRequestsContentFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "profile.leave_fragment.respond" do
             maybeExistingStaff <- profileActionSpan "profile.leave_fragment.fetch_staff" fetchCurrentUserStaff
             case maybeExistingStaff of
@@ -69,7 +62,7 @@ instance Controller ProfilesController where
                         model <- profileActionSpan "profile.leave_fragment.fetch_model" (fetchProfileLeaveFragmentModel staff)
                         profileActionSpan "profile.leave_fragment.render_response" (respondHtml (renderProfileLeaveFragment FragmentPlain model profileLeaveRequestsFragment))
 
-    action currentAction@ShowProfileContentFragmentAction = bepisFragmentAction currentAction $
+    action currentAction@ShowProfileContentFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "profile.content_fragment.respond" do
             let openSection = normalizeProfileOpenSection (paramOrDefault @Text "" "section")
             profileActionSpan "profile.content_fragment.fetch_staff" fetchCurrentUserStaff >>= \case
@@ -87,7 +80,7 @@ instance Controller ProfilesController where
                         let today = utctDay now
                         profileActionSpan "profile.content_fragment.render_response" (respondHtml (renderProfileContentFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection))
 
-    action currentAction@UpdateProfileAction = bepisMutationAction currentAction profileMutationSpec do
+    action currentAction@UpdateProfileAction = runBepis currentAction BepisMutationAction do
         maybeExistingStaff <- fetchCurrentUserStaff
         let submittedShiftPreferenceKeys = nub (paramTexts "shiftPreferenceKeys")
         let staff = fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff

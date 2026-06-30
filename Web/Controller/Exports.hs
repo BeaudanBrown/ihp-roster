@@ -37,10 +37,10 @@ instance Controller ExportsController where
         ensureProfileCompleted
         ensureAdminRole
 
-    action currentAction@ExportJobsAction = bepisExportAction currentAction do
+    action currentAction@ExportJobsAction = runBepis currentAction BepisExportAction do
         redirectToPath (pathTo AdminAction <> "#exports")
 
-    action currentAction@CreateExportJobAction = bepisExportAction currentAction do
+    action currentAction@CreateExportJobAction = runBepis currentAction BepisExportAction do
         ensureVenueWritable
         let maybeRangeStart = paramOrNothing @Day "rangeStart"
         let maybeRangeEnd = paramOrNothing @Day "rangeEnd"
@@ -57,7 +57,7 @@ instance Controller ExportsController where
                 setErrorMessage "Choose an export type and a valid start and end date."
                 respondToAdminExportsSectionMutation
 
-    action currentAction@DownloadExportJobAction { exportJobId } = bepisExportAction currentAction do
+    action currentAction@DownloadExportJobAction { exportJobId } = runBepis currentAction BepisExportAction do
         let downloadToken = param @UUID "token"
         exportJob <- liveMutationValue <$> (authorizeExportDownload exportJobId downloadToken >>= recordExportDownloadMutation)
 

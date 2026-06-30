@@ -22,27 +22,20 @@ import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServiceL
 import Web.View.Staff.Edit (renderStaffLeaveRequestFormFragment,
                             renderStaffLeaveRequestsListFragmentOob)
 
-leaveRequestMutationSpec :: BepisMutationSpec
-leaveRequestMutationSpec = BepisMutationSpec
-    { auditPolicy = BepisAuditRequired
-    , realtimePolicy = BepisEmitsRealtimeInvalidation
-    , scopePolicy = BepisCurrentVenueScope
-    }
-
 instance Controller LeaveRequestsController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
         annotateTelemetryAction
         ensureIsUser
         ensureCurrentVenueOrSupportRedirect
 
-    action currentAction@LeaveRequestsAction = bepisPageAction currentAction $
+    action currentAction@LeaveRequestsAction = runBepis currentAction BepisPageAction $
         profileActionSpan "leave.page.render" do
             ensureProfileCompleted
             ensureManagerRole
             projection <- profileActionSpan "leave.page.fetch_projection" fetchLeaveRequestsProjectionCached
             profileActionSpan "leave.page.render_response" (renderProfiled (leaveRequestsIndexView projection))
 
-    action currentAction@ShowLeaveRequestsContentFragmentAction = bepisFragmentAction currentAction $
+    action currentAction@ShowLeaveRequestsContentFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "leave.fragment.respond" do
             ensureProfileCompleted
             ensureManagerRole
@@ -63,7 +56,7 @@ instance Controller LeaveRequestsController where
                             TextIO.putStrLn "leave_projection_miss: fragment=content"
                         respondHtmlProfiled (fromMaybe mempty maybeHtml)
 
-    action currentAction@NewLeaveRequestAction = bepisFormAction currentAction do
+    action currentAction@NewLeaveRequestAction = runBepis currentAction BepisFormAction do
         ensureStaffSelfServiceAccess
         maybeStaff <- fetchCurrentUserStaff
         let responseContext = requestedLeaveResponseContext
@@ -77,7 +70,7 @@ instance Controller LeaveRequestsController where
                     then respondHtml (renderNewLeaveRequestDialog leaveRequest)
                     else render NewView { .. }
 
-    action currentAction@CreateLeaveRequestAction = bepisMutationAction currentAction leaveRequestMutationSpec do
+    action currentAction@CreateLeaveRequestAction = runBepis currentAction BepisMutationAction do
         ensureStaffSelfServiceAccess
         ensureVenueWritable
         let responseContext = requestedLeaveResponseContext
@@ -108,7 +101,7 @@ instance Controller LeaveRequestsController where
                                     setSuccessMessage "Unavailable period submitted"
                                     redirectToPath (leaveFallbackPath responseContext)
 
-    action currentAction@ApproveLeaveRequestAction { leaveRequestId } = bepisMutationAction currentAction leaveRequestMutationSpec do
+    action currentAction@ApproveLeaveRequestAction { leaveRequestId } = runBepis currentAction BepisMutationAction do
         ensureProfileCompleted
         ensureManagerRole
         ensureVenueWritable
@@ -122,7 +115,7 @@ instance Controller LeaveRequestsController where
                 setSuccessMessage "Unavailable period approved"
                 redirectTo LeaveRequestsAction
 
-    action currentAction@DenyLeaveRequestAction { leaveRequestId } = bepisMutationAction currentAction leaveRequestMutationSpec do
+    action currentAction@DenyLeaveRequestAction { leaveRequestId } = runBepis currentAction BepisMutationAction do
         ensureProfileCompleted
         ensureManagerRole
         ensureVenueWritable

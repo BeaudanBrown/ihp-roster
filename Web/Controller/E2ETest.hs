@@ -6,19 +6,12 @@ import Network.HTTP.Types.Status (status403, status404, status409)
 import qualified System.Environment as Environment
 import Web.Controller.Prelude
 
-e2eTestMutationSpec :: BepisMutationSpec
-e2eTestMutationSpec = BepisMutationSpec
-    { auditPolicy = BepisAuditNotRequired
-    , realtimePolicy = BepisRealtimeNotApplicable
-    , scopePolicy = BepisCurrentUserScope
-    }
-
 instance Controller E2ETestController where
     beforeAction = bepisBeforeAction BepisAuthenticatedController do
         annotateTelemetryAction
         ensureIsUser
 
-    action currentAction@MarkE2EPasskeyVerifiedAction = bepisJsonMutationAction currentAction e2eTestMutationSpec do
+    action currentAction@MarkE2EPasskeyVerifiedAction = runBepis currentAction BepisMutationAction do
         ensureE2ETestEndpointEnabled
         ensureE2ETestToken
         hasPasskey <- currentUserHasPasskey
