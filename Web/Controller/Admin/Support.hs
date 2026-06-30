@@ -131,9 +131,10 @@ respondToRosterGroupsSectionMutation maybeRosterGroupId =
         { adminSectionSuccessMessage = Nothing
         , adminSectionRedirectGroup = maybeRosterGroupId
         , adminSectionRenderFragment = do
+            setHeader ("HX-Reswap", "none")
             rosterGroups <- fetchCurrentVenueRosterGroups
             let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
-            pure (renderRosterGroupsSectionFragment rosterGroups showInactiveRosterGroups)
+            pure (renderRosterGroupsSectionFragmentWithSwap (Just "outerHTML") rosterGroups showInactiveRosterGroups)
         }
 
 nonEmptySuccessMessage :: Text -> Maybe Text

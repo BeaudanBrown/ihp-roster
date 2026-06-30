@@ -6,6 +6,7 @@ module Web.View.Admin.RosterGroups
     , adminRosterGroupsLiveSurfaceDefinition
     , adminRosterGroupsLiveSurfaceDefinitionForVenue
     , renderRosterGroupsSectionFragment
+    , renderRosterGroupsSectionFragmentWithSwap
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
@@ -27,8 +28,13 @@ renderRosterGroupsSection rosterGroups showInactive =
         (renderRosterGroupRows rosterGroups showInactive)
 
 renderRosterGroupsSectionFragment :: [RosterGroup] -> Bool -> Html
-renderRosterGroupsSectionFragment rosterGroups showInactive = [hsx|
+renderRosterGroupsSectionFragment =
+    renderRosterGroupsSectionFragmentWithSwap Nothing
+
+renderRosterGroupsSectionFragmentWithSwap :: Maybe Text -> [RosterGroup] -> Bool -> Html
+renderRosterGroupsSectionFragmentWithSwap maybeSwapOob rosterGroups showInactive = [hsx|
     <div id="admin-roster-groups-fragment"
+         hx-swap-oob={maybeSwapOob}
          data-live-update-surface={liveSurfaceConfigJson <$> adminRosterGroupsLiveSurface}>
         {renderRosterGroupsSection rosterGroups showInactive}
     </div>
@@ -89,7 +95,7 @@ renderRosterGroupCreateForm showInactive = [hsx|
           data-disable-javascript-submission="true"
           hx-post={CreateRosterGroupAction}
           hx-target="#admin-roster-groups-fragment"
-          hx-swap="outerHTML">
+          hx-swap="none">
         <input type="hidden" name="showInactiveRosterGroups" value={boolParam showInactive} />
         <div class="row g-2 align-items-end">
             <div class="col-12 col-md-8">
@@ -128,7 +134,7 @@ renderRosterGroupRow showInactive activeCount (rosterGroupIndex, rosterGroup) = 
               data-disable-javascript-submission="true"
               hx-post={appendQueryParams (pathTo (UpdateRosterGroupAction (get #id rosterGroup))) [("rosterGroupId", tshow rosterGroup.id)]}
               hx-target="#admin-roster-groups-fragment"
-              hx-swap="outerHTML">
+              hx-swap="none">
             <input type="hidden" name="showInactiveRosterGroups" value={boolParam showInactive} />
             <div class="d-flex justify-content-between align-items-center mb-2 gap-2 flex-wrap">
                 <div class="d-flex align-items-center gap-2">

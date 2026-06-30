@@ -361,6 +361,7 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "hx-post=\"/CreateRosterGroup\""
                 pageResponse `responseBodyShouldContain` "admin_roster_groups"
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-roster-groups-fragment\""
+                pageResponse `responseBodyShouldContain` "hx-swap=\"none\""
                 pageResponse `responseBodyShouldContain` "name=\"showInactiveRosterGroups\" value=\"true\""
                 pageResponse `responseBodyShouldContain` "id=\"new-roster-group-active\""
                 pageResponse `responseBodyShouldContain` ("id=\"roster-group-active-" <> tshow rosterGroup.id <> "\"")
@@ -426,7 +427,8 @@ tests = beforeAll testContext do
                             , ("showInactiveRosterGroups", "true")
                             ]
                 createRosterGroupResponse `responseStatusShouldBe` status200
-                createRosterGroupResponse `responseBodyShouldContain` "id=\"admin-roster-groups-fragment\""
+                lookup "HX-Reswap" (responseHeaders createRosterGroupResponse) `shouldBe` Just "none"
+                createRosterGroupResponse `responseBodyShouldContain` "id=\"admin-roster-groups-fragment\" hx-swap-oob=\"outerHTML\""
                 createRosterGroupResponse `responseBodyShouldContain` "Fragment Group"
                 createRosterGroupResponse `responseBodyShouldContain` "Archived Group"
                 createRosterGroupResponse `responseBodyShouldContain` "checked=\"checked\""
@@ -439,7 +441,8 @@ tests = beforeAll testContext do
                         callActionWithParams (MoveRosterGroupUpAction rosterGroup.id)
                             [("showInactiveRosterGroups", "true")]
                 moveRosterGroupResponse `responseStatusShouldBe` status200
-                moveRosterGroupResponse `responseBodyShouldContain` "id=\"admin-roster-groups-fragment\""
+                lookup "HX-Reswap" (responseHeaders moveRosterGroupResponse) `shouldBe` Just "none"
+                moveRosterGroupResponse `responseBodyShouldContain` "id=\"admin-roster-groups-fragment\" hx-swap-oob=\"outerHTML\""
                 moveRosterGroupResponse `responseBodyShouldContain` "Fragment Group"
                 moveRosterGroupResponse `responseBodyShouldNotContain` "id=\"app\""
                 rosterGroupsVersionAfterMove <- currentLiveUpdateVersion AdminRosterGroupsScope { venueId = unpackId venue.id }
@@ -677,7 +680,8 @@ tests = beforeAll testContext do
                             ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "id=\"admin-roster-groups-fragment\""
+                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
+                response `responseBodyShouldContain` "id=\"admin-roster-groups-fragment\" hx-swap-oob=\"outerHTML\""
                 unchangedRosterGroup <- fetch rosterGroup.id
                 unchangedRosterGroup.isActive `shouldBe` True
                 versionAfter <- currentLiveUpdateVersion AdminRosterGroupsScope { venueId = unpackId venue.id }

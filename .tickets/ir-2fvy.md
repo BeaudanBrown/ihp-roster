@@ -1,6 +1,6 @@
 ---
 id: ir-2fvy
-status: open
+status: in_progress
 deps: [ir-cg2x]
 links: []
 created: 2026-05-29T03:16:08Z
