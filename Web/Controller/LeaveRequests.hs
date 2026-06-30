@@ -3,7 +3,6 @@ module Web.Controller.LeaveRequests where
 import Application.Helper.LiveSurface (respondWithTypedLiveSurfaceFragments,
                                        serveTypedLiveFragment)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
-                                        fetchCurrentUserLeaveRequests,
                                         fetchStaffLeaveRequests)
 import Application.Helper.Profiling
 import Application.Helper.View (ToastOverlayPosition (..), dialogOverlayMountId,
@@ -15,6 +14,8 @@ import Web.Controller.Prelude
 import Web.LeaveRequests.Mutations
 import Web.LeaveRequests.ProfileSelfService
 import Web.LeaveRequests.Projection
+import Web.Profiles.LeaveFragments
+import Web.Profiles.LiveUpdates (profileLeaveRequestsFragment)
 import Web.View.LeaveRequests.Index
 import Web.View.LeaveRequests.New
 import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServiceLeaveFormFragment)
@@ -195,14 +196,14 @@ respondWithLeaveMutationSuccess responseContext successMessage =
         LeavePageResponseContext ->
             respondWithLeaveRequestsContent successMessage
         LeaveProfileResponseContext -> do
-            leaveRequests <- fetchCurrentUserLeaveRequests
-            leaveRequest <- buildDefaultLeaveRequest
-            respondHtmlProfiled $
-                mconcat
-                    [ renderProfileLeaveRequestFormFragment leaveRequest
-                    , renderProfileLeaveRequestsListFragmentOob leaveRequests
-                    , renderToastOob ToastBottomCenter (successToast successMessage)
-                    ]
+            maybeStaff <- fetchCurrentUserStaff
+            case maybeStaff of
+                Nothing -> respondWithLeaveContextError LeaveProfileResponseContext "No staff record found. Contact an administrator."
+                Just staff ->
+                    respondWithProfileLeaveFragments
+                        staff
+                        [profileLeaveRequestsFragment]
+                        (renderToastOob ToastBottomCenter (successToast successMessage))
         LeaveRosterResponseContext -> do
             leaveRequest <- buildDefaultRosterLeaveRequest
             respondHtmlProfiled $

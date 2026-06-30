@@ -1,7 +1,8 @@
 module Web.Controller.Profiles where
 
 import Application.Helper.LiveResource (LiveMutationResult (..))
-import Application.Helper.LiveSurface (serveTypedLiveFragment)
+import Application.Helper.LiveSurface (FragmentRenderMode (FragmentPlain),
+                                       serveTypedLiveFragment)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchCurrentUserLeaveRequests)
 import Application.Helper.Profiling (profileActionSpan)
@@ -21,6 +22,7 @@ import Web.Controller.Staff (buildStaff, emptyStaffPayRateSelection,
                              fetchAwardLevelsForStaffForm,
                              parseRosterGroupIdText, parseStaffRosterGroupIds)
 import Web.Controller.StaffProfileValidation (buildRequiredPersonalProfileStaff)
+import Web.Profiles.LeaveFragments
 import Web.Profiles.LiveUpdates
 import Web.Profiles.Mutations
 import Web.Staff.Mutations (updateStaffMember)
@@ -57,9 +59,8 @@ instance Controller ProfilesController where
                 Nothing -> accessDeniedUnless False
                 Just staff ->
                     serveTypedLiveFragment profileLeaveRequestsLiveSurfaceDefinition (currentProfileLeaveSurfaceKey staff) profileLeaveRequestsFragment \_ -> do
-                        leaveRequests <- profileActionSpan "profile.leave_fragment.fetch_leave_requests" fetchCurrentUserLeaveRequests
-                        leaveRequestForm <- profileActionSpan "profile.leave_fragment.build_leave_form" buildDefaultLeaveRequest
-                        profileActionSpan "profile.leave_fragment.render_response" (respondHtml (renderProfileLeaveRequestsContentFragment staff leaveRequestForm leaveRequests))
+                        model <- profileActionSpan "profile.leave_fragment.fetch_model" (fetchProfileLeaveFragmentModel staff)
+                        profileActionSpan "profile.leave_fragment.render_response" (respondHtml (renderProfileLeaveFragment FragmentPlain model profileLeaveRequestsFragment))
 
     action ShowProfileContentFragmentAction =
         profileActionSpan "profile.content_fragment.respond" do

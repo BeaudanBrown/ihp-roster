@@ -5,7 +5,7 @@ module Web.LeaveRequests.ProfileSelfService
     , profileLeaveTargetFragmentIds
     , renderProfileLeaveRequestFormFragment
     , renderProfileLeaveRequestsContentFragment
-    , renderProfileLeaveRequestsListFragmentOob
+    , renderProfileLeaveRequestsContentFragmentWithSwap
     ) where
 
 import IHP.Prelude

@@ -247,8 +247,13 @@ renderProfileRsaSection staff staffRsaDocument today =
                 }
 
 renderProfileLeaveRequestsContentFragment :: Staff -> LeaveRequest -> [LeaveRequest] -> Html
-renderProfileLeaveRequestsContentFragment staff leaveRequest leaveRequests = [hsx|
+renderProfileLeaveRequestsContentFragment =
+    renderProfileLeaveRequestsContentFragmentWithSwap Nothing
+
+renderProfileLeaveRequestsContentFragmentWithSwap :: Maybe Text -> Staff -> LeaveRequest -> [LeaveRequest] -> Html
+renderProfileLeaveRequestsContentFragmentWithSwap maybeSwapOob staff leaveRequest leaveRequests = [hsx|
     <div id={profileLeaveRequestsContentFragmentId}
+         hx-swap-oob={maybeSwapOob}
          data-live-update-surface={liveSurfaceConfigJson <$> profileLeaveRequestsLiveSurface staff}>
         <div class="row g-4 align-items-start">
             <div class="col-12 col-xl-5">
@@ -291,14 +296,6 @@ renderProfileLeaveRequestFormFragment leaveRequest = [hsx|
 renderProfileLeaveRequestsListFragment :: [LeaveRequest] -> Html
 renderProfileLeaveRequestsListFragment leaveRequests = [hsx|
     <div id={profileLeaveRequestsListFragmentId}>
-        <h5 class="mb-3">Unavailable periods</h5>
-        {renderProfileLeaveRequestsList leaveRequests}
-    </div>
-|]
-
-renderProfileLeaveRequestsListFragmentOob :: [LeaveRequest] -> Html
-renderProfileLeaveRequestsListFragmentOob leaveRequests = [hsx|
-    <div id={profileLeaveRequestsListFragmentId} hx-swap-oob="outerHTML">
         <h5 class="mb-3">Unavailable periods</h5>
         {renderProfileLeaveRequestsList leaveRequests}
     </div>

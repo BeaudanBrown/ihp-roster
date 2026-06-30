@@ -87,21 +87,27 @@ and `Application.Helper.LiveSurface.Internal`. Feature modules should keep
 fragment enums feature-local and cross the typed-to-wire boundary only through
 strict helpers such as `mkSurfaceFragmentRef`, `mkSurfaceFragmentContract`,
 `mkTypedDefinedLiveSurface`, `typedLiveSurfaceFragmentRef(s)`,
-`serveTypedLiveFragment`, `respondWithTypedLiveSurfaceFragments`, and projection
-helpers. The runtime no longer keeps feature-facing broadcast or typed mutation
-helpers; typed config, projection, dependency matching, authorization, and
-actor-refresh helpers derive directly from `TypedLiveSurfaceDefinition`.
+`serveTypedLiveFragment`, `respondWithTypedLiveSurfaceFragments`, and typed
+fragment normalization helpers. The runtime no longer keeps feature-facing
+broadcast or typed mutation helpers; typed config, fragment identity, dependency
+matching, authorization, and actor-refresh helpers derive directly from
+`TypedLiveSurfaceDefinition`.
 
 Actor responses and passive live updates should use one fragment model with
 multiple triggers. A feature-local fragment enum and `TypedLiveSurfaceDefinition`
 name the fragments once; successful actor HTMX responses render selected
-fragments immediately as OOB swaps with `respondWithTypedLiveSurfaceFragments`,
-while passive viewers receive structural invalidations and refetch the same
-fragments through their GET endpoints. Actor responses may append extras such as
-toasts or dialog clears after the normalized OOB fragments. The helper normalizes
-selected fragments through containment paths and loads the projection snapshot
-once before rendering, so feature code should not recreate local `renderXxxOob`
-actor helpers when the typed projection helper can render the same fragments.
+fragments immediately as OOB swaps, while passive viewers receive structural
+invalidations and refetch the same fragments through their GET endpoints. Actor
+responses may append extras such as toasts or dialog clears after the normalized
+OOB fragments.
+
+Prefer a simple, non-cached feature-local fragment model for new migrations:
+fetch the model once, normalize requested fragments with the typed surface
+helpers, render those fragments in `FragmentPlain` or `FragmentOob` mode, and
+append extras. Use the `SurfaceProjection` cache/projection helpers only when a
+ticket intentionally opts into cache behavior or an existing surface already uses
+that pattern. Feature code should not recreate local `renderXxxOob` actor helpers
+when a shared typed fragment model can render the same fragments.
 
 Validation failures are the main exception: return the submitted form or dialog
 fragment directly to the request target so field errors stay localized. Do not

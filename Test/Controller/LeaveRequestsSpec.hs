@@ -463,12 +463,12 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 body <- responseBody response
                 let bodyText = cs (LByteString.unpack body)
+                bodyText `shouldContain` "id=\"profile-leave-requests-content\" hx-swap-oob=\"outerHTML\""
                 bodyText `shouldContain` "id=\"profile-leave-request-form-fragment\""
-                bodyText `shouldContain` "id=\"profile-leave-requests-list-fragment\" hx-swap-oob=\"outerHTML\""
+                bodyText `shouldContain` "id=\"profile-leave-requests-list-fragment\""
                 bodyText `shouldContain` "Unavailable period submitted"
                 bodyText `shouldContain` "Unavailable periods"
                 bodyText `shouldNotContain` "id=\"profile-content-fragment\""
-                bodyText `shouldNotContain` "id=\"profile-leave-requests-content\""
 
                 versionAfter <- currentLiveUpdateVersion LeaveRequestsScope { venueId = unpackId venue.id }
                 versionAfter `shouldBe` versionBefore + 1
@@ -518,8 +518,9 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 body <- responseBody response
                 let bodyText = cs (LByteString.unpack body)
+                bodyText `shouldContain` "id=\"profile-leave-requests-content\" hx-swap-oob=\"outerHTML\""
                 bodyText `shouldContain` "id=\"profile-leave-request-form-fragment\""
-                bodyText `shouldContain` "id=\"profile-leave-requests-list-fragment\" hx-swap-oob=\"outerHTML\""
+                bodyText `shouldContain` "id=\"profile-leave-requests-list-fragment\""
                 bodyText `shouldContain` "HTMX target inference"
                 bodyText `shouldNotContain` "id=\"leave-requests-content\""
                 bodyText `shouldNotContain` "Pending ("
