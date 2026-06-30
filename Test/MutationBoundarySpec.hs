@@ -28,6 +28,32 @@ tests = describe "Mutation boundary guard" do
         factSetFacts facts `shouldSatisfy` any (\case BepisScopeFactValue _ -> True; _ -> False)
         factSetFacts facts `shouldSatisfy` any (\case BepisResponseFactValue _ -> True; _ -> False)
 
+    it "restores the outer Bepis fact context when an inner context throws" do
+        (outerResult, outerFacts) <- withBepisFactContext do
+            emitBepisFact $ BepisScopeFactValue BepisScopeFact
+                { scopeFactKind = BepisCurrentVenueScopeFact
+                , scopeFactLabel = "outer-before"
+                }
+            (innerResult, innerFacts) <- withBepisFactContext do
+                emitBepisFact $ BepisResponseFactValue BepisResponseFact
+                    { responseFactKind = BepisJsonResponse
+                    , responseFactTarget = Just "inner"
+                    }
+                throwIO (userError "inner boom")
+            case innerResult of
+                Left _  -> pure ()
+                Right _ -> expectationFailure "inner context should capture the exception"
+            factSetFacts innerFacts `shouldSatisfy` any (\case BepisResponseFactValue _ -> True; _ -> False)
+            emitBepisFact $ BepisScopeFactValue BepisScopeFact
+                { scopeFactKind = BepisCurrentVenueScopeFact
+                , scopeFactLabel = "outer-after"
+                }
+        case outerResult of
+            Right _ -> pure ()
+            Left _  -> expectationFailure "outer context should continue after handled inner exception"
+        scopeFactLabels outerFacts `shouldBe` ["outer-before", "outer-after"]
+        factSetFacts outerFacts `shouldSatisfy` all (\case BepisResponseFactValue _ -> False; _ -> True)
+
     it "generates Bepis runtime fact contracts from Haskell" do
         case Aeson.decode bepisArchitectureContractsJson of
             Just (Aeson.Object object) -> do
@@ -242,6 +268,14 @@ tests = describe "Mutation boundary guard" do
         source <- Text.readFile "Web/Admin/Xero/Mutations.hs"
         let forbiddenTokens = ["refreshAdminXeroPayItems", "refreshAdminXero", "broadcastSurface"]
         filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
+
+scopeFactLabels :: BepisFactSet -> [Text]
+scopeFactLabels facts =
+    mapMaybe scopeLabel facts.factSetFacts
+    where
+        scopeLabel = \case
+            BepisScopeFactValue fact -> Just fact.scopeFactLabel
+            _                        -> Nothing
 
 hasNonEmptyArray :: Maybe Aeson.Value -> Bool
 hasNonEmptyArray = \case

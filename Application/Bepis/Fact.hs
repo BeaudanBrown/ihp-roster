@@ -149,17 +149,18 @@ data BepisOperationContext = BepisOperationContext
 newtype BepisFactContext = BepisFactContext
     { factContextRef :: IORef [BepisFact]
     }
+    deriving (Eq)
 
 emptyBepisFactSet :: BepisFactSet
 emptyBepisFactSet = BepisFactSet { factSetFacts = [] }
 
 withBepisFactContext :: IO a -> IO (Either Exception.SomeException a, BepisFactSet)
-withBepisFactContext action = do
+withBepisFactContext action = Exception.mask \restore -> do
     threadId <- myThreadId
     ref <- newIORef []
     let context = BepisFactContext ref
     pushBepisFactContext threadId context
-    result <- Exception.try action
+    result <- Exception.try (restore action)
     facts <- readIORef ref
     popBepisFactContext threadId context
     pure (result, BepisFactSet (reverse facts))
@@ -325,12 +326,15 @@ pushBepisFactContext threadId context =
         pure (alterThreadContexts threadId (context :) contexts)
 
 popBepisFactContext :: ThreadId -> BepisFactContext -> IO ()
-popBepisFactContext threadId _context =
+popBepisFactContext threadId context =
     modifyMVar_ bepisFactContexts \contexts ->
-        pure (alterThreadContexts threadId dropOne contexts)
+        pure (alterThreadContexts threadId (dropContext context) contexts)
     where
-        dropOne []       = []
-        dropOne (_ : xs) = xs
+        dropContext expected = \case
+            [] -> []
+            actual : rest
+                | actual == expected -> rest
+                | otherwise -> filter (/= expected) (actual : rest)
 
 recordBepisFactForCurrentThread :: BepisFact -> IO ()
 recordBepisFactForCurrentThread fact = do
@@ -342,6 +346,7 @@ recordBepisFactForCurrentThread fact = do
 
 alterThreadContexts :: ThreadId -> ([BepisFactContext] -> [BepisFactContext]) -> BepisFactContextStack -> BepisFactContextStack
 alterThreadContexts threadId alter contexts =
-    case break ((== threadId) . fst) contexts of
-        (before, (_, stack) : after) -> before <> [(threadId, alter stack)] <> after
-        _                           -> (threadId, alter []) : contexts
+    let keepNonEmpty stack = if null stack then [] else [(threadId, stack)]
+    in case break ((== threadId) . fst) contexts of
+        (before, (_, stack) : after) -> before <> keepNonEmpty (alter stack) <> after
+        _                           -> keepNonEmpty (alter []) <> contexts
