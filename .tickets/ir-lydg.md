@@ -1,6 +1,6 @@
 ---
 id: ir-lydg
-status: open
+status: closed
 deps: [ir-asoq]
 links: []
 created: 2026-06-30T11:03:28Z

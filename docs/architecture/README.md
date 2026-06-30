@@ -99,26 +99,24 @@ Bepis-owned invariants live inside that IHP shell:
   support-only access;
 - action kind and response kind, e.g. page, fragment, dialog, mutation,
   redirect, JSON, or file response;
-- venue/support scope, request-derived id validation expectations, mutation
-  scope, audit policy, and realtime/live freshness policy;
+- runtime facts emitted by real helpers for venue/support scope,
+  request-derived id validation, audit/version writes, live invalidation, and
+  actor responses;
 - generated frontend contract and live-surface semantics used by architecture
   facts and convention checks.
 
-The migration path is wrapper-first. Existing controller actions should keep the
-normal IHP shape but delegate immediately through small Bepis wrappers, for
-example `bepisBeforeAction`, `bepisPageAction`, `bepisFragmentAction`,
-`bepisDialogAction`, and `bepisMutationAction`. A typed `ControllerSpec`
-dispatcher is deferred for now; see `controller-spec-prototype.md` for the
-prototype decision and revisit trigger.
+The current action boundary is `runBepis`. Controller actions keep the normal
+IHP shape but delegate immediately through `runBepis currentAction
+Bepis...Action do`. A typed `ControllerSpec` dispatcher is deferred for now; see
+`controller-spec-prototype.md` for the prototype decision and revisit trigger.
 
 Typed behavior is preferred over standalone metadata. Architecture facts should
 classify actions and flows in this order:
 
 ```text
-typed Bepis action values, generated Bepis contracts, and mutation pipeline evidence
-  > typed Bepis wrappers/specs
+typed Bepis action values, generated Bepis contracts, and helper-emitted Bepis facts
   > app-owned live surface and generated contract registries
-  > static source/call scanning
+  > static source/call scanning for usage location only
   > naming-convention fallback
 ```
 
@@ -126,37 +124,35 @@ When a query falls back to a heuristic, it must report confidence/provenance so
 agents do not treat inferred request-flow or realtime edges as compiler-perfect
 truth.
 
-### Bepis Component Pipelines
+### Bepis Runtime Facts
 
-Live-surface descriptors are the exemplar component model: create a small typed
-core, attach visible capabilities with `|>`, then lower/render/run at the IHP or
-browser boundary. The mutation pipeline follows the same rule. A mutation can now
-be written as a typed chain that attaches scope, audit, realtime, and response
-evidence before `runBepisMutationPipeline` returns the application value.
+Bepis uses one runtime fact boundary: helpers that perform real effects call
+`emitBepisFact`. `runBepis` opens the action-local collector, emits the action
+fact, runs the normal IHP action body, and summarizes collected facts to
+telemetry. OpenTelemetry is a sink for these typed facts, not the source of
+truth.
 
 ```haskell
-newMutation (approveTimesheetEntryMutation weekOffset timesheetEntry)
-    |> scopedToCurrentVenue
-    |> auditedAs "timesheet_approved"
-    |> fromLiveMutationResult "timesheet.approve"
-    |> respondsWithFragments "timesheet-day-section"
-    |> respondsWithRedirect "timesheet-week"
-    |> runBepisMutationPipeline
+action currentAction@ApproveTimesheetEntryAction { timesheetEntryId } =
+    runBepis currentAction BepisMutationAction do
+        ensureManagerRole
+        ensureVenueWritable
+        timesheetEntry <- fetch timesheetEntryId
+        ensureRecordInCurrentVenue timesheetEntry.venueId
+        _ <- approveTimesheetEntryMutation weekOffset timesheetEntry
+        respondWithTimesheetDaySectionUpdate ...
 ```
 
-Use a pipeline component when the capability is meaningful architecture or
-product policy and should stay visible at the call site. Use an ordinary helper
-function for local mechanics. Use a typeclass only for intrinsic behavior shared
-by a family of values; do not hide business decisions such as audit/realtime
-requirements in invisible instances.
+Authorization helpers emit scope facts, audit/version helpers emit audit facts,
+live invalidation helpers emit live facts, and response helpers emit response
+facts. Do not add parallel descriptive metadata beside a helper call; add fact
+emission to the helper that actually performs the effect.
 
 Generated Bepis architecture contracts come from
 `Application.Bepis.Architecture` via `architecture-contracts`. Source scanners may
-still locate usage sites, but wrapper/action/response/mutation vocabularies
-should prefer generated Haskell-owned contract JSON. During migration,
-`BepisMutationSpec` remains a fallback for unmigrated actions and the gate emits
-optional mutation drift warnings when required audit/realtime specs lack visible
-effect evidence.
+still locate usage sites and enforce no-legacy rules, but Bepis semantic
+vocabularies should prefer generated Haskell-owned contract JSON and runtime
+fact artifacts.
 
 IHP Auto Refresh is not a replacement for Bepis live scopes. It tracks table
 reads for an action, reruns the action after matching database changes, and
@@ -170,9 +166,9 @@ current reuse decision.
 
 - `Web/Controller/` owns request handling, params, redirects, HTMX response
   shape, and permission response choices. New or migrated actions should route
-  app-level policy, action kind, mutation policy, response kind, and
-  architecture annotations through Bepis wrappers while preserving IHP
-  controller conventions.
+  app-level policy and action kind through `runBepis`; scope/audit/live/response
+  semantics come from fact-emitting helpers while preserving IHP controller
+  conventions.
 - `Web/View/` owns HSX rendering and layout structure.
 - Feature modules under `Web/RosterWeeks/`, `Web/Timesheets/`, and
   `Web/LeaveRequests/` own projections, response helpers, paths, and local
