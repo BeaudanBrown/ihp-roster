@@ -22,9 +22,9 @@ passkeySetupPromptSessionKey :: ByteString
 passkeySetupPromptSessionKey = "passkeySetupPrompt"
 
 instance Controller SessionsController where
-    beforeAction = annotateTelemetryAction
+    beforeAction = bepisBeforeAction BepisPublicController annotateTelemetryAction
 
-    action NewSessionAction = do
+    action NewSessionAction = bepisPageAction "NewSessionAction" do
         case currentUserOrNothing @User of
             Just user -> do
                 redirectPath <- defaultLoginRedirectPath user
@@ -36,7 +36,7 @@ instance Controller SessionsController where
         render NewView { .. }
 
     action CreateSessionAction =
-        profileActionSpan "auth.password_login" do
+        bepisMutationAction "CreateSessionAction" $ profileActionSpan "auth.password_login" do
             let submittedEmail = param @Text "email"
             profileActionSpan "auth.password_login.find_user"
                 ( query @User
@@ -118,9 +118,9 @@ instance Controller SessionsController where
                         setErrorMessage "Invalid Credentials"
                         redirectTo NewSessionAction
 
-    action DeleteSessionAction = Sessions.deleteSessionAction @User
+    action DeleteSessionAction = bepisMutationAction "DeleteSessionAction" (Sessions.deleteSessionAction @User)
 
-    action VerifyEmailAction = do
+    action VerifyEmailAction = bepisMutationAction "VerifyEmailAction" do
         let verificationTokenValue = param @Text "token"
         findActiveVerificationTokenByToken verificationTokenValue >>= \case
             Nothing -> do
@@ -144,7 +144,7 @@ instance Controller SessionsController where
                 setSuccessMessage "Email verified."
                 redirectTo EditProfileAction
 
-    action ResendVerificationAction = do
+    action ResendVerificationAction = bepisMutationAction "ResendVerificationAction" do
         let submittedEmail = param @Text "email"
         maybeUser <-
             query @User
