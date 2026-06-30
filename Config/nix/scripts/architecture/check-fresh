@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+node scripts/architecture/facts.mjs >/dev/null
+node scripts/architecture/schema.mjs >/dev/null
+node scripts/architecture/web-map.mjs >/dev/null
+node scripts/architecture/module-graph.mjs >/dev/null
+echo "Architecture generation succeeded. Outputs are under output/architecture/."

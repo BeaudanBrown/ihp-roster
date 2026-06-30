@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+node scripts/architecture/schema.mjs
+node scripts/architecture/web-map.mjs
+node scripts/architecture/module-graph.mjs

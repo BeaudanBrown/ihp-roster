@@ -52,6 +52,27 @@ otel-summary *args:
 profile-compare before after output="":
     if [ -z "{{output}}" ]; then profile-compare "{{before}}" "{{after}}"; else profile-compare "{{before}}" "{{after}}" "{{output}}"; fi
 
+architecture:
+    architecture-facts
+    architecture-schema
+    architecture-web-map
+    architecture-module-graph
+
+architecture-render:
+    architecture-render
+
+architecture-check:
+    architecture-check-fresh
+
+architecture-runtime-overlay *args:
+    architecture-runtime-overlay {{args}}
+
+architecture-query *args:
+    architecture-query {{args}}
+
+architecture-trace *args:
+    architecture-trace-diagram {{args}}
+
 demo-reset *args:
     if [ -z "{{args}}" ]; then bash ./bin/demo-reset; else bash ./bin/demo-reset {{args}}; fi
 

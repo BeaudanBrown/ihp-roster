@@ -43,6 +43,15 @@ in
         frontend-watch = script ../scripts/frontend/watch;
         git-install-hooks = script ../scripts/git/install-hooks;
         git-pre-commit-check = script ../scripts/git/pre-commit-check;
+        architecture-facts = script ../scripts/architecture/facts;
+        architecture-schema = script ../scripts/architecture/schema;
+        architecture-web-map = script ../scripts/architecture/web-map;
+        architecture-module-graph = script ../scripts/architecture/module-graph;
+        architecture-runtime-overlay = script ../scripts/architecture/runtime-overlay;
+        architecture-query = script ../scripts/architecture/query;
+        architecture-trace-diagram = script ../scripts/architecture/trace-diagram;
+        architecture-render = script ../scripts/architecture/render;
+        architecture-check-fresh = script ../scripts/architecture/check-fresh;
         haskell-module-name-check = script ../scripts/haskell/module-name-check;
         typecheck = script ../scripts/haskell/typecheck;
         regen-types = script ../scripts/haskell/regen-types;

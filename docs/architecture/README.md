@@ -3,6 +3,30 @@
 This is a lightweight map of the app's main code-owned subsystems. Detailed
 behavior belongs in subsystem-local docs.
 
+## Deterministic Architecture Tooling
+
+Project-local architecture commands are declared in `.pi/architecture.json` for
+Pi agents and are exposed through the devenv scripts. Generated outputs are
+initially gitignored under `output/architecture/`; focused query diagrams are
+written under `.pi/tmp/architecture-query/` or `.pi/tmp/architecture-trace/`.
+
+```bash
+bash ./bin/in-env architecture-facts
+bash ./bin/in-env architecture-schema
+bash ./bin/in-env architecture-web-map
+bash ./bin/in-env architecture-module-graph
+bash ./bin/in-env architecture-check-fresh
+```
+
+Focused agent queries use Pi's `architecture_queries` and `architecture_query`
+tools. The current project queries are:
+
+- `component`: focused controller/action/table/module diagrams.
+- `trace`: focused OpenTelemetry trace timing diagrams from profile artifacts.
+
+Do not treat generated diagrams as durable source until a future change promotes
+a specific output set into version control.
+
 ## Web Surface
 
 - `Web/Controller/` owns request handling, params, redirects, HTMX response

@@ -1,0 +1,72 @@
+{
+  "commands": {
+    "facts": {
+      "description": "Generate canonical IHP architecture facts JSON under output/architecture/.",
+      "command": ["bash", "./bin/in-env", "architecture-facts"]
+    },
+    "schema": {
+      "description": "Generate database schema DOT/SVG diagrams from Application/Schema.sql.",
+      "command": ["bash", "./bin/in-env", "architecture-schema"]
+    },
+    "web-map": {
+      "description": "Generate IHP routing/controller/action/view DOT/SVG map.",
+      "command": ["bash", "./bin/in-env", "architecture-web-map"]
+    },
+    "module-graph": {
+      "description": "Generate Haskell module dependency DOT/SVG graph.",
+      "command": ["bash", "./bin/in-env", "architecture-module-graph"]
+    },
+    "runtime-overlay": {
+      "description": "Generate architecture timing overlay from OpenTelemetry profile artifacts.",
+      "command": ["bash", "./bin/in-env", "architecture-runtime-overlay"]
+    }
+  },
+  "queries": {
+    "component": {
+      "description": "Generate a focused diagram around a controller, action, table, or module.",
+      "command": ["bash", "./bin/in-env", "architecture-query"],
+      "parameters": {
+        "kind": {
+          "type": "string",
+          "enum": ["controller", "action", "table", "module"],
+          "required": true
+        },
+        "target": {
+          "type": "string",
+          "required": true
+        },
+        "depth": {
+          "type": "number",
+          "default": 1
+        },
+        "direction": {
+          "type": "string",
+          "enum": ["upstream", "downstream", "both"],
+          "default": "both"
+        },
+        "include": {
+          "type": "array",
+          "default": []
+        }
+      }
+    },
+    "trace": {
+      "description": "Generate a focused timing/request diagram from OpenTelemetry trace artifacts.",
+      "command": ["bash", "./bin/in-env", "architecture-trace-diagram"],
+      "parameters": {
+        "runDir": {
+          "type": "string",
+          "default": "output/profile-load/latest"
+        },
+        "traceId": {
+          "type": "string",
+          "required": true
+        },
+        "limit": {
+          "type": "number",
+          "default": 80
+        }
+      }
+    }
+  }
+}

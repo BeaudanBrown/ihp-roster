@@ -22,6 +22,7 @@
                     pkgs.poppler-utils
                     pkgs.k6
                     pkgs.jq
+                    pkgs.graphviz
                     pkgs.opentelemetry-collector-contrib
                     pkgs.tempo
                     pkgs.grafana
