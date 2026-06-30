@@ -27,6 +27,49 @@ tools. The current project queries are:
 Do not treat generated diagrams as durable source until a future change promotes
 a specific output set into version control.
 
+### Flexibility Contract
+
+Architecture tooling must report observed facts and derived relationships, not
+hard-code today's implementation shape as permanent architecture. Keep the
+pipeline layered:
+
+```text
+source scanners -> versioned facts -> semantic classifiers -> query views -> diagrams/reports
+```
+
+Rules for future changes:
+
+- Facts should be source/provenance oriented: entity kind, relationship kind,
+  source file/line when known, scanner name, and confidence where practical.
+- Query names should describe durable intent, e.g. `request-flow`,
+  `realtime-usage`, `generated-contracts`, `controller`, and `table`, rather
+  than temporary mechanics such as a specific websocket/fragment implementation.
+- Current mechanisms such as websocket invalidation, HTMX fragment refetch,
+  Haskell-owned generated TypeScript, and `data-bepis-*` surfaces should appear
+  as attributes/classifications on facts, not as assumptions in the harness.
+- Diagrams are views over facts. If the live-update mechanism changes, replace
+  the relevant scanner/classifier/query view and regenerate diagrams.
+- Prefer metrics/tables/sections in query results when a diagram would be a
+  hairball.
+
+### Query Roadmap
+
+The next useful project-local query families are:
+
+- `controller`: grouped action inventory with handler module, source locations,
+  route references, and optional inbound links/forms.
+- `request-flow`: action -> handler -> auth/scope checks -> reads/writes ->
+  rendered view/fragment/redirect -> realtime/frontend effects.
+- `realtime-usage`: coverage and flow for surfaces that use live freshness,
+  regardless of whether the current mechanism is websocket invalidation,
+  polling, SSE, or something else.
+- `generated-contracts`: Haskell contract/codecs -> generated TypeScript ->
+  frontend consumers/backend emitters.
+- `table`: schema neighborhoods with audit/user-tracking edges classified and
+  optionally hidden.
+- `module`: import neighborhoods with common imports hidden and subsystem
+  clusters/summaries by default.
+
 ## Web Surface
 
 - `Web/Controller/` owns request handling, params, redirects, HTMX response
@@ -62,9 +105,9 @@ a specific output set into version control.
 ## Runtime
 
 - The app is an IHP web app with PostgreSQL.
-- Actor-local dynamic UI uses HTMX fragments.
-- Passive viewer freshness uses websocket invalidation plus authorized fragment
-  refetch.
+- Actor-local dynamic UI currently uses HTMX fragments.
+- Passive viewer freshness currently uses websocket invalidation plus authorized
+  fragment refetch.
 - Static assets are app-owned under `static/` and loaded via `assetPath`.
 - Planned observability topology is described in `observability.md`: lightweight
   OpenTelemetry request tracing, diagnostic profiling, local agent artifacts,

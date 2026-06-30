@@ -1,4 +1,15 @@
 {
+  "metadata": {
+    "description": "IHP Roster architecture evidence generated from source, schema, routes, modules, generated contracts, and optional runtime artifacts.",
+    "capabilities": [
+      "ihp-web-surface",
+      "schema-relationships",
+      "module-imports",
+      "focused-diagrams",
+      "otel-trace-diagrams"
+    ],
+    "factModel": "project-local, versioned entities/relationships with source provenance; diagrams are derived views"
+  },
   "commands": {
     "facts": {
       "description": "Generate canonical IHP architecture facts JSON under output/architecture/.",
@@ -24,6 +35,8 @@
   "queries": {
     "component": {
       "description": "Generate a focused diagram around a controller, action, table, or module.",
+      "intent": "Inspect a project component from observed IHP/schema/module facts while keeping current implementation mechanisms replaceable.",
+      "capabilities": ["focused-diagram", "source-provenance", "schema-neighborhood", "web-surface", "module-neighborhood"],
       "command": ["bash", "./bin/in-env", "architecture-query"],
       "parameters": {
         "kind": {
@@ -52,6 +65,8 @@
     },
     "trace": {
       "description": "Generate a focused timing/request diagram from OpenTelemetry trace artifacts.",
+      "intent": "Explain an observed runtime request from trace artifacts without treating runtime traces as the full static architecture.",
+      "capabilities": ["runtime-trace", "timing", "provenance", "diagram"],
       "command": ["bash", "./bin/in-env", "architecture-trace-diagram"],
       "parameters": {
         "runDir": {

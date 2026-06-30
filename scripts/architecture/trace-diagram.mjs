@@ -63,7 +63,7 @@ const lines = [
   "  graph [rankdir=TB, overlap=false, splines=true];",
   "  node [shape=box, fontsize=10];",
   "  edge [fontsize=9];",
-  `  trace [label=${dotQuote(`trace\\n${traceId}`)}, shape=oval, fillcolor=\"#eef7ff\", style=filled];`,
+  `  trace [label=${dotQuote(`trace\n${traceId}`)}, shape=oval, fillcolor=\"#eef7ff\", style=filled];`,
 ];
 const byId = new Map(spans.map((span) => [spanIdOf(span), span]));
 for (const span of spans) {
@@ -71,7 +71,7 @@ for (const span of spans) {
   const name = span.name || span.spanName || spanAttr(span, "code.function") || "span";
   const duration = durationMs(span);
   const route = spanAttr(span, "http.route") || spanAttr(span, "url.path") || "";
-  lines.push(`  ${id} [label=${dotQuote(`${name}${duration !== undefined ? `\\n${duration}ms` : ""}${route ? `\\n${route}` : ""}`)}, fillcolor=\"#fff7e6\", style=filled];`);
+  lines.push(`  ${id} [label=${dotQuote(`${name}${duration !== undefined ? `\n${duration}ms` : ""}${route ? `\n${route}` : ""}`)}, fillcolor=\"#fff7e6\", style=filled];`);
   const parent = parentIdOf(span);
   if (parent && byId.has(parent)) lines.push(`  ${dotId(`span_${parent}`)} -> ${id};`);
   else lines.push(`  trace -> ${id};`);

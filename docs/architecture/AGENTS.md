@@ -26,6 +26,16 @@ For focused questions, prefer structured queries through Pi when available:
 
 Do not commit generated architecture outputs unless a future ticket explicitly changes that policy.
 
+## Flexibility
+
+Keep architecture tooling adaptable:
+
+- Model observed source facts and relationships before drawing diagrams.
+- Add source provenance and confidence when scanners infer relationships.
+- Keep scanners/classifiers project-local and replaceable; keep Pi harness generic.
+- Prefer intent-based query names over current implementation mechanisms.
+- Treat live updates, fragments, generated contracts, and frontend surfaces as mechanisms/classifications that can evolve.
+
 ## Provenance
 
 When updating durable docs, cite the source code or generated fact file used. If generated architecture output conflicts with prose, flag the drift and prefer source-derived evidence.

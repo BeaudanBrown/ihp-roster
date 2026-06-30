@@ -20,23 +20,23 @@ const lines = [
   "  graph [rankdir=LR, overlap=false, splines=true];",
   "  node [shape=box, fontsize=10];",
   "  edge [fontsize=9];",
-  `  run [label=${dotQuote(`OTel run\\n${runDir}`)}, shape=oval, fillcolor=\"#fff7e6\", style=filled];`,
+  `  run [label=${dotQuote(`OTel run\n${runDir}`)}, shape=oval, fillcolor=\"#fff7e6\", style=filled];`,
 ];
 for (const span of slowest) {
   const duration = span.durationMs ?? span.duration ?? "?";
-  const label = `${span.name || span.spanName || "span"}\\n${duration}ms`;
+  const label = `${span.name || span.spanName || "span"}\n${duration}ms`;
   const id = dotId(`span_${span.name || span.spanName || JSON.stringify(span).slice(0, 20)}`);
   lines.push(`  ${id} [label=${dotQuote(label)}, fillcolor=\"#fff0f0\", style=filled];`);
   lines.push(`  run -> ${id};`);
 }
 for (const counter of counters) {
-  const label = `${counter.component || counter.name || "component"}\\n${counter.count ?? counter.value ?? "?"}`;
+  const label = `${counter.component || counter.name || "component"}\n${counter.count ?? counter.value ?? "?"}`;
   const id = dotId(`counter_${counter.component || counter.name || JSON.stringify(counter).slice(0, 20)}`);
   lines.push(`  ${id} [label=${dotQuote(label)}, fillcolor=\"#eef7ff\", style=filled];`);
   lines.push(`  run -> ${id} [label=\"render\"];`);
 }
 if (facts) {
-  lines.push(`  facts [label=${dotQuote(`architecture facts\\n${facts.web.controllers.length} controllers\\n${facts.schema.tables.length} tables`)}, shape=folder, fillcolor=\"#edf7ed\", style=filled];`);
+  lines.push(`  facts [label=${dotQuote(`architecture facts\n${facts.web.controllers.length} controllers\n${facts.schema.tables.length} tables`)}, shape=folder, fillcolor=\"#edf7ed\", style=filled];`);
   lines.push("  facts -> run [style=dashed, label=\"overlay\"];");
 }
 lines.push("}");

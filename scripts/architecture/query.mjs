@@ -95,7 +95,7 @@ const lines = [
 const colors = { controller: "#edf7ed", action: "#fff7e6", table: "#eef7ff", module: "#f4f0ff" };
 for (const id of selected) {
   const node = graph.nodes.get(id);
-  lines.push(`  ${dotId(id)} [label=${dotQuote(`${node.label}\\n${node.kind}`)}, fillcolor=${dotQuote(colors[node.kind] || "#ffffff")}, style=filled];`);
+  lines.push(`  ${dotId(id)} [label=${dotQuote(`${node.label}\n${node.kind}`)}, fillcolor=${dotQuote(colors[node.kind] || "#ffffff")}, style=filled];`);
 }
 for (const edge of graph.edges) {
   if (selected.has(edge.from) && selected.has(edge.to)) {
