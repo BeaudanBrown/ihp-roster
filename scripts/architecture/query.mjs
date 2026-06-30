@@ -418,10 +418,52 @@ function realtimeUsageQuery(facts, args) {
     { path: svgRel, kind: "diagram", language: "svg" },
     { path: dotRel, kind: "source", language: "dot" },
   ], { generatedFrom: "output/architecture/facts.json", confidence: "heuristic-static-scan" }, {
-    metrics: { realtimeReferenceFiles: refs.length, typedSurfaces: surfaces.length, actionHandlersWithRealtimeRefs: handlers.length, frontendConsumers: frontendConsumers.length },
+    metrics: { realtimeReferenceFiles: refs.length, typedSurfaceDefinitions: surfaces.length, actionHandlersWithRealtimeRefs: handlers.length, frontendConsumers: frontendConsumers.length },
     tables: [
       { title: "top realtime server references", rows: refs.sort((a, b) => b.referenceCount - a.referenceCount).slice(0, 20).map((ref) => ({ path: ref.path, references: ref.referenceCount, mechanism: ref.mechanism })) },
       { title: "frontend consumers", rows: frontendConsumers.slice(0, 20).map((consumer) => ({ path: consumer.path, imports: consumer.imports.join(", ") })) },
+    ],
+  });
+}
+
+function realtimeFlowQuery(facts, args) {
+  const actionName = args.action || args.target;
+  if (!actionName) throw new Error("realtime-flow requires action or target");
+  const handler = byAction(facts).get(actionName);
+  if (!handler) throw new Error(`Unknown action ${actionName}`);
+  const frontendConsumers = (facts.frontend.contracts.consumers || []).filter((consumer) => /live|surface|fragment|interaction/i.test(consumer.path));
+  const refs = facts.realtime.references || [];
+  const lines = graphHeader("realtime_flow", "LR");
+  lines.push(nodeLine(`action:${actionName}`, `${actionName}\n${handler.kind}\n${handler.confidence || "heuristic"}`, { fillcolor: "#fef3c7", highlight: true }));
+  lines.push(nodeLine("handler", `${handler.module}\n${handler.path}:${handler.line}`, { fillcolor: "#f4f0ff", shape: "component" }));
+  lines.push(edgeLine(`action:${actionName}`, "handler", { label: "handled by" }));
+  if (handler.bepisWrapper?.mutationSpec) {
+    const spec = handler.bepisWrapper.mutationSpec;
+    lines.push(nodeLine("mutation-spec", `mutation policy\naudit: ${spec.auditPolicy}\nrealtime: ${spec.realtimePolicy}\nscope: ${spec.scopePolicy}`, { fillcolor: "#fee2e2" }));
+    lines.push(edgeLine("handler", "mutation-spec", { label: handler.bepisWrapper.mutationSpecName || "spec" }));
+  }
+  if (handler.realtimeCalls?.length) {
+    lines.push(nodeLine("server-realtime", `server realtime calls\n${handler.realtimeCalls.slice(0, 8).join("\n")}`, { fillcolor: "#ede9fe" }));
+    lines.push(edgeLine("handler", "server-realtime"));
+  }
+  lines.push(nodeLine("realtime-coverage", `realtime reference files\n${refs.length}`, { fillcolor: "#dbeafe", shape: "folder" }));
+  lines.push(edgeLine("handler", "realtime-coverage", { style: "dashed", label: "coverage context" }));
+  if (frontendConsumers.length) {
+    lines.push(nodeLine("frontend", `frontend live/interaction consumers\n${frontendConsumers.length}`, { fillcolor: "#dcfce7", shape: "folder" }));
+    lines.push(edgeLine("realtime-coverage", "frontend", { style: "dashed" }));
+  }
+  lines.push("}");
+  const stem = `realtime-flow-${slug(actionName)}`;
+  const { dotRel, svgRel } = writeDot(stem, lines);
+  architectureResult(`Generated realtime flow report for ${actionName}.`, [
+    { path: svgRel, kind: "diagram", language: "svg" },
+    { path: dotRel, kind: "source", language: "dot" },
+  ], { generatedFrom: "output/architecture/facts.json", confidence: handler.confidence || "heuristic-static-scan" }, {
+    warnings: ["Realtime flow is source-derived coverage plus wrapper policy; confirm actual transport behavior in live-update modules for critical changes."],
+    metrics: { realtimeCalls: handler.realtimeCalls?.length || 0, frontendConsumers: frontendConsumers.length, hasMutationSpec: Boolean(handler.bepisWrapper?.mutationSpec) },
+    sections: [
+      { title: "Handler", content: `${handler.module} at ${handler.path}:${handler.line}` },
+      { title: "Mutation policy", content: handler.bepisWrapper?.mutationSpec ? JSON.stringify(handler.bepisWrapper.mutationSpec) : "No Bepis mutation spec detected." },
     ],
   });
 }
@@ -508,7 +550,11 @@ switch (payload.name) {
     conventionsQuery(facts, args);
     break;
   case "realtime-usage":
+  case "realtime-coverage":
     realtimeUsageQuery(facts, args);
+    break;
+  case "realtime-flow":
+    realtimeFlowQuery(facts, args);
     break;
   case "generated-contracts":
     generatedContractsQuery(facts, args);

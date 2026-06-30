@@ -8,6 +8,8 @@
       "action-references",
       "request-flow-heuristics",
       "realtime-usage",
+      "realtime-coverage",
+      "realtime-flow",
       "generated-contracts",
       "focused-diagrams",
       "architecture-conventions",
@@ -85,13 +87,32 @@
       }
     },
     "realtime-usage": {
-      "description": "Generate realtime/live freshness usage metrics and diagram.",
+      "description": "Generate realtime/live freshness usage metrics and diagram. Compatibility alias for realtime-coverage.",
       "intent": "Measure usage of live freshness mechanisms without assuming the current websocket/fragment mechanism is permanent.",
       "capabilities": ["realtime-references", "live-surface-heuristics", "frontend-consumers", "metrics", "diagram"],
       "command": ["bash", "./bin/in-env", "architecture-query"],
       "parameters": {
         "surface": { "type": "string", "default": "all" },
         "detail": { "type": "string", "enum": ["summary", "actions", "files"], "default": "summary" }
+      }
+    },
+    "realtime-coverage": {
+      "description": "Generate realtime/live freshness coverage metrics and diagram.",
+      "intent": "Separate where live freshness appears from how one action or surface propagates updates.",
+      "capabilities": ["realtime-references", "live-surface-definitions", "frontend-consumers", "metrics", "diagram"],
+      "command": ["bash", "./bin/in-env", "architecture-query"],
+      "parameters": {
+        "surface": { "type": "string", "default": "all" },
+        "detail": { "type": "string", "enum": ["summary", "actions", "files"], "default": "summary" }
+      }
+    },
+    "realtime-flow": {
+      "description": "Generate a focused source-derived realtime flow view for an action.",
+      "intent": "Show action wrapper/mutation policy, handler realtime calls, server coverage context, and frontend live consumers without claiming a complete runtime trace.",
+      "capabilities": ["handler-source", "mutation-policy", "realtime-references", "frontend-consumers", "diagram", "metrics"],
+      "command": ["bash", "./bin/in-env", "architecture-query"],
+      "parameters": {
+        "action": { "type": "string", "required": true }
       }
     },
     "generated-contracts": {

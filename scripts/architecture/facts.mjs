@@ -334,8 +334,8 @@ function parseRealtime(files) {
     if (isRealtimeFile || matches.length > 0) {
       references.push({ path: relPath, source: { path: relPath, line: 1 }, referenceCount: matches.length, mechanism: isRealtimeFile ? "realtime-module" : "realtime-reference" });
     }
-    for (const m of text.matchAll(/([a-z][A-Za-z0-9_]*)LiveSurfaceDefinition\b|rosterLiveSurfaceDefinition\b/g)) {
-      surfaces.push({ name: m[0], path: relPath, line: lineForMatch(text, m), mechanism: "typed-live-surface" });
+    for (const m of text.matchAll(/^([a-z][A-Za-z0-9_]*LiveSurfaceDefinition)\s*::/gm)) {
+      surfaces.push({ name: m[1], path: relPath, line: lineForMatch(text, m), mechanism: "typed-live-surface-definition" });
     }
   }
   return { surfaces, references };
