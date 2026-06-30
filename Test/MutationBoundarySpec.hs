@@ -29,6 +29,11 @@ tests = describe "Mutation boundary guard" do
         factSetFacts facts `shouldSatisfy` any (\case BepisScopeFactValue _ -> True; _ -> False)
         factSetFacts facts `shouldSatisfy` any (\case BepisResponseFactValue _ -> True; _ -> False)
 
+    it "keeps authentication audit facts singular at the audit write boundary" do
+        source <- Text.readFile "Application/Helper/Audit.hs"
+        Text.count "BepisAuthenticationAuditRecorded" source `shouldBe` 1
+        Text.count "emitAuditFact BepisAuthenticationAuditRecorded" source `shouldBe` 0
+
     it "emits response facts from Bepis response helpers" do
         (_result, facts) <- withBepisFactContext do
             bepisJsonResponse (pure ())

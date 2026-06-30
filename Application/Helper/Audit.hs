@@ -21,7 +21,21 @@ recordAuditEvent ::
     Aeson.Value ->
     Text ->
     IO AuditEvent
-recordAuditEvent venueId actorUserId eventType targetTable targetId payload sourceChannel = do
+recordAuditEvent venueId actorUserId eventType targetTable targetId payload sourceChannel =
+    recordAuditEventWithFactKind BepisAuditEventRecorded venueId actorUserId eventType targetTable targetId payload sourceChannel
+
+recordAuditEventWithFactKind ::
+    (?modelContext :: ModelContext) =>
+    BepisAuditFactKind ->
+    UUID ->
+    UUID ->
+    Text ->
+    Text ->
+    UUID ->
+    Aeson.Value ->
+    Text ->
+    IO AuditEvent
+recordAuditEventWithFactKind factKind venueId actorUserId eventType targetTable targetId payload sourceChannel = do
     event <- newRecord @AuditEvent
         |> set #venueId venueId
         |> set #actorUserId actorUserId
@@ -31,7 +45,7 @@ recordAuditEvent venueId actorUserId eventType targetTable targetId payload sour
         |> set #payload payload
         |> set #sourceChannel sourceChannel
         |> createRecord
-    emitAuditFact BepisAuditEventRecorded eventType targetTable sourceChannel
+    emitAuditFact factKind eventType targetTable sourceChannel
     pure event
 
 recordCurrentUserAuditEvent ::
@@ -61,7 +75,8 @@ recordUserAuthenticationAuditEvent user eventType payload =
     resolveVenueContextForUser Nothing user >>= \case
         Nothing -> pure Nothing
         Just (_, venue, _) -> do
-            event <- recordAuditEvent
+            event <- recordAuditEventWithFactKind
+                BepisAuthenticationAuditRecorded
                 (unpackId (get #id venue))
                 (unpackId (get #id user))
                 eventType
@@ -69,7 +84,6 @@ recordUserAuthenticationAuditEvent user eventType payload =
                 (unpackId (get #id user))
                 payload
                 "web"
-            emitAuditFact BepisAuthenticationAuditRecorded eventType "users" "web"
             pure (Just event)
 
 timesheetEntrySnapshot :: TimesheetEntry -> Aeson.Value
