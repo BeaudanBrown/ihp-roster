@@ -31,3 +31,7 @@ Planning workstream added at docs/workstreams/generic-frontend-contracts.md. Imp
 **2026-07-01T02:33:34Z**
 
 Completed all child tickets for the generic Haskell-to-TypeScript frontend contract epic. Final state: generic DTO foundation, app/UI/roster/live-update/interaction/live-surface DTO migrations, generated parse/encode helpers, exhaustive generated-union switch guard, final lockdown guardrails, and durable docs. Final verification run covered: typecheck; frontend-contracts-check; frontend-check; doc-drift-check; hspec-test --match 'Frontend contract'; hspec-test --match 'LiveUpdate'; hspec-test --match 'LiveSurface' (rerun after guard allowlist fix); hspec-test --match 'interaction surface'.
+
+**2026-07-01T02:39:28Z**
+
+Post-close stale-code sweep: removed unused AesonTypeScriptOptions legacy module and renamed remaining test-only Spike* fixture DTOs to Example* to avoid stale/spike naming outside explicit guard strings. Verification: typecheck; frontend-contracts-check; hspec-test --match 'Frontend contract'.

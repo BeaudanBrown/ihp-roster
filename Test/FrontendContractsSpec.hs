@@ -197,11 +197,11 @@ tests = describe "Frontend contract generator foundation" do
             rendered `shouldSatisfy` Text.isInfixOf "value === \"get\" || value === \"post\""
 
         it "renders records, arrays, nullable fields, nested refs, and exact object guards" do
-            let config = SpikeLiveSurfaceConfig
-                    { spikeFeature = "roster"
-                    , spikeScope = SpikeRosterWeek "venue-1" 0
-                    , spikeFragments = ["roster_content"]
-                    , spikeProtection = Just (SpikeLiveFragmentProtection "input:focus")
+            let config = ExampleLiveSurfaceConfig
+                    { exampleFeature = "roster"
+                    , exampleScope = ExampleRosterWeek "venue-1" 0
+                    , exampleFragments = ["roster_content"]
+                    , exampleProtection = Just (ExampleLiveFragmentProtection "input:focus")
                     }
             encodeFrontend liveSurfaceConfigCodec config `shouldBe` Aeson.object
                 [ "feature" Aeson..= ("roster" :: Text)
@@ -235,7 +235,7 @@ tests = describe "Frontend contract generator foundation" do
                     , "weekOffset" Aeson..= (1 :: Int)
                     ]
             Aeson.parseEither (parseFrontend liveUpdateScopeCodec) rosterJson
-                `shouldBe` Right (SpikeRosterWeek "venue-1" 1)
+                `shouldBe` Right (ExampleRosterWeek "venue-1" 1)
             Aeson.parseEither (parseFrontend liveUpdateScopeCodec) (Aeson.object ["kind" Aeson..= ("unknown" :: Text)])
                 `shouldSatisfy` isLeft
 
@@ -338,12 +338,12 @@ htmxMethodCodec =
         , (HtmxPost, "post")
         ]
 
-data SpikeLiveUpdateScope
-    = SpikeRosterWeek !Text !Int
-    | SpikeSupportPlatform
+data ExampleLiveUpdateScope
+    = ExampleRosterWeek !Text !Int
+    | ExampleSupportPlatform
     deriving (Eq, Show)
 
-liveUpdateScopeCodec :: FrontendCodec SpikeLiveUpdateScope
+liveUpdateScopeCodec :: FrontendCodec ExampleLiveUpdateScope
 liveUpdateScopeCodec = FrontendCodec
     { codecName = Just "LiveUpdateScope"
     , codecSchema = SchemaTaggedUnion "LiveUpdateScope" "kind"
@@ -354,51 +354,51 @@ liveUpdateScopeCodec = FrontendCodec
         , FrontendVariant "support_platform" []
         ]
     , codecEncode = \case
-        SpikeRosterWeek venueId weekOffset -> Aeson.object
+        ExampleRosterWeek venueId weekOffset -> Aeson.object
             [ "kind" Aeson..= ("roster_week" :: Text)
             , "venueId" Aeson..= venueId
             , "weekOffset" Aeson..= weekOffset
             ]
-        SpikeSupportPlatform -> Aeson.object
+        ExampleSupportPlatform -> Aeson.object
             [ "kind" Aeson..= ("support_platform" :: Text)
             ]
     , codecParse = Aeson.withObject "LiveUpdateScope" \object -> do
         kind <- object Aeson..: "kind"
         case (kind :: Text) of
-            "roster_week" -> SpikeRosterWeek
+            "roster_week" -> ExampleRosterWeek
                 <$> object Aeson..: "venueId"
                 <*> object Aeson..: "weekOffset"
-            "support_platform" -> pure SpikeSupportPlatform
+            "support_platform" -> pure ExampleSupportPlatform
             _ -> fail ("Unknown LiveUpdateScope kind: " <> cs kind)
     }
 
-data SpikeLiveFragmentProtection = SpikeLiveFragmentProtection
-    { spikeActiveSelector :: !Text
+data ExampleLiveFragmentProtection = ExampleLiveFragmentProtection
+    { exampleActiveSelector :: !Text
     }
     deriving (Eq, Show)
 
-liveFragmentProtectionCodec :: FrontendCodec SpikeLiveFragmentProtection
+liveFragmentProtectionCodec :: FrontendCodec ExampleLiveFragmentProtection
 liveFragmentProtectionCodec = FrontendCodec
     { codecName = Just "LiveFragmentProtection"
     , codecSchema = SchemaRecord "LiveFragmentProtection"
         [ FrontendField "activeSelector" SchemaString
         ]
     , codecEncode = \protection -> Aeson.object
-        [ "activeSelector" Aeson..= protection.spikeActiveSelector
+        [ "activeSelector" Aeson..= protection.exampleActiveSelector
         ]
     , codecParse = Aeson.withObject "LiveFragmentProtection" \object ->
-        SpikeLiveFragmentProtection <$> object Aeson..: "activeSelector"
+        ExampleLiveFragmentProtection <$> object Aeson..: "activeSelector"
     }
 
-data SpikeLiveSurfaceConfig = SpikeLiveSurfaceConfig
-    { spikeFeature    :: !Text
-    , spikeScope      :: !SpikeLiveUpdateScope
-    , spikeFragments  :: ![Text]
-    , spikeProtection :: !(Maybe SpikeLiveFragmentProtection)
+data ExampleLiveSurfaceConfig = ExampleLiveSurfaceConfig
+    { exampleFeature    :: !Text
+    , exampleScope      :: !ExampleLiveUpdateScope
+    , exampleFragments  :: ![Text]
+    , exampleProtection :: !(Maybe ExampleLiveFragmentProtection)
     }
     deriving (Eq, Show)
 
-liveSurfaceConfigCodec :: FrontendCodec SpikeLiveSurfaceConfig
+liveSurfaceConfigCodec :: FrontendCodec ExampleLiveSurfaceConfig
 liveSurfaceConfigCodec = FrontendCodec
     { codecName = Just "LiveSurfaceConfig"
     , codecSchema = SchemaRecord "LiveSurfaceConfig"
@@ -409,13 +409,13 @@ liveSurfaceConfigCodec = FrontendCodec
         , FrontendField "sync" (SchemaOptional SchemaString)
         ]
     , codecEncode = \config -> Aeson.object
-        [ "feature" Aeson..= config.spikeFeature
-        , "scope" Aeson..= encodeFrontend liveUpdateScopeCodec config.spikeScope
-        , "fragments" Aeson..= config.spikeFragments
-        , "protection" Aeson..= maybe Aeson.Null (encodeFrontend liveFragmentProtectionCodec) config.spikeProtection
+        [ "feature" Aeson..= config.exampleFeature
+        , "scope" Aeson..= encodeFrontend liveUpdateScopeCodec config.exampleScope
+        , "fragments" Aeson..= config.exampleFragments
+        , "protection" Aeson..= maybe Aeson.Null (encodeFrontend liveFragmentProtectionCodec) config.exampleProtection
         ]
     , codecParse = Aeson.withObject "LiveSurfaceConfig" \object ->
-        SpikeLiveSurfaceConfig
+        ExampleLiveSurfaceConfig
             <$> object Aeson..: "feature"
             <*> (object Aeson..: "scope" >>= parseFrontend liveUpdateScopeCodec)
             <*> object Aeson..: "fragments"
