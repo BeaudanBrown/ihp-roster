@@ -1,6 +1,6 @@
 ---
 id: ir-sxxn
-status: open
+status: closed
 deps: [ir-w9dw]
 links: []
 created: 2026-07-01T01:40:01Z
@@ -22,3 +22,9 @@ Update Application/Helper/Frontend/README.md, Application/Helper/Interaction.SPE
 
 Docs accurately describe the implemented final system. doc-drift-check passes if applicable. The workstream can be marked implemented/archived after all child tickets close and durable behavior is moved into local docs/specs.
 
+
+## Notes
+
+**2026-07-01T02:30:53Z**
+
+Documented final generic frontend contract architecture in Frontend README, interaction/live-update/live-surface docs, frontend/static agent notes, and marked the workstream implemented. Covered DTO layout, generic codec workflow, generated type/is/parse/encode helpers, JSON-shaped DTO rule, live-surface and interaction extension paths, exhaustive assertNever handling, no manual contract generation, and future GHC/HIE verifier path. Verification: doc-drift-check; hspec-test --match 'Frontend contract'.

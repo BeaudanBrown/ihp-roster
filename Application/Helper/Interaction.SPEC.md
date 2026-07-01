@@ -117,6 +117,11 @@ or infer a singleton surface for a scope.
 4. Haskell-generated TypeScript exposes narrow browser DTOs/unions for live
    update payloads, registered surface families, static interaction schemas,
    layers, session kinds, intents, fields, live fragments, and conflict policy.
+   Browser-facing interaction DTOs live in
+   `Application.Helper.Frontend.Dto.Interaction` and are registered by
+   `Application.Helper.Frontend.InteractionSchema`; static schema constants are
+   encoded through those DTO codecs, not hand-authored TypeScript or `Aeson.Value`
+   declarations.
 5. Generic TypeScript discovers mounted contracts, manages disposable sessions,
    emits normalized intents, validates fields against the generated schema,
    fills the matching generated form in the same mount, and dispatches the
@@ -135,6 +140,12 @@ The default intent lifecycle is local until commit:
 
 Commit-only submission is the default. Start/preview server submissions require
 a future explicit typed form contract and should not be invented by runtime code.
+
+Where TypeScript must branch on a generated closed union such as live-fragment
+protection, session kind, or intent name, it must use an exhaustive switch with
+`assertNever` so adding a Haskell constructor fails `frontend-check` until the
+new case is handled. Prefer data-driven generic behavior when no branch is
+needed.
 
 Generic activation markers may promote ordinary click/change controls into the
 intent path without feature-specific TypeScript. A helper-rendered activation

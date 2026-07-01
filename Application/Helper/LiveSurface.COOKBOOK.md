@@ -28,7 +28,10 @@ URLs, authorization, and protection policy.
 - **Registered surface catalog**: the explicit list in `Web.LiveSurfaceRegistry`
   that owns authorization, manifest generation, and invalidation planning for
   every surface. Haskell cannot reliably discover all surface values
-  automatically, so the explicit catalog is intentional and guarded.
+  automatically, so the explicit catalog is intentional and guarded. The browser
+  manifest is generated through `Application.Helper.Frontend.Dto.LiveSurface` as
+  `Partial<Record<LiveSurfaceFamily, LiveSurfaceManifestEntry>>`; do not
+  hand-author TypeScript manifest keys or duplicate registered vocabularies.
 - **Background-plannable surface**: a registered surface whose invalidations can
   be planned from touched resources and subscribed wire scopes without a request
   context. Use this for webhooks, async workers, and background jobs.
@@ -140,7 +143,9 @@ Complex surfaces such as roster or timesheets may still use a descriptor-shaped
 adapter/full `TypedLiveSurfaceDefinition` where they need custom candidate
 fragments, containment, interaction capability, or legacy projection behavior.
 Keep projection as an implementation detail, not as the required live-surface
-abstraction.
+abstraction. After adding a registered surface, run `frontend-contracts` and
+`frontend-check`; generated family/scope/fragment unions and `LiveSurfaceManifest`
+should update from the registry without TypeScript edits.
 
 ## Lazy Fragment Loading
 

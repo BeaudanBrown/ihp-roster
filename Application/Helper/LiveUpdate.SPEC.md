@@ -87,7 +87,10 @@ describe how the browser refetches and swaps HTML.
 
 The wire-fragment transport boundary is isolated behind
 `Application.Helper.LiveUpdate.Runtime`, `Application.Helper.LiveUpdate.Internal`,
-and `Application.Helper.LiveSurface.Internal`. Feature modules should keep
+and `Application.Helper.LiveSurface.Internal`. Browser wire DTOs live in
+`Application.Helper.Frontend.Dto.LiveUpdate` and generate the JSON codecs,
+TypeScript types, guards, `parseX`, and `encodeX` helpers consumed by the
+runtime. Feature modules should keep
 fragment enums feature-local and cross the typed-to-wire boundary only through
 strict helpers such as `mkSurfaceFragmentRef`, `mkSurfaceFragmentContract`,
 `mkTypedDefinedLiveSurface`, `typedLiveSurfaceFragmentRef(s)`,
@@ -121,7 +124,9 @@ target node and the browser/live runtime performs the swap.
 
 Feature-facing fragment selectors should be closed ADTs. Route/query strings may
 be parsed into those constructors, but the typed surface contract should not be
-backed by open `Text` values because that bypasses exhaustiveness checks.
+backed by open `Text` values because that bypasses exhaustiveness checks. Unknown
+JSON at browser boundaries should be accepted only through generated `parseX`
+helpers, and outbound browser commands should use generated `encodeX` helpers.
 
 Feature-facing code must not use compatibility/manual authoring helpers such as
 `mkLiveSurface`, `mkDefinedLiveSurface`, `mkLiveFragmentRef`, raw

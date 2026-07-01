@@ -1,6 +1,6 @@
 # Generic Frontend Contract Codecs
 
-Status: active
+Status: implemented
 
 Tickets:
 
@@ -59,10 +59,10 @@ Out of scope for this stream:
 - GHC API or HIE implementation. The DTO/schema IR should leave a clean future
   path for compiler-backed verification.
 
-## Final Design Direction
+## Implemented Design
 
 Use explicit frontend DTO modules for browser-facing shapes rather than
-arbitrary internal server types. Suggested layout:
+arbitrary internal server types. Implemented layout:
 
 ```text
 Application/Helper/Frontend/Generic.hs
@@ -99,7 +99,7 @@ container types should prefer generic structures such as
 `Partial<Record<LiveSurfaceFamily, LiveSurfaceManifestEntry>>` over schemas whose
 fields are the current registered values.
 
-## Extension Workflow Target
+## Extension Workflow
 
 Adding a frontend-visible concept should normally mean:
 
@@ -120,9 +120,9 @@ Adding an interaction intent should update generated intent-name and field-schem
 contracts. TypeScript-specific handling must be exhaustive where it switches on
 closed generated intent unions; generic data-driven runtime paths need no change.
 
-## Guardrail Direction
+## Guardrails
 
-The final state should have no legacy/manual/spike/bridge leftovers:
+The final state has no legacy/manual/spike contract generation leftovers:
 
 - no raw TypeScript declaration blocks in production generator modules outside
   renderer internals;
@@ -132,20 +132,15 @@ The final state should have no legacy/manual/spike/bridge leftovers:
 - no unregistered DTO contract modules;
 - no stale compatibility aliases that exist only for migration.
 
-## Living Docs To Update As It Lands
+## Durable Docs Updated
 
-- `Application/Helper/Frontend/README.md` - final DTO/generic codec authoring
-  workflow.
-- `Application/Helper/Interaction.SPEC.md` - final interaction DTO and
-  exhaustive TypeScript handling contract.
-- `Application/Helper/LiveUpdate.SPEC.md` - generated parse/encode and live
-  update wire boundary rules.
-- `Application/Helper/LiveSurface.COOKBOOK.md` - adding surfaces under the final
-  manifest/contract generation path.
-- `frontend/AGENTS.md` and `static/AGENTS.md` - frontend generated-contract and
-  no-handwritten-contract rules.
-- `docs/architecture/README.md` if architecture tooling begins inspecting the
-  DTO/schema IR.
+Implemented behavior is now documented in:
+
+- `Application/Helper/Frontend/README.md` - DTO/generic codec authoring workflow.
+- `Application/Helper/Interaction.SPEC.md` - interaction DTO and exhaustive TypeScript handling contract.
+- `Application/Helper/LiveUpdate.SPEC.md` - generated parse/encode and live-update wire boundary rules.
+- `Application/Helper/LiveSurface.COOKBOOK.md` - adding surfaces under the manifest/contract generation path.
+- `frontend/AGENTS.md` and `static/AGENTS.md` - generated-contract and no-handwritten-contract rules.
 
 ## Verification
 

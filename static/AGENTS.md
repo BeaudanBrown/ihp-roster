@@ -11,7 +11,8 @@ Read this before editing `static/` assets.
   `bash ./bin/in-env frontend-check` before committing frontend changes.
 - Generated TypeScript contracts live in `frontend/ts/generated/`, are owned by
   Haskell DTOs/enums, and must not be hand-edited. Use generated contracts for
-  backend-emitted JSON/data-* boundaries where applicable.
+  backend-emitted JSON/data-* boundaries where applicable; unknown JSON uses
+  generated `parseX` helpers and outbound DTOs use generated `encodeX` helpers.
 - Keep app JavaScript split by concern:
   - `app-bootstrap.js`
   - `app-date-pickers.js`
@@ -92,7 +93,8 @@ Read this before editing `static/` assets.
   registered-surface, and interaction contracts and stays generic: it may manage
   disposable sessions and disposable UI inside declared layers, but must not
   mutate server-owned business DOM, infer live-fragment URLs/target ids, or
-  construct mutation URLs.
+  construct mutation URLs. Do not handwrite validators/parsers/encoders for
+  generated contract names; import generated `isX`/`parseX`/`encodeX` instead.
 - Use standard HTMX primitives first: generated forms, custom event triggers,
   lifecycle events, `hx-sync`/`hx-disabled-elt` where useful, and OOB swaps.
   Do not introduce HTMX extensions or custom elements until a later ticket proves
