@@ -215,6 +215,8 @@ isAllowedInfrastructureFile path =
         `elem`
             [ "Application/Helper/Frontend/AppConstants.hs"
             , "Application/Helper/Frontend/Contracts.hs"
+            , "Application/Helper/Frontend/Dto/Interaction.hs"
+            , "Application/Helper/Frontend/Dto/LiveUpdate.hs"
             , "Application/Helper/Frontend/InteractionSchema.hs"
             , "Application/Helper/Frontend/LiveUpdateSchema.hs"
             , "Application/Helper/Frontend/SurfaceManifestSchema.hs"
@@ -226,6 +228,7 @@ isAllowedInfrastructureFile path =
             , "Application/Helper/LiveSurface.hs"
             , "Application/Helper/LiveSurface/Internal.hs"
             , "Application/Helper/SurfaceProjection.hs"
+            , "Application/Helper/UiRegion.hs"
             , "Application/Script/ProfileLiveInvalidation.hs"
             , "Web/Controller/LiveUpdates.hs"
             , "Web/LiveResourceInvalidation.hs"

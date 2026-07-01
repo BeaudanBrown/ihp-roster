@@ -28,3 +28,7 @@ Zero allowlist remains for production frontend contract generator modules except
 **2026-07-01T02:28:29Z**
 
 Removed remaining handwritten generated-contract validators in frontend runtime by importing generated guards for InteractionFieldPresence and InteractionConflictResolution. Strengthened FrontendContractsSpec lockdowns: DTO module registry, renderer-only raw TS emitters, no handwritten is/parse/encode helpers for generated contract type names, and legacy/spike names. Verification: typecheck; frontend-check; hspec-test --match 'Frontend contract'.
+
+**2026-07-01T02:33:17Z**
+
+Follow-up from final epic verification: updated LiveSurface strict guard infrastructure allowlist so frontend DTO seam modules and UiRegion infrastructure are not treated as feature modules while feature-module restrictions remain enforced. Verification: hspec-test --match 'LiveSurface'.
