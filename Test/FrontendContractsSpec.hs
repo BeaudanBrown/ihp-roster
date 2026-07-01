@@ -10,6 +10,7 @@ import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import qualified Data.Text.IO as Text
+import GHC.Generics (Generic)
 import IHP.Prelude
 import System.Directory (doesDirectoryExist, listDirectory)
 import System.FilePath (takeExtension, (</>))
@@ -18,7 +19,12 @@ import Test.Hspec
 import Application.Helper.Frontend.Codec
 import Application.Helper.Frontend.Contracts (frontendContractDeclarations,
                                               frontendContractsTypeScript)
+import Application.Helper.Frontend.Generic
 import qualified Application.Helper.Frontend.LiveUpdateSchema as Live
+import Application.Helper.Frontend.Options (FrontendCodecOptions (..),
+                                            camelToSnakeLower,
+                                            defaultFrontendCodecOptions,
+                                            dropPrefix, lowerInitial)
 import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..),
                                                TypeScriptDeclarationOrigin (..))
 import Web.LiveSurfaceRegistry (RegisteredLiveSurfaceManifest (..),
@@ -80,9 +86,8 @@ tests = describe "Frontend contract generator foundation" do
         generatedSource `shouldSatisfy` Text.isInfixOf "export type LiveSurfaceFamily"
 
     it "keeps handwritten legacy declaration helpers out of the generator" do
-        files <- listDirectory "Application/Helper/Frontend"
-        offenders <- fmap catMaybes $ forM files \fileName -> do
-            let path = "Application/Helper/Frontend" </> fileName
+        files <- collectSourceFiles "Application/Helper/Frontend"
+        offenders <- fmap catMaybes $ forM files \path -> do
             source <- Text.readFile path
             pure $
                 if Text.isInfixOf "legacyManual" source
@@ -118,6 +123,54 @@ tests = describe "Frontend contract generator foundation" do
         generatedStringEscapeHatches frontendContractsTypeScript `shouldBe` generatedStringEscapeHatchAllowlist
 
     describe "FrontendCodec foundation" do
+        it "derives generic record, enum, tagged-union, ref, array, nullable, and optional codecs" do
+            encodeFrontend genericMethodCodec GenericPost `shouldBe` Aeson.String "post"
+            Aeson.parseEither (parseFrontend genericMethodCodec) (Aeson.String "get") `shouldBe` Right GenericGet
+            Aeson.parseEither (parseFrontend genericMethodCodec) (Aeson.String "trace") `shouldSatisfy` isLeft
+
+            let scope = GenericRosterWeek "venue-1" 2
+            let config = GenericExampleConfig
+                    { genericConfigFeature = "roster"
+                    , genericConfigScope = FrontendRef scope
+                    , genericConfigAliases = ["primary", "secondary"]
+                    , genericConfigDescription = FrontendNullable Nothing
+                    , genericConfigSync = FrontendOptional (Just "queue")
+                    }
+            encodeFrontend genericConfigCodec config `shouldBe` Aeson.object
+                [ "feature" Aeson..= ("roster" :: Text)
+                , "scope" Aeson..= Aeson.object
+                    [ "kind" Aeson..= ("roster_week" :: Text)
+                    , "venueId" Aeson..= ("venue-1" :: Text)
+                    , "weekOffset" Aeson..= (2 :: Int)
+                    ]
+                , "aliases" Aeson..= ["primary" :: Text, "secondary"]
+                , "description" Aeson..= Aeson.Null
+                , "sync" Aeson..= ("queue" :: Text)
+                ]
+            Aeson.parseEither (parseFrontend genericConfigCodec) (Aeson.object
+                [ "feature" Aeson..= ("roster" :: Text)
+                , "scope" Aeson..= encodeFrontend genericActionCodec scope
+                , "aliases" Aeson..= ["primary" :: Text]
+                , "description" Aeson..= ("Visible" :: Text)
+                ]) `shouldBe` Right (GenericExampleConfig "roster" (FrontendRef scope) ["primary"] (FrontendNullable (Just "Visible")) (FrontendOptional Nothing))
+
+            rendered <- renderShouldSucceed
+                [ SomeFrontendCodec genericMethodCodec
+                , SomeFrontendCodec genericActionCodec
+                , SomeFrontendCodec genericConfigCodec
+                ]
+            rendered `shouldSatisfy` Text.isInfixOf "export type GenericMethod ="
+            rendered `shouldSatisfy` Text.isInfixOf "export type GenericExampleAction ="
+            rendered `shouldSatisfy` Text.isInfixOf "| { kind: \"roster_week\"; venueId: string; weekOffset: number }"
+            rendered `shouldSatisfy` Text.isInfixOf "scope: GenericExampleAction;"
+            rendered `shouldSatisfy` Text.isInfixOf "aliases: string[];"
+            rendered `shouldSatisfy` Text.isInfixOf "description: string | null;"
+            rendered `shouldSatisfy` Text.isInfixOf "sync?: string;"
+            rendered `shouldSatisfy` Text.isInfixOf "export function parseGenericExampleConfig(value: unknown): GenericExampleConfig"
+            rendered `shouldSatisfy` Text.isInfixOf "throw new Error(\"Invalid GenericExampleConfig\")"
+            rendered `shouldSatisfy` Text.isInfixOf "export function encodeGenericExampleConfig(value: GenericExampleConfig): GenericExampleConfig"
+            rendered `shouldSatisfy` Text.isInfixOf "return value;"
+
         it "uses one enum codec for JSON and TypeScript output" do
             encodeFrontend htmxMethodCodec HtmxPost `shouldBe` Aeson.String "post"
             Aeson.parseEither (parseFrontend htmxMethodCodec) (Aeson.String "get") `shouldBe` Right HtmxGet
@@ -187,7 +240,7 @@ tests = describe "Frontend contract generator foundation" do
                     "timesheet-day-2"
                     "/TimesheetDay?offset=2"
                     True
-                    (Live.FocusedFieldProtection (Live.FocusedFieldProtectionConfig ".timesheet-input:focus" "data-field-key" True (Just ".timesheet-row")))
+                    (Live.FocusedFieldProtection ".timesheet-input:focus" "data-field-key" True (Just ".timesheet-row"))
             let command = Live.Subscribe scope "client-1" (Just 9)
             let message = Live.Invalidate scope "timesheet_week:venue-1:4" 10 [fragment] (Just "client-2")
             let config = Live.LiveSurfaceConfig "timesheets" "/live-updates" scope "timesheet_week:venue-1:4" [fragment] ["#timesheet-week-shell"]
@@ -204,6 +257,59 @@ tests = describe "Frontend contract generator foundation" do
         it "rejects duplicate top-level codec names" do
             renderFrontendContracts [SomeFrontendCodec htmxMethodCodec, SomeFrontendCodec htmxMethodCodec]
                 `shouldBe` Left "Duplicate frontend codec names: HtmxMethod"
+
+data GenericMethod
+    = GenericGet
+    | GenericPost
+    deriving (Eq, Show, Generic)
+
+genericMethodCodec :: FrontendCodec GenericMethod
+genericMethodCodec = genericFrontendCodecWith genericMethodOptions
+
+genericMethodOptions :: FrontendCodecOptions
+genericMethodOptions = defaultFrontendCodecOptions
+    { frontendTypeNameOverride = Just "GenericMethod"
+    , frontendConstructorTagModifier = camelToSnakeLower . dropPrefix "Generic"
+    }
+
+data GenericExampleAction
+    = GenericRosterWeek
+        { genericActionVenueId    :: !Text
+        , genericActionWeekOffset :: !Int
+        }
+    | GenericSupportPlatform
+    deriving (Eq, Show, Generic)
+
+instance HasFrontendCodec GenericExampleAction where
+    frontendCodec = genericActionCodec
+
+genericActionCodec :: FrontendCodec GenericExampleAction
+genericActionCodec = genericFrontendCodecWith genericActionOptions
+
+genericActionOptions :: FrontendCodecOptions
+genericActionOptions = defaultFrontendCodecOptions
+    { frontendTypeNameOverride = Just "GenericExampleAction"
+    , frontendFieldNameModifier = lowerInitial . dropPrefix "genericAction"
+    , frontendConstructorTagModifier = camelToSnakeLower . dropPrefix "Generic"
+    }
+
+data GenericExampleConfig = GenericExampleConfig
+    { genericConfigFeature     :: !Text
+    , genericConfigScope       :: !(FrontendRef GenericExampleAction)
+    , genericConfigAliases     :: ![Text]
+    , genericConfigDescription :: !(FrontendNullable Text)
+    , genericConfigSync        :: !(FrontendOptional Text)
+    }
+    deriving (Eq, Show, Generic)
+
+genericConfigCodec :: FrontendCodec GenericExampleConfig
+genericConfigCodec = genericFrontendCodecWith genericConfigOptions
+
+genericConfigOptions :: FrontendCodecOptions
+genericConfigOptions = defaultFrontendCodecOptions
+    { frontendTypeNameOverride = Just "GenericExampleConfig"
+    , frontendFieldNameModifier = lowerInitial . dropPrefix "genericConfig"
+    }
 
 data HtmxMethod
     = HtmxGet
@@ -346,9 +452,8 @@ frontendSourceRawEmitterAllowlist = []
 
 frontendSourceRawEmitterCounts :: IO [(FilePath, Text, Int)]
 frontendSourceRawEmitterCounts = do
-    files <- fmap (filter (/= "Codec.hs") . List.sort) (listDirectory "Application/Helper/Frontend")
-    fmap concat $ forM files \fileName -> do
-        let path = "Application/Helper/Frontend" </> fileName
+    files <- fmap (filter (/= "Application/Helper/Frontend/Codec.hs") . List.sort) (collectSourceFiles "Application/Helper/Frontend")
+    fmap concat $ forM files \path -> do
         source <- Text.readFile path
         pure
             [ (path, pattern, countText pattern source)

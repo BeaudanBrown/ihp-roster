@@ -186,6 +186,8 @@ renderNamed :: (Text, FrontendSchema) -> [Text]
 renderNamed (name, schema) =
     [ renderTypeDeclaration name schema
     , renderGuardDeclaration name schema
+    , renderParseDeclaration name
+    , renderEncodeDeclaration name
     , ""
     ]
 
@@ -251,6 +253,23 @@ renderGuardDeclaration name schema =
     Text.unlines
         [ "export function is" <> name <> "(value: unknown): value is " <> name <> " {"
         , "    return " <> guardExpr "value" schema <> ";"
+        , "}"
+        ]
+
+renderParseDeclaration :: Text -> Text
+renderParseDeclaration name =
+    Text.unlines
+        [ "export function parse" <> name <> "(value: unknown): " <> name <> " {"
+        , "    if (is" <> name <> "(value)) return value;"
+        , "    throw new Error(\"Invalid " <> name <> "\");"
+        , "}"
+        ]
+
+renderEncodeDeclaration :: Text -> Text
+renderEncodeDeclaration name =
+    Text.unlines
+        [ "export function encode" <> name <> "(value: " <> name <> "): " <> name <> " {"
+        , "    return value;"
         , "}"
         ]
 

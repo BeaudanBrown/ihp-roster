@@ -664,11 +664,13 @@ focusedFieldProtectionConfigFromWire Wire.FocusedFieldProtectionConfig { activeS
 
 liveFragmentProtectionToWire :: LiveFragmentProtection -> Wire.LiveFragmentProtection
 liveFragmentProtectionToWire NoProtection = Wire.NoProtection
-liveFragmentProtectionToWire (FocusedFieldProtection config) = Wire.FocusedFieldProtection (focusedFieldProtectionConfigToWire config)
+liveFragmentProtectionToWire (FocusedFieldProtection FocusedFieldProtectionConfig { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector }) =
+    Wire.FocusedFieldProtection { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector }
 
 liveFragmentProtectionFromWire :: Wire.LiveFragmentProtection -> LiveFragmentProtection
 liveFragmentProtectionFromWire Wire.NoProtection = NoProtection
-liveFragmentProtectionFromWire (Wire.FocusedFieldProtection config) = FocusedFieldProtection (focusedFieldProtectionConfigFromWire config)
+liveFragmentProtectionFromWire Wire.FocusedFieldProtection { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector } =
+    FocusedFieldProtection FocusedFieldProtectionConfig { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector }
 
 liveUpdateWireFragmentToWire :: LiveUpdateWireFragment -> Wire.LiveUpdateWireFragment
 liveUpdateWireFragmentToWire LiveUpdateWireFragment { fragmentKey, targetId, url, deferUntilBlur, protectionPolicy } =

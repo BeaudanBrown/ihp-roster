@@ -15,7 +15,7 @@
     return __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_content" || __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_grid_toolbar" || __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_grid_frame" || __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_day_columns" || __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_day_rail" || __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_wage_rail" || __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_slots_grid" || __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_staff_panel" || __isLiveUpdateScopeExactRecord(value, ["kind", "rosterDayId"], []) && value["kind"] === "roster_day_section" && typeof value["rosterDayId"] === "string" || __isLiveUpdateScopeExactRecord(value, ["kind", "rosterDayId", "rowIndex"], []) && value["kind"] === "roster_row" && typeof value["rosterDayId"] === "string" && (typeof value["rowIndex"] === "number" && Number.isInteger(value["rowIndex"])) || __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "leave_requests_content" || __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "timesheet_toolbar" || __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "timesheet_day_columns" || __isLiveUpdateScopeExactRecord(value, ["kind", "dayOffset"], []) && value["kind"] === "timesheet_day_section" && (typeof value["dayOffset"] === "number" && Number.isInteger(value["dayOffset"])) || __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_venue_config" || __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_invites" || __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_exports" || __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_shift_types" || __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_roster_groups" || __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero" || __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero_staff_mappings" || __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero_pay_items" || __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero_timesheets" || __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "billing_status" || __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "profile_content" || __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "profile_leave_requests_content" || __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "support_award_rates_section" || __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "support_public_holidays_section";
   }
   function isLiveFragmentProtection(value) {
-    return __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "none" || __isLiveUpdateScopeExactRecord(value, ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback"], ["containerSelector"]) && value["kind"] === "focused_field" && typeof value["activeSelector"] === "string" && typeof value["fieldKeyAttr"] === "string" && typeof value["fieldNameFallback"] === "boolean" && (!Object.prototype.hasOwnProperty.call(value, "containerSelector") || typeof value["containerSelector"] === "string");
+    return __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "none" || __isLiveUpdateScopeExactRecord(value, ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"], []) && value["kind"] === "focused_field" && typeof value["activeSelector"] === "string" && typeof value["fieldKeyAttr"] === "string" && typeof value["fieldNameFallback"] === "boolean" && (value["containerSelector"] === null || typeof value["containerSelector"] === "string");
   }
   function isLiveUpdateWireFragment(value) {
     return __isLiveUpdateScopeExactRecord(value, ["fragmentKey", "targetId", "url", "deferUntilBlur", "protectionPolicy"], []) && isLiveFragmentKey(value["fragmentKey"]) && typeof value["targetId"] === "string" && typeof value["url"] === "string" && typeof value["deferUntilBlur"] === "boolean" && isLiveFragmentProtection(value["protectionPolicy"]);
@@ -23,8 +23,19 @@
   function isLiveSurfaceConfig(value) {
     return __isLiveUpdateScopeExactRecord(value, ["feature", "socketPath", "scope", "scopeKey", "resyncFragments", "decorateRequestsWithin"], []) && typeof value["feature"] === "string" && typeof value["socketPath"] === "string" && isLiveUpdateScope(value["scope"]) && typeof value["scopeKey"] === "string" && (Array.isArray(value["resyncFragments"]) && value["resyncFragments"].every((item) => isLiveUpdateWireFragment(item))) && (Array.isArray(value["decorateRequestsWithin"]) && value["decorateRequestsWithin"].every((item) => typeof item === "string"));
   }
+  function parseLiveSurfaceConfig(value) {
+    if (isLiveSurfaceConfig(value)) return value;
+    throw new Error("Invalid LiveSurfaceConfig");
+  }
+  function encodeLiveUpdateCommand(value) {
+    return value;
+  }
   function isLiveUpdateMessage(value) {
     return __isLiveUpdateScopeExactRecord(value, ["type", "scope", "scopeKey", "currentVersion", "resync"], []) && value["type"] === "subscribed" && isLiveUpdateScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && typeof value["resync"] === "boolean" || __isLiveUpdateScopeExactRecord(value, ["type", "scope", "scopeKey", "version", "fragments", "sourceClientId"], []) && value["type"] === "invalidate" && isLiveUpdateScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isLiveUpdateWireFragment(item))) && (value["sourceClientId"] === null || typeof value["sourceClientId"] === "string") || __isLiveUpdateScopeExactRecord(value, ["type", "message"], []) && value["type"] === "error" && typeof value["message"] === "string";
+  }
+  function parseLiveUpdateMessage(value) {
+    if (isLiveUpdateMessage(value)) return value;
+    throw new Error("Invalid LiveUpdateMessage");
   }
   var InteractionDom = { "attributes": { "activation": "data-bepis-activation", "activationIntent": "data-bepis-activation-intent", "activationTrigger": "data-bepis-activation-trigger", "activationValueField": "data-bepis-activation-value-field", "conflictPolicies": "data-bepis-conflict-policies", "container": "data-bepis-container", "disposableLayer": "data-bepis-disposable-layer", "dropzone": "data-bepis-dropzone", "fieldPresence": "data-bepis-field-presence", "intent": "data-bepis-intent", "intentField": "data-bepis-intent-field", "intentForm": "data-bepis-intent-form", "intentHiddenField": "data-bepis-intent-hidden-field", "interactionActive": "data-bepis-interaction-active", "item": "data-bepis-item", "layer": "data-bepis-layer", "marker": "data-bepis-marker", "mountKey": "data-bepis-mount-key", "pointerSession": "data-bepis-pointer-session", "resizeHandle": "data-bepis-resize-handle", "scopeKey": "data-bepis-scope-key", "serverLayer": "data-bepis-server-layer", "sessionDisabled": "data-bepis-session-disabled", "sessionIntent": "data-bepis-session-intent", "sessionKind": "data-bepis-session-kind", "sessionReadOnly": "data-bepis-session-read-only", "sessionThreshold": "data-bepis-session-threshold", "sessionTimeoutMs": "data-bepis-session-timeout-ms", "slot": "data-bepis-slot", "surface": "data-bepis-surface", "surfaceFamily": "data-bepis-surface-family" }, "pointerFields": { "currentClientX": "currentClientX", "currentClientY": "currentClientY", "deltaX": "deltaX", "deltaY": "deltaY", "pointerId": "pointerId", "pointerType": "pointerType", "sessionKind": "sessionKind", "sourceItemKey": "sourceItemKey", "startClientX": "startClientX", "startClientY": "startClientY", "targetDropzoneKey": "targetDropzoneKey" }, "values": { "activationMarker": "activation", "containerMarker": "container", "dropzoneMarker": "dropzone", "enabled": "true", "itemMarker": "item", "resizeHandleMarker": "resize-handle", "slotMarker": "slot" } };
   function isUiRegionTransitionProfile(value) {
@@ -381,12 +392,12 @@
     return Number.isInteger(value) && value >= 0 ? value : null;
   }
   function buildLiveUpdateSubscribeCommand(scope, clientId, lastSeenVersion) {
-    return {
+    return encodeLiveUpdateCommand({
       type: "subscribe",
       scope,
       clientId,
       lastSeenVersion
-    };
+    });
   }
   function liveUpdateFragmentMergeKey(fragment) {
     if (!fragment || !fragment.targetId) return null;
@@ -396,7 +407,11 @@
 
   // frontend/ts/live-updates/validation.ts
   function parseLiveUpdateSurfaceConfig(value) {
-    return isLiveSurfaceConfig(value) ? value : null;
+    try {
+      return parseLiveSurfaceConfig(value);
+    } catch (_error) {
+      return null;
+    }
   }
 
   // frontend/ts/app-live-updates.ts
@@ -1057,8 +1072,12 @@
         } catch (_error) {
           return;
         }
-        if (!isLiveUpdateMessage(parsedMessage)) return;
-        const message = parsedMessage;
+        let message;
+        try {
+          message = parseLiveUpdateMessage(parsedMessage);
+        } catch (_error) {
+          return;
+        }
         if (message.type === "subscribed") {
           handleSubscribedMessage(message);
           return;

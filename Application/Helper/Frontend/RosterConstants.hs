@@ -4,13 +4,14 @@ module Application.Helper.Frontend.RosterConstants
     , rosterStaffSortKeyValues
     ) where
 
+import GHC.Generics (Generic)
 import IHP.Prelude
 
 data RosterStaffSortKey
     = RosterStaffSortByName
     | RosterStaffSortByRole
     | RosterStaffSortByShifts
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 rosterStaffSortKeyValues :: [(RosterStaffSortKey, Text)]
 rosterStaffSortKeyValues =

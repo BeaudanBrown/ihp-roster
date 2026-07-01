@@ -8,10 +8,10 @@ module Application.Helper.Frontend.Contracts
 where
 
 import Application.Helper.Frontend.AppSchema (appSharedConstantsDeclaration)
-import Application.Helper.Frontend.Codec (FrontendCodec, HasFrontendCodec (..),
-                                          someFrontendCodec, stringEnumCodec)
+import Application.Helper.Frontend.Codec (someFrontendCodec)
 import Application.Helper.Frontend.ContractGroup (FrontendContractGroup (..),
                                                   renderFrontendContractGroup)
+import Application.Helper.Frontend.Dto.App (OverlayLane)
 import Application.Helper.Frontend.InteractionSchema (interactionSchemaDeclaration)
 import Application.Helper.Frontend.LiveUpdateSchema (liveUpdateSchemaDeclaration)
 import Application.Helper.Frontend.RosterSchema (rosterContractsDeclaration)
@@ -25,20 +25,6 @@ import IHP.Prelude
 -- Haskell/TypeScript shared DTOs should be represented as Haskell-owned schema
 -- declarations and formatted via Application.Helper.Frontend.TypeScript, not by
 -- embedding broad TypeScript source blocks here.
-data OverlayLane
-    = DialogLane
-    | PickerLane
-    | ToastLane
-    deriving (Eq, Show)
-
-instance HasFrontendCodec OverlayLane where
-    frontendCodec =
-        stringEnumCodec "OverlayLane"
-            [ (DialogLane, "dialog")
-            , (PickerLane, "picker")
-            , (ToastLane, "toast")
-            ]
-
 overlayLaneDeclaration :: TypeScriptDeclaration
 overlayLaneDeclaration =
     renderFrontendContractGroup FrontendContractGroup

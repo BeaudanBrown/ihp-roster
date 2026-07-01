@@ -1,6 +1,6 @@
-import { isLiveUpdateMessage, isLiveUpdateWireFragment } from "../generated/contracts";
+import { encodeLiveSurfaceConfig, isLiveUpdateMessage, isLiveUpdateWireFragment, parseLiveSurfaceConfig } from "../generated/contracts";
 import { parseLiveUpdateSurfaceConfig } from "../live-updates/validation";
-import { assertDeepEqual, assertEqual, test } from "./harness";
+import { assertDeepEqual, assertEqual, assertThrows, test } from "./harness";
 
 const validFragment = {
     fragmentKey: { kind: "timesheet_toolbar" },
@@ -29,6 +29,16 @@ test("generated live update surface validator accepts backend-owned declarative 
     assertEqual(config?.socketPath, "/custom-live");
     assertEqual(config?.resyncFragments.length, 1);
     assertDeepEqual(config?.decorateRequestsWithin, ["form"]);
+});
+
+test("generated parse helpers reject unknown input and encode helpers preserve JSON-shaped DTOs", () => {
+    const config = parseLiveSurfaceConfig(validSurfaceConfig);
+
+    assertDeepEqual(encodeLiveSurfaceConfig(config), validSurfaceConfig);
+    assertThrows(
+        () => parseLiveSurfaceConfig({ ...validSurfaceConfig, scope: { kind: "unknown_scope" } }),
+        "Invalid LiveSurfaceConfig",
+    );
 });
 
 test("generated live update surface validator rejects malformed boundary JSON", () => {

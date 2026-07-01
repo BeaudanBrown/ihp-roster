@@ -1,6 +1,6 @@
 ---
 id: ir-oxk6
-status: open
+status: closed
 deps: [ir-x7qf]
 links: []
 created: 2026-07-01T01:40:01Z
@@ -22,3 +22,9 @@ Introduce DTO-focused modules such as Application.Helper.Frontend.Dto.App, Dto.U
 
 These contracts use generic DTO codecs. Manual field schema declarations for these types are removed. Generated TS has parse and encode helpers for each. Existing frontend imports compile. frontend-contracts-check, frontend-check, and focused Frontend contract tests pass.
 
+
+## Notes
+
+**2026-07-01T01:59:54Z**
+
+Migrated OverlayLane, AppOverlayDom, AppEvents, UiRegionDom, UiRegionEvents, UiRegionTransitionProfile, UiRegionLifecycleEvent, and RosterStaffSortKey to generic DTO codec modules under Application.Helper.Frontend.Dto. Manual schema/field lists were removed for these simple contracts. Verification: typecheck; frontend-contracts-check; frontend-check; hspec-test --match 'Frontend contract'.

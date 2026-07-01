@@ -1,4 +1,5 @@
 import type { LiveUpdateCommand, LiveUpdateScope, LiveUpdateWireFragment } from "../generated/contracts";
+import { encodeLiveUpdateCommand } from "../generated/contracts";
 
 type MessageWithScopeKey = { scopeKey?: unknown };
 
@@ -15,12 +16,12 @@ export function normalizeLiveUpdateVersion(value: unknown): number | null {
 }
 
 export function buildLiveUpdateSubscribeCommand(scope: LiveUpdateScope, clientId: string, lastSeenVersion: number | null): LiveUpdateCommand {
-    return {
+    return encodeLiveUpdateCommand({
         type: "subscribe",
         scope,
         clientId,
         lastSeenVersion,
-    };
+    });
 }
 
 export function liveUpdateFragmentMergeKey(fragment: Pick<LiveUpdateWireFragment, "fragmentKey" | "targetId"> | null | undefined): string | null {

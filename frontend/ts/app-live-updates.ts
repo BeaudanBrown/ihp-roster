@@ -1,5 +1,5 @@
 import type { LiveUpdateCommand, LiveUpdateMessage, LiveUpdateScope, LiveUpdateWireFragment } from "./generated/contracts";
-import { AppEvents, isLiveUpdateMessage } from "./generated/contracts";
+import { AppEvents, parseLiveUpdateMessage } from "./generated/contracts";
 import { enableHtmxUiRegionEventAdapter } from "./fragments/htmx-adapter";
 import { enableUiRegionTransitions } from "./fragments/transitions";
 import { resolveLiveFragmentInteractionConflict } from "./interaction/live-conflicts";
@@ -871,8 +871,12 @@ type HtmxConfigRequestEvent = Event & {
                 return;
             }
 
-            if (!isLiveUpdateMessage(parsedMessage)) return;
-            const message = parsedMessage;
+            let message: LiveUpdateMessage;
+            try {
+                message = parseLiveUpdateMessage(parsedMessage);
+            } catch (_error) {
+                return;
+            }
 
             if (message.type === 'subscribed') {
                 handleSubscribedMessage(message);

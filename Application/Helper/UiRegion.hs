@@ -9,6 +9,7 @@ module Application.Helper.UiRegion
     , uiRegionTransitionProfileText
     ) where
 
+import GHC.Generics (Generic)
 import IHP.Prelude
 
 -- | Canonical browser-visible data attributes for server-declared Bepis UI
@@ -21,14 +22,14 @@ data UiRegionDomAttributes = UiRegionDomAttributes
     , uiRegionLazyRetryAttribute    :: !Text
     , uiRegionTransitionAttribute   :: !Text
     }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 data UiRegionTransitionProfile
     = UiRegionTransitionNone
     | UiRegionTransitionFade
     | UiRegionTransitionFadeSlide
     | UiRegionTransitionPanel
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 data UiRegionLifecycleEvent
     = UiRegionRequestStart
@@ -36,7 +37,7 @@ data UiRegionLifecycleEvent
     | UiRegionAfterSwap
     | UiRegionSettle
     | UiRegionError
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 canonicalUiRegionDomAttributes :: UiRegionDomAttributes
 canonicalUiRegionDomAttributes =

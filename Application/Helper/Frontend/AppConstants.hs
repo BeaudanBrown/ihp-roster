@@ -8,13 +8,14 @@ module Application.Helper.Frontend.AppConstants
     , sharedToastOverlayMountId
     ) where
 
+import GHC.Generics (Generic)
 import IHP.Prelude
 
 data AppOverlayDom = AppOverlayDom
     { appDialogOverlayMountId :: !Text
     , appToastOverlayMountId  :: !Text
     }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 data AppEvents = AppEvents
     { appPageReadyEventName                       :: !Text
@@ -25,7 +26,7 @@ data AppEvents = AppEvents
     , appInteractionSessionEndEventName           :: !Text
     , appInteractionSessionCancelRequestEventName :: !Text
     }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic)
 
 canonicalAppOverlayDom :: AppOverlayDom
 canonicalAppOverlayDom =
