@@ -1,6 +1,6 @@
 ---
 id: ir-ws5t
-status: open
+status: closed
 deps: [ir-yabk]
 links: []
 created: 2026-07-01T01:40:01Z
@@ -22,3 +22,9 @@ Add shared assertNever(value: never): never and use it in surface/intent/fragmen
 
 At least one generated union has an exhaustive switch test/example. Adding a dummy union variant in a local probe would fail TypeScript until handled. No broad default swallowing generated union variants without assertNever remains in app-owned TS. frontend-check covers the guard.
 
+
+## Notes
+
+**2026-07-01T02:25:54Z**
+
+Added shared assertNever and wired the generated LiveFragmentProtection switch to default through assertNever, so adding a generated protection variant fails TypeScript until handled. Added frontend no-broad-switch-defaults check to reject switch defaults that do not call assertNever. Verification: frontend-contracts-check; frontend-check.

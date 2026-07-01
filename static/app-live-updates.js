@@ -414,6 +414,11 @@
     }
   }
 
+  // frontend/ts/shared/exhaustive.ts
+  function assertNever(value, message = "Unexpected generated union variant") {
+    throw new Error(`${message}: ${JSON.stringify(value)}`);
+  }
+
   // frontend/ts/app-live-updates.ts
   enableHtmxUiRegionEventAdapter();
   enableUiRegionTransitions();
@@ -704,6 +709,8 @@
           return focusedFieldProtection(fragment.protectionPolicy);
         case "none":
           return null;
+        default:
+          return assertNever(fragment.protectionPolicy);
       }
     }
     function hasProtectedActiveInput(target, fragment) {

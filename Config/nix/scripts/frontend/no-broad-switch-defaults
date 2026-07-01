@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+cd "$repo_root"
+
+status=0
+while IFS=: read -r file line _; do
+    if ! sed -n "${line},$((line + 4))p" "$file" | rg -q 'assertNever\('; then
+        echo "Broad switch default without assertNever: $file:$line" >&2
+        status=1
+    fi
+done < <(rg '^\s*default:' frontend/ts --glob '!generated/**' -n || true)
+
+exit "$status"

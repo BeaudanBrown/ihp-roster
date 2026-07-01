@@ -12,6 +12,7 @@ import {
     normalizeLiveUpdateVersion,
 } from "./live-updates/protocol";
 import { parseLiveUpdateSurfaceConfig } from "./live-updates/validation";
+import { assertNever } from "./shared/exhaustive";
 
 
 enableHtmxUiRegionEventAdapter();
@@ -427,6 +428,8 @@ type HtmxConfigRequestEvent = Event & {
                 return focusedFieldProtection(fragment.protectionPolicy);
             case 'none':
                 return null;
+            default:
+                return assertNever(fragment.protectionPolicy);
         }
     }
 
