@@ -2,7 +2,7 @@
 id: ir-6kzl
 status: closed
 deps: []
-links: []
+links: [ir-ao41]
 created: 2026-07-01T01:40:01Z
 type: epic
 priority: 2
