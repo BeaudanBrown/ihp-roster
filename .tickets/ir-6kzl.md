@@ -1,6 +1,6 @@
 ---
 id: ir-6kzl
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-07-01T01:40:01Z
@@ -27,3 +27,7 @@ Every Haskell-owned frontend contract uses generic DTO codecs or has an explicit
 **2026-07-01T01:41:02Z**
 
 Planning workstream added at docs/workstreams/generic-frontend-contracts.md. Implementation should keep durable final behavior in local frontend/live-update/interaction docs and use this workstream only for future/active plan context.
+
+**2026-07-01T02:33:34Z**
+
+Completed all child tickets for the generic Haskell-to-TypeScript frontend contract epic. Final state: generic DTO foundation, app/UI/roster/live-update/interaction/live-surface DTO migrations, generated parse/encode helpers, exhaustive generated-union switch guard, final lockdown guardrails, and durable docs. Final verification run covered: typecheck; frontend-contracts-check; frontend-check; doc-drift-check; hspec-test --match 'Frontend contract'; hspec-test --match 'LiveUpdate'; hspec-test --match 'LiveSurface' (rerun after guard allowlist fix); hspec-test --match 'interaction surface'.
