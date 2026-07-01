@@ -49,6 +49,9 @@ for forward-looking design.
   model where actual effect helpers emit typed facts and telemetry.
 - `frontend-codec-contracts.md` - codec/schema-first replacement for any
   remaining handwritten TypeScript contract emission.
+- `generic-frontend-contracts.md` - generic DTO-codec frontend/backend browser
+  seam with generated Haskell JSON, TypeScript types, guards, parse helpers,
+  encode helpers, constants, and no legacy/manual contract paths.
 - `roster-sql-read-model-trial.md` - trial replacing roster projection-cache
   reads with a direct SQL/database-near read model.
 - `opentelemetry-observability.md` - OpenTelemetry traces, agent profile

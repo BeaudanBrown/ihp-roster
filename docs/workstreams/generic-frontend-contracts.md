@@ -1,0 +1,166 @@
+# Generic Frontend Contract Codecs
+
+Status: active
+
+Tickets:
+
+- Epic: `ir-6kzl` - Solidify generic Haskell-to-TypeScript frontend contracts
+- `ir-x7qf` - Add generic frontend codec derivation foundation
+- `ir-oxk6` - Migrate simple app, UI region, and roster contracts to generic DTO codecs
+- `ir-u3o4` - Migrate live-update wire contracts to generic DTO codecs
+- `ir-cn30` - Migrate interaction contracts to generic frontend DTOs
+- `ir-yabk` - Migrate live-surface manifest contracts and generic registry containers
+- `ir-ws5t` - Enforce exhaustive TypeScript handling for generated closed unions
+- `ir-w9dw` - Delete legacy/manual frontend contract generation paths and add final lockdown guards
+- `ir-sxxn` - Document final generic frontend contract architecture
+
+## Intent
+
+The current frontend contract system already keeps TypeScript generated from
+Haskell-owned schemas, but too much per-contract maintenance still lives in
+hand-written `FrontendSchema`, field-name strings, tagged-union variants,
+`SchemaRef` names, encoders, parsers, and value-shaped registry declarations.
+This stream moves the browser seam to a generic DTO-codec architecture.
+
+The final contract should be:
+
+```text
+narrow Haskell frontend DTO type + frontend codec options
+  -> Haskell JSON encoder
+  -> Haskell JSON parser
+  -> FrontendSchema IR
+  -> TypeScript type
+  -> TypeScript guard
+  -> TypeScript parse helper
+  -> TypeScript encode helper
+```
+
+Wire JSON shape is not stable product API. It may change to whichever regular
+shape makes generated Haskell and TypeScript simplest, as long as both sides
+consume the generated contracts and tests cover the boundary.
+
+## Scope
+
+In scope:
+
+- `Application/Helper/Frontend/*` contract generation and DTO layout.
+- `frontend/ts/generated/contracts.ts` output shape.
+- Browser/frontend seam contracts: JSON script/data payloads, live-update config
+  and websocket messages, live-surface manifest, interaction schemas and intent
+  contracts, UI-region/app/overlay/roster frontend constants and vocabularies.
+- TypeScript runtime imports and validation at these boundaries.
+- Guardrails against handwritten backend-owned TypeScript contracts.
+
+Out of scope for this stream:
+
+- Broad database model generation for TypeScript.
+- Xero, public holiday, Fair Work, passkey/WebAuthn, or other non-browser JSON
+  DTOs. They may reuse the same ideas later, but are not part of this epic.
+- GHC API or HIE implementation. The DTO/schema IR should leave a clean future
+  path for compiler-backed verification.
+
+## Final Design Direction
+
+Use explicit frontend DTO modules for browser-facing shapes rather than
+arbitrary internal server types. Suggested layout:
+
+```text
+Application/Helper/Frontend/Generic.hs
+Application/Helper/Frontend/Options.hs
+Application/Helper/Frontend/Dto/App.hs
+Application/Helper/Frontend/Dto/UiRegion.hs
+Application/Helper/Frontend/Dto/Roster.hs
+Application/Helper/Frontend/Dto/LiveUpdate.hs
+Application/Helper/Frontend/Dto/Interaction.hs
+Application/Helper/Frontend/Dto/LiveSurface.hs
+```
+
+`FrontendSchema` remains the central intermediate representation and TypeScript
+renderer. Generic codec derivation should produce this IR plus Haskell
+encode/decode functions.
+
+Generated TypeScript for each codec should include:
+
+```ts
+export type X = ...;
+export function isX(value: unknown): value is X { ... }
+export function parseX(value: unknown): X { ... }
+export function encodeX(value: X): X { return value; }
+```
+
+The DTO output should stay JSON-shaped. `encodeX` is identity for current and
+expected DTOs, but it is generated uniformly so outbound serialization remains a
+contract-owned path and future non-identity encoders cannot be hand-written in
+application TypeScript.
+
+Constants and registries remain value-level, but they must be encoded through
+DTO codecs. Closed vocabularies should be generated as literal unions; registry
+container types should prefer generic structures such as
+`Partial<Record<LiveSurfaceFamily, LiveSurfaceManifestEntry>>` over schemas whose
+fields are the current registered values.
+
+## Extension Workflow Target
+
+Adding a frontend-visible concept should normally mean:
+
+1. Add or extend a Haskell frontend DTO/enum.
+2. Ensure it has a generic `FrontendCodec` or a justified generator-level
+   exception.
+3. Register it in exactly one contract group.
+4. Run `bash ./bin/in-env frontend-contracts`.
+5. Run `bash ./bin/in-env frontend-check`.
+6. Fix TypeScript exhaustiveness failures where app-owned TS branches on a
+   generated closed union.
+
+Adding a live surface should not require hand-editing TypeScript. The Haskell
+surface/registry path should update generated surface-family, scope-kind,
+fragment-kind, manifest value, and interaction linkage contracts.
+
+Adding an interaction intent should update generated intent-name and field-schema
+contracts. TypeScript-specific handling must be exhaustive where it switches on
+closed generated intent unions; generic data-driven runtime paths need no change.
+
+## Guardrail Direction
+
+The final state should have no legacy/manual/spike/bridge leftovers:
+
+- no raw TypeScript declaration blocks in production generator modules outside
+  renderer internals;
+- no manual TypeScript validators/parsers/encoders for generated contracts;
+- no `| string` escape hatches for backend-owned closed vocabularies;
+- no shrinking migration allowlists;
+- no unregistered DTO contract modules;
+- no stale compatibility aliases that exist only for migration.
+
+## Living Docs To Update As It Lands
+
+- `Application/Helper/Frontend/README.md` - final DTO/generic codec authoring
+  workflow.
+- `Application/Helper/Interaction.SPEC.md` - final interaction DTO and
+  exhaustive TypeScript handling contract.
+- `Application/Helper/LiveUpdate.SPEC.md` - generated parse/encode and live
+  update wire boundary rules.
+- `Application/Helper/LiveSurface.COOKBOOK.md` - adding surfaces under the final
+  manifest/contract generation path.
+- `frontend/AGENTS.md` and `static/AGENTS.md` - frontend generated-contract and
+  no-handwritten-contract rules.
+- `docs/architecture/README.md` if architecture tooling begins inspecting the
+  DTO/schema IR.
+
+## Verification
+
+Expected gates across the epic:
+
+```bash
+bash ./bin/in-env typecheck
+bash ./bin/in-env frontend-contracts-check
+bash ./bin/in-env frontend-check
+bash ./bin/in-env hspec-test --match "Frontend contract"
+bash ./bin/in-env hspec-test --match "LiveSurface"
+bash ./bin/in-env hspec-test --match "Interaction"
+bash ./bin/in-env hspec-test --match "LiveUpdate"
+bash ./bin/in-env ./bin/doc-drift-check
+```
+
+Use focused subsets per child ticket, then the full relevant set before closing
+the epic.
