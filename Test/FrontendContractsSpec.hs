@@ -92,15 +92,29 @@ tests = describe "Frontend contract generator foundation" do
             pure $
                 if Text.isInfixOf "legacyManual" source
                     || Text.isInfixOf "LegacyManual" source
+                    || Text.isInfixOf "AesonTypeScriptSpike" source
                     then Just path
                     else Nothing
         offenders `shouldBe` []
 
-    -- Enforcement point for ir-o5qk: this allowlist is intentionally explicit
-    -- and must shrink as codec-first migration tickets remove handwritten TS.
-    it "locks down raw TypeScript emitters behind a shrinking source allowlist" do
+    it "keeps every frontend DTO module registered by a schema group" do
+        files <- fmap List.sort (listDirectory "Application/Helper/Frontend/Dto")
+        files
+            `shouldBe` [ "App.hs"
+                       , "Interaction.hs"
+                       , "LiveSurface.hs"
+                       , "LiveUpdate.hs"
+                       , "Roster.hs"
+                       , "UiRegion.hs"
+                       ]
+
+    it "locks down raw TypeScript emitters to renderer internals only" do
         actual <- frontendSourceRawEmitterCounts
-        actual `shouldBe` frontendSourceRawEmitterAllowlist
+        actual `shouldBe` []
+
+    it "keeps generated contract validators, parsers, and encoders out of handwritten TypeScript" do
+        offenders <- frontendGeneratedHelperOffenders (generatedContractTypeNames frontendContractsTypeScript)
+        offenders `shouldBe` []
 
     it "keeps UI region canonical strings confined to Haskell vocabulary and generated TS" do
         haskellOffenders <- canonicalStringOffenders ["Application", "Web"] ["Application/Helper/UiRegion.hs"] [".hs"] uiRegionCanonicalStrings
@@ -447,9 +461,6 @@ rawEmitterPatterns =
     , "stringUnionDeclaration"
     ]
 
-frontendSourceRawEmitterAllowlist :: [(FilePath, Text, Int)]
-frontendSourceRawEmitterAllowlist = []
-
 frontendSourceRawEmitterCounts :: IO [(FilePath, Text, Int)]
 frontendSourceRawEmitterCounts = do
     files <- fmap (filter (/= "Application/Helper/Frontend/Codec.hs") . List.sort) (collectSourceFiles "Application/Helper/Frontend")
@@ -470,6 +481,34 @@ countText needle haystack
             case Text.breakOn needle text of
                 (_, rest) | Text.null rest -> 0
                 (_, rest) -> 1 + go (Text.drop (Text.length needle) rest)
+
+generatedContractTypeNames :: Text -> [Text]
+generatedContractTypeNames source =
+    [ Text.takeWhile (/= ' ') rest
+    | line <- Text.lines source
+    , Just rest <- [Text.stripPrefix "export type " line]
+    ]
+
+frontendGeneratedHelperOffenders :: [Text] -> IO [(FilePath, Text)]
+frontendGeneratedHelperOffenders typeNames = do
+    files <- collectSourceFiles "frontend/ts"
+    fmap concat $ forM files \path -> do
+        if path == "frontend/ts/generated/contracts.ts"
+            then pure []
+            else do
+                source <- Text.readFile path
+                pure
+                    [ (path, helper)
+                    | typeName <- typeNames
+                    , prefix <- ["is", "parse", "encode"]
+                    , let helper = prefix <> typeName
+                    , any (`Text.isInfixOf` source)
+                        [ "function " <> helper
+                        , "const " <> helper
+                        , "let " <> helper
+                        , "var " <> helper
+                        ]
+                    ]
 
 generatedStringEscapeHatchAllowlist :: [Text]
 generatedStringEscapeHatchAllowlist = []

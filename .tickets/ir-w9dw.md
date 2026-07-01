@@ -1,6 +1,6 @@
 ---
 id: ir-w9dw
-status: open
+status: closed
 deps: [ir-ws5t]
 links: []
 created: 2026-07-01T01:40:01Z
@@ -22,3 +22,9 @@ Delete manual raw schema field lists for migrated DTOs, manual validators/parser
 
 Zero allowlist remains for production frontend contract generator modules except explicit renderer internals. rg/Hspec guards prove no legacy/manual/spike/bridge names remain. Generated output is reproducible and drift-free. Full verification set passes.
 
+
+## Notes
+
+**2026-07-01T02:28:29Z**
+
+Removed remaining handwritten generated-contract validators in frontend runtime by importing generated guards for InteractionFieldPresence and InteractionConflictResolution. Strengthened FrontendContractsSpec lockdowns: DTO module registry, renderer-only raw TS emitters, no handwritten is/parse/encode helpers for generated contract type names, and legacy/spike names. Verification: typecheck; frontend-check; hspec-test --match 'Frontend contract'.

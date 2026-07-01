@@ -1,4 +1,4 @@
-import { InteractionDom, type InteractionConflictResolution, type LiveUpdateWireFragment } from "../generated/contracts";
+import { InteractionDom, isInteractionConflictResolution, type InteractionConflictResolution, type LiveUpdateWireFragment } from "../generated/contracts";
 import type { InteractionSessionSnapshot } from "./session-state";
 
 export type ActiveInteractionSessionTracker = {
@@ -79,5 +79,5 @@ function isOptionalString(value: unknown): boolean {
 }
 
 function isOptionalResolution(value: unknown): value is InteractionConflictResolution | undefined {
-    return value === undefined || value === "apply" || value === "defer" || value === "cancel";
+    return value === undefined || isInteractionConflictResolution(value);
 }

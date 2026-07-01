@@ -1,4 +1,4 @@
-import { InteractionDom, type InteractionFieldPresence } from "../generated/contracts";
+import { InteractionDom, isInteractionFieldPresence, type InteractionFieldPresence } from "../generated/contracts";
 import type { NormalizedInteractionIntent } from "./intent-bus";
 
 export type InteractionBridgeLogger = Pick<Console, "warn">;
@@ -107,10 +107,6 @@ function readFieldContracts(form: ElementLike): FieldContract[] {
         if (!name || !isInteractionFieldPresence(presence)) return [];
         return [{ name, presence, input: element }];
     });
-}
-
-function isInteractionFieldPresence(value: string | null): value is InteractionFieldPresence {
-    return value === "required" || value === "optional";
 }
 
 function isFieldInput(element: ElementLike): element is FieldInput {
