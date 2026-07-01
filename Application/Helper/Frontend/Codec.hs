@@ -59,6 +59,7 @@ data FrontendSchema
     | SchemaNullable !FrontendSchema
     | SchemaOptional !FrontendSchema
     | SchemaArray !FrontendSchema
+    | SchemaPartialRecord !FrontendSchema !FrontendSchema
     | SchemaRef !Text
     | SchemaRecord !Text ![FrontendField]
     | SchemaStringEnum !Text ![Text]
@@ -243,6 +244,7 @@ schemaType = \case
     SchemaNullable inner -> schemaType inner <> " | null"
     SchemaOptional inner -> schemaType inner <> " | undefined"
     SchemaArray inner -> schemaType inner <> "[]"
+    SchemaPartialRecord key value -> "Partial<Record<" <> schemaType key <> ", " <> schemaType value <> ">>"
     SchemaRef name -> name
     SchemaRecord name _ -> name
     SchemaStringEnum name _ -> name
@@ -281,6 +283,7 @@ guardExpr valueExpr = \case
     SchemaNullable inner -> valueExpr <> " === null || (" <> guardExpr valueExpr inner <> ")"
     SchemaOptional inner -> valueExpr <> " === undefined || (" <> guardExpr valueExpr inner <> ")"
     SchemaArray inner -> "Array.isArray(" <> valueExpr <> ") && " <> valueExpr <> ".every((item) => " <> guardExpr "item" inner <> ")"
+    SchemaPartialRecord key value -> partialRecordGuard valueExpr key value
     SchemaRef name -> "is" <> name <> "(" <> valueExpr <> ")"
     SchemaRecord _ fields -> recordGuard valueExpr fields
     SchemaStringEnum _ values -> Text.intercalate " || " (fmap (\value -> valueExpr <> " === " <> quote value) values)
@@ -298,6 +301,16 @@ recordGuard valueExpr fields =
             case field.fieldSchema of
                 SchemaOptional inner -> "(!Object.prototype.hasOwnProperty.call(" <> valueExpr <> ", " <> quote field.fieldName <> ") || " <> guardExpr (valueExpr <> "[" <> quote field.fieldName <> "]") inner <> ")"
                 schema -> "(" <> guardExpr (valueExpr <> "[" <> quote field.fieldName <> "]") schema <> ")"
+
+partialRecordGuard :: Text -> FrontendSchema -> FrontendSchema -> Text
+partialRecordGuard valueExpr key value =
+    Text.intercalate
+        " && "
+        [ "typeof " <> valueExpr <> " === \"object\""
+        , valueExpr <> " !== null"
+        , "!Array.isArray(" <> valueExpr <> ")"
+        , "Object.entries(" <> valueExpr <> ").every(([key, item]) => " <> guardExpr "key" key <> " && " <> guardExpr "item" value <> ")"
+        ]
 
 variantGuard :: Text -> Text -> FrontendVariant -> Text
 variantGuard valueExpr tagField variant =
@@ -330,6 +343,7 @@ schemaNeedsExactRecordHelper = \case
     SchemaNullable schema -> schemaNeedsExactRecordHelper schema
     SchemaOptional schema -> schemaNeedsExactRecordHelper schema
     SchemaArray schema -> schemaNeedsExactRecordHelper schema
+    SchemaPartialRecord key value -> schemaNeedsExactRecordHelper key || schemaNeedsExactRecordHelper value
     _ -> False
 
 helperSource :: Text

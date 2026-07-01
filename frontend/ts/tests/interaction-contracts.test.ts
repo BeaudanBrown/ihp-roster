@@ -41,10 +41,14 @@ test("generated interaction contracts describe mount-local intent forms", () => 
 });
 
 test("generated live surface manifest exposes registered surface schemas without runtime urls", () => {
-    assertEqual(LiveSurfaceManifest.roster.interactionSchema, "roster");
-    assertDeepEqual(LiveSurfaceManifest.roster.scopeKinds, ["roster_week"]);
-    assertEqual(LiveSurfaceManifest.roster.fragmentKinds.includes("roster_day_section"), true);
-    assertEqual(LiveSurfaceManifest.timesheets.scopeKinds[0], "timesheet_week");
+    const rosterManifest = LiveSurfaceManifest.roster;
+    const timesheetManifest = LiveSurfaceManifest.timesheets;
+    if (!rosterManifest || !timesheetManifest) throw new Error("Expected registered roster and timesheets surface manifests");
+
+    assertEqual(rosterManifest.interactionSchema, "roster");
+    assertDeepEqual(rosterManifest.scopeKinds, ["roster_week"]);
+    assertEqual(rosterManifest.fragmentKinds.includes("roster_day_section"), true);
+    assertEqual(timesheetManifest.scopeKinds[0], "timesheet_week");
     assertEqual(JSON.stringify(LiveSurfaceManifest).includes("/ShowRosterWeek"), false);
 });
 

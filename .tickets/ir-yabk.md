@@ -1,6 +1,6 @@
 ---
 id: ir-yabk
-status: open
+status: closed
 deps: [ir-cn30]
 links: []
 created: 2026-07-01T01:40:01Z
@@ -22,3 +22,9 @@ Create or use Application.Helper.Frontend.Dto.LiveSurface. Keep LiveSurfaceFamil
 
 Manifest entry and registry DTOs use generic codecs. Exact current registry keys are not hand-authored schema fields. Adding a registered live surface updates generated family/manifest constants through one registration path. A guard fails if a registered surface is omitted from generated frontend contracts. LiveSurface registry/strict guard tests, frontend-contracts-check, and frontend-check pass.
 
+
+## Notes
+
+**2026-07-01T02:23:31Z**
+
+Migrated live-surface manifest contracts to DTO module Application.Helper.Frontend.Dto.LiveSurface. Added frontend SchemaPartialRecord rendering so LiveSurfaceManifestRegistry is Partial<Record<LiveSurfaceFamily, LiveSurfaceManifestEntry>> instead of exact current-family fields; manifest entries are generic DTO codecs and constants are encoded through the registry codec. Verification: typecheck; frontend-contracts; frontend-contracts-check; frontend-check; hspec-test --match 'Live surface registry manifest'; hspec-test --match 'Frontend contract'.
