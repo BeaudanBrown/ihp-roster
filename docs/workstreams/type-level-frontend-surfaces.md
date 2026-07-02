@@ -100,6 +100,65 @@ registry used for planning, authorization, manifests, and generic helpers. There
 must not be a second hand-maintained runtime list for migrated surfaces; a
 registered surface without an impl should fail compilation.
 
+## Hybrid Registry Coexistence
+
+During migration, the application has two registry families with an explicit
+boundary:
+
+- Legacy `TypedLiveSurfaceDefinition` surfaces remain in `Web.LiveSurfaceRegistry`
+  and continue to emit self-describing wire fragments containing concrete
+  `targetId`, `url`, protection, and containment metadata.
+- Migrated `FrontendSurface` surfaces live only in
+  `Application.Helper.FrontendSurface.Registry` as members of
+  `RegisteredFrontendSurfaces`. Their runtime metadata is derived from
+  `HasSurfaceImpl` instances by a typeclass fold over that type-level list.
+
+`Web.LiveSurfaceRegistry` may remain the temporary orchestration module for
+shared planner/authorization entrypoints, but it must consume the derived
+`FrontendSurface` registry rather than re-listing migrated surfaces. In other
+words, a migrated surface can flow through a legacy-named compatibility function,
+but the migrated surface's membership comes only from `RegisteredFrontendSurfaces`.
+
+Hybrid planning is a concatenation of two derived target sets:
+
+```text
+touched LiveResource set + active scopes
+  -> legacy registry planner
+       -> legacy self-describing wire-fragment invalidations
+  -> FrontendSurface registry planner
+       -> mount-resolved surface/scope/fragment invalidations
+  -> websocket/actor delivery envelope containing one or both target kinds
+```
+
+The browser runtime keeps both transport interpreters during migration. Legacy
+mounts process concrete wire fragments exactly as they do today. New mounts
+ignore legacy fragment payloads and resolve only `FrontendSurface` invalidations
+for their own surface/scope/mount metadata.
+
+Manifest generation follows the same split. Legacy `LiveSurfaceManifest` remains
+derived from legacy registry entries for non-migrated surfaces. New generated
+surface contracts/manifests are derived from `RegisteredFrontendSurfaces`. A
+surface family name must not appear in both registries at the same time; the
+migration step for a surface removes its legacy catalog entry in the same slice
+that adds it to the type-level registry. Guardrails in `ir-ycec` should fail on
+cross-registry duplicate surface names and on migrated surfaces using old
+feature-facing authoring paths.
+
+Authorization remains server-side and registry-specific:
+
+- legacy surfaces authorize through their existing `TypedLiveSurfaceDefinition`
+  values;
+- migrated surfaces authorize through `SurfaceImpl` handlers derived from the
+  type-level registry;
+- shared controller entrypoints may ask both registries whether a wire scope is
+  authorized during the hybrid period.
+
+Final unification removes the legacy registry, old manifest sections, and
+self-describing wire-fragment transport after all surfaces migrate. At that point
+all live invalidation planning, authorization, manifest output, request
+decoration, and browser refresh behavior derive from `RegisteredFrontendSurfaces`
+and `SurfaceImpl`.
+
 ## DSL Normal Form
 
 Specs are fully type-level. Do not infer contracts from arbitrary Haskell value

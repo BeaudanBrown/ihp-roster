@@ -1,6 +1,6 @@
 ---
 id: ir-p3c3
-status: open
+status: in_progress
 deps: [ir-npm8]
 links: []
 created: 2026-07-02T04:59:35Z
@@ -22,3 +22,13 @@ Use one explicit type-level RegisteredFrontendSurfaces list for migrated surface
 
 The planner/authorization/manifest coexistence model is specified; runtime enumeration comes only from the type-level registry for migrated surfaces; new migrated surfaces cannot use old paths; legacy surfaces remain functional; final unification/removal path is recorded.
 
+
+## Notes
+
+**2026-07-02T06:00:24Z**
+
+Started coexistence design after closing the mount-resolved transport contract. Current question: how the legacy Web.LiveSurfaceRegistry root should combine with the new type-level RegisteredFrontendSurfaces without becoming a second manual list for migrated surfaces.
+
+**2026-07-02T06:00:53Z**
+
+Documented hybrid registry coexistence: legacy surfaces remain in Web.LiveSurfaceRegistry with self-describing fragments; migrated surfaces live only in RegisteredFrontendSurfaces and are consumed through a derived SurfaceImpl fold. Hybrid planner concatenates legacy and new target sets, manifests remain split during migration, cross-registry duplicate surface names are forbidden, and final unification removes legacy registry/transport.
