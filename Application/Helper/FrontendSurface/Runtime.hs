@@ -1,3 +1,11 @@
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE GADTs                #-}
+{-# LANGUAGE PolyKinds            #-}
+{-# LANGUAGE RankNTypes           #-}
+{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE TypeOperators        #-}
+{-# LANGUAGE UndecidableInstances #-}
+
 module Application.Helper.FrontendSurface.Runtime
     ( FrontendSurfaceFieldValue (..)
     , FrontendSurfaceFragmentKey (..)
@@ -7,17 +15,27 @@ module Application.Helper.FrontendSurface.Runtime
     , FrontendSurfaceMountConfig (..)
     , FrontendSurfaceMountedFragment (..)
     , FrontendSurfaceProtection (..)
+    , FrontendSurfaceActionHandler (..)
+    , FrontendSurfaceFragmentHandler (..)
+    , FrontendSurfaceIntentHandler (..)
+    , FrontendSurfaceMountStateHandler (..)
+    , FrontendSurfaceScopeHandler (..)
+    , HandlerList (..)
     , SurfaceImpl (..)
+    , SurfaceImplHandlers (..)
     , frontendSurfaceHtmxMethodText
     , frontendSurfaceMountConfigJson
     , renderFrontendSurfaceHtmxForm
     , renderFrontendSurfaceIntentForm
     , renderFrontendSurfaceLazyFragment
+    , mkSurfaceImpl
     , renderFrontendSurfaceMount
     ) where
 
+import Application.Helper.FrontendSurface.DSL
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
+import Data.Kind (Type)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.Encoding
 import IHP.ViewPrelude
@@ -33,6 +51,95 @@ data SurfaceImpl spec = SurfaceImpl
     , surfaceImplActions     :: ![FrontendSurfaceHtmxRequest]
     , surfaceImplIntents     :: ![FrontendSurfaceIntentForm]
     }
+
+data HandlerList (handler :: Type -> Type) (markers :: [Type]) where
+    HandlerNil :: HandlerList handler '[]
+    HandlerCons :: handler marker -> HandlerList handler markers -> HandlerList handler (marker ': markers)
+
+infixr 5 `HandlerCons`
+
+data FrontendSurfaceScopeHandler marker = FrontendSurfaceScopeHandler
+    { scopeHandlerKey :: !Text
+    }
+
+data FrontendSurfaceMountStateHandler marker = FrontendSurfaceMountStateHandler
+    { mountStateHandlerValue :: !Aeson.Value
+    }
+
+data FrontendSurfaceFragmentHandler marker = FrontendSurfaceFragmentHandler
+    { fragmentHandlerMountedFragment :: !FrontendSurfaceMountedFragment
+    , fragmentHandlerRender          :: !(Aeson.Value -> Blaze.Html)
+    }
+
+data FrontendSurfaceActionHandler marker = FrontendSurfaceActionHandler
+    { actionHandlerRequest :: !FrontendSurfaceHtmxRequest
+    }
+
+data FrontendSurfaceIntentHandler marker = FrontendSurfaceIntentHandler
+    { intentHandlerForm :: !FrontendSurfaceIntentForm
+    }
+
+data SurfaceImplHandlers spec = SurfaceImplHandlers
+    { surfaceScopeHandlers      :: !(HandlerList FrontendSurfaceScopeHandler (SurfaceScopeMarkers spec))
+    , surfaceMountStateHandlers :: !(HandlerList FrontendSurfaceMountStateHandler (SurfaceMountStateMarkers spec))
+    , surfaceFragmentHandlers   :: !(HandlerList FrontendSurfaceFragmentHandler (SurfaceFragmentMarkers spec))
+    , surfaceActionHandlers     :: !(HandlerList FrontendSurfaceActionHandler (SurfaceActionMarkers spec))
+    , surfaceIntentHandlers     :: !(HandlerList FrontendSurfaceIntentHandler (SurfaceIntentMarkers spec))
+    }
+
+type family SurfaceScopeMarkers (spec :: SurfaceSpec) :: [Type] where
+    SurfaceScopeMarkers ('Surface name primitives) = PrimitiveScopeMarkers primitives
+
+type family SurfaceMountStateMarkers (spec :: SurfaceSpec) :: [Type] where
+    SurfaceMountStateMarkers ('Surface name primitives) = PrimitiveMountStateMarkers primitives
+
+type family SurfaceFragmentMarkers (spec :: SurfaceSpec) :: [Type] where
+    SurfaceFragmentMarkers ('Surface name primitives) = PrimitiveFragmentMarkers primitives
+
+type family SurfaceActionMarkers (spec :: SurfaceSpec) :: [Type] where
+    SurfaceActionMarkers ('Surface name primitives) = PrimitiveActionMarkers primitives
+
+type family SurfaceIntentMarkers (spec :: SurfaceSpec) :: [Type] where
+    SurfaceIntentMarkers ('Surface name primitives) = PrimitiveIntentMarkers primitives
+
+type family PrimitiveScopeMarkers (primitives :: [SurfacePrimitive]) :: [Type] where
+    PrimitiveScopeMarkers '[] = '[]
+    PrimitiveScopeMarkers ('Scope marker fields ': rest) = marker ': PrimitiveScopeMarkers rest
+    PrimitiveScopeMarkers (primitive ': rest) = PrimitiveScopeMarkers rest
+
+type family PrimitiveMountStateMarkers (primitives :: [SurfacePrimitive]) :: [Type] where
+    PrimitiveMountStateMarkers '[] = '[]
+    PrimitiveMountStateMarkers ('MountState marker fields ': rest) = marker ': PrimitiveMountStateMarkers rest
+    PrimitiveMountStateMarkers (primitive ': rest) = PrimitiveMountStateMarkers rest
+
+type family PrimitiveFragmentMarkers (primitives :: [SurfacePrimitive]) :: [Type] where
+    PrimitiveFragmentMarkers '[] = '[]
+    PrimitiveFragmentMarkers ('Fragment marker fields options ': rest) = marker ': PrimitiveFragmentMarkers rest
+    PrimitiveFragmentMarkers (primitive ': rest) = PrimitiveFragmentMarkers rest
+
+type family PrimitiveActionMarkers (primitives :: [SurfacePrimitive]) :: [Type] where
+    PrimitiveActionMarkers '[] = '[]
+    PrimitiveActionMarkers ('HtmxAction marker fields options ': rest) = marker ': PrimitiveActionMarkers rest
+    PrimitiveActionMarkers (primitive ': rest) = PrimitiveActionMarkers rest
+
+type family PrimitiveIntentMarkers (primitives :: [SurfacePrimitive]) :: [Type] where
+    PrimitiveIntentMarkers '[] = '[]
+    PrimitiveIntentMarkers ('Intent marker fields options ': rest) = marker ': PrimitiveIntentMarkers rest
+    PrimitiveIntentMarkers (primitive ': rest) = PrimitiveIntentMarkers rest
+
+mkSurfaceImpl :: Text -> FrontendSurfaceMountConfig -> SurfaceImplHandlers spec -> SurfaceImpl spec
+mkSurfaceImpl name mountConfig handlers =
+    SurfaceImpl
+        { surfaceImplName = name
+        , surfaceImplMountConfig = mountConfig
+        , surfaceImplActions = handlerListToList actionHandlerRequest handlers.surfaceActionHandlers
+        , surfaceImplIntents = handlerListToList intentHandlerForm handlers.surfaceIntentHandlers
+        }
+
+handlerListToList :: (forall marker. handler marker -> value) -> HandlerList handler markers -> [value]
+handlerListToList toValue = \case
+    HandlerNil -> []
+    HandlerCons handler rest -> toValue handler : handlerListToList toValue rest
 
 data FrontendSurfaceMountConfig = FrontendSurfaceMountConfig
     { mountSurfaceName :: !Text

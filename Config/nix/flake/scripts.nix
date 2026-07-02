@@ -39,6 +39,7 @@ in
         frontend-contracts-watch = script ../scripts/frontend/contracts-watch;
         frontend-drift-check = script ../scripts/frontend/drift-check;
         frontend-no-ts-nocheck = script ../scripts/frontend/no-ts-nocheck;
+        frontend-surface-compile-fail-check = script ../scripts/frontend/surface-compile-fail-check;
         frontend-test = script ../scripts/frontend/test;
         frontend-watch = script ../scripts/frontend/watch;
         git-install-hooks = script ../scripts/git/install-hooks;

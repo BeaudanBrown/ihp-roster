@@ -37,3 +37,9 @@ Design and implement typed `SurfaceImpl` builders/handler records that replace f
 - A fixture missing a required fragment/action/intent handler fails the focused compile/check path with a stable diagnostic.
 - Handler records/builders prove completeness for parameterized fragments and direct runtime dependencies.
 - No feature-facing `TypedLiveSurfaceDefinition` authoring is required for the lab path.
+
+## Notes
+
+**2026-07-02T08:49:06Z**
+
+Started the recommended marker-indexed compile-time SurfaceImpl completeness path. Runtime now has HandlerList plus SurfaceImplHandlers indexed by type-family-extracted scope, mount-state, fragment, HTMX action, and intent markers. Lab SurfaceImpl is built via mkSurfaceImpl with complete handlers, and focused DSL tests assert action/intent metadata comes from typed handler records. Added a negative compile fixture and Nix-owned frontend-surface-compile-fail-check command proving that omitting the LabPanel fragment handler fails compilation. Next decision point: whether to deepen handlers from marker-presence to typed param/scope/mount-state value conversion and URL/render signatures, or first integrate this compile-fail command into broader guardrail checks under ir-ycec.

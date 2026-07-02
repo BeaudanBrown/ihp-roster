@@ -5,7 +5,9 @@ module Web.Support.FrontendSurfaceLab
     , surfaceLabImpl
     ) where
 
-import Application.Helper.FrontendSurface.Lab (SurfaceLabSurface)
+import Application.Helper.FrontendSurface.Lab (LabPanel, LabScope, LabShell,
+                                               LabViewState, MoveLabCard,
+                                               RefreshPanel, SurfaceLabSurface)
 import Application.Helper.FrontendSurface.Runtime
 import qualified Data.Aeson as Aeson
 import Web.View.Prelude
@@ -15,11 +17,41 @@ frontendSurfaceLabPanelId = "surface-lab-panel"
 
 surfaceLabImpl :: (?context :: ControllerContext) => SurfaceImpl SurfaceLabSurface
 surfaceLabImpl =
-    SurfaceImpl
-        { surfaceImplName = "surface-lab"
-        , surfaceImplMountConfig = surfaceLabMountConfig
-        , surfaceImplActions = [refreshPanelAction]
-        , surfaceImplIntents = [moveCardIntent]
+    mkSurfaceImpl "surface-lab" surfaceLabMountConfig surfaceLabHandlers
+
+surfaceLabHandlers :: (?context :: ControllerContext) => SurfaceImplHandlers SurfaceLabSurface
+surfaceLabHandlers =
+    SurfaceImplHandlers
+        { surfaceScopeHandlers =
+            FrontendSurfaceScopeHandler
+                { scopeHandlerKey = "surface-lab:current-support-venue:0"
+                }
+                `HandlerCons` HandlerNil
+        , surfaceMountStateHandlers =
+            FrontendSurfaceMountStateHandler
+                { mountStateHandlerValue = surfaceLabMountConfig.mountState
+                }
+                `HandlerCons` HandlerNil
+        , surfaceFragmentHandlers =
+            FrontendSurfaceFragmentHandler
+                { fragmentHandlerMountedFragment = surfaceLabShellFragment
+                , fragmentHandlerRender = const mempty
+                }
+                `HandlerCons` FrontendSurfaceFragmentHandler
+                    { fragmentHandlerMountedFragment = surfaceLabPanelFragment
+                    , fragmentHandlerRender = const mempty
+                    }
+                `HandlerCons` HandlerNil
+        , surfaceActionHandlers =
+            FrontendSurfaceActionHandler
+                { actionHandlerRequest = refreshPanelAction
+                }
+                `HandlerCons` HandlerNil
+        , surfaceIntentHandlers =
+            FrontendSurfaceIntentHandler
+                { intentHandlerForm = moveCardIntent
+                }
+                `HandlerCons` HandlerNil
         }
 
 surfaceLabMountConfig :: (?context :: ControllerContext) => FrontendSurfaceMountConfig
@@ -32,15 +64,19 @@ surfaceLabMountConfig =
             [ "showArchived" Aeson..= False
             ]
         , mountFragments =
-            [ FrontendSurfaceMountedFragment
-                { mountedFragmentKey = FrontendSurfaceFragmentKey "lab-shell" Aeson.Null
-                , mountedFragmentTargetId = "surface-lab-shell"
-                , mountedFragmentUrl = pathTo FrontendSurfaceLabAction
-                , mountedFragmentProtection = FrontendSurfaceReplace
-                , mountedFragmentLoadPolicy = "eager"
-                }
+            [ surfaceLabShellFragment
             , surfaceLabPanelFragment
             ]
+        }
+
+surfaceLabShellFragment :: (?context :: ControllerContext) => FrontendSurfaceMountedFragment
+surfaceLabShellFragment =
+    FrontendSurfaceMountedFragment
+        { mountedFragmentKey = FrontendSurfaceFragmentKey "lab-shell" Aeson.Null
+        , mountedFragmentTargetId = "surface-lab-shell"
+        , mountedFragmentUrl = pathTo FrontendSurfaceLabAction
+        , mountedFragmentProtection = FrontendSurfaceReplace
+        , mountedFragmentLoadPolicy = "eager"
         }
 
 surfaceLabPanelFragment :: (?context :: ControllerContext) => FrontendSurfaceMountedFragment

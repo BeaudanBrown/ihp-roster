@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+cd "$repo_root"
+
+if [ -f "@scriptsRoot@/lib/ghc.sh" ]; then
+    # shellcheck source=../lib/ghc.sh
+    . "@scriptsRoot@/lib/ghc.sh"
+else
+    # shellcheck source=../lib/ghc.sh
+    . "Config/nix/scripts/lib/ghc.sh"
+fi
+
+tmp_dir="$(mktemp -d)"
+cleanup() {
+    rm -rf "$tmp_dir"
+}
+trap cleanup EXIT
+
+mkdir -p "$tmp_dir/obj" "$tmp_dir/hi"
+GHC_OPTS="$(ihp_roster_ghc_opts)"
+fixture="Test/CompileFail/FrontendSurfaceMissingFragmentHandler.hs"
+log="$tmp_dir/compile.log"
+
+if ghc $GHC_OPTS -fno-code "$fixture" \
+    -odir "$tmp_dir/obj" \
+    -hidir "$tmp_dir/hi" \
+    >"$log" 2>&1; then
+    echo "surface-compile-fail-check: expected $fixture to fail, but it compiled" >&2
+    exit 1
+fi
+
+if ! grep -q "LabPanel" "$log" || ! grep -q "HandlerList" "$log"; then
+    echo "surface-compile-fail-check: missing expected SurfaceImpl completeness diagnostic" >&2
+    cat "$log" >&2
+    exit 1
+fi
+
+echo "surface-compile-fail-check: missing fragment handler fixture failed as expected"

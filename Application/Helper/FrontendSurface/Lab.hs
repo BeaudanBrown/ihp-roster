@@ -2,7 +2,13 @@
 {-# LANGUAGE TypeOperators #-}
 
 module Application.Helper.FrontendSurface.Lab
-    ( SurfaceLabSurface
+    ( LabPanel
+    , LabScope
+    , LabShell
+    , LabViewState
+    , MoveLabCard
+    , RefreshPanel
+    , SurfaceLabSurface
     ) where
 
 import Application.Helper.FrontendSurface.DSL

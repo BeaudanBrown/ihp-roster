@@ -43,14 +43,29 @@ tests = describe "FrontendSurface DSL foundation" do
                 , mountState = Aeson.object ["showArchived" Aeson..= False]
                 , mountFragments = [fragment]
                 }
-        let impl = (SurfaceImpl
-                { surfaceImplName = "surface-lab"
-                , surfaceImplMountConfig = config
-                , surfaceImplActions = []
-                , surfaceImplIntents = []
-                } :: SurfaceImpl SurfaceLabSurface)
+        let minimalRequest = FrontendSurfaceHtmxRequest
+                { htmxRequestName = "refresh-panel"
+                , htmxRequestMethod = FrontendSurfacePost
+                , htmxRequestUrl = "/RefreshFrontendSurfaceLabPanel"
+                , htmxRequestTarget = "#surface-lab-panel"
+                , htmxRequestSwap = "outerHTML"
+                , htmxRequestFields = []
+                }
+        let handlers = SurfaceImplHandlers
+                { surfaceScopeHandlers = FrontendSurfaceScopeHandler "surface-lab:scope" `HandlerCons` HandlerNil
+                , surfaceMountStateHandlers = FrontendSurfaceMountStateHandler (Aeson.object ["showArchived" Aeson..= False]) `HandlerCons` HandlerNil
+                , surfaceFragmentHandlers =
+                    FrontendSurfaceFragmentHandler fragment mempty
+                        `HandlerCons` FrontendSurfaceFragmentHandler fragment mempty
+                        `HandlerCons` HandlerNil
+                , surfaceActionHandlers = FrontendSurfaceActionHandler minimalRequest `HandlerCons` HandlerNil
+                , surfaceIntentHandlers = FrontendSurfaceIntentHandler (FrontendSurfaceIntentForm "move-lab-card" minimalRequest) `HandlerCons` HandlerNil
+                }
+        let impl = (mkSurfaceImpl "surface-lab" config handlers :: SurfaceImpl SurfaceLabSurface)
         let html = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceMount impl (Html5.toHtml ("body" :: Text))))
 
+        impl.surfaceImplActions |> map (.htmxRequestName) `shouldBe` ["refresh-panel"]
+        impl.surfaceImplIntents |> map (.intentFormName) `shouldBe` ["move-lab-card"]
         html `shouldContainText` "data-bepis-surface=\"surface-lab\""
         html `shouldContainText` "data-bepis-surface-config="
         html `shouldNotContainText` "data-live-update-surface"
