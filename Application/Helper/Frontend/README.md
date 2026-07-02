@@ -4,11 +4,19 @@ This directory owns the Haskell-to-TypeScript browser boundary for Bepis.
 
 ## Contract Rule
 
-If TypeScript reads a value from generated constants, JSON script payloads,
-websocket messages, event detail, `data-*` attributes, or static surface
-manifests, Haskell exposes it through a `FrontendCodec` and a registered
-contract group. Do not add hand-written TypeScript unions, validators, parsers,
-encoders, or canonical browser strings for backend-owned concepts.
+If TypeScript reads a backend-owned value from generated constants, JSON script
+payloads, websocket messages, event detail, `data-*` attributes, or manifests,
+Haskell owns the browser contract. Do not add hand-written TypeScript unions,
+validators, parsers, encoders, or canonical browser strings for backend-owned
+concepts.
+
+There are two contract sources while the live-surface migration is hybrid:
+
+- Migrated live/interaction surfaces use the type-level `FrontendSurface`
+  registry in `Application.Helper.FrontendSurface.Registry`; see
+  `Application/Helper/FrontendSurface/README.md`.
+- Non-surface DTOs and still-legacy live-surface DTOs use `FrontendCodec` and a
+  registered contract group in this directory.
 
 Generated TypeScript lives in `frontend/ts/generated/contracts.ts` and is not
 hand-edited. Every named codec emits the same public shape:
@@ -30,14 +38,14 @@ path as inbound parsing.
 - `Generic.hs` derives codecs for narrow DTO records, enums, tagged unions,
   arrays, refs, optional fields, nullable fields, and partial record containers.
 - `Options.hs` owns naming/tag options such as snake/kebab-case conversion.
-- `Dto/*.hs` modules contain browser-facing DTOs/enums only:
-  - `App`, `UiRegion`, `Roster`
-  - `LiveUpdate`
-  - `Interaction`
-  - `LiveSurface`
+- `Dto/*.hs` modules contain browser-facing DTOs/enums only. Live-update,
+  interaction, and live-surface DTOs remain here for shared transport and
+  legacy-surface compatibility while migrated surface-specific contracts are
+  generated from `Application.Helper.FrontendSurface`.
 - `*Schema.hs` modules are thin contract-group registration roots. They should
   not contain large hand-authored field lists or raw TypeScript snippets.
-- `Contracts.hs` is the composition root that concatenates registered groups.
+- `Contracts.hs` composes legacy/non-surface groups with the generated
+  `FrontendSurface` declarations.
 
 Use explicit frontend DTOs instead of arbitrary internal server/domain types.
 Internal polymorphic or feature-local types should convert to a narrow DTO at
@@ -71,13 +79,20 @@ bash ./bin/in-env hspec-test --match "Frontend contract"
 
 ## Live Surfaces And Interactions
 
-Adding a registered live surface should update generated `LiveSurfaceFamily`,
-registered scope/fragment kind unions, `LiveSurfaceManifest`, and optional
-interaction-schema linkage through `Web.LiveSurfaceRegistry`; do not hand-edit
-TypeScript manifests.
+New or migrated live/interaction surfaces should update
+`RegisteredFrontendSurfaces` and their type-level spec, then regenerate
+contracts. Do not add migrated surfaces to `Web.LiveSurfaceRegistry`, handwrite
+`data-bepis-surface-config`, or author old surface-specific `FrontendCodec`
+schema groups.
 
-Adding an interaction intent should update the Haskell static interaction schema
-and generated `InteractionIntentName`/field contracts. Generic TypeScript should
+Still-legacy live surfaces may continue to update generated `LiveSurfaceFamily`,
+registered scope/fragment kind unions, `LiveSurfaceManifest`, and optional
+interaction-schema linkage through `Web.LiveSurfaceRegistry` until they migrate.
+Keep that path out of support lab, Timesheets, Roster, and future
+`FrontendSurface` migrations.
+
+Adding an interaction intent for a migrated surface should update the type-level
+surface spec and generated static interaction schema. Generic TypeScript should
 remain data-driven. If TypeScript branches on a generated closed union, use
 `assertNever` in the `default` branch so union growth fails `frontend-check`
 until handled.
@@ -100,6 +115,7 @@ until handled.
 Generate browser-boundary DTOs only. Avoid exporting broad database/domain
 models unless there is a deliberately narrow frontend payload. Xero, passkeys,
 external APIs, and database model generation are outside this contract system
-unless a future ticket explicitly opts them in. A future GHC API/HIE verifier may
-inspect the DTO/schema IR, but the current source of truth is the checked Haskell
-DTO codec registry plus tests.
+unless a future ticket explicitly opts them in. For migrated surfaces, the source
+of truth is the checked type-level `FrontendSurface` registry plus the GHC
+extractor; for non-surface/legacy DTOs it is the checked Haskell DTO codec
+registry plus tests.

@@ -4,9 +4,18 @@ Use this checklist when adding or changing a collaborative server-rendered
 fragment. Keep the browser runtime generic: Haskell owns scopes, target ids,
 URLs, authorization, and protection policy.
 
+For new or migrated surfaces, start with the type-level `FrontendSurface`
+authoring guide in `Application/Helper/FrontendSurface/README.md`. This cookbook
+still documents the shared fragment concepts and the legacy
+`TypedLiveSurfaceDefinition` path used by non-migrated surfaces. Migrated
+surfaces must not use `data-live-update-surface`, `Web.LiveSurfaceRegistry`
+catalog entries, or `Application.Helper.SurfaceProjection`.
+
 ## Vocabulary
 
-- **Surface**: the stable mounted owner that subscribes to one live scope via
+- **Surface**: the stable mounted owner that subscribes to one live scope.
+  Migrated surfaces mount through `data-bepis-surface` and
+  `data-bepis-surface-config`; legacy surfaces mount through
   `data-live-update-surface`.
 - **Scope**: the authorized logical data slice, such as one roster week or one
   timesheet week. A scope is not a page name.
@@ -24,13 +33,13 @@ URLs, authorization, and protection policy.
 - **Read model**: a request-local data shape used to render one or more
   fragments. Prefer direct DB/read-model reads; add caching only behind an
   explicit feature-owned seam if profiling proves it is needed.
-- **Registered surface catalog**: the explicit list in `Web.LiveSurfaceRegistry`
-  that owns authorization, manifest generation, and invalidation planning for
-  every surface. Haskell cannot reliably discover all surface values
-  automatically, so the explicit catalog is intentional and guarded. The browser
-  manifest is generated through `Application.Helper.Frontend.Dto.LiveSurface` as
-  `Partial<Record<LiveSurfaceFamily, LiveSurfaceManifestEntry>>`; do not
-  hand-author TypeScript manifest keys or duplicate registered vocabularies.
+- **Registered surface catalog**: during the hybrid migration, legacy surfaces
+  are listed in `Web.LiveSurfaceRegistry`, while migrated surfaces are listed in
+  `Application.Helper.FrontendSurface.Registry` as `RegisteredFrontendSurfaces`.
+  Haskell owns both registries; do not hand-author TypeScript manifest keys or
+  duplicate registered vocabularies. Migrated surface metadata comes from the
+  GHC-extracted FrontendSurface registry and `SurfaceImpl`, not from legacy
+  catalog entries.
 - **Background-plannable surface**: a registered surface whose invalidations can
   be planned from touched resources and subscribed wire scopes without a request
   context. Use this for webhooks, async workers, and background jobs.
@@ -54,10 +63,19 @@ The living interaction contract is `Application/Helper/Interaction.SPEC.md`.
 Use it for typed surface/layer/intent/form/conflict-policy details; this
 cookbook remains the checklist for live fragments.
 
-## Preferred Simple Surface Path
+## Preferred FrontendSurface Path
 
-For a small current-venue surface with one or more static fragments, prefer the
-refined descriptor helpers instead of hand-writing the full
+For any new migration, define a type-level spec, add it to
+`RegisteredFrontendSurfaces`, implement `SurfaceImpl`, and render with
+`renderFrontendSurfaceMount`. See
+`Application/Helper/FrontendSurface/README.md` for the step-by-step workflow.
+Use direct read-model rendering first; there is no shared SurfaceProjection cache
+helper.
+
+## Legacy Simple Surface Path
+
+For a still-legacy small current-venue surface with one or more static fragments,
+prefer the refined descriptor helpers instead of hand-writing the full
 `TypedLiveSurfaceDefinition` record:
 
 ```haskell
@@ -138,13 +156,15 @@ adminExampleDescriptor
     |> descriptorToTypedLiveSurfaceDefinition
 ```
 
-Complex surfaces such as roster or timesheets may still use a descriptor-shaped
-adapter/full `TypedLiveSurfaceDefinition` where they need custom candidate
-fragments, containment, interaction capability, or read-model behavior.
-Keep read-model construction as an implementation detail, not as the required live-surface
-abstraction. After adding a registered surface, run `frontend-contracts` and
-`frontend-check`; generated family/scope/fragment unions and `LiveSurfaceManifest`
-should update from the registry without TypeScript edits.
+Complex legacy surfaces may still use a descriptor-shaped adapter/full
+`TypedLiveSurfaceDefinition` where they need custom candidate fragments,
+containment, interaction capability, or read-model behavior. Do not use this for
+migrated FrontendSurface surfaces such as the lab, Timesheets, or Roster. Keep
+read-model construction as an implementation detail, not as the required
+live-surface abstraction. After adding a legacy registered surface, run
+`frontend-contracts` and `frontend-check`; generated family/scope/fragment unions
+and `LiveSurfaceManifest` should update from the registry without TypeScript
+edits.
 
 ## Lazy Fragment Loading
 
@@ -245,7 +265,13 @@ failed request count, and any remaining bottleneck. If profiling is blocked by
 local environment issues, leave the measurement ticket open with the failed
 artifact path rather than claiming a timing improvement.
 
-## Add A Fragment
+## Add A Legacy Fragment
+
+For migrated FrontendSurface fragments, use the workflow in
+`Application/Helper/FrontendSurface/README.md`: declare `Fragment` in the
+surface spec, implement a `FrontendSurfaceFragmentHandler`, render through
+`SurfaceImpl`, and add direct read-model fragment endpoints. The checklist below
+is for still-legacy `TypedLiveSurfaceDefinition` surfaces.
 
 1. Add feature-local closed ADT constructors, for example
    `RosterRow` or `TimesheetDaySection`. Do not model
@@ -327,7 +353,7 @@ business semantics from the raw HTMX event.
   `renderLiveSurfaceFragmentMount` or `uiRegionTransitionAttrs` so the generated
   TypeScript contracts remain the browser vocabulary source of truth.
 
-## Review Checklist
+## Legacy Review Checklist
 
 - The fragment enum is local to the feature and uses closed constructors rather
   than free-text selectors.

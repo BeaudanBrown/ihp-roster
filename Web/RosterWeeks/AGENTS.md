@@ -11,12 +11,12 @@ or roster views.
 - Use the feature modules here instead of adding more orchestration to the root
   controller.
 - Keep DOM ids/selectors centralized in `Dom.hs`.
-- Keep roster `FrontendSurface` fragment metadata, resource dependencies, and live fanout semantics in `FrontendSurface.hs`; passive fanout must go through touched resources and the registry.
+- Keep roster `FrontendSurface` fragment metadata, resource dependencies, and live fanout semantics in `FrontendSurface.hs`; passive fanout must go through touched resources and the FrontendSurface registry/runtime path.
 - Preserve `hx-sync` on stable shells that are not replaced by the response.
 
 ## Common Changes
 
-- Projection changes belong in `Projection.hs` or `RenderData.hs`.
+- Read-model changes belong in `DirectReadModel.hs` or `RenderData.hs`; do not reintroduce a shared surface projection cache.
 - HTMX/OOB response shape belongs in `Responses.hs`.
 - Canonical path/query helpers belong in `Paths.hs`.
 - Roster workflow/domain helpers belong in `Service.hs` unless they are shared

@@ -10,9 +10,10 @@ Read this before editing `static/` assets.
 - Use `bash ./bin/in-env frontend-build` to regenerate JS, and
   `bash ./bin/in-env frontend-check` before committing frontend changes.
 - Generated TypeScript contracts live in `frontend/ts/generated/`, are owned by
-  Haskell DTOs/enums, and must not be hand-edited. Use generated contracts for
-  backend-emitted JSON/data-* boundaries where applicable; unknown JSON uses
-  generated `parseX` helpers and outbound DTOs use generated `encodeX` helpers.
+  Haskell DTOs/enums plus the type-level FrontendSurface registry, and must not
+  be hand-edited. Use generated contracts for backend-emitted JSON/data-*
+  boundaries where applicable; unknown JSON uses generated `parseX` helpers and
+  outbound DTOs use generated `encodeX` helpers.
 - Keep app JavaScript split by concern:
   - `app-bootstrap.js`
   - `app-date-pickers.js`
@@ -71,11 +72,13 @@ Read this before editing `static/` assets.
 - Do not add feature-specific adapters for normal live-surface discovery,
   subscription, request decoration, version-gap resync, fragment fetching,
   swapping, or focused-field protection.
-- Treat `data-live-update-surface` JSON as server-owned typed-surface output.
-  Static JS should not infer feature scopes, target ids, or URLs that belong in
-  Haskell surface definitions. The current websocket/actor-refresh payloads are
-  intentionally self-describing; do not switch to compact fragment-key payloads
-  without a protocol migration ticket and browser coverage.
+- Treat both legacy `data-live-update-surface` JSON and migrated
+  `data-bepis-surface-config` JSON as server-owned surface output. Static JS
+  should not infer feature scopes, target ids, or URLs that belong in Haskell
+  surface definitions. Migrated FrontendSurface invalidations are mount-resolved;
+  legacy websocket/actor-refresh payloads remain self-describing until those
+  surfaces migrate. Do not switch protocols without a migration ticket and
+  browser coverage.
 - Feature scripts may handle genuinely feature-specific UI behavior.
 
 ## Typed Interaction Runtime
@@ -90,11 +93,12 @@ Read this before editing `static/` assets.
   raw `data-bepis-*` attrs or interaction HTMX forms in feature views except in
   tests/fixtures that explicitly exercise guardrails.
 - Static/TypeScript runtime code consumes generated live-update,
-  registered-surface, and interaction contracts and stays generic: it may manage
-  disposable sessions and disposable UI inside declared layers, but must not
-  mutate server-owned business DOM, infer live-fragment URLs/target ids, or
-  construct mutation URLs. Do not handwrite validators/parsers/encoders for
-  generated contract names; import generated `isX`/`parseX`/`encodeX` instead.
+  registered-surface, FrontendSurface, and interaction contracts and stays
+  generic: it may manage disposable sessions and disposable UI inside declared
+  layers, but must not mutate server-owned business DOM, infer live-fragment
+  URLs/target ids, or construct mutation URLs. Do not handwrite
+  validators/parsers/encoders for generated contract names; import generated
+  `isX`/`parseX`/`encodeX` instead.
 - Use standard HTMX primitives first: generated forms, custom event triggers,
   lifecycle events, `hx-sync`/`hx-disabled-elt` where useful, and OOB swaps.
   Do not introduce HTMX extensions or custom elements until a later ticket proves

@@ -28,9 +28,10 @@ This file describes the shared live-fragment architecture implemented by
 ## Surface Declaration
 
 For the step-by-step checklist and glossary used when adding a fragment, see
-`Application/Helper/LiveSurface.COOKBOOK.md`. For typed disposable layers,
-intent forms, generated browser contracts, and live-fragment conflict policy,
-see `Application/Helper/Interaction.SPEC.md`.
+`Application/Helper/LiveSurface.COOKBOOK.md`. For new type-level surface
+authoring, see `Application/Helper/FrontendSurface/README.md`. For typed
+disposable layers, intent forms, generated browser contracts, and live-fragment
+conflict policy, see `Application/Helper/Interaction.SPEC.md`.
 
 Declarative UI region capabilities are a browser-facing layer on top of
 server-owned fragments. Haskell owns the allowed `data-bepis-*` names,
@@ -41,25 +42,30 @@ thin: it translates raw HTMX events into Bepis region events only for
 `data-bepis-fragment="true"` roots, and downstream lazy/retry/transition code is
 parameterized by those server-rendered attrs.
 
-Ordinary live surfaces should be declared in Haskell with
-`Application.Helper.LiveSurface.TypedLiveSurfaceDefinition` and rendered on a
-stable owner element as `data-live-update-surface` via
-`mkTypedDefinedLiveSurface` and `liveSurfaceConfigJson`.
+New or migrated live surfaces should be declared with a type-level
+`FrontendSurface` spec in `Application.Helper.FrontendSurface.Registry` and
+rendered with `SurfaceImpl` helpers as `data-bepis-surface` plus
+`data-bepis-surface-config`. Existing non-migrated legacy surfaces may continue
+to use `Application.Helper.LiveSurface.TypedLiveSurfaceDefinition` and
+`data-live-update-surface` until their own migration ticket replaces them.
 
 A surface owns:
 
-- feature name
-- websocket path
+- feature/surface name
+- websocket path or generated live-update transport family
 - scope and scope key
 - wire-scope conversion
 - authorization rule
 - default resync fragments
 - feature-local fragment enum to structural fragment refs
-- request-decoration selectors
+- mount-local target ids and refetch URLs
+- request decoration from the closest mount
 - optional focused-field protection policies
-- a `FragmentContract` for each feature-local fragment
+- a fragment contract for each feature-local fragment
 - semantic dependency intent for each rendered fragment
 - server-side fragment containment paths used to avoid overlapping DOM swaps
+- optional mount state, interaction sessions/layers/effects, intents, and
+  conflict policies
 
 Each fragment is declared through `typedSurfaceFragmentContract`, usually by
 building a `FragmentContract` with `mkSurfaceFragmentContract`. The contract is
@@ -87,26 +93,27 @@ describe how the browser refetches and swaps HTML.
 
 The wire-fragment transport boundary is isolated behind
 `Application.Helper.LiveUpdate.Runtime`, `Application.Helper.LiveUpdate.Internal`,
-and `Application.Helper.LiveSurface.Internal`. Browser wire DTOs live in
-`Application.Helper.Frontend.Dto.LiveUpdate` and generate the JSON codecs,
-TypeScript types, guards, `parseX`, and `encodeX` helpers consumed by the
-runtime. Feature modules should keep
-fragment enums feature-local and cross the typed-to-wire boundary only through
-strict helpers such as `mkSurfaceFragmentRef`, `mkSurfaceFragmentContract`,
+`Application.Helper.LiveSurface.Internal`, and the migrated
+`Application.Helper.FrontendSurface.Runtime` bridge. Browser wire DTOs live in
+`Application.Helper.Frontend.Dto.LiveUpdate` plus generated FrontendSurface
+contracts and provide TypeScript types, guards, `parseX`, and `encodeX` helpers
+consumed by the runtime. Feature modules should keep fragment enums
+feature-local and cross the typed-to-wire boundary only through strict helpers.
+For migrated surfaces that means `SurfaceImpl`/`renderFrontendSurfaceMount` and
+mount-local fragment/action/intent handlers. For still-legacy surfaces that means
+helpers such as `mkSurfaceFragmentRef`, `mkSurfaceFragmentContract`,
 `mkTypedDefinedLiveSurface`, `typedLiveSurfaceFragmentRef(s)`,
 `serveTypedLiveFragment`, `respondWithTypedLiveSurfaceFragments`, and typed
 fragment normalization helpers. The runtime no longer keeps feature-facing
-broadcast or typed mutation helpers; typed config, fragment identity, dependency
-matching, authorization, and actor-refresh helpers derive directly from
-`TypedLiveSurfaceDefinition`.
+broadcast or typed mutation helpers.
 
 Actor responses and passive live updates should use one fragment model with
-multiple triggers. A feature-local fragment enum and `TypedLiveSurfaceDefinition`
-name the fragments once; successful actor HTMX responses render selected
-fragments immediately as OOB swaps, while passive viewers receive structural
-invalidations and refetch the same fragments through their GET endpoints. Actor
-responses may append extras such as toasts or dialog clears after the normalized
-OOB fragments.
+multiple triggers. A feature-local fragment enum and either a migrated
+`SurfaceImpl` or a legacy `TypedLiveSurfaceDefinition` names the fragments once;
+successful actor HTMX responses render selected fragments immediately as OOB
+swaps, while passive viewers receive structural invalidations and refetch the
+same fragments through their GET endpoints. Actor responses may append extras
+such as toasts or dialog clears after the normalized OOB fragments.
 
 Prefer a simple, non-cached feature-local fragment model for new migrations:
 fetch the model once, normalize requested fragments with the typed surface

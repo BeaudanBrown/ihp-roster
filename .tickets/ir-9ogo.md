@@ -1,6 +1,6 @@
 ---
 id: ir-9ogo
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-07-02T02:47:03Z
@@ -83,3 +83,7 @@ Clarification pass locked mount-local transport and ticket-plan decisions: new `
 **2026-07-02T10:20:50Z**
 
 Roster migration started after Timesheets close. First chunk targets Roster FrontendSurface contract, metadata-only SurfaceImpl bridge, and compatibility cleanup until the interaction modeling decision point.
+
+**2026-07-02T12:54:18Z**
+
+Closeout: all child tickets are closed. FrontendSurface DSL/registry/GHC generator, SurfaceImpl completeness checks, support lab, Timesheets and Roster migrations, native interaction/lazy/fragment behavior, SurfaceProjection removal, guardrails, generated TypeScript pipeline, and durable authoring docs are implemented. Legacy live-surface infrastructure remains only for non-migrated surfaces and is tracked outside this epic as future app-wide migration/unification work. Verified latest closeout chunk with doc-drift-check, frontend-surface-guardrails, and frontend-contracts-check.

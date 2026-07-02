@@ -1,6 +1,6 @@
 ---
 id: ir-ds06
-status: open
+status: closed
 deps: [ir-ypt5]
 links: []
 created: 2026-07-02T04:06:34Z
@@ -45,3 +45,9 @@ Docs must explain:
 - Docs describe the new implemented workflow well enough for a fresh agent to add a surface without asking for architecture decisions.
 - Docs identify which old modules/paths are replaced or forbidden for migrated surfaces.
 - `bash ./bin/in-env ./bin/doc-drift-check` passes.
+
+## Notes
+
+**2026-07-02T12:53:58Z**
+
+Added durable FrontendSurface authoring documentation in Application/Helper/FrontendSurface/README.md and updated frontend, live-update, live-surface, interaction, static/frontend agent, Roster, Timesheets, and workstream docs to describe the implemented workflow, hybrid migration boundaries, generated TypeScript usage, and the no-SurfaceProjection policy. Verified doc-drift-check, frontend-surface-guardrails, and frontend-contracts-check.

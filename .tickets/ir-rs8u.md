@@ -1,6 +1,6 @@
 ---
 id: ir-rs8u
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-05-21T07:00:19Z
@@ -22,3 +22,9 @@ Document the invariant: anything user/session-specific that affects a cached pro
 
 Living docs state the projection viewerKey/final-render invariant, identify current roster viewer-state examples, and give guidance for future preference additions. The docs explicitly say not to put new user display preferences into RosterRenderData unless viewerKey/currentVersion semantics are updated. ir-jooi is referenced as related historical projection-cache work.
 
+
+## Notes
+
+**2026-07-02T12:45:35Z**
+
+Superseded by the FrontendSurface/direct read-model refactor: Application.Helper.SurfaceProjection and the roster/leave projection-cache plumbing have been removed. Future caching work must be explicit resource-versioned read-model/cache design behind feature read-model or SurfaceImpl seams, not resurrection of the generic SurfaceProjection helper.

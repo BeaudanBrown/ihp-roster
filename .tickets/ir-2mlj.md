@@ -22,3 +22,9 @@ Compare three dependency-version sources: existing LiveUpdateScope versions, a m
 
 A design note or ticket note describes the API shape, key structure, invalidation/version strategy, dependency declaration rules, metrics, and concurrency/test behavior. It identifies implementation prerequisites and open decisions. It includes examples for fetchCurrentVenueRosterShiftTypes, fetchCurrentVenueRosterGroups, and ordered roster week slot definitions, plus explains why staff option states/conflicts/wage prediction need richer dependency modeling before caching.
 
+
+## Notes
+
+**2026-07-02T12:45:35Z**
+
+Design should target a fresh resource-versioned read-cache API only. Do not depend on Application.Helper.SurfaceProjection or old projection-cache authoring; those paths were removed in ir-s7la.

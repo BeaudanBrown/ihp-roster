@@ -1,8 +1,11 @@
 # Type-Level FrontendSurface Contracts
 
-Status: active planning contract; foundational naming code has started, but the DSL,
-`SurfaceImpl`, generator, mount-local runtime, and migrations described here are
-not fully implemented yet.
+Status: implementation record. The DSL, GHC extraction/generation,
+`SurfaceImpl` runtime bridge, support lab, Timesheets migration, Roster
+migration, and SurfaceProjection removal have landed. Durable authoring rules now
+live in `Application/Helper/FrontendSurface/README.md` and the subsystem
+README/SPEC/AGENTS files; this workstream remains as architectural context until
+`ir-9ogo` closes.
 
 Tickets:
 
@@ -39,17 +42,16 @@ may remain when they are fed only by the new
 
 Server-rendered HTML remains authoritative. The architecture improves how the
 browser contract is declared and generated; it does not move business authority
-or persistence into TypeScript. This workstream is the active planning contract
-until the implementation lands; final durable authoring rules move to the local
-README/SPEC/AGENTS files in `ir-ds06`.
+or persistence into TypeScript. The durable authoring rules live in the local README/SPEC/AGENTS files updated
+by `ir-ds06`; this workstream records the architecture and migration decisions.
 
 ## Root Source Of Truth
 
 Generation starts from a single explicit type-level registry containing only
-surfaces. The planned registry module is
-`Application.Helper.FrontendSurface.Registry`; feature surface specs should live
-near their feature modules, such as `Web.Timesheets.SurfaceSpec` and
-`Web.RosterWeeks.SurfaceSpec`.
+surfaces. The registry module is
+`Application.Helper.FrontendSurface.Registry`; the current migrated surface specs
+live under `Application.Helper.FrontendSurface` as `Lab`, `Timesheets`, and
+`Roster`, with runtime/view helpers in the relevant feature modules where useful.
 
 ```haskell
 type RegisteredFrontendSurfaces =

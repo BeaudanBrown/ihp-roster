@@ -1,6 +1,6 @@
 ---
 id: ir-jooi
-status: open
+status: closed
 deps: []
 links: [ir-f2p4, ir-ihv0, ir-nnfx, ir-3pnb, ir-umv7, ir-uir5, ir-xyzw, ir-cfcr, ir-jsyd, ir-zqp3, ir-p008, ir-62zx]
 created: 2026-04-29T04:41:29Z
@@ -17,7 +17,7 @@ Repo-local implementation epic migrated from coordinator-2b0. Adds reusable view
 
 coordinator_epic: coordinator-2b0
 project_id: ihp-roster
-status: active
+status: closed
 base_branch: roster
 work_branch: roster
 repo_tracker: .tickets
@@ -33,3 +33,9 @@ settled_direction:
 ## Acceptance Criteria
 
 A reusable projection helper exists, roster week rendering uses it, current-week warming is observable, at least one second-adopter path is planned or migrated, and cache behavior is covered.
+
+## Notes
+
+**2026-07-02T12:45:35Z**
+
+Superseded by the FrontendSurface/direct read-model refactor: Application.Helper.SurfaceProjection and the roster/leave projection-cache plumbing have been removed. Future caching work must be explicit resource-versioned read-model/cache design behind feature read-model or SurfaceImpl seams, not resurrection of the generic SurfaceProjection helper.

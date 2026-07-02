@@ -8,8 +8,8 @@
 ## Entry Points
 
 - `Web/Controller/RosterWeeks.hs` - controller actions.
-- `Web/RosterWeeks/Projection.hs` - read model/projection construction.
-- `Web/RosterWeeks/RenderData.hs` - view-facing render data.
+- `Web/RosterWeeks/DirectReadModel.hs` - direct database/read-model construction.
+- `Web/RosterWeeks/RenderData.hs` - view-facing render data and fragment rendering helpers.
 - `Web/RosterWeeks/Responses.hs` - HTMX/OOB response helpers.
 - `Web/RosterWeeks/FrontendSurface.hs` - FrontendSurface contract/runtime bridge, fragment metadata, live dependencies, and interaction shell helpers.
 - `Web/RosterWeeks/Paths.hs` - canonical route/query helpers.

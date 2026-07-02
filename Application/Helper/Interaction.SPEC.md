@@ -8,9 +8,12 @@ helpers, generated TypeScript contracts, and the generic browser runtime.
 ## Scope And Source Of Truth
 
 Server-rendered HTML remains authoritative. Interaction capability is optional
-metadata attached to the same typed surface origin as
-`TypedLiveSurfaceDefinition`; existing live surfaces should be representable with
-empty disposable-layer, intent, field-schema, and conflict-policy definitions.
+metadata attached to the same typed surface origin. Migrated surfaces declare it
+in the type-level `FrontendSurface` spec and implement runtime form/fragment
+metadata through `SurfaceImpl`; still-legacy surfaces may attach it to
+`TypedLiveSurfaceDefinition` until they migrate. Existing surfaces should be
+representable with empty disposable-layer, intent, field-schema, and
+conflict-policy definitions.
 
 Haskell owns the canonical definitions for:
 
@@ -100,10 +103,12 @@ or infer a singleton surface for a scope.
 1. Feature code declares closed Haskell types for disposable layers, intents,
    intent fields, and any interaction-specific markers.
 2. Haskell contracts attach a scope-free static interaction schema plus optional
-   runtime interaction capability to the same typed live surface definition. The
-   static schema enumerates layer names, session names, intent names, field
-   schemas, marker semantics, and default conflict policy without constructing a
-   fake scope. Runtime capability still owns concrete HTMX form actions, targets,
+   runtime interaction capability to the same surface definition. For migrated
+   surfaces this is the type-level `FrontendSurface` spec plus `SurfaceImpl`;
+   for still-legacy surfaces it is the typed live surface definition. The static
+   schema enumerates layer names, session names, intent names, field schemas,
+   marker semantics, and default conflict policy without constructing a fake
+   scope. Runtime capability still owns concrete HTMX form actions, targets,
    sync selectors, hidden values, and any fragment refs whose URLs depend on the
    mounted scope. Existing surfaces can use empty static schema and empty
    capability.
@@ -233,8 +238,8 @@ change HTMX routes/targets/swaps, or mutate server-owned business DOM.
 The standard Haskell helper output is intentionally ordinary HTML/HTMX. For a
 mount key `primary`, a helper-rendered shell includes the live-update surface
 metadata plus interaction metadata on the same owner, e.g.
-`data-live-update-surface=...`, `data-bepis-surface="true"`,
-`data-bepis-surface-family="..."`, `data-bepis-scope-key="..."`, and
+`data-live-update-surface=...` for legacy mounts,
+`data-bepis-surface="..."`, `data-bepis-surface-config="..."`, and
 `data-bepis-mount-key="primary"`. `renderInteractionIntentForm` renders the
 server-owned `action`, `hx-post`/`hx-patch`/etc., `hx-trigger`, `hx-target`,
 `hx-swap`, optional `hx-sync`/`hx-disabled-elt`, declared field inputs marked

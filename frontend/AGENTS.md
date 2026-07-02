@@ -7,7 +7,7 @@ Read this before editing `frontend/ts/`.
 - App-owned JavaScript source lives in `frontend/ts/`.
 - Generated browser assets live in `static/app*.js` and are still loaded by IHP through `assetPath`.
 - Generated TypeScript contracts live in `frontend/ts/generated/` and are backend-owned. Do not hand-edit generated files.
-- Contracts are for browser boundary data only: JSON/data-* payloads, live-update config/messages, live-surface manifests, interaction/static capability DTOs, roster UI config, overlay lanes, and capability/config objects. Do not generate broad database models for frontend use.
+- Contracts are for browser boundary data only: JSON/data-* payloads, live-update config/messages, legacy live-surface manifests, FrontendSurface metadata, interaction/static capability DTOs, roster UI config, overlay lanes, and capability/config objects. Do not generate broad database models for frontend use.
 - Generated contracts provide `type X`, `isX`, `parseX`, and `encodeX`. Unknown JSON boundaries should use `parseX`; outbound JSON-shaped DTOs should use `encodeX`; runtime code must not recreate generated validators/parsers/encoders by hand.
 - Use Nix/devenv entrypoints, not developer-facing `npm`/`npx` commands.
 - Supported commands:
@@ -44,17 +44,19 @@ Read this before editing `frontend/ts/`.
   boundaries must use Haskell-owned generated contracts rather than duplicated
   TypeScript domain models.
 - TypeScript must consume Haskell-generated live-update, registered-surface,
-  UI-region, disposable-layer, intent, intent-field, live-fragment, and
-  conflict-policy contracts; do not define canonical `data-bepis-*`, surface,
-  region capability, fragment, layer, or intent string names by hand in runtime
-  code.
+  FrontendSurface, UI-region, disposable-layer, intent, intent-field,
+  live-fragment, and conflict-policy contracts; do not define canonical
+  `data-bepis-*`, surface, region capability, fragment, layer, or intent string
+  names by hand in runtime code.
 - If app-owned TypeScript switches on a generated closed union, include a
   `default` branch that calls `assertNever`; `frontend-check` rejects broad
   switch defaults that can swallow new generated variants.
 - Generic interaction code may create, move, and clear disposable UI inside
   Haskell-declared disposable layers, but must not mutate server-owned business
   DOM or construct persistence URLs. Committed intents submit through
-  Haskell-rendered HTMX forms.
+  Haskell-rendered HTMX forms. For migrated surfaces, closest-mount discovery is
+  based on `data-bepis-surface`/`data-bepis-surface-config`; legacy
+  `data-live-update-surface` support remains only for non-migrated surfaces.
 - Generic UI region runtime may adapt HTMX lifecycle events, lazy retry UI, and
   transition classes only for `data-bepis-fragment="true"` roots rendered by
   Haskell helpers/contracts. Do not make ordinary HTMX, dialogs, validation

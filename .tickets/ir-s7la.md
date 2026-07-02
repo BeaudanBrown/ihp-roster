@@ -1,6 +1,6 @@
 ---
 id: ir-s7la
-status: in_progress
+status: closed
 deps: [ir-ypt5, ir-ds06, ir-ycec]
 links: []
 created: 2026-07-02T04:06:39Z
@@ -33,3 +33,7 @@ After lab, Timesheets, and Roster prove replacement coverage, remove old surface
 **2026-07-02T12:36:10Z**
 
 Removed the shared SurfaceProjection cache/helper path entirely: deleted Application.Helper.SurfaceProjection and its tests, removed projection wrapper APIs from LiveSurface, converted Leave Requests to direct read-model rendering, removed Roster rollback/cache seams/no-op warming, cleaned Timesheets cached alias naming, and scrubbed docs/guardrails of stale surface-projection references. Remaining ir-s7la scope still includes broader old FrontendCodec/live-surface cleanup.
+
+**2026-07-02T12:53:58Z**
+
+Cleanup scope is complete for migrated surfaces: support lab, Timesheets, and Roster are guarded away from old FrontendCodec/TypedLiveSurfaceDefinition/Web.LiveSurfaceRegistry authoring paths; SurfaceProjection and projection-cache plumbing were removed; legacy live-surface infrastructure remains only for non-migrated surfaces until their own migration tickets.

@@ -21,3 +21,9 @@ Keep the current projection system intact while evaluating a more granular cachi
 
 The work produces a documented recommendation plus one low-risk prototype or proof that a prototype should not proceed. The recommendation compares current projection snapshots, granular cached loaders, resource-level versions, current live-scope versions, and Redis/Postgres deployment options. Any prototype is typed, tenant-safe, version-invalidated, instrumented enough to compare hit/miss/load behavior, and covered by stale-data regression tests. Current roster/timesheet/leave projection behavior remains unchanged unless a later explicit ticket authorizes decomposition.
 
+
+## Notes
+
+**2026-07-02T12:45:35Z**
+
+SurfaceProjection has been removed as part of ir-s7la. Keep this epic only as future resource-versioned read-cache research; any prototype must be explicit, feature-owned, viewer-aware, and behind a read-model/SurfaceImpl seam rather than using the old generic surface projection cache.
