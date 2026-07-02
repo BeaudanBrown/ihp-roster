@@ -16,12 +16,16 @@ module Application.Helper.FrontendSurface.Roster
     , RosterSurface
     , RosterWageRail
     , RosterWeek
+    , MoveRosterShiftToSlot
+    , RosterLayoutMode
     , RowIndex
+    , SetRosterLayoutMode
     , VenueId
     , WeekOffset
     ) where
 
 import Application.Helper.FrontendSurface.DSL
+import Application.Helper.FrontendSurface.Interaction
 
 data Roster
 
@@ -40,6 +44,10 @@ data RosterSlotsGrid
 data RosterStaffPanel
 data RosterDaySection
 data RosterRow
+
+data SetRosterLayoutMode
+data MoveRosterShiftToSlot
+data RosterLayoutMode
 
 data RosterDayId
 data RowIndex
@@ -84,5 +92,11 @@ type RosterFragmentBundle =
         '[ 'Lazy '[ 'DependsOn RosterDaySection ] ]
      ]
 
+type RosterInteractionBundle =
+    Concat
+        '[ LayoutModeInteraction SetRosterLayoutMode RosterContent RosterLayoutMode
+         , DragDropInteraction MoveRosterShiftToSlot RosterContent
+         ]
+
 type RosterSurface =
-    Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle ])
+    Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle, RosterInteractionBundle ])

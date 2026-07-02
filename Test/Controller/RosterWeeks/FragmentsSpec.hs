@@ -2,6 +2,8 @@ module Test.Controller.RosterWeeks.FragmentsSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceFragmentKey (..),
+                                                   FrontendSurfaceHtmxRequest (..),
+                                                   FrontendSurfaceIntentForm (..),
                                                    FrontendSurfaceMountConfig (..),
                                                    FrontendSurfaceMountedFragment (..),
                                                    SurfaceImpl (..))
@@ -122,6 +124,8 @@ tests = beforeAll testContext do
                 let legacyConfig = rosterLegacyLiveSurfaceConfig impl scope
 
                 impl.surfaceImplName `shouldBe` "roster"
+                map (.htmxRequestName) impl.surfaceImplActions `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot"]
+                map (.intentFormName) impl.surfaceImplIntents `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot"]
                 mountConfig.mountSurfaceName `shouldBe` "roster"
                 mountConfig.mountScopeKey `shouldBe` "roster:00000000-0000-0000-0000-000000000111:00000000-0000-0000-0000-000000000222:3"
                 fragmentKinds

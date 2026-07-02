@@ -193,8 +193,32 @@ rosterRawRegistry =
                 , promotedList [field "RosterDayId" "WireUUID", field "RowIndex" "WireInt"]
                 , promotedList [raw "Lazy" [promotedList [raw "DependsOn" [marker "RosterDaySection"]]]]
                 ]
+            , raw "HtmxAction" [marker "SetRosterLayoutMode", promotedList [field "RosterLayoutMode" "WireText"], promotedList [raw "Target" [marker "RosterContent"]]]
+            , raw "Intent" [marker "SetRosterLayoutMode", promotedList [field "RosterLayoutMode" "WireText"], promotedList [raw "BackedBy" [marker "SetRosterLayoutMode"]]]
+            , raw "Session" [marker "DragSession", promotedList []]
+            , raw "DisposableLayer" [marker "DragPreviewLayer"]
+            , raw "InteractionEffect" [marker "CloneShadow", promotedList [raw "Layer" [marker "DragPreviewLayer"]]]
+            , raw "InteractionEffect" [marker "DropzoneHighlight", promotedList []]
+            , raw "HtmxAction" [marker "MoveRosterShiftToSlot", promotedList dragDropFieldsRaw, promotedList [raw "Target" [marker "RosterContent"]]]
+            , raw "Intent" [marker "MoveRosterShiftToSlot", promotedList dragDropFieldsRaw, promotedList [raw "SessionOption" [marker "DragSession"], raw "BackedBy" [marker "MoveRosterShiftToSlot"]]]
+            , raw "ConflictPolicy" [raw "AnySession" [], raw "AnyFragment" [], raw "Defer" []]
             ]
         ]
+
+dragDropFieldsRaw :: [RawType]
+dragDropFieldsRaw =
+    [ field "SourceItemKey" "WireText"
+    , field "TargetDropzoneKey" "WireText"
+    , optionalField "SessionKind" "WireText"
+    , optionalField "PointerId" "WireText"
+    , optionalField "PointerType" "WireText"
+    , optionalField "StartClientX" "WireText"
+    , optionalField "StartClientY" "WireText"
+    , optionalField "CurrentClientX" "WireText"
+    , optionalField "CurrentClientY" "WireText"
+    , optionalField "DeltaX" "WireText"
+    , optionalField "DeltaY" "WireText"
+    ]
 
 registryWithPrimitives :: [RawType] -> RawRegistry
 registryWithPrimitives primitives =

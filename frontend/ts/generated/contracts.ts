@@ -1317,6 +1317,7 @@ export type FrontendSurfaceUUID = string & { readonly __brand: "FrontendSurfaceU
 export type FrontendSurfaceDay = string & { readonly __brand: "FrontendSurfaceDay" };
 
 export type PanelId = FrontendSurfaceUUID & { readonly __brand: "PanelId" };
+export type PointerId = FrontendSurfaceUUID & { readonly __brand: "PointerId" };
 export type RosterDayId = FrontendSurfaceUUID & { readonly __brand: "RosterDayId" };
 export type RosterGroupId = FrontendSurfaceUUID & { readonly __brand: "RosterGroupId" };
 export type StaffFilterId = FrontendSurfaceUUID & { readonly __brand: "StaffFilterId" };
@@ -1366,7 +1367,15 @@ export type RosterFragmentKey =
     | { kind: "roster-day-section"; params: { rosterDayId: RosterDayId } }
     | { kind: "roster-row"; params: { rosterDayId: RosterDayId; rowIndex: number } }
 ;
-export const rosterSurfaceManifest = { surface: "roster", scopes: ["roster-week"], fragments: ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-day-section", "roster-row"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [] } as const;
+export type RosterHtmxActionName = "set-roster-layout-mode" | "move-roster-shift-to-slot";
+export type SetRosterLayoutModeActionFields = { rosterLayoutMode: string };
+export type MoveRosterShiftToSlotActionFields = { sourceItemKey: string; targetDropzoneKey: string; sessionKind?: string; pointerId?: string; pointerType?: string; startClientX?: string; startClientY?: string; currentClientX?: string; currentClientY?: string; deltaX?: string; deltaY?: string };
+export type RosterIntentName = "set-roster-layout-mode" | "move-roster-shift-to-slot";
+export type SetRosterLayoutModeIntentFields = { rosterLayoutMode: string };
+export type MoveRosterShiftToSlotIntentFields = { sourceItemKey: string; targetDropzoneKey: string; sessionKind?: string; pointerId?: string; pointerType?: string; startClientX?: string; startClientY?: string; currentClientX?: string; currentClientY?: string; deltaX?: string; deltaY?: string };
+export type RosterSessionName = "drag";
+export type RosterDisposableLayerName = "drag-preview";
+export const rosterSurfaceManifest = { surface: "roster", scopes: ["roster-week"], fragments: ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-day-section", "roster-row"], htmxActions: ["set-roster-layout-mode", "move-roster-shift-to-slot"], intents: ["set-roster-layout-mode", "move-roster-shift-to-slot"], sessions: ["drag"], layers: ["drag-preview"], domTokens: [], overlayLanes: [] } as const;
 
 export type FrontendSurfaceName = "surface-lab" | "timesheets" | "roster";
 export const FrontendSurfaceRegistry = {

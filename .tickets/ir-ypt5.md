@@ -54,3 +54,7 @@ Migrate the complex roster surface after Timesheets, proving the new architectur
 **2026-07-02T10:32:11Z**
 
 First Roster FrontendSurface slice landed: added type-level RosterSurface with roster-week scope, live fragments, parameterized day/row fragments, and containment options; registered/generated TS contracts; added Web.RosterWeeks.FrontendSurface SurfaceImpl bridge with mounted fragment metadata, legacy LiveSurfaceConfig adapter, wire-fragment conversion, and resource dependencies; roster shell now emits data-bepis-surface-config side-by-side with legacy data-live-update-surface. Stopped before native interaction modeling/cutover decision point.
+
+**2026-07-02T10:46:44Z**
+
+Interaction DSL slice: added reusable FrontendSurface interaction sugar for drag/drop and layout-mode intents, then composed it into RosterSurface. Roster now declares sessions, disposable layer, effects, htmx actions, intents, and conflict policy through FrontendSurface; SurfaceImpl now exposes typed action/intent metadata for roster layout mode and move-shift intents. Next decision point is how to project FrontendSurface interaction effects/policies into the existing generated TypeScript interaction runtime shape, including whether to add timeout/options to FrontendSurface conflict policies before replacing Roster's old InteractionStaticSchema authoring.

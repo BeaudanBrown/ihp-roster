@@ -181,11 +181,20 @@ tests = describe "FrontendSurface DSL foundation" do
             |> fmap (.fragmentParams)
             |> fmap (map (.fieldName))
             `shouldBe` Just ["rosterDayId", "rowIndex"]
+        map (.htmxActionName) surface.surfaceHtmxActions `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot"]
+        map (.intentName) surface.surfaceIntents `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot"]
+        surface.surfaceSessions `shouldBe` ["drag"]
+        surface.surfaceLayers `shouldBe` ["drag-preview"]
+        map fst surface.surfaceEffects `shouldBe` ["clone-shadow", "dropzone-highlight"]
+        map (.conflictPolicyResolution) surface.surfacePolicies `shouldBe` [DeferIR]
 
     it "renders generated TypeScript contracts for the roster surface" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterFragmentKey ="
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterWeekScope = { kind: \"roster-week\"; venueId: VenueId; rosterGroupId: RosterGroupId; weekOffset: number };"
         frontendSurfaceContractsTypeScript `shouldContainText` "{ kind: \"roster-row\"; params: { rosterDayId: RosterDayId; rowIndex: number } }"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterIntentName = \"set-roster-layout-mode\" | \"move-roster-shift-to-slot\";"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type MoveRosterShiftToSlotIntentFields = { sourceItemKey: string; targetDropzoneKey: string; sessionKind?: string; pointerId?: string; pointerType?: string; startClientX?: string; startClientY?: string; currentClientX?: string; currentClientY?: string; deltaX?: string; deltaY?: string };"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterSessionName = \"drag\";"
         frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterSurfaceManifest"
 
     it "reports stable diagnostics for malformed reflected specs" do

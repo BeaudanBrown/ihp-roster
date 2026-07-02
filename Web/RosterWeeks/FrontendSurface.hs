@@ -21,6 +21,7 @@ module Web.RosterWeeks.FrontendSurface
     ) where
 
 import Application.Helper.FrontendSurface.DSL
+import qualified Application.Helper.FrontendSurface.Interaction as SurfaceInteraction
 import qualified Application.Helper.FrontendSurface.Roster as Surface
 import Application.Helper.FrontendSurface.Runtime
 import Application.Helper.LiveResource (LiveResource (..))
@@ -39,7 +40,8 @@ import qualified Data.UUID as UUID
 import Generated.Types
 import Web.Controller.Prelude
 import Web.RosterWeeks.Dom
-import Web.RosterWeeks.Paths (rosterWeekContentFragmentUrl,
+import Web.RosterWeeks.Paths (rosterLayoutPreferenceUrl, rosterMoveShiftUrl,
+                              rosterWeekContentFragmentUrl,
                               rosterWeekDayColumnsFragmentUrl,
                               rosterWeekDayRailFragmentUrl,
                               rosterWeekDaySectionFragmentUrl,
@@ -318,8 +320,26 @@ rosterSurfaceHandlers scope _plan =
                     , fragmentHandlerRender = const mempty
                     }
                 `HandlerCons` HandlerNil
-        , surfaceActionHandlers = HandlerNil
-        , surfaceIntentHandlers = HandlerNil
+        , surfaceActionHandlers =
+            FrontendSurfaceActionHandler
+                { actionHandlerDefaultFields = frontendSurfaceFieldValues (Aeson.object ["rosterLayoutMode" Aeson..= ("day_rows" :: Text)])
+                , actionHandlerRequest = rosterLayoutModeRequest scope
+                }
+                `HandlerCons` FrontendSurfaceActionHandler
+                    { actionHandlerDefaultFields = frontendSurfaceFieldValues (Aeson.object ["sourceItemKey" Aeson..= ("" :: Text), "targetDropzoneKey" Aeson..= ("" :: Text)])
+                    , actionHandlerRequest = rosterMoveShiftRequest scope
+                    }
+                `HandlerCons` HandlerNil
+        , surfaceIntentHandlers =
+            FrontendSurfaceIntentHandler
+                { intentHandlerDefaultFields = frontendSurfaceFieldValues (Aeson.object ["rosterLayoutMode" Aeson..= ("day_rows" :: Text)])
+                , intentHandlerForm = \fields -> FrontendSurfaceIntentForm "set-roster-layout-mode" (rosterLayoutModeRequest scope fields)
+                }
+                `HandlerCons` FrontendSurfaceIntentHandler
+                    { intentHandlerDefaultFields = frontendSurfaceFieldValues (Aeson.object ["sourceItemKey" Aeson..= ("" :: Text), "targetDropzoneKey" Aeson..= ("" :: Text)])
+                    , intentHandlerForm = \fields -> FrontendSurfaceIntentForm "move-roster-shift-to-slot" (rosterMoveShiftRequest scope fields)
+                    }
+                `HandlerCons` HandlerNil
         }
 
 rosterWeekScopeFields :: RosterWeekScopeValue -> FrontendSurfaceFieldValues '[ 'Field Surface.VenueId 'WireUUID, 'Field Surface.RosterGroupId 'WireUUID, 'Field Surface.WeekOffset 'WireInt]
@@ -329,6 +349,61 @@ rosterWeekScopeFields scope =
         , "rosterGroupId" Aeson..= tshow scope.rosterWeekGroupId
         , "weekOffset" Aeson..= scope.rosterWeekWeekOffset
         ])
+
+rosterLayoutModeRequest :: RosterWeekScopeValue -> FrontendSurfaceFieldValues '[ 'Field Surface.RosterLayoutMode 'WireText] -> FrontendSurfaceHtmxRequest
+rosterLayoutModeRequest scope fields =
+    FrontendSurfaceHtmxRequest
+        { htmxRequestName = "set-roster-layout-mode"
+        , htmxRequestMethod = FrontendSurfacePost
+        , htmxRequestUrl = rosterLayoutPreferenceUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId
+        , htmxRequestTarget = "#" <> rosterContentFragmentId
+        , htmxRequestSwap = "none"
+        , htmxRequestFields =
+            [ FrontendSurfaceFieldValue "rosterLayoutMode" (fromMaybe "day_rows" (getSurfaceField @Surface.RosterLayoutMode fields))
+            ]
+        }
+
+rosterMoveShiftRequest :: RosterWeekScopeValue -> FrontendSurfaceFieldValues DragDropFieldSpecs -> FrontendSurfaceHtmxRequest
+rosterMoveShiftRequest scope fields =
+    FrontendSurfaceHtmxRequest
+        { htmxRequestName = "move-roster-shift-to-slot"
+        , htmxRequestMethod = FrontendSurfacePost
+        , htmxRequestUrl = rosterMoveShiftUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId
+        , htmxRequestTarget = "#" <> rosterContentFragmentId
+        , htmxRequestSwap = "none"
+        , htmxRequestFields =
+            [ FrontendSurfaceFieldValue "sourceItemKey" (fromMaybe "" (getSurfaceField @SurfaceInteraction.SourceItemKey fields))
+            , FrontendSurfaceFieldValue "targetDropzoneKey" (fromMaybe "" (getSurfaceField @SurfaceInteraction.TargetDropzoneKey fields))
+            ]
+                <> optionalRequestField "sessionKind" (join (getSurfaceField @SurfaceInteraction.SessionKind fields))
+                <> optionalRequestField "pointerId" (join (getSurfaceField @SurfaceInteraction.PointerId fields))
+                <> optionalRequestField "pointerType" (join (getSurfaceField @SurfaceInteraction.PointerType fields))
+                <> optionalRequestField "startClientX" (join (getSurfaceField @SurfaceInteraction.StartClientX fields))
+                <> optionalRequestField "startClientY" (join (getSurfaceField @SurfaceInteraction.StartClientY fields))
+                <> optionalRequestField "currentClientX" (join (getSurfaceField @SurfaceInteraction.CurrentClientX fields))
+                <> optionalRequestField "currentClientY" (join (getSurfaceField @SurfaceInteraction.CurrentClientY fields))
+                <> optionalRequestField "deltaX" (join (getSurfaceField @SurfaceInteraction.DeltaX fields))
+                <> optionalRequestField "deltaY" (join (getSurfaceField @SurfaceInteraction.DeltaY fields))
+        }
+
+optionalRequestField :: Text -> Maybe Text -> [FrontendSurfaceFieldValue]
+optionalRequestField name = \case
+    Nothing -> []
+    Just value -> [FrontendSurfaceFieldValue name value]
+
+type DragDropFieldSpecs =
+    '[ 'Field SurfaceInteraction.SourceItemKey 'WireText
+     , 'Field SurfaceInteraction.TargetDropzoneKey 'WireText
+     , 'OptionalField SurfaceInteraction.SessionKind 'WireText
+     , 'OptionalField SurfaceInteraction.PointerId 'WireText
+     , 'OptionalField SurfaceInteraction.PointerType 'WireText
+     , 'OptionalField SurfaceInteraction.StartClientX 'WireText
+     , 'OptionalField SurfaceInteraction.StartClientY 'WireText
+     , 'OptionalField SurfaceInteraction.CurrentClientX 'WireText
+     , 'OptionalField SurfaceInteraction.CurrentClientY 'WireText
+     , 'OptionalField SurfaceInteraction.DeltaX 'WireText
+     , 'OptionalField SurfaceInteraction.DeltaY 'WireText
+     ]
 
 placeholderRosterDayId :: UUID.UUID
 placeholderRosterDayId = fromMaybe (error "invalid placeholder roster day id") (UUID.fromString "00000000-0000-0000-0000-000000000000")
