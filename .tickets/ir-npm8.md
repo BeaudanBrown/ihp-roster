@@ -28,3 +28,7 @@ A concrete transport/request metadata contract exists before lab/runtime work; d
 **2026-07-02T05:22:33Z**
 
 Started transport design pass after naming foundation. Current runtime merges subscriptions by scopeKey and suppresses websocket invalidations where sourceClientId matches activeClientId; actor refresh currently reaches the initiating tab through direct HTMX/OOB responses or the liveFragmentsRefresh event, not through the passive websocket path. This exposes the first pause-and-decide area: choose the new successful actor mutation refresh semantics before specifying mount-local transport.
+
+**2026-07-02T05:59:32Z**
+
+Recorded the mount-resolved transport contract in docs/workstreams/type-level-frontend-surfaces.md: successful mutations plan once, deliver actor-local invalidation via HTMX response plus websocket invalidation tagged with sourceClientId, suppress actor websocket echo, and resolve semantic surface/scope/fragment invalidations through mount-local config for duplicate mounts. Validation failures remain direct local responses.
