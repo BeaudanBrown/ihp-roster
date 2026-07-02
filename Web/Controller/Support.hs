@@ -27,6 +27,8 @@ import Data.Coerce (coerce)
 import qualified Data.Text as Text
 import Web.Controller.Prelude
 import Web.LiveResourceInvalidation (invalidateTouchedResources)
+import Web.Support.FrontendSurfaceLab (renderSurfaceLabPanelFragment)
+import Web.View.Support.FrontendSurfaceLab
 import Web.View.Support.Index
 
 instance Controller SupportController where
@@ -47,6 +49,21 @@ instance Controller SupportController where
         SupportUnreadFeedbackCount unreadFeedbackCount <- fetchSupportUnreadFeedbackCount
         let onboardingInvitation = buildSupportVenueOnboardingInvitationForm
         render IndexView { .. }
+
+    action currentAction@FrontendSurfaceLabAction = runBepis currentAction BepisPageAction do
+        render FrontendSurfaceLabView
+
+    action currentAction@ShowFrontendSurfaceLabPanelFragmentAction { panelId } = runBepis currentAction BepisPageAction do
+        respondHtml (renderSurfaceLabPanelFragment panelId "Loaded through the lab fragment GET endpoint.")
+
+    action currentAction@RefreshFrontendSurfaceLabPanelAction = runBepis currentAction BepisPageAction do
+        let panelId = paramOrDefault @Text "11111111-1111-1111-1111-111111111111" "panelId"
+        respondHtml (renderSurfaceLabPanelFragment panelId "Refreshed through minimal SurfaceImpl HTMX action metadata.")
+
+    action currentAction@MoveFrontendSurfaceLabCardAction = runBepis currentAction BepisPageAction do
+        let sourceItemKey = paramOrDefault @Text "unknown-source" "sourceItemKey"
+        let targetDropzoneKey = paramOrDefault @Text "unknown-target" "targetDropzoneKey"
+        respondHtml (renderSurfaceLabPanelFragment "11111111-1111-1111-1111-111111111111" ("Intent accepted: " <> sourceItemKey <> " -> " <> targetDropzoneKey))
 
     action currentAction@ShowFwcMapdAwardRatesSectionAction = runBepis currentAction BepisPageAction $
         serveTypedLiveFragment supportLiveSurfaceDefinition () SupportAwardRatesLiveFragment \_ -> do

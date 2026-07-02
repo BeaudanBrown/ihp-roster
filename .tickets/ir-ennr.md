@@ -66,3 +66,7 @@ Started foundation implementation after naming, transport, coexistence, and arch
 **2026-07-02T06:04:21Z**
 
 Added compile-only FrontendSurface DSL foundation and support lab spec covering every initial primitive plus helper bundle expansion through Concat/Append. Registered the lab in RegisteredFrontendSurfaces. Verification: hspec-test compiled the new modules but DB reset is blocked by missing local postgres socket; direct build/Test/Main --match 'FrontendSurface DSL' passed. Pausing before runtime lab mount because the minimal SurfaceImpl shape is the next design decision.
+
+**2026-07-02T06:20:25Z**
+
+Added minimal SurfaceImpl runtime scaffold and support-only FrontendSurface lab page/actions. Lab route uses SupportController super-admin gate, mounts via SurfaceImpl SurfaceLabSurface, renders mount-local config (not data-live-update-surface), lazy panel placeholder/refetch, HTMX refresh action metadata, and move-card intent form metadata. Verification: typecheck passed; hspec-test --match 'FrontendSurface DSL' compiles but DB reset is blocked by missing local postgres socket; direct build/Test/Main focused runs passed.
