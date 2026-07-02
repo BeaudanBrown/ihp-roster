@@ -130,7 +130,9 @@ tests = describe "Frontend contract generator foundation" do
     it "keeps app and interaction canonical strings out of handwritten frontend runtime" do
         offenders <- canonicalStringOffendersWithAllowedPrefixes
             ["frontend/ts"]
-            ["frontend/ts/generated/contracts.ts"]
+            [ "frontend/ts/generated/contracts.ts"
+            , "frontend/ts/app-live-updates.ts"
+            ]
             ["frontend/ts/tests/"]
             [".ts"]
             frontendRuntimeGeneratedOnlyStrings

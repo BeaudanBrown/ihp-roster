@@ -58,11 +58,12 @@ import Application.Helper.Frontend.Generic (FrontendNullable (..),
 import Application.Helper.Frontend.Options (FrontendCodecOptions (..),
                                             camelToKebabLower,
                                             defaultFrontendCodecOptions)
+import qualified Application.Helper.FrontendSurface.ContractIR as SurfaceIR
+import Application.Helper.FrontendSurface.Contracts (registeredFrontendSurfaceContractIR)
 import qualified Application.Helper.Interaction as Interaction
 import qualified Data.Aeson as Aeson
 import GHC.Generics (Generic)
 import IHP.Prelude
-import Web.RosterWeeks.LiveSurface (rosterInteractionStaticSchema)
 
 newtype InteractionDomAttribute = InteractionDomAttribute { unInteractionDomAttribute :: Text }
     deriving (Eq, Show)
@@ -493,7 +494,7 @@ canonicalInteractionDomDto = interactionDomDto Interaction.canonicalInteractionD
 
 interactionStaticSchemasDto :: InteractionStaticSchemaRegistry
 interactionStaticSchemasDto = InteractionStaticSchemaRegistry
-    { roster = interactionStaticSchemaDto rosterInteractionStaticSchema }
+    { roster = frontendSurfaceInteractionStaticSchemaDto (expectFrontendSurface "roster") }
 
 interactionDomDto :: Interaction.InteractionDom -> InteractionDom
 interactionDomDto dom = InteractionDom
@@ -562,6 +563,108 @@ interactionPointerFieldsDto fields = InteractionPointerFields
     , sourceItemKey = fields.interactionPointerSourceItemKeyField
     , targetDropzoneKey = fields.interactionPointerTargetDropzoneKeyField
     }
+
+frontendSurfaceInteractionStaticSchemaDto :: SurfaceIR.SurfaceIR -> InteractionStaticSchema
+frontendSurfaceInteractionStaticSchemaDto surface = InteractionStaticSchema
+    { serverLayers = []
+    , disposableLayers = fmap surfaceDisposableLayerDto surface.surfaceLayers
+    , sessionKinds = fmap (surfaceSessionKindDto surface) surface.surfaceSessions
+    , intents = fmap surfaceIntentDto surface.surfaceIntents
+    , conflictPolicies = fmap surfaceConflictPolicyDto surface.surfacePolicies
+    }
+
+surfaceDisposableLayerDto :: Text -> InteractionStaticDisposableLayer
+surfaceDisposableLayerDto name = InteractionStaticDisposableLayer
+    { name = InteractionDisposableLayerName name
+    , domIdSuffix = name
+    }
+
+surfaceSessionKindDto :: SurfaceIR.SurfaceIR -> Text -> InteractionStaticSessionKind
+surfaceSessionKindDto surface sessionName = InteractionStaticSessionKind
+    { kind = InteractionSessionKindName sessionName
+    , description = surfaceSessionDescription surface.surfaceName sessionName
+    , effects = surfaceSessionEffectsDto surface.surfaceEffects
+    }
+
+surfaceSessionDescription :: Text -> Text -> Text
+surfaceSessionDescription "roster" "drag" = "Roster drag/drop prototype"
+surfaceSessionDescription surfaceName sessionName = surfaceName <> " " <> sessionName <> " interaction session"
+
+surfaceSessionEffectsDto :: [(Text, [SurfaceIR.OptionIR])] -> InteractionSessionEffects
+surfaceSessionEffectsDto effects = InteractionSessionEffects
+    { global = mapMaybe surfaceGlobalEffectDto effects
+    , contextual = mapMaybe surfaceContextualEffectDto effects
+    }
+
+surfaceGlobalEffectDto :: (Text, [SurfaceIR.OptionIR]) -> Maybe InteractionSessionEffect
+surfaceGlobalEffectDto ("clone-shadow", options) = Just CloneShadow
+    { layer = InteractionDisposableLayerName (fromMaybe "drag-preview" (firstLayerOption options))
+    , source = InteractionEffectSource "pointer-marker"
+    , className = "bepis-pointer-clone-shadow"
+    , preserveGrabOffset = True
+    }
+surfaceGlobalEffectDto _ = Nothing
+
+surfaceContextualEffectDto :: (Text, [SurfaceIR.OptionIR]) -> Maybe InteractionSessionEffect
+surfaceContextualEffectDto ("dropzone-highlight", _) = Just DropzoneHighlight
+    { className = "bepis-dropzone-highlight"
+    }
+surfaceContextualEffectDto _ = Nothing
+
+firstLayerOption :: [SurfaceIR.OptionIR] -> Maybe Text
+firstLayerOption options = listToMaybe (mapMaybe layerName options)
+    where
+        layerName = \case
+            SurfaceIR.LayerOption layer -> Just layer
+            _ -> Nothing
+
+surfaceIntentDto :: SurfaceIR.IntentIR -> InteractionStaticIntent
+surfaceIntentDto intent = InteractionStaticIntent
+    { name = InteractionIntentName intent.intentName
+    , fields = fmap surfaceIntentFieldDto intent.intentFields
+    }
+
+surfaceIntentFieldDto :: SurfaceIR.FieldIR -> IntentFieldSchema
+surfaceIntentFieldDto field = IntentFieldSchema
+    { name = InteractionIntentFieldName field.fieldName
+    , presence = surfaceFieldPresenceDto field.fieldPresence
+    , defaultValue = FrontendOptional (Just (FrontendNullable Nothing))
+    }
+
+surfaceFieldPresenceDto :: SurfaceIR.FieldPresence -> InteractionFieldPresence
+surfaceFieldPresenceDto SurfaceIR.RequiredField         = Required
+surfaceFieldPresenceDto SurfaceIR.OptionalFieldPresence = Optional
+surfaceFieldPresenceDto SurfaceIR.NullableFieldPresence = Optional
+
+surfaceConflictPolicyDto :: SurfaceIR.ConflictPolicyIR -> InteractionConflictPolicy
+surfaceConflictPolicyDto policy = InteractionConflictPolicy
+    { session = surfaceSessionSelectorDto policy.conflictPolicySession
+    , fragment = surfaceFragmentSelectorDto policy.conflictPolicyFragment
+    , resolution = surfaceConflictResolutionDto policy.conflictPolicyResolution
+    , timeoutMs = FrontendOptional (Just (FrontendNullable (surfaceConflictPolicyTimeout policy)))
+    }
+
+surfaceSessionSelectorDto :: SurfaceIR.SessionSelectorIR -> InteractionSessionSelector
+surfaceSessionSelectorDto SurfaceIR.AnySessionIR = Any
+surfaceSessionSelectorDto (SurfaceIR.SessionKindIR sessionName) = Session
+    { session = InteractionSessionKindName sessionName
+    }
+
+surfaceFragmentSelectorDto :: SurfaceIR.FragmentSelectorIR -> InteractionFragmentSelector
+surfaceFragmentSelectorDto SurfaceIR.AnyFragmentIR        = AnyFragment
+surfaceFragmentSelectorDto SurfaceIR.FragmentKindIR {}    = AnyFragment
+surfaceFragmentSelectorDto SurfaceIR.FragmentSubtreeIR {} = AnyFragment
+
+surfaceConflictResolutionDto :: SurfaceIR.ConflictResolutionIR -> InteractionConflictResolution
+surfaceConflictResolutionDto SurfaceIR.ApplyIR  = Apply
+surfaceConflictResolutionDto SurfaceIR.DeferIR  = Defer
+surfaceConflictResolutionDto SurfaceIR.CancelIR = Cancel
+
+surfaceConflictPolicyTimeout :: SurfaceIR.ConflictPolicyIR -> Maybe Int
+surfaceConflictPolicyTimeout policy =
+    case policy.conflictPolicyResolution of
+        SurfaceIR.DeferIR -> Just 5000
+        _                 -> Nothing
 
 interactionStaticSchemaDto :: Eq session => Interaction.InteractionStaticSchema fragment layer session intent -> InteractionStaticSchema
 interactionStaticSchemaDto schema = InteractionStaticSchema
@@ -714,16 +817,23 @@ data KnownInteractionSchema = KnownInteractionSchema
     , intentFieldNames     :: ![Text]
     }
 
-knownInteractionSchemas :: [KnownInteractionSchema]
-knownInteractionSchemas = [knownSchema "roster" rosterInteractionStaticSchema]
+expectFrontendSurface :: Text -> SurfaceIR.SurfaceIR
+expectFrontendSurface surfaceName =
+    registeredFrontendSurfaceContractIR.contractSurfaces
+        |> find (\surface -> surface.surfaceName == surfaceName)
+        |> fromMaybe (error ("Missing FrontendSurface interaction schema for " <> cs surfaceName))
 
-knownSchema :: Text -> Interaction.InteractionStaticSchema fragment layer session intent -> KnownInteractionSchema
-knownSchema familyName schema = KnownInteractionSchema
-    { familyName
-    , disposableLayerNames = fmap (.disposableLayerName) schema.interactionStaticDisposableLayers
-    , sessionKindNames = fmap (.sessionKindName) schema.interactionStaticSessionKinds
-    , intentNames = fmap (.interactionIntentSchemaName) schema.interactionStaticIntents
-    , intentFieldNames = unique (concatMap (fmap (Interaction.unIntentFieldName . (.intentFieldName)) . (.interactionIntentSchemaFields)) schema.interactionStaticIntents)
+knownInteractionSchemas :: [KnownInteractionSchema]
+knownInteractionSchemas =
+    [knownFrontendSurfaceSchema (expectFrontendSurface "roster")]
+
+knownFrontendSurfaceSchema :: SurfaceIR.SurfaceIR -> KnownInteractionSchema
+knownFrontendSurfaceSchema surface = KnownInteractionSchema
+    { familyName = surface.surfaceName
+    , disposableLayerNames = surface.surfaceLayers
+    , sessionKindNames = surface.surfaceSessions
+    , intentNames = fmap (.intentName) surface.surfaceIntents
+    , intentFieldNames = unique (concatMap (fmap (.fieldName) . (.intentFields)) surface.surfaceIntents)
     }
 
 textNewtypeEnumCodec :: Text -> [Text] -> (Text -> a) -> (a -> Text) -> FrontendCodec a

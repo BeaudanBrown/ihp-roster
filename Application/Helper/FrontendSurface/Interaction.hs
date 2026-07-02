@@ -73,7 +73,7 @@ type DragDropInteraction (intent :: Type) (targetFragment :: Type) =
      , InteractionEffect DropzoneHighlight '[]
      , HtmxAction intent DragDropFields '[ 'Target targetFragment ]
      , Intent intent DragDropFields '[ 'SessionOption DragSession, 'BackedBy intent ]
-     , ConflictPolicyFor 'AnySession 'AnyFragment 'Defer
+     , ConflictPolicyFor ('SessionKind DragSession) 'AnyFragment 'Defer
      ]
 
 type LayoutModeInteraction (intent :: Type) (targetFragment :: Type) (layoutModeField :: Type) =

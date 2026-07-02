@@ -201,7 +201,7 @@ rosterRawRegistry =
             , raw "InteractionEffect" [marker "DropzoneHighlight", promotedList []]
             , raw "HtmxAction" [marker "MoveRosterShiftToSlot", promotedList dragDropFieldsRaw, promotedList [raw "Target" [marker "RosterContent"]]]
             , raw "Intent" [marker "MoveRosterShiftToSlot", promotedList dragDropFieldsRaw, promotedList [raw "SessionOption" [marker "DragSession"], raw "BackedBy" [marker "MoveRosterShiftToSlot"]]]
-            , raw "ConflictPolicy" [raw "AnySession" [], raw "AnyFragment" [], raw "Defer" []]
+            , raw "ConflictPolicy" [raw "SessionKind" [marker "DragSession"], raw "AnyFragment" [], raw "Defer" []]
             ]
         ]
 

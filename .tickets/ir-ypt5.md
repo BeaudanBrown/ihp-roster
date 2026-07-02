@@ -58,3 +58,7 @@ First Roster FrontendSurface slice landed: added type-level RosterSurface with r
 **2026-07-02T10:46:44Z**
 
 Interaction DSL slice: added reusable FrontendSurface interaction sugar for drag/drop and layout-mode intents, then composed it into RosterSurface. Roster now declares sessions, disposable layer, effects, htmx actions, intents, and conflict policy through FrontendSurface; SurfaceImpl now exposes typed action/intent metadata for roster layout mode and move-shift intents. Next decision point is how to project FrontendSurface interaction effects/policies into the existing generated TypeScript interaction runtime shape, including whether to add timeout/options to FrontendSurface conflict policies before replacing Roster's old InteractionStaticSchema authoring.
+
+**2026-07-02T10:56:50Z**
+
+Mirrored the existing generated InteractionStaticSchema shape from FrontendSurface Roster contracts: Interaction DTO generation now derives roster sessions/layers/intents/effects/conflict policy from registered FrontendSurface IR instead of Web.RosterWeeks.LiveSurface.rosterInteractionStaticSchema. Roster output remains wire-compatible with existing TS runtime, including clone-shadow/dropzone-highlight effect payloads and 5000ms defer timeout. Next decision point: replace runtime mount/render helpers that still consume old InteractionCapability with FrontendSurface-derived interaction capability/forms, then remove Roster's old interaction schema authoring.
