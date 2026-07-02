@@ -1,6 +1,6 @@
 ---
 id: ir-aleo
-status: in_progress
+status: closed
 deps: [ir-4hu6, ir-xopg, ir-8w6w, ir-yupd, ir-ycec]
 links: []
 created: 2026-07-02T02:47:03Z
