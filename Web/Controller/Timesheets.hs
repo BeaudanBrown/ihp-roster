@@ -1,7 +1,6 @@
 module Web.Controller.Timesheets where
 
 import Application.Helper.LiveResource (LiveMutationResult (..))
-import Application.Helper.LiveSurface (serveTypedLiveFragment)
 import Web.Controller.Prelude
 import Web.Timesheets.Mutations
 import Web.Timesheets.Paths (timesheetWeekUrl)
@@ -32,30 +31,18 @@ instance Controller TimesheetsController where
     action currentAction@ShowTimesheetToolbarFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         let requestKey = TimesheetProjectionRequest weekOffset showApproved showAllStaff selectedStaffFilterId
-        serveTypedLiveFragment
-            timesheetLiveSurfaceDefinition
-            requestKey
-            TimesheetProjectionToolbar
-            \_ -> respondWithTimesheetFragment requestKey TimesheetProjectionToolbar
+        respondWithTimesheetFragment requestKey TimesheetProjectionToolbar
 
     action currentAction@ShowTimesheetDayColumnsFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         let requestKey = TimesheetProjectionRequest weekOffset showApproved showAllStaff selectedStaffFilterId
-        serveTypedLiveFragment
-            timesheetLiveSurfaceDefinition
-            requestKey
-            TimesheetProjectionDayColumns
-            \_ -> respondWithTimesheetFragment requestKey TimesheetProjectionDayColumns
+        respondWithTimesheetFragment requestKey TimesheetProjectionDayColumns
 
     action currentAction@ShowTimesheetDaySectionFragmentAction { weekOffset, dayOffset } = runBepis currentAction BepisFragmentAction do
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         let requestKey = TimesheetProjectionRequest weekOffset showApproved showAllStaff selectedStaffFilterId
         let fragment = TimesheetProjectionDaySection dayOffset
-        serveTypedLiveFragment
-            timesheetLiveSurfaceDefinition
-            requestKey
-            fragment
-            \_ -> respondWithTimesheetFragment requestKey fragment
+        respondWithTimesheetFragment requestKey fragment
 
     action currentAction@NewTimesheetEntryAction = runBepis currentAction BepisFormAction do
         weekOffset <- weekOffsetFromParamOrCurrent

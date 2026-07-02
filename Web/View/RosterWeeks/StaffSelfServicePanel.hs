@@ -7,16 +7,18 @@ module Web.View.RosterWeeks.StaffSelfServicePanel
     , rosterStaffSelfServiceTimesheetLiveSurfaceId
     ) where
 
+import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceMountedFragment (..))
 import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
-                                       TypedLiveSurfaceDefinition (..),
-                                       liveSurfaceConfigJson,
-                                       mkTypedDefinedLiveSurface)
+                                       liveSurfaceConfigJson)
 import Application.Helper.Url (appendQueryParams)
 import Data.Time.Calendar (diffDays)
 import Web.RosterWeeks.Types (RosterStaffSelfServicePanel (..))
-import Web.Timesheets.Projection (TimesheetProjectionFragment (..),
-                                  TimesheetProjectionRequest (..),
-                                  timesheetLiveSurfaceDefinition)
+import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
+                                       TimesheetsMountStateValue (..),
+                                       timesheetsCandidateMountedFragments,
+                                       timesheetsLegacyLiveSurfaceConfig,
+                                       timesheetsSurfaceImpl,
+                                       timesheetsSurfaceWireFragments)
 import Web.View.LeaveRequests.New (renderLeaveRequestFormFields)
 import Web.View.Prelude
 import Web.View.Timesheets.Index (TimesheetDayRenderModel (..),
@@ -115,20 +117,22 @@ timesheetDayModel panel =
 
 timesheetLiveSurface :: (?context :: ControllerContext) => RosterStaffSelfServicePanel -> LiveSurfaceConfig
 timesheetLiveSurface panel =
-    mkTypedDefinedLiveSurface
-        timesheetLiveSurfaceDefinition
-            { typedSurfaceDefaultFragments = const [TimesheetProjectionDaySection (quickToolsTimesheetDayOffset panel)]
+    let scope = TimesheetWeekScopeValue
+            { timesheetWeekVenueId = unpackId panel.quickToolsVenueId
+            , timesheetWeekWeekOffset = panel.quickToolsTimesheetWeekOffset
             }
-        (timesheetProjectionRequest panel)
-
-timesheetProjectionRequest :: RosterStaffSelfServicePanel -> TimesheetProjectionRequest
-timesheetProjectionRequest panel =
-    TimesheetProjectionRequest
-        { projectionWeekOffset = panel.quickToolsTimesheetWeekOffset
-        , projectionShowApproved = True
-        , projectionShowAllStaff = False
-        , projectionStaffFilterId = Nothing
-        }
+        mountState = TimesheetsMountStateValue
+            { timesheetsMountShowApproved = True
+            , timesheetsMountShowAllStaff = False
+            , timesheetsMountStaffFilterId = Nothing
+            }
+        impl = timesheetsSurfaceImpl scope mountState
+        dayTargetId = "timesheet-day-section-" <> tshow (quickToolsTimesheetDayOffset panel)
+        dayFragment = filter (\fragment -> fragment.mountedFragmentTargetId == dayTargetId) (timesheetsCandidateMountedFragments scope mountState)
+     in (timesheetsLegacyLiveSurfaceConfig impl scope)
+            { resyncFragments = timesheetsSurfaceWireFragments dayFragment
+            , decorateRequestsWithin = ["#" <> rosterStaffSelfServiceTimesheetLiveSurfaceId]
+            }
 
 quickToolsTimesheetDayOffset :: RosterStaffSelfServicePanel -> Int
 quickToolsTimesheetDayOffset panel =

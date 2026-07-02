@@ -5,15 +5,31 @@
 module Web.Timesheets.FrontendSurface
     ( TimesheetWeekScopeValue (..)
     , TimesheetsMountStateValue (..)
+    , TimesheetSurfaceFragment (..)
+    , timesheetsAffectedMountedFragments
+    , timesheetsCandidateMountedFragments
+    , timesheetsFragmentDependencies
+    , timesheetsLegacyLiveSurfaceConfig
+    , timesheetsLiveUpdateScope
     , timesheetsSurfaceImpl
     , timesheetsSurfaceMountConfig
     , timesheetsSurfaceScopeKey
+    , timesheetsSurfaceWireFragments
     ) where
 
 import Application.Helper.FrontendSurface.DSL
 import Application.Helper.FrontendSurface.Runtime
 import qualified Application.Helper.FrontendSurface.Timesheets as Surface
+import Application.Helper.LiveResource (LiveResource (..))
+import Application.Helper.LiveSurface (LiveSurfaceConfig (..))
+import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..),
+                                              LiveFragmentProtection (..),
+                                              LiveUpdateScope (..),
+                                              LiveUpdateWireFragment (..),
+                                              liveUpdateScopeKey)
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson
+import qualified Data.Set as Set
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 import Web.Timesheets.Paths (timesheetDayColumnsFragmentUrl,
@@ -22,6 +38,12 @@ import Web.Timesheets.Paths (timesheetDayColumnsFragmentUrl,
 import Web.View.Timesheets.Index (timesheetDayColumnsId,
                                   timesheetDaySectionDomId,
                                   timesheetWeekToolbarId)
+
+data TimesheetSurfaceFragment
+    = TimesheetSurfaceToolbar
+    | TimesheetSurfaceDayColumns
+    | TimesheetSurfaceDaySection !Int
+    deriving (Eq, Show)
 
 -- | Logical live invalidation scope. Filter/query state intentionally lives in
 -- 'TimesheetsMountStateValue' instead of the scope so a future mount-state store
@@ -39,11 +61,11 @@ data TimesheetsMountStateValue = TimesheetsMountStateValue
     }
     deriving (Eq, Show)
 
-timesheetsSurfaceImpl :: (?context :: ControllerContext) => TimesheetWeekScopeValue -> TimesheetsMountStateValue -> SurfaceImpl Surface.TimesheetsSurface
+timesheetsSurfaceImpl :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> SurfaceImpl Surface.TimesheetsSurface
 timesheetsSurfaceImpl scope mountState =
     mkSurfaceImpl "timesheets" (timesheetsSurfaceMountConfig scope mountState) (timesheetsSurfaceHandlers scope mountState)
 
-timesheetsSurfaceMountConfig :: (?context :: ControllerContext) => TimesheetWeekScopeValue -> TimesheetsMountStateValue -> FrontendSurfaceMountConfig
+timesheetsSurfaceMountConfig :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> FrontendSurfaceMountConfig
 timesheetsSurfaceMountConfig scope mountState =
     FrontendSurfaceMountConfig
         { mountSurfaceName = "timesheets"
@@ -61,7 +83,96 @@ timesheetsSurfaceScopeKey :: TimesheetWeekScopeValue -> Text
 timesheetsSurfaceScopeKey scope =
     "timesheets:" <> tshow scope.timesheetWeekVenueId <> ":" <> tshow scope.timesheetWeekWeekOffset
 
-timesheetsSurfaceHandlers :: (?context :: ControllerContext) => TimesheetWeekScopeValue -> TimesheetsMountStateValue -> SurfaceImplHandlers Surface.TimesheetsSurface
+timesheetsLiveUpdateScope :: TimesheetWeekScopeValue -> LiveUpdateScope
+timesheetsLiveUpdateScope scope =
+    TimesheetWeekScope
+        { venueId = scope.timesheetWeekVenueId
+        , weekOffset = scope.timesheetWeekWeekOffset
+        }
+
+timesheetsLegacyLiveSurfaceConfig :: SurfaceImpl Surface.TimesheetsSurface -> TimesheetWeekScopeValue -> LiveSurfaceConfig
+timesheetsLegacyLiveSurfaceConfig impl scope =
+    let wireScope = timesheetsLiveUpdateScope scope
+     in LiveSurfaceConfig
+            { feature = "timesheets"
+            , socketPath = "/live-updates"
+            , scope = wireScope
+            , scopeKey = liveUpdateScopeKey wireScope
+            , resyncFragments = timesheetsSurfaceWireFragments impl.surfaceImplMountConfig.mountFragments
+            , decorateRequestsWithin = ["#" <> timesheetDayColumnsId, "#roster-staff-self-service-timesheet-live-surface"]
+            }
+
+timesheetsSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment]
+timesheetsSurfaceWireFragments =
+    mapMaybe mountedFragmentToWireFragment
+
+timesheetsCandidateMountedFragments :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> [FrontendSurfaceMountedFragment]
+timesheetsCandidateMountedFragments scope mountState =
+    [ timesheetToolbarMountedFragment mountState scope.timesheetWeekWeekOffset
+    , timesheetDayColumnsMountedFragment mountState scope.timesheetWeekWeekOffset
+    ] <> map (timesheetDaySectionMountedFragment mountState scope.timesheetWeekWeekOffset) [0 .. 6]
+
+timesheetsAffectedMountedFragments :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> Set.Set LiveResource -> [FrontendSurfaceMountedFragment]
+timesheetsAffectedMountedFragments scope mountState touchedResources =
+    timesheetsCandidateMountedFragments scope mountState
+        |> filter (fragmentDependsOnTouchedResource scope touchedResources . mountedFragmentToSurfaceFragment)
+
+mountedFragmentToSurfaceFragment :: FrontendSurfaceMountedFragment -> TimesheetSurfaceFragment
+mountedFragmentToSurfaceFragment fragment =
+    case fragment.mountedFragmentKey.fragmentKind of
+        "timesheet-toolbar" -> TimesheetSurfaceToolbar
+        "timesheet-day-columns" -> TimesheetSurfaceDayColumns
+        "timesheet-day-section" ->
+            TimesheetSurfaceDaySection (fromMaybe 0 (parseFragmentDayOffset fragment.mountedFragmentKey.fragmentParams))
+        _ -> TimesheetSurfaceDayColumns
+
+parseFragmentDayOffset :: Aeson.Value -> Maybe Int
+parseFragmentDayOffset value =
+    Aeson.parseMaybe (Aeson.withObject "TimesheetDaySectionFragment" (.: "dayOffset")) value
+
+fragmentDependsOnTouchedResource :: TimesheetWeekScopeValue -> Set.Set LiveResource -> TimesheetSurfaceFragment -> Bool
+fragmentDependsOnTouchedResource scope touchedResources fragment =
+    not (Set.null (Set.intersection touchedResources (Set.fromList (timesheetsFragmentDependencies scope fragment))))
+
+timesheetsFragmentDependencies :: TimesheetWeekScopeValue -> TimesheetSurfaceFragment -> [LiveResource]
+timesheetsFragmentDependencies scope TimesheetSurfaceToolbar =
+    [ TimesheetWeekResource scope.timesheetWeekVenueId scope.timesheetWeekWeekOffset
+    , TimesheetWeekBoundaryConfigResource scope.timesheetWeekVenueId
+    ]
+timesheetsFragmentDependencies scope TimesheetSurfaceDayColumns =
+    [ TimesheetWeekResource scope.timesheetWeekVenueId scope.timesheetWeekWeekOffset
+    , TimesheetWeekBoundaryConfigResource scope.timesheetWeekVenueId
+    ]
+timesheetsFragmentDependencies scope (TimesheetSurfaceDaySection dayOffset) =
+    [ TimesheetDayResource scope.timesheetWeekVenueId scope.timesheetWeekWeekOffset dayOffset
+    , TimesheetWeekBoundaryConfigResource scope.timesheetWeekVenueId
+    ]
+
+mountedFragmentToWireFragment :: FrontendSurfaceMountedFragment -> Maybe LiveUpdateWireFragment
+mountedFragmentToWireFragment fragment = do
+    fragmentKey <- mountedFragmentLiveKey fragment
+    pure LiveUpdateWireFragment
+        { fragmentKey
+        , targetId = fragment.mountedFragmentTargetId
+        , url = fragment.mountedFragmentUrl
+        , deferUntilBlur = False
+        , protectionPolicy = mountedFragmentProtectionPolicy fragment.mountedFragmentProtection
+        }
+
+mountedFragmentLiveKey :: FrontendSurfaceMountedFragment -> Maybe LiveFragmentKey
+mountedFragmentLiveKey fragment =
+    case fragment.mountedFragmentKey.fragmentKind of
+        "timesheet-toolbar" -> Just TimesheetToolbarFragment
+        "timesheet-day-columns" -> Just TimesheetDayColumnsFragment
+        "timesheet-day-section" -> TimesheetDaySectionFragment <$> parseFragmentDayOffset fragment.mountedFragmentKey.fragmentParams
+        _ -> Nothing
+
+mountedFragmentProtectionPolicy :: FrontendSurfaceProtection -> LiveFragmentProtection
+mountedFragmentProtectionPolicy = \case
+    FrontendSurfaceReplace -> NoProtection
+    FrontendSurfaceFocusedField -> NoProtection
+
+timesheetsSurfaceHandlers :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> SurfaceImplHandlers Surface.TimesheetsSurface
 timesheetsSurfaceHandlers scope mountState =
     SurfaceImplHandlers
         { surfaceScopeHandlers =
@@ -119,7 +230,7 @@ timesheetsMountStateJson mountState =
         , "staffFilterId" Aeson..= fmap tshow mountState.timesheetsMountStaffFilterId
         ]
 
-timesheetToolbarMountedFragment :: (?context :: ControllerContext) => TimesheetsMountStateValue -> Int -> FrontendSurfaceMountedFragment
+timesheetToolbarMountedFragment :: TimesheetsMountStateValue -> Int -> FrontendSurfaceMountedFragment
 timesheetToolbarMountedFragment mountState weekOffset =
     FrontendSurfaceMountedFragment
         { mountedFragmentKey = FrontendSurfaceFragmentKey "timesheet-toolbar" Aeson.Null
@@ -129,7 +240,7 @@ timesheetToolbarMountedFragment mountState weekOffset =
         , mountedFragmentLoadPolicy = "eager"
         }
 
-timesheetDayColumnsMountedFragment :: (?context :: ControllerContext) => TimesheetsMountStateValue -> Int -> FrontendSurfaceMountedFragment
+timesheetDayColumnsMountedFragment :: TimesheetsMountStateValue -> Int -> FrontendSurfaceMountedFragment
 timesheetDayColumnsMountedFragment mountState weekOffset =
     FrontendSurfaceMountedFragment
         { mountedFragmentKey = FrontendSurfaceFragmentKey "timesheet-day-columns" Aeson.Null
@@ -139,7 +250,7 @@ timesheetDayColumnsMountedFragment mountState weekOffset =
         , mountedFragmentLoadPolicy = "eager"
         }
 
-timesheetDaySectionMountedFragment :: (?context :: ControllerContext) => TimesheetsMountStateValue -> Int -> Int -> FrontendSurfaceMountedFragment
+timesheetDaySectionMountedFragment :: TimesheetsMountStateValue -> Int -> Int -> FrontendSurfaceMountedFragment
 timesheetDaySectionMountedFragment mountState weekOffset dayOffset =
     FrontendSurfaceMountedFragment
         { mountedFragmentKey = FrontendSurfaceFragmentKey "timesheet-day-section" (Aeson.object ["dayOffset" Aeson..= dayOffset])

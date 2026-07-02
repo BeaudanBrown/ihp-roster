@@ -16,8 +16,10 @@ import Application.Helper.LiveResource (LiveResource)
 import Application.Helper.LiveSurface (EmptyInteractionIntent,
                                        EmptyInteractionLayer,
                                        EmptyInteractionSession,
+                                       LiveScopeAuthorizationRequirement (..),
                                        SurfaceScope (..),
                                        TypedLiveSurfaceDefinition (..),
+                                       authorizeLiveScopeRequirement,
                                        authorizeTypedLiveSurfaceWireScope,
                                        normalizeSurfaceFragmentRefs,
                                        typedLiveSurfaceAffectedFragments,
@@ -53,10 +55,10 @@ import Web.RosterWeeks.LiveSurface (rosterLiveSurfaceDefinition,
                                     rosterLiveSurfaceDefinitionForVenue)
 import Web.RosterWeeks.Types (RosterProjectionFragment (..),
                               RosterProjectionScope (..))
-import Web.Timesheets.Projection (TimesheetProjectionRequest (..),
-                                  timesheetLiveSurfaceCandidateFragments,
-                                  timesheetLiveSurfaceDefinition,
-                                  timesheetLiveSurfaceDefinitionForVenue)
+import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
+                                       TimesheetsMountStateValue (..),
+                                       timesheetsAffectedMountedFragments,
+                                       timesheetsSurfaceWireFragments)
 import Web.View.Admin.Exports (adminExportsLiveSurfaceDefinition,
                                adminExportsLiveSurfaceDefinitionForVenue)
 import Web.View.Admin.Invites (AdminInvitesSurfaceKey (..),
@@ -105,7 +107,6 @@ data RegisteredLiveSurfaceEntry
     | LeaveRequestsSurfaceEntry
     | ProfileContentSurfaceEntry
     | ProfileLeaveRequestsSurfaceEntry
-    | TimesheetSurfaceEntry
     | RosterSurfaceEntry
     deriving (Eq, Show)
 
@@ -127,7 +128,7 @@ registeredLiveSurfaceManifest =
 
 registeredLiveSurfaceDescriptors :: [RegisteredLiveSurfaceDescriptor]
 registeredLiveSurfaceDescriptors =
-    fmap (manifestDescriptorFromRegisteredSurface . manifestSurfaceForEntry) registeredLiveSurfaceCatalog
+    fmap (manifestDescriptorFromRegisteredSurface . manifestSurfaceForEntry) registeredLiveSurfaceCatalog <> [timesheetsLiveSurfaceDescriptor]
 
 registeredLiveSurfaceCatalog :: [RegisteredLiveSurfaceEntry]
 registeredLiveSurfaceCatalog =
@@ -142,7 +143,6 @@ registeredLiveSurfaceCatalog =
     , LeaveRequestsSurfaceEntry
     , ProfileContentSurfaceEntry
     , ProfileLeaveRequestsSurfaceEntry
-    , TimesheetSurfaceEntry
     , RosterSurfaceEntry
     ]
 
@@ -159,7 +159,6 @@ manifestSurfaceForEntry = \case
     LeaveRequestsSurfaceEntry -> registeredLiveSurface (leaveRequestsLiveSurfaceDefinitionForVenue sampleVenueId) () RequestContextOnly defaultCandidateFragments Nothing
     ProfileContentSurfaceEntry -> registeredLiveSurface (profileContentLiveSurfaceDefinitionForVenue sampleVenueId) sampleProfileContentSurfaceKey RequestContextOnly profileContentCandidateFragments Nothing
     ProfileLeaveRequestsSurfaceEntry -> registeredLiveSurface (profileLeaveRequestsLiveSurfaceDefinitionForVenue sampleVenueId) sampleProfileLeaveSurfaceKey RequestContextOnly defaultCandidateFragments Nothing
-    TimesheetSurfaceEntry -> registeredLiveSurface (timesheetLiveSurfaceDefinitionForVenue sampleVenueId) sampleTimesheetSurfaceKey BackgroundPlannable (const timesheetLiveSurfaceCandidateFragments) Nothing
     RosterSurfaceEntry -> registeredLiveSurface (rosterLiveSurfaceDefinitionForVenue sampleVenueId) sampleRosterSurfaceKey RequestContextOnly rosterManifestCandidateFragments (Just "roster")
 
 registeredLiveSurface ::
@@ -201,8 +200,16 @@ sampleProfileContentSurfaceKey = ProfileContentSurfaceKey sampleVenueId sampleSt
 sampleProfileLeaveSurfaceKey :: ProfileLeaveSurfaceKey
 sampleProfileLeaveSurfaceKey = ProfileLeaveSurfaceKey sampleVenueId sampleStaffId
 
-sampleTimesheetSurfaceKey :: TimesheetProjectionRequest
-sampleTimesheetSurfaceKey = TimesheetProjectionRequest 0 False False Nothing
+timesheetsLiveSurfaceDescriptor :: RegisteredLiveSurfaceDescriptor
+timesheetsLiveSurfaceDescriptor =
+    RegisteredLiveSurfaceDescriptor
+        { descriptorManifest = RegisteredLiveSurfaceManifest
+            { surfaceFamily = "timesheets"
+            , scopeKinds = ["timesheet_week"]
+            , fragmentKinds = ["timesheet_toolbar", "timesheet_day_columns", "timesheet_day_section"]
+            , interactionSchema = Nothing
+            }
+        }
 
 sampleRosterSurfaceKey :: RosterProjectionScope
 sampleRosterSurfaceKey = RosterProjectionScope (coerce sampleRosterGroupId) 0
@@ -215,8 +222,9 @@ authorizeRegisteredLiveSurfaceScope ::
     LiveUpdateScope ->
     IO Bool
 authorizeRegisteredLiveSurfaceScope scope = do
-    authorizations <- catMaybes <$> mapM (`authorizeRegisteredSurfaceWireScope` scope) registeredLiveSurfaceAuthorizationCatalog
-    pure (or authorizations)
+    legacyAuthorizations <- catMaybes <$> mapM (`authorizeRegisteredSurfaceWireScope` scope) registeredLiveSurfaceAuthorizationCatalog
+    timesheetsAuthorization <- authorizeTimesheetsLiveSurfaceScope scope
+    pure (or legacyAuthorizations || timesheetsAuthorization)
 
 registeredLiveSurfaceAuthorizationCatalog :: (?context :: ControllerContext) => [RegisteredLiveSurface]
 registeredLiveSurfaceAuthorizationCatalog =
@@ -235,7 +243,6 @@ authorizationSurfaceForEntry = \case
     LeaveRequestsSurfaceEntry -> registeredLiveSurface leaveRequestsLiveSurfaceDefinition () RequestContextOnly defaultCandidateFragments Nothing
     ProfileContentSurfaceEntry -> registeredLiveSurface profileContentLiveSurfaceDefinition sampleProfileContentSurfaceKey RequestContextOnly profileContentCandidateFragments Nothing
     ProfileLeaveRequestsSurfaceEntry -> registeredLiveSurface profileLeaveRequestsLiveSurfaceDefinition sampleProfileLeaveSurfaceKey RequestContextOnly defaultCandidateFragments Nothing
-    TimesheetSurfaceEntry -> registeredLiveSurface timesheetLiveSurfaceDefinition sampleTimesheetSurfaceKey BackgroundPlannable (const timesheetLiveSurfaceCandidateFragments) Nothing
     RosterSurfaceEntry -> registeredLiveSurface rosterLiveSurfaceDefinition sampleRosterSurfaceKey RequestContextOnly defaultCandidateFragments (Just "roster")
 
 planRegisteredLiveSurfaceInvalidations ::
@@ -244,24 +251,24 @@ planRegisteredLiveSurfaceInvalidations ::
     [LiveUpdateScope] ->
     [LiveSurfaceInvalidationTarget]
 planRegisteredLiveSurfaceInvalidations resources scopes =
-    coalesceTargets
+    coalesceTargets $
         [ target
         | scope <- scopes
         , surface <- registeredLiveSurfacesForScope scope
         , Just target <- [planRegisteredSurfaceInvalidation surface resources scope]
-        ]
+        ] <> mapMaybe (planTimesheetsSurfaceInvalidation resources) scopes
 
 planRegisteredLiveSurfaceInvalidationsWithoutContext ::
     Set.Set LiveResource ->
     [LiveUpdateScope] ->
     [LiveSurfaceInvalidationTarget]
 planRegisteredLiveSurfaceInvalidationsWithoutContext resources scopes =
-    coalesceTargets
+    coalesceTargets $
         [ target
         | scope <- scopes
         , surface <- backgroundPlannableSurfacesForScope scope
         , Just target <- [planRegisteredSurfaceInvalidation surface resources scope]
-        ]
+        ] <> mapMaybe (planTimesheetsSurfaceInvalidation resources) scopes
 
 performLiveSurfaceInvalidationTarget ::
     (?context :: ControllerContext, ?request :: Request) =>
@@ -314,8 +321,6 @@ backgroundPlannableSurfaceForEntry entry scope =
             [registeredLiveSurface (adminInvitesLiveSurfaceDefinitionForVenue venueId) AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing } BackgroundPlannable defaultCandidateFragments Nothing]
         (AdminVenueSettingsSurfaceEntry, AdminVenueConfigScope { venueId }) ->
             [registeredLiveSurface (adminVenueSettingsLiveSurfaceDefinitionForVenue venueId) () BackgroundPlannable defaultCandidateFragments Nothing]
-        (TimesheetSurfaceEntry, TimesheetWeekScope { venueId }) ->
-            [registeredLiveSurface (timesheetLiveSurfaceDefinitionForVenue venueId) sampleTimesheetSurfaceKey BackgroundPlannable (const timesheetLiveSurfaceCandidateFragments) Nothing]
         (AdminXeroSurfaceEntry, AdminXeroScope { venueId }) ->
             [registeredLiveSurface (adminXeroLiveSurfaceDefinitionForVenue venueId) () BackgroundPlannable defaultCandidateFragments Nothing]
         _ ->
@@ -356,6 +361,25 @@ authorizeRegisteredSurfaceWireScope ::
     IO (Maybe Bool)
 authorizeRegisteredSurfaceWireScope RegisteredLiveSurface { registeredSurfaceDefinition = definition } =
     authorizeTypedLiveSurfaceWireScope definition
+
+authorizeTimesheetsLiveSurfaceScope :: (?context :: ControllerContext, ?modelContext :: ModelContext) => LiveUpdateScope -> IO Bool
+authorizeTimesheetsLiveSurfaceScope = \case
+    TimesheetWeekScope { venueId } -> authorizeLiveScopeRequirement (RequireCurrentVenue venueId)
+    _                              -> pure False
+
+planTimesheetsSurfaceInvalidation :: Set.Set LiveResource -> LiveUpdateScope -> Maybe LiveSurfaceInvalidationTarget
+planTimesheetsSurfaceInvalidation resources TimesheetWeekScope { venueId, weekOffset } =
+    let scopeValue = TimesheetWeekScopeValue { timesheetWeekVenueId = venueId, timesheetWeekWeekOffset = weekOffset }
+        -- Active mounts keep their filter state in fragment data-live-update-url and
+        -- the live-update client prefers that URL. These default filters only build
+        -- semantically keyed candidate fragments for dependency planning.
+        mountStateValue = TimesheetsMountStateValue { timesheetsMountShowApproved = True, timesheetsMountShowAllStaff = True, timesheetsMountStaffFilterId = Nothing }
+        fragments = timesheetsSurfaceWireFragments (timesheetsAffectedMountedFragments scopeValue mountStateValue resources)
+     in if null fragments
+            then Nothing
+            else Just LiveSurfaceInvalidationTarget { targetScope = TimesheetWeekScope { venueId, weekOffset }, targetFragments = fragments }
+planTimesheetsSurfaceInvalidation _ _ =
+    Nothing
 
 adminXeroManifestCandidateFragments ::
     TypedLiveSurfaceDefinition surface scope AdminXeroLiveFragment layer session intent ->

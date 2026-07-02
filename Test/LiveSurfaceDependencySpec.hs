@@ -1,5 +1,6 @@
 module Test.LiveSurfaceDependencySpec where
 
+import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceMountedFragment (..))
 import Application.Helper.LiveResource
 import Application.Helper.LiveSurface (TypedLiveSurfaceDefinition (..),
                                        typedLiveSurfaceAffectedFragments,
@@ -20,9 +21,11 @@ import Web.Profiles.LiveUpdates (ProfileContentFragment (..),
                                  profileContentLiveSurfaceDefinition,
                                  profileLeaveRequestsFragment,
                                  profileLeaveRequestsLiveSurfaceDefinition)
-import Web.Timesheets.Projection (TimesheetProjectionFragment (..),
-                                  TimesheetProjectionRequest (..),
-                                  timesheetLiveSurfaceDefinitionForVenue)
+import Web.Timesheets.FrontendSurface (TimesheetSurfaceFragment (..),
+                                       TimesheetWeekScopeValue (..),
+                                       TimesheetsMountStateValue (..),
+                                       timesheetsAffectedMountedFragments,
+                                       timesheetsFragmentDependencies)
 import Web.View.Admin.Invites (AdminInvitesSurfaceKey (..),
                                adminInvitesFragment,
                                adminInvitesLiveSurfaceDefinitionForVenue)
@@ -38,30 +41,27 @@ tests = do
     describe "Live surface resource dependencies" do
         it "declares timesheet week and day dependencies" do
             let venueId = fromWords 1 0 0 0
-            let definition = timesheetLiveSurfaceDefinitionForVenue venueId
-            let request = TimesheetProjectionRequest 2 True True Nothing
+            let scope = TimesheetWeekScopeValue venueId 2
 
-            typedSurfaceDependsOn definition request TimesheetProjectionToolbar
+            timesheetsFragmentDependencies scope TimesheetSurfaceToolbar
                 `shouldBe` [TimesheetWeekResource venueId 2, TimesheetWeekBoundaryConfigResource venueId]
-            typedSurfaceDependsOn definition request TimesheetProjectionDayColumns
+            timesheetsFragmentDependencies scope TimesheetSurfaceDayColumns
                 `shouldBe` [TimesheetWeekResource venueId 2, TimesheetWeekBoundaryConfigResource venueId]
-            typedSurfaceDependsOn definition request (TimesheetProjectionDaySection 4)
+            timesheetsFragmentDependencies scope (TimesheetSurfaceDaySection 4)
                 `shouldBe`
-                    [ TimesheetWeekResource venueId 2
-                    , TimesheetDayResource venueId 2 4
+                    [ TimesheetDayResource venueId 2 4
                     , TimesheetWeekBoundaryConfigResource venueId
                     ]
 
         it "selects affected fragments from typed dependencies" do
             let venueId = fromWords 1 0 0 0
-            let definition = timesheetLiveSurfaceDefinitionForVenue venueId
-            let request = TimesheetProjectionRequest 2 True True Nothing
-            let candidates = [TimesheetProjectionToolbar, TimesheetProjectionDayColumns, TimesheetProjectionDaySection 4, TimesheetProjectionDaySection 5]
+            let scope = TimesheetWeekScopeValue venueId 2
+            let mountState = TimesheetsMountStateValue True True Nothing
 
-            typedLiveSurfaceAffectedFragments definition request (Set.fromList [TimesheetDayResource venueId 2 4]) candidates
-                `shouldBe` [TimesheetProjectionDaySection 4]
-            typedLiveSurfaceAffectedFragments definition request (Set.fromList [TimesheetWeekResource venueId 2]) candidates
-                `shouldBe` candidates
+            map (.mountedFragmentTargetId) (timesheetsAffectedMountedFragments scope mountState (Set.fromList [TimesheetDayResource venueId 2 4]))
+                `shouldBe` ["timesheet-day-section-4"]
+            map (.mountedFragmentTargetId) (timesheetsAffectedMountedFragments scope mountState (Set.fromList [TimesheetWeekResource venueId 2]))
+                `shouldBe` ["timesheet-week-toolbar", "timesheet-day-columns"]
 
         it "declares support dependencies by support fragment" do
             typedSurfaceDependsOn supportLiveSurfaceDefinition () SupportAwardRatesLiveFragment

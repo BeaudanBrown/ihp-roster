@@ -34,7 +34,7 @@ import Web.Billing.LiveUpdates
 import Web.RosterWeeks.LiveSurface (rosterLiveSurfaceDefinitionForVenue)
 import Web.RosterWeeks.Types (RosterProjectionFragment (..),
                               RosterProjectionScope (..))
-import Web.Timesheets.Projection
+import Web.Timesheets.FrontendSurface
 import Web.View.Admin.Invites
 import Web.View.Admin.VenueSettings
 import Web.View.Admin.Xero
@@ -294,42 +294,47 @@ tests = describe "LiveSurface contract helpers" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = "22222222-2222-2222-2222-222222222222" :: Id RosterGroup
         let billingKey = BillingSurfaceKey { billingSurfaceVenueId = venueId }
-        let timesheetKey = TimesheetProjectionRequest 1 True True Nothing
+        let timesheetScope = TimesheetWeekScopeValue venueId 1
+        let timesheetMountState = TimesheetsMountStateValue True True Nothing
+        let timesheetImpl = timesheetsSurfaceImpl timesheetScope timesheetMountState
+        let timesheetSurface = timesheetsLegacyLiveSurfaceConfig timesheetImpl timesheetScope
         let invitesKey = AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Just rosterGroupId }
         let surfaces =
                 [ mkTypedDefinedLiveSurface billingLiveSurfaceDefinition billingKey
-                , mkTypedDefinedLiveSurface (timesheetLiveSurfaceDefinitionForVenue venueId) timesheetKey
+                , timesheetSurface
                 , mkTypedDefinedLiveSurface (adminVenueSettingsLiveSurfaceDefinitionForVenue venueId) ()
                 , mkTypedDefinedLiveSurface (adminInvitesLiveSurfaceDefinitionForVenue venueId) invitesKey
                 , mkTypedDefinedLiveSurface (adminXeroLiveSurfaceDefinitionForVenue venueId) ()
                 ]
 
         forM_ surfaces liveSurfaceConfigShouldRoundTrip
-        typedLiveSurfaceConfigShouldExposeDefaultRefs
-            (timesheetLiveSurfaceDefinitionForVenue venueId)
-            timesheetKey
-            [TimesheetProjectionDayColumns]
-        typedLiveSurfaceFragmentShouldMapTo
-            (timesheetLiveSurfaceDefinitionForVenue venueId)
-            timesheetKey
-            TimesheetProjectionToolbar
-            TimesheetToolbarFragment
-            "timesheet-week-toolbar"
-            "/ShowTimesheetToolbarFragment?weekOffset=1&showApproved=true&showAllStaff=true"
-        typedLiveSurfaceFragmentShouldMapTo
-            (timesheetLiveSurfaceDefinitionForVenue venueId)
-            timesheetKey
-            TimesheetProjectionDayColumns
-            TimesheetDayColumnsFragment
-            "timesheet-day-columns"
-            "/ShowTimesheetDayColumnsFragment?weekOffset=1&showApproved=true&showAllStaff=true"
-        typedLiveSurfaceFragmentShouldMapTo
-            (timesheetLiveSurfaceDefinitionForVenue venueId)
-            timesheetKey
-            (TimesheetProjectionDaySection 2)
-            TimesheetDaySectionFragment { dayOffset = 2 }
-            "timesheet-day-section-2"
-            "/ShowTimesheetDaySectionFragment?weekOffset=1&dayOffset=2&showApproved=true&showAllStaff=true"
+        liveSurfaceConfigShouldExposeRefs
+            timesheetSurface
+            timesheetSurface.resyncFragments
+        timesheetsSurfaceWireFragments (timesheetsCandidateMountedFragments timesheetScope timesheetMountState)
+            `shouldContain`
+                [ LiveUpdateWireFragment
+                    { fragmentKey = TimesheetToolbarFragment
+                    , targetId = "timesheet-week-toolbar"
+                    , url = "/ShowTimesheetToolbarFragment?weekOffset=1&showApproved=true&showAllStaff=true"
+                    , deferUntilBlur = False
+                    , protectionPolicy = NoProtection
+                    }
+                , LiveUpdateWireFragment
+                    { fragmentKey = TimesheetDayColumnsFragment
+                    , targetId = "timesheet-day-columns"
+                    , url = "/ShowTimesheetDayColumnsFragment?weekOffset=1&showApproved=true&showAllStaff=true"
+                    , deferUntilBlur = False
+                    , protectionPolicy = NoProtection
+                    }
+                , LiveUpdateWireFragment
+                    { fragmentKey = TimesheetDaySectionFragment { dayOffset = 2 }
+                    , targetId = "timesheet-day-section-2"
+                    , url = "/ShowTimesheetDaySectionFragment?weekOffset=1&dayOffset=2&showApproved=true&showAllStaff=true"
+                    , deferUntilBlur = False
+                    , protectionPolicy = NoProtection
+                    }
+                ]
         typedLiveSurfaceFragmentShouldMapTo
             (adminXeroLiveSurfaceDefinitionForVenue venueId)
             ()

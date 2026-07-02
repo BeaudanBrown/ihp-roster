@@ -8,10 +8,10 @@ module Web.Timesheets.Responses
     , respondWithTimesheetWeekView
     ) where
 
-import Application.Helper.LiveSurface (respondWithTypedLiveSurfaceFragments)
 import Application.Helper.Profiling
 import Application.Helper.View (ToastOverlayPosition (..), dialogOverlayMountId,
                                 renderToastOob, successToast)
+import Application.Helper.View.Oob (outerHtmlOobSwap)
 import Data.List (nub)
 import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (Day, addDays)
@@ -31,13 +31,21 @@ respondWithTimesheetFragment requestKey fragment =
         respondHtmlProfiled (fromMaybe mempty maybeHtml)
 
 respondWithTimesheetFragments :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetProjectionRequest -> [TimesheetProjectionFragment] -> Blaze.Html -> IO ()
-respondWithTimesheetFragments requestKey fragments extraHtml =
-    respondWithTypedLiveSurfaceFragments
-        timesheetProjectionDefinition
-        requestKey
-        fragments
-        extraHtml
-        renderTimesheetProjectionFragmentFromProjection
+respondWithTimesheetFragments requestKey fragments extraHtml = do
+    projection <- fetchTimesheetWeekProjectionCached requestKey
+    respondHtmlProfiled $
+        mconcat (mapMaybe (renderTimesheetProjectionFragmentFromProjection (TimesheetFragmentOob outerHtmlOobSwap) projection) (normalizeTimesheetFragments fragments)) <> extraHtml
+
+normalizeTimesheetFragments :: [TimesheetProjectionFragment] -> [TimesheetProjectionFragment]
+normalizeTimesheetFragments fragments =
+    if TimesheetProjectionDayColumns `elem` uniqueFragments
+        then filter (not . isDaySectionFragment) uniqueFragments
+        else uniqueFragments
+    where
+        uniqueFragments = nub fragments
+        isDaySectionFragment = \case
+            TimesheetProjectionDaySection _ -> True
+            _                               -> False
 
 respondWithTimesheetWeekFragmentsUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Bool -> Bool -> Maybe UUID.UUID -> IO ()
 respondWithTimesheetWeekFragmentsUpdate weekOffset showApproved showAllStaff staffFilterId =

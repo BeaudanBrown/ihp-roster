@@ -7,11 +7,9 @@ import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceFragmentKey (.
                                                    FrontendSurfaceMountedFragment (..),
                                                    SurfaceImpl (..))
 import Application.Helper.LiveResource (LiveResource (..))
-import Application.Helper.LiveSurface (mkTypedDefinedLiveSurface,
-                                       typedLiveSurfaceFragmentRefs,
-                                       unSurfaceFragmentRefs)
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
+import Application.Helper.LiveUpdate.Runtime (LiveUpdateWireFragment (..))
 import Application.Helper.WeekBoundaries (venueWeekOffsetForDay)
 import Config
 import qualified Data.Aeson as Aeson
@@ -38,9 +36,7 @@ import Web.Routes
 import Web.Timesheets.FrontendSurface
 import Web.Timesheets.Mutations (timesheetEntryTouchedResources)
 import Web.Timesheets.Projection (TimesheetProjectionFragment (..),
-                                  TimesheetProjectionRequest (..),
-                                  timesheetDaySectionFragmentRef,
-                                  timesheetLiveSurfaceDefinition)
+                                  TimesheetProjectionRequest (..))
 import Web.Types
 
 tests :: Spec
@@ -95,11 +91,12 @@ tests = beforeAll testContext do
 
                 (response, liveSurface, expectedRefs) <- withUserAndCurrentVenue user venue.id do
                     withCurrentControllerContext do
-                        let requestKey = TimesheetProjectionRequest 0 False True Nothing
-                        let liveSurface = mkTypedDefinedLiveSurface timesheetLiveSurfaceDefinition requestKey
-                        let expectedRefs = typedLiveSurfaceFragmentRefs timesheetLiveSurfaceDefinition requestKey [TimesheetProjectionDayColumns]
+                        let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = unpackId venue.id, timesheetWeekWeekOffset = 0 }
+                        let mountState = TimesheetsMountStateValue { timesheetsMountShowApproved = False, timesheetsMountShowAllStaff = True, timesheetsMountStaffFilterId = Nothing }
+                        let impl = timesheetsSurfaceImpl scope mountState
+                        let liveSurface = timesheetsLegacyLiveSurfaceConfig impl scope
                         response <- callAction ShowTimesheetWeekAction { weekOffset = 0 }
-                        pure (response, liveSurface, unSurfaceFragmentRefs expectedRefs)
+                        pure (response, liveSurface, timesheetsSurfaceWireFragments impl.surfaceImplMountConfig.mountFragments)
 
                 liveSurfaceConfigShouldRoundTrip liveSurface
                 liveSurfaceConfigShouldExposeRefs liveSurface expectedRefs
@@ -164,15 +161,15 @@ tests = beforeAll testContext do
 
                 (response, fragmentRef) <- withUserAndCurrentVenue user venue.id do
                     withCurrentControllerContext do
-                        let requestKey = TimesheetProjectionRequest 0 False True Nothing
-                        let fragmentRef = timesheetDaySectionFragmentRef requestKey 0
+                        let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = unpackId venue.id, timesheetWeekWeekOffset = 0 }
+                        let mountState = TimesheetsMountStateValue { timesheetsMountShowApproved = False, timesheetsMountShowAllStaff = True, timesheetsMountStaffFilterId = Nothing }
+                        let daySectionRef =
+                                timesheetsSurfaceWireFragments (timesheetsCandidateMountedFragments scope mountState)
+                                    |> find (\fragment -> fragment.targetId == "timesheet-day-section-0")
+                                    |> fromMaybe (error "Expected day section fragment ref")
                         callAction ShowTimesheetWeekAction { weekOffset = 0 }
                         response <- callAction ShowTimesheetDaySectionFragmentAction { weekOffset = 0, dayOffset = 0 }
-                        let rawFragmentRef =
-                                case unSurfaceFragmentRefs [fragmentRef] of
-                                    [ref] -> ref
-                                    _     -> error "Expected one timesheet fragment ref"
-                        pure (response, rawFragmentRef)
+                        pure (response, daySectionRef)
 
                 liveFragmentResponseShouldRenderTarget response fragmentRef
 

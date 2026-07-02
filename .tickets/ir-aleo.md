@@ -62,3 +62,7 @@ Second slice: added Web.Timesheets.FrontendSurface side-by-side runtime bridge w
 **2026-07-02T09:39:15Z**
 
 Third slice: mounted the new Timesheets SurfaceImpl metadata side-by-side on the rendered timesheet week shell via renderFrontendSurfaceMount while preserving existing data-live-update-surface behavior. timesheetIndexView now derives TimesheetWeekScopeValue/TimesheetsMountStateValue from the projection and attaches frontendSurfaceImpl. Focused typecheck and Timesheets Hspec prove the page emits data-bepis-surface=timesheets plus existing live-surface shell behavior.
+
+**2026-07-02T09:58:17Z**
+
+Bridge slice: removed Timesheets feature code from legacy TypedLiveSurfaceDefinition/SurfaceProjection authoring. Timesheet fragments now render directly from the typed FrontendSurface bridge/read-model; the old live-update client is fed by timesheetsLegacyLiveSurfaceConfig and wire-fragment adapters derived from SurfaceImpl/mounted fragments. Web.LiveSurfaceRegistry keeps a Timesheets compatibility planner/manifest during bridge mode, using FrontendSurface dependency helpers rather than timesheetLiveSurfaceDefinition. Roster quick-tool timesheet panel also uses the Timesheets FrontendSurface bridge. Verified typecheck, focused Timesheets/LiveSurface dependency Hspec, and frontend-surface-guardrails.
