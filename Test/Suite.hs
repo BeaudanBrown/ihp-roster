@@ -39,6 +39,7 @@ import qualified Test.DatabaseProtectionSpec
 import qualified Test.DevSeedSpec
 import qualified Test.FrontendContractsSpec
 import qualified Test.FrontendSurfaceDslSpec
+import qualified Test.FrontendSurfaceGhcSpec
 import qualified Test.FrontendSurfaceNamingSpec
 import qualified Test.FwcMapdSyncSpec
 import qualified Test.InteractionSpec
@@ -187,6 +188,7 @@ allSuites =
     , TestSuite "FrontendContracts" Test.FrontendContractsSpec.tests
     , TestSuite "FrontendSurfaceNaming" Test.FrontendSurfaceNamingSpec.tests
     , TestSuite "FrontendSurfaceDSL" Test.FrontendSurfaceDslSpec.tests
+    , TestSuite "FrontendSurfaceGHC" Test.FrontendSurfaceGhcSpec.tests
     , TestSuite "Interaction" Test.InteractionSpec.tests
     , TestSuite "LiveUpdate" Test.LiveUpdateSpec.tests
     , TestSuite "LiveResource" Test.LiveResourceSpec.tests

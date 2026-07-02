@@ -71,3 +71,7 @@ Started approved normalization inside the GHC raw extractor. The --json output n
 **2026-07-02T07:24:25Z**
 
 Lowered normalized GHC RawType trees into checked SurfaceContractIR inside the probe. The lowerer covers the lab primitive set, fields, wire types, options, selectors, conflict resolutions, DTO refs, naming, and existing ContractIR validation. --json now includes lowered.status=ok and lowered surface summaries (surface-lab, lab scope, lab-shell/lab-panel, refresh-panel, move-lab-card, DTOs). Next pause point: replacing frontend-contracts generation with the GHC lowerer versus first moving raw/lowerer code out of the probe into reusable modules and adding deterministic tests.
+
+**2026-07-02T07:37:18Z**
+
+Refactored the GHC raw contract path out of the probe into Application.Helper.FrontendSurface.Ghc.Raw and .Lower. Added deterministic raw-lowering tests that compare a hand-built normalized lab RawRegistry to registeredFrontendSurfaceContractIR and assert unsupported primitive plus ContractIR validation diagnostics. Verified typecheck, probe JSON lowering, focused Hspec binary tests, frontend-contracts-check, and frontend-test. hspec-test wrapper still compiles but cannot run without the local postgres socket.
