@@ -1,3 +1,6 @@
+{-# LANGUAGE DataKinds        #-}
+{-# LANGUAGE TypeApplications #-}
+
 module Test.FrontendSurfaceNamingSpec
     ( tests
     ) where
@@ -5,6 +8,11 @@ module Test.FrontendSurfaceNamingSpec
 import Application.Helper.FrontendSurface.Naming
 import IHP.Prelude
 import Test.Hspec
+
+data RosterSurface
+data RosterWeekScope
+data MoveRosterShiftToSlotIntent
+data XeroOAuthSurface
 
 tests :: Spec
 tests = describe "FrontendSurface naming policy" do
@@ -40,16 +48,17 @@ tests = describe "FrontendSurface naming policy" do
                     , exactNameReason = "Keep existing protocol name during migration"
                     }
                 ]
-        deriveFrontendSurfaceNameWithExact allowlist SurfaceName "XeroOAuthSurface" (Just "xero-oauth")
+        deriveFrontendSurfaceTypeNameWithExact @XeroOAuthSurface @"xero-oauth" allowlist SurfaceName
             `shouldBe` Right "xero-oauth"
-        deriveFrontendSurfaceNameWithExact allowlist SurfaceName "XeroOAuthSurface" (Just "xero")
+        deriveFrontendSurfaceTypeNameWithExact @XeroOAuthSurface @"xero" allowlist SurfaceName
             `shouldBe` Left UnauthorizedExactName
                 { exactNameContext = SurfaceName
                 , exactNameMarker = "XeroOAuthSurface"
                 , exactNameRequested = "xero"
                 }
-        deriveFrontendSurfaceNameWithExact [] SurfaceName "RosterSurface" Nothing
-            `shouldBe` Right "roster"
+        deriveFrontendSurfaceTypeName @RosterSurface SurfaceName `shouldBe` "roster"
+        deriveFrontendSurfaceTypeName @RosterWeekScope ScopeName `shouldBe` "roster-week"
+        deriveFrontendSurfaceTypeName @MoveRosterShiftToSlotIntent IntentName `shouldBe` "move-roster-shift-to-slot"
 
     it "reports generated-name collisions within a namespace" do
         validateFrontendSurfaceNameCollisions

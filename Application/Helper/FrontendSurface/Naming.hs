@@ -1,4 +1,7 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications    #-}
 
 module Application.Helper.FrontendSurface.Naming
     ( ExactNameAllowlistEntry (..)
@@ -8,7 +11,8 @@ module Application.Helper.FrontendSurface.Naming
     , deriveDomAttributeName
     , deriveEventName
     , deriveFrontendSurfaceName
-    , deriveFrontendSurfaceNameWithExact
+    , deriveFrontendSurfaceTypeName
+    , deriveFrontendSurfaceTypeNameWithExact
     , deriveJsonFieldName
     , deriveWireTagName
     , nameToKebab
@@ -21,6 +25,8 @@ module Application.Helper.FrontendSurface.Naming
 import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Text as Text
+import Data.Typeable (Proxy (..), Typeable, tyConName, typeRep, typeRepTyCon)
+import GHC.TypeLits (KnownSymbol, symbolVal)
 import IHP.Prelude
 
 data FrontendSurfaceNameContext
@@ -67,6 +73,19 @@ deriveFrontendSurfaceName context marker =
         _         -> Text.intercalate "-" baseWords
     where
         baseWords = stripContextSuffix context (wordsFromTypeName marker)
+
+deriveFrontendSurfaceTypeName :: forall marker. Typeable marker => FrontendSurfaceNameContext -> Text
+deriveFrontendSurfaceTypeName context =
+    deriveFrontendSurfaceName context (markerTypeName @marker)
+
+deriveFrontendSurfaceTypeNameWithExact ::
+    forall marker exactName.
+    (Typeable marker, KnownSymbol exactName) =>
+    [ExactNameAllowlistEntry] ->
+    FrontendSurfaceNameContext ->
+    Either FrontendSurfaceNameError Text
+deriveFrontendSurfaceTypeNameWithExact allowlist context =
+    deriveFrontendSurfaceNameWithExact allowlist context (markerTypeName @marker) (Just (cs (symbolVal (Proxy @exactName))))
 
 deriveWireTagName :: FrontendSurfaceNameContext -> Text -> Text
 deriveWireTagName context marker =
@@ -135,6 +154,10 @@ validateFrontendSurfaceNameCollisions entries =
                                 , collisionMarkers = markers
                                 }
                             else Nothing
+
+markerTypeName :: forall marker. Typeable marker => Text
+markerTypeName =
+    cs (tyConName (typeRepTyCon (typeRep (Proxy @marker))))
 
 nameToKebab :: Text -> Text
 nameToKebab = Text.intercalate "-" . wordsFromTypeName

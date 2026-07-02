@@ -50,3 +50,7 @@ Implement global derived naming rules for marker types used in type-level `Front
 **2026-07-02T05:19:56Z**
 
 Implemented initial FrontendSurface naming policy foundation in Application.Helper.FrontendSurface.Naming with acronym-aware word splitting, contextual suffix stripping, JSON/DOM/event/wire derivation helpers, exact-name allowlist checks, collision diagnostics, and focused Hspec coverage. Existing LiveSurface descriptor default naming now reuses the shared naming helpers.
+
+**2026-07-02T05:21:39Z**
+
+Extended naming helpers with Typeable marker-based derivation and a KnownSymbol exact-name path, so feature-facing escape hatches are type-level rather than value-level. Focused typecheck passed; hspec-test compiles but local DB reset is blocked by missing devenv postgres socket, so the compiled test binary was run directly for the pure FrontendSurface naming examples.
