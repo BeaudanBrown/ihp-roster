@@ -1,7 +1,7 @@
 ---
 id: ir-ypt5
 status: in_progress
-deps: [ir-aleo]
+deps: [ir-aleo, ir-pixx]
 links: []
 created: 2026-07-02T02:47:03Z
 type: feature
@@ -62,3 +62,7 @@ Interaction DSL slice: added reusable FrontendSurface interaction sugar for drag
 **2026-07-02T10:56:50Z**
 
 Mirrored the existing generated InteractionStaticSchema shape from FrontendSurface Roster contracts: Interaction DTO generation now derives roster sessions/layers/intents/effects/conflict policy from registered FrontendSurface IR instead of Web.RosterWeeks.LiveSurface.rosterInteractionStaticSchema. Roster output remains wire-compatible with existing TS runtime, including clone-shadow/dropzone-highlight effect payloads and 5000ms defer timeout. Next decision point: replace runtime mount/render helpers that still consume old InteractionCapability with FrontendSurface-derived interaction capability/forms, then remove Roster's old interaction schema authoring.
+
+**2026-07-02T11:10:43Z**
+
+Temporary adapter slice landed locally: Roster's legacy InteractionStaticSchema/InteractionCapability are now projected from the Roster FrontendSurface IR and SurfaceImpl intents, preserving the current Application.Helper.Interaction renderer/runtime shape. This intentionally leaves a temporary adapter in Web.RosterWeeks.LiveSurface for mount shell/forms/conflict-policy projection. Follow-up cleanup ticket ir-pixx tracks replacing that adapter with native FrontendSurface interaction render helpers before ir-ypt5 can close.

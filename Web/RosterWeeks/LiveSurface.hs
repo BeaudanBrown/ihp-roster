@@ -23,6 +23,13 @@ module Web.RosterWeeks.LiveSurface
 
 import Application.Helper.Controller
 import Application.Helper.Frontend.AppConstants (interactionIntentSubmitHtmxTrigger)
+import qualified Application.Helper.FrontendSurface.ContractIR as SurfaceIR
+import Application.Helper.FrontendSurface.Reflect (reflectRegisteredFrontendSurfaces)
+import qualified Application.Helper.FrontendSurface.Roster as FrontendRosterSurface
+import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceHtmxMethod (..),
+                                                   FrontendSurfaceHtmxRequest (..),
+                                                   FrontendSurfaceIntentForm (..),
+                                                   SurfaceImpl (..))
 import Application.Helper.Interaction
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
@@ -39,8 +46,8 @@ import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Filters
-import Web.RosterWeeks.Paths (rosterLayoutPreferenceUrl, rosterMoveShiftUrl,
-                              rosterWeekContentFragmentUrl,
+import qualified Web.RosterWeeks.FrontendSurface as FrontendSurface
+import Web.RosterWeeks.Paths (rosterWeekContentFragmentUrl,
                               rosterWeekDayColumnsFragmentUrl,
                               rosterWeekDayRailFragmentUrl,
                               rosterWeekDaySectionFragmentUrl,
@@ -79,9 +86,7 @@ rosterLayoutModeIntentField = IntentFieldName "rosterLayoutMode"
 
 rosterLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition RosterLiveSurface RosterProjectionScope RosterProjectionFragment RosterInteractionLayer RosterInteractionSession RosterInteractionIntent
 rosterLiveSurfaceDefinition =
-    (rosterLiveSurfaceDefinitionForVenue (unpackId currentVenueId))
-        { typedSurfaceInteraction = rosterInteractionCapability
-        }
+    rosterLiveSurfaceDefinitionForVenue (unpackId currentVenueId)
 
 rosterLiveSurfaceDefinitionForVenue :: UUID -> TypedLiveSurfaceDefinition RosterLiveSurface RosterProjectionScope RosterProjectionFragment RosterInteractionLayer RosterInteractionSession RosterInteractionIntent
 rosterLiveSurfaceDefinitionForVenue surfaceVenueId =
@@ -98,7 +103,7 @@ rosterLiveSurfaceDefinitionForVenue surfaceVenueId =
         , typedSurfaceDecorateRequestsWithin = const ["#roster-week-shell"]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\scope -> RequireCurrentVenueRosterGroup surfaceVenueId (unpackId scope.rosterProjectionGroupId))
         , typedSurfaceInteractionSchema = rosterInteractionStaticSchema
-        , typedSurfaceInteraction = const rosterStaticInteractionCapability
+        , typedSurfaceInteraction = rosterInteractionCapability surfaceVenueId
         }
     where
         rosterSurfaceScope scope =
@@ -118,127 +123,196 @@ rosterLiveSurfaceDefinitionForVenue surfaceVenueId =
                 _ ->
                     Nothing
 
+-- Temporary compatibility adapter while the Roster view still renders through
+-- Application.Helper.Interaction. The source of truth is the Roster
+-- FrontendSurface IR; remove this projection when Roster gets native
+-- FrontendSurface interaction render helpers.
 rosterInteractionStaticSchema :: InteractionStaticSchema RosterProjectionFragment RosterInteractionLayer RosterInteractionSession RosterInteractionIntent
 rosterInteractionStaticSchema =
+    rosterFrontendSurfaceInteractionStaticSchema rosterFrontendSurfaceIR
+
+rosterFrontendSurfaceIR :: SurfaceIR.SurfaceIR
+rosterFrontendSurfaceIR =
+    fromMaybe (error "registered FrontendSurface 'roster' is missing") do
+        find ((== "roster") . (.surfaceName)) reflectRegisteredFrontendSurfaces.contractSurfaces
+
+rosterFrontendSurfaceInteractionStaticSchema :: SurfaceIR.SurfaceIR -> InteractionStaticSchema RosterProjectionFragment RosterInteractionLayer RosterInteractionSession RosterInteractionIntent
+rosterFrontendSurfaceInteractionStaticSchema surface =
     emptyInteractionStaticSchema
-        { interactionStaticDisposableLayers =
-            [ DisposableLayerDefinition
-                { disposableLayerKind = RosterDragPreviewLayer
-                , disposableLayerName = "drag-preview"
-                , disposableLayerDomIdSuffix = "drag-preview"
-                }
-            ]
-        , interactionStaticSessionKinds =
-            [ SessionKindDefinition
-                { sessionKind = RosterDragSession
-                , sessionKindName = rosterDragSessionKindName
-                , sessionDescription = "Roster drag/drop prototype"
-                , sessionEffects = InteractionSessionEffects
-                    { interactionSessionGlobalEffects =
-                        [ InteractionCloneShadowEffect
-                            { cloneShadowLayerName = "drag-preview"
-                            , cloneShadowSource = InteractionEffectPointerMarker
-                            , cloneShadowClassName = "bepis-pointer-clone-shadow"
-                            , cloneShadowPreserveGrabOffset = True
-                            }
-                        ]
-                    , interactionSessionContextualEffects =
-                        [ InteractionDropzoneHighlightEffect
-                            { dropzoneHighlightClassName = "bepis-dropzone-highlight"
-                            }
-                        ]
-                    }
-                }
-            ]
-        , interactionStaticIntents =
-            [ InteractionIntentSchema
-                { interactionIntentSchemaIntent = SetRosterLayoutModeIntent
-                , interactionIntentSchemaName = rosterLayoutModeIntentName
-                , interactionIntentSchemaFields = [IntentFieldSchema rosterLayoutModeIntentField IntentFieldRequired Nothing]
-                }
-            , InteractionIntentSchema
-                { interactionIntentSchemaIntent = MoveRosterShiftToSlotIntent
-                , interactionIntentSchemaName = rosterMoveShiftIntentName
-                , interactionIntentSchemaFields = rosterMoveShiftIntentFields
-                }
-            ]
-        , interactionStaticConflictPolicies =
-            [ InteractionConflictPolicy
-                { conflictPolicySession = InteractionSessionKind RosterDragSession
-                , conflictPolicyFragment = AnyInteractionFragment
-                , conflictPolicyResolution = DeferLiveFragmentUntilSessionEnds
-                , conflictPolicyTimeoutMs = Just 5000
-                }
-            ]
+        { interactionStaticDisposableLayers = expectMappedRosterSurfaceIR "disposable layer" rosterDisposableLayerFromName surface.surfaceLayers
+        , interactionStaticSessionKinds = expectMappedRosterSurfaceIR "session" (rosterSessionKindFromName surface) surface.surfaceSessions
+        , interactionStaticIntents = expectMappedRosterSurfaceIR "intent" rosterIntentSchemaFromIR surface.surfaceIntents
+        , interactionStaticConflictPolicies = expectMappedRosterSurfaceIR "conflict policy" rosterConflictPolicyFromIR surface.surfacePolicies
         }
 
-rosterStaticInteractionCapability :: InteractionCapability (SurfaceFragmentRef RosterLiveSurface) RosterProjectionFragment RosterInteractionLayer RosterInteractionSession RosterInteractionIntent
-rosterStaticInteractionCapability =
-    emptyInteractionCapability
-        { interactionStaticSchema = rosterInteractionStaticSchema
-        , interactionServerLayers = rosterInteractionStaticSchema.interactionStaticServerLayers
-        , interactionDisposableLayers = rosterInteractionStaticSchema.interactionStaticDisposableLayers
-        , interactionSessionKinds = rosterInteractionStaticSchema.interactionStaticSessionKinds
-        , interactionConflictPolicies = rosterInteractionStaticSchema.interactionStaticConflictPolicies
+expectMappedRosterSurfaceIR :: Show input => Text -> (input -> Maybe output) -> [input] -> [output]
+expectMappedRosterSurfaceIR label convert =
+    fmap \input -> fromMaybe (error ("unsupported Roster FrontendSurface " <> cs label <> ": " <> show input)) (convert input)
+
+rosterDisposableLayerFromName :: Text -> Maybe (DisposableLayerDefinition RosterInteractionLayer)
+rosterDisposableLayerFromName "drag-preview" = Just DisposableLayerDefinition
+    { disposableLayerKind = RosterDragPreviewLayer
+    , disposableLayerName = "drag-preview"
+    , disposableLayerDomIdSuffix = "drag-preview"
+    }
+rosterDisposableLayerFromName _ = Nothing
+
+rosterSessionKindFromName :: SurfaceIR.SurfaceIR -> Text -> Maybe (SessionKindDefinition RosterInteractionSession)
+rosterSessionKindFromName surface "drag" = Just SessionKindDefinition
+    { sessionKind = RosterDragSession
+    , sessionKindName = rosterDragSessionKindName
+    , sessionDescription = "Roster drag/drop prototype"
+    , sessionEffects = rosterSessionEffectsFromIR surface.surfaceEffects
+    }
+rosterSessionKindFromName _ _ = Nothing
+
+rosterSessionEffectsFromIR :: [(Text, [SurfaceIR.OptionIR])] -> InteractionSessionEffects
+rosterSessionEffectsFromIR effects = InteractionSessionEffects
+    { interactionSessionGlobalEffects = mapMaybe rosterGlobalEffectFromIR effects
+    , interactionSessionContextualEffects = mapMaybe rosterContextualEffectFromIR effects
+    }
+
+rosterGlobalEffectFromIR :: (Text, [SurfaceIR.OptionIR]) -> Maybe InteractionSessionGlobalEffect
+rosterGlobalEffectFromIR ("clone-shadow", options) = Just InteractionCloneShadowEffect
+    { cloneShadowLayerName = fromMaybe "drag-preview" (firstLayerOption options)
+    , cloneShadowSource = InteractionEffectPointerMarker
+    , cloneShadowClassName = "bepis-pointer-clone-shadow"
+    , cloneShadowPreserveGrabOffset = True
+    }
+rosterGlobalEffectFromIR _ = Nothing
+
+rosterContextualEffectFromIR :: (Text, [SurfaceIR.OptionIR]) -> Maybe InteractionSessionContextualEffect
+rosterContextualEffectFromIR ("dropzone-highlight", _) = Just InteractionDropzoneHighlightEffect
+    { dropzoneHighlightClassName = "bepis-dropzone-highlight"
+    }
+rosterContextualEffectFromIR _ = Nothing
+
+firstLayerOption :: [SurfaceIR.OptionIR] -> Maybe Text
+firstLayerOption options = listToMaybe (mapMaybe layerName options)
+    where
+        layerName = \case
+            SurfaceIR.LayerOption layer -> Just layer
+            _                           -> Nothing
+
+rosterIntentSchemaFromIR :: SurfaceIR.IntentIR -> Maybe (InteractionIntentSchema RosterInteractionIntent)
+rosterIntentSchemaFromIR intent = do
+    rosterIntent <- rosterIntentFromName intent.intentName
+    pure InteractionIntentSchema
+        { interactionIntentSchemaIntent = rosterIntent
+        , interactionIntentSchemaName = intent.intentName
+        , interactionIntentSchemaFields = fmap rosterIntentFieldFromIR intent.intentFields
         }
 
-rosterInteractionCapability :: (?context :: ControllerContext) => RosterProjectionScope -> InteractionCapability (SurfaceFragmentRef RosterLiveSurface) RosterProjectionFragment RosterInteractionLayer RosterInteractionSession RosterInteractionIntent
-rosterInteractionCapability scope =
-    emptyInteractionCapability
-        { interactionStaticSchema = rosterInteractionStaticSchema
-        , interactionServerLayers = rosterInteractionStaticSchema.interactionStaticServerLayers
-        , interactionDisposableLayers = rosterInteractionStaticSchema.interactionStaticDisposableLayers
-        , interactionSessionKinds = rosterInteractionStaticSchema.interactionStaticSessionKinds
-        , interactionIntentForms = [rosterLayoutModeIntentForm scope, rosterMoveShiftIntentForm scope]
-        , interactionConflictPolicies = rosterInteractionStaticSchema.interactionStaticConflictPolicies
+rosterIntentFromName :: Text -> Maybe RosterInteractionIntent
+rosterIntentFromName "set-roster-layout-mode" = Just SetRosterLayoutModeIntent
+rosterIntentFromName "move-roster-shift-to-slot" = Just MoveRosterShiftToSlotIntent
+rosterIntentFromName _ = Nothing
+
+rosterIntentFieldFromIR :: SurfaceIR.FieldIR -> IntentFieldSchema
+rosterIntentFieldFromIR field = IntentFieldSchema
+    { intentFieldName = IntentFieldName field.fieldName
+    , intentFieldPresence = rosterFieldPresenceFromIR field.fieldPresence
+    , intentFieldDefaultValue = Nothing
+    }
+
+rosterFieldPresenceFromIR :: SurfaceIR.FieldPresence -> InteractionFieldPresence
+rosterFieldPresenceFromIR SurfaceIR.RequiredField         = IntentFieldRequired
+rosterFieldPresenceFromIR SurfaceIR.OptionalFieldPresence = IntentFieldOptional
+rosterFieldPresenceFromIR SurfaceIR.NullableFieldPresence = IntentFieldOptional
+
+rosterConflictPolicyFromIR :: SurfaceIR.ConflictPolicyIR -> Maybe (InteractionConflictPolicy RosterProjectionFragment RosterInteractionSession)
+rosterConflictPolicyFromIR policy = do
+    session <- rosterSessionSelectorFromIR policy.conflictPolicySession
+    fragment <- rosterFragmentSelectorFromIR policy.conflictPolicyFragment
+    pure InteractionConflictPolicy
+        { conflictPolicySession = session
+        , conflictPolicyFragment = fragment
+        , conflictPolicyResolution = rosterConflictResolutionFromIR policy.conflictPolicyResolution
+        , conflictPolicyTimeoutMs = rosterConflictPolicyTimeout policy
         }
 
-rosterLayoutModeIntentForm :: (?context :: ControllerContext) => RosterProjectionScope -> IntentFormContract (SurfaceFragmentRef RosterLiveSurface) RosterInteractionIntent
-rosterLayoutModeIntentForm scope =
-    IntentFormContract
-        { intentFormIntent = SetRosterLayoutModeIntent
-        , intentFormName = rosterLayoutModeIntentName
-        , intentFormAction = rosterLayoutPreferenceUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId
-        , intentFormMethod = HtmxPost
+rosterSessionSelectorFromIR :: SurfaceIR.SessionSelectorIR -> Maybe (InteractionSessionSelector RosterInteractionSession)
+rosterSessionSelectorFromIR SurfaceIR.AnySessionIR = Just AnyInteractionSession
+rosterSessionSelectorFromIR (SurfaceIR.SessionKindIR "drag") = Just (InteractionSessionKind RosterDragSession)
+rosterSessionSelectorFromIR _ = Nothing
+
+rosterFragmentSelectorFromIR :: SurfaceIR.FragmentSelectorIR -> Maybe (InteractionFragmentSelector RosterProjectionFragment)
+rosterFragmentSelectorFromIR SurfaceIR.AnyFragmentIR = Just AnyInteractionFragment
+rosterFragmentSelectorFromIR SurfaceIR.FragmentKindIR {} = Just AnyInteractionFragment
+rosterFragmentSelectorFromIR SurfaceIR.FragmentSubtreeIR {} = Just AnyInteractionFragment
+
+rosterConflictResolutionFromIR :: SurfaceIR.ConflictResolutionIR -> InteractionConflictResolution
+rosterConflictResolutionFromIR SurfaceIR.ApplyIR = ApplyLiveFragmentImmediately
+rosterConflictResolutionFromIR SurfaceIR.DeferIR = DeferLiveFragmentUntilSessionEnds
+rosterConflictResolutionFromIR SurfaceIR.CancelIR = CancelSessionAndApplyLiveFragment
+
+rosterConflictPolicyTimeout :: SurfaceIR.ConflictPolicyIR -> Maybe Int
+rosterConflictPolicyTimeout policy =
+    case policy.conflictPolicyResolution of
+        SurfaceIR.DeferIR -> Just 5000
+        _                 -> Nothing
+
+rosterInteractionCapability :: UUID -> RosterProjectionScope -> InteractionCapability (SurfaceFragmentRef RosterLiveSurface) RosterProjectionFragment RosterInteractionLayer RosterInteractionSession RosterInteractionIntent
+rosterInteractionCapability surfaceVenueId scope =
+    let impl = rosterFrontendSurfaceImpl surfaceVenueId scope
+     in emptyInteractionCapability
+            { interactionStaticSchema = rosterInteractionStaticSchema
+            , interactionServerLayers = rosterInteractionStaticSchema.interactionStaticServerLayers
+            , interactionDisposableLayers = rosterInteractionStaticSchema.interactionStaticDisposableLayers
+            , interactionSessionKinds = rosterInteractionStaticSchema.interactionStaticSessionKinds
+            , interactionIntentForms = expectMappedRosterSurfaceIR "intent form" (rosterFrontendSurfaceIntentForm scope) impl.surfaceImplIntents
+            , interactionConflictPolicies = rosterInteractionStaticSchema.interactionStaticConflictPolicies
+            }
+
+rosterFrontendSurfaceImpl :: UUID -> RosterProjectionScope -> SurfaceImpl FrontendRosterSurface.RosterSurface
+rosterFrontendSurfaceImpl surfaceVenueId scope =
+    FrontendSurface.rosterSurfaceImpl
+        FrontendSurface.RosterWeekScopeValue
+            { rosterWeekVenueId = surfaceVenueId
+            , rosterWeekGroupId = scope.rosterProjectionGroupId
+            , rosterWeekWeekOffset = scope.rosterProjectionWeekOffset
+            }
+        FrontendSurface.RosterMountedFragmentPlan
+            { rosterMountedDayIds = []
+            , rosterMountedRows = []
+            }
+
+rosterFrontendSurfaceIntentForm :: RosterProjectionScope -> FrontendSurfaceIntentForm -> Maybe (IntentFormContract (SurfaceFragmentRef RosterLiveSurface) RosterInteractionIntent)
+rosterFrontendSurfaceIntentForm scope FrontendSurfaceIntentForm { intentFormName, intentFormSubmit } = do
+    intent <- rosterIntentFromName intentFormName
+    schema <- find ((== intentFormName) . (.interactionIntentSchemaName)) rosterInteractionStaticSchema.interactionStaticIntents
+    pure IntentFormContract
+        { intentFormIntent = intent
+        , intentFormName
+        , intentFormAction = intentFormSubmit.htmxRequestUrl
+        , intentFormMethod = frontendSurfaceHtmxMethodToInteraction intentFormSubmit.htmxRequestMethod
         , intentFormTrigger = interactionIntentSubmitHtmxTrigger
-        , intentFormTarget = IntentTargetLiveFragment (rosterFragmentRef scope RosterProjectionContent)
-        , intentFormSwap = HtmxSwapNone
-        , intentFormFields = [IntentFieldSchema rosterLayoutModeIntentField IntentFieldRequired Nothing]
+        , intentFormTarget = rosterFrontendSurfaceIntentTarget scope intentFormSubmit
+        , intentFormSwap = frontendSurfaceHtmxSwapToInteraction intentFormSubmit.htmxRequestSwap
+        , intentFormFields = schema.interactionIntentSchemaFields
         , intentFormHiddenFields = []
         , intentFormSync = Just ("#" <> rosterWeekShellId <> ":replace")
         , intentFormDisabledElement = Nothing
         }
 
-rosterMoveShiftIntentForm :: (?context :: ControllerContext) => RosterProjectionScope -> IntentFormContract (SurfaceFragmentRef RosterLiveSurface) RosterInteractionIntent
-rosterMoveShiftIntentForm scope =
-    IntentFormContract
-        { intentFormIntent = MoveRosterShiftToSlotIntent
-        , intentFormName = rosterMoveShiftIntentName
-        , intentFormAction = rosterMoveShiftUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId
-        , intentFormMethod = HtmxPost
-        , intentFormTrigger = interactionIntentSubmitHtmxTrigger
-        , intentFormTarget = IntentTargetLiveFragment (rosterFragmentRef scope RosterProjectionContent)
-        , intentFormSwap = HtmxSwapNone
-        , intentFormFields = rosterMoveShiftIntentFields
-        , intentFormHiddenFields = []
-        , intentFormSync = Just ("#" <> rosterWeekShellId <> ":replace")
-        , intentFormDisabledElement = Nothing
-        }
+rosterFrontendSurfaceIntentTarget :: RosterProjectionScope -> FrontendSurfaceHtmxRequest -> InteractionIntentTarget (SurfaceFragmentRef RosterLiveSurface)
+rosterFrontendSurfaceIntentTarget scope request
+    | request.htmxRequestTarget == "#" <> rosterContentFragmentId = IntentTargetLiveFragment (rosterFragmentRef scope RosterProjectionContent)
+    | otherwise = IntentTargetLiveFragment (rosterFragmentRef scope RosterProjectionContent)
 
-rosterMoveShiftIntentFields :: [IntentFieldSchema]
-rosterMoveShiftIntentFields =
-    [ IntentFieldSchema (IntentFieldName "sourceItemKey") IntentFieldRequired Nothing
-    , IntentFieldSchema (IntentFieldName "targetDropzoneKey") IntentFieldRequired Nothing
-    , IntentFieldSchema (IntentFieldName "sessionKind") IntentFieldOptional Nothing
-    , IntentFieldSchema (IntentFieldName "pointerId") IntentFieldOptional Nothing
-    , IntentFieldSchema (IntentFieldName "pointerType") IntentFieldOptional Nothing
-    , IntentFieldSchema (IntentFieldName "startClientX") IntentFieldOptional Nothing
-    , IntentFieldSchema (IntentFieldName "startClientY") IntentFieldOptional Nothing
-    , IntentFieldSchema (IntentFieldName "currentClientX") IntentFieldOptional Nothing
-    , IntentFieldSchema (IntentFieldName "currentClientY") IntentFieldOptional Nothing
-    , IntentFieldSchema (IntentFieldName "deltaX") IntentFieldOptional Nothing
-    , IntentFieldSchema (IntentFieldName "deltaY") IntentFieldOptional Nothing
-    ]
+frontendSurfaceHtmxMethodToInteraction :: FrontendSurfaceHtmxMethod -> HtmxMethod
+frontendSurfaceHtmxMethodToInteraction = \case
+    FrontendSurfaceGet  -> HtmxGet
+    FrontendSurfacePost -> HtmxPost
+
+frontendSurfaceHtmxSwapToInteraction :: Text -> HtmxSwap
+frontendSurfaceHtmxSwapToInteraction = \case
+    "innerHTML" -> HtmxSwapInnerHtml
+    "outerHTML" -> HtmxSwapOuterHtml
+    "beforeend" -> HtmxSwapBeforeEnd
+    "afterbegin" -> HtmxSwapAfterBegin
+    "none" -> HtmxSwapNone
+    value -> HtmxSwapCustom value
 
 rosterFragmentRef :: RosterProjectionScope -> RosterProjectionFragment -> SurfaceFragmentRef RosterLiveSurface
 rosterFragmentRef scope = \case

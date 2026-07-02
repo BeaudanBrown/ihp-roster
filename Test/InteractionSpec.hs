@@ -5,6 +5,8 @@ import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..),
                                               LiveUpdateScope (..))
 import qualified Data.Text as Text
+import qualified Data.UUID as UUID
+import Generated.Types
 import IHP.Prelude
 import Test.Hspec
 import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
@@ -15,7 +17,10 @@ import Web.RosterWeeks.LiveSurface (RosterInteractionIntent (..),
                                     rosterInteractionStaticSchema,
                                     rosterLayoutModeIntentField,
                                     rosterLayoutModeIntentName,
+                                    rosterLiveSurfaceDefinitionForVenue,
                                     rosterMoveShiftIntentName)
+import Web.RosterWeeks.Types (RosterProjectionFragment (..),
+                              RosterProjectionScope (..))
 
 
 tests :: Spec
@@ -124,6 +129,24 @@ tests = describe "Typed interaction surface capabilities" do
                     , conflictPolicyTimeoutMs = Just 5000
                     }
                 ]
+
+    it "adapts roster FrontendSurface intents into the temporary legacy interaction capability" do
+        let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
+        let rosterGroupId = "22222222-2222-2222-2222-222222222222" :: Id RosterGroup
+        let scope = RosterProjectionScope { rosterProjectionGroupId = rosterGroupId, rosterProjectionWeekOffset = 0 }
+        let capability = typedInteractionCapabilityFor (rosterLiveSurfaceDefinitionForVenue venueId) scope
+
+        interactionCapabilityStaticSchema capability `shouldBe` rosterInteractionStaticSchema
+        map (.intentFormName) capability.interactionIntentForms
+            `shouldBe` [rosterLayoutModeIntentName, rosterMoveShiftIntentName]
+        map (.intentFormIntent) capability.interactionIntentForms
+            `shouldBe` [SetRosterLayoutModeIntent, MoveRosterShiftToSlotIntent]
+        map (.intentFormTrigger) capability.interactionIntentForms
+            `shouldBe` ["bepis:intent-submit", "bepis:intent-submit"]
+        map (.intentFormTarget) capability.interactionIntentForms
+            `shouldBe` [IntentTargetLiveFragment (typedLiveSurfaceFragmentRef (rosterLiveSurfaceDefinitionForVenue venueId) scope RosterProjectionContent), IntentTargetLiveFragment (typedLiveSurfaceFragmentRef (rosterLiveSurfaceDefinitionForVenue venueId) scope RosterProjectionContent)]
+        map (.intentFormSync) capability.interactionIntentForms
+            `shouldBe` [Just "#roster-week-shell:replace", Just "#roster-week-shell:replace"]
 
     it "renders mount, layers, markers, and HTMX intent forms from typed contracts" do
         let mount = mkInteractionSurfaceMount () (InteractionMountKey "primary")
@@ -314,6 +337,10 @@ testFragmentRef TestInteractionContent =
 renderText :: Html5.Html -> Text
 renderText =
     cs . HtmlRenderer.renderHtml
+
+expectUuid :: Text -> UUID.UUID
+expectUuid value =
+    fromMaybe (error ("invalid test UUID: " <> cs value)) (UUID.fromString (cs value))
 
 shouldContainText :: Text -> Text -> Expectation
 shouldContainText haystack needle =
