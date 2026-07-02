@@ -133,6 +133,21 @@ rosterInteractionStaticSchema =
                 { sessionKind = RosterDragSession
                 , sessionKindName = rosterDragSessionKindName
                 , sessionDescription = "Roster drag/drop prototype"
+                , sessionEffects = InteractionSessionEffects
+                    { interactionSessionGlobalEffects =
+                        [ InteractionCloneShadowEffect
+                            { cloneShadowLayerName = "drag-preview"
+                            , cloneShadowSource = InteractionEffectPointerMarker
+                            , cloneShadowClassName = "bepis-pointer-clone-shadow"
+                            , cloneShadowPreserveGrabOffset = True
+                            }
+                        ]
+                    , interactionSessionContextualEffects =
+                        [ InteractionDropzoneHighlightEffect
+                            { dropzoneHighlightClassName = "bepis-dropzone-highlight"
+                            }
+                        ]
+                    }
                 }
             ]
         , interactionStaticIntents =

@@ -38,6 +38,9 @@ interactionContractCodecs =
     , someFrontendCodec @Dto.HtmxMethod
     , someFrontendCodec @Dto.HtmxSwap
     , someFrontendCodec @Dto.InteractionConflictResolution
+    , someFrontendCodec @Dto.InteractionEffectSource
+    , someFrontendCodec @Dto.InteractionSessionEffect
+    , someFrontendCodec @Dto.InteractionSessionEffects
     , someFrontendCodec @Dto.InteractionSurfaceFamily
     , someFrontendCodec @Dto.InteractionDisposableLayerName
     , someFrontendCodec @Dto.InteractionSessionKindName

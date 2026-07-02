@@ -168,6 +168,42 @@ HTMX cleanup, explicit stop, or commit. Preview phases are local only; the serve
 DOM remains authoritative until a committed intent submits through a generated
 intent form.
 
+Pointer-session effects are Haskell-owned static interaction-schema metadata,
+not frontend-only configuration. A `SessionKindDefinition` may declare a bounded
+set of generated effect DTOs. TypeScript resolves the mounted surface family,
+looks up `InteractionStaticSchemas.<family>.sessionKinds`, and constructs a
+generic effect runner for the active session kind. If no schema, session kind, or
+effects are present, the runner is a no-op and intent submission remains
+unchanged. Runtime code may switch only on the generated closed effect unions and
+must use exhaustive `assertNever` handling for new variants.
+
+Effects have two lifecycles:
+
+- **Session-global effects** activate once when the movement threshold is met,
+  update on every pointer movement while the session is active, and perform
+  idempotent cleanup on every terminal path: commit, cancel, Escape,
+  `pointercancel`, timeout, external HTMX cleanup, or runtime stop. Global
+  effects may create or update disposable UI only inside a declared disposable
+  layer in the same concrete mount.
+- **Contextual target effects** are driven by generic hit-testing and the current
+  marker target. They enter/update/leave as the pointer moves across matching
+  marker elements, must clean the previous target before highlighting a new one,
+  and must clean any active target on session end. Targets provide only typed
+  marker data and configured CSS classes; targets do not inject arbitrary effect
+  behavior.
+
+The initial generated effect union is intentionally small. `clone-shadow` is a
+session-global effect that measures the configured source marker, renders an
+inert same-size proxy shape in the configured disposable layer, disables pointer
+events, and preserves the original pointer grab offset while following the
+pointer. It deliberately does not try to screenshot or reconstruct arbitrary DOM;
+visual styling comes from the configured generic CSS class. `dropzone-highlight`
+is a contextual effect that uses the generic dropzone marker hit-test, applies
+the configured CSS class to the active dropzone, removes it from the previous
+target on switch/leave, and cleans up at session end. These effects are examples
+of the generic lifecycle; they do not authorize a runtime to mutate server-owned
+business DOM, construct persistence URLs, or invent new session/layer names.
+
 Live-fragment coordination uses the same generic session boundary. Pointer
 sessions publish mount/session start and end events. The live-update runtime
 tracks active sessions by concrete mount and consults helper-rendered conflict

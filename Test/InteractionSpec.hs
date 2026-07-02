@@ -91,6 +91,24 @@ tests = describe "Typed interaction surface capabilities" do
             `shouldBe` ["drag-preview"]
         map (.sessionKindName) rosterInteractionStaticSchema.interactionStaticSessionKinds
             `shouldBe` [rosterDragSessionKindName]
+        map (.sessionEffects) rosterInteractionStaticSchema.interactionStaticSessionKinds
+            `shouldBe`
+                [ InteractionSessionEffects
+                    { interactionSessionGlobalEffects =
+                        [ InteractionCloneShadowEffect
+                            { cloneShadowLayerName = "drag-preview"
+                            , cloneShadowSource = InteractionEffectPointerMarker
+                            , cloneShadowClassName = "bepis-pointer-clone-shadow"
+                            , cloneShadowPreserveGrabOffset = True
+                            }
+                        ]
+                    , interactionSessionContextualEffects =
+                        [ InteractionDropzoneHighlightEffect
+                            { dropzoneHighlightClassName = "bepis-dropzone-highlight"
+                            }
+                        ]
+                    }
+                ]
         map (.interactionIntentSchemaName) rosterInteractionStaticSchema.interactionStaticIntents
             `shouldBe` [rosterLayoutModeIntentName, rosterMoveShiftIntentName]
         map (.interactionIntentSchemaIntent) rosterInteractionStaticSchema.interactionStaticIntents
@@ -236,6 +254,7 @@ testInteractionStaticSchema =
                 { sessionKind = DragSession
                 , sessionKindName = "drag"
                 , sessionDescription = "Local drag preview session"
+                , sessionEffects = emptyInteractionSessionEffects
                 }
             ]
         , interactionStaticIntents =

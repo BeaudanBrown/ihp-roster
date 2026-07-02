@@ -11,6 +11,7 @@ module Application.Helper.Interaction
     , InteractionDom (..)
     , InteractionDomAttributes (..)
     , InteractionDomValues (..)
+    , InteractionEffectSource (..)
     , InteractionFieldPresence (..)
     , InteractionPointerFields (..)
     , InteractionFragmentSelector (..)
@@ -19,6 +20,9 @@ module Application.Helper.Interaction
     , InteractionMarkerKind (..)
     , InteractionMountKey (..)
     , InteractionMountLocalTarget (..)
+    , InteractionSessionContextualEffect (..)
+    , InteractionSessionEffects (..)
+    , InteractionSessionGlobalEffect (..)
     , InteractionSessionSelector (..)
     , InteractionStaticSchema (..)
     , InteractionSurfaceMount (..)
@@ -33,6 +37,7 @@ module Application.Helper.Interaction
     , canonicalInteractionDom
     , disposableLayerDomId
     , emptyInteractionCapability
+    , emptyInteractionSessionEffects
     , emptyInteractionStaticSchema
     , emptyInteractionSurfaceDefinition
     , htmxMethodAttribute
@@ -88,6 +93,7 @@ import Application.Helper.Interaction.Types (DisposableLayerDefinition (..),
                                              InteractionDom (..),
                                              InteractionDomAttributes (..),
                                              InteractionDomValues (..),
+                                             InteractionEffectSource (..),
                                              InteractionFieldPresence (..),
                                              InteractionFragmentSelector (..),
                                              InteractionIntentSchema (..),
@@ -96,12 +102,16 @@ import Application.Helper.Interaction.Types (DisposableLayerDefinition (..),
                                              InteractionMountKey (..),
                                              InteractionMountLocalTarget (..),
                                              InteractionPointerFields (..),
+                                             InteractionSessionContextualEffect (..),
+                                             InteractionSessionEffects (..),
+                                             InteractionSessionGlobalEffect (..),
                                              InteractionSessionSelector (..),
                                              InteractionStaticSchema (..),
                                              ServerLayerDefinition (..),
                                              SessionKindDefinition (..),
                                              canonicalInteractionDom,
                                              emptyInteractionCapability,
+                                             emptyInteractionSessionEffects,
                                              emptyInteractionStaticSchema,
                                              htmxMethodValues, htmxSwapValues,
                                              interactionActivationTriggerValues,

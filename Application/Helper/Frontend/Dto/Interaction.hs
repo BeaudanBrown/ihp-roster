@@ -16,6 +16,7 @@ module Application.Helper.Frontend.Dto.Interaction
     , InteractionDomAttribute (..)
     , InteractionDomAttributes (..)
     , InteractionDomValues (..)
+    , InteractionEffectSource (..)
     , InteractionFieldPresence (..)
     , InteractionFragmentSelector (..)
     , InteractionIntentFieldName (..)
@@ -23,6 +24,8 @@ module Application.Helper.Frontend.Dto.Interaction
     , InteractionIntentTarget (..)
     , InteractionMountMetadata (..)
     , InteractionPointerFields (..)
+    , InteractionSessionEffect (..)
+    , InteractionSessionEffects (..)
     , InteractionSessionKindName (..)
     , InteractionSessionSelector (..)
     , InteractionStaticDisposableLayer (..)
@@ -106,6 +109,27 @@ data InteractionConflictResolution
     = Apply
     | Defer
     | Cancel
+    deriving (Eq, Show, Generic)
+
+newtype InteractionEffectSource = InteractionEffectSource { unInteractionEffectSource :: Text }
+    deriving (Eq, Show)
+
+data InteractionSessionEffect
+    = CloneShadow
+        { layer              :: !InteractionDisposableLayerName
+        , source             :: !InteractionEffectSource
+        , className          :: !Text
+        , preserveGrabOffset :: !Bool
+        }
+    | DropzoneHighlight
+        { className :: !Text
+        }
+    deriving (Eq, Show, Generic)
+
+data InteractionSessionEffects = InteractionSessionEffects
+    { global     :: ![InteractionSessionEffect]
+    , contextual :: ![InteractionSessionEffect]
+    }
     deriving (Eq, Show, Generic)
 
 data InteractionDomAttributes = InteractionDomAttributes
@@ -287,6 +311,7 @@ data InteractionStaticDisposableLayer = InteractionStaticDisposableLayer
 data InteractionStaticSessionKind = InteractionStaticSessionKind
     { kind        :: !InteractionSessionKindName
     , description :: !Text
+    , effects     :: !InteractionSessionEffects
     }
     deriving (Eq, Show, Generic)
 
@@ -348,6 +373,22 @@ instance HasFrontendCodec InteractionFieldPresence where
 instance HasFrontendCodec InteractionConflictResolution where
     frontendCodec = genericFrontendCodecWith defaultFrontendCodecOptions
         { frontendTypeNameOverride = Just "InteractionConflictResolution" }
+
+instance HasFrontendCodec InteractionEffectSource where
+    frontendCodec = textNewtypeEnumCodec "InteractionEffectSource" ["pointer-marker"] InteractionEffectSource unInteractionEffectSource
+
+instance HasFrontendCodec InteractionSessionEffect where
+    frontendCodec = genericFrontendCodecWith defaultFrontendCodecOptions
+        { frontendTypeNameOverride = Just "InteractionSessionEffect"
+        , frontendConstructorTagModifier = \case
+            "CloneShadow" -> "clone-shadow"
+            "DropzoneHighlight" -> "dropzone-highlight"
+            constructorName -> camelToKebabLower constructorName
+        }
+
+instance HasFrontendCodec InteractionSessionEffects where
+    frontendCodec = genericFrontendCodecWith defaultFrontendCodecOptions
+        { frontendTypeNameOverride = Just "InteractionSessionEffects" }
 
 instance HasFrontendCodec InteractionDomAttributes where
     frontendCodec = genericFrontendCodecWith defaultFrontendCodecOptions
@@ -547,7 +588,30 @@ staticSessionKindDto :: Interaction.SessionKindDefinition session -> Interaction
 staticSessionKindDto session = InteractionStaticSessionKind
     { kind = InteractionSessionKindName session.sessionKindName
     , description = session.sessionDescription
+    , effects = sessionEffectsDto session.sessionEffects
     }
+
+sessionEffectsDto :: Interaction.InteractionSessionEffects -> InteractionSessionEffects
+sessionEffectsDto effects = InteractionSessionEffects
+    { global = fmap sessionGlobalEffectDto effects.interactionSessionGlobalEffects
+    , contextual = fmap sessionContextualEffectDto effects.interactionSessionContextualEffects
+    }
+
+sessionGlobalEffectDto :: Interaction.InteractionSessionGlobalEffect -> InteractionSessionEffect
+sessionGlobalEffectDto Interaction.InteractionCloneShadowEffect { cloneShadowLayerName, cloneShadowSource, cloneShadowClassName, cloneShadowPreserveGrabOffset } = CloneShadow
+    { layer = InteractionDisposableLayerName cloneShadowLayerName
+    , source = effectSourceDto cloneShadowSource
+    , className = cloneShadowClassName
+    , preserveGrabOffset = cloneShadowPreserveGrabOffset
+    }
+
+sessionContextualEffectDto :: Interaction.InteractionSessionContextualEffect -> InteractionSessionEffect
+sessionContextualEffectDto Interaction.InteractionDropzoneHighlightEffect { dropzoneHighlightClassName } = DropzoneHighlight
+    { className = dropzoneHighlightClassName
+    }
+
+effectSourceDto :: Interaction.InteractionEffectSource -> InteractionEffectSource
+effectSourceDto Interaction.InteractionEffectPointerMarker = InteractionEffectSource "pointer-marker"
 
 staticIntentDto :: Interaction.InteractionIntentSchema intent -> InteractionStaticIntent
 staticIntentDto intent = InteractionStaticIntent

@@ -37,6 +37,10 @@ tests = describe "Frontend contract generator foundation" do
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export type OverlayLane"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export type LiveUpdateScope"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export type UiRegionTransitionProfile"
+        frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export type InteractionSessionEffect"
+        frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "| { kind: \"clone-shadow\"; layer: InteractionDisposableLayerName; source: InteractionEffectSource; className: string; preserveGrabOffset: boolean }"
+        frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "| { kind: \"dropzone-highlight\"; className: string }"
+        frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "\"effects\":{\"contextual\":[{\"className\":\"bepis-dropzone-highlight\",\"kind\":\"dropzone-highlight\"}]"
 
     it "registers each Haskell-owned frontend contract group exactly once" do
         let declarationOrigins = [(declaration.name, declaration.origin) | declaration <- frontendContractDeclarations]

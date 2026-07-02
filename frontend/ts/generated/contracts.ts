@@ -533,6 +533,60 @@ export function encodeInteractionConflictResolution(value: InteractionConflictRe
 }
 
 
+export type InteractionEffectSource =
+    | "pointer-marker";
+
+export function isInteractionEffectSource(value: unknown): value is InteractionEffectSource {
+    return value === "pointer-marker";
+}
+
+export function parseInteractionEffectSource(value: unknown): InteractionEffectSource {
+    if (isInteractionEffectSource(value)) return value;
+    throw new Error("Invalid InteractionEffectSource");
+}
+
+export function encodeInteractionEffectSource(value: InteractionEffectSource): InteractionEffectSource {
+    return value;
+}
+
+
+export type InteractionSessionEffect =
+    | { kind: "clone-shadow"; layer: InteractionDisposableLayerName; source: InteractionEffectSource; className: string; preserveGrabOffset: boolean }
+    | { kind: "dropzone-highlight"; className: string };
+
+export function isInteractionSessionEffect(value: unknown): value is InteractionSessionEffect {
+    return (__isInteractionDomAttributesExactRecord(value, ["kind", "layer", "source", "className", "preserveGrabOffset"], []) && value["kind"] === "clone-shadow" && (isInteractionDisposableLayerName(value["layer"])) && (isInteractionEffectSource(value["source"])) && (typeof value["className"] === "string") && (typeof value["preserveGrabOffset"] === "boolean")) || (__isInteractionDomAttributesExactRecord(value, ["kind", "className"], []) && value["kind"] === "dropzone-highlight" && (typeof value["className"] === "string"));
+}
+
+export function parseInteractionSessionEffect(value: unknown): InteractionSessionEffect {
+    if (isInteractionSessionEffect(value)) return value;
+    throw new Error("Invalid InteractionSessionEffect");
+}
+
+export function encodeInteractionSessionEffect(value: InteractionSessionEffect): InteractionSessionEffect {
+    return value;
+}
+
+
+export type InteractionSessionEffects = {
+    global: InteractionSessionEffect[];
+    contextual: InteractionSessionEffect[];
+};
+
+export function isInteractionSessionEffects(value: unknown): value is InteractionSessionEffects {
+    return __isInteractionDomAttributesExactRecord(value, ["global", "contextual"], []) && (Array.isArray(value["global"]) && value["global"].every((item) => isInteractionSessionEffect(item))) && (Array.isArray(value["contextual"]) && value["contextual"].every((item) => isInteractionSessionEffect(item)));
+}
+
+export function parseInteractionSessionEffects(value: unknown): InteractionSessionEffects {
+    if (isInteractionSessionEffects(value)) return value;
+    throw new Error("Invalid InteractionSessionEffects");
+}
+
+export function encodeInteractionSessionEffects(value: InteractionSessionEffects): InteractionSessionEffects {
+    return value;
+}
+
+
 export type InteractionSurfaceFamily =
     | "roster";
 
@@ -915,10 +969,11 @@ export function encodeInteractionStaticDisposableLayer(value: InteractionStaticD
 export type InteractionStaticSessionKind = {
     kind: InteractionSessionKindName;
     description: string;
+    effects: InteractionSessionEffects;
 };
 
 export function isInteractionStaticSessionKind(value: unknown): value is InteractionStaticSessionKind {
-    return __isInteractionDomAttributesExactRecord(value, ["kind", "description"], []) && (isInteractionSessionKindName(value["kind"])) && (typeof value["description"] === "string");
+    return __isInteractionDomAttributesExactRecord(value, ["kind", "description", "effects"], []) && (isInteractionSessionKindName(value["kind"])) && (typeof value["description"] === "string") && (isInteractionSessionEffects(value["effects"]));
 }
 
 export function parseInteractionStaticSessionKind(value: unknown): InteractionStaticSessionKind {
@@ -992,7 +1047,7 @@ export function encodeInteractionStaticSchemaRegistry(value: InteractionStaticSc
 
 
 export const InteractionDom: InteractionDom = {"attributes":{"activation":"data-bepis-activation","activationIntent":"data-bepis-activation-intent","activationTrigger":"data-bepis-activation-trigger","activationValueField":"data-bepis-activation-value-field","conflictPolicies":"data-bepis-conflict-policies","container":"data-bepis-container","disposableLayer":"data-bepis-disposable-layer","dropzone":"data-bepis-dropzone","fieldPresence":"data-bepis-field-presence","intent":"data-bepis-intent","intentField":"data-bepis-intent-field","intentForm":"data-bepis-intent-form","intentHiddenField":"data-bepis-intent-hidden-field","interactionActive":"data-bepis-interaction-active","item":"data-bepis-item","layer":"data-bepis-layer","marker":"data-bepis-marker","mountKey":"data-bepis-mount-key","pointerSession":"data-bepis-pointer-session","resizeHandle":"data-bepis-resize-handle","scopeKey":"data-bepis-scope-key","serverLayer":"data-bepis-server-layer","sessionDisabled":"data-bepis-session-disabled","sessionIntent":"data-bepis-session-intent","sessionKind":"data-bepis-session-kind","sessionReadOnly":"data-bepis-session-read-only","sessionThreshold":"data-bepis-session-threshold","sessionTimeoutMs":"data-bepis-session-timeout-ms","slot":"data-bepis-slot","surface":"data-bepis-surface","surfaceFamily":"data-bepis-surface-family"},"pointerFields":{"currentClientX":"currentClientX","currentClientY":"currentClientY","deltaX":"deltaX","deltaY":"deltaY","pointerId":"pointerId","pointerType":"pointerType","sessionKind":"sessionKind","sourceItemKey":"sourceItemKey","startClientX":"startClientX","startClientY":"startClientY","targetDropzoneKey":"targetDropzoneKey"},"values":{"activationMarker":"activation","containerMarker":"container","dropzoneMarker":"dropzone","enabled":"true","itemMarker":"item","resizeHandleMarker":"resize-handle","slotMarker":"slot"}};
-export const InteractionStaticSchemas: InteractionStaticSchemaRegistry = {"roster":{"conflictPolicies":[{"fragment":{"kind":"any"},"resolution":"defer","session":{"kind":"session","session":"drag"},"timeoutMs":5000}],"disposableLayers":[{"domIdSuffix":"drag-preview","name":"drag-preview"}],"intents":[{"fields":[{"defaultValue":null,"name":"rosterLayoutMode","presence":"required"}],"name":"set-roster-layout-mode"},{"fields":[{"defaultValue":null,"name":"sourceItemKey","presence":"required"},{"defaultValue":null,"name":"targetDropzoneKey","presence":"required"},{"defaultValue":null,"name":"sessionKind","presence":"optional"},{"defaultValue":null,"name":"pointerId","presence":"optional"},{"defaultValue":null,"name":"pointerType","presence":"optional"},{"defaultValue":null,"name":"startClientX","presence":"optional"},{"defaultValue":null,"name":"startClientY","presence":"optional"},{"defaultValue":null,"name":"currentClientX","presence":"optional"},{"defaultValue":null,"name":"currentClientY","presence":"optional"},{"defaultValue":null,"name":"deltaX","presence":"optional"},{"defaultValue":null,"name":"deltaY","presence":"optional"}],"name":"move-roster-shift-to-slot"}],"serverLayers":[],"sessionKinds":[{"description":"Roster drag/drop prototype","kind":"drag"}]}};
+export const InteractionStaticSchemas: InteractionStaticSchemaRegistry = {"roster":{"conflictPolicies":[{"fragment":{"kind":"any"},"resolution":"defer","session":{"kind":"session","session":"drag"},"timeoutMs":5000}],"disposableLayers":[{"domIdSuffix":"drag-preview","name":"drag-preview"}],"intents":[{"fields":[{"defaultValue":null,"name":"rosterLayoutMode","presence":"required"}],"name":"set-roster-layout-mode"},{"fields":[{"defaultValue":null,"name":"sourceItemKey","presence":"required"},{"defaultValue":null,"name":"targetDropzoneKey","presence":"required"},{"defaultValue":null,"name":"sessionKind","presence":"optional"},{"defaultValue":null,"name":"pointerId","presence":"optional"},{"defaultValue":null,"name":"pointerType","presence":"optional"},{"defaultValue":null,"name":"startClientX","presence":"optional"},{"defaultValue":null,"name":"startClientY","presence":"optional"},{"defaultValue":null,"name":"currentClientX","presence":"optional"},{"defaultValue":null,"name":"currentClientY","presence":"optional"},{"defaultValue":null,"name":"deltaX","presence":"optional"},{"defaultValue":null,"name":"deltaY","presence":"optional"}],"name":"move-roster-shift-to-slot"}],"serverLayers":[],"sessionKinds":[{"description":"Roster drag/drop prototype","effects":{"contextual":[{"className":"bepis-dropzone-highlight","kind":"dropzone-highlight"}],"global":[{"className":"bepis-pointer-clone-shadow","kind":"clone-shadow","layer":"drag-preview","preserveGrabOffset":true,"source":"pointer-marker"}]},"kind":"drag"}]}};
 // UI region capability vocabulary generated from Haskell.
 function __isUiRegionDomExactRecord(value: unknown, requiredKeys: string[], optionalKeys: string[]): value is Record<string, unknown> {
     if (typeof value !== "object" || value === null || Array.isArray(value)) return false;

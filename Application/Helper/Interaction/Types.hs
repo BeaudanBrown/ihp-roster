@@ -12,6 +12,7 @@ module Application.Helper.Interaction.Types
     , InteractionDomValues (..)
     , InteractionPointerFields (..)
     , InteractionConflictResolution (..)
+    , InteractionEffectSource (..)
     , InteractionFieldPresence (..)
     , InteractionFragmentSelector (..)
     , InteractionIntentSchema (..)
@@ -19,6 +20,9 @@ module Application.Helper.Interaction.Types
     , InteractionMarkerKind (..)
     , InteractionMountKey (..)
     , InteractionMountLocalTarget (..)
+    , InteractionSessionContextualEffect (..)
+    , InteractionSessionEffects (..)
+    , InteractionSessionGlobalEffect (..)
     , InteractionSessionSelector (..)
     , InteractionStaticSchema (..)
     , IntentFieldName (..)
@@ -30,6 +34,7 @@ module Application.Helper.Interaction.Types
     , SessionKindDefinition (..)
     , canonicalInteractionDom
     , emptyInteractionCapability
+    , emptyInteractionSessionEffects
     , emptyInteractionStaticSchema
     , interactionCapabilityStaticSchema
     , htmxMethodValues
@@ -194,10 +199,36 @@ data DisposableLayerDefinition layer = DisposableLayerDefinition
     }
     deriving (Eq, Show)
 
+data InteractionEffectSource
+    = InteractionEffectPointerMarker
+    deriving (Eq, Show)
+
+data InteractionSessionGlobalEffect
+    = InteractionCloneShadowEffect
+        { cloneShadowLayerName          :: !Text
+        , cloneShadowSource             :: !InteractionEffectSource
+        , cloneShadowClassName          :: !Text
+        , cloneShadowPreserveGrabOffset :: !Bool
+        }
+    deriving (Eq, Show)
+
+data InteractionSessionContextualEffect
+    = InteractionDropzoneHighlightEffect
+        { dropzoneHighlightClassName :: !Text
+        }
+    deriving (Eq, Show)
+
+data InteractionSessionEffects = InteractionSessionEffects
+    { interactionSessionGlobalEffects     :: ![InteractionSessionGlobalEffect]
+    , interactionSessionContextualEffects :: ![InteractionSessionContextualEffect]
+    }
+    deriving (Eq, Show)
+
 data SessionKindDefinition session = SessionKindDefinition
     { sessionKind        :: !session
     , sessionKindName    :: !Text
     , sessionDescription :: !Text
+    , sessionEffects     :: !InteractionSessionEffects
     }
     deriving (Eq, Show)
 
@@ -331,6 +362,13 @@ data InteractionCapability fragmentRef fragment layer session intent = Interacti
     , interactionConflictPolicies :: ![InteractionConflictPolicy fragment session]
     }
     deriving (Eq, Show)
+
+emptyInteractionSessionEffects :: InteractionSessionEffects
+emptyInteractionSessionEffects =
+    InteractionSessionEffects
+        { interactionSessionGlobalEffects = []
+        , interactionSessionContextualEffects = []
+        }
 
 emptyInteractionStaticSchema :: InteractionStaticSchema fragment layer session intent
 emptyInteractionStaticSchema =
