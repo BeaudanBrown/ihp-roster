@@ -3,7 +3,9 @@
 module Application.Helper.Frontend.Contracts
     ( TypeScriptDeclaration (..)
     , frontendContractDeclarations
+    , frontendContractDeclarationsWithFrontendSurface
     , frontendContractsTypeScript
+    , frontendContractsTypeScriptWithFrontendSurface
     )
 where
 
@@ -37,6 +39,10 @@ overlayLaneDeclaration =
 
 frontendContractDeclarations :: [TypeScriptDeclaration]
 frontendContractDeclarations =
+    frontendContractDeclarationsWithFrontendSurface frontendSurfaceContractDeclaration
+
+frontendContractDeclarationsWithFrontendSurface :: TypeScriptDeclaration -> [TypeScriptDeclaration]
+frontendContractDeclarationsWithFrontendSurface frontendSurfaceDeclaration =
     [ overlayLaneDeclaration
     , appSharedConstantsDeclaration
     , liveUpdateSchemaDeclaration
@@ -44,9 +50,13 @@ frontendContractDeclarations =
     , uiRegionSchemaDeclaration
     , rosterContractsDeclaration
     , surfaceManifestDeclaration
-    , frontendSurfaceContractDeclaration
+    , frontendSurfaceDeclaration
     ]
 
 frontendContractsTypeScript :: Text
 frontendContractsTypeScript =
     renderTypeScriptDeclarations frontendContractDeclarations
+
+frontendContractsTypeScriptWithFrontendSurface :: TypeScriptDeclaration -> Text
+frontendContractsTypeScriptWithFrontendSurface frontendSurfaceDeclaration =
+    renderTypeScriptDeclarations (frontendContractDeclarationsWithFrontendSurface frontendSurfaceDeclaration)

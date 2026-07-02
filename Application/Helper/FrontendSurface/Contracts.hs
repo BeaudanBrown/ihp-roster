@@ -1,6 +1,8 @@
 module Application.Helper.FrontendSurface.Contracts
     ( frontendSurfaceContractDeclaration
+    , frontendSurfaceContractDeclarationFor
     , frontendSurfaceContractsTypeScript
+    , frontendSurfaceContractsTypeScriptFor
     , registeredFrontendSurfaceContractIR
     ) where
 
@@ -19,12 +21,20 @@ registeredFrontendSurfaceContractIR =
 
 frontendSurfaceContractsTypeScript :: Text
 frontendSurfaceContractsTypeScript =
-    renderFrontendSurfaceContractsTypeScript registeredFrontendSurfaceContractIR
+    frontendSurfaceContractsTypeScriptFor registeredFrontendSurfaceContractIR
+
+frontendSurfaceContractsTypeScriptFor :: SurfaceContractIR -> Text
+frontendSurfaceContractsTypeScriptFor =
+    renderFrontendSurfaceContractsTypeScript
 
 frontendSurfaceContractDeclaration :: TypeScriptDeclaration
 frontendSurfaceContractDeclaration =
+    frontendSurfaceContractDeclarationFor registeredFrontendSurfaceContractIR
+
+frontendSurfaceContractDeclarationFor :: SurfaceContractIR -> TypeScriptDeclaration
+frontendSurfaceContractDeclarationFor contract =
     TypeScriptDeclaration
         { name = "FrontendSurfaceContracts"
         , origin = HaskellSchemaGenerated
-        , source = frontendSurfaceContractsTypeScript
+        , source = frontendSurfaceContractsTypeScriptFor contract
         }

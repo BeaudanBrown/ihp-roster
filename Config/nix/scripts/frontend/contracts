@@ -26,14 +26,16 @@ trap cleanup EXIT
 
 mkdir -p "$build_dir/obj" "$build_dir/hi" "$(dirname "$output_path")"
 GHC_OPTS="$(ihp_roster_ghc_opts)"
-ghc $GHC_OPTS Application/Script/GenerateFrontendContracts.hs \
-    -main-is Application.Script.GenerateFrontendContracts \
+echo "frontend-contracts: compiling GHC FrontendSurface contract generator" >&2
+ghc $GHC_OPTS -package ghc Application/Script/GenerateFrontendContractsGhc.hs \
+    -main-is Application.Script.GenerateFrontendContractsGhc \
     -odir "$build_dir/obj" \
     -hidir "$build_dir/hi" \
     -o "$build_dir/generate-frontend-contracts" >/dev/null
 
 tmp_output="$(mktemp "$(dirname "$output_path")/.contracts.ts.XXXXXX")"
-"$build_dir/generate-frontend-contracts" "$tmp_output"
+echo "frontend-contracts: extracting FrontendSurface registry with GHC API" >&2
+"$build_dir/generate-frontend-contracts" "$(ghc --print-libdir)" "$tmp_output"
 
 if [ -f "$output_path" ] && cmp -s "$tmp_output" "$output_path"; then
     rm -f "$tmp_output"
