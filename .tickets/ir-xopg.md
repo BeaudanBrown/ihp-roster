@@ -1,6 +1,6 @@
 ---
 id: ir-xopg
-status: open
+status: closed
 deps: [ir-ennr, ir-p3c3]
 links: []
 created: 2026-07-02T02:47:03Z
@@ -83,3 +83,7 @@ Moved the GHC extraction/normalization code out of the probe into Application.He
 **2026-07-02T08:37:32Z**
 
 Added stable GHC raw-lowering diagnostics/tests for unsupported normalized type-family nodes, malformed non-PromotedList field lists, unsupported wire types, and unsupported options. Verified refreshed PATH canonical frontend-contracts/frontend-contracts-check, typecheck, probe lowering JSON, focused GHC lowering Hspec binary, frontend-contracts-check, frontend-test, and one frontend-contracts-watch regeneration cycle.
+
+**2026-07-02T09:26:59Z**
+
+Final review after guardrails: GHC API extraction/normalization/lowering is in reusable Ghc.Raw/Ghc.Extract/Ghc.Lower modules; frontend-contracts and frontend-contracts-check use GenerateFrontendContractsGhc; generated contracts include lab primitives/DTOs/mount state and pass frontend consumption tests; diagnostics cover unsupported type-family nodes, malformed lists, unsupported wire/options, duplicate names, conflicting/shared declarations, invalid refs, and DTO refs; frontend-surface-guardrails blocks old contract/live/projection authoring for migrated lab paths. Verified frontend-surface-guardrails and frontend/check path after PATH reload.
