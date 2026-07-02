@@ -1,6 +1,8 @@
 # Type-Level FrontendSurface Contracts
 
-Status: active
+Status: active planning contract; foundational naming code has started, but the DSL,
+`SurfaceImpl`, generator, mount-local runtime, and migrations described here are
+not fully implemented yet.
 
 Tickets:
 
