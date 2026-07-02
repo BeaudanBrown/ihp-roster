@@ -67,3 +67,7 @@ GHC API probe now has a raw extraction layer: RawRegistry/RawSurface/RawType cap
 **2026-07-02T07:14:02Z**
 
 Started approved normalization inside the GHC raw extractor. The --json output now includes normalized surface trees where type synonyms are expanded and approved list helpers Concat/Append plus promoted lists are represented as PromotedList nodes. Current lab normalized tree contains primitive nodes such as Scope/Fragment/Dto under a flattened Surface capability list while preserving source spans on marker/constructor refs. Next pause point: lowering this normalized RawType tree into SurfaceContractIR versus first adding explicit diagnostics for unsupported type families/cycles.
+
+**2026-07-02T07:24:25Z**
+
+Lowered normalized GHC RawType trees into checked SurfaceContractIR inside the probe. The lowerer covers the lab primitive set, fields, wire types, options, selectors, conflict resolutions, DTO refs, naming, and existing ContractIR validation. --json now includes lowered.status=ok and lowered surface summaries (surface-lab, lab scope, lab-shell/lab-panel, refresh-panel, move-lab-card, DTOs). Next pause point: replacing frontend-contracts generation with the GHC lowerer versus first moving raw/lowerer code out of the probe into reusable modules and adding deterministic tests.
