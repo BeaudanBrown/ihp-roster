@@ -1,6 +1,6 @@
 ---
 id: ir-ennr
-status: in_progress
+status: closed
 deps: [ir-8w6w, ir-npm8, ir-g6z3]
 links: []
 created: 2026-07-02T02:47:03Z
@@ -70,3 +70,7 @@ Added compile-only FrontendSurface DSL foundation and support lab spec covering 
 **2026-07-02T06:20:25Z**
 
 Added minimal SurfaceImpl runtime scaffold and support-only FrontendSurface lab page/actions. Lab route uses SupportController super-admin gate, mounts via SurfaceImpl SurfaceLabSurface, renders mount-local config (not data-live-update-surface), lazy panel placeholder/refetch, HTMX refresh action metadata, and move-card intent form metadata. Verification: typecheck passed; hspec-test --match 'FrontendSurface DSL' compiles but DB reset is blocked by missing local postgres socket; direct build/Test/Main focused runs passed.
+
+**2026-07-02T06:21:21Z**
+
+Acceptance sweep: lab spec covers Scope, Fragment, HtmxAction, Intent, Field/OptionalField/NullableField, Session, DisposableLayer, InteractionEffect, ConflictPolicy, LoadPolicy/eager/lazy, OverlayLane, ClientEvent, DomToken, Dto, and MountState. Lab page is SupportController-gated, mounts via SurfaceImpl SurfaceLabSurface, uses no TypedLiveSurfaceDefinition/FrontendCodec/SurfaceProjection, and includes eager shell, lazy panel, HTMX refresh action, and move-card intent form.
