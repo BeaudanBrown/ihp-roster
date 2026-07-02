@@ -55,3 +55,7 @@ Added the first generator slice: type-level registry reflection from RegisteredF
 **2026-07-02T06:50:29Z**
 
 Reflection/IR hardening chunk: lab DTOs now cover WireList, WireDay, WireOptional, WireNullable, and WireRef; ContractIR validates nested WireRef DTO references with stable invalid-wire-ref diagnostics; generated TS and frontend tests consume the expanded DTO shapes.
+
+**2026-07-02T06:54:58Z**
+
+Started the GHC API path with a script-owned probe. Config/nix/scripts/frontend/surface-ghc-probe compiles Application.Script.FrontendSurfaceGhcProbe with project GHC opts plus -package ghc, loads Application.Helper.FrontendSurface.Registry through the GHC API with Opt_ForceRecomp for source spans, locates RegisteredFrontendSurfaces, and prints its source span, kind and synonym RHS. Verification: surface-ghc-probe prints RHS Just '[SurfaceLabSurface] with Registry.hs source span. Next pause point: choose whether to make this probe lower GHC Type values into SurfaceContractIR directly, or first add a raw GHC-extracted AST/Type JSON layer for diffable diagnostics.
