@@ -54,3 +54,7 @@ Starting Timesheets migration. First slice will add the type-level Timesheets Fr
 **2026-07-02T09:34:00Z**
 
 First Timesheets FrontendSurface slice landed locally: added Application.Helper.FrontendSurface.Timesheets with TimesheetWeek scope, TimesheetsMountState mount state, and toolbar/day-columns/day-section fragments; registered it in RegisteredFrontendSurfaces; generated TS contracts now include timesheets manifest, TimesheetsMountState, and TimesheetsFragmentKey. Also fixed TypeScript rendering so branded WireOptional UUID fields preserve the | undefined wrapper. Verified focused FrontendSurface DSL/GHC Hspec and frontend-check.
+
+**2026-07-02T09:37:16Z**
+
+Second slice: added Web.Timesheets.FrontendSurface side-by-side runtime bridge with TimesheetWeekScopeValue, TimesheetsMountStateValue, typed SurfaceImplHandlers for scope/mount-state/toolbar/day-columns/day-section fragments, and query-preserving mounted fragment URLs. Added focused Timesheets controller spec proving mount metadata, scope key, mount state JSON, fragment kinds/targets, and query params. This does not yet switch rendering away from legacy live surface/projection paths.

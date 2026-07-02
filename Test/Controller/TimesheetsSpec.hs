@@ -2,6 +2,10 @@ module Test.Controller.TimesheetsSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole),
                                       parseTimeParam)
+import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceFragmentKey (..),
+                                                   FrontendSurfaceMountConfig (..),
+                                                   FrontendSurfaceMountedFragment (..),
+                                                   SurfaceImpl (..))
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface (mkTypedDefinedLiveSurface,
                                        typedLiveSurfaceFragmentRefs,
@@ -10,9 +14,12 @@ import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
 import Application.Helper.WeekBoundaries (venueWeekOffsetForDay)
 import Config
+import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (getCurrentTime, utctDay)
+import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
@@ -28,6 +35,7 @@ import Test.Support.LiveSurfaceContract
 import Web.Controller.Timesheets ()
 import Web.FrontController ()
 import Web.Routes
+import Web.Timesheets.FrontendSurface
 import Web.Timesheets.Mutations (timesheetEntryTouchedResources)
 import Web.Timesheets.Projection (TimesheetProjectionFragment (..),
                                   TimesheetProjectionRequest (..),
@@ -100,6 +108,31 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "timesheet_week"
                 response `responseBodyShouldContain` "data-timesheet-day-offset=\"0\""
+
+        it "builds typed FrontendSurface mount metadata for the current timesheet query state" $ withContext do
+            withCurrentControllerContext do
+                let venueId = fromMaybe (error "invalid test UUID") (UUID.fromString "00000000-0000-0000-0000-000000000123")
+                let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = venueId, timesheetWeekWeekOffset = 2 }
+                let mountState = TimesheetsMountStateValue { timesheetsMountShowApproved = False, timesheetsMountShowAllStaff = True, timesheetsMountStaffFilterId = Nothing }
+                let impl = timesheetsSurfaceImpl scope mountState
+                let mountConfig = impl.surfaceImplMountConfig
+                let fragmentKinds = map (\fragment -> fragment.mountedFragmentKey.fragmentKind) mountConfig.mountFragments
+                let fragmentTargets = map (.mountedFragmentTargetId) mountConfig.mountFragments
+                let fragmentUrls = map (.mountedFragmentUrl) mountConfig.mountFragments
+
+                impl.surfaceImplName `shouldBe` "timesheets"
+                mountConfig.mountSurfaceName `shouldBe` "timesheets"
+                mountConfig.mountScopeKey `shouldBe` "timesheets:00000000-0000-0000-0000-000000000123:2"
+                mountConfig.mountState `shouldBe` Aeson.object
+                    [ "showApproved" Aeson..= False
+                    , "showAllStaff" Aeson..= True
+                    , "staffFilterId" Aeson..= (Nothing :: Maybe Text)
+                    ]
+                fragmentKinds `shouldBe` ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"]
+                fragmentTargets `shouldBe` ["timesheet-week-toolbar", "timesheet-day-columns", "timesheet-day-section-0"]
+                fragmentUrls `shouldSatisfy` all (Text.isInfixOf "weekOffset=2")
+                fragmentUrls `shouldSatisfy` all (Text.isInfixOf "showApproved=false")
+                fragmentUrls `shouldSatisfy` all (Text.isInfixOf "showAllStaff=true")
 
         it "records touched resources for timesheet entry mutations" $ withContext do
             withCleanDb do
