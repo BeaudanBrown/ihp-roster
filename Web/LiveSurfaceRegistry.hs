@@ -43,8 +43,9 @@ import Generated.Types (RosterGroup)
 import Web.Billing.LiveUpdates (BillingSurfaceKey (..),
                                 billingLiveSurfaceDefinition)
 import Web.Controller.Prelude
-import Web.LeaveRequests.ReadModel (leaveRequestsLiveSurfaceDefinition,
-                                    leaveRequestsLiveSurfaceDefinitionForVenue)
+import Web.LeaveRequests.FrontendSurface (LeaveRequestsScopeValue (..),
+                                          leaveRequestsAffectedMountedFragments,
+                                          leaveRequestsSurfaceWireFragments)
 import Web.Profiles.LiveUpdates (ProfileContentFragment (..),
                                  ProfileContentSurfaceKey (..),
                                  ProfileLeaveSurfaceKey (..),
@@ -105,7 +106,6 @@ data RegisteredLiveSurfaceEntry
     | AdminRosterGroupsSurfaceEntry
     | AdminXeroSurfaceEntry
     | BillingSurfaceEntry
-    | LeaveRequestsSurfaceEntry
     | ProfileContentSurfaceEntry
     | ProfileLeaveRequestsSurfaceEntry
     deriving (Eq, Show)
@@ -128,7 +128,7 @@ registeredLiveSurfaceManifest =
 
 registeredLiveSurfaceDescriptors :: [RegisteredLiveSurfaceDescriptor]
 registeredLiveSurfaceDescriptors =
-    fmap (manifestDescriptorFromRegisteredSurface . manifestSurfaceForEntry) registeredLiveSurfaceCatalog <> [timesheetsLiveSurfaceDescriptor, rosterLiveSurfaceDescriptor]
+    fmap (manifestDescriptorFromRegisteredSurface . manifestSurfaceForEntry) registeredLiveSurfaceCatalog <> [timesheetsLiveSurfaceDescriptor, rosterLiveSurfaceDescriptor, leaveRequestsLiveSurfaceDescriptor]
 
 registeredLiveSurfaceCatalog :: [RegisteredLiveSurfaceEntry]
 registeredLiveSurfaceCatalog =
@@ -140,7 +140,6 @@ registeredLiveSurfaceCatalog =
     , AdminRosterGroupsSurfaceEntry
     , AdminXeroSurfaceEntry
     , BillingSurfaceEntry
-    , LeaveRequestsSurfaceEntry
     , ProfileContentSurfaceEntry
     , ProfileLeaveRequestsSurfaceEntry
     ]
@@ -155,7 +154,6 @@ manifestSurfaceForEntry = \case
     AdminRosterGroupsSurfaceEntry -> registeredLiveSurface (adminRosterGroupsLiveSurfaceDefinitionForVenue sampleVenueId) () RequestContextOnly defaultCandidateFragments Nothing
     AdminXeroSurfaceEntry -> registeredLiveSurface (adminXeroLiveSurfaceDefinitionForVenue sampleVenueId) () BackgroundPlannable adminXeroManifestCandidateFragments Nothing
     BillingSurfaceEntry -> registeredLiveSurface billingLiveSurfaceDefinition BillingSurfaceKey { billingSurfaceVenueId = sampleVenueId } BackgroundPlannable defaultCandidateFragments Nothing
-    LeaveRequestsSurfaceEntry -> registeredLiveSurface (leaveRequestsLiveSurfaceDefinitionForVenue sampleVenueId) () RequestContextOnly defaultCandidateFragments Nothing
     ProfileContentSurfaceEntry -> registeredLiveSurface (profileContentLiveSurfaceDefinitionForVenue sampleVenueId) sampleProfileContentSurfaceKey RequestContextOnly profileContentCandidateFragments Nothing
     ProfileLeaveRequestsSurfaceEntry -> registeredLiveSurface (profileLeaveRequestsLiveSurfaceDefinitionForVenue sampleVenueId) sampleProfileLeaveSurfaceKey RequestContextOnly defaultCandidateFragments Nothing
 
@@ -214,6 +212,17 @@ rosterLiveSurfaceDescriptor =
             }
         }
 
+leaveRequestsLiveSurfaceDescriptor :: RegisteredLiveSurfaceDescriptor
+leaveRequestsLiveSurfaceDescriptor =
+    RegisteredLiveSurfaceDescriptor
+        { descriptorManifest = RegisteredLiveSurfaceManifest
+            { surfaceFamily = "leave-requests"
+            , scopeKinds = ["leave_requests"]
+            , fragmentKinds = ["leave_requests_content"]
+            , interactionSchema = Nothing
+            }
+        }
+
 unique :: Eq a => [a] -> [a]
 unique = foldr (\value acc -> if value `elem` acc then acc else value : acc) []
 
@@ -225,7 +234,8 @@ authorizeRegisteredLiveSurfaceScope scope = do
     legacyAuthorizations <- catMaybes <$> mapM (`authorizeRegisteredSurfaceWireScope` scope) registeredLiveSurfaceAuthorizationCatalog
     timesheetsAuthorization <- authorizeTimesheetsLiveSurfaceScope scope
     rosterAuthorization <- authorizeRosterLiveSurfaceScope scope
-    pure (or legacyAuthorizations || timesheetsAuthorization || rosterAuthorization)
+    leaveRequestsAuthorization <- authorizeLeaveRequestsLiveSurfaceScope scope
+    pure (or legacyAuthorizations || timesheetsAuthorization || rosterAuthorization || leaveRequestsAuthorization)
 
 registeredLiveSurfaceAuthorizationCatalog :: (?context :: ControllerContext) => [RegisteredLiveSurface]
 registeredLiveSurfaceAuthorizationCatalog =
@@ -241,7 +251,6 @@ authorizationSurfaceForEntry = \case
     AdminRosterGroupsSurfaceEntry -> registeredLiveSurface adminRosterGroupsLiveSurfaceDefinition () RequestContextOnly defaultCandidateFragments Nothing
     AdminXeroSurfaceEntry -> registeredLiveSurface adminXeroLiveSurfaceDefinition () BackgroundPlannable defaultCandidateFragments Nothing
     BillingSurfaceEntry -> registeredLiveSurface billingLiveSurfaceDefinition BillingSurfaceKey { billingSurfaceVenueId = sampleVenueId } BackgroundPlannable defaultCandidateFragments Nothing
-    LeaveRequestsSurfaceEntry -> registeredLiveSurface leaveRequestsLiveSurfaceDefinition () RequestContextOnly defaultCandidateFragments Nothing
     ProfileContentSurfaceEntry -> registeredLiveSurface profileContentLiveSurfaceDefinition sampleProfileContentSurfaceKey RequestContextOnly profileContentCandidateFragments Nothing
     ProfileLeaveRequestsSurfaceEntry -> registeredLiveSurface profileLeaveRequestsLiveSurfaceDefinition sampleProfileLeaveSurfaceKey RequestContextOnly defaultCandidateFragments Nothing
 
@@ -256,7 +265,7 @@ planRegisteredLiveSurfaceInvalidations resources scopes =
         | scope <- scopes
         , surface <- registeredLiveSurfacesForScope scope
         , Just target <- [planRegisteredSurfaceInvalidation surface resources scope]
-        ] <> mapMaybe (planTimesheetsSurfaceInvalidation resources) scopes <> mapMaybe (planRosterSurfaceInvalidation resources) scopes
+        ] <> mapMaybe (planTimesheetsSurfaceInvalidation resources) scopes <> mapMaybe (planRosterSurfaceInvalidation resources) scopes <> mapMaybe (planLeaveRequestsSurfaceInvalidation resources) scopes
 
 planRegisteredLiveSurfaceInvalidationsWithoutContext ::
     Set.Set LiveResource ->
@@ -268,7 +277,7 @@ planRegisteredLiveSurfaceInvalidationsWithoutContext resources scopes =
         | scope <- scopes
         , surface <- backgroundPlannableSurfacesForScope scope
         , Just target <- [planRegisteredSurfaceInvalidation surface resources scope]
-        ] <> mapMaybe (planTimesheetsSurfaceInvalidation resources) scopes <> mapMaybe (planRosterSurfaceInvalidation resources) scopes
+        ] <> mapMaybe (planTimesheetsSurfaceInvalidation resources) scopes <> mapMaybe (planRosterSurfaceInvalidation resources) scopes <> mapMaybe (planLeaveRequestsSurfaceInvalidation resources) scopes
 
 performLiveSurfaceInvalidationTarget ::
     (?context :: ControllerContext, ?request :: Request) =>
@@ -300,7 +309,6 @@ requestContextSurfaceForEntry entry scope =
         (AdminExportsSurfaceEntry, AdminExportsScope {}) -> [registeredLiveSurface adminExportsLiveSurfaceDefinition () RequestContextOnly defaultCandidateFragments Nothing]
         (AdminShiftTypesSurfaceEntry, AdminShiftTypesScope {}) -> [registeredLiveSurface adminShiftTypesLiveSurfaceDefinition () RequestContextOnly defaultCandidateFragments Nothing]
         (AdminRosterGroupsSurfaceEntry, AdminRosterGroupsScope {}) -> [registeredLiveSurface adminRosterGroupsLiveSurfaceDefinition () RequestContextOnly defaultCandidateFragments Nothing]
-        (LeaveRequestsSurfaceEntry, LeaveRequestsScope {}) -> [registeredLiveSurface leaveRequestsLiveSurfaceDefinition () RequestContextOnly defaultCandidateFragments Nothing]
         (ProfileContentSurfaceEntry, ProfileScope {}) -> [registeredLiveSurface profileContentLiveSurfaceDefinition sampleProfileContentSurfaceKey RequestContextOnly profileContentCandidateFragments Nothing]
         (ProfileLeaveRequestsSurfaceEntry, ProfileScope {}) -> [registeredLiveSurface profileLeaveRequestsLiveSurfaceDefinition sampleProfileLeaveSurfaceKey RequestContextOnly defaultCandidateFragments Nothing]
         _ -> []
@@ -371,6 +379,11 @@ authorizeRosterLiveSurfaceScope = \case
     RosterWeekScope { venueId, rosterGroupId } -> authorizeLiveScopeRequirement (RequireCurrentVenueRosterGroup venueId rosterGroupId)
     _                                         -> pure False
 
+authorizeLeaveRequestsLiveSurfaceScope :: (?context :: ControllerContext, ?modelContext :: ModelContext) => LiveUpdateScope -> IO Bool
+authorizeLeaveRequestsLiveSurfaceScope = \case
+    LeaveRequestsScope { venueId } -> authorizeLiveScopeRequirement (RequireCurrentVenueManager venueId)
+    _                              -> pure False
+
 planRosterSurfaceInvalidation :: Set.Set LiveResource -> LiveUpdateScope -> Maybe LiveSurfaceInvalidationTarget
 planRosterSurfaceInvalidation resources RosterWeekScope { venueId, rosterGroupId, weekOffset } =
     let scopeValue = RosterWeekScopeValue
@@ -400,6 +413,16 @@ planTimesheetsSurfaceInvalidation resources TimesheetWeekScope { venueId, weekOf
             then Nothing
             else Just LiveSurfaceInvalidationTarget { targetScope = TimesheetWeekScope { venueId, weekOffset }, targetFragments = fragments }
 planTimesheetsSurfaceInvalidation _ _ =
+    Nothing
+
+planLeaveRequestsSurfaceInvalidation :: Set.Set LiveResource -> LiveUpdateScope -> Maybe LiveSurfaceInvalidationTarget
+planLeaveRequestsSurfaceInvalidation resources LeaveRequestsScope { venueId } =
+    let scopeValue = LeaveRequestsScopeValue { leaveRequestsVenueId = venueId }
+        fragments = leaveRequestsSurfaceWireFragments (leaveRequestsAffectedMountedFragments scopeValue resources)
+     in if null fragments
+            then Nothing
+            else Just LiveSurfaceInvalidationTarget { targetScope = LeaveRequestsScope { venueId }, targetFragments = fragments }
+planLeaveRequestsSurfaceInvalidation _ _ =
     Nothing
 
 adminXeroManifestCandidateFragments ::

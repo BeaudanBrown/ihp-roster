@@ -21,6 +21,7 @@ export type FrontendSurfaceMountConfig = {
 
 type TimesheetWeekLiveUpdateScope = Extract<LiveUpdateScope, { kind: "timesheet_week" }>;
 type RosterWeekLiveUpdateScope = Extract<LiveUpdateScope, { kind: "roster_week" }>;
+type LeaveRequestsLiveUpdateScope = Extract<LiveUpdateScope, { kind: "leave_requests" }>;
 
 export type ParsedFrontendSurfaceSubscriptionConfig = {
     feature: string;
@@ -61,6 +62,22 @@ export function parseFrontendSurfaceSubscriptionConfig(value: unknown): ParsedFr
             feature: config.surface,
             scope,
             scopeKey: `roster_week:${scope.venueId}:${scope.rosterGroupId}:${scope.weekOffset}`,
+            socketPath: "/live-updates",
+            resyncFragments,
+            decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`),
+        };
+    }
+
+    if (config.surface === "leave-requests") {
+        const scope = parseLeaveRequestsScope(config.scopeKey);
+        if (!scope) return null;
+        const resyncFragments = config.fragments.map(leaveRequestsFragmentToWire).filter((fragment): fragment is LiveUpdateWireFragment => fragment !== null);
+        if (resyncFragments.length === 0) return null;
+
+        return {
+            feature: config.surface,
+            scope,
+            scopeKey: `leave_requests:${scope.venueId}`,
             socketPath: "/live-updates",
             resyncFragments,
             decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`),
@@ -189,6 +206,22 @@ function rosterFragmentToWire(fragment: FrontendSurfaceMountedFragmentConfig): L
         const params = fragment.key.params;
         if (!isRecord(params) || typeof params.rosterDayId !== "string" || typeof params.rowIndex !== "number" || !Number.isInteger(params.rowIndex)) return null;
         return { ...base, fragmentKey: { kind: "roster_row", rosterDayId: params.rosterDayId, rowIndex: params.rowIndex } };
+    }
+
+    return null;
+}
+
+function parseLeaveRequestsScope(scopeKey: string): LeaveRequestsLiveUpdateScope | null {
+    const match = /^leave-requests:([^:]+)$/.exec(scopeKey);
+    if (!match) return null;
+    return { kind: "leave_requests", venueId: match[1] };
+}
+
+function leaveRequestsFragmentToWire(fragment: FrontendSurfaceMountedFragmentConfig): LiveUpdateWireFragment | null {
+    const base = liveFragmentBase(fragment);
+
+    if (fragment.key.kind === "leave-requests-content") {
+        return { ...base, fragmentKey: { kind: "leave_requests_content" } };
     }
 
     return null;

@@ -3,31 +3,30 @@
 module Web.LeaveRequests.ReadModel
     ( LeaveRequestsReadModel (..)
     , LeaveRequestsFragment (..)
-    , LeaveRequestsSurface
+    , LeaveRequestsFragmentRenderMode (..)
     , affectedRosterWeekInvalidationTargetsForScopes
-    , buildLeaveRequestsContentFragmentRef
     , buildLeaveRequestsScope
     , currentLeaveArchiveOpen
     , currentLeaveArchivePage
     , fetchLeaveRequestsReadModel
     , leaveRequestsIndexView
-    , leaveRequestsLiveSurfaceDefinition
-    , leaveRequestsLiveSurfaceDefinitionForVenue
     , renderLeaveRequestsFragment
     , renderLeaveRequestsFragmentFromReadModel
     ) where
 
-import Application.Helper.LiveResource (LiveResource (..))
-import Application.Helper.LiveSurface
-import Application.Helper.LiveUpdate (LiveFragmentKey (..),
-                                      LiveUpdateScope (..))
+import qualified Application.Helper.FrontendSurface.LeaveRequests as Surface
+import Application.Helper.FrontendSurface.Runtime (SurfaceImpl)
+import Application.Helper.LiveUpdate (LiveUpdateScope (..))
 import Application.Helper.Profiling
+import Application.Helper.View.Oob (OobSwapAttr)
 import Data.Coerce (coerce)
 import qualified Data.Set as Set
 import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
+import Web.LeaveRequests.FrontendSurface (LeaveRequestsScopeValue (..),
+                                          leaveRequestsSurfaceImpl)
 import Web.View.LeaveRequests.Index
 
 data LeaveRequestsReadModel = LeaveRequestsReadModel
@@ -41,7 +40,9 @@ data LeaveRequestsFragment
     = LeaveRequestsContent
     deriving (Eq, Show)
 
-data LeaveRequestsSurface
+data LeaveRequestsFragmentRenderMode
+    = LeaveRequestsFragmentPlain
+    | LeaveRequestsFragmentOob !OobSwapAttr
 
 fetchStaffMembersForCurrentVenue :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO [Staff]
 fetchStaffMembersForCurrentVenue =
@@ -68,29 +69,6 @@ fetchVisibleLeaveRequests = do
                         |> orderByDesc #startDate
                         |> fetch
 
-leaveRequestsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition LeaveRequestsSurface () LeaveRequestsFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
-leaveRequestsLiveSurfaceDefinition =
-    leaveRequestsLiveSurfaceDefinitionForVenue (unpackId currentVenueId)
-
-leaveRequestsLiveSurfaceDefinitionForVenue :: UUID.UUID -> TypedLiveSurfaceDefinition LeaveRequestsSurface () LeaveRequestsFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
-leaveRequestsLiveSurfaceDefinitionForVenue surfaceVenueId =
-    TypedLiveSurfaceDefinition
-        { typedSurfaceFeature = "leave-requests"
-        , typedSurfaceScope = const (SurfaceScope LeaveRequestsScope { venueId = surfaceVenueId })
-        , typedSurfaceScopeFromWire = \case
-            LeaveRequestsScope { venueId } | venueId == surfaceVenueId -> Just ()
-            _ -> Nothing
-        , typedSurfaceDefaultFragments = const [LeaveRequestsContent]
-        , typedSurfaceFragmentContract = \() fragment ->
-            mkSurfaceFragmentContract
-                (leaveRequestsFragmentRef fragment)
-                (liveFragmentDependsOn (LeaveRequestsResource surfaceVenueId) [])
-        , typedSurfaceDecorateRequestsWithin = const ["#" <> leaveRequestsShellId]
-        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueManager surfaceVenueId))
-        , typedSurfaceInteractionSchema = emptyInteractionStaticSchema
-        , typedSurfaceInteraction = const emptyInteractionCapability
-        }
-
 fetchLeaveRequestsReadModel :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO LeaveRequestsReadModel
 fetchLeaveRequestsReadModel = do
     leaveReadModelStaffMembers <- profileActionSpan "leave.fetch_staff_members" fetchStaffMembersForCurrentVenue
@@ -103,9 +81,9 @@ renderLeaveRequestsFragment :: (?context :: ControllerContext, ?modelContext :: 
 renderLeaveRequestsFragment fragment =
     profileActionSpan "leave.read_model.render_fragment" do
         readModel <- fetchLeaveRequestsReadModel
-        pure (renderLeaveRequestsFragmentFromReadModel FragmentPlain readModel fragment)
+        pure (renderLeaveRequestsFragmentFromReadModel LeaveRequestsFragmentPlain readModel fragment)
 
-renderLeaveRequestsFragmentFromReadModel :: (?context :: ControllerContext, ?request :: Request) => FragmentRenderMode -> LeaveRequestsReadModel -> LeaveRequestsFragment -> Maybe Blaze.Html
+renderLeaveRequestsFragmentFromReadModel :: (?context :: ControllerContext, ?request :: Request) => LeaveRequestsFragmentRenderMode -> LeaveRequestsReadModel -> LeaveRequestsFragment -> Maybe Blaze.Html
 renderLeaveRequestsFragmentFromReadModel renderMode readModel LeaveRequestsContent =
     Just
         (contentRenderer
@@ -118,8 +96,8 @@ renderLeaveRequestsFragmentFromReadModel renderMode readModel LeaveRequestsConte
         )
     where
         contentRenderer = case renderMode of
-            FragmentPlain        -> renderLeaveRequestsContentFragment
-            FragmentOob swapAttr -> renderLeaveRequestsContentFragmentWithSwap swapAttr
+            LeaveRequestsFragmentPlain        -> renderLeaveRequestsContentFragment
+            LeaveRequestsFragmentOob swapAttr -> renderLeaveRequestsContentFragmentWithSwap swapAttr
 
 leaveRequestsIndexView :: (?context :: ControllerContext, ?request :: Request) => LeaveRequestsReadModel -> IndexView
 leaveRequestsIndexView LeaveRequestsReadModel { leaveReadModelRequests, leaveReadModelStaffMembers, leaveReadModelCurrentViewerStaffId, leaveReadModelToday } =
@@ -130,7 +108,7 @@ leaveRequestsIndexView LeaveRequestsReadModel { leaveReadModelRequests, leaveRea
         , today = leaveReadModelToday
         , archivePage = currentLeaveArchivePage
         , archiveIsOpen = currentLeaveArchiveOpen
-        , liveUpdateSurface = Just (mkTypedDefinedLiveSurface leaveRequestsLiveSurfaceDefinition ())
+        , liveUpdateSurface = Just currentLeaveRequestsSurface
         }
 
 currentLeaveArchivePage :: (?request :: Request) => Int
@@ -169,13 +147,6 @@ buildLeaveRequestsScope venueId =
         { venueId = unpackId venueId
         }
 
-leaveRequestsFragmentRef :: LeaveRequestsFragment -> SurfaceFragmentRef LeaveRequestsSurface
-leaveRequestsFragmentRef LeaveRequestsContent =
-    buildLeaveRequestsContentFragmentRef
-
-buildLeaveRequestsContentFragmentRef :: SurfaceFragmentRef LeaveRequestsSurface
-buildLeaveRequestsContentFragmentRef =
-    mkSurfaceFragmentRef
-        LeaveRequestsContentFragment
-        leaveRequestsContentFragmentId
-        (pathTo ShowLeaveRequestsContentFragmentAction)
+currentLeaveRequestsSurface :: (?context :: ControllerContext) => SurfaceImpl Surface.LeaveRequestsSurface
+currentLeaveRequestsSurface =
+    leaveRequestsSurfaceImpl LeaveRequestsScopeValue { leaveRequestsVenueId = unpackId currentVenueId }

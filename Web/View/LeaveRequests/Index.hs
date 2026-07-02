@@ -2,8 +2,9 @@ module Web.View.LeaveRequests.Index where
 
 import Application.Helper.Controller (LeaveRequestStatus (..),
                                       parseLeaveRequestStatus)
-import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
-                                       liveSurfaceConfigJson)
+import qualified Application.Helper.FrontendSurface.LeaveRequests as Surface
+import Application.Helper.FrontendSurface.Runtime (SurfaceImpl,
+                                                   renderFrontendSurfaceMount)
 import Data.Coerce (coerce)
 import Data.List (sortOn)
 import Data.Ord (Down (..))
@@ -16,7 +17,7 @@ data IndexView = IndexView
     , today                :: Day
     , archivePage          :: Int
     , archiveIsOpen        :: Bool
-    , liveUpdateSurface    :: Maybe LiveSurfaceConfig
+    , liveUpdateSurface    :: Maybe (SurfaceImpl Surface.LeaveRequestsSurface)
     }
 
 leaveRequestsShellId :: Text
@@ -49,10 +50,12 @@ renderLeaveRequestsShell IndexView { .. } =
             , appPageWidthClass = ""
             , appPageBody = leaveRequestsPanel
             })
+        mountedPage = case liveUpdateSurface of
+            Just surface -> renderFrontendSurfaceMount surface page
+            Nothing      -> page
      in [hsx|
-        <section id={leaveRequestsShellId}
-                 data-live-update-surface={liveSurfaceConfigJson <$> liveUpdateSurface}>
-            {page}
+        <section id={leaveRequestsShellId}>
+            {mountedPage}
         </section>
     |]
 

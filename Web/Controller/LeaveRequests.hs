@@ -1,12 +1,11 @@
 module Web.Controller.LeaveRequests where
 
-import Application.Helper.LiveSurface (respondWithTypedLiveSurfaceFragments,
-                                       serveTypedLiveFragment)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchStaffLeaveRequests)
 import Application.Helper.Profiling
 import Application.Helper.View (ToastOverlayPosition (..), dialogOverlayMountId,
                                 errorToast, renderToastOob, successToast)
+import Application.Helper.View.Oob (outerHtmlOobSwap)
 import Data.Coerce (coerce)
 import qualified Data.Text.IO as TextIO
 import Web.Controller.Prelude
@@ -50,11 +49,10 @@ instance Controller LeaveRequestsController where
                             readModel.leaveReadModelToday
                             currentLeaveArchivePage
                 else do
-                    serveTypedLiveFragment leaveRequestsLiveSurfaceDefinition () LeaveRequestsContent \_ -> do
-                        maybeHtml <- profileActionSpan "leave.fragment.render" (renderLeaveRequestsFragment LeaveRequestsContent)
-                        when (isNothing maybeHtml) do
-                            TextIO.putStrLn "leave_fragment_miss: fragment=content"
-                        respondHtmlProfiled (fromMaybe mempty maybeHtml)
+                    maybeHtml <- profileActionSpan "leave.fragment.render" (renderLeaveRequestsFragment LeaveRequestsContent)
+                    when (isNothing maybeHtml) do
+                        TextIO.putStrLn "leave_fragment_miss: fragment=content"
+                    respondHtmlProfiled (fromMaybe mempty maybeHtml)
 
     action currentAction@NewLeaveRequestAction = runBepis currentAction BepisFormAction do
         ensureStaffSelfServiceAccess
@@ -130,16 +128,12 @@ instance Controller LeaveRequestsController where
                 redirectTo LeaveRequestsAction
 
 respondWithLeaveRequestsContent :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => Text -> IO ()
-respondWithLeaveRequestsContent successMessage =
-    respondWithTypedLiveSurfaceFragments
-        leaveRequestsLiveSurfaceDefinition
-        ()
-        [LeaveRequestsContent]
-        ( [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
+respondWithLeaveRequestsContent successMessage = do
+    readModel <- fetchLeaveRequestsReadModel
+    respondHtmlProfiled $
+        fromMaybe mempty (renderLeaveRequestsFragmentFromReadModel (LeaveRequestsFragmentOob outerHtmlOobSwap) readModel LeaveRequestsContent)
+            <> [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
             <> renderToastOob ToastBottomCenter (successToast successMessage)
-        )
-        fetchLeaveRequestsReadModel
-        renderLeaveRequestsFragmentFromReadModel
 
 data LeaveResponseContext
     = LeavePageResponseContext

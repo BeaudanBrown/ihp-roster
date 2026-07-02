@@ -97,6 +97,29 @@ test("FrontendSurface config parser derives Roster live subscriptions from mount
     assertDeepEqual(config?.resyncFragments[1]?.fragmentKey, { kind: "roster_row", rosterDayId: "day-1", rowIndex: 3 });
 });
 
+test("FrontendSurface config parser derives Leave Requests live subscriptions from mounted fragments", () => {
+    const config = parseFrontendSurfaceSubscriptionConfig({
+        surface: "leave-requests",
+        scopeKey: "leave-requests:venue-1",
+        mountKey: "primary",
+        mountState: null,
+        fragments: [
+            {
+                key: { kind: "leave-requests-content", params: null },
+                targetId: "leave-requests-content",
+                url: "/ShowLeaveRequestsContentFragment",
+                protection: { kind: "replace" },
+                loadPolicy: "eager",
+            },
+        ],
+    });
+
+    assertEqual(config?.feature, "leave-requests");
+    assertDeepEqual(config?.scope, { kind: "leave_requests", venueId: "venue-1" });
+    assertEqual(config?.scopeKey, "leave_requests:venue-1");
+    assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { kind: "leave_requests_content" });
+});
+
 test("generated live update surface validator rejects malformed boundary JSON", () => {
     assertEqual(parseLiveUpdateSurfaceConfig(null), null);
     assertEqual(parseLiveUpdateSurfaceConfig({ ...validSurfaceConfig, scope: { kind: "unknown_scope" } }), null);

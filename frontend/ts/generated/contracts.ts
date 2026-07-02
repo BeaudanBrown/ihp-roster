@@ -1183,14 +1183,14 @@ export type LiveSurfaceFamily =
     | "admin-roster-groups"
     | "admin-xero"
     | "billing"
-    | "leave-requests"
     | "profile"
     | "profile-leave-requests"
     | "timesheets"
-    | "roster";
+    | "roster"
+    | "leave-requests";
 
 export function isLiveSurfaceFamily(value: unknown): value is LiveSurfaceFamily {
-    return value === "support" || value === "admin-venue-config" || value === "admin-invites" || value === "admin-exports" || value === "admin-shift-types" || value === "admin-roster-groups" || value === "admin-xero" || value === "billing" || value === "leave-requests" || value === "profile" || value === "profile-leave-requests" || value === "timesheets" || value === "roster";
+    return value === "support" || value === "admin-venue-config" || value === "admin-invites" || value === "admin-exports" || value === "admin-shift-types" || value === "admin-roster-groups" || value === "admin-xero" || value === "billing" || value === "profile" || value === "profile-leave-requests" || value === "timesheets" || value === "roster" || value === "leave-requests";
 }
 
 export function parseLiveSurfaceFamily(value: unknown): LiveSurfaceFamily {
@@ -1212,13 +1212,13 @@ export type RegisteredLiveSurfaceScopeKind =
     | "admin_roster_groups"
     | "admin_xero"
     | "billing"
-    | "leave_requests"
     | "profile"
     | "timesheet_week"
-    | "roster_week";
+    | "roster_week"
+    | "leave_requests";
 
 export function isRegisteredLiveSurfaceScopeKind(value: unknown): value is RegisteredLiveSurfaceScopeKind {
-    return value === "support_platform" || value === "admin_venue_config" || value === "admin_invites" || value === "admin_exports" || value === "admin_shift_types" || value === "admin_roster_groups" || value === "admin_xero" || value === "billing" || value === "leave_requests" || value === "profile" || value === "timesheet_week" || value === "roster_week";
+    return value === "support_platform" || value === "admin_venue_config" || value === "admin_invites" || value === "admin_exports" || value === "admin_shift_types" || value === "admin_roster_groups" || value === "admin_xero" || value === "billing" || value === "profile" || value === "timesheet_week" || value === "roster_week" || value === "leave_requests";
 }
 
 export function parseRegisteredLiveSurfaceScopeKind(value: unknown): RegisteredLiveSurfaceScopeKind {
@@ -1244,7 +1244,6 @@ export type RegisteredLiveSurfaceFragmentKind =
     | "admin_xero_pay_items"
     | "admin_xero_timesheets"
     | "billing_status"
-    | "leave_requests_content"
     | "profile_content"
     | "profile_leave_requests_content"
     | "timesheet_toolbar"
@@ -1259,10 +1258,11 @@ export type RegisteredLiveSurfaceFragmentKind =
     | "roster_slots_grid"
     | "roster_staff_panel"
     | "roster_day_section"
-    | "roster_row";
+    | "roster_row"
+    | "leave_requests_content";
 
 export function isRegisteredLiveSurfaceFragmentKind(value: unknown): value is RegisteredLiveSurfaceFragmentKind {
-    return value === "support_award_rates_section" || value === "support_public_holidays_section" || value === "admin_venue_config" || value === "admin_invites" || value === "admin_exports" || value === "admin_shift_types" || value === "admin_roster_groups" || value === "admin_xero" || value === "admin_xero_staff_mappings" || value === "admin_xero_pay_items" || value === "admin_xero_timesheets" || value === "billing_status" || value === "leave_requests_content" || value === "profile_content" || value === "profile_leave_requests_content" || value === "timesheet_toolbar" || value === "timesheet_day_columns" || value === "timesheet_day_section" || value === "roster_content" || value === "roster_grid_toolbar" || value === "roster_grid_frame" || value === "roster_day_columns" || value === "roster_day_rail" || value === "roster_wage_rail" || value === "roster_slots_grid" || value === "roster_staff_panel" || value === "roster_day_section" || value === "roster_row";
+    return value === "support_award_rates_section" || value === "support_public_holidays_section" || value === "admin_venue_config" || value === "admin_invites" || value === "admin_exports" || value === "admin_shift_types" || value === "admin_roster_groups" || value === "admin_xero" || value === "admin_xero_staff_mappings" || value === "admin_xero_pay_items" || value === "admin_xero_timesheets" || value === "billing_status" || value === "profile_content" || value === "profile_leave_requests_content" || value === "timesheet_toolbar" || value === "timesheet_day_columns" || value === "timesheet_day_section" || value === "roster_content" || value === "roster_grid_toolbar" || value === "roster_grid_frame" || value === "roster_day_columns" || value === "roster_day_rail" || value === "roster_wage_rail" || value === "roster_slots_grid" || value === "roster_staff_panel" || value === "roster_day_section" || value === "roster_row" || value === "leave_requests_content";
 }
 
 export function parseRegisteredLiveSurfaceFragmentKind(value: unknown): RegisteredLiveSurfaceFragmentKind {
@@ -1377,11 +1377,19 @@ export type RosterSessionName = "drag";
 export type RosterDisposableLayerName = "drag-preview";
 export const rosterSurfaceManifest = { surface: "roster", scopes: ["roster-week"], fragments: ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-day-section", "roster-row"], htmxActions: ["set-roster-layout-mode", "move-roster-shift-to-slot"], intents: ["set-roster-layout-mode", "move-roster-shift-to-slot"], sessions: ["drag"], layers: ["drag-preview"], domTokens: [], overlayLanes: [] } as const;
 
-export type FrontendSurfaceName = "surface-lab" | "timesheets" | "roster";
+export type LeaveRequestsSurfaceName = "leave-requests";
+export type LeaveRequestsScope = { kind: "leave-requests"; venueId: VenueId };
+export type LeaveRequestsFragmentKey =
+    | { kind: "leave-requests-content"; params: Record<string, never> }
+;
+export const leaveRequestsSurfaceManifest = { surface: "leave-requests", scopes: ["leave-requests"], fragments: ["leave-requests-content"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [] } as const;
+
+export type FrontendSurfaceName = "surface-lab" | "timesheets" | "roster" | "leave-requests";
 export const FrontendSurfaceRegistry = {
     "surface-lab": surfaceLabSurfaceManifest,
     timesheets: timesheetsSurfaceManifest,
     roster: rosterSurfaceManifest,
+    "leave-requests": leaveRequestsSurfaceManifest,
 } as const;
 export function isFrontendSurfaceName(value: unknown): value is FrontendSurfaceName {
     return typeof value === "string" && Object.prototype.hasOwnProperty.call(FrontendSurfaceRegistry, value);

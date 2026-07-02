@@ -151,8 +151,8 @@ tests = beforeAll testContext do
                     callAction LeaveRequestsAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-live-update-surface=\""
-                response `responseBodyShouldContain` "leave_requests"
+                response `responseBodyShouldContain` "data-bepis-surface=\"leave-requests\""
+                response `responseBodyShouldContain` "leave-requests-content"
                 response `responseBodyShouldContain` "id=\"leave-requests-content\""
 
         it "denies the leave review page to ordinary staff" $ withContext do
