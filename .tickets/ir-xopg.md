@@ -63,3 +63,7 @@ Started the GHC API path with a script-owned probe. Config/nix/scripts/frontend/
 **2026-07-02T07:08:56Z**
 
 GHC API probe now has a raw extraction layer: RawRegistry/RawSurface/RawType captures registry source/kind/RHS, surface refs, source spans, and one-step synonym-expanded surface type trees. The probe supports human and --json output, giving a diffable raw artifact before lowering to SurfaceContractIR. Current JSON shows SurfaceLabSurface expands to Surface SurfaceLab (Concat ...); next pause point is type-family/list normalization: choose whether to evaluate approved families (Concat/Append/Lazy option lists) inside the GHC extractor now or hand off normalized reflection output for one more slice.
+
+**2026-07-02T07:14:02Z**
+
+Started approved normalization inside the GHC raw extractor. The --json output now includes normalized surface trees where type synonyms are expanded and approved list helpers Concat/Append plus promoted lists are represented as PromotedList nodes. Current lab normalized tree contains primitive nodes such as Scope/Fragment/Dto under a flattened Surface capability list while preserving source spans on marker/constructor refs. Next pause point: lowering this normalized RawType tree into SurfaceContractIR versus first adding explicit diagnostics for unsupported type families/cycles.

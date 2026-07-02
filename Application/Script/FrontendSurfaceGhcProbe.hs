@@ -46,10 +46,11 @@ data RawRegistry = RawRegistry
     deriving (Eq, Show)
 
 data RawSurface = RawSurface
-    { rawSurfaceName      :: !String
-    , rawSurfaceSource    :: !String
-    , rawSurfaceReference :: !RawType
-    , rawSurfaceExpanded  :: !RawType
+    { rawSurfaceName       :: !String
+    , rawSurfaceSource     :: !String
+    , rawSurfaceReference  :: !RawType
+    , rawSurfaceExpanded   :: !RawType
+    , rawSurfaceNormalized :: !RawType
     }
     deriving (Eq, Show)
 
@@ -144,6 +145,7 @@ rawSurfaceFromType surfaceType =
             , rawSurfaceSource = maybe "<unknown>" (renderSDoc . ppr . nameSrcSpan) (typeHeadNameFull surfaceType)
             , rawSurfaceReference = rawTypeFromType surfaceType
             , rawSurfaceExpanded = rawTypeFromType expanded
+            , rawSurfaceNormalized = normalizeApprovedType surfaceType
             }
 
 promotedListElements :: Type -> Maybe [Type]
@@ -162,6 +164,102 @@ expandTypeSynonyms value =
     case coreView value of
         Just expanded -> expandTypeSynonyms expanded
         Nothing       -> value
+
+normalizeApprovedType :: Type -> RawType
+normalizeApprovedType originalValue =
+    let value = expandTypeSynonyms originalValue
+     in case value of
+            TyConApp tyCon args ->
+                let name = occNameString (nameOccName (tyConName tyCon))
+                 in case name of
+                        "Concat" -> normalizeConcat value args
+                        "Append" -> normalizeAppend value args
+                        ":" -> normalizePromotedList value
+                        "[]" -> normalizePromotedList value
+                        _ -> (rawTypeFromType value)
+                            { rawTypeArgs = map normalizeApprovedType args
+                            }
+            AppTy left right -> RawType
+                { rawTypeNode = "AppTy"
+                , rawTypePretty = renderSDoc (ppr value)
+                , rawTypeName = Nothing
+                , rawTypeSource = Nothing
+                , rawTypeArgs = map normalizeApprovedType [left, right]
+                }
+            ForAllTy _ body -> RawType
+                { rawTypeNode = "ForAllTy"
+                , rawTypePretty = renderSDoc (ppr value)
+                , rawTypeName = Nothing
+                , rawTypeSource = Nothing
+                , rawTypeArgs = [normalizeApprovedType body]
+                }
+            FunTy _ multiplicity argument result -> RawType
+                { rawTypeNode = "FunTy"
+                , rawTypePretty = renderSDoc (ppr value)
+                , rawTypeName = Nothing
+                , rawTypeSource = Nothing
+                , rawTypeArgs = map normalizeApprovedType [multiplicity, argument, result]
+                }
+            CastTy inner _ -> normalizeApprovedType inner
+            _ -> rawTypeFromType value
+
+normalizeConcat :: Type -> [Type] -> RawType
+normalizeConcat original args =
+    case concatMapM normalizedListElements (valueArgs args) of
+        Just elements -> rawPromotedList ("normalized " <> renderSDoc (ppr original)) elements
+        Nothing -> (rawTypeFromType original)
+            { rawTypeNode = "UnsupportedTypeFamily"
+            , rawTypeArgs = map normalizeApprovedType args
+            }
+
+normalizeAppend :: Type -> [Type] -> RawType
+normalizeAppend original args =
+    case valueArgs args of
+        leftType : rightType : _ ->
+            case (normalizedListElements leftType, normalizedListElements rightType) of
+                (Just leftElements, Just rightElements) -> rawPromotedList ("normalized " <> renderSDoc (ppr original)) (leftElements <> rightElements)
+                _ -> unsupportedAppend
+        _ -> unsupportedAppend
+    where
+        unsupportedAppend = (rawTypeFromType original)
+            { rawTypeNode = "UnsupportedTypeFamily"
+            , rawTypeArgs = map normalizeApprovedType args
+            }
+
+normalizePromotedList :: Type -> RawType
+normalizePromotedList value =
+    case normalizedListElements value of
+        Just elements -> rawPromotedList (renderSDoc (ppr value)) elements
+        Nothing       -> rawTypeFromType value
+
+normalizedListElements :: Type -> Maybe [RawType]
+normalizedListElements value =
+    map normalizeApprovedType <$> promotedListElements (expandTypeSynonyms value)
+
+rawPromotedList :: String -> [RawType] -> RawType
+rawPromotedList pretty elements =
+    RawType
+        { rawTypeNode = "PromotedList"
+        , rawTypePretty = pretty
+        , rawTypeName = Just "[]"
+        , rawTypeSource = Nothing
+        , rawTypeArgs = elements
+        }
+
+valueArgs :: [Type] -> [Type]
+valueArgs = dropWhile isKindArgument
+
+isKindArgument :: Type -> Bool
+isKindArgument = \case
+    TyConApp tyCon _ -> occNameString (nameOccName (tyConName tyCon)) `elem` ["Type", "List", "SurfaceSpec", "SurfacePrimitive", "FieldSpec", "PrimitiveOption", "WireType"]
+    _ -> False
+
+concatMapM :: (a -> Maybe [b]) -> [a] -> Maybe [b]
+concatMapM _ [] = Just []
+concatMapM f (value : rest) = do
+    headValues <- f value
+    tailValues <- concatMapM f rest
+    pure (headValues <> tailValues)
 
 rawTypeFromType :: Type -> RawType
 rawTypeFromType value =
@@ -256,6 +354,7 @@ renderRawRegistry mode rawRegistry =
             putStrLn ("surface " <> surface.rawSurfaceName <> ": " <> surface.rawSurfaceSource)
             putStrLn ("  reference: " <> surface.rawSurfaceReference.rawTypePretty)
             putStrLn ("  expanded: " <> surface.rawSurfaceExpanded.rawTypePretty)
+            putStrLn ("  normalized: " <> surface.rawSurfaceNormalized.rawTypePretty)
 
 rawRegistryToJson :: RawRegistry -> Aeson.Value
 rawRegistryToJson rawRegistry =
@@ -275,6 +374,7 @@ rawSurfaceToJson surface =
         , "source" Aeson..= surface.rawSurfaceSource
         , "reference" Aeson..= rawTypeToJson surface.rawSurfaceReference
         , "expanded" Aeson..= rawTypeToJson surface.rawSurfaceExpanded
+        , "normalized" Aeson..= rawTypeToJson surface.rawSurfaceNormalized
         ]
 
 rawTypeToJson :: RawType -> Aeson.Value
