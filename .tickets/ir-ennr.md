@@ -1,6 +1,6 @@
 ---
 id: ir-ennr
-status: open
+status: in_progress
 deps: [ir-8w6w, ir-npm8, ir-g6z3]
 links: []
 created: 2026-07-02T02:47:03Z
@@ -56,3 +56,13 @@ Create the type-level DSL foundation and a support-only lab page containing exam
 - The lab page mounts through the minimal `SurfaceImpl` scaffold and renders without old author-facing frontend contract machinery.
 - At least one eager fragment, one lazy fragment placeholder/refetch path, one HTMX action, one intent, one DTO payload, one DOM token, one client event, one overlay lane, one session/layer/effect, and one conflict policy are represented.
 - Generated TypeScript output is not required by this ticket; the lab spec must be structured so `ir-xopg` can extract it without redesign.
+
+## Notes
+
+**2026-07-02T06:02:11Z**
+
+Started foundation implementation after naming, transport, coexistence, and architecture-doc tickets closed. First chunk will add the type-level DSL/spec modules and a compile-only lab spec; likely pause point is the minimal SurfaceImpl runtime/mount shape before adding routes/views.
+
+**2026-07-02T06:04:21Z**
+
+Added compile-only FrontendSurface DSL foundation and support lab spec covering every initial primitive plus helper bundle expansion through Concat/Append. Registered the lab in RegisteredFrontendSurfaces. Verification: hspec-test compiled the new modules but DB reset is blocked by missing local postgres socket; direct build/Test/Main --match 'FrontendSurface DSL' passed. Pausing before runtime lab mount because the minimal SurfaceImpl shape is the next design decision.
