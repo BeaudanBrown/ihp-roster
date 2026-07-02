@@ -5,16 +5,16 @@ import Application.Helper.LiveResource
 import Application.Helper.LiveSurface (TypedLiveSurfaceDefinition (..),
                                        typedLiveSurfaceAffectedFragments,
                                        typedSurfaceDependsOn)
-import Application.Support.LiveUpdates (SupportLiveFragment (..),
-                                        supportLiveSurfaceDefinition)
+import Application.Support.LiveUpdates (supportAffectedMountedFragments,
+                                        supportFragmentDependencies)
 import qualified Data.Set as Set
 import Data.UUID (fromWords)
 import IHP.Controller.Context (ControllerContext)
 import IHP.Prelude
 import Test.Hspec
-import Web.Billing.LiveUpdates (BillingLiveFragment (..),
-                                BillingSurfaceKey (..),
-                                billingLiveSurfaceDefinition)
+import Web.Billing.FrontendSurface (BillingScopeValue (..),
+                                    billingAffectedMountedFragments,
+                                    billingFragmentDependencies)
 import Web.Profiles.LiveUpdates (ProfileContentFragment (..),
                                  ProfileContentSurfaceKey (..),
                                  ProfileLeaveSurfaceKey (..),
@@ -64,10 +64,11 @@ tests = do
                 `shouldBe` ["timesheet-week-toolbar", "timesheet-day-columns"]
 
         it "declares support dependencies by support fragment" do
-            typedSurfaceDependsOn supportLiveSurfaceDefinition () SupportAwardRatesLiveFragment
-                `shouldBe` [SupportAwardRatesResource]
-            typedSurfaceDependsOn supportLiveSurfaceDefinition () SupportPublicHolidaysLiveFragment
-                `shouldBe` [SupportPublicHolidaysResource]
+            let awardRatesFragments = supportAffectedMountedFragments (Set.fromList [SupportAwardRatesResource])
+            let publicHolidayFragments = supportAffectedMountedFragments (Set.fromList [SupportPublicHolidaysResource])
+
+            concatMap supportFragmentDependencies awardRatesFragments `shouldBe` [SupportAwardRatesResource]
+            concatMap supportFragmentDependencies publicHolidayFragments `shouldBe` [SupportPublicHolidaysResource]
 
         it "declares admin Xero dependencies by fragment" do
             let venueId = fromWords 2 0 0 0
@@ -90,10 +91,10 @@ tests = do
 
         it "declares billing dependencies for billing status fragments" do
             let venueId = fromWords 6 0 0 0
-            let key = BillingSurfaceKey venueId
+            let scope = BillingScopeValue venueId
+            let fragments = billingAffectedMountedFragments scope (Set.fromList [BillingResource venueId])
 
-            typedSurfaceDependsOn billingLiveSurfaceDefinition key BillingStatusLiveFragment
-                `shouldBe` [BillingResource venueId]
+            concatMap (billingFragmentDependencies scope) fragments `shouldBe` [BillingResource venueId]
 
         it "declares profile dependencies by staff-backed section" do
             let ?context = error "profile dependency test does not use controller context" :: ControllerContext

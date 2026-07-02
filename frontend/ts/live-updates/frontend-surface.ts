@@ -22,6 +22,8 @@ export type FrontendSurfaceMountConfig = {
 type TimesheetWeekLiveUpdateScope = Extract<LiveUpdateScope, { kind: "timesheet_week" }>;
 type RosterWeekLiveUpdateScope = Extract<LiveUpdateScope, { kind: "roster_week" }>;
 type LeaveRequestsLiveUpdateScope = Extract<LiveUpdateScope, { kind: "leave_requests" }>;
+type BillingLiveUpdateScope = Extract<LiveUpdateScope, { kind: "billing" }>;
+type SupportPlatformLiveUpdateScope = Extract<LiveUpdateScope, { kind: "support_platform" }>;
 
 export type ParsedFrontendSurfaceSubscriptionConfig = {
     feature: string;
@@ -78,6 +80,38 @@ export function parseFrontendSurfaceSubscriptionConfig(value: unknown): ParsedFr
             feature: config.surface,
             scope,
             scopeKey: `leave_requests:${scope.venueId}`,
+            socketPath: "/live-updates",
+            resyncFragments,
+            decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`),
+        };
+    }
+
+    if (config.surface === "billing") {
+        const scope = parseBillingScope(config.scopeKey);
+        if (!scope) return null;
+        const resyncFragments = config.fragments.map(billingFragmentToWire).filter((fragment): fragment is LiveUpdateWireFragment => fragment !== null);
+        if (resyncFragments.length === 0) return null;
+
+        return {
+            feature: config.surface,
+            scope,
+            scopeKey: `billing:${scope.venueId}`,
+            socketPath: "/live-updates",
+            resyncFragments,
+            decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`),
+        };
+    }
+
+    if (config.surface === "support") {
+        const scope = parseSupportScope(config.scopeKey);
+        if (!scope) return null;
+        const resyncFragments = config.fragments.map(supportFragmentToWire).filter((fragment): fragment is LiveUpdateWireFragment => fragment !== null);
+        if (resyncFragments.length === 0) return null;
+
+        return {
+            feature: config.surface,
+            scope,
+            scopeKey: "support_platform",
             socketPath: "/live-updates",
             resyncFragments,
             decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`),
@@ -222,6 +256,41 @@ function leaveRequestsFragmentToWire(fragment: FrontendSurfaceMountedFragmentCon
 
     if (fragment.key.kind === "leave-requests-content") {
         return { ...base, fragmentKey: { kind: "leave_requests_content" } };
+    }
+
+    return null;
+}
+
+function parseBillingScope(scopeKey: string): BillingLiveUpdateScope | null {
+    const match = /^billing:([^:]+)$/.exec(scopeKey);
+    if (!match) return null;
+    return { kind: "billing", venueId: match[1] };
+}
+
+function billingFragmentToWire(fragment: FrontendSurfaceMountedFragmentConfig): LiveUpdateWireFragment | null {
+    const base = liveFragmentBase(fragment);
+
+    if (fragment.key.kind === "billing-status") {
+        return { ...base, fragmentKey: { kind: "billing_status" } };
+    }
+
+    return null;
+}
+
+function parseSupportScope(scopeKey: string): SupportPlatformLiveUpdateScope | null {
+    if (scopeKey !== "support") return null;
+    return { kind: "support_platform" };
+}
+
+function supportFragmentToWire(fragment: FrontendSurfaceMountedFragmentConfig): LiveUpdateWireFragment | null {
+    const base = liveFragmentBase(fragment);
+
+    if (fragment.key.kind === "support-award-rates") {
+        return { ...base, fragmentKey: { kind: "support_award_rates_section" } };
+    }
+
+    if (fragment.key.kind === "support-public-holidays") {
+        return { ...base, fragmentKey: { kind: "support_public_holidays_section" } };
     }
 
     return null;

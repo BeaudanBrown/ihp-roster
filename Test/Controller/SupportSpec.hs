@@ -3,8 +3,8 @@ module Test.Controller.SupportSpec where
 import Application.Async.Queue (activeAppJobStatuses)
 import Application.FwcMapd.Job (fwcMapdRefreshJobKind)
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
-import Application.Helper.LiveSurface (typedLiveSurfaceFragmentRefs,
-                                       unSurfaceFragmentRefs)
+import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceFragmentKey (..),
+                                                   FrontendSurfaceMountedFragment (..))
 import Application.Helper.LiveUpdate (currentLiveUpdateVersion)
 import Application.Helper.LiveUpdate.Runtime (LiveUpdateWireFragment)
 import Application.Support.LiveUpdates
@@ -26,9 +26,15 @@ import Web.Types
 
 supportFragmentRef :: SupportLiveFragment -> LiveUpdateWireFragment
 supportFragmentRef fragment =
-    case unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs supportLiveSurfaceDefinition () [fragment]) of
+    case supportSurfaceWireFragments (filter matchesFragment supportCandidateMountedFragments) of
         [fragmentRef] -> fragmentRef
         _             -> error "Expected one support fragment ref"
+    where
+        matchesFragment mountedFragment =
+            case (fragment, mountedFragment.mountedFragmentKey.fragmentKind) of
+                (SupportAwardRatesLiveFragment, "support-award-rates") -> True
+                (SupportPublicHolidaysLiveFragment, "support-public-holidays") -> True
+                _ -> False
 
 tests :: Spec
 tests = beforeAll testContext do
@@ -66,7 +72,10 @@ tests = beforeAll testContext do
                 response <- withPasskeyVerifiedUser superAdmin do
                     callAction SupportAction
 
-                responseShouldMountLiveSurface response supportLiveSurface
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "data-bepis-surface=\"support\""
+                response `responseBodyShouldContain` "support-award-rates-section"
+                response `responseBodyShouldContain` "support-public-holidays-section"
 
         it "shows submitted feedback without the submit-feedback button for super admins" $ withContext do
             withCleanDb do

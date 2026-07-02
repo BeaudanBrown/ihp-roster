@@ -263,28 +263,16 @@ tests = describe "LiveUpdate runtime types" do
         result.broadcastRefetchFragmentCount `shouldBe` 1
         result.broadcastCoalescedFragmentCount `shouldBe` 1
 
-    it "encodes support live surface config with stable JSON" do
-        let surface = mkTypedDefinedLiveSurface supportLiveSurfaceDefinition ()
-
-        liveSurfaceConfigJson surface
-            `shouldBe` "{\"decorateRequestsWithin\":[\"#support-shell\",\"#support-award-rates-section\",\"#support-public-holidays-section\"],\"feature\":\"support\",\"resyncFragments\":[{\"deferUntilBlur\":false,\"fragmentKey\":{\"kind\":\"support_award_rates_section\"},\"protectionPolicy\":{\"kind\":\"none\"},\"targetId\":\"support-award-rates-section\",\"url\":\"/ShowFwcMapdAwardRatesSection\"},{\"deferUntilBlur\":false,\"fragmentKey\":{\"kind\":\"support_public_holidays_section\"},\"protectionPolicy\":{\"kind\":\"none\"},\"targetId\":\"support-public-holidays-section\",\"url\":\"/ShowPublicHolidaysSection\"}],\"scope\":{\"kind\":\"support_platform\"},\"scopeKey\":\"support_platform\",\"socketPath\":\"/live-updates\"}"
-
-    it "keeps typed support surface refs at the compatibility boundary" do
-        let typedRefs = typedLiveSurfaceFragmentRefs supportLiveSurfaceDefinition () supportLiveFragmentRefs
-
-        unSurfaceFragmentRefs typedRefs
+    it "keeps FrontendSurface support refs at the live-update compatibility boundary" do
+        supportSurfaceWireFragments supportCandidateMountedFragments
             `shouldBe`
                 [ supportAwardRatesSectionFragmentRef
                 , supportPublicHolidaysSectionFragmentRef
                 ]
-        supportLiveSurface
-            `shouldBe` mkTypedDefinedLiveSurface supportLiveSurfaceDefinition ()
 
     it "declares live authorization requirements at the surface boundary" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
 
-        typedSurfaceScopeFromWire supportLiveSurfaceDefinition SupportPlatformScope `shouldBe` Just ()
-        typedSurfaceScopeFromWire supportLiveSurfaceDefinition (LeaveRequestsScope { venueId }) `shouldBe` Nothing
         defaultLiveUpdateScopeAuthorizationRequirement SupportPlatformScope `shouldBe` RequireSupportSuperAdmin
         defaultLiveUpdateScopeAuthorizationRequirement AdminXeroScope { venueId } `shouldBe` RequireCurrentVenueOwner venueId
 
@@ -343,15 +331,23 @@ testLiveSurfaceConfig feature scope resyncFragments =
 
 supportAwardRatesSectionFragmentRef :: LiveUpdateWireFragment
 supportAwardRatesSectionFragmentRef =
-    case unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs supportLiveSurfaceDefinition () [SupportAwardRatesLiveFragment]) of
-        [fragmentRef] -> fragmentRef
-        _             -> error "Expected one support award rates fragment ref"
+    LiveUpdateWireFragment
+        { fragmentKey = SupportAwardRatesSectionFragment
+        , targetId = "support-award-rates-section"
+        , url = "/ShowFwcMapdAwardRatesSection"
+        , deferUntilBlur = False
+        , protectionPolicy = NoProtection
+        }
 
 supportPublicHolidaysSectionFragmentRef :: LiveUpdateWireFragment
 supportPublicHolidaysSectionFragmentRef =
-    case unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs supportLiveSurfaceDefinition () [SupportPublicHolidaysLiveFragment]) of
-        [fragmentRef] -> fragmentRef
-        _             -> error "Expected one support public holidays fragment ref"
+    LiveUpdateWireFragment
+        { fragmentKey = SupportPublicHolidaysSectionFragment
+        , targetId = "support-public-holidays-section"
+        , url = "/ShowPublicHolidaysSection"
+        , deferUntilBlur = False
+        , protectionPolicy = NoProtection
+        }
 
 expectUuid :: Text -> UUID.UUID
 expectUuid value =

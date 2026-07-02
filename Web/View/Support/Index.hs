@@ -2,9 +2,9 @@ module Web.View.Support.Index where
 
 import Application.Helper.Feedback (allowedFeedbackPriorities,
                                     allowedFeedbackStatuses)
+import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.FwcMapd (FwcMapdAdminData (..),
                                    FwcMapdDisplayPayRate (..))
-import Application.Helper.LiveSurface (liveSurfaceConfigJson)
 import Application.PublicHolidays.Coverage (PublicHolidayCoverageStatus (..),
                                             PublicHolidayCoverageYear (..),
                                             publicHolidayCoverageHasWarning)
@@ -97,10 +97,8 @@ instance View IndexView where
                     |]
                     })
          in [hsx|
-            <section id="support-shell"
-                     hx-history-elt="true"
-                     data-live-update-surface={liveSurfaceConfigJson supportLiveSurface}>
-                {page}
+            <section id="support-shell" hx-history-elt="true">
+                {renderFrontendSurfaceMount supportLiveSurface page}
             </section>
         |]
 

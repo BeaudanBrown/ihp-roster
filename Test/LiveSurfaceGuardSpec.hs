@@ -178,9 +178,7 @@ isIdentifierChar value =
 
 simpleDescriptorBackedSurfaceFiles :: [FilePath]
 simpleDescriptorBackedSurfaceFiles =
-    [ "Application/Support/LiveUpdates.hs"
-    , "Web/Billing/LiveUpdates.hs"
-    , "Web/View/Admin/Exports.hs"
+    [ "Web/View/Admin/Exports.hs"
     , "Web/View/Admin/Invites.hs"
     , "Web/View/Admin/RosterGroups.hs"
     , "Web/View/Admin/ShiftTypes.hs"

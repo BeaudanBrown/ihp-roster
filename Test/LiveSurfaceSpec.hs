@@ -23,6 +23,7 @@ import Application.Helper.View.LazySurface
 import Application.Helper.View.UiRegion
 import Application.Support.LiveUpdates
 import Data.List.NonEmpty (NonEmpty (..))
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import Generated.Types
@@ -33,7 +34,7 @@ import qualified Text.Blaze.Html as Blaze
 import Text.Blaze.Html ((!))
 import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
 import qualified Text.Blaze.Html5 as Html5
-import Web.Billing.LiveUpdates
+import Web.Billing.FrontendSurface
 import Web.RosterWeeks.FrontendSurface (RosterMountedFragmentPlan (..),
                                         RosterWeekScopeValue (..),
                                         rosterSurfaceImpl)
@@ -115,14 +116,13 @@ tests = describe "LiveSurface contract helpers" do
         lazyOutput `shouldContainText` "hx-target=\"this\""
         lazyOutput `shouldContainText` "hx-swap=\"outerHTML\""
 
-    it "derives live fragment refs and dependencies from a single fragment contract" do
+    it "derives FrontendSurface live fragment refs and dependencies from a single fragment contract" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
-        let billingKey = BillingSurfaceKey { billingSurfaceVenueId = venueId }
+        let billingScope = BillingScopeValue { billingVenueId = venueId }
+        let fragments = billingAffectedMountedFragments billingScope (Set.fromList [BillingResource venueId])
 
-        map (.targetId) (unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs billingLiveSurfaceDefinition billingKey [BillingStatusLiveFragment]))
-            `shouldBe` ["billing-status-fragment"]
-        typedSurfaceDependsOn billingLiveSurfaceDefinition billingKey BillingStatusLiveFragment
-            `shouldBe` [BillingResource venueId]
+        map (.mountedFragmentTargetId) fragments `shouldBe` ["billing-status-fragment"]
+        concatMap (billingFragmentDependencies billingScope) fragments `shouldBe` [BillingResource venueId]
 
     it "requires fragment contracts to declare resource dependencies or resync-only intent" do
         let ref = testFragmentRef BillingStatusFragment "billing-status-fragment" ["billing-status-fragment"]
@@ -269,12 +269,6 @@ tests = describe "LiveSurface contract helpers" do
         nameToSnake "AdminAnnouncementFragment" `shouldBe` "admin_announcement_fragment"
         defaultLiveFragmentTargetId "AdminAnnouncement" "Content" `shouldBe` "admin-announcement-content-fragment"
 
-    it "verifies the typed support surface config contract" do
-        liveSurfaceConfigShouldRoundTrip supportLiveSurface
-        liveSurfaceConfigShouldExposeRefs
-            supportLiveSurface
-            (unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs supportLiveSurfaceDefinition () supportLiveFragmentRefs))
-
     it "marks the roster staff panel as a lazy FrontendSurface fragment" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = "22222222-2222-2222-2222-222222222222" :: Id RosterGroup
@@ -293,15 +287,14 @@ tests = describe "LiveSurface contract helpers" do
     it "verifies context-free typed surface contracts used by background updates" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = "22222222-2222-2222-2222-222222222222" :: Id RosterGroup
-        let billingKey = BillingSurfaceKey { billingSurfaceVenueId = venueId }
+        let billingScope = BillingScopeValue { billingVenueId = venueId }
         let timesheetScope = TimesheetWeekScopeValue venueId 1
         let timesheetMountState = TimesheetsMountStateValue True True Nothing
         let timesheetImpl = timesheetsSurfaceImpl timesheetScope timesheetMountState
         let timesheetSurface = timesheetsLegacyLiveSurfaceConfig timesheetImpl timesheetScope
         let invitesKey = AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Just rosterGroupId }
         let surfaces =
-                [ mkTypedDefinedLiveSurface billingLiveSurfaceDefinition billingKey
-                , timesheetSurface
+                [ timesheetSurface
                 , mkTypedDefinedLiveSurface (adminVenueSettingsLiveSurfaceDefinitionForVenue venueId) ()
                 , mkTypedDefinedLiveSurface (adminInvitesLiveSurfaceDefinitionForVenue venueId) invitesKey
                 , mkTypedDefinedLiveSurface (adminXeroLiveSurfaceDefinitionForVenue venueId) ()
@@ -311,6 +304,16 @@ tests = describe "LiveSurface contract helpers" do
         liveSurfaceConfigShouldExposeRefs
             timesheetSurface
             timesheetSurface.resyncFragments
+        let billingFragments = billingSurfaceWireFragments (billingAffectedMountedFragments billingScope (Set.fromList [BillingResource venueId]))
+        billingFragments `shouldBe`
+            [ LiveUpdateWireFragment
+                { fragmentKey = BillingStatusFragment
+                , targetId = "billing-status-fragment"
+                , url = "/ShowBillingStatusFragment"
+                , deferUntilBlur = False
+                , protectionPolicy = NoProtection
+                }
+            ]
         let timesheetFragments = timesheetsSurfaceWireFragments (timesheetsCandidateMountedFragments timesheetScope timesheetMountState)
         timesheetFragments `shouldContain`
             [ LiveUpdateWireFragment
@@ -346,11 +349,10 @@ tests = describe "LiveSurface contract helpers" do
             AdminXeroPayItemsFragment
             "xero-pay-items-data"
             "/ShowAdminXeroPayItemsFragment"
-        map (.feature) surfaces `shouldBe` ["billing", "timesheets", "admin-venue-config", "admin-invites", "admin-xero"]
+        map (.feature) surfaces `shouldBe` ["timesheets", "admin-venue-config", "admin-invites", "admin-xero"]
         map (.scopeKey) surfaces
             `shouldBe`
-                [ "billing:11111111-1111-1111-1111-111111111111"
-                , "timesheet_week:11111111-1111-1111-1111-111111111111:1"
+                [ "timesheet_week:11111111-1111-1111-1111-111111111111:1"
                 , "admin_venue_config:11111111-1111-1111-1111-111111111111"
                 , "admin_invites:11111111-1111-1111-1111-111111111111"
                 , "admin_xero:11111111-1111-1111-1111-111111111111"

@@ -2,12 +2,10 @@ module Web.Controller.Billing where
 
 import Application.Billing.Stripe
 import Application.Helper.LiveResource (LiveMutationResult (..))
-import Application.Helper.LiveSurface (serveTypedLiveFragment)
 import Application.Helper.Url (appendQueryParams)
 import Control.Monad (guard, void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
-import Web.Billing.LiveUpdates
 import Web.Billing.Mutations
 import Web.Controller.Prelude
 import Web.View.Billing.Index
@@ -24,10 +22,9 @@ instance Controller BillingController where
         viewModel <- fetchBillingViewModel
         render BillingView { .. }
 
-    action currentAction@ShowBillingStatusFragmentAction = runBepis currentAction BepisFragmentAction $
-        serveTypedLiveFragment billingLiveSurfaceDefinition currentBillingSurfaceKey BillingStatusLiveFragment \_ -> do
-            viewModel <- fetchBillingViewModel
-            respondHtml (renderBillingStatusFragment viewModel)
+    action currentAction@ShowBillingStatusFragmentAction = runBepis currentAction BepisFragmentAction do
+        viewModel <- fetchBillingViewModel
+        respondHtml (renderBillingStatusFragment viewModel)
 
     action currentAction@CreateBillingCheckoutSessionAction = runBepis currentAction BepisMutationAction $
         createBillingCheckoutSessionAction

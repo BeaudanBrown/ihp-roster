@@ -358,6 +358,34 @@
         decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`)
       };
     }
+    if (config.surface === "billing") {
+      const scope = parseBillingScope(config.scopeKey);
+      if (!scope) return null;
+      const resyncFragments = config.fragments.map(billingFragmentToWire).filter((fragment) => fragment !== null);
+      if (resyncFragments.length === 0) return null;
+      return {
+        feature: config.surface,
+        scope,
+        scopeKey: `billing:${scope.venueId}`,
+        socketPath: "/live-updates",
+        resyncFragments,
+        decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`)
+      };
+    }
+    if (config.surface === "support") {
+      const scope = parseSupportScope(config.scopeKey);
+      if (!scope) return null;
+      const resyncFragments = config.fragments.map(supportFragmentToWire).filter((fragment) => fragment !== null);
+      if (resyncFragments.length === 0) return null;
+      return {
+        feature: config.surface,
+        scope,
+        scopeKey: "support_platform",
+        socketPath: "/live-updates",
+        resyncFragments,
+        decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`)
+      };
+    }
     return null;
   }
   function parseFrontendSurfaceMountConfig(value) {
@@ -469,6 +497,32 @@
     const base = liveFragmentBase(fragment);
     if (fragment.key.kind === "leave-requests-content") {
       return { ...base, fragmentKey: { kind: "leave_requests_content" } };
+    }
+    return null;
+  }
+  function parseBillingScope(scopeKey) {
+    const match = /^billing:([^:]+)$/.exec(scopeKey);
+    if (!match) return null;
+    return { kind: "billing", venueId: match[1] };
+  }
+  function billingFragmentToWire(fragment) {
+    const base = liveFragmentBase(fragment);
+    if (fragment.key.kind === "billing-status") {
+      return { ...base, fragmentKey: { kind: "billing_status" } };
+    }
+    return null;
+  }
+  function parseSupportScope(scopeKey) {
+    if (scopeKey !== "support") return null;
+    return { kind: "support_platform" };
+  }
+  function supportFragmentToWire(fragment) {
+    const base = liveFragmentBase(fragment);
+    if (fragment.key.kind === "support-award-rates") {
+      return { ...base, fragmentKey: { kind: "support_award_rates_section" } };
+    }
+    if (fragment.key.kind === "support-public-holidays") {
+      return { ...base, fragmentKey: { kind: "support_public_holidays_section" } };
     }
     return null;
   }

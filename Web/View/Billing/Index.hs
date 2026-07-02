@@ -1,11 +1,11 @@
 module Web.View.Billing.Index where
 
 import Application.Helper.Controller (currentVenueOrNothing)
-import Application.Helper.LiveSurface (liveSurfaceConfigJson,
-                                       mkTypedDefinedLiveSurface)
+import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.Url (appendQueryParams)
 import qualified Data.Text as Text
-import Web.Billing.LiveUpdates
+import Web.Billing.FrontendSurface (billingSurfaceImpl,
+                                    currentBillingScopeValue)
 import Web.View.Prelude
 
 data BillingViewModel = BillingViewModel
@@ -42,10 +42,8 @@ instance View BillingView where
             , appPageActions = mempty
             , appPageWidthClass = ""
             , appPageBody = [hsx|
-                <div id="billing-live-surface"
-                     class="app-page-stack"
-                     data-live-update-surface={liveSurfaceConfigJson (mkTypedDefinedLiveSurface billingLiveSurfaceDefinition currentBillingSurfaceKey)}>
-                    {renderBillingStatusFragment viewModel}
+                <div id="billing-live-surface" class="app-page-stack">
+                    {renderFrontendSurfaceMount (billingSurfaceImpl currentBillingScopeValue (billingStatusFragmentUrl viewModel.checkoutReturn)) (renderBillingStatusFragment viewModel)}
                 </div>
             |]
             }

@@ -176,7 +176,7 @@ tests = describe "Mutation boundary guard" do
 
     it "does not keep obsolete direct refresh helper definitions around" do
         sources <- mapM Text.readFile
-            [ "Web/Billing/LiveUpdates.hs"
+            [ "Web/Billing/FrontendSurface.hs"
             , "Web/LeaveRequests/ReadModel.hs"
             , "Web/Profiles/LiveUpdates.hs"
             , "Web/Timesheets/Projection.hs"

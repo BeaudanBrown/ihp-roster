@@ -36,7 +36,7 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Billing"
-                response `responseBodyShouldContain` "data-live-update-surface=\""
+                response `responseBodyShouldContain` "data-bepis-surface=\"billing\""
                 response `responseBodyShouldContain` "billing-status-fragment"
                 response `responseBodyShouldContain` "billing:"
                 response `responseBodyShouldContain` "AUD 100/month"

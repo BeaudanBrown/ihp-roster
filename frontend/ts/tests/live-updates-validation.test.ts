@@ -120,6 +120,46 @@ test("FrontendSurface config parser derives Leave Requests live subscriptions fr
     assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { kind: "leave_requests_content" });
 });
 
+test("FrontendSurface config parser derives Billing and Support live subscriptions from mounted fragments", () => {
+    const billing = parseFrontendSurfaceSubscriptionConfig({
+        surface: "billing",
+        scopeKey: "billing:venue-1",
+        mountKey: "primary",
+        mountState: null,
+        fragments: [
+            {
+                key: { kind: "billing-status", params: null },
+                targetId: "billing-status-fragment",
+                url: "/ShowBillingStatusFragment",
+                protection: { kind: "replace" },
+                loadPolicy: "eager",
+            },
+        ],
+    });
+
+    assertDeepEqual(billing?.scope, { kind: "billing", venueId: "venue-1" });
+    assertDeepEqual(billing?.resyncFragments[0]?.fragmentKey, { kind: "billing_status" });
+
+    const support = parseFrontendSurfaceSubscriptionConfig({
+        surface: "support",
+        scopeKey: "support",
+        mountKey: "primary",
+        mountState: null,
+        fragments: [
+            {
+                key: { kind: "support-public-holidays", params: null },
+                targetId: "support-public-holidays-section",
+                url: "/ShowPublicHolidaysSection",
+                protection: { kind: "replace" },
+                loadPolicy: "eager",
+            },
+        ],
+    });
+
+    assertDeepEqual(support?.scope, { kind: "support_platform" });
+    assertDeepEqual(support?.resyncFragments[0]?.fragmentKey, { kind: "support_public_holidays_section" });
+});
+
 test("generated live update surface validator rejects malformed boundary JSON", () => {
     assertEqual(parseLiveUpdateSurfaceConfig(null), null);
     assertEqual(parseLiveUpdateSurfaceConfig({ ...validSurfaceConfig, scope: { kind: "unknown_scope" } }), null);

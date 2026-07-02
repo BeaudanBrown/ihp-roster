@@ -13,7 +13,6 @@ import Application.Helper.Feedback (SupportUnreadFeedbackCount (..),
                                     fetchSupportUnreadFeedbackCount)
 import Application.Helper.FwcMapd (FwcMapdAdminData, fetchFwcMapdAdminData)
 import Application.Helper.LiveResource (LiveResource (..), liveMutationResult)
-import Application.Helper.LiveSurface (serveTypedLiveFragment)
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationLifetime)
 import Application.InvitationDelivery.Job (enqueueVenueOnboardingInvitationDeliveryJob)
 import Application.PublicHolidays.Coverage (PublicHolidayCoverageYear,
@@ -65,15 +64,13 @@ instance Controller SupportController where
         let targetDropzoneKey = paramOrDefault @Text "unknown-target" "targetDropzoneKey"
         respondHtml (renderSurfaceLabPanelFragment "11111111-1111-1111-1111-111111111111" ("Intent accepted: " <> sourceItemKey <> " -> " <> targetDropzoneKey))
 
-    action currentAction@ShowFwcMapdAwardRatesSectionAction = runBepis currentAction BepisPageAction $
-        serveTypedLiveFragment supportLiveSurfaceDefinition () SupportAwardRatesLiveFragment \_ -> do
-            (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
-            respondHtml (renderAwardRatesSection fwcMapdAdminData latestFwcMapdRefreshJob activeFwcMapdRefreshJob)
+    action currentAction@ShowFwcMapdAwardRatesSectionAction = runBepis currentAction BepisPageAction do
+        (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
+        respondHtml (renderAwardRatesSection fwcMapdAdminData latestFwcMapdRefreshJob activeFwcMapdRefreshJob)
 
-    action currentAction@ShowPublicHolidaysSectionAction = runBepis currentAction BepisPageAction $
-        serveTypedLiveFragment supportLiveSurfaceDefinition () SupportPublicHolidaysLiveFragment \_ -> do
-            (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
-            respondHtml (renderPublicHolidaysSection publicHolidayCoverage latestPublicHolidayRefreshJob activePublicHolidayRefreshJob)
+    action currentAction@ShowPublicHolidaysSectionAction = runBepis currentAction BepisPageAction do
+        (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
+        respondHtml (renderPublicHolidaysSection publicHolidayCoverage latestPublicHolidayRefreshJob activePublicHolidayRefreshJob)
 
     action currentAction@CreateSupportVenueOnboardingInvitationAction = runBepis currentAction BepisMutationAction do
         onboardingInvitations <- fetchVenueOnboardingInvitations

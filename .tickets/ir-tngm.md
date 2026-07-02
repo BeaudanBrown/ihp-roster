@@ -27,3 +27,7 @@ No production feature surface uses TypedLiveSurfaceDefinition, data-live-update-
 **2026-07-02T13:11:03Z**
 
 Migrated Leave Requests list surface to FrontendSurface: added type-level spec/runtime bridge, rendered data-bepis-surface mounts, direct fragment/controller responses, registry auth/planning descriptor, generated TypeScript parser support, and updated tests. Verified typecheck, frontend-check, LeaveRequestsController, FrontendSurface-focused Hspec.
+
+**2026-07-02T13:29:34Z**
+
+Migrated Billing and Support to FrontendSurface: added type-level specs/runtime bridges, rendered data-bepis mounts, removed Web/Billing/LiveUpdates legacy definition, rewired fragment endpoints without serveTypedLiveFragment, moved registry auth/planning/descriptors to FrontendSurface helpers, updated parser/tests. Verified typecheck, frontend-check, BillingController, SupportController, LiveUpdate runtime, dependency specs.
