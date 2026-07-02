@@ -5,24 +5,49 @@ Status: active
 Tickets:
 
 - Epic: `ir-9ogo` - Type-level FrontendSurface contract generator
-- `ir-ennr` - Build type-level FrontendSurface lab
-- `ir-4hu6` - Prove typed SurfaceImpl completeness
-- `ir-xopg` - Generate surface TypeScript and DTO contracts from GHC API
 - `ir-8w6w` - Define and enforce FrontendSurface naming policy
+- `ir-npm8` - Design FrontendSurface mount-local transport and unified invalidation flow
+- `ir-p3c3` - Define legacy and FrontendSurface registry coexistence
+- `ir-g6z3` - Draft FrontendSurface architecture contract docs
+- `ir-ennr` - Build type-level FrontendSurface lab
+- `ir-xopg` - Generate surface TypeScript and DTO contracts from GHC API
+- `ir-4hu6` - Prove typed SurfaceImpl completeness
+- `ir-yupd` - Wire FrontendSurface generator into Nix/dev scripts
+- `ir-ycec` - Add FrontendSurface guardrails and compile-failure checks
 - `ir-aleo` - Migrate Timesheets to FrontendSurface spec
 - `ir-ypt5` - Migrate Roster to FrontendSurface spec
+- `ir-ds06` - Document FrontendSurface authoring workflow
+- `ir-s7la` - Remove replaced FrontendCodec and old live-surface contract paths
 
 ## Intent
 
-Replace the current frontend contract pipeline with a smaller, surface-centered
-architecture where all static Haskell-to-TypeScript protocol facts are declared
-as fully type-level `FrontendSurface` specs. The app is rendered as static page
-skeletons containing mounted surfaces. A surface is any server-declared frontend
-behavior boundary: it may render visible UI, handle HTMX actions, emit typed data
-payloads, participate in live updates, manage interaction sessions, or simply
-provide a typed browser contract.
+Replace the current frontend contract and live-surface authoring stack with a
+surface-centered architecture where static browser protocol facts are declared in
+fully type-level `FrontendSurface` specs. Runtime code supplies only dynamic
+behavior through `SurfaceImpl`: concrete scope values, authorization, versions,
+fragment URLs/target ids/renderers, concrete live-resource dependencies,
+HTMX/intent behavior, mount metadata, and mount-state backend behavior.
 
-The source of truth becomes a closed type-level registry:
+The final target removes/replaces author-facing surface contract machinery based
+on `FrontendCodec`, `FrontendSchema`, manual DTO schema groups,
+`TypedLiveSurfaceDefinition`, `Web.LiveSurfaceRegistry`, and
+`Application.Helper.SurfaceProjection` for migrated surfaces. Renderer-internal
+IR/data structures may remain when they are fed only by the new
+`SurfaceContractIR`.
+
+Server-rendered HTML remains authoritative. The architecture improves how the
+browser contract is declared and generated; it does not move business authority
+or persistence into TypeScript. This workstream is the active planning contract
+until the implementation lands; final durable authoring rules move to the local
+README/SPEC/AGENTS files in `ir-ds06`.
+
+## Root Source Of Truth
+
+Generation starts from a single explicit type-level registry containing only
+surfaces. The planned registry module is
+`Application.Helper.FrontendSurface.Registry`; feature surface specs should live
+near their feature modules, such as `Web.Timesheets.SurfaceSpec` and
+`Web.RosterWeeks.SurfaceSpec`.
 
 ```haskell
 type RegisteredFrontendSurfaces =
@@ -32,53 +57,85 @@ type RegisteredFrontendSurfaces =
      ]
 ```
 
-The GHC API generator extracts that registry, normalizes helper aliases/type
-families to a primitive normal form, validates references, and emits generated
-TypeScript/JSON contracts. Runtime Haskell implementations supply only dynamic
-behavior such as URLs, authorization, rendering, versions, actions, and concrete
-scope values.
+Do not introduce a separate top-level scope registry initially. Shared scopes,
+DTOs, events, DOM tokens, sessions, layers, field aliases, and helper bundles are
+included by type aliases inside surface specs. After helper expansion, the
+extractor merges identical shared declarations and rejects conflicting ones.
 
-## Core Decisions
+Example shared declaration reuse:
 
-- Specs are fully type-level. Do not infer contracts from arbitrary Haskell
-  value expressions.
-- The canonical DSL syntax is a flat top-level normal form:
+```haskell
+type RosterWeekScope =
+    Scope RosterWeek
+        '[ Field VenueId WireUUID
+         , Field RosterGroupId WireUUID
+         , Field WeekOffset WireInt
+         ]
 
-  ```haskell
-  Surface SurfaceMarker '[ primitive, primitive, primitive ]
-  ```
+type RosterSurface =
+    Surface Roster
+        '[ RosterWeekScope
+         , Fragment RosterRow
+            '[ Field RosterDayId WireUUID
+             , Field RowIndex WireInt
+             ]
+            '[ Eager ]
+         ]
 
-  Individual primitives may have nested option lists.
-- Use marker types and global naming conventions instead of raw strings where
-  possible.
-- `RegisteredFrontendSurfaces` is the exported contract boundary. A later GHC
-  API scan may verify that no surface spec was forgotten, but generation starts
-  from this explicit registry.
-- Helpers such as `DragAndDrop` are sugar only. They expand to primitive normal
-  form before extraction and do not change the core architecture.
-- `SurfaceImpl spec` provides the runtime bridge and should prove required
-  handlers are present through typed builders/handler records.
-- DTOs should be generated from the type-level DSL and GHC API extraction rather
-  than maintained through separate author-facing `FrontendCodec` instances.
-- The generated output does not need to preserve current TypeScript names or wire
-  shapes. Prefer the clean shape that best fits the new architecture.
-- The first implementation target is a surface laboratory page that covers every
-  primitive and uses none of the old frontend contract machinery.
+type RosterSummarySurface =
+    Surface RosterSummary
+        '[ RosterWeekScope
+         , Fragment SummaryTotals '[] '[ Eager ]
+         ]
+```
 
-## Primitive Normal Form
+The shared `RosterWeekScope` is generated once and used by both surfaces. If a
+second surface declares `Scope RosterWeek` with different fields, generation
+fails with a clear conflict error.
 
-The GHC API extractor should only need to understand these primitives after
-normalization:
+The same explicit type-level list is also the source for runtime enumeration.
+Each listed surface supplies exactly one `SurfaceImpl spec` through a small
+`HasSurfaceImpl spec`-style interface, and a typeclass fold derives the runtime
+registry used for planning, authorization, manifests, and generic helpers. There
+must not be a second hand-maintained runtime list for migrated surfaces; a
+registered surface without an impl should fail compilation.
+
+## DSL Normal Form
+
+Specs are fully type-level. Do not infer contracts from arbitrary Haskell value
+expressions. The canonical syntax normalizes to:
+
+```haskell
+Surface SurfaceMarker '[ primitive, primitive, primitive ]
+```
+
+Core primitives are promoted data constructors. Marker names are ordinary
+nullary data types at kind `Type`. Wire field types are a closed promoted
+universe with namespaced constructors such as `WireText`, `WireInt`,
+`WireBool`, `WireUUID`, `WireDay`, `WireList t`, `WireOptional t`,
+`WireNullable t`, and `WireRef DtoMarker`; specs do not use bare domain names
+such as `Text` or `UUID` for browser wire types.
+
+Type synonyms and approved DSL helper type families are allowed only as
+authoring sugar that expand to primitive normal form. V1 supports type synonyms,
+closed type families from approved DSL helper modules, list append/concat and
+flattening, and nested option lists. Arbitrary feature-specific type-family
+logic and recursion are out of scope. Helper composition is allowed; expansion
+cycles fail generation with a clear diagnostic naming the cycle.
+
+Initial primitive set:
 
 ```haskell
 Surface name capabilities
 Scope name fields
-Fragment name paramsAndOptions
-HtmxAction name fieldsAndOptions
-Intent name fieldsAndOptions
+Fragment name params options
+HtmxAction name fields options
+Intent name fields options
 Field name type
 OptionalField name type
-Session name
+NullableField name type
+MountState name fields
+Session name options
 DisposableLayer name
 InteractionEffect kind fields
 ConflictPolicy sessionSelector fragmentSelector resolution
@@ -89,162 +146,466 @@ DomToken name
 Dto name fields
 ```
 
-### Primitive Responsibilities
+A flat top-level list is syntax. The normalized contract graph still validates
+relationships between primitives.
 
-- `Surface` defines a self-contained frontend behavior boundary and contributes
-  a surface-family name.
-- `Scope` defines the runtime identity shape for mounted instances.
-- `Fragment` defines a renderable/replaceable UI unit and its parameter shape.
-- `HtmxAction` defines raw HTMX action metadata and submitted fields.
-- `Intent` defines a semantic server-owned action, usually backed by HTMX.
-- `Field` and `OptionalField` define JSON/parameter fields.
-- `Session` defines a temporary frontend activity, such as drag or resize.
-- `DisposableLayer` defines client-owned temporary UI layers.
-- `InteractionEffect` defines generic runtime effects during a session.
-- `ConflictPolicy` defines how active sessions and server updates interact.
-- `LoadPolicy` defines eager/lazy fragment loading behavior.
-- `OverlayLane` defines overlay destinations such as dialog, picker, or toast.
-- `ClientEvent` defines typed browser event contracts and optional details.
-- `DomToken` defines generated DOM protocol attributes/tokens.
-- `Dto` defines named JSON payload/config/event-detail shapes not already
-  inferred from another primitive.
+Validation uses a closed set of declaration and reference kinds so cross
+references remain exhaustive. Declaration kinds include surface, scope,
+fragment, HTMX action, intent, field, DTO, mount state, session, layer, effect,
+overlay lane, client event, and DOM token. Reference options such as `Target`,
+`BackedBy`, `Layer`, `Session`, `Emits`, `UsesDto`, and `Contains` each map to
+exactly one expected declaration kind. Missing or wrong-kind references fail
+generation, and the implementation should keep the mapping covered by
+`-Werror=incomplete-patterns`.
 
-A flat top-level capability list is only syntax. The normalized graph still
-validates cross references, such as actions targeting fragments, effects using
-layers, policies referencing sessions/fragments, and intents being backed by
-known actions.
+### Example Surface
+
+```haskell
+type SurfaceLabSurface =
+    Surface SurfaceLab
+        '[ Scope LabScope
+            '[ Field VenueId WireUUID
+             , Field WeekOffset WireInt
+             ]
+
+         , MountState LabViewState
+            '[ Field ShowArchived WireBool
+             , OptionalField StaffFilterId WireUUID
+             ]
+
+         , Fragment LabShell '[] '[ Eager ]
+         , Fragment LabPanel '[ Field PanelId WireUUID ] '[ Lazy '[ Trigger Load, Placeholder Panel ] ]
+
+         , HtmxAction RefreshPanel
+            '[ Field PanelId WireUUID ]
+            '[ Target LabPanel ]
+
+         , Intent MoveLabCard
+            '[ Field SourceItemKey WireText
+             , Field TargetDropzoneKey WireText
+             ]
+            '[ BackedBy RefreshPanel ]
+
+         , Session DragSession '[]
+         , DisposableLayer DragPreview
+         , InteractionEffect CloneShadow '[ Layer DragPreview ]
+         , InteractionEffect DropzoneHighlight '[]
+         , ConflictPolicy DragSession LabPanel Defer
+
+         , OverlayLane Dialog
+         , ClientEvent LabCommitted '[ Field PanelId WireUUID ]
+         , DomToken LabRoot
+         , DomToken LabDropzone
+
+         , Dto LabPayload
+            '[ Field Label WireText
+             , OptionalField Count WireInt
+             , NullableField Note WireText
+             ]
+         ]
+```
+
+## Field And Wire Type Universe
+
+Frontend fields use a closed browser-boundary wire type universe. Do not expose
+arbitrary database/domain records to TypeScript.
+
+Supported initial shapes:
+
+- `WireText`
+- `WireInt`
+- `WireBool`
+- `WireUUID`
+- `WireDay`
+- `WireList t`
+- optional field presence through `OptionalField`
+- nullable values through `NullableField` or equivalent `Nullable t`
+- references to declared DTOs via `WireRef DtoMarker`
+
+Fields are context-sensitive: the same `Field` primitive describes scope fields,
+fragment params, action/intent fields, event details, mount state, or DTO fields.
+The containing primitive determines semantics.
+
+Meaningful ID fields should generate branded TypeScript aliases while preserving
+primitive JSON wire shapes:
+
+```ts
+export type RosterDayId = string & { readonly __brand: "RosterDayId" };
+```
+
+Runtime parsers still validate the primitive shape, e.g. string/UUID format.
 
 ## Naming Policy
 
-Use marker type names and derive protocol strings globally:
+Names are derived from marker types by global policy.
 
-- surface, scope, and fragment names: lower snake case;
-- intent, action, session, and layer names: lower kebab case;
-- JSON field names: lower camel case;
-- DOM attributes: `data-bepis-` plus lower kebab case;
-- event names: namespace plus lower kebab case.
+- Robust word splitting preserves acronym runs: `HTMXAction -> htmx-action`, not
+  `h-t-m-x-action`; `XeroOAuthCallback -> xero-oauth-callback`.
+- Contextual suffix stripping:
+  - `Surface`, `Scope`, `Fragment`, `Intent`, `Action`, `Session`, `Layer`,
+    `Field`.
+- Do not strip feature prefixes automatically at first.
+- New `FrontendSurface` protocol names prefer lower kebab for surfaces,
+  fragments, actions, intents, sessions, layers, DOM tokens, and events.
+  Existing legacy live-update tags keep their current snake names during hybrid
+  migration; the final unified protocol should be consistent after legacy paths
+  are removed.
+- Canonical marker examples use clean marker names without role suffix where
+  practical, e.g. `data Roster; type RosterSurface = Surface Roster ...`.
+  Contextual suffix stripping still supports authoring markers such as
+  `RosterSurface` or `RosterFragment` when that improves readability.
+- Intent/action/session/layer names are lower kebab.
+- JSON fields are lower camel.
+- DOM attributes/tokens use `data-bepis-` plus lower kebab where attributes are
+  generated.
+- Event names use a generated namespace plus lower kebab.
+- Exact-name escape hatch is type-level, rare, allowlisted in a generator-owned
+  naming allowlist module, and reported by the generator. Do not use value-level
+  escape hatches. Unauthorized exact names fail generation with marker, context,
+  requested name, and an instruction to add a justified allowlist entry.
 
-Example marker types:
+Name collisions fail generation in the relevant namespace. Duplicate checks use
+namespace plus generated protocol name; fully qualified Haskell names are
+diagnostic metadata. Shared declarations with the same marker/name are allowed
+only when their normalized declarations are identical and the namespace is
+shareable.
+
+## GHC API Extractor
+
+The extractor is Nix/devenv-owned and starts from the explicit registry module.
+It loads/types the registry using the same project package set as canonical
+checks, exposing the GHC API package only through the generator command path.
+Normal app builds may import the lightweight registry and type-level specs for
+runtime enumeration, but GHC API use is script-only and must not be an app
+runtime dependency.
+
+Pipeline:
+
+1. Load `RegisteredFrontendSurfaces`.
+2. Resolve and normalize type synonyms, helper aliases, required type families,
+   list append/flattening, and nested options to primitive normal form.
+3. Build raw extracted surfaces close to the type syntax.
+4. Derive protocol names from markers.
+5. Merge identical shared declarations and reject conflicts.
+6. Lower to `SurfaceContractIR`.
+7. Validate the graph.
+8. Render generated TypeScript and runtime metadata.
+
+The extractor must support all lab, Timesheets, and Roster needs without
+feature-specific special cases. It must support parametrized fragment shapes
+without sample IDs.
+
+### SurfaceContractIR
+
+The main checked IR is a graph like:
 
 ```haskell
-data Timesheets
-data TimesheetWeek
-data TimesheetDaySection
-data WeekOffset
-data MoveRosterShiftToSlot
+data SurfaceContractIR = SurfaceContractIR
+    { surfaces     :: Map SurfaceName SurfaceIR
+    , scopes       :: Map ScopeName ScopeIR
+    , dtos         :: Map DtoName DtoIR
+    , domTokens    :: Map DomTokenName DomTokenIR
+    , clientEvents :: Map EventName EventIR
+    , overlayLanes :: Set OverlayLaneName
+    }
+
+data SurfaceIR = SurfaceIR
+    { surfaceName :: SurfaceName
+    , marker      :: TypeRef
+    , scope       :: ScopeName
+    , mountState  :: Maybe MountStateName
+    , fragments   :: Map FragmentName FragmentIR
+    , actions     :: Map ActionName ActionIR
+    , intents     :: Map IntentName IntentIR
+    , sessions    :: Map SessionName SessionIR
+    , layers      :: Map LayerName LayerIR
+    , effects     :: [EffectIR]
+    , policies    :: [ConflictPolicyIR]
+    }
 ```
 
-Representative derived names:
+Fields carry marker/source info, derived JSON name, wire type, presence, and
+optional brand name.
 
-```text
-Timesheets              -> timesheets
-TimesheetWeek           -> timesheet_week
-TimesheetDaySection     -> timesheet_day_section
-WeekOffset              -> weekOffset
-MoveRosterShiftToSlot   -> move-roster-shift-to-slot
-```
+Validation covers malformed specs, unsupported wire types, duplicate/conflicting
+shared declarations, duplicate field names, one normalized scope per surface,
+invalid cross references, invalid exact-name usage, and namespace collisions.
+Diagnostics should include marker/type name, declaration or reference kind,
+derived protocol name, source module/span when available, and suggested fix;
+tests should assert stable diagnostic substrings rather than exact spans.
 
-An exact-name escape hatch may exist for legacy or external protocols, but it
-should be rare and not part of normal app-owned surface authoring.
+## Generated TypeScript
 
-## Runtime Bridge
+Generated TypeScript may change shape where cleaner than current contracts, but
+must remain generated and consumption-friendly. It should include:
 
-The type-level spec declares what exists. Runtime implementation supplies how it
-works for a concrete mounted instance:
+- branded aliases for meaningful IDs;
+- shared scope DTOs;
+- surface-local fragment key unions;
+- mount-state DTOs;
+- DTO/event payload types;
+- intent/action/session/layer closed vocabularies;
+- live-update transport envelopes;
+- guards, parsers, and encoders;
+- constants/manifests required by generic runtime code.
 
-- URL builders for fragments/actions;
+The final source of generated surface/live/interaction contracts is
+`RegisteredFrontendSurfaces`, not manual DTO schema modules. During hybrid
+migration, legacy contract sections may coexist in generated output for
+non-migrated surfaces; migrated surfaces must be generated only from the new
+registry.
+
+The generator may emit a deterministic compact checked debug manifest or IR JSON
+if useful for reviewers/runtime metadata. Avoid large noisy checked-in IR unless
+it becomes a valuable drift gate.
+
+## Haskell Encoding And Parsing
+
+V1 uses reusable typeclass/reflection machinery over the closed DSL/wire-type
+universe. It should derive Haskell JSON, URL/query, and field encode/decode
+behavior for scopes, fragment params, DTOs, event details, intent/action fields,
+and mount state without writing per-surface `ToJSON`/`FromJSON` instances by
+hand.
+
+This is not universal arbitrary Haskell serialization. Unsupported field/domain
+types should fail at compile time or generator validation. V1 should not generate
+Haskell ADT modules; use reflected typed field-list/HList values with ergonomic
+helpers/accessors. Generated Haskell records may be added later if implementation
+ergonomics become painful, especially during Roster.
+
+## SurfaceImpl Runtime Bridge
+
+`SurfaceImpl spec` replaces `TypedLiveSurfaceDefinition` as the feature-facing
+runtime bridge. Missing required handlers should be compile-time errors where
+practical.
+
+`SurfaceImpl` owns dynamic behavior:
+
+- concrete scope values and wire/scope key conversion;
+- authorization;
+- current version/freshness;
+- fragment URL builders;
+- fragment target id builders;
 - fragment renderers;
-- authorization checks;
-- projection/version functions;
-- action/mutation handlers;
-- concrete scope and mount values.
+- concrete live-resource dependencies;
+- HTMX method/action/target/swap details;
+- intent/action behavior;
+- mount key and metadata;
+- mount-state backend behavior;
+- role-dependent visibility/rendering.
 
-A page should inject a surface by mounting an implementation and scope into a
-container:
+Parametrized fragments/actions require one handler per marker accepting typed
+params, not one handler per concrete instance. Authors fill typed handler records
+or builders indexed by the spec and expose them through a `HasSurfaceImpl spec`
+instance/value. Type families compute the required handler slots from the
+normalized spec so missing required handlers fail compilation.
+
+First implementation uses direct DB/read-model rendering only. The generic
+`Application.Helper.SurfaceProjection` cache/projection path is not part of the
+new core and must not be used by lab, Timesheets, or Roster. Optional cached
+backends can be added later behind `SurfaceImpl`.
+
+`SurfaceImpl` supplies browser contract metadata and rendering. Existing IHP
+controllers remain the mutation entrypoints for this epic: they parse,
+authorize, validate, mutate, and report touched resources. A later ticket may
+explore generic intent dispatch through `SurfaceImpl` if repeated controller
+boilerplate justifies it.
+
+## Live Updates And Invalidation
+
+Keep `LiveResource` as the semantic mutation boundary, but change the
+successful-update flow for new `FrontendSurface` surfaces to be mount-resolved
+and universal:
+
+1. A mutation writes data and reports touched business resources.
+2. Successful business mutations refresh authoritative UI through the live
+   invalidation/refetch path for the actor mount, duplicate mounts in the actor
+   tab, and passive viewers. Actor HTTP responses carry only non-authoritative
+   extras such as toasts/dialog cleanup, or validation-local failures.
+3. The live planner finds active subscribed scopes/surfaces.
+4. For each registered surface using that scope, `SurfaceImpl` resolves which
+   surface-local candidate fragments depend on the touched resources.
+5. The planner broadcasts surface/scoped fragment invalidations, not concrete
+   global target ids, for migrated surfaces.
+6. Each browser mount resolves those invalidations against its own mount-local
+   fragment metadata/URLs and refetches authorized server-rendered HTML.
+
+Type-level specs declare dependency kinds/intents. `SurfaceImpl` resolves
+concrete resources from scope/fragment params. Example:
 
 ```haskell
-renderSurface @TimesheetsSurface timesheetsImpl timesheetScope
+Fragment TimesheetDaySection
+    '[ Field DayOffset WireInt ]
+    '[ DependsOn TimesheetDay ]
 ```
 
-Nested surfaces are allowed at render time. A parent surface can render a child
-surface mount inside its HTML. Spec-level child dependencies are deferred until a
-real need appears.
+Runtime resolver:
 
-## TypeScript And JSON Generation
+```haskell
+dependencies TimesheetDaySection scope params =
+    [ TimesheetDayResource scope.venueId scope.weekOffset params.dayOffset ]
+```
 
-The GHC API generator reads `RegisteredFrontendSurfaces`, expands helper aliases
-to primitive normal form, validates the closure, builds an internal contract IR,
-and renders TypeScript. Generated output should include, as required by reachable
-primitives:
+Shared scopes are allowed across surfaces. Scope answers “what data slice is
+mounted?” Surface answers “which UI/fragments should refetch for that data
+slice?” Fragment keys are surface-local; migrated transport envelopes carry
+surface, scope, and fragment identity so each mount can resolve its own target
+ids, URLs, protection, and mount state.
 
-- surface-family unions;
-- scope DTO unions;
-- fragment-key DTO unions;
-- intent/action/session/layer/field closed vocabularies;
-- DTO type declarations;
-- runtime guards, `parseX`, and `encodeX` helpers;
-- DOM/event constants;
-- manifests/config constants;
-- JSON parser/encoder support paths on the Haskell side through type-level
-  reflection initially.
+During migration the app uses a hybrid protocol: legacy surfaces keep the current
+self-describing wire fragments (`targetId`, `url`, protection policy), while
+migrated `FrontendSurface` surfaces use mount-resolved surface fragment
+invalidations. The final target is unified and consistent: all live surfaces move
+to the new protocol and legacy live paths are removed. Stale browser tabs from a
+previous deploy may stop functioning until reload; this is acceptable as long as
+failures are safe and do not corrupt state or authorize unintended mutations.
 
-Current author-facing `FrontendCodec` instances and manual schema-group
-registries should be removed for migrated surfaces once the new generator proves
-replacement coverage.
+Versions remain semantic scope/resource ordering signals, not per-mount caches.
+Viewer- or mount-state-dependent HTML is fetched fresh from the server on each
+fragment request. Background-plannable surfaces can decide affected fragments
+from active scopes and touched resources without a current controller context;
+Timesheets should be background-plannable, the lab can be request-context-only,
+and Roster should target background planning where practical while allowing a
+request-context-only fallback if role/viewer-dependent planning requires it.
+
+## Request Decoration
+
+Do not carry forward selector-list request decoration as the preferred model.
+In the new architecture every mounted surface has a typed mount root. The generic
+HTMX hook decorates requests from the closest surface mount with source-client,
+surface name, scope key, mount key, and any needed mount-state fingerprint or
+encoded mount metadata. Duplicate/nested mounts resolve through closest mount.
+Use headers for generic live metadata, generated hidden inputs for intent/action
+fields, and query params only for explicitly query-backed mount state such as
+Timesheets filters.
+
+Opt-out or explicit-only decoration should be added only if a concrete request
+requires it. This replaces current `decorateRequestsWithin` string lists.
+
+## Mount State
+
+Mount/view state is distinct from live subscription scope. Type-level
+`MountState` declares state shape. `SurfaceImpl` supplies the backend.
+
+Timesheets will initially preserve current query-param behavior behind a typed
+query-backed mount-state backend. Defaults stay `ShowApproved = False`,
+`ShowAllStaff = True`, and `StaffFilterId = Nothing`; query names remain
+`showApproved`, `showAllStaff`, and `staffFilterId`, with blank/invalid staff
+ids normalizing to `Nothing`. Future DB-backed user/venue/mount state should
+be able to replace the backend without changing the surface spec.
+
+Do not introduce in-memory server state for production view state.
 
 ## Surface Lab Acceptance
 
-The first slice must add a dummy/test surface page using every primitive:
+The first implementation target is a support-super-admin-only lab page. It must:
 
-- at least one scope;
-- eager and lazy fragments;
-- required and optional fields;
-- HTMX action;
-- semantic intent;
-- client event;
-- DOM token;
-- overlay lane;
-- interaction session;
-- disposable layer;
-- interaction effect;
-- conflict policy;
-- explicit DTO payload.
+- define every initial primitive in the type-level DSL;
+- use marker types and derived names;
+- include at least one helper alias expansion;
+- mount with a minimal `SurfaceImpl` scaffold that later `ir-4hu6` strengthens
+  into full completeness proofs;
+- render an eager fragment and lazy fragment;
+- exercise one real HTMX action and one intent path;
+- emit/consume generated TypeScript contract shapes;
+- avoid old author-facing `FrontendCodec`, DTO schema groups,
+  `TypedLiveSurfaceDefinition`, `Web.LiveSurfaceRegistry`, manual
+  `InteractionStaticSchema`, and raw protocol attrs in lab views.
 
-The lab must not use the old frontend contract machinery. It exists to prove the
-DSL, GHC API extraction, generated TypeScript, Haskell runtime bridge, mounting,
-and primitive closure semantics before migrating production pages.
+## Timesheets Migration
 
-## Migration Plan
+Timesheets is the first production migration.
 
-1. Build the surface lab and generator foundation.
-2. Prove typed `SurfaceImpl spec` completeness for required handlers.
-3. Generate TypeScript/DTO contracts from the GHC API registry.
-4. Migrate Timesheets as the first real surface.
-5. Migrate Roster as the complex proof: live fragments, lazy loading,
-   interactions, drag/drop helper expansion, disposable layers, effects, and
-   conflict policies.
-6. Delete old contract-generation paths as each migrated surface no longer needs
-   them, with final removal only after Roster proves replacement coverage.
+- Scope: `TimesheetWeek` with `VenueId` and `WeekOffset`.
+- Mount state: current filters (`ShowApproved`, `ShowAllStaff`, optional
+  `StaffFilterId`) with initial query-param backend.
+- Fragments:
+  - `TimesheetToolbar`
+  - `TimesheetDayColumns`
+  - `TimesheetDaySection '[ Field DayOffset WireInt ]`
+- Runtime: direct DB/read-model rendering through `SurfaceImpl`; no
+  `Application.Helper.SurfaceProjection`.
+- Successful actor mutations emit touched resources/surface invalidations and
+  let the actor, duplicate mounts, and passive viewers refetch through the same
+  live path. Fragment GET routes use new surface helpers. Validation failures may
+  still render local form/dialog errors directly.
+- Live dependencies resolve concrete `TimesheetWeekResource` and
+  `TimesheetDayResource` values from scope/params.
 
-## Living Docs To Update As Work Lands
+Timesheets splits the current `TimesheetProjectionRequest` into a logical scope
+value (`venueId`, `weekOffset`) and `TimesheetsMountState` (`showApproved`,
+`showAllStaff`, `staffFilterId`). The current passive-planning workaround that
+reconstructs default filters and relies on mounted `data-live-update-url` should
+be removed for the migrated surface; each mount resolves its own refetch URL from
+mount-local config/state. Acceptance includes removal of old Timesheets
+surface/projection authoring paths.
 
-- `Application/Helper/Frontend/README.md` - replace codec-first authoring rules
-  with type-level surface authoring rules when implemented.
-- `Application/Helper/LiveUpdate.SPEC.md` - update live-fragment/surface contract
-  source-of-truth rules.
-- `Application/Helper/Interaction.SPEC.md` - update interaction intent/layer
-  source-of-truth rules.
-- `Application/Helper/LiveSurface.COOKBOOK.md` - replace current surface-adding
-  workflow with `FrontendSurface` specs and `SurfaceImpl` mounting.
-- `frontend/AGENTS.md` and `static/AGENTS.md` - update generated contract and
-  frontend runtime consumption rules.
+## Roster Migration
 
-## Deferred Questions
+Roster is the complex proof.
 
-These are intentionally deferred until the lab proves the core:
+- Scope: reusable `RosterWeek` with `VenueId`, `RosterGroupId`, `WeekOffset`.
+- Fragments:
+  - content, grid toolbar, grid frame, day columns, day rail, wage rail, slots
+    grid, staff panel;
+  - `RosterDaySection '[ Field RosterDayId WireUUID ]`;
+  - `RosterRow '[ Field RosterDayId WireUUID, Field RowIndex WireInt ]`.
+- Containment uses typed fragment relationships, not raw target-id paths.
+- Staff panel lazy policy is declared as a fragment option.
+- Drag/drop helper sugar expands to primitives: session, disposable layer,
+  effects, intent/action fields, and conflict policies.
+- Fragment-specific conflict policies must be supported, not only `AnyFragment`.
+- Role-dependent visibility, authorization, version/freshness, and rendering live
+  in `SurfaceImpl`.
+- Duplicate mounts are required to work; all generated ids/forms/layers/fragments
+  are mount-local and TypeScript resolves from closest surface mount. Stable
+  semantic classes/data/test attributes should replace tests or CSS that depend
+  on exact global ids.
+- No `Application.Helper.SurfaceProjection`.
+- Fragment-specific conflict policies support at least `AnyFragment`, fragment
+  kind selectors, and fragment subtree selectors. Concrete param predicates may
+  wait unless Roster proves they are necessary.
+- Successful actor mutations emit invalidations/touched resources; actor HTTP
+  responses carry extras such as toasts/dialog cleanup or validation-local
+  errors.
 
-- external/browser-native protocols such as WebAuthn;
-- full test matrix and CI gate composition;
-- spec-level child-surface dependencies beyond render-time nesting;
-- generated Haskell source vs type-level reflection if runtime ergonomics demand
-  stronger generated ADTs later.
+## Guardrails And Verification
+
+Expected gates across the epic:
+
+```bash
+bash ./bin/in-env typecheck
+bash ./bin/in-env frontend-contracts-check
+bash ./bin/in-env frontend-check
+bash ./bin/in-env hspec-test --match "FrontendSurface"
+bash ./bin/in-env hspec-test --match "LiveSurface"
+bash ./bin/in-env hspec-test --match "Interaction"
+bash ./bin/in-env hspec-test --match "LiveUpdate"
+bash ./bin/in-env ./bin/doc-drift-check
+```
+
+Add a Nix-owned focused compile-failure check for missing `SurfaceImpl` handlers.
+Use focused Hspec/generator tests for naming, normalization, merge/conflict
+validation, unsupported types, cross-reference kind validation, stale generated
+output, and old-path guardrails. Use frontend unit/DOM
+checks for generated TypeScript consumption and exhaustive handling. Use E2E only
+when browser/HTMX/live behavior is part of the contract.
+
+## Migration Order
+
+1. Naming policy (`ir-8w6w`).
+2. Mount-local transport and unified invalidation design (`ir-npm8`).
+3. Legacy/new registry coexistence design (`ir-p3c3`).
+4. Draft architecture contract docs (`ir-g6z3`).
+5. DSL, minimal `SurfaceImpl` scaffold, and support lab (`ir-ennr`).
+6. GHC API extractor and generated TypeScript/runtime metadata (`ir-xopg`).
+7. `SurfaceImpl` completeness (`ir-4hu6`).
+8. Nix/dev script integration (`ir-yupd`).
+9. Guardrails and compile-failure checks (`ir-ycec`).
+10. Timesheets migration (`ir-aleo`).
+11. Roster migration (`ir-ypt5`).
+12. Living docs update (`ir-ds06`).
+13. Old-path removal for migrated surfaces (`ir-s7la`).
+
+As implementation lands, move durable facts from this workstream into the local
+README/SPEC/AGENTS files listed in `ir-ds06`.

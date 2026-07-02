@@ -53,8 +53,9 @@ for forward-looking design.
   seam with generated Haskell JSON, TypeScript types, guards, parse helpers,
   encode helpers, constants, and no legacy/manual contract paths.
 - `type-level-frontend-surfaces.md` - fully type-level FrontendSurface specs,
-  GHC API contract generation, typed runtime implementation, and migration away
-  from the old frontend contract registry.
+  GHC API extraction/generation, `SurfaceImpl` runtime replacement for typed
+  live-surface/projection authoring, and migration away from old surface-related
+  `FrontendCodec`/schema registry paths.
 - `roster-sql-read-model-trial.md` - trial replacing roster projection-cache
   reads with a direct SQL/database-near read model.
 - `opentelemetry-observability.md` - OpenTelemetry traces, agent profile

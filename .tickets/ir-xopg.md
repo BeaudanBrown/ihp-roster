@@ -1,7 +1,7 @@
 ---
 id: ir-xopg
 status: open
-deps: [ir-ennr]
+deps: [ir-ennr, ir-p3c3]
 links: []
 created: 2026-07-02T02:47:03Z
 type: task
@@ -12,13 +12,36 @@ tags: [agent-loop, frontend, surfaces, ghc-api]
 ---
 # Generate surface TypeScript and DTO contracts from GHC API
 
-Implement the GHC API extraction path from RegisteredFrontendSurfaces to the contract IR and TypeScript output.
+Implement the GHC API extraction path from `RegisteredFrontendSurfaces` to normalized `SurfaceContractIR` and generated TypeScript/runtime metadata.
 
 ## Design
 
-Load one registry module, normalize helper type families to primitive normal form, validate references, build contract schema, then render TypeScript types, guards, parse/encode helpers, constants, and manifests.
+- Input is the single explicit root list of surfaces, planned in `Application.Helper.FrontendSurface.Registry`:
+
+  ```haskell
+  type RegisteredFrontendSurfaces = '[ ... ]
+  ```
+
+- Load the registry module with Nix-owned GHC options. The generator command may expose `-package ghc`, but this is owned by Nix/devenv scripts rather than ad hoc developer setup.
+- Inspect types only. Do not infer contracts from arbitrary Haskell values.
+- Normalize type synonyms, approved helper aliases, and needed closed type families/list flattening into flat primitive normal form. Detect and reject helper expansion cycles. This must cover all lab, Timesheets, and Roster functionality without feature-specific extractor shims.
+- Build a raw extracted representation, derive protocol names, merge identical shared declarations, and lower to a checked `SurfaceContractIR` containing surfaces, shared scopes, DTOs, fields, fragments, actions, intents, sessions, layers, effects, policies, events, DOM tokens, mount state, overlay lanes, and closed declaration/reference kind metadata for exhaustive cross-reference validation.
+- Validate:
+  - duplicate/conflicting shared declarations;
+  - unsupported wire types;
+  - duplicate field names;
+  - action/intent/fragment/session/layer/effect/policy references;
+  - one normalized scope per surface;
+  - exact-name escape hatch allowlist;
+  - surface/global namespace collisions.
+- Replace old `FrontendSchema` as the final surface-contract IR for migrated surface/live/interaction contracts. Renderer-internal TS data structures are allowed if fed only by `SurfaceContractIR`.
+- Generate TypeScript types, branded aliases for meaningful IDs, guards, parsers, encoders, constants, manifests, shared scope DTOs, surface-local fragment keys, mount-state DTOs, and mount-resolved live-update transport envelopes. Output shape may improve over current generated contracts and need not maintain old internal protocol compatibility.
+- Provide reusable Haskell wire-type/field-list reflection or metadata over a closed browser-boundary universe: `WireText`, `WireInt`, `WireBool`, `WireUUID`, `WireDay`, list, optional, nullable, and declared DTO refs. Do not generate Haskell ADTs in V1. Do not serialize arbitrary domain/database models.
 
 ## Acceptance Criteria
 
-Generated surface contracts include all lab primitives and frontend TypeScript checks consume the generated output.
-
+- Generated contracts include every lab primitive and are consumed by focused frontend checks/tests.
+- No lab DTO/schema is authored through `FrontendCodec` or old DTO schema groups.
+- Type synonyms, helper expansion, list flattening, nested option lists, parameterized fragment shapes, shared declaration merge, branded ID aliases, and mount-state shapes are covered.
+- Generator diagnostics clearly report malformed specs, duplicate names, conflicting shared declarations, invalid cross references, unsupported exact names, and helper expansion cycles, with stable substrings for tests.
+- The implementation is general for Timesheets and Roster; no extractor special cases for those features are accepted.
