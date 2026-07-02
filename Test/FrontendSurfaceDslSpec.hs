@@ -37,7 +37,12 @@ tests = describe "FrontendSurface DSL foundation" do
                 { mountedFragmentKey = FrontendSurfaceFragmentKey "lab-panel" (Aeson.object ["panelId" Aeson..= ("panel-1" :: Text)])
                 , mountedFragmentTargetId = "surface-lab-panel"
                 , mountedFragmentUrl = "/ShowFrontendSurfaceLabPanelFragment?panelId=panel-1"
-                , mountedFragmentProtection = FrontendSurfaceReplace
+                , mountedFragmentProtection = FrontendSurfaceFocusedFieldConfig FrontendSurfaceFocusedFieldProtectionConfig
+                    { focusedProtectionActiveSelector = "input[data-lab-field]:focus"
+                    , focusedProtectionFieldKeyAttr = "data-lab-field"
+                    , focusedProtectionFieldNameFallback = True
+                    , focusedProtectionContainerSelector = Just "form[data-lab-row]"
+                    }
                 , mountedFragmentLoadPolicy = "lazy"
                 }
         let config = FrontendSurfaceMountConfig
@@ -94,6 +99,8 @@ tests = describe "FrontendSurface DSL foundation" do
         html `shouldNotContainText` "data-live-update-surface"
         frontendSurfaceMountConfigJson config `shouldContainText` "\"mountKey\":\"primary\""
         frontendSurfaceMountConfigJson config `shouldContainText` "\"targetId\":\"surface-lab-panel\""
+        frontendSurfaceMountConfigJson config `shouldContainText` "\"kind\":\"focused-field\""
+        frontendSurfaceMountConfigJson config `shouldContainText` "\"activeSelector\":\"input[data-lab-field]:focus\""
 
     it "parses typed handler field values from declared field lists" do
         let panelParams = frontendSurfaceFieldValues (Aeson.object ["panelId" Aeson..= ("panel-1" :: Text)]) :: FrontendSurfaceFieldValues '[Field PanelId 'WireUUID]

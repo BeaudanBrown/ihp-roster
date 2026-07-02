@@ -14,6 +14,7 @@ module Application.Helper.FrontendSurface.Runtime
     ( FrontendSurfaceFieldError (..)
     , FrontendSurfaceFieldValue (..)
     , FrontendSurfaceFieldValues (..)
+    , FrontendSurfaceFocusedFieldProtectionConfig (..)
     , FrontendSurfaceFragmentKey (..)
     , FrontendSurfaceHtmxMethod (..)
     , FrontendSurfaceHtmxRequest (..)
@@ -357,9 +358,18 @@ data FrontendSurfaceMountedFragment = FrontendSurfaceMountedFragment
     }
     deriving (Eq, Show)
 
+data FrontendSurfaceFocusedFieldProtectionConfig = FrontendSurfaceFocusedFieldProtectionConfig
+    { focusedProtectionActiveSelector    :: !Text
+    , focusedProtectionFieldKeyAttr      :: !Text
+    , focusedProtectionFieldNameFallback :: !Bool
+    , focusedProtectionContainerSelector :: !(Maybe Text)
+    }
+    deriving (Eq, Show)
+
 data FrontendSurfaceProtection
     = FrontendSurfaceReplace
     | FrontendSurfaceFocusedField
+    | FrontendSurfaceFocusedFieldConfig !FrontendSurfaceFocusedFieldProtectionConfig
     deriving (Eq, Show)
 
 data FrontendSurfaceHtmxMethod
@@ -486,6 +496,14 @@ protectionToJson :: FrontendSurfaceProtection -> Aeson.Value
 protectionToJson = \case
     FrontendSurfaceReplace -> Aeson.object ["kind" Aeson..= ("replace" :: Text)]
     FrontendSurfaceFocusedField -> Aeson.object ["kind" Aeson..= ("focused-field" :: Text)]
+    FrontendSurfaceFocusedFieldConfig config ->
+        Aeson.object
+            [ "kind" Aeson..= ("focused-field" :: Text)
+            , "activeSelector" Aeson..= config.focusedProtectionActiveSelector
+            , "fieldKeyAttr" Aeson..= config.focusedProtectionFieldKeyAttr
+            , "fieldNameFallback" Aeson..= config.focusedProtectionFieldNameFallback
+            , "containerSelector" Aeson..= config.focusedProtectionContainerSelector
+            ]
 
 attr :: Text -> Text -> Html5.Attribute
 attr name value =

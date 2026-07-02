@@ -20,7 +20,8 @@ import qualified Application.Helper.FrontendSurface.Billing as Surface
 import Application.Helper.FrontendSurface.DSL
 import Application.Helper.FrontendSurface.Runtime
 import Application.Helper.LiveResource (LiveResource (..))
-import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..),
+import Application.Helper.LiveUpdate.Runtime (FocusedFieldProtectionConfig (..),
+                                              LiveFragmentKey (..),
                                               LiveFragmentProtection (..),
                                               LiveUpdateScope (..),
                                               LiveUpdateWireFragment (..))
@@ -92,6 +93,13 @@ mountedFragmentProtectionPolicy :: FrontendSurfaceProtection -> LiveFragmentProt
 mountedFragmentProtectionPolicy = \case
     FrontendSurfaceReplace -> NoProtection
     FrontendSurfaceFocusedField -> NoProtection
+    FrontendSurfaceFocusedFieldConfig config ->
+        FocusedFieldProtection FocusedFieldProtectionConfig
+            { activeSelector = config.focusedProtectionActiveSelector
+            , fieldKeyAttr = config.focusedProtectionFieldKeyAttr
+            , fieldNameFallback = config.focusedProtectionFieldNameFallback
+            , containerSelector = config.focusedProtectionContainerSelector
+            }
 
 billingSurfaceHandlers :: BillingScopeValue -> Text -> SurfaceImplHandlers Surface.BillingSurface
 billingSurfaceHandlers scope statusUrl =

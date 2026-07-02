@@ -43,3 +43,7 @@ Decomposed Profile content into section-level swappable accordion fragments (det
 **2026-07-02T14:09:34Z**
 
 Completed requested Profile decomposition before migration. Remaining legacy surfaces are Admin settings/invites/exports/shift-types/roster-groups and Admin Xero. Next decision point is Admin Xero: legacy planning has a broad shell fragment plus nested staff-mappings/pay-items/timesheets fragments, so some Xero resource changes can invalidate both parent shell and child section. Need decide whether to preserve that overlapping behavior for migration or decompose shell/nested ownership to avoid double swaps.
+
+**2026-07-02T21:33:18Z**
+
+Added reusable FrontendSurface focused-field protection metadata. Mount JSON can now carry activeSelector/fieldKeyAttr/fieldNameFallback/containerSelector; the FrontendSurface TS compatibility parser translates it to the generated focused_field LiveFragmentProtection wire shape. Existing runtime bridges handle the richer variant, with focused tests in frontend and Hspec. This preserves the path needed for Admin Shift Types migration without bespoke surface logic.

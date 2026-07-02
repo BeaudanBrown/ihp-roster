@@ -1,4 +1,4 @@
-import type { LiveUpdateScope, LiveUpdateWireFragment } from "../generated/contracts";
+import type { LiveFragmentProtection, LiveUpdateScope, LiveUpdateWireFragment } from "../generated/contracts";
 
 export type FrontendSurfaceMountedFragmentConfig = {
     key: {
@@ -7,7 +7,13 @@ export type FrontendSurfaceMountedFragmentConfig = {
     };
     targetId: string;
     url: string;
-    protection?: { kind?: string } | null;
+    protection?: {
+        kind?: string;
+        activeSelector?: unknown;
+        fieldKeyAttr?: unknown;
+        fieldNameFallback?: unknown;
+        containerSelector?: unknown;
+    } | null;
     loadPolicy?: string | null;
 };
 
@@ -171,7 +177,15 @@ function parseMountedFragmentConfig(value: unknown): FrontendSurfaceMountedFragm
         },
         targetId: value.targetId,
         url: value.url,
-        protection: isRecord(value.protection) ? { kind: typeof value.protection.kind === "string" ? value.protection.kind : undefined } : null,
+        protection: isRecord(value.protection)
+            ? {
+                kind: typeof value.protection.kind === "string" ? value.protection.kind : undefined,
+                activeSelector: value.protection.activeSelector,
+                fieldKeyAttr: value.protection.fieldKeyAttr,
+                fieldNameFallback: value.protection.fieldNameFallback,
+                containerSelector: value.protection.containerSelector,
+            }
+            : null,
         loadPolicy: typeof value.loadPolicy === "string" ? value.loadPolicy : null,
     };
 }
@@ -350,7 +364,23 @@ function liveFragmentBase(fragment: FrontendSurfaceMountedFragmentConfig) {
         targetId: fragment.targetId,
         url: fragment.url,
         deferUntilBlur: false,
-        protectionPolicy: { kind: "none" as const },
+        protectionPolicy: fragmentProtectionToWire(fragment.protection),
+    };
+}
+
+function fragmentProtectionToWire(protection: FrontendSurfaceMountedFragmentConfig["protection"]): LiveFragmentProtection {
+    if (protection?.kind !== "focused-field") return { kind: "none" };
+    if (typeof protection.activeSelector !== "string") return { kind: "none" };
+    if (typeof protection.fieldKeyAttr !== "string") return { kind: "none" };
+    if (typeof protection.fieldNameFallback !== "boolean") return { kind: "none" };
+    if (protection.containerSelector !== null && protection.containerSelector !== undefined && typeof protection.containerSelector !== "string") return { kind: "none" };
+
+    return {
+        kind: "focused_field",
+        activeSelector: protection.activeSelector,
+        fieldKeyAttr: protection.fieldKeyAttr,
+        fieldNameFallback: protection.fieldNameFallback,
+        containerSelector: protection.containerSelector ?? null,
     };
 }
 

@@ -19,7 +19,8 @@ import Application.Helper.FrontendSurface.DSL
 import qualified Application.Helper.FrontendSurface.Profile as Surface
 import Application.Helper.FrontendSurface.Runtime
 import Application.Helper.LiveResource (LiveResource (..))
-import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..),
+import Application.Helper.LiveUpdate.Runtime (FocusedFieldProtectionConfig (..),
+                                              LiveFragmentKey (..),
                                               LiveFragmentProtection (..),
                                               LiveUpdateScope (..),
                                               LiveUpdateWireFragment (..))
@@ -108,6 +109,13 @@ mountedFragmentProtectionPolicy :: FrontendSurfaceProtection -> LiveFragmentProt
 mountedFragmentProtectionPolicy = \case
     FrontendSurfaceReplace -> NoProtection
     FrontendSurfaceFocusedField -> NoProtection
+    FrontendSurfaceFocusedFieldConfig config ->
+        FocusedFieldProtection FocusedFieldProtectionConfig
+            { activeSelector = config.focusedProtectionActiveSelector
+            , fieldKeyAttr = config.focusedProtectionFieldKeyAttr
+            , fieldNameFallback = config.focusedProtectionFieldNameFallback
+            , containerSelector = config.focusedProtectionContainerSelector
+            }
 
 profileSurfaceHandlers :: ProfileScopeValue -> SurfaceImplHandlers Surface.ProfileSurface
 profileSurfaceHandlers scope =

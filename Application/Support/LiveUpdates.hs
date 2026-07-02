@@ -90,6 +90,13 @@ mountedFragmentProtectionPolicy :: FrontendSurfaceProtection -> LiveFragmentProt
 mountedFragmentProtectionPolicy = \case
     FrontendSurfaceReplace -> NoProtection
     FrontendSurfaceFocusedField -> NoProtection
+    FrontendSurfaceFocusedFieldConfig config ->
+        FocusedFieldProtection FocusedFieldProtectionConfig
+            { activeSelector = config.focusedProtectionActiveSelector
+            , fieldKeyAttr = config.focusedProtectionFieldKeyAttr
+            , fieldNameFallback = config.focusedProtectionFieldNameFallback
+            , containerSelector = config.focusedProtectionContainerSelector
+            }
 
 supportSurfaceHandlers :: SurfaceImplHandlers Surface.SupportSurface
 supportSurfaceHandlers =

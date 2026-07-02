@@ -183,6 +183,38 @@ test("FrontendSurface config parser derives Profile live subscriptions from moun
     assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { kind: "profile_details_section" });
 });
 
+test("FrontendSurface config parser preserves reusable focused-field protection", () => {
+    const config = parseFrontendSurfaceSubscriptionConfig({
+        surface: "profile",
+        scopeKey: "profile:venue-1:staff-1",
+        mountKey: "primary",
+        mountState: null,
+        fragments: [
+            {
+                key: { kind: "profile-details-section", params: null },
+                targetId: "profile-details",
+                url: "/ShowProfileContentFragment?section=profile",
+                protection: {
+                    kind: "focused-field",
+                    activeSelector: "input[data-profile-field]:focus",
+                    fieldKeyAttr: "data-profile-field",
+                    fieldNameFallback: true,
+                    containerSelector: "form",
+                },
+                loadPolicy: "eager",
+            },
+        ],
+    });
+
+    assertDeepEqual(config?.resyncFragments[0]?.protectionPolicy, {
+        kind: "focused_field",
+        activeSelector: "input[data-profile-field]:focus",
+        fieldKeyAttr: "data-profile-field",
+        fieldNameFallback: true,
+        containerSelector: "form",
+    });
+});
+
 test("generated live update surface validator rejects malformed boundary JSON", () => {
     assertEqual(parseLiveUpdateSurfaceConfig(null), null);
     assertEqual(parseLiveUpdateSurfaceConfig({ ...validSurfaceConfig, scope: { kind: "unknown_scope" } }), null);
