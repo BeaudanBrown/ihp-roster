@@ -1,6 +1,6 @@
 ---
 id: ir-ypt5
-status: open
+status: in_progress
 deps: [ir-aleo]
 links: []
 created: 2026-07-02T02:47:03Z
@@ -48,3 +48,9 @@ Migrate the complex roster surface after Timesheets, proving the new architectur
 - Successful Roster actor mutations emit touched resources/surface invalidations; actor HTTP responses carry extras such as toasts/dialog cleanup or validation-local errors. Fragment GET routes use new surface helpers and direct rendering.
 - No Roster path uses old `TypedLiveSurfaceDefinition`, `Web.LiveSurfaceRegistry` registration, `FrontendCodec` surface DTO/schema authoring, or `Application.Helper.SurfaceProjection`.
 - Tests cover typed containment normalization, parameterized fragments without sample IDs, lazy staff panel, live invalidation, drag/drop intent, fragment-specific conflict policy, and duplicate mounts.
+
+## Notes
+
+**2026-07-02T10:32:11Z**
+
+First Roster FrontendSurface slice landed: added type-level RosterSurface with roster-week scope, live fragments, parameterized day/row fragments, and containment options; registered/generated TS contracts; added Web.RosterWeeks.FrontendSurface SurfaceImpl bridge with mounted fragment metadata, legacy LiveSurfaceConfig adapter, wire-fragment conversion, and resource dependencies; roster shell now emits data-bepis-surface-config side-by-side with legacy data-live-update-surface. Stopped before native interaction modeling/cutover decision point.

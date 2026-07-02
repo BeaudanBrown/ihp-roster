@@ -6,9 +6,11 @@ module Application.Helper.FrontendSurface.Registry
     ) where
 
 import Application.Helper.FrontendSurface.Lab (SurfaceLabSurface)
+import Application.Helper.FrontendSurface.Roster (RosterSurface)
 import Application.Helper.FrontendSurface.Timesheets (TimesheetsSurface)
 
 type RegisteredFrontendSurfaces =
     '[ SurfaceLabSurface
      , TimesheetsSurface
+     , RosterSurface
      ]

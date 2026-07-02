@@ -12,6 +12,7 @@ import Application.Helper.FrontendSurface.DSL
 import Application.Helper.FrontendSurface.Lab (SurfaceLabSurface)
 import Application.Helper.FrontendSurface.Reflect
 import Application.Helper.FrontendSurface.Registry (RegisteredFrontendSurfaces)
+import qualified Application.Helper.FrontendSurface.Roster as RosterSurface
 import Application.Helper.FrontendSurface.Runtime
 import qualified Application.Helper.FrontendSurface.Timesheets as TimesheetsSurface
 import qualified Data.Aeson as Aeson
@@ -27,6 +28,7 @@ tests = describe "FrontendSurface DSL foundation" do
     it "kind-checks the support lab surface and root registry" do
         let _lab = Proxy @SurfaceLabSurface
         let _timesheets = Proxy @TimesheetsSurface.TimesheetsSurface
+        let _roster = Proxy @RosterSurface.RosterSurface
         let _registry = Proxy @RegisteredFrontendSurfaces
         True `shouldBe` True
 
@@ -157,6 +159,34 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceContractsTypeScript `shouldContainText` "{ kind: \"timesheet-day-section\"; params: { dayOffset: number } }"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type TimesheetsMountState = { showApproved: boolean; showAllStaff: boolean; staffFilterId: StaffFilterId | undefined };"
         frontendSurfaceContractsTypeScript `shouldContainText` "export const timesheetsSurfaceManifest"
+
+    it "extracts the registered roster surface into checked contract IR" do
+        let surface = expectSurface "roster" registeredFrontendSurfaceContractIR
+
+        map (.scopeName) surface.surfaceScopes `shouldBe` ["roster-week"]
+        map (.fragmentName) surface.surfaceFragments
+            `shouldBe` [ "roster-content"
+                       , "roster-grid-toolbar"
+                       , "roster-grid-frame"
+                       , "roster-day-columns"
+                       , "roster-day-rail"
+                       , "roster-wage-rail"
+                       , "roster-slots-grid"
+                       , "roster-staff-panel"
+                       , "roster-day-section"
+                       , "roster-row"
+                       ]
+        surface.surfaceFragments
+            |> find (\fragment -> fragment.fragmentName == "roster-row")
+            |> fmap (.fragmentParams)
+            |> fmap (map (.fieldName))
+            `shouldBe` Just ["rosterDayId", "rowIndex"]
+
+    it "renders generated TypeScript contracts for the roster surface" do
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterFragmentKey ="
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterWeekScope = { kind: \"roster-week\"; venueId: VenueId; rosterGroupId: RosterGroupId; weekOffset: number };"
+        frontendSurfaceContractsTypeScript `shouldContainText` "{ kind: \"roster-row\"; params: { rosterDayId: RosterDayId; rowIndex: number } }"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterSurfaceManifest"
 
     it "reports stable diagnostics for malformed reflected specs" do
         let duplicateFields = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[DuplicateFieldSurface]))

@@ -1,7 +1,12 @@
 module Test.Controller.RosterWeeks.FragmentsSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
+import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceFragmentKey (..),
+                                                   FrontendSurfaceMountConfig (..),
+                                                   FrontendSurfaceMountedFragment (..),
+                                                   SurfaceImpl (..))
 import Application.Helper.LiveResource (LiveResource (..))
+import Application.Helper.LiveSurface (LiveSurfaceConfig (..))
 import Application.Helper.LiveUpdate (LiveUpdateScope (..))
 import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..),
                                               LiveUpdateWireFragment (..))
@@ -14,6 +19,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time.Calendar (addDays)
 import Data.Time.LocalTime (TimeOfDay (..))
+import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
@@ -31,6 +37,7 @@ import Web.LiveSurfaceRegistry (LiveSurfaceInvalidationTarget (..),
 import Web.RosterWeeks.Dom (rosterDayColumnsFragmentId, rosterDaySectionDomId,
                             rosterGridFrameFragmentId, rosterRowDomIdText,
                             rosterStaffPanelFragmentId)
+import Web.RosterWeeks.FrontendSurface
 import Web.Routes
 import Web.Types
 
@@ -98,6 +105,47 @@ tests = beforeAll testContext do
 
                 targetFragmentKeys targets
                     `shouldBe` [[RosterGridToolbarFragment, RosterDayColumnsFragment, RosterDayRailFragment, RosterWageRailFragment, RosterSlotsGridFragment, RosterStaffPanelFragment]]
+
+        it "builds typed FrontendSurface mount metadata for roster fragments" $ withContext do
+            withCurrentControllerContext do
+                let venueId = fromMaybe (error "invalid roster venue UUID") (UUID.fromString "00000000-0000-0000-0000-000000000111")
+                let rosterGroupId = Id "00000000-0000-0000-0000-000000000222" :: Id RosterGroup
+                let rosterDayId = Id "00000000-0000-0000-0000-000000000333" :: Id RosterDay
+                let scope = RosterWeekScopeValue { rosterWeekVenueId = venueId, rosterWeekGroupId = rosterGroupId, rosterWeekWeekOffset = 3 }
+                let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 0), (rosterDayId, 1)] }
+                let impl = rosterSurfaceImpl scope plan
+                let mountConfig = impl.surfaceImplMountConfig
+                let fragmentKinds = map (\fragment -> fragment.mountedFragmentKey.fragmentKind) mountConfig.mountFragments
+                let fragmentTargets = map (.mountedFragmentTargetId) mountConfig.mountFragments
+                let fragmentUrls = map (.mountedFragmentUrl) mountConfig.mountFragments
+                let wireFragments = rosterSurfaceWireFragments mountConfig.mountFragments
+                let legacyConfig = rosterLegacyLiveSurfaceConfig impl scope
+
+                impl.surfaceImplName `shouldBe` "roster"
+                mountConfig.mountSurfaceName `shouldBe` "roster"
+                mountConfig.mountScopeKey `shouldBe` "roster:00000000-0000-0000-0000-000000000111:00000000-0000-0000-0000-000000000222:3"
+                fragmentKinds
+                    `shouldBe` [ "roster-content"
+                               , "roster-grid-toolbar"
+                               , "roster-grid-frame"
+                               , "roster-day-columns"
+                               , "roster-day-rail"
+                               , "roster-wage-rail"
+                               , "roster-slots-grid"
+                               , "roster-staff-panel"
+                               , "roster-day-section"
+                               , "roster-row"
+                               , "roster-row"
+                               ]
+                fragmentTargets `shouldContain` [rosterDaySectionDomId rosterDayId]
+                fragmentTargets `shouldContain` [rosterRowDomIdText rosterDayId 1]
+                fragmentUrls `shouldSatisfy` all (Text.isInfixOf "weekOffset=3")
+                fragmentUrls `shouldSatisfy` all (Text.isInfixOf "rosterGroupId=00000000-0000-0000-0000-000000000222")
+                map (.fragmentKey) wireFragments `shouldContain` [RosterRowFragment (unpackId rosterDayId) 1]
+                legacyConfig.feature `shouldBe` "roster"
+                legacyConfig.scope `shouldBe` RosterWeekScope { venueId, rosterGroupId = unpackId rosterGroupId, weekOffset = 3 }
+                map (.fragmentKey) legacyConfig.resyncFragments
+                    `shouldBe` [RosterGridToolbarFragment, RosterDayColumnsFragment, RosterDayRailFragment, RosterWageRailFragment, RosterSlotsGridFragment, RosterStaffPanelFragment]
 
         it "renders hidden draft roster fragments without leaking closed days or slots to staff" $ withContext do
             withCleanDb do

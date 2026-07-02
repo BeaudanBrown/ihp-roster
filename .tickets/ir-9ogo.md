@@ -79,3 +79,7 @@ Plan refined: root remains a single list of surfaces; shared declarations are al
 **2026-07-02T05:08:00Z**
 
 Clarification pass locked mount-local transport and ticket-plan decisions: new `FrontendSurface` surfaces use surface/scoped fragment identities resolved per mount; successful business mutations use unified live invalidation/refetch for actor, duplicate mounts, and passive viewers; legacy self-describing wire surfaces coexist during migration but final target is fully unified with no legacy paths; runtime enumeration is derived from the single type-level registry through `SurfaceImpl` typeclass/fold machinery. Added early tickets `ir-npm8`, `ir-p3c3`, and `ir-g6z3`.
+
+**2026-07-02T10:20:50Z**
+
+Roster migration started after Timesheets close. First chunk targets Roster FrontendSurface contract, metadata-only SurfaceImpl bridge, and compatibility cleanup until the interaction modeling decision point.

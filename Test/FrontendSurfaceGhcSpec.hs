@@ -19,6 +19,9 @@ tests = describe "FrontendSurface GHC raw lowering" do
     it "lowers deterministic normalized raw timesheets surfaces to the checked contract IR" do
         lowerRawRegistry timesheetsRawRegistry `shouldBe` Right (expectedRegisteredSurface "timesheets")
 
+    it "lowers deterministic normalized raw roster surfaces to the checked contract IR" do
+        lowerRawRegistry rosterRawRegistry `shouldBe` Right (expectedRegisteredSurface "roster")
+
     it "reports unsupported normalized primitive nodes before generation" do
         lowerRawRegistry (registryWithPrimitives [scopePrimitive, raw "UnsupportedPrimitive" []])
             `shouldSatisfy` leftContains "unsupported primitive UnsupportedPrimitive"
@@ -149,6 +152,46 @@ timesheetsRawRegistry =
                 [ marker "TimesheetDaySection"
                 , promotedList [field "DayOffset" "WireInt"]
                 , promotedList [raw "Lazy" [promotedList [raw "DependsOn" [marker "TimesheetDayColumns"]]]]
+                ]
+            ]
+        ]
+
+rosterRawRegistry :: RawRegistry
+rosterRawRegistry =
+    registryWithSurfaces
+        [ rawSurfaceWithPrimitives "RosterSurface" "Roster"
+            [ raw "Scope"
+                [ marker "RosterWeek"
+                , promotedList [field "VenueId" "WireUUID", field "RosterGroupId" "WireUUID", field "WeekOffset" "WireInt"]
+                ]
+            , raw "Fragment" [marker "RosterContent", promotedList [], promotedList [raw "Eager" [], raw "Contains" [marker "RosterGridToolbar"], raw "Contains" [marker "RosterGridFrame"]]]
+            , raw "Fragment" [marker "RosterGridToolbar", promotedList [], promotedList [raw "Eager" []]]
+            , raw "Fragment"
+                [ marker "RosterGridFrame"
+                , promotedList []
+                , promotedList
+                    [ raw "Eager" []
+                    , raw "Contains" [marker "RosterDayColumns"]
+                    , raw "Contains" [marker "RosterDayRail"]
+                    , raw "Contains" [marker "RosterWageRail"]
+                    , raw "Contains" [marker "RosterSlotsGrid"]
+                    , raw "Contains" [marker "RosterDaySection"]
+                    ]
+                ]
+            , raw "Fragment" [marker "RosterDayColumns", promotedList [], promotedList [raw "Eager" []]]
+            , raw "Fragment" [marker "RosterDayRail", promotedList [], promotedList [raw "Eager" []]]
+            , raw "Fragment" [marker "RosterWageRail", promotedList [], promotedList [raw "Eager" []]]
+            , raw "Fragment" [marker "RosterSlotsGrid", promotedList [], promotedList [raw "Eager" []]]
+            , raw "Fragment" [marker "RosterStaffPanel", promotedList [], promotedList [raw "Lazy" [promotedList [raw "DependsOn" [marker "RosterContent"]]]]]
+            , raw "Fragment"
+                [ marker "RosterDaySection"
+                , promotedList [field "RosterDayId" "WireUUID"]
+                , promotedList [raw "Lazy" [promotedList [raw "DependsOn" [marker "RosterGridFrame"], raw "Contains" [marker "RosterRow"]]]]
+                ]
+            , raw "Fragment"
+                [ marker "RosterRow"
+                , promotedList [field "RosterDayId" "WireUUID", field "RowIndex" "WireInt"]
+                , promotedList [raw "Lazy" [promotedList [raw "DependsOn" [marker "RosterDaySection"]]]]
                 ]
             ]
         ]

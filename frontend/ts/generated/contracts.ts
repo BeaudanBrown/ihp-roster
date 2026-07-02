@@ -1317,6 +1317,8 @@ export type FrontendSurfaceUUID = string & { readonly __brand: "FrontendSurfaceU
 export type FrontendSurfaceDay = string & { readonly __brand: "FrontendSurfaceDay" };
 
 export type PanelId = FrontendSurfaceUUID & { readonly __brand: "PanelId" };
+export type RosterDayId = FrontendSurfaceUUID & { readonly __brand: "RosterDayId" };
+export type RosterGroupId = FrontendSurfaceUUID & { readonly __brand: "RosterGroupId" };
 export type StaffFilterId = FrontendSurfaceUUID & { readonly __brand: "StaffFilterId" };
 export type VenueId = FrontendSurfaceUUID & { readonly __brand: "VenueId" };
 
@@ -1350,10 +1352,27 @@ export type TimesheetsFragmentKey =
 ;
 export const timesheetsSurfaceManifest = { surface: "timesheets", scopes: ["timesheet-week"], fragments: ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [] } as const;
 
-export type FrontendSurfaceName = "surface-lab" | "timesheets";
+export type RosterSurfaceName = "roster";
+export type RosterWeekScope = { kind: "roster-week"; venueId: VenueId; rosterGroupId: RosterGroupId; weekOffset: number };
+export type RosterFragmentKey =
+    | { kind: "roster-content"; params: Record<string, never> }
+    | { kind: "roster-grid-toolbar"; params: Record<string, never> }
+    | { kind: "roster-grid-frame"; params: Record<string, never> }
+    | { kind: "roster-day-columns"; params: Record<string, never> }
+    | { kind: "roster-day-rail"; params: Record<string, never> }
+    | { kind: "roster-wage-rail"; params: Record<string, never> }
+    | { kind: "roster-slots-grid"; params: Record<string, never> }
+    | { kind: "roster-staff-panel"; params: Record<string, never> }
+    | { kind: "roster-day-section"; params: { rosterDayId: RosterDayId } }
+    | { kind: "roster-row"; params: { rosterDayId: RosterDayId; rowIndex: number } }
+;
+export const rosterSurfaceManifest = { surface: "roster", scopes: ["roster-week"], fragments: ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-day-section", "roster-row"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [] } as const;
+
+export type FrontendSurfaceName = "surface-lab" | "timesheets" | "roster";
 export const FrontendSurfaceRegistry = {
     "surface-lab": surfaceLabSurfaceManifest,
     timesheets: timesheetsSurfaceManifest,
+    roster: rosterSurfaceManifest,
 } as const;
 export function isFrontendSurfaceName(value: unknown): value is FrontendSurfaceName {
     return typeof value === "string" && Object.prototype.hasOwnProperty.call(FrontendSurfaceRegistry, value);

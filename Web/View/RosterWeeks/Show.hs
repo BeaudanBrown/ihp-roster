@@ -1,14 +1,18 @@
 module Web.View.RosterWeeks.Show where
 
+import qualified Application.Helper.FrontendSurface.Roster as Surface
+import Application.Helper.FrontendSurface.Runtime (SurfaceImpl,
+                                                   renderFrontendSurfaceMount)
 import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
-                                       liveSurfaceConfigJson,
-                                       mkTypedDefinedLiveSurface)
+                                       liveSurfaceConfigJson)
 import Application.Helper.LiveUpdate (LiveUpdateScope)
 import Application.Helper.Profiling (profileHtmlComponent)
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.Dom
-import Web.RosterWeeks.LiveSurface (rosterLiveSurfaceDefinition)
-import Web.RosterWeeks.Projection (buildRosterProjectionScope)
+import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
+                                        rosterLegacyLiveSurfaceConfig,
+                                        rosterMountedFragmentPlanFromRenderData,
+                                        rosterSurfaceImpl)
 import Web.RosterWeeks.Types
 import Web.View.Passkeys.SetupModal
 import Web.View.Prelude
@@ -54,20 +58,28 @@ renderRosterWeekShell ShowView { .. } =
                         }
                     ]
             })
-     in profileHtmlComponent "render.roster.full_shell" [hsx|
-    <section id={rosterWeekShellId}
-             hx-history-elt="true"
-             data-roster-fullscreen="false"
-             data-live-update-surface={liveSurfaceConfigJson <$> rosterWeekLiveSurface currentRosterGroup.id weekOffset liveUpdateScope}>
-        {page}
-    </section>
-|]
+        rosterSurfaceScope = RosterWeekScopeValue
+            { rosterWeekVenueId = currentRosterGroup.venueId
+            , rosterWeekGroupId = currentRosterGroup.id
+            , rosterWeekWeekOffset = weekOffset
+            }
+        rosterSurfacePlan = rosterMountedFragmentPlanFromRenderData rosterDays renderIndexes
+        rosterSurface = rosterSurfaceImpl rosterSurfaceScope rosterSurfacePlan
+        shell = [hsx|
+            <section id={rosterWeekShellId}
+                     hx-history-elt="true"
+                     data-roster-fullscreen="false"
+                     data-live-update-surface={liveSurfaceConfigJson <$> rosterWeekLiveSurface rosterSurface rosterSurfaceScope liveUpdateScope}>
+                {page}
+            </section>
+        |]
+     in profileHtmlComponent "render.roster.full_shell" (renderFrontendSurfaceMount rosterSurface shell)
 
-rosterWeekLiveSurface :: (?context :: ControllerContext) => Id RosterGroup -> Int -> Maybe LiveUpdateScope -> Maybe LiveSurfaceConfig
-rosterWeekLiveSurface rosterGroupId weekOffset maybeScope =
+rosterWeekLiveSurface :: SurfaceImpl Surface.RosterSurface -> RosterWeekScopeValue -> Maybe LiveUpdateScope -> Maybe LiveSurfaceConfig
+rosterWeekLiveSurface rosterSurface rosterSurfaceScope maybeScope =
     case maybeScope of
         Nothing -> Nothing
-        Just _  -> Just (mkTypedDefinedLiveSurface rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroupId weekOffset))
+        Just _  -> Just (rosterLegacyLiveSurfaceConfig rosterSurface rosterSurfaceScope)
 
 renderPasskeySetupPrompt :: (?context :: ControllerContext) => Maybe PasskeySetupPromptMode -> Html
 renderPasskeySetupPrompt Nothing = mempty

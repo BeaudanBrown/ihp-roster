@@ -163,6 +163,8 @@ tests = beforeAll testContext do
                     callAction (ShowRosterWeekAction 0)
 
                 response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "data-bepis-surface=\"roster\""
+                response `responseBodyShouldContain` "data-bepis-surface-config=\""
                 response `responseBodyShouldContain` "data-live-update-surface=\""
                 response `responseBodyShouldContain` "roster_week"
                 response `responseBodyShouldContain` "rosterGroupId"
@@ -182,6 +184,8 @@ tests = beforeAll testContext do
                     callAction (ShowRosterWeekAction 0)
 
                 response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "data-bepis-surface=\"roster\""
+                response `responseBodyShouldContain` "data-bepis-surface-config=\""
                 response `responseBodyShouldContain` "data-live-update-surface=\""
                 response `responseBodyShouldContain` "roster_week"
                 response `responseBodyShouldContain` "rosterGroupId"
