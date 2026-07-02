@@ -14,6 +14,8 @@ class MiniElement extends EventTarget {
     id = "";
     value = "";
     innerHTML = "";
+    style: Record<string, string> = {};
+    rect = { left: 0, top: 0, width: 0, height: 0 };
     capturedPointerId: number | null = null;
     releasedPointerId: number | null = null;
     ownerDocument?: { elementFromPoint: (x: number, y: number) => MiniElement | null; createElement?: (tag: string) => MiniElement };
@@ -36,6 +38,21 @@ class MiniElement extends EventTarget {
         return this.append(child);
     }
 
+    removeChild(child: MiniElement): MiniElement {
+        const index = this.children.indexOf(child);
+        if (index >= 0) this.children.splice(index, 1);
+        child.parent = null;
+        return child;
+    }
+
+    get parentNode(): MiniElement | null {
+        return this.parent;
+    }
+
+    get attributes(): Array<{ name: string; value: string }> {
+        return Array.from(this.attrs.entries()).map(([name, value]) => ({ name, value }));
+    }
+
     getAttribute(name: string): string | null {
         return this.attrs.get(name) ?? null;
     }
@@ -43,6 +60,28 @@ class MiniElement extends EventTarget {
     setAttribute(name: string, value: string): void {
         this.attrs.set(name, value);
         if (name === "value") this.value = value;
+        if (name === "id") this.id = value;
+    }
+
+    removeAttribute(name: string): void {
+        this.attrs.delete(name);
+        if (name === "id") this.id = "";
+    }
+
+    cloneNode(deep = false): MiniElement {
+        const clone = new MiniElement(Object.fromEntries(this.attrs.entries()));
+        clone.id = this.id;
+        clone.value = this.value;
+        clone.innerHTML = this.innerHTML;
+        clone.style = { ...this.style };
+        clone.rect = { ...this.rect };
+        clone.ownerDocument = this.ownerDocument;
+        if (deep) for (const child of this.children) clone.append(child.cloneNode(true));
+        return clone;
+    }
+
+    getBoundingClientRect(): { left: number; top: number; width: number; height: number } {
+        return this.rect;
     }
 
     setPointerCapture(pointerId: number): void {
@@ -62,7 +101,7 @@ class MiniElement extends EventTarget {
         const matches: MiniElement[] = [];
         const visit = (element: MiniElement) => {
             for (const child of element.children) {
-                if (matchesSelector(child, selector) || matchesTagSelector(child, selector)) matches.push(child);
+                if (selector === "*" || matchesSelector(child, selector) || matchesTagSelector(child, selector)) matches.push(child);
                 visit(child);
             }
         };
@@ -338,6 +377,114 @@ test("pointer sessions emit start preview commit and clean disposable layers", (
     assertEqual(marker.releasedPointerId, 1);
     assertEqual(layer.children.length, 0);
     assertEqual(controller.currentSession(), null);
+});
+
+test("generated pointer session effects render proxy shadows and highlight dropzones", () => {
+    const phases: string[] = [];
+    const mount = new MiniElement({ [attrs.surface]: "true", [attrs.surfaceFamily]: "roster" });
+    const marker = mount.append(new MiniElement({
+        id: "source-id",
+        class: "shift-card",
+        "hx-post": "/Move",
+        [attrs.pointerSession]: "true",
+        [attrs.sessionKind]: "drag",
+        [attrs.sessionIntent]: "move-roster-shift-to-slot",
+        [attrs.sessionThreshold]: "4",
+        [attrs.item]: "existing:source-slot",
+    }));
+    marker.rect = { left: 10, top: 20, width: 80, height: 30 };
+    marker.append(new MiniElement({ id: "child-id", [attrs.dropzone]: "server-owned-child" }));
+    const firstDropzone = mount.append(new MiniElement({ [attrs.dropzone]: "new:first-slot" }));
+    const secondDropzone = mount.append(new MiniElement({ [attrs.dropzone]: "new:second-slot" }));
+    const layer = mount.append(new MiniElement({ [attrs.disposableLayer]: "drag-preview" }));
+    let hitTarget: MiniElement | null = firstDropzone;
+    const doc = {
+        elementFromPoint: (_x: number, _y: number) => hitTarget,
+        createElement: (_tag: string) => new MiniElement(),
+    };
+    mount.ownerDocument = doc;
+    marker.ownerDocument = doc;
+    firstDropzone.ownerDocument = doc;
+    secondDropzone.ownerDocument = doc;
+    layer.ownerDocument = doc;
+
+    const controller = createPointerSessionController({ runtime: { emit: (payload) => { phases.push(payload.phase); return { canceled: false }; } } });
+
+    controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 1, 25, 35));
+    controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 1, 26, 35));
+    assertEqual(layer.children.length, 0);
+
+    controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 1, 30, 40));
+    const shadow = layer.children[0];
+    if (!shadow) throw new Error("Expected proxy shadow");
+    assertEqual(shadow.children.length, 0);
+    assertEqual(shadow.getAttribute("aria-hidden"), "true");
+    assertEqual(shadow.getAttribute("class"), "bepis-pointer-clone-shadow");
+    assertEqual(shadow.style.pointerEvents, "none");
+    assertEqual(shadow.style.width, "80px");
+    assertEqual(shadow.style.height, "30px");
+    assertEqual(shadow.style.transform, "translate3d(15px, 25px, 0)");
+    assertEqual(firstDropzone.getAttribute("class"), "bepis-dropzone-highlight");
+
+    hitTarget = secondDropzone;
+    controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 1, 40, 50));
+    assertEqual(shadow.style.transform, "translate3d(25px, 35px, 0)");
+    assertEqual(firstDropzone.getAttribute("class"), null);
+    assertEqual(secondDropzone.getAttribute("class"), "bepis-dropzone-highlight");
+
+    hitTarget = null;
+    controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 1, 45, 55));
+    assertEqual(secondDropzone.getAttribute("class"), null);
+
+    hitTarget = secondDropzone;
+    controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 1, 50, 60));
+    assertEqual(secondDropzone.getAttribute("class"), "bepis-dropzone-highlight");
+    controller.handlePointerUp(pointerEventWithTarget("pointerup", marker, 1, 50, 60));
+
+    assertEqual(layer.children.length, 0);
+    assertEqual(secondDropzone.getAttribute("class"), null);
+    assertEqual(phases.join(","), "start,preview,preview,preview,preview,preview,commit");
+});
+
+test("pointer session effect cleanup runs on pointercancel Escape and external cleanup", () => {
+    const build = () => {
+        const mount = new MiniElement({ [attrs.surface]: "true", [attrs.surfaceFamily]: "roster" });
+        const marker = mount.append(new MiniElement({
+            [attrs.pointerSession]: "true",
+            [attrs.sessionKind]: "drag",
+            [attrs.sessionIntent]: "move-roster-shift-to-slot",
+            [attrs.sessionThreshold]: "0",
+        }));
+        marker.rect = { left: 0, top: 0, width: 10, height: 10 };
+        const dropzone = mount.append(new MiniElement({ [attrs.dropzone]: "slot" }));
+        const layer = mount.append(new MiniElement({ [attrs.disposableLayer]: "drag-preview" }));
+        const doc = { elementFromPoint: (_x: number, _y: number) => dropzone, createElement: (_tag: string) => new MiniElement() };
+        mount.ownerDocument = doc;
+        marker.ownerDocument = doc;
+        dropzone.ownerDocument = doc;
+        layer.ownerDocument = doc;
+        const controller = createPointerSessionController({ runtime: { emit: () => ({ canceled: false }) } });
+        controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 1, 0, 0));
+        controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 1, 5, 5));
+        assertEqual(layer.children.length, 1);
+        assertEqual(dropzone.getAttribute("class"), "bepis-dropzone-highlight");
+        return { controller, marker, layer, dropzone };
+    };
+
+    const pointerCancel = build();
+    pointerCancel.controller.handlePointerCancel(pointerEventWithTarget("pointercancel", pointerCancel.marker, 1, 5, 5));
+    assertEqual(pointerCancel.layer.children.length, 0);
+    assertEqual(pointerCancel.dropzone.getAttribute("class"), null);
+
+    const escape = build();
+    escape.controller.handleKeyDown(keyEvent("Escape"));
+    assertEqual(escape.layer.children.length, 0);
+    assertEqual(escape.dropzone.getAttribute("class"), null);
+
+    const external = build();
+    external.controller.handleExternalCleanup(eventWithTarget("htmx:beforeCleanupElement", external.marker));
+    assertEqual(external.layer.children.length, 0);
+    assertEqual(external.dropzone.getAttribute("class"), null);
 });
 
 test("pointer sessions cancel below threshold, on pointercancel, and on Escape", () => {

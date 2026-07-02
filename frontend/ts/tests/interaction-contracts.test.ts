@@ -1,4 +1,4 @@
-import { AppEvents, InteractionDom, InteractionStaticSchemas, LiveSurfaceManifest, type InteractionCapabilityContract, type IntentFormContract } from "../generated/contracts";
+import { AppEvents, InteractionDom, InteractionStaticSchemas, LiveSurfaceManifest, isInteractionSessionEffect, parseInteractionSessionEffect, encodeInteractionSessionEffect, type InteractionCapabilityContract, type IntentFormContract } from "../generated/contracts";
 import { assertDeepEqual, assertEqual, test } from "./harness";
 
 test("generated interaction contracts describe mount-local intent forms", () => {
@@ -55,6 +55,15 @@ test("generated live surface manifest exposes registered surface schemas without
 test("generated interaction static schemas expose roster intents and fields", () => {
     assertEqual(InteractionStaticSchemas.roster.sessionKinds[0]?.kind, "drag");
     assertEqual(InteractionStaticSchemas.roster.disposableLayers[0]?.name, "drag-preview");
+    assertDeepEqual(InteractionStaticSchemas.roster.sessionKinds[0]?.effects.global, [
+        { className: "bepis-pointer-clone-shadow", kind: "clone-shadow", layer: "drag-preview", preserveGrabOffset: true, source: "pointer-marker" },
+    ]);
+    assertDeepEqual(InteractionStaticSchemas.roster.sessionKinds[0]?.effects.contextual, [
+        { className: "bepis-dropzone-highlight", kind: "dropzone-highlight" },
+    ]);
+    assertEqual(isInteractionSessionEffect(InteractionStaticSchemas.roster.sessionKinds[0]?.effects.global[0]), true);
+    assertDeepEqual(parseInteractionSessionEffect(InteractionStaticSchemas.roster.sessionKinds[0]?.effects.contextual[0]), { className: "bepis-dropzone-highlight", kind: "dropzone-highlight" });
+    assertDeepEqual(encodeInteractionSessionEffect({ kind: "dropzone-highlight", className: "bepis-dropzone-highlight" }), { kind: "dropzone-highlight", className: "bepis-dropzone-highlight" });
     assertEqual(InteractionStaticSchemas.roster.intents[0]?.name, "set-roster-layout-mode");
     assertEqual(InteractionStaticSchemas.roster.intents[1]?.name, "move-roster-shift-to-slot");
     assertDeepEqual(

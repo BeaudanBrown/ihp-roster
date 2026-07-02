@@ -5,7 +5,11 @@
   function isInteractionFieldPresence(value) {
     return value === "required" || value === "optional";
   }
+  function isInteractionSurfaceFamily(value) {
+    return value === "roster";
+  }
   var InteractionDom = { "attributes": { "activation": "data-bepis-activation", "activationIntent": "data-bepis-activation-intent", "activationTrigger": "data-bepis-activation-trigger", "activationValueField": "data-bepis-activation-value-field", "conflictPolicies": "data-bepis-conflict-policies", "container": "data-bepis-container", "disposableLayer": "data-bepis-disposable-layer", "dropzone": "data-bepis-dropzone", "fieldPresence": "data-bepis-field-presence", "intent": "data-bepis-intent", "intentField": "data-bepis-intent-field", "intentForm": "data-bepis-intent-form", "intentHiddenField": "data-bepis-intent-hidden-field", "interactionActive": "data-bepis-interaction-active", "item": "data-bepis-item", "layer": "data-bepis-layer", "marker": "data-bepis-marker", "mountKey": "data-bepis-mount-key", "pointerSession": "data-bepis-pointer-session", "resizeHandle": "data-bepis-resize-handle", "scopeKey": "data-bepis-scope-key", "serverLayer": "data-bepis-server-layer", "sessionDisabled": "data-bepis-session-disabled", "sessionIntent": "data-bepis-session-intent", "sessionKind": "data-bepis-session-kind", "sessionReadOnly": "data-bepis-session-read-only", "sessionThreshold": "data-bepis-session-threshold", "sessionTimeoutMs": "data-bepis-session-timeout-ms", "slot": "data-bepis-slot", "surface": "data-bepis-surface", "surfaceFamily": "data-bepis-surface-family" }, "pointerFields": { "currentClientX": "currentClientX", "currentClientY": "currentClientY", "deltaX": "deltaX", "deltaY": "deltaY", "pointerId": "pointerId", "pointerType": "pointerType", "sessionKind": "sessionKind", "sourceItemKey": "sourceItemKey", "startClientX": "startClientX", "startClientY": "startClientY", "targetDropzoneKey": "targetDropzoneKey" }, "values": { "activationMarker": "activation", "containerMarker": "container", "dropzoneMarker": "dropzone", "enabled": "true", "itemMarker": "item", "resizeHandleMarker": "resize-handle", "slotMarker": "slot" } };
+  var InteractionStaticSchemas = { "roster": { "conflictPolicies": [{ "fragment": { "kind": "any" }, "resolution": "defer", "session": { "kind": "session", "session": "drag" }, "timeoutMs": 5e3 }], "disposableLayers": [{ "domIdSuffix": "drag-preview", "name": "drag-preview" }], "intents": [{ "fields": [{ "defaultValue": null, "name": "rosterLayoutMode", "presence": "required" }], "name": "set-roster-layout-mode" }, { "fields": [{ "defaultValue": null, "name": "sourceItemKey", "presence": "required" }, { "defaultValue": null, "name": "targetDropzoneKey", "presence": "required" }, { "defaultValue": null, "name": "sessionKind", "presence": "optional" }, { "defaultValue": null, "name": "pointerId", "presence": "optional" }, { "defaultValue": null, "name": "pointerType", "presence": "optional" }, { "defaultValue": null, "name": "startClientX", "presence": "optional" }, { "defaultValue": null, "name": "startClientY", "presence": "optional" }, { "defaultValue": null, "name": "currentClientX", "presence": "optional" }, { "defaultValue": null, "name": "currentClientY", "presence": "optional" }, { "defaultValue": null, "name": "deltaX", "presence": "optional" }, { "defaultValue": null, "name": "deltaY", "presence": "optional" }], "name": "move-roster-shift-to-slot" }], "serverLayers": [], "sessionKinds": [{ "description": "Roster drag/drop prototype", "effects": { "contextual": [{ "className": "bepis-dropzone-highlight", "kind": "dropzone-highlight" }], "global": [{ "className": "bepis-pointer-clone-shadow", "kind": "clone-shadow", "layer": "drag-preview", "preserveGrabOffset": true, "source": "pointer-marker" }] }, "kind": "drag" }] } };
 
   // frontend/ts/interaction/form-bridge.ts
   var attrs = InteractionDom.attributes;
@@ -247,6 +251,11 @@
     return typeof maybe.getAttribute === "function" && typeof maybe.closest === "function" && typeof maybe.querySelector === "function";
   }
 
+  // frontend/ts/shared/exhaustive.ts
+  function assertNever(value, message = "Unexpected generated union variant") {
+    throw new Error(`${message}: ${JSON.stringify(value)}`);
+  }
+
   // frontend/ts/interaction/session-state.ts
   var interactionSessionStartEventName = AppEvents.interactionSessionStart;
   var interactionSessionEndEventName = AppEvents.interactionSessionEnd;
@@ -274,6 +283,11 @@
   var disposableLayerSelector = `[${attrs4.disposableLayer}]`;
   var pointerFields = InteractionDom.pointerFields;
   var defaultThresholdPx = 4;
+  var noOpEffectRunner = {
+    activate: () => void 0,
+    update: () => void 0,
+    cleanup: () => void 0
+  };
   function enableGenericPointerSessions(options = {}) {
     if (typeof document === "undefined") return () => void 0;
     const controller = createPointerSessionController(options);
@@ -320,6 +334,7 @@
     };
     const cleanupSession = (session, reason) => {
       clearTimeoutHandle();
+      session.effects.cleanup(session);
       clearDisposableLayers(session.mount);
       releasePointerCapture(session.marker, session.pointerId);
       setDocumentInteractionActive(session.mount, false);
@@ -355,8 +370,10 @@
       session.currentClientX = numberValue(event.clientX);
       session.currentClientY = numberValue(event.clientY);
       if (!session.activated && movementDistance(session) < session.thresholdPx) return;
+      const firstActivation = !session.activated;
       session.activated = true;
-      renderDropPreview(session);
+      if (firstActivation) session.effects.activate(session);
+      session.effects.update(session);
       runtime.emit({
         phase: "preview",
         intent: session.intent,
@@ -455,7 +472,7 @@
     const startClientX = numberValue(pointerEvent.clientX);
     const startClientY = numberValue(pointerEvent.clientY);
     const thresholdPx = numberAttribute(marker, attrs4.sessionThreshold) ?? fallbackThresholdPx;
-    return {
+    const session = {
       mount,
       marker,
       intent,
@@ -467,7 +484,32 @@
       currentClientX: startClientX,
       currentClientY: startClientY,
       thresholdPx: Math.max(0, thresholdPx),
-      activated: thresholdPx <= 0
+      activated: false,
+      effects: noOpEffectRunner
+    };
+    session.effects = createPointerSessionEffectRunner(session);
+    return session;
+  }
+  function createPointerSessionEffectRunner(session) {
+    const sessionDefinition = interactionSessionDefinitionFor(session);
+    if (!sessionDefinition) return noOpEffectRunner;
+    const globalHandlers = sessionDefinition.effects.global.map(createGlobalEffectHandler).filter((handler) => handler !== null);
+    const contextualHandlers = sessionDefinition.effects.contextual.map(createContextualEffectHandler).filter((handler) => handler !== null);
+    if (globalHandlers.length === 0 && contextualHandlers.length === 0) return noOpEffectRunner;
+    return {
+      activate(activeSession) {
+        for (const handler of globalHandlers) handler.activate(activeSession);
+      },
+      update(activeSession) {
+        for (const handler of globalHandlers) handler.update(activeSession);
+        if (contextualHandlers.length === 0) return;
+        const target = activeDropzone(activeSession);
+        for (const handler of contextualHandlers) handler.update(activeSession, target);
+      },
+      cleanup(activeSession) {
+        for (const handler of contextualHandlers) handler.cleanup(activeSession);
+        for (const handler of globalHandlers) handler.cleanup(activeSession);
+      }
     };
   }
   function hitTestClosest(root, clientX, clientY, selector) {
@@ -477,6 +519,89 @@
     const hit = elementFromPoint(clientX, clientY);
     if (!isElementLike3(hit)) return null;
     return hit.closest(selector);
+  }
+  function interactionSessionDefinitionFor(session) {
+    const family = session.mount.getAttribute(attrs4.surfaceFamily);
+    if (!isInteractionSurfaceFamily(family)) return null;
+    return InteractionStaticSchemas[family].sessionKinds.find((candidate) => candidate.kind === session.sessionKind) ?? null;
+  }
+  function createGlobalEffectHandler(effect) {
+    switch (effect.kind) {
+      case "clone-shadow":
+        return createCloneShadowEffect(effect);
+      case "dropzone-highlight":
+        return null;
+      default:
+        return assertNever(effect);
+    }
+  }
+  function createContextualEffectHandler(effect) {
+    switch (effect.kind) {
+      case "clone-shadow":
+        return null;
+      case "dropzone-highlight":
+        return createDropzoneHighlightEffect(effect.className);
+      default:
+        return assertNever(effect);
+    }
+  }
+  function createCloneShadowEffect(effect) {
+    let shadow = null;
+    let grabOffsetX = 0;
+    let grabOffsetY = 0;
+    const cleanup = () => {
+      if (shadow?.parentNode) shadow.parentNode.removeChild(shadow);
+      shadow = null;
+    };
+    return {
+      activate(session) {
+        cleanup();
+        const layer = disposableLayerByName(session.mount, effect.layer);
+        const source = cloneShadowSourceElement(effect.source, session);
+        const proxy = layer?.ownerDocument?.createElement?.("div");
+        if (!layer || !source || !proxy) return;
+        const rect = elementRect(source);
+        grabOffsetX = effect.preserveGrabOffset ? session.startClientX - rect.left : 0;
+        grabOffsetY = effect.preserveGrabOffset ? session.startClientY - rect.top : 0;
+        addClass(proxy, effect.className);
+        proxy.setAttribute("aria-hidden", "true");
+        applyShadowBaseStyle(proxy, rect);
+        layer.appendChild(proxy);
+        shadow = proxy;
+        moveShadow(shadow, session, grabOffsetX, grabOffsetY);
+      },
+      update(session) {
+        if (!shadow) return;
+        moveShadow(shadow, session, grabOffsetX, grabOffsetY);
+      },
+      cleanup
+    };
+  }
+  function createDropzoneHighlightEffect(className) {
+    let activeTarget = null;
+    const clear = () => {
+      if (activeTarget) removeClass(activeTarget, className);
+      activeTarget = null;
+    };
+    return {
+      update(_session, target) {
+        if (target === activeTarget) return;
+        clear();
+        activeTarget = target;
+        if (activeTarget) addClass(activeTarget, className);
+      },
+      cleanup() {
+        clear();
+      }
+    };
+  }
+  function cloneShadowSourceElement(source, session) {
+    switch (source) {
+      case "pointer-marker":
+        return session.marker;
+      default:
+        return assertNever(source);
+    }
   }
   function sessionSnapshot(session, reason) {
     return {
@@ -511,18 +636,40 @@
   function activeDropzone(session) {
     return hitTestClosest(session.mount, session.currentClientX, session.currentClientY, dropzoneSelector);
   }
-  function renderDropPreview(session) {
-    const targetDropzone = activeDropzone(session);
-    for (const layer of session.mount.querySelectorAll(disposableLayerSelector)) {
-      clearElement(layer);
-      if (!targetDropzone) continue;
-      const doc = layer.ownerDocument ?? (typeof document !== "undefined" ? document : null);
-      const preview = doc?.createElement?.("div");
-      if (!preview) continue;
-      preview.className = "bepis-drop-preview";
-      preview.textContent = "Drop target selected";
-      layer.appendChild(preview);
+  function disposableLayerByName(mount, layerName) {
+    for (const layer of mount.querySelectorAll(disposableLayerSelector)) {
+      if (layer.getAttribute(attrs4.disposableLayer) === layerName) return layer;
     }
+    return null;
+  }
+  function applyShadowBaseStyle(element, rect) {
+    const style = element.style;
+    if (!style) return;
+    style.position = "fixed";
+    style.left = "0px";
+    style.top = "0px";
+    style.width = `${Math.max(0, rect.width)}px`;
+    style.height = `${Math.max(0, rect.height)}px`;
+    style.pointerEvents = "none";
+    style.zIndex = "1100";
+    style.overflow = "hidden";
+    style.contain = "layout paint";
+  }
+  function moveShadow(element, session, offsetX, offsetY) {
+    const style = element.style;
+    if (!style) return;
+    const x = session.currentClientX - offsetX;
+    const y = session.currentClientY - offsetY;
+    style.transform = `translate3d(${x}px, ${y}px, 0)`;
+  }
+  function elementRect(element) {
+    const rect = element.getBoundingClientRect?.();
+    return {
+      left: numberValue(rect?.left),
+      top: numberValue(rect?.top),
+      width: numberValue(rect?.width),
+      height: numberValue(rect?.height)
+    };
   }
   function movementDistance(session) {
     const deltaX = session.currentClientX - session.startClientX;
@@ -554,6 +701,27 @@
       return;
     }
     if (typeof mutable.innerHTML === "string") mutable.innerHTML = "";
+  }
+  function addClass(element, className) {
+    if (!className) return;
+    if (element.classList) {
+      element.classList.add(...className.split(/\s+/).filter(Boolean));
+      return;
+    }
+    const existing = element.getAttribute("class")?.split(/\s+/).filter(Boolean) ?? [];
+    const merged = /* @__PURE__ */ new Set([...existing, ...className.split(/\s+/).filter(Boolean)]);
+    element.setAttribute("class", Array.from(merged).join(" "));
+  }
+  function removeClass(element, className) {
+    if (!className) return;
+    const names = className.split(/\s+/).filter(Boolean);
+    if (element.classList) {
+      element.classList.remove(...names);
+      return;
+    }
+    const remaining = (element.getAttribute("class")?.split(/\s+/).filter(Boolean) ?? []).filter((name) => !names.includes(name));
+    if (remaining.length > 0) element.setAttribute("class", remaining.join(" "));
+    else element.removeAttribute("class");
   }
   function isDisabled(marker) {
     return marker.getAttribute(attrs4.sessionDisabled) === values3.enabled || marker.getAttribute(attrs4.sessionReadOnly) === values3.enabled;
