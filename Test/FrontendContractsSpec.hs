@@ -52,6 +52,7 @@ tests = describe "Frontend contract generator foundation" do
                        , ("UiRegionContracts", HaskellSchemaGenerated)
                        , ("RosterContracts", HaskellSchemaGenerated)
                        , ("LiveSurfaceManifest", HaskellSchemaGenerated)
+                       , ("FrontendSurfaceContracts", HaskellSchemaGenerated)
                        ]
 
     it "keeps the composition root free of large handwritten protocol blocks" do
@@ -80,7 +81,7 @@ tests = describe "Frontend contract generator foundation" do
                        , "UiRegionSchema.hs"
                        ]
         let declarationNames = fmap (.name) frontendContractDeclarations
-        List.sort declarationNames `shouldBe` List.sort ["AppSharedConstants", "InteractionContracts", "LiveUpdateContracts", "RosterContracts", "LiveSurfaceManifest", "OverlayLane", "UiRegionContracts"]
+        List.sort declarationNames `shouldBe` List.sort ["AppSharedConstants", "FrontendSurfaceContracts", "InteractionContracts", "LiveUpdateContracts", "RosterContracts", "LiveSurfaceManifest", "OverlayLane", "UiRegionContracts"]
 
     it "generates a manifest for every registered live surface family" do
         let generatedSource = frontendContractsTypeScript

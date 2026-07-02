@@ -1312,3 +1312,42 @@ export function encodeLiveSurfaceManifestRegistry(value: LiveSurfaceManifestRegi
 
 
 export const LiveSurfaceManifest: Partial<Record<LiveSurfaceFamily, LiveSurfaceManifestEntry>> = {"admin-exports":{"fragmentKinds":["admin_exports"],"interactionSchema":null,"scopeKinds":["admin_exports"]},"admin-invites":{"fragmentKinds":["admin_invites"],"interactionSchema":null,"scopeKinds":["admin_invites"]},"admin-roster-groups":{"fragmentKinds":["admin_roster_groups"],"interactionSchema":null,"scopeKinds":["admin_roster_groups"]},"admin-shift-types":{"fragmentKinds":["admin_shift_types"],"interactionSchema":null,"scopeKinds":["admin_shift_types"]},"admin-venue-config":{"fragmentKinds":["admin_venue_config"],"interactionSchema":null,"scopeKinds":["admin_venue_config"]},"admin-xero":{"fragmentKinds":["admin_xero","admin_xero_staff_mappings","admin_xero_pay_items","admin_xero_timesheets"],"interactionSchema":null,"scopeKinds":["admin_xero"]},"billing":{"fragmentKinds":["billing_status"],"interactionSchema":null,"scopeKinds":["billing"]},"leave-requests":{"fragmentKinds":["leave_requests_content"],"interactionSchema":null,"scopeKinds":["leave_requests"]},"profile":{"fragmentKinds":["profile_content"],"interactionSchema":null,"scopeKinds":["profile"]},"profile-leave-requests":{"fragmentKinds":["profile_leave_requests_content"],"interactionSchema":null,"scopeKinds":["profile"]},"roster":{"fragmentKinds":["roster_content","roster_grid_toolbar","roster_grid_frame","roster_day_columns","roster_day_rail","roster_wage_rail","roster_slots_grid","roster_staff_panel","roster_day_section","roster_row"],"interactionSchema":"roster","scopeKinds":["roster_week"]},"support":{"fragmentKinds":["support_award_rates_section","support_public_holidays_section"],"interactionSchema":null,"scopeKinds":["support_platform"]},"timesheets":{"fragmentKinds":["timesheet_toolbar","timesheet_day_columns","timesheet_day_section"],"interactionSchema":null,"scopeKinds":["timesheet_week"]}};
+// FrontendSurface contracts generated from Application.Helper.FrontendSurface.Registry.
+export type FrontendSurfaceUUID = string & { readonly __brand: "FrontendSurfaceUUID" };
+export type FrontendSurfaceDay = string & { readonly __brand: "FrontendSurfaceDay" };
+
+export type PanelId = FrontendSurfaceUUID & { readonly __brand: "PanelId" };
+export type StaffFilterId = FrontendSurfaceUUID & { readonly __brand: "StaffFilterId" };
+export type VenueId = FrontendSurfaceUUID & { readonly __brand: "VenueId" };
+
+export type SurfaceLabSurfaceName = "surface-lab";
+export type LabScope = { kind: "lab"; venueId: VenueId; weekOffset: number };
+export type LabViewStateMountState = { showArchived: boolean; staffFilterId?: StaffFilterId };
+export type LabPayload = { label: string; count?: number; note: string | null };
+export type LabCommittedEventDetail = { kind: "lab-committed"; panelId: PanelId };
+export type SurfaceLabFragmentKey =
+    | { kind: "lab-shell"; params: Record<string, never> }
+    | { kind: "lab-panel"; params: { panelId: PanelId } }
+;
+export type SurfaceLabHtmxActionName = "refresh-panel";
+export type RefreshPanelActionFields = { panelId: PanelId };
+export type SurfaceLabIntentName = "move-lab-card";
+export type MoveLabCardIntentFields = { sourceItemKey: string; targetDropzoneKey: string };
+export type SurfaceLabSessionName = "drag";
+export type SurfaceLabDisposableLayerName = "drag-preview";
+export type SurfaceLabDomToken = "lab-root" | "lab-dropzone";
+export type SurfaceLabOverlayLane = "dialog";
+export const surfaceLabSurfaceManifest = { surface: "surface-lab", scopes: ["lab"], fragments: ["lab-shell", "lab-panel"], htmxActions: ["refresh-panel"], intents: ["move-lab-card"], sessions: ["drag"], layers: ["drag-preview"], domTokens: ["lab-root", "lab-dropzone"], overlayLanes: ["dialog"] } as const;
+
+export type FrontendSurfaceName = "surface-lab";
+export const FrontendSurfaceRegistry = {
+    "surface-lab": surfaceLabSurfaceManifest,
+} as const;
+export function isFrontendSurfaceName(value: unknown): value is FrontendSurfaceName {
+    return typeof value === "string" && Object.prototype.hasOwnProperty.call(FrontendSurfaceRegistry, value);
+}
+export function parseFrontendSurfaceName(value: unknown): FrontendSurfaceName {
+    if (isFrontendSurfaceName(value)) return value;
+    throw new Error("Invalid FrontendSurfaceName");
+}
+

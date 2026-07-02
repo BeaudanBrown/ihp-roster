@@ -1,11 +1,16 @@
 {-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeOperators    #-}
 
 module Test.FrontendSurfaceDslSpec
     ( tests
     ) where
 
+import Application.Helper.FrontendSurface.ContractIR
+import Application.Helper.FrontendSurface.Contracts
+import Application.Helper.FrontendSurface.DSL
 import Application.Helper.FrontendSurface.Lab (SurfaceLabSurface)
+import Application.Helper.FrontendSurface.Reflect
 import Application.Helper.FrontendSurface.Registry (RegisteredFrontendSurfaces)
 import Application.Helper.FrontendSurface.Runtime
 import qualified Data.Aeson as Aeson
@@ -52,6 +57,41 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceMountConfigJson config `shouldContainText` "\"mountKey\":\"primary\""
         frontendSurfaceMountConfigJson config `shouldContainText` "\"targetId\":\"surface-lab-panel\""
 
+    it "extracts the registered lab surface into checked contract IR" do
+        let SurfaceContractIR { contractSurfaces = [surface] } = registeredFrontendSurfaceContractIR
+
+        surface.surfaceName `shouldBe` "surface-lab"
+        map (.scopeName) surface.surfaceScopes `shouldBe` ["lab"]
+        map (.fragmentName) surface.surfaceFragments `shouldBe` ["lab-shell", "lab-panel"]
+        map (.htmxActionName) surface.surfaceHtmxActions `shouldBe` ["refresh-panel"]
+        map (.intentName) surface.surfaceIntents `shouldBe` ["move-lab-card"]
+        surface.surfaceSessions `shouldBe` ["drag"]
+        surface.surfaceLayers `shouldBe` ["drag-preview"]
+        surface.surfaceDomTokens `shouldBe` ["lab-root", "lab-dropzone"]
+        map fst surface.surfaceDtos `shouldBe` ["lab-payload"]
+        surface.surfaceFragments
+            |> find (\fragment -> fragment.fragmentName == "lab-panel")
+            |> fmap (.fragmentOptions)
+            `shouldBe` Just [LazyOption [TriggerOption "load", PlaceholderOption "panel"]]
+
+    it "renders generated TypeScript contracts for every lab primitive family" do
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type SurfaceLabFragmentKey ="
+        frontendSurfaceContractsTypeScript `shouldContainText` "{ kind: \"lab-panel\"; params: { panelId: PanelId } }"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type RefreshPanelActionFields = { panelId: PanelId };"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type MoveLabCardIntentFields = { sourceItemKey: string; targetDropzoneKey: string };"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type LabPayload = { label: string; count?: number; note: string | null };"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export const surfaceLabSurfaceManifest"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export function parseFrontendSurfaceName"
+
+    it "reports stable diagnostics for malformed reflected specs" do
+        let duplicateFields = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[DuplicateFieldSurface]))
+        let missingReference = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[MissingReferenceSurface]))
+        let conflictingShared = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[SharedScopeA, SharedScopeB]))
+
+        diagnosticMessages duplicateFields `shouldContain` ["surface duplicate has duplicate scope field panelId"]
+        diagnosticMessages missingReference `shouldContain` ["htmx action bad references missing fragment missing on surface missing-reference"]
+        diagnosticMessages conflictingShared `shouldContain` ["conflicting shared declaration: scope shared"]
+
     it "renders minimal HTMX action and intent forms from SurfaceImpl metadata" do
         let request = FrontendSurfaceHtmxRequest
                 { htmxRequestName = "refresh-panel"
@@ -70,6 +110,48 @@ tests = describe "FrontendSurface DSL foundation" do
         actionHtml `shouldContainText` "name=\"panelId\""
         intentHtml `shouldContainText` "data-bepis-intent-form=\"move-lab-card\""
         intentHtml `shouldContainText` "hx-target=\"#surface-lab-panel\""
+
+diagnosticMessages :: Either [ContractDiagnostic] SurfaceContractIR -> [Text]
+diagnosticMessages = \case
+    Right _ -> []
+    Left diagnostics -> map (.diagnosticMessage) diagnostics
+
+data Duplicate
+data DuplicateScope
+data MissingReference
+data SharedA
+data SharedB
+data Shared
+data Bad
+data MissingFragment
+data PanelId
+data VenueId
+data WeekOffset
+data LabScope
+
+type DuplicateFieldSurface =
+    Surface Duplicate
+        '[ Scope DuplicateScope
+            '[ Field PanelId 'WireUUID
+             , Field PanelId 'WireText
+             ]
+         ]
+
+type MissingReferenceSurface =
+    Surface MissingReference
+        '[ Scope LabScope '[ Field VenueId 'WireUUID ]
+         , HtmxAction Bad '[] '[ 'Target MissingFragment ]
+         ]
+
+type SharedScopeA =
+    Surface SharedA
+        '[ Scope Shared '[ Field VenueId 'WireUUID ]
+         ]
+
+type SharedScopeB =
+    Surface SharedB
+        '[ Scope Shared '[ Field WeekOffset 'WireInt ]
+         ]
 
 shouldContainText :: Text -> Text -> Expectation
 shouldContainText actual expected =

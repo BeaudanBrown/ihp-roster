@@ -106,10 +106,10 @@ renderFrontendSurfaceLazyFragment fragment placeholder =
     Html5.div
         ! attr "id" fragment.mountedFragmentTargetId
         ! attr "class" "app-lazy-surface app-lazy-surface-compact"
-        ! attr "data-bepis-fragment" "true"
-        ! attr "data-bepis-lazy-surface" "true"
-        ! attr "data-bepis-lazy-fragment" fragment.mountedFragmentKey.fragmentKind
-        ! attr "data-bepis-lazy-retry" "true"
+        ! attr "data-bepis-surface-fragment" "true"
+        ! attr "data-bepis-surface-lazy" "true"
+        ! attr "data-bepis-surface-lazy-fragment" fragment.mountedFragmentKey.fragmentKind
+        ! attr "data-bepis-surface-lazy-retry" "true"
         ! attr "hx-get" fragment.mountedFragmentUrl
         ! attr "hx-trigger" "load delay:50ms"
         ! attr "hx-target" "this"

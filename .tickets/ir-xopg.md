@@ -45,3 +45,9 @@ Implement the GHC API extraction path from `RegisteredFrontendSurfaces` to norma
 - Type synonyms, helper expansion, list flattening, nested option lists, parameterized fragment shapes, shared declaration merge, branded ID aliases, and mount-state shapes are covered.
 - Generator diagnostics clearly report malformed specs, duplicate names, conflicting shared declarations, invalid cross references, unsupported exact names, and helper expansion cycles, with stable substrings for tests.
 - The implementation is general for Timesheets and Roster; no extractor special cases for those features are accepted.
+
+## Notes
+
+**2026-07-02T06:40:29Z**
+
+Added the first generator slice: type-level registry reflection from RegisteredFrontendSurfaces into checked SurfaceContractIR, validation diagnostics for duplicate fields, invalid references and conflicting shared declarations, TypeScript rendering, frontend-contracts integration, and frontend tests consuming generated lab types/manifests. This slice uses typeclass reflection over the normalized DSL (including aliases/Concat) inside the app generator; it does not yet add a script-only GHC API loader. Next decision point: whether to keep extending this reflection extractor or introduce the GHC API loader/normalizer now for source-span diagnostics and explicit synonym/type-family expansion reporting.
