@@ -3,7 +3,9 @@ import {
     isFrontendSurfaceName,
     parseFrontendSurfaceName,
     surfaceLabSurfaceManifest,
+    type FrontendSurfaceDay,
     type LabPayload,
+    type LabRelatedPayload,
     type MoveLabCardIntentFields,
     type PanelId,
     type RefreshPanelActionFields,
@@ -31,7 +33,16 @@ test("generated FrontendSurface lab DTOs are consumable by TypeScript", () => {
     const fragmentKey: SurfaceLabFragmentKey = { kind: "lab-panel", params: { panelId } };
     const actionFields: RefreshPanelActionFields = fragmentKey.params;
     const intentFields: MoveLabCardIntentFields = { sourceItemKey: "card:a", targetDropzoneKey: "slot:b" };
-    const payload: LabPayload = { label: "Lab", note: null };
+    const relatedPayload: LabRelatedPayload = { label: "Related" };
+    const payload: LabPayload = {
+        label: "Lab",
+        note: null,
+        tags: ["alpha"],
+        dueDay: "2026-07-02" as FrontendSurfaceDay,
+        maybeRank: undefined,
+        maybeMemo: null,
+        relatedPayload,
+    };
 
     assertEqual(fragmentKey.kind, "lab-panel");
     assertEqual(actionFields.panelId, fragmentKey.params.panelId);

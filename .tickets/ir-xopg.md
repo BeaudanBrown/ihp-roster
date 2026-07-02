@@ -51,3 +51,7 @@ Implement the GHC API extraction path from `RegisteredFrontendSurfaces` to norma
 **2026-07-02T06:40:29Z**
 
 Added the first generator slice: type-level registry reflection from RegisteredFrontendSurfaces into checked SurfaceContractIR, validation diagnostics for duplicate fields, invalid references and conflicting shared declarations, TypeScript rendering, frontend-contracts integration, and frontend tests consuming generated lab types/manifests. This slice uses typeclass reflection over the normalized DSL (including aliases/Concat) inside the app generator; it does not yet add a script-only GHC API loader. Next decision point: whether to keep extending this reflection extractor or introduce the GHC API loader/normalizer now for source-span diagnostics and explicit synonym/type-family expansion reporting.
+
+**2026-07-02T06:50:29Z**
+
+Reflection/IR hardening chunk: lab DTOs now cover WireList, WireDay, WireOptional, WireNullable, and WireRef; ContractIR validates nested WireRef DTO references with stable invalid-wire-ref diagnostics; generated TS and frontend tests consume the expanded DTO shapes.

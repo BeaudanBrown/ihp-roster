@@ -191,6 +191,7 @@ validateSurface surface =
         <> concatMap (validateDuplicateFields surface.surfaceName "intent" . intentFields) surface.surfaceIntents
         <> concatMap (validateDuplicateFields surface.surfaceName "event" . snd) surface.surfaceClientEvents
         <> concatMap (validateDuplicateFields surface.surfaceName "dto" . snd) surface.surfaceDtos
+        <> validateWireReferences surface
         <> validateUnique surface.surfaceName "fragment" (map (.fragmentName) surface.surfaceFragments)
         <> validateUnique surface.surfaceName "htmx action" (map (.htmxActionName) surface.surfaceHtmxActions)
         <> validateUnique surface.surfaceName "intent" (map (.intentName) surface.surfaceIntents)
@@ -222,6 +223,32 @@ validateUnique :: Text -> Text -> [Text] -> [ContractDiagnostic]
 validateUnique surfaceName kind names =
     duplicateNames names
         |> map (\name -> diagnostic ("duplicate-" <> Text.replace " " "-" kind) ("surface " <> surfaceName <> " has duplicate " <> kind <> " " <> name))
+
+validateWireReferences :: SurfaceIR -> [ContractDiagnostic]
+validateWireReferences surface =
+    concatMap validateFieldWire allFields
+    where
+        dtoNames = map fst surface.surfaceDtos
+        allFields =
+            concatMap scopeFields surface.surfaceScopes
+                <> concatMap mountStateFields surface.surfaceMountStates
+                <> concatMap fragmentParams surface.surfaceFragments
+                <> concatMap htmxActionFields surface.surfaceHtmxActions
+                <> concatMap intentFields surface.surfaceIntents
+                <> concatMap snd surface.surfaceClientEvents
+                <> concatMap snd surface.surfaceDtos
+
+        validateFieldWire field =
+            validateWire field.fieldName field.fieldWire
+
+        validateWire fieldName = \case
+            WireRefIR name
+                | name `elem` dtoNames -> []
+                | otherwise -> [diagnostic "invalid-wire-ref" ("field " <> fieldName <> " references missing dto " <> name <> " on surface " <> surface.surfaceName)]
+            WireListIR inner -> validateWire fieldName inner
+            WireOptionalIR inner -> validateWire fieldName inner
+            WireNullableIR inner -> validateWire fieldName inner
+            _ -> []
 
 validateCrossReferences :: SurfaceIR -> [ContractDiagnostic]
 validateCrossReferences surface =

@@ -68,7 +68,7 @@ tests = describe "FrontendSurface DSL foundation" do
         surface.surfaceSessions `shouldBe` ["drag"]
         surface.surfaceLayers `shouldBe` ["drag-preview"]
         surface.surfaceDomTokens `shouldBe` ["lab-root", "lab-dropzone"]
-        map fst surface.surfaceDtos `shouldBe` ["lab-payload"]
+        map fst surface.surfaceDtos `shouldBe` ["lab-payload", "lab-related-payload"]
         surface.surfaceFragments
             |> find (\fragment -> fragment.fragmentName == "lab-panel")
             |> fmap (.fragmentOptions)
@@ -79,7 +79,8 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceContractsTypeScript `shouldContainText` "{ kind: \"lab-panel\"; params: { panelId: PanelId } }"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RefreshPanelActionFields = { panelId: PanelId };"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type MoveLabCardIntentFields = { sourceItemKey: string; targetDropzoneKey: string };"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type LabPayload = { label: string; count?: number; note: string | null };"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type LabPayload = { label: string; count?: number; note: string | null; tags: ReadonlyArray<string>; dueDay: FrontendSurfaceDay; maybeRank: number | undefined; maybeMemo: string | null; relatedPayload: LabRelatedPayload };"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type LabRelatedPayload = { label: string };"
         frontendSurfaceContractsTypeScript `shouldContainText` "export const surfaceLabSurfaceManifest"
         frontendSurfaceContractsTypeScript `shouldContainText` "export function parseFrontendSurfaceName"
 
@@ -87,10 +88,12 @@ tests = describe "FrontendSurface DSL foundation" do
         let duplicateFields = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[DuplicateFieldSurface]))
         let missingReference = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[MissingReferenceSurface]))
         let conflictingShared = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[SharedScopeA, SharedScopeB]))
+        let missingDtoRef = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[MissingDtoRefSurface]))
 
         diagnosticMessages duplicateFields `shouldContain` ["surface duplicate has duplicate scope field panelId"]
         diagnosticMessages missingReference `shouldContain` ["htmx action bad references missing fragment missing on surface missing-reference"]
         diagnosticMessages conflictingShared `shouldContain` ["conflicting shared declaration: scope shared"]
+        diagnosticMessages missingDtoRef `shouldContain` ["field missingPayload references missing dto missing-payload on surface missing-dto-ref"]
 
     it "renders minimal HTMX action and intent forms from SurfaceImpl metadata" do
         let request = FrontendSurfaceHtmxRequest
@@ -124,6 +127,8 @@ data SharedB
 data Shared
 data Bad
 data MissingFragment
+data MissingDtoRef
+data MissingPayload
 data PanelId
 data VenueId
 data WeekOffset
@@ -141,6 +146,12 @@ type MissingReferenceSurface =
     Surface MissingReference
         '[ Scope LabScope '[ Field VenueId 'WireUUID ]
          , HtmxAction Bad '[] '[ 'Target MissingFragment ]
+         ]
+
+type MissingDtoRefSurface =
+    Surface MissingDtoRef
+        '[ Scope LabScope '[ Field VenueId 'WireUUID ]
+         , Dto Bad '[ Field MissingPayload ('WireRef MissingPayload) ]
          ]
 
 type SharedScopeA =

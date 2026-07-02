@@ -36,9 +36,15 @@ data LabCommitted
 data LabRoot
 data LabDropzone
 data LabPayload
+data LabRelatedPayload
 data Label
 data Count
 data Note
+data Tags
+data DueDay
+data MaybeRank
+data MaybeMemo
+data RelatedPayload
 
 data Load
 data Panel
@@ -87,6 +93,14 @@ type LabSharedBundle =
         '[ Field Label 'WireText
          , OptionalField Count 'WireInt
          , NullableField Note 'WireText
+         , Field Tags ('WireList 'WireText)
+         , Field DueDay 'WireDay
+         , Field MaybeRank ('WireOptional 'WireInt)
+         , Field MaybeMemo ('WireNullable 'WireText)
+         , Field RelatedPayload ('WireRef LabRelatedPayload)
+         ]
+     , Dto LabRelatedPayload
+        '[ Field Label 'WireText
          ]
      ]
 

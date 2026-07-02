@@ -1323,7 +1323,8 @@ export type VenueId = FrontendSurfaceUUID & { readonly __brand: "VenueId" };
 export type SurfaceLabSurfaceName = "surface-lab";
 export type LabScope = { kind: "lab"; venueId: VenueId; weekOffset: number };
 export type LabViewStateMountState = { showArchived: boolean; staffFilterId?: StaffFilterId };
-export type LabPayload = { label: string; count?: number; note: string | null };
+export type LabPayload = { label: string; count?: number; note: string | null; tags: ReadonlyArray<string>; dueDay: FrontendSurfaceDay; maybeRank: number | undefined; maybeMemo: string | null; relatedPayload: LabRelatedPayload };
+export type LabRelatedPayload = { label: string };
 export type LabCommittedEventDetail = { kind: "lab-committed"; panelId: PanelId };
 export type SurfaceLabFragmentKey =
     | { kind: "lab-shell"; params: Record<string, never> }
