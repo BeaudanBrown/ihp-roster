@@ -33,7 +33,7 @@ respondWithRosterContent :: (?context :: ControllerContext, ?modelContext :: Mod
 respondWithRosterContent rosterGroupId weekOffset = do
     maybeHtml <- renderVisibleRosterReadModelFragment rosterGroupId weekOffset RosterProjectionContent
     when (isNothing maybeHtml) do
-        TextIO.putStrLn ("roster_projection_miss: rosterGroupId=" <> tshow rosterGroupId <> " weekOffset=" <> tshow weekOffset)
+        TextIO.putStrLn ("roster_read_model_miss: rosterGroupId=" <> tshow rosterGroupId <> " weekOffset=" <> tshow weekOffset)
     respondHtmlProfiled (fromMaybe mempty maybeHtml)
 
 respondWithRosterFragmentsUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> ToastOverlayConfig -> IO ()
@@ -53,7 +53,7 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
     rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
     case rosterData of
         Nothing -> do
-            TextIO.putStrLn ("roster_projection_miss_oob: rosterGroupId=" <> tshow rosterGroupId <> " weekOffset=" <> tshow weekOffset)
+            TextIO.putStrLn ("roster_read_model_miss_oob: rosterGroupId=" <> tshow rosterGroupId <> " weekOffset=" <> tshow weekOffset)
             respondHtmlProfiled [hsx|<div id="roster-content" hx-swap-oob="outerHTML"></div>|]
         Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } -> do
             let viewCapabilities = buildRosterViewCapabilities (Just rosterWeek)

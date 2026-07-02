@@ -43,8 +43,8 @@ import Generated.Types (RosterGroup)
 import Web.Billing.LiveUpdates (BillingSurfaceKey (..),
                                 billingLiveSurfaceDefinition)
 import Web.Controller.Prelude
-import Web.LeaveRequests.Projection (leaveRequestsLiveSurfaceDefinition,
-                                     leaveRequestsLiveSurfaceDefinitionForVenue)
+import Web.LeaveRequests.ReadModel (leaveRequestsLiveSurfaceDefinition,
+                                    leaveRequestsLiveSurfaceDefinitionForVenue)
 import Web.Profiles.LiveUpdates (ProfileContentFragment (..),
                                  ProfileContentSurfaceKey (..),
                                  ProfileLeaveSurfaceKey (..),

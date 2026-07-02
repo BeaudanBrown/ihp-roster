@@ -10,7 +10,7 @@ leave/unavailability history until renamed by a future migration.
 ## Entry Points
 
 - `Web/Controller/LeaveRequests.hs` - controller actions.
-- `Web/LeaveRequests/Projection.hs` - list/read models.
+- `Web/LeaveRequests/ReadModel.hs` - list/read models.
 - `Web/LeaveRequests/ProfileSelfService.hs` - profile page fragments.
 - `Web/View/LeaveRequests/` - HSX rendering.
 

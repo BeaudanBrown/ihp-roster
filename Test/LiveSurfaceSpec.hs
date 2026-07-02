@@ -18,7 +18,6 @@ import Application.Helper.LiveUpdate.Runtime (FocusedFieldProtectionConfig (..),
                                               LiveFragmentProtection (..),
                                               LiveUpdateScope (..),
                                               LiveUpdateWireFragment (..))
-import Application.Helper.SurfaceProjection (defaultSurfaceProjectionCachePolicy)
 import Application.Helper.UiRegion (UiRegionTransitionProfile (..))
 import Application.Helper.View.LazySurface
 import Application.Helper.View.UiRegion
@@ -72,7 +71,7 @@ tests = describe "LiveSurface contract helpers" do
     it "renders normalized actor fragments in OOB mode with extras" do
         let html =
                 renderTypedLiveSurfaceFragmentsFromSnapshot
-                    testActorProjectionDefinition
+                    testActorLiveSurfaceDefinition
                     ()
                     [TestActorChild, TestActorParent, TestActorSibling]
                     (FragmentOob (Just "outerHTML"))
@@ -472,18 +471,6 @@ testActorLiveSurfaceDefinition =
         , typedSurfaceInteractionSchema = emptyInteractionStaticSchema
         , typedSurfaceInteraction = const emptyInteractionCapability
         }
-
-testActorProjectionDefinition :: ProjectionLiveSurfaceDefinition TestActorSurface () Text TestActorFragment
-testActorProjectionDefinition =
-    mkTypedSurfaceProjectionDefinition
-        testActorLiveSurfaceDefinition
-        "test-actor"
-        defaultSurfaceProjectionCachePolicy
-        (const "test")
-        (pure "viewer")
-        (const (pure 0))
-        (const (pure "snapshot"))
-        (\snapshot fragment -> renderTestActorFragment FragmentPlain snapshot fragment)
 
 testActorFragmentRef :: TestActorFragment -> SurfaceFragmentRef TestActorSurface
 testActorFragmentRef TestActorParent =

@@ -98,26 +98,6 @@ Direction:
 - Keep manual dev/profile seeds richer but generated through named scenarios.
 - Do not weaken test fixture determinism to make manual exploration easier.
 
-## Surface Projection Cache
-
-Tickets:
-
-- `ir-jooi`
-- `ir-vutq`
-- `ir-53mu`
-
-Living docs to update:
-
-- `Application/Helper/LiveUpdate.SPEC.md`
-- feature-local specs using projection-backed fragments
-
-Direction:
-
-- Projection caches should support live and HTMX surfaces without changing
-  canonical authorization or source-of-truth rendering.
-- Add verification before making projection cache behavior relied upon by
-  high-frequency surfaces.
-
 ## Week Controls
 
 Tickets:

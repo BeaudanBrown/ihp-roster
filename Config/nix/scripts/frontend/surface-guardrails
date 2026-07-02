@@ -58,11 +58,6 @@ expect_no_match \
     "${lab_paths[@]}"
 
 expect_no_match \
-    "migrated FrontendSurface lab must not use SurfaceProjection" \
-    'Application\.Helper\.SurfaceProjection|SurfaceProjection' \
-    "${lab_paths[@]}"
-
-expect_no_match \
     "migrated FrontendSurface lab must use helpers instead of handwritten data-bepis-* attrs" \
     'data-bepis-' \
     "${lab_paths[@]}"
@@ -74,12 +69,7 @@ expect_no_match \
 
 expect_no_match \
     "migrated Timesheets FrontendSurface must not author old TypedLiveSurfaceDefinition paths" \
-    'TypedLiveSurfaceDefinition|descriptorToTypedLiveSurfaceDefinition|mkTypedDefinedLiveSurface|serveTypedLiveFragment|timesheetLiveSurfaceDefinition|timesheetProjectionDefinition|respondWithTypedLiveSurfaceFragments|renderLiveSurfaceProjectionFragment' \
-    "${timesheets_paths[@]}"
-
-expect_no_match \
-    "migrated Timesheets FrontendSurface must not use SurfaceProjection" \
-    'Application\.Helper\.SurfaceProjection|SurfaceProjection' \
+    'TypedLiveSurfaceDefinition|descriptorToTypedLiveSurfaceDefinition|mkTypedDefinedLiveSurface|serveTypedLiveFragment|timesheetLiveSurfaceDefinition|timesheetProjectionDefinition|respondWithTypedLiveSurfaceFragments' \
     "${timesheets_paths[@]}"
 
 expect_no_match \

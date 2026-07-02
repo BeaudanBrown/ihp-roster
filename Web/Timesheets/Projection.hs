@@ -9,7 +9,6 @@ module Web.Timesheets.Projection
     , fetchShiftTypesForForm
     , fetchStaffForForm
     , fetchTimesheetWeekProjection
-    , fetchTimesheetWeekProjectionCached
     , renderTimesheetProjectionFragment
     , renderTimesheetProjectionFragmentFromProjection
     , renderTimesheetWeekProjectionFragment
@@ -176,14 +175,10 @@ fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWeekOffset =
             , timesheetCurrentViewerStaffId = currentViewerStaffId
             }
 
-fetchTimesheetWeekProjectionCached :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetProjectionRequest -> IO TimesheetWeekProjection
-fetchTimesheetWeekProjectionCached requestKey =
-    profileActionSpan "timesheets.projection.load" (fetchTimesheetWeekProjection requestKey)
-
 renderTimesheetProjectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetProjectionRequest -> TimesheetProjectionFragment -> IO (Maybe Blaze.Html)
 renderTimesheetProjectionFragment requestKey fragment =
-    profileActionSpan "timesheets.projection.render_fragment" do
-        projection <- fetchTimesheetWeekProjectionCached requestKey
+    profileActionSpan "timesheets.read_model.render_fragment" do
+        projection <- fetchTimesheetWeekProjection requestKey
         pure (renderTimesheetWeekProjectionFragment projection fragment)
 
 renderTimesheetWeekProjectionFragment :: (?context :: ControllerContext, ?request :: Request) => TimesheetWeekProjection -> TimesheetProjectionFragment -> Maybe Blaze.Html

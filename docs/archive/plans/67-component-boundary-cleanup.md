@@ -39,7 +39,7 @@ Related existing tickets:
 - `ir-23k7` - completed first Admin/Xero split, useful history for `ir-jhsv`.
 - `ir-36t6` - URL-encoding hardening, related to `ir-tk23`.
 - `ir-w8dk` - reusable week controls, related to `ir-lxfx`.
-- `ir-f2p4` and `ir-jooi` - live-fragment runtime/projection-cache work related
+- `ir-f2p4` and `ir-jooi` - live-fragment runtime work related
   to `ir-ihv0`.
 
 ## Current Findings

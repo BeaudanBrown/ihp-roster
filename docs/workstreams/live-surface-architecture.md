@@ -16,7 +16,6 @@ Tickets:
 
 Related tickets:
 
-- `ir-jooi` - surface projection cache work
 - `ir-f2p4` - focused-field protection cleanup
 - `ir-3pnb` - strict typed live-surface overhaul
 

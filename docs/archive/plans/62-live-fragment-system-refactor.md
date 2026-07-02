@@ -48,8 +48,8 @@ Core implementation:
   - version-gap resync
   - fragment fetch and swap
   - focused-field protection
-- `Application/Helper/SurfaceProjection.hs`
-  - projection cache used by roster, leave requests, and timesheets
+- removed shared server render cache helper
+  - previously used by roster, leave requests, and timesheets
 
 Current live surfaces:
 
@@ -266,7 +266,7 @@ instead of every controller hand-building `LiveFragmentRef`s.
 
 ### Phase 5: Projection Generalization
 
-The existing `SurfaceProjectionDefinition` is useful, but currently only roster, leave, and timesheets use it.
+The old shared server render cache helper was useful, but only roster, leave, and timesheets used it.
 
 Improve it by:
 

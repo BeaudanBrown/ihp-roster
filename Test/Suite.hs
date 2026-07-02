@@ -61,7 +61,6 @@ import qualified Test.SchemaSpec
 import qualified Test.StaffDocumentsRsaSpec
 import qualified Test.StripeBillingSpec
 import qualified Test.StripeContractSpec
-import qualified Test.SurfaceProjectionSpec
 import qualified Test.VenueInvitationSpec
 import qualified Test.VenueOnboardingInvitationSpec
 import qualified Test.XeroContractSpec
@@ -199,7 +198,6 @@ allSuites =
     , TestSuite "LiveSurface" Test.LiveSurfaceSpec.tests
     , TestSuite "Mail" Test.MailSpec.tests
     , TestSuite "MutationBoundary" Test.MutationBoundarySpec.tests
-    , TestSuite "SurfaceProjection" Test.SurfaceProjectionSpec.tests
     , TestSuite "XeroContract" Test.XeroContractSpec.tests
     , TestSuite "XeroImportedPayItems" Test.XeroImportedPayItemsSpec.tests
     , TestSuite "XeroKeepalive" Test.XeroKeepaliveSpec.tests

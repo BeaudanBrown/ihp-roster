@@ -54,10 +54,8 @@ for forward-looking design.
   encode helpers, constants, and no legacy/manual contract paths.
 - `type-level-frontend-surfaces.md` - fully type-level FrontendSurface specs,
   GHC API extraction/generation, `SurfaceImpl` runtime replacement for typed
-  live-surface/projection authoring, and migration away from old surface-related
+  live-surface authoring, and migration away from old surface-related
   `FrontendCodec`/schema registry paths.
-- `roster-sql-read-model-trial.md` - trial replacing roster projection-cache
-  reads with a direct SQL/database-near read model.
 - `opentelemetry-observability.md` - OpenTelemetry traces, agent profile
   artifacts, production trace/log capture, and tailnet Grafana viewing.
 - `backlog.md` - smaller open streams that do not yet need dedicated files.

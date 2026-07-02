@@ -22,11 +22,10 @@ import Web.Routes
 import Web.Types
 
 -- These tests pin the active roster read-model path at a high level.
--- Historical projection baseline timings are documented in docs/workstreams/.
 tests :: Spec
 tests = beforeAll testContext do
     describe "Roster direct read-model integration" do
-        it "renders full-page and fragment roster reads without projection cache spans" $ withContext do
+        it "renders full-page and fragment roster reads through the direct read model" $ withContext do
             withEnv "IHP_ROSTER_PROFILING" (Just "1") do
                 withCleanDb do
                     BaselineRoster { brVenue, brManager, brRosterDay } <- createBaselineRoster
@@ -51,12 +50,6 @@ tests = beforeAll testContext do
                     dayFragment `responseStatusShouldBe` status200
                     staffPanel `responseStatusShouldBe` status200
 
-                    serverTiming coldPage `shouldNotContainBS` "roster_projection_"
-                    serverTiming warmPage `shouldNotContainBS` "roster_projection_"
-                    serverTiming contentFragment `shouldNotContainBS` "roster_projection_"
-                    serverTiming rowFragment `shouldNotContainBS` "roster_projection_"
-                    serverTiming dayFragment `shouldNotContainBS` "roster_projection_"
-                    serverTiming staffPanel `shouldNotContainBS` "roster_projection_"
                     serverTiming coldPage `shouldContainBS` "roster_direct_fetch_slots;dur="
                     serverTiming rowFragment `shouldContainBS` "roster_direct_build_slot_conflicts;dur="
                     serverTiming dayFragment `shouldContainBS` "roster_direct_build_slot_conflicts;dur="
@@ -98,7 +91,6 @@ tests = beforeAll testContext do
                     forM_ (lookup "HX-Trigger" (responseHeaders mutationResponse)) \triggerHeader ->
                         triggerHeader `shouldContainBS` "app-live-fragments-refresh"
                     serverTiming mutationResponse `shouldContainBS` "app_total;dur="
-                    serverTiming passiveRefetch `shouldNotContainBS` "roster_projection_"
                     serverTiming passiveRefetch `shouldContainBS` "roster_direct_build_slot_conflicts;dur="
                     dumpBaselineTimings [("slot-mutation", mutationResponse), ("passive-row-refetch", passiveRefetch)]
 

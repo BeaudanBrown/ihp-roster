@@ -233,7 +233,6 @@ Useful fields:
 Current baseline from the first full suite run showed:
 
 - timesheets and leave are inexpensive under the current read-only profile.
-- projection cache lookup is cheap.
 - roster overview is the dominant hot path.
 - `roster_build_month_overview` is the main span to watch.
 

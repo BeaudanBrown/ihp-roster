@@ -25,7 +25,6 @@ Related tickets:
 
 - `ir-nnfx` - completed typed live-surface architecture workstream
 - `ir-f2p4` - focused-field protection cleanup
-- `ir-jooi` - surface projection cache work
 
 Living docs to update:
 

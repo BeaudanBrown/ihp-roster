@@ -12,7 +12,7 @@ import qualified Data.Text.IO as TextIO
 import Web.Controller.Prelude
 import Web.LeaveRequests.Mutations
 import Web.LeaveRequests.ProfileSelfService
-import Web.LeaveRequests.Projection
+import Web.LeaveRequests.ReadModel
 import Web.Profiles.LeaveFragments
 import Web.Profiles.LiveUpdates (profileLeaveRequestsFragment)
 import Web.RosterWeeks.StaffSelfServiceLeaveFragments
@@ -32,8 +32,8 @@ instance Controller LeaveRequestsController where
         profileActionSpan "leave.page.render" do
             ensureProfileCompleted
             ensureManagerRole
-            projection <- profileActionSpan "leave.page.fetch_projection" fetchLeaveRequestsProjectionCached
-            profileActionSpan "leave.page.render_response" (renderProfiled (leaveRequestsIndexView projection))
+            readModel <- profileActionSpan "leave.page.fetch_read_model" fetchLeaveRequestsReadModel
+            profileActionSpan "leave.page.render_response" (renderProfiled (leaveRequestsIndexView readModel))
 
     action currentAction@ShowLeaveRequestsContentFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "leave.fragment.respond" do
@@ -41,19 +41,19 @@ instance Controller LeaveRequestsController where
             ensureManagerRole
             if paramOrDefault @Text "" "swapOob" == "true"
                 then do
-                    projection <- profileActionSpan "leave.fragment.fetch_projection" fetchLeaveRequestsProjectionCached
+                    readModel <- profileActionSpan "leave.fragment.fetch_read_model" fetchLeaveRequestsReadModel
                     respondHtmlProfiled $
                         renderArchivePageContentOob
-                            projection.leaveProjectionRequests
-                            projection.leaveProjectionStaffMembers
-                            projection.leaveProjectionCurrentViewerStaffId
-                            projection.leaveProjectionToday
+                            readModel.leaveReadModelRequests
+                            readModel.leaveReadModelStaffMembers
+                            readModel.leaveReadModelCurrentViewerStaffId
+                            readModel.leaveReadModelToday
                             currentLeaveArchivePage
                 else do
-                    serveTypedLiveFragment leaveRequestsLiveSurfaceDefinition () LeaveRequestsProjectionContent \_ -> do
-                        maybeHtml <- profileActionSpan "leave.fragment.render" (renderLeaveRequestsProjectionFragment LeaveRequestsProjectionContent)
+                    serveTypedLiveFragment leaveRequestsLiveSurfaceDefinition () LeaveRequestsContent \_ -> do
+                        maybeHtml <- profileActionSpan "leave.fragment.render" (renderLeaveRequestsFragment LeaveRequestsContent)
                         when (isNothing maybeHtml) do
-                            TextIO.putStrLn "leave_projection_miss: fragment=content"
+                            TextIO.putStrLn "leave_fragment_miss: fragment=content"
                         respondHtmlProfiled (fromMaybe mempty maybeHtml)
 
     action currentAction@NewLeaveRequestAction = runBepis currentAction BepisFormAction do
@@ -132,13 +132,14 @@ instance Controller LeaveRequestsController where
 respondWithLeaveRequestsContent :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => Text -> IO ()
 respondWithLeaveRequestsContent successMessage =
     respondWithTypedLiveSurfaceFragments
-        leaveRequestsProjectionDefinition
+        leaveRequestsLiveSurfaceDefinition
         ()
-        [LeaveRequestsProjectionContent]
+        [LeaveRequestsContent]
         ( [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
             <> renderToastOob ToastBottomCenter (successToast successMessage)
         )
-        renderLeaveRequestsProjectionFragmentFromProjection
+        fetchLeaveRequestsReadModel
+        renderLeaveRequestsFragmentFromReadModel
 
 data LeaveResponseContext
     = LeavePageResponseContext

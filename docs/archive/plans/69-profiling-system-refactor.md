@@ -67,7 +67,6 @@ These extend the existing `ir-sryt` children:
 
 - `ir-9sqg` - Add shared request and span timing instrumentation.
 - `ir-kayo` - Instrument roster, timesheet, leave, and live-update hot paths.
-- `ir-4unh` - Expose projection-cache metrics for development.
 
 ## Implementation Order
 
@@ -97,7 +96,7 @@ Write richer data to profile artifacts or structured logs:
 - connection pool wait time if accessible
 - render/HTML serialization time
 - response bytes
-- projection cache hit/miss/load/warm/eviction deltas plus aggregate hit ratio
+- server timing counters and aggregate ratios
 - live-update subscriber count, fragment count, and dropped subscription count
 - Haskell runtime/process summary: allocation, GC, heap, CPU, RSS where feasible
 - k6 dropped iterations, active VUs, max VU saturation, checks, and failures

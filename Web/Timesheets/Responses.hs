@@ -32,7 +32,7 @@ respondWithTimesheetFragment requestKey fragment =
 
 respondWithTimesheetFragments :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetProjectionRequest -> [TimesheetProjectionFragment] -> Blaze.Html -> IO ()
 respondWithTimesheetFragments requestKey fragments extraHtml = do
-    projection <- fetchTimesheetWeekProjectionCached requestKey
+    projection <- fetchTimesheetWeekProjection requestKey
     respondHtmlProfiled $
         mconcat (mapMaybe (renderTimesheetProjectionFragmentFromProjection (TimesheetFragmentOob outerHtmlOobSwap) projection) (normalizeTimesheetFragments fragments)) <> extraHtml
 
@@ -87,7 +87,7 @@ respondWithTimesheetDateMoveUpdate weekOffset oldWorkedOn newWorkedOn showApprov
 renderTimesheetWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Int -> Bool -> Bool -> Maybe UUID.UUID -> IO ()
 renderTimesheetWeekPage weekOffset showApproved showAllStaff staffFilterId =
     profileActionSpan "timesheets.page.render" do
-        projection <- profileActionSpan "timesheets.page.fetch_projection" (fetchTimesheetWeekProjectionCached requestKey)
+        projection <- profileActionSpan "timesheets.page.fetch_read_model" (fetchTimesheetWeekProjection requestKey)
         profileActionSpan "timesheets.page.respond" (respondWithTimesheetWeekView (timesheetIndexView projection))
     where
         requestKey = TimesheetProjectionRequest weekOffset showApproved showAllStaff staffFilterId

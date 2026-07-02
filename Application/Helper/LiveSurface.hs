@@ -13,7 +13,6 @@ module Application.Helper.LiveSurface
     , LiveSurfaceAuthorization (..)
     , LiveSurfaceConfig (..)
     , LiveSurfaceDescriptor (..)
-    , ProjectionLiveSurfaceDefinition (..)
     , VenueLiveUpdateScope (..)
     , SurfaceFragmentRef
     , SurfaceScope (..)
@@ -52,19 +51,13 @@ module Application.Helper.LiveSurface
     , liveSurfaceDescriptor
     , liveSurfaceDescriptorWithDecorateRequestsWithin
     , liveSurfaceDescriptorWithInteraction
-    , liveSurfaceProjectionFragmentRef
-    , loadLiveSurfaceProjection
-    , loadLiveSurfaceProjectionFromStore
     , mkSurfaceFragmentContract
     , mkSurfaceFragmentRef
     , mkTypedDefinedLiveSurface
     , nameToKebab
     , nameToSnake
-    , mkTypedSurfaceProjectionDefinition
     , normalizeSurfaceFragmentRefs
     , normalizeTypedLiveSurfaceFragments
-    , renderLiveSurfaceProjectionFragment
-    , renderLiveSurfaceProjectionFragmentFromStore
     , renderTypedLiveSurfaceFragmentsFromSnapshot
     , respondWithTypedLiveSurfaceFragments
     , serveTypedLiveFragment
@@ -84,8 +77,6 @@ module Application.Helper.LiveSurface
     , unSurfaceFragmentRefs
     , venueLiveSurfaceDescriptorForVenue
     , venueLiveUpdateScope
-    , warmLiveSurfaceProjection
-    , warmLiveSurfaceProjectionFromStore
     ) where
 
 import Application.Helper.Interaction.Types (EmptyInteractionIntent,
@@ -104,7 +95,6 @@ import Application.Helper.LiveSurface.Internal (AuthorizedLiveFragment (..),
                                                 LiveSurfaceAuthorization (..),
                                                 LiveSurfaceConfig (..),
                                                 LiveSurfaceDescriptor (..),
-                                                ProjectionLiveSurfaceDefinition (..),
                                                 SurfaceFragmentRef,
                                                 SurfaceScope (..),
                                                 TypedLiveSurfaceDefinition (..),
@@ -141,17 +131,12 @@ import Application.Helper.LiveSurface.Internal (AuthorizedLiveFragment (..),
                                                 liveSurfaceDescriptor,
                                                 liveSurfaceDescriptorWithDecorateRequestsWithin,
                                                 liveSurfaceDescriptorWithInteraction,
-                                                liveSurfaceProjectionFragmentRef,
-                                                loadLiveSurfaceProjection,
-                                                loadLiveSurfaceProjectionFromStore,
                                                 mkSurfaceFragmentContract,
                                                 mkSurfaceFragmentRef,
                                                 mkTypedDefinedLiveSurface,
                                                 nameToKebab, nameToSnake,
                                                 normalizeSurfaceFragmentRefs,
                                                 normalizeTypedLiveSurfaceFragments,
-                                                renderLiveSurfaceProjectionFragment,
-                                                renderLiveSurfaceProjectionFragmentFromStore,
                                                 renderTypedLiveSurfaceFragmentsFromSnapshot,
                                                 respondWithTypedLiveSurfaceFragments,
                                                 serveTypedLiveFragment,
@@ -170,23 +155,4 @@ import Application.Helper.LiveSurface.Internal (AuthorizedLiveFragment (..),
                                                 typedSurfaceDependsOn,
                                                 unSurfaceFragmentRefs,
                                                 venueLiveSurfaceDescriptorForVenue,
-                                                venueLiveUpdateScope,
-                                                warmLiveSurfaceProjection,
-                                                warmLiveSurfaceProjectionFromStore)
-import qualified Application.Helper.LiveSurface.Internal as Internal
-import Application.Helper.SurfaceProjection (SurfaceProjectionCachePolicy)
-import IHP.Prelude
-import qualified Text.Blaze.Html as Blaze
-
-mkTypedSurfaceProjectionDefinition ::
-    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
-    Text ->
-    SurfaceProjectionCachePolicy ->
-    (scope -> Text) ->
-    IO Text ->
-    (scope -> IO Int) ->
-    (scope -> IO snapshot) ->
-    (snapshot -> fragment -> Maybe Blaze.Html) ->
-    ProjectionLiveSurfaceDefinition surface scope snapshot fragment
-mkTypedSurfaceProjectionDefinition =
-    Internal.mkSurfaceProjectionDefinition
+                                                venueLiveUpdateScope)

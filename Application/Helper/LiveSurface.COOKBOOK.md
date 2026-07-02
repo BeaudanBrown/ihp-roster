@@ -21,10 +21,9 @@ URLs, authorization, and protection policy.
   mutation.
 - **Passive invalidation**: the websocket message that tells other mounted
   browsers to refetch authorized fragments.
-- **Projection**: an optional legacy/future cached server render snapshot used
-  when a fragment can be regenerated from the same read model. Projection is not
-  part of the golden live-surface path; prefer direct DB reads unless profiling
-  proves a cache/read-model adapter is needed.
+- **Read model**: a request-local data shape used to render one or more
+  fragments. Prefer direct DB/read-model reads; add caching only behind an
+  explicit feature-owned seam if profiling proves it is needed.
 - **Registered surface catalog**: the explicit list in `Web.LiveSurfaceRegistry`
   that owns authorization, manifest generation, and invalidation planning for
   every surface. Haskell cannot reliably discover all surface values
@@ -141,8 +140,8 @@ adminExampleDescriptor
 
 Complex surfaces such as roster or timesheets may still use a descriptor-shaped
 adapter/full `TypedLiveSurfaceDefinition` where they need custom candidate
-fragments, containment, interaction capability, or legacy projection behavior.
-Keep projection as an implementation detail, not as the required live-surface
+fragments, containment, interaction capability, or read-model behavior.
+Keep read-model construction as an implementation detail, not as the required live-surface
 abstraction. After adding a registered surface, run `frontend-contracts` and
 `frontend-check`; generated family/scope/fragment unions and `LiveSurfaceManifest`
 should update from the registry without TypeScript edits.
@@ -202,7 +201,7 @@ staticLiveFragmentDescriptor fragment wireKey targetId url dependencies
 Example hand-written typed contract opt-in, used by the roster staff panel:
 
 ```haskell
-mkSurfaceFragmentContract (rosterFragmentRef scope RosterProjectionStaffPanel) dependencies
+mkSurfaceFragmentContract (rosterFragmentRef scope RosterStaffPanelFragment) dependencies
     |> fragmentContractWithLazyLoad rosterStaffPanelLazyConfig
 ```
 
@@ -249,7 +248,7 @@ artifact path rather than claiming a timing improvement.
 ## Add A Fragment
 
 1. Add feature-local closed ADT constructors, for example
-   `RosterProjectionRow` or `TimesheetProjectionDaySection`. Do not model
+   `RosterRow` or `TimesheetDaySection`. Do not model
    fragment selectors as free `Text`; parse external section/query values into
    the closed fragment type first.
 2. Map that constructor with `staticLiveFragmentDescriptor` when the fragment has

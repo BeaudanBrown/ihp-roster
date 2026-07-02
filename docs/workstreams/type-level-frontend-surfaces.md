@@ -32,9 +32,9 @@ HTMX/intent behavior, mount metadata, and mount-state backend behavior.
 
 The final target removes/replaces author-facing surface contract machinery based
 on `FrontendCodec`, `FrontendSchema`, manual DTO schema groups,
-`TypedLiveSurfaceDefinition`, `Web.LiveSurfaceRegistry`, and
-`Application.Helper.SurfaceProjection` for migrated surfaces. Renderer-internal
-IR/data structures may remain when they are fed only by the new
+`TypedLiveSurfaceDefinition`, `Web.LiveSurfaceRegistry`, and the removed generic
+server render cache for migrated surfaces. Renderer-internal IR/data structures
+may remain when they are fed only by the new
 `SurfaceContractIR`.
 
 Server-rendered HTML remains authoritative. The architecture improves how the
@@ -461,10 +461,10 @@ or builders indexed by the spec and expose them through a `HasSurfaceImpl spec`
 instance/value. Type families compute the required handler slots from the
 normalized spec so missing required handlers fail compilation.
 
-First implementation uses direct DB/read-model rendering only. The generic
-`Application.Helper.SurfaceProjection` cache/projection path is not part of the
-new core and must not be used by lab, Timesheets, or Roster. Optional cached
-backends can be added later behind `SurfaceImpl`.
+First implementation uses direct DB/read-model rendering only. The removed generic
+server render cache is not part of the new core and must not be used by lab,
+Timesheets, or Roster. Optional cached backends can be added later behind
+`SurfaceImpl`.
 
 `SurfaceImpl` supplies browser contract metadata and rendering. Existing IHP
 controllers remain the mutation entrypoints for this epic: they parse,
@@ -685,8 +685,8 @@ Timesheets is the first production migration.
   - `TimesheetToolbar`
   - `TimesheetDayColumns`
   - `TimesheetDaySection '[ Field DayOffset WireInt ]`
-- Runtime: direct DB/read-model rendering through `SurfaceImpl`; no
-  `Application.Helper.SurfaceProjection`.
+- Runtime: direct DB/read-model rendering through `SurfaceImpl`; no generic
+  server render cache.
 - Successful actor mutations emit touched resources/surface invalidations and
   let the actor, duplicate mounts, and passive viewers refetch through the same
   live path. Fragment GET routes use new surface helpers. Validation failures may
@@ -694,13 +694,13 @@ Timesheets is the first production migration.
 - Live dependencies resolve concrete `TimesheetWeekResource` and
   `TimesheetDayResource` values from scope/params.
 
-Timesheets splits the current `TimesheetProjectionRequest` into a logical scope
+Timesheets splits the old request-key shape into a logical scope
 value (`venueId`, `weekOffset`) and `TimesheetsMountState` (`showApproved`,
 `showAllStaff`, `staffFilterId`). The current passive-planning workaround that
 reconstructs default filters and relies on mounted `data-live-update-url` should
 be removed for the migrated surface; each mount resolves its own refetch URL from
 mount-local config/state. Acceptance includes removal of old Timesheets
-surface/projection authoring paths.
+legacy live-surface authoring paths.
 
 ## Roster Migration
 
@@ -723,7 +723,7 @@ Roster is the complex proof.
   are mount-local and TypeScript resolves from closest surface mount. Stable
   semantic classes/data/test attributes should replace tests or CSS that depend
   on exact global ids.
-- No `Application.Helper.SurfaceProjection`.
+- No generic server render cache.
 - Fragment-specific conflict policies support at least `AnyFragment`, fragment
   kind selectors, and fragment subtree selectors. Concrete param predicates may
   wait unless Roster proves they are necessary.

@@ -27,7 +27,7 @@ import Test.Support
 import Web.FrontController ()
 import Web.LeaveRequests.Mutations (LeaveReviewDecision (..),
                                     leaveReviewTouchedResources)
-import Web.LeaveRequests.Projection (affectedRosterWeekInvalidationTargetsForScopes)
+import Web.LeaveRequests.ReadModel (affectedRosterWeekInvalidationTargetsForScopes)
 import Web.Routes
 import Web.Types
 

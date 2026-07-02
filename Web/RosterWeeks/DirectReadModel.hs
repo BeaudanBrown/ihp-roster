@@ -32,8 +32,8 @@ import Web.RosterWeeks.Service
 import Web.RosterWeeks.StaffOptions
 import Web.RosterWeeks.Types
 
--- Database-near base facts for the roster SQL read-model trial. These reads do
--- not touch the cross-request surface projection cache.
+-- Database-near base facts for roster read-model rendering. These reads are
+-- request-local and do not use a cross-request HTML/read-model cache.
 data RosterBaseFacts = RosterBaseFacts
     { baseRosterWeek             :: !RosterWeek
     , baseRosterDays             :: ![RosterDay]

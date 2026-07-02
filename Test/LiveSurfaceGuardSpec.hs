@@ -230,7 +230,6 @@ isAllowedInfrastructureFile path =
             , "Application/Helper/LiveUpdate/Runtime.hs"
             , "Application/Helper/LiveSurface.hs"
             , "Application/Helper/LiveSurface/Internal.hs"
-            , "Application/Helper/SurfaceProjection.hs"
             , "Application/Helper/UiRegion.hs"
             , "Application/Script/ProfileLiveInvalidation.hs"
             , "Web/Controller/LiveUpdates.hs"

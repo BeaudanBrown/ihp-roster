@@ -20,7 +20,6 @@ Related tickets/workstreams:
 - `ir-3pnb` - strict typed live-surface overhaul, implemented in `2ed1918`
 - `docs/workstreams/strict-live-surface-overhaul.md`
 - `ir-f2p4` - focused-field protection cleanup
-- `ir-jooi` - surface projection cache work
 
 Living docs to update as slices land:
 
@@ -60,15 +59,15 @@ The remaining old names are internal compatibility/runtime details:
 
 | Primitive | Current callers from inventory | Feature-facing? | Target |
 | --- | --- | --- | --- |
-| `LiveSurfaceDefinition` | Defined/exported only by `Application.Helper.LiveSurface.Internal`; direct use in `Test.SurfaceProjectionSpec`; projection wrapper stores it in `ProjectionLiveSurfaceDefinition.liveSurfaceDefinition`; public `Application.Helper.LiveSurface.mkTypedSurfaceProjectionDefinition` adapts typed definitions through it. | No live feature module uses it; only test/runtime bridge. | Delete the type and projection field; compute config/projection refs directly from `TypedLiveSurfaceDefinition`. |
+| old untyped surface bridge | Removed during cleanup. | No. | Keep deleted. |
 | `mkLiveSurface` | Removed from the live-surface facade/internal runtime; retained only as a forbidden identifier in `Test.LiveSurfaceGuard`. | No. | Keep deleted; use typed definitions for config construction. |
 | `mkDefinedLiveSurface` | Defined/exported by `Application.Helper.LiveSurface.Internal`; used only by `mkTypedDefinedLiveSurface`. | No. | Delete; construct `LiveSurfaceConfig` directly in `mkTypedDefinedLiveSurface`. |
-| `liveSurfaceFragmentRef(s)` | Defined/exported by `Application.Helper.LiveSurface.Internal`; used by untyped broadcasts and projection helpers. | No. | Delete; use `typedLiveSurfaceFragmentRef(s)` and stored typed projection fragment builder fields. |
-| `typedLiveSurfaceDefinition` | Defined/exported by `Application.Helper.LiveSurface.Internal`; used by `mkTypedDefinedLiveSurface` and public `mkTypedSurfaceProjectionDefinition`. | No. | Delete; reimplement those helpers from `TypedLiveSurfaceDefinition`. |
+| `liveSurfaceFragmentRef(s)` | Defined/exported by `Application.Helper.LiveSurface.Internal`; used by untyped broadcasts. | No. | Delete; use `typedLiveSurfaceFragmentRef(s)` and stored typed projection fragment builder fields. |
+| `typedLiveSurfaceDefinition` | Defined/exported by `Application.Helper.LiveSurface.Internal`; used only by `mkTypedDefinedLiveSurface`. | No. | Delete; reimplement config construction from `TypedLiveSurfaceDefinition`. |
 | typed/direct broadcast helpers (`broadcastSurface*`, `broadcastTypedSurface*`, `broadcastProjectionSurface*`) | Previously exposed by the typed facade/internal live-surface layer; feature callers have been removed. | No. | Public aliases and internal exports are removed; passive broadcast emission is owned by `Web.LiveSurfaceRegistry` and raw transport stays in `Application.Helper.LiveUpdate.Runtime`. |
-| `ProjectionLiveSurfaceDefinition.liveSurfaceDefinition` | Used in projection broadcasts, `mkSurfaceProjectionDefinition`, and `liveSurfaceProjectionFragmentRef`. | No. | Replace with `projectionSurfaceScope :: scope -> SurfaceScope surface` and `projectionSurfaceFragmentRef :: scope -> fragment -> SurfaceFragmentRef surface`, making `ProjectionLiveSurfaceDefinition` typed by `surface`. |
-| `LiveFragmentRef` | Transport payload type in `Application.Helper.LiveUpdate.Internal`, `LiveSurfaceConfig`, `SurfaceProjectionDefinition`, controller/support tests, and contract helpers. | Not feature-facing by guard; tests/runtime only. | Rename to `LiveUpdateWireFragment` while preserving JSON keys and field names. |
-| `mkLiveFragmentRef` | Constructor helper used by `mkSurfaceFragmentRef` and projection tests. | Not feature-facing. | Rename to `mkLiveUpdateWireFragment`; keep typed `mkSurfaceFragmentRef` as feature entrypoint. |
+| old typed projection bridge | Removed during cleanup. | No. | Keep deleted. |
+| `LiveFragmentRef` | Transport payload type in `Application.Helper.LiveUpdate.Internal`, `LiveSurfaceConfig`, controller/support tests, and contract helpers. | Not feature-facing by guard; tests/runtime only. | Rename to `LiveUpdateWireFragment` while preserving JSON keys and field names. |
+| `mkLiveFragmentRef` | Constructor helper used by `mkSurfaceFragmentRef`. | Not feature-facing. | Rename to `mkLiveUpdateWireFragment`; keep typed `mkSurfaceFragmentRef` as feature entrypoint. |
 | `liveFragmentsRefreshTriggerPayload` | Used by `setLiveSurfaceActorRefresh` and `setTypedLiveSurfaceActorRefresh`; guard rejects feature use. | No current feature use, but the exported name reads API-shaped. | Replace with typed-only actor refresh helpers and a private/local transport encoder name. |
 | `authorizeLiveUpdateScope` and default authorization | `authorizeLiveUpdateScope` only backs `liveSurfaceAuthorizationByScope`; default requirement used by tests. Registry already authorizes via typed definitions. | Guard rejects direct feature use. | Delete fallback function; keep explicit `LiveScopeAuthorizationRequirement` helpers for typed definitions/tests. |
 | raw bus broadcasts | `Application.Helper.LiveUpdate.Runtime` re-exports broadcast functions for registry/websocket/runtime tests; `Application.Helper.LiveUpdate.Internal` owns implementation details. | Guard rejects feature use of raw invalidation/resync helpers and runtime-module imports. | Keep quarantined in the runtime facade; signatures use `LiveUpdateWireFragment`. |
@@ -104,8 +103,6 @@ not expose names that read like supported authoring primitives.
      tickets.
 2. `ir-myld`: delete the untyped surface compatibility layer.
    - Reimplement `mkTypedDefinedLiveSurface` directly.
-   - Reimplement `mkTypedSurfaceProjectionDefinition` without
-     `typedLiveSurfaceDefinition`.
    - Remove untyped surface config/ref/broadcast helpers.
    - Keep tests on typed config construction; `mkLiveSurface` compatibility has
      been removed.

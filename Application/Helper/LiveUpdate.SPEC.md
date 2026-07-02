@@ -111,10 +111,11 @@ OOB fragments.
 Prefer a simple, non-cached feature-local fragment model for new migrations:
 fetch the model once, normalize requested fragments with the typed surface
 helpers, render those fragments in `FragmentPlain` or `FragmentOob` mode, and
-append extras. Use the `SurfaceProjection` cache/projection helpers only when a
-ticket intentionally opts into cache behavior or an existing surface already uses
-that pattern. Feature code should not recreate local `renderXxxOob` actor helpers
-when a shared typed fragment model can render the same fragments.
+append extras. If a future ticket intentionally opts into cache behavior, add it
+behind the feature read-model or `SurfaceImpl` seam rather than adding a shared
+author-facing cache helper. Feature code should not recreate local
+`renderXxxOob` actor helpers when a shared typed fragment model can render the
+same fragments.
 
 Validation failures are the main exception: return the submitted form or dialog
 fragment directly to the request target so field errors stay localized. Do not

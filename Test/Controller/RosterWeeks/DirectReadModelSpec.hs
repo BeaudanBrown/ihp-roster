@@ -8,8 +8,6 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         ensureVenueDefaultRosterGroup,
                                         fetchCurrentVenueRosterGroupOrDefault,
                                         fetchCurrentVenueRosterGroups)
-import Application.Helper.SurfaceProjection (SurfaceProjectionCacheStats (..),
-                                             readSurfaceProjectionCacheStats)
 import Application.Helper.UserPreferences (upsertCurrentUserRosterLayoutMode)
 import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Data.Coerce (coerce)
@@ -39,7 +37,7 @@ import Web.RosterWeeks.Types
 tests :: Spec
 tests = beforeAll testContext do
     describe "Roster direct read model" do
-        it "reads manager-visible base facts without projection cache state" $ withContext do
+        it "reads manager-visible base facts directly" $ withContext do
             withCleanDb do
                 fixture <- createDirectReadModelFixture
 
@@ -133,42 +131,28 @@ tests = beforeAll testContext do
                         lookup lateSlot.id conflicts `shouldSatisfy` hasConflictType LateToEarlyConflict
                         lookup preferenceSlot.id conflicts `shouldSatisfy` hasConflictType ShiftPreferenceSlotMismatch
 
-        it "matches projection-cached and direct render data for a manager draft with sparse rows and conflicts" $ withContext do
+        it "matches public and direct render data for a manager draft with sparse rows and conflicts" $ withContext do
             withCleanDb do
                 fixture <- createDirectReadModelFixture
 
                 withUserAndCurrentVenue fixture.manager fixture.venue.id do
                     withCurrentControllerContext do
                         _ <- addDirectReadModelConflictFacts fixture
-                        assertProjectionDirectParity fixture.rosterGroup.id 0 allAssignmentFilters DayRows
+                        assertPublicDirectParity fixture.rosterGroup.id 0 allAssignmentFilters DayRows
 
-        it "matches projection-cached and direct render data for staff hidden draft and published roster states" $ withContext do
+        it "matches public and direct render data for staff hidden draft and published roster states" $ withContext do
             withCleanDb do
                 fixture <- createDirectReadModelFixture
 
                 withUserAndCurrentVenue fixture.eligibleUser fixture.venue.id do
                     withCurrentControllerContext do
-                        assertProjectionDirectParity fixture.rosterGroup.id 0 defaultRosterAssignmentFilters DayRows
+                        assertPublicDirectParity fixture.rosterGroup.id 0 defaultRosterAssignmentFilters DayRows
 
                 _ <- fixture.rosterWeek |> set #isLive True |> updateRecord
 
                 withUserAndCurrentVenue fixture.eligibleUser fixture.venue.id do
                     withCurrentControllerContext do
-                        assertProjectionDirectParity fixture.rosterGroup.id 0 defaultRosterAssignmentFilters DayColumns
-
-        it "does not warm or populate projection cache through the direct seam" $ withContext do
-            withCleanDb do
-                fixture <- createDirectReadModelFixture
-
-                withUserAndCurrentVenue fixture.manager fixture.venue.id do
-                    withCurrentControllerContext do
-                        before <- readSurfaceProjectionCacheStats
-                        _ <- fetchVisibleRosterReadModel fixture.rosterGroup.id 0
-                        _ <- renderVisibleRosterReadModelFragment fixture.rosterGroup.id 0 RosterProjectionStaffPanel
-                        keepCurrentRosterWeekProjectionHot fixture.rosterGroup.id 0
-                        after <- readSurfaceProjectionCacheStats
-
-                        projectionCacheDelta after before `shouldBe` zeroProjectionCacheDelta
+                        assertPublicDirectParity fixture.rosterGroup.id 0 defaultRosterAssignmentFilters DayColumns
 
 addDirectReadModelConflictFacts :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => DirectReadModelFixture -> IO (RosterSlot, RosterSlot, RosterSlot)
 addDirectReadModelConflictFacts fixture = do
@@ -192,52 +176,39 @@ addDirectReadModelConflictFacts fixture = do
     _ <- createStaffShiftPreferenceRecord fixture.venue preferenceStaff (weekdayIndexForDay initialData.weekStartDate) 9 10
     pure (duplicateSlot, lateSlot, preferenceSlot)
 
-assertProjectionDirectParity :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> RosterAssignmentFilters -> RosterLayoutModeEnum -> IO ()
-assertProjectionDirectParity rosterGroupId weekOffset assignmentFilters layoutMode = do
+assertPublicDirectParity :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> RosterAssignmentFilters -> RosterLayoutModeEnum -> IO ()
+assertPublicDirectParity rosterGroupId weekOffset assignmentFilters layoutMode = do
     setRosterAssignmentFiltersSession assignmentFilters
     _ <- upsertCurrentUserRosterLayoutMode layoutMode
 
-    projectionData <- fetchVisibleRosterRenderDataCached rosterGroupId weekOffset
+    publicData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
     directData <- fetchVisibleRosterReadModelDirect rosterGroupId weekOffset
-    snapshotRosterRenderData <$> projectionData `shouldBe` snapshotRosterRenderData <$> directData
+    snapshotRosterRenderData <$> publicData `shouldBe` snapshotRosterRenderData <$> directData
 
-    projectionStaffPanel <- renderVisibleRosterProjectionFragment rosterGroupId weekOffset RosterProjectionStaffPanel
+    publicStaffPanel <- renderVisibleRosterReadModelFragment rosterGroupId weekOffset RosterProjectionStaffPanel
     let directStaffPanel = renderRosterProjectionFragment directData RosterProjectionStaffPanel
-    renderMaybeHtml projectionStaffPanel `shouldBe` renderMaybeHtml directStaffPanel
+    renderMaybeHtml publicStaffPanel `shouldBe` renderMaybeHtml directStaffPanel
 
     forM_ directData \rosterData -> do
         let rosterDay = fromJust (head rosterData.rosterDays)
             dayId = coerce rosterDay.id
             rowIndex = maybe 0 (fst . fromJust . head) (Map.lookup dayId rosterData.renderIndexes.rosterDayRowsByDayId)
-        projectionDay <- renderVisibleRosterProjectionFragment rosterGroupId weekOffset (RosterProjectionDaySection dayId)
+        publicDay <- renderVisibleRosterReadModelFragment rosterGroupId weekOffset (RosterProjectionDaySection dayId)
         let directDay = renderRosterProjectionFragment directData (RosterProjectionDaySection dayId)
-        renderMaybeHtml projectionDay `shouldBe` renderMaybeHtml directDay
+        renderMaybeHtml publicDay `shouldBe` renderMaybeHtml directDay
 
-        projectionRow <- renderVisibleRosterProjectionFragment rosterGroupId weekOffset (RosterProjectionRow dayId rowIndex)
+        publicRow <- renderVisibleRosterReadModelFragment rosterGroupId weekOffset (RosterProjectionRow dayId rowIndex)
         let directRow = renderRosterProjectionFragment directData (RosterProjectionRow dayId rowIndex)
-        renderMaybeHtml projectionRow `shouldBe` renderMaybeHtml directRow
+        renderMaybeHtml publicRow `shouldBe` renderMaybeHtml directRow
 
         rosterGroups <- fetchCurrentVenueRosterGroups
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
-        projectionContent <- renderVisibleRosterProjectionFragment rosterGroupId weekOffset RosterProjectionContent
+        publicContent <- renderVisibleRosterReadModelFragment rosterGroupId weekOffset RosterProjectionContent
         directContent <- Just <$> renderRosterContentFromProjection rosterGroups currentRosterGroup directData
-        renderMaybeHtml projectionContent `shouldBe` renderMaybeHtml directContent
+        renderMaybeHtml publicContent `shouldBe` renderMaybeHtml directContent
 
 renderMaybeHtml :: Maybe Blaze.Html -> Text
 renderMaybeHtml = maybe "" (LText.toStrict . HtmlRenderer.renderHtml)
-
-zeroProjectionCacheDelta :: SurfaceProjectionCacheStats
-zeroProjectionCacheDelta = SurfaceProjectionCacheStats { hits = 0, misses = 0, loads = 0, warms = 0, evictions = 0 }
-
-projectionCacheDelta :: SurfaceProjectionCacheStats -> SurfaceProjectionCacheStats -> SurfaceProjectionCacheStats
-projectionCacheDelta after before =
-    SurfaceProjectionCacheStats
-        { hits = after.hits - before.hits
-        , misses = after.misses - before.misses
-        , loads = after.loads - before.loads
-        , warms = after.warms - before.warms
-        , evictions = after.evictions - before.evictions
-        }
 
 data RosterRenderDataSnapshot = RosterRenderDataSnapshot
     { snapshotRosterWeekId            :: UUID.UUID

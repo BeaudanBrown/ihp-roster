@@ -1,6 +1,6 @@
 ---
 id: ir-s7la
-status: open
+status: in_progress
 deps: [ir-ypt5, ir-ds06, ir-ycec]
 links: []
 created: 2026-07-02T04:06:39Z
@@ -27,3 +27,9 @@ After lab, Timesheets, and Roster prove replacement coverage, remove old surface
 - Replaced old DTO/schema modules and registry branches for migrated surfaces are deleted or reduced to internal compatibility-free renderer/runtime code; unrelated legacy surfaces can remain until their own migration.
 - Generated `frontend/ts/generated/contracts.ts` surface/live/interaction sections originate from `RegisteredFrontendSurfaces`.
 - Guardrails and docs reflect the final state.
+
+## Notes
+
+**2026-07-02T12:36:10Z**
+
+Removed the shared SurfaceProjection cache/helper path entirely: deleted Application.Helper.SurfaceProjection and its tests, removed projection wrapper APIs from LiveSurface, converted Leave Requests to direct read-model rendering, removed Roster rollback/cache seams/no-op warming, cleaned Timesheets cached alias naming, and scrubbed docs/guardrails of stale surface-projection references. Remaining ir-s7la scope still includes broader old FrontendCodec/live-surface cleanup.

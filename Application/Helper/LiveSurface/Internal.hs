@@ -10,7 +10,6 @@ module Application.Helper.LiveSurface.Internal
     , LiveFragmentDescriptor (..)
     , LiveSurfaceAuthorization (..)
     , LiveSurfaceDescriptor (..)
-    , ProjectionLiveSurfaceDefinition (..)
     , VenueLiveUpdateScope (..)
     , SurfaceFragmentRef (..)
     , SurfaceScope (..)
@@ -48,20 +47,14 @@ module Application.Helper.LiveSurface.Internal
     , liveSurfaceDescriptor
     , liveSurfaceDescriptorWithDecorateRequestsWithin
     , liveSurfaceDescriptorWithInteraction
-    , liveSurfaceProjectionFragmentRef
     , liveSurfaceConfigJson
-    , loadLiveSurfaceProjection
-    , loadLiveSurfaceProjectionFromStore
     , mkSurfaceFragmentContract
     , mkSurfaceFragmentRef
-    , mkSurfaceProjectionDefinition
     , nameToKebab
     , nameToSnake
     , mkTypedDefinedLiveSurface
     , normalizeSurfaceFragmentRefs
     , normalizeTypedLiveSurfaceFragments
-    , renderLiveSurfaceProjectionFragment
-    , renderLiveSurfaceProjectionFragmentFromStore
     , renderTypedLiveSurfaceFragmentsFromSnapshot
     , respondWithTypedLiveSurfaceFragments
     , serveTypedLiveFragment
@@ -81,8 +74,6 @@ module Application.Helper.LiveSurface.Internal
     , unSurfaceFragmentRefs
     , venueLiveSurfaceDescriptorForVenue
     , venueLiveUpdateScope
-    , warmLiveSurfaceProjection
-    , warmLiveSurfaceProjectionFromStore
     ) where
 
 import Application.Helper.ControllerAccess (hasRole)
@@ -104,7 +95,6 @@ import Application.Helper.Interaction.Types (EmptyInteractionIntent,
 import Application.Helper.LiveResource (LiveResource)
 import Application.Helper.LiveUpdate.Internal
 import Application.Helper.Profiling (respondHtmlProfiled)
-import Application.Helper.SurfaceProjection
 import Application.Helper.UiRegion (UiRegionTransitionProfile)
 import Application.Helper.View.Oob (OobSwapAttr, outerHtmlOobSwap)
 import qualified Data.Aeson as Aeson
@@ -253,12 +243,6 @@ data LiveScopeAuthorizationRequirement
     | RequireCurrentVenueAdminRosterGroup UUID.UUID UUID.UUID
     | RequireSupportSuperAdmin
     deriving (Eq, Show)
-
-data ProjectionLiveSurfaceDefinition surface scope snapshot fragment = ProjectionLiveSurfaceDefinition
-    { projectionSurfaceScope       :: !(scope -> SurfaceScope surface)
-    , projectionSurfaceFragmentRef :: !(scope -> fragment -> SurfaceFragmentRef surface)
-    , surfaceProjectionDefinition  :: !(SurfaceProjectionDefinition scope snapshot fragment)
-    }
 
 instance Aeson.ToJSON LiveSurfaceConfig where
     toJSON = Aeson.toJSON . liveSurfaceConfigToWire
@@ -624,7 +608,7 @@ normalizeTypedLiveSurfaceFragments definition surfaceKey fragments =
             surfaceFragmentContainmentPath left == surfaceFragmentContainmentPath right
 
 renderTypedLiveSurfaceFragmentsFromSnapshot ::
-    ProjectionLiveSurfaceDefinition surface scope snapshot fragment ->
+    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
     scope ->
     [fragment] ->
     FragmentRenderMode ->
@@ -636,29 +620,9 @@ renderTypedLiveSurfaceFragmentsFromSnapshot definition surfaceKey fragments rend
     mconcat (map renderNormalizedFragment normalizedFragments) <> extraHtml
     where
         normalizedFragments =
-            normalizeTypedLiveSurfaceFragmentsFromProjection definition surfaceKey fragments
+            normalizeTypedLiveSurfaceFragments definition surfaceKey fragments
         renderNormalizedFragment fragment =
             fromMaybe mempty (renderFragment renderMode snapshot fragment)
-
-normalizeTypedLiveSurfaceFragmentsFromProjection ::
-    ProjectionLiveSurfaceDefinition surface scope snapshot fragment ->
-    scope ->
-    [fragment] ->
-    [fragment]
-normalizeTypedLiveSurfaceFragmentsFromProjection definition surfaceKey fragments =
-    map fst normalizedPairs
-    where
-        fragmentPairs =
-            map
-                (\fragment -> (fragment, definition.projectionSurfaceFragmentRef surfaceKey fragment))
-                fragments
-        normalizedRefs = normalizeSurfaceFragmentRefs (map snd fragmentPairs)
-        normalizedPairs =
-            mapMaybe
-                (\normalizedRef -> List.find (sameContainmentPath normalizedRef . snd) fragmentPairs)
-                normalizedRefs
-        sameContainmentPath left right =
-            surfaceFragmentContainmentPath left == surfaceFragmentContainmentPath right
 
 authorizeTypedLiveSurfaceScope ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -824,58 +788,18 @@ liveUpdateWireRefreshTriggerPayload fragments =
             [ AesonKey.fromText canonicalAppEvents.appLiveFragmentsRefreshEventName Aeson..= detail
             ]
 
-mkSurfaceProjectionDefinition ::
-    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
-    Text ->
-    SurfaceProjectionCachePolicy ->
-    (scope -> Text) ->
-    IO Text ->
-    (scope -> IO Int) ->
-    (scope -> IO snapshot) ->
-    (snapshot -> fragment -> Maybe Blaze.Html) ->
-    ProjectionLiveSurfaceDefinition surface scope snapshot fragment
-mkSurfaceProjectionDefinition typedDefinition surfaceName cachePolicy scopeKey viewerKey currentVersion loadProjection renderFragment =
-    ProjectionLiveSurfaceDefinition
-        { projectionSurfaceScope = typedDefinition.typedSurfaceScope
-        , projectionSurfaceFragmentRef = typedLiveSurfaceFragmentRef typedDefinition
-        , surfaceProjectionDefinition =
-            SurfaceProjectionDefinition
-                { surfaceName
-                , cachePolicy
-                , scopeKey
-                , viewerKey
-                , currentVersion
-                , loadProjection
-                , renderFragment
-                , buildFragmentRef = \surfaceKey fragment ->
-                    unSurfaceFragmentRef (typedLiveSurfaceFragmentRef typedDefinition surfaceKey fragment)
-                }
-        }
-
-liveSurfaceProjectionFragmentRef :: ProjectionLiveSurfaceDefinition surface scope snapshot fragment -> scope -> fragment -> LiveUpdateWireFragment
-liveSurfaceProjectionFragmentRef definition surfaceKey fragment =
-    unSurfaceFragmentRef (definition.projectionSurfaceFragmentRef surfaceKey fragment)
-
-loadLiveSurfaceProjection ::
-    forall surface scope snapshot fragment.
-    (Dynamic.Typeable snapshot) =>
-    ProjectionLiveSurfaceDefinition surface scope snapshot fragment ->
-    scope ->
-    IO snapshot
-loadLiveSurfaceProjection definition =
-    loadSurfaceProjection definition.surfaceProjectionDefinition
-
 respondWithTypedLiveSurfaceFragments ::
-    forall surface scope snapshot fragment.
-    (?context :: ControllerContext, ?request :: Request, Dynamic.Typeable snapshot) =>
-    ProjectionLiveSurfaceDefinition surface scope snapshot fragment ->
+    forall surface scope snapshot fragment layer session intent.
+    (?context :: ControllerContext, ?request :: Request) =>
+    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
     scope ->
     [fragment] ->
     Blaze.Html ->
+    IO snapshot ->
     (FragmentRenderMode -> snapshot -> fragment -> Maybe Blaze.Html) ->
     IO ()
-respondWithTypedLiveSurfaceFragments definition surfaceKey fragments extraHtml renderFragment = do
-    snapshot <- loadLiveSurfaceProjection definition surfaceKey
+respondWithTypedLiveSurfaceFragments definition surfaceKey fragments extraHtml loadSnapshot renderFragment = do
+    snapshot <- loadSnapshot
     respondHtmlProfiled $
         renderTypedLiveSurfaceFragmentsFromSnapshot
             definition
@@ -885,56 +809,6 @@ respondWithTypedLiveSurfaceFragments definition surfaceKey fragments extraHtml r
             extraHtml
             renderFragment
             snapshot
-
-loadLiveSurfaceProjectionFromStore ::
-    forall surface scope snapshot fragment.
-    (Dynamic.Typeable snapshot) =>
-    SurfaceProjectionStore ->
-    ProjectionLiveSurfaceDefinition surface scope snapshot fragment ->
-    scope ->
-    IO snapshot
-loadLiveSurfaceProjectionFromStore store definition =
-    loadSurfaceProjectionFromStore store definition.surfaceProjectionDefinition
-
-warmLiveSurfaceProjection ::
-    forall surface scope snapshot fragment.
-    (Dynamic.Typeable snapshot) =>
-    ProjectionLiveSurfaceDefinition surface scope snapshot fragment ->
-    scope ->
-    IO ()
-warmLiveSurfaceProjection definition =
-    warmSurfaceProjection definition.surfaceProjectionDefinition
-
-warmLiveSurfaceProjectionFromStore ::
-    forall surface scope snapshot fragment.
-    (Dynamic.Typeable snapshot) =>
-    SurfaceProjectionStore ->
-    ProjectionLiveSurfaceDefinition surface scope snapshot fragment ->
-    scope ->
-    IO ()
-warmLiveSurfaceProjectionFromStore store definition =
-    warmSurfaceProjectionFromStore store definition.surfaceProjectionDefinition
-
-renderLiveSurfaceProjectionFragment ::
-    forall surface scope snapshot fragment.
-    (Dynamic.Typeable snapshot) =>
-    ProjectionLiveSurfaceDefinition surface scope snapshot fragment ->
-    scope ->
-    fragment ->
-    IO (Maybe Blaze.Html)
-renderLiveSurfaceProjectionFragment definition =
-    renderSurfaceProjectionFragment definition.surfaceProjectionDefinition
-
-renderLiveSurfaceProjectionFragmentFromStore ::
-    forall surface scope snapshot fragment.
-    (Dynamic.Typeable snapshot) =>
-    SurfaceProjectionStore ->
-    ProjectionLiveSurfaceDefinition surface scope snapshot fragment ->
-    scope ->
-    fragment ->
-    IO (Maybe Blaze.Html)
-renderLiveSurfaceProjectionFragmentFromStore store definition =
-    renderSurfaceProjectionFragmentFromStore store definition.surfaceProjectionDefinition
 
 liveSurfaceConfigJson :: LiveSurfaceConfig -> Text
 liveSurfaceConfigJson =

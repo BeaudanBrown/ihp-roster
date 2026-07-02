@@ -1,31 +1,27 @@
 {-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 
-module Web.LeaveRequests.Projection
-    ( LeaveRequestsProjection (..)
-    , LeaveRequestsProjectionFragment (..)
+module Web.LeaveRequests.ReadModel
+    ( LeaveRequestsReadModel (..)
+    , LeaveRequestsFragment (..)
+    , LeaveRequestsSurface
     , affectedRosterWeekInvalidationTargetsForScopes
     , buildLeaveRequestsContentFragmentRef
     , buildLeaveRequestsScope
     , currentLeaveArchiveOpen
     , currentLeaveArchivePage
-    , fetchLeaveRequestsProjection
-    , fetchLeaveRequestsProjectionCached
+    , fetchLeaveRequestsReadModel
     , leaveRequestsIndexView
     , leaveRequestsLiveSurfaceDefinition
     , leaveRequestsLiveSurfaceDefinitionForVenue
-    , leaveRequestsProjectionDefinition
-    , renderLeaveRequestsProjectionFragment
-    , renderLeaveRequestsProjectionFragmentFromProjection
-    , renderLeaveRequestsProjectionHtml
+    , renderLeaveRequestsFragment
+    , renderLeaveRequestsFragmentFromReadModel
     ) where
 
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
-                                      LiveUpdateScope (..),
-                                      currentLiveUpdateVersion)
+                                      LiveUpdateScope (..))
 import Application.Helper.Profiling
-import Application.Helper.SurfaceProjection
 import Data.Coerce (coerce)
 import qualified Data.Set as Set
 import Data.Time.Clock (getCurrentTime, utctDay)
@@ -34,15 +30,15 @@ import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.View.LeaveRequests.Index
 
-data LeaveRequestsProjection = LeaveRequestsProjection
-    { leaveProjectionRequests             :: [LeaveRequest]
-    , leaveProjectionStaffMembers         :: [Staff]
-    , leaveProjectionCurrentViewerStaffId :: Maybe UUID.UUID
-    , leaveProjectionToday                :: Day
+data LeaveRequestsReadModel = LeaveRequestsReadModel
+    { leaveReadModelRequests             :: [LeaveRequest]
+    , leaveReadModelStaffMembers         :: [Staff]
+    , leaveReadModelCurrentViewerStaffId :: Maybe UUID.UUID
+    , leaveReadModelToday                :: Day
     }
 
-data LeaveRequestsProjectionFragment
-    = LeaveRequestsProjectionContent
+data LeaveRequestsFragment
+    = LeaveRequestsContent
     deriving (Eq, Show)
 
 data LeaveRequestsSurface
@@ -72,11 +68,11 @@ fetchVisibleLeaveRequests = do
                         |> orderByDesc #startDate
                         |> fetch
 
-leaveRequestsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition LeaveRequestsSurface () LeaveRequestsProjectionFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
+leaveRequestsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition LeaveRequestsSurface () LeaveRequestsFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 leaveRequestsLiveSurfaceDefinition =
     leaveRequestsLiveSurfaceDefinitionForVenue (unpackId currentVenueId)
 
-leaveRequestsLiveSurfaceDefinitionForVenue :: UUID.UUID -> TypedLiveSurfaceDefinition LeaveRequestsSurface () LeaveRequestsProjectionFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
+leaveRequestsLiveSurfaceDefinitionForVenue :: UUID.UUID -> TypedLiveSurfaceDefinition LeaveRequestsSurface () LeaveRequestsFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
 leaveRequestsLiveSurfaceDefinitionForVenue surfaceVenueId =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "leave-requests"
@@ -84,7 +80,7 @@ leaveRequestsLiveSurfaceDefinitionForVenue surfaceVenueId =
         , typedSurfaceScopeFromWire = \case
             LeaveRequestsScope { venueId } | venueId == surfaceVenueId -> Just ()
             _ -> Nothing
-        , typedSurfaceDefaultFragments = const [LeaveRequestsProjectionContent]
+        , typedSurfaceDefaultFragments = const [LeaveRequestsContent]
         , typedSurfaceFragmentContract = \() fragment ->
             mkSurfaceFragmentContract
                 (leaveRequestsFragmentRef fragment)
@@ -95,54 +91,28 @@ leaveRequestsLiveSurfaceDefinitionForVenue surfaceVenueId =
         , typedSurfaceInteraction = const emptyInteractionCapability
         }
 
-leaveRequestsProjectionDefinition :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ProjectionLiveSurfaceDefinition LeaveRequestsSurface () LeaveRequestsProjection LeaveRequestsProjectionFragment
-leaveRequestsProjectionDefinition =
-    mkTypedSurfaceProjectionDefinition
-        leaveRequestsLiveSurfaceDefinition
-        "leave-requests"
-        defaultSurfaceProjectionCachePolicy
-        (const (tshow currentVenueId))
-        (pure (tshow currentUser.id))
-        (const (currentLiveUpdateVersion (buildLeaveRequestsScope currentVenueId)))
-        (const fetchLeaveRequestsProjection)
-        renderLeaveRequestsProjectionHtml
+fetchLeaveRequestsReadModel :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO LeaveRequestsReadModel
+fetchLeaveRequestsReadModel = do
+    leaveReadModelStaffMembers <- profileActionSpan "leave.fetch_staff_members" fetchStaffMembersForCurrentVenue
+    leaveReadModelRequests <- profileActionSpan "leave.fetch_requests" fetchVisibleLeaveRequests
+    leaveReadModelCurrentViewerStaffId <- fmap (fmap (coerce . get #id)) fetchCurrentUserStaff
+    leaveReadModelToday <- liftIO (utctDay <$> getCurrentTime)
+    pure LeaveRequestsReadModel { .. }
 
-fetchLeaveRequestsProjectionCached :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO LeaveRequestsProjection
-fetchLeaveRequestsProjectionCached =
-    profileActionSpanWithDetail "leave.projection.load" do
-        before <- readSurfaceProjectionCacheStats
-        projection <- loadLiveSurfaceProjection leaveRequestsProjectionDefinition ()
-        after <- readSurfaceProjectionCacheStats
-        pure (projection, surfaceProjectionCacheDeltaDetail before after)
+renderLeaveRequestsFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveRequestsFragment -> IO (Maybe Blaze.Html)
+renderLeaveRequestsFragment fragment =
+    profileActionSpan "leave.read_model.render_fragment" do
+        readModel <- fetchLeaveRequestsReadModel
+        pure (renderLeaveRequestsFragmentFromReadModel FragmentPlain readModel fragment)
 
-renderLeaveRequestsProjectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveRequestsProjectionFragment -> IO (Maybe Blaze.Html)
-renderLeaveRequestsProjectionFragment fragment =
-    profileActionSpanWithDetail "leave.projection.render_fragment" do
-        before <- readSurfaceProjectionCacheStats
-        html <- renderLiveSurfaceProjectionFragment leaveRequestsProjectionDefinition () fragment
-        after <- readSurfaceProjectionCacheStats
-        pure (html, surfaceProjectionCacheDeltaDetail before after)
-
-fetchLeaveRequestsProjection :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO LeaveRequestsProjection
-fetchLeaveRequestsProjection = do
-    leaveProjectionStaffMembers <- profileActionSpan "leave.fetch_staff_members" fetchStaffMembersForCurrentVenue
-    leaveProjectionRequests <- profileActionSpan "leave.fetch_requests" fetchVisibleLeaveRequests
-    leaveProjectionCurrentViewerStaffId <- fmap (fmap (coerce . get #id)) fetchCurrentUserStaff
-    leaveProjectionToday <- liftIO (utctDay <$> getCurrentTime)
-    pure LeaveRequestsProjection { .. }
-
-renderLeaveRequestsProjectionHtml :: (?context :: ControllerContext, ?request :: Request) => LeaveRequestsProjection -> LeaveRequestsProjectionFragment -> Maybe Blaze.Html
-renderLeaveRequestsProjectionHtml =
-    renderLeaveRequestsProjectionFragmentFromProjection FragmentPlain
-
-renderLeaveRequestsProjectionFragmentFromProjection :: (?context :: ControllerContext, ?request :: Request) => FragmentRenderMode -> LeaveRequestsProjection -> LeaveRequestsProjectionFragment -> Maybe Blaze.Html
-renderLeaveRequestsProjectionFragmentFromProjection renderMode projection LeaveRequestsProjectionContent =
+renderLeaveRequestsFragmentFromReadModel :: (?context :: ControllerContext, ?request :: Request) => FragmentRenderMode -> LeaveRequestsReadModel -> LeaveRequestsFragment -> Maybe Blaze.Html
+renderLeaveRequestsFragmentFromReadModel renderMode readModel LeaveRequestsContent =
     Just
         (contentRenderer
-            projection.leaveProjectionRequests
-            projection.leaveProjectionStaffMembers
-            projection.leaveProjectionCurrentViewerStaffId
-            projection.leaveProjectionToday
+            readModel.leaveReadModelRequests
+            readModel.leaveReadModelStaffMembers
+            readModel.leaveReadModelCurrentViewerStaffId
+            readModel.leaveReadModelToday
             currentLeaveArchivePage
             currentLeaveArchiveOpen
         )
@@ -151,13 +121,13 @@ renderLeaveRequestsProjectionFragmentFromProjection renderMode projection LeaveR
             FragmentPlain        -> renderLeaveRequestsContentFragment
             FragmentOob swapAttr -> renderLeaveRequestsContentFragmentWithSwap swapAttr
 
-leaveRequestsIndexView :: (?context :: ControllerContext, ?request :: Request) => LeaveRequestsProjection -> IndexView
-leaveRequestsIndexView LeaveRequestsProjection { leaveProjectionRequests, leaveProjectionStaffMembers, leaveProjectionCurrentViewerStaffId, leaveProjectionToday } =
+leaveRequestsIndexView :: (?context :: ControllerContext, ?request :: Request) => LeaveRequestsReadModel -> IndexView
+leaveRequestsIndexView LeaveRequestsReadModel { leaveReadModelRequests, leaveReadModelStaffMembers, leaveReadModelCurrentViewerStaffId, leaveReadModelToday } =
     IndexView
-        { leaveRequests = leaveProjectionRequests
-        , staffMembers = leaveProjectionStaffMembers
-        , currentViewerStaffId = leaveProjectionCurrentViewerStaffId
-        , today = leaveProjectionToday
+        { leaveRequests = leaveReadModelRequests
+        , staffMembers = leaveReadModelStaffMembers
+        , currentViewerStaffId = leaveReadModelCurrentViewerStaffId
+        , today = leaveReadModelToday
         , archivePage = currentLeaveArchivePage
         , archiveIsOpen = currentLeaveArchiveOpen
         , liveUpdateSurface = Just (mkTypedDefinedLiveSurface leaveRequestsLiveSurfaceDefinition ())
@@ -199,8 +169,8 @@ buildLeaveRequestsScope venueId =
         { venueId = unpackId venueId
         }
 
-leaveRequestsFragmentRef :: LeaveRequestsProjectionFragment -> SurfaceFragmentRef LeaveRequestsSurface
-leaveRequestsFragmentRef LeaveRequestsProjectionContent =
+leaveRequestsFragmentRef :: LeaveRequestsFragment -> SurfaceFragmentRef LeaveRequestsSurface
+leaveRequestsFragmentRef LeaveRequestsContent =
     buildLeaveRequestsContentFragmentRef
 
 buildLeaveRequestsContentFragmentRef :: SurfaceFragmentRef LeaveRequestsSurface
@@ -209,5 +179,3 @@ buildLeaveRequestsContentFragmentRef =
         LeaveRequestsContentFragment
         leaveRequestsContentFragmentId
         (pathTo ShowLeaveRequestsContentFragmentAction)
-
-
