@@ -5,6 +5,8 @@ repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || 
 cd "$repo_root"
 
 bash Config/nix/scripts/frontend/contracts-check
+bash Config/nix/scripts/frontend/surface-guardrails
+bash Config/nix/scripts/frontend/surface-compile-fail-check
 tsc --project tsconfig.json --noEmit
 bash Config/nix/scripts/frontend/no-ts-nocheck
 bash Config/nix/scripts/frontend/no-broad-switch-defaults

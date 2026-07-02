@@ -43,6 +43,33 @@ tests = describe "FrontendSurface GHC raw lowering" do
             ])
             `shouldSatisfy` leftContains "field missingPayload references missing dto missing-payload on surface surface-lab"
 
+    it "reports duplicate declarations and invalid reference kinds after GHC lowering" do
+        let cases =
+                [ ( registryWithPrimitives [scopePrimitive, raw "Fragment" [marker "LabPanel", promotedList [], promotedList []], raw "Fragment" [marker "LabPanel", promotedList [], promotedList []]]
+                  , "surface surface-lab has duplicate fragment lab-panel"
+                  )
+                , ( duplicateSurfaceRegistry
+                  , "duplicate surface name surface-lab"
+                  )
+                , ( registryWithPrimitives [scopePrimitive, raw "Fragment" [marker "LabPanel", promotedList [], promotedList []], raw "HtmxAction" [marker "RefreshPanel", promotedList [], promotedList [raw "Target" [marker "RefreshPanel"]]]]
+                  , "htmx action refresh-panel references missing fragment refresh-panel on surface surface-lab"
+                  )
+                , ( registryWithPrimitives [scopePrimitive, raw "Fragment" [marker "LabPanel", promotedList [], promotedList []], raw "Intent" [marker "MoveLabCard", promotedList [], promotedList [raw "BackedBy" [marker "LabPanel"]]]]
+                  , "intent move-lab-card references missing htmx action lab-panel on surface surface-lab"
+                  )
+                , ( registryWithPrimitives [scopePrimitive, raw "InteractionEffect" [marker "CloneShadow", promotedList [raw "Layer" [marker "MissingLayer"]]]]
+                  , "effect clone-shadow references missing layer missing on surface surface-lab"
+                  )
+                , ( registryWithPrimitives [scopePrimitive, raw "ConflictPolicy" [raw "SessionKind" [marker "DragSession"], raw "AnyFragment" [], raw "Defer" []]]
+                  , "conflict policy references missing session drag on surface surface-lab"
+                  )
+                , ( registryWithPrimitives [scopePrimitive, raw "ClientEvent" [marker "LabCommitted", promotedList [fieldWithWire "Payload" (raw "WireRef" [marker "MissingPayload"])] ]]
+                  , "field payload references missing dto missing-payload on surface surface-lab"
+                  )
+                ]
+        forM_ cases \(rawRegistry, expected) ->
+            lowerRawRegistry rawRegistry `shouldSatisfy` leftContains expected
+
 labRawRegistry :: RawRegistry
 labRawRegistry = registryWithPrimitives
     [ scopePrimitive
@@ -97,22 +124,35 @@ labRawRegistry = registryWithPrimitives
 
 registryWithPrimitives :: [RawType] -> RawRegistry
 registryWithPrimitives primitives =
-    let normalizedSurface = raw "Surface" [marker "SurfaceLab", promotedList primitives]
-     in RawRegistry
-            { rawRegistryModule = "Test.FrontendSurfaceGhcSpec"
-            , rawRegistryExport = "RegisteredFrontendSurfaces"
-            , rawRegistrySource = "test"
-            , rawRegistryKind = "[SurfaceSpec]"
-            , rawRegistryRhs = promotedList [marker "SurfaceLabSurface"]
-            , rawRegistrySurfaces =
-                [ RawSurface
-                    { rawSurfaceName = "SurfaceLabSurface"
-                    , rawSurfaceSource = "test"
-                    , rawSurfaceReference = marker "SurfaceLabSurface"
-                    , rawSurfaceExpanded = normalizedSurface
-                    , rawSurfaceNormalized = normalizedSurface
-                    }
-                ]
+    registryWithSurfaces [rawSurfaceWithPrimitives "SurfaceLabSurface" "SurfaceLab" primitives]
+
+duplicateSurfaceRegistry :: RawRegistry
+duplicateSurfaceRegistry =
+    registryWithSurfaces
+        [ rawSurfaceWithPrimitives "SurfaceLabSurface" "SurfaceLab" [scopePrimitive]
+        , rawSurfaceWithPrimitives "SurfaceLabSurfaceCopy" "SurfaceLab" [scopePrimitive]
+        ]
+
+registryWithSurfaces :: [RawSurface] -> RawRegistry
+registryWithSurfaces surfaces =
+    RawRegistry
+        { rawRegistryModule = "Test.FrontendSurfaceGhcSpec"
+        , rawRegistryExport = "RegisteredFrontendSurfaces"
+        , rawRegistrySource = "test"
+        , rawRegistryKind = "[SurfaceSpec]"
+        , rawRegistryRhs = promotedList (map rawSurfaceReference surfaces)
+        , rawRegistrySurfaces = surfaces
+        }
+
+rawSurfaceWithPrimitives :: String -> String -> [RawType] -> RawSurface
+rawSurfaceWithPrimitives surfaceName markerName primitives =
+    let normalizedSurface = raw "Surface" [marker markerName, promotedList primitives]
+     in RawSurface
+            { rawSurfaceName = surfaceName
+            , rawSurfaceSource = "test"
+            , rawSurfaceReference = marker surfaceName
+            , rawSurfaceExpanded = normalizedSurface
+            , rawSurfaceNormalized = normalizedSurface
             }
 
 scopePrimitive :: RawType

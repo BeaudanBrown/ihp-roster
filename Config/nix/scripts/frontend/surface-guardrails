@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="${FRONTEND_REPO_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+cd "$repo_root"
+
+failures=0
+
+report_failure() {
+    echo "frontend-surface-guardrails: $*" >&2
+    failures=$((failures + 1))
+}
+
+expect_no_match() {
+    local label="$1"
+    local pattern="$2"
+    shift 2
+
+    local tmp_log
+    tmp_log="$(mktemp)"
+    if rg --line-number --glob '!*.md' --glob '!*.test.ts' --glob '!*.log' --glob '!generated/**' "$pattern" "$@" >"$tmp_log" 2>/dev/null; then
+        report_failure "$label"
+        cat "$tmp_log" >&2
+    fi
+    rm -f "$tmp_log"
+}
+
+expect_match() {
+    local label="$1"
+    local pattern="$2"
+    shift 2
+
+    if ! rg --quiet "$pattern" "$@"; then
+        report_failure "$label"
+    fi
+}
+
+lab_paths=(
+    Application/Helper/FrontendSurface/Lab.hs
+    Web/Support/FrontendSurfaceLab.hs
+    Web/View/Support/FrontendSurfaceLab.hs
+)
+
+expect_no_match \
+    "migrated FrontendSurface lab must not author old FrontendCodec/schema groups" \
+    'Application\.Helper\.Frontend\.(Codec|Generic|ContractGroup|.*Schema)|FrontendCodec|HasFrontendCodec|someFrontendCodec|genericFrontendCodec' \
+    "${lab_paths[@]}"
+
+expect_no_match \
+    "migrated FrontendSurface lab must not author TypedLiveSurfaceDefinition paths" \
+    'TypedLiveSurfaceDefinition|descriptorToTypedLiveSurfaceDefinition|mkTypedDefinedLiveSurface|serveTypedLiveFragment' \
+    "${lab_paths[@]}"
+
+expect_no_match \
+    "migrated FrontendSurface lab must not use SurfaceProjection" \
+    'Application\.Helper\.SurfaceProjection|SurfaceProjection' \
+    "${lab_paths[@]}"
+
+expect_no_match \
+    "migrated FrontendSurface lab must use helpers instead of handwritten data-bepis-* attrs" \
+    'data-bepis-' \
+    "${lab_paths[@]}"
+
+expect_no_match \
+    "migrated FrontendSurface lab must not be registered in legacy Web.LiveSurfaceRegistry" \
+    'FrontendSurfaceLab|SurfaceLab|surface-lab' \
+    Web/LiveSurfaceRegistry.hs
+
+expect_match \
+    "generated contracts must expose the GHC-generated lab surface manifest" \
+    'surfaceLabSurfaceManifest' \
+    frontend/ts/generated/contracts.ts
+
+expect_match \
+    "generated contracts must expose the lab fragment key union" \
+    'SurfaceLabFragmentKey' \
+    frontend/ts/generated/contracts.ts
+
+if [ "$failures" -ne 0 ]; then
+    exit 1
+fi
+
+echo "frontend-surface-guardrails: ok"

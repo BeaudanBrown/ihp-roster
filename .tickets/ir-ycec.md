@@ -1,6 +1,6 @@
 ---
 id: ir-ycec
-status: open
+status: closed
 deps: [ir-xopg, ir-4hu6]
 links: []
 created: 2026-07-02T04:06:28Z
@@ -40,3 +40,9 @@ Add tests and static guardrails for the type-level `FrontendSurface` architectur
 - Invalid references to fragments/actions/sessions/layers/DTOs fail generator or compile checks.
 - Migrated surfaces are guarded against old frontend contract/live-surface/projection paths while legacy surfaces may continue using old paths until separately migrated.
 - Frontend TypeScript exhaustiveness and generated contract drift remain covered by canonical frontend checks.
+
+## Notes
+
+**2026-07-02T09:21:22Z**
+
+Implemented FrontendSurface guardrails: added frontend-surface-guardrails script, exposed it in Nix scripts, wired guardrails plus frontend-surface-compile-fail-check into Config/nix/scripts/frontend/check, and added GHC lowering validation coverage for duplicate declarations, duplicate surface names, wrong reference kinds, missing layer/session refs, and invalid DTO refs. Lab migrated-surface static guardrails now reject old FrontendCodec/schema authoring, TypedLiveSurfaceDefinition paths, SurfaceProjection usage, raw data-bepis-* attrs, and legacy Web.LiveSurfaceRegistry registration while checking generated lab surface contracts remain present. Verified direct frontend/check, frontend-surface-guardrails, focused FrontendSurface GHC Hspec, and typecheck.
