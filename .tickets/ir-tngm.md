@@ -31,3 +31,15 @@ Migrated Leave Requests list surface to FrontendSurface: added type-level spec/r
 **2026-07-02T13:29:34Z**
 
 Migrated Billing and Support to FrontendSurface: added type-level specs/runtime bridges, rendered data-bepis mounts, removed Web/Billing/LiveUpdates legacy definition, rewired fragment endpoints without serveTypedLiveFragment, moved registry auth/planning/descriptors to FrontendSurface helpers, updated parser/tests. Verified typecheck, frontend-check, BillingController, SupportController, LiveUpdate runtime, dependency specs.
+
+**2026-07-02T13:30:53Z**
+
+Paused at profile/admin remainder decision point after migrating Leave Requests, Billing, and Support. Remaining production legacy surfaces are Profile content/profile leave and Admin config/Xero surfaces. Profile content currently has one DOM target but multiple semantic fragments/section URLs; existing passive planning can invalidate non-open sections into the shared target. Need confirm whether FrontendSurface migration should preserve that exact behavior first or narrow passive profile content updates to the currently mounted/open section.
+
+**2026-07-02T14:08:12Z**
+
+Decomposed Profile content into section-level swappable accordion fragments (details, preferences, security, leave, RSA) and migrated Profile subscription metadata to FrontendSurface. Removed Profile TypedLiveSurfaceDefinition/data-live-update-surface/serveTypedLiveFragment usage; Profile fragment endpoints now render direct section/leave content responses. Passive profile invalidation now targets section DOM owners rather than the former whole profile-content fragment. Verified typecheck, frontend-contracts/frontend-check, ProfilesController, Live surface registry, and dependency specs.
+
+**2026-07-02T14:09:34Z**
+
+Completed requested Profile decomposition before migration. Remaining legacy surfaces are Admin settings/invites/exports/shift-types/roster-groups and Admin Xero. Next decision point is Admin Xero: legacy planning has a broad shell fragment plus nested staff-mappings/pay-items/timesheets fragments, so some Xero resource changes can invalidate both parent shell and child section. Need decide whether to preserve that overlapping behavior for migration or decompose shell/nested ownership to avoid double swaps.

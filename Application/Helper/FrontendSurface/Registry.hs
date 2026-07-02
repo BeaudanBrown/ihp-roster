@@ -8,6 +8,7 @@ module Application.Helper.FrontendSurface.Registry
 import Application.Helper.FrontendSurface.Billing (BillingSurface)
 import Application.Helper.FrontendSurface.Lab (SurfaceLabSurface)
 import Application.Helper.FrontendSurface.LeaveRequests (LeaveRequestsSurface)
+import Application.Helper.FrontendSurface.Profile (ProfileSurface)
 import Application.Helper.FrontendSurface.Roster (RosterSurface)
 import Application.Helper.FrontendSurface.Support (SupportSurface)
 import Application.Helper.FrontendSurface.Timesheets (TimesheetsSurface)
@@ -19,4 +20,5 @@ type RegisteredFrontendSurfaces =
      , LeaveRequestsSurface
      , BillingSurface
      , SupportSurface
+     , ProfileSurface
      ]

@@ -111,19 +111,21 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
                 response `responseBodyShouldContain` "hx-post=\"/UpdateProfile\""
-                response `responseBodyShouldContain` "hx-target=\"#profile-content-fragment\""
+                response `responseBodyShouldContain` "hx-target=\"#profile-details\""
+                response `responseBodyShouldContain` "hx-target=\"#profile-preferences\""
                 response `responseBodyShouldContain` "hx-swap=\"outerHTML show:none\""
                 response `responseBodyShouldContain` "Profile Details"
                 response `responseBodyShouldContain` "Unavailability"
                 response `responseBodyShouldContain` "id=\"profile-live-surface\""
-                response `responseBodyShouldContain` "profile_content"
+                response `responseBodyShouldContain` "data-bepis-surface=\"profile\""
+                response `responseBodyShouldContain` "profile-details-section"
+                response `responseBodyShouldContain` "profile-preferences-section"
                 response `responseBodyShouldContain` "ShowProfileContentFragment"
                 response `responseBodyShouldContain` "profile-details-form"
                 response `responseBodyShouldContain` "profile:"
                 response `responseBodyShouldContain` "id=\"profile-leave-requests-content\""
-                response `responseBodyShouldContain` "data-live-update-surface=\""
-                response `responseBodyShouldContain` "profile_leave_requests_content"
-                response `responseBodyShouldContain` "leave_requests"
+                response `responseBodyShouldNotContain` "data-live-update-surface=\""
+                response `responseBodyShouldContain` "profile-leave-requests-content"
                 response `responseBodyShouldContain` "id=\"profile-leave-request-form-fragment\""
                 response `responseBodyShouldContain` "id=\"profile-leave-requests-list-fragment\""
                 response `responseBodyShouldContain` "responseContext\" value=\"profile\""
@@ -157,14 +159,13 @@ tests = beforeAll testContext do
                     callAction ShowProfileLeaveRequestsContentFragmentAction
                 fragmentResponse `responseStatusShouldBe` status200
                 fragmentResponse `responseBodyShouldContain` "id=\"profile-leave-requests-content\""
-                fragmentResponse `responseBodyShouldContain` "data-live-update-surface=\""
-                fragmentResponse `responseBodyShouldContain` "profile_leave_requests_content"
+                fragmentResponse `responseBodyShouldNotContain` "data-live-update-surface=\""
                 fragmentResponse `responseBodyShouldNotContain` "id=\"app\""
 
                 profileFragmentResponse <- withUserAndCurrentVenue user venue.id do
                     callAction ShowProfileContentFragmentAction
                 profileFragmentResponse `responseStatusShouldBe` status200
-                profileFragmentResponse `responseBodyShouldContain` "id=\"profile-content-fragment\""
+                profileFragmentResponse `responseBodyShouldContain` "id=\"profile-details\""
                 profileFragmentResponse `responseBodyShouldContain` "id=\"profile-details-form\""
                 profileFragmentResponse `responseBodyShouldNotContain` "id=\"profile-live-surface\""
                 profileFragmentResponse `responseBodyShouldNotContain` "id=\"app\""
@@ -409,7 +410,7 @@ tests = beforeAll testContext do
                             ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "id=\"profile-content-fragment\""
+                response `responseBodyShouldContain` "id=\"profile-details\""
                 response `responseBodyShouldContain` "Profile updated"
                 response `responseBodyShouldContain` "hx-swap-oob=\"innerHTML\""
                 profileVersionAfter <- currentLiveUpdateVersion ProfileScope { venueId = unpackId venue.id, staffId = unpackId staff.id }

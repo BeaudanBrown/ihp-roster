@@ -148,6 +148,11 @@ data LiveFragmentKey
     | AdminXeroTimesheetsFragment
     | BillingStatusFragment
     | ProfileContentFragment
+    | ProfileDetailsSectionFragment
+    | ProfilePreferencesSectionFragment
+    | ProfileSecuritySectionFragment
+    | ProfileLeaveSectionFragment
+    | ProfileRsaSectionFragment
     | ProfileLeaveRequestsContentFragment
     | SupportAwardRatesSectionFragment
     | SupportPublicHolidaysSectionFragment
@@ -179,6 +184,11 @@ liveFragmentKeyKind AdminXeroPayItemsFragment = "admin_xero_pay_items"
 liveFragmentKeyKind AdminXeroTimesheetsFragment = "admin_xero_timesheets"
 liveFragmentKeyKind BillingStatusFragment = "billing_status"
 liveFragmentKeyKind ProfileContentFragment = "profile_content"
+liveFragmentKeyKind ProfileDetailsSectionFragment = "profile_details_section"
+liveFragmentKeyKind ProfilePreferencesSectionFragment = "profile_preferences_section"
+liveFragmentKeyKind ProfileSecuritySectionFragment = "profile_security_section"
+liveFragmentKeyKind ProfileLeaveSectionFragment = "profile_leave_section"
+liveFragmentKeyKind ProfileRsaSectionFragment = "profile_rsa_section"
 liveFragmentKeyKind ProfileLeaveRequestsContentFragment = "profile_leave_requests_content"
 liveFragmentKeyKind SupportAwardRatesSectionFragment = "support_award_rates_section"
 liveFragmentKeyKind SupportPublicHolidaysSectionFragment = "support_public_holidays_section"
@@ -619,6 +629,11 @@ liveFragmentKeyToWire = \case
     AdminXeroTimesheetsFragment -> Wire.AdminXeroTimesheets
     BillingStatusFragment -> Wire.BillingStatus
     ProfileContentFragment -> Wire.ProfileContent
+    ProfileDetailsSectionFragment -> Wire.ProfileDetailsSection
+    ProfilePreferencesSectionFragment -> Wire.ProfilePreferencesSection
+    ProfileSecuritySectionFragment -> Wire.ProfileSecuritySection
+    ProfileLeaveSectionFragment -> Wire.ProfileLeaveSection
+    ProfileRsaSectionFragment -> Wire.ProfileRsaSection
     ProfileLeaveRequestsContentFragment -> Wire.ProfileLeaveRequestsContent
     SupportAwardRatesSectionFragment -> Wire.SupportAwardRatesSection
     SupportPublicHolidaysSectionFragment -> Wire.SupportPublicHolidaysSection
@@ -650,6 +665,11 @@ liveFragmentKeyFromWire = \case
     Wire.AdminXeroTimesheets -> pure AdminXeroTimesheetsFragment
     Wire.BillingStatus -> pure BillingStatusFragment
     Wire.ProfileContent -> pure ProfileContentFragment
+    Wire.ProfileDetailsSection -> pure ProfileDetailsSectionFragment
+    Wire.ProfilePreferencesSection -> pure ProfilePreferencesSectionFragment
+    Wire.ProfileSecuritySection -> pure ProfileSecuritySectionFragment
+    Wire.ProfileLeaveSection -> pure ProfileLeaveSectionFragment
+    Wire.ProfileRsaSection -> pure ProfileRsaSectionFragment
     Wire.ProfileLeaveRequestsContent -> pure ProfileLeaveRequestsContentFragment
     Wire.SupportAwardRatesSection -> pure SupportAwardRatesSectionFragment
     Wire.SupportPublicHolidaysSection -> pure SupportPublicHolidaysSectionFragment

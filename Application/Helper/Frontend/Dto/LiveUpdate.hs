@@ -96,6 +96,11 @@ data LiveFragmentKey
     | AdminXeroTimesheets
     | BillingStatus
     | ProfileContent
+    | ProfileDetailsSection
+    | ProfilePreferencesSection
+    | ProfileSecuritySection
+    | ProfileLeaveSection
+    | ProfileRsaSection
     | ProfileLeaveRequestsContent
     | SupportAwardRatesSection
     | SupportPublicHolidaysSection

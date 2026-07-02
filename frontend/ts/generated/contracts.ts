@@ -139,12 +139,17 @@ export type LiveFragmentKey =
     | { kind: "admin_xero_timesheets" }
     | { kind: "billing_status" }
     | { kind: "profile_content" }
+    | { kind: "profile_details_section" }
+    | { kind: "profile_preferences_section" }
+    | { kind: "profile_security_section" }
+    | { kind: "profile_leave_section" }
+    | { kind: "profile_rsa_section" }
     | { kind: "profile_leave_requests_content" }
     | { kind: "support_award_rates_section" }
     | { kind: "support_public_holidays_section" };
 
 export function isLiveFragmentKey(value: unknown): value is LiveFragmentKey {
-    return (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_content") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_grid_toolbar") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_grid_frame") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_day_columns") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_day_rail") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_wage_rail") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_slots_grid") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_staff_panel") || (__isLiveUpdateScopeExactRecord(value, ["kind", "rosterDayId"], []) && value["kind"] === "roster_day_section" && (typeof value["rosterDayId"] === "string")) || (__isLiveUpdateScopeExactRecord(value, ["kind", "rosterDayId", "rowIndex"], []) && value["kind"] === "roster_row" && (typeof value["rosterDayId"] === "string") && (typeof value["rowIndex"] === "number" && Number.isInteger(value["rowIndex"]))) || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "leave_requests_content") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "timesheet_toolbar") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "timesheet_day_columns") || (__isLiveUpdateScopeExactRecord(value, ["kind", "dayOffset"], []) && value["kind"] === "timesheet_day_section" && (typeof value["dayOffset"] === "number" && Number.isInteger(value["dayOffset"]))) || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_venue_config") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_invites") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_exports") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_shift_types") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_roster_groups") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero_staff_mappings") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero_pay_items") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero_timesheets") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "billing_status") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "profile_content") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "profile_leave_requests_content") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "support_award_rates_section") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "support_public_holidays_section");
+    return (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_content") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_grid_toolbar") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_grid_frame") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_day_columns") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_day_rail") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_wage_rail") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_slots_grid") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_staff_panel") || (__isLiveUpdateScopeExactRecord(value, ["kind", "rosterDayId"], []) && value["kind"] === "roster_day_section" && (typeof value["rosterDayId"] === "string")) || (__isLiveUpdateScopeExactRecord(value, ["kind", "rosterDayId", "rowIndex"], []) && value["kind"] === "roster_row" && (typeof value["rosterDayId"] === "string") && (typeof value["rowIndex"] === "number" && Number.isInteger(value["rowIndex"]))) || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "leave_requests_content") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "timesheet_toolbar") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "timesheet_day_columns") || (__isLiveUpdateScopeExactRecord(value, ["kind", "dayOffset"], []) && value["kind"] === "timesheet_day_section" && (typeof value["dayOffset"] === "number" && Number.isInteger(value["dayOffset"]))) || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_venue_config") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_invites") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_exports") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_shift_types") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_roster_groups") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero_staff_mappings") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero_pay_items") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero_timesheets") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "billing_status") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "profile_content") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "profile_details_section") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "profile_preferences_section") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "profile_security_section") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "profile_leave_section") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "profile_rsa_section") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "profile_leave_requests_content") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "support_award_rates_section") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "support_public_holidays_section");
 }
 
 export function parseLiveFragmentKey(value: unknown): LiveFragmentKey {
@@ -1181,16 +1186,15 @@ export type LiveSurfaceFamily =
     | "admin-shift-types"
     | "admin-roster-groups"
     | "admin-xero"
-    | "profile"
-    | "profile-leave-requests"
     | "timesheets"
     | "roster"
     | "leave-requests"
     | "billing"
-    | "support";
+    | "support"
+    | "profile";
 
 export function isLiveSurfaceFamily(value: unknown): value is LiveSurfaceFamily {
-    return value === "admin-venue-config" || value === "admin-invites" || value === "admin-exports" || value === "admin-shift-types" || value === "admin-roster-groups" || value === "admin-xero" || value === "profile" || value === "profile-leave-requests" || value === "timesheets" || value === "roster" || value === "leave-requests" || value === "billing" || value === "support";
+    return value === "admin-venue-config" || value === "admin-invites" || value === "admin-exports" || value === "admin-shift-types" || value === "admin-roster-groups" || value === "admin-xero" || value === "timesheets" || value === "roster" || value === "leave-requests" || value === "billing" || value === "support" || value === "profile";
 }
 
 export function parseLiveSurfaceFamily(value: unknown): LiveSurfaceFamily {
@@ -1210,15 +1214,15 @@ export type RegisteredLiveSurfaceScopeKind =
     | "admin_shift_types"
     | "admin_roster_groups"
     | "admin_xero"
-    | "profile"
     | "timesheet_week"
     | "roster_week"
     | "leave_requests"
     | "billing"
-    | "support_platform";
+    | "support_platform"
+    | "profile";
 
 export function isRegisteredLiveSurfaceScopeKind(value: unknown): value is RegisteredLiveSurfaceScopeKind {
-    return value === "admin_venue_config" || value === "admin_invites" || value === "admin_exports" || value === "admin_shift_types" || value === "admin_roster_groups" || value === "admin_xero" || value === "profile" || value === "timesheet_week" || value === "roster_week" || value === "leave_requests" || value === "billing" || value === "support_platform";
+    return value === "admin_venue_config" || value === "admin_invites" || value === "admin_exports" || value === "admin_shift_types" || value === "admin_roster_groups" || value === "admin_xero" || value === "timesheet_week" || value === "roster_week" || value === "leave_requests" || value === "billing" || value === "support_platform" || value === "profile";
 }
 
 export function parseRegisteredLiveSurfaceScopeKind(value: unknown): RegisteredLiveSurfaceScopeKind {
@@ -1241,8 +1245,6 @@ export type RegisteredLiveSurfaceFragmentKind =
     | "admin_xero_staff_mappings"
     | "admin_xero_pay_items"
     | "admin_xero_timesheets"
-    | "profile_content"
-    | "profile_leave_requests_content"
     | "timesheet_toolbar"
     | "timesheet_day_columns"
     | "timesheet_day_section"
@@ -1259,10 +1261,15 @@ export type RegisteredLiveSurfaceFragmentKind =
     | "leave_requests_content"
     | "billing_status"
     | "support_award_rates_section"
-    | "support_public_holidays_section";
+    | "support_public_holidays_section"
+    | "profile_details_section"
+    | "profile_preferences_section"
+    | "profile_security_section"
+    | "profile_leave_section"
+    | "profile_rsa_section";
 
 export function isRegisteredLiveSurfaceFragmentKind(value: unknown): value is RegisteredLiveSurfaceFragmentKind {
-    return value === "admin_venue_config" || value === "admin_invites" || value === "admin_exports" || value === "admin_shift_types" || value === "admin_roster_groups" || value === "admin_xero" || value === "admin_xero_staff_mappings" || value === "admin_xero_pay_items" || value === "admin_xero_timesheets" || value === "profile_content" || value === "profile_leave_requests_content" || value === "timesheet_toolbar" || value === "timesheet_day_columns" || value === "timesheet_day_section" || value === "roster_content" || value === "roster_grid_toolbar" || value === "roster_grid_frame" || value === "roster_day_columns" || value === "roster_day_rail" || value === "roster_wage_rail" || value === "roster_slots_grid" || value === "roster_staff_panel" || value === "roster_day_section" || value === "roster_row" || value === "leave_requests_content" || value === "billing_status" || value === "support_award_rates_section" || value === "support_public_holidays_section";
+    return value === "admin_venue_config" || value === "admin_invites" || value === "admin_exports" || value === "admin_shift_types" || value === "admin_roster_groups" || value === "admin_xero" || value === "admin_xero_staff_mappings" || value === "admin_xero_pay_items" || value === "admin_xero_timesheets" || value === "timesheet_toolbar" || value === "timesheet_day_columns" || value === "timesheet_day_section" || value === "roster_content" || value === "roster_grid_toolbar" || value === "roster_grid_frame" || value === "roster_day_columns" || value === "roster_day_rail" || value === "roster_wage_rail" || value === "roster_slots_grid" || value === "roster_staff_panel" || value === "roster_day_section" || value === "roster_row" || value === "leave_requests_content" || value === "billing_status" || value === "support_award_rates_section" || value === "support_public_holidays_section" || value === "profile_details_section" || value === "profile_preferences_section" || value === "profile_security_section" || value === "profile_leave_section" || value === "profile_rsa_section";
 }
 
 export function parseRegisteredLiveSurfaceFragmentKind(value: unknown): RegisteredLiveSurfaceFragmentKind {
@@ -1311,7 +1318,7 @@ export function encodeLiveSurfaceManifestRegistry(value: LiveSurfaceManifestRegi
 
 
 
-export const LiveSurfaceManifest: Partial<Record<LiveSurfaceFamily, LiveSurfaceManifestEntry>> = {"admin-exports":{"fragmentKinds":["admin_exports"],"interactionSchema":null,"scopeKinds":["admin_exports"]},"admin-invites":{"fragmentKinds":["admin_invites"],"interactionSchema":null,"scopeKinds":["admin_invites"]},"admin-roster-groups":{"fragmentKinds":["admin_roster_groups"],"interactionSchema":null,"scopeKinds":["admin_roster_groups"]},"admin-shift-types":{"fragmentKinds":["admin_shift_types"],"interactionSchema":null,"scopeKinds":["admin_shift_types"]},"admin-venue-config":{"fragmentKinds":["admin_venue_config"],"interactionSchema":null,"scopeKinds":["admin_venue_config"]},"admin-xero":{"fragmentKinds":["admin_xero","admin_xero_staff_mappings","admin_xero_pay_items","admin_xero_timesheets"],"interactionSchema":null,"scopeKinds":["admin_xero"]},"billing":{"fragmentKinds":["billing_status"],"interactionSchema":null,"scopeKinds":["billing"]},"leave-requests":{"fragmentKinds":["leave_requests_content"],"interactionSchema":null,"scopeKinds":["leave_requests"]},"profile":{"fragmentKinds":["profile_content"],"interactionSchema":null,"scopeKinds":["profile"]},"profile-leave-requests":{"fragmentKinds":["profile_leave_requests_content"],"interactionSchema":null,"scopeKinds":["profile"]},"roster":{"fragmentKinds":["roster_content","roster_grid_toolbar","roster_grid_frame","roster_day_columns","roster_day_rail","roster_wage_rail","roster_slots_grid","roster_staff_panel","roster_day_section","roster_row"],"interactionSchema":"roster","scopeKinds":["roster_week"]},"support":{"fragmentKinds":["support_award_rates_section","support_public_holidays_section"],"interactionSchema":null,"scopeKinds":["support_platform"]},"timesheets":{"fragmentKinds":["timesheet_toolbar","timesheet_day_columns","timesheet_day_section"],"interactionSchema":null,"scopeKinds":["timesheet_week"]}};
+export const LiveSurfaceManifest: Partial<Record<LiveSurfaceFamily, LiveSurfaceManifestEntry>> = {"admin-exports":{"fragmentKinds":["admin_exports"],"interactionSchema":null,"scopeKinds":["admin_exports"]},"admin-invites":{"fragmentKinds":["admin_invites"],"interactionSchema":null,"scopeKinds":["admin_invites"]},"admin-roster-groups":{"fragmentKinds":["admin_roster_groups"],"interactionSchema":null,"scopeKinds":["admin_roster_groups"]},"admin-shift-types":{"fragmentKinds":["admin_shift_types"],"interactionSchema":null,"scopeKinds":["admin_shift_types"]},"admin-venue-config":{"fragmentKinds":["admin_venue_config"],"interactionSchema":null,"scopeKinds":["admin_venue_config"]},"admin-xero":{"fragmentKinds":["admin_xero","admin_xero_staff_mappings","admin_xero_pay_items","admin_xero_timesheets"],"interactionSchema":null,"scopeKinds":["admin_xero"]},"billing":{"fragmentKinds":["billing_status"],"interactionSchema":null,"scopeKinds":["billing"]},"leave-requests":{"fragmentKinds":["leave_requests_content"],"interactionSchema":null,"scopeKinds":["leave_requests"]},"profile":{"fragmentKinds":["profile_details_section","profile_preferences_section","profile_security_section","profile_leave_section","profile_rsa_section"],"interactionSchema":null,"scopeKinds":["profile"]},"roster":{"fragmentKinds":["roster_content","roster_grid_toolbar","roster_grid_frame","roster_day_columns","roster_day_rail","roster_wage_rail","roster_slots_grid","roster_staff_panel","roster_day_section","roster_row"],"interactionSchema":"roster","scopeKinds":["roster_week"]},"support":{"fragmentKinds":["support_award_rates_section","support_public_holidays_section"],"interactionSchema":null,"scopeKinds":["support_platform"]},"timesheets":{"fragmentKinds":["timesheet_toolbar","timesheet_day_columns","timesheet_day_section"],"interactionSchema":null,"scopeKinds":["timesheet_week"]}};
 // FrontendSurface contracts generated from Application.Helper.FrontendSurface.Registry.
 export type FrontendSurfaceUUID = string & { readonly __brand: "FrontendSurfaceUUID" };
 export type FrontendSurfaceDay = string & { readonly __brand: "FrontendSurfaceDay" };
@@ -1321,6 +1328,7 @@ export type PointerId = FrontendSurfaceUUID & { readonly __brand: "PointerId" };
 export type RosterDayId = FrontendSurfaceUUID & { readonly __brand: "RosterDayId" };
 export type RosterGroupId = FrontendSurfaceUUID & { readonly __brand: "RosterGroupId" };
 export type StaffFilterId = FrontendSurfaceUUID & { readonly __brand: "StaffFilterId" };
+export type StaffId = FrontendSurfaceUUID & { readonly __brand: "StaffId" };
 export type VenueId = FrontendSurfaceUUID & { readonly __brand: "VenueId" };
 
 export type SurfaceLabSurfaceName = "surface-lab";
@@ -1399,7 +1407,18 @@ export type SupportFragmentKey =
 ;
 export const supportSurfaceManifest = { surface: "support", scopes: ["support-platform"], fragments: ["support-award-rates", "support-public-holidays"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [] } as const;
 
-export type FrontendSurfaceName = "surface-lab" | "timesheets" | "roster" | "leave-requests" | "billing" | "support";
+export type ProfileSurfaceName = "profile";
+export type ProfileScope = { kind: "profile"; venueId: VenueId; staffId: StaffId };
+export type ProfileFragmentKey =
+    | { kind: "profile-details-section"; params: Record<string, never> }
+    | { kind: "profile-preferences-section"; params: Record<string, never> }
+    | { kind: "profile-security-section"; params: Record<string, never> }
+    | { kind: "profile-leave-section"; params: Record<string, never> }
+    | { kind: "profile-rsa-section"; params: Record<string, never> }
+;
+export const profileSurfaceManifest = { surface: "profile", scopes: ["profile"], fragments: ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section", "profile-rsa-section"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [] } as const;
+
+export type FrontendSurfaceName = "surface-lab" | "timesheets" | "roster" | "leave-requests" | "billing" | "support" | "profile";
 export const FrontendSurfaceRegistry = {
     "surface-lab": surfaceLabSurfaceManifest,
     timesheets: timesheetsSurfaceManifest,
@@ -1407,6 +1426,7 @@ export const FrontendSurfaceRegistry = {
     "leave-requests": leaveRequestsSurfaceManifest,
     billing: billingSurfaceManifest,
     support: supportSurfaceManifest,
+    profile: profileSurfaceManifest,
 } as const;
 export function isFrontendSurfaceName(value: unknown): value is FrontendSurfaceName {
     return typeof value === "string" && Object.prototype.hasOwnProperty.call(FrontendSurfaceRegistry, value);

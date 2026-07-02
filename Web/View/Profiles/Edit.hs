@@ -1,11 +1,12 @@
 module Web.View.Profiles.Edit where
 
-import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
-                                       liveSurfaceConfigJson,
-                                       mkTypedDefinedLiveSurface)
+import qualified Application.Helper.FrontendSurface.Profile as Surface
+import Application.Helper.FrontendSurface.Runtime (SurfaceImpl,
+                                                   renderFrontendSurfaceMount)
 import Application.Helper.StaffShiftPreferences
 import Data.List (sortOn)
 import Data.Ord (Down (..))
+import Web.Profiles.FrontendSurface
 import Web.Profiles.LiveUpdates
 import Web.View.LeaveRequests.Index (renderStatusBadge)
 import Web.View.LeaveRequests.New (renderLeaveRequestFormFields)
@@ -20,6 +21,21 @@ profileContentFragmentId = "profile-content-fragment"
 
 profileLiveSurfaceId :: Text
 profileLiveSurfaceId = "profile-live-surface"
+
+profileDetailsSectionId :: Text
+profileDetailsSectionId = "profile-details"
+
+profilePreferencesSectionId :: Text
+profilePreferencesSectionId = "profile-preferences"
+
+profileSecuritySectionId :: Text
+profileSecuritySectionId = "profile-security"
+
+profileLeaveSectionId :: Text
+profileLeaveSectionId = "profile-leave"
+
+profileRsaSectionId :: Text
+profileRsaSectionId = "profile-rsa"
 
 profileDetailsFormId :: Text
 profileDetailsFormId = "profile-details-form"
@@ -90,12 +106,15 @@ instance View EditView where
             })
 
 renderProfileLiveSurface :: Staff -> Text -> Html -> Html
-renderProfileLiveSurface staff openSection body = [hsx|
-    <div id={profileLiveSurfaceId}
-         data-live-update-surface={liveSurfaceConfigJson <$> profileLiveSurface staff openSection}>
-        {body}
-    </div>
-|]
+renderProfileLiveSurface staff _openSection body =
+    let mountedBody = case profileSurfaceMount staff of
+            Just impl -> renderFrontendSurfaceMount impl body
+            Nothing   -> body
+     in [hsx|
+        <div id={profileLiveSurfaceId}>
+            {mountedBody}
+        </div>
+    |]
 
 renderProfileContentFragment :: Staff -> Text -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> [Passkey] -> [LeaveRequest] -> LeaveRequest -> Maybe StaffDocument -> Day -> UTCTime -> Text -> Html
 renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument =
@@ -108,37 +127,7 @@ renderProfileContentFragmentWithManagement staff currentUserEmail preferenceWeek
                 { staffProfileAccordionId = profileSectionsAccordionId
                 , staffProfileAccordionOpenSection = openSection
                 , staffProfileAccordionSections =
-                    [ StaffProfileAccordionSection
-                        { staffProfileSectionKey = "profile"
-                        , staffProfileSectionId = "profile-details"
-                        , staffProfileSectionTitle = "Profile Details"
-                        , staffProfileSectionBody = renderProfileForm staff currentUserEmail staffManagementFields
-                        }
-                    , StaffProfileAccordionSection
-                        { staffProfileSectionKey = "preferences"
-                        , staffProfileSectionId = "profile-preferences"
-                        , staffProfileSectionTitle = "Shift Preferences"
-                        , staffProfileSectionBody = renderProfileShiftPreferencesForm preferenceWeekdays selectedShiftPreferences
-                        }
-                    , StaffProfileAccordionSection
-                        { staffProfileSectionKey = "security"
-                        , staffProfileSectionId = "profile-security"
-                        , staffProfileSectionTitle = "Sign-In Methods"
-                        , staffProfileSectionBody = renderPasskeyManagement now passkeys (appendQueryParams (pathTo EditProfileAction) [("section", "security")])
-                        }
-                    , StaffProfileAccordionSection
-                        { staffProfileSectionKey = "leave"
-                        , staffProfileSectionId = "profile-leave"
-                        , staffProfileSectionTitle = "Unavailability"
-                        , staffProfileSectionBody = renderProfileLeaveRequestsContentFragment staff leaveRequestForm leaveRequests
-                        }
-                    , StaffProfileAccordionSection
-                        { staffProfileSectionKey = "rsa"
-                        , staffProfileSectionId = "profile-rsa"
-                        , staffProfileSectionTitle = "RSA"
-                        , staffProfileSectionBody = renderProfileRsaSection staff staffRsaDocument today
-                        }
-                    ]
+                    profileAccordionSections staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now
                 }
      in [hsx|
         <div id={profileContentFragmentId}>
@@ -146,10 +135,79 @@ renderProfileContentFragmentWithManagement staff currentUserEmail preferenceWeek
         </div>
     |]
 
-profileLiveSurface :: (?context :: ControllerContext) => Staff -> Text -> Maybe LiveSurfaceConfig
-profileLiveSurface staff openSection =
+profileAccordionSections :: Staff -> Text -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> [Passkey] -> [LeaveRequest] -> LeaveRequest -> Maybe StaffDocument -> Maybe StaffManagementFieldData -> Day -> UTCTime -> [StaffProfileAccordionSection]
+profileAccordionSections staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now =
+    [ profileDetailsAccordionSection staff currentUserEmail staffManagementFields
+    , profilePreferencesAccordionSection preferenceWeekdays selectedShiftPreferences
+    , profileSecurityAccordionSection now passkeys
+    , profileLeaveAccordionSection staff leaveRequestForm leaveRequests
+    , profileRsaAccordionSection staff staffRsaDocument today
+    ]
+
+profileDetailsAccordionSection :: Staff -> Text -> Maybe StaffManagementFieldData -> StaffProfileAccordionSection
+profileDetailsAccordionSection staff currentUserEmail staffManagementFields =
+    StaffProfileAccordionSection
+        { staffProfileSectionKey = "profile"
+        , staffProfileSectionId = profileDetailsSectionId
+        , staffProfileSectionTitle = "Profile Details"
+        , staffProfileSectionBody = renderProfileForm staff currentUserEmail staffManagementFields
+        }
+
+profilePreferencesAccordionSection :: [PreferenceWeekday] -> [ShiftPreferenceSelection] -> StaffProfileAccordionSection
+profilePreferencesAccordionSection preferenceWeekdays selectedShiftPreferences =
+    StaffProfileAccordionSection
+        { staffProfileSectionKey = "preferences"
+        , staffProfileSectionId = profilePreferencesSectionId
+        , staffProfileSectionTitle = "Shift Preferences"
+        , staffProfileSectionBody = renderProfileShiftPreferencesForm preferenceWeekdays selectedShiftPreferences
+        }
+
+profileSecurityAccordionSection :: UTCTime -> [Passkey] -> StaffProfileAccordionSection
+profileSecurityAccordionSection now passkeys =
+    StaffProfileAccordionSection
+        { staffProfileSectionKey = "security"
+        , staffProfileSectionId = profileSecuritySectionId
+        , staffProfileSectionTitle = "Sign-In Methods"
+        , staffProfileSectionBody = renderPasskeyManagement now passkeys (appendQueryParams (pathTo EditProfileAction) [("section", "security")])
+        }
+
+profileLeaveAccordionSection :: Staff -> LeaveRequest -> [LeaveRequest] -> StaffProfileAccordionSection
+profileLeaveAccordionSection staff leaveRequestForm leaveRequests =
+    StaffProfileAccordionSection
+        { staffProfileSectionKey = "leave"
+        , staffProfileSectionId = profileLeaveSectionId
+        , staffProfileSectionTitle = "Unavailability"
+        , staffProfileSectionBody = renderProfileLeaveRequestsContentFragment staff leaveRequestForm leaveRequests
+        }
+
+profileRsaAccordionSection :: Staff -> Maybe StaffDocument -> Day -> StaffProfileAccordionSection
+profileRsaAccordionSection staff staffRsaDocument today =
+    StaffProfileAccordionSection
+        { staffProfileSectionKey = "rsa"
+        , staffProfileSectionId = profileRsaSectionId
+        , staffProfileSectionTitle = "RSA"
+        , staffProfileSectionBody = renderProfileRsaSection staff staffRsaDocument today
+        }
+
+renderProfileSectionFragmentWithManagement :: Staff -> Text -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> [Passkey] -> [LeaveRequest] -> LeaveRequest -> Maybe StaffDocument -> Maybe StaffManagementFieldData -> Day -> UTCTime -> Text -> Html
+renderProfileSectionFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection =
+    let section = case normalizeProfileSectionForRender openSection of
+            "preferences" -> profilePreferencesAccordionSection preferenceWeekdays selectedShiftPreferences
+            "security"    -> profileSecurityAccordionSection now passkeys
+            "leave"       -> profileLeaveAccordionSection staff leaveRequestForm leaveRequests
+            "rsa"         -> profileRsaAccordionSection staff staffRsaDocument today
+            _             -> profileDetailsAccordionSection staff currentUserEmail staffManagementFields
+     in renderStaffProfileAccordionSection profileSectionsAccordionId openSection section
+
+normalizeProfileSectionForRender :: Text -> Text
+normalizeProfileSectionForRender section
+    | section `elem` ["preferences", "security", "leave", "rsa"] = section
+    | otherwise = "profile"
+
+profileSurfaceMount :: (?context :: ControllerContext) => Staff -> Maybe (SurfaceImpl Surface.ProfileSurface)
+profileSurfaceMount staff =
     if currentUser.isProfileCompleted && not (isNew staff)
-        then Just (mkTypedDefinedLiveSurface profileContentLiveSurfaceDefinition (currentProfileContentSurfaceKey staff openSection))
+        then Just (profileSurfaceImpl ProfileScopeValue { profileVenueId = staff.venueId, profileStaffId = unpackId staff.id })
         else Nothing
 
 renderAccordionSection :: Text -> Text -> Bool -> Html -> Html
@@ -173,7 +231,7 @@ renderProfileForm staff currentUserEmail staffManagementFields =
             , staffProfileDetailsFormClass = ""
             , staffProfileDetailsFormHtmx =
                 Just StaffProfileFormHtmxConfig
-                    { staffProfileFormHtmxTarget = "#" <> profileContentFragmentId
+                    { staffProfileFormHtmxTarget = "#" <> profileDetailsSectionId
                     , staffProfileFormHtmxSwap = "outerHTML show:none"
                     , staffProfileFormHtmxPushUrl = "false"
                     }
@@ -199,7 +257,7 @@ renderProfileShiftPreferencesForm preferenceWeekdays selectedShiftPreferences =
             , staffShiftPreferencesFormClass = ""
             , staffShiftPreferencesFormHtmx =
                 Just StaffProfileFormHtmxConfig
-                    { staffProfileFormHtmxTarget = "#" <> profileContentFragmentId
+                    { staffProfileFormHtmxTarget = "#" <> profilePreferencesSectionId
                     , staffProfileFormHtmxSwap = "outerHTML show:none"
                     , staffProfileFormHtmxPushUrl = "false"
                     }
@@ -253,8 +311,7 @@ renderProfileLeaveRequestsContentFragment =
 renderProfileLeaveRequestsContentFragmentWithSwap :: Maybe Text -> Staff -> LeaveRequest -> [LeaveRequest] -> Html
 renderProfileLeaveRequestsContentFragmentWithSwap maybeSwapOob staff leaveRequest leaveRequests = [hsx|
     <div id={profileLeaveRequestsContentFragmentId}
-         hx-swap-oob={maybeSwapOob}
-         data-live-update-surface={liveSurfaceConfigJson <$> profileLeaveRequestsLiveSurface staff}>
+         hx-swap-oob={maybeSwapOob}>
         <div class="row g-4 align-items-start">
             <div class="col-12 col-xl-5">
                 {renderProfileLeaveRequestFormFragment leaveRequest}
@@ -265,12 +322,6 @@ renderProfileLeaveRequestsContentFragmentWithSwap maybeSwapOob staff leaveReques
         </div>
     </div>
 |]
-
-profileLeaveRequestsLiveSurface :: (?context :: ControllerContext) => Staff -> Maybe LiveSurfaceConfig
-profileLeaveRequestsLiveSurface staff =
-    if isNew staff
-        then Nothing
-        else Just (mkTypedDefinedLiveSurface profileLeaveRequestsLiveSurfaceDefinition (currentProfileLeaveSurfaceKey staff))
 
 renderProfileLeaveRequestFormFragment :: LeaveRequest -> Html
 renderProfileLeaveRequestFormFragment leaveRequest = [hsx|

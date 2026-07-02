@@ -1,14 +1,13 @@
 {-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 
 module Web.Profiles.LeaveFragments
-    ( ProfileLeaveFragmentModel (..)
+    ( FragmentRenderMode (..)
+    , ProfileLeaveFragmentModel (..)
     , fetchProfileLeaveFragmentModel
     , renderProfileLeaveFragment
     , respondWithProfileLeaveFragments
     ) where
 
-import Application.Helper.LiveSurface (FragmentRenderMode (..),
-                                       normalizeTypedLiveSurfaceFragments)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchStaffLeaveRequests)
 import Application.Helper.Profiling (respondHtmlProfiled)
@@ -17,6 +16,10 @@ import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.Profiles.LiveUpdates
 import Web.View.Profiles.Edit (renderProfileLeaveRequestsContentFragmentWithSwap)
+
+data FragmentRenderMode
+    = FragmentPlain
+    | FragmentOob (Maybe Text)
 
 data ProfileLeaveFragmentModel = ProfileLeaveFragmentModel
     { profileLeaveModelStaff    :: !Staff
@@ -50,8 +53,7 @@ renderProfileLeaveFragment renderMode model ProfileLeaveRequestsLiveFragment =
 respondWithProfileLeaveFragments :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> [ProfileLeaveFragment] -> Blaze.Html -> IO ()
 respondWithProfileLeaveFragments staff fragments extraHtml = do
     model <- fetchProfileLeaveFragmentModel staff
-    let surfaceKey = currentProfileLeaveSurfaceKey staff
-    let normalizedFragments = normalizeTypedLiveSurfaceFragments profileLeaveRequestsLiveSurfaceDefinition surfaceKey fragments
+    let normalizedFragments = nub fragments
     respondHtmlProfiled $
         mconcat (map (renderProfileLeaveFragment (FragmentOob outerHtmlOobSwap) model) normalizedFragments)
             <> extraHtml

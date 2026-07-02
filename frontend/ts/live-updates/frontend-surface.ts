@@ -24,6 +24,7 @@ type RosterWeekLiveUpdateScope = Extract<LiveUpdateScope, { kind: "roster_week" 
 type LeaveRequestsLiveUpdateScope = Extract<LiveUpdateScope, { kind: "leave_requests" }>;
 type BillingLiveUpdateScope = Extract<LiveUpdateScope, { kind: "billing" }>;
 type SupportPlatformLiveUpdateScope = Extract<LiveUpdateScope, { kind: "support_platform" }>;
+type ProfileLiveUpdateScope = Extract<LiveUpdateScope, { kind: "profile" }>;
 
 export type ParsedFrontendSurfaceSubscriptionConfig = {
     feature: string;
@@ -112,6 +113,22 @@ export function parseFrontendSurfaceSubscriptionConfig(value: unknown): ParsedFr
             feature: config.surface,
             scope,
             scopeKey: "support_platform",
+            socketPath: "/live-updates",
+            resyncFragments,
+            decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`),
+        };
+    }
+
+    if (config.surface === "profile") {
+        const scope = parseProfileScope(config.scopeKey);
+        if (!scope) return null;
+        const resyncFragments = config.fragments.map(profileFragmentToWire).filter((fragment): fragment is LiveUpdateWireFragment => fragment !== null);
+        if (resyncFragments.length === 0) return null;
+
+        return {
+            feature: config.surface,
+            scope,
+            scopeKey: `profile:${scope.venueId}:${scope.staffId}`,
             socketPath: "/live-updates",
             resyncFragments,
             decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`),
@@ -291,6 +308,38 @@ function supportFragmentToWire(fragment: FrontendSurfaceMountedFragmentConfig): 
 
     if (fragment.key.kind === "support-public-holidays") {
         return { ...base, fragmentKey: { kind: "support_public_holidays_section" } };
+    }
+
+    return null;
+}
+
+function parseProfileScope(scopeKey: string): ProfileLiveUpdateScope | null {
+    const match = /^profile:([^:]+):([^:]+)$/.exec(scopeKey);
+    if (!match) return null;
+    return { kind: "profile", venueId: match[1], staffId: match[2] };
+}
+
+function profileFragmentToWire(fragment: FrontendSurfaceMountedFragmentConfig): LiveUpdateWireFragment | null {
+    const base = liveFragmentBase(fragment);
+
+    if (fragment.key.kind === "profile-details-section") {
+        return { ...base, fragmentKey: { kind: "profile_details_section" } };
+    }
+
+    if (fragment.key.kind === "profile-preferences-section") {
+        return { ...base, fragmentKey: { kind: "profile_preferences_section" } };
+    }
+
+    if (fragment.key.kind === "profile-security-section") {
+        return { ...base, fragmentKey: { kind: "profile_security_section" } };
+    }
+
+    if (fragment.key.kind === "profile-leave-section") {
+        return { ...base, fragmentKey: { kind: "profile_leave_section" } };
+    }
+
+    if (fragment.key.kind === "profile-rsa-section") {
+        return { ...base, fragmentKey: { kind: "profile_rsa_section" } };
     }
 
     return null;

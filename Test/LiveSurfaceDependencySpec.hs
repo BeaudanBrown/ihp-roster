@@ -2,25 +2,19 @@ module Test.LiveSurfaceDependencySpec where
 
 import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceMountedFragment (..))
 import Application.Helper.LiveResource
-import Application.Helper.LiveSurface (TypedLiveSurfaceDefinition (..),
-                                       typedLiveSurfaceAffectedFragments,
-                                       typedSurfaceDependsOn)
+import Application.Helper.LiveSurface (typedSurfaceDependsOn)
 import Application.Support.LiveUpdates (supportAffectedMountedFragments,
                                         supportFragmentDependencies)
 import qualified Data.Set as Set
 import Data.UUID (fromWords)
-import IHP.Controller.Context (ControllerContext)
 import IHP.Prelude
 import Test.Hspec
 import Web.Billing.FrontendSurface (BillingScopeValue (..),
                                     billingAffectedMountedFragments,
                                     billingFragmentDependencies)
-import Web.Profiles.LiveUpdates (ProfileContentFragment (..),
-                                 ProfileContentSurfaceKey (..),
-                                 ProfileLeaveSurfaceKey (..),
-                                 profileContentLiveSurfaceDefinition,
-                                 profileLeaveRequestsFragment,
-                                 profileLeaveRequestsLiveSurfaceDefinition)
+import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
+                                     profileAffectedMountedFragments,
+                                     profileFragmentDependencies)
 import Web.Timesheets.FrontendSurface (TimesheetSurfaceFragment (..),
                                        TimesheetWeekScopeValue (..),
                                        TimesheetsMountStateValue (..),
@@ -97,17 +91,18 @@ tests = do
             concatMap (billingFragmentDependencies scope) fragments `shouldBe` [BillingResource venueId]
 
         it "declares profile dependencies by staff-backed section" do
-            let ?context = error "profile dependency test does not use controller context" :: ControllerContext
             let venueId = fromWords 4 0 0 0
             let staffId = fromWords 5 0 0 0
-            let contentKey = ProfileContentSurfaceKey venueId staffId "profile"
-            let leaveKey = ProfileLeaveSurfaceKey venueId staffId
+            let scope = ProfileScopeValue venueId staffId
+            let affectedByProfile = profileAffectedMountedFragments scope (Set.fromList [StaffProfileResource staffId])
+            let affectedByRsa = profileAffectedMountedFragments scope (Set.fromList [StaffRsaDocumentsResource staffId])
+            let affectedByLeave = profileAffectedMountedFragments scope (Set.fromList [StaffLeaveRequestsResource staffId])
 
-            typedSurfaceDependsOn profileContentLiveSurfaceDefinition contentKey ProfileDetailsContentFragment
+            concatMap (profileFragmentDependencies scope) affectedByProfile
                 `shouldBe` [StaffProfileResource staffId, StaffPreferencesResource staffId]
-            typedSurfaceDependsOn profileContentLiveSurfaceDefinition contentKey ProfileRsaContentFragment
+            concatMap (profileFragmentDependencies scope) affectedByRsa
                 `shouldBe` [StaffRsaDocumentsResource staffId]
-            typedSurfaceDependsOn profileLeaveRequestsLiveSurfaceDefinition leaveKey profileLeaveRequestsFragment
+            concatMap (profileFragmentDependencies scope) affectedByLeave
                 `shouldBe` [StaffLeaveRequestsResource staffId]
 
         it "declares admin venue settings dependencies for venue-scoped settings surfaces" do

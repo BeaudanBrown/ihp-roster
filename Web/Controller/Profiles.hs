@@ -1,8 +1,6 @@
 module Web.Controller.Profiles where
 
 import Application.Helper.LiveResource (LiveMutationResult (..))
-import Application.Helper.LiveSurface (FragmentRenderMode (FragmentPlain),
-                                       serveTypedLiveFragment)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchCurrentUserLeaveRequests)
 import Application.Helper.Profiling (profileActionSpan)
@@ -57,28 +55,26 @@ instance Controller ProfilesController where
             maybeExistingStaff <- profileActionSpan "profile.leave_fragment.fetch_staff" fetchCurrentUserStaff
             case maybeExistingStaff of
                 Nothing -> accessDeniedUnless False
-                Just staff ->
-                    serveTypedLiveFragment profileLeaveRequestsLiveSurfaceDefinition (currentProfileLeaveSurfaceKey staff) profileLeaveRequestsFragment \_ -> do
-                        model <- profileActionSpan "profile.leave_fragment.fetch_model" (fetchProfileLeaveFragmentModel staff)
-                        profileActionSpan "profile.leave_fragment.render_response" (respondHtml (renderProfileLeaveFragment FragmentPlain model profileLeaveRequestsFragment))
+                Just staff -> do
+                    model <- profileActionSpan "profile.leave_fragment.fetch_model" (fetchProfileLeaveFragmentModel staff)
+                    profileActionSpan "profile.leave_fragment.render_response" (respondHtml (renderProfileLeaveFragment FragmentPlain model profileLeaveRequestsFragment))
 
     action currentAction@ShowProfileContentFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "profile.content_fragment.respond" do
             let openSection = normalizeProfileOpenSection (paramOrDefault @Text "" "section")
             profileActionSpan "profile.content_fragment.fetch_staff" fetchCurrentUserStaff >>= \case
                 Nothing -> accessDeniedUnless False
-                Just staff ->
-                    serveTypedLiveFragment profileContentLiveSurfaceDefinition (currentProfileContentSurfaceKey staff openSection) (profileContentFragment openSection) \_ -> do
-                        let currentUserEmail = currentUser.email
-                        (preferenceWeekdays, selectedShiftPreferences) <- profileActionSpan "profile.content_fragment.fetch_preferences" (profilePreferenceViewData (Just staff))
-                        passkeys <- profileActionSpan "profile.content_fragment.fetch_passkeys" fetchCurrentUserPasskeys
-                        leaveRequests <- profileActionSpan "profile.content_fragment.fetch_leave_requests" fetchCurrentUserLeaveRequests
-                        leaveRequestForm <- profileActionSpan "profile.content_fragment.build_leave_form" buildDefaultLeaveRequest
-                        staffRsaDocument <- profileActionSpan "profile.content_fragment.fetch_rsa_document" (latestRsaDocumentForStaff staff)
-                        staffManagementFields <- profileActionSpan "profile.content_fragment.fetch_management_fields" (fetchProfileStaffManagementFields (Just staff) Nothing)
-                        now <- getCurrentTime
-                        let today = utctDay now
-                        profileActionSpan "profile.content_fragment.render_response" (respondHtml (renderProfileContentFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection))
+                Just staff -> do
+                    let currentUserEmail = currentUser.email
+                    (preferenceWeekdays, selectedShiftPreferences) <- profileActionSpan "profile.content_fragment.fetch_preferences" (profilePreferenceViewData (Just staff))
+                    passkeys <- profileActionSpan "profile.content_fragment.fetch_passkeys" fetchCurrentUserPasskeys
+                    leaveRequests <- profileActionSpan "profile.content_fragment.fetch_leave_requests" fetchCurrentUserLeaveRequests
+                    leaveRequestForm <- profileActionSpan "profile.content_fragment.build_leave_form" buildDefaultLeaveRequest
+                    staffRsaDocument <- profileActionSpan "profile.content_fragment.fetch_rsa_document" (latestRsaDocumentForStaff staff)
+                    staffManagementFields <- profileActionSpan "profile.content_fragment.fetch_management_fields" (fetchProfileStaffManagementFields (Just staff) Nothing)
+                    now <- getCurrentTime
+                    let today = utctDay now
+                    profileActionSpan "profile.content_fragment.render_response" (respondHtml (renderProfileSectionFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection))
 
     action currentAction@UpdateProfileAction = runBepis currentAction BepisMutationAction do
         maybeExistingStaff <- fetchCurrentUserStaff
@@ -113,7 +109,7 @@ instance Controller ProfilesController where
             |> ifValid \case
                 Left staff -> do
                     if isHtmxRequest
-                        then respondHtml (renderProfileContentFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection)
+                        then respondHtml (renderProfileSectionFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection)
                         else render EditView { .. }
                 Right staff -> do
                     case if preferencesWereSubmitted then parseShiftPreferenceSelections preferenceWeekdays submittedShiftPreferenceKeys else Right selectedShiftPreferences of
@@ -130,7 +126,7 @@ instance Controller ProfilesController where
                             leaveRequestForm <- buildDefaultLeaveRequest
                             staffRsaDocument <- maybe (pure Nothing) latestRsaDocumentForStaff maybeExistingStaff
                             if isHtmxRequest
-                                then respondHtml (renderProfileContentFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection)
+                                then respondHtml (renderProfileSectionFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection)
                                 else render EditView { .. }
                         Right submittedSelections -> do
                             if canManageProfileStaff
@@ -143,7 +139,7 @@ instance Controller ProfilesController where
                                             then
                                                 respondHtml $
                                                     mconcat
-                                                        [ renderProfileContentFragmentWithManagement updatedStaff currentUserEmail preferenceWeekdays submittedSelections passkeys leaveRequests leaveRequestForm staffRsaDocument updatedManagementFields today now openSection
+                                                        [ renderProfileSectionFragmentWithManagement updatedStaff currentUserEmail preferenceWeekdays submittedSelections passkeys leaveRequests leaveRequestForm staffRsaDocument updatedManagementFields today now openSection
                                                         , renderToastOob ToastBottomCenter (successToast "Profile updated")
                                                         ]
                                             else do
@@ -151,13 +147,13 @@ instance Controller ProfilesController where
                                                 redirectTo EditProfileAction
                                     _ ->
                                         if isHtmxRequest
-                                            then respondHtml (renderProfileContentFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection)
+                                            then respondHtml (renderProfileSectionFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection)
                                             else render EditView { .. }
                                 else if preferencesWereSubmitted && isNothing maybeExistingStaff
                                     then do
                                         setErrorMessage "Save your profile details before setting shift preferences."
                                         if isHtmxRequest
-                                            then respondHtml (renderProfileContentFragmentWithManagement staff currentUserEmail preferenceWeekdays submittedSelections passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection)
+                                            then respondHtml (renderProfileSectionFragmentWithManagement staff currentUserEmail preferenceWeekdays submittedSelections passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection)
                                             else render EditView { .. }
                                     else do
                                         mutationResult <- updateCurrentUserProfile openSection staff submittedSelections
@@ -170,7 +166,7 @@ instance Controller ProfilesController where
                                                 then
                                                     respondHtml $
                                                         mconcat
-                                                            [ renderProfileContentFragmentWithManagement updatedStaff currentUserEmail preferenceWeekdays submittedSelections passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection
+                                                            [ renderProfileSectionFragmentWithManagement updatedStaff currentUserEmail preferenceWeekdays submittedSelections passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection
                                                             , renderToastOob ToastBottomCenter (successToast successMessage)
                                                             ]
                                                 else do

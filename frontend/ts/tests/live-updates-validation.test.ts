@@ -160,6 +160,29 @@ test("FrontendSurface config parser derives Billing and Support live subscriptio
     assertDeepEqual(support?.resyncFragments[0]?.fragmentKey, { kind: "support_public_holidays_section" });
 });
 
+test("FrontendSurface config parser derives Profile live subscriptions from mounted fragments", () => {
+    const config = parseFrontendSurfaceSubscriptionConfig({
+        surface: "profile",
+        scopeKey: "profile:venue-1:staff-1",
+        mountKey: "primary",
+        mountState: null,
+        fragments: [
+            {
+                key: { kind: "profile-details-section", params: null },
+                targetId: "profile-details",
+                url: "/ShowProfileContentFragment?section=profile",
+                protection: { kind: "replace" },
+                loadPolicy: "eager",
+            },
+        ],
+    });
+
+    assertEqual(config?.feature, "profile");
+    assertDeepEqual(config?.scope, { kind: "profile", venueId: "venue-1", staffId: "staff-1" });
+    assertEqual(config?.scopeKey, "profile:venue-1:staff-1");
+    assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { kind: "profile_details_section" });
+});
+
 test("generated live update surface validator rejects malformed boundary JSON", () => {
     assertEqual(parseLiveUpdateSurfaceConfig(null), null);
     assertEqual(parseLiveUpdateSurfaceConfig({ ...validSurfaceConfig, scope: { kind: "unknown_scope" } }), null);
