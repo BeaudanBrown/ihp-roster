@@ -1090,7 +1090,7 @@ renderDayColumnCreateCard RosterDayRenderModel { dayIsEditable } rosterDay maybe
 renderDayColumnCreateLauncherCard :: (?context :: ControllerContext) => RosterSlotCellTarget -> Html
 renderDayColumnCreateLauncherCard target =
     let groupKey = rosterShiftGroupKey target
-     in [hsx|
+     in withInteractionDropzoneMarker groupKey [hsx|
         <article class="roster-shift-card roster-shift-card-empty roster-shift-card-create roster-shift-launcher roster-shift-create-plus-card"
                  data-roster-shift-group-key={groupKey}
                  data-roster-shift-launcher="true"
@@ -1136,35 +1136,38 @@ renderDayColumnSlotCardContent isEditable _assignmentFilters _staffMembers shift
                     </div>
                 |]
                 else mempty
-     in [hsx|
-        <article class={classes [("roster-shift-card", True), ("roster-shift-card-create", not (targetHasExistingSlot target)), ("roster-shift-launcher", isEditable)]}
-                 data-roster-slot-id={rosterSlotDataId}
-                 data-roster-staff-id={maybe "" tshow staffId}
-                 data-roster-shift-colour={currentShiftTypeColourKey}
-                 data-roster-shift-group-key={groupKey}
-                 data-roster-shift-launcher={if isEditable then ("true" :: Text) else ""}
-                 tabindex={if isEditable then ("0" :: Text) else ""}
-                 hx-get={if isEditable then pathTo (rosterSlotDialogAction target) else ""}
-                 hx-target={"#" <> dialogOverlayMountId}
-                 hx-swap="innerHTML"
-                 hx-push-url="false"
-                 title={renderConflictMessage currentPrimaryConflict}
-                 data-conflict-message={renderConflictMessage currentPrimaryConflict}>
-            <div class={classes [("roster-shift-card-fields", True), ("has-end-times", endTimesEnabled)]}>
-                <div class={classes [("roster-shift-card-field roster-shift-card-time", True), ("is-roster-shift-publish-required", missingStartTime)]}>
-                    {renderReadOnlyCell (renderTimePickerDisplayLabel "Start" currentStartTime)}
+        card = [hsx|
+            <article class={classes [("roster-shift-card", True), ("roster-shift-card-create", not (targetHasExistingSlot target)), ("roster-shift-launcher", isEditable)]}
+                     data-roster-slot-id={rosterSlotDataId}
+                     data-roster-staff-id={maybe "" tshow staffId}
+                     data-roster-shift-colour={currentShiftTypeColourKey}
+                     data-roster-shift-group-key={groupKey}
+                     data-roster-shift-launcher={if isEditable then ("true" :: Text) else ""}
+                     tabindex={if isEditable then ("0" :: Text) else ""}
+                     hx-get={if isEditable then pathTo (rosterSlotDialogAction target) else ""}
+                     hx-target={"#" <> dialogOverlayMountId}
+                     hx-swap="innerHTML"
+                     hx-push-url="false"
+                     title={renderConflictMessage currentPrimaryConflict}
+                     data-conflict-message={renderConflictMessage currentPrimaryConflict}>
+                <div class={classes [("roster-shift-card-fields", True), ("has-end-times", endTimesEnabled)]}>
+                    <div class={classes [("roster-shift-card-field roster-shift-card-time", True), ("is-roster-shift-publish-required", missingStartTime)]}>
+                        {renderReadOnlyCell (renderTimePickerDisplayLabel "Start" currentStartTime)}
+                    </div>
+                    {endTimeField}
+                    <div class={classes [("roster-shift-card-field roster-shift-card-staff", True), (renderConflictClass currentPrimaryConflict, True)]}>
+                        {if targetHasExistingSlot target then renderReadOnlyStaffCell currentStaffLabel currentPrimaryConflict else renderReadOnlyCell "Add shift"}
+                    </div>
+                    <div class={classes [("roster-shift-card-field roster-shift-card-code", True), ("is-shift-type-required", missingShiftType)]}
+                         data-roster-shift-colour={currentShiftTypeColourKey}>
+                        {renderReadOnlyDayColumnShiftTypeBadge staffId currentShiftType missingShiftType}
+                    </div>
                 </div>
-                {endTimeField}
-                <div class={classes [("roster-shift-card-field roster-shift-card-staff", True), (renderConflictClass currentPrimaryConflict, True)]}>
-                    {if targetHasExistingSlot target then renderReadOnlyStaffCell currentStaffLabel currentPrimaryConflict else renderReadOnlyCell "Add shift"}
-                </div>
-                <div class={classes [("roster-shift-card-field roster-shift-card-code", True), ("is-shift-type-required", missingShiftType)]}
-                     data-roster-shift-colour={currentShiftTypeColourKey}>
-                    {renderReadOnlyDayColumnShiftTypeBadge staffId currentShiftType missingShiftType}
-                </div>
-            </div>
-        </article>
-    |]
+            </article>
+        |]
+     in if isEditable && targetHasExistingSlot target
+            then withInteractionPointerSessionMarker groupKey rosterDragSessionKindName rosterMoveShiftIntentName card
+            else card
 
 targetHasExistingSlot :: RosterSlotCellTarget -> Bool
 targetHasExistingSlot ExistingRosterSlotTarget {} = True

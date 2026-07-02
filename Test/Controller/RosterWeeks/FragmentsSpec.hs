@@ -351,7 +351,37 @@ tests = beforeAll testContext do
                 bodyText `shouldContain` "<span class=\"roster-shift-create-plus\" aria-hidden=\"true\">+</span>"
                 bodyText `shouldContain` "<span class=\"visually-hidden\">Add shift</span>"
                 bodyText `shouldContain` ("data-roster-shift-group-key=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
+                bodyText `shouldContain` ("data-bepis-dropzone=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
                 bodyText `shouldNotContain` ">Add shift</div>"
+
+        it "renders editable day-column shifts as typed drag sources and create cards as drop targets" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-day-column-drag-intent@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                early <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                sourceSlot <- createRosterSlotRecord rosterDay early (Just staffMember) 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (UpdateRosterLayoutPreferenceAction 0) [("rosterLayoutMode", "day_columns")]
+
+                response `responseStatusShouldBe` status200
+                body <- responseBody response
+                let bodyText = cs body :: String
+                let sourceGroupKey = "existing:" <> tshow sourceSlot.id
+                let targetGroupKey = "new:" <> tshow rosterDay.id <> ":" <> tshow sourceSlot.rosterWeekSlotDefinitionId <> ":1"
+                bodyText `shouldContain` "roster-day-columns"
+                bodyText `shouldContain` ("data-bepis-pointer-session=\"true\"")
+                bodyText `shouldContain` ("data-bepis-session-kind=\"drag\"")
+                bodyText `shouldContain` ("data-bepis-session-intent=\"move-roster-shift-to-slot\"")
+                bodyText `shouldContain` ("data-bepis-item=\"" <> cs sourceGroupKey <> "\"")
+                bodyText `shouldContain` ("data-bepis-dropzone=\"" <> cs targetGroupKey <> "\"")
+                bodyText `shouldContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow sourceSlot.id) <> "\"")
+                bodyText `shouldContain` ("hx-get=\"/NewRosterSlotDialog?rosterDayId=" <> cs (tshow rosterDay.id) <> "&amp;rosterWeekSlotDefinitionId=" <> cs (tshow sourceSlot.rosterWeekSlotDefinitionId) <> "&amp;rowIndex=1\"")
 
         it "does not render empty day-row create markers for live rosters" $ withContext do
             withCleanDb do
