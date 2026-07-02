@@ -63,7 +63,8 @@ data TimesheetsMountStateValue = TimesheetsMountStateValue
 
 timesheetsSurfaceImpl :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> SurfaceImpl Surface.TimesheetsSurface
 timesheetsSurfaceImpl scope mountState =
-    mkSurfaceImpl "timesheets" (timesheetsSurfaceMountConfig scope mountState) (timesheetsSurfaceHandlers scope mountState)
+    let impl = mkSurfaceImpl "timesheets" (timesheetsSurfaceMountConfig scope mountState) (timesheetsSurfaceHandlers scope mountState)
+     in impl { surfaceImplMountConfig = impl.surfaceImplMountConfig { mountFragments = timesheetsCandidateMountedFragments scope mountState } }
 
 timesheetsSurfaceMountConfig :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> FrontendSurfaceMountConfig
 timesheetsSurfaceMountConfig scope mountState =
@@ -72,11 +73,7 @@ timesheetsSurfaceMountConfig scope mountState =
         , mountScopeKey = timesheetsSurfaceScopeKey scope
         , mountKey = "primary"
         , mountState = timesheetsMountStateJson mountState
-        , mountFragments =
-            [ timesheetToolbarMountedFragment mountState scope.timesheetWeekWeekOffset
-            , timesheetDayColumnsMountedFragment mountState scope.timesheetWeekWeekOffset
-            , timesheetDaySectionMountedFragment mountState scope.timesheetWeekWeekOffset 0
-            ]
+        , mountFragments = timesheetsCandidateMountedFragments scope mountState
         }
 
 timesheetsSurfaceScopeKey :: TimesheetWeekScopeValue -> Text

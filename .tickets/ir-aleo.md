@@ -66,3 +66,7 @@ Third slice: mounted the new Timesheets SurfaceImpl metadata side-by-side on the
 **2026-07-02T09:58:17Z**
 
 Bridge slice: removed Timesheets feature code from legacy TypedLiveSurfaceDefinition/SurfaceProjection authoring. Timesheet fragments now render directly from the typed FrontendSurface bridge/read-model; the old live-update client is fed by timesheetsLegacyLiveSurfaceConfig and wire-fragment adapters derived from SurfaceImpl/mounted fragments. Web.LiveSurfaceRegistry keeps a Timesheets compatibility planner/manifest during bridge mode, using FrontendSurface dependency helpers rather than timesheetLiveSurfaceDefinition. Roster quick-tool timesheet panel also uses the Timesheets FrontendSurface bridge. Verified typecheck, focused Timesheets/LiveSurface dependency Hspec, and frontend-surface-guardrails.
+
+**2026-07-02T10:08:53Z**
+
+Native Timesheets cutover slice: the Timesheets page now mounts live subscriptions from data-bepis-surface-config, and the frontend live-update runtime parses Timesheets FrontendSurface mount config directly. The Timesheets view no longer emits data-live-update-surface or data-live-update-url; incoming websocket fragments are resolved against mounted FrontendSurface fragment config so current query-backed mount state supplies the refetch URLs. Surface guardrails now block old Timesheets authoring paths and legacy live-update attrs in the Timesheets view. Verified typecheck, frontend-check, focused Timesheets Hspec, LiveSurface dependency/contract focused checks.

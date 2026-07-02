@@ -100,11 +100,12 @@ tests = beforeAll testContext do
 
                 liveSurfaceConfigShouldRoundTrip liveSurface
                 liveSurfaceConfigShouldExposeRefs liveSurface expectedRefs
-                responseShouldMountLiveSurface response liveSurface
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-bepis-surface=\"timesheets\""
-                response `responseBodyShouldContain` "timesheet_week"
+                response `responseBodyShouldContain` "data-bepis-surface-config=\""
+                response `responseBodyShouldNotContain` "data-live-update-surface="
+                response `responseBodyShouldContain` "timesheets:"
                 response `responseBodyShouldContain` "data-timesheet-day-offset=\"0\""
 
         it "builds typed FrontendSurface mount metadata for the current timesheet query state" $ withContext do
@@ -126,8 +127,8 @@ tests = beforeAll testContext do
                     , "showAllStaff" Aeson..= True
                     , "staffFilterId" Aeson..= (Nothing :: Maybe Text)
                     ]
-                fragmentKinds `shouldBe` ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"]
-                fragmentTargets `shouldBe` ["timesheet-week-toolbar", "timesheet-day-columns", "timesheet-day-section-0"]
+                fragmentKinds `shouldBe` ["timesheet-toolbar", "timesheet-day-columns"] <> replicate 7 "timesheet-day-section"
+                fragmentTargets `shouldBe` ["timesheet-week-toolbar", "timesheet-day-columns"] <> map (\dayOffset -> "timesheet-day-section-" <> tshow dayOffset) [0 .. 6]
                 fragmentUrls `shouldSatisfy` all (Text.isInfixOf "weekOffset=2")
                 fragmentUrls `shouldSatisfy` all (Text.isInfixOf "showApproved=false")
                 fragmentUrls `shouldSatisfy` all (Text.isInfixOf "showAllStaff=true")
@@ -191,7 +192,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "id=\"timesheet-week-toolbar\""
                 response `responseBodyShouldContain` "id=\"timesheet-day-columns\""
                 response `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
-                response `responseBodyShouldContain` "data-live-update-surface="
+                response `responseBodyShouldNotContain` "data-live-update-surface="
                 response `responseBodyShouldNotContain` "id=\"timesheet-week-shell\" hx-history-elt"
 
         it "renders declared timesheet toolbar and day-columns fragment targets" $ withContext do
@@ -208,10 +209,10 @@ tests = beforeAll testContext do
 
                 toolbarResponse `responseStatusShouldBe` status200
                 toolbarResponse `responseBodyShouldContain` "id=\"timesheet-week-toolbar\""
-                toolbarResponse `responseBodyShouldContain` "data-live-update-url=\"/ShowTimesheetToolbarFragment"
+                toolbarResponse `responseBodyShouldNotContain` "data-live-update-url="
                 columnsResponse `responseStatusShouldBe` status200
                 columnsResponse `responseBodyShouldContain` "id=\"timesheet-day-columns\""
-                columnsResponse `responseBodyShouldContain` "data-live-update-surface="
+                columnsResponse `responseBodyShouldNotContain` "data-live-update-surface="
                 columnsResponse `responseBodyShouldContain` "id=\"timesheet-day-section-0\""
 
         it "lets super-admin create timesheet entries for venue staff without a staff identity" $ withContext do
@@ -466,7 +467,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "timesheet-entry-staff-name\">Ava Hours"
                 response `responseBodyShouldNotContain` "timesheet-entry-card\" data-timesheet-entry-approved=\"true\""
 
-        it "renders live day refresh urls with current timesheet filters" $ withContext do
+        it "renders FrontendSurface refresh urls with current timesheet filters" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Live Filter Url Venue"
                 manager <- createUserRecord "timesheet-live-filter-url-manager@example.com" "staff" True
@@ -481,7 +482,8 @@ tests = beforeAll testContext do
                         ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-live-update-url="
+                response `responseBodyShouldContain` "data-bepis-surface-config=\""
+                response `responseBodyShouldNotContain` "data-live-update-url="
                 response `responseBodyShouldContain` "showApproved=false"
                 response `responseBodyShouldContain` "showAllStaff=true"
                 response `responseBodyShouldContain` cs ("staffFilterId=" <> tshow staff.id)

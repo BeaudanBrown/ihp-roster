@@ -4,8 +4,6 @@ import Application.Helper.Controller (isWithinEditWindow, shiftDurationMinutes)
 import Application.Helper.FrontendSurface.Runtime (SurfaceImpl,
                                                    renderFrontendSurfaceMount)
 import qualified Application.Helper.FrontendSurface.Timesheets as Surface
-import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
-                                       liveSurfaceConfigJson)
 import Data.Fixed (Pico)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays)
@@ -13,10 +11,7 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Data.UUID (UUID)
 import Web.Timesheets.Paths (editTimesheetEntryUrl, newTimesheetEntryUrl,
-                             timesheetDayColumnsFragmentUrl,
-                             timesheetDaySectionFragmentUrl,
-                             timesheetToolbarFragmentUrl, timesheetWeekResetUrl,
-                             timesheetWeekUrl)
+                             timesheetWeekResetUrl, timesheetWeekUrl)
 import Web.View.Prelude
 
 data IndexView = IndexView
@@ -32,7 +27,6 @@ data IndexView = IndexView
     , showAllStaff          :: Bool
     , selectedStaffFilterId :: Maybe UUID
     , currentViewerStaffId  :: Maybe UUID
-    , liveUpdateSurface     :: Maybe LiveSurfaceConfig
     , frontendSurfaceImpl   :: Maybe (SurfaceImpl Surface.TimesheetsSurface)
     }
 
@@ -108,7 +102,6 @@ renderTimesheetWeekToolbar =
 renderTimesheetWeekToolbarWithSwap :: (?context :: ControllerContext) => Maybe Text -> IndexView -> Html
 renderTimesheetWeekToolbarWithSwap maybeSwapOob IndexView { weekOffset, weekStartDate, showApproved, showAllStaff, selectedStaffFilterId, staffMembers } = [hsx|
     <div id={timesheetWeekToolbarId}
-         data-live-update-url={timesheetToolbarFragmentUrl weekOffset showApproved showAllStaff selectedStaffFilterId}
          hx-swap-oob={maybeSwapOob}>
         {renderTimesheetWeekHeader weekOffset weekStartDate showApproved showAllStaff selectedStaffFilterId staffMembers}
     </div>
@@ -119,12 +112,10 @@ renderTimesheetDayColumns =
     renderTimesheetDayColumnsWithSwap Nothing
 
 renderTimesheetDayColumnsWithSwap :: (?context :: ControllerContext) => Maybe Text -> IndexView -> Html
-renderTimesheetDayColumnsWithSwap maybeSwapOob view@IndexView { weekOffset, showApproved, showAllStaff, selectedStaffFilterId, liveUpdateSurface } = [hsx|
+renderTimesheetDayColumnsWithSwap maybeSwapOob view = [hsx|
     <div id={timesheetDayColumnsId}
          class="timesheet-day-columns app-horizontal-grid"
          style="--timesheet-day-count: 7;"
-         data-live-update-surface={liveSurfaceConfigJson <$> liveUpdateSurface}
-         data-live-update-url={timesheetDayColumnsFragmentUrl weekOffset showApproved showAllStaff selectedStaffFilterId}
          hx-swap-oob={maybeSwapOob}>
         {forEach [0 .. 6] (renderDaySection . timesheetDayRenderModel view)}
     </div>
@@ -268,7 +259,6 @@ renderDaySectionWithSwap maybeSwapOob model@TimesheetDayRenderModel { dayEntries
     <section id={timesheetDaySectionDomId dayOffset}
              class="timesheet-day-panel app-horizontal-panel"
              data-timesheet-day-offset={tshow dayOffset}
-             data-live-update-url={timesheetDaySectionFragmentUrl dayWeekOffset dayOffset dayShowApproved dayShowAllStaff dayStaffFilterId}
              hx-swap-oob={maybeSwapOob}>
         <header class="timesheet-day-header">
             <a href={newEntryUrl}

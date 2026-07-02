@@ -311,30 +311,34 @@ tests = describe "LiveSurface contract helpers" do
         liveSurfaceConfigShouldExposeRefs
             timesheetSurface
             timesheetSurface.resyncFragments
-        timesheetsSurfaceWireFragments (timesheetsCandidateMountedFragments timesheetScope timesheetMountState)
-            `shouldContain`
-                [ LiveUpdateWireFragment
-                    { fragmentKey = TimesheetToolbarFragment
-                    , targetId = "timesheet-week-toolbar"
-                    , url = "/ShowTimesheetToolbarFragment?weekOffset=1&showApproved=true&showAllStaff=true"
-                    , deferUntilBlur = False
-                    , protectionPolicy = NoProtection
-                    }
-                , LiveUpdateWireFragment
-                    { fragmentKey = TimesheetDayColumnsFragment
-                    , targetId = "timesheet-day-columns"
-                    , url = "/ShowTimesheetDayColumnsFragment?weekOffset=1&showApproved=true&showAllStaff=true"
-                    , deferUntilBlur = False
-                    , protectionPolicy = NoProtection
-                    }
-                , LiveUpdateWireFragment
-                    { fragmentKey = TimesheetDaySectionFragment { dayOffset = 2 }
-                    , targetId = "timesheet-day-section-2"
-                    , url = "/ShowTimesheetDaySectionFragment?weekOffset=1&dayOffset=2&showApproved=true&showAllStaff=true"
-                    , deferUntilBlur = False
-                    , protectionPolicy = NoProtection
-                    }
-                ]
+        let timesheetFragments = timesheetsSurfaceWireFragments (timesheetsCandidateMountedFragments timesheetScope timesheetMountState)
+        timesheetFragments `shouldContain`
+            [ LiveUpdateWireFragment
+                { fragmentKey = TimesheetToolbarFragment
+                , targetId = "timesheet-week-toolbar"
+                , url = "/ShowTimesheetToolbarFragment?weekOffset=1&showApproved=true&showAllStaff=true"
+                , deferUntilBlur = False
+                , protectionPolicy = NoProtection
+                }
+            ]
+        timesheetFragments `shouldContain`
+            [ LiveUpdateWireFragment
+                { fragmentKey = TimesheetDayColumnsFragment
+                , targetId = "timesheet-day-columns"
+                , url = "/ShowTimesheetDayColumnsFragment?weekOffset=1&showApproved=true&showAllStaff=true"
+                , deferUntilBlur = False
+                , protectionPolicy = NoProtection
+                }
+            ]
+        timesheetFragments `shouldContain`
+            [ LiveUpdateWireFragment
+                { fragmentKey = TimesheetDaySectionFragment { dayOffset = 2 }
+                , targetId = "timesheet-day-section-2"
+                , url = "/ShowTimesheetDaySectionFragment?weekOffset=1&dayOffset=2&showApproved=true&showAllStaff=true"
+                , deferUntilBlur = False
+                , protectionPolicy = NoProtection
+                }
+            ]
         typedLiveSurfaceFragmentShouldMapTo
             (adminXeroLiveSurfaceDefinitionForVenue venueId)
             ()

@@ -4,6 +4,7 @@ import { enableHtmxUiRegionEventAdapter } from "./fragments/htmx-adapter";
 import { enableUiRegionTransitions } from "./fragments/transitions";
 import { resolveLiveFragmentInteractionConflict } from "./interaction/live-conflicts";
 import { createActiveInteractionSessionTracker } from "./interaction/session-state";
+import { parseFrontendSurfaceSubscriptionConfig } from "./live-updates/frontend-surface";
 import { enableLazySurfaceErrorHandling } from "./live-updates/lazy-surface";
 import {
     buildLiveUpdateSubscribeCommand,
@@ -205,7 +206,7 @@ type HtmxConfigRequestEvent = Event & {
             activeClientId = makeClientId();
         }
 
-        document.querySelectorAll('[data-live-update-surface]').forEach(function (ownerEl) {
+        document.querySelectorAll('[data-live-update-surface], [data-bepis-surface-config]').forEach(function (ownerEl) {
             if (ownerEl instanceof HTMLElement) {
                 ownerEl.dataset.liveUpdateClientId = activeClientId ?? "";
             }
@@ -664,6 +665,40 @@ type HtmxConfigRequestEvent = Event & {
         };
     }
 
+    function readFrontendSurface(ownerEl: Element): LiveUpdateSubscription | null {
+        if (!(ownerEl instanceof HTMLElement)) return null;
+
+        const rawConfig = ownerEl.getAttribute('data-bepis-surface-config');
+        if (!rawConfig) return null;
+
+        let config = null;
+        try {
+            config = JSON.parse(rawConfig);
+        } catch (error) {
+            reportSurfaceConfigError(ownerEl, error);
+            return null;
+        }
+
+        const parsedConfig = parseFrontendSurfaceSubscriptionConfig(config);
+        if (parsedConfig === null) {
+            reportSurfaceConfigError(ownerEl, new Error('Invalid FrontendSurface config'));
+            return null;
+        }
+
+        return {
+            feature: parsedConfig.feature,
+            scope: parsedConfig.scope,
+            scopeKey: parsedConfig.scopeKey,
+            path: parsedConfig.socketPath,
+            resyncFragments: parsedConfig.resyncFragments,
+            decorateRequestsWithin: parsedConfig.decorateRequestsWithin,
+            ownerEls: [ownerEl],
+            resync: function (subscription: LiveUpdateSubscription): void {
+                subscription.resyncFragments.forEach(handleFragmentRefreshRequest);
+            },
+        };
+    }
+
     function reportSurfaceConfigError(ownerEl: HTMLElement, error: unknown): void {
         const detail = {
             id: ownerEl && ownerEl.id ? ownerEl.id : null,
@@ -688,6 +723,12 @@ type HtmxConfigRequestEvent = Event & {
             if (!scopeInfo || !scopeInfo.scopeKey) return;
             subscriptions.push({ ...scopeInfo, ownerEl });
         });
+        document.querySelectorAll('[data-bepis-surface-config]').forEach(function (ownerEl) {
+            if (!(ownerEl instanceof HTMLElement)) return;
+            const scopeInfo = readFrontendSurface(ownerEl);
+            if (!scopeInfo || !scopeInfo.scopeKey) return;
+            subscriptions.push({ ...scopeInfo, ownerEl });
+        });
         return subscriptions;
     }
 
@@ -695,10 +736,10 @@ type HtmxConfigRequestEvent = Event & {
         const sourceEl = event.detail && event.detail.elt;
         if (!(sourceEl instanceof HTMLElement)) return false;
 
-        const ownerEl = sourceEl.closest('[data-live-update-surface]');
+        const ownerEl = sourceEl.closest('[data-live-update-surface], [data-bepis-surface-config]');
         if (!(ownerEl instanceof HTMLElement)) return false;
 
-        const scopeInfo = readDeclarativeSurface(ownerEl);
+        const scopeInfo = ownerEl.hasAttribute('data-live-update-surface') ? readDeclarativeSurface(ownerEl) : readFrontendSurface(ownerEl);
         if (!scopeInfo) return false;
         if (scopeInfo.decorateRequestsWithin.length === 0) return true;
 
@@ -841,8 +882,20 @@ type HtmxConfigRequestEvent = Event & {
             return;
         }
 
-        message.fragments.forEach(handleFragmentRefreshRequest);
+        message.fragments
+            .map(function (fragment) {
+                return resolveMountedFragmentForSubscription(subscription, fragment);
+            })
+            .forEach(handleFragmentRefreshRequest);
         endPerfSpan(perfSpan, { outcome: 'queued_fragments', scopeKey });
+    }
+
+    function resolveMountedFragmentForSubscription(subscription: LiveUpdateSubscription, fragment: LiveUpdateFragmentWithState): LiveUpdateFragmentWithState {
+        const fragmentKey = JSON.stringify(fragment.fragmentKey);
+        const mountedFragment = subscription.resyncFragments.find(function (candidate) {
+            return JSON.stringify(candidate.fragmentKey) === fragmentKey;
+        });
+        return mountedFragment ? { ...fragment, targetId: mountedFragment.targetId, url: mountedFragment.url } : fragment;
     }
 
     function openSocket(path: string): void {

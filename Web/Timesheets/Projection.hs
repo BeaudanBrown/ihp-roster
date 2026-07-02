@@ -34,7 +34,6 @@ import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
                                        TimesheetsMountStateValue (..),
-                                       timesheetsLegacyLiveSurfaceConfig,
                                        timesheetsSurfaceImpl)
 import Web.View.Timesheets.Index
 
@@ -242,7 +241,6 @@ timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetStaffMem
         , showAllStaff = timesheetShowAllStaff
         , selectedStaffFilterId = timesheetStaffFilterId
         , currentViewerStaffId = timesheetCurrentViewerStaffId
-        , liveUpdateSurface = Just (timesheetsLegacyLiveSurfaceConfig surfaceImpl scopeValue)
         , frontendSurfaceImpl = Just surfaceImpl
         }
     where

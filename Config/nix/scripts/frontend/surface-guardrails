@@ -41,6 +41,12 @@ lab_paths=(
     Web/View/Support/FrontendSurfaceLab.hs
 )
 
+timesheets_paths=(
+    Web/Timesheets
+    Web/Controller/Timesheets.hs
+    Web/View/Timesheets/Index.hs
+)
+
 expect_no_match \
     "migrated FrontendSurface lab must not author old FrontendCodec/schema groups" \
     'Application\.Helper\.Frontend\.(Codec|Generic|ContractGroup|.*Schema)|FrontendCodec|HasFrontendCodec|someFrontendCodec|genericFrontendCodec' \
@@ -65,6 +71,21 @@ expect_no_match \
     "migrated FrontendSurface lab must not be registered in legacy Web.LiveSurfaceRegistry" \
     'FrontendSurfaceLab|SurfaceLab|surface-lab' \
     Web/LiveSurfaceRegistry.hs
+
+expect_no_match \
+    "migrated Timesheets FrontendSurface must not author old TypedLiveSurfaceDefinition paths" \
+    'TypedLiveSurfaceDefinition|descriptorToTypedLiveSurfaceDefinition|mkTypedDefinedLiveSurface|serveTypedLiveFragment|timesheetLiveSurfaceDefinition|timesheetProjectionDefinition|respondWithTypedLiveSurfaceFragments|renderLiveSurfaceProjectionFragment' \
+    "${timesheets_paths[@]}"
+
+expect_no_match \
+    "migrated Timesheets FrontendSurface must not use SurfaceProjection" \
+    'Application\.Helper\.SurfaceProjection|SurfaceProjection' \
+    "${timesheets_paths[@]}"
+
+expect_no_match \
+    "migrated Timesheets page must not mount legacy live-update attrs" \
+    'data-live-update-(surface|url)' \
+    Web/View/Timesheets/Index.hs
 
 expect_match \
     "generated contracts must expose the GHC-generated lab surface manifest" \

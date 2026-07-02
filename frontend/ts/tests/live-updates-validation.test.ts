@@ -1,4 +1,5 @@
 import { encodeLiveSurfaceConfig, isLiveUpdateMessage, isLiveUpdateWireFragment, parseLiveSurfaceConfig } from "../generated/contracts";
+import { parseFrontendSurfaceSubscriptionConfig } from "../live-updates/frontend-surface";
 import { parseLiveUpdateSurfaceConfig } from "../live-updates/validation";
 import { assertDeepEqual, assertEqual, assertThrows, test } from "./harness";
 
@@ -39,6 +40,30 @@ test("generated parse helpers reject unknown input and encode helpers preserve J
         () => parseLiveSurfaceConfig({ ...validSurfaceConfig, scope: { kind: "unknown_scope" } }),
         "Invalid LiveSurfaceConfig",
     );
+});
+
+test("FrontendSurface config parser derives Timesheets live subscriptions from mounted fragments", () => {
+    const config = parseFrontendSurfaceSubscriptionConfig({
+        surface: "timesheets",
+        scopeKey: "timesheets:venue-1:3",
+        mountKey: "primary",
+        mountState: { showApproved: false, showAllStaff: true, staffFilterId: null },
+        fragments: [
+            {
+                key: { kind: "timesheet-day-section", params: { dayOffset: 2 } },
+                targetId: "timesheet-day-section-2",
+                url: "/ShowTimesheetDaySectionFragment?weekOffset=3&dayOffset=2&showApproved=false&showAllStaff=true",
+                protection: { kind: "replace" },
+                loadPolicy: "eager",
+            },
+        ],
+    });
+
+    assertEqual(config?.feature, "timesheets");
+    assertDeepEqual(config?.scope, { kind: "timesheet_week", venueId: "venue-1", weekOffset: 3 });
+    assertEqual(config?.scopeKey, "timesheet_week:venue-1:3");
+    assertEqual(config?.resyncFragments[0]?.targetId, "timesheet-day-section-2");
+    assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { kind: "timesheet_day_section", dayOffset: 2 });
 });
 
 test("generated live update surface validator rejects malformed boundary JSON", () => {

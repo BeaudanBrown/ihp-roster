@@ -312,6 +312,90 @@
     return value !== null && typeof value === "object" && typeof value.id === "string";
   }
 
+  // frontend/ts/live-updates/frontend-surface.ts
+  function parseFrontendSurfaceSubscriptionConfig(value) {
+    const config = parseFrontendSurfaceMountConfig(value);
+    if (!config) return null;
+    if (config.surface === "timesheets") {
+      const scope = parseTimesheetsScope(config.scopeKey);
+      if (!scope) return null;
+      const resyncFragments = config.fragments.map(timesheetsFragmentToWire).filter((fragment) => fragment !== null);
+      if (resyncFragments.length === 0) return null;
+      return {
+        feature: config.surface,
+        scope,
+        scopeKey: `timesheet_week:${scope.venueId}:${scope.weekOffset}`,
+        socketPath: "/live-updates",
+        resyncFragments,
+        decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`)
+      };
+    }
+    return null;
+  }
+  function parseFrontendSurfaceMountConfig(value) {
+    if (!isRecord(value)) return null;
+    if (typeof value.surface !== "string") return null;
+    if (typeof value.scopeKey !== "string") return null;
+    if (typeof value.mountKey !== "string") return null;
+    if (!Array.isArray(value.fragments)) return null;
+    const fragments = value.fragments.map(parseMountedFragmentConfig);
+    if (fragments.some((fragment) => fragment === null)) return null;
+    return {
+      surface: value.surface,
+      scopeKey: value.scopeKey,
+      mountKey: value.mountKey,
+      mountState: value.mountState,
+      fragments
+    };
+  }
+  function parseMountedFragmentConfig(value) {
+    if (!isRecord(value)) return null;
+    if (!isRecord(value.key)) return null;
+    if (typeof value.key.kind !== "string") return null;
+    if (typeof value.targetId !== "string") return null;
+    if (typeof value.url !== "string") return null;
+    return {
+      key: {
+        kind: value.key.kind,
+        params: value.key.params
+      },
+      targetId: value.targetId,
+      url: value.url,
+      protection: isRecord(value.protection) ? { kind: typeof value.protection.kind === "string" ? value.protection.kind : void 0 } : null,
+      loadPolicy: typeof value.loadPolicy === "string" ? value.loadPolicy : null
+    };
+  }
+  function parseTimesheetsScope(scopeKey) {
+    const match = /^timesheets:([^:]+):(-?\d+)$/.exec(scopeKey);
+    if (!match) return null;
+    const weekOffset = Number(match[2]);
+    if (!Number.isInteger(weekOffset)) return null;
+    return { kind: "timesheet_week", venueId: match[1], weekOffset };
+  }
+  function timesheetsFragmentToWire(fragment) {
+    const base = {
+      targetId: fragment.targetId,
+      url: fragment.url,
+      deferUntilBlur: false,
+      protectionPolicy: { kind: "none" }
+    };
+    if (fragment.key.kind === "timesheet-toolbar") {
+      return { ...base, fragmentKey: { kind: "timesheet_toolbar" } };
+    }
+    if (fragment.key.kind === "timesheet-day-columns") {
+      return { ...base, fragmentKey: { kind: "timesheet_day_columns" } };
+    }
+    if (fragment.key.kind === "timesheet-day-section") {
+      const params = fragment.key.params;
+      if (!isRecord(params) || typeof params.dayOffset !== "number" || !Number.isInteger(params.dayOffset)) return null;
+      return { ...base, fragmentKey: { kind: "timesheet_day_section", dayOffset: params.dayOffset } };
+    }
+    return null;
+  }
+  function isRecord(value) {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  }
+
   // frontend/ts/live-updates/lazy-surface.ts
   var lazySurfaceSelector = `[${UiRegionDom.lazySurface}="true"]`;
   var lazySurfaceRetrySelector = `[${UiRegionDom.lazySurface}="true"][${UiRegionDom.lazyRetry}="true"]`;
@@ -528,7 +612,7 @@
       if (!activeClientId) {
         activeClientId = makeClientId();
       }
-      document.querySelectorAll("[data-live-update-surface]").forEach(function(ownerEl) {
+      document.querySelectorAll("[data-live-update-surface], [data-bepis-surface-config]").forEach(function(ownerEl) {
         if (ownerEl instanceof HTMLElement) {
           ownerEl.dataset.liveUpdateClientId = activeClientId ?? "";
         }
@@ -907,6 +991,35 @@
         }
       };
     }
+    function readFrontendSurface(ownerEl) {
+      if (!(ownerEl instanceof HTMLElement)) return null;
+      const rawConfig = ownerEl.getAttribute("data-bepis-surface-config");
+      if (!rawConfig) return null;
+      let config = null;
+      try {
+        config = JSON.parse(rawConfig);
+      } catch (error) {
+        reportSurfaceConfigError(ownerEl, error);
+        return null;
+      }
+      const parsedConfig = parseFrontendSurfaceSubscriptionConfig(config);
+      if (parsedConfig === null) {
+        reportSurfaceConfigError(ownerEl, new Error("Invalid FrontendSurface config"));
+        return null;
+      }
+      return {
+        feature: parsedConfig.feature,
+        scope: parsedConfig.scope,
+        scopeKey: parsedConfig.scopeKey,
+        path: parsedConfig.socketPath,
+        resyncFragments: parsedConfig.resyncFragments,
+        decorateRequestsWithin: parsedConfig.decorateRequestsWithin,
+        ownerEls: [ownerEl],
+        resync: function(subscription) {
+          subscription.resyncFragments.forEach(handleFragmentRefreshRequest);
+        }
+      };
+    }
     function reportSurfaceConfigError(ownerEl, error) {
       const detail = {
         id: ownerEl && ownerEl.id ? ownerEl.id : null,
@@ -928,14 +1041,20 @@
         if (!scopeInfo || !scopeInfo.scopeKey) return;
         subscriptions.push({ ...scopeInfo, ownerEl });
       });
+      document.querySelectorAll("[data-bepis-surface-config]").forEach(function(ownerEl) {
+        if (!(ownerEl instanceof HTMLElement)) return;
+        const scopeInfo = readFrontendSurface(ownerEl);
+        if (!scopeInfo || !scopeInfo.scopeKey) return;
+        subscriptions.push({ ...scopeInfo, ownerEl });
+      });
       return subscriptions;
     }
     function shouldDecorateDeclarativeRequest(event) {
       const sourceEl = event.detail && event.detail.elt;
       if (!(sourceEl instanceof HTMLElement)) return false;
-      const ownerEl = sourceEl.closest("[data-live-update-surface]");
+      const ownerEl = sourceEl.closest("[data-live-update-surface], [data-bepis-surface-config]");
       if (!(ownerEl instanceof HTMLElement)) return false;
-      const scopeInfo = readDeclarativeSurface(ownerEl);
+      const scopeInfo = ownerEl.hasAttribute("data-live-update-surface") ? readDeclarativeSurface(ownerEl) : readFrontendSurface(ownerEl);
       if (!scopeInfo) return false;
       if (scopeInfo.decorateRequestsWithin.length === 0) return true;
       return scopeInfo.decorateRequestsWithin.some(function(selector) {
@@ -1053,8 +1172,17 @@
         endPerfSpan(perfSpan, { outcome: "resync_empty_fragments", scopeKey });
         return;
       }
-      message.fragments.forEach(handleFragmentRefreshRequest);
+      message.fragments.map(function(fragment) {
+        return resolveMountedFragmentForSubscription(subscription, fragment);
+      }).forEach(handleFragmentRefreshRequest);
       endPerfSpan(perfSpan, { outcome: "queued_fragments", scopeKey });
+    }
+    function resolveMountedFragmentForSubscription(subscription, fragment) {
+      const fragmentKey = JSON.stringify(fragment.fragmentKey);
+      const mountedFragment = subscription.resyncFragments.find(function(candidate) {
+        return JSON.stringify(candidate.fragmentKey) === fragmentKey;
+      });
+      return mountedFragment ? { ...fragment, targetId: mountedFragment.targetId, url: mountedFragment.url } : fragment;
     }
     function openSocket(path) {
       const connectPerfSpan = beginPerfSpan("live_updates.open_socket", { path });
