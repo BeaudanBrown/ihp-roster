@@ -30,4 +30,4 @@ ghc $GHC_OPTS -package ghc Application/Script/FrontendSurfaceGhcProbe.hs \
     -hidir "$build_dir/hi" \
     -o "$build_dir/frontend-surface-ghc-probe" >/dev/null
 
-"$build_dir/frontend-surface-ghc-probe" "$(ghc --print-libdir)"
+"$build_dir/frontend-surface-ghc-probe" "$@" "$(ghc --print-libdir)"

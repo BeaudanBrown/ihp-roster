@@ -3,15 +3,20 @@ module Application.Script.FrontendSurfaceGhcProbe where
 import Prelude
 
 import Control.Monad.IO.Class (liftIO)
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Lazy.Char8 as LBS
 import qualified Data.List as List
 import GHC
-import GHC.Core.TyCon (synTyConRhs_maybe, tyConKind)
+import GHC.Core.TyCo.Rep (TyLit (..), Type (..))
+import GHC.Core.TyCon (synTyConRhs_maybe, tyConKind, tyConName)
+import GHC.Core.Type (coreView)
 import GHC.Driver.Flags (GeneralFlag (Opt_ForceRecomp))
 import GHC.Driver.Session (gopt_set, xopt_set)
 import GHC.LanguageExtensions.Type (Extension (DataKinds, TypeFamilies, TypeOperators))
-import GHC.Types.Name (nameOccName, nameSrcSpan)
-import GHC.Types.Name.Occurrence (occNameString)
+import GHC.Types.Name (Name, nameOccName, nameSrcSpan)
+import GHC.Types.Name.Occurrence (OccName, occNameString)
 import GHC.Types.TyThing (TyThing (ATyCon))
+import GHC.Types.Var (varName)
 import GHC.Utils.Outputable hiding ((<>))
 import qualified System.Environment as Environment
 import System.Exit (exitFailure)
@@ -25,17 +30,55 @@ registryModulePath = "Application/Helper/FrontendSurface/Registry.hs"
 registryTypeName :: String
 registryTypeName = "RegisteredFrontendSurfaces"
 
+data OutputMode
+    = HumanOutput
+    | JsonOutput
+    deriving (Eq, Show)
+
+data RawRegistry = RawRegistry
+    { rawRegistryModule   :: !String
+    , rawRegistryExport   :: !String
+    , rawRegistrySource   :: !String
+    , rawRegistryKind     :: !String
+    , rawRegistryRhs      :: !RawType
+    , rawRegistrySurfaces :: ![RawSurface]
+    }
+    deriving (Eq, Show)
+
+data RawSurface = RawSurface
+    { rawSurfaceName      :: !String
+    , rawSurfaceSource    :: !String
+    , rawSurfaceReference :: !RawType
+    , rawSurfaceExpanded  :: !RawType
+    }
+    deriving (Eq, Show)
+
+data RawType = RawType
+    { rawTypeNode   :: !String
+    , rawTypePretty :: !String
+    , rawTypeName   :: !(Maybe String)
+    , rawTypeSource :: !(Maybe String)
+    , rawTypeArgs   :: ![RawType]
+    }
+    deriving (Eq, Show)
+
 main :: IO ()
 main = do
     args <- Environment.getArgs
-    case args of
-        [libdir] -> inspectRegistry libdir
-        _ -> do
-            putStrLn "usage: FrontendSurfaceGhcProbe <ghc-libdir>"
+    case parseArgs args of
+        Just (mode, libdir) -> inspectRegistry mode libdir
+        Nothing -> do
+            putStrLn "usage: FrontendSurfaceGhcProbe [--json] <ghc-libdir>"
             exitFailure
 
-inspectRegistry :: FilePath -> IO ()
-inspectRegistry libdir =
+parseArgs :: [String] -> Maybe (OutputMode, FilePath)
+parseArgs = \case
+    [libdir] -> Just (HumanOutput, libdir)
+    ["--json", libdir] -> Just (JsonOutput, libdir)
+    _ -> Nothing
+
+inspectRegistry :: OutputMode -> FilePath -> IO ()
+inspectRegistry mode libdir =
     runGhc (Just libdir) do
         dflags <- getSessionDynFlags
         let registryDynFlags =
@@ -61,11 +104,20 @@ inspectRegistry libdir =
                 maybeThing <- lookupName registryName
                 case maybeThing of
                     Just (ATyCon tyCon) -> liftIO do
-                        putStrLn ("module: " <> registryModuleName)
-                        putStrLn ("export: " <> registryTypeName)
-                        putStrLn ("source: " <> renderSDoc (ppr (nameSrcSpan registryName)))
-                        putStrLn ("kind: " <> renderSDoc (ppr (tyConKind tyCon)))
-                        putStrLn ("rhs: " <> renderSDoc (ppr (synTyConRhs_maybe tyCon)))
+                        case synTyConRhs_maybe tyCon of
+                            Nothing -> do
+                                putStrLn ("frontend-surface-ghc-probe: export is not a type synonym: " <> registryTypeName)
+                                exitFailure
+                            Just rhs -> do
+                                let rawRegistry = RawRegistry
+                                        { rawRegistryModule = registryModuleName
+                                        , rawRegistryExport = registryTypeName
+                                        , rawRegistrySource = renderSDoc (ppr (nameSrcSpan registryName))
+                                        , rawRegistryKind = renderSDoc (ppr (tyConKind tyCon))
+                                        , rawRegistryRhs = rawTypeFromType rhs
+                                        , rawRegistrySurfaces = rawSurfacesFromRegistry rhs
+                                        }
+                                renderRawRegistry mode rawRegistry
                     Just otherThing -> liftIO do
                         putStrLn ("frontend-surface-ghc-probe: export is not a type constructor: " <> renderSDoc (ppr otherThing))
                         exitFailure
@@ -76,6 +128,164 @@ inspectRegistry libdir =
 findRegistryExport :: ModuleInfo -> Maybe Name
 findRegistryExport info =
     List.find ((== registryTypeName) . occNameString . nameOccName) (modInfoExports info)
+
+rawSurfacesFromRegistry :: Type -> [RawSurface]
+rawSurfacesFromRegistry rhs =
+    case promotedListElements rhs of
+        Nothing       -> []
+        Just surfaces -> map rawSurfaceFromType surfaces
+
+rawSurfaceFromType :: Type -> RawSurface
+rawSurfaceFromType surfaceType =
+    let expanded = expandTypeSynonyms surfaceType
+        surfaceName = typeHeadName surfaceType
+     in RawSurface
+            { rawSurfaceName = maybe (renderSDoc (ppr surfaceType)) occNameString surfaceName
+            , rawSurfaceSource = maybe "<unknown>" (renderSDoc . ppr . nameSrcSpan) (typeHeadNameFull surfaceType)
+            , rawSurfaceReference = rawTypeFromType surfaceType
+            , rawSurfaceExpanded = rawTypeFromType expanded
+            }
+
+promotedListElements :: Type -> Maybe [Type]
+promotedListElements value =
+    case value of
+        TyConApp tyCon args ->
+            case (occNameString (nameOccName (tyConName tyCon)), args) of
+                ("[]", _) -> Just []
+                (":", _kind : headType : tailType : _) -> (headType :) <$> promotedListElements tailType
+                _ -> Nothing
+        CastTy inner _ -> promotedListElements inner
+        _ -> Nothing
+
+expandTypeSynonyms :: Type -> Type
+expandTypeSynonyms value =
+    case coreView value of
+        Just expanded -> expandTypeSynonyms expanded
+        Nothing       -> value
+
+rawTypeFromType :: Type -> RawType
+rawTypeFromType value =
+    case value of
+        TyVarTy var -> RawType
+            { rawTypeNode = "TyVarTy"
+            , rawTypePretty = renderSDoc (ppr value)
+            , rawTypeName = Just (occNameString (nameOccName (varName var)))
+            , rawTypeSource = Just (renderSDoc (ppr (nameSrcSpan (varName var))))
+            , rawTypeArgs = []
+            }
+        AppTy left right -> RawType
+            { rawTypeNode = "AppTy"
+            , rawTypePretty = renderSDoc (ppr value)
+            , rawTypeName = Nothing
+            , rawTypeSource = Nothing
+            , rawTypeArgs = [rawTypeFromType left, rawTypeFromType right]
+            }
+        TyConApp tyCon args -> RawType
+            { rawTypeNode = "TyConApp"
+            , rawTypePretty = renderSDoc (ppr value)
+            , rawTypeName = Just (occNameString (nameOccName (tyConName tyCon)))
+            , rawTypeSource = Just (renderSDoc (ppr (nameSrcSpan (tyConName tyCon))))
+            , rawTypeArgs = map rawTypeFromType args
+            }
+        ForAllTy _ body -> RawType
+            { rawTypeNode = "ForAllTy"
+            , rawTypePretty = renderSDoc (ppr value)
+            , rawTypeName = Nothing
+            , rawTypeSource = Nothing
+            , rawTypeArgs = [rawTypeFromType body]
+            }
+        FunTy _ multiplicity argument result -> RawType
+            { rawTypeNode = "FunTy"
+            , rawTypePretty = renderSDoc (ppr value)
+            , rawTypeName = Nothing
+            , rawTypeSource = Nothing
+            , rawTypeArgs = map rawTypeFromType [multiplicity, argument, result]
+            }
+        LitTy literal -> RawType
+            { rawTypeNode = "LitTy"
+            , rawTypePretty = renderSDoc (ppr value)
+            , rawTypeName = Just (literalName literal)
+            , rawTypeSource = Nothing
+            , rawTypeArgs = []
+            }
+        CastTy inner _ -> RawType
+            { rawTypeNode = "CastTy"
+            , rawTypePretty = renderSDoc (ppr value)
+            , rawTypeName = Nothing
+            , rawTypeSource = Nothing
+            , rawTypeArgs = [rawTypeFromType inner]
+            }
+        CoercionTy _ -> RawType
+            { rawTypeNode = "CoercionTy"
+            , rawTypePretty = renderSDoc (ppr value)
+            , rawTypeName = Nothing
+            , rawTypeSource = Nothing
+            , rawTypeArgs = []
+            }
+
+typeHeadName :: Type -> Maybe OccName
+typeHeadName value = nameOccName <$> typeHeadNameFull value
+
+typeHeadNameFull :: Type -> Maybe Name
+typeHeadNameFull value =
+    case value of
+        TyConApp tyCon _ -> Just (tyConName tyCon)
+        CastTy inner _   -> typeHeadNameFull inner
+        _                -> Nothing
+
+literalName :: TyLit -> String
+literalName = \case
+    NumTyLit value -> show value
+    StrTyLit value -> renderSDoc (ppr value)
+    CharTyLit value -> show value
+
+renderRawRegistry :: OutputMode -> RawRegistry -> IO ()
+renderRawRegistry mode rawRegistry =
+    case mode of
+        JsonOutput -> LBS.putStrLn (Aeson.encode (rawRegistryToJson rawRegistry))
+        HumanOutput -> do
+            putStrLn ("module: " <> rawRegistry.rawRegistryModule)
+            putStrLn ("export: " <> rawRegistry.rawRegistryExport)
+            putStrLn ("source: " <> rawRegistry.rawRegistrySource)
+            putStrLn ("kind: " <> rawRegistry.rawRegistryKind)
+            putStrLn ("rhs: " <> rawRegistry.rawRegistryRhs.rawTypePretty)
+            putStrLn ("surfaces: " <> List.intercalate ", " (map (.rawSurfaceName) rawRegistry.rawRegistrySurfaces))
+            mapM_ renderSurface rawRegistry.rawRegistrySurfaces
+    where
+        renderSurface surface = do
+            putStrLn ("surface " <> surface.rawSurfaceName <> ": " <> surface.rawSurfaceSource)
+            putStrLn ("  reference: " <> surface.rawSurfaceReference.rawTypePretty)
+            putStrLn ("  expanded: " <> surface.rawSurfaceExpanded.rawTypePretty)
+
+rawRegistryToJson :: RawRegistry -> Aeson.Value
+rawRegistryToJson rawRegistry =
+    Aeson.object
+        [ "module" Aeson..= rawRegistry.rawRegistryModule
+        , "export" Aeson..= rawRegistry.rawRegistryExport
+        , "source" Aeson..= rawRegistry.rawRegistrySource
+        , "kind" Aeson..= rawRegistry.rawRegistryKind
+        , "rhs" Aeson..= rawTypeToJson rawRegistry.rawRegistryRhs
+        , "surfaces" Aeson..= map rawSurfaceToJson rawRegistry.rawRegistrySurfaces
+        ]
+
+rawSurfaceToJson :: RawSurface -> Aeson.Value
+rawSurfaceToJson surface =
+    Aeson.object
+        [ "name" Aeson..= surface.rawSurfaceName
+        , "source" Aeson..= surface.rawSurfaceSource
+        , "reference" Aeson..= rawTypeToJson surface.rawSurfaceReference
+        , "expanded" Aeson..= rawTypeToJson surface.rawSurfaceExpanded
+        ]
+
+rawTypeToJson :: RawType -> Aeson.Value
+rawTypeToJson rawType =
+    Aeson.object
+        [ "node" Aeson..= rawType.rawTypeNode
+        , "pretty" Aeson..= rawType.rawTypePretty
+        , "name" Aeson..= rawType.rawTypeName
+        , "source" Aeson..= rawType.rawTypeSource
+        , "args" Aeson..= map rawTypeToJson rawType.rawTypeArgs
+        ]
 
 renderSDoc :: SDoc -> String
 renderSDoc = showSDocUnsafe

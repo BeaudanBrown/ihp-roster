@@ -59,3 +59,7 @@ Reflection/IR hardening chunk: lab DTOs now cover WireList, WireDay, WireOptiona
 **2026-07-02T06:54:58Z**
 
 Started the GHC API path with a script-owned probe. Config/nix/scripts/frontend/surface-ghc-probe compiles Application.Script.FrontendSurfaceGhcProbe with project GHC opts plus -package ghc, loads Application.Helper.FrontendSurface.Registry through the GHC API with Opt_ForceRecomp for source spans, locates RegisteredFrontendSurfaces, and prints its source span, kind and synonym RHS. Verification: surface-ghc-probe prints RHS Just '[SurfaceLabSurface] with Registry.hs source span. Next pause point: choose whether to make this probe lower GHC Type values into SurfaceContractIR directly, or first add a raw GHC-extracted AST/Type JSON layer for diffable diagnostics.
+
+**2026-07-02T07:08:56Z**
+
+GHC API probe now has a raw extraction layer: RawRegistry/RawSurface/RawType captures registry source/kind/RHS, surface refs, source spans, and one-step synonym-expanded surface type trees. The probe supports human and --json output, giving a diffable raw artifact before lowering to SurfaceContractIR. Current JSON shows SurfaceLabSurface expands to Surface SurfaceLab (Concat ...); next pause point is type-family/list normalization: choose whether to evaluate approved families (Concat/Append/Lazy option lists) inside the GHC extractor now or hand off normalized reflection output for one more slice.
