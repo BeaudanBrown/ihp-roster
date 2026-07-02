@@ -1,6 +1,6 @@
 ---
 id: ir-p3c3
-status: in_progress
+status: closed
 deps: [ir-npm8]
 links: []
 created: 2026-07-02T04:59:35Z
