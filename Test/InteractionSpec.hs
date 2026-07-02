@@ -1,5 +1,7 @@
 module Test.InteractionSpec where
 
+import qualified Application.Helper.Frontend.Dto.Interaction as InteractionDto
+import qualified Application.Helper.Frontend.Generic as Frontend
 import Application.Helper.Interaction
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..),
@@ -11,16 +13,14 @@ import IHP.Prelude
 import Test.Hspec
 import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
 import qualified Text.Blaze.Html5 as Html5
-import Web.RosterWeeks.LiveSurface (RosterInteractionIntent (..),
-                                    RosterInteractionSession (..),
-                                    rosterDragSessionKindName,
-                                    rosterInteractionStaticSchema,
-                                    rosterLayoutModeIntentField,
-                                    rosterLayoutModeIntentName,
-                                    rosterLiveSurfaceDefinitionForVenue,
-                                    rosterMoveShiftIntentName)
-import Web.RosterWeeks.Types (RosterProjectionFragment (..),
-                              RosterProjectionScope (..))
+import Web.RosterWeeks.FrontendSurface (RosterMountedFragmentPlan (..),
+                                        RosterWeekScopeValue (..),
+                                        renderRosterFrontendSurfaceInteractionShell,
+                                        rosterDragSessionKindName,
+                                        rosterLayoutModeIntentFieldName,
+                                        rosterLayoutModeIntentName,
+                                        rosterMoveShiftIntentName,
+                                        rosterSurfaceImpl)
 
 
 tests :: Spec
@@ -91,62 +91,67 @@ tests = describe "Typed interaction surface capabilities" do
                 ]
         interactionCapabilityStaticSchema capability `shouldBe` staticSchema
 
-    it "enumerates roster interaction concepts without a concrete scope" do
-        map (.disposableLayerName) rosterInteractionStaticSchema.interactionStaticDisposableLayers
-            `shouldBe` ["drag-preview"]
-        map (.sessionKindName) rosterInteractionStaticSchema.interactionStaticSessionKinds
-            `shouldBe` [rosterDragSessionKindName]
-        map (.sessionEffects) rosterInteractionStaticSchema.interactionStaticSessionKinds
+    it "enumerates roster interaction concepts from FrontendSurface-generated schemas" do
+        let schema = InteractionDto.interactionStaticSchemasDto.roster
+
+        map (.name) schema.disposableLayers
+            `shouldBe` [InteractionDto.InteractionDisposableLayerName "drag-preview"]
+        map (.kind) schema.sessionKinds
+            `shouldBe` [InteractionDto.InteractionSessionKindName rosterDragSessionKindName]
+        map (.effects) schema.sessionKinds
             `shouldBe`
-                [ InteractionSessionEffects
-                    { interactionSessionGlobalEffects =
-                        [ InteractionCloneShadowEffect
-                            { cloneShadowLayerName = "drag-preview"
-                            , cloneShadowSource = InteractionEffectPointerMarker
-                            , cloneShadowClassName = "bepis-pointer-clone-shadow"
-                            , cloneShadowPreserveGrabOffset = True
+                [ InteractionDto.InteractionSessionEffects
+                    { InteractionDto.global =
+                        [ InteractionDto.CloneShadow
+                            { layer = InteractionDto.InteractionDisposableLayerName "drag-preview"
+                            , source = InteractionDto.InteractionEffectSource "pointer-marker"
+                            , className = "bepis-pointer-clone-shadow"
+                            , preserveGrabOffset = True
                             }
                         ]
-                    , interactionSessionContextualEffects =
-                        [ InteractionDropzoneHighlightEffect
-                            { dropzoneHighlightClassName = "bepis-dropzone-highlight"
+                    , InteractionDto.contextual =
+                        [ InteractionDto.DropzoneHighlight
+                            { className = "bepis-dropzone-highlight"
                             }
                         ]
                     }
                 ]
-        map (.interactionIntentSchemaName) rosterInteractionStaticSchema.interactionStaticIntents
-            `shouldBe` [rosterLayoutModeIntentName, rosterMoveShiftIntentName]
-        map (.interactionIntentSchemaIntent) rosterInteractionStaticSchema.interactionStaticIntents
-            `shouldBe` [SetRosterLayoutModeIntent, MoveRosterShiftToSlotIntent]
-        map (.intentFieldName) (concatMap (.interactionIntentSchemaFields) rosterInteractionStaticSchema.interactionStaticIntents)
-            `shouldContain` [rosterLayoutModeIntentField]
-        rosterInteractionStaticSchema.interactionStaticConflictPolicies
+        map (.name) schema.intents
+            `shouldBe` [InteractionDto.InteractionIntentName rosterLayoutModeIntentName, InteractionDto.InteractionIntentName rosterMoveShiftIntentName]
+        map (.name) (concatMap (.fields) schema.intents)
+            `shouldContain` [InteractionDto.InteractionIntentFieldName rosterLayoutModeIntentFieldName]
+        schema.conflictPolicies
             `shouldBe`
-                [ InteractionConflictPolicy
-                    { conflictPolicySession = InteractionSessionKind RosterDragSession
-                    , conflictPolicyFragment = AnyInteractionFragment
-                    , conflictPolicyResolution = DeferLiveFragmentUntilSessionEnds
-                    , conflictPolicyTimeoutMs = Just 5000
+                [ InteractionDto.InteractionConflictPolicy
+                    { session = InteractionDto.Session { session = InteractionDto.InteractionSessionKindName rosterDragSessionKindName }
+                    , fragment = InteractionDto.AnyFragment
+                    , resolution = InteractionDto.Defer
+                    , timeoutMs = Frontend.FrontendOptional (Just (Frontend.FrontendNullable (Just 5000)))
                     }
                 ]
 
-    it "adapts roster FrontendSurface intents into the temporary legacy interaction capability" do
+    it "renders roster interaction shell and forms from FrontendSurface runtime metadata" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = "22222222-2222-2222-2222-222222222222" :: Id RosterGroup
-        let scope = RosterProjectionScope { rosterProjectionGroupId = rosterGroupId, rosterProjectionWeekOffset = 0 }
-        let capability = typedInteractionCapabilityFor (rosterLiveSurfaceDefinitionForVenue venueId) scope
+        let surface = rosterSurfaceImpl
+                RosterWeekScopeValue { rosterWeekVenueId = venueId, rosterWeekGroupId = rosterGroupId, rosterWeekWeekOffset = 0 }
+                RosterMountedFragmentPlan { rosterMountedDayIds = [], rosterMountedRows = [] }
+        let html = renderText do
+                renderRosterFrontendSurfaceInteractionShell surface do
+                    Html5.toHtml ("Roster" :: Text)
 
-        interactionCapabilityStaticSchema capability `shouldBe` rosterInteractionStaticSchema
-        map (.intentFormName) capability.interactionIntentForms
-            `shouldBe` [rosterLayoutModeIntentName, rosterMoveShiftIntentName]
-        map (.intentFormIntent) capability.interactionIntentForms
-            `shouldBe` [SetRosterLayoutModeIntent, MoveRosterShiftToSlotIntent]
-        map (.intentFormTrigger) capability.interactionIntentForms
-            `shouldBe` ["bepis:intent-submit", "bepis:intent-submit"]
-        map (.intentFormTarget) capability.interactionIntentForms
-            `shouldBe` [IntentTargetLiveFragment (typedLiveSurfaceFragmentRef (rosterLiveSurfaceDefinitionForVenue venueId) scope RosterProjectionContent), IntentTargetLiveFragment (typedLiveSurfaceFragmentRef (rosterLiveSurfaceDefinitionForVenue venueId) scope RosterProjectionContent)]
-        map (.intentFormSync) capability.interactionIntentForms
-            `shouldBe` [Just "#roster-week-shell:replace", Just "#roster-week-shell:replace"]
+        html `shouldContainText` "data-bepis-surface=\"true\""
+        html `shouldContainText` "data-bepis-surface-family=\"roster\""
+        html `shouldContainText` "data-bepis-disposable-layer=\"drag-preview\""
+        html `shouldContainText` "data-bepis-conflict-policies=\""
+        html `shouldContainText` "&quot;session&quot;:&quot;drag&quot;"
+        html `shouldContainText` "&quot;resolution&quot;:&quot;defer&quot;"
+        html `shouldContainText` "data-bepis-intent-form=\"set-roster-layout-mode\""
+        html `shouldContainText` "data-bepis-intent-form=\"move-roster-shift-to-slot\""
+        html `shouldContainText` "hx-trigger=\"bepis:intent-submit\""
+        html `shouldContainText` "hx-target=\"#roster-content\""
+        html `shouldContainText` "name=\"rosterLayoutMode\" value=\"day_rows\" data-bepis-intent-field=\"rosterLayoutMode\" data-bepis-field-presence=\"required\""
+        html `shouldContainText` "name=\"sessionKind\" value=\"\" data-bepis-intent-field=\"sessionKind\" data-bepis-field-presence=\"optional\""
 
     it "renders mount, layers, markers, and HTMX intent forms from typed contracts" do
         let mount = mkInteractionSurfaceMount () (InteractionMountKey "primary")

@@ -220,6 +220,9 @@ isAllowedInfrastructureFile path =
             , "Application/Helper/Frontend/InteractionSchema.hs"
             , "Application/Helper/Frontend/LiveUpdateSchema.hs"
             , "Application/Helper/Frontend/SurfaceManifestSchema.hs"
+            , "Application/Helper/FrontendSurface/ContractIR.hs"
+            , "Application/Helper/FrontendSurface/Naming.hs"
+            , "Application/Helper/FrontendSurface/Runtime.hs"
             , "Application/Helper/Interaction.hs"
             , "Application/Helper/Interaction/Types.hs"
             , "Application/Helper/LiveUpdate.hs"
@@ -233,4 +236,7 @@ isAllowedInfrastructureFile path =
             , "Web/Controller/LiveUpdates.hs"
             , "Web/LiveResourceInvalidation.hs"
             , "Web/LiveSurfaceRegistry.hs"
+            , "Web/RosterWeeks/FrontendSurface.hs"
+            , "Web/Timesheets/FrontendSurface.hs"
+            , "Web/Types.hs"
             ]

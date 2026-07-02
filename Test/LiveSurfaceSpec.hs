@@ -1,5 +1,9 @@
 module Test.LiveSurfaceSpec where
 
+import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceFragmentKey (..),
+                                                   FrontendSurfaceMountConfig (..),
+                                                   FrontendSurfaceMountedFragment (..),
+                                                   SurfaceImpl (..))
 import Application.Helper.Interaction.Types (InteractionCapability (..),
                                              InteractionConflictPolicy (..),
                                              InteractionConflictResolution (..),
@@ -31,9 +35,9 @@ import Text.Blaze.Html ((!))
 import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
 import qualified Text.Blaze.Html5 as Html5
 import Web.Billing.LiveUpdates
-import Web.RosterWeeks.LiveSurface (rosterLiveSurfaceDefinitionForVenue)
-import Web.RosterWeeks.Types (RosterProjectionFragment (..),
-                              RosterProjectionScope (..))
+import Web.RosterWeeks.FrontendSurface (RosterMountedFragmentPlan (..),
+                                        RosterWeekScopeValue (..),
+                                        rosterSurfaceImpl)
 import Web.Timesheets.FrontendSurface
 import Web.View.Admin.Invites
 import Web.View.Admin.VenueSettings
@@ -272,23 +276,20 @@ tests = describe "LiveSurface contract helpers" do
             supportLiveSurface
             (unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs supportLiveSurfaceDefinition () supportLiveFragmentRefs))
 
-    it "marks the roster staff panel as a lazy live fragment" do
+    it "marks the roster staff panel as a lazy FrontendSurface fragment" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = "22222222-2222-2222-2222-222222222222" :: Id RosterGroup
-        let scope = RosterProjectionScope { rosterProjectionGroupId = rosterGroupId, rosterProjectionWeekOffset = 0 }
-        let loadPolicy = typedLiveSurfaceFragmentLoadPolicy (rosterLiveSurfaceDefinitionForVenue venueId) scope RosterProjectionStaffPanel
+        let surface = rosterSurfaceImpl
+                RosterWeekScopeValue { rosterWeekVenueId = venueId, rosterWeekGroupId = rosterGroupId, rosterWeekWeekOffset = 0 }
+                RosterMountedFragmentPlan { rosterMountedDayIds = [], rosterMountedRows = [] }
+        let staffPanel = find ((== "roster-staff-panel") . (.mountedFragmentKey.fragmentKind)) surface.surfaceImplMountConfig.mountFragments
 
-        case loadPolicy of
-            FragmentLazy config -> do
-                config.lazyFragmentPlaceholderKind `shouldBe` lazyFragmentPlaceholderCustom
-                config.lazyFragmentAccessibleLabel `shouldBe` "Loading roster staff panel"
-                config.lazyFragmentClasses `shouldBe` ["col-12", "col-xl-4", "col-xxl-3", "roster-layout-side"]
-                config.lazyFragmentDelayMs `shouldBe` Nothing
-                config.lazyFragmentTransition `shouldBe` UiRegionTransitionPanel
-                let ref = typedLiveSurfaceFragmentRef (rosterLiveSurfaceDefinitionForVenue venueId) scope RosterProjectionStaffPanel
-                surfaceFragmentRefTargetId ref `shouldBe` "roster-staff-panel-fragment"
-                surfaceFragmentRefUrl ref `shouldContainText` "rosterGroupId="
-            FragmentEager -> expectationFailure "expected roster staff panel to be lazy"
+        case staffPanel of
+            Just fragment -> do
+                fragment.mountedFragmentTargetId `shouldBe` "roster-staff-panel-fragment"
+                fragment.mountedFragmentLoadPolicy `shouldBe` "lazy"
+                fragment.mountedFragmentUrl `shouldContainText` "rosterGroupId="
+            Nothing -> expectationFailure "expected roster staff panel fragment"
 
     it "verifies context-free typed surface contracts used by background updates" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"

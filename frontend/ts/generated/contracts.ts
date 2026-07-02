@@ -1186,11 +1186,11 @@ export type LiveSurfaceFamily =
     | "leave-requests"
     | "profile"
     | "profile-leave-requests"
-    | "roster"
-    | "timesheets";
+    | "timesheets"
+    | "roster";
 
 export function isLiveSurfaceFamily(value: unknown): value is LiveSurfaceFamily {
-    return value === "support" || value === "admin-venue-config" || value === "admin-invites" || value === "admin-exports" || value === "admin-shift-types" || value === "admin-roster-groups" || value === "admin-xero" || value === "billing" || value === "leave-requests" || value === "profile" || value === "profile-leave-requests" || value === "roster" || value === "timesheets";
+    return value === "support" || value === "admin-venue-config" || value === "admin-invites" || value === "admin-exports" || value === "admin-shift-types" || value === "admin-roster-groups" || value === "admin-xero" || value === "billing" || value === "leave-requests" || value === "profile" || value === "profile-leave-requests" || value === "timesheets" || value === "roster";
 }
 
 export function parseLiveSurfaceFamily(value: unknown): LiveSurfaceFamily {
@@ -1214,11 +1214,11 @@ export type RegisteredLiveSurfaceScopeKind =
     | "billing"
     | "leave_requests"
     | "profile"
-    | "roster_week"
-    | "timesheet_week";
+    | "timesheet_week"
+    | "roster_week";
 
 export function isRegisteredLiveSurfaceScopeKind(value: unknown): value is RegisteredLiveSurfaceScopeKind {
-    return value === "support_platform" || value === "admin_venue_config" || value === "admin_invites" || value === "admin_exports" || value === "admin_shift_types" || value === "admin_roster_groups" || value === "admin_xero" || value === "billing" || value === "leave_requests" || value === "profile" || value === "roster_week" || value === "timesheet_week";
+    return value === "support_platform" || value === "admin_venue_config" || value === "admin_invites" || value === "admin_exports" || value === "admin_shift_types" || value === "admin_roster_groups" || value === "admin_xero" || value === "billing" || value === "leave_requests" || value === "profile" || value === "timesheet_week" || value === "roster_week";
 }
 
 export function parseRegisteredLiveSurfaceScopeKind(value: unknown): RegisteredLiveSurfaceScopeKind {
@@ -1247,6 +1247,9 @@ export type RegisteredLiveSurfaceFragmentKind =
     | "leave_requests_content"
     | "profile_content"
     | "profile_leave_requests_content"
+    | "timesheet_toolbar"
+    | "timesheet_day_columns"
+    | "timesheet_day_section"
     | "roster_content"
     | "roster_grid_toolbar"
     | "roster_grid_frame"
@@ -1256,13 +1259,10 @@ export type RegisteredLiveSurfaceFragmentKind =
     | "roster_slots_grid"
     | "roster_staff_panel"
     | "roster_day_section"
-    | "roster_row"
-    | "timesheet_toolbar"
-    | "timesheet_day_columns"
-    | "timesheet_day_section";
+    | "roster_row";
 
 export function isRegisteredLiveSurfaceFragmentKind(value: unknown): value is RegisteredLiveSurfaceFragmentKind {
-    return value === "support_award_rates_section" || value === "support_public_holidays_section" || value === "admin_venue_config" || value === "admin_invites" || value === "admin_exports" || value === "admin_shift_types" || value === "admin_roster_groups" || value === "admin_xero" || value === "admin_xero_staff_mappings" || value === "admin_xero_pay_items" || value === "admin_xero_timesheets" || value === "billing_status" || value === "leave_requests_content" || value === "profile_content" || value === "profile_leave_requests_content" || value === "roster_content" || value === "roster_grid_toolbar" || value === "roster_grid_frame" || value === "roster_day_columns" || value === "roster_day_rail" || value === "roster_wage_rail" || value === "roster_slots_grid" || value === "roster_staff_panel" || value === "roster_day_section" || value === "roster_row" || value === "timesheet_toolbar" || value === "timesheet_day_columns" || value === "timesheet_day_section";
+    return value === "support_award_rates_section" || value === "support_public_holidays_section" || value === "admin_venue_config" || value === "admin_invites" || value === "admin_exports" || value === "admin_shift_types" || value === "admin_roster_groups" || value === "admin_xero" || value === "admin_xero_staff_mappings" || value === "admin_xero_pay_items" || value === "admin_xero_timesheets" || value === "billing_status" || value === "leave_requests_content" || value === "profile_content" || value === "profile_leave_requests_content" || value === "timesheet_toolbar" || value === "timesheet_day_columns" || value === "timesheet_day_section" || value === "roster_content" || value === "roster_grid_toolbar" || value === "roster_grid_frame" || value === "roster_day_columns" || value === "roster_day_rail" || value === "roster_wage_rail" || value === "roster_slots_grid" || value === "roster_staff_panel" || value === "roster_day_section" || value === "roster_row";
 }
 
 export function parseRegisteredLiveSurfaceFragmentKind(value: unknown): RegisteredLiveSurfaceFragmentKind {

@@ -5,8 +5,7 @@
 {-# LANGUAGE TypeApplications    #-}
 
 module Web.RosterWeeks.RenderData
-    ( rosterProjectionDefinition
-    , RosterReadModelBackend (..)
+    ( RosterReadModelBackend (..)
     , currentRosterReadModelBackend
     , fetchVisibleRosterReadModelDirect
     , fetchVisibleRosterReadModel
@@ -39,11 +38,10 @@ where
 
 import Application.Helper.Conflict
 import Application.Helper.Controller
-import Application.Helper.LiveSurface
+import Application.Helper.LiveSurface (FragmentRenderMode (..))
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.RosterWagePrediction
-import Application.Helper.SurfaceProjection
 import Application.Helper.UserPreferences
 import Data.Coerce (coerce)
 import Data.List (find, nubBy)
@@ -58,7 +56,6 @@ import Web.RosterWeeks.Conflicts
 import Web.RosterWeeks.DirectReadModel
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Filters
-import Web.RosterWeeks.LiveSurface
 import Web.RosterWeeks.Projection
 import Web.RosterWeeks.Rows
 import Web.RosterWeeks.Service
@@ -99,12 +96,6 @@ fetchRosterPublicHolidayMap venueConfig weekStartDate = do
             | holiday <- holidays
             ]
 
-rosterProjectionDefinition :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ProjectionLiveSurfaceDefinition RosterLiveSurface RosterProjectionScope (Maybe RosterRenderData) RosterProjectionFragment
-rosterProjectionDefinition =
-    mkRosterProjectionDefinition
-        (\scope -> fetchVisibleRosterRenderData scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset)
-        renderRosterProjectionFragment
-
 fetchVisibleRosterReadModel :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe RosterRenderData)
 fetchVisibleRosterReadModel rosterGroupId weekOffset =
     profileActionSpan "roster.read_model.fetch_visible" do
@@ -130,28 +121,19 @@ renderVisibleRosterReadModelFragment rosterGroupId weekOffset fragment =
 
 fetchVisibleRosterRenderDataCached :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe RosterRenderData)
 fetchVisibleRosterRenderDataCached rosterGroupId weekOffset =
-    profileActionSpanWithDetail "roster.projection.load" do
-        let scope = buildRosterProjectionScope rosterGroupId weekOffset
-        before <- readSurfaceProjectionCacheStats
-        projection <- loadLiveSurfaceProjection rosterProjectionDefinition scope
-        after <- readSurfaceProjectionCacheStats
-        pure (projection, surfaceProjectionCacheDeltaDetail before after)
+    profileActionSpan "roster.direct_read_model.load_legacy_alias" do
+        fetchVisibleRosterReadModelDirect rosterGroupId weekOffset
 
 renderVisibleRosterProjectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> RosterProjectionFragment -> IO (Maybe Blaze.Html)
 renderVisibleRosterProjectionFragment rosterGroupId weekOffset fragment =
-    case fragment of
-        RosterProjectionContent -> do
-            rosterGroups <- fetchCurrentVenueRosterGroups
-            currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
-            rosterData <- fetchVisibleRosterRenderDataCached rosterGroupId weekOffset
-            Just <$> renderRosterContentFromProjection rosterGroups currentRosterGroup rosterData
-        _ ->
-            profileActionSpanWithDetail "roster.projection.render_fragment" do
-                let scope = buildRosterProjectionScope rosterGroupId weekOffset
-                before <- readSurfaceProjectionCacheStats
-                html <- renderLiveSurfaceProjectionFragment rosterProjectionDefinition scope fragment
-                after <- readSurfaceProjectionCacheStats
-                pure (html, surfaceProjectionCacheDeltaDetail before after)
+    profileActionSpan "roster.direct_read_model.render_legacy_alias" do
+        case fragment of
+            RosterProjectionContent -> do
+                rosterGroups <- fetchCurrentVenueRosterGroups
+                currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
+                rosterData <- fetchVisibleRosterRenderDataCached rosterGroupId weekOffset
+                Just <$> renderRosterContentFromProjection rosterGroups currentRosterGroup rosterData
+            _ -> renderVisibleRosterReadModelFragmentDirect rosterGroupId weekOffset fragment
 
 renderRosterProjectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Maybe RosterRenderData -> RosterProjectionFragment -> Maybe Blaze.Html
 renderRosterProjectionFragment =
@@ -668,18 +650,7 @@ buildDirectStaffPanel RosterBaseFacts { baseEligibleStaff = eligibleStaffMembers
 
 fetchVisibleRosterStaffPanelEntries :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterStaffPanelScope -> Id RosterGroup -> Int -> IO (Maybe [RosterStaffPanelEntry])
 fetchVisibleRosterStaffPanelEntries panelScope rosterGroupId weekOffset =
-    case currentRosterReadModelBackend of
-        ProjectionRosterReadModel -> do
-            rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
-            case panelScope of
-                RosterStaffPanelCurrentGroup -> pure ((\RosterRenderData { panelStaff } -> panelStaff) <$> rosterData)
-                RosterStaffPanelAllVenue ->
-                    case rosterData of
-                        Nothing -> pure Nothing
-                        Just RosterRenderData { rosterDays, allSlots } -> do
-                            allVenueStaff <- fetchCurrentVenueActiveStaff
-                            Just <$> profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntriesForScope panelScope allVenueStaff (filterVisibleRosterSlots rosterDays allSlots))
-        DirectRosterReadModel -> fetchVisibleRosterStaffPanelEntriesDirect panelScope rosterGroupId weekOffset
+    fetchVisibleRosterStaffPanelEntriesDirect panelScope rosterGroupId weekOffset
 
 fetchVisibleRosterRowFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Id RosterDay -> Int -> IO (Maybe Blaze.Html)
 fetchVisibleRosterRowFragment rosterGroupId weekOffset rosterDayId rowIndex = do
@@ -690,13 +661,8 @@ fetchVisibleRosterDaySectionFragment rosterGroupId weekOffset rosterDayId = do
     renderVisibleRosterReadModelFragment rosterGroupId weekOffset (RosterProjectionDaySection (unpackId rosterDayId))
 
 keepCurrentRosterWeekProjectionHot :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO ()
-keepCurrentRosterWeekProjectionHot rosterGroupId weekOffset =
-    case currentRosterReadModelBackend of
-        ProjectionRosterReadModel -> do
-            currentWeekOffset <- fetchCurrentRosterWeekOffset
-            when (weekOffset == currentWeekOffset) $
-                warmLiveSurfaceProjection rosterProjectionDefinition (buildRosterProjectionScope rosterGroupId weekOffset)
-        DirectRosterReadModel -> pure ()
+keepCurrentRosterWeekProjectionHot _ _ =
+    pure ()
 
 fetchHiddenRosterRenderDataDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (RosterWeek, [RosterDay], Calendar.Day, [RosterWeekSlotDefinition], [ShiftType], [RosterSlot])
 fetchHiddenRosterRenderDataDirect =

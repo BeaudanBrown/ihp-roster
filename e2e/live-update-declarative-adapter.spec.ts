@@ -577,36 +577,33 @@ test.describe('Declarative live-update adapter', () => {
         });
     });
 
-    test('renders roster declarative surfaces without legacy feature attributes', async ({ page }) => {
+    test('renders roster FrontendSurface subscriptions without legacy feature attributes', async ({ page }) => {
         await installLiveUpdateHarness(page);
         await openRoster(page, { weekOffset: 0 });
 
         await expect(page.locator('[data-live-update-owner], [data-live-update-feature]')).toHaveCount(0);
+        await expect(page.locator('#roster-week-shell')).not.toHaveAttribute('data-live-update-surface', /./);
 
-        const rosterSurface = await page.locator('#roster-week-shell').getAttribute('data-live-update-surface');
+        const rosterSurface = await page.locator('[data-bepis-surface-config]').first().getAttribute('data-bepis-surface-config');
         expect(rosterSurface).toBeTruthy();
         const config = JSON.parse(rosterSurface ?? '{}');
 
         expect(config).toMatchObject({
-            feature: 'roster',
-            socketPath: '/live-updates',
-            scopeKey: `${config.scope.kind}:${config.scope.venueId}:${config.scope.rosterGroupId}:0`,
-            scope: {
-                kind: 'roster_week',
-                weekOffset: 0,
-            },
+            surface: 'roster',
+            mountKey: 'primary',
         });
-        expect(config.resyncFragments).toEqual(
+        expect(config.scopeKey).toMatch(/^roster:[^:]+:[^:]+:0$/);
+        expect(config.fragments).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({
                     targetId: 'roster-slots-grid',
-                    deferUntilBlur: false,
-                    protectionPolicy: { kind: 'none' },
+                    key: { kind: 'roster-slots-grid', params: null },
+                    protection: { kind: 'replace' },
                 }),
                 expect.objectContaining({
                     targetId: 'roster-staff-panel-fragment',
-                    deferUntilBlur: false,
-                    protectionPolicy: { kind: 'none' },
+                    key: { kind: 'roster-staff-panel', params: null },
+                    protection: { kind: 'replace' },
                 }),
             ]),
         );

@@ -11,7 +11,7 @@
 - `Web/RosterWeeks/Projection.hs` - read model/projection construction.
 - `Web/RosterWeeks/RenderData.hs` - view-facing render data.
 - `Web/RosterWeeks/Responses.hs` - HTMX/OOB response helpers.
-- `Web/RosterWeeks/LiveSurface.hs` - typed live surface, fragment refs, and resource dependencies.
+- `Web/RosterWeeks/FrontendSurface.hs` - FrontendSurface contract/runtime bridge, fragment metadata, live dependencies, and interaction shell helpers.
 - `Web/RosterWeeks/Paths.hs` - canonical route/query helpers.
 - `Web/RosterWeeks/Dom.hs` - stable DOM ids/selectors.
 - `Web/RosterWeeks/Conflicts.hs` - conflict presentation helpers.

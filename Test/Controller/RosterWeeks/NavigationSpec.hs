@@ -152,7 +152,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "slot-closed-cell"
                 response `responseBodyShouldNotContain` "roster-grid-header-row-subheads"
 
-        it "empty roster pages still expose declarative live-update surface metadata" $ withContext do
+        it "empty roster pages still expose FrontendSurface live metadata" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "roster-empty-live-scope@example.com" "staff" True
@@ -165,15 +165,14 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-bepis-surface=\"roster\""
                 response `responseBodyShouldContain` "data-bepis-surface-config=\""
-                response `responseBodyShouldContain` "data-live-update-surface=\""
-                response `responseBodyShouldContain` "roster_week"
+                response `responseBodyShouldContain` "roster:"
                 response `responseBodyShouldContain` "rosterGroupId"
                 response `responseBodyShouldContain` "weekOffset"
                 response `responseBodyShouldNotContain` "/helpers.js"
                 response `responseBodyShouldNotContain` "/ihp-auto-refresh.js"
                 response `responseBodyShouldNotContain` "ihp-auto-refresh-id"
 
-        it "staff on hidden draft pages still expose declarative live-update surface metadata" $ withContext do
+        it "staff on hidden draft pages still expose FrontendSurface live metadata" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "roster-hidden-draft-live-scope@example.com" "staff" True
@@ -186,8 +185,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-bepis-surface=\"roster\""
                 response `responseBodyShouldContain` "data-bepis-surface-config=\""
-                response `responseBodyShouldContain` "data-live-update-surface=\""
-                response `responseBodyShouldContain` "roster_week"
+                response `responseBodyShouldContain` "roster:"
                 response `responseBodyShouldContain` "rosterGroupId"
                 response `responseBodyShouldContain` "weekOffset"
 
@@ -206,13 +204,15 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "id=\"roster-staff-self-service-timesheet-live-surface\""
-                response `responseBodyShouldContain` "timesheet_week"
-                response `responseBodyShouldContain` "timesheet_day_section"
-                response `responseBodyShouldContain` "#roster-staff-self-service-timesheet-live-surface"
+                response `responseBodyShouldContain` "data-bepis-surface=\"timesheets\""
+                response `responseBodyShouldContain` "data-bepis-surface-config=\""
+                response `responseBodyShouldContain` "timesheets:"
+                response `responseBodyShouldContain` "timesheet-day-section"
+                response `responseBodyShouldNotContain` "data-live-update-surface"
 
                 body <- responseBody response
                 let bodyText = cs (LByteString.unpack body)
-                Text.count "timesheet_day_section" bodyText `shouldBe` 1
+                Text.count "data-bepis-surface-config" bodyText `shouldBe` 2
 
         it "manager can see draft weeks" $ withContext do
             withCleanDb do

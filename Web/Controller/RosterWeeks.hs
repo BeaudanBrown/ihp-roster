@@ -8,9 +8,6 @@ module Web.Controller.RosterWeeks where
 
 import Application.Helper.Controller
 import Application.Helper.LiveResource (LiveMutationResult (..), LiveResource)
-import Application.Helper.LiveSurface (respondWithTypedLiveSurfaceFragments,
-                                       serveTypedLiveFragment,
-                                       typedLiveSurfaceAffectedFragments)
 import Application.Helper.LiveUpdate (LiveUpdateScope (..))
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
@@ -39,7 +36,9 @@ import Web.Controller.Sessions (passkeySetupPromptSessionKey)
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Filters
-import Web.RosterWeeks.LiveSurface (rosterLiveSurfaceDefinition)
+import Web.RosterWeeks.FrontendSurface (RosterSurfaceFragment (..),
+                                        RosterWeekScopeValue (..),
+                                        rosterFragmentDependencies)
 import Web.RosterWeeks.Mutations
 import Web.RosterWeeks.Overview
 import Web.RosterWeeks.Paths (rosterWeekUrl)
@@ -48,6 +47,7 @@ import Web.RosterWeeks.RenderData
 import Web.RosterWeeks.Responses (respondWithRosterContent,
                                   respondWithRosterContentError,
                                   respondWithRosterContentUpdate,
+                                  respondWithRosterFragments,
                                   respondWithRosterFragmentsUpdate,
                                   respondWithRosterToast)
 import Web.RosterWeeks.Rows
@@ -100,65 +100,55 @@ instance Controller RosterWeeksController where
 
     action currentAction@ShowRosterWeekContentFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         rosterGroup <- resolveRequestedRosterGroup
-        serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionContent \_ ->
-            respondWithRosterContent rosterGroup.id weekOffset
+        respondWithRosterContent rosterGroup.id weekOffset
 
     action currentAction@ShowRosterWeekGridToolbarFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         rosterGroup <- resolveRequestedRosterGroup
-        serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionGridToolbar \_ -> do
-            toolbarHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionGridToolbar
-            respondHtmlProfiled (fromMaybe mempty toolbarHtml)
+        toolbarHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionGridToolbar
+        respondHtmlProfiled (fromMaybe mempty toolbarHtml)
 
     action currentAction@ShowRosterWeekGridFrameFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         rosterGroup <- resolveRequestedRosterGroup
-        serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionGridFrame \_ -> do
-            frameHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionGridFrame
-            respondHtmlProfiled (fromMaybe mempty frameHtml)
+        frameHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionGridFrame
+        respondHtmlProfiled (fromMaybe mempty frameHtml)
 
     action currentAction@ShowRosterWeekDayColumnsFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         rosterGroup <- resolveRequestedRosterGroup
-        serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionDayColumns \_ -> do
-            fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionDayColumns
-            respondHtmlProfiled (fromMaybe mempty fragmentHtml)
+        fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionDayColumns
+        respondHtmlProfiled (fromMaybe mempty fragmentHtml)
 
     action currentAction@ShowRosterWeekDayRailFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         rosterGroup <- resolveRequestedRosterGroup
-        serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionDayRail \_ -> do
-            fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionDayRail
-            respondHtmlProfiled (fromMaybe mempty fragmentHtml)
+        fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionDayRail
+        respondHtmlProfiled (fromMaybe mempty fragmentHtml)
 
     action currentAction@ShowRosterWeekWageRailFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         rosterGroup <- resolveRequestedRosterGroup
-        serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionWageRail \_ -> do
-            fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionWageRail
-            respondHtmlProfiled (fromMaybe mempty fragmentHtml)
+        fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionWageRail
+        respondHtmlProfiled (fromMaybe mempty fragmentHtml)
 
     action currentAction@ShowRosterWeekSlotsGridFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         rosterGroup <- resolveRequestedRosterGroup
-        serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionSlotsGrid \_ -> do
-            fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionSlotsGrid
-            respondHtmlProfiled (fromMaybe mempty fragmentHtml)
+        fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionSlotsGrid
+        respondHtmlProfiled (fromMaybe mempty fragmentHtml)
 
     action currentAction@ShowRosterWeekStaffPanelFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         rosterGroup <- resolveRequestedRosterGroup
         let panelScope = rosterStaffPanelScopeFromParams
-        serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionStaffPanel \_ -> do
-            rosterGroups <- fetchCurrentVenueRosterGroups
-            panelStaff <- fetchVisibleRosterStaffPanelEntries panelScope rosterGroup.id weekOffset
-            respondHtmlProfiled $
-                maybe mempty (renderRosterStaffPanelFragment weekOffset rosterGroup.id (length rosterGroups > 1) panelScope) panelStaff
+        rosterGroups <- fetchCurrentVenueRosterGroups
+        panelStaff <- fetchVisibleRosterStaffPanelEntries panelScope rosterGroup.id weekOffset
+        respondHtmlProfiled $
+            maybe mempty (renderRosterStaffPanelFragment weekOffset rosterGroup.id (length rosterGroups > 1) panelScope) panelStaff
 
     action currentAction@ShowRosterWeekDaySectionFragmentAction { weekOffset, rosterDayId } = runBepis currentAction BepisFragmentAction do
         rosterGroupId <- resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId
-        serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroupId weekOffset) (RosterProjectionDaySection (coerce rosterDayId)) \_ -> do
-            daySectionHtml <- fetchVisibleRosterDaySectionFragment rosterGroupId weekOffset rosterDayId
-            respondHtmlProfiled (fromMaybe mempty daySectionHtml)
+        daySectionHtml <- fetchVisibleRosterDaySectionFragment rosterGroupId weekOffset rosterDayId
+        respondHtmlProfiled (fromMaybe mempty daySectionHtml)
 
     action currentAction@ShowRosterWeekRowFragmentAction { weekOffset, rosterDayId, rowIndex } = runBepis currentAction BepisFragmentAction do
         rosterGroupId <- resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId
-        serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroupId weekOffset) (RosterProjectionRow (coerce rosterDayId) rowIndex) \_ -> do
-            rowHtml <- fetchVisibleRosterRowFragment rosterGroupId weekOffset rosterDayId rowIndex
-            respondHtmlProfiled (fromMaybe mempty rowHtml)
+        rowHtml <- fetchVisibleRosterRowFragment rosterGroupId weekOffset rosterDayId rowIndex
+        respondHtmlProfiled (fromMaybe mempty rowHtml)
 
     action currentAction@UpdateRosterAssignmentFiltersAction { weekOffset = _ } = runBepis currentAction BepisPreferenceAction do
         ensureManagerRole
@@ -987,10 +977,29 @@ respondWithRosterRows rosterGroupId weekOffset requestedRowKeys =
     respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys False
 
 rosterActorFragmentsForTouchedResources :: (?context :: ControllerContext) => Id RosterGroup -> Int -> Set.Set LiveResource -> [RosterProjectionFragment] -> [RosterProjectionFragment]
-rosterActorFragmentsForTouchedResources rosterGroupId weekOffset =
-    typedLiveSurfaceAffectedFragments
-        rosterLiveSurfaceDefinition
-        (buildRosterProjectionScope rosterGroupId weekOffset)
+rosterActorFragmentsForTouchedResources rosterGroupId weekOffset touchedResources candidates =
+    filter fragmentTouched candidates
+    where
+        scope = RosterWeekScopeValue
+            { rosterWeekVenueId = unpackId currentVenueId
+            , rosterWeekGroupId = rosterGroupId
+            , rosterWeekWeekOffset = weekOffset
+            }
+        fragmentTouched fragment =
+            not (Set.null (Set.intersection touchedResources (Set.fromList (rosterFragmentDependencies scope (projectionFragmentToSurfaceFragment fragment)))))
+
+projectionFragmentToSurfaceFragment :: RosterProjectionFragment -> RosterSurfaceFragment
+projectionFragmentToSurfaceFragment = \case
+    RosterProjectionContent -> RosterSurfaceContent
+    RosterProjectionGridToolbar -> RosterSurfaceGridToolbar
+    RosterProjectionGridFrame -> RosterSurfaceGridFrame
+    RosterProjectionDayColumns -> RosterSurfaceDayColumns
+    RosterProjectionDayRail -> RosterSurfaceDayRail
+    RosterProjectionWageRail -> RosterSurfaceWageRail
+    RosterProjectionSlotsGrid -> RosterSurfaceSlotsGrid
+    RosterProjectionStaffPanel -> RosterSurfaceStaffPanel
+    RosterProjectionDaySection rosterDayId -> RosterSurfaceDaySection rosterDayId
+    RosterProjectionRow rosterDayId rowIndex -> RosterSurfaceRow rosterDayId rowIndex
 
 respondWithRosterActorRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> IO ()
 respondWithRosterActorRefresh rosterGroupId weekOffset fragments =
@@ -1014,12 +1023,7 @@ respondWithRosterActorRefreshWithSuccess rosterGroupId weekOffset fragments succ
 
 respondWithRosterActorFragments :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
 respondWithRosterActorFragments rosterGroupId weekOffset fragments extraHtml =
-    respondWithTypedLiveSurfaceFragments
-        rosterProjectionDefinition
-        (buildRosterProjectionScope rosterGroupId weekOffset)
-        fragments
-        extraHtml
-        renderRosterProjectionFragmentWithMode
+    respondWithRosterFragments rosterGroupId weekOffset fragments extraHtml
 
 clearDialogOverlayOob :: Blaze.Html
 clearDialogOverlayOob = [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]

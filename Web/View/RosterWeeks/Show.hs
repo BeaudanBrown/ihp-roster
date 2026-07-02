@@ -1,16 +1,10 @@
 module Web.View.RosterWeeks.Show where
 
-import qualified Application.Helper.FrontendSurface.Roster as Surface
-import Application.Helper.FrontendSurface.Runtime (SurfaceImpl,
-                                                   renderFrontendSurfaceMount)
-import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
-                                       liveSurfaceConfigJson)
-import Application.Helper.LiveUpdate (LiveUpdateScope)
+import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.Profiling (profileHtmlComponent)
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
-                                        rosterLegacyLiveSurfaceConfig,
                                         rosterMountedFragmentPlanFromRenderData,
                                         rosterSurfaceImpl)
 import Web.RosterWeeks.Types
@@ -68,18 +62,11 @@ renderRosterWeekShell ShowView { .. } =
         shell = [hsx|
             <section id={rosterWeekShellId}
                      hx-history-elt="true"
-                     data-roster-fullscreen="false"
-                     data-live-update-surface={liveSurfaceConfigJson <$> rosterWeekLiveSurface rosterSurface rosterSurfaceScope liveUpdateScope}>
+                     data-roster-fullscreen="false">
                 {page}
             </section>
         |]
      in profileHtmlComponent "render.roster.full_shell" (renderFrontendSurfaceMount rosterSurface shell)
-
-rosterWeekLiveSurface :: SurfaceImpl Surface.RosterSurface -> RosterWeekScopeValue -> Maybe LiveUpdateScope -> Maybe LiveSurfaceConfig
-rosterWeekLiveSurface rosterSurface rosterSurfaceScope maybeScope =
-    case maybeScope of
-        Nothing -> Nothing
-        Just _  -> Just (rosterLegacyLiveSurfaceConfig rosterSurface rosterSurfaceScope)
 
 renderPasskeySetupPrompt :: (?context :: ControllerContext) => Maybe PasskeySetupPromptMode -> Html
 renderPasskeySetupPrompt Nothing = mempty

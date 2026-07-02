@@ -7,18 +7,17 @@ module Web.View.RosterWeeks.StaffSelfServicePanel
     , rosterStaffSelfServiceTimesheetLiveSurfaceId
     ) where
 
-import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceMountedFragment (..))
-import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
-                                       liveSurfaceConfigJson)
+import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceMountConfig (..),
+                                                   FrontendSurfaceMountedFragment (..),
+                                                   SurfaceImpl (..),
+                                                   frontendSurfaceMountConfigJson)
 import Application.Helper.Url (appendQueryParams)
 import Data.Time.Calendar (diffDays)
 import Web.RosterWeeks.Types (RosterStaffSelfServicePanel (..))
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
                                        TimesheetsMountStateValue (..),
                                        timesheetsCandidateMountedFragments,
-                                       timesheetsLegacyLiveSurfaceConfig,
-                                       timesheetsSurfaceImpl,
-                                       timesheetsSurfaceWireFragments)
+                                       timesheetsSurfaceImpl)
 import Web.View.LeaveRequests.New (renderLeaveRequestFormFields)
 import Web.View.Prelude
 import Web.View.Timesheets.Index (TimesheetDayRenderModel (..),
@@ -46,7 +45,8 @@ renderRosterStaffSelfServicePanelFragment (Just panel)
                     <div class="app-panel-body p-0 roster-quick-tool-panel-body">
                         <div id={rosterStaffSelfServiceTimesheetLiveSurfaceId}
                              class="roster-quick-tool-timesheet"
-                             data-live-update-surface={liveSurfaceConfigJson (timesheetLiveSurface panel)}>
+                             data-bepis-surface="timesheets"
+                             data-bepis-surface-config={frontendSurfaceMountConfigJson (timesheetLiveSurface panel)}>
                             {renderDaySection (timesheetDayModel panel)}
                         </div>
                     </div>
@@ -115,7 +115,7 @@ timesheetDayModel panel =
         , dayOffset = operationalDayOffset
         }
 
-timesheetLiveSurface :: (?context :: ControllerContext) => RosterStaffSelfServicePanel -> LiveSurfaceConfig
+timesheetLiveSurface :: (?context :: ControllerContext) => RosterStaffSelfServicePanel -> FrontendSurfaceMountConfig
 timesheetLiveSurface panel =
     let scope = TimesheetWeekScopeValue
             { timesheetWeekVenueId = unpackId panel.quickToolsVenueId
@@ -129,10 +129,7 @@ timesheetLiveSurface panel =
         impl = timesheetsSurfaceImpl scope mountState
         dayTargetId = "timesheet-day-section-" <> tshow (quickToolsTimesheetDayOffset panel)
         dayFragment = filter (\fragment -> fragment.mountedFragmentTargetId == dayTargetId) (timesheetsCandidateMountedFragments scope mountState)
-     in (timesheetsLegacyLiveSurfaceConfig impl scope)
-            { resyncFragments = timesheetsSurfaceWireFragments dayFragment
-            , decorateRequestsWithin = ["#" <> rosterStaffSelfServiceTimesheetLiveSurfaceId]
-            }
+     in impl.surfaceImplMountConfig { mountFragments = dayFragment }
 
 quickToolsTimesheetDayOffset :: RosterStaffSelfServicePanel -> Int
 quickToolsTimesheetDayOffset panel =

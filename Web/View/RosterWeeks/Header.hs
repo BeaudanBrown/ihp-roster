@@ -2,7 +2,8 @@ module Web.View.RosterWeeks.Header
     ( renderRosterGridHeader
     ) where
 
-import Application.Helper.Interaction (InteractionActivationTrigger (..),
+import Application.Helper.Interaction (IntentFieldName (..),
+                                       InteractionActivationTrigger (..),
                                        withInteractionActivationIntentMarker)
 import Application.Helper.RosterWagePrediction (RosterWagePrediction (..),
                                                 formatMoneyAmount)
@@ -11,8 +12,8 @@ import Application.Helper.UserPreferences (rosterLayoutModeLabel,
                                            rosterLayoutModes)
 import Data.Time.Calendar (Day)
 import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterWeekShellId)
-import Web.RosterWeeks.LiveSurface (rosterLayoutModeIntentField,
-                                    rosterLayoutModeIntentName)
+import Web.RosterWeeks.FrontendSurface (rosterLayoutModeIntentFieldName,
+                                        rosterLayoutModeIntentName)
 import Web.RosterWeeks.Paths (rosterAssignmentFiltersUrl, rosterCopyWeekUrl,
                               rosterWageEstimatePreferenceUrl,
                               rosterWarningPreferenceUrl, rosterWeekUrl)
@@ -188,7 +189,7 @@ renderRosterLayoutModeOption selectedLayoutMode layoutMode =
                    checked={rosterLayoutModeValue selectedLayoutMode == layoutValue} />
         |]
      in [hsx|
-        {withInteractionActivationIntentMarker markerKey rosterLayoutModeIntentName InteractionActivationChange (Just rosterLayoutModeIntentField) inputHtml}
+        {withInteractionActivationIntentMarker markerKey rosterLayoutModeIntentName InteractionActivationChange (Just (IntentFieldName rosterLayoutModeIntentFieldName)) inputHtml}
         <label class="btn btn-outline-secondary btn-sm" for={inputId}>{rosterLayoutModeLabel layoutMode}</label>
     |]
 

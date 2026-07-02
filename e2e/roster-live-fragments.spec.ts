@@ -39,9 +39,12 @@ async function openRosterWeekOffset(page: Page, weekOffset: number) {
     await openRoster(page, { weekOffset });
     await expect
         .poll(async () => {
-            const rawConfig = await page.locator('#roster-week-shell').getAttribute('data-live-update-surface');
+            const rawConfig = await page.locator('[data-bepis-surface-config]').first().getAttribute('data-bepis-surface-config');
             if (!rawConfig) return null;
-            return JSON.parse(rawConfig).scope?.weekOffset ?? null;
+            const scopeKey = JSON.parse(rawConfig).scopeKey;
+            if (typeof scopeKey !== 'string') return null;
+            const parts = scopeKey.split(':');
+            return Number(parts[parts.length - 1]);
         })
         .toBe(weekOffset);
 }

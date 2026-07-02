@@ -8,7 +8,6 @@ import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceFragmentKey (.
                                                    FrontendSurfaceMountedFragment (..),
                                                    SurfaceImpl (..))
 import Application.Helper.LiveResource (LiveResource (..))
-import Application.Helper.LiveSurface (LiveSurfaceConfig (..))
 import Application.Helper.LiveUpdate (LiveUpdateScope (..))
 import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..),
                                               LiveUpdateWireFragment (..))
@@ -106,7 +105,7 @@ tests = beforeAll testContext do
                             [RosterWeekScope { venueId = unpackId venue.id, rosterGroupId = rosterWeek.rosterGroupId, weekOffset = rosterWeek.weekOffset }]
 
                 targetFragmentKeys targets
-                    `shouldBe` [[RosterGridToolbarFragment, RosterDayColumnsFragment, RosterDayRailFragment, RosterWageRailFragment, RosterSlotsGridFragment, RosterStaffPanelFragment]]
+                    `shouldBe` [[RosterContentFragment, RosterGridToolbarFragment, RosterGridFrameFragment, RosterDayColumnsFragment, RosterDayRailFragment, RosterWageRailFragment, RosterSlotsGridFragment, RosterStaffPanelFragment]]
 
         it "builds typed FrontendSurface mount metadata for roster fragments" $ withContext do
             withCurrentControllerContext do
@@ -121,7 +120,6 @@ tests = beforeAll testContext do
                 let fragmentTargets = map (.mountedFragmentTargetId) mountConfig.mountFragments
                 let fragmentUrls = map (.mountedFragmentUrl) mountConfig.mountFragments
                 let wireFragments = rosterSurfaceWireFragments mountConfig.mountFragments
-                let legacyConfig = rosterLegacyLiveSurfaceConfig impl scope
 
                 impl.surfaceImplName `shouldBe` "roster"
                 map (.htmxRequestName) impl.surfaceImplActions `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot"]
@@ -146,10 +144,6 @@ tests = beforeAll testContext do
                 fragmentUrls `shouldSatisfy` all (Text.isInfixOf "weekOffset=3")
                 fragmentUrls `shouldSatisfy` all (Text.isInfixOf "rosterGroupId=00000000-0000-0000-0000-000000000222")
                 map (.fragmentKey) wireFragments `shouldContain` [RosterRowFragment (unpackId rosterDayId) 1]
-                legacyConfig.feature `shouldBe` "roster"
-                legacyConfig.scope `shouldBe` RosterWeekScope { venueId, rosterGroupId = unpackId rosterGroupId, weekOffset = 3 }
-                map (.fragmentKey) legacyConfig.resyncFragments
-                    `shouldBe` [RosterGridToolbarFragment, RosterDayColumnsFragment, RosterDayRailFragment, RosterWageRailFragment, RosterSlotsGridFragment, RosterStaffPanelFragment]
 
         it "renders hidden draft roster fragments without leaking closed days or slots to staff" $ withContext do
             withCleanDb do
@@ -805,7 +799,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-bepis-surface=\"true\""
                 response `responseBodyShouldContain` "data-bepis-intent-form=\"set-roster-layout-mode\""
                 response `responseBodyShouldContain` "hx-trigger=\"bepis:intent-submit\""
-                response `responseBodyShouldContain` "name=\"rosterLayoutMode\" value=\"\" data-bepis-intent-field=\"rosterLayoutMode\" data-bepis-field-presence=\"required\""
+                response `responseBodyShouldContain` "name=\"rosterLayoutMode\" value=\"day_rows\" data-bepis-intent-field=\"rosterLayoutMode\" data-bepis-field-presence=\"required\""
                 response `responseBodyShouldContain` "data-bepis-marker=\"activation\" data-bepis-activation=\"roster-layout-day_columns\""
                 response `responseBodyShouldContain` "data-bepis-activation-intent=\"set-roster-layout-mode\""
                 response `responseBodyShouldContain` "data-bepis-activation-trigger=\"change\""

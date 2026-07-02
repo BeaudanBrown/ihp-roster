@@ -25,9 +25,12 @@ module Web.View.RosterWeeks.Grid
     , rowsForDay
     ) where
 
-import Application.Helper.Interaction (InteractionSurfaceMount (..),
-                                       renderInteractionCapabilityShell,
-                                       withInteractionDropzoneMarker,
+import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceFragmentKey (..),
+                                                   FrontendSurfaceMountConfig (..),
+                                                   FrontendSurfaceMountedFragment (..),
+                                                   SurfaceImpl (..),
+                                                   renderFrontendSurfaceLazyFragment)
+import Application.Helper.Interaction (withInteractionDropzoneMarker,
                                        withInteractionPointerSessionMarker)
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
 import Application.Helper.RosterWagePrediction
@@ -35,9 +38,7 @@ import Application.Helper.ShiftTypeColours (shiftTypeColourPaletteKeys)
 import Application.Helper.TimeRules (rosterOperationalFinalSelectableTimeText,
                                      rosterOperationalStartTimeText)
 import Application.Helper.UserPreferences (rosterLayoutModeValue)
-import Application.Helper.View (dialogOverlayMountId,
-                                renderLiveSurfaceFragmentMountWithPlaceholder,
-                                staffDisplayName)
+import Application.Helper.View (dialogOverlayMountId, staffDisplayName)
 import Data.Coerce (coerce)
 import Data.List (find, sortOn)
 import qualified Data.Map.Strict as Map
@@ -49,11 +50,12 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (TimeOfDay)
 import Data.UUID (UUID)
 import Web.RosterWeeks.Dom
-import Web.RosterWeeks.LiveSurface (rosterDragSessionKindName,
-                                    rosterInteractionMountKey,
-                                    rosterLiveSurfaceDefinition,
-                                    rosterMoveShiftIntentName)
-import Web.RosterWeeks.Projection (buildRosterProjectionScope)
+import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
+                                        renderRosterFrontendSurfaceInteractionShell,
+                                        rosterDragSessionKindName,
+                                        rosterMountedFragmentPlanFromRenderData,
+                                        rosterMoveShiftIntentName,
+                                        rosterSurfaceImpl)
 import Web.RosterWeeks.Types
 import Web.View.Prelude
 import Web.View.RosterWeeks.Header (renderRosterGridHeader)
@@ -105,29 +107,35 @@ renderRosterContentFragmentWithSwap maybeSwapOob gridModel =
     |]
 
 renderRosterLayout :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
-renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridPanelStaff, gridStaffSelfServicePanel } =
-    let mount = InteractionSurfaceMount
-            { interactionMountScope = buildRosterProjectionScope gridCurrentRosterGroup.id gridWeekOffset
-            , interactionMountKey = rosterInteractionMountKey
+renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridPanelStaff, gridStaffSelfServicePanel, gridRenderIndexes } =
+    let rosterSurfaceScope = RosterWeekScopeValue
+            { rosterWeekVenueId = gridCurrentRosterGroup.venueId
+            , rosterWeekGroupId = gridCurrentRosterGroup.id
+            , rosterWeekWeekOffset = gridWeekOffset
             }
+        rosterSurface = rosterSurfaceImpl rosterSurfaceScope (rosterMountedFragmentPlanFromRenderData gridRosterDays gridRenderIndexes)
+        staffPanelFragment = findMountedFragment "roster-staff-panel" rosterSurface
         renderStaffPanelMount rosterWeek =
             if currentUserIsManager
-                then
-                    renderLiveSurfaceFragmentMountWithPlaceholder
-                        rosterLiveSurfaceDefinition
-                        mount.interactionMountScope
-                        RosterProjectionStaffPanel
-                        (renderRosterStaffPanelPlaceholder (length gridRosterGroups > 1))
-                        (renderRosterStaffPanelFragment gridWeekOffset (coerce rosterWeek.rosterGroupId) (length gridRosterGroups > 1) RosterStaffPanelCurrentGroup gridPanelStaff)
+                then case staffPanelFragment of
+                    Nothing -> mempty
+                    Just fragment ->
+                        renderFrontendSurfaceLazyFragment
+                            fragment
+                            (renderRosterStaffPanelPlaceholder (length gridRosterGroups > 1))
                 else mempty
      in profileHtmlComponent "render.roster.layout" do
-        renderInteractionCapabilityShell rosterLiveSurfaceDefinition mount [hsx|
+        renderRosterFrontendSurfaceInteractionShell rosterSurface [hsx|
             <div class="row g-4 align-items-start roster-layout">
                 {renderRosterContentFragment gridModel}
                 {forEach gridRosterWeek renderStaffPanelMount}
                 {renderRosterStaffSelfServicePanelFragment gridStaffSelfServicePanel}
             </div>
         |]
+
+findMountedFragment :: Text -> SurfaceImpl spec -> Maybe FrontendSurfaceMountedFragment
+findMountedFragment fragmentKind impl =
+    find ((== fragmentKind) . (.mountedFragmentKey.fragmentKind)) impl.surfaceImplMountConfig.mountFragments
 
 rosterContentColumnClasses :: (?context :: ControllerContext) => RosterGridRenderModel -> Text
 rosterContentColumnClasses RosterGridRenderModel { gridStaffSelfServicePanel } =

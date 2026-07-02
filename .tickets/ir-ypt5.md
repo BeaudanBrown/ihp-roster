@@ -1,6 +1,6 @@
 ---
 id: ir-ypt5
-status: in_progress
+status: closed
 deps: [ir-aleo, ir-pixx]
 links: []
 created: 2026-07-02T02:47:03Z
@@ -66,3 +66,7 @@ Mirrored the existing generated InteractionStaticSchema shape from FrontendSurfa
 **2026-07-02T11:10:43Z**
 
 Temporary adapter slice landed locally: Roster's legacy InteractionStaticSchema/InteractionCapability are now projected from the Roster FrontendSurface IR and SurfaceImpl intents, preserving the current Application.Helper.Interaction renderer/runtime shape. This intentionally leaves a temporary adapter in Web.RosterWeeks.LiveSurface for mount shell/forms/conflict-policy projection. Follow-up cleanup ticket ir-pixx tracks replacing that adapter with native FrontendSurface interaction render helpers before ir-ypt5 can close.
+
+**2026-07-02T11:59:39Z**
+
+Roster cutover completed: Roster rendering now uses FrontendSurface mount metadata and native interaction shell; fragment routes and actor responses render directly from Roster SurfaceImpl/read-model helpers; roster was removed from legacy Web.LiveSurfaceRegistry registration; Web.RosterWeeks.LiveSurface was deleted; staff self-service timesheet quick card now uses native Timesheets FrontendSurface metadata instead of data-live-update-surface. Remaining decision point is outside this ticket: whether/when to retire the separate roster SQL read-model trial rollback seam and projection-named compatibility aliases.

@@ -66,6 +66,37 @@ test("FrontendSurface config parser derives Timesheets live subscriptions from m
     assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { kind: "timesheet_day_section", dayOffset: 2 });
 });
 
+test("FrontendSurface config parser derives Roster live subscriptions from mounted fragments", () => {
+    const config = parseFrontendSurfaceSubscriptionConfig({
+        surface: "roster",
+        scopeKey: "roster:venue-1:group-1:-1",
+        mountKey: "primary",
+        mountState: {},
+        fragments: [
+            {
+                key: { kind: "roster-content", params: null },
+                targetId: "roster-content",
+                url: "/ShowRosterWeekContentFragment?weekOffset=-1&rosterGroupId=group-1",
+                protection: { kind: "replace" },
+                loadPolicy: "eager",
+            },
+            {
+                key: { kind: "roster-row", params: { rosterDayId: "day-1", rowIndex: 3 } },
+                targetId: "roster-row-day-1-3",
+                url: "/ShowRosterWeekRowFragment?weekOffset=-1&rosterGroupId=group-1&rosterDayId=day-1&rowIndex=3",
+                protection: { kind: "replace" },
+                loadPolicy: "lazy",
+            },
+        ],
+    });
+
+    assertEqual(config?.feature, "roster");
+    assertDeepEqual(config?.scope, { kind: "roster_week", venueId: "venue-1", rosterGroupId: "group-1", weekOffset: -1 });
+    assertEqual(config?.scopeKey, "roster_week:venue-1:group-1:-1");
+    assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { kind: "roster_content" });
+    assertDeepEqual(config?.resyncFragments[1]?.fragmentKey, { kind: "roster_row", rosterDayId: "day-1", rowIndex: 3 });
+});
+
 test("generated live update surface validator rejects malformed boundary JSON", () => {
     assertEqual(parseLiveUpdateSurfaceConfig(null), null);
     assertEqual(parseLiveUpdateSurfaceConfig({ ...validSurfaceConfig, scope: { kind: "unknown_scope" } }), null);
