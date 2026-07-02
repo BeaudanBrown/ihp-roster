@@ -6,6 +6,12 @@ make print-ghc-options GHC_RTS_FLAGS='' \
   | grep -vE '^-iIHP(/|$)' \
   | grep -vE '^-fbyte-code$' \
   > "$HIE_BIOS_OUTPUT"
+case "$HIE_BIOS_ARG" in
+  Application/Helper/FrontendSurface/Ghc/*.hs|*/Application/Helper/FrontendSurface/Ghc/*.hs|Application/Script/*Ghc*.hs|*/Application/Script/*Ghc*.hs)
+    echo "-package" >> "$HIE_BIOS_OUTPUT"
+    echo "ghc" >> "$HIE_BIOS_OUTPUT"
+    ;;
+esac
 echo "$HIE_BIOS_ARG" >> "$HIE_BIOS_OUTPUT"
 for path in Main.hs Config Application Web Test build/Generated; do
   [ -e "$path" ] || continue
