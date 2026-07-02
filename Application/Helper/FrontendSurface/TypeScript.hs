@@ -44,7 +44,14 @@ renderScope scope =
 
 renderMountState :: MountStateIR -> [Text]
 renderMountState mountState =
-    [ "export type " <> tsTypeName mountState.mountStateName <> "MountState = " <> renderRecord Nothing mountState.mountStateFields <> ";" ]
+    [ "export type " <> mountStateTsTypeName mountState.mountStateName <> " = " <> renderRecord Nothing mountState.mountStateFields <> ";" ]
+
+mountStateTsTypeName :: Text -> Text
+mountStateTsTypeName name =
+    let typeName = tsTypeName name
+     in if "MountState" `Text.isSuffixOf` typeName
+            then typeName
+            else typeName <> "MountState"
 
 renderDto :: Text -> (Text, [FieldIR]) -> [Text]
 renderDto suffix (dtoName, fields) =
@@ -136,7 +143,15 @@ renderFieldType field =
         NullableFieldPresence -> baseType <> " | null"
         _                     -> baseType
     where
-        baseType = maybe (renderWire field.fieldWire) id field.fieldBrand
+        baseType = renderWireWithBrand field.fieldBrand field.fieldWire
+
+renderWireWithBrand :: Maybe Text -> WireIR -> Text
+renderWireWithBrand maybeBrand = \case
+    WireUuidIR -> fromMaybe "FrontendSurfaceUUID" maybeBrand
+    WireListIR inner -> "ReadonlyArray<" <> renderWireWithBrand maybeBrand inner <> ">"
+    WireOptionalIR inner -> renderWireWithBrand maybeBrand inner <> " | undefined"
+    WireNullableIR inner -> renderWireWithBrand maybeBrand inner <> " | null"
+    other -> renderWire other
 
 optionalMarker :: FieldPresence -> Text
 optionalMarker = \case

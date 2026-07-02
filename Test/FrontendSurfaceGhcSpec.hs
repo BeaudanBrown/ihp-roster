@@ -2,6 +2,8 @@ module Test.FrontendSurfaceGhcSpec
     ( tests
     ) where
 
+import Application.Helper.FrontendSurface.ContractIR (SurfaceContractIR (..),
+                                                      SurfaceIR (..))
 import Application.Helper.FrontendSurface.Contracts (registeredFrontendSurfaceContractIR)
 import Application.Helper.FrontendSurface.Ghc.Lower
 import Application.Helper.FrontendSurface.Ghc.Raw
@@ -12,7 +14,10 @@ import Test.Hspec
 tests :: Spec
 tests = describe "FrontendSurface GHC raw lowering" do
     it "lowers deterministic normalized raw lab surfaces to the checked contract IR" do
-        lowerRawRegistry labRawRegistry `shouldBe` Right registeredFrontendSurfaceContractIR
+        lowerRawRegistry labRawRegistry `shouldBe` Right (expectedRegisteredSurface "surface-lab")
+
+    it "lowers deterministic normalized raw timesheets surfaces to the checked contract IR" do
+        lowerRawRegistry timesheetsRawRegistry `shouldBe` Right (expectedRegisteredSurface "timesheets")
 
     it "reports unsupported normalized primitive nodes before generation" do
         lowerRawRegistry (registryWithPrimitives [scopePrimitive, raw "UnsupportedPrimitive" []])
@@ -122,6 +127,32 @@ labRawRegistry = registryWithPrimitives
     , raw "Dto" [marker "LabRelatedPayload", promotedList [field "Label" "WireText"]]
     ]
 
+timesheetsRawRegistry :: RawRegistry
+timesheetsRawRegistry =
+    registryWithSurfaces
+        [ rawSurfaceWithPrimitives "TimesheetsSurface" "Timesheets"
+            [ raw "Scope"
+                [ marker "TimesheetWeek"
+                , promotedList [field "VenueId" "WireUUID", field "WeekOffset" "WireInt"]
+                ]
+            , raw "MountState"
+                [ marker "TimesheetsMountState"
+                , promotedList
+                    [ field "ShowApproved" "WireBool"
+                    , field "ShowAllStaff" "WireBool"
+                    , fieldWithWire "StaffFilterId" (raw "WireOptional" [raw "WireUUID" []])
+                    ]
+                ]
+            , raw "Fragment" [marker "TimesheetToolbar", promotedList [], promotedList [raw "Eager" []]]
+            , raw "Fragment" [marker "TimesheetDayColumns", promotedList [], promotedList [raw "Eager" []]]
+            , raw "Fragment"
+                [ marker "TimesheetDaySection"
+                , promotedList [field "DayOffset" "WireInt"]
+                , promotedList [raw "Lazy" [promotedList [raw "DependsOn" [marker "TimesheetDayColumns"]]]]
+                ]
+            ]
+        ]
+
 registryWithPrimitives :: [RawType] -> RawRegistry
 registryWithPrimitives primitives =
     registryWithSurfaces [rawSurfaceWithPrimitives "SurfaceLabSurface" "SurfaceLab" primitives]
@@ -202,6 +233,12 @@ unsupportedFamily pretty = RawType
     , rawTypeSource = Nothing
     , rawTypeArgs = []
     }
+
+expectedRegisteredSurface :: Text -> SurfaceContractIR
+expectedRegisteredSurface surfaceName =
+    SurfaceContractIR
+        { contractSurfaces = filter (\surface -> surface.surfaceName == surfaceName) registeredFrontendSurfaceContractIR.contractSurfaces
+        }
 
 leftContains :: String -> Either [String] a -> Bool
 leftContains expected = \case

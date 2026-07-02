@@ -13,6 +13,7 @@ import Application.Helper.FrontendSurface.Lab (SurfaceLabSurface)
 import Application.Helper.FrontendSurface.Reflect
 import Application.Helper.FrontendSurface.Registry (RegisteredFrontendSurfaces)
 import Application.Helper.FrontendSurface.Runtime
+import qualified Application.Helper.FrontendSurface.Timesheets as TimesheetsSurface
 import qualified Data.Aeson as Aeson
 import Data.Proxy (Proxy (..))
 import qualified Data.Text as Text
@@ -25,6 +26,7 @@ tests :: Spec
 tests = describe "FrontendSurface DSL foundation" do
     it "kind-checks the support lab surface and root registry" do
         let _lab = Proxy @SurfaceLabSurface
+        let _timesheets = Proxy @TimesheetsSurface.TimesheetsSurface
         let _registry = Proxy @RegisteredFrontendSurfaces
         True `shouldBe` True
 
@@ -103,7 +105,7 @@ tests = describe "FrontendSurface DSL foundation" do
             _ -> False
 
     it "extracts the registered lab surface into checked contract IR" do
-        let SurfaceContractIR { contractSurfaces = [surface] } = registeredFrontendSurfaceContractIR
+        let surface = expectSurface "surface-lab" registeredFrontendSurfaceContractIR
 
         surface.surfaceName `shouldBe` "surface-lab"
         map (.scopeName) surface.surfaceScopes `shouldBe` ["lab"]
@@ -119,6 +121,27 @@ tests = describe "FrontendSurface DSL foundation" do
             |> fmap (.fragmentOptions)
             `shouldBe` Just [LazyOption [TriggerOption "load", PlaceholderOption "panel"]]
 
+    it "extracts the registered timesheets surface into checked contract IR" do
+        let surface = expectSurface "timesheets" registeredFrontendSurfaceContractIR
+
+        map (.scopeName) surface.surfaceScopes `shouldBe` ["timesheet-week"]
+        map (.mountStateName) surface.surfaceMountStates `shouldBe` ["timesheets-mount-state"]
+        map (.fragmentName) surface.surfaceFragments `shouldBe` ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"]
+        surface.surfaceFragments
+            |> find (\fragment -> fragment.fragmentName == "timesheet-day-section")
+            |> fmap (.fragmentParams)
+            |> fmap (map (.fieldName))
+            `shouldBe` Just ["dayOffset"]
+        surface.surfaceMountStates
+            |> listToMaybe
+            |> fmap (.mountStateFields)
+            |> fmap (map (\field -> (field.fieldName, field.fieldWire)))
+            `shouldBe` Just
+                [ ("showApproved", WireBoolIR)
+                , ("showAllStaff", WireBoolIR)
+                , ("staffFilterId", WireOptionalIR WireUuidIR)
+                ]
+
     it "renders generated TypeScript contracts for every lab primitive family" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export type SurfaceLabFragmentKey ="
         frontendSurfaceContractsTypeScript `shouldContainText` "{ kind: \"lab-panel\"; params: { panelId: PanelId } }"
@@ -128,6 +151,12 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export type LabRelatedPayload = { label: string };"
         frontendSurfaceContractsTypeScript `shouldContainText` "export const surfaceLabSurfaceManifest"
         frontendSurfaceContractsTypeScript `shouldContainText` "export function parseFrontendSurfaceName"
+
+    it "renders generated TypeScript contracts for the timesheets surface" do
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type TimesheetsFragmentKey ="
+        frontendSurfaceContractsTypeScript `shouldContainText` "{ kind: \"timesheet-day-section\"; params: { dayOffset: number } }"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type TimesheetsMountState = { showApproved: boolean; showAllStaff: boolean; staffFilterId: StaffFilterId | undefined };"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export const timesheetsSurfaceManifest"
 
     it "reports stable diagnostics for malformed reflected specs" do
         let duplicateFields = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[DuplicateFieldSurface]))
@@ -179,6 +208,12 @@ data StaffFilterId
 data VenueId
 data WeekOffset
 data LabScope
+
+expectSurface :: Text -> SurfaceContractIR -> SurfaceIR
+expectSurface surfaceName SurfaceContractIR { contractSurfaces } =
+    case find (\surface -> surface.surfaceName == surfaceName) contractSurfaces of
+        Just surface -> surface
+        Nothing      -> error ("missing surface in contract IR: " <> cs surfaceName)
 
 type DuplicateFieldSurface =
     Surface Duplicate

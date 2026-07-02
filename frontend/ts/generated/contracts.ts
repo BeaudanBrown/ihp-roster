@@ -1340,9 +1340,20 @@ export type SurfaceLabDomToken = "lab-root" | "lab-dropzone";
 export type SurfaceLabOverlayLane = "dialog";
 export const surfaceLabSurfaceManifest = { surface: "surface-lab", scopes: ["lab"], fragments: ["lab-shell", "lab-panel"], htmxActions: ["refresh-panel"], intents: ["move-lab-card"], sessions: ["drag"], layers: ["drag-preview"], domTokens: ["lab-root", "lab-dropzone"], overlayLanes: ["dialog"] } as const;
 
-export type FrontendSurfaceName = "surface-lab";
+export type TimesheetsSurfaceName = "timesheets";
+export type TimesheetWeekScope = { kind: "timesheet-week"; venueId: VenueId; weekOffset: number };
+export type TimesheetsMountState = { showApproved: boolean; showAllStaff: boolean; staffFilterId: StaffFilterId | undefined };
+export type TimesheetsFragmentKey =
+    | { kind: "timesheet-toolbar"; params: Record<string, never> }
+    | { kind: "timesheet-day-columns"; params: Record<string, never> }
+    | { kind: "timesheet-day-section"; params: { dayOffset: number } }
+;
+export const timesheetsSurfaceManifest = { surface: "timesheets", scopes: ["timesheet-week"], fragments: ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [] } as const;
+
+export type FrontendSurfaceName = "surface-lab" | "timesheets";
 export const FrontendSurfaceRegistry = {
     "surface-lab": surfaceLabSurfaceManifest,
+    timesheets: timesheetsSurfaceManifest,
 } as const;
 export function isFrontendSurfaceName(value: unknown): value is FrontendSurfaceName {
     return typeof value === "string" && Object.prototype.hasOwnProperty.call(FrontendSurfaceRegistry, value);

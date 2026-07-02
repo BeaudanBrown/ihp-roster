@@ -1,6 +1,6 @@
 ---
 id: ir-aleo
-status: open
+status: in_progress
 deps: [ir-4hu6, ir-xopg, ir-8w6w, ir-yupd, ir-ycec]
 links: []
 created: 2026-07-02T02:47:03Z
@@ -44,3 +44,13 @@ After the lab/generator/runtime foundation proves the architecture, express exis
 - Current query-param behavior is preserved behind typed mount-state backend seams: defaults are `ShowApproved = False`, `ShowAllStaff = True`, `StaffFilterId = Nothing`; query names stay `showApproved`, `showAllStaff`, and `staffFilterId`, with blank/invalid staff ids normalized to `Nothing`.
 - Timesheets no longer imports/uses old surface/projection authoring paths: `TypedLiveSurfaceDefinition`, `mkTypedDefinedLiveSurface`, `timesheetProjectionDefinition`, `renderLiveSurfaceProjectionFragment`, `respondWithTypedLiveSurfaceFragments`, or `Application.Helper.SurfaceProjection`.
 - Focused Timesheets/live-fragment tests pass and cover direct fragment GET, unified actor/duplicate/passive invalidation, query-backed mount state, and removal of the old default-filter/`data-live-update-url` workaround.
+
+## Notes
+
+**2026-07-02T09:27:18Z**
+
+Starting Timesheets migration. First slice will add the type-level Timesheets FrontendSurface spec/registry contracts and supporting tests without replacing controller/live rendering yet, so existing behavior stays stable while generated contracts prove the surface shape.
+
+**2026-07-02T09:34:00Z**
+
+First Timesheets FrontendSurface slice landed locally: added Application.Helper.FrontendSurface.Timesheets with TimesheetWeek scope, TimesheetsMountState mount state, and toolbar/day-columns/day-section fragments; registered it in RegisteredFrontendSurfaces; generated TS contracts now include timesheets manifest, TimesheetsMountState, and TimesheetsFragmentKey. Also fixed TypeScript rendering so branded WireOptional UUID fields preserve the | undefined wrapper. Verified focused FrontendSurface DSL/GHC Hspec and frontend-check.
