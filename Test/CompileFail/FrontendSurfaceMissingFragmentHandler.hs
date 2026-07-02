@@ -12,11 +12,26 @@ import IHP.Prelude
 -- to compile because SurfaceLabSurface declares both LabShell and LabPanel.
 missingFragmentHandlers :: SurfaceImplHandlers SurfaceLabSurface
 missingFragmentHandlers = SurfaceImplHandlers
-    { surfaceScopeHandlers = FrontendSurfaceScopeHandler "surface-lab:scope" `HandlerCons` HandlerNil
-    , surfaceMountStateHandlers = FrontendSurfaceMountStateHandler Aeson.Null `HandlerCons` HandlerNil
-    , surfaceFragmentHandlers = FrontendSurfaceFragmentHandler dummyFragment mempty `HandlerCons` HandlerNil
-    , surfaceActionHandlers = FrontendSurfaceActionHandler dummyRequest `HandlerCons` HandlerNil
-    , surfaceIntentHandlers = FrontendSurfaceIntentHandler (FrontendSurfaceIntentForm "move-lab-card" dummyRequest) `HandlerCons` HandlerNil
+    { surfaceScopeHandlers = FrontendSurfaceScopeHandler
+        { scopeHandlerDefaultValue = frontendSurfaceFieldValues (Aeson.object ["venueId" Aeson..= ("venue-1" :: Text), "weekOffset" Aeson..= (0 :: Int)])
+        , scopeHandlerKey = const "surface-lab:scope"
+        } `HandlerCons` HandlerNil
+    , surfaceMountStateHandlers = FrontendSurfaceMountStateHandler
+        { mountStateHandlerDefaultValue = frontendSurfaceFieldValues Aeson.Null
+        } `HandlerCons` HandlerNil
+    , surfaceFragmentHandlers = FrontendSurfaceFragmentHandler
+        { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
+        , fragmentHandlerMountedFragment = const dummyFragment
+        , fragmentHandlerRender = const mempty
+        } `HandlerCons` HandlerNil
+    , surfaceActionHandlers = FrontendSurfaceActionHandler
+        { actionHandlerDefaultFields = frontendSurfaceFieldValues Aeson.Null
+        , actionHandlerRequest = const dummyRequest
+        } `HandlerCons` HandlerNil
+    , surfaceIntentHandlers = FrontendSurfaceIntentHandler
+        { intentHandlerDefaultFields = frontendSurfaceFieldValues Aeson.Null
+        , intentHandlerForm = const (FrontendSurfaceIntentForm "move-lab-card" dummyRequest)
+        } `HandlerCons` HandlerNil
     }
 
 dummyFragment :: FrontendSurfaceMountedFragment

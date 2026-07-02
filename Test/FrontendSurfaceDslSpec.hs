@@ -52,14 +52,33 @@ tests = describe "FrontendSurface DSL foundation" do
                 , htmxRequestFields = []
                 }
         let handlers = SurfaceImplHandlers
-                { surfaceScopeHandlers = FrontendSurfaceScopeHandler "surface-lab:scope" `HandlerCons` HandlerNil
-                , surfaceMountStateHandlers = FrontendSurfaceMountStateHandler (Aeson.object ["showArchived" Aeson..= False]) `HandlerCons` HandlerNil
+                { surfaceScopeHandlers = FrontendSurfaceScopeHandler
+                    { scopeHandlerDefaultValue = frontendSurfaceFieldValues (Aeson.object ["venueId" Aeson..= ("venue-1" :: Text), "weekOffset" Aeson..= (0 :: Int)])
+                    , scopeHandlerKey = const "surface-lab:scope"
+                    } `HandlerCons` HandlerNil
+                , surfaceMountStateHandlers = FrontendSurfaceMountStateHandler
+                    { mountStateHandlerDefaultValue = frontendSurfaceFieldValues (Aeson.object ["showArchived" Aeson..= False])
+                    } `HandlerCons` HandlerNil
                 , surfaceFragmentHandlers =
-                    FrontendSurfaceFragmentHandler fragment mempty
-                        `HandlerCons` FrontendSurfaceFragmentHandler fragment mempty
+                    FrontendSurfaceFragmentHandler
+                        { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
+                        , fragmentHandlerMountedFragment = const fragment
+                        , fragmentHandlerRender = const mempty
+                        }
+                        `HandlerCons` FrontendSurfaceFragmentHandler
+                            { fragmentHandlerDefaultParams = frontendSurfaceFieldValues (Aeson.object ["panelId" Aeson..= ("panel-1" :: Text)])
+                            , fragmentHandlerMountedFragment = const fragment
+                            , fragmentHandlerRender = const mempty
+                            }
                         `HandlerCons` HandlerNil
-                , surfaceActionHandlers = FrontendSurfaceActionHandler minimalRequest `HandlerCons` HandlerNil
-                , surfaceIntentHandlers = FrontendSurfaceIntentHandler (FrontendSurfaceIntentForm "move-lab-card" minimalRequest) `HandlerCons` HandlerNil
+                , surfaceActionHandlers = FrontendSurfaceActionHandler
+                    { actionHandlerDefaultFields = frontendSurfaceFieldValues (Aeson.object ["panelId" Aeson..= ("panel-1" :: Text)])
+                    , actionHandlerRequest = const minimalRequest
+                    } `HandlerCons` HandlerNil
+                , surfaceIntentHandlers = FrontendSurfaceIntentHandler
+                    { intentHandlerDefaultFields = frontendSurfaceFieldValues (Aeson.object ["sourceItemKey" Aeson..= ("card-a" :: Text), "targetDropzoneKey" Aeson..= ("dropzone-b" :: Text)])
+                    , intentHandlerForm = const (FrontendSurfaceIntentForm "move-lab-card" minimalRequest)
+                    } `HandlerCons` HandlerNil
                 }
         let impl = (mkSurfaceImpl "surface-lab" config handlers :: SurfaceImpl SurfaceLabSurface)
         let html = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceMount impl (Html5.toHtml ("body" :: Text))))

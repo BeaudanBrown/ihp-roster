@@ -24,32 +24,45 @@ surfaceLabHandlers =
     SurfaceImplHandlers
         { surfaceScopeHandlers =
             FrontendSurfaceScopeHandler
-                { scopeHandlerKey = "surface-lab:current-support-venue:0"
+                { scopeHandlerDefaultValue = frontendSurfaceFieldValues (Aeson.object
+                    [ "venueId" Aeson..= ("current-support-venue" :: Text)
+                    , "weekOffset" Aeson..= (0 :: Int)
+                    ])
+                , scopeHandlerKey = const "surface-lab:current-support-venue:0"
                 }
                 `HandlerCons` HandlerNil
         , surfaceMountStateHandlers =
             FrontendSurfaceMountStateHandler
-                { mountStateHandlerValue = surfaceLabMountConfig.mountState
+                { mountStateHandlerDefaultValue = frontendSurfaceFieldValues (Aeson.object
+                    [ "showArchived" Aeson..= False
+                    ])
                 }
                 `HandlerCons` HandlerNil
         , surfaceFragmentHandlers =
             FrontendSurfaceFragmentHandler
-                { fragmentHandlerMountedFragment = surfaceLabShellFragment
+                { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
+                , fragmentHandlerMountedFragment = const surfaceLabShellFragment
                 , fragmentHandlerRender = const mempty
                 }
                 `HandlerCons` FrontendSurfaceFragmentHandler
-                    { fragmentHandlerMountedFragment = surfaceLabPanelFragment
+                    { fragmentHandlerDefaultParams = frontendSurfaceFieldValues (Aeson.object ["panelId" Aeson..= labPanelUuid])
+                    , fragmentHandlerMountedFragment = const surfaceLabPanelFragment
                     , fragmentHandlerRender = const mempty
                     }
                 `HandlerCons` HandlerNil
         , surfaceActionHandlers =
             FrontendSurfaceActionHandler
-                { actionHandlerRequest = refreshPanelAction
+                { actionHandlerDefaultFields = frontendSurfaceFieldValues (Aeson.object ["panelId" Aeson..= labPanelUuid])
+                , actionHandlerRequest = const refreshPanelAction
                 }
                 `HandlerCons` HandlerNil
         , surfaceIntentHandlers =
             FrontendSurfaceIntentHandler
-                { intentHandlerForm = moveCardIntent
+                { intentHandlerDefaultFields = frontendSurfaceFieldValues (Aeson.object
+                    [ "sourceItemKey" Aeson..= ("card-a" :: Text)
+                    , "targetDropzoneKey" Aeson..= ("dropzone-b" :: Text)
+                    ])
+                , intentHandlerForm = const moveCardIntent
                 }
                 `HandlerCons` HandlerNil
         }
