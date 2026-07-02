@@ -1,6 +1,6 @@
 ---
 id: ir-npm8
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-07-02T04:59:35Z
@@ -22,3 +22,9 @@ Decisions to encode: new surfaces use surface/scoped fragment identities resolve
 
 A concrete transport/request metadata contract exists before lab/runtime work; duplicate mount and actor same-tab behavior are specified; validation failure exception is documented; versioning and background-plannable behavior are specified; legacy self-describing wire boundaries are identified.
 
+
+## Notes
+
+**2026-07-02T05:22:33Z**
+
+Started transport design pass after naming foundation. Current runtime merges subscriptions by scopeKey and suppresses websocket invalidations where sourceClientId matches activeClientId; actor refresh currently reaches the initiating tab through direct HTMX/OOB responses or the liveFragmentsRefresh event, not through the passive websocket path. This exposes the first pause-and-decide area: choose the new successful actor mutation refresh semantics before specifying mount-local transport.
