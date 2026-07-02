@@ -1,6 +1,6 @@
 ---
 id: ir-4hu6
-status: open
+status: closed
 deps: [ir-ennr]
 links: []
 created: 2026-07-02T02:47:03Z
@@ -47,3 +47,7 @@ Started the recommended marker-indexed compile-time SurfaceImpl completeness pat
 **2026-07-02T09:00:29Z**
 
 Deepened SurfaceImpl handlers from marker-only presence to type-indexed runtime requirements. HandlerList now carries filtered SurfacePrimitive requirements, so fragment/action/intent/scope/mount-state handlers are indexed by their declared field lists/options. Handlers now expose typed FrontendSurfaceFieldValues for default params/fields/state and typed functions for scope keying, mounted fragment URL/target building, fragment rendering, action request building, and intent form building. mkSurfaceImpl derives mount scope key/state/fragments plus action/intent metadata from handlers. Lab updated and compile-fail fixture still proves missing LabPanel handler fails. Next decision point: whether to add field-level typed codecs/accessors for FrontendSurfaceFieldValues or move this into ir-ycec guardrail integration before Timesheets.
+
+**2026-07-02T09:11:50Z**
+
+Added field-level typed accessors/codecs for SurfaceImpl handler values. FrontendSurfaceFieldValues fields now supports getSurfaceField/requireSurfaceField @Marker, with compile-time undeclared-field rejection, stable parse diagnostics, and closed wire parsing for Text/Int/Bool/UUID/Text Day/list/optional/nullable/ref. Lab handlers now use typed accessors for panel/action/intent fields. Expanded compile-fail guardrails to missing fragment, missing action, missing intent, and undeclared field accessor fixtures. Focused Hspec, typecheck, compile-fail check, frontend-contracts-check, and frontend-test pass.

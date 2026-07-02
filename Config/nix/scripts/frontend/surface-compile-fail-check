@@ -19,21 +19,48 @@ trap cleanup EXIT
 
 mkdir -p "$tmp_dir/obj" "$tmp_dir/hi"
 GHC_OPTS="$(ihp_roster_ghc_opts)"
-fixture="Test/CompileFail/FrontendSurfaceMissingFragmentHandler.hs"
-log="$tmp_dir/compile.log"
 
-if ghc $GHC_OPTS -fno-code "$fixture" \
-    -odir "$tmp_dir/obj" \
-    -hidir "$tmp_dir/hi" \
-    >"$log" 2>&1; then
-    echo "surface-compile-fail-check: expected $fixture to fail, but it compiled" >&2
-    exit 1
-fi
+expect_compile_failure() {
+    local fixture="$1"
+    shift
+    local log="$tmp_dir/$(basename "$fixture").log"
 
-if ! grep -q "LabPanel" "$log" || ! grep -q "HandlerList" "$log"; then
-    echo "surface-compile-fail-check: missing expected SurfaceImpl completeness diagnostic" >&2
-    cat "$log" >&2
-    exit 1
-fi
+    if ghc $GHC_OPTS -fno-code "$fixture" \
+        -odir "$tmp_dir/obj" \
+        -hidir "$tmp_dir/hi" \
+        >"$log" 2>&1; then
+        echo "surface-compile-fail-check: expected $fixture to fail, but it compiled" >&2
+        exit 1
+    fi
 
-echo "surface-compile-fail-check: missing fragment handler fixture failed as expected"
+    for expected in "$@"; do
+        if ! grep -q "$expected" "$log"; then
+            echo "surface-compile-fail-check: $fixture missing expected diagnostic substring: $expected" >&2
+            cat "$log" >&2
+            exit 1
+        fi
+    done
+
+    echo "surface-compile-fail-check: $fixture failed as expected"
+}
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceMissingFragmentHandler.hs" \
+    "LabPanel" \
+    "HandlerList"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceMissingActionHandler.hs" \
+    "RefreshPanel" \
+    "HandlerList"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceMissingIntentHandler.hs" \
+    "MoveLabCard" \
+    "HandlerList"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceUndeclaredFieldAccessor.hs" \
+    "FrontendSurface field" \
+    "WeekOffset" \
+    "not declared"

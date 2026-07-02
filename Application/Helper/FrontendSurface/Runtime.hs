@@ -1,13 +1,18 @@
+{-# LANGUAGE AllowAmbiguousTypes  #-}
 {-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE GADTs                #-}
 {-# LANGUAGE PolyKinds            #-}
 {-# LANGUAGE RankNTypes           #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE TypeApplications     #-}
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE TypeOperators        #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Application.Helper.FrontendSurface.Runtime
-    ( FrontendSurfaceFieldValue (..)
+    ( FrontendSurfaceFieldError (..)
+    , FrontendSurfaceFieldValue (..)
     , FrontendSurfaceFieldValues (..)
     , FrontendSurfaceFragmentKey (..)
     , FrontendSurfaceHtmxMethod (..)
@@ -25,21 +30,32 @@ module Application.Helper.FrontendSurface.Runtime
     , SurfaceImpl (..)
     , SurfaceImplHandlers (..)
     , frontendSurfaceFieldValues
+    , getSurfaceField
     , frontendSurfaceHtmxMethodText
     , frontendSurfaceMountConfigJson
     , renderFrontendSurfaceHtmxForm
     , renderFrontendSurfaceIntentForm
     , renderFrontendSurfaceLazyFragment
+    , requireSurfaceField
     , mkSurfaceImpl
     , renderFrontendSurfaceMount
     ) where
 
 import Application.Helper.FrontendSurface.DSL
+import qualified Application.Helper.FrontendSurface.Naming as Naming
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Key as Aeson.Key
+import qualified Data.Aeson.KeyMap as Aeson.KeyMap
+import qualified Data.Aeson.Types as Aeson.Types
 import qualified Data.ByteString.Lazy as LBS
 import Data.Kind (Type)
+import qualified Data.Scientific as Scientific
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.Encoding
+import Data.Time (Day, defaultTimeLocale, parseTimeM)
+import Data.Typeable (Typeable)
+import qualified Data.Vector as Vector
+import GHC.TypeLits (ErrorMessage (..), TypeError)
 import IHP.ViewPrelude
 import Text.Blaze (toValue)
 import qualified Text.Blaze.Html as Blaze
@@ -67,6 +83,134 @@ newtype FrontendSurfaceFieldValues (fields :: [FieldSpec]) = FrontendSurfaceFiel
 
 frontendSurfaceFieldValues :: Aeson.Value -> FrontendSurfaceFieldValues fields
 frontendSurfaceFieldValues = FrontendSurfaceFieldValues
+
+data FrontendSurfaceFieldError
+    = FrontendSurfaceFieldContainerNotObject !Text
+    | FrontendSurfaceFieldMissing !Text
+    | FrontendSurfaceFieldParseFailed !Text !Text
+    deriving (Eq, Show)
+
+data SurfaceFieldLookup
+    = SurfaceRequired WireType
+    | SurfaceOptional WireType
+    | SurfaceNullable WireType
+
+type family LookupSurfaceField (marker :: Type) (fields :: [FieldSpec]) :: SurfaceFieldLookup where
+    LookupSurfaceField marker ('Field marker wire ': rest) = 'SurfaceRequired wire
+    LookupSurfaceField marker ('OptionalField marker wire ': rest) = 'SurfaceOptional wire
+    LookupSurfaceField marker ('NullableField marker wire ': rest) = 'SurfaceNullable wire
+    LookupSurfaceField marker (field ': rest) = LookupSurfaceField marker rest
+    LookupSurfaceField marker '[] = TypeError
+        ( 'Text "FrontendSurface field "
+            ':<>: 'ShowType marker
+            ':<>: 'Text " is not declared in this handler field list"
+        )
+
+type family SurfaceFieldValue (marker :: Type) (fields :: [FieldSpec]) :: Type where
+    SurfaceFieldValue marker fields = SurfaceFieldLookupValue (LookupSurfaceField marker fields)
+
+type family SurfaceFieldLookupValue (lookup :: SurfaceFieldLookup) :: Type where
+    SurfaceFieldLookupValue ('SurfaceRequired wire) = SurfaceWireValue wire
+    SurfaceFieldLookupValue ('SurfaceOptional wire) = Maybe (SurfaceWireValue wire)
+    SurfaceFieldLookupValue ('SurfaceNullable wire) = Maybe (SurfaceWireValue wire)
+
+type family SurfaceWireValue (wire :: WireType) :: Type where
+    SurfaceWireValue 'WireText = Text
+    SurfaceWireValue 'WireInt = Int
+    SurfaceWireValue 'WireBool = Bool
+    SurfaceWireValue 'WireUUID = Text
+    SurfaceWireValue 'WireDay = Day
+    SurfaceWireValue ('WireList inner) = [SurfaceWireValue inner]
+    SurfaceWireValue ('WireOptional inner) = Maybe (SurfaceWireValue inner)
+    SurfaceWireValue ('WireNullable inner) = Maybe (SurfaceWireValue inner)
+    SurfaceWireValue ('WireRef dto) = Aeson.Value
+
+getSurfaceField ::
+    forall marker fields.
+    ( Typeable marker
+    , KnownSurfaceFieldLookup (LookupSurfaceField marker fields)
+    ) =>
+    FrontendSurfaceFieldValues fields -> Maybe (SurfaceFieldValue marker fields)
+getSurfaceField values =
+    either (const Nothing) Just (requireSurfaceField @marker values)
+
+requireSurfaceField ::
+    forall marker fields.
+    ( Typeable marker
+    , KnownSurfaceFieldLookup (LookupSurfaceField marker fields)
+    ) =>
+    FrontendSurfaceFieldValues fields -> Either FrontendSurfaceFieldError (SurfaceFieldValue marker fields)
+requireSurfaceField (FrontendSurfaceFieldValues value) =
+    case value of
+        Aeson.Object object ->
+            let fieldName = Naming.deriveFrontendSurfaceTypeName @marker Naming.FieldName
+             in parseSurfaceFieldLookup @(LookupSurfaceField marker fields) fieldName (Aeson.KeyMap.lookup (Aeson.Key.fromText fieldName) object)
+        _ -> Left (FrontendSurfaceFieldContainerNotObject "expected surface field values to be a JSON object")
+
+class KnownSurfaceFieldLookup (lookup :: SurfaceFieldLookup) where
+    parseSurfaceFieldLookup :: Text -> Maybe Aeson.Value -> Either FrontendSurfaceFieldError (SurfaceFieldLookupValue lookup)
+
+instance KnownSurfaceWire wire => KnownSurfaceFieldLookup ('SurfaceRequired wire) where
+    parseSurfaceFieldLookup fieldName = \case
+        Nothing -> Left (FrontendSurfaceFieldMissing fieldName)
+        Just rawValue -> parseWireValue @wire fieldName rawValue
+
+instance KnownSurfaceWire wire => KnownSurfaceFieldLookup ('SurfaceOptional wire) where
+    parseSurfaceFieldLookup fieldName = \case
+        Nothing -> Right Nothing
+        Just Aeson.Null -> Right Nothing
+        Just rawValue -> Just <$> parseWireValue @wire fieldName rawValue
+
+instance KnownSurfaceWire wire => KnownSurfaceFieldLookup ('SurfaceNullable wire) where
+    parseSurfaceFieldLookup fieldName = \case
+        Nothing -> Right Nothing
+        Just Aeson.Null -> Right Nothing
+        Just rawValue -> Just <$> parseWireValue @wire fieldName rawValue
+
+parseWireValue :: forall wire. KnownSurfaceWire wire => Text -> Aeson.Value -> Either FrontendSurfaceFieldError (SurfaceWireValue wire)
+parseWireValue fieldName rawValue =
+    case Aeson.Types.parseEither (parseSurfaceWire @wire) rawValue of
+        Right parsed -> Right parsed
+        Left message -> Left (FrontendSurfaceFieldParseFailed fieldName (Text.pack message))
+
+class KnownSurfaceWire (wire :: WireType) where
+    parseSurfaceWire :: Aeson.Value -> Aeson.Types.Parser (SurfaceWireValue wire)
+
+instance KnownSurfaceWire 'WireText where
+    parseSurfaceWire = Aeson.withText "WireText" pure
+
+instance KnownSurfaceWire 'WireInt where
+    parseSurfaceWire = Aeson.withScientific "WireInt" \number ->
+        case Scientific.floatingOrInteger number of
+            Right int          -> pure int
+            Left (_ :: Double) -> fail "expected integer"
+
+instance KnownSurfaceWire 'WireBool where
+    parseSurfaceWire = Aeson.withBool "WireBool" pure
+
+instance KnownSurfaceWire 'WireUUID where
+    parseSurfaceWire = Aeson.withText "WireUUID" pure
+
+instance KnownSurfaceWire 'WireDay where
+    parseSurfaceWire = Aeson.withText "WireDay" \value ->
+        parseTimeM True defaultTimeLocale "%F" (Text.unpack value)
+
+instance KnownSurfaceWire inner => KnownSurfaceWire ('WireList inner) where
+    parseSurfaceWire = Aeson.withArray "WireList" \values ->
+        mapM (parseSurfaceWire @inner) (Vector.toList values)
+
+instance KnownSurfaceWire inner => KnownSurfaceWire ('WireOptional inner) where
+    parseSurfaceWire = \case
+        Aeson.Null -> pure Nothing
+        value -> Just <$> parseSurfaceWire @inner value
+
+instance KnownSurfaceWire inner => KnownSurfaceWire ('WireNullable inner) where
+    parseSurfaceWire = \case
+        Aeson.Null -> pure Nothing
+        value -> Just <$> parseSurfaceWire @inner value
+
+instance KnownSurfaceWire ('WireRef dto) where
+    parseSurfaceWire = pure
 
 data FrontendSurfaceScopeHandler (requirement :: SurfacePrimitive) where
     FrontendSurfaceScopeHandler ::

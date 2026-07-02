@@ -7,8 +7,11 @@ module Application.Helper.FrontendSurface.Lab
     , LabShell
     , LabViewState
     , MoveLabCard
+    , PanelId
     , RefreshPanel
+    , SourceItemKey
     , SurfaceLabSurface
+    , TargetDropzoneKey
     ) where
 
 import Application.Helper.FrontendSurface.DSL

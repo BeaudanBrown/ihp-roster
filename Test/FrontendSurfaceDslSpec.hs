@@ -91,6 +91,17 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceMountConfigJson config `shouldContainText` "\"mountKey\":\"primary\""
         frontendSurfaceMountConfigJson config `shouldContainText` "\"targetId\":\"surface-lab-panel\""
 
+    it "parses typed handler field values from declared field lists" do
+        let panelParams = frontendSurfaceFieldValues (Aeson.object ["panelId" Aeson..= ("panel-1" :: Text)]) :: FrontendSurfaceFieldValues '[Field PanelId 'WireUUID]
+        let optionalParams = frontendSurfaceFieldValues (Aeson.object []) :: FrontendSurfaceFieldValues '[OptionalField StaffFilterId 'WireUUID]
+        let badParams = frontendSurfaceFieldValues (Aeson.object ["panelId" Aeson..= (123 :: Int)]) :: FrontendSurfaceFieldValues '[Field PanelId 'WireUUID]
+
+        getSurfaceField @PanelId panelParams `shouldBe` Just ("panel-1" :: Text)
+        requireSurfaceField @StaffFilterId optionalParams `shouldBe` Right (Nothing :: Maybe Text)
+        requireSurfaceField @PanelId badParams `shouldSatisfy` \case
+            Left (FrontendSurfaceFieldParseFailed "panelId" _) -> True
+            _ -> False
+
     it "extracts the registered lab surface into checked contract IR" do
         let SurfaceContractIR { contractSurfaces = [surface] } = registeredFrontendSurfaceContractIR
 
@@ -164,6 +175,7 @@ data MissingFragment
 data MissingDtoRef
 data MissingPayload
 data PanelId
+data StaffFilterId
 data VenueId
 data WeekOffset
 data LabScope

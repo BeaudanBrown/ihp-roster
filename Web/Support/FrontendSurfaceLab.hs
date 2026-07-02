@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Web.Support.FrontendSurfaceLab
     ( frontendSurfaceLabPanelId
     , renderSurfaceLabMount
@@ -7,7 +9,9 @@ module Web.Support.FrontendSurfaceLab
 
 import Application.Helper.FrontendSurface.Lab (LabPanel, LabScope, LabShell,
                                                LabViewState, MoveLabCard,
-                                               RefreshPanel, SurfaceLabSurface)
+                                               PanelId, RefreshPanel,
+                                               SourceItemKey, SurfaceLabSurface,
+                                               TargetDropzoneKey)
 import Application.Helper.FrontendSurface.Runtime
 import qualified Data.Aeson as Aeson
 import Web.View.Prelude
@@ -46,14 +50,16 @@ surfaceLabHandlers =
                 }
                 `HandlerCons` FrontendSurfaceFragmentHandler
                     { fragmentHandlerDefaultParams = frontendSurfaceFieldValues (Aeson.object ["panelId" Aeson..= labPanelUuid])
-                    , fragmentHandlerMountedFragment = const surfaceLabPanelFragment
+                    , fragmentHandlerMountedFragment = \params ->
+                        surfaceLabPanelFragmentFor (fromMaybe labPanelUuid (getSurfaceField @PanelId params))
                     , fragmentHandlerRender = const mempty
                     }
                 `HandlerCons` HandlerNil
         , surfaceActionHandlers =
             FrontendSurfaceActionHandler
                 { actionHandlerDefaultFields = frontendSurfaceFieldValues (Aeson.object ["panelId" Aeson..= labPanelUuid])
-                , actionHandlerRequest = const refreshPanelAction
+                , actionHandlerRequest = \fields ->
+                    refreshPanelActionFor (fromMaybe labPanelUuid (getSurfaceField @PanelId fields))
                 }
                 `HandlerCons` HandlerNil
         , surfaceIntentHandlers =
@@ -62,7 +68,10 @@ surfaceLabHandlers =
                     [ "sourceItemKey" Aeson..= ("card-a" :: Text)
                     , "targetDropzoneKey" Aeson..= ("dropzone-b" :: Text)
                     ])
-                , intentHandlerForm = const moveCardIntent
+                , intentHandlerForm = \fields ->
+                    moveCardIntentFor
+                        (fromMaybe "card-a" (getSurfaceField @SourceItemKey fields))
+                        (fromMaybe "dropzone-b" (getSurfaceField @TargetDropzoneKey fields))
                 }
                 `HandlerCons` HandlerNil
         }
@@ -94,27 +103,39 @@ surfaceLabShellFragment =
 
 surfaceLabPanelFragment :: (?context :: ControllerContext) => FrontendSurfaceMountedFragment
 surfaceLabPanelFragment =
+    surfaceLabPanelFragmentFor labPanelUuid
+
+surfaceLabPanelFragmentFor :: (?context :: ControllerContext) => Text -> FrontendSurfaceMountedFragment
+surfaceLabPanelFragmentFor panelIdValue =
     FrontendSurfaceMountedFragment
-        { mountedFragmentKey = FrontendSurfaceFragmentKey "lab-panel" (Aeson.object ["panelId" Aeson..= labPanelUuid])
+        { mountedFragmentKey = FrontendSurfaceFragmentKey "lab-panel" (Aeson.object ["panelId" Aeson..= panelIdValue])
         , mountedFragmentTargetId = frontendSurfaceLabPanelId
-        , mountedFragmentUrl = pathTo ShowFrontendSurfaceLabPanelFragmentAction { panelId = labPanelUuid }
+        , mountedFragmentUrl = pathTo ShowFrontendSurfaceLabPanelFragmentAction { panelId = panelIdValue }
         , mountedFragmentProtection = FrontendSurfaceReplace
         , mountedFragmentLoadPolicy = "lazy"
         }
 
 refreshPanelAction :: (?context :: ControllerContext) => FrontendSurfaceHtmxRequest
 refreshPanelAction =
+    refreshPanelActionFor labPanelUuid
+
+refreshPanelActionFor :: (?context :: ControllerContext) => Text -> FrontendSurfaceHtmxRequest
+refreshPanelActionFor panelIdValue =
     FrontendSurfaceHtmxRequest
         { htmxRequestName = "refresh-panel"
         , htmxRequestMethod = FrontendSurfacePost
         , htmxRequestUrl = pathTo RefreshFrontendSurfaceLabPanelAction
         , htmxRequestTarget = "#" <> frontendSurfaceLabPanelId
         , htmxRequestSwap = "outerHTML"
-        , htmxRequestFields = [FrontendSurfaceFieldValue "panelId" labPanelUuid]
+        , htmxRequestFields = [FrontendSurfaceFieldValue "panelId" panelIdValue]
         }
 
 moveCardIntent :: (?context :: ControllerContext) => FrontendSurfaceIntentForm
 moveCardIntent =
+    moveCardIntentFor "card-a" "dropzone-b"
+
+moveCardIntentFor :: (?context :: ControllerContext) => Text -> Text -> FrontendSurfaceIntentForm
+moveCardIntentFor sourceItemKey targetDropzoneKey =
     FrontendSurfaceIntentForm
         { intentFormName = "move-lab-card"
         , intentFormSubmit = FrontendSurfaceHtmxRequest
@@ -124,8 +145,8 @@ moveCardIntent =
             , htmxRequestTarget = "#" <> frontendSurfaceLabPanelId
             , htmxRequestSwap = "outerHTML"
             , htmxRequestFields =
-                [ FrontendSurfaceFieldValue "sourceItemKey" "card-a"
-                , FrontendSurfaceFieldValue "targetDropzoneKey" "dropzone-b"
+                [ FrontendSurfaceFieldValue "sourceItemKey" sourceItemKey
+                , FrontendSurfaceFieldValue "targetDropzoneKey" targetDropzoneKey
                 ]
             }
         }
