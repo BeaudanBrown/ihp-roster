@@ -18,6 +18,24 @@ tests = describe "FrontendSurface GHC raw lowering" do
         lowerRawRegistry (registryWithPrimitives [scopePrimitive, raw "UnsupportedPrimitive" []])
             `shouldSatisfy` leftContains "unsupported primitive UnsupportedPrimitive"
 
+    it "reports stable diagnostics for malformed raw normalized trees" do
+        let cases =
+                [ ( registryWithPrimitives [scopePrimitive, unsupportedFamily "Concat '[Broken]"]
+                  , "unsupported type family in surface primitive: Concat '[Broken]"
+                  )
+                , ( registryWithPrimitives [raw "Scope" [marker "LabScope", raw "NotAList" []]]
+                  , "expected field list as normalized PromotedList, got NotAList"
+                  )
+                , ( registryWithPrimitives [raw "Scope" [marker "LabScope", promotedList [fieldWithWire "VenueId" (raw "WireMagic" [])]]]
+                  , "unsupported wire type WireMagic"
+                  )
+                , ( registryWithPrimitives [scopePrimitive, raw "Fragment" [marker "LabPanel", promotedList [], promotedList [raw "MagicOption" []]]]
+                  , "unsupported option MagicOption"
+                  )
+                ]
+        forM_ cases \(rawRegistry, expected) ->
+            lowerRawRegistry rawRegistry `shouldSatisfy` leftContains expected
+
     it "runs existing ContractIR validation after raw lowering" do
         lowerRawRegistry (registryWithPrimitives
             [ scopePrimitive
@@ -134,6 +152,15 @@ raw name args = RawType
     , rawTypeName = Just name
     , rawTypeSource = Nothing
     , rawTypeArgs = args
+    }
+
+unsupportedFamily :: String -> RawType
+unsupportedFamily pretty = RawType
+    { rawTypeNode = "UnsupportedTypeFamily"
+    , rawTypePretty = pretty
+    , rawTypeName = Just "UnsupportedTypeFamily"
+    , rawTypeSource = Nothing
+    , rawTypeArgs = []
     }
 
 leftContains :: String -> Either [String] a -> Bool

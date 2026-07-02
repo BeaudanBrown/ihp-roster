@@ -1,6 +1,6 @@
 ---
 id: ir-yupd
-status: open
+status: closed
 deps: [ir-xopg]
 links: []
 created: 2026-07-02T04:06:23Z

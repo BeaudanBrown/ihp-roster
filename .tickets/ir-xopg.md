@@ -79,3 +79,7 @@ Refactored the GHC raw contract path out of the probe into Application.Helper.Fr
 **2026-07-02T08:24:56Z**
 
 Moved the GHC extraction/normalization code out of the probe into Application.Helper.FrontendSurface.Ghc.Extract and added a dedicated GenerateFrontendContractsGhc script. The repo frontend/contracts and contracts-check scripts now compile that GHC generator with -package ghc and pass ghc --print-libdir, while the legacy GenerateFrontendContracts reflection path remains import-clean for current shell PATH wrappers. Added progress lines because the GHC generator compile/extraction is otherwise silent for ~30s and can look hung. GHC-generated contracts match the checked-in contracts.
+
+**2026-07-02T08:37:32Z**
+
+Added stable GHC raw-lowering diagnostics/tests for unsupported normalized type-family nodes, malformed non-PromotedList field lists, unsupported wire types, and unsupported options. Verified refreshed PATH canonical frontend-contracts/frontend-contracts-check, typecheck, probe lowering JSON, focused GHC lowering Hspec binary, frontend-contracts-check, frontend-test, and one frontend-contracts-watch regeneration cycle.

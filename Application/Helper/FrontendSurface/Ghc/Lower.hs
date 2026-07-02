@@ -49,7 +49,9 @@ emptyLoweredSurface marker = IR.SurfaceIR
     }
 
 addPrimitive :: IR.SurfaceIR -> RawType -> Either [String] IR.SurfaceIR
-addPrimitive surface primitive =
+addPrimitive surface primitive
+    | isUnsupportedTypeFamily primitive = Left [unsupportedTypeFamilyDiagnostic "surface primitive" primitive]
+    | otherwise =
     case (primitive.rawTypeName, primitive.rawTypeArgs) of
         (Just "Scope", marker : fields : _) -> do
             markerName <- rawMarkerName marker
@@ -133,7 +135,9 @@ lowerFieldList :: RawType -> Either [String] [IR.FieldIR]
 lowerFieldList fields = rawListElements "field list" fields >>= collectEither . map lowerField
 
 lowerField :: RawType -> Either [String] IR.FieldIR
-lowerField field =
+lowerField field
+    | isUnsupportedTypeFamily field = Left [unsupportedTypeFamilyDiagnostic "field" field]
+    | otherwise =
     case (field.rawTypeName, field.rawTypeArgs) of
         (Just "Field", marker : wire : _) -> lowerFieldWithPresence IR.RequiredField marker wire
         (Just "OptionalField", marker : wire : _) -> lowerFieldWithPresence IR.OptionalFieldPresence marker wire
@@ -153,7 +157,9 @@ lowerFieldWithPresence presence marker wire = do
         }
 
 lowerWire :: RawType -> Either [String] IR.WireIR
-lowerWire wire =
+lowerWire wire
+    | isUnsupportedTypeFamily wire = Left [unsupportedTypeFamilyDiagnostic "wire type" wire]
+    | otherwise =
     case (wire.rawTypeName, wire.rawTypeArgs) of
         (Just "WireText", _) -> Right IR.WireTextIR
         (Just "WireInt", _) -> Right IR.WireIntIR
@@ -170,7 +176,9 @@ lowerOptionList :: RawType -> Either [String] [IR.OptionIR]
 lowerOptionList options = rawListElements "option list" options >>= collectEither . map lowerOption
 
 lowerOption :: RawType -> Either [String] IR.OptionIR
-lowerOption option =
+lowerOption option
+    | isUnsupportedTypeFamily option = Left [unsupportedTypeFamilyDiagnostic "option" option]
+    | otherwise =
     case (option.rawTypeName, option.rawTypeArgs) of
         (Just "Eager", _) -> Right IR.EagerOption
         (Just "Lazy", nested : _) -> IR.LazyOption <$> lowerOptionList nested
@@ -187,14 +195,18 @@ lowerOption option =
         _ -> Left ["unsupported option " <> option.rawTypePretty]
 
 lowerSessionSelector :: RawType -> Either [String] IR.SessionSelectorIR
-lowerSessionSelector selector =
+lowerSessionSelector selector
+    | isUnsupportedTypeFamily selector = Left [unsupportedTypeFamilyDiagnostic "session selector" selector]
+    | otherwise =
     case (selector.rawTypeName, selector.rawTypeArgs) of
         (Just "AnySession", _) -> Right IR.AnySessionIR
         (Just "SessionKind", marker : _) -> IR.SessionKindIR <$> (protocol Naming.SessionName <$> rawMarkerName marker)
         _ -> Left ["unsupported session selector " <> selector.rawTypePretty]
 
 lowerFragmentSelector :: RawType -> Either [String] IR.FragmentSelectorIR
-lowerFragmentSelector selector =
+lowerFragmentSelector selector
+    | isUnsupportedTypeFamily selector = Left [unsupportedTypeFamilyDiagnostic "fragment selector" selector]
+    | otherwise =
     case (selector.rawTypeName, selector.rawTypeArgs) of
         (Just "AnyFragment", _) -> Right IR.AnyFragmentIR
         (Just "FragmentKind", marker : _) -> IR.FragmentKindIR <$> (protocol Naming.FragmentName <$> rawMarkerName marker)
@@ -202,7 +214,9 @@ lowerFragmentSelector selector =
         _ -> Left ["unsupported fragment selector " <> selector.rawTypePretty]
 
 lowerConflictResolution :: RawType -> Either [String] IR.ConflictResolutionIR
-lowerConflictResolution resolution =
+lowerConflictResolution resolution
+    | isUnsupportedTypeFamily resolution = Left [unsupportedTypeFamilyDiagnostic "conflict resolution" resolution]
+    | otherwise =
     case resolution.rawTypeName of
         Just "Apply" -> Right IR.ApplyIR
         Just "Defer" -> Right IR.DeferIR
@@ -213,6 +227,14 @@ rawListElements :: String -> RawType -> Either [String] [RawType]
 rawListElements label rawType
     | rawType.rawTypeNode == "PromotedList" = Right rawType.rawTypeArgs
     | otherwise = Left ["expected " <> label <> " as normalized PromotedList, got " <> rawType.rawTypePretty]
+
+isUnsupportedTypeFamily :: RawType -> Bool
+isUnsupportedTypeFamily rawType =
+    rawType.rawTypeNode == "UnsupportedTypeFamily"
+
+unsupportedTypeFamilyDiagnostic :: String -> RawType -> String
+unsupportedTypeFamilyDiagnostic context rawType =
+    "unsupported type family in " <> context <> ": " <> rawType.rawTypePretty
 
 rawMarkerName :: RawType -> Either [String] String
 rawMarkerName rawType =
