@@ -93,6 +93,7 @@ import Application.Helper.ControllerSupport (VenueRole (..))
 import Application.Helper.Frontend.AppConstants (AppEvents (..),
                                                  canonicalAppEvents)
 import qualified Application.Helper.Frontend.LiveUpdateSchema as Wire
+import Application.Helper.FrontendSurface.Naming (nameToKebab, nameToSnake)
 import Application.Helper.Interaction.Types (EmptyInteractionIntent,
                                              EmptyInteractionLayer,
                                              EmptyInteractionSession,
@@ -110,7 +111,6 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Lazy as LBS
-import qualified Data.Char as Char
 import Data.Coerce (coerce)
 import qualified Data.Dynamic as Dynamic
 import qualified Data.List as List
@@ -545,29 +545,9 @@ defaultDecorateRequestsWithin :: LiveSurfaceDescriptor surface scope fragment la
 defaultDecorateRequestsWithin descriptor surfaceKey =
     List.nub (map (("#" <>) . (.targetId) . unSurfaceFragmentRef . (\fragmentDescriptor -> fragmentDescriptor.liveFragmentDescriptorRef surfaceKey)) descriptor.liveSurfaceDescriptorFragments)
 
-nameToKebab :: Text -> Text
-nameToKebab = Text.intercalate "-" . wordsFromName
-
-nameToSnake :: Text -> Text
-nameToSnake = Text.intercalate "_" . wordsFromName
-
 defaultLiveFragmentTargetId :: Text -> Text -> Text
 defaultLiveFragmentTargetId surfaceName fragmentName =
     nameToKebab surfaceName <> "-" <> nameToKebab fragmentName <> "-fragment"
-
-wordsFromName :: Text -> [Text]
-wordsFromName name =
-    filter (not . Text.null) (map (Text.toLower . Text.pack) (go [] [] (Text.unpack name)))
-    where
-        go current acc [] =
-            reverse (finish current acc)
-        go current acc (char : rest)
-            | isSeparator char = go [] (finish current acc) rest
-            | Char.isUpper char && not (null current) = go [char] (finish current acc) rest
-            | otherwise = go (char : current) acc rest
-        finish [] acc      = acc
-        finish current acc = reverse current : acc
-        isSeparator char = char == '-' || char == '_' || Char.isSpace char
 
 mkTypedDefinedLiveSurface :: TypedLiveSurfaceDefinition surface scope fragment layer session intent -> scope -> LiveSurfaceConfig
 mkTypedDefinedLiveSurface definition surfaceKey =

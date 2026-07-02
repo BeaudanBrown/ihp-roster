@@ -38,6 +38,7 @@ import qualified Test.Controller.VenueAccessSpec
 import qualified Test.DatabaseProtectionSpec
 import qualified Test.DevSeedSpec
 import qualified Test.FrontendContractsSpec
+import qualified Test.FrontendSurfaceNamingSpec
 import qualified Test.FwcMapdSyncSpec
 import qualified Test.InteractionSpec
 import qualified Test.LiveResourceInvalidationSpec
@@ -183,6 +184,7 @@ allSuites =
     , TestSuite "DevSeed" Test.DevSeedSpec.tests
     , TestSuite "Conflict" Test.ConflictSpec.tests
     , TestSuite "FrontendContracts" Test.FrontendContractsSpec.tests
+    , TestSuite "FrontendSurfaceNaming" Test.FrontendSurfaceNamingSpec.tests
     , TestSuite "Interaction" Test.InteractionSpec.tests
     , TestSuite "LiveUpdate" Test.LiveUpdateSpec.tests
     , TestSuite "LiveResource" Test.LiveResourceSpec.tests

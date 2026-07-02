@@ -44,3 +44,9 @@ Implement global derived naming rules for marker types used in type-level `Front
 - Focused tests cover acronym handling, suffix stripping, JSON field derivation, DOM/event derivation, collision diagnostics, and exact-name allowlist behavior.
 - Lab specs can use marker types for every primitive without raw protocol strings.
 - Duplicate generated names fail with clear diagnostics in the relevant namespace.
+
+## Notes
+
+**2026-07-02T05:19:56Z**
+
+Implemented initial FrontendSurface naming policy foundation in Application.Helper.FrontendSurface.Naming with acronym-aware word splitting, contextual suffix stripping, JSON/DOM/event/wire derivation helpers, exact-name allowlist checks, collision diagnostics, and focused Hspec coverage. Existing LiveSurface descriptor default naming now reuses the shared naming helpers.
