@@ -44,6 +44,9 @@ import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
+import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
+                                       TimesheetsMountStateValue (..),
+                                       timesheetsSurfaceImpl)
 import Web.Timesheets.Paths (timesheetDayColumnsFragmentUrl,
                              timesheetDaySectionFragmentUrl,
                              timesheetToolbarFragmentUrl)
@@ -311,8 +314,20 @@ timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetStaffMem
         , showAllStaff = timesheetShowAllStaff
         , selectedStaffFilterId = timesheetStaffFilterId
         , currentViewerStaffId = timesheetCurrentViewerStaffId
-        , liveUpdateSurface = Just (mkTypedDefinedLiveSurface timesheetLiveSurfaceDefinition (TimesheetProjectionRequest timesheetWeekOffset timesheetShowApproved timesheetShowAllStaff timesheetStaffFilterId))
+        , liveUpdateSurface = Just (mkTypedDefinedLiveSurface timesheetLiveSurfaceDefinition requestKey)
+        , frontendSurfaceImpl = Just (timesheetsSurfaceImpl scopeValue mountStateValue)
         }
+    where
+        requestKey = TimesheetProjectionRequest timesheetWeekOffset timesheetShowApproved timesheetShowAllStaff timesheetStaffFilterId
+        scopeValue = TimesheetWeekScopeValue
+            { timesheetWeekVenueId = unpackId currentVenueId
+            , timesheetWeekWeekOffset = timesheetWeekOffset
+            }
+        mountStateValue = TimesheetsMountStateValue
+            { timesheetsMountShowApproved = timesheetShowApproved
+            , timesheetsMountShowAllStaff = timesheetShowAllStaff
+            , timesheetsMountStaffFilterId = timesheetStaffFilterId
+            }
 
 weekOffsetFromParamOrCurrent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Int
 weekOffsetFromParamOrCurrent = do

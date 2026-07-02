@@ -1,6 +1,9 @@
 module Web.View.Timesheets.Index where
 
 import Application.Helper.Controller (isWithinEditWindow, shiftDurationMinutes)
+import Application.Helper.FrontendSurface.Runtime (SurfaceImpl,
+                                                   renderFrontendSurfaceMount)
+import qualified Application.Helper.FrontendSurface.Timesheets as Surface
 import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
                                        liveSurfaceConfigJson)
 import Data.Fixed (Pico)
@@ -30,6 +33,7 @@ data IndexView = IndexView
     , selectedStaffFilterId :: Maybe UUID
     , currentViewerStaffId  :: Maybe UUID
     , liveUpdateSurface     :: Maybe LiveSurfaceConfig
+    , frontendSurfaceImpl   :: Maybe (SurfaceImpl Surface.TimesheetsSurface)
     }
 
 data TimesheetDayRenderModel = TimesheetDayRenderModel
@@ -86,10 +90,14 @@ renderTimesheetWeekShell view@IndexView { .. } =
                     |]
                     }
             })
+        pageWithFrontendSurface =
+            case frontendSurfaceImpl of
+                Nothing   -> page
+                Just impl -> renderFrontendSurfaceMount impl page
      in [hsx|
     <section id={timesheetWeekShellId}
              hx-history-elt="true">
-        {page}
+        {pageWithFrontendSurface}
     </section>
 |]
 

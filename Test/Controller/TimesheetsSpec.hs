@@ -106,6 +106,7 @@ tests = beforeAll testContext do
                 responseShouldMountLiveSurface response liveSurface
 
                 response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "data-bepis-surface=\"timesheets\""
                 response `responseBodyShouldContain` "timesheet_week"
                 response `responseBodyShouldContain` "data-timesheet-day-offset=\"0\""
 

@@ -58,3 +58,7 @@ First Timesheets FrontendSurface slice landed locally: added Application.Helper.
 **2026-07-02T09:37:16Z**
 
 Second slice: added Web.Timesheets.FrontendSurface side-by-side runtime bridge with TimesheetWeekScopeValue, TimesheetsMountStateValue, typed SurfaceImplHandlers for scope/mount-state/toolbar/day-columns/day-section fragments, and query-preserving mounted fragment URLs. Added focused Timesheets controller spec proving mount metadata, scope key, mount state JSON, fragment kinds/targets, and query params. This does not yet switch rendering away from legacy live surface/projection paths.
+
+**2026-07-02T09:39:15Z**
+
+Third slice: mounted the new Timesheets SurfaceImpl metadata side-by-side on the rendered timesheet week shell via renderFrontendSurfaceMount while preserving existing data-live-update-surface behavior. timesheetIndexView now derives TimesheetWeekScopeValue/TimesheetsMountStateValue from the projection and attaches frontendSurfaceImpl. Focused typecheck and Timesheets Hspec prove the page emits data-bepis-surface=timesheets plus existing live-surface shell behavior.
