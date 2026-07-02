@@ -52,6 +52,9 @@ for forward-looking design.
 - `generic-frontend-contracts.md` - generic DTO-codec frontend/backend browser
   seam with generated Haskell JSON, TypeScript types, guards, parse helpers,
   encode helpers, constants, and no legacy/manual contract paths.
+- `type-level-frontend-surfaces.md` - fully type-level FrontendSurface specs,
+  GHC API contract generation, typed runtime implementation, and migration away
+  from the old frontend contract registry.
 - `roster-sql-read-model-trial.md` - trial replacing roster projection-cache
   reads with a direct SQL/database-near read model.
 - `opentelemetry-observability.md` - OpenTelemetry traces, agent profile
