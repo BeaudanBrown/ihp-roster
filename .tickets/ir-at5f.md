@@ -1,6 +1,6 @@
 ---
 id: ir-at5f
-status: open
+status: closed
 deps: [ir-89ds]
 links: []
 created: 2026-07-01T02:44:57Z
@@ -22,3 +22,9 @@ Implement dropzone-highlight as a contextual effect driven by existing hit-testi
 
 Frontend unit/DOM tests cover no target, entering a target, switching between targets, leaving targets, and session-end cleanup. Previous highlights never leak. Existing targetDropzoneKey commit fields remain unchanged. frontend-test/frontend-check pass.
 
+
+## Notes
+
+**2026-07-01T03:07:37Z**
+
+Implemented dropzone-highlight contextual effect with hit-tested target enter/switch/leave cleanup and unchanged targetDropzoneKey fields. Verification: frontend-test; frontend-check.

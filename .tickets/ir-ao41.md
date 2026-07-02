@@ -1,6 +1,6 @@
 ---
 id: ir-ao41
-status: open
+status: closed
 deps: []
 links: [ir-6kzl]
 created: 2026-07-01T02:44:57Z
@@ -22,3 +22,13 @@ Session effects are Haskell-owned interaction metadata, not frontend-only config
 
 Interaction docs describe session-global and contextual effect lifecycles and the DTO/generation path. Haskell interaction types and Application.Helper.Frontend.Dto.Interaction expose generated effect contracts with type/is/parse/encode helpers. The pointer-session runtime resolves effect config from generated InteractionStaticSchemas and runs generic handlers without roster-specific branches. Roster drag declares clone-shadow and dropzone-highlight through Haskell static schema. Drag shadow preserves grab offset, lives in a declared disposable layer, has pointer-events disabled, and cleans up on commit/cancel/Escape/pointercancel/HTMX cleanup. Dropzone highlight changes and cleans up as the pointer target changes. Existing move-roster-shift-to-slot submission semantics remain unchanged. Focused frontend unit/DOM tests, generated contract checks, Hspec interaction/frontend-contract tests, and focused E2E coverage where browser behavior requires it pass.
 
+
+## Notes
+
+**2026-07-01T03:07:38Z**
+
+Epic acceptance met. Verified docs, Haskell DTO/generated contracts, generated-schema runtime, clone-shadow/dropzone-highlight behavior, roster wiring, and focused frontend/Hspec/E2E gates.
+
+**2026-07-01T03:12:26Z**
+
+Follow-up visual verification tightened after manual review: fixed subgrid clone shadow text/layout, increased shadow opacity, strengthened visible dropzone highlight, and added E2E assertions for shadow text/opacity and highlight style.

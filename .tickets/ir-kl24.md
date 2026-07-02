@@ -1,6 +1,6 @@
 ---
 id: ir-kl24
-status: open
+status: closed
 deps: [ir-89ds]
 links: []
 created: 2026-07-01T02:44:57Z
@@ -22,3 +22,9 @@ Implement clone-shadow as a session-global effect. It clones the configured sour
 
 Frontend unit/DOM tests prove shadow appears only after threshold activation, preserves grab offset, updates on pointer move, uses the configured layer/class, has pointer-events disabled, is sanitized, and cleans on commit/cancel/Escape/pointercancel/HTMX cleanup. No business/server DOM is persistently mutated. frontend-test/frontend-check pass.
 
+
+## Notes
+
+**2026-07-01T03:07:37Z**
+
+Implemented clone-shadow global effect with sanitized pointer-marker clone, declared disposable layer, grab offset preservation, pointer-events none, and cleanup. Verification: style-audit; frontend-test; frontend-check.

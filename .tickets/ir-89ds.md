@@ -1,6 +1,6 @@
 ---
 id: ir-89ds
-status: open
+status: closed
 deps: [ir-hc2u]
 links: []
 created: 2026-07-01T02:44:57Z
@@ -22,3 +22,9 @@ Refactor frontend/ts/interaction/pointer-session.ts, extracting effect-runner ty
 
 Existing pointer session tests pass. New frontend unit/DOM tests cover generated schema lookup, empty/missing effects, lifecycle ordering, and cleanup invocation. Runtime imports generated contract types/constants and uses exhaustive handling for generated effect unions. No roster-specific TypeScript is added.
 
+
+## Notes
+
+**2026-07-01T03:07:37Z**
+
+Refactored pointer sessions around generated InteractionStaticSchemas effect runner with no-op missing schema behavior and exhaustive effect/source switches. Verification: frontend-test; frontend-check.

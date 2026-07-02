@@ -1,6 +1,6 @@
 ---
 id: ir-hc2u
-status: open
+status: closed
 deps: [ir-rkyy]
 links: []
 created: 2026-07-01T02:44:57Z
@@ -22,3 +22,9 @@ Add internal Haskell interaction effect types in Application.Helper.Interaction.
 
 Generated contracts include InteractionSessionEffects and closed effect union DTOs with is/parse/encode helpers. InteractionStaticSchemas.roster.sessionKinds includes effect config for drag. Frontend contract tests assert roster effect config and generated vocabularies. Hspec frontend-contract/interaction tests, frontend-contracts-check, frontend-check, and typecheck pass. No raw/manual TypeScript contract code or duplicated canonical effect strings are introduced outside generated contracts and generic handler keys.
 
+
+## Notes
+
+**2026-07-01T03:07:37Z**
+
+Added Haskell-owned interaction effect types, generated InteractionSessionEffect/InteractionSessionEffects DTOs, and roster effect config. Verification: frontend-contracts; frontend-contracts-check; typecheck; hspec-test --match 'Frontend contract'; hspec-test --match 'interaction surface'; frontend-test.

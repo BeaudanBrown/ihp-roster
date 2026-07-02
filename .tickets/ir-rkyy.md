@@ -1,6 +1,6 @@
 ---
 id: ir-rkyy
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-07-01T02:44:57Z
@@ -22,3 +22,9 @@ Update Application/Helper/Interaction.SPEC.md and active workstream notes as nee
 
 Docs describe global and contextual effect lifecycles, cleanup rules, server-DOM authority boundaries, generated DTO integration, initial clone-shadow/dropzone-highlight examples, and non-goals. Documentation-only verification runs doc-drift-check.
 
+
+## Notes
+
+**2026-07-01T03:07:37Z**
+
+Documented Haskell-owned pointer session effect DTOs, global/contextual lifecycles, cleanup rules, clone-shadow/dropzone-highlight initial effects, and non-goals. Verification: bash ./bin/in-env ./bin/doc-drift-check.
