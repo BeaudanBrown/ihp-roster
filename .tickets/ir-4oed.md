@@ -1,7 +1,7 @@
 ---
 id: ir-4oed
 status: open
-deps: [ir-ai98]
+deps: [ir-zsrm]
 links: []
 created: 2026-07-03T06:55:44Z
 type: feature

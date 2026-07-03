@@ -21,3 +21,9 @@ RegisteredFrontendSurfaces remains the single root. Surface specs declare scope 
 
 RegisteredFrontendSurfaces is the only live surface/resource root. No separate resource registry exists. No central hard-coded LiveUpdateScope authorization/planning case list remains. Current live resources are represented by type-level Resource declarations discovered from registered surface specs. Current live fragments explicitly declare DependsOn or ResyncOnly. Current mutations emit generated typed resource values rather than legacy-only constructors. Subscription authorization is generated from Scope auth policies and unknown/malformed scopes deny by default. Browser runtime uses generated full mount/subscription config parsers with no app-specific surface-name exceptions. Per-feature wire-fragment string-switch helpers are removed/replaced by generic/generated conversion. No CustomDependency/custom hook remains at epic close. Temporary LiveResource bridge is removed before epic close. Docs and guardrails lock the final model.
 
+
+## Notes
+
+**2026-07-03T07:54:39Z**
+
+Reordered implementation after ir-ai98 so current resource declarations migrate before replacing the planner: ir-zsrm now precedes ir-4oed, and cleanup waits on the generated planner.

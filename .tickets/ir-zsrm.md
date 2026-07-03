@@ -1,7 +1,7 @@
 ---
 id: ir-zsrm
 status: open
-deps: [ir-4oed]
+deps: [ir-ai98]
 links: []
 created: 2026-07-03T06:55:44Z
 type: feature
@@ -20,7 +20,7 @@ Migrate Timesheets, Roster, Leave Requests, Billing, Support, Profile, and Admin
 
 ## Acceptance Criteria
 
-Every current Live fragment has explicit dependency or resync declarations. Generated planner matches existing focused Hspec expectations. No current live resource remains outside generated declarations.
+Every current Live fragment has explicit dependency or resync declarations. Declarations cover the current planner behavior and are ready for the generated planner to consume. No current live resource remains outside generated declarations.
 
 
 ## Notes
