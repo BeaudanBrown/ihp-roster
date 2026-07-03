@@ -172,7 +172,6 @@ timesheetEntryTouchedResources venueConfig =
                 dayOffset = timesheetEntryDayOffset venueConfig entry
              in [ timesheetWeekResource entry.venueId weekOffset
                 , timesheetDayResource entry.venueId weekOffset dayOffset
-                , staffTimesheetResource entry.staffId
                 ]
 
 timesheetEntryDayOffset :: VenueConfig -> TimesheetEntry -> Int

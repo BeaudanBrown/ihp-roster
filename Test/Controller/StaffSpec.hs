@@ -162,7 +162,7 @@ tests = beforeAll testContext do
                     `shouldBe` Set.fromList
                         [ staffProfileResource (unpackId staff.id)
                         , staffPreferencesResource (unpackId staff.id)
-                        , staffRosterMembershipResource (unpackId staff.id)
+
                         ]
 
         it "records touched resources for staff updates" $ withContext do
@@ -174,8 +174,7 @@ tests = beforeAll testContext do
                     `shouldBe` Set.fromList
                         [ staffProfileResource (unpackId staff.id)
                         , staffPreferencesResource (unpackId staff.id)
-                        , staffRosterMembershipResource (unpackId staff.id)
-                        , staffPayProfileResource (unpackId staff.id)
+                        , xeroMappingsResource (unpackId venue.id)
                         ]
 
         it "returns a roster content patch for HTMX roster-launched staff edits" $ withContext do

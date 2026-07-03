@@ -254,7 +254,7 @@ tests = beforeAll testContext do
                         [ adminInvitesResource (unpackId venue.id)
                         , staffProfileResource (unpackId staff.id)
                         , staffPreferencesResource (unpackId staff.id)
-                        , staffRosterMembershipResource (unpackId staff.id)
+
                         ]
 
         it "creates a verified user and venue membership from a pending invitation" $ withContext do

@@ -16,27 +16,6 @@ import Web.LiveSurfaceRegistry (LiveSurfaceInvalidationTarget (..))
 tests :: Spec
 tests = do
     describe "Live resource invalidation planning" do
-        it "expands leave-calendar resources only to active roster week resources" do
-            let venueId = fromWords 1 0 0 0
-            let otherVenueId = fromWords 2 0 0 0
-            let rosterGroupId = fromWords 4 0 0 0
-            let otherRosterGroupId = fromWords 5 0 0 0
-            let activeScopes = [(venueId, rosterGroupId, 0), (otherVenueId, otherRosterGroupId, 0)]
-
-            expandLiveResourcesWithoutContext activeScopes (Set.singleton (leaveCalendarResource venueId 0))
-                `shouldBe` Set.fromList
-                    [ leaveCalendarResource venueId 0
-                    , rosterWeekResource rosterGroupId 0
-                    ]
-
-        it "does not expand leave-calendar resources to cold roster weeks" do
-            let venueId = fromWords 1 0 0 0
-            let rosterGroupId = fromWords 4 0 0 0
-            let activeScopes = [(venueId, rosterGroupId, 1)]
-
-            expandLiveResourcesWithoutContext activeScopes (Set.singleton (leaveCalendarResource venueId 0))
-                `shouldBe` Set.singleton (leaveCalendarResource venueId 0)
-
         it "expands roster-affecting venue config resources to active roster week resources" do
             let venueId = fromWords 1 0 0 0
             let otherVenueId = fromWords 2 0 0 0

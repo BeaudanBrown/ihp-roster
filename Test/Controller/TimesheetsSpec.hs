@@ -145,7 +145,7 @@ tests = beforeAll testContext do
                     `shouldBe` Set.fromList
                         [ timesheetWeekResource (unpackId venue.id) weekOffset
                         , timesheetDayResource (unpackId venue.id) weekOffset 1
-                        , staffTimesheetResource (unpackId staff.id)
+
                         ]
 
         it "denies unauthenticated users through the timesheet surface fragment contract" $ withContext do

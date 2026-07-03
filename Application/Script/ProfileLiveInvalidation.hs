@@ -51,7 +51,7 @@ data LiveInvalidationBenchmarkScenario
     = BillingDirectScenario
     | TimesheetWeekScenario
     | XeroMappingsScenario
-    | LeaveCalendarExpansionScenario
+    | RosterWeekFanoutScenario
     | MixedContextFreeScenario
     deriving (Eq, Ord, Show)
 
@@ -60,7 +60,7 @@ allScenarios =
     [ BillingDirectScenario
     , TimesheetWeekScenario
     , XeroMappingsScenario
-    , LeaveCalendarExpansionScenario
+    , RosterWeekFanoutScenario
     , MixedContextFreeScenario
     ]
 
@@ -75,7 +75,7 @@ scenarioName = \case
     BillingDirectScenario -> "billing-direct"
     TimesheetWeekScenario -> "timesheet-week"
     XeroMappingsScenario -> "xero-mappings"
-    LeaveCalendarExpansionScenario -> "leave-calendar-expansion"
+    RosterWeekFanoutScenario -> "roster-week-fanout"
     MixedContextFreeScenario -> "mixed-context-free"
 
 scenarioDescription :: LiveInvalidationBenchmarkScenario -> Text
@@ -83,7 +83,7 @@ scenarioDescription = \case
     BillingDirectScenario -> "One billing resource planned against many billing scopes."
     TimesheetWeekScenario -> "One timesheet week resource planned against many timesheet week scopes."
     XeroMappingsScenario -> "One Xero mappings resource planned against many Xero admin scopes."
-    LeaveCalendarExpansionScenario -> "One leave-calendar resource expanded across active roster week scopes."
+    RosterWeekFanoutScenario -> "Concrete roster week resources planned across active roster week scopes."
     MixedContextFreeScenario -> "Mixed support, billing, invites, timesheet, and Xero resources/scopes."
 
 data BenchmarkResult = BenchmarkResult
@@ -197,9 +197,9 @@ buildBenchmarkPlan scenario requestedScopeCount =
                 , planActiveScopes = [AdminXeroScope (venueIdFor index) | index <- [0 .. requestedScopeCount - 1]]
                 , planActiveRosterScopes = []
                 }
-        LeaveCalendarExpansionScenario ->
+        RosterWeekFanoutScenario ->
             BenchmarkPlan
-                { planResources = Set.singleton (leaveCalendarResource targetVenueId targetWeekOffset)
+                { planResources = Set.fromList [rosterWeekResource (rosterGroupIdFor index) targetWeekOffset | index <- [0 .. requestedScopeCount - 1]]
                 , planActiveScopes = [RosterWeekScope targetVenueId (rosterGroupIdFor index) targetWeekOffset | index <- [0 .. requestedScopeCount - 1]]
                 , planActiveRosterScopes = [(targetVenueId, rosterGroupIdFor index, targetWeekOffset) | index <- [0 .. requestedScopeCount - 1]]
                 }
@@ -280,7 +280,7 @@ usageText =
         , "  --output-dir=path                 Artifact directory"
         , "  --scopes=0,10,100,500,1000       Active scope counts"
         , "  --iterations=N                   Samples per scenario/count"
-        , "  --scenario=name[,name...]        billing-direct|timesheet-week|xero-mappings|leave-calendar-expansion|mixed-context-free"
+        , "  --scenario=name[,name...]        billing-direct|timesheet-week|xero-mappings|roster-week-fanout|mixed-context-free"
         ]
 
 parseIntList :: Text -> Text -> [Int]
@@ -301,7 +301,7 @@ parseScenario value =
         "billing-direct" -> BillingDirectScenario
         "timesheet-week" -> TimesheetWeekScenario
         "xero-mappings" -> XeroMappingsScenario
-        "leave-calendar-expansion" -> LeaveCalendarExpansionScenario
+        "roster-week-fanout" -> RosterWeekFanoutScenario
         "mixed-context-free" -> MixedContextFreeScenario
         _ -> error ("Unsupported live invalidation profile scenario: " <> cs value)
 

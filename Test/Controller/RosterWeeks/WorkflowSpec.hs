@@ -59,7 +59,7 @@ tests = beforeAll testContext do
                     `shouldBe` Set.fromList
                         [ rosterWeekResource (unpackId rosterGroupId) rosterWeek.weekOffset
                         , rosterDayResource (unpackId rosterDay.id)
-                        , rosterSlotResource (unpackId rosterSlot.id)
+
                         ]
                 rosterWeekTouchedResources rosterGroupId rosterWeek.weekOffset
                     `shouldBe` [rosterWeekResource (unpackId rosterGroupId) rosterWeek.weekOffset]

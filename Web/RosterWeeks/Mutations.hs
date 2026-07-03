@@ -195,7 +195,6 @@ rosterDayTouchedResources rosterGroupId weekOffset rosterDay =
 rosterSlotTouchedResources :: Id RosterGroup -> Int -> RosterDay -> Maybe RosterSlot -> [LiveResource]
 rosterSlotTouchedResources rosterGroupId weekOffset rosterDay maybeSlot =
     rosterDayTouchedResources rosterGroupId weekOffset rosterDay
-        <> maybe [] (\slot -> [rosterSlotResource (unpackId slot.id)]) maybeSlot
 
 rosterSlotTimesheetSourceChanged :: RosterSlot -> RosterSlot -> Bool
 rosterSlotTimesheetSourceChanged previous next =

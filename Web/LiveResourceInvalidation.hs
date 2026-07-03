@@ -42,19 +42,12 @@ expandLiveResources activeScopes resources = do
     pure (resources <> expanded)
     where
         expandOne resourceValue
-            | resourceMatches "leave-calendar" resourceValue
-            , Just venueId <- resourceFieldUuid "venueId" resourceValue
-            , Just weekOffset <- resourceFieldInt "weekOffset" resourceValue =
-                pure (expandLeaveCalendarResource activeScopes venueId weekOffset)
             | resourceMatches "roster-end-times-config" resourceValue || resourceMatches "roster-week-boundary-config" resourceValue
             , Just venueId <- resourceFieldUuid "venueId" resourceValue =
                 pure (expandActiveVenueRosterWeekResources activeScopes venueId)
-            | resourceMatches "staff-profile" resourceValue || resourceMatches "staff-preferences" resourceValue || resourceMatches "staff-roster-membership" resourceValue
+            | resourceMatches "staff-profile" resourceValue || resourceMatches "staff-preferences" resourceValue
             , Just staffId <- resourceFieldUuid "staffId" resourceValue =
                 activeRosterWeekResourcesForStaff activeScopes staffId
-            | resourceMatches "staff-pay-profile" resourceValue
-            , Just staffId <- resourceFieldUuid "staffId" resourceValue =
-                staffVenueResource staffId xeroMappingsResource
             | otherwise =
                 pure Set.empty
 
@@ -63,15 +56,6 @@ expandLiveResourcesWithoutContext activeRosterScopes resources =
     resources <> Set.unions (map expandOne (Set.toList resources))
     where
         expandOne resourceValue
-            | resourceMatches "leave-calendar" resourceValue
-            , Just venueId <- resourceFieldUuid "venueId" resourceValue
-            , Just weekOffset <- resourceFieldInt "weekOffset" resourceValue =
-                Set.fromList
-                    [ rosterWeekResource rosterGroupId weekOffset
-                    | (activeVenueId, rosterGroupId, activeWeekOffset) <- activeRosterScopes
-                    , activeVenueId == venueId
-                    , activeWeekOffset == weekOffset
-                    ]
             | resourceMatches "roster-end-times-config" resourceValue || resourceMatches "roster-week-boundary-config" resourceValue
             , Just venueId <- resourceFieldUuid "venueId" resourceValue =
                 expandActiveVenueRosterWeekResourcesWithoutContext activeRosterScopes venueId
@@ -318,15 +302,6 @@ coalesceScopes :: [LiveUpdateScope] -> [LiveUpdateScope]
 coalesceScopes =
     Set.toList . Set.fromList
 
-expandLeaveCalendarResource :: [LiveUpdateScope] -> UUID -> Int -> Set.Set LiveResource
-expandLeaveCalendarResource activeScopes venueId weekOffset =
-    Set.fromList
-        [ rosterWeekResource rosterGroupId weekOffset
-        | RosterWeekScope { venueId = activeVenueId, rosterGroupId, weekOffset = activeWeekOffset } <- activeScopes
-        , activeVenueId == venueId
-        , activeWeekOffset == weekOffset
-        ]
-
 expandActiveVenueRosterWeekResources :: [LiveUpdateScope] -> UUID -> Set.Set LiveResource
 expandActiveVenueRosterWeekResources activeScopes venueId =
     Set.fromList
@@ -362,15 +337,6 @@ activeRosterWeekResourcesForStaff activeScopes staffId = do
                     , venueId == unpackId currentVenueId
                     , rosterGroupId `Set.member` rosterGroupIdSet
                     ]
-
-staffVenueResource ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    UUID ->
-    (UUID -> LiveResource) ->
-    IO (Set.Set LiveResource)
-staffVenueResource staffId mkResource = do
-    maybeStaff <- currentVenueStaff staffId
-    pure $ maybe Set.empty (Set.singleton . mkResource . (.venueId)) maybeStaff
 
 currentVenueStaff ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>

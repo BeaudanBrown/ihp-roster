@@ -127,18 +127,12 @@ tests = beforeAll testContext do
                 staff <- createStaffRecord venue Nothing "Touched" "Staff"
                 leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 8) (fromGregorian 2025 1 15) "pending"
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                let expectedCalendarResources =
-                        [ leaveCalendarResource (unpackId venue.id) weekOffset
-                        | weekOffset <- affectedVenueWeekOffsetsForDateRange venueConfig leaveRequest.startDate leaveRequest.endDate
-                        ]
 
                 Set.fromList (leaveReviewTouchedResources venueConfig ApproveLeave False leaveRequest)
                     `shouldBe` Set.fromList
-                        ( [ leaveRequestsResource (unpackId venue.id)
-                          , staffLeaveRequestsResource leaveRequest.staffId
-                          ]
-                            <> expectedCalendarResources
-                        )
+                        [ leaveRequestsResource (unpackId venue.id)
+                        , staffLeaveRequestsResource leaveRequest.staffId
+                        ]
 
         it "renders a subscribed leave shell for authenticated viewers" $ withContext do
             withCleanDb do

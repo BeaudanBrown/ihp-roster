@@ -7,9 +7,12 @@ module Web.LeaveRequests.Mutations
     ) where
 
 import Application.Helper.LiveResource
+import Application.Helper.LiveUpdate.Runtime (LiveUpdateScope (..),
+                                              activeLiveUpdateScopes)
 import Application.Helper.WeekBoundaries (affectedVenueWeekOffsetsForDateRange)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
+import qualified Data.Set as Set
 import Web.Controller.Prelude
 import Web.LiveResourceInvalidation (invalidateTouchedResources)
 
@@ -68,7 +71,8 @@ reviewLeaveRequest decision leaveRequest = do
         pure updatedLeaveRequest
 
     venueConfig <- fetchVenueConfig
-    let touchedResources = leaveReviewTouchedResources venueConfig decision wasApproved updatedLeaveRequest
+    activeScopes <- activeLiveUpdateScopes
+    let touchedResources = leaveReviewTouchedResources venueConfig decision wasApproved updatedLeaveRequest <> leaveReviewRosterWeekResources activeScopes venueConfig decision wasApproved updatedLeaveRequest
     invalidateTouchedResources "leave.review" $
         liveMutationResult
             ReviewedLeaveRequest
@@ -84,16 +88,20 @@ baseLeaveTouchedResources leaveRequest =
     ]
 
 leaveReviewTouchedResources :: VenueConfig -> LeaveReviewDecision -> Bool -> LeaveRequest -> [LiveResource]
-leaveReviewTouchedResources venueConfig decision wasApproved leaveRequest =
-    baseLeaveTouchedResources leaveRequest <> calendarResources
-    where
-        calendarResources =
-            if reviewDecisionChangesRoster decision wasApproved
-                then
-                    [ leaveCalendarResource leaveRequest.venueId weekOffset
-                    | weekOffset <- affectedVenueWeekOffsetsForDateRange venueConfig leaveRequest.startDate leaveRequest.endDate
-                    ]
-                else []
+leaveReviewTouchedResources _venueConfig _decision _wasApproved leaveRequest =
+    baseLeaveTouchedResources leaveRequest
+
+leaveReviewRosterWeekResources :: [LiveUpdateScope] -> VenueConfig -> LeaveReviewDecision -> Bool -> LeaveRequest -> [LiveResource]
+leaveReviewRosterWeekResources activeScopes venueConfig decision wasApproved leaveRequest
+    | not (reviewDecisionChangesRoster decision wasApproved) = []
+    | otherwise =
+        Set.toList $ Set.fromList
+            [ rosterWeekResource rosterGroupId weekOffset
+            | weekOffset <- affectedVenueWeekOffsetsForDateRange venueConfig leaveRequest.startDate leaveRequest.endDate
+            , RosterWeekScope { venueId = activeVenueId, rosterGroupId, weekOffset = activeWeekOffset } <- activeScopes
+            , activeVenueId == leaveRequest.venueId
+            , activeWeekOffset == weekOffset
+            ]
 
 reviewDecisionStatus :: LeaveReviewDecision -> LeaveRequestStatus
 reviewDecisionStatus ApproveLeave = LeaveApproved

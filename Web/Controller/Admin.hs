@@ -58,12 +58,10 @@ profileLiveResourcesFor resourceName = do
         "timesheet-week" -> [timesheetWeekResource venueUuid weekOffset]
         "timesheet-day" -> [timesheetDayResource venueUuid weekOffset dayOffset]
         "leave-requests" -> [leaveRequestsResource venueUuid]
-        "leave-calendar" -> [leaveCalendarResource venueUuid weekOffset]
         "roster-week" -> maybe [] (\value -> [rosterWeekResource value weekOffset]) rosterGroupId
         "staff-leave" -> maybe [] (\value -> [staffLeaveRequestsResource value]) staffId
         "staff-profile" -> maybe [] (\value -> [staffProfileResource value]) staffId
         "staff-preferences" -> maybe [] (\value -> [staffPreferencesResource value]) staffId
-        "staff-roster-membership" -> maybe [] (\value -> [staffRosterMembershipResource value]) staffId
         _ -> []
 
 respondToVenueSettingsMutation ::

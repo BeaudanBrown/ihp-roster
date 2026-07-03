@@ -101,5 +101,4 @@ acceptedVenueInvitationTouchedResources invitation =
             Just staffId ->
                 [ staffProfileResource (unpackId staffId)
                 , staffPreferencesResource (unpackId staffId)
-                , staffRosterMembershipResource (unpackId staffId)
                 ]

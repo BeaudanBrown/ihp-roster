@@ -8,7 +8,6 @@ module Application.Helper.LiveResource
     , adminShiftTypesResource
     , adminVenueSettingsResource
     , billingResource
-    , leaveCalendarResource
     , leaveRequestsResource
     , liveMutationResult
     , recordLiveMutationDiagnostics
@@ -17,16 +16,12 @@ module Application.Helper.LiveResource
     , resourceMatches
     , rosterDayResource
     , rosterEndTimesConfigResource
-    , rosterSlotResource
     , rosterWeekBoundaryConfigResource
     , rosterWeekResource
     , staffLeaveRequestsResource
-    , staffPayProfileResource
     , staffPreferencesResource
     , staffProfileResource
-    , staffRosterMembershipResource
     , staffRsaDocumentsResource
-    , staffTimesheetResource
     , supportAwardRatesResource
     , supportPublicHolidaysResource
     , timesheetDayResource
