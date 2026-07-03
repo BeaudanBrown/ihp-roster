@@ -323,8 +323,10 @@
       if (resyncFragments.length === 0) return null;
       return {
         feature: config.surface,
+        surface: config.surface,
         scope,
         scopeKey: `timesheet_week:${scope.venueId}:${scope.weekOffset}`,
+        mountKey: config.mountKey,
         socketPath: "/live-updates",
         resyncFragments,
         decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`)
@@ -337,8 +339,10 @@
       if (resyncFragments.length === 0) return null;
       return {
         feature: config.surface,
+        surface: config.surface,
         scope,
         scopeKey: `roster_week:${scope.venueId}:${scope.rosterGroupId}:${scope.weekOffset}`,
+        mountKey: config.mountKey,
         socketPath: "/live-updates",
         resyncFragments,
         decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`)
@@ -351,8 +355,10 @@
       if (resyncFragments.length === 0) return null;
       return {
         feature: config.surface,
+        surface: config.surface,
         scope,
         scopeKey: `leave_requests:${scope.venueId}`,
+        mountKey: config.mountKey,
         socketPath: "/live-updates",
         resyncFragments,
         decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`)
@@ -365,8 +371,10 @@
       if (resyncFragments.length === 0) return null;
       return {
         feature: config.surface,
+        surface: config.surface,
         scope,
         scopeKey: `billing:${scope.venueId}`,
+        mountKey: config.mountKey,
         socketPath: "/live-updates",
         resyncFragments,
         decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`)
@@ -379,8 +387,10 @@
       if (resyncFragments.length === 0) return null;
       return {
         feature: config.surface,
+        surface: config.surface,
         scope,
         scopeKey: "support_platform",
+        mountKey: config.mountKey,
         socketPath: "/live-updates",
         resyncFragments,
         decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`)
@@ -397,8 +407,10 @@
       if (resyncFragments.length === 0) return null;
       return {
         feature: config.surface,
+        surface: config.surface,
         scope,
         scopeKey: `profile:${scope.venueId}:${scope.staffId}`,
+        mountKey: config.mountKey,
         socketPath: "/live-updates",
         resyncFragments,
         decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`)
@@ -557,8 +569,10 @@
     if (resyncFragments.length === 0) return null;
     return {
       feature: config.surface,
+      surface: config.surface,
       scope,
       scopeKey: adminWireScopeKey(scope),
+      mountKey: config.mountKey,
       socketPath: "/live-updates",
       resyncFragments,
       decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`)
@@ -637,6 +651,61 @@
       fieldNameFallback: protection.fieldNameFallback,
       containerSelector: protection.containerSelector ?? null
     };
+  }
+  function frontendSurfaceInstanceId(config) {
+    return `${config.surface}:${config.scopeKey}:${config.mountKey}`;
+  }
+  function scanFrontendSurfaceMountInstances(root) {
+    const scanRoot = root ?? (typeof document !== "undefined" ? document : null);
+    if (!scanRoot) return [];
+    const instances = [];
+    scanRoot.querySelectorAll("[data-bepis-surface-config]").forEach((ownerEl) => {
+      if (!(ownerEl instanceof HTMLElement)) return;
+      const rawConfig = ownerEl.getAttribute("data-bepis-surface-config");
+      if (!rawConfig) return;
+      let parsedJson;
+      try {
+        parsedJson = JSON.parse(rawConfig);
+      } catch (_error) {
+        return;
+      }
+      const config = parseFrontendSurfaceMountConfig(parsedJson);
+      if (!config) return;
+      instances.push({
+        instanceId: frontendSurfaceInstanceId(config),
+        surface: config.surface,
+        scopeKey: config.scopeKey,
+        mountKey: config.mountKey,
+        ownerEl,
+        depth: surfaceMountDepth(ownerEl)
+      });
+    });
+    return instances;
+  }
+  function reconcileFrontendSurfaceInstances(activeInstances, currentInstances) {
+    const currentById = /* @__PURE__ */ new Map();
+    currentInstances.forEach((instance) => currentById.set(instance.instanceId, instance));
+    const removed = [];
+    activeInstances.forEach((instance, instanceId) => {
+      if (!currentById.has(instanceId)) removed.push(instance);
+    });
+    const added = [];
+    const retained = [];
+    currentById.forEach((instance, instanceId) => {
+      if (activeInstances.has(instanceId)) retained.push(instance);
+      else added.push(instance);
+    });
+    removed.sort((left, right) => right.depth - left.depth);
+    return { added, removed, retained };
+  }
+  function surfaceMountDepth(ownerEl) {
+    let depth = 0;
+    let current = ownerEl.parentElement;
+    while (current) {
+      if (current.hasAttribute("data-bepis-surface-config")) depth += 1;
+      current = current.parentElement;
+    }
+    return depth;
   }
   function isRecord(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -765,6 +834,7 @@
     const activeInteractionSessions = createActiveInteractionSessionTracker(document);
     const inFlightFragments = /* @__PURE__ */ new Map();
     const activeSubscriptions = /* @__PURE__ */ new Map();
+    const activeSurfaceInstances = /* @__PURE__ */ new Map();
     const scopeVersions = /* @__PURE__ */ new Map();
     let socket = null;
     let socketPath = null;
@@ -1484,13 +1554,41 @@
         }
       };
     }
+    function reconcileSurfaceMountInstances() {
+      const reconciliation = reconcileFrontendSurfaceInstances(activeSurfaceInstances, scanFrontendSurfaceMountInstances(document));
+      reconciliation.removed.forEach(function(instance) {
+        activeSurfaceInstances.delete(instance.instanceId);
+        emitDebugEvent("surface_disposed", {
+          instanceId: instance.instanceId,
+          surface: instance.surface,
+          scopeKey: instance.scopeKey,
+          mountKey: instance.mountKey,
+          depth: instance.depth
+        });
+      });
+      reconciliation.retained.forEach(function(instance) {
+        activeSurfaceInstances.set(instance.instanceId, instance);
+      });
+      reconciliation.added.forEach(function(instance) {
+        activeSurfaceInstances.set(instance.instanceId, instance);
+        emitDebugEvent("surface_initialized", {
+          instanceId: instance.instanceId,
+          surface: instance.surface,
+          scopeKey: instance.scopeKey,
+          mountKey: instance.mountKey,
+          depth: instance.depth
+        });
+      });
+    }
     function syncConnection() {
       ensureClientId();
+      reconcileSurfaceMountInstances();
       const desired = desiredSubscriptions();
       const firstDesired = desired.values().next().value;
       const nextPath = firstDesired?.path ?? null;
       if (desired.size === 0 || !nextPath) {
         activeSubscriptions.clear();
+        activeSurfaceInstances.clear();
         closeSocket();
         return;
       }
@@ -1553,6 +1651,10 @@
     });
     document.addEventListener("htmx:afterSwap", function() {
       flushInteractionDeferredFragmentsWithoutActiveSessions();
+      window.setTimeout(syncConnection, 0);
+    });
+    document.addEventListener("htmx:afterSettle", function() {
+      window.setTimeout(syncConnection, 0);
     });
     document.addEventListener("htmx:responseError", function() {
       flushInteractionDeferredFragmentsWithoutActiveSessions();

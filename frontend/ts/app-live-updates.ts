@@ -4,7 +4,12 @@ import { enableHtmxUiRegionEventAdapter } from "./fragments/htmx-adapter";
 import { enableUiRegionTransitions } from "./fragments/transitions";
 import { resolveLiveFragmentInteractionConflict } from "./interaction/live-conflicts";
 import { createActiveInteractionSessionTracker } from "./interaction/session-state";
-import { parseFrontendSurfaceSubscriptionConfig } from "./live-updates/frontend-surface";
+import {
+    reconcileFrontendSurfaceInstances,
+    scanFrontendSurfaceMountInstances,
+    type FrontendSurfaceMountedInstance,
+    parseFrontendSurfaceSubscriptionConfig,
+} from "./live-updates/frontend-surface";
 import { enableLazySurfaceErrorHandling } from "./live-updates/lazy-surface";
 import {
     buildLiveUpdateSubscribeCommand,
@@ -87,6 +92,7 @@ type HtmxConfigRequestEvent = Event & {
     const activeInteractionSessions = createActiveInteractionSessionTracker(document);
     const inFlightFragments = new Map<string, InFlightFragmentState>();
     const activeSubscriptions = new Map<string, LiveUpdateSubscription>();
+    const activeSurfaceInstances = new Map<string, FrontendSurfaceMountedInstance>();
     const scopeVersions = new Map<string, number>();
     let socket: WebSocket | null = null;
     let socketPath: string | null = null;
@@ -960,8 +966,39 @@ type HtmxConfigRequestEvent = Event & {
         };
     }
 
+    function reconcileSurfaceMountInstances(): void {
+        const reconciliation = reconcileFrontendSurfaceInstances(activeSurfaceInstances, scanFrontendSurfaceMountInstances(document));
+
+        reconciliation.removed.forEach(function (instance) {
+            activeSurfaceInstances.delete(instance.instanceId);
+            emitDebugEvent('surface_disposed', {
+                instanceId: instance.instanceId,
+                surface: instance.surface,
+                scopeKey: instance.scopeKey,
+                mountKey: instance.mountKey,
+                depth: instance.depth,
+            });
+        });
+
+        reconciliation.retained.forEach(function (instance) {
+            activeSurfaceInstances.set(instance.instanceId, instance);
+        });
+
+        reconciliation.added.forEach(function (instance) {
+            activeSurfaceInstances.set(instance.instanceId, instance);
+            emitDebugEvent('surface_initialized', {
+                instanceId: instance.instanceId,
+                surface: instance.surface,
+                scopeKey: instance.scopeKey,
+                mountKey: instance.mountKey,
+                depth: instance.depth,
+            });
+        });
+    }
+
     function syncConnection() {
         ensureClientId();
+        reconcileSurfaceMountInstances();
 
         const desired = desiredSubscriptions();
         const firstDesired = desired.values().next().value as LiveUpdateSubscription | undefined;
@@ -969,6 +1006,7 @@ type HtmxConfigRequestEvent = Event & {
 
         if (desired.size === 0 || !nextPath) {
             activeSubscriptions.clear();
+            activeSurfaceInstances.clear();
             closeSocket();
             return;
         }
@@ -1043,6 +1081,11 @@ type HtmxConfigRequestEvent = Event & {
 
     document.addEventListener('htmx:afterSwap', function () {
         flushInteractionDeferredFragmentsWithoutActiveSessions();
+        window.setTimeout(syncConnection, 0);
+    });
+
+    document.addEventListener('htmx:afterSettle', function () {
+        window.setTimeout(syncConnection, 0);
     });
 
     document.addEventListener('htmx:responseError', function () {

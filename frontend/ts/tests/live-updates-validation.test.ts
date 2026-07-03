@@ -1,5 +1,11 @@
 import { encodeLiveSurfaceConfig, isLiveUpdateMessage, isLiveUpdateWireFragment, parseLiveSurfaceConfig } from "../generated/contracts";
-import { parseFrontendSurfaceSubscriptionConfig } from "../live-updates/frontend-surface";
+import {
+    frontendSurfaceInstanceId,
+    parseFrontendSurfaceSubscriptionConfig,
+    reconcileFrontendSurfaceInstances,
+    scanFrontendSurfaceMountInstances,
+    type FrontendSurfaceMountedInstance,
+} from "../live-updates/frontend-surface";
 import { parseLiveUpdateSurfaceConfig } from "../live-updates/validation";
 import { assertDeepEqual, assertEqual, assertThrows, test } from "./harness";
 
@@ -213,6 +219,50 @@ test("FrontendSurface config parser preserves reusable focused-field protection"
         fieldNameFallback: true,
         containerSelector: "form",
     });
+});
+
+test("FrontendSurface mount scanner is safe without a browser document", () => {
+    assertDeepEqual(scanFrontendSurfaceMountInstances().map((instance) => instance.instanceId), []);
+    assertEqual(frontendSurfaceInstanceId({ surface: "child", scopeKey: "child:venue-1", mountKey: "main" }), "child:child:venue-1:main");
+});
+
+test("FrontendSurface instance reconciliation disposes removed children deepest first", () => {
+    const parentEl = {} as HTMLElement;
+    const childEl = {} as HTMLElement;
+    const grandchildEl = {} as HTMLElement;
+    const parent: FrontendSurfaceMountedInstance = { instanceId: "parent:scope:primary", surface: "parent", scopeKey: "parent:scope", mountKey: "primary", ownerEl: parentEl, depth: 0 };
+    const child: FrontendSurfaceMountedInstance = { instanceId: "child:scope:primary", surface: "child", scopeKey: "child:scope", mountKey: "primary", ownerEl: childEl, depth: 1 };
+    const grandchild: FrontendSurfaceMountedInstance = { instanceId: "grandchild:scope:primary", surface: "grandchild", scopeKey: "grandchild:scope", mountKey: "primary", ownerEl: grandchildEl, depth: 2 };
+    const active = new Map([
+        [parent.instanceId, parent],
+        [child.instanceId, child],
+        [grandchild.instanceId, grandchild],
+    ]);
+
+    const reconciliation = reconcileFrontendSurfaceInstances(active, [parent]);
+
+    assertDeepEqual(reconciliation.added.map((instance) => instance.instanceId), []);
+    assertDeepEqual(reconciliation.retained.map((instance) => instance.instanceId), [parent.instanceId]);
+    assertDeepEqual(reconciliation.removed.map((instance) => instance.instanceId), [grandchild.instanceId, child.instanceId]);
+});
+
+test("FrontendSurface instance reconciliation handles same, removed, and newly scoped children", () => {
+    const parentEl = {} as HTMLElement;
+    const oldChildEl = {} as HTMLElement;
+    const newChildEl = {} as HTMLElement;
+    const parent: FrontendSurfaceMountedInstance = { instanceId: "parent:scope:primary", surface: "parent", scopeKey: "parent:scope", mountKey: "primary", ownerEl: parentEl, depth: 0 };
+    const oldChild: FrontendSurfaceMountedInstance = { instanceId: "child:old:primary", surface: "child", scopeKey: "child:old", mountKey: "primary", ownerEl: oldChildEl, depth: 1 };
+    const newChild: FrontendSurfaceMountedInstance = { instanceId: "child:new:primary", surface: "child", scopeKey: "child:new", mountKey: "primary", ownerEl: newChildEl, depth: 1 };
+    const active = new Map([
+        [parent.instanceId, parent],
+        [oldChild.instanceId, oldChild],
+    ]);
+
+    const reconciliation = reconcileFrontendSurfaceInstances(active, [parent, newChild]);
+
+    assertDeepEqual(reconciliation.retained.map((instance) => instance.instanceId), [parent.instanceId]);
+    assertDeepEqual(reconciliation.removed.map((instance) => instance.instanceId), [oldChild.instanceId]);
+    assertDeepEqual(reconciliation.added.map((instance) => instance.instanceId), [newChild.instanceId]);
 });
 
 test("generated live update surface validator rejects malformed boundary JSON", () => {
