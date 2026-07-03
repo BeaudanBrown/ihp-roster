@@ -124,6 +124,46 @@ expect_no_match \
     Application/Helper/FrontendSurface/Support.hs \
     Application/Helper/FrontendSurface/Timesheets.hs
 
+expect_no_match \
+    "live resources must remain generated FrontendSurfaceResourceValue aliases, not a resurrected ADT" \
+    '\bdata[[:space:]]+LiveResource\b|\bnewtype[[:space:]]+LiveResource\b' \
+    Application Web Test
+
+expect_no_match \
+    "temporary LiveResource bridge conversion helpers must stay deleted" \
+    'liveResourceToFrontendSurfaceResourceValues|liveResourcesToFrontendSurfaceResourceValues|FrontendSurfaceResourceValue bridge' \
+    Application Web Test
+
+expect_no_match \
+    "FrontendSurface dependency planning must not use final-state custom dependency hooks" \
+    'CustomDependency|custom dependency hook|custom dependency' \
+    Application Web Test frontend/ts
+
+expect_no_match \
+    "legacy expansion sentinel resource constructors must stay deleted" \
+    'leaveCalendarResource|staffRosterMembershipResource|staffPayProfileResource|staffTimesheetResource|rosterSlotResource' \
+    Application Web Test
+
+expect_no_match \
+    "legacy expansion sentinel resource wire names must stay out of code" \
+    '"(leave-calendar|staff-roster-membership|staff-pay-profile|staff-timesheet)"' \
+    Application Web Test frontend/ts
+
+expect_no_match \
+    "registered live-surface authorization must delegate to generated FrontendSurface scope auth" \
+    'CurrentVenueManager|CurrentVenueOwner|CurrentVenueAdmin|CurrentVenueRosterGroup|CurrentVenueStaff|SupportSuperAdmin|NoAuthIR|AuthorizeIR' \
+    Web/LiveSurfaceRegistry.hs Web/LiveResourceInvalidation.hs
+
+expect_match \
+    "registered live-surface authorization delegates to generated FrontendSurface scope auth" \
+    'authorizeRegisteredLiveSurfaceScope = authorizeFrontendSurfaceLiveScope' \
+    Web/LiveSurfaceRegistry.hs
+
+expect_match \
+    "registered live-surface planning delegates dependency matching to generated FrontendSurface planner" \
+    'planFrontendSurfaceInvalidation resources scope planningCandidateFragments' \
+    Web/LiveSurfaceRegistry.hs
+
 if [ "$failures" -ne 0 ]; then
     exit 1
 fi
