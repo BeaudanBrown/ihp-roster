@@ -15,7 +15,9 @@ import Application.Bepis.Fact (BepisFact (..), BepisLiveFact (..),
 import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate.Runtime (LiveUpdateBroadcastResult (..),
                                               LiveUpdateScope (..),
+                                              LiveUpdateSubscription (..),
                                               activeLiveUpdateScopes,
+                                              activeLiveUpdateSubscriptions,
                                               activeRosterWeekScopes)
 import Application.Helper.Profiling (profileActionSpanWithDetail)
 import Application.Helper.RosterGroups (fetchStaffRosterGroupIds)
@@ -67,11 +69,12 @@ invalidateTouchedResources label result =
     profileActionSpanWithDetail "live_resources.invalidate" do
         startedAtNs <- getMonotonicTimeNSec
         (observed, observeDurationMs) <- measureDuration (recordLiveMutationDiagnostics label result)
-        (activeScopes, activeDurationMs) <- measureDuration activeLiveUpdateScopes
+        (activeSubscriptions, activeDurationMs) <- measureDuration activeLiveUpdateSubscriptions
+        let activeScopes = coalesceScopes (map (.subscriptionScope) activeSubscriptions)
         (expandedResources, expandDurationMs) <- measureDuration (expandLiveResources activeScopes (liveMutationTouchedResources observed))
         (candidateScopes, candidateDurationMs) <- measureDuration (candidateLiveScopesForResources expandedResources)
         let planningScopes = coalesceScopes (activeScopes <> candidateScopes)
-        (dependencyTargets, planDurationMs) <- measureDuration (pure (planRegisteredLiveSurfaceInvalidations expandedResources planningScopes))
+        (dependencyTargets, planDurationMs) <- measureDuration (pure (planRegisteredLiveSurfaceInvalidations expandedResources activeSubscriptions))
         (broadcastResults, broadcastDurationMs) <- measureDuration (mapM performLiveSurfaceInvalidationTarget dependencyTargets)
         completedAtNs <- getMonotonicTimeNSec
         let profile =
@@ -94,13 +97,14 @@ invalidateTouchedResourcesWithoutContext :: Text -> LiveMutationResult a -> IO (
 invalidateTouchedResourcesWithoutContext label result = do
     startedAtNs <- getMonotonicTimeNSec
     (observed, observeDurationMs) <- measureDuration (recordLiveMutationDiagnostics label result)
-    (activeScopes, activeDurationMs) <- measureDuration activeLiveUpdateScopes
+    (activeSubscriptions, activeDurationMs) <- measureDuration activeLiveUpdateSubscriptions
+    let activeScopes = coalesceScopes (map (.subscriptionScope) activeSubscriptions)
     (activeRosterScopes, activeRosterDurationMs) <- measureDuration activeRosterWeekScopes
     let activeDurationMs' = activeDurationMs + activeRosterDurationMs
     (expandedResources, expandDurationMs) <- measureDuration (pure (expandLiveResourcesWithoutContext activeRosterScopes (liveMutationTouchedResources observed)))
     (candidateScopes, candidateDurationMs) <- measureDuration (pure (candidateLiveScopesForResourcesWithoutContext expandedResources))
     let planningScopes = coalesceScopes (activeScopes <> candidateScopes)
-    (dependencyTargets, planDurationMs) <- measureDuration (pure (planRegisteredLiveSurfaceInvalidationsWithoutContext expandedResources planningScopes))
+    (dependencyTargets, planDurationMs) <- measureDuration (pure (planRegisteredLiveSurfaceInvalidationsWithoutContext expandedResources activeSubscriptions))
     (broadcastResults, broadcastDurationMs) <- measureDuration (mapM performLiveSurfaceInvalidationTargetWithoutContext dependencyTargets)
     completedAtNs <- getMonotonicTimeNSec
     let profile =

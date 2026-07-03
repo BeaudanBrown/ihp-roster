@@ -1,5 +1,6 @@
 module Application.Helper.FrontendSurface.DependencyPlanner
     ( planFrontendSurfaceInvalidation
+    , planFrontendSurfaceWireInvalidation
     , frontendSurfaceFragmentDependsOnTouchedResource
     ) where
 
@@ -11,7 +12,9 @@ import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceFragmentKey (.
                                                    FrontendSurfaceMountedFragment (..))
 import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate.Runtime (LiveUpdateScope,
-                                              liveUpdateScopeToWire)
+                                              LiveUpdateWireFragment,
+                                              liveUpdateScopeToWire,
+                                              liveUpdateWireFragmentToWire)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Aeson.Key
 import qualified Data.Aeson.KeyMap as Aeson.KeyMap
@@ -25,9 +28,19 @@ planFrontendSurfaceInvalidation touchedResources scope candidates =
     where
         touchedValues = touchedResources
 
+planFrontendSurfaceWireInvalidation :: Set.Set LiveResource -> LiveUpdateScope -> [LiveUpdateWireFragment] -> [LiveUpdateWireFragment]
+planFrontendSurfaceWireInvalidation touchedResources scope fragments =
+    filter (frontendSurfaceWireFragmentDependsOnTouchedResource touchedResources scope) fragments
+
 frontendSurfaceFragmentDependsOnTouchedResource :: Set.Set FrontendSurfaceResourceValue -> LiveUpdateScope -> FrontendSurfaceMountedFragment -> Bool
 frontendSurfaceFragmentDependsOnTouchedResource touchedValues scope mountedFragment =
     case mountedFragmentDependencies scope mountedFragment of
+        [] -> False
+        dependencies -> not (Set.null (Set.intersection touchedValues (Set.fromList dependencies)))
+
+frontendSurfaceWireFragmentDependsOnTouchedResource :: Set.Set FrontendSurfaceResourceValue -> LiveUpdateScope -> LiveUpdateWireFragment -> Bool
+frontendSurfaceWireFragmentDependsOnTouchedResource touchedValues scope fragment =
+    case wireFragmentDependencies scope fragment of
         [] -> False
         dependencies -> not (Set.null (Set.intersection touchedValues (Set.fromList dependencies)))
 
@@ -39,6 +52,16 @@ mountedFragmentDependencies scope mountedFragment = do
     maybeToList (resourceValueFromDependency scopeWire.scope mountedFragment.mountedFragmentKey.fragmentParams dependency)
     where
         scopeWire = liveUpdateScopeToWire scope
+
+wireFragmentDependencies :: LiveUpdateScope -> LiveUpdateWireFragment -> [FrontendSurfaceResourceValue]
+wireFragmentDependencies scope fragment = do
+    let scopeWire = liveUpdateScopeToWire scope
+    let Wire.LiveUpdateWireFragment { fragmentKey = Wire.LiveFragmentKey { surface = fragmentSurface, kind = fragmentKind, params = fragmentParams } } = liveUpdateWireFragmentToWire fragment
+    True <- pure (fragmentSurface == scopeWire.surface)
+    surface <- maybeToList (findSurface scopeWire.surface)
+    fragmentIR <- maybeToList (findFragment fragmentKind surface)
+    dependency <- SurfaceIR.optionResourceDependencies fragmentIR.fragmentOptions
+    maybeToList (resourceValueFromDependency scopeWire.scope fragmentParams dependency)
 
 findSurface :: Text -> Maybe SurfaceIR.SurfaceIR
 findSurface surfaceName =

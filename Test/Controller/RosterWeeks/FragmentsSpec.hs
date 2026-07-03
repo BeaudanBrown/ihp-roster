@@ -8,8 +8,9 @@ import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceFragmentKey (.
                                                    FrontendSurfaceMountedFragment (..),
                                                    SurfaceImpl (..))
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate (LiveUpdateScope (..))
+import Application.Helper.LiveUpdate (LiveUpdateScope (..), liveUpdateScopeKey)
 import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..),
+                                              LiveUpdateSubscription (..),
                                               LiveUpdateWireFragment (..))
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
@@ -100,9 +101,18 @@ tests = beforeAll testContext do
 
                 targets <- withUserAndCurrentVenue manager venue.id do
                     withCurrentControllerContext do
+                        let scope = RosterWeekScope { venueId = unpackId venue.id, rosterGroupId = rosterWeek.rosterGroupId, weekOffset = rosterWeek.weekOffset }
+                        let scopeValue = RosterWeekScopeValue { rosterWeekVenueId = unpackId venue.id, rosterWeekGroupId = Id rosterWeek.rosterGroupId, rosterWeekWeekOffset = rosterWeek.weekOffset }
+                        let mountedPlan = RosterMountedFragmentPlan { rosterMountedDayIds = [], rosterMountedRows = [] }
+                        let subscription =
+                                LiveUpdateSubscription
+                                    { subscriptionScope = scope
+                                    , subscriptionScopeKey = liveUpdateScopeKey scope
+                                    , subscriptionMountedFragments = rosterSurfaceWireFragments (rosterCandidateMountedFragments scopeValue mountedPlan)
+                                    }
                         pure $ planRegisteredLiveSurfaceInvalidations
                             (Set.singleton (rosterWeekResource rosterWeek.rosterGroupId rosterWeek.weekOffset))
-                            [RosterWeekScope { venueId = unpackId venue.id, rosterGroupId = rosterWeek.rosterGroupId, weekOffset = rosterWeek.weekOffset }]
+                            [subscription]
 
                 targetFragmentKeys targets
                     `shouldBe` [[RosterContentFragment, RosterGridToolbarFragment, RosterGridFrameFragment, RosterDayColumnsFragment, RosterDayRailFragment, RosterWageRailFragment, RosterSlotsGridFragment, RosterStaffPanelFragment]]

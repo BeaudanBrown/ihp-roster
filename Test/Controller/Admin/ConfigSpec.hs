@@ -5,9 +5,12 @@ import Application.Helper.Controller (PlatformRole (SuperAdminRole),
 import Application.Helper.Export (ExportJobType (..), exportJobTypeToText)
 import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
+                                      LiveFragmentProtection (..),
                                       LiveUpdateScope (..),
-                                      currentLiveUpdateVersion)
-import Application.Helper.LiveUpdate.Runtime (LiveUpdateWireFragment (..))
+                                      currentLiveUpdateVersion,
+                                      liveUpdateScopeKey)
+import Application.Helper.LiveUpdate.Runtime (LiveUpdateSubscription (..),
+                                              LiveUpdateWireFragment (..))
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey)
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
@@ -106,13 +109,6 @@ tests = beforeAll testContext do
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 let venueId = unpackId venue.id
                 let scope = RosterWeekScope { venueId, rosterGroupId = unpackId rosterGroup.id, weekOffset = 0 }
-                let planFragments resource = withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                        withCurrentControllerContext do
-                            pure
-                                [ (target.targetScope, map (.fragmentKey) target.targetFragments)
-                                | target <- planRegisteredLiveSurfaceInvalidations (Set.singleton resource) [scope]
-                                ]
-
                 let rosterContentFragments =
                         [ RosterContentFragment
                         , RosterGridToolbarFragment
@@ -122,6 +118,22 @@ tests = beforeAll testContext do
                         , RosterWageRailFragment
                         , RosterSlotsGridFragment
                         ]
+                let subscription =
+                        LiveUpdateSubscription
+                            { subscriptionScope = scope
+                            , subscriptionScopeKey = liveUpdateScopeKey scope
+                            , subscriptionMountedFragments =
+                                [ LiveUpdateWireFragment fragment ("target-" <> tshow index) ("/fragment/" <> tshow index) False NoProtection
+                                | (index, fragment) <- zip [(1 :: Int) ..] rosterContentFragments
+                                ]
+                            }
+                let planFragments resource = withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        withCurrentControllerContext do
+                            pure
+                                [ (target.targetScope, map (.fragmentKey) target.targetFragments)
+                                | target <- planRegisteredLiveSurfaceInvalidations (Set.singleton resource) [subscription]
+                                ]
+
                 planFragments (rosterEndTimesConfigResource venueId)
                     `shouldReturn` [(scope, rosterContentFragments)]
                 planFragments (rosterWeekBoundaryConfigResource venueId)

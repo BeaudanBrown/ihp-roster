@@ -1,6 +1,6 @@
 ---
 id: ir-apsn
-status: open
+status: closed
 deps: [ir-28n8, ir-aosk]
 links: []
 created: 2026-07-03T11:15:32Z

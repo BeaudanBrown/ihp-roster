@@ -1,8 +1,13 @@
 module Application.Script.ProfileLiveInvalidation where
 
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate.Runtime (LiveUpdateBroadcastResult (..),
-                                              LiveUpdateScope (..))
+import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..),
+                                              LiveFragmentProtection (..),
+                                              LiveUpdateBroadcastResult (..),
+                                              LiveUpdateScope (..),
+                                              LiveUpdateSubscription (..),
+                                              LiveUpdateWireFragment (..),
+                                              liveUpdateScopeKey)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.Set as Set
@@ -122,8 +127,9 @@ runOne scenario requestedScopeCount = do
     (candidateScopes, candidateMs) <- measureDuration do
         pure (candidateLiveScopesForResourcesWithoutContext expandedResources)
     let planningScopes = coalesceScopes (benchmarkPlan.planActiveScopes <> candidateScopes)
+    let activeSubscriptions = map benchmarkSubscription benchmarkPlan.planActiveScopes
     (targets, planMs) <- measureDuration do
-        pure (planRegisteredLiveSurfaceInvalidationsWithoutContext expandedResources planningScopes)
+        pure (planRegisteredLiveSurfaceInvalidationsWithoutContext expandedResources activeSubscriptions)
     (broadcastResults, broadcastMs) <- measureDuration do
         mapM performLiveSurfaceInvalidationTargetWithoutContext targets
     completedAtNs <- getMonotonicTimeNSec
@@ -226,6 +232,48 @@ buildBenchmarkPlan scenario requestedScopeCount =
             , TimesheetWeekScope targetVenueId targetWeekOffset
             , AdminXeroScope targetVenueId
             ]
+
+benchmarkSubscription :: LiveUpdateScope -> LiveUpdateSubscription
+benchmarkSubscription scope =
+    LiveUpdateSubscription
+        { subscriptionScope = scope
+        , subscriptionScopeKey = liveUpdateScopeKey scope
+        , subscriptionMountedFragments = benchmarkFragments scope
+        }
+
+benchmarkFragments :: LiveUpdateScope -> [LiveUpdateWireFragment]
+benchmarkFragments = \case
+    BillingScope {} -> [fragment BillingStatusFragment]
+    TimesheetWeekScope {} -> [fragment TimesheetToolbarFragment]
+    AdminXeroScope {} -> [fragment AdminXeroStaffMappingsFragment, fragment AdminXeroPayItemsFragment]
+    RosterWeekScope {} -> [fragment RosterContentFragment]
+    SupportPlatformScope -> [fragment SupportAwardRatesSectionFragment]
+    AdminInvitesScope {} -> [fragment AdminInvitesFragment]
+    AdminVenueConfigScope {} -> [fragment AdminVenueConfigFragment]
+    AdminShiftTypesScope {} -> [fragment AdminShiftTypesFragment]
+    AdminRosterGroupsScope {} -> [fragment AdminRosterGroupsFragment]
+    AdminExportsScope {} -> [fragment AdminExportsFragment]
+    LeaveRequestsScope {} -> [fragment LeaveRequestsContentFragment]
+    ProfileScope {} -> [fragment ProfileContentFragment]
+    where
+        fragment key = LiveUpdateWireFragment key ("profile-" <> liveFragmentKeyKindForProfile key) "/profile-live-invalidation" False NoProtection
+
+liveFragmentKeyKindForProfile :: LiveFragmentKey -> Text
+liveFragmentKeyKindForProfile = \case
+    BillingStatusFragment -> "billing-status"
+    TimesheetToolbarFragment -> "timesheet-toolbar"
+    AdminXeroStaffMappingsFragment -> "admin-xero-staff-mappings"
+    AdminXeroPayItemsFragment -> "admin-xero-pay-items"
+    RosterContentFragment -> "roster-content"
+    SupportAwardRatesSectionFragment -> "support-award-rates"
+    AdminInvitesFragment -> "admin-invites"
+    AdminVenueConfigFragment -> "admin-venue-config"
+    AdminShiftTypesFragment -> "admin-shift-types"
+    AdminRosterGroupsFragment -> "admin-roster-groups"
+    AdminExportsFragment -> "admin-exports"
+    LeaveRequestsContentFragment -> "leave-requests-content"
+    ProfileContentFragment -> "profile-content"
+    _ -> "fragment"
 
 venueIdFor :: Int -> UUID
 venueIdFor index =
