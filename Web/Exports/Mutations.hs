@@ -27,4 +27,4 @@ recordExportDownloadMutation exportJob = do
 
 exportJobTouchedResources :: ExportJob -> [LiveResource]
 exportJobTouchedResources exportJob =
-    [AdminExportsResource exportJob.venueId]
+    [adminExportsResource exportJob.venueId]

@@ -11,7 +11,7 @@ module Web.View.Admin.RosterGroups
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
-import Application.Helper.LiveResource (LiveResource (..))
+import Application.Helper.LiveResource
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveUpdateScope (..))
@@ -73,7 +73,7 @@ adminRosterGroupsLiveSurfaceDefinitionForVenue surfaceVenueId =
             AdminRosterGroupsFragment
             "admin-roster-groups-fragment"
             (pathTo ShowAdminRosterGroupsFragmentAction)
-            (const (liveFragmentDependsOn (AdminRosterGroupsResource surfaceVenueId) []))
+            (const (liveFragmentDependsOn (adminRosterGroupsResource surfaceVenueId) []))
         ]
 
 adminRosterGroupsVenueScope :: VenueLiveUpdateScope

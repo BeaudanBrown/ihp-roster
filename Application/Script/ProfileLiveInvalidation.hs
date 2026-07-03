@@ -181,25 +181,25 @@ buildBenchmarkPlan scenario requestedScopeCount =
     case scenario of
         BillingDirectScenario ->
             BenchmarkPlan
-                { planResources = Set.singleton (BillingResource targetVenueId)
+                { planResources = Set.singleton (billingResource targetVenueId)
                 , planActiveScopes = [BillingScope (venueIdFor index) | index <- [0 .. requestedScopeCount - 1]]
                 , planActiveRosterScopes = []
                 }
         TimesheetWeekScenario ->
             BenchmarkPlan
-                { planResources = Set.singleton (TimesheetWeekResource targetVenueId targetWeekOffset)
+                { planResources = Set.singleton (timesheetWeekResource targetVenueId targetWeekOffset)
                 , planActiveScopes = [TimesheetWeekScope (venueIdFor index) (index `mod` 52) | index <- [0 .. requestedScopeCount - 1]]
                 , planActiveRosterScopes = []
                 }
         XeroMappingsScenario ->
             BenchmarkPlan
-                { planResources = Set.singleton (XeroMappingsResource targetVenueId)
+                { planResources = Set.singleton (xeroMappingsResource targetVenueId)
                 , planActiveScopes = [AdminXeroScope (venueIdFor index) | index <- [0 .. requestedScopeCount - 1]]
                 , planActiveRosterScopes = []
                 }
         LeaveCalendarExpansionScenario ->
             BenchmarkPlan
-                { planResources = Set.singleton (LeaveCalendarResource targetVenueId targetWeekOffset)
+                { planResources = Set.singleton (leaveCalendarResource targetVenueId targetWeekOffset)
                 , planActiveScopes = [RosterWeekScope targetVenueId (rosterGroupIdFor index) targetWeekOffset | index <- [0 .. requestedScopeCount - 1]]
                 , planActiveRosterScopes = [(targetVenueId, rosterGroupIdFor index, targetWeekOffset) | index <- [0 .. requestedScopeCount - 1]]
                 }
@@ -207,11 +207,11 @@ buildBenchmarkPlan scenario requestedScopeCount =
             BenchmarkPlan
                 { planResources =
                     Set.fromList
-                        [ SupportAwardRatesResource
-                        , BillingResource targetVenueId
-                        , AdminInvitesResource targetVenueId
-                        , TimesheetWeekResource targetVenueId targetWeekOffset
-                        , XeroMappingsResource targetVenueId
+                        [ supportAwardRatesResource
+                        , billingResource targetVenueId
+                        , adminInvitesResource targetVenueId
+                        , timesheetWeekResource targetVenueId targetWeekOffset
+                        , xeroMappingsResource targetVenueId
                         ]
                 , planActiveScopes = take requestedScopeCount (cycle mixedScopes)
                 , planActiveRosterScopes = []

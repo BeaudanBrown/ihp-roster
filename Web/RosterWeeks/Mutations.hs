@@ -185,17 +185,17 @@ deleteRosterSlotMutation rosterGroupId rosterWeek rosterDay rosterSlot = do
 
 rosterWeekTouchedResources :: Id RosterGroup -> Int -> [LiveResource]
 rosterWeekTouchedResources rosterGroupId weekOffset =
-    [ RosterWeekResource (unpackId rosterGroupId) weekOffset ]
+    [ rosterWeekResource (unpackId rosterGroupId) weekOffset ]
 
 rosterDayTouchedResources :: Id RosterGroup -> Int -> RosterDay -> [LiveResource]
 rosterDayTouchedResources rosterGroupId weekOffset rosterDay =
     rosterWeekTouchedResources rosterGroupId weekOffset
-        <> [RosterDayResource (unpackId rosterDay.id)]
+        <> [rosterDayResource (unpackId rosterDay.id)]
 
 rosterSlotTouchedResources :: Id RosterGroup -> Int -> RosterDay -> Maybe RosterSlot -> [LiveResource]
 rosterSlotTouchedResources rosterGroupId weekOffset rosterDay maybeSlot =
     rosterDayTouchedResources rosterGroupId weekOffset rosterDay
-        <> maybe [] (\slot -> [RosterSlotResource (unpackId slot.id)]) maybeSlot
+        <> maybe [] (\slot -> [rosterSlotResource (unpackId slot.id)]) maybeSlot
 
 rosterSlotTimesheetSourceChanged :: RosterSlot -> RosterSlot -> Bool
 rosterSlotTimesheetSourceChanged previous next =

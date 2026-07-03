@@ -95,11 +95,11 @@ applyAcceptedStaffInput staff staffInput =
 
 acceptedVenueInvitationTouchedResources :: VenueInvitation -> [LiveResource]
 acceptedVenueInvitationTouchedResources invitation =
-    [AdminInvitesResource invitation.venueId]
+    [adminInvitesResource invitation.venueId]
         <> case invitation.staffId of
             Nothing -> []
             Just staffId ->
-                [ StaffProfileResource (unpackId staffId)
-                , StaffPreferencesResource (unpackId staffId)
-                , StaffRosterMembershipResource (unpackId staffId)
+                [ staffProfileResource (unpackId staffId)
+                , staffPreferencesResource (unpackId staffId)
+                , staffRosterMembershipResource (unpackId staffId)
                 ]

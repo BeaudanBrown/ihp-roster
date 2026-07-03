@@ -7,7 +7,7 @@ import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceFragmentKey (.
                                                    FrontendSurfaceMountConfig (..),
                                                    FrontendSurfaceMountedFragment (..),
                                                    SurfaceImpl (..))
-import Application.Helper.LiveResource (LiveResource (..))
+import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate (LiveUpdateScope (..))
 import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..),
                                               LiveUpdateWireFragment (..))
@@ -101,7 +101,7 @@ tests = beforeAll testContext do
                 targets <- withUserAndCurrentVenue manager venue.id do
                     withCurrentControllerContext do
                         pure $ planRegisteredLiveSurfaceInvalidations
-                            (Set.singleton (RosterWeekResource rosterWeek.rosterGroupId rosterWeek.weekOffset))
+                            (Set.singleton (rosterWeekResource rosterWeek.rosterGroupId rosterWeek.weekOffset))
                             [RosterWeekScope { venueId = unpackId venue.id, rosterGroupId = rosterWeek.rosterGroupId, weekOffset = rosterWeek.weekOffset }]
 
                 targetFragmentKeys targets

@@ -1,7 +1,7 @@
 module Test.Controller.LeaveRequestsSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
-import Application.Helper.LiveResource (LiveResource (..))
+import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
@@ -128,14 +128,14 @@ tests = beforeAll testContext do
                 leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 8) (fromGregorian 2025 1 15) "pending"
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 let expectedCalendarResources =
-                        [ LeaveCalendarResource (unpackId venue.id) weekOffset
+                        [ leaveCalendarResource (unpackId venue.id) weekOffset
                         | weekOffset <- affectedVenueWeekOffsetsForDateRange venueConfig leaveRequest.startDate leaveRequest.endDate
                         ]
 
                 Set.fromList (leaveReviewTouchedResources venueConfig ApproveLeave False leaveRequest)
                     `shouldBe` Set.fromList
-                        ( [ LeaveRequestsResource (unpackId venue.id)
-                          , StaffLeaveRequestsResource leaveRequest.staffId
+                        ( [ leaveRequestsResource (unpackId venue.id)
+                          , staffLeaveRequestsResource leaveRequest.staffId
                           ]
                             <> expectedCalendarResources
                         )

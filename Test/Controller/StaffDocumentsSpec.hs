@@ -166,7 +166,7 @@ tests = beforeAll testContext do
                 staffDocument <- createRsaDocument user.id staff (testRsaUpload (fromGregorian 2027 5 2))
 
                 rsaStaffDocumentTouchedResources staffDocument
-                    `shouldBe` [ StaffRsaDocumentsResource (unpackId staff.id)
+                    `shouldBe` [ staffRsaDocumentsResource (unpackId staff.id)
                                ]
 
         it "allows managers to review RSA documents in their venue" $ withContext do

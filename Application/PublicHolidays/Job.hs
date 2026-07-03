@@ -64,4 +64,4 @@ performPublicHolidayRefreshJob appJob = do
         )
     void $
         invalidateTouchedResourcesWithoutContext "support.public_holidays.refresh" $
-            liveMutationResult summary [SupportPublicHolidaysResource]
+            liveMutationResult summary [supportPublicHolidaysResource]

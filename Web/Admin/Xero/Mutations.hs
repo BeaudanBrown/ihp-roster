@@ -562,24 +562,24 @@ retryXeroDraftTimesheetSubmissionMutation submissionId =
 
 xeroConnectionTouchedResources :: Id Venue -> [LiveResource]
 xeroConnectionTouchedResources venueId =
-    [XeroConnectionResource (unpackId venueId)]
+    [xeroConnectionResource (unpackId venueId)]
 
 xeroPayItemsTouchedResources :: Id Venue -> [LiveResource]
 xeroPayItemsTouchedResources venueId =
-    [ XeroPayItemsResource (unpackId venueId)
-    , AdminShiftTypesResource (unpackId venueId)
+    [ xeroPayItemsResource (unpackId venueId)
+    , adminShiftTypesResource (unpackId venueId)
     ]
 
 xeroMappingsTouchedResources :: Id Venue -> [LiveResource]
 xeroMappingsTouchedResources venueId =
-    [XeroMappingsResource (unpackId venueId)]
+    [xeroMappingsResource (unpackId venueId)]
 
 xeroTimesheetsTouchedResources :: Id Venue -> [LiveResource]
 xeroTimesheetsTouchedResources venueId =
-    [XeroTimesheetsResource (unpackId venueId)]
+    [xeroTimesheetsResource (unpackId venueId)]
 
 xeroReferenceSyncTouchedResources :: Id Venue -> [LiveResource]
 xeroReferenceSyncTouchedResources venueId =
-    [ XeroConnectionResource (unpackId venueId)
-    , XeroMappingsResource (unpackId venueId)
+    [ xeroConnectionResource (unpackId venueId)
+    , xeroMappingsResource (unpackId venueId)
     ]

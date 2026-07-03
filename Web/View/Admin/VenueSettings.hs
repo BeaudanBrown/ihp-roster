@@ -12,7 +12,7 @@ module Web.View.Admin.VenueSettings
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
-import Application.Helper.LiveResource (LiveResource (..))
+import Application.Helper.LiveResource
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
@@ -49,7 +49,7 @@ adminVenueSettingsLiveSurfaceDefinitionForVenue surfaceVenueId =
             AdminVenueConfigFragment
             adminVenueSettingsFragmentId
             (pathTo ShowAdminVenueSettingsFragmentAction)
-            (const (liveFragmentDependsOn (AdminVenueSettingsResource surfaceVenueId) []))
+            (const (liveFragmentDependsOn (adminVenueSettingsResource surfaceVenueId) []))
         ]
 
 adminVenueSettingsVenueScope :: VenueLiveUpdateScope

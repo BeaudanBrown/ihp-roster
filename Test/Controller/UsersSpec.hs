@@ -248,13 +248,13 @@ tests = beforeAll testContext do
                 adoptionInvitation <- createVenueInvitationRecord venue Nothing "touch-adoption@example.com" "worker"
                     >>= updateRecord . set #staffId (Just staff.id)
 
-                acceptedVenueInvitationTouchedResources invitation `shouldBe` [AdminInvitesResource (unpackId venue.id)]
+                acceptedVenueInvitationTouchedResources invitation `shouldBe` [adminInvitesResource (unpackId venue.id)]
                 acceptedVenueInvitationTouchedResources adoptionInvitation
                     `shouldBe`
-                        [ AdminInvitesResource (unpackId venue.id)
-                        , StaffProfileResource (unpackId staff.id)
-                        , StaffPreferencesResource (unpackId staff.id)
-                        , StaffRosterMembershipResource (unpackId staff.id)
+                        [ adminInvitesResource (unpackId venue.id)
+                        , staffProfileResource (unpackId staff.id)
+                        , staffPreferencesResource (unpackId staff.id)
+                        , staffRosterMembershipResource (unpackId staff.id)
                         ]
 
         it "creates a verified user and venue membership from a pending invitation" $ withContext do

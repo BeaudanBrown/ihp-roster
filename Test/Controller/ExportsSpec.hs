@@ -102,7 +102,7 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status302
                 exportJob <- query @ExportJob |> fetchOne
-                exportJobTouchedResources exportJob `shouldBe` [AdminExportsResource (unpackId venue.id)]
+                exportJobTouchedResources exportJob `shouldBe` [adminExportsResource (unpackId venue.id)]
 
         it "creates a staff-hours payroll export grouped by effective pay level" $ withContext do
             withCleanDb do

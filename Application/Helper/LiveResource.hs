@@ -1,47 +1,50 @@
 module Application.Helper.LiveResource
-    ( LiveMutationResult (..)
-    , LiveResource (..)
+    ( FrontendSurfaceResourceValue (..)
+    , LiveMutationResult (..)
+    , LiveResource
+    , adminExportsResource
+    , adminInvitesResource
+    , adminRosterGroupsResource
+    , adminShiftTypesResource
+    , adminVenueSettingsResource
+    , billingResource
+    , leaveCalendarResource
+    , leaveRequestsResource
     , liveMutationResult
     , recordLiveMutationDiagnostics
+    , resourceFieldInt
+    , resourceFieldUuid
+    , resourceMatches
+    , rosterDayResource
+    , rosterEndTimesConfigResource
+    , rosterSlotResource
+    , rosterWeekBoundaryConfigResource
+    , rosterWeekResource
+    , staffLeaveRequestsResource
+    , staffPayProfileResource
+    , staffPreferencesResource
+    , staffProfileResource
+    , staffRosterMembershipResource
+    , staffRsaDocumentsResource
+    , staffTimesheetResource
+    , supportAwardRatesResource
+    , supportPublicHolidaysResource
+    , timesheetDayResource
+    , timesheetWeekBoundaryConfigResource
+    , timesheetWeekResource
+    , xeroConnectionResource
+    , xeroMappingsResource
+    , xeroPayItemsResource
+    , xeroTimesheetsResource
     ) where
 
+import Application.Helper.FrontendSurface.Resource
 import qualified Data.Set as Set
 import qualified Data.Text.IO as TextIO
-import Data.UUID (UUID)
 import IHP.Prelude
 import System.Environment (lookupEnv)
 
-data LiveResource
-    = LeaveRequestsResource !UUID
-    | StaffLeaveRequestsResource !UUID
-    | LeaveCalendarResource !UUID !Int
-    | TimesheetWeekResource !UUID !Int
-    | TimesheetDayResource !UUID !Int !Int
-    | StaffTimesheetResource !UUID
-    | StaffProfileResource !UUID
-    | StaffPreferencesResource !UUID
-    | StaffRosterMembershipResource !UUID
-    | StaffPayProfileResource !UUID
-    | StaffRsaDocumentsResource !UUID
-    | RosterWeekResource !UUID !Int
-    | RosterDayResource !UUID
-    | RosterSlotResource !UUID
-    | AdminVenueSettingsResource !UUID
-    | RosterEndTimesConfigResource !UUID
-    | RosterWeekBoundaryConfigResource !UUID
-    | TimesheetWeekBoundaryConfigResource !UUID
-    | AdminRosterGroupsResource !UUID
-    | AdminShiftTypesResource !UUID
-    | AdminInvitesResource !UUID
-    | AdminExportsResource !UUID
-    | BillingResource !UUID
-    | SupportAwardRatesResource
-    | SupportPublicHolidaysResource
-    | XeroConnectionResource !UUID
-    | XeroMappingsResource !UUID
-    | XeroPayItemsResource !UUID
-    | XeroTimesheetsResource !UUID
-    deriving (Eq, Ord, Show)
+type LiveResource = FrontendSurfaceResourceValue
 
 data LiveMutationResult a = LiveMutationResult
     { liveMutationValue            :: !a

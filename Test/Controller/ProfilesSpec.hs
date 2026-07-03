@@ -1,7 +1,7 @@
 module Test.Controller.ProfilesSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
-import Application.Helper.LiveResource (LiveResource (..))
+import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
@@ -292,8 +292,8 @@ tests = beforeAll testContext do
 
                 Set.fromList (profileUpdateTouchedResources staff)
                     `shouldBe` Set.fromList
-                        [ StaffProfileResource (unpackId staff.id)
-                        , StaffPreferencesResource (unpackId staff.id)
+                        [ staffProfileResource (unpackId staff.id)
+                        , staffPreferencesResource (unpackId staff.id)
                         ]
 
         it "creates a linked staff row on the first successful profile submission" $ withContext do

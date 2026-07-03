@@ -23,10 +23,10 @@ tests = do
             let otherRosterGroupId = fromWords 5 0 0 0
             let activeScopes = [(venueId, rosterGroupId, 0), (otherVenueId, otherRosterGroupId, 0)]
 
-            expandLiveResourcesWithoutContext activeScopes (Set.singleton (LeaveCalendarResource venueId 0))
+            expandLiveResourcesWithoutContext activeScopes (Set.singleton (leaveCalendarResource venueId 0))
                 `shouldBe` Set.fromList
-                    [ LeaveCalendarResource venueId 0
-                    , RosterWeekResource rosterGroupId 0
+                    [ leaveCalendarResource venueId 0
+                    , rosterWeekResource rosterGroupId 0
                     ]
 
         it "does not expand leave-calendar resources to cold roster weeks" do
@@ -34,8 +34,8 @@ tests = do
             let rosterGroupId = fromWords 4 0 0 0
             let activeScopes = [(venueId, rosterGroupId, 1)]
 
-            expandLiveResourcesWithoutContext activeScopes (Set.singleton (LeaveCalendarResource venueId 0))
-                `shouldBe` Set.singleton (LeaveCalendarResource venueId 0)
+            expandLiveResourcesWithoutContext activeScopes (Set.singleton (leaveCalendarResource venueId 0))
+                `shouldBe` Set.singleton (leaveCalendarResource venueId 0)
 
         it "expands roster-affecting venue config resources to active roster week resources" do
             let venueId = fromWords 1 0 0 0
@@ -44,17 +44,17 @@ tests = do
             let otherRosterGroupId = fromWords 5 0 0 0
             let activeScopes = [(venueId, rosterGroupId, 0), (venueId, rosterGroupId, 1), (otherVenueId, otherRosterGroupId, 0)]
 
-            expandLiveResourcesWithoutContext activeScopes (Set.singleton (RosterEndTimesConfigResource venueId))
+            expandLiveResourcesWithoutContext activeScopes (Set.singleton (rosterEndTimesConfigResource venueId))
                 `shouldBe` Set.fromList
-                    [ RosterEndTimesConfigResource venueId
-                    , RosterWeekResource rosterGroupId 0
-                    , RosterWeekResource rosterGroupId 1
+                    [ rosterEndTimesConfigResource venueId
+                    , rosterWeekResource rosterGroupId 0
+                    , rosterWeekResource rosterGroupId 1
                     ]
-            expandLiveResourcesWithoutContext activeScopes (Set.singleton (RosterWeekBoundaryConfigResource venueId))
+            expandLiveResourcesWithoutContext activeScopes (Set.singleton (rosterWeekBoundaryConfigResource venueId))
                 `shouldBe` Set.fromList
-                    [ RosterWeekBoundaryConfigResource venueId
-                    , RosterWeekResource rosterGroupId 0
-                    , RosterWeekResource rosterGroupId 1
+                    [ rosterWeekBoundaryConfigResource venueId
+                    , rosterWeekResource rosterGroupId 0
+                    , rosterWeekResource rosterGroupId 1
                     ]
 
         it "leaves direct resources for dependency-derived live surface matching" do
@@ -63,27 +63,27 @@ tests = do
             let rosterGroupId = fromWords 4 0 0 0
             let directResources =
                     Set.fromList
-                        [ LeaveRequestsResource venueId
-                        , StaffLeaveRequestsResource staffId
-                        , RosterWeekResource rosterGroupId 0
-                        , TimesheetWeekResource venueId 0
-                        , TimesheetDayResource venueId 0 2
-                        , StaffRsaDocumentsResource staffId
-                        , AdminVenueSettingsResource venueId
-                        , RosterEndTimesConfigResource venueId
-                        , RosterWeekBoundaryConfigResource venueId
-                        , TimesheetWeekBoundaryConfigResource venueId
-                        , AdminInvitesResource venueId
-                        , AdminRosterGroupsResource venueId
-                        , AdminShiftTypesResource venueId
-                        , AdminExportsResource venueId
-                        , BillingResource venueId
-                        , SupportAwardRatesResource
-                        , SupportPublicHolidaysResource
-                        , XeroConnectionResource venueId
-                        , XeroMappingsResource venueId
-                        , XeroPayItemsResource venueId
-                        , XeroTimesheetsResource venueId
+                        [ leaveRequestsResource venueId
+                        , staffLeaveRequestsResource staffId
+                        , rosterWeekResource rosterGroupId 0
+                        , timesheetWeekResource venueId 0
+                        , timesheetDayResource venueId 0 2
+                        , staffRsaDocumentsResource staffId
+                        , adminVenueSettingsResource venueId
+                        , rosterEndTimesConfigResource venueId
+                        , rosterWeekBoundaryConfigResource venueId
+                        , timesheetWeekBoundaryConfigResource venueId
+                        , adminInvitesResource venueId
+                        , adminRosterGroupsResource venueId
+                        , adminShiftTypesResource venueId
+                        , adminExportsResource venueId
+                        , billingResource venueId
+                        , supportAwardRatesResource
+                        , supportPublicHolidaysResource
+                        , xeroConnectionResource venueId
+                        , xeroMappingsResource venueId
+                        , xeroPayItemsResource venueId
+                        , xeroTimesheetsResource venueId
                         ]
 
             expandLiveResourcesWithoutContext [] directResources
@@ -114,9 +114,9 @@ tests = do
                     liveInvalidationProfile
                         "billing.update"
                         12.34
-                        (Set.fromList [BillingResource venueId])
+                        (Set.fromList [billingResource venueId])
                         [scope]
-                        (Set.fromList [BillingResource venueId])
+                        (Set.fromList [billingResource venueId])
                         [scope]
                         [scope]
                         [target]

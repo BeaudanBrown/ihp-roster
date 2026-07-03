@@ -46,8 +46,8 @@ updateCurrentUserProfile openSection staffInput submittedSelections = do
 
 profileUpdateTouchedResources :: Staff -> [LiveResource]
 profileUpdateTouchedResources staff =
-    [ StaffProfileResource (unpackId staff.id)
-    , StaffPreferencesResource (unpackId staff.id)
+    [ staffProfileResource (unpackId staff.id)
+    , staffPreferencesResource (unpackId staff.id)
     ]
 
 upsertCurrentUserStaff :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => Staff -> IO Staff

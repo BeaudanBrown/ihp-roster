@@ -3,7 +3,7 @@ module Test.Controller.RosterWeeks.WorkflowSpec where
 import Application.Async.Queue (EnqueueAppJobResult (..))
 import Application.Helper.Controller (PlatformRole (SuperAdminRole),
                                       venueWeekStartDate)
-import Application.Helper.LiveResource (LiveResource (..))
+import Application.Helper.LiveResource
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
 import Application.Helper.UserPreferences
@@ -57,16 +57,16 @@ tests = beforeAll testContext do
 
                 Set.fromList (rosterSlotTouchedResources rosterGroupId rosterWeek.weekOffset rosterDay (Just rosterSlot))
                     `shouldBe` Set.fromList
-                        [ RosterWeekResource (unpackId rosterGroupId) rosterWeek.weekOffset
-                        , RosterDayResource (unpackId rosterDay.id)
-                        , RosterSlotResource (unpackId rosterSlot.id)
+                        [ rosterWeekResource (unpackId rosterGroupId) rosterWeek.weekOffset
+                        , rosterDayResource (unpackId rosterDay.id)
+                        , rosterSlotResource (unpackId rosterSlot.id)
                         ]
                 rosterWeekTouchedResources rosterGroupId rosterWeek.weekOffset
-                    `shouldBe` [RosterWeekResource (unpackId rosterGroupId) rosterWeek.weekOffset]
+                    `shouldBe` [rosterWeekResource (unpackId rosterGroupId) rosterWeek.weekOffset]
                 rosterDayTouchedResources rosterGroupId rosterWeek.weekOffset rosterDay
                     `shouldBe`
-                        [ RosterWeekResource (unpackId rosterGroupId) rosterWeek.weekOffset
-                        , RosterDayResource (unpackId rosterDay.id)
+                        [ rosterWeekResource (unpackId rosterGroupId) rosterWeek.weekOffset
+                        , rosterDayResource (unpackId rosterDay.id)
                         ]
 
         it "always renders separate day-name and date rows even when a day only has one roster row" $ withContext do

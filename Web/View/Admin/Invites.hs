@@ -13,7 +13,7 @@ module Web.View.Admin.Invites
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
-import Application.Helper.LiveResource (LiveResource (..))
+import Application.Helper.LiveResource
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveUpdateScope (..))
@@ -108,7 +108,7 @@ adminInvitesLiveSurfaceDefinitionForVenue surfaceVenueId =
             [ liveFragmentDescriptor
                 adminInvitesFragment
                 (`adminInvitesLiveFragmentRef` adminInvitesFragment)
-                (const (liveFragmentDependsOn (AdminInvitesResource surfaceVenueId) []))
+                (const (liveFragmentDependsOn (adminInvitesResource surfaceVenueId) []))
             ]
         )
 

@@ -229,17 +229,17 @@ invitesScopeHandler scope = FrontendSurfaceScopeHandler
     }
 
 adminVenueSettingsAffectedFragments, adminInvitesAffectedFragments, adminExportsAffectedFragments, adminShiftTypesAffectedFragments, adminRosterGroupsAffectedFragments, adminXeroAffectedFragments :: AdminVenueScopeValue -> Set.Set LiveResource -> [FrontendSurfaceMountedFragment]
-adminVenueSettingsAffectedFragments scope resources = if Set.member (AdminVenueSettingsResource scope.adminVenueId) resources then [adminVenueSettingsFragment] else []
-adminInvitesAffectedFragments scope resources = if Set.member (AdminInvitesResource scope.adminVenueId) resources then [adminInvitesFragment scope.adminRosterGroupId] else []
-adminExportsAffectedFragments scope resources = if Set.member (AdminExportsResource scope.adminVenueId) resources then [adminExportsFragment] else []
-adminShiftTypesAffectedFragments scope resources = if Set.member (AdminShiftTypesResource scope.adminVenueId) resources then [adminShiftTypesFragment] else []
-adminRosterGroupsAffectedFragments scope resources = if Set.member (AdminRosterGroupsResource scope.adminVenueId) resources then [adminRosterGroupsFragment] else []
+adminVenueSettingsAffectedFragments scope resources = if Set.member (adminVenueSettingsResource scope.adminVenueId) resources then [adminVenueSettingsFragment] else []
+adminInvitesAffectedFragments scope resources = if Set.member (adminInvitesResource scope.adminVenueId) resources then [adminInvitesFragment scope.adminRosterGroupId] else []
+adminExportsAffectedFragments scope resources = if Set.member (adminExportsResource scope.adminVenueId) resources then [adminExportsFragment] else []
+adminShiftTypesAffectedFragments scope resources = if Set.member (adminShiftTypesResource scope.adminVenueId) resources then [adminShiftTypesFragment] else []
+adminRosterGroupsAffectedFragments scope resources = if Set.member (adminRosterGroupsResource scope.adminVenueId) resources then [adminRosterGroupsFragment] else []
 adminXeroAffectedFragments scope resources =
     concat
-        [ [adminXeroShellFragment | any (`Set.member` resources) [XeroConnectionResource scope.adminVenueId]]
-        , [adminXeroStaffMappingsFragment | Set.member (XeroMappingsResource scope.adminVenueId) resources]
-        , [adminXeroPayItemsFragment | Set.member (XeroPayItemsResource scope.adminVenueId) resources]
-        , [adminXeroTimesheetsFragment | Set.member (XeroTimesheetsResource scope.adminVenueId) resources]
+        [ [adminXeroShellFragment | any (`Set.member` resources) [xeroConnectionResource scope.adminVenueId]]
+        , [adminXeroStaffMappingsFragment | Set.member (xeroMappingsResource scope.adminVenueId) resources]
+        , [adminXeroPayItemsFragment | Set.member (xeroPayItemsResource scope.adminVenueId) resources]
+        , [adminXeroTimesheetsFragment | Set.member (xeroTimesheetsResource scope.adminVenueId) resources]
         ]
 
 setAdminXeroActorRefresh :: (?context :: ControllerContext, ?request :: Request) => [FrontendSurfaceMountedFragment] -> IO ()

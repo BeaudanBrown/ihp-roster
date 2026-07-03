@@ -79,8 +79,8 @@ reviewLeaveRequest decision leaveRequest = do
 
 baseLeaveTouchedResources :: LeaveRequest -> [LiveResource]
 baseLeaveTouchedResources leaveRequest =
-    [ LeaveRequestsResource leaveRequest.venueId
-    , StaffLeaveRequestsResource leaveRequest.staffId
+    [ leaveRequestsResource leaveRequest.venueId
+    , staffLeaveRequestsResource leaveRequest.staffId
     ]
 
 leaveReviewTouchedResources :: VenueConfig -> LeaveReviewDecision -> Bool -> LeaveRequest -> [LiveResource]
@@ -90,7 +90,7 @@ leaveReviewTouchedResources venueConfig decision wasApproved leaveRequest =
         calendarResources =
             if reviewDecisionChangesRoster decision wasApproved
                 then
-                    [ LeaveCalendarResource leaveRequest.venueId weekOffset
+                    [ leaveCalendarResource leaveRequest.venueId weekOffset
                     | weekOffset <- affectedVenueWeekOffsetsForDateRange venueConfig leaveRequest.startDate leaveRequest.endDate
                     ]
                 else []

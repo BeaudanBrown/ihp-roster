@@ -59,8 +59,8 @@ createTrialStaffInvitationMutation staff email
 
 trialStaffInvitationTouchedResources :: (?context :: ControllerContext) => Staff -> [LiveResource]
 trialStaffInvitationTouchedResources staff =
-    [ AdminInvitesResource (unpackId currentVenueId)
-    , StaffProfileResource (unpackId staff.id)
+    [ adminInvitesResource (unpackId currentVenueId)
+    , staffProfileResource (unpackId staff.id)
     ]
 
 createTrialStaffMember :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> [Id RosterGroup] -> IO (LiveMutationResult Staff)
@@ -73,9 +73,9 @@ createTrialStaffMember staff selectedRosterGroupIds = do
 
 staffCreateTouchedResources :: Staff -> [LiveResource]
 staffCreateTouchedResources staff =
-    [ StaffProfileResource (unpackId staff.id)
-    , StaffPreferencesResource (unpackId staff.id)
-    , StaffRosterMembershipResource (unpackId staff.id)
+    [ staffProfileResource (unpackId staff.id)
+    , staffPreferencesResource (unpackId staff.id)
+    , staffRosterMembershipResource (unpackId staff.id)
     ]
 
 updateStaffMember :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> Staff -> [Id RosterGroup] -> [ShiftPreferenceSelection] -> Maybe VenueMembership -> Maybe VenueRoleEnum -> IO (LiveMutationResult Staff)
@@ -100,8 +100,8 @@ updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections
 
 staffUpdateTouchedResources :: Bool -> Staff -> [LiveResource]
 staffUpdateTouchedResources payScopeChanged staff =
-    [ StaffProfileResource (unpackId staff.id)
-    , StaffPreferencesResource (unpackId staff.id)
-    , StaffRosterMembershipResource (unpackId staff.id)
+    [ staffProfileResource (unpackId staff.id)
+    , staffPreferencesResource (unpackId staff.id)
+    , staffRosterMembershipResource (unpackId staff.id)
     ]
-        <> [StaffPayProfileResource (unpackId staff.id) | payScopeChanged]
+        <> [staffPayProfileResource (unpackId staff.id) | payScopeChanged]

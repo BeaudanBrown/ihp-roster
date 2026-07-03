@@ -170,9 +170,9 @@ timesheetEntryTouchedResources venueConfig =
         entryResources entry =
             let weekOffset = venueWeekOffsetForDay venueConfig entry.workedOn
                 dayOffset = timesheetEntryDayOffset venueConfig entry
-             in [ TimesheetWeekResource entry.venueId weekOffset
-                , TimesheetDayResource entry.venueId weekOffset dayOffset
-                , StaffTimesheetResource entry.staffId
+             in [ timesheetWeekResource entry.venueId weekOffset
+                , timesheetDayResource entry.venueId weekOffset dayOffset
+                , staffTimesheetResource entry.staffId
                 ]
 
 timesheetEntryDayOffset :: VenueConfig -> TimesheetEntry -> Int

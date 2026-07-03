@@ -6,7 +6,7 @@ import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceFragmentKey (.
                                                    FrontendSurfaceMountConfig (..),
                                                    FrontendSurfaceMountedFragment (..),
                                                    SurfaceImpl (..))
-import Application.Helper.LiveResource (LiveResource (..))
+import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
 import Application.Helper.LiveUpdate.Runtime (LiveUpdateWireFragment (..))
@@ -143,9 +143,9 @@ tests = beforeAll testContext do
 
                 Set.fromList (timesheetEntryTouchedResources venueConfig [entry])
                     `shouldBe` Set.fromList
-                        [ TimesheetWeekResource (unpackId venue.id) weekOffset
-                        , TimesheetDayResource (unpackId venue.id) weekOffset 1
-                        , StaffTimesheetResource (unpackId staff.id)
+                        [ timesheetWeekResource (unpackId venue.id) weekOffset
+                        , timesheetDayResource (unpackId venue.id) weekOffset 1
+                        , staffTimesheetResource (unpackId staff.id)
                         ]
 
         it "denies unauthenticated users through the timesheet surface fragment contract" $ withContext do

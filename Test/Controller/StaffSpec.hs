@@ -1,6 +1,6 @@
 module Test.Controller.StaffSpec where
 
-import Application.Helper.LiveResource (LiveResource (..))
+import Application.Helper.LiveResource
 import qualified Application.Helper.LiveUpdate as LiveUpdate
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.StaffShiftPreferences (encodeShiftPreferenceKey,
@@ -160,9 +160,9 @@ tests = beforeAll testContext do
 
                 Set.fromList (staffCreateTouchedResources staff)
                     `shouldBe` Set.fromList
-                        [ StaffProfileResource (unpackId staff.id)
-                        , StaffPreferencesResource (unpackId staff.id)
-                        , StaffRosterMembershipResource (unpackId staff.id)
+                        [ staffProfileResource (unpackId staff.id)
+                        , staffPreferencesResource (unpackId staff.id)
+                        , staffRosterMembershipResource (unpackId staff.id)
                         ]
 
         it "records touched resources for staff updates" $ withContext do
@@ -172,10 +172,10 @@ tests = beforeAll testContext do
 
                 Set.fromList (staffUpdateTouchedResources True staff)
                     `shouldBe` Set.fromList
-                        [ StaffProfileResource (unpackId staff.id)
-                        , StaffPreferencesResource (unpackId staff.id)
-                        , StaffRosterMembershipResource (unpackId staff.id)
-                        , StaffPayProfileResource (unpackId staff.id)
+                        [ staffProfileResource (unpackId staff.id)
+                        , staffPreferencesResource (unpackId staff.id)
+                        , staffRosterMembershipResource (unpackId staff.id)
+                        , staffPayProfileResource (unpackId staff.id)
                         ]
 
         it "returns a roster content patch for HTMX roster-launched staff edits" $ withContext do

@@ -44,13 +44,13 @@ tests = do
             let scope = TimesheetWeekScopeValue venueId 2
 
             timesheetsFragmentDependencies scope TimesheetSurfaceToolbar
-                `shouldBe` [TimesheetWeekResource venueId 2, TimesheetWeekBoundaryConfigResource venueId]
+                `shouldBe` [timesheetWeekResource venueId 2, timesheetWeekBoundaryConfigResource venueId]
             timesheetsFragmentDependencies scope TimesheetSurfaceDayColumns
-                `shouldBe` [TimesheetWeekResource venueId 2, TimesheetWeekBoundaryConfigResource venueId]
+                `shouldBe` [timesheetWeekResource venueId 2, timesheetWeekBoundaryConfigResource venueId]
             timesheetsFragmentDependencies scope (TimesheetSurfaceDaySection 4)
                 `shouldBe`
-                    [ TimesheetDayResource venueId 2 4
-                    , TimesheetWeekBoundaryConfigResource venueId
+                    [ timesheetDayResource venueId 2 4
+                    , timesheetWeekBoundaryConfigResource venueId
                     ]
 
         it "selects affected fragments from typed dependencies" do
@@ -58,15 +58,15 @@ tests = do
             let scope = TimesheetWeekScopeValue venueId 2
             let mountState = TimesheetsMountStateValue True True Nothing
 
-            map (.mountedFragmentTargetId) (timesheetsAffectedMountedFragments scope mountState (Set.fromList [TimesheetDayResource venueId 2 4]))
+            map (.mountedFragmentTargetId) (timesheetsAffectedMountedFragments scope mountState (Set.fromList [timesheetDayResource venueId 2 4]))
                 `shouldBe` ["timesheet-day-section-4"]
-            map (.mountedFragmentTargetId) (timesheetsAffectedMountedFragments scope mountState (Set.fromList [TimesheetWeekResource venueId 2]))
+            map (.mountedFragmentTargetId) (timesheetsAffectedMountedFragments scope mountState (Set.fromList [timesheetWeekResource venueId 2]))
                 `shouldBe` ["timesheet-week-toolbar", "timesheet-day-columns"]
 
         it "plans affected fragments from generated FrontendSurface dependencies" do
             let venueId = fromWords 1 0 0 0
             let scope = TimesheetWeekScope { venueId, weekOffset = 2 }
-            let targets = planRegisteredLiveSurfaceInvalidationsWithoutContext (Set.fromList [TimesheetDayResource venueId 2 4]) [scope]
+            let targets = planRegisteredLiveSurfaceInvalidationsWithoutContext (Set.fromList [timesheetDayResource venueId 2 4]) [scope]
 
             map targetFragments targets
                 `shouldBe` [[LiveUpdateWireFragment (TimesheetDaySectionFragment 4) "timesheet-day-section-4" "/ShowTimesheetDaySectionFragment?weekOffset=2&dayOffset=4&showApproved=true&showAllStaff=true" False NoProtection]]
@@ -74,16 +74,16 @@ tests = do
         it "keeps generated dependency planning precise across surface resources" do
             let venueId = fromWords 2 0 0 0
             let scopes = [AdminXeroScope { venueId }, SupportPlatformScope]
-            let targets = planRegisteredLiveSurfaceInvalidationsWithoutContext (Set.fromList [XeroPayItemsResource venueId]) scopes
+            let targets = planRegisteredLiveSurfaceInvalidationsWithoutContext (Set.fromList [xeroPayItemsResource venueId]) scopes
 
             map (map fragmentKey . targetFragments) targets `shouldBe` [[AdminXeroPayItemsFragment]]
 
         it "declares support dependencies by support fragment" do
-            let awardRatesFragments = supportAffectedMountedFragments (Set.fromList [SupportAwardRatesResource])
-            let publicHolidayFragments = supportAffectedMountedFragments (Set.fromList [SupportPublicHolidaysResource])
+            let awardRatesFragments = supportAffectedMountedFragments (Set.fromList [supportAwardRatesResource])
+            let publicHolidayFragments = supportAffectedMountedFragments (Set.fromList [supportPublicHolidaysResource])
 
-            concatMap supportFragmentDependencies awardRatesFragments `shouldBe` [SupportAwardRatesResource]
-            concatMap supportFragmentDependencies publicHolidayFragments `shouldBe` [SupportPublicHolidaysResource]
+            concatMap supportFragmentDependencies awardRatesFragments `shouldBe` [supportAwardRatesResource]
+            concatMap supportFragmentDependencies publicHolidayFragments `shouldBe` [supportPublicHolidaysResource]
 
         it "declares admin Xero dependencies by fragment" do
             let venueId = fromWords 2 0 0 0
@@ -92,46 +92,46 @@ tests = do
 
             shellDependencies
                 `shouldBe` Set.fromList
-                    [ XeroConnectionResource venueId
-                    , XeroMappingsResource venueId
-                    , XeroPayItemsResource venueId
-                    , XeroTimesheetsResource venueId
+                    [ xeroConnectionResource venueId
+                    , xeroMappingsResource venueId
+                    , xeroPayItemsResource venueId
+                    , xeroTimesheetsResource venueId
                     ]
             typedSurfaceDependsOn definition () adminXeroStaffMappingsFragment
-                `shouldBe` [XeroMappingsResource venueId]
+                `shouldBe` [xeroMappingsResource venueId]
             typedSurfaceDependsOn definition () adminXeroPayItemsFragment
-                `shouldBe` [XeroPayItemsResource venueId]
+                `shouldBe` [xeroPayItemsResource venueId]
             typedSurfaceDependsOn definition () adminXeroTimesheetsFragment
-                `shouldBe` [XeroTimesheetsResource venueId]
+                `shouldBe` [xeroTimesheetsResource venueId]
 
         it "declares billing dependencies for billing status fragments" do
             let venueId = fromWords 6 0 0 0
             let scope = BillingScopeValue venueId
-            let fragments = billingAffectedMountedFragments scope (Set.fromList [BillingResource venueId])
+            let fragments = billingAffectedMountedFragments scope (Set.fromList [billingResource venueId])
 
-            concatMap (billingFragmentDependencies scope) fragments `shouldBe` [BillingResource venueId]
+            concatMap (billingFragmentDependencies scope) fragments `shouldBe` [billingResource venueId]
 
         it "declares profile dependencies by staff-backed section" do
             let venueId = fromWords 4 0 0 0
             let staffId = fromWords 5 0 0 0
             let scope = ProfileScopeValue venueId staffId
-            let affectedByProfile = profileAffectedMountedFragments scope (Set.fromList [StaffProfileResource staffId])
-            let affectedByRsa = profileAffectedMountedFragments scope (Set.fromList [StaffRsaDocumentsResource staffId])
-            let affectedByLeave = profileAffectedMountedFragments scope (Set.fromList [StaffLeaveRequestsResource staffId])
+            let affectedByProfile = profileAffectedMountedFragments scope (Set.fromList [staffProfileResource staffId])
+            let affectedByRsa = profileAffectedMountedFragments scope (Set.fromList [staffRsaDocumentsResource staffId])
+            let affectedByLeave = profileAffectedMountedFragments scope (Set.fromList [staffLeaveRequestsResource staffId])
 
             concatMap (profileFragmentDependencies scope) affectedByProfile
-                `shouldBe` [StaffProfileResource staffId, StaffPreferencesResource staffId]
+                `shouldBe` [staffProfileResource staffId, staffPreferencesResource staffId]
             concatMap (profileFragmentDependencies scope) affectedByRsa
-                `shouldBe` [StaffRsaDocumentsResource staffId]
+                `shouldBe` [staffRsaDocumentsResource staffId]
             concatMap (profileFragmentDependencies scope) affectedByLeave
-                `shouldBe` [StaffLeaveRequestsResource staffId]
+                `shouldBe` [staffLeaveRequestsResource staffId]
 
         it "declares admin venue settings dependencies for venue-scoped settings surfaces" do
             let venueId = fromWords 7 0 0 0
             let definition = adminVenueSettingsLiveSurfaceDefinitionForVenue venueId
 
             typedSurfaceDependsOn definition () adminVenueSettingsFragment
-                `shouldBe` [AdminVenueSettingsResource venueId]
+                `shouldBe` [adminVenueSettingsResource venueId]
 
         it "declares admin invitation dependencies for venue-scoped invite surfaces" do
             let venueId = fromWords 3 0 0 0
@@ -139,4 +139,4 @@ tests = do
             let key = AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing }
 
             typedSurfaceDependsOn definition key adminInvitesFragment
-                `shouldBe` [AdminInvitesResource venueId]
+                `shouldBe` [adminInvitesResource venueId]

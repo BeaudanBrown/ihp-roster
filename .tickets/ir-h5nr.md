@@ -1,6 +1,6 @@
 ---
 id: ir-h5nr
-status: open
+status: in_progress
 deps: [ir-4oed]
 links: []
 created: 2026-07-03T06:55:44Z
@@ -22,3 +22,9 @@ After all current resources/fragments are generated-backed, migrate mutation cod
 
 No temporary bridge markers remain. No CustomDependency/custom dependency hook remains. No legacy-only current live resource constructors remain. Old registry/planner compatibility paths are deleted. Guardrail scans prove bridge/custom code cannot silently return.
 
+
+## Notes
+
+**2026-07-03T08:49:48Z**
+
+Partial cleanup: removed the LiveResource ADT constructor bridge and moved runtime resources to generated FrontendSurfaceResourceValue smart constructors. Typecheck and focused live/frontend tests pass. Remaining decision: expansion sentinel resources (leave-calendar, staff-roster-membership, staff-pay-profile, staff-timesheet, roster-slot) are still emitted by some producer paths and central expansion; removing them requires changing those producers/dev tools to compute concrete resources before invalidation.

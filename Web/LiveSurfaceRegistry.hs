@@ -10,7 +10,7 @@ module Web.LiveSurfaceRegistry
 import Application.Helper.FrontendSurface.Authorization (authorizeFrontendSurfaceLiveScope)
 import Application.Helper.FrontendSurface.DependencyPlanner (planFrontendSurfaceInvalidation)
 import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceMountedFragment)
-import Application.Helper.LiveResource (LiveResource)
+import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate.Runtime (LiveUpdateBroadcastResult,
                                               LiveUpdateScope (..),
                                               LiveUpdateWireFragment,

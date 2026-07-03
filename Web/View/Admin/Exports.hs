@@ -13,7 +13,7 @@ module Web.View.Admin.Exports
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.Export
 import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
-import Application.Helper.LiveResource (LiveResource (..))
+import Application.Helper.LiveResource
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
@@ -50,7 +50,7 @@ adminExportsLiveSurfaceDefinitionForVenue surfaceVenueId =
             AdminExportsFragment
             adminExportsFragmentId
             (pathTo ShowAdminExportsFragmentAction)
-            (const (liveFragmentDependsOn (AdminExportsResource surfaceVenueId) []))
+            (const (liveFragmentDependsOn (adminExportsResource surfaceVenueId) []))
         ]
 
 adminExportsVenueScope :: VenueLiveUpdateScope

@@ -10,7 +10,7 @@ import Application.Helper.Interaction.Types (InteractionCapability (..),
                                              InteractionFragmentSelector (..),
                                              InteractionSessionSelector (..),
                                              InteractionStaticSchema (..))
-import Application.Helper.LiveResource (LiveResource (..))
+import Application.Helper.LiveResource
 import Application.Helper.LiveSurface
 import Application.Helper.LiveSurface.Internal (SurfaceFragmentRef (..))
 import Application.Helper.LiveUpdate.Runtime (FocusedFieldProtectionConfig (..),
@@ -119,17 +119,17 @@ tests = describe "LiveSurface contract helpers" do
     it "derives FrontendSurface live fragment refs and dependencies from a single fragment contract" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let billingScope = BillingScopeValue { billingVenueId = venueId }
-        let fragments = billingAffectedMountedFragments billingScope (Set.fromList [BillingResource venueId])
+        let fragments = billingAffectedMountedFragments billingScope (Set.fromList [billingResource venueId])
 
         map (.mountedFragmentTargetId) fragments `shouldBe` ["billing-status-fragment"]
-        concatMap (billingFragmentDependencies billingScope) fragments `shouldBe` [BillingResource venueId]
+        concatMap (billingFragmentDependencies billingScope) fragments `shouldBe` [billingResource venueId]
 
     it "requires fragment contracts to declare resource dependencies or resync-only intent" do
         let ref = testFragmentRef BillingStatusFragment "billing-status-fragment" ["billing-status-fragment"]
-        let dependent = mkSurfaceFragmentContract ref (liveFragmentDependsOn (BillingResource (expectUuid "11111111-1111-1111-1111-111111111111")) [])
+        let dependent = mkSurfaceFragmentContract ref (liveFragmentDependsOn (billingResource (expectUuid "11111111-1111-1111-1111-111111111111")) [])
         let resyncOnly = mkSurfaceFragmentContract ref (liveFragmentResyncOnly "no passive dependency")
 
-        fragmentContractDependencies dependent `shouldBe` DependsOnLiveResources (BillingResource (expectUuid "11111111-1111-1111-1111-111111111111") :| [])
+        fragmentContractDependencies dependent `shouldBe` DependsOnLiveResources (billingResource (expectUuid "11111111-1111-1111-1111-111111111111") :| [])
         fragmentContractDependencies resyncOnly `shouldBe` ResyncOnlyFragment "no passive dependency"
         fragmentContractLoadPolicy dependent `shouldBe` FragmentEager
         fragmentContractLoadPolicy resyncOnly `shouldBe` FragmentEager
@@ -172,7 +172,7 @@ tests = describe "LiveSurface contract helpers" do
         config.feature `shouldBe` "test-descriptor"
         config.decorateRequestsWithin `shouldBe` ["#test-descriptor-primary-fragment", "#test-descriptor-secondary-fragment"]
         map (.targetId) config.resyncFragments `shouldBe` ["test-descriptor-primary-fragment", "test-descriptor-secondary-fragment"]
-        typedSurfaceDependsOn definition () TestDescriptorPrimary `shouldBe` [BillingResource venueId]
+        typedSurfaceDependsOn definition () TestDescriptorPrimary `shouldBe` [billingResource venueId]
         typedSurfaceDependsOn definition () TestDescriptorSecondary `shouldBe` []
         typedLiveSurfaceFragmentLoadPolicy definition () TestDescriptorPrimary `shouldBe` FragmentEager
         typedLiveSurfaceFragmentLoadPolicy definition () TestDescriptorSecondary `shouldBe` FragmentEager
@@ -203,7 +203,7 @@ tests = describe "LiveSurface contract helpers" do
                     venueId
                     testBillingVenueScope
                     RequireCurrentVenueOwner
-                    [ staticLiveFragmentDescriptor TestDescriptorPrimary BillingStatusFragment "billing-status-fragment" "/billing" (const (liveFragmentDependsOn (BillingResource venueId) []))
+                    [ staticLiveFragmentDescriptor TestDescriptorPrimary BillingStatusFragment "billing-status-fragment" "/billing" (const (liveFragmentDependsOn (billingResource venueId) []))
                     ]
 
         unSurfaceScope (definition.typedSurfaceScope ()) `shouldBe` BillingScope venueId
@@ -223,7 +223,7 @@ tests = describe "LiveSurface contract helpers" do
                     RequireCurrentVenueOwner
                     testVenueKeyVenueId
                     TestVenueKey
-                    [ staticLiveFragmentDescriptor TestDescriptorPrimary BillingStatusFragment "billing-status-fragment" "/billing" (\key -> liveFragmentDependsOn (BillingResource key.testVenueKeyVenueId) [])
+                    [ staticLiveFragmentDescriptor TestDescriptorPrimary BillingStatusFragment "billing-status-fragment" "/billing" (\key -> liveFragmentDependsOn (billingResource key.testVenueKeyVenueId) [])
                     ]
         let definition = descriptorToTypedLiveSurfaceDefinition descriptor
         let key = TestVenueKey venueId
@@ -231,7 +231,7 @@ tests = describe "LiveSurface contract helpers" do
         unSurfaceScope (definition.typedSurfaceScope key) `shouldBe` BillingScope venueId
         definition.typedSurfaceScopeFromWire (BillingScope venueId) `shouldBe` Just key
         definition.typedSurfaceScopeFromWire (BillingScope otherVenueId) `shouldBe` Nothing
-        typedSurfaceDependsOn definition key TestDescriptorPrimary `shouldBe` [BillingResource venueId]
+        typedSurfaceDependsOn definition key TestDescriptorPrimary `shouldBe` [billingResource venueId]
 
     it "builds static fragment descriptors with protection and containment modifiers" do
         let descriptor =
@@ -304,7 +304,7 @@ tests = describe "LiveSurface contract helpers" do
         liveSurfaceConfigShouldExposeRefs
             timesheetSurface
             timesheetSurface.resyncFragments
-        let billingFragments = billingSurfaceWireFragments (billingAffectedMountedFragments billingScope (Set.fromList [BillingResource venueId]))
+        let billingFragments = billingSurfaceWireFragments (billingAffectedMountedFragments billingScope (Set.fromList [billingResource venueId]))
         billingFragments `shouldBe`
             [ LiveUpdateWireFragment
                 { fragmentKey = BillingStatusFragment
@@ -430,7 +430,7 @@ testDescriptorSurface venueId =
         [ liveFragmentDescriptor
             TestDescriptorPrimary
             (const (mkSurfaceFragmentRef BillingStatusFragment "test-descriptor-primary-fragment" "/test-primary"))
-            (const (liveFragmentDependsOn (BillingResource venueId) []))
+            (const (liveFragmentDependsOn (billingResource venueId) []))
         , liveFragmentDescriptor
             TestDescriptorSecondary
             (const (mkSurfaceFragmentRef SupportAwardRatesSectionFragment "test-descriptor-secondary-fragment" "/test-secondary"))

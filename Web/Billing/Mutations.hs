@@ -16,7 +16,7 @@ import Web.LiveResourceInvalidation (invalidateTouchedResources,
 
 billingTouchedResources :: Id Venue -> [LiveResource]
 billingTouchedResources venueId =
-    [BillingResource (unpackId venueId)]
+    [billingResource (unpackId venueId)]
 
 createVenueBillingCustomerMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> IO (LiveMutationResult VenueBillingCustomer)
 createVenueBillingCustomerMutation stripeCustomerId = do
@@ -75,7 +75,7 @@ recordBillingWebhookMutation result =
         Nothing -> pure (liveMutationResult result [])
         Just venueId ->
             invalidateTouchedResourcesWithoutContext "billing.webhook" $
-                liveMutationResult result [BillingResource venueId]
+                liveMutationResult result [billingResource venueId]
 
 billingWebhookResultVenueId :: BillingWebhookResult -> Maybe UUID
 billingWebhookResultVenueId (BillingWebhookProcessed event) = event.venueId

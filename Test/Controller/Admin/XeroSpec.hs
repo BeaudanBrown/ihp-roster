@@ -1,7 +1,7 @@
 module Test.Controller.Admin.XeroSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
-import Application.Helper.LiveResource (LiveResource (..))
+import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
@@ -95,14 +95,14 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Xero Connection Touch Venue"
 
                 Set.fromList (xeroConnectionTouchedResources venue.id)
-                    `shouldBe` Set.fromList [XeroConnectionResource (unpackId venue.id)]
+                    `shouldBe` Set.fromList [xeroConnectionResource (unpackId venue.id)]
 
         it "records touched resources for Xero mapping mutations" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Mapping Touch Venue"
 
                 Set.fromList (xeroMappingsTouchedResources venue.id)
-                    `shouldBe` Set.fromList [XeroMappingsResource (unpackId venue.id)]
+                    `shouldBe` Set.fromList [xeroMappingsResource (unpackId venue.id)]
 
         it "records touched resources for Xero pay item mutations" $ withContext do
             withCleanDb do
@@ -110,8 +110,8 @@ tests = beforeAll testContext do
 
                 Set.fromList (xeroPayItemsTouchedResources venue.id)
                     `shouldBe` Set.fromList
-                        [ XeroPayItemsResource (unpackId venue.id)
-                        , AdminShiftTypesResource (unpackId venue.id)
+                        [ xeroPayItemsResource (unpackId venue.id)
+                        , adminShiftTypesResource (unpackId venue.id)
                         ]
 
         it "records touched resources for Xero timesheet mutations" $ withContext do
@@ -119,7 +119,7 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Xero Timesheet Touch Venue"
 
                 Set.fromList (xeroTimesheetsTouchedResources venue.id)
-                    `shouldBe` Set.fromList [XeroTimesheetsResource (unpackId venue.id)]
+                    `shouldBe` Set.fromList [xeroTimesheetsResource (unpackId venue.id)]
 
         it "records touched resources for Xero reference sync mutations" $ withContext do
             withCleanDb do
@@ -127,8 +127,8 @@ tests = beforeAll testContext do
 
                 Set.fromList (xeroReferenceSyncTouchedResources venue.id)
                     `shouldBe` Set.fromList
-                        [ XeroConnectionResource (unpackId venue.id)
-                        , XeroMappingsResource (unpackId venue.id)
+                        [ xeroConnectionResource (unpackId venue.id)
+                        , xeroMappingsResource (unpackId venue.id)
                         ]
 
         it "decodes Xero payroll calendar dates from API date wrappers" $ withContext do

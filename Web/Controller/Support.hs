@@ -12,7 +12,9 @@ import Application.Helper.Feedback (SupportUnreadFeedbackCount (..),
                                     allowedFeedbackStatuses,
                                     fetchSupportUnreadFeedbackCount)
 import Application.Helper.FwcMapd (FwcMapdAdminData, fetchFwcMapdAdminData)
-import Application.Helper.LiveResource (LiveResource (..), liveMutationResult)
+import Application.Helper.LiveResource (LiveResource, liveMutationResult,
+                                        supportAwardRatesResource,
+                                        supportPublicHolidaysResource)
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationLifetime)
 import Application.InvitationDelivery.Job (enqueueVenueOnboardingInvitationDeliveryJob)
 import Application.PublicHolidays.Coverage (PublicHolidayCoverageYear,
@@ -115,7 +117,7 @@ instance Controller SupportController where
                 setSuccessMessage "Award rate refresh is already queued or running."
         void $
             invalidateTouchedResources "support.award_rates.enqueue" $
-                liveMutationResult () [SupportAwardRatesResource]
+                liveMutationResult () [supportAwardRatesResource]
         respondToAwardRatesRefresh
 
     action currentAction@CreatePublicHolidayRefreshJobAction = runBepis currentAction BepisMutationAction do
@@ -127,7 +129,7 @@ instance Controller SupportController where
                 setSuccessMessage "Public holiday refresh is already queued or running."
         void $
             invalidateTouchedResources "support.public_holidays.enqueue" $
-                liveMutationResult () [SupportPublicHolidaysResource]
+                liveMutationResult () [supportPublicHolidaysResource]
         respondToPublicHolidayRefresh
 
     action currentAction@MarkFeedbackReadAction { feedbackItemId } = runBepis currentAction BepisMutationAction do

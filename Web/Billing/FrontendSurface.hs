@@ -19,7 +19,7 @@ import Application.Helper.Controller (currentVenueOrNothing)
 import qualified Application.Helper.FrontendSurface.Billing as Surface
 import Application.Helper.FrontendSurface.DSL
 import Application.Helper.FrontendSurface.Runtime
-import Application.Helper.LiveResource (LiveResource (..))
+import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate.Runtime (LiveUpdateScope (..),
                                               LiveUpdateWireFragment)
 import qualified Data.Aeson as Aeson
@@ -72,7 +72,7 @@ billingAffectedMountedFragments scope touchedResources =
 
 billingFragmentDependencies :: BillingScopeValue -> FrontendSurfaceMountedFragment -> [LiveResource]
 billingFragmentDependencies scope _ =
-    [BillingResource scope.billingVenueId]
+    [billingResource scope.billingVenueId]
 
 billingSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment]
 billingSurfaceWireFragments =

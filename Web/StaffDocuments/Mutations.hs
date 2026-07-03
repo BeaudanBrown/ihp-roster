@@ -50,5 +50,5 @@ reviewStaffDocument reviewerUserId staffDocument newStatus maybeRejectionReason 
 
 rsaStaffDocumentTouchedResources :: StaffDocument -> [LiveResource]
 rsaStaffDocumentTouchedResources staffDocument =
-    [ StaffRsaDocumentsResource staffDocument.staffId
+    [ staffRsaDocumentsResource staffDocument.staffId
     ]

@@ -92,7 +92,7 @@ import Application.Helper.Interaction.Types (EmptyInteractionIntent,
                                              InteractionStaticSchema,
                                              emptyInteractionCapability,
                                              emptyInteractionStaticSchema)
-import Application.Helper.LiveResource (LiveResource)
+import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate.Internal
 import Application.Helper.Profiling (respondHtmlProfiled)
 import Application.Helper.UiRegion (UiRegionTransitionProfile)

@@ -20,7 +20,7 @@ module Web.Timesheets.FrontendSurface
 import Application.Helper.FrontendSurface.DSL
 import Application.Helper.FrontendSurface.Runtime
 import qualified Application.Helper.FrontendSurface.Timesheets as Surface
-import Application.Helper.LiveResource (LiveResource (..))
+import Application.Helper.LiveResource
 import Application.Helper.LiveSurface (LiveSurfaceConfig (..))
 import Application.Helper.LiveUpdate.Runtime (LiveUpdateScope (..),
                                               LiveUpdateWireFragment,
@@ -133,16 +133,16 @@ fragmentDependsOnTouchedResource scope touchedResources fragment =
 
 timesheetsFragmentDependencies :: TimesheetWeekScopeValue -> TimesheetSurfaceFragment -> [LiveResource]
 timesheetsFragmentDependencies scope TimesheetSurfaceToolbar =
-    [ TimesheetWeekResource scope.timesheetWeekVenueId scope.timesheetWeekWeekOffset
-    , TimesheetWeekBoundaryConfigResource scope.timesheetWeekVenueId
+    [ timesheetWeekResource scope.timesheetWeekVenueId scope.timesheetWeekWeekOffset
+    , timesheetWeekBoundaryConfigResource scope.timesheetWeekVenueId
     ]
 timesheetsFragmentDependencies scope TimesheetSurfaceDayColumns =
-    [ TimesheetWeekResource scope.timesheetWeekVenueId scope.timesheetWeekWeekOffset
-    , TimesheetWeekBoundaryConfigResource scope.timesheetWeekVenueId
+    [ timesheetWeekResource scope.timesheetWeekVenueId scope.timesheetWeekWeekOffset
+    , timesheetWeekBoundaryConfigResource scope.timesheetWeekVenueId
     ]
 timesheetsFragmentDependencies scope (TimesheetSurfaceDaySection dayOffset) =
-    [ TimesheetDayResource scope.timesheetWeekVenueId scope.timesheetWeekWeekOffset dayOffset
-    , TimesheetWeekBoundaryConfigResource scope.timesheetWeekVenueId
+    [ timesheetDayResource scope.timesheetWeekVenueId scope.timesheetWeekWeekOffset dayOffset
+    , timesheetWeekBoundaryConfigResource scope.timesheetWeekVenueId
     ]
 
 timesheetsSurfaceHandlers :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> SurfaceImplHandlers Surface.TimesheetsSurface

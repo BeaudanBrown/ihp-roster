@@ -16,7 +16,7 @@ module Application.Support.LiveUpdates
 import Application.Helper.FrontendSurface.DSL
 import Application.Helper.FrontendSurface.Runtime
 import qualified Application.Helper.FrontendSurface.Support as Surface
-import Application.Helper.LiveResource (LiveResource (..))
+import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate
 import Application.Helper.LiveUpdate.Runtime (LiveUpdateWireFragment)
 import qualified Data.Aeson as Aeson
@@ -62,8 +62,8 @@ supportAffectedMountedFragments touchedResources =
 supportFragmentDependencies :: FrontendSurfaceMountedFragment -> [LiveResource]
 supportFragmentDependencies fragment =
     case fragment.mountedFragmentKey.fragmentKind of
-        "support-award-rates"     -> [SupportAwardRatesResource]
-        "support-public-holidays" -> [SupportPublicHolidaysResource]
+        "support-award-rates"     -> [supportAwardRatesResource]
+        "support-public-holidays" -> [supportPublicHolidaysResource]
         _                         -> []
 
 supportSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment]

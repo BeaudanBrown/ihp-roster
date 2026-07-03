@@ -64,4 +64,4 @@ performFwcMapdRefreshJob appJob = do
                 )
             void $
                 invalidateTouchedResourcesWithoutContext "support.award_rates.refresh" $
-                    liveMutationResult summary [SupportAwardRatesResource]
+                    liveMutationResult summary [supportAwardRatesResource]

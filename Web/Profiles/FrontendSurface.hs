@@ -18,7 +18,7 @@ module Web.Profiles.FrontendSurface
 import Application.Helper.FrontendSurface.DSL
 import qualified Application.Helper.FrontendSurface.Profile as Surface
 import Application.Helper.FrontendSurface.Runtime
-import Application.Helper.LiveResource (LiveResource (..))
+import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate.Runtime (LiveUpdateScope (..),
                                               LiveUpdateWireFragment)
 import Application.Helper.Url (appendQueryParams)
@@ -75,10 +75,10 @@ profileAffectedMountedFragments scope touchedResources =
 profileFragmentDependencies :: ProfileScopeValue -> FrontendSurfaceMountedFragment -> [LiveResource]
 profileFragmentDependencies scope fragment =
     case fragment.mountedFragmentKey.fragmentKind of
-        "profile-details-section" -> [StaffProfileResource scope.profileStaffId, StaffPreferencesResource scope.profileStaffId]
-        "profile-preferences-section" -> [StaffPreferencesResource scope.profileStaffId]
-        "profile-rsa-section" -> [StaffRsaDocumentsResource scope.profileStaffId]
-        "profile-leave-section" -> [StaffLeaveRequestsResource scope.profileStaffId]
+        "profile-details-section" -> [staffProfileResource scope.profileStaffId, staffPreferencesResource scope.profileStaffId]
+        "profile-preferences-section" -> [staffPreferencesResource scope.profileStaffId]
+        "profile-rsa-section" -> [staffRsaDocumentsResource scope.profileStaffId]
+        "profile-leave-section" -> [staffLeaveRequestsResource scope.profileStaffId]
         _ -> []
 
 profileSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment]

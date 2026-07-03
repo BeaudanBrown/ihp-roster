@@ -130,7 +130,7 @@ performXeroConnectionKeepaliveJob appJob =
 invalidateXeroKeepaliveConnection :: XeroConnection -> Text -> IO (LiveMutationResult XeroConnection)
 invalidateXeroKeepaliveConnection connection label =
     invalidateTouchedResourcesWithoutContext label $
-        liveMutationResult connection [XeroConnectionResource connection.venueId]
+        liveMutationResult connection [xeroConnectionResource connection.venueId]
 
 completeKeepaliveJob ::
     (?modelContext :: ModelContext) =>

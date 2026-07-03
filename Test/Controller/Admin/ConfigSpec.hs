@@ -3,7 +3,7 @@ module Test.Controller.Admin.ConfigSpec where
 import Application.Helper.Controller (PlatformRole (SuperAdminRole),
                                       unsafeEnumFromText)
 import Application.Helper.Export (ExportJobType (..), exportJobTypeToText)
-import Application.Helper.LiveResource (LiveResource (..))
+import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
@@ -83,19 +83,19 @@ tests = beforeAll testContext do
                 let venueId = unpackId venue.id
 
                 Set.fromList (adminVenueSettingsTouchedResources venue.id)
-                    `shouldBe` Set.fromList [AdminVenueSettingsResource venueId]
+                    `shouldBe` Set.fromList [adminVenueSettingsResource venueId]
                 Set.fromList (autoTimesheetCreationTouchedResources venue.id)
-                    `shouldBe` Set.fromList [AdminVenueSettingsResource venueId]
+                    `shouldBe` Set.fromList [adminVenueSettingsResource venueId]
                 Set.fromList (rosterEndTimesTouchedResources venue.id)
                     `shouldBe` Set.fromList
-                        [ AdminVenueSettingsResource venueId
-                        , RosterEndTimesConfigResource venueId
+                        [ adminVenueSettingsResource venueId
+                        , rosterEndTimesConfigResource venueId
                         ]
                 Set.fromList (rosterWeekStartsOnTouchedResources venue.id)
                     `shouldBe` Set.fromList
-                        [ AdminVenueSettingsResource venueId
-                        , RosterWeekBoundaryConfigResource venueId
-                        , TimesheetWeekBoundaryConfigResource venueId
+                        [ adminVenueSettingsResource venueId
+                        , rosterWeekBoundaryConfigResource venueId
+                        , timesheetWeekBoundaryConfigResource venueId
                         ]
 
         it "plans roster content refreshes for roster-affecting venue config resources" $ withContext do
@@ -122,9 +122,9 @@ tests = beforeAll testContext do
                         , RosterWageRailFragment
                         , RosterSlotsGridFragment
                         ]
-                planFragments (RosterEndTimesConfigResource venueId)
+                planFragments (rosterEndTimesConfigResource venueId)
                     `shouldReturn` [(scope, rosterContentFragments)]
-                planFragments (RosterWeekBoundaryConfigResource venueId)
+                planFragments (rosterWeekBoundaryConfigResource venueId)
                     `shouldReturn` [(scope, rosterContentFragments)]
 
         it "shows the Xero header button and page to super admins" $ withContext do

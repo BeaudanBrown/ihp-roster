@@ -32,7 +32,7 @@ import qualified Application.Helper.FrontendSurface.Interaction as SurfaceIntera
 import Application.Helper.FrontendSurface.Reflect (reflectRegisteredFrontendSurfaces)
 import qualified Application.Helper.FrontendSurface.Roster as Surface
 import Application.Helper.FrontendSurface.Runtime
-import Application.Helper.LiveResource (LiveResource (..))
+import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate.Runtime (LiveUpdateScope (..),
                                               LiveUpdateWireFragment)
 import qualified Data.Aeson as Aeson
@@ -344,22 +344,22 @@ rosterFragmentDependencies scope = \case
     RosterSurfaceDayRail -> rosterWeekDependencies scope
     RosterSurfaceWageRail -> rosterWeekDependencies scope
     RosterSurfaceSlotsGrid -> rosterWeekDependencies scope
-    RosterSurfaceStaffPanel -> [RosterWeekResource (unpackId scope.rosterWeekGroupId) scope.rosterWeekWeekOffset]
+    RosterSurfaceStaffPanel -> [rosterWeekResource (unpackId scope.rosterWeekGroupId) scope.rosterWeekWeekOffset]
     RosterSurfaceDaySection rosterDayId -> rosterDayDependencies scope rosterDayId
     RosterSurfaceRow rosterDayId _ -> rosterDayDependencies scope rosterDayId
 
 rosterWeekDependencies :: RosterWeekScopeValue -> [LiveResource]
 rosterWeekDependencies scope =
-    [ RosterWeekResource (unpackId scope.rosterWeekGroupId) scope.rosterWeekWeekOffset
-    , RosterEndTimesConfigResource scope.rosterWeekVenueId
-    , RosterWeekBoundaryConfigResource scope.rosterWeekVenueId
+    [ rosterWeekResource (unpackId scope.rosterWeekGroupId) scope.rosterWeekWeekOffset
+    , rosterEndTimesConfigResource scope.rosterWeekVenueId
+    , rosterWeekBoundaryConfigResource scope.rosterWeekVenueId
     ]
 
 rosterDayDependencies :: RosterWeekScopeValue -> UUID.UUID -> [LiveResource]
 rosterDayDependencies scope rosterDayId =
-    [ RosterDayResource rosterDayId
-    , RosterEndTimesConfigResource scope.rosterWeekVenueId
-    , RosterWeekBoundaryConfigResource scope.rosterWeekVenueId
+    [ rosterDayResource rosterDayId
+    , rosterEndTimesConfigResource scope.rosterWeekVenueId
+    , rosterWeekBoundaryConfigResource scope.rosterWeekVenueId
     ]
 
 rosterSurfaceHandlers :: RosterWeekScopeValue -> RosterMountedFragmentPlan -> SurfaceImplHandlers Surface.RosterSurface

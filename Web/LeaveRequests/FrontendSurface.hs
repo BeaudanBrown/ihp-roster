@@ -17,7 +17,7 @@ module Web.LeaveRequests.FrontendSurface
 import Application.Helper.FrontendSurface.DSL
 import qualified Application.Helper.FrontendSurface.LeaveRequests as Surface
 import Application.Helper.FrontendSurface.Runtime
-import Application.Helper.LiveResource (LiveResource (..))
+import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate.Runtime (LiveUpdateScope (..),
                                               LiveUpdateWireFragment)
 import qualified Data.Aeson as Aeson
@@ -67,7 +67,7 @@ leaveRequestsAffectedMountedFragments scope touchedResources =
 
 leaveRequestsFragmentDependencies :: LeaveRequestsScopeValue -> FrontendSurfaceMountedFragment -> [LiveResource]
 leaveRequestsFragmentDependencies scope _ =
-    [LeaveRequestsResource scope.leaveRequestsVenueId]
+    [leaveRequestsResource scope.leaveRequestsVenueId]
 
 leaveRequestsSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment]
 leaveRequestsSurfaceWireFragments =

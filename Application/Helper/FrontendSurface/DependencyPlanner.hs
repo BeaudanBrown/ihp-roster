@@ -6,11 +6,10 @@ module Application.Helper.FrontendSurface.DependencyPlanner
 import qualified Application.Helper.Frontend.LiveUpdateSchema as Wire
 import qualified Application.Helper.FrontendSurface.ContractIR as SurfaceIR
 import Application.Helper.FrontendSurface.Reflect (reflectRegisteredFrontendSurfaces)
-import Application.Helper.FrontendSurface.Resource (FrontendSurfaceResourceValue (..),
-                                                    liveResourcesToFrontendSurfaceResourceValues)
+import Application.Helper.FrontendSurface.Resource (FrontendSurfaceResourceValue (..))
 import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceFragmentKey (..),
                                                    FrontendSurfaceMountedFragment (..))
-import Application.Helper.LiveResource (LiveResource)
+import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate.Runtime (LiveUpdateScope,
                                               liveUpdateScopeToWire)
 import qualified Data.Aeson as Aeson
@@ -24,7 +23,7 @@ planFrontendSurfaceInvalidation :: Set.Set LiveResource -> LiveUpdateScope -> [F
 planFrontendSurfaceInvalidation touchedResources scope candidates =
     filter (frontendSurfaceFragmentDependsOnTouchedResource touchedValues scope) candidates
     where
-        touchedValues = liveResourcesToFrontendSurfaceResourceValues touchedResources
+        touchedValues = touchedResources
 
 frontendSurfaceFragmentDependsOnTouchedResource :: Set.Set FrontendSurfaceResourceValue -> LiveUpdateScope -> FrontendSurfaceMountedFragment -> Bool
 frontendSurfaceFragmentDependsOnTouchedResource touchedValues scope mountedFragment =

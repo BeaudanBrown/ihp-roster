@@ -1,8 +1,7 @@
 module Web.Controller.Admin where
 
 import Application.Helper.Export
-import Application.Helper.LiveResource (LiveMutationResult (..),
-                                        LiveResource (..), liveMutationResult)
+import Application.Helper.LiveResource
 import Application.Helper.PasskeySetupTokens
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
@@ -43,28 +42,28 @@ profileLiveResourcesFor resourceName = do
     let rosterGroupId = paramOrNothing @UUID "rosterGroupId"
     let staffId = paramOrNothing @UUID "staffId"
     pure case resourceName of
-        "billing" -> [BillingResource venueUuid]
-        "admin-venue-config" -> [AdminVenueSettingsResource venueUuid]
-        "roster-end-times-config" -> [RosterEndTimesConfigResource venueUuid]
-        "roster-week-boundary-config" -> [RosterWeekBoundaryConfigResource venueUuid]
-        "timesheet-week-boundary-config" -> [TimesheetWeekBoundaryConfigResource venueUuid]
-        "admin-invites" -> [AdminInvitesResource venueUuid]
-        "admin-roster-groups" -> [AdminRosterGroupsResource venueUuid]
-        "admin-shift-types" -> [AdminShiftTypesResource venueUuid]
-        "admin-exports" -> [AdminExportsResource venueUuid]
-        "xero-connection" -> [XeroConnectionResource venueUuid]
-        "xero-mappings" -> [XeroMappingsResource venueUuid]
-        "xero-pay-items" -> [XeroPayItemsResource venueUuid]
-        "xero-timesheets" -> [XeroTimesheetsResource venueUuid]
-        "timesheet-week" -> [TimesheetWeekResource venueUuid weekOffset]
-        "timesheet-day" -> [TimesheetDayResource venueUuid weekOffset dayOffset]
-        "leave-requests" -> [LeaveRequestsResource venueUuid]
-        "leave-calendar" -> [LeaveCalendarResource venueUuid weekOffset]
-        "roster-week" -> maybe [] (\value -> [RosterWeekResource value weekOffset]) rosterGroupId
-        "staff-leave" -> maybe [] (\value -> [StaffLeaveRequestsResource value]) staffId
-        "staff-profile" -> maybe [] (\value -> [StaffProfileResource value]) staffId
-        "staff-preferences" -> maybe [] (\value -> [StaffPreferencesResource value]) staffId
-        "staff-roster-membership" -> maybe [] (\value -> [StaffRosterMembershipResource value]) staffId
+        "billing" -> [billingResource venueUuid]
+        "admin-venue-config" -> [adminVenueSettingsResource venueUuid]
+        "roster-end-times-config" -> [rosterEndTimesConfigResource venueUuid]
+        "roster-week-boundary-config" -> [rosterWeekBoundaryConfigResource venueUuid]
+        "timesheet-week-boundary-config" -> [timesheetWeekBoundaryConfigResource venueUuid]
+        "admin-invites" -> [adminInvitesResource venueUuid]
+        "admin-roster-groups" -> [adminRosterGroupsResource venueUuid]
+        "admin-shift-types" -> [adminShiftTypesResource venueUuid]
+        "admin-exports" -> [adminExportsResource venueUuid]
+        "xero-connection" -> [xeroConnectionResource venueUuid]
+        "xero-mappings" -> [xeroMappingsResource venueUuid]
+        "xero-pay-items" -> [xeroPayItemsResource venueUuid]
+        "xero-timesheets" -> [xeroTimesheetsResource venueUuid]
+        "timesheet-week" -> [timesheetWeekResource venueUuid weekOffset]
+        "timesheet-day" -> [timesheetDayResource venueUuid weekOffset dayOffset]
+        "leave-requests" -> [leaveRequestsResource venueUuid]
+        "leave-calendar" -> [leaveCalendarResource venueUuid weekOffset]
+        "roster-week" -> maybe [] (\value -> [rosterWeekResource value weekOffset]) rosterGroupId
+        "staff-leave" -> maybe [] (\value -> [staffLeaveRequestsResource value]) staffId
+        "staff-profile" -> maybe [] (\value -> [staffProfileResource value]) staffId
+        "staff-preferences" -> maybe [] (\value -> [staffPreferencesResource value]) staffId
+        "staff-roster-membership" -> maybe [] (\value -> [staffRosterMembershipResource value]) staffId
         _ -> []
 
 respondToVenueSettingsMutation ::

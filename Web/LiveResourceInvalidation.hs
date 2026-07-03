@@ -41,40 +41,42 @@ expandLiveResources activeScopes resources = do
     expanded <- Set.unions <$> mapM expandOne (Set.toList resources)
     pure (resources <> expanded)
     where
-        expandOne (LeaveCalendarResource venueId weekOffset) =
-            pure (expandLeaveCalendarResource activeScopes venueId weekOffset)
-        expandOne (RosterEndTimesConfigResource venueId) =
-            pure (expandActiveVenueRosterWeekResources activeScopes venueId)
-        expandOne (RosterWeekBoundaryConfigResource venueId) =
-            pure (expandActiveVenueRosterWeekResources activeScopes venueId)
-        expandOne (StaffProfileResource staffId) =
-            activeRosterWeekResourcesForStaff activeScopes staffId
-        expandOne (StaffPreferencesResource staffId) =
-            activeRosterWeekResourcesForStaff activeScopes staffId
-        expandOne (StaffRosterMembershipResource staffId) =
-            activeRosterWeekResourcesForStaff activeScopes staffId
-        expandOne (StaffPayProfileResource staffId) =
-            staffVenueResource staffId XeroMappingsResource
-        expandOne _ =
-            pure Set.empty
+        expandOne resourceValue
+            | resourceMatches "leave-calendar" resourceValue
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue
+            , Just weekOffset <- resourceFieldInt "weekOffset" resourceValue =
+                pure (expandLeaveCalendarResource activeScopes venueId weekOffset)
+            | resourceMatches "roster-end-times-config" resourceValue || resourceMatches "roster-week-boundary-config" resourceValue
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue =
+                pure (expandActiveVenueRosterWeekResources activeScopes venueId)
+            | resourceMatches "staff-profile" resourceValue || resourceMatches "staff-preferences" resourceValue || resourceMatches "staff-roster-membership" resourceValue
+            , Just staffId <- resourceFieldUuid "staffId" resourceValue =
+                activeRosterWeekResourcesForStaff activeScopes staffId
+            | resourceMatches "staff-pay-profile" resourceValue
+            , Just staffId <- resourceFieldUuid "staffId" resourceValue =
+                staffVenueResource staffId xeroMappingsResource
+            | otherwise =
+                pure Set.empty
 
 expandLiveResourcesWithoutContext :: [(UUID, UUID, Int)] -> Set.Set LiveResource -> Set.Set LiveResource
 expandLiveResourcesWithoutContext activeRosterScopes resources =
     resources <> Set.unions (map expandOne (Set.toList resources))
     where
-        expandOne (LeaveCalendarResource venueId weekOffset) =
-            Set.fromList
-                [ RosterWeekResource rosterGroupId weekOffset
-                | (activeVenueId, rosterGroupId, activeWeekOffset) <- activeRosterScopes
-                , activeVenueId == venueId
-                , activeWeekOffset == weekOffset
-                ]
-        expandOne (RosterEndTimesConfigResource venueId) =
-            expandActiveVenueRosterWeekResourcesWithoutContext activeRosterScopes venueId
-        expandOne (RosterWeekBoundaryConfigResource venueId) =
-            expandActiveVenueRosterWeekResourcesWithoutContext activeRosterScopes venueId
-        expandOne _ =
-            Set.empty
+        expandOne resourceValue
+            | resourceMatches "leave-calendar" resourceValue
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue
+            , Just weekOffset <- resourceFieldInt "weekOffset" resourceValue =
+                Set.fromList
+                    [ rosterWeekResource rosterGroupId weekOffset
+                    | (activeVenueId, rosterGroupId, activeWeekOffset) <- activeRosterScopes
+                    , activeVenueId == venueId
+                    , activeWeekOffset == weekOffset
+                    ]
+            | resourceMatches "roster-end-times-config" resourceValue || resourceMatches "roster-week-boundary-config" resourceValue
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue =
+                expandActiveVenueRosterWeekResourcesWithoutContext activeRosterScopes venueId
+            | otherwise =
+                Set.empty
 
 invalidateTouchedResources :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> LiveMutationResult a -> IO (LiveMutationResult a)
 invalidateTouchedResources label result =
@@ -254,77 +256,52 @@ candidateLiveScopesForResources ::
 candidateLiveScopesForResources resources =
     coalesceScopes . concat <$> mapM candidateScopesForResource (Set.toList resources)
     where
-        candidateScopesForResource (LeaveRequestsResource venueId) =
-            pure [LeaveRequestsScope { venueId }]
-        candidateScopesForResource (StaffLeaveRequestsResource staffId) =
-            staffProfileScope staffId
-        candidateScopesForResource (TimesheetWeekResource venueId weekOffset) =
-            pure [TimesheetWeekScope { venueId, weekOffset }]
-        candidateScopesForResource (TimesheetDayResource venueId weekOffset _) =
-            pure [TimesheetWeekScope { venueId, weekOffset }]
-        candidateScopesForResource (StaffProfileResource staffId) =
-            staffProfileScope staffId
-        candidateScopesForResource (StaffPreferencesResource staffId) =
-            staffProfileScope staffId
-        candidateScopesForResource (StaffRsaDocumentsResource staffId) =
-            staffProfileScope staffId
-        candidateScopesForResource (RosterWeekResource rosterGroupId weekOffset) =
-            pure [RosterWeekScope { venueId = unpackId currentVenueId, rosterGroupId, weekOffset }]
-        candidateScopesForResource (AdminVenueSettingsResource venueId) =
-            pure [AdminVenueConfigScope { venueId }]
-        candidateScopesForResource (AdminInvitesResource venueId) =
-            pure [AdminInvitesScope { venueId }]
-        candidateScopesForResource (AdminRosterGroupsResource venueId) =
-            pure [AdminRosterGroupsScope { venueId }]
-        candidateScopesForResource (AdminShiftTypesResource venueId) =
-            pure [AdminShiftTypesScope { venueId }]
-        candidateScopesForResource (AdminExportsResource venueId) =
-            pure [AdminExportsScope { venueId }]
-        candidateScopesForResource (BillingResource venueId) =
-            pure [BillingScope { venueId }]
-        candidateScopesForResource SupportAwardRatesResource =
-            pure [SupportPlatformScope]
-        candidateScopesForResource SupportPublicHolidaysResource =
-            pure [SupportPlatformScope]
-        candidateScopesForResource (XeroConnectionResource venueId) =
-            pure [AdminXeroScope { venueId }]
-        candidateScopesForResource (XeroMappingsResource venueId) =
-            pure [AdminXeroScope { venueId }]
-        candidateScopesForResource (XeroPayItemsResource venueId) =
-            pure [AdminXeroScope { venueId }]
-        candidateScopesForResource (XeroTimesheetsResource venueId) =
-            pure [AdminXeroScope { venueId }]
-        candidateScopesForResource _ =
-            pure []
+        candidateScopesForResource resourceValue
+            | resourceMatches "leave-requests" resourceValue
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [LeaveRequestsScope { venueId }]
+            | resourceMatches "staff-leave-requests" resourceValue || resourceMatches "staff-profile" resourceValue || resourceMatches "staff-preferences" resourceValue || resourceMatches "staff-rsa-documents" resourceValue
+            , Just staffId <- resourceFieldUuid "staffId" resourceValue = staffProfileScope staffId
+            | resourceMatches "timesheet-week" resourceValue || resourceMatches "timesheet-day" resourceValue
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue
+            , Just weekOffset <- resourceFieldInt "weekOffset" resourceValue = pure [TimesheetWeekScope { venueId, weekOffset }]
+            | resourceMatches "roster-week" resourceValue
+            , Just rosterGroupId <- resourceFieldUuid "rosterGroupId" resourceValue
+            , Just weekOffset <- resourceFieldInt "weekOffset" resourceValue = pure [RosterWeekScope { venueId = unpackId currentVenueId, rosterGroupId, weekOffset }]
+            | resourceMatches "admin-venue-settings" resourceValue
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [AdminVenueConfigScope { venueId }]
+            | resourceMatches "admin-invites" resourceValue
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [AdminInvitesScope { venueId }]
+            | resourceMatches "admin-roster-groups" resourceValue
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [AdminRosterGroupsScope { venueId }]
+            | resourceMatches "admin-shift-types" resourceValue
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [AdminShiftTypesScope { venueId }]
+            | resourceMatches "admin-exports" resourceValue
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [AdminExportsScope { venueId }]
+            | resourceMatches "billing" resourceValue
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [BillingScope { venueId }]
+            | resourceMatches "support-award-rates" resourceValue || resourceMatches "support-public-holidays" resourceValue = pure [SupportPlatformScope]
+            | resourceMatches "xero-connection" resourceValue || resourceMatches "xero-mappings" resourceValue || resourceMatches "xero-pay-items" resourceValue || resourceMatches "xero-timesheets" resourceValue
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [AdminXeroScope { venueId }]
+            | otherwise = pure []
 
 candidateLiveScopesForResourcesWithoutContext :: Set.Set LiveResource -> [LiveUpdateScope]
 candidateLiveScopesForResourcesWithoutContext resources =
     coalesceScopes (concatMap candidateScopesForResource (Set.toList resources))
     where
-        candidateScopesForResource (TimesheetWeekResource venueId weekOffset) =
-            [TimesheetWeekScope { venueId, weekOffset }]
-        candidateScopesForResource (TimesheetDayResource venueId weekOffset _) =
-            [TimesheetWeekScope { venueId, weekOffset }]
-        candidateScopesForResource (AdminVenueSettingsResource venueId) =
-            [AdminVenueConfigScope { venueId }]
-        candidateScopesForResource (AdminInvitesResource venueId) =
-            [AdminInvitesScope { venueId }]
-        candidateScopesForResource (BillingResource venueId) =
-            [BillingScope { venueId }]
-        candidateScopesForResource SupportAwardRatesResource =
-            [SupportPlatformScope]
-        candidateScopesForResource SupportPublicHolidaysResource =
-            [SupportPlatformScope]
-        candidateScopesForResource (XeroConnectionResource venueId) =
-            [AdminXeroScope { venueId }]
-        candidateScopesForResource (XeroMappingsResource venueId) =
-            [AdminXeroScope { venueId }]
-        candidateScopesForResource (XeroPayItemsResource venueId) =
-            [AdminXeroScope { venueId }]
-        candidateScopesForResource (XeroTimesheetsResource venueId) =
-            [AdminXeroScope { venueId }]
-        candidateScopesForResource _ =
-            []
+        candidateScopesForResource resourceValue
+            | resourceMatches "timesheet-week" resourceValue || resourceMatches "timesheet-day" resourceValue
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue
+            , Just weekOffset <- resourceFieldInt "weekOffset" resourceValue = [TimesheetWeekScope { venueId, weekOffset }]
+            | resourceMatches "admin-venue-settings" resourceValue
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue = [AdminVenueConfigScope { venueId }]
+            | resourceMatches "admin-invites" resourceValue
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue = [AdminInvitesScope { venueId }]
+            | resourceMatches "billing" resourceValue
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue = [BillingScope { venueId }]
+            | resourceMatches "support-award-rates" resourceValue || resourceMatches "support-public-holidays" resourceValue = [SupportPlatformScope]
+            | resourceMatches "xero-connection" resourceValue || resourceMatches "xero-mappings" resourceValue || resourceMatches "xero-pay-items" resourceValue || resourceMatches "xero-timesheets" resourceValue
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue = [AdminXeroScope { venueId }]
+            | otherwise = []
 
 staffProfileScope ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -344,7 +321,7 @@ coalesceScopes =
 expandLeaveCalendarResource :: [LiveUpdateScope] -> UUID -> Int -> Set.Set LiveResource
 expandLeaveCalendarResource activeScopes venueId weekOffset =
     Set.fromList
-        [ RosterWeekResource rosterGroupId weekOffset
+        [ rosterWeekResource rosterGroupId weekOffset
         | RosterWeekScope { venueId = activeVenueId, rosterGroupId, weekOffset = activeWeekOffset } <- activeScopes
         , activeVenueId == venueId
         , activeWeekOffset == weekOffset
@@ -353,7 +330,7 @@ expandLeaveCalendarResource activeScopes venueId weekOffset =
 expandActiveVenueRosterWeekResources :: [LiveUpdateScope] -> UUID -> Set.Set LiveResource
 expandActiveVenueRosterWeekResources activeScopes venueId =
     Set.fromList
-        [ RosterWeekResource rosterGroupId weekOffset
+        [ rosterWeekResource rosterGroupId weekOffset
         | RosterWeekScope { venueId = activeVenueId, rosterGroupId, weekOffset } <- activeScopes
         , activeVenueId == venueId
         ]
@@ -361,7 +338,7 @@ expandActiveVenueRosterWeekResources activeScopes venueId =
 expandActiveVenueRosterWeekResourcesWithoutContext :: [(UUID, UUID, Int)] -> UUID -> Set.Set LiveResource
 expandActiveVenueRosterWeekResourcesWithoutContext activeRosterScopes venueId =
     Set.fromList
-        [ RosterWeekResource rosterGroupId weekOffset
+        [ rosterWeekResource rosterGroupId weekOffset
         | (activeVenueId, rosterGroupId, weekOffset) <- activeRosterScopes
         , activeVenueId == venueId
         ]
@@ -380,7 +357,7 @@ activeRosterWeekResourcesForStaff activeScopes staffId = do
             let rosterGroupIdSet = Set.fromList (map unpackId rosterGroupIds)
             pure $
                 Set.fromList
-                    [ RosterWeekResource rosterGroupId weekOffset
+                    [ rosterWeekResource rosterGroupId weekOffset
                     | RosterWeekScope { venueId, rosterGroupId, weekOffset } <- activeScopes
                     , venueId == unpackId currentVenueId
                     , rosterGroupId `Set.member` rosterGroupIdSet

@@ -10,7 +10,7 @@ module Web.View.Admin.ShiftTypes
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
-import Application.Helper.LiveResource (LiveResource (..))
+import Application.Helper.LiveResource
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (FocusedFieldProtectionConfig (..),
                                       LiveFragmentKey (..),
@@ -71,7 +71,7 @@ adminShiftTypesLiveSurfaceDefinitionForVenue surfaceVenueId =
             AdminShiftTypesFragment
             "admin-shift-types-fragment"
             (pathTo ShowAdminShiftTypesFragmentAction)
-            (const (liveFragmentDependsOn (AdminShiftTypesResource surfaceVenueId) []))
+            (const (liveFragmentDependsOn (adminShiftTypesResource surfaceVenueId) []))
             |> liveFragmentDescriptorWithFocusedProtection adminShiftTypesFocusProtection
         ]
 

@@ -80,7 +80,7 @@ performVenueInvitationDeliveryJob appJob = do
         )
     void $
         invalidateTouchedResourcesWithoutContext "admin.invites.delivery" $
-            liveMutationResult invitation [AdminInvitesResource invitation.venueId]
+            liveMutationResult invitation [adminInvitesResource invitation.venueId]
 
 performVenueOnboardingInvitationDeliveryJob ::
     (?context :: FrameworkConfig, ?modelContext :: ModelContext) =>

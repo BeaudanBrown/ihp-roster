@@ -178,7 +178,7 @@ performRosterTimesheetCreationJob appJob = do
 
 rosterTimesheetTouchedResource :: VenueConfig -> RosterWeek -> Day -> LiveResource
 rosterTimesheetTouchedResource venueConfig rosterWeek workedOn =
-    TimesheetDayResource rosterWeek.venueId weekOffset dayOffset
+    timesheetDayResource rosterWeek.venueId weekOffset dayOffset
     where
         weekOffset = venueWeekOffsetForDay venueConfig workedOn
         dayOffset = fromIntegral (diffDays workedOn (venueWeekStartDate venueConfig weekOffset))
