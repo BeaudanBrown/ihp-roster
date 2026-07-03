@@ -1,6 +1,6 @@
 ---
 id: ir-me40
-status: open
+status: closed
 deps: [ir-h5nr]
 links: []
 created: 2026-07-03T06:55:44Z
@@ -21,4 +21,10 @@ Update FrontendSurface and LiveUpdate docs plus relevant AGENTS guidance. Add gu
 ## Acceptance Criteria
 
 Docs describe the authoring flow: declare Resource, assign it to fragments with explicit FromScope/FromFragment sources, emit typed resources from mutations, and run generated checks. Final scan proves no temporary bridge/custom dependency remains. Epic closeout note records final architecture and verification.
+
+## Notes
+
+**2026-07-03T20:31:00Z**
+
+Completed in commits `530adbc4` and `d8287340`: updated `Application/Helper/FrontendSurface/README.md` and `Application/Helper/LiveUpdate.SPEC.md`, then extended `frontend-surface-guardrails` to keep legacy live-resource bridges, sentinel resources, custom dependency hooks, and hard-coded auth fallbacks deleted.
 

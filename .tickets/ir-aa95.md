@@ -1,6 +1,6 @@
 ---
 id: ir-aa95
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-07-03T06:55:43Z
@@ -27,3 +27,16 @@ RegisteredFrontendSurfaces is the only live surface/resource root. No separate r
 **2026-07-03T07:54:39Z**
 
 Reordered implementation after ir-ai98 so current resource declarations migrate before replacing the planner: ir-zsrm now precedes ir-4oed, and cleanup waits on the generated planner.
+
+**2026-07-03T20:31:00Z**
+
+Epic complete. Final architecture uses `RegisteredFrontendSurfaces` as the root for scope auth, live fragments, resource declarations, dependency metadata, generated mount/subscription parsing, generated wire-fragment conversion, and generated resource-value constructors. Mutation/domain code emits concrete `FrontendSurfaceResourceValue` resources; broad domain effects expand producer-side or through feature-owned helpers before the planner boundary. The remaining passive adapter enumerates active mounted candidates, delegates dependency matching to the generated FrontendSurface planner, coalesces wire fragments, and broadcasts structural invalidations. Temporary LiveResource bridge conversion, legacy sentinel resources, custom dependency hooks, hard-coded subscription auth, and handwritten TypeScript mount parsers are removed and guarded.
+
+Final verification:
+
+- `bash ./bin/in-env typecheck`
+- `bash ./bin/in-env frontend-contracts-check`
+- `bash ./bin/in-env frontend-surface-compile-fail-check`
+- `bash ./bin/in-env frontend-surface-guardrails`
+- `bash ./bin/in-env frontend-check`
+- `bash ./bin/in-env hspec-test --match "FrontendSurface" --match "LiveUpdate" --match "LiveResource" --match "Live resource invalidation planning" --match "Live surface resource dependencies"`
