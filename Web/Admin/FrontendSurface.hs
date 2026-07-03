@@ -17,8 +17,15 @@ module Web.Admin.FrontendSurface
     , adminRosterGroupsAffectedFragments
     , adminXeroAffectedFragments
     , adminSurfaceWireFragments
+    , setAdminXeroActorRefresh
+    , adminXeroShellFragment
+    , adminXeroStaffMappingsFragment
+    , adminXeroPayItemsFragment
+    , adminXeroTimesheetsFragment
     ) where
 
+import Application.Helper.Frontend.AppConstants (AppEvents (..),
+                                                 canonicalAppEvents)
 import qualified Application.Helper.FrontendSurface.Admin as Surface
 import Application.Helper.FrontendSurface.DSL
 import Application.Helper.FrontendSurface.Runtime
@@ -26,9 +33,11 @@ import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate.Runtime (FocusedFieldProtectionConfig (..),
                                               LiveFragmentKey (..),
                                               LiveFragmentProtection (..),
-                                              LiveUpdateWireFragment (..))
+                                              LiveUpdateWireFragment (..),
+                                              coalesceLiveUpdateWireFragments)
 import Application.Helper.Url (appendQueryParams)
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Set as Set
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
@@ -162,6 +171,21 @@ adminXeroAffectedFragments scope resources =
         , [adminXeroStaffMappingsFragment | Set.member (XeroMappingsResource scope.adminVenueId) resources]
         , [adminXeroPayItemsFragment | Set.member (XeroPayItemsResource scope.adminVenueId) resources]
         , [adminXeroTimesheetsFragment | Set.member (XeroTimesheetsResource scope.adminVenueId) resources]
+        ]
+
+setAdminXeroActorRefresh :: (?context :: ControllerContext, ?request :: Request) => [FrontendSurfaceMountedFragment] -> IO ()
+setAdminXeroActorRefresh fragments =
+    setHeader
+        ( "HX-Trigger"
+        , cs (Aeson.encode (liveUpdateWireRefreshTriggerPayload (adminSurfaceWireFragments fragments)))
+        )
+
+liveUpdateWireRefreshTriggerPayload :: [LiveUpdateWireFragment] -> Aeson.Value
+liveUpdateWireRefreshTriggerPayload fragments =
+    Aeson.object
+        [ AesonKey.fromText canonicalAppEvents.appLiveFragmentsRefreshEventName Aeson..= Aeson.object
+            [ "fragments" Aeson..= coalesceLiveUpdateWireFragments fragments
+            ]
         ]
 
 adminSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment]

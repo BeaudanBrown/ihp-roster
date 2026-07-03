@@ -22,7 +22,6 @@ module Web.Controller.Admin.Xero.Responses
     , xeroSuccessToast
     ) where
 
-import Application.Helper.LiveSurface (setTypedLiveSurfaceActorRefresh)
 import Application.Helper.Profiling
 import Application.Helper.View (ToastOverlayConfig (..),
                                 ToastOverlayPosition (ToastBottomCenter),
@@ -33,6 +32,7 @@ import Application.Xero.Admin.ReadModel hiding
                                         (fetchCurrentVenueXeroAdminSectionData)
 import qualified Application.Xero.Admin.ReadModel as XeroReadModel
 import qualified Text.Blaze.Html as Blaze
+import qualified Web.Admin.FrontendSurface as AdminSurface
 import Web.Controller.Prelude
 import Web.View.Admin.Xero
 
@@ -131,7 +131,7 @@ respondWithXeroStaffMappingControlsAndToast ::
     Maybe ToastOverlayConfig ->
     IO ()
 respondWithXeroStaffMappingControlsAndToast _ _ maybeToast = do
-    setTypedLiveSurfaceActorRefresh adminXeroLiveSurfaceDefinition () [adminXeroStaffMappingsFragment]
+    AdminSurface.setAdminXeroActorRefresh [AdminSurface.adminXeroStaffMappingsFragment]
     respondWithXeroStaffMappingToastOnly maybeToast
 
 respondWithXeroStaffMappingToastOnly ::
@@ -147,7 +147,7 @@ respondWithXeroTimesheetMutation ::
     Maybe ToastOverlayConfig ->
     IO ()
 respondWithXeroTimesheetMutation maybeToast = do
-    setTypedLiveSurfaceActorRefresh adminXeroLiveSurfaceDefinition () [adminXeroTimesheetsFragment]
+    AdminSurface.setAdminXeroActorRefresh [AdminSurface.adminXeroTimesheetsFragment]
     respondHtmlProfiled $
         maybe mempty (\toast -> renderToastOverlayHostOob ToastBottomCenter [toast]) maybeToast
 
@@ -156,7 +156,7 @@ respondWithXeroTimesheetMutationAndCloseDialog ::
     Maybe ToastOverlayConfig ->
     IO ()
 respondWithXeroTimesheetMutationAndCloseDialog maybeToast = do
-    setTypedLiveSurfaceActorRefresh adminXeroLiveSurfaceDefinition () [adminXeroTimesheetsFragment]
+    AdminSurface.setAdminXeroActorRefresh [AdminSurface.adminXeroTimesheetsFragment]
     respondHtmlProfiled $
         mconcat
             [ [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]

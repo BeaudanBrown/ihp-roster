@@ -75,10 +75,10 @@ tests = do
             let scopes = [AdminXeroScope venueId]
 
             targetSummary (planRegisteredLiveSurfaceInvalidationsWithoutContext (Set.singleton (XeroPayItemsResource venueId)) scopes)
-                `shouldBe` Set.singleton (AdminXeroScope venueId, [AdminXeroFragment])
+                `shouldBe` Set.singleton (AdminXeroScope venueId, [AdminXeroPayItemsFragment])
 
             targetSummary (planRegisteredLiveSurfaceInvalidationsWithoutContext (Set.singleton (XeroTimesheetsResource venueId)) scopes)
-                `shouldBe` Set.singleton (AdminXeroScope venueId, [AdminXeroFragment, AdminXeroTimesheetsFragment])
+                `shouldBe` Set.singleton (AdminXeroScope venueId, [AdminXeroTimesheetsFragment])
 
         it "plans timesheet day fragments from week, day, and venue-config dependencies" do
             let venueId = fromWords 3 0 0 0

@@ -72,7 +72,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "not connected"
                 response `responseBodyShouldContain` "Connect Xero"
                 response `responseBodyShouldContain` "id=\"admin-xero-fragment\""
-                response `responseBodyShouldContain` "admin_xero"
+                response `responseBodyShouldContain` "admin-xero"
                 response `responseBodyShouldContain` "Connection status"
                 response `responseBodyShouldNotContain` "Status:"
                 response `responseBodyShouldNotContain` "app-accordion-section-header"
@@ -406,8 +406,8 @@ tests = beforeAll testContext do
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction XeroAction
                 pageResponse `responseBodyShouldContain` "id=\"admin-xero-fragment\""
-                pageResponse `responseBodyShouldContain` "admin_xero"
-                pageResponse `responseBodyShouldContain` "admin_xero_timesheets"
+                pageResponse `responseBodyShouldContain` "admin-xero"
+                pageResponse `responseBodyShouldContain` "admin-xero-timesheets"
                 pageResponse `responseBodyShouldContain` "id=\"xero-connection-status-badge\""
                 pageResponse `responseBodyShouldContain` "xero-connection-sync-label"
                 pageResponse `responseBodyShouldNotContain` "id=\"xero-timesheets-data\""
@@ -777,7 +777,6 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldNotContain` "id=\"xero-pay-items-data\""
                 pageResponse `responseBodyShouldNotContain` "Imported Xero pay items"
                 pageResponse `responseBodyShouldNotContain` "Pay item requirements"
-                pageResponse `responseBodyShouldNotContain` "admin_xero_pay_items"
                 pageResponse `responseBodyShouldNotContain` "name=\"xeroPayItemAccountCodeSelection\""
                 payItemsFragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction ShowAdminXeroPayItemsFragmentAction

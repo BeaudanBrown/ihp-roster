@@ -44,7 +44,7 @@ registryManualManifestViolations :: IO [Text]
 registryManualManifestViolations = do
     source <- Text.readFile "Web/LiveSurfaceRegistry.hs"
     pure
-        [ "Web/LiveSurfaceRegistry.hs: manual manifestDescriptor entry bypasses RegisteredLiveSurface catalog"
+        [ "Web/LiveSurfaceRegistry.hs: manual legacy manifestDescriptor entry bypasses FrontendSurface descriptors"
         | "manifestDescriptor \"" `Text.isInfixOf` source
         ]
 
@@ -54,7 +54,7 @@ registryCatalogViolations = do
     pure $ concat
         [ ["Web/LiveSurfaceRegistry.hs: registeredLiveSurfaceManifestCatalog should not return as a parallel registry list" | "registeredLiveSurfaceManifestCatalog" `Text.isInfixOf` registry]
         , ["Web/LiveSurfaceRegistry.hs: wire kind helpers belong in Application.Helper.LiveUpdate.Internal" | "liveUpdateScopeKind ::" `Text.isInfixOf` registry || "liveFragmentKeyKind ::" `Text.isInfixOf` registry]
-        , ["Web/LiveSurfaceRegistry.hs: registeredLiveSurfaceCatalog should be the canonical entry list" | not ("registeredLiveSurfaceCatalog :: [RegisteredLiveSurfaceEntry]" `Text.isInfixOf` registry)]
+        , ["Web/LiveSurfaceRegistry.hs: legacy registeredLiveSurfaceCatalog should be removed after FrontendSurface migration" | "registeredLiveSurfaceCatalog" `Text.isInfixOf` registry]
         ]
 
 frontendContractWatcherViolations :: IO [Text]

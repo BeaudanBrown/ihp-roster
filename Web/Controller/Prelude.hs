@@ -18,6 +18,7 @@ module Web.Controller.Prelude
 , renderJson
 , renderJsonWithStatusCode
 , respondHtml
+, respondFragmentHtml
 )
 where
 
@@ -60,6 +61,10 @@ respondHtml html =
     if isHtmxRequest
         then bepisHtmxFragmentResponse (IHP.respondHtml html)
         else bepisHtmlResponse (IHP.respondHtml html)
+
+respondFragmentHtml :: (?context :: ControllerContext, ?request :: Request) => Html -> IO ()
+respondFragmentHtml html =
+    bepisHtmxFragmentResponse (IHP.respondHtml html)
 
 renderJson :: (?request :: Request, Aeson.ToJSON json) => json -> IO ()
 renderJson json = bepisJsonResponse (IHP.renderJson json)

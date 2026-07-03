@@ -1,6 +1,6 @@
 ---
 id: ir-tngm
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-07-02T12:57:06Z
@@ -51,3 +51,7 @@ Added reusable FrontendSurface focused-field protection metadata. Mount JSON can
 **2026-07-03T00:09:44Z**
 
 Cut Admin simple surfaces and Xero page fragments over to FrontendSurface mounts and direct fragment endpoints. Xero modal/dialog lane remains separate: FrontendSurface invalidations target page-owned admin-xero/xero-* fragments only, not dialog-overlay-mount. Typecheck and frontend-check pass. Focused Admin/registry Hspec now fails only on legacy expectations that still assert old typed/data-live-surface behavior and old Xero shell co-invalidation semantics; tests need updating to the new FrontendSurface/admin-Xero section behavior before closeout.
+
+**2026-07-03T00:40:13Z**
+
+Finished Admin surface migration follow-up: Admin venue settings, invites, exports, shift types, roster groups, and Xero now mount through FrontendSurface. Web.LiveSurfaceRegistry no longer uses the legacy typed-surface catalog for production planning/authorization/manifests; it plans all production surfaces through FrontendSurface helper seams. Xero actor-local refresh now uses Admin FrontendSurface fragments while keeping modal/dialog content in the dialog lane. Verified frontend-surface-guardrails, frontend-check, typecheck, and focused Admin/Xero/registry/guard Hspec.

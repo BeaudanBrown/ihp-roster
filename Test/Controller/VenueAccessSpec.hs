@@ -378,7 +378,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Create passkey"
                 response `responseBodyShouldContain` "successRedirect=%2FSupport"
                 response `responseBodyShouldNotContain` "Create Venue"
-                response `responseBodyShouldContain` "data-live-update-surface=\""
+                response `responseBodyShouldContain` "data-bepis-surface=\""
                 response `responseBodyShouldContain` "support_platform"
 
         it "lets super-admin queue an award rate refresh from support" $ withContext do

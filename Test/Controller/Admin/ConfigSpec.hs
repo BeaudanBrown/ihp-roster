@@ -108,7 +108,9 @@ tests = beforeAll testContext do
                                 ]
 
                 let rosterContentFragments =
-                        [ RosterGridToolbarFragment
+                        [ RosterContentFragment
+                        , RosterGridToolbarFragment
+                        , RosterGridFrameFragment
                         , RosterDayColumnsFragment
                         , RosterDayRailFragment
                         , RosterWageRailFragment
@@ -226,10 +228,10 @@ tests = beforeAll testContext do
                         [("showInactiveShiftTypes", "false")]
                 hiddenShiftTypesResponse `responseStatusShouldBe` status200
                 hiddenShiftTypesResponse `responseBodyShouldContain` "id=\"admin-shift-types-fragment\""
-                hiddenShiftTypesResponse `responseBodyShouldContain` "data-live-update-surface=\""
-                hiddenShiftTypesResponse `responseBodyShouldContain` "admin_shift_types"
-                hiddenShiftTypesResponse `responseBodyShouldContain` "&quot;deferUntilBlur&quot;:true"
-                hiddenShiftTypesResponse `responseBodyShouldContain` "&quot;kind&quot;:&quot;focused_field&quot;"
+                hiddenShiftTypesResponse `responseBodyShouldContain` "data-bepis-surface=\""
+                hiddenShiftTypesResponse `responseBodyShouldContain` "admin-shift-types"
+                hiddenShiftTypesResponse `responseBodyShouldContain` "&quot;fieldNameFallback&quot;:true"
+                hiddenShiftTypesResponse `responseBodyShouldContain` "&quot;kind&quot;:&quot;focused-field&quot;"
                 hiddenShiftTypesResponse `responseBodyShouldContain` "hx-get=\"/ShowAdminShiftTypesFragment?showInactiveShiftTypes=true\""
                 hiddenShiftTypesResponse `responseBodyShouldContain` "hx-target=\"#admin-shift-types-fragment\""
                 hiddenShiftTypesResponse `responseBodyShouldContain` "Active Shift"
@@ -251,8 +253,8 @@ tests = beforeAll testContext do
                         [("showInactiveRosterGroups", "false")]
                 hiddenRosterGroupsResponse `responseStatusShouldBe` status200
                 hiddenRosterGroupsResponse `responseBodyShouldContain` "id=\"admin-roster-groups-fragment\""
-                hiddenRosterGroupsResponse `responseBodyShouldContain` "data-live-update-surface=\""
-                hiddenRosterGroupsResponse `responseBodyShouldContain` "admin_roster_groups"
+                hiddenRosterGroupsResponse `responseBodyShouldContain` "data-bepis-surface=\""
+                hiddenRosterGroupsResponse `responseBodyShouldContain` "admin-roster-groups"
                 hiddenRosterGroupsResponse `responseBodyShouldContain` "hx-get=\"/ShowAdminRosterGroupsFragment?showInactiveRosterGroups=true\""
                 hiddenRosterGroupsResponse `responseBodyShouldContain` "hx-target=\"#admin-roster-groups-fragment\""
                 hiddenRosterGroupsResponse `responseBodyShouldContain` "Active Group"
@@ -277,8 +279,8 @@ tests = beforeAll testContext do
                     callAction ShowAdminVenueSettingsFragmentAction
                 venueSettingsResponse `responseStatusShouldBe` status200
                 venueSettingsResponse `responseBodyShouldContain` "id=\"admin-venue-settings-fragment\""
-                venueSettingsResponse `responseBodyShouldContain` "data-live-update-surface=\""
-                venueSettingsResponse `responseBodyShouldContain` "admin_venue_config"
+                venueSettingsResponse `responseBodyShouldContain` "data-bepis-surface=\""
+                venueSettingsResponse `responseBodyShouldContain` "admin-venue-config"
                 venueSettingsResponse `responseBodyShouldContain` "hx-post=\"/UpdateVenueConfig\""
                 venueSettingsResponse `responseBodyShouldContain` "hx-target=\"#admin-venue-settings-fragment\""
                 venueSettingsResponse `responseBodyShouldContain` "hx-swap=\"none\""
@@ -293,8 +295,8 @@ tests = beforeAll testContext do
 
                 exportsResponse `responseStatusShouldBe` status200
                 exportsResponse `responseBodyShouldContain` "id=\"admin-exports-fragment\""
-                exportsResponse `responseBodyShouldContain` "data-live-update-surface=\""
-                exportsResponse `responseBodyShouldContain` "admin_exports"
+                exportsResponse `responseBodyShouldContain` "data-bepis-surface=\""
+                exportsResponse `responseBodyShouldContain` "admin-exports"
                 exportsResponse `responseBodyShouldContain` "hx-post=\"/CreateExportJob\""
                 exportsResponse `responseBodyShouldContain` "hx-target=\"#admin-exports-fragment\""
                 exportsResponse `responseBodyShouldContain` "hx-swap=\"none\""
@@ -336,7 +338,7 @@ tests = beforeAll testContext do
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams AdminAction [("showInactiveRosterGroups", "true"), ("showInactiveShiftTypes", "true")]
                 pageResponse `responseBodyShouldContain` "hx-post=\"/CreateShiftType\""
-                pageResponse `responseBodyShouldContain` "admin_shift_types"
+                pageResponse `responseBodyShouldContain` "admin-shift-types"
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-shift-types-fragment\""
                 pageResponse `responseBodyShouldContain` "name=\"showInactiveShiftTypes\" value=\"true\""
                 pageResponse `responseBodyShouldContain` "id=\"new-shift-type-active\""
@@ -359,7 +361,7 @@ tests = beforeAll testContext do
                 newPayRateSelectTag `shouldNotContain` "hx-"
                 newColourSelectTag `shouldNotContain` "hx-"
                 pageResponse `responseBodyShouldContain` "hx-post=\"/CreateRosterGroup\""
-                pageResponse `responseBodyShouldContain` "admin_roster_groups"
+                pageResponse `responseBodyShouldContain` "admin-roster-groups"
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-roster-groups-fragment\""
                 pageResponse `responseBodyShouldContain` "hx-swap=\"none\""
                 pageResponse `responseBodyShouldContain` "name=\"showInactiveRosterGroups\" value=\"true\""
@@ -696,7 +698,7 @@ tests = beforeAll testContext do
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction AdminAction
                 pageResponse `responseBodyShouldContain` "id=\"admin-venue-settings-fragment\""
-                pageResponse `responseBodyShouldContain` "admin_venue_config"
+                pageResponse `responseBodyShouldContain` "admin-venue-config"
                 pageResponse `responseBodyShouldContain` "hx-post=\"/UpdateVenueConfig\""
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-venue-settings-fragment\""
                 pageResponse `responseBodyShouldContain` "hx-swap=\"none\""

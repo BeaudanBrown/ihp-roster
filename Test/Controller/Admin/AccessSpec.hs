@@ -139,7 +139,7 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "Back Lane"
                 pageResponse `responseBodyShouldNotContain` "Front Register"
                 pageResponse `responseBodyShouldNotContain` "Back Pass"
-                pageResponse `responseBodyShouldContain` "data-live-update-surface=\""
+                pageResponse `responseBodyShouldContain` "data-bepis-surface=\""
                 pageResponse `responseBodyShouldNotContain` "admin_slot_names"
 
         it "rejects non-admin venue members from admin screens" $ withContext do

@@ -339,13 +339,13 @@ instance Controller AdminController where
     action currentAction@ShowAdminVenueSettingsFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.venue_settings_fragment.respond" do
             venueConfig <- profileActionSpan "admin.venue_settings_fragment.fetch_venue_config" fetchVenueConfig
-            profileActionSpan "admin.venue_settings_fragment.render_response" (respondHtml (renderVenueSettingsSectionFragment venueConfig))
+            profileActionSpan "admin.venue_settings_fragment.render_response" (respondFragmentHtml (renderVenueSettingsSectionFragment venueConfig))
 
     action currentAction@ShowAdminInvitesFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.invites_fragment.respond" do
             currentRosterGroup <- profileActionSpan "admin.invites_fragment.resolve_current_group" (fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId"))
             invitations <- profileActionSpan "admin.invites_fragment.fetch_invitations" fetchCurrentVenueInvitations
-            profileActionSpan "admin.invites_fragment.render_response" (respondHtml (renderInvitesSectionFragment invitations currentRosterGroup.id))
+            profileActionSpan "admin.invites_fragment.render_response" (respondFragmentHtml (renderInvitesSectionFragment invitations currentRosterGroup.id))
 
     action currentAction@ShowAdminShiftTypesFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.shift_types_fragment.respond" do
@@ -354,14 +354,14 @@ instance Controller AdminController where
             awardLevelBaseRates <- profileActionSpan "admin.shift_types_fragment.fetch_award_rates" fetchCurrentAwardLevelBaseRates
             importedPayItems <- profileActionSpan "admin.shift_types_fragment.fetch_imported_pay_items" fetchActiveImportedXeroPayItems
             let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
-            profileActionSpan "admin.shift_types_fragment.render_response" (respondHtml (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates importedPayItems))
+            profileActionSpan "admin.shift_types_fragment.render_response" (respondFragmentHtml (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates importedPayItems))
 
     action currentAction@ShowAdminRosterGroupsFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.roster_groups_fragment.respond" do
             _ <- profileActionSpan "admin.roster_groups_fragment.normalize_roster_groups" ensureAdminRosterGroupsNormalizedMutation
             rosterGroups <- profileActionSpan "admin.roster_groups_fragment.fetch_roster_groups" fetchCurrentVenueRosterGroups
             let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
-            profileActionSpan "admin.roster_groups_fragment.render_response" (respondHtml (renderRosterGroupsSectionFragment rosterGroups showInactiveRosterGroups))
+            profileActionSpan "admin.roster_groups_fragment.render_response" (respondFragmentHtml (renderRosterGroupsSectionFragment rosterGroups showInactiveRosterGroups))
 
     action currentAction@ShowAdminExportsFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.exports_fragment.respond" do
@@ -370,7 +370,7 @@ instance Controller AdminController where
             let defaultRangeStart = reportWeekSelection.weekStart
             let defaultRangeEnd = reportWeekSelection.weekEnd
             exportJobs <- profileActionSpan "admin.exports_fragment.fetch_export_jobs" fetchCurrentVenueExportJobs
-            profileActionSpan "admin.exports_fragment.render_response" (respondHtml (renderExportsSectionFragment reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs))
+            profileActionSpan "admin.exports_fragment.render_response" (respondFragmentHtml (renderExportsSectionFragment reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs))
 
     action currentAction@ShowAdminXeroFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.xero_fragment.respond" do
