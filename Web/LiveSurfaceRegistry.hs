@@ -1,13 +1,10 @@
 module Web.LiveSurfaceRegistry
     ( LiveSurfaceInvalidationTarget (..)
-    , RegisteredLiveSurfaceManifest (..)
     , authorizeRegisteredLiveSurfaceScope
     , performLiveSurfaceInvalidationTarget
     , performLiveSurfaceInvalidationTargetWithoutContext
     , planRegisteredLiveSurfaceInvalidations
     , planRegisteredLiveSurfaceInvalidationsWithoutContext
-    , registeredLiveSurfaceDescriptors
-    , registeredLiveSurfaceManifest
     ) where
 
 import Application.Helper.LiveResource (LiveResource (..))
@@ -59,55 +56,6 @@ data LiveSurfaceInvalidationTarget = LiveSurfaceInvalidationTarget
     , targetFragments :: ![LiveUpdateWireFragment]
     }
     deriving (Eq, Show)
-
-data RegisteredLiveSurfaceDescriptor = RegisteredLiveSurfaceDescriptor
-    { descriptorManifest :: !RegisteredLiveSurfaceManifest
-    }
-
-data RegisteredLiveSurfaceManifest = RegisteredLiveSurfaceManifest
-    { surfaceFamily     :: !Text
-    , scopeKinds        :: ![Text]
-    , fragmentKinds     :: ![Text]
-    , interactionSchema :: !(Maybe Text)
-    }
-    deriving (Eq, Show)
-
-registeredLiveSurfaceManifest :: [RegisteredLiveSurfaceManifest]
-registeredLiveSurfaceManifest = fmap (.descriptorManifest) registeredLiveSurfaceDescriptors
-
-registeredLiveSurfaceDescriptors :: [RegisteredLiveSurfaceDescriptor]
-registeredLiveSurfaceDescriptors =
-    [ timesheetsLiveSurfaceDescriptor
-    , rosterLiveSurfaceDescriptor
-    , leaveRequestsLiveSurfaceDescriptor
-    , billingLiveSurfaceDescriptor
-    , supportLiveSurfaceDescriptor
-    , profileLiveSurfaceDescriptor
-    , adminVenueSettingsDescriptor
-    , adminInvitesDescriptor
-    , adminExportsDescriptor
-    , adminShiftTypesDescriptor
-    , adminRosterGroupsDescriptor
-    , adminXeroDescriptor
-    ]
-
-timesheetsLiveSurfaceDescriptor, rosterLiveSurfaceDescriptor, leaveRequestsLiveSurfaceDescriptor, billingLiveSurfaceDescriptor, supportLiveSurfaceDescriptor, profileLiveSurfaceDescriptor, adminVenueSettingsDescriptor, adminInvitesDescriptor, adminExportsDescriptor, adminShiftTypesDescriptor, adminRosterGroupsDescriptor, adminXeroDescriptor :: RegisteredLiveSurfaceDescriptor
-timesheetsLiveSurfaceDescriptor = descriptor "timesheets" ["timesheet_week"] ["timesheet_toolbar", "timesheet_day_columns", "timesheet_day_section"] Nothing
-rosterLiveSurfaceDescriptor = descriptor "roster" ["roster_week"] ["roster_content", "roster_grid_toolbar", "roster_grid_frame", "roster_day_columns", "roster_day_rail", "roster_wage_rail", "roster_slots_grid", "roster_staff_panel", "roster_day_section", "roster_row"] (Just "roster")
-leaveRequestsLiveSurfaceDescriptor = descriptor "leave-requests" ["leave_requests"] ["leave_requests_content"] Nothing
-billingLiveSurfaceDescriptor = descriptor "billing" ["billing"] ["billing_status"] Nothing
-supportLiveSurfaceDescriptor = descriptor "support" ["support_platform"] ["support_award_rates_section", "support_public_holidays_section"] Nothing
-profileLiveSurfaceDescriptor = descriptor "profile" ["profile"] ["profile_details_section", "profile_preferences_section", "profile_security_section", "profile_leave_section", "profile_rsa_section"] Nothing
-adminVenueSettingsDescriptor = descriptor "admin-venue-config" ["admin_venue_config"] ["admin_venue_config"] Nothing
-adminInvitesDescriptor = descriptor "admin-invites" ["admin_invites"] ["admin_invites"] Nothing
-adminExportsDescriptor = descriptor "admin-exports" ["admin_exports"] ["admin_exports"] Nothing
-adminShiftTypesDescriptor = descriptor "admin-shift-types" ["admin_shift_types"] ["admin_shift_types"] Nothing
-adminRosterGroupsDescriptor = descriptor "admin-roster-groups" ["admin_roster_groups"] ["admin_roster_groups"] Nothing
-adminXeroDescriptor = descriptor "admin-xero" ["admin_xero"] ["admin_xero", "admin_xero_staff_mappings", "admin_xero_pay_items", "admin_xero_timesheets"] Nothing
-
-descriptor :: Text -> [Text] -> [Text] -> Maybe Text -> RegisteredLiveSurfaceDescriptor
-descriptor surfaceFamily scopeKinds fragmentKinds interactionSchema =
-    RegisteredLiveSurfaceDescriptor { descriptorManifest = RegisteredLiveSurfaceManifest { surfaceFamily, scopeKinds, fragmentKinds, interactionSchema } }
 
 authorizeRegisteredLiveSurfaceScope :: (?context :: ControllerContext, ?modelContext :: ModelContext) => LiveUpdateScope -> IO Bool
 authorizeRegisteredLiveSurfaceScope = \case

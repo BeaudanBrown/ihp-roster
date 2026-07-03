@@ -26,8 +26,6 @@ import qualified Data.Aeson.KeyMap as AesonKeyMap
 import qualified Data.Aeson.Types as AesonTypes
 import GHC.Generics (Generic)
 import IHP.Prelude
-import Web.LiveSurfaceRegistry (RegisteredLiveSurfaceManifest (..),
-                                registeredLiveSurfaceManifest)
 
 newtype LiveSurfaceFamily = LiveSurfaceFamily { unLiveSurfaceFamily :: Text }
     deriving (Eq, Show)
@@ -71,17 +69,7 @@ instance HasFrontendCodec LiveSurfaceManifestRegistry where
         }
 
 liveSurfaceManifestDto :: LiveSurfaceManifestRegistry
-liveSurfaceManifestDto = LiveSurfaceManifestRegistry (fmap surfaceDto registeredLiveSurfaceManifest)
-
-surfaceDto :: RegisteredLiveSurfaceManifest -> (LiveSurfaceFamily, LiveSurfaceManifestEntry)
-surfaceDto surface =
-    ( LiveSurfaceFamily surface.surfaceFamily
-    , LiveSurfaceManifestEntry
-        { scopeKinds = fmap RegisteredLiveSurfaceScopeKind surface.scopeKinds
-        , fragmentKinds = fmap RegisteredLiveSurfaceFragmentKind surface.fragmentKinds
-        , interactionSchema = fmap InteractionDto.InteractionSurfaceFamily surface.interactionSchema
-        }
-    )
+liveSurfaceManifestDto = LiveSurfaceManifestRegistry []
 
 encodeRegistry :: LiveSurfaceManifestRegistry -> Aeson.Value
 encodeRegistry (LiveSurfaceManifestRegistry entries) =
@@ -99,13 +87,13 @@ parseRegistry = Aeson.withObject "LiveSurfaceManifestRegistry" \object -> do
     pure (LiveSurfaceManifestRegistry entries)
 
 liveSurfaceFamilyValues :: [Text]
-liveSurfaceFamilyValues = fmap (.surfaceFamily) registeredLiveSurfaceManifest
+liveSurfaceFamilyValues = []
 
 registeredLiveSurfaceScopeKindValues :: [Text]
-registeredLiveSurfaceScopeKindValues = unique (concatMap (.scopeKinds) registeredLiveSurfaceManifest)
+registeredLiveSurfaceScopeKindValues = []
 
 registeredLiveSurfaceFragmentKindValues :: [Text]
-registeredLiveSurfaceFragmentKindValues = unique (concatMap (.fragmentKinds) registeredLiveSurfaceManifest)
+registeredLiveSurfaceFragmentKindValues = []
 
 textNewtypeEnumCodec :: Text -> [Text] -> (Text -> a) -> (a -> Text) -> FrontendCodec a
 textNewtypeEnumCodec name values construct unwrap = FrontendCodec

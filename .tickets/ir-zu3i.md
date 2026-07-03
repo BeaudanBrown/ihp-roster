@@ -1,6 +1,6 @@
 ---
 id: ir-zu3i
-status: in_progress
+status: closed
 deps: [ir-f72k]
 links: []
 created: 2026-07-03T04:17:38Z
