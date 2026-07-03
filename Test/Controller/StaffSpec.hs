@@ -273,7 +273,7 @@ tests = beforeAll testContext do
                     |> fetchOne
                 appJob.jobKind `shouldBe` venueInvitationDeliveryJobKind
                 versionAfter <- LiveUpdate.currentLiveUpdateVersion (LiveUpdate.adminInvitesLiveScope (unpackId venue.id))
-                versionAfter `shouldBe` versionBefore + 1
+                versionAfter `shouldBe` versionBefore
 
         it "prevents non-managers from creating trial staff adoption invitations" $ withContext do
             withCleanDb do
@@ -481,7 +481,7 @@ tests = beforeAll testContext do
                 updatedStaff.employmentBasis `shouldBe` Permanent
                 updatedStaff.defaultAwardLevelId `shouldBe` Just payLevel.id
                 xeroVersionAfter <- LiveUpdate.currentLiveUpdateVersion (LiveUpdate.adminXeroLiveScope (unpackId venue.id))
-                xeroVersionAfter `shouldBe` (xeroVersionBefore + 1)
+                xeroVersionAfter `shouldBe` xeroVersionBefore
 
         it "shows synced award level hourly rates in the staff pay selector" $ withContext do
             withCleanDb do

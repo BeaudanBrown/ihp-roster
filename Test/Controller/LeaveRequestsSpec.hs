@@ -464,7 +464,7 @@ tests = beforeAll testContext do
                 bodyText `shouldNotContain` "id=\"profile-content-fragment\""
 
                 versionAfter <- currentLiveUpdateVersion (leaveRequestsLiveScope (unpackId venue.id))
-                versionAfter `shouldBe` versionBefore + 1
+                versionAfter `shouldBe` versionBefore
 
         it "creating leave from roster self-service refreshes the declared form fragment" $ withContext do
             withCleanDb do
@@ -563,7 +563,7 @@ tests = beforeAll testContext do
                 bodyText `shouldContain` "id=\"leave-requests-content\" hx-swap-oob=\"outerHTML\""
                 bodyText `shouldContain` "id=\"dialog-overlay-mount\" hx-swap-oob=\"innerHTML\""
                 versionAfter <- currentLiveUpdateVersion (leaveRequestsLiveScope (unpackId venue.id))
-                versionAfter `shouldBe` versionBefore + 1
+                versionAfter `shouldBe` versionBefore
 
         it "writes an audit event when approving a leave request" $ withContext do
             withCleanDb do

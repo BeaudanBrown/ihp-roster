@@ -32,8 +32,8 @@ import Test.Hspec
 import Test.Support
 import Web.Controller.RosterWeeks ()
 import Web.FrontController ()
-import Web.LiveSurfaceRegistry (LiveSurfaceInvalidationTarget (..),
-                                planRegisteredLiveSurfaceInvalidations)
+import Web.LiveResourceInvalidation (LiveSurfaceInvalidationTarget (..),
+                                     planRegisteredLiveSurfaceInvalidations)
 import Web.RosterWeeks.Dom (rosterDayColumnsFragmentId, rosterDaySectionDomId,
                             rosterGridFrameFragmentId, rosterRowDomIdText,
                             rosterStaffPanelFragmentId)

@@ -9,7 +9,7 @@ import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDv4
 import qualified Network.WebSockets as WebSocket
 import Web.Controller.Prelude
-import Web.LiveSurfaceRegistry (authorizeRegisteredLiveSurfaceScope)
+import Web.LiveResourceInvalidation (authorizeRegisteredLiveSurfaceScope)
 
 instance WSApp LiveUpdatesWSApp where
     initialState = LiveUpdatesWSApp { subscriptionIds = [] }

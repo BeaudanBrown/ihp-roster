@@ -80,9 +80,9 @@ bash ./bin/in-env hspec-test --match "Frontend contract"
 
 New or migrated live/interaction surfaces should update
 `RegisteredFrontendSurfaces` and their type-level spec, then regenerate
-contracts. Do not add migrated surfaces to `Web.LiveSurfaceRegistry`, handwrite
-`data-bepis-surface-config`, or author old surface-specific `FrontendCodec`
-schema groups.
+contracts. Do not add migrated surfaces to legacy registry/catalog adapters,
+handwrite `data-bepis-surface-config`, or author old surface-specific
+`FrontendCodec` schema groups.
 
 Surface-native live transport is generated from `FrontendSurface` specs. Do not
 recreate `LiveSurfaceManifest`, handwritten surface family registries, or

@@ -185,7 +185,11 @@ supportPlatformLiveScope = frontendSurfaceLiveScope "support" (Aeson.object []) 
 
 frontendSurfaceLiveFragmentKey :: Text -> Text -> Aeson.Value -> LiveFragmentKey
 frontendSurfaceLiveFragmentKey liveFragmentSurface liveFragmentWireKind liveFragmentParams =
-    FrontendSurfaceLiveFragmentKey { liveFragmentSurface, liveFragmentWireKind, liveFragmentParams }
+    FrontendSurfaceLiveFragmentKey { liveFragmentSurface, liveFragmentWireKind, liveFragmentParams = normalizeFragmentParams liveFragmentParams }
+
+normalizeFragmentParams :: Aeson.Value -> Aeson.Value
+normalizeFragmentParams Aeson.Null = Aeson.object []
+normalizeFragmentParams value      = value
 
 simpleLiveFragmentKey :: Text -> Text -> LiveFragmentKey
 simpleLiveFragmentKey surface kind = frontendSurfaceLiveFragmentKey surface kind (Aeson.object [])
@@ -626,8 +630,33 @@ liveUpdateScopeToWire scope = Wire.LiveUpdateScope
     }
 
 liveUpdateScopeFromWire :: Wire.LiveUpdateScope -> Aeson.Parser LiveUpdateScope
-liveUpdateScopeFromWire Wire.LiveUpdateScope { surface, scope } =
-    pure (frontendSurfaceLiveScope surface scope surface)
+liveUpdateScopeFromWire Wire.LiveUpdateScope { surface, scope } = do
+    stableKey <- liveUpdateScopeStableKeyFromWire surface scope
+    pure (frontendSurfaceLiveScope surface scope stableKey)
+
+liveUpdateScopeStableKeyFromWire :: Text -> Aeson.Value -> Aeson.Parser Text
+liveUpdateScopeStableKeyFromWire surface scopePayload =
+    case scopePayload of
+        Aeson.Object object -> case surface of
+            "roster" -> do
+                venueId <- parseUuidField object "venueId"
+                rosterGroupId <- parseUuidField object "rosterGroupId"
+                weekOffset <- object Aeson..: "weekOffset"
+                pure (Text.intercalate ":" ["roster", UUID.toText venueId, UUID.toText rosterGroupId, tshow (weekOffset :: Int)])
+            "timesheets" -> do
+                venueId <- parseUuidField object "venueId"
+                weekOffset <- object Aeson..: "weekOffset"
+                pure (Text.intercalate ":" ["timesheets", UUID.toText venueId, tshow (weekOffset :: Int)])
+            "profile" -> do
+                venueId <- parseUuidField object "venueId"
+                staffId <- parseUuidField object "staffId"
+                pure (Text.intercalate ":" ["profile", UUID.toText venueId, UUID.toText staffId])
+            "support" -> pure "support"
+            _ -> do
+                venueId <- parseUuidField object "venueId"
+                pure (Text.intercalate ":" [surface, UUID.toText venueId])
+        _ | surface == "support" -> pure "support"
+        _ -> fail ("Invalid live update scope payload for surface: " <> cs surface)
 
 liveFragmentKeyToWire :: LiveFragmentKey -> Wire.LiveFragmentKey
 liveFragmentKeyToWire key = Wire.LiveFragmentKey

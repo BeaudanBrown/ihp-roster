@@ -91,7 +91,7 @@ tests = describe "LiveUpdate runtime types" do
                 , adminXeroTimesheetsLiveFragment
                 , billingStatusLiveFragment
                 , profileContentLiveFragment
-                , ProfileleaveRequestsContentLiveFragment
+                , profileLeaveRequestsContentLiveFragment
                 , supportAwardRatesSectionLiveFragment
                 , supportPublicHolidaysSectionLiveFragment
                 ]
@@ -132,27 +132,27 @@ tests = describe "LiveUpdate runtime types" do
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
         let staffId = expectUuid "44444444-4444-4444-4444-444444444444"
 
-        liveUpdateScopeKey rosterWeekLiveScope venueId rosterGroupId -1
+        liveUpdateScopeKey (rosterWeekLiveScope venueId rosterGroupId (-1))
             `shouldBe` "roster:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333:-1"
-        liveUpdateScopeKey adminVenueConfigLiveScope venueId
+        liveUpdateScopeKey (adminVenueConfigLiveScope venueId)
             `shouldBe` "admin-venue-config:11111111-1111-1111-1111-111111111111"
-        liveUpdateScopeKey adminShiftTypesLiveScope venueId
+        liveUpdateScopeKey (adminShiftTypesLiveScope venueId)
             `shouldBe` "admin-shift-types:11111111-1111-1111-1111-111111111111"
-        liveUpdateScopeKey adminRosterGroupsLiveScope venueId
+        liveUpdateScopeKey (adminRosterGroupsLiveScope venueId)
             `shouldBe` "admin-roster-groups:11111111-1111-1111-1111-111111111111"
-        liveUpdateScopeKey adminInvitesLiveScope venueId
+        liveUpdateScopeKey (adminInvitesLiveScope venueId)
             `shouldBe` "admin-invites:11111111-1111-1111-1111-111111111111"
-        liveUpdateScopeKey adminExportsLiveScope venueId
+        liveUpdateScopeKey (adminExportsLiveScope venueId)
             `shouldBe` "admin-exports:11111111-1111-1111-1111-111111111111"
-        liveUpdateScopeKey adminXeroLiveScope venueId
+        liveUpdateScopeKey (adminXeroLiveScope venueId)
             `shouldBe` "admin-xero:11111111-1111-1111-1111-111111111111"
-        liveUpdateScopeKey billingLiveScope venueId
+        liveUpdateScopeKey (billingLiveScope venueId)
             `shouldBe` "billing:11111111-1111-1111-1111-111111111111"
-        liveUpdateScopeKey leaveRequestsLiveScope venueId
+        liveUpdateScopeKey (leaveRequestsLiveScope venueId)
             `shouldBe` "leave-requests:11111111-1111-1111-1111-111111111111"
-        liveUpdateScopeKey timesheetWeekLiveScope venueId 2
+        liveUpdateScopeKey (timesheetWeekLiveScope venueId 2)
             `shouldBe` "timesheets:11111111-1111-1111-1111-111111111111:2"
-        liveUpdateScopeKey profileLiveScope venueId staffId
+        liveUpdateScopeKey (profileLiveScope venueId staffId)
             `shouldBe` "profile:11111111-1111-1111-1111-111111111111:44444444-4444-4444-4444-444444444444"
         liveUpdateScopeKey supportPlatformLiveScope
             `shouldBe` "support"
@@ -321,10 +321,10 @@ tests = describe "LiveUpdate runtime types" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
 
         defaultLiveUpdateScopeAuthorizationRequirement supportPlatformLiveScope `shouldBe` RequireSupportSuperAdmin
-        defaultLiveUpdateScopeAuthorizationRequirement adminXeroLiveScope venueId `shouldBe` RequireCurrentVenueOwner venueId
+        defaultLiveUpdateScopeAuthorizationRequirement (adminXeroLiveScope venueId) `shouldBe` RequireCurrentVenueOwner venueId
         frontendSurfaceScopeAuthorizationRequirement supportPlatformLiveScope `shouldBe` Just (Just RequireSupportSuperAdmin)
-        frontendSurfaceScopeAuthorizationRequirement adminXeroLiveScope venueId `shouldBe` Just (Just (RequireCurrentVenueOwner venueId))
-        frontendSurfaceScopeAuthorizationRequirement timesheetWeekLiveScope venueId 0 `shouldBe` Just (Just (RequireCurrentVenue venueId))
+        frontendSurfaceScopeAuthorizationRequirement (adminXeroLiveScope venueId) `shouldBe` Just (Just (RequireCurrentVenueOwner venueId))
+        frontendSurfaceScopeAuthorizationRequirement (timesheetWeekLiveScope venueId 0) `shouldBe` Just (Just (RequireCurrentVenue venueId))
 
     it "round-trips leave, timesheet, and protected roster surface configs through JSON" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
@@ -332,7 +332,7 @@ tests = describe "LiveUpdate runtime types" do
         let surfaces =
                 [ testLiveSurfaceConfig
                     "leave-requests"
-                    leaveRequestsLiveScope venueId
+                    (leaveRequestsLiveScope venueId)
                     [ LiveUpdateWireFragment
                         { fragmentKey = leaveRequestsContentLiveFragment
                         , targetId = "leave-requests-content"
@@ -343,7 +343,7 @@ tests = describe "LiveUpdate runtime types" do
                     ]
                 , testLiveSurfaceConfig
                     "timesheets"
-                    timesheetWeekLiveScope venueId 1
+                    (timesheetWeekLiveScope venueId 1)
                     [ LiveUpdateWireFragment
                         { fragmentKey = timesheetDaySectionLiveFragment 2
                         , targetId = "timesheet-day-2"
@@ -354,7 +354,7 @@ tests = describe "LiveUpdate runtime types" do
                     ]
                 , testLiveSurfaceConfig
                     "roster"
-                    rosterWeekLiveScope venueId rosterGroupId 0
+                    (rosterWeekLiveScope venueId rosterGroupId 0)
                     [ LiveUpdateWireFragment
                         { fragmentKey = rosterContentLiveFragment
                         , targetId = "roster-content"

@@ -7,7 +7,7 @@ import Data.UUID (fromWords)
 import IHP.Prelude
 import Test.Hspec
 import Web.LiveResourceInvalidation
-import Web.LiveSurfaceRegistry (LiveSurfaceInvalidationTarget (..))
+import Web.LiveResourceInvalidation (LiveSurfaceInvalidationTarget (..))
 
 tests :: Spec
 tests = do

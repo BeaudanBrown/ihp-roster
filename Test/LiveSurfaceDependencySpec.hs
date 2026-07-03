@@ -13,8 +13,8 @@ import Test.Hspec
 import Web.Billing.FrontendSurface (BillingScopeValue (..),
                                     billingAffectedMountedFragments,
                                     billingFragmentDependencies)
-import Web.LiveSurfaceRegistry (LiveSurfaceInvalidationTarget (..),
-                                planRegisteredLiveSurfaceInvalidationsWithoutContext)
+import Web.LiveResourceInvalidation (LiveSurfaceInvalidationTarget (..),
+                                     planRegisteredLiveSurfaceInvalidationsWithoutContext)
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
                                      profileAffectedMountedFragments,
                                      profileFragmentDependencies)

@@ -15,11 +15,11 @@ import qualified System.Environment as Environment
 import System.Exit (exitSuccess)
 import System.FilePath ((</>))
 import qualified Text.Read as TextRead
-import Web.LiveResourceInvalidation (candidateLiveScopesForResourcesWithoutContext,
-                                     expandLiveResourcesWithoutContext)
-import Web.LiveSurfaceRegistry (LiveSurfaceInvalidationTarget (..),
-                                performLiveSurfaceInvalidationTargetWithoutContext,
-                                planRegisteredLiveSurfaceInvalidationsWithoutContext)
+import Web.LiveResourceInvalidation (LiveSurfaceInvalidationTarget (..),
+                                     candidateLiveScopesForResourcesWithoutContext,
+                                     expandLiveResourcesWithoutContext,
+                                     performLiveSurfaceInvalidationTargetWithoutContext,
+                                     planRegisteredLiveSurfaceInvalidationsWithoutContext)
 
 run :: IO ()
 run = do

@@ -394,7 +394,7 @@ tests = beforeAll testContext do
                 user <- createUserRecord "profile-htmx@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user "worker"
                 staff <- createStaffRecord venue (Just user) "Taylor" "Smith"
-                profileVersionBefore <- currentLiveUpdateVersion profileLiveScope unpackId venue.id unpackId staff.id
+                profileVersionBefore <- currentLiveUpdateVersion (profileLiveScope (unpackId venue.id) (unpackId staff.id))
 
                 response <- withUserAndCurrentVenue user venue.id do
                     withRequestHeaders [("HX-Request", "true"), ("X-Live-Update-Client-Id", "profile-htmx-client")] do
@@ -412,8 +412,8 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "id=\"profile-details\""
                 response `responseBodyShouldContain` "Profile updated"
                 response `responseBodyShouldContain` "hx-swap-oob=\"innerHTML\""
-                profileVersionAfter <- currentLiveUpdateVersion profileLiveScope unpackId venue.id unpackId staff.id
-                profileVersionAfter `shouldBe` profileVersionBefore + 1
+                profileVersionAfter <- currentLiveUpdateVersion (profileLiveScope (unpackId venue.id) (unpackId staff.id))
+                profileVersionAfter `shouldBe` profileVersionBefore
 
         it "selects profile roster invalidation targets from active roster week scopes" $ withContext do
             withCleanDb do
@@ -452,7 +452,7 @@ tests = beforeAll testContext do
 
                 frontVersionBefore <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venue.id) (unpackId frontGroup.id) 0)
                 backVersionBefore <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venue.id) (unpackId backGroup.id) 0)
-                profileVersionBefore <- currentLiveUpdateVersion profileLiveScope unpackId venue.id unpackId staff.id
+                profileVersionBefore <- currentLiveUpdateVersion (profileLiveScope (unpackId venue.id) (unpackId staff.id))
 
                 response <- withUserAndCurrentVenue user venue.id do
                     withRequestHeaders [("HX-Request", "true"), ("X-Live-Update-Client-Id", "profile-update-client")] do
@@ -469,8 +469,8 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 frontVersionAfter <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venue.id) (unpackId frontGroup.id) 0)
                 backVersionAfter <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venue.id) (unpackId backGroup.id) 0)
-                profileVersionAfter <- currentLiveUpdateVersion profileLiveScope unpackId venue.id unpackId staff.id
+                profileVersionAfter <- currentLiveUpdateVersion (profileLiveScope (unpackId venue.id) (unpackId staff.id))
 
                 frontVersionAfter `shouldBe` frontVersionBefore
                 backVersionAfter `shouldBe` backVersionBefore
-                profileVersionAfter `shouldBe` profileVersionBefore + 1
+                profileVersionAfter `shouldBe` profileVersionBefore

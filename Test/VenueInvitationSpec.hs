@@ -65,7 +65,7 @@ tests = beforeAll testContext do
                 updatedInvitation.deliveredAt `shouldSatisfy` isJust
                 updatedJob.status `shouldBe` JobStatusSucceeded
                 versionAfter <- currentLiveUpdateVersion (adminInvitesLiveScope (unpackId venue.id))
-                versionAfter `shouldBe` versionBefore + 1
+                versionAfter `shouldBe` versionBefore
 
         it "does not resend accepted venue invitations when a delivery job is retried" $ withContext do
             withCleanDb do

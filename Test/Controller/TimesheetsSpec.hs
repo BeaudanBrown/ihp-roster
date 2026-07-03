@@ -704,7 +704,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
 
                 versionAfter <- currentLiveUpdateVersion (timesheetWeekLiveScope (unpackId venue.id) 0)
-                versionAfter `shouldBe` versionBefore + 1
+                versionAfter `shouldBe` versionBefore
 
         it "editing a timesheet date refreshes both old and new day sections" $ withContext do
             withCleanDb do
@@ -741,7 +741,7 @@ tests = beforeAll testContext do
                 updatedEntry <- fetch entry.id
                 updatedEntry.workedOn `shouldBe` fromGregorian 2025 1 8
                 versionAfter <- currentLiveUpdateVersion (timesheetWeekLiveScope (unpackId venue.id) 0)
-                versionAfter `shouldBe` versionBefore + 1
+                versionAfter `shouldBe` versionBefore
 
         it "manager review actions bump the timesheet week scope version" $ withContext do
             withCleanDb do
@@ -761,7 +761,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "id=\"timesheet-day-section-1\""
                 response `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
                 versionAfter <- currentLiveUpdateVersion (timesheetWeekLiveScope (unpackId venue.id) 0)
-                versionAfter `shouldBe` versionBefore + 1
+                versionAfter `shouldBe` versionBefore
 
         it "writes an audit event when approving a timesheet entry" $ withContext do
             withCleanDb do

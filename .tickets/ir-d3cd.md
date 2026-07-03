@@ -1,6 +1,6 @@
 ---
 id: ir-d3cd
-status: in_progress
+status: closed
 deps: [ir-7x48]
 links: []
 created: 2026-07-03T11:15:32Z
@@ -32,3 +32,7 @@ Reached implementation decision point before final cleanup: fully deleting legac
 **2026-07-03T13:10:58Z**
 
 Replaced production LiveUpdateScope/LiveFragmentKey runtime ADTs with generic surface-native records and lower-case smart constructors. Production typecheck passes. Remaining work is broad test-suite call-site cleanup where old constructor syntax was mechanically rewritten into partially-applied smart constructors; hspec currently fails at compile time in test modules only.
+
+**2026-07-03T14:49:48Z**
+
+Completed final surface-native live cleanup: removed Web.LiveSurfaceRegistry, moved invalidation/authorization planning into Web.LiveResourceInvalidation using active LiveUpdateSubscription data and generated FrontendSurface dependency planning, normalized surface-native scope/fragment wire round-trips, updated docs/guardrails, and fixed tests for kebab-case generated surface keys and active-subscription-only passive versioning. Verification passed: typecheck, frontend-check, full hspec-test.

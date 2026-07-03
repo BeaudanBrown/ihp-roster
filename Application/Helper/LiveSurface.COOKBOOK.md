@@ -1,387 +1,63 @@
 # Live Fragment Cookbook
 
-Use this checklist when adding or changing a collaborative server-rendered
-fragment. Keep the browser runtime generic: Haskell owns scopes, target ids,
-URLs, authorization, and protection policy.
-
-For new production surfaces, start with the type-level `FrontendSurface`
-authoring guide in `Application/Helper/FrontendSurface/README.md`. This cookbook
-keeps the shared fragment vocabulary and documents compatibility internals that
-still exist in tests/shared code; it is not the feature-authoring path for new
-production surfaces. Production surfaces must not use `data-live-update-surface`,
-legacy `Web.LiveSurfaceRegistry` catalog entries, or
-`Application.Helper.SurfaceProjection`.
+Use this checklist when adding or changing collaborative server-rendered
+fragments. The source of truth for production authoring is the type-level
+`FrontendSurface` system documented in
+`Application/Helper/FrontendSurface/README.md`.
 
 ## Vocabulary
 
-- **Surface**: the stable mounted owner that subscribes to one live scope.
-  Migrated surfaces mount through `data-bepis-surface` and
-  `data-bepis-surface-config`; legacy surfaces mount through
-  `data-live-update-surface`.
-- **Scope**: the authorized logical data slice, such as one roster week or one
-  timesheet week. A scope is not a page name.
-- **Fragment/region**: a feature-local enum value that maps to one
-  server-owned DOM target and one GET URL. Most fragments are refreshable; some
-  may also render contained child surface mounts.
-- **Contained child surface**: an independently mounted `FrontendSurface` whose
-  mount appears inside a parent fragment/region. The parent declares this static
-  topology; runtime lifecycle is driven by actual DOM mounts.
-- **Runtime reconciliation**: the browser pass that scans mounted surfaces after
-  page load and swaps, initializes new mounts, disposes removed mounts
-  recursively, and keeps subscriptions equal to current DOM surface scopes.
-- **Containment path**: server-only metadata that describes DOM ownership among
-  selected fragments. Parent/child overlaps collapse to the parent; siblings are
-  preserved.
-- **Wire fragment**: the self-describing transport payload derived from a typed
-  fragment. Feature code should not construct it directly.
-- **Actor response**: the immediate HTMX response for the browser that made the
+- **Surface**: an independently mounted UI owner rendered with
+  `data-bepis-surface` and `data-bepis-surface-config`.
+- **Scope**: the authorized subscription identity for a mounted surface.
+  `Scope` fields define the wire payload and scope key inputs; auth is declared
+  with exactly one `Authorize ...` or `NoAuth` marker.
+- **Live fragment**: a `Fragment ... '[ ..., Live, ... ]` whose currently
+  mounted instance can be invalidated over the websocket.
+- **Resource**: a generated `FrontendSurfaceResourceValue` emitted by mutation
+  or domain code to describe concrete data that changed.
+- **Dependency planning**: active subscriptions provide mounted wire fragments;
+  generated `DependsOn` declarations turn scope/fragment params into concrete
+  resource values; touched resources intersect those dependencies to choose the
+  affected fragments.
+- **Actor response**: the immediate HTMX response for the browser that made a
   mutation.
 - **Passive invalidation**: the websocket message that tells other mounted
   browsers to refetch authorized fragments.
-- **Read model**: a request-local data shape used to render one or more
-  fragments. Prefer direct DB/read-model reads; add caching only behind an
-  explicit feature-owned seam if profiling proves it is needed.
-- **Registered surface catalog**: during the hybrid migration, legacy surfaces
-  are listed in `Web.LiveSurfaceRegistry`, while migrated surfaces are listed in
-  `Application.Helper.FrontendSurface.Registry` as `RegisteredFrontendSurfaces`.
-  Haskell owns both registries; do not hand-author TypeScript manifest keys or
-  duplicate registered vocabularies. Migrated surface metadata comes from the
-  GHC-extracted FrontendSurface registry and `SurfaceImpl`, not from legacy
-  catalog entries.
-- **Background-plannable surface**: a registered surface whose invalidations can
-  be planned from touched resources and subscribed wire scopes without a request
-  context. Use this for webhooks, async workers, and background jobs.
-- **Request-context-only surface**: a registered surface whose planning or
-  authorization depends on the active controller context, usually current venue
-  or current user state.
-- **Interaction capability**: optional typed metadata attached to the same
-  surface origin for disposable UI layers, user intents, generated HTMX intent
-  forms, and live-fragment conflict policy. Attach it with
-  `liveSurfaceDescriptorWithInteraction` when using descriptors; complex
-  adapter surfaces may attach it directly to their typed definition. The durable
-  interaction contract is `Application/Helper/Interaction.SPEC.md`.
-- **Disposable layer**: a Haskell-declared client-owned region for temporary UI
-  such as drag previews, resize ghosts, selection rectangles, context menus, or
-  command overlays. It is not authoritative and must be safe to clear.
-- **Intent form**: a Haskell-rendered HTMX form for a typed committed user
-  intent. TypeScript fills generated hidden fields and dispatches the generated
-  trigger; it must not construct persistence URLs.
+- **Contained child surface**: an independently mounted child surface rendered
+  inside a parent fragment. The browser reconciles actual DOM mounts after page
+  loads and swaps.
 
-The living interaction contract is `Application/Helper/Interaction.SPEC.md`.
-Use it for typed surface/layer/intent/form/conflict-policy details; this
-cookbook remains the checklist for live fragments.
+## Adding Or Changing A Live Fragment
 
-## Preferred FrontendSurface Path
+1. Update the relevant type-level surface spec under
+   `Application.Helper.FrontendSurface.*`.
+2. If the fragment participates in passive websocket invalidation, add `Live`
+   and exactly one invalidation mode:
+   - `DependsOn SomeResource '[ 'FromScope Field, 'FromFragment Field, ... ]`,
+     or
+   - `ResyncOnly` for fragments that have no passive business-resource
+     dependency.
+3. Add or update generated resource declarations when the fragment depends on a
+   new concrete data shape.
+4. Implement/update the `SurfaceImpl` fragment handler with the target id, GET
+   URL, focused-field protection, load policy, and renderer.
+5. Render mounts/fragments with FrontendSurface runtime helpers; do not handwrite
+   live-update attrs or construct wire DTOs in feature views.
+6. Make mutations emit generated `LiveResource` smart constructors for the
+   concrete values they changed. Keep any broad domain expansion producer-side or
+   in a small feature-owned helper before invalidation.
+7. Add focused Hspec/frontend/E2E coverage for mount config, subscription
+   validation, dependency planning, actor response behavior, and passive
+   refetches as applicable.
+8. Run the frontend surface checks and relevant test slices.
 
-For any new migration, define a type-level spec, add it to
-`RegisteredFrontendSurfaces`, implement `SurfaceImpl`, and render with
-`renderFrontendSurfaceMount`. See
-`Application/Helper/FrontendSurface/README.md` for the step-by-step workflow.
-Use direct read-model rendering first; there is no shared SurfaceProjection cache
-helper.
+## Guardrails
 
-## Legacy Compatibility Reference
-
-The remaining examples in this section describe compatibility helpers that may
-still be useful while reading older tests or internals. Do not copy this pattern
-for new production feature work; use the `FrontendSurface` path instead.
-
-For a legacy small current-venue surface with one or more static fragments, the
-old refined descriptor helper shape was:
-
-```haskell
-adminExampleLiveSurfaceDefinition ::
-    (?context :: ControllerContext) =>
-    TypedLiveSurfaceDefinition AdminExampleSurface () AdminExampleLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
-adminExampleLiveSurfaceDefinition =
-    adminExampleLiveSurfaceDefinitionForVenue currentVenueScopeId
-
-adminExampleLiveSurfaceDefinitionForVenue ::
-    UUID ->
-    TypedLiveSurfaceDefinition AdminExampleSurface () AdminExampleLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
-adminExampleLiveSurfaceDefinitionForVenue surfaceVenueId =
-    currentVenueUnitScopeSurfaceForVenue
-        "admin-example"
-        surfaceVenueId
-        adminExampleVenueScope
-        RequireCurrentVenueAdmin
-        [ staticLiveFragmentDescriptor
-            AdminExampleFragment
-            AdminExampleWireFragment
-            "admin-example-fragment"
-            (pathTo ShowAdminExampleFragmentAction)
-            (const (liveFragmentDependsOn (AdminExampleResource surfaceVenueId) []))
-        ]
-
-adminExampleVenueScope :: VenueLiveUpdateScope
-adminExampleVenueScope =
-    venueLiveUpdateScope
-        AdminExampleScope
-        (\case
-            AdminExampleScope { venueId } -> Just venueId
-            _ -> Nothing)
-```
-
-Use `currentVenueUnitScopeSurface` when no context-free/test/sample definition is
-needed. Use the `...ForVenue` form when `Web.LiveSurfaceRegistry` should derive
-manifest metadata from the typed definition without a request context.
-
-For a fragment whose URL depends on a local key, keep the URL explicit with
-`liveFragmentDescriptor`:
-
-```haskell
-liveFragmentDescriptor
-    AdminInvitesFragment
-    (\key ->
-        mkSurfaceFragmentRef
-            AdminInvitesWireFragment
-            "admin-invites-fragment"
-            (appendQueryParams (pathTo ShowAdminInvitesFragmentAction) (inviteQuery key)))
-    (const (liveFragmentDependsOn (AdminInvitesResource surfaceVenueId) []))
-```
-
-For focused-field protection or nested fragments, compose descriptor modifiers:
-
-```haskell
-staticLiveFragmentDescriptor fragment wireKey targetId url dependencies
-    |> liveFragmentDescriptorWithFocusedProtection focusProtection
-    |> liveFragmentDescriptorWithPath ["parent-fragment", targetId]
-```
-
-For multi-fragment surfaces, declare one `staticLiveFragmentDescriptor` or
-`liveFragmentDescriptor` per feature-local fragment and let the descriptor lower
-them into default resync fragments and decorate selectors. Eager rendering is the
-default load policy for every fragment. Opt into lazy rendering per fragment with
-`liveFragmentDescriptorWithLazyLoad`; use `liveFragmentDescriptorWithEagerLoad`
-to override a shared descriptor back to eager. Descriptor load policies lower
-into `FragmentContract`, so hand-written `TypedLiveSurfaceDefinition` values can
-use `fragmentContractWithLazyLoad`/`fragmentContractWithEagerLoad` at the same
-boundary.
-
-If the surface has a typed interaction layer, attach it at the descriptor
-boundary:
-
-```haskell
-adminExampleDescriptor
-    |> liveSurfaceDescriptorWithInteraction adminExampleInteractionSchema adminExampleInteractionCapability
-    |> descriptorToTypedLiveSurfaceDefinition
-```
-
-Complex legacy surfaces may still use a descriptor-shaped adapter/full
-`TypedLiveSurfaceDefinition` where they need custom candidate fragments,
-containment, interaction capability, or read-model behavior. Do not use this for
-migrated FrontendSurface surfaces such as the lab, Timesheets, or Roster. Keep
-read-model construction as an implementation detail, not as the required
-live-surface abstraction. After adding a legacy registered surface, run
-`frontend-contracts` and `frontend-check`; generated family/scope/fragment unions
-and `LiveSurfaceManifest` should update from the registry without TypeScript
-edits.
-
-## Lazy Fragment Loading
-
-Use lazy loading for secondary or expensive fragments that are not required for
-the first meaningful page paint. Keep critical navigation, primary content,
-authoritative forms, and fragments needed above the fold eager unless profiling
-shows a better trade-off. Laziness is a **per-fragment policy**, not a separate
-HTMX helper path, so a surface can mix eager and lazy fragments in one typed
-surface definition.
-
-A lazy fragment still has the same feature-local enum, `FragmentContract`, target
-id, GET URL, live-update identity, protection policy, containment path, resource
-dependencies, and endpoint authorization as an eager fragment. The generic view
-helper `renderLiveSurfaceFragmentMount` reads that contract: `FragmentEager`
-returns the eager HTML unchanged, while `FragmentLazy` renders a placeholder root
-with the contract's target id and URL (`hx-get`, `hx-trigger`, `hx-target=this`,
-`hx-swap=outerHTML`). The fragment GET action must continue returning the real
-root node with the same id.
-
-Choose `LazyFragmentConfig` deliberately:
-
-- `lazyFragmentTrigger`: use `"load"` with a small delay for content that should
-  appear immediately after the shell, or `"revealed"`/HTMX intersection-style
-  triggers for below-the-fold content.
-- `lazyFragmentPlaceholderKind`: prefer the shared constants
-  `lazyFragmentPlaceholderPanel`, `lazyFragmentPlaceholderTable`,
-  `lazyFragmentPlaceholderList`, `lazyFragmentPlaceholderSpinner`, or
-  `lazyFragmentPlaceholderCustom` so placeholders use shared markup/styles.
-- `lazyFragmentAccessibleLabel`: describe the region being loaded, e.g.
-  `"Loading roster staff panel"`.
-- `lazyFragmentClasses`: include any layout classes that the real fragment root
-  contributes, so the placeholder occupies the same grid/column space.
-- `lazyFragmentDelayMs`: use only to defer non-critical work behind the initial
-  shell; keep it short and measured.
-- `lazyFragmentTransition`: choose a Haskell-owned `UiRegionTransitionProfile`
-  (`none`, `fade`, `fade-slide`, or `panel`). Prefer `none` unless the region is
-  visually replaced as a coherent panel/section and reduced-motion behavior has
-  been covered by the generic runtime.
-
-Example descriptor opt-in:
-
-```haskell
-staticLiveFragmentDescriptor fragment wireKey targetId url dependencies
-    |> liveFragmentDescriptorWithLazyLoad LazyFragmentConfig
-        { lazyFragmentTrigger = "load"
-        , lazyFragmentPlaceholderKind = lazyFragmentPlaceholderPanel
-        , lazyFragmentAccessibleLabel = "Loading example panel"
-        , lazyFragmentClasses = ["col-12", "col-xl-4"]
-        , lazyFragmentDelayMs = Just 50
-        , lazyFragmentTransition = UiRegionTransitionFade
-        }
-```
-
-Example hand-written typed contract opt-in, used by the roster staff panel:
-
-```haskell
-mkSurfaceFragmentContract (rosterFragmentRef scope RosterStaffPanelFragment) dependencies
-    |> fragmentContractWithLazyLoad rosterStaffPanelLazyConfig
-```
-
-Then render the page location through the generic helper instead of manually
-choosing between eager/lazy paths:
-
-```haskell
-renderLiveSurfaceFragmentMount definition scope fragment eagerHtml
-```
-
-For unloaded fragments, passive live invalidations remain safe because the
-placeholder uses the same target id and authoritative URL. A passive invalidation
-may refetch and replace the placeholder before its lazy trigger fires; that is
-acceptable and should not require feature-specific JavaScript. Failed lazy HTMX requests are handled by the shared region runtime: HTMX events
-for `data-bepis-fragment="true"` roots are adapted into `bepis:region-*` events,
-and lazy roots with `data-bepis-lazy-retry="true"` render the reusable
-`.app-lazy-surface-error` retry markup. Do not add per-feature retry code or raw
-HTMX listeners for lazy fragments.
-
-Before adopting laziness, capture or at least inspect the baseline expensive
-render path. After adoption, verify the initial page response, lazy fragment GET,
-live invalidation path, and retry behavior. Useful commands:
-
-```bash
-bash ./bin/in-env typecheck
-bash ./bin/in-env hspec-test --match "LiveSurface"
-bash ./bin/in-env frontend-test
-bash ./bin/in-env e2e e2e/roster-live-fragments.spec.ts
-bash ./bin/in-env ./bin/style-audit
-```
-
-For performance work use the profile tooling and keep artifacts/notes on the
-relevant ticket:
-
-```bash
-bash ./bin/in-env profile-load --scenario=roster-wide --rate=1 --duration=5s
-```
-
-Record initial page response time/bytes, the lazy fragment response time/bytes,
-failed request count, and any remaining bottleneck. If profiling is blocked by
-local environment issues, leave the measurement ticket open with the failed
-artifact path rather than claiming a timing improvement.
-
-## Add A Fragment
-
-For production FrontendSurface fragments, use the workflow in
-`Application/Helper/FrontendSurface/README.md`: declare `Fragment` in the
-surface spec, implement a `FrontendSurfaceFragmentHandler`, render through
-`SurfaceImpl`, and add direct read-model fragment endpoints. If a fragment
-contains child surface mounts, declare those child surfaces in the fragment
-options once `ContainsSurface` is available; the child surfaces continue to own
-their own scopes and fragments.
-
-The checklist below is retained only for legacy compatibility surfaces.
-
-1. Add feature-local closed ADT constructors, for example
-   `RosterRow` or `TimesheetDaySection`. Do not model
-   fragment selectors as free `Text`; parse external section/query values into
-   the closed fragment type first.
-2. Map that constructor with `staticLiveFragmentDescriptor` when the fragment has
-   a fixed wire key, target id, URL, and dependency function. Use
-   `liveFragmentDescriptor` only when the ref is key-dependent, such as query
-   parameters derived from the surface key.
-3. Give the descriptor a stable `targetId`, canonical fragment GET URL,
-   protection policy, and containment path. Use
-   `liveFragmentDescriptorWithPath` when the target is nested inside another
-   live fragment target; otherwise the default path is the target id.
-4. Declare the fragment's dependency intent in the same descriptor with
-   `liveFragmentDependsOn` for passive `LiveResource` dependencies or
-   `liveFragmentResyncOnly` when the fragment is only refreshed by resync/actor
-   paths.
-5. Add or reuse a fragment GET action that renders the exact DOM node named by
-   the `targetId` and no sibling live-fragment targets.
-6. Serve the GET action with `serveTypedLiveFragment` and the same typed surface
-   definition that created the fragment contract.
-7. Render `data-live-update-surface={liveSurfaceConfigJson surface}` on a
-   stable owner shell, where `surface` comes from `mkTypedDefinedLiveSurface`.
-8. Register the surface in the explicit `registeredLiveSurfaceManifestCatalog`,
-   authorization catalog, and planning branches in `Web.LiveSurfaceRegistry` via
-   `registeredLiveSurface`. Pick `BackgroundPlannable` only when invalidations
-   can run without `?context`; otherwise use `RequestContextOnly`. The generated
-   TypeScript manifest must flow from the registered typed surface entry, not a
-   hand-written manifest descriptor.
-9. Make the business mutation return touched resources and call
-   `invalidateTouchedResources` or `invalidateTouchedResourcesWithoutContext`
-   after the write commits.
-10. For HTMX actors, set requester-local refresh triggers with
-   `setTypedLiveSurfaceActorRefresh` only when the actor response needs an extra
-   client refetch.
-11. Add contract coverage for the surface config, dependency intent, fragment
-   target, fragment URL, containment behavior, default resync fragments, and
-   fragment GET target.
-
-## Non-Region HTMX Boundaries
-
-Only server-declared fragment roots should opt into `data-bepis-fragment="true"`
-and the Bepis region lifecycle. Dialog overlays, validation-local responses,
-partial navigation, ordinary filter/sort controls, autosave helpers, and
-feature-specific HTMX snippets should remain plain HTMX unless a future ticket
-first gives them a Haskell-owned region contract. Do not mark an element as a
-Bepis region to obtain generic retry UI or animation if Haskell has not also
-declared its target id, authoritative URL, and ownership semantics.
-
-When migrating an existing HTMX target into the region lifecycle, add the
-Haskell helper/contract first, then let the generic TypeScript adapter consume
-the resulting `data-bepis-*` attrs. For non-lazy eager regions, use shared
-helpers such as `uiRegionTransitionAttrs` on the authoritative fragment root;
-for lazy fragments, prefer `renderLiveSurfaceFragmentMount` so the root gets the
-same target id, lazy/retry flags, transition profile, and HTMX refetch attrs from
-the `FragmentContract`. TypeScript must not derive routes, target ids, or
-business semantics from the raw HTMX event.
-
-## Safety Rules
-
-- Do not hand-build websocket JSON, raw `LiveUpdateWireFragment` values, or raw
-  actor-refresh payloads in feature modules.
-- Do not make `static/app-live-updates.js` infer target ids, URLs, scopes, or
-  protection policies from compact fragment keys.
-- Do not add feature-specific JavaScript for generic subscribe, reconnect,
-  resync, refetch, dedupe, swap, or focused-field protection behavior.
-- Prefer broad but safe fragments over stale DOM. Let typed-surface containment
-  normalization remove duplicate and parent/child refs during actor and passive
-  invalidation planning. When a broad FrontendSurface fragment contains child
-  surface mounts, the generic runtime must reconcile those children recursively
-  after the swap rather than relying on feature-specific cleanup code.
-- Use active-scope discovery for indirect fanout mutations so closed historical
-  pages do not force unnecessary database work.
-- Do not add feature-level passive broadcast or refresh helpers. Passive viewer
-  updates flow from touched `LiveResource` values through `Web.LiveSurfaceRegistry`.
-- Do not handwrite interaction `data-bepis-*` attrs, disposable layer mounts, or
-  intent HTMX forms in feature views. Interaction markup should be generated
-  from typed Haskell contracts so duplicate/moved surface mounts keep valid
-  target ids and form attributes.
-- Do not handwrite UI region attrs in feature views. Use Haskell helpers such as
-  `renderLiveSurfaceFragmentMount` or `uiRegionTransitionAttrs` so the generated
-  TypeScript contracts remain the browser vocabulary source of truth.
-
-## Legacy Review Checklist
-
-- The fragment enum is local to the feature and uses closed constructors rather
-  than free-text selectors.
-- The typed surface definition is registered in `Web.LiveSurfaceRegistry` via a
-  `RegisteredLiveSurface` catalog entry. There should be no hand-written
-  manifest descriptor for the surface.
-- The rendered shell has stable `data-live-update-surface` metadata.
-- The fragment GET action returns plain target HTML, not actor-only OOB wrappers
-  or sibling live-fragment targets.
-- The actor path refreshes only the requester; passive updates are derived from
-  touched resources and the `liveFragmentDependsOn` declarations in each
-  `FragmentContract`.
-- Tests cover the typed mapping, containment behavior, and the fragment endpoint
-  authorization.
+Do not add new `TypedLiveSurfaceDefinition`, `data-live-update-surface`,
+legacy registry/catalog adapters, `SurfaceProjection` cache plumbing, custom
+FrontendSurface dependency hooks, or handwritten live transport case lists.
+Surface metadata comes from `RegisteredFrontendSurfaces`; runtime subscriptions
+are surface-native `LiveUpdateSubscription` values; passive invalidation is
+planned in `Web.LiveResourceInvalidation` via generated FrontendSurface
+resources and dependencies.

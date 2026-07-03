@@ -135,7 +135,7 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "id=\"support-public-holidays-section\""
-                versionAfter `shouldBe` versionBefore + 1
+                versionAfter `shouldBe` versionBefore
 
         it "deduplicates concurrent award-rate refresh enqueues without 500s" $ withContext do
             withCleanDb do

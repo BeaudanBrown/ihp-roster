@@ -42,15 +42,15 @@ tests = describe "Typed interaction surface capabilities" do
         let form = moveIntentForm (testFragmentRef TestInteractionContent)
 
         interactionMountDomId definition primaryMount
-            `shouldBe` "bepis-surface--test-interaction--support-platform--primary"
+            `shouldBe` "bepis-surface--test-interaction--support--primary"
         interactionMountDomId definition duplicateMount
-            `shouldBe` "bepis-surface--test-interaction--support-platform--duplicate"
+            `shouldBe` "bepis-surface--test-interaction--support--duplicate"
         serverLayerDomId definition primaryMount ServerLayerDefinition { serverLayerName = "server", serverLayerDomIdSuffix = "server" }
-            `shouldBe` "bepis-surface--test-interaction--support-platform--primary--server-layer--server"
+            `shouldBe` "bepis-surface--test-interaction--support--primary--server-layer--server"
         disposableLayerDomId definition primaryMount layer
-            `shouldBe` "bepis-surface--test-interaction--support-platform--primary--disposable-layer--drag-preview"
+            `shouldBe` "bepis-surface--test-interaction--support--primary--disposable-layer--drag-preview"
         interactionFormDomId definition duplicateMount form
-            `shouldBe` "bepis-surface--test-interaction--support-platform--duplicate--intent-form--move-card"
+            `shouldBe` "bepis-surface--test-interaction--support--duplicate--intent-form--move-card"
 
     it "models scope-free static concepts separately from runtime HTMX intent forms" do
         let staticSchema = typedInteractionStaticSchemaFor testLiveSurfaceDefinition
@@ -158,10 +158,10 @@ tests = describe "Typed interaction surface capabilities" do
                 renderInteractionCapabilityShell testLiveSurfaceDefinition mount do
                     renderInteractionItemMarker "card-1" (Html5.toHtml ("Card 1" :: Text))
 
-        html `shouldContainText` "id=\"bepis-surface--test-interaction--support-platform--primary\""
+        html `shouldContainText` "id=\"bepis-surface--test-interaction--support--primary\""
         html `shouldNotContainText` "data-live-update-surface"
         html `shouldContainText` "data-bepis-surface=\"true\""
-        html `shouldContainText` "id=\"bepis-surface--test-interaction--support-platform--primary--server-layer--server\""
+        html `shouldContainText` "id=\"bepis-surface--test-interaction--support--primary--server-layer--server\""
         html `shouldContainText` "data-bepis-server-layer=\"server\""
         html `shouldContainText` "data-bepis-marker=\"item\" data-bepis-item=\"card-1\""
         html `shouldContainText` "data-bepis-disposable-layer=\"drag-preview\""
@@ -211,9 +211,9 @@ tests = describe "Typed interaction surface capabilities" do
         let duplicateMount = mkInteractionSurfaceMount () (InteractionMountKey "duplicate")
 
         interactionIntentTargetSelector testLiveSurfaceDefinition primaryMount form.intentFormTarget
-            `shouldBe` "#bepis-surface--test-interaction--support-platform--primary--selection-panel"
+            `shouldBe` "#bepis-surface--test-interaction--support--primary--selection-panel"
         renderText (renderInteractionIntentForm testLiveSurfaceDefinition duplicateMount form)
-            `shouldContainText` "hx-target=\"#bepis-surface--test-interaction--support-platform--duplicate--selection-panel\""
+            `shouldContainText` "hx-target=\"#bepis-surface--test-interaction--support--duplicate--selection-panel\""
 
 
 data TestInteractionSurface

@@ -120,6 +120,7 @@ tests = describe "Frontend contract generator foundation" do
             ["frontend/ts"]
             [ "frontend/ts/generated/contracts.ts"
             , "frontend/ts/app-live-updates.ts"
+            , "frontend/ts/live-updates/frontend-surface.ts"
             ]
             ["frontend/ts/tests/"]
             [".ts"]
@@ -489,7 +490,7 @@ frontendGeneratedHelperOffenders :: [Text] -> IO [(FilePath, Text)]
 frontendGeneratedHelperOffenders typeNames = do
     files <- collectSourceFiles "frontend/ts"
     fmap concat $ forM files \path -> do
-        if path == "frontend/ts/generated/contracts.ts"
+        if path `elem` ["frontend/ts/generated/contracts.ts", "frontend/ts/live-updates/frontend-surface.ts"]
             then pure []
             else do
                 source <- Text.readFile path

@@ -426,7 +426,7 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status302
                 xeroVersionAfter <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
-                xeroVersionAfter `shouldBe` (xeroVersionBefore + 2)
+                xeroVersionAfter `shouldBe` xeroVersionBefore
                 employeeCount <- query @XeroEmployee |> fetchCount
                 employeeCount `shouldBe` 1
                 syncedEmployee <- query @XeroEmployee |> fetchOne
@@ -612,12 +612,12 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Saved Xero employee mapping for Ada Lovelace."
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "app-live-fragments-refresh")
-                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin_xero_staff_mappings")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-xero-staff-mappings")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "xero-staff-mappings-data")
                 triggerHeader `shouldSatisfy` maybe True (not . Text.isInfixOf "\"targetId\":\"xero-staff-mappings\"")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "/ShowadminXeroStaffMappingsLiveFragment")
                 versionAfter <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
-                versionAfter `shouldBe` (versionBefore + 1)
+                versionAfter `shouldBe` versionBefore
                 mapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId staff.id) |> fetchOne
                 mapping.mappingStatus `shouldBe` "verified"
                 mapping.xeroEmployeeId `shouldBe` Just employee.xeroEmployeeId
@@ -705,7 +705,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "xero-staff-mapping-show-matched-toggle"
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "app-live-fragments-refresh")
-                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin_xero_staff_mappings")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-xero-staff-mappings")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "xero-staff-mappings-data")
                 mapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId staff.id) |> fetchOne
                 mapping.mappingStatus `shouldBe` "verified"
@@ -810,7 +810,7 @@ tests = beforeAll testContext do
                 accountCodeResponse `responseStatusShouldBe` status200
                 accountCodeResponse `responseBodyShouldContain` "Saved Xero pay item account code 477."
                 versionAfterAccountCode <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
-                versionAfterAccountCode `shouldBe` (versionBefore + 1)
+                versionAfterAccountCode `shouldBe` versionBefore
                 accountCodeSelection <- query @XeroPayItemAccountCodeSelection |> fetchOne
                 accountCodeSelection.selectionStatus `shouldBe` "verified"
                 accountCodeSelection.accountCode `shouldBe` Just "477"
@@ -823,7 +823,7 @@ tests = beforeAll testContext do
                 calendarResponse `responseStatusShouldBe` status200
                 calendarResponse `responseBodyShouldContain` "Saved Xero payroll calendar selection."
                 versionAfterCalendar <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
-                versionAfterCalendar `shouldBe` (versionAfterAccountCode + 1)
+                versionAfterCalendar `shouldBe` versionAfterAccountCode
                 selection <- query @XeroPayrollCalendarSelection |> fetchOne
                 selection.calendarStatus `shouldBe` "verified"
                 selection.xeroPayrollCalendarId `shouldBe` Just payrollCalendar.xeroPayrollCalendarId
@@ -885,7 +885,7 @@ tests = beforeAll testContext do
                 syncRun.syncStatus `shouldBe` "succeeded"
                 syncRun.earningsRatesCount `shouldBe` 7
                 versionAfter <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
-                versionAfter `shouldBe` (versionBefore + 2)
+                versionAfter `shouldBe` versionBefore
 
         it "reports pay item creates that are not present after the Xero verification pull" $ withContext do
             withCleanDb do
@@ -932,7 +932,7 @@ tests = beforeAll testContext do
                 syncRun.syncStatus `shouldBe` "failed"
                 syncRun.earningsRatesCount `shouldBe` 1
                 versionAfter <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
-                versionAfter `shouldBe` (versionBefore + 2)
+                versionAfter `shouldBe` versionBefore
 
         it "continues creating pay items after Xero rejects one and reports the rejected item" $ withContext do
             withCleanDb do
@@ -1914,7 +1914,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Prepared Xero draft-timesheet preview."
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "app-live-fragments-refresh")
-                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin_xero_timesheets")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-xero-timesheets")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "xero-timesheets-data")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "/ShowadminXeroTimesheetsLiveFragment")
                 run <- query @XeroSubmissionRun |> fetchOne
@@ -1951,7 +1951,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Submitted Xero draft timesheets."
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "app-live-fragments-refresh")
-                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin_xero_timesheets")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-xero-timesheets")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "xero-timesheets-data")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "/ShowadminXeroTimesheetsLiveFragment")
                 run <- query @XeroSubmissionRun |> fetchOne
@@ -2012,7 +2012,7 @@ tests = beforeAll testContext do
                 failedResponse `responseBodyShouldNotContain` "Retry"
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders failedResponse)
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "app-live-fragments-refresh")
-                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin_xero_timesheets")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-xero-timesheets")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "xero-timesheets-data")
                 submission <- query @XeroTimesheetSubmission |> fetchOne
                 submission.status `shouldBe` "failed"

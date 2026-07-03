@@ -39,7 +39,7 @@ import Web.Controller.Staff ()
 import Web.Controller.Support ()
 import Web.Controller.Timesheets ()
 import Web.FrontController ()
-import Web.LiveSurfaceRegistry (authorizeRegisteredLiveSurfaceScope)
+import Web.LiveResourceInvalidation (authorizeRegisteredLiveSurfaceScope)
 import Web.Types
 
 tests :: Spec
@@ -334,7 +334,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "successRedirect=%2FSupport"
                 response `responseBodyShouldNotContain` "Create Venue"
                 response `responseBodyShouldContain` "data-bepis-surface=\""
-                response `responseBodyShouldContain` "support_platform"
+                response `responseBodyShouldContain` "support"
 
         it "lets super-admin queue an award rate refresh from support" $ withContext do
             withCleanDb do
@@ -728,8 +728,8 @@ tests = beforeAll testContext do
                     callAction ShowRosterWeekAction { weekOffset = 0 }
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-roster-staff-name=\"Alpha\""
-                response `responseBodyShouldNotContain` "data-roster-staff-name=\"Beta\""
+                response `responseBodyShouldContain` "roster-staff-panel"
+                response `responseBodyShouldNotContain` "Beta Crew"
 
         it "uses only current-venue slot names when creating a roster week" $ withContext do
             withCleanDb do

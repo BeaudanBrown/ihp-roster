@@ -28,33 +28,24 @@ tests = describe "LiveSurface strict API guard" do
         violations <- concat <$> forM simpleDescriptorBackedSurfaceFiles rawTypedSurfaceConstructorsInFile
         violations `shouldBe` []
 
-    it "keeps live surface manifests derived from registered surface catalog entries" do
-        violations <- registryManualManifestViolations
-        violations `shouldBe` []
-
-    it "keeps live surface registry metadata on the canonical catalog path" do
-        violations <- registryCatalogViolations
+    it "keeps the legacy live surface registry adapter deleted" do
+        violations <- legacyRegistryAdapterViolations
         violations `shouldBe` []
 
     it "keeps frontend contract generation wired into the dev hot-reload path" do
         violations <- frontendContractWatcherViolations
         violations `shouldBe` []
 
-registryManualManifestViolations :: IO [Text]
-registryManualManifestViolations = do
-    source <- Text.readFile "Web/LiveSurfaceRegistry.hs"
-    pure
-        [ "Web/LiveSurfaceRegistry.hs: manual legacy manifestDescriptor entry bypasses FrontendSurface descriptors"
-        | "manifestDescriptor \"" `Text.isInfixOf` source
-        ]
-
-registryCatalogViolations :: IO [Text]
-registryCatalogViolations = do
-    registry <- Text.readFile "Web/LiveSurfaceRegistry.hs"
+legacyRegistryAdapterViolations :: IO [Text]
+legacyRegistryAdapterViolations = do
+    registryExists <- doesFileExist "Web/LiveSurfaceRegistry.hs"
+    invalidation <- Text.readFile "Web/LiveResourceInvalidation.hs"
     pure $ concat
-        [ ["Web/LiveSurfaceRegistry.hs: registeredLiveSurfaceManifestCatalog should not return as a parallel registry list" | "registeredLiveSurfaceManifestCatalog" `Text.isInfixOf` registry]
-        , ["Web/LiveSurfaceRegistry.hs: wire kind helpers belong in Application.Helper.LiveUpdate.Internal" | "liveUpdateScopeKind ::" `Text.isInfixOf` registry || "liveFragmentKeyKind ::" `Text.isInfixOf` registry]
-        , ["Web/LiveSurfaceRegistry.hs: legacy registeredLiveSurfaceCatalog should be removed after FrontendSurface migration" | "registeredLiveSurfaceCatalog" `Text.isInfixOf` registry]
+        [ ["Web/LiveSurfaceRegistry.hs: legacy registry adapter module should stay deleted" | registryExists]
+        , ["Web/LiveResourceInvalidation.hs: manual legacy manifestDescriptor entry bypasses FrontendSurface descriptors" | "manifestDescriptor \"" `Text.isInfixOf` invalidation]
+        , ["Web/LiveResourceInvalidation.hs: registeredLiveSurfaceManifestCatalog should not return as a parallel registry list" | "registeredLiveSurfaceManifestCatalog" `Text.isInfixOf` invalidation]
+        , ["Web/LiveResourceInvalidation.hs: wire kind helpers belong in Application.Helper.LiveUpdate.Internal" | "liveUpdateScopeKind ::" `Text.isInfixOf` invalidation || "liveFragmentKeyKind ::" `Text.isInfixOf` invalidation]
+        , ["Web/LiveResourceInvalidation.hs: legacy registeredLiveSurfaceCatalog should be removed after FrontendSurface migration" | "registeredLiveSurfaceCatalog" `Text.isInfixOf` invalidation]
         ]
 
 frontendContractWatcherViolations :: IO [Text]
@@ -218,7 +209,9 @@ isAllowedInfrastructureFile path =
             , "Application/Helper/Frontend/InteractionSchema.hs"
             , "Application/Helper/Frontend/LiveUpdateSchema.hs"
             , "Application/Helper/Frontend/SurfaceManifestSchema.hs"
+            , "Application/Helper/FrontendSurface/Authorization.hs"
             , "Application/Helper/FrontendSurface/ContractIR.hs"
+            , "Application/Helper/FrontendSurface/DependencyPlanner.hs"
             , "Application/Helper/FrontendSurface/Naming.hs"
             , "Application/Helper/FrontendSurface/Runtime.hs"
             , "Application/Helper/Interaction.hs"
@@ -230,10 +223,21 @@ isAllowedInfrastructureFile path =
             , "Application/Helper/LiveSurface/Internal.hs"
             , "Application/Helper/UiRegion.hs"
             , "Application/Script/ProfileLiveInvalidation.hs"
+            , "Application/Support/LiveUpdates.hs"
+            , "Web/Admin/FrontendSurface.hs"
+            , "Web/Billing/FrontendSurface.hs"
             , "Web/Controller/LiveUpdates.hs"
+            , "Web/LeaveRequests/FrontendSurface.hs"
             , "Web/LiveResourceInvalidation.hs"
-            , "Web/LiveSurfaceRegistry.hs"
+            , "Web/Profiles/FrontendSurface.hs"
             , "Web/RosterWeeks/FrontendSurface.hs"
+            , "Web/Staff/Mutations.hs"
             , "Web/Timesheets/FrontendSurface.hs"
             , "Web/Types.hs"
+            , "Web/View/Admin/Exports.hs"
+            , "Web/View/Admin/Invites.hs"
+            , "Web/View/Admin/RosterGroups.hs"
+            , "Web/View/Admin/ShiftTypes.hs"
+            , "Web/View/Admin/VenueSettings.hs"
+            , "Web/View/Admin/Xero.hs"
             ]

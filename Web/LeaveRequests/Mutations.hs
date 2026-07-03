@@ -7,7 +7,7 @@ module Web.LeaveRequests.Mutations
     ) where
 
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate.Runtime
+import Application.Helper.LiveUpdate
 import Application.Helper.WeekBoundaries (affectedVenueWeekOffsetsForDateRange)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson

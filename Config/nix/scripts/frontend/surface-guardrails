@@ -62,10 +62,9 @@ expect_no_match \
     'data-bepis-' \
     "${lab_paths[@]}"
 
-expect_no_match \
-    "migrated FrontendSurface lab must not be registered in legacy Web.LiveSurfaceRegistry" \
-    'FrontendSurfaceLab|SurfaceLab|surface-lab' \
-    Web/LiveSurfaceRegistry.hs
+if [ -e Web/LiveSurfaceRegistry.hs ]; then
+    report_failure "legacy Web.LiveSurfaceRegistry adapter module must stay deleted"
+fi
 
 expect_no_match \
     "migrated Timesheets FrontendSurface must not author old TypedLiveSurfaceDefinition paths" \
@@ -152,17 +151,17 @@ expect_no_match \
 expect_no_match \
     "registered live-surface authorization must delegate to generated FrontendSurface scope auth" \
     'CurrentVenueManager|CurrentVenueOwner|CurrentVenueAdmin|CurrentVenueRosterGroup|CurrentVenueStaff|SupportSuperAdmin|NoAuthIR|AuthorizeIR' \
-    Web/LiveSurfaceRegistry.hs Web/LiveResourceInvalidation.hs
+    Web/LiveResourceInvalidation.hs
 
 expect_match \
     "registered live-surface authorization delegates to generated FrontendSurface scope auth" \
     'authorizeRegisteredLiveSurfaceScope = authorizeFrontendSurfaceLiveScope' \
-    Web/LiveSurfaceRegistry.hs
+    Web/LiveResourceInvalidation.hs
 
 expect_match \
     "registered live-surface planning delegates dependency matching to generated FrontendSurface planner" \
-    'planFrontendSurfaceInvalidation resources scope planningCandidateFragments' \
-    Web/LiveSurfaceRegistry.hs
+    'planFrontendSurfaceWireInvalidation resources subscription\.subscriptionScope subscription\.subscriptionMountedFragments' \
+    Web/LiveResourceInvalidation.hs
 
 if [ "$failures" -ne 0 ]; then
     exit 1

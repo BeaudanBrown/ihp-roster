@@ -101,7 +101,7 @@ Every controller requires changes in **four files** (missing any will cause comp
 ## Live Fragment Pattern
 - For collaborative pages, split delivery paths:
   - actor response returns immediate HTMX fragments/OOB swaps
-  - cross-viewer updates flow from mutation-emitted `LiveResource` touches through `Web.LiveSurfaceRegistry`; feature-local FrontendSurface fragments still point to dedicated GET fragment actions
+  - cross-viewer updates flow from mutation-emitted `LiveResource` touches through `Web.LiveResourceInvalidation`; feature-local FrontendSurface fragments still point to dedicated GET fragment actions
 - Declare production live surfaces from Haskell with type-level `FrontendSurface` specs and `SurfaceImpl` handlers; render them with `renderFrontendSurfaceMount`. The browser runtime discovers `data-bepis-surface`/`data-bepis-surface-config` and owns subscription, request decoration, resync, refetch queueing, nested lifecycle reconciliation, swapping, and reusable protection policies.
 - Fragment GET actions for FrontendSurface surfaces should return the authoritative plain target node through the feature's fragment renderer/handler. Legacy `serveTypedLiveFragment` and `data-live-update-surface` are compatibility internals, not the new production controller path.
 - Treat scopes as authorized logical data slices, not pages. A mutation may invalidate multiple scopes, and only a subset of fragments within each scope.

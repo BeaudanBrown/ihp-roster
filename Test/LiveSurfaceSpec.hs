@@ -45,8 +45,8 @@ tests = describe "LiveSurface contract helpers" do
         let parent = testFragmentRef rosterContentLiveFragment "roster-content" ["roster-content"]
         let child = testFragmentRef rosterStaffPanelLiveFragment "roster-staff-panel-fragment" ["roster-content", "staff-panel"]
         let duplicateChild = testFragmentRef rosterStaffPanelLiveFragment "roster-staff-panel-fragment-duplicate" ["roster-content", "staff-panel"]
-        let grandchild = testFragmentRef rosterRowLiveFragment expectUuid "22222222-2222-2222-2222-222222222222" 3 "roster-row-3" ["roster-content", "day", "22222222", "row", "3"]
-        let day = testFragmentRef rosterDaySectionLiveFragment expectUuid "22222222-2222-2222-2222-222222222222" 0 "roster-day-22222222" ["roster-content", "day", "22222222"]
+        let grandchild = testFragmentRef (rosterRowLiveFragment (expectUuid "22222222-2222-2222-2222-222222222222") 3) "roster-row-3" ["roster-content", "day", "22222222", "row", "3"]
+        let day = testFragmentRef (rosterDaySectionLiveFragment (expectUuid "22222222-2222-2222-2222-222222222222") 0) "roster-day-22222222" ["roster-content", "day", "22222222"]
         let sibling = testFragmentRef billingStatusLiveFragment "billing-status-fragment" ["billing-status-fragment"]
 
         targetIds (normalizeSurfaceFragmentRefs [child, duplicateChild])
@@ -202,9 +202,9 @@ tests = describe "LiveSurface contract helpers" do
                     [ staticLiveFragmentDescriptor TestDescriptorPrimary billingStatusLiveFragment "billing-status-fragment" "/billing" (const (liveFragmentDependsOn (billingResource venueId) []))
                     ]
 
-        unSurfaceScope (definition.typedSurfaceScope ()) `shouldBe` BillingScope venueId
-        definition.typedSurfaceScopeFromWire (BillingScope venueId) `shouldBe` Just ()
-        definition.typedSurfaceScopeFromWire (BillingScope otherVenueId) `shouldBe` Nothing
+        unSurfaceScope (definition.typedSurfaceScope ()) `shouldBe` billingLiveScope venueId
+        definition.typedSurfaceScopeFromWire (billingLiveScope venueId) `shouldBe` Just ()
+        definition.typedSurfaceScopeFromWire (billingLiveScope otherVenueId) `shouldBe` Nothing
         definition.typedSurfaceScopeFromWire supportPlatformLiveScope `shouldBe` Nothing
         (mkTypedDefinedLiveSurface definition ()).decorateRequestsWithin `shouldBe` ["#billing-status-fragment"]
 
@@ -224,9 +224,9 @@ tests = describe "LiveSurface contract helpers" do
         let definition = descriptorToTypedLiveSurfaceDefinition descriptor
         let key = TestVenueKey venueId
 
-        unSurfaceScope (definition.typedSurfaceScope key) `shouldBe` BillingScope venueId
-        definition.typedSurfaceScopeFromWire (BillingScope venueId) `shouldBe` Just key
-        definition.typedSurfaceScopeFromWire (BillingScope otherVenueId) `shouldBe` Nothing
+        unSurfaceScope (definition.typedSurfaceScope key) `shouldBe` billingLiveScope venueId
+        definition.typedSurfaceScopeFromWire (billingLiveScope venueId) `shouldBe` Just key
+        definition.typedSurfaceScopeFromWire (billingLiveScope otherVenueId) `shouldBe` Nothing
         typedSurfaceDependsOn definition key TestDescriptorPrimary `shouldBe` [billingResource venueId]
 
     it "builds static fragment descriptors with protection and containment modifiers" do
@@ -348,10 +348,10 @@ tests = describe "LiveSurface contract helpers" do
         map (.feature) surfaces `shouldBe` ["timesheets", "admin-venue-config", "admin-invites", "admin-xero"]
         map (.scopeKey) surfaces
             `shouldBe`
-                [ "timesheet_week:11111111-1111-1111-1111-111111111111:1"
-                , "admin_venue_config:11111111-1111-1111-1111-111111111111"
-                , "admin_invites:11111111-1111-1111-1111-111111111111"
-                , "admin_xero:11111111-1111-1111-1111-111111111111"
+                [ "timesheets:11111111-1111-1111-1111-111111111111:1"
+                , "admin-venue-config:11111111-1111-1111-1111-111111111111"
+                , "admin-invites:11111111-1111-1111-1111-111111111111"
+                , "admin-xero:11111111-1111-1111-1111-111111111111"
                 ]
 
 testFragmentRef :: LiveFragmentKey -> Text -> [Text] -> SurfaceFragmentRef ()

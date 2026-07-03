@@ -51,7 +51,7 @@ browser protocol itself.
 ## Current State
 
 Feature modules now use strict typed contracts through
-`TypedLiveSurfaceDefinition`. `Web.LiveSurfaceRegistry` authorizes websocket
+`TypedLiveSurfaceDefinition`. `Web.LiveResourceInvalidation` authorizes websocket
 subscriptions through registered typed definitions, and `Test.LiveSurfaceGuard`
 rejects old feature-facing API names under `Web/` and feature `Application/`.
 
@@ -64,7 +64,7 @@ The remaining old names are internal compatibility/runtime details:
 | `mkDefinedLiveSurface` | Defined/exported by `Application.Helper.LiveSurface.Internal`; used only by `mkTypedDefinedLiveSurface`. | No. | Delete; construct `LiveSurfaceConfig` directly in `mkTypedDefinedLiveSurface`. |
 | `liveSurfaceFragmentRef(s)` | Defined/exported by `Application.Helper.LiveSurface.Internal`; used by untyped broadcasts. | No. | Delete; use `typedLiveSurfaceFragmentRef(s)` and stored typed projection fragment builder fields. |
 | `typedLiveSurfaceDefinition` | Defined/exported by `Application.Helper.LiveSurface.Internal`; used only by `mkTypedDefinedLiveSurface`. | No. | Delete; reimplement config construction from `TypedLiveSurfaceDefinition`. |
-| typed/direct broadcast helpers (`broadcastSurface*`, `broadcastTypedSurface*`, `broadcastProjectionSurface*`) | Previously exposed by the typed facade/internal live-surface layer; feature callers have been removed. | No. | Public aliases and internal exports are removed; passive broadcast emission is owned by `Web.LiveSurfaceRegistry` and raw transport stays in `Application.Helper.LiveUpdate.Runtime`. |
+| typed/direct broadcast helpers (`broadcastSurface*`, `broadcastTypedSurface*`, `broadcastProjectionSurface*`) | Previously exposed by the typed facade/internal live-surface layer; feature callers have been removed. | No. | Public aliases and internal exports are removed; passive broadcast emission is owned by `Web.LiveResourceInvalidation` and raw transport stays in `Application.Helper.LiveUpdate.Runtime`. |
 | old typed projection bridge | Removed during cleanup. | No. | Keep deleted. |
 | `LiveFragmentRef` | Transport payload type in `Application.Helper.LiveUpdate.Internal`, `LiveSurfaceConfig`, controller/support tests, and contract helpers. | Not feature-facing by guard; tests/runtime only. | Rename to `LiveUpdateWireFragment` while preserving JSON keys and field names. |
 | `mkLiveFragmentRef` | Constructor helper used by `mkSurfaceFragmentRef`. | Not feature-facing. | Rename to `mkLiveUpdateWireFragment`; keep typed `mkSurfaceFragmentRef` as feature entrypoint. |
@@ -83,7 +83,7 @@ After cleanup, the layers should be explicit:
 2. Typed facade: `Application.Helper.LiveSurface` exports typed config,
    authorization, projection, and actor-refresh helpers; it does not expose
    passive broadcast or typed mutation entrypoints.
-3. Passive planner: `Web.LiveSurfaceRegistry` matches touched/expanded
+3. Passive planner: `Web.LiveResourceInvalidation` matches touched/expanded
    resources against registered `liveFragmentDependsOn` declarations from each
    `FragmentContract` and emits transport invalidations.
 4. Transport runtime: internal bus, websocket JSON, versions, subscriptions, and

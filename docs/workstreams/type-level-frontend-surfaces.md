@@ -35,7 +35,7 @@ HTMX/intent behavior, mount metadata, and mount-state backend behavior.
 
 The final target removes/replaces author-facing surface contract machinery based
 on `FrontendCodec`, `FrontendSchema`, manual DTO schema groups,
-`TypedLiveSurfaceDefinition`, `Web.LiveSurfaceRegistry`, and the removed generic
+`TypedLiveSurfaceDefinition`, `Web.LiveResourceInvalidation`, and the removed generic
 server render cache for migrated surfaces. Renderer-internal IR/data structures
 may remain when they are fed only by the new
 `SurfaceContractIR`.
@@ -109,7 +109,7 @@ registered surface without an impl should fail compilation.
 During migration, the application has two registry families with an explicit
 boundary:
 
-- Legacy `TypedLiveSurfaceDefinition` surfaces remain in `Web.LiveSurfaceRegistry`
+- Legacy `TypedLiveSurfaceDefinition` surfaces remain in `Web.LiveResourceInvalidation`
   and continue to emit self-describing wire fragments containing concrete
   `targetId`, `url`, protection, and containment metadata.
 - Migrated `FrontendSurface` surfaces live only in
@@ -117,7 +117,7 @@ boundary:
   `RegisteredFrontendSurfaces`. Their runtime metadata is derived from
   `HasSurfaceImpl` instances by a typeclass fold over that type-level list.
 
-`Web.LiveSurfaceRegistry` may remain the temporary orchestration module for
+`Web.LiveResourceInvalidation` may remain the temporary orchestration module for
 shared planner/authorization entrypoints, but it must consume the derived
 `FrontendSurface` registry rather than re-listing migrated surfaces. In other
 words, a migrated surface can flow through a legacy-named compatibility function,
@@ -127,9 +127,9 @@ Hybrid planning is a concatenation of two derived target sets:
 
 ```text
 touched LiveResource set + active scopes
-  -> legacy registry planner
+  -> surface-native dependency planner
        -> legacy self-describing wire-fragment invalidations
-  -> FrontendSurface registry planner
+  -> FrontendSurface dependency planner
        -> mount-resolved surface/scope/fragment invalidations
   -> websocket/actor delivery envelope containing one or both target kinds
 ```
@@ -140,7 +140,7 @@ ignore legacy fragment payloads and resolve only `FrontendSurface` invalidations
 for their own surface/scope/mount metadata.
 
 Manifest generation follows the same split. Legacy `LiveSurfaceManifest` remains
-derived from legacy registry entries for non-migrated surfaces. New generated
+derived from legacy surface entries for non-migrated surfaces. New generated
 surface contracts/manifests are derived from `RegisteredFrontendSurfaces`. A
 surface family name must not appear in both registries at the same time; the
 migration step for a surface removes its legacy catalog entry in the same slice
@@ -157,7 +157,7 @@ Authorization remains server-side and registry-specific:
 - shared controller entrypoints may ask both registries whether a wire scope is
   authorized during the hybrid period.
 
-Final unification removes the legacy registry, old manifest sections, and
+Final unification removes the legacy registry adapter, old manifest sections, and
 self-describing wire-fragment transport after all surfaces migrate. At that point
 all live invalidation planning, authorization, manifest output, request
 decoration, and browser refresh behavior derive from `RegisteredFrontendSurfaces`
@@ -673,7 +673,7 @@ The first implementation target is a support-super-admin-only lab page. It must:
 - exercise one real HTMX action and one intent path;
 - emit/consume generated TypeScript contract shapes;
 - avoid old author-facing `FrontendCodec`, DTO schema groups,
-  `TypedLiveSurfaceDefinition`, `Web.LiveSurfaceRegistry`, manual
+  `TypedLiveSurfaceDefinition`, `Web.LiveResourceInvalidation`, manual
   `InteractionStaticSchema`, and raw protocol attrs in lab views.
 
 ## Timesheets Migration

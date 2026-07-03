@@ -3,7 +3,7 @@
 `Application.Helper.FrontendSurface` owns the type-level surface contract system
 for server-rendered interactive surfaces. New production surfaces should use this
 path instead of authoring `FrontendCodec` DTO schema groups,
-`TypedLiveSurfaceDefinition`, `Web.LiveSurfaceRegistry` entries, or a shared
+`TypedLiveSurfaceDefinition`, `Web.LiveResourceInvalidation` entries, or a shared
 projection cache.
 
 ## Source Of Truth
@@ -146,7 +146,7 @@ switch on app-specific surface/fragment names.
 
 `Scope` owns websocket subscription identity and authorization. Every scope must
 carry exactly one auth marker: `Authorize SomePolicy` for server-checked scopes,
-or explicit `NoAuth` for public/test-only scopes. `Web.LiveSurfaceRegistry`
+or explicit `NoAuth` for public/test-only scopes. `Web.LiveResourceInvalidation`
 derives subscription authorization from the reflected `RegisteredFrontendSurfaces`
 metadata; feature code must not add hard-coded fallback authorization for a
 surface/scope pair.
@@ -169,7 +169,7 @@ custom dependency hooks, or bridge conversions.
 
 The passive planner is generated-data driven:
 
-1. collect candidate mounted fragments from active live scopes;
+1. collect mounted fragments from active surface-native subscriptions;
 2. evaluate each fragment's `DependsOn` declarations from scope/fragment params;
 3. intersect those concrete dependency values with touched generated resources;
 4. broadcast the affected generated wire fragments.
@@ -208,9 +208,9 @@ field names, surface names, or mutation endpoints.
 
 Production feature surfaces have migrated to the `FrontendSurface` path. Do not
 start new production work with `TypedLiveSurfaceDefinition`,
-`data-live-update-surface`, `serveTypedLiveFragment`, legacy
-`Web.LiveSurfaceRegistry` catalog entries, handwritten live-surface manifest
-DTOs, or a shared `SurfaceProjection` cache. Feature-facing authoring uses
+`data-live-update-surface`, `serveTypedLiveFragment`, handwritten
+live-surface manifest DTOs, legacy registry/catalog adapters, or a shared
+`SurfaceProjection` cache. Feature-facing authoring uses
 type-level specs plus `SurfaceImpl`.
 
 For a new surface or migration:

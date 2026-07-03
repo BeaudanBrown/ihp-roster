@@ -245,11 +245,11 @@ setAdminXeroActorRefresh :: (?context :: ControllerContext, ?request :: Request)
 setAdminXeroActorRefresh fragments =
     setHeader
         ( "HX-Trigger"
-        , cs (Aeson.encode (liveUpdateWireRefreshTriggerPayload (adminSurfaceWireFragments fragments)))
+        , cs (Aeson.encode (adminRefreshTriggerPayload (adminSurfaceWireFragments fragments)))
         )
 
-liveUpdateWireRefreshTriggerPayload :: [LiveUpdateWireFragment] -> Aeson.Value
-liveUpdateWireRefreshTriggerPayload fragments =
+adminRefreshTriggerPayload :: [LiveUpdateWireFragment] -> Aeson.Value
+adminRefreshTriggerPayload fragments =
     Aeson.object
         [ AesonKey.fromText canonicalAppEvents.appLiveFragmentsRefreshEventName Aeson..= Aeson.object
             [ "fragments" Aeson..= coalesceLiveUpdateWireFragments fragments

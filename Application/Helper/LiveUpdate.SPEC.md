@@ -2,8 +2,7 @@
 
 This file describes the shared live-fragment architecture implemented by
 `Application/Helper/LiveUpdate.hs`, migrated `FrontendSurface` helpers,
-remaining compatibility internals, websocket controllers, and
-`static/app-live-updates.js`.
+websocket controllers, and `static/app-live-updates.js`.
 
 ## Current Contract
 
@@ -23,8 +22,9 @@ remaining compatibility internals, websocket controllers, and
 - Scope keys are server-owned and carried through surface config/messages.
 - Bepis live facts are emitted by `invalidateTouchedResources*` after actual
   touched-resource expansion/planning/broadcast. This does not replace
-  `LiveResource` or registry planning; it records that the same invalidation
-  helper consumed the touched-resource set used by passive invalidation.
+  `LiveResource` or FrontendSurface dependency planning; it records that the
+  same invalidation helper consumed the touched-resource set used by passive
+  invalidation.
 
 ## Surface Declaration
 
@@ -88,12 +88,12 @@ a fragment is passively invalidated by semantic `LiveResource` changes, and use
 `liveFragmentResyncOnly` only for fragments that have no passive resource
 subscription and are refreshed by resync or actor paths.
 
-`LiveResource` declares what business data changed. Contract dependencies declare
-which fragments read those resources. The registry planner matches
-changed/expanded resources against these declarations to decide which subscribed
-scope fragments are stale. Fragment containment paths then normalize the selected
-refs before transport: exact duplicates collapse, a child ref is dropped when an
-ancestor ref is present, and sibling refs are preserved.
+`LiveResource` declares what business data changed. FrontendSurface dependency
+contracts declare which fragments read those resources. The dependency planner
+matches changed/expanded resources against active surface-native subscriptions to
+decide which mounted scope fragments are stale. Fragment containment paths then
+normalize the selected refs before transport: exact duplicates collapse, a child
+ref is dropped when an ancestor ref is present, and sibling refs are preserved.
 
 Containment metadata is server-only. It complements, but does not replace,
 `LiveResource`: resources describe data semantics; containment paths describe DOM
@@ -240,7 +240,7 @@ the requester.
 `Web.LiveResourceInvalidation` is the planner/adapter layer. It receives
 concrete generated `LiveResource` values (`FrontendSurfaceResourceValue`s),
 applies the small set of approved active-scope-bounded domain expansions, then
-asks `Web.LiveSurfaceRegistry` to match those resources against generated
+asks `Web.LiveResourceInvalidation` to match those resources against generated
 `FrontendSurface` dependency metadata. The registry derives affected fragments
 from mounted candidates plus each fragment's declared `DependsOn` fields; it
 owns passive broadcast emission for matched scope/fragment targets. Feature
@@ -268,7 +268,7 @@ concrete generated resources before the planner boundary.
 Allowed direct live calls after migration are limited to the passive planner,
 transport runtime, and actor-only response helpers:
 
-- `Web.LiveSurfaceRegistry` is the passive adapter that turns planned targets
+- `Web.LiveResourceInvalidation` is the passive adapter that turns planned targets
   into raw transport invalidations
 - `Application.Helper.LiveUpdate.Runtime` owns the transport bus and raw
   websocket invalidation primitives
