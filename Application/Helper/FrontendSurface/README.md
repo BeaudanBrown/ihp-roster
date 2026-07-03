@@ -1,7 +1,7 @@
 # FrontendSurface Authoring Guide
 
 `Application.Helper.FrontendSurface` owns the type-level surface contract system
-for server-rendered interactive surfaces. New migrated surfaces should use this
+for server-rendered interactive surfaces. New production surfaces should use this
 path instead of authoring `FrontendCodec` DTO schema groups,
 `TypedLiveSurfaceDefinition`, `Web.LiveSurfaceRegistry` entries, or a shared
 projection cache.
@@ -29,6 +29,27 @@ Feature specs normally live beside this directory as focused modules such as
 `Lab.hs`, `Timesheets.hs`, and `Roster.hs`. Runtime feature behavior may live in
 the feature area when it is tightly coupled to controllers/views, but it must
 implement the same declared spec through `SurfaceImpl`.
+
+## Composition Terminology
+
+- **Surface**: an independently mounted, typed UI owner with a scope,
+  subscription metadata, generated contract, and `SurfaceImpl` handlers.
+- **Fragment** or **region**: a surface-owned server-rendered DOM target that can
+  be refetched and swapped. The current DSL name is `Fragment`; documentation may
+  use "region" when discussing DOM lifecycle.
+- **Contained child surface**: a nested surface mount rendered inside a parent
+  fragment/region and declared by that parent fragment through `ContainsSurface`
+  once composition support is available.
+- **Runtime reconciliation**: the browser lifecycle pass that treats the current
+  DOM as the source of truth for mounted surface instances, initializes newly
+  inserted mounts, and disposes removed mounts recursively so websocket
+  subscriptions match mounted scopes.
+
+A contained child surface is still an independent surface: it owns its own scope,
+fragments, request decoration, focused-field protection, and invalidation
+handling. Parent fragments may refresh broad HTML that includes child mounts, so
+composition-safe runtime code must clean up removed child/grandchild mounts and
+avoid duplicate subscriptions when the same instance remains mounted.
 
 ## Type-Level Spec Shape
 
@@ -141,14 +162,17 @@ manage disposable sessions/layers, fill generated intent forms, and refetch
 mount-local fragments. It must not infer feature URLs, target ids, canonical
 field names, surface names, or mutation endpoints.
 
-## Hybrid Migration Rules
+## Authoring Rules
 
-Until all app surfaces migrate, legacy live surfaces may still use
-`TypedLiveSurfaceDefinition`, `data-live-update-surface`, and
-`Web.LiveSurfaceRegistry`. Migrated surfaces must not. Current migrated surfaces
-are the support lab, Timesheets, and Roster.
+Production feature surfaces have migrated to the `FrontendSurface` path. Do not
+start new production work with `TypedLiveSurfaceDefinition`,
+`data-live-update-surface`, `serveTypedLiveFragment`, legacy
+`Web.LiveSurfaceRegistry` catalog entries, or a shared `SurfaceProjection` cache.
+Compatibility code may remain in shared internals and tests while the runtime is
+simplified, but feature-facing authoring should use type-level specs plus
+`SurfaceImpl`.
 
-For a new migration:
+For a new surface or migration:
 
 1. Define the type-level spec and add it to `RegisteredFrontendSurfaces`.
 2. Implement `SurfaceImpl` handlers and render mounts with runtime helpers.

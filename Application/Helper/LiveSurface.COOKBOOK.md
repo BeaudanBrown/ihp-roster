@@ -4,12 +4,13 @@ Use this checklist when adding or changing a collaborative server-rendered
 fragment. Keep the browser runtime generic: Haskell owns scopes, target ids,
 URLs, authorization, and protection policy.
 
-For new or migrated surfaces, start with the type-level `FrontendSurface`
+For new production surfaces, start with the type-level `FrontendSurface`
 authoring guide in `Application/Helper/FrontendSurface/README.md`. This cookbook
-still documents the shared fragment concepts and the legacy
-`TypedLiveSurfaceDefinition` path used by non-migrated surfaces. Migrated
-surfaces must not use `data-live-update-surface`, `Web.LiveSurfaceRegistry`
-catalog entries, or `Application.Helper.SurfaceProjection`.
+keeps the shared fragment vocabulary and documents compatibility internals that
+still exist in tests/shared code; it is not the feature-authoring path for new
+production surfaces. Production surfaces must not use `data-live-update-surface`,
+legacy `Web.LiveSurfaceRegistry` catalog entries, or
+`Application.Helper.SurfaceProjection`.
 
 ## Vocabulary
 
@@ -19,8 +20,15 @@ catalog entries, or `Application.Helper.SurfaceProjection`.
   `data-live-update-surface`.
 - **Scope**: the authorized logical data slice, such as one roster week or one
   timesheet week. A scope is not a page name.
-- **Fragment**: a feature-local enum value that maps to one refreshable DOM
-  target and one GET URL.
+- **Fragment/region**: a feature-local enum value that maps to one
+  server-owned DOM target and one GET URL. Most fragments are refreshable; some
+  may also render contained child surface mounts.
+- **Contained child surface**: an independently mounted `FrontendSurface` whose
+  mount appears inside a parent fragment/region. The parent declares this static
+  topology; runtime lifecycle is driven by actual DOM mounts.
+- **Runtime reconciliation**: the browser pass that scans mounted surfaces after
+  page load and swaps, initializes new mounts, disposes removed mounts
+  recursively, and keeps subscriptions equal to current DOM surface scopes.
 - **Containment path**: server-only metadata that describes DOM ownership among
   selected fragments. Parent/child overlaps collapse to the parent; siblings are
   preserved.
@@ -72,11 +80,14 @@ For any new migration, define a type-level spec, add it to
 Use direct read-model rendering first; there is no shared SurfaceProjection cache
 helper.
 
-## Legacy Simple Surface Path
+## Legacy Compatibility Reference
 
-For a still-legacy small current-venue surface with one or more static fragments,
-prefer the refined descriptor helpers instead of hand-writing the full
-`TypedLiveSurfaceDefinition` record:
+The remaining examples in this section describe compatibility helpers that may
+still be useful while reading older tests or internals. Do not copy this pattern
+for new production feature work; use the `FrontendSurface` path instead.
+
+For a legacy small current-venue surface with one or more static fragments, the
+old refined descriptor helper shape was:
 
 ```haskell
 adminExampleLiveSurfaceDefinition ::
@@ -265,13 +276,17 @@ failed request count, and any remaining bottleneck. If profiling is blocked by
 local environment issues, leave the measurement ticket open with the failed
 artifact path rather than claiming a timing improvement.
 
-## Add A Legacy Fragment
+## Add A Fragment
 
-For migrated FrontendSurface fragments, use the workflow in
+For production FrontendSurface fragments, use the workflow in
 `Application/Helper/FrontendSurface/README.md`: declare `Fragment` in the
 surface spec, implement a `FrontendSurfaceFragmentHandler`, render through
-`SurfaceImpl`, and add direct read-model fragment endpoints. The checklist below
-is for still-legacy `TypedLiveSurfaceDefinition` surfaces.
+`SurfaceImpl`, and add direct read-model fragment endpoints. If a fragment
+contains child surface mounts, declare those child surfaces in the fragment
+options once `ContainsSurface` is available; the child surfaces continue to own
+their own scopes and fragments.
+
+The checklist below is retained only for legacy compatibility surfaces.
 
 1. Add feature-local closed ADT constructors, for example
    `RosterRow` or `TimesheetDaySection`. Do not model
@@ -340,7 +355,9 @@ business semantics from the raw HTMX event.
   resync, refetch, dedupe, swap, or focused-field protection behavior.
 - Prefer broad but safe fragments over stale DOM. Let typed-surface containment
   normalization remove duplicate and parent/child refs during actor and passive
-  invalidation planning.
+  invalidation planning. When a broad FrontendSurface fragment contains child
+  surface mounts, the generic runtime must reconcile those children recursively
+  after the swap rather than relying on feature-specific cleanup code.
 - Use active-scope discovery for indirect fanout mutations so closed historical
   pages do not force unnecessary database work.
 - Do not add feature-level passive broadcast or refresh helpers. Passive viewer

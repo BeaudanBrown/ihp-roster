@@ -1,8 +1,9 @@
 # Live Update And Live Surface Specification
 
 This file describes the shared live-fragment architecture implemented by
-`Application/Helper/LiveUpdate.hs`, `Application/Helper/LiveSurface.hs`,
-`Web/Controller/LiveUpdates.hs`, and `static/app-live-updates.js`.
+`Application/Helper/LiveUpdate.hs`, migrated `FrontendSurface` helpers,
+remaining compatibility internals, websocket controllers, and
+`static/app-live-updates.js`.
 
 ## Current Contract
 
@@ -42,12 +43,12 @@ thin: it translates raw HTMX events into Bepis region events only for
 `data-bepis-fragment="true"` roots, and downstream lazy/retry/transition code is
 parameterized by those server-rendered attrs.
 
-New or migrated live surfaces should be declared with a type-level
+New production live surfaces must be declared with a type-level
 `FrontendSurface` spec in `Application.Helper.FrontendSurface.Registry` and
 rendered with `SurfaceImpl` helpers as `data-bepis-surface` plus
-`data-bepis-surface-config`. Existing non-migrated legacy surfaces may continue
-to use `Application.Helper.LiveSurface.TypedLiveSurfaceDefinition` and
-`data-live-update-surface` until their own migration ticket replaces them.
+`data-bepis-surface-config`. `Application.Helper.LiveSurface.TypedLiveSurfaceDefinition`
+and `data-live-update-surface` remain compatibility vocabulary for shared
+internals/tests only; do not use them as the feature-authoring path.
 
 A surface owns:
 
@@ -64,8 +65,16 @@ A surface owns:
 - a fragment contract for each feature-local fragment
 - semantic dependency intent for each rendered fragment
 - server-side fragment containment paths used to avoid overlapping DOM swaps
+- optional contained child-surface topology declared on fragments/regions
 - optional mount state, interaction sessions/layers/effects, intents, and
   conflict policies
+
+A fragment/region may contain child surface mounts. Containment is static
+surface topology; it does not make the child part of the parent subscription.
+The browser runtime treats current DOM mounts as the source of truth and must
+recursively reconcile child/grandchild lifecycles after page loads and swaps:
+new mounts initialize, removed mounts dispose, and websocket subscriptions remain
+the union of currently mounted surface scopes.
 
 Each fragment is declared through `typedSurfaceFragmentContract`, usually by
 building a `FragmentContract` with `mkSurfaceFragmentContract`. The contract is
@@ -100,12 +109,12 @@ contracts and provide TypeScript types, guards, `parseX`, and `encodeX` helpers
 consumed by the runtime. Feature modules should keep fragment enums
 feature-local and cross the typed-to-wire boundary only through strict helpers.
 For migrated surfaces that means `SurfaceImpl`/`renderFrontendSurfaceMount` and
-mount-local fragment/action/intent handlers. For still-legacy surfaces that means
-helpers such as `mkSurfaceFragmentRef`, `mkSurfaceFragmentContract`,
-`mkTypedDefinedLiveSurface`, `typedLiveSurfaceFragmentRef(s)`,
-`serveTypedLiveFragment`, `respondWithTypedLiveSurfaceFragments`, and typed
-fragment normalization helpers. The runtime no longer keeps feature-facing
-broadcast or typed mutation helpers.
+mount-local fragment/action/intent handlers. Legacy helpers such as
+`mkSurfaceFragmentRef`, `mkSurfaceFragmentContract`, `mkTypedDefinedLiveSurface`,
+`typedLiveSurfaceFragmentRef(s)`, `serveTypedLiveFragment`, and
+`respondWithTypedLiveSurfaceFragments` are compatibility internals for remaining
+shared code/tests, not the path for new production features. The runtime no
+longer keeps feature-facing broadcast or typed mutation helpers.
 
 Actor responses and passive live updates should use one fragment model with
 multiple triggers. A feature-local fragment enum and either a migrated
@@ -268,17 +277,19 @@ When adding or migrating a mutation flow:
 ## Extension Rules
 
 - Do not add feature-specific JavaScript adapters for normal subscribe, resync,
-  request decoration, refetch, swap, dedupe, or focused-field protection.
+  request decoration, refetch, swap, dedupe, nested lifecycle reconciliation, or
+  focused-field protection.
 - Add a live surface only when another actor, another tab, or an async job can
   make the mounted DOM stale.
-- Fragment GET actions for typed surfaces should use `serveTypedLiveFragment`
-  with the same surface key and definition that produced the fragment contract.
-- Websocket subscription authorization must go through the registered typed
-  surface definitions in `Web.LiveSurfaceRegistry`; unregistered wire scopes are
-  denied instead of falling back to default scope authorization.
-- Mutating controllers should use typed actor-only helpers, such as
-  `setTypedLiveSurfaceActorRefresh`, only for requester-local refresh triggers;
-  passive invalidation belongs behind touched resources.
+- New production fragment GET actions should render through the relevant
+  `SurfaceImpl`/FrontendSurface fragment handler and return the authoritative
+  target node. Legacy typed helpers remain compatibility-only.
+- Websocket subscription authorization must go through registered generated
+  surface metadata and the live surface registry/planner; unregistered wire
+  scopes are denied instead of falling back to default scope authorization.
+- Mutating controllers should use actor-only refresh helpers only for
+  requester-local refresh triggers; passive invalidation belongs behind touched
+  resources.
 - For broad fanout mutations, expand indirect resources only through active
   subscriptions before querying cold historical data.
 

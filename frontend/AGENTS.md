@@ -54,13 +54,19 @@ Read this before editing `frontend/ts/`.
 - Generic interaction code may create, move, and clear disposable UI inside
   Haskell-declared disposable layers, but must not mutate server-owned business
   DOM or construct persistence URLs. Committed intents submit through
-  Haskell-rendered HTMX forms. For migrated surfaces, closest-mount discovery is
-  based on `data-bepis-surface`/`data-bepis-surface-config`; legacy
-  `data-live-update-surface` support remains only for non-migrated surfaces.
+  Haskell-rendered HTMX forms. For production surfaces, closest-mount discovery
+  is based on `data-bepis-surface`/`data-bepis-surface-config`; legacy
+  `data-live-update-surface` support remains compatibility-only.
 - Generic UI region runtime may adapt HTMX lifecycle events, lazy retry UI, and
   transition classes only for `data-bepis-fragment="true"` roots rendered by
   Haskell helpers/contracts. Do not make ordinary HTMX, dialogs, validation
   responses, partial navigation, or autosave controls participate without a
   future server-owned region contract.
+- Nested/composable FrontendSurface behavior must stay generic. If a parent
+  fragment/region contains child surface mounts, TypeScript should reconcile
+  lifecycle from current DOM mounts after swaps: initialize new child mounts,
+  dispose removed child/grandchild mounts, and keep subscriptions equal to the
+  currently mounted surface scopes. Do not add feature-specific cleanup or
+  subscription code for nested surfaces.
 - Production/live packaging serves checked-in generated static assets and must
   stay Node-free.
