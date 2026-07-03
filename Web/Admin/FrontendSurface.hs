@@ -18,6 +18,11 @@ module Web.Admin.FrontendSurface
     , adminShiftTypesAffectedFragments
     , adminRosterGroupsAffectedFragments
     , adminXeroAffectedFragments
+    , adminVenueSettingsFragment
+    , adminInvitesFragment
+    , adminExportsFragment
+    , adminShiftTypesFragment
+    , adminRosterGroupsFragment
     , adminSurfaceWireFragments
     , setAdminXeroActorRefresh
     , adminXeroShellFragment

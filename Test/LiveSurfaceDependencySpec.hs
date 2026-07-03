@@ -3,6 +3,10 @@ module Test.LiveSurfaceDependencySpec where
 import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceMountedFragment (..))
 import Application.Helper.LiveResource
 import Application.Helper.LiveSurface (typedSurfaceDependsOn)
+import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..),
+                                              LiveFragmentProtection (..),
+                                              LiveUpdateScope (..),
+                                              LiveUpdateWireFragment (..))
 import Application.Support.LiveUpdates (supportAffectedMountedFragments,
                                         supportFragmentDependencies)
 import qualified Data.Set as Set
@@ -12,6 +16,8 @@ import Test.Hspec
 import Web.Billing.FrontendSurface (BillingScopeValue (..),
                                     billingAffectedMountedFragments,
                                     billingFragmentDependencies)
+import Web.LiveSurfaceRegistry (LiveSurfaceInvalidationTarget (..),
+                                planRegisteredLiveSurfaceInvalidationsWithoutContext)
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
                                      profileAffectedMountedFragments,
                                      profileFragmentDependencies)
@@ -56,6 +62,21 @@ tests = do
                 `shouldBe` ["timesheet-day-section-4"]
             map (.mountedFragmentTargetId) (timesheetsAffectedMountedFragments scope mountState (Set.fromList [TimesheetWeekResource venueId 2]))
                 `shouldBe` ["timesheet-week-toolbar", "timesheet-day-columns"]
+
+        it "plans affected fragments from generated FrontendSurface dependencies" do
+            let venueId = fromWords 1 0 0 0
+            let scope = TimesheetWeekScope { venueId, weekOffset = 2 }
+            let targets = planRegisteredLiveSurfaceInvalidationsWithoutContext (Set.fromList [TimesheetDayResource venueId 2 4]) [scope]
+
+            map targetFragments targets
+                `shouldBe` [[LiveUpdateWireFragment (TimesheetDaySectionFragment 4) "timesheet-day-section-4" "/ShowTimesheetDaySectionFragment?weekOffset=2&dayOffset=4&showApproved=true&showAllStaff=true" False NoProtection]]
+
+        it "keeps generated dependency planning precise across surface resources" do
+            let venueId = fromWords 2 0 0 0
+            let scopes = [AdminXeroScope { venueId }, SupportPlatformScope]
+            let targets = planRegisteredLiveSurfaceInvalidationsWithoutContext (Set.fromList [XeroPayItemsResource venueId]) scopes
+
+            map (map fragmentKey . targetFragments) targets `shouldBe` [[AdminXeroPayItemsFragment]]
 
         it "declares support dependencies by support fragment" do
             let awardRatesFragments = supportAffectedMountedFragments (Set.fromList [SupportAwardRatesResource])

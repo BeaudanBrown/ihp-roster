@@ -8,7 +8,9 @@ module Web.LiveSurfaceRegistry
     ) where
 
 import Application.Helper.FrontendSurface.Authorization (authorizeFrontendSurfaceLiveScope)
-import Application.Helper.LiveResource (LiveResource (..))
+import Application.Helper.FrontendSurface.DependencyPlanner (planFrontendSurfaceInvalidation)
+import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceMountedFragment)
+import Application.Helper.LiveResource (LiveResource)
 import Application.Helper.LiveUpdate.Runtime (LiveUpdateBroadcastResult,
                                               LiveUpdateScope (..),
                                               LiveUpdateWireFragment,
@@ -16,38 +18,38 @@ import Application.Helper.LiveUpdate.Runtime (LiveUpdateBroadcastResult,
                                               broadcastLiveInvalidationDetailedWithoutContext,
                                               coalesceLiveUpdateWireFragments,
                                               liveUpdateSourceClientId)
-import Application.Support.LiveUpdates (supportAffectedMountedFragments,
+import Application.Support.LiveUpdates (supportCandidateMountedFragments,
                                         supportSurfaceWireFragments)
 import Data.Coerce (coerce)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.UUID as UUID
 import Generated.Types (RosterGroup)
-import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
-                                  adminExportsAffectedFragments,
-                                  adminInvitesAffectedFragments,
-                                  adminRosterGroupsAffectedFragments,
-                                  adminShiftTypesAffectedFragments,
+import Web.Admin.FrontendSurface (adminExportsFragment, adminInvitesFragment,
+                                  adminRosterGroupsFragment,
+                                  adminShiftTypesFragment,
                                   adminSurfaceWireFragments,
-                                  adminVenueSettingsAffectedFragments,
-                                  adminXeroAffectedFragments)
-import Web.Billing.FrontendSurface (BillingScopeValue (..),
-                                    billingAffectedMountedFragments,
+                                  adminVenueSettingsFragment,
+                                  adminXeroPayItemsFragment,
+                                  adminXeroShellFragment,
+                                  adminXeroStaffMappingsFragment,
+                                  adminXeroTimesheetsFragment)
+import Web.Billing.FrontendSurface (billingCandidateMountedFragments,
                                     billingSurfaceWireFragments)
 import Web.Controller.Prelude
 import Web.LeaveRequests.FrontendSurface (LeaveRequestsScopeValue (..),
-                                          leaveRequestsAffectedMountedFragments,
+                                          leaveRequestsCandidateMountedFragments,
                                           leaveRequestsSurfaceWireFragments)
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
-                                     profileAffectedMountedFragments,
+                                     profileCandidateMountedFragments,
                                      profileSurfaceWireFragments)
 import Web.RosterWeeks.FrontendSurface (RosterMountedFragmentPlan (..),
                                         RosterWeekScopeValue (..),
-                                        rosterAffectedMountedFragments,
+                                        rosterCandidateMountedFragments,
                                         rosterSurfaceWireFragments)
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
                                        TimesheetsMountStateValue (..),
-                                       timesheetsAffectedMountedFragments,
+                                       timesheetsCandidateMountedFragments,
                                        timesheetsSurfaceWireFragments)
 
 data LiveSurfaceInvalidationTarget = LiveSurfaceInvalidationTarget
@@ -74,26 +76,48 @@ performLiveSurfaceInvalidationTargetWithoutContext target = broadcastLiveInvalid
 
 planSurfaceInvalidation :: Set.Set LiveResource -> LiveUpdateScope -> Maybe LiveSurfaceInvalidationTarget
 planSurfaceInvalidation resources scope = do
-    fragments <- case scope of
-        RosterWeekScope { venueId, rosterGroupId, weekOffset } ->
-            let scopeValue = RosterWeekScopeValue { rosterWeekVenueId = venueId, rosterWeekGroupId = coerce rosterGroupId :: Id RosterGroup, rosterWeekWeekOffset = weekOffset }
-                mountedPlan = RosterMountedFragmentPlan { rosterMountedDayIds = [], rosterMountedRows = [] }
-             in pure (rosterSurfaceWireFragments (rosterAffectedMountedFragments scopeValue mountedPlan resources))
-        TimesheetWeekScope { venueId, weekOffset } ->
-            let scopeValue = TimesheetWeekScopeValue { timesheetWeekVenueId = venueId, timesheetWeekWeekOffset = weekOffset }
-                mountStateValue = TimesheetsMountStateValue { timesheetsMountShowApproved = True, timesheetsMountShowAllStaff = True, timesheetsMountStaffFilterId = Nothing }
-             in pure (timesheetsSurfaceWireFragments (timesheetsAffectedMountedFragments scopeValue mountStateValue resources))
-        LeaveRequestsScope { venueId } -> pure (leaveRequestsSurfaceWireFragments (leaveRequestsAffectedMountedFragments LeaveRequestsScopeValue { leaveRequestsVenueId = venueId } resources))
-        BillingScope { venueId } -> pure (billingSurfaceWireFragments (billingAffectedMountedFragments BillingScopeValue { billingVenueId = venueId } resources))
-        SupportPlatformScope -> pure (supportSurfaceWireFragments (supportAffectedMountedFragments resources))
-        ProfileScope { venueId, staffId } -> pure (profileSurfaceWireFragments (profileAffectedMountedFragments ProfileScopeValue { profileVenueId = venueId, profileStaffId = staffId } resources))
-        AdminVenueConfigScope { venueId } -> pure (adminSurfaceWireFragments (adminVenueSettingsAffectedFragments (AdminVenueScopeValue venueId Nothing) resources))
-        AdminInvitesScope { venueId } -> pure (adminSurfaceWireFragments (adminInvitesAffectedFragments (AdminVenueScopeValue venueId Nothing) resources))
-        AdminExportsScope { venueId } -> pure (adminSurfaceWireFragments (adminExportsAffectedFragments (AdminVenueScopeValue venueId Nothing) resources))
-        AdminShiftTypesScope { venueId } -> pure (adminSurfaceWireFragments (adminShiftTypesAffectedFragments (AdminVenueScopeValue venueId Nothing) resources))
-        AdminRosterGroupsScope { venueId } -> pure (adminSurfaceWireFragments (adminRosterGroupsAffectedFragments (AdminVenueScopeValue venueId Nothing) resources))
-        AdminXeroScope { venueId } -> pure (adminSurfaceWireFragments (adminXeroAffectedFragments (AdminVenueScopeValue venueId Nothing) resources))
+    FrontendSurfacePlanningInput { planningCandidateFragments, planningWireFragments } <- planningInputForScope scope
+    let fragments = planningWireFragments (planFrontendSurfaceInvalidation resources scope planningCandidateFragments)
     if null fragments then Nothing else Just LiveSurfaceInvalidationTarget { targetScope = scope, targetFragments = fragments }
+
+data FrontendSurfacePlanningInput = FrontendSurfacePlanningInput
+    { planningCandidateFragments :: ![FrontendSurfaceMountedFragment]
+    , planningWireFragments      :: !([FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment])
+    }
+
+planningInputForScope :: LiveUpdateScope -> Maybe FrontendSurfacePlanningInput
+planningInputForScope = \case
+    RosterWeekScope { venueId, rosterGroupId, weekOffset } ->
+        let scopeValue = RosterWeekScopeValue { rosterWeekVenueId = venueId, rosterWeekGroupId = coerce rosterGroupId :: Id RosterGroup, rosterWeekWeekOffset = weekOffset }
+            mountedPlan = RosterMountedFragmentPlan { rosterMountedDayIds = [], rosterMountedRows = [] }
+         in Just (planningInput (rosterCandidateMountedFragments scopeValue mountedPlan) rosterSurfaceWireFragments)
+    TimesheetWeekScope { venueId, weekOffset } ->
+        let scopeValue = TimesheetWeekScopeValue { timesheetWeekVenueId = venueId, timesheetWeekWeekOffset = weekOffset }
+            mountStateValue = TimesheetsMountStateValue { timesheetsMountShowApproved = True, timesheetsMountShowAllStaff = True, timesheetsMountStaffFilterId = Nothing }
+         in Just (planningInput (timesheetsCandidateMountedFragments scopeValue mountStateValue) timesheetsSurfaceWireFragments)
+    LeaveRequestsScope { venueId } ->
+        Just (planningInput (leaveRequestsCandidateMountedFragments LeaveRequestsScopeValue { leaveRequestsVenueId = venueId }) leaveRequestsSurfaceWireFragments)
+    BillingScope {} ->
+        Just (planningInput (billingCandidateMountedFragments (pathTo ShowBillingStatusFragmentAction)) billingSurfaceWireFragments)
+    SupportPlatformScope ->
+        Just (planningInput supportCandidateMountedFragments supportSurfaceWireFragments)
+    ProfileScope { venueId, staffId } ->
+        Just (planningInput (profileCandidateMountedFragments ProfileScopeValue { profileVenueId = venueId, profileStaffId = staffId }) profileSurfaceWireFragments)
+    AdminVenueConfigScope {} ->
+        Just (planningInput [adminVenueSettingsFragment] adminSurfaceWireFragments)
+    AdminInvitesScope {} ->
+        Just (planningInput [adminInvitesFragment Nothing] adminSurfaceWireFragments)
+    AdminExportsScope {} ->
+        Just (planningInput [adminExportsFragment] adminSurfaceWireFragments)
+    AdminShiftTypesScope {} ->
+        Just (planningInput [adminShiftTypesFragment] adminSurfaceWireFragments)
+    AdminRosterGroupsScope {} ->
+        Just (planningInput [adminRosterGroupsFragment] adminSurfaceWireFragments)
+    AdminXeroScope {} ->
+        Just (planningInput [adminXeroShellFragment, adminXeroStaffMappingsFragment, adminXeroPayItemsFragment, adminXeroTimesheetsFragment] adminSurfaceWireFragments)
+
+planningInput :: [FrontendSurfaceMountedFragment] -> ([FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment]) -> FrontendSurfacePlanningInput
+planningInput planningCandidateFragments planningWireFragments = FrontendSurfacePlanningInput { planningCandidateFragments, planningWireFragments }
 
 coalesceTargets :: [LiveSurfaceInvalidationTarget] -> [LiveSurfaceInvalidationTarget]
 coalesceTargets targets =

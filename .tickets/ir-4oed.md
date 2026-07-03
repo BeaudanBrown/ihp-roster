@@ -1,6 +1,6 @@
 ---
 id: ir-4oed
-status: open
+status: closed
 deps: [ir-zsrm]
 links: []
 created: 2026-07-03T06:55:44Z
@@ -22,3 +22,9 @@ Planner follows the current fragment-dependencies model: for each active parsed 
 
 Generated planner reproduces current Timesheets, Roster, Profile, Billing, Support, Leave Requests, and Admin invalidation behavior. Web.LiveSurfaceRegistry.planSurfaceInvalidation feature case list is removed/replaced. No resource dependency inference or fanout primitive is introduced in V1.
 
+
+## Notes
+
+**2026-07-03T08:13:43Z**
+
+Generated planner now evaluates FrontendSurface DependsOn declarations generically against generated resource values; Web.LiveSurfaceRegistry only supplies mounted-fragment candidates and wire conversion.
