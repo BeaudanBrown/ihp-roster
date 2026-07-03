@@ -1,6 +1,6 @@
 ---
 id: ir-cycd
-status: open
+status: closed
 deps: [ir-rwi8, ir-u2u2]
 links: []
 created: 2026-07-03T02:45:01Z
@@ -22,3 +22,9 @@ Add or adjust guardrails for generated Admin topology, continued absence of lega
 
 frontend-contracts-check, frontend-surface-guardrails, frontend-check, typecheck, and focused Hspec for FrontendSurface/LiveUpdate/Admin pass; closeout note records any deferred Xero/page-composition follow-up.
 
+
+## Notes
+
+**2026-07-03T03:38:01Z**
+
+Verification passed: frontend-contracts-check, frontend-surface-guardrails, frontend-check, typecheck, and focused Hspec (FrontendSurface/LiveUpdate/AdminController). Admin Xero page parent surface was implemented, so no Xero composition deferral remains.

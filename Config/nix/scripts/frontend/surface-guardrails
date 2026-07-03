@@ -87,6 +87,21 @@ expect_match \
     'SurfaceLabFragmentKey' \
     frontend/ts/generated/contracts.ts
 
+expect_match \
+    "generated contracts must expose Admin page contained surface topology" \
+    'parentSurface: "admin-page", parentFragment: "admin-page-content", childSurface: "admin-venue-config"' \
+    frontend/ts/generated/contracts.ts
+
+expect_match \
+    "generated contracts must expose Admin Xero page contained surface topology" \
+    'parentSurface: "admin-xero-page", parentFragment: "admin-xero-page-content", childSurface: "admin-xero"' \
+    frontend/ts/generated/contracts.ts
+
+expect_no_match \
+    "production code must not resurrect shared SurfaceProjection cache plumbing" \
+    'Application\.Helper\.SurfaceProjection|SurfaceProjection' \
+    Application Web
+
 if [ "$failures" -ne 0 ]; then
     exit 1
 fi
