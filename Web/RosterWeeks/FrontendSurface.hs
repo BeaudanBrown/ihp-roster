@@ -117,6 +117,8 @@ rosterSurfaceMountConfig scope plan =
         { mountSurfaceName = "roster"
         , mountScopeKey = rosterSurfaceScopeKey scope
         , mountKey = "primary"
+        , mountScope = Aeson.Null
+        , mountSubscription = Nothing
         , mountState = Aeson.object []
         , mountFragments = rosterCandidateMountedFragments scope plan
         }

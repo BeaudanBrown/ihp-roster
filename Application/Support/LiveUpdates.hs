@@ -42,6 +42,8 @@ supportSurfaceMountConfig =
         { mountSurfaceName = "support"
         , mountScopeKey = "support"
         , mountKey = "primary"
+        , mountScope = Aeson.Null
+        , mountSubscription = Nothing
         , mountState = Aeson.Null
         , mountFragments = supportCandidateMountedFragments
         }

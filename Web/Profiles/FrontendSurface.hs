@@ -47,6 +47,8 @@ profileSurfaceMountConfig scope =
         { mountSurfaceName = "profile"
         , mountScopeKey = profileSurfaceScopeKey scope
         , mountKey = "primary"
+        , mountScope = Aeson.Null
+        , mountSubscription = Nothing
         , mountState = Aeson.Null
         , mountFragments = profileCandidateMountedFragments scope
         }

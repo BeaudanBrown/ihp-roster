@@ -56,11 +56,13 @@ adminPageSurfaceImpl scope =
             { mountSurfaceName = "admin-page"
             , mountScopeKey = "admin-page:" <> tshow scope.adminVenueId
             , mountKey = "primary"
+        , mountScope = Aeson.Null
+        , mountSubscription = Nothing
             , mountState = Aeson.Null
             , mountFragments = [adminPageContentFragment]
             }
         impl = mkSurfaceImpl "admin-page" config (adminPageHandlers scope adminPageContentFragment)
-     in impl { surfaceImplMountConfig = config }
+     in impl
 
 adminXeroPageSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminXeroPageSurface
 adminXeroPageSurfaceImpl scope =
@@ -68,43 +70,51 @@ adminXeroPageSurfaceImpl scope =
             { mountSurfaceName = "admin-xero-page"
             , mountScopeKey = "admin-xero-page:" <> tshow scope.adminVenueId
             , mountKey = "primary"
+        , mountScope = Aeson.Null
+        , mountSubscription = Nothing
             , mountState = Aeson.Null
             , mountFragments = [adminXeroPageContentFragment]
             }
         impl = mkSurfaceImpl "admin-xero-page" config (adminXeroPageHandlers scope adminXeroPageContentFragment)
-     in impl { surfaceImplMountConfig = config }
+     in impl
 
 adminVenueSettingsSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminVenueSettingsSurface
-adminVenueSettingsSurfaceImpl scope = oneFragmentImpl "admin-venue-config" scope adminVenueSettingsFragment
+adminVenueSettingsSurfaceImpl scope =
+    let config = mountConfig "admin-venue-config" scope [adminVenueSettingsFragment]
+        impl = mkSurfaceImpl "admin-venue-config" config (unitHandlers scope adminVenueSettingsFragment)
+     in impl
 
 adminInvitesSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminInvitesSurface
 adminInvitesSurfaceImpl scope =
     let fragmentValue = adminInvitesFragment scope.adminRosterGroupId
         config = mountConfig "admin-invites" scope [fragmentValue]
         impl = mkSurfaceImpl "admin-invites" config (invitesHandlers scope fragmentValue)
-     in impl { surfaceImplMountConfig = config }
+     in impl
 
 adminExportsSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminExportsSurface
-adminExportsSurfaceImpl scope = oneFragmentImpl "admin-exports" scope adminExportsFragment
+adminExportsSurfaceImpl scope =
+    let config = mountConfig "admin-exports" scope [adminExportsFragment]
+        impl = mkSurfaceImpl "admin-exports" config (unitHandlers scope adminExportsFragment)
+     in impl
 
 adminShiftTypesSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminShiftTypesSurface
-adminShiftTypesSurfaceImpl scope = oneFragmentImpl "admin-shift-types" scope adminShiftTypesFragment
+adminShiftTypesSurfaceImpl scope =
+    let config = mountConfig "admin-shift-types" scope [adminShiftTypesFragment]
+        impl = mkSurfaceImpl "admin-shift-types" config (unitHandlers scope adminShiftTypesFragment)
+     in impl
 
 adminRosterGroupsSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminRosterGroupsSurface
-adminRosterGroupsSurfaceImpl scope = oneFragmentImpl "admin-roster-groups" scope adminRosterGroupsFragment
+adminRosterGroupsSurfaceImpl scope =
+    let config = mountConfig "admin-roster-groups" scope [adminRosterGroupsFragment]
+        impl = mkSurfaceImpl "admin-roster-groups" config (unitHandlers scope adminRosterGroupsFragment)
+     in impl
 
 adminXeroSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminXeroSurface
 adminXeroSurfaceImpl scope =
     let fragments = [adminXeroShellFragment, adminXeroStaffMappingsFragment, adminXeroPayItemsFragment, adminXeroTimesheetsFragment]
         config = mountConfig "admin-xero" scope fragments
         impl = mkSurfaceImpl "admin-xero" config (xeroHandlers scope)
-     in impl { surfaceImplMountConfig = config }
-
-oneFragmentImpl :: forall spec. Text -> AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImpl spec
-oneFragmentImpl name scope fragment =
-    let config = mountConfig name scope [fragment]
-        impl = mkSurfaceImpl name config (unitHandlers scope fragment)
-     in impl { surfaceImplMountConfig = config }
+     in impl
 
 mountConfig :: Text -> AdminVenueScopeValue -> [FrontendSurfaceMountedFragment] -> FrontendSurfaceMountConfig
 mountConfig name scope fragments =
@@ -112,6 +122,8 @@ mountConfig name scope fragments =
         { mountSurfaceName = name
         , mountScopeKey = adminScopeKey name scope
         , mountKey = "primary"
+        , mountScope = Aeson.Null
+        , mountSubscription = Nothing
         , mountState = Aeson.Null
         , mountFragments = fragments
         }
@@ -148,7 +160,7 @@ adminXeroPageHandlers scope fragment =
         , surfaceIntentHandlers = HandlerNil
         }
 
-unitHandlers :: AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImplHandlers ('Surface marker '[ 'Scope scopeMarker '[ 'Field Surface.VenueId 'WireUUID ], 'Fragment fragment '[] '[ 'Eager ]])
+unitHandlers :: AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImplHandlers ('Surface marker '[ 'Scope scopeMarker '[ 'Field Surface.VenueId 'WireUUID ], 'Fragment fragment '[] policies])
 unitHandlers scope fragment =
     SurfaceImplHandlers
         { surfaceScopeHandlers = scopeHandler scope `HandlerCons` HandlerNil

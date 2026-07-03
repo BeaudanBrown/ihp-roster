@@ -1,14 +1,15 @@
-{-# LANGUAGE AllowAmbiguousTypes  #-}
-{-# LANGUAGE DataKinds            #-}
-{-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE GADTs                #-}
-{-# LANGUAGE PolyKinds            #-}
-{-# LANGUAGE RankNTypes           #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
-{-# LANGUAGE TypeApplications     #-}
-{-# LANGUAGE TypeFamilies         #-}
-{-# LANGUAGE TypeOperators        #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE AllowAmbiguousTypes   #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeApplications      #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 module Application.Helper.FrontendSurface.Runtime
     ( FrontendSurfaceFieldError (..)
@@ -54,6 +55,7 @@ import qualified Data.Scientific as Scientific
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.Encoding
 import Data.Time (Day, defaultTimeLocale, parseTimeM)
+import Data.Type.Bool (type (||))
 import Data.Typeable (Typeable)
 import qualified Data.Vector as Vector
 import GHC.TypeLits (ErrorMessage (..), TypeError)
@@ -291,14 +293,16 @@ type family PrimitiveIntentRequirements (primitives :: [SurfacePrimitive]) :: [S
     PrimitiveIntentRequirements (('Intent marker fields options) ': rest) = ('Intent marker fields options) ': PrimitiveIntentRequirements rest
     PrimitiveIntentRequirements (primitive ': rest) = PrimitiveIntentRequirements rest
 
-mkSurfaceImpl :: Text -> FrontendSurfaceMountConfig -> SurfaceImplHandlers spec -> SurfaceImpl spec
+mkSurfaceImpl :: forall spec. KnownLiveFragments spec => Text -> FrontendSurfaceMountConfig -> SurfaceImplHandlers spec -> SurfaceImpl spec
 mkSurfaceImpl name mountConfig handlers =
     SurfaceImpl
         { surfaceImplName = name
         , surfaceImplMountConfig = mountConfig
             { mountScopeKey = firstOr mountConfig.mountScopeKey (handlerListToList defaultScopeKey handlers.surfaceScopeHandlers)
+            , mountScope = firstOr mountConfig.mountScope (handlerListToList defaultScopeValue handlers.surfaceScopeHandlers)
             , mountState = firstOr mountConfig.mountState (handlerListToList defaultMountState handlers.surfaceMountStateHandlers)
             , mountFragments = handlerListToList defaultMountedFragment handlers.surfaceFragmentHandlers
+            , mountSubscription = frontendSurfaceLiveSubscription name (liveFragmentNames @spec) (mountConfig { mountScopeKey = firstOr mountConfig.mountScopeKey (handlerListToList defaultScopeKey handlers.surfaceScopeHandlers), mountScope = firstOr mountConfig.mountScope (handlerListToList defaultScopeValue handlers.surfaceScopeHandlers), mountFragments = handlerListToList defaultMountedFragment handlers.surfaceFragmentHandlers })
             }
         , surfaceImplActions = handlerListToList defaultActionRequest handlers.surfaceActionHandlers
         , surfaceImplIntents = handlerListToList defaultIntentForm handlers.surfaceIntentHandlers
@@ -312,6 +316,10 @@ handlerListToList toValue = \case
 defaultScopeKey :: FrontendSurfaceScopeHandler requirement -> Text
 defaultScopeKey FrontendSurfaceScopeHandler { scopeHandlerDefaultValue, scopeHandlerKey } =
     scopeHandlerKey scopeHandlerDefaultValue
+
+defaultScopeValue :: FrontendSurfaceScopeHandler requirement -> Aeson.Value
+defaultScopeValue FrontendSurfaceScopeHandler { scopeHandlerDefaultValue } =
+    scopeHandlerDefaultValue.fieldValuesJson
 
 defaultMountState :: FrontendSurfaceMountStateHandler requirement -> Aeson.Value
 defaultMountState FrontendSurfaceMountStateHandler { mountStateHandlerDefaultValue } =
@@ -329,17 +337,50 @@ defaultIntentForm :: FrontendSurfaceIntentHandler requirement -> FrontendSurface
 defaultIntentForm FrontendSurfaceIntentHandler { intentHandlerDefaultFields, intentHandlerForm } =
     intentHandlerForm intentHandlerDefaultFields
 
+class KnownLiveFragments (spec :: SurfaceSpec) where
+    liveFragmentNames :: [Text]
+
+instance KnownLiveFragmentMarkers (LiveFragmentMarkers primitives) => KnownLiveFragments ('Surface name primitives) where
+    liveFragmentNames = liveFragmentMarkerNames @(LiveFragmentMarkers primitives)
+
+type family LiveFragmentMarkers (primitives :: [SurfacePrimitive]) :: [Type] where
+    LiveFragmentMarkers '[] = '[]
+    LiveFragmentMarkers (('Fragment marker fields options) ': rest) = IfLive (OptionsContainLive options) marker (LiveFragmentMarkers rest)
+    LiveFragmentMarkers (primitive ': rest) = LiveFragmentMarkers rest
+
+type family OptionsContainLive (options :: [PrimitiveOption]) :: Bool where
+    OptionsContainLive '[] = 'False
+    OptionsContainLive ('Live ': rest) = 'True
+    OptionsContainLive (('Lazy nested) ': rest) = OptionsContainLive nested || OptionsContainLive rest
+    OptionsContainLive (('Effect marker nested) ': rest) = OptionsContainLive nested || OptionsContainLive rest
+    OptionsContainLive (option ': rest) = OptionsContainLive rest
+
+type family IfLive (live :: Bool) (marker :: Type) (rest :: [Type]) :: [Type] where
+    IfLive 'True marker rest = marker ': rest
+    IfLive 'False marker rest = rest
+
+class KnownLiveFragmentMarkers (markers :: [Type]) where
+    liveFragmentMarkerNames :: [Text]
+
+instance KnownLiveFragmentMarkers '[] where
+    liveFragmentMarkerNames = []
+
+instance (Typeable marker, KnownLiveFragmentMarkers rest) => KnownLiveFragmentMarkers (marker ': rest) where
+    liveFragmentMarkerNames = Naming.deriveFrontendSurfaceTypeName @marker Naming.FragmentName : liveFragmentMarkerNames @rest
+
 firstOr :: value -> [value] -> value
 firstOr fallback = \case
     [] -> fallback
     value : _ -> value
 
 data FrontendSurfaceMountConfig = FrontendSurfaceMountConfig
-    { mountSurfaceName :: !Text
-    , mountScopeKey    :: !Text
-    , mountKey         :: !Text
-    , mountState       :: !Aeson.Value
-    , mountFragments   :: ![FrontendSurfaceMountedFragment]
+    { mountSurfaceName  :: !Text
+    , mountScopeKey     :: !Text
+    , mountKey          :: !Text
+    , mountScope        :: !Aeson.Value
+    , mountState        :: !Aeson.Value
+    , mountFragments    :: ![FrontendSurfaceMountedFragment]
+    , mountSubscription :: !(Maybe Aeson.Value)
     }
     deriving (Eq, Show)
 
@@ -473,7 +514,34 @@ mountConfigToJson config =
         , "mountKey" Aeson..= config.mountKey
         , "mountState" Aeson..= config.mountState
         , "fragments" Aeson..= fmap mountedFragmentToJson config.mountFragments
+        , "subscription" Aeson..= config.mountSubscription
         ]
+
+frontendSurfaceLiveSubscription :: Text -> [Text] -> FrontendSurfaceMountConfig -> Maybe Aeson.Value
+frontendSurfaceLiveSubscription surfaceName liveFragmentNamesForSurface config =
+    case liveMountedFragments of
+        [] -> Nothing
+        _ -> Just (Aeson.object
+            [ "scope" Aeson..= Aeson.object
+                [ "surface" Aeson..= surfaceName
+                , "scope" Aeson..= config.mountScope
+                ]
+            , "scopeKey" Aeson..= config.mountScopeKey
+            , "resyncFragments" Aeson..= fmap liveMountedFragmentToJson liveMountedFragments
+            ])
+    where
+        liveMountedFragments = filter (\fragment -> fragment.mountedFragmentKey.fragmentKind `elem` liveFragmentNamesForSurface) config.mountFragments
+        liveMountedFragmentToJson fragment =
+            Aeson.object
+                [ "fragment" Aeson..= Aeson.object
+                    [ "surface" Aeson..= surfaceName
+                    , "fragment" Aeson..= fragmentKeyToJson fragment.mountedFragmentKey
+                    ]
+                , "targetId" Aeson..= fragment.mountedFragmentTargetId
+                , "url" Aeson..= fragment.mountedFragmentUrl
+                , "deferUntilBlur" Aeson..= liveProtectionDefers fragment.mountedFragmentProtection
+                , "protectionPolicy" Aeson..= liveProtectionToJson fragment.mountedFragmentProtection
+                ]
 
 mountedFragmentToJson :: FrontendSurfaceMountedFragment -> Aeson.Value
 mountedFragmentToJson fragment =
@@ -490,6 +558,30 @@ fragmentKeyToJson fragmentKey =
     Aeson.object
         [ "kind" Aeson..= fragmentKey.fragmentKind
         , "params" Aeson..= fragmentKey.fragmentParams
+        ]
+
+liveProtectionDefers :: FrontendSurfaceProtection -> Bool
+liveProtectionDefers = \case
+    FrontendSurfaceReplace -> False
+    FrontendSurfaceFocusedField -> True
+    FrontendSurfaceFocusedFieldConfig {} -> True
+
+liveProtectionToJson :: FrontendSurfaceProtection -> Aeson.Value
+liveProtectionToJson = \case
+    FrontendSurfaceReplace -> Aeson.object ["kind" Aeson..= ("none" :: Text)]
+    FrontendSurfaceFocusedField -> Aeson.object
+        [ "kind" Aeson..= ("focused-field" :: Text)
+        , "activeSelector" Aeson..= ("input, textarea, select, [contenteditable=\"true\"]" :: Text)
+        , "fieldKeyAttr" Aeson..= ("data-bepis-field-key" :: Text)
+        , "fieldNameFallback" Aeson..= True
+        , "containerSelector" Aeson..= (Nothing :: Maybe Text)
+        ]
+    FrontendSurfaceFocusedFieldConfig config -> Aeson.object
+        [ "kind" Aeson..= ("focused-field" :: Text)
+        , "activeSelector" Aeson..= config.focusedProtectionActiveSelector
+        , "fieldKeyAttr" Aeson..= config.focusedProtectionFieldKeyAttr
+        , "fieldNameFallback" Aeson..= config.focusedProtectionFieldNameFallback
+        , "containerSelector" Aeson..= config.focusedProtectionContainerSelector
         ]
 
 protectionToJson :: FrontendSurfaceProtection -> Aeson.Value

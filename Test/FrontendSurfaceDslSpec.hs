@@ -49,6 +49,8 @@ tests = describe "FrontendSurface DSL foundation" do
                 { mountSurfaceName = "surface-lab"
                 , mountScopeKey = "surface-lab:scope"
                 , mountKey = "primary"
+        , mountScope = Aeson.Null
+        , mountSubscription = Nothing
                 , mountState = Aeson.object ["showArchived" Aeson..= False]
                 , mountFragments = [fragment]
                 }

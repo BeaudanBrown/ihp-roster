@@ -45,6 +45,8 @@ leaveRequestsSurfaceMountConfig scope =
         { mountSurfaceName = "leave-requests"
         , mountScopeKey = leaveRequestsSurfaceScopeKey scope
         , mountKey = "primary"
+        , mountScope = Aeson.Null
+        , mountSubscription = Nothing
         , mountState = Aeson.Null
         , mountFragments = leaveRequestsCandidateMountedFragments scope
         }

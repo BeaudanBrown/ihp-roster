@@ -82,6 +82,8 @@ surfaceLabMountConfig =
         { mountSurfaceName = "surface-lab"
         , mountScopeKey = "surface-lab:current-support-venue:0"
         , mountKey = "primary"
+        , mountScope = Aeson.Null
+        , mountSubscription = Nothing
         , mountState = Aeson.object
             [ "showArchived" Aeson..= False
             ]

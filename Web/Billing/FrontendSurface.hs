@@ -50,6 +50,8 @@ billingSurfaceMountConfig scope statusUrl =
         { mountSurfaceName = "billing"
         , mountScopeKey = billingSurfaceScopeKey scope
         , mountKey = "primary"
+        , mountScope = Aeson.Null
+        , mountSubscription = Nothing
         , mountState = Aeson.Null
         , mountFragments = billingCandidateMountedFragments statusUrl
         }

@@ -73,6 +73,8 @@ timesheetsSurfaceMountConfig scope mountState =
         { mountSurfaceName = "timesheets"
         , mountScopeKey = timesheetsSurfaceScopeKey scope
         , mountKey = "primary"
+        , mountScope = Aeson.Null
+        , mountSubscription = Nothing
         , mountState = timesheetsMountStateJson mountState
         , mountFragments = timesheetsCandidateMountedFragments scope mountState
         }
