@@ -9,6 +9,8 @@ module Application.Helper.LiveUpdate.Internal
     , LiveUpdateMessage (..)
     , LiveUpdateScope (..)
     , LiveUpdateSubscription (..)
+    , activeLiveUpdateSubscriptions
+    , activeLiveUpdateSubscriptionsWithBus
     , activeLiveUpdateScopes
     , activeLiveUpdateScopesWithBus
     , activeLiveUpdateScopeMatches
@@ -340,24 +342,24 @@ instance Aeson.FromJSON LiveUpdateCommand where
 instance Aeson.ToJSON LiveUpdateMessage where
     toJSON = Aeson.toJSON . liveUpdateMessageToWire
 
-data LiveSubscription = LiveSubscription
-    { subscriptionId         :: !UUID.UUID
-    , subscriptionScope      :: !LiveUpdateScope
-    , subscriptionConnection :: !WebSocket.Connection
+data ActiveLiveSubscription = ActiveLiveSubscription
+    { activeSubscriptionId         :: !UUID.UUID
+    , activeSubscription           :: !LiveUpdateSubscription
+    , activeSubscriptionConnection :: WebSocket.Connection
     }
 
 data LiveBus = LiveBus
-    { liveBusRegisterSubscription     :: UUID.UUID -> LiveUpdateScope -> WebSocket.Connection -> IO ()
+    { liveBusRegisterSubscription     :: UUID.UUID -> LiveUpdateSubscription -> WebSocket.Connection -> IO ()
     , liveBusUnregisterSubscription   :: UUID.UUID -> IO ()
-    , liveBusActiveScopes             :: IO [LiveUpdateScope]
+    , liveBusActiveSubscriptions      :: IO [LiveUpdateSubscription]
     , liveBusCurrentVersion           :: LiveUpdateScope -> IO Int
     , liveBusIncrementVersion         :: LiveUpdateScope -> IO Int
     , liveBusBroadcastInvalidation    :: LiveUpdateScope -> Maybe Text -> [LiveUpdateWireFragment] -> IO LiveUpdateBroadcastResult
     }
 
 data InMemoryLiveBusState = InMemoryLiveBusState
-    { inMemorySubscriptionsRef :: !(IORef [LiveSubscription])
-    , inMemoryScopeVersionsRef :: !(IORef (Map.Map LiveUpdateScope Int))
+    { inMemorySubscriptionsRef :: !(IORef [ActiveLiveSubscription])
+    , inMemoryScopeVersionsRef :: !(IORef (Map.Map Text Int))
     }
 
 newInMemoryLiveBus :: IO LiveBus
@@ -380,25 +382,25 @@ inMemoryLiveBus state =
     LiveBus
         { liveBusRegisterSubscription = registerInMemorySubscription state
         , liveBusUnregisterSubscription = unregisterInMemorySubscription state
-        , liveBusActiveScopes = activeInMemoryScopes state
+        , liveBusActiveSubscriptions = activeInMemorySubscriptions state
         , liveBusCurrentVersion = currentInMemoryVersion state
         , liveBusIncrementVersion = incrementInMemoryVersion state
         , liveBusBroadcastInvalidation = broadcastInMemoryInvalidation state
         }
 
-registerLiveSubscription :: UUID.UUID -> LiveUpdateScope -> WebSocket.Connection -> IO ()
+registerLiveSubscription :: UUID.UUID -> LiveUpdateSubscription -> WebSocket.Connection -> IO ()
 registerLiveSubscription =
     registerLiveSubscriptionWithBus defaultLiveBus
 
-registerLiveSubscriptionWithBus :: LiveBus -> UUID.UUID -> LiveUpdateScope -> WebSocket.Connection -> IO ()
+registerLiveSubscriptionWithBus :: LiveBus -> UUID.UUID -> LiveUpdateSubscription -> WebSocket.Connection -> IO ()
 registerLiveSubscriptionWithBus =
     liveBusRegisterSubscription
 
-registerInMemorySubscription :: InMemoryLiveBusState -> UUID.UUID -> LiveUpdateScope -> WebSocket.Connection -> IO ()
-registerInMemorySubscription state subscriptionId scope connection =
+registerInMemorySubscription :: InMemoryLiveBusState -> UUID.UUID -> LiveUpdateSubscription -> WebSocket.Connection -> IO ()
+registerInMemorySubscription state activeSubscriptionId activeSubscription connection =
     atomicModifyIORef' state.inMemorySubscriptionsRef \subscriptions ->
-        ( LiveSubscription { subscriptionId, subscriptionScope = scope, subscriptionConnection = connection }
-            : filter (\subscription -> subscription.subscriptionId /= subscriptionId) subscriptions
+        ( ActiveLiveSubscription { activeSubscriptionId, activeSubscription, activeSubscriptionConnection = connection }
+            : filter (\subscription -> subscription.activeSubscriptionId /= activeSubscriptionId) subscriptions
         , ()
         )
 
@@ -413,19 +415,27 @@ unregisterLiveSubscriptionWithBus =
 unregisterInMemorySubscription :: InMemoryLiveBusState -> UUID.UUID -> IO ()
 unregisterInMemorySubscription state subscriptionId =
     atomicModifyIORef' state.inMemorySubscriptionsRef \subscriptions ->
-        (filter (\subscription -> subscription.subscriptionId /= subscriptionId) subscriptions, ())
+        (filter (\subscription -> subscription.activeSubscriptionId /= subscriptionId) subscriptions, ())
+
+activeLiveUpdateSubscriptions :: IO [LiveUpdateSubscription]
+activeLiveUpdateSubscriptions =
+    activeLiveUpdateSubscriptionsWithBus defaultLiveBus
+
+activeLiveUpdateSubscriptionsWithBus :: LiveBus -> IO [LiveUpdateSubscription]
+activeLiveUpdateSubscriptionsWithBus =
+    liveBusActiveSubscriptions
+
+activeInMemorySubscriptions :: InMemoryLiveBusState -> IO [LiveUpdateSubscription]
+activeInMemorySubscriptions state =
+    map (.activeSubscription) <$> readIORef state.inMemorySubscriptionsRef
 
 activeLiveUpdateScopes :: IO [LiveUpdateScope]
 activeLiveUpdateScopes =
     activeLiveUpdateScopesWithBus defaultLiveBus
 
 activeLiveUpdateScopesWithBus :: LiveBus -> IO [LiveUpdateScope]
-activeLiveUpdateScopesWithBus =
-    liveBusActiveScopes
-
-activeInMemoryScopes :: InMemoryLiveBusState -> IO [LiveUpdateScope]
-activeInMemoryScopes state =
-    Set.toList . Set.fromList . map (.subscriptionScope) <$> readIORef state.inMemorySubscriptionsRef
+activeLiveUpdateScopesWithBus bus =
+    Set.toList . Set.fromList . map (.subscriptionScope) <$> activeLiveUpdateSubscriptionsWithBus bus
 
 activeLiveUpdateScopeMatches :: Ord a => (LiveUpdateScope -> Maybe a) -> IO [a]
 activeLiveUpdateScopeMatches =
@@ -458,7 +468,7 @@ currentLiveUpdateVersionWithBus =
 
 currentInMemoryVersion :: InMemoryLiveBusState -> LiveUpdateScope -> IO Int
 currentInMemoryVersion state scope =
-    Map.findWithDefault 0 scope <$> readIORef state.inMemoryScopeVersionsRef
+    Map.findWithDefault 0 (liveUpdateScopeKey scope) <$> readIORef state.inMemoryScopeVersionsRef
 
 incrementLiveUpdateVersion :: LiveUpdateScope -> IO Int
 incrementLiveUpdateVersion =
@@ -471,8 +481,9 @@ incrementLiveUpdateVersionWithBus =
 incrementInMemoryVersion :: InMemoryLiveBusState -> LiveUpdateScope -> IO Int
 incrementInMemoryVersion state scope =
     atomicModifyIORef' state.inMemoryScopeVersionsRef \versions ->
-        let nextVersion = Map.findWithDefault 0 scope versions + 1
-         in (Map.insert scope nextVersion versions, nextVersion)
+        let scopeKey = liveUpdateScopeKey scope
+            nextVersion = Map.findWithDefault 0 scopeKey versions + 1
+         in (Map.insert scopeKey nextVersion versions, nextVersion)
 
 broadcastLiveInvalidation :: (?context :: ControllerContext) => LiveUpdateScope -> Maybe Text -> [LiveUpdateWireFragment] -> IO ()
 broadcastLiveInvalidation scope sourceClientId fragments = do
@@ -503,11 +514,12 @@ broadcastInMemoryInvalidation state scope sourceClientId fragments = do
     let coalescedFragments = coalesceLiveUpdateWireFragments fragments
     version <- incrementInMemoryVersion state scope
     subscriptions <- readIORef state.inMemorySubscriptionsRef
-    let matchingSubscriptions = filter (\subscription -> subscription.subscriptionScope == scope) subscriptions
+    let scopeKey = liveUpdateScopeKey scope
+    let matchingSubscriptions = filter (\subscription -> subscription.activeSubscription.subscriptionScopeKey == scopeKey) subscriptions
     staleIds <- mapMaybeM (sendInvalidation scope version sourceClientId coalescedFragments) matchingSubscriptions
     unless (null staleIds) do
         atomicModifyIORef' state.inMemorySubscriptionsRef \activeSubscriptions ->
-            ( filter (\subscription -> subscription.subscriptionId `notElem` staleIds) activeSubscriptions
+            ( filter (\subscription -> subscription.activeSubscriptionId `notElem` staleIds) activeSubscriptions
             , ()
             )
     pure
@@ -557,14 +569,14 @@ liveUpdateBroadcastDetail result =
         , "dropped=" <> tshow result.broadcastDroppedSubscriptions
         ]
 
-sendInvalidation :: LiveUpdateScope -> Int -> Maybe Text -> [LiveUpdateWireFragment] -> LiveSubscription -> IO (Maybe UUID.UUID)
+sendInvalidation :: LiveUpdateScope -> Int -> Maybe Text -> [LiveUpdateWireFragment] -> ActiveLiveSubscription -> IO (Maybe UUID.UUID)
 sendInvalidation scope version sourceClientId fragments subscription = do
     result <-
         Exception.tryAny $
-            WebSocket.sendTextData subscription.subscriptionConnection (Aeson.encode message)
+            WebSocket.sendTextData subscription.activeSubscriptionConnection (Aeson.encode message)
     pure $
         case result of
-            Left _  -> Just subscription.subscriptionId
+            Left _  -> Just subscription.activeSubscriptionId
             Right _ -> Nothing
     where
         message =

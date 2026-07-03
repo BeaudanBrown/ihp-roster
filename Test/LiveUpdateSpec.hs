@@ -217,8 +217,21 @@ tests = describe "LiveUpdate runtime types" do
         secondBus <- newInMemoryLiveBus
 
         activeLiveUpdateScopesWithBus firstBus `shouldReturn` []
+        activeLiveUpdateSubscriptionsWithBus firstBus `shouldReturn` []
         activeLiveUpdateScopeMatchesWithBus firstBus supportScopeLabel `shouldReturn` []
         activeRosterWeekScopesWithBus firstBus `shouldReturn` []
+
+        let subscription =
+                LiveUpdateSubscription
+                    { subscriptionScope = scope
+                    , subscriptionScopeKey = liveUpdateScopeKey scope
+                    , subscriptionMountedFragments = [fragment]
+                    }
+        registerLiveSubscriptionWithBus firstBus venueId subscription (error "unused websocket connection")
+        activeLiveUpdateSubscriptionsWithBus firstBus `shouldReturn` [subscription]
+        activeLiveUpdateScopesWithBus firstBus `shouldReturn` [scope]
+        unregisterLiveSubscriptionWithBus firstBus venueId
+        activeLiveUpdateSubscriptionsWithBus firstBus `shouldReturn` []
         currentLiveUpdateVersionWithBus firstBus scope `shouldReturn` 0
         incrementLiveUpdateVersionWithBus firstBus scope `shouldReturn` 1
         currentLiveUpdateVersionWithBus firstBus scope `shouldReturn` 1

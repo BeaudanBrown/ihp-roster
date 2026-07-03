@@ -49,7 +49,7 @@ handleCommand command =
                 then do
                     unregisterScopeSubscription scope
                     subscriptionId <- UUIDv4.nextRandom
-                    registerLiveSubscription subscriptionId scope ?connection
+                    registerLiveSubscription subscriptionId liveSubscription ?connection
                     addScopeSubscription subscriptionId scope
                     currentVersion <- liftIO (currentLiveUpdateVersion scope)
                     sendJSON
