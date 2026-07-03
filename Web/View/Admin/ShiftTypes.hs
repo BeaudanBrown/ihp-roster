@@ -9,6 +9,7 @@ module Web.View.Admin.ShiftTypes
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
+import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (FocusedFieldProtectionConfig (..),
@@ -19,6 +20,8 @@ import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey,
                                             normalizeShiftTypeColourKey,
                                             shiftTypeColourPaletteKeys)
 import qualified Data.Text as Text
+import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
+                                  adminShiftTypesSurfaceImpl)
 import Web.View.Admin.Common
 import Web.View.Prelude
 
@@ -31,12 +34,12 @@ renderShiftTypesSection shiftTypes showInactive awardLevels awardLevelBaseRates 
         (renderShiftTypeRows shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems)
 
 renderShiftTypesSectionFragment :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Html
-renderShiftTypesSectionFragment shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems = [hsx|
-    <div id="admin-shift-types-fragment"
-         data-live-update-surface={liveSurfaceConfigJson adminShiftTypesLiveSurface}>
-        {renderShiftTypesSection shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems}
-    </div>
-|]
+renderShiftTypesSectionFragment shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems =
+    renderFrontendSurfaceMount (adminShiftTypesSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
+        <div id="admin-shift-types-fragment">
+            {renderShiftTypesSection shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems}
+        </div>
+    |]
 
 data AdminShiftTypesSurface
 

@@ -47,3 +47,7 @@ Completed requested Profile decomposition before migration. Remaining legacy sur
 **2026-07-02T21:33:18Z**
 
 Added reusable FrontendSurface focused-field protection metadata. Mount JSON can now carry activeSelector/fieldKeyAttr/fieldNameFallback/containerSelector; the FrontendSurface TS compatibility parser translates it to the generated focused_field LiveFragmentProtection wire shape. Existing runtime bridges handle the richer variant, with focused tests in frontend and Hspec. This preserves the path needed for Admin Shift Types migration without bespoke surface logic.
+
+**2026-07-03T00:09:44Z**
+
+Cut Admin simple surfaces and Xero page fragments over to FrontendSurface mounts and direct fragment endpoints. Xero modal/dialog lane remains separate: FrontendSurface invalidations target page-owned admin-xero/xero-* fragments only, not dialog-overlay-mount. Typecheck and frontend-check pass. Focused Admin/registry Hspec now fails only on legacy expectations that still assert old typed/data-live-surface behavior and old Xero shell co-invalidation semantics; tests need updating to the new FrontendSurface/admin-Xero section behavior before closeout.

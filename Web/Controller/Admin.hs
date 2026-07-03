@@ -3,7 +3,6 @@ module Web.Controller.Admin where
 import Application.Helper.Export
 import Application.Helper.LiveResource (LiveMutationResult (..),
                                         LiveResource (..), liveMutationResult)
-import Application.Helper.LiveSurface (serveTypedLiveFragment)
 import Application.Helper.PasskeySetupTokens
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
@@ -339,61 +338,52 @@ instance Controller AdminController where
 
     action currentAction@ShowAdminVenueSettingsFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.venue_settings_fragment.respond" do
-            serveTypedLiveFragment adminVenueSettingsLiveSurfaceDefinition () adminVenueSettingsFragment \_ -> do
-                venueConfig <- profileActionSpan "admin.venue_settings_fragment.fetch_venue_config" fetchVenueConfig
-                profileActionSpan "admin.venue_settings_fragment.render_response" (respondHtml (renderVenueSettingsSectionFragment venueConfig))
+            venueConfig <- profileActionSpan "admin.venue_settings_fragment.fetch_venue_config" fetchVenueConfig
+            profileActionSpan "admin.venue_settings_fragment.render_response" (respondHtml (renderVenueSettingsSectionFragment venueConfig))
 
     action currentAction@ShowAdminInvitesFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.invites_fragment.respond" do
             currentRosterGroup <- profileActionSpan "admin.invites_fragment.resolve_current_group" (fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId"))
-            serveTypedLiveFragment adminInvitesLiveSurfaceDefinition AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Just currentRosterGroup.id } adminInvitesFragment \_ -> do
-                invitations <- profileActionSpan "admin.invites_fragment.fetch_invitations" fetchCurrentVenueInvitations
-                profileActionSpan "admin.invites_fragment.render_response" (respondHtml (renderInvitesSectionFragment invitations currentRosterGroup.id))
+            invitations <- profileActionSpan "admin.invites_fragment.fetch_invitations" fetchCurrentVenueInvitations
+            profileActionSpan "admin.invites_fragment.render_response" (respondHtml (renderInvitesSectionFragment invitations currentRosterGroup.id))
 
     action currentAction@ShowAdminShiftTypesFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.shift_types_fragment.respond" do
-            serveTypedLiveFragment adminShiftTypesLiveSurfaceDefinition () adminShiftTypesFragment \_ -> do
-                shiftTypes <- profileActionSpan "admin.shift_types_fragment.fetch_shift_types" fetchCurrentVenueShiftTypes
-                awardLevels <- profileActionSpan "admin.shift_types_fragment.fetch_award_levels" fetchActiveAwardLevels
-                awardLevelBaseRates <- profileActionSpan "admin.shift_types_fragment.fetch_award_rates" fetchCurrentAwardLevelBaseRates
-                importedPayItems <- profileActionSpan "admin.shift_types_fragment.fetch_imported_pay_items" fetchActiveImportedXeroPayItems
-                let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
-                profileActionSpan "admin.shift_types_fragment.render_response" (respondHtml (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates importedPayItems))
+            shiftTypes <- profileActionSpan "admin.shift_types_fragment.fetch_shift_types" fetchCurrentVenueShiftTypes
+            awardLevels <- profileActionSpan "admin.shift_types_fragment.fetch_award_levels" fetchActiveAwardLevels
+            awardLevelBaseRates <- profileActionSpan "admin.shift_types_fragment.fetch_award_rates" fetchCurrentAwardLevelBaseRates
+            importedPayItems <- profileActionSpan "admin.shift_types_fragment.fetch_imported_pay_items" fetchActiveImportedXeroPayItems
+            let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
+            profileActionSpan "admin.shift_types_fragment.render_response" (respondHtml (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates importedPayItems))
 
     action currentAction@ShowAdminRosterGroupsFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.roster_groups_fragment.respond" do
-            serveTypedLiveFragment adminRosterGroupsLiveSurfaceDefinition () adminRosterGroupsFragment \_ -> do
-                _ <- profileActionSpan "admin.roster_groups_fragment.normalize_roster_groups" ensureAdminRosterGroupsNormalizedMutation
-                rosterGroups <- profileActionSpan "admin.roster_groups_fragment.fetch_roster_groups" fetchCurrentVenueRosterGroups
-                let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
-                profileActionSpan "admin.roster_groups_fragment.render_response" (respondHtml (renderRosterGroupsSectionFragment rosterGroups showInactiveRosterGroups))
+            _ <- profileActionSpan "admin.roster_groups_fragment.normalize_roster_groups" ensureAdminRosterGroupsNormalizedMutation
+            rosterGroups <- profileActionSpan "admin.roster_groups_fragment.fetch_roster_groups" fetchCurrentVenueRosterGroups
+            let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
+            profileActionSpan "admin.roster_groups_fragment.render_response" (respondHtml (renderRosterGroupsSectionFragment rosterGroups showInactiveRosterGroups))
 
     action currentAction@ShowAdminExportsFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.exports_fragment.respond" do
-            serveTypedLiveFragment adminExportsLiveSurfaceDefinition () adminExportsFragment \_ -> do
-                currentWeekOffset <- profileActionSpan "admin.exports_fragment.current_report_week" currentReportWeekOffset
-                reportWeekSelection <- profileActionSpan "admin.exports_fragment.fetch_report_week_selection" (fetchReportWeekSelection currentWeekOffset)
-                let defaultRangeStart = reportWeekSelection.weekStart
-                let defaultRangeEnd = reportWeekSelection.weekEnd
-                exportJobs <- profileActionSpan "admin.exports_fragment.fetch_export_jobs" fetchCurrentVenueExportJobs
-                profileActionSpan "admin.exports_fragment.render_response" (respondHtml (renderExportsSectionFragment reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs))
+            currentWeekOffset <- profileActionSpan "admin.exports_fragment.current_report_week" currentReportWeekOffset
+            reportWeekSelection <- profileActionSpan "admin.exports_fragment.fetch_report_week_selection" (fetchReportWeekSelection currentWeekOffset)
+            let defaultRangeStart = reportWeekSelection.weekStart
+            let defaultRangeEnd = reportWeekSelection.weekEnd
+            exportJobs <- profileActionSpan "admin.exports_fragment.fetch_export_jobs" fetchCurrentVenueExportJobs
+            profileActionSpan "admin.exports_fragment.render_response" (respondHtml (renderExportsSectionFragment reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs))
 
     action currentAction@ShowAdminXeroFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.xero_fragment.respond" do
-            serveTypedLiveFragment adminXeroLiveSurfaceDefinition () adminXeroShellFragment \_ ->
-                requireCurrentVenueOwnerForXero respondWithXeroSectionFragment
+            requireCurrentVenueOwnerForXero respondWithXeroSectionFragment
 
     action currentAction@ShowAdminXeroStaffMappingsFragmentAction = runBepis currentAction BepisFragmentAction $
-        serveTypedLiveFragment adminXeroLiveSurfaceDefinition () adminXeroStaffMappingsFragment \_ ->
-            requireCurrentVenueOwnerForXero respondWithXeroStaffMappingsFragment
+        requireCurrentVenueOwnerForXero respondWithXeroStaffMappingsFragment
 
     action currentAction@ShowAdminXeroPayItemsFragmentAction = runBepis currentAction BepisFragmentAction $
-        serveTypedLiveFragment adminXeroLiveSurfaceDefinition () adminXeroPayItemsFragment \_ ->
-            requireCurrentVenueOwnerForXero respondWithXeroPayItemsFragment
+        requireCurrentVenueOwnerForXero respondWithXeroPayItemsFragment
 
     action currentAction@ShowAdminXeroTimesheetsFragmentAction = runBepis currentAction BepisFragmentAction $
-        serveTypedLiveFragment adminXeroLiveSurfaceDefinition () adminXeroTimesheetsFragment \_ ->
-            requireCurrentVenueOwnerForXero respondWithXeroTimesheetsFragment
+        requireCurrentVenueOwnerForXero respondWithXeroTimesheetsFragment
 
     action currentAction@CreateVenueInvitationAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable

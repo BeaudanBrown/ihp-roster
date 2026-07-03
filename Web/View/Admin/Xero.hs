@@ -22,6 +22,7 @@ module Web.View.Admin.Xero
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
+import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface (EmptyInteractionIntent,
                                        EmptyInteractionLayer,
@@ -43,6 +44,8 @@ import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveUpdateScope (..))
 import Application.Helper.View.Overlay (dialogOverlayMountId)
 import Application.Helper.XeroAdminTypes
+import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
+                                  adminXeroSurfaceImpl)
 import Web.View.Admin.Common
 import Web.View.Admin.Xero.Connection
 import Web.View.Admin.Xero.PayItems
@@ -195,14 +198,14 @@ renderXeroSectionFragmentOob =
     renderXeroSectionFragmentWithSwap outerHtmlOobSwap False
 
 renderXeroSectionFragmentWithSwap :: OobSwapAttr -> Bool -> XeroAdminSectionData -> Html
-renderXeroSectionFragmentWithSwap maybeSwapOob shouldAutoSync xeroSectionData = [hsx|
-    <div id="admin-xero-fragment"
-         hx-swap-oob={maybeSwapOob}
-         data-live-update-surface={liveSurfaceConfigJson <$> adminXeroLiveSurface}>
-        {renderXeroAutoSyncTrigger shouldAutoSync xeroSectionData.xeroConnection}
-        {renderXeroSection xeroSectionData}
-    </div>
-|]
+renderXeroSectionFragmentWithSwap maybeSwapOob shouldAutoSync xeroSectionData =
+    renderFrontendSurfaceMount (adminXeroSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
+        <div id="admin-xero-fragment"
+             hx-swap-oob={maybeSwapOob}>
+            {renderXeroAutoSyncTrigger shouldAutoSync xeroSectionData.xeroConnection}
+            {renderXeroSection xeroSectionData}
+        </div>
+    |]
 
 renderXeroAutoSyncTrigger :: Bool -> Maybe XeroConnection -> Html
 renderXeroAutoSyncTrigger True (Just connection)

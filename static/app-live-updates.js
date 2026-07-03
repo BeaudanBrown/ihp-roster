@@ -386,6 +386,10 @@
         decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`)
       };
     }
+    if (config.surface.startsWith("admin-")) {
+      const parsed = parseAdminSurface(config);
+      if (parsed) return parsed;
+    }
     if (config.surface === "profile") {
       const scope = parseProfileScope(config.scopeKey);
       if (!scope) return null;
@@ -544,6 +548,48 @@
     if (fragment.key.kind === "support-public-holidays") {
       return { ...base, fragmentKey: { kind: "support_public_holidays_section" } };
     }
+    return null;
+  }
+  function parseAdminSurface(config) {
+    const scope = parseAdminScope(config.surface, config.scopeKey);
+    if (!scope) return null;
+    const resyncFragments = config.fragments.map(adminFragmentToWire).filter((fragment) => fragment !== null);
+    if (resyncFragments.length === 0) return null;
+    return {
+      feature: config.surface,
+      scope,
+      scopeKey: adminWireScopeKey(scope),
+      socketPath: "/live-updates",
+      resyncFragments,
+      decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`)
+    };
+  }
+  function parseAdminScope(surface, scopeKey) {
+    const match = /^admin-[^:]+(?:-[^:]+)*:([^:]+)(?::([^:]+))?$/.exec(scopeKey);
+    if (!match) return null;
+    const venueId = match[1];
+    if (surface === "admin-venue-config") return { kind: "admin_venue_config", venueId };
+    if (surface === "admin-invites") return { kind: "admin_invites", venueId };
+    if (surface === "admin-exports") return { kind: "admin_exports", venueId };
+    if (surface === "admin-shift-types") return { kind: "admin_shift_types", venueId };
+    if (surface === "admin-roster-groups") return { kind: "admin_roster_groups", venueId };
+    if (surface === "admin-xero") return { kind: "admin_xero", venueId };
+    return null;
+  }
+  function adminWireScopeKey(scope) {
+    return `${scope.kind}:${scope.venueId}`;
+  }
+  function adminFragmentToWire(fragment) {
+    const base = liveFragmentBase(fragment);
+    if (fragment.key.kind === "admin-venue-config") return { ...base, fragmentKey: { kind: "admin_venue_config" } };
+    if (fragment.key.kind === "admin-invites") return { ...base, fragmentKey: { kind: "admin_invites" } };
+    if (fragment.key.kind === "admin-exports") return { ...base, fragmentKey: { kind: "admin_exports" } };
+    if (fragment.key.kind === "admin-shift-types") return { ...base, fragmentKey: { kind: "admin_shift_types" } };
+    if (fragment.key.kind === "admin-roster-groups") return { ...base, fragmentKey: { kind: "admin_roster_groups" } };
+    if (fragment.key.kind === "admin-xero") return { ...base, fragmentKey: { kind: "admin_xero" } };
+    if (fragment.key.kind === "admin-xero-staff-mappings") return { ...base, fragmentKey: { kind: "admin_xero_staff_mappings" } };
+    if (fragment.key.kind === "admin-xero-pay-items") return { ...base, fragmentKey: { kind: "admin_xero_pay_items" } };
+    if (fragment.key.kind === "admin-xero-timesheets") return { ...base, fragmentKey: { kind: "admin_xero_timesheets" } };
     return null;
   }
   function parseProfileScope(scopeKey) {

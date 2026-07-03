@@ -10,10 +10,13 @@ module Web.View.Admin.RosterGroups
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
+import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveUpdateScope (..))
+import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
+                                  adminRosterGroupsSurfaceImpl)
 import Web.View.Admin.Common
 import Web.View.Prelude
 
@@ -32,13 +35,13 @@ renderRosterGroupsSectionFragment =
     renderRosterGroupsSectionFragmentWithSwap Nothing
 
 renderRosterGroupsSectionFragmentWithSwap :: Maybe Text -> [RosterGroup] -> Bool -> Html
-renderRosterGroupsSectionFragmentWithSwap maybeSwapOob rosterGroups showInactive = [hsx|
-    <div id="admin-roster-groups-fragment"
-         hx-swap-oob={maybeSwapOob}
-         data-live-update-surface={liveSurfaceConfigJson <$> adminRosterGroupsLiveSurface}>
-        {renderRosterGroupsSection rosterGroups showInactive}
-    </div>
-|]
+renderRosterGroupsSectionFragmentWithSwap maybeSwapOob rosterGroups showInactive =
+    renderFrontendSurfaceMount (adminRosterGroupsSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
+        <div id="admin-roster-groups-fragment"
+             hx-swap-oob={maybeSwapOob}>
+            {renderRosterGroupsSection rosterGroups showInactive}
+        </div>
+    |]
 
 data AdminRosterGroupsSurface
 

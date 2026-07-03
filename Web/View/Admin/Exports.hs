@@ -12,9 +12,12 @@ module Web.View.Admin.Exports
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.Export
+import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate
+import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
+                                  adminExportsSurfaceImpl)
 import Web.View.Admin.Common
 import Web.View.Prelude
 
@@ -69,13 +72,13 @@ renderExportsSectionFragment =
     renderExportsSectionFragmentWithSwap Nothing
 
 renderExportsSectionFragmentWithSwap :: Maybe Text -> ReportWeekSelection -> Day -> Day -> [ExportJob] -> Html
-renderExportsSectionFragmentWithSwap maybeSwapOob reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs = [hsx|
-    <div id={adminExportsFragmentId}
-         hx-swap-oob={maybeSwapOob}
-         data-live-update-surface={liveSurfaceConfigJson (mkTypedDefinedLiveSurface adminExportsLiveSurfaceDefinition ())}>
-        {renderExportsSection reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs}
-    </div>
-|]
+renderExportsSectionFragmentWithSwap maybeSwapOob reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs =
+    renderFrontendSurfaceMount (adminExportsSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
+        <div id={adminExportsFragmentId}
+             hx-swap-oob={maybeSwapOob}>
+            {renderExportsSection reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs}
+        </div>
+    |]
 
 renderExportsSection :: ReportWeekSelection -> Day -> Day -> [ExportJob] -> Html
 renderExportsSection _reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs =

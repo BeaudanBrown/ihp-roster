@@ -11,9 +11,12 @@ module Web.View.Admin.VenueSettings
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
+import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate
+import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
+                                  adminVenueSettingsSurfaceImpl)
 import Web.View.Admin.Common
 import Web.View.Prelude
 
@@ -68,13 +71,13 @@ renderVenueSettingsSectionFragment =
     renderVenueSettingsSectionFragmentWithSwap Nothing
 
 renderVenueSettingsSectionFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> VenueConfig -> Html
-renderVenueSettingsSectionFragmentWithSwap maybeSwapOob venueConfig = [hsx|
-    <div id={adminVenueSettingsFragmentId}
-         hx-swap-oob={maybeSwapOob}
-         data-live-update-surface={liveSurfaceConfigJson (mkTypedDefinedLiveSurface adminVenueSettingsLiveSurfaceDefinition ())}>
-        {renderVenueSettingsSection venueConfig}
-    </div>
-|]
+renderVenueSettingsSectionFragmentWithSwap maybeSwapOob venueConfig =
+    renderFrontendSurfaceMount (adminVenueSettingsSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
+        <div id={adminVenueSettingsFragmentId}
+             hx-swap-oob={maybeSwapOob}>
+            {renderVenueSettingsSection venueConfig}
+        </div>
+    |]
 
 renderVenueSettingsSection :: VenueConfig -> Html
 renderVenueSettingsSection venueConfig =

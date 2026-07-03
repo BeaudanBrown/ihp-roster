@@ -12,6 +12,7 @@ module Web.View.Admin.Invites
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
+import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
@@ -20,6 +21,8 @@ import Application.Helper.UiRegion (UiRegionTransitionProfile (..))
 import qualified Text.Blaze.Html as Blaze
 import Text.Blaze.Html ((!))
 import qualified Text.Blaze.Html5 as Html5
+import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
+                                  adminInvitesSurfaceImpl)
 import Web.View.Admin.Common
 import Web.View.Prelude
 
@@ -62,12 +65,12 @@ renderInvitesSectionFragment =
 
 renderInvitesSectionFragmentWithSwap :: Maybe Text -> [VenueInvitation] -> Id RosterGroup -> Html
 renderInvitesSectionFragmentWithSwap maybeSwapOob invitations rosterGroupId =
-    Html5.div
-        ! attr "id" "admin-invites-fragment"
-        ! maybeAttr "hx-swap-oob" maybeSwapOob
-        ! attr "data-live-update-surface" (liveSurfaceConfigJson (adminInvitesLiveSurface rosterGroupId))
-        ! uiRegionTransitionAttrs UiRegionTransitionFade
-        $ renderInvitesSection invitations rosterGroupId
+    renderFrontendSurfaceMount (adminInvitesSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Just (unpackId rosterGroupId) }) $
+        Html5.div
+            ! attr "id" "admin-invites-fragment"
+            ! maybeAttr "hx-swap-oob" maybeSwapOob
+            ! uiRegionTransitionAttrs UiRegionTransitionFade
+            $ renderInvitesSection invitations rosterGroupId
 
 data AdminInvitesSurface
 

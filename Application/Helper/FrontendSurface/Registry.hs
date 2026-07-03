@@ -5,6 +5,12 @@ module Application.Helper.FrontendSurface.Registry
     ( RegisteredFrontendSurfaces
     ) where
 
+import Application.Helper.FrontendSurface.Admin (AdminExportsSurface,
+                                                 AdminInvitesSurface,
+                                                 AdminRosterGroupsSurface,
+                                                 AdminShiftTypesSurface,
+                                                 AdminVenueSettingsSurface,
+                                                 AdminXeroSurface)
 import Application.Helper.FrontendSurface.Billing (BillingSurface)
 import Application.Helper.FrontendSurface.Lab (SurfaceLabSurface)
 import Application.Helper.FrontendSurface.LeaveRequests (LeaveRequestsSurface)
@@ -21,4 +27,10 @@ type RegisteredFrontendSurfaces =
      , BillingSurface
      , SupportSurface
      , ProfileSurface
+     , AdminVenueSettingsSurface
+     , AdminInvitesSurface
+     , AdminExportsSurface
+     , AdminShiftTypesSurface
+     , AdminRosterGroupsSurface
+     , AdminXeroSurface
      ]
