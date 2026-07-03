@@ -158,7 +158,7 @@ adminXeroPageHandlers scope fragment =
         , surfaceIntentHandlers = HandlerNil
         }
 
-unitHandlers :: AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImplHandlers ('Surface marker '[ 'Scope scopeMarker '[ 'Field Surface.VenueId 'WireUUID ] '[ 'NoAuth ], 'Fragment fragment '[] policies])
+unitHandlers :: AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImplHandlers ('Surface marker '[ 'Scope scopeMarker '[ 'Field Surface.VenueId 'WireUUID ] auth, 'Fragment fragment '[] policies])
 unitHandlers scope fragment =
     SurfaceImplHandlers
         { surfaceScopeHandlers = scopeHandler scope `HandlerCons` HandlerNil
@@ -208,13 +208,13 @@ fh fragment = FrontendSurfaceFragmentHandler
     , fragmentHandlerRender = const mempty
     }
 
-scopeHandler :: AdminVenueScopeValue -> FrontendSurfaceScopeHandler ('Scope scopeMarker '[ 'Field Surface.VenueId 'WireUUID] '[ 'NoAuth ])
+scopeHandler :: AdminVenueScopeValue -> FrontendSurfaceScopeHandler ('Scope scopeMarker '[ 'Field Surface.VenueId 'WireUUID] auth)
 scopeHandler scope = FrontendSurfaceScopeHandler
     { scopeHandlerDefaultValue = frontendSurfaceFieldValues (Aeson.object ["venueId" Aeson..= tshow scope.adminVenueId])
     , scopeHandlerKey = \fields -> fromMaybe (tshow scope.adminVenueId) (getSurfaceField @Surface.VenueId fields)
     }
 
-invitesScopeHandler :: AdminVenueScopeValue -> FrontendSurfaceScopeHandler ('Scope Surface.AdminInvitesScope '[ 'Field Surface.VenueId 'WireUUID, 'Field Surface.RosterGroupId 'WireUUID] '[ 'NoAuth ])
+invitesScopeHandler :: AdminVenueScopeValue -> FrontendSurfaceScopeHandler ('Scope Surface.AdminInvitesScope '[ 'Field Surface.VenueId 'WireUUID, 'Field Surface.RosterGroupId 'WireUUID] auth)
 invitesScopeHandler scope = FrontendSurfaceScopeHandler
     { scopeHandlerDefaultValue = frontendSurfaceFieldValues (Aeson.object ["venueId" Aeson..= tshow scope.adminVenueId, "rosterGroupId" Aeson..= maybe "" tshow scope.adminRosterGroupId])
     , scopeHandlerKey = \fields ->

@@ -22,6 +22,6 @@ type BillingSurface =
         '[ Scope BillingVenue
             '[ Field VenueId 'WireUUID
              ]
-            '[ 'NoAuth ]
+            '[ 'Authorize 'CurrentVenueOwner '[ VenueId ] ]
          , Fragment BillingStatus '[] '[ 'Eager, 'Live, 'ResyncOnly ]
          ]

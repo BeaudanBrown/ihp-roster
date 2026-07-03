@@ -58,7 +58,7 @@ type RosterScopeBundle =
          , Field RosterGroupId 'WireUUID
          , Field WeekOffset 'WireInt
          ]
-        '[ 'NoAuth ]
+        '[ 'Authorize 'CurrentVenueRosterGroup '[ VenueId, RosterGroupId ] ]
      ]
 
 type RosterFragmentBundle =

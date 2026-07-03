@@ -19,7 +19,7 @@ data SupportPublicHolidays
 
 type SupportSurface =
     Surface Support
-        '[ Scope SupportPlatform '[] '[ 'NoAuth ]
+        '[ Scope SupportPlatform '[] '[ 'Authorize 'SupportSuperAdmin '[] ]
          , Fragment SupportAwardRates '[] '[ 'Eager, 'Live, 'ResyncOnly ]
          , Fragment SupportPublicHolidays '[] '[ 'Eager, 'Live, 'ResyncOnly ]
          ]

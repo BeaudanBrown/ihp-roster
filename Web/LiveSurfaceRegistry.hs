@@ -7,9 +7,8 @@ module Web.LiveSurfaceRegistry
     , planRegisteredLiveSurfaceInvalidationsWithoutContext
     ) where
 
+import Application.Helper.FrontendSurface.Authorization (authorizeFrontendSurfaceLiveScope)
 import Application.Helper.LiveResource (LiveResource (..))
-import Application.Helper.LiveSurface (LiveScopeAuthorizationRequirement (..),
-                                       authorizeLiveScopeRequirement)
 import Application.Helper.LiveUpdate.Runtime (LiveUpdateBroadcastResult,
                                               LiveUpdateScope (..),
                                               LiveUpdateWireFragment,
@@ -58,19 +57,7 @@ data LiveSurfaceInvalidationTarget = LiveSurfaceInvalidationTarget
     deriving (Eq, Show)
 
 authorizeRegisteredLiveSurfaceScope :: (?context :: ControllerContext, ?modelContext :: ModelContext) => LiveUpdateScope -> IO Bool
-authorizeRegisteredLiveSurfaceScope = \case
-    TimesheetWeekScope { venueId } -> authorizeLiveScopeRequirement (RequireCurrentVenue venueId)
-    RosterWeekScope { venueId, rosterGroupId } -> authorizeLiveScopeRequirement (RequireCurrentVenueRosterGroup venueId rosterGroupId)
-    LeaveRequestsScope { venueId } -> authorizeLiveScopeRequirement (RequireCurrentVenueManager venueId)
-    BillingScope { venueId } -> authorizeLiveScopeRequirement (RequireCurrentVenueOwner venueId)
-    SupportPlatformScope -> authorizeLiveScopeRequirement RequireSupportSuperAdmin
-    ProfileScope { venueId, staffId } -> authorizeLiveScopeRequirement (RequireCurrentVenueStaff venueId staffId)
-    AdminVenueConfigScope { venueId } -> authorizeLiveScopeRequirement (RequireCurrentVenueAdmin venueId)
-    AdminInvitesScope { venueId } -> authorizeLiveScopeRequirement (RequireCurrentVenueAdmin venueId)
-    AdminExportsScope { venueId } -> authorizeLiveScopeRequirement (RequireCurrentVenueAdmin venueId)
-    AdminShiftTypesScope { venueId } -> authorizeLiveScopeRequirement (RequireCurrentVenueAdmin venueId)
-    AdminRosterGroupsScope { venueId } -> authorizeLiveScopeRequirement (RequireCurrentVenueAdmin venueId)
-    AdminXeroScope { venueId } -> authorizeLiveScopeRequirement (RequireCurrentVenueOwner venueId)
+authorizeRegisteredLiveSurfaceScope = authorizeFrontendSurfaceLiveScope
 
 planRegisteredLiveSurfaceInvalidations :: (?context :: ControllerContext) => Set.Set LiveResource -> [LiveUpdateScope] -> [LiveSurfaceInvalidationTarget]
 planRegisteredLiveSurfaceInvalidations = planRegisteredLiveSurfaceInvalidationsWithoutContext

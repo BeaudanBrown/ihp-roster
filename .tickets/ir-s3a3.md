@@ -1,6 +1,6 @@
 ---
 id: ir-s3a3
-status: open
+status: closed
 deps: [ir-bzuk]
 links: []
 created: 2026-07-03T06:55:44Z

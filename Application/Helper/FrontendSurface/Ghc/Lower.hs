@@ -188,8 +188,22 @@ lowerScopeOption option
     | otherwise =
     case (option.rawTypeName, option.rawTypeArgs) of
         (Just "NoAuth", _) -> Right IR.NoAuthIR
-        (Just "Authorize", policy : fields : _) -> IR.AuthorizeIR <$> (protocol Naming.ScopeName <$> rawMarkerName policy) <*> lowerMarkerNameList Naming.FieldName "authorization field list" fields
+        (Just "Authorize", policy : fields : _) -> IR.AuthorizeIR <$> lowerAuthPolicy policy <*> lowerMarkerNameList Naming.FieldName "authorization field list" fields
         _ -> Left ["unsupported scope option " <> option.rawTypePretty]
+
+lowerAuthPolicy :: RawType -> Either [String] Text
+lowerAuthPolicy policy =
+    case policy.rawTypeName of
+        Just "CurrentVenue" -> Right "current-venue"
+        Just "CurrentVenueUser" -> Right "current-venue-user"
+        Just "CurrentVenueStaff" -> Right "current-venue-staff"
+        Just "CurrentVenueRosterGroup" -> Right "current-venue-roster-group"
+        Just "CurrentVenueAdmin" -> Right "current-venue-admin"
+        Just "CurrentVenueManager" -> Right "current-venue-manager"
+        Just "CurrentVenueOwner" -> Right "current-venue-owner"
+        Just "CurrentVenueAdminRosterGroup" -> Right "current-venue-admin-roster-group"
+        Just "SupportSuperAdmin" -> Right "support-super-admin"
+        _ -> Left ["unsupported auth policy " <> policy.rawTypePretty]
 
 lowerOptionList :: RawType -> Either [String] [IR.OptionIR]
 lowerOptionList options = rawListElements "option list" options >>= collectEither . map lowerOption

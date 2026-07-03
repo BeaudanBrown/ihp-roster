@@ -183,8 +183,21 @@ class ReflectScopeOption (option :: ScopeOption) where
 instance ReflectScopeOption 'NoAuth where
     reflectScopeOption = NoAuthIR
 
-instance (Typeable policy, ReflectMarkerList fields) => ReflectScopeOption ('Authorize policy fields) where
-    reflectScopeOption = AuthorizeIR (protocolName @policy ScopeName) (reflectMarkerList @fields FieldName)
+instance (ReflectAuthPolicy policy, ReflectMarkerList fields) => ReflectScopeOption ('Authorize policy fields) where
+    reflectScopeOption = AuthorizeIR (reflectAuthPolicy @policy) (reflectMarkerList @fields FieldName)
+
+class ReflectAuthPolicy (policy :: AuthPolicy) where
+    reflectAuthPolicy :: Text
+
+instance ReflectAuthPolicy 'CurrentVenue where reflectAuthPolicy = "current-venue"
+instance ReflectAuthPolicy 'CurrentVenueUser where reflectAuthPolicy = "current-venue-user"
+instance ReflectAuthPolicy 'CurrentVenueStaff where reflectAuthPolicy = "current-venue-staff"
+instance ReflectAuthPolicy 'CurrentVenueRosterGroup where reflectAuthPolicy = "current-venue-roster-group"
+instance ReflectAuthPolicy 'CurrentVenueAdmin where reflectAuthPolicy = "current-venue-admin"
+instance ReflectAuthPolicy 'CurrentVenueManager where reflectAuthPolicy = "current-venue-manager"
+instance ReflectAuthPolicy 'CurrentVenueOwner where reflectAuthPolicy = "current-venue-owner"
+instance ReflectAuthPolicy 'CurrentVenueAdminRosterGroup where reflectAuthPolicy = "current-venue-admin-roster-group"
+instance ReflectAuthPolicy 'SupportSuperAdmin where reflectAuthPolicy = "support-super-admin"
 
 class ReflectMarkerList (markers :: [Type]) where
     reflectMarkerList :: FrontendSurfaceNameContext -> [Text]

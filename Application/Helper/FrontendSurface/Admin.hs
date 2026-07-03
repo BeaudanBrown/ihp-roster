@@ -69,7 +69,7 @@ data AdminXeroTimesheetsFragment
 
 type AdminPageSurface =
     Surface AdminPage
-        '[ Scope AdminPageScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+        '[ Scope AdminPageScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
          , Fragment AdminPageContentFragment '[]
             '[ 'Eager
              , ContainsSurface AdminInvites
@@ -82,7 +82,7 @@ type AdminPageSurface =
 
 type AdminXeroPageSurface =
     Surface AdminXeroPage
-        '[ Scope AdminXeroPageScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+        '[ Scope AdminXeroPageScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueOwner '[ VenueId ] ]
          , Fragment AdminXeroPageContentFragment '[]
             '[ 'Eager
              , ContainsSurface AdminXero
@@ -91,7 +91,7 @@ type AdminXeroPageSurface =
 
 type AdminVenueSettingsSurface =
     Surface AdminVenueConfig
-        '[ Scope AdminVenueConfigScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+        '[ Scope AdminVenueConfigScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
          , Fragment AdminVenueConfigFragment '[] '[ 'Eager, 'Live, 'ResyncOnly ]
          ]
 
@@ -101,31 +101,31 @@ type AdminInvitesSurface =
             '[ Field VenueId 'WireUUID
              , Field RosterGroupId 'WireUUID
              ]
-            '[ 'NoAuth ]
+            '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
          , Fragment AdminInvitesFragment '[] '[ 'Eager, 'Live, 'ResyncOnly ]
          ]
 
 type AdminExportsSurface =
     Surface AdminExports
-        '[ Scope AdminExportsScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+        '[ Scope AdminExportsScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
          , Fragment AdminExportsFragment '[] '[ 'Eager, 'Live, 'ResyncOnly ]
          ]
 
 type AdminShiftTypesSurface =
     Surface AdminShiftTypes
-        '[ Scope AdminShiftTypesScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+        '[ Scope AdminShiftTypesScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
          , Fragment AdminShiftTypesFragment '[] '[ 'Eager, 'Live, 'ResyncOnly ]
          ]
 
 type AdminRosterGroupsSurface =
     Surface AdminRosterGroups
-        '[ Scope AdminRosterGroupsScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+        '[ Scope AdminRosterGroupsScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
          , Fragment AdminRosterGroupsFragment '[] '[ 'Eager, 'Live, 'ResyncOnly ]
          ]
 
 type AdminXeroSurface =
     Surface AdminXero
-        '[ Scope AdminXeroScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+        '[ Scope AdminXeroScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueOwner '[ VenueId ] ]
          , Fragment AdminXeroShellFragment '[] '[ 'Eager, 'Live, 'ResyncOnly ]
          , Fragment AdminXeroStaffMappingsFragment '[] '[ 'Eager, 'Live, 'ResyncOnly ]
          , Fragment AdminXeroPayItemsFragment '[] '[ 'Eager, 'Live, 'ResyncOnly ]

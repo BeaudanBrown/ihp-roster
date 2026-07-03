@@ -39,7 +39,7 @@ type TimesheetScopeBundle =
         '[ Field VenueId 'WireUUID
          , Field WeekOffset 'WireInt
          ]
-        '[ 'NoAuth ]
+        '[ 'Authorize 'CurrentVenue '[ VenueId ] ]
      , MountState TimesheetsMountState
         '[ Field ShowApproved 'WireBool
          , Field ShowAllStaff 'WireBool

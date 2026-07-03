@@ -197,7 +197,7 @@ timesheetsRawRegistry =
             [ raw "Scope"
                 [ marker "TimesheetWeek"
                 , promotedList [field "VenueId" "WireUUID", field "WeekOffset" "WireInt"]
-                , promotedList [raw "NoAuth" []]
+                , promotedList [raw "Authorize" [raw "CurrentVenue" [], promotedList [marker "VenueId"]]]
                 ]
             , raw "MountState"
                 [ marker "TimesheetsMountState"
@@ -224,7 +224,7 @@ rosterRawRegistry =
             [ raw "Scope"
                 [ marker "RosterWeek"
                 , promotedList [field "VenueId" "WireUUID", field "RosterGroupId" "WireUUID", field "WeekOffset" "WireInt"]
-                , promotedList [raw "NoAuth" []]
+                , promotedList [raw "Authorize" [raw "CurrentVenueRosterGroup" [], promotedList [marker "VenueId", marker "RosterGroupId"]]]
                 ]
             , raw "Fragment" [marker "RosterContent", promotedList [], promotedList [raw "Eager" [], raw "Live" [], raw "ResyncOnly" [], raw "Contains" [marker "RosterGridToolbar"], raw "Contains" [marker "RosterGridFrame"]]]
             , raw "Fragment" [marker "RosterGridToolbar", promotedList [], promotedList [raw "Eager" [], raw "Live" [], raw "ResyncOnly" []]]

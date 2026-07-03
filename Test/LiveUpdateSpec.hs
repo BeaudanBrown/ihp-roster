@@ -1,6 +1,7 @@
 module Test.LiveUpdateSpec where
 
 import qualified Application.Helper.Frontend.LiveUpdateSchema as Wire
+import Application.Helper.FrontendSurface.Authorization (frontendSurfaceScopeAuthorizationRequirement)
 import Application.Helper.LiveSurface
 import Application.Helper.LiveSurface.Internal (defaultLiveUpdateScopeAuthorizationRequirement)
 import Application.Helper.LiveUpdate.Runtime
@@ -278,6 +279,9 @@ tests = describe "LiveUpdate runtime types" do
 
         defaultLiveUpdateScopeAuthorizationRequirement SupportPlatformScope `shouldBe` RequireSupportSuperAdmin
         defaultLiveUpdateScopeAuthorizationRequirement AdminXeroScope { venueId } `shouldBe` RequireCurrentVenueOwner venueId
+        frontendSurfaceScopeAuthorizationRequirement SupportPlatformScope `shouldBe` Just (Just RequireSupportSuperAdmin)
+        frontendSurfaceScopeAuthorizationRequirement AdminXeroScope { venueId } `shouldBe` Just (Just (RequireCurrentVenueOwner venueId))
+        frontendSurfaceScopeAuthorizationRequirement TimesheetWeekScope { venueId, weekOffset = 0 } `shouldBe` Just (Just (RequireCurrentVenue venueId))
 
     it "round-trips leave, timesheet, and protected roster surface configs through JSON" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"

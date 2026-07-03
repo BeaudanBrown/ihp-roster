@@ -11,6 +11,7 @@ module Application.Helper.FrontendSurface.DSL
     , FieldSpec (..)
     , ResourceSpec (..)
     , ScopeOption (..)
+    , AuthPolicy (..)
     , WireType (..)
     , PrimitiveOption (..)
     , ConflictResolution (..)
@@ -63,8 +64,19 @@ data DependencySource
     = FromScope Type
     | FromFragment Type
 
+data AuthPolicy
+    = CurrentVenue
+    | CurrentVenueUser
+    | CurrentVenueStaff
+    | CurrentVenueRosterGroup
+    | CurrentVenueAdmin
+    | CurrentVenueManager
+    | CurrentVenueOwner
+    | CurrentVenueAdminRosterGroup
+    | SupportSuperAdmin
+
 data ScopeOption
-    = Authorize Type [Type]
+    = Authorize AuthPolicy [Type]
     | NoAuth
 
 data PrimitiveOption

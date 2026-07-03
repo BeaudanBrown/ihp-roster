@@ -32,7 +32,7 @@ type ProfileSurface =
             '[ Field VenueId 'WireUUID
              , Field StaffId 'WireUUID
              ]
-            '[ 'NoAuth ]
+            '[ 'Authorize 'CurrentVenueStaff '[ VenueId, StaffId ] ]
          , Fragment ProfileDetailsSection '[] '[ 'Eager, 'Live, 'ResyncOnly ]
          , Fragment ProfilePreferencesSection '[] '[ 'Eager, 'Live, 'ResyncOnly ]
          , Fragment ProfileSecuritySection '[] '[ 'Eager, 'Live, 'ResyncOnly ]
