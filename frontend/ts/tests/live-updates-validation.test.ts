@@ -6,7 +6,6 @@ import {
     scanFrontendSurfaceMountInstances,
     type FrontendSurfaceMountedInstance,
 } from "../live-updates/frontend-surface";
-import { parseLiveUpdateSurfaceConfig } from "../live-updates/validation";
 import { assertDeepEqual, assertEqual, assertThrows, test } from "./harness";
 
 const validFragment = {
@@ -46,16 +45,6 @@ function withSurfaceSubscription(config: any, scopeFields: unknown) {
         },
     };
 }
-
-test("generated live update surface validator accepts backend-owned declarative configs", () => {
-    const config = parseLiveUpdateSurfaceConfig(validSurfaceConfig);
-
-    assertEqual(config?.feature, "timesheets");
-    assertEqual(config?.scopeKey, "timesheets:venue-1:0");
-    assertEqual(config?.socketPath, "/custom-live");
-    assertEqual(config?.resyncFragments.length, 1);
-    assertDeepEqual(config?.decorateRequestsWithin, ["form"]);
-});
 
 test("generated parse helpers reject unknown input and encode helpers preserve JSON-shaped DTOs", () => {
     const config = parseLiveSurfaceConfig(validSurfaceConfig);
@@ -319,15 +308,6 @@ test("FrontendSurface instance reconciliation handles same, removed, and newly s
     assertDeepEqual(reconciliation.retained.map((instance) => instance.instanceId), [parent.instanceId]);
     assertDeepEqual(reconciliation.removed.map((instance) => instance.instanceId), [oldChild.instanceId]);
     assertDeepEqual(reconciliation.added.map((instance) => instance.instanceId), [newChild.instanceId]);
-});
-
-test("generated live update surface validator rejects malformed boundary JSON", () => {
-    assertEqual(parseLiveUpdateSurfaceConfig(null), null);
-    assertEqual(parseLiveUpdateSurfaceConfig({ ...validSurfaceConfig, scope: { surface: 42, scope: {} } }), null);
-    assertEqual(parseLiveUpdateSurfaceConfig({ ...validSurfaceConfig, scopeKey: 42 }), null);
-    assertEqual(parseLiveUpdateSurfaceConfig({ ...validSurfaceConfig, socketPath: null }), null);
-    assertEqual(parseLiveUpdateSurfaceConfig({ ...validSurfaceConfig, resyncFragments: [{ ...validFragment, url: 42 }] }), null);
-    assertEqual(parseLiveUpdateSurfaceConfig({ ...validSurfaceConfig, decorateRequestsWithin: ["form", 42] }), null);
 });
 
 test("generated live update wire fragment guard rejects malformed fragment keys and fields", () => {

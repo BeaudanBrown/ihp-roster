@@ -17,7 +17,6 @@ import {
     liveUpdateMessageScopeKey,
     normalizeLiveUpdateVersion,
 } from "./live-updates/protocol";
-import { parseLiveUpdateSurfaceConfig } from "./live-updates/validation";
 import { assertNever } from "./shared/exhaustive";
 
 
@@ -212,7 +211,7 @@ type HtmxConfigRequestEvent = Event & {
             activeClientId = makeClientId();
         }
 
-        document.querySelectorAll('[data-live-update-surface], [data-bepis-surface-config]').forEach(function (ownerEl) {
+        document.querySelectorAll('[data-bepis-surface-config]').forEach(function (ownerEl) {
             if (ownerEl instanceof HTMLElement) {
                 ownerEl.dataset.liveUpdateClientId = activeClientId ?? "";
             }
@@ -636,41 +635,7 @@ type HtmxConfigRequestEvent = Event & {
         });
     }
 
-    // Declarative surface discovery and merging.
-    function readDeclarativeSurface(ownerEl: Element): LiveUpdateSubscription | null {
-        if (!(ownerEl instanceof HTMLElement)) return null;
-
-        const rawConfig = ownerEl.getAttribute('data-live-update-surface');
-        if (!rawConfig) return null;
-
-        let config = null;
-        try {
-            config = JSON.parse(rawConfig);
-        } catch (error) {
-            reportSurfaceConfigError(ownerEl, error);
-            return null;
-        }
-
-        const parsedConfig = parseLiveUpdateSurfaceConfig(config);
-        if (parsedConfig === null) {
-            reportSurfaceConfigError(ownerEl, new Error('Invalid live-update surface scope'));
-            return null;
-        }
-
-        return {
-            feature: parsedConfig.feature,
-            scope: parsedConfig.scope,
-            scopeKey: parsedConfig.scopeKey,
-            path: parsedConfig.socketPath,
-            resyncFragments: parsedConfig.resyncFragments,
-            decorateRequestsWithin: parsedConfig.decorateRequestsWithin,
-            ownerEls: [ownerEl],
-            resync: function (subscription: LiveUpdateSubscription): void {
-                subscription.resyncFragments.forEach(handleFragmentRefreshRequest);
-            },
-        };
-    }
-
+    // FrontendSurface discovery and merging.
     function readFrontendSurface(ownerEl: Element): LiveUpdateSubscription | null {
         if (!(ownerEl instanceof HTMLElement)) return null;
 
@@ -724,12 +689,6 @@ type HtmxConfigRequestEvent = Event & {
 
     function collectDeclarativeSubscriptions(): LiveUpdateSubscription[] {
         const subscriptions: LiveUpdateSubscription[] = [];
-        document.querySelectorAll('[data-live-update-surface]').forEach(function (ownerEl) {
-            if (!(ownerEl instanceof HTMLElement)) return;
-            const scopeInfo = readDeclarativeSurface(ownerEl);
-            if (!scopeInfo || !scopeInfo.scopeKey) return;
-            subscriptions.push({ ...scopeInfo, ownerEl });
-        });
         document.querySelectorAll('[data-bepis-surface-config]').forEach(function (ownerEl) {
             if (!(ownerEl instanceof HTMLElement)) return;
             const scopeInfo = readFrontendSurface(ownerEl);
@@ -743,10 +702,10 @@ type HtmxConfigRequestEvent = Event & {
         const sourceEl = event.detail && event.detail.elt;
         if (!(sourceEl instanceof HTMLElement)) return false;
 
-        const ownerEl = sourceEl.closest('[data-live-update-surface], [data-bepis-surface-config]');
+        const ownerEl = sourceEl.closest('[data-bepis-surface-config]');
         if (!(ownerEl instanceof HTMLElement)) return false;
 
-        const scopeInfo = ownerEl.hasAttribute('data-live-update-surface') ? readDeclarativeSurface(ownerEl) : readFrontendSurface(ownerEl);
+        const scopeInfo = readFrontendSurface(ownerEl);
         if (!scopeInfo) return false;
         if (scopeInfo.decorateRequestsWithin.length === 0) return true;
 

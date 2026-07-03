@@ -1,6 +1,6 @@
 ---
 id: ir-dog6
-status: open
+status: closed
 deps: [ir-zu3i]
 links: []
 created: 2026-07-03T04:17:38Z

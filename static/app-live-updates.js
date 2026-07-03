@@ -20,13 +20,6 @@
   function isLiveUpdateWireFragment(value) {
     return __isLiveUpdateScopeExactRecord(value, ["fragmentKey", "targetId", "url", "deferUntilBlur", "protectionPolicy"], []) && isLiveFragmentKey(value["fragmentKey"]) && typeof value["targetId"] === "string" && typeof value["url"] === "string" && typeof value["deferUntilBlur"] === "boolean" && isLiveFragmentProtection(value["protectionPolicy"]);
   }
-  function isLiveSurfaceConfig(value) {
-    return __isLiveUpdateScopeExactRecord(value, ["feature", "socketPath", "scope", "scopeKey", "resyncFragments", "decorateRequestsWithin"], []) && typeof value["feature"] === "string" && typeof value["socketPath"] === "string" && isLiveUpdateScope(value["scope"]) && typeof value["scopeKey"] === "string" && (Array.isArray(value["resyncFragments"]) && value["resyncFragments"].every((item) => isLiveUpdateWireFragment(item))) && (Array.isArray(value["decorateRequestsWithin"]) && value["decorateRequestsWithin"].every((item) => typeof item === "string"));
-  }
-  function parseLiveSurfaceConfig(value) {
-    if (isLiveSurfaceConfig(value)) return value;
-    throw new Error("Invalid LiveSurfaceConfig");
-  }
   function encodeLiveUpdateCommand(value) {
     return value;
   }
@@ -585,15 +578,6 @@
     return `${fragmentKey}:${fragment.targetId}`;
   }
 
-  // frontend/ts/live-updates/validation.ts
-  function parseLiveUpdateSurfaceConfig(value) {
-    try {
-      return parseLiveSurfaceConfig(value);
-    } catch (_error) {
-      return null;
-    }
-  }
-
   // frontend/ts/shared/exhaustive.ts
   function assertNever(value, message = "Unexpected generated union variant") {
     throw new Error(`${message}: ${JSON.stringify(value)}`);
@@ -706,7 +690,7 @@
       if (!activeClientId) {
         activeClientId = makeClientId();
       }
-      document.querySelectorAll("[data-live-update-surface], [data-bepis-surface-config]").forEach(function(ownerEl) {
+      document.querySelectorAll("[data-bepis-surface-config]").forEach(function(ownerEl) {
         if (ownerEl instanceof HTMLElement) {
           ownerEl.dataset.liveUpdateClientId = activeClientId ?? "";
         }
@@ -1056,35 +1040,6 @@
         scope: subscription.scope
       });
     }
-    function readDeclarativeSurface(ownerEl) {
-      if (!(ownerEl instanceof HTMLElement)) return null;
-      const rawConfig = ownerEl.getAttribute("data-live-update-surface");
-      if (!rawConfig) return null;
-      let config = null;
-      try {
-        config = JSON.parse(rawConfig);
-      } catch (error) {
-        reportSurfaceConfigError(ownerEl, error);
-        return null;
-      }
-      const parsedConfig = parseLiveUpdateSurfaceConfig(config);
-      if (parsedConfig === null) {
-        reportSurfaceConfigError(ownerEl, new Error("Invalid live-update surface scope"));
-        return null;
-      }
-      return {
-        feature: parsedConfig.feature,
-        scope: parsedConfig.scope,
-        scopeKey: parsedConfig.scopeKey,
-        path: parsedConfig.socketPath,
-        resyncFragments: parsedConfig.resyncFragments,
-        decorateRequestsWithin: parsedConfig.decorateRequestsWithin,
-        ownerEls: [ownerEl],
-        resync: function(subscription) {
-          subscription.resyncFragments.forEach(handleFragmentRefreshRequest);
-        }
-      };
-    }
     function readFrontendSurface(ownerEl) {
       if (!(ownerEl instanceof HTMLElement)) return null;
       const rawConfig = ownerEl.getAttribute("data-bepis-surface-config");
@@ -1130,12 +1085,6 @@
     }
     function collectDeclarativeSubscriptions() {
       const subscriptions = [];
-      document.querySelectorAll("[data-live-update-surface]").forEach(function(ownerEl) {
-        if (!(ownerEl instanceof HTMLElement)) return;
-        const scopeInfo = readDeclarativeSurface(ownerEl);
-        if (!scopeInfo || !scopeInfo.scopeKey) return;
-        subscriptions.push({ ...scopeInfo, ownerEl });
-      });
       document.querySelectorAll("[data-bepis-surface-config]").forEach(function(ownerEl) {
         if (!(ownerEl instanceof HTMLElement)) return;
         const scopeInfo = readFrontendSurface(ownerEl);
@@ -1147,9 +1096,9 @@
     function shouldDecorateDeclarativeRequest(event) {
       const sourceEl = event.detail && event.detail.elt;
       if (!(sourceEl instanceof HTMLElement)) return false;
-      const ownerEl = sourceEl.closest("[data-live-update-surface], [data-bepis-surface-config]");
+      const ownerEl = sourceEl.closest("[data-bepis-surface-config]");
       if (!(ownerEl instanceof HTMLElement)) return false;
-      const scopeInfo = ownerEl.hasAttribute("data-live-update-surface") ? readDeclarativeSurface(ownerEl) : readFrontendSurface(ownerEl);
+      const scopeInfo = readFrontendSurface(ownerEl);
       if (!scopeInfo) return false;
       if (scopeInfo.decorateRequestsWithin.length === 0) return true;
       return scopeInfo.decorateRequestsWithin.some(function(selector) {
