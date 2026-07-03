@@ -1,6 +1,6 @@
 ---
 id: ir-aosk
-status: open
+status: closed
 deps: [ir-a3kk]
 links: []
 created: 2026-07-03T11:15:32Z

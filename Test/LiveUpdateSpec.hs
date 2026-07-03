@@ -1,7 +1,8 @@
 module Test.LiveUpdateSpec where
 
 import qualified Application.Helper.Frontend.LiveUpdateSchema as Wire
-import Application.Helper.FrontendSurface.Authorization (frontendSurfaceScopeAuthorizationRequirement)
+import Application.Helper.FrontendSurface.Authorization (frontendSurfaceScopeAuthorizationRequirement,
+                                                         validateFrontendSurfaceLiveSubscription)
 import Application.Helper.LiveSurface
 import Application.Helper.LiveSurface.Internal (defaultLiveUpdateScopeAuthorizationRequirement)
 import Application.Helper.LiveUpdate.Runtime
@@ -292,6 +293,29 @@ tests = describe "LiveUpdate runtime types" do
                 [ supportAwardRatesSectionFragmentRef
                 , supportPublicHolidaysSectionFragmentRef
                 ]
+
+    it "validates live subscriptions from generated FrontendSurface metadata" do
+        let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
+        let scope = TimesheetWeekScope { venueId, weekOffset = 0 }
+        let fragment =
+                LiveUpdateWireFragment
+                    { fragmentKey = TimesheetDaySectionFragment { dayOffset = 1 }
+                    , targetId = "timesheet-day-1"
+                    , url = "/ShowTimesheetDaySectionFragment?weekOffset=0&dayOffset=1"
+                    , deferUntilBlur = False
+                    , protectionPolicy = NoProtection
+                    }
+        let subscription =
+                LiveUpdateSubscription
+                    { subscriptionScope = scope
+                    , subscriptionScopeKey = liveUpdateScopeKey scope
+                    , subscriptionMountedFragments = [fragment]
+                    }
+
+        validateFrontendSurfaceLiveSubscription subscription `shouldBe` True
+        validateFrontendSurfaceLiveSubscription subscription { subscriptionScopeKey = "timesheets:wrong" } `shouldBe` False
+        validateFrontendSurfaceLiveSubscription subscription { subscriptionMountedFragments = [fragment { fragmentKey = LeaveRequestsContentFragment }] } `shouldBe` False
+        validateFrontendSurfaceLiveSubscription subscription { subscriptionMountedFragments = [fragment { fragmentKey = TimesheetToolbarFragment }] } `shouldBe` True
 
     it "declares live authorization requirements at the surface boundary" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"

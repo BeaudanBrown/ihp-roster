@@ -1,17 +1,29 @@
 module Application.Helper.FrontendSurface.Authorization
     ( authorizeFrontendSurfaceLiveScope
     , frontendSurfaceScopeAuthorizationRequirement
+    , validateFrontendSurfaceLiveSubscription
     ) where
 
+import qualified Application.Helper.Frontend.LiveUpdateSchema as Wire
 import qualified Application.Helper.FrontendSurface.ContractIR as SurfaceIR
 import Application.Helper.FrontendSurface.Reflect (reflectRegisteredFrontendSurfaces)
 import Application.Helper.LiveSurface (LiveScopeAuthorizationRequirement (..),
                                        authorizeLiveScopeRequirement)
-import Application.Helper.LiveUpdate.Runtime (LiveUpdateScope)
+import Application.Helper.LiveUpdate.Runtime (LiveUpdateScope,
+                                              LiveUpdateSubscription (..),
+                                              LiveUpdateWireFragment,
+                                              liveUpdateScopeKey,
+                                              liveUpdateScopeToWire,
+                                              liveUpdateWireFragmentToWire)
+import Control.Monad (guard)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Aeson.Key
 import qualified Data.Aeson.KeyMap as Aeson.KeyMap
 import qualified Data.Aeson.Types as Aeson
+import qualified Data.List as List
+import qualified Data.Scientific as Scientific
+import qualified Data.Set as Set
+import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 
@@ -37,6 +49,73 @@ frontendSurfaceScopeAuthorizationRequirement scope = do
     case auth of
         SurfaceIR.NoAuthIR -> Just Nothing
         SurfaceIR.AuthorizeIR policy fields -> Just <$> requirementFor policy fields scopePayload
+
+validateFrontendSurfaceLiveSubscription :: LiveUpdateSubscription -> Bool
+validateFrontendSurfaceLiveSubscription LiveUpdateSubscription { subscriptionScope, subscriptionScopeKey, subscriptionMountedFragments } =
+    fromMaybe False do
+        let Wire.LiveUpdateScope { surface = scopeSurface, scope = scopePayload } = liveUpdateScopeToWire subscriptionScope
+        surface <- find ((== scopeSurface) . (.surfaceName)) reflectRegisteredFrontendSurfaces.contractSurfaces
+        scopeIR <- listToMaybe surface.surfaceScopes
+        guard (subscriptionScopeKey == liveUpdateScopeKey subscriptionScope)
+        guard (validateFields scopeIR.scopeFields scopePayload)
+        guard (all (validateMountedFragment surface scopeSurface) subscriptionMountedFragments)
+        pure True
+
+validateMountedFragment :: SurfaceIR.SurfaceIR -> Text -> LiveUpdateWireFragment -> Bool
+validateMountedFragment surface expectedSurface fragment =
+    let Wire.LiveUpdateWireFragment { fragmentKey = Wire.LiveFragmentKey { surface = fragmentSurface, kind = fragmentKind, params = fragmentParams } } = liveUpdateWireFragmentToWire fragment
+     in fragmentSurface == expectedSurface
+            && fromMaybe False do
+                fragmentIR <- List.find ((== fragmentKind) . (.fragmentName)) surface.surfaceFragments
+                guard (SurfaceIR.LiveOption `elem` fragmentIR.fragmentOptions)
+                guard (validateFields fragmentIR.fragmentParams fragmentParams)
+                pure True
+
+validateFields :: [SurfaceIR.FieldIR] -> Aeson.Value -> Bool
+validateFields fields = \case
+    Aeson.Object object ->
+        let allowed = Set.fromList (map (.fieldName) fields)
+            actual = Set.fromList (map Aeson.Key.toText (Aeson.KeyMap.keys object))
+         in actual `Set.isSubsetOf` allowed && all (fieldIsValid object) fields
+    _ -> False
+    where
+        fieldIsValid object field =
+            case Aeson.KeyMap.lookup (Aeson.Key.fromText field.fieldName) object of
+                Nothing -> field.fieldPresence == SurfaceIR.OptionalFieldPresence
+                Just Aeson.Null -> field.fieldPresence == SurfaceIR.NullableFieldPresence || validateWireAllowsNull field.fieldWire
+                Just value -> validateWire field.fieldWire value
+
+validateWireAllowsNull :: SurfaceIR.WireIR -> Bool
+validateWireAllowsNull = \case
+    SurfaceIR.WireNullableIR _ -> True
+    _                         -> False
+
+validateWire :: SurfaceIR.WireIR -> Aeson.Value -> Bool
+validateWire wire value =
+    case wire of
+        SurfaceIR.WireTextIR -> isString value
+        SurfaceIR.WireIntIR -> case value of
+            Aeson.Number number -> isJust (Scientific.toBoundedInteger @Int number)
+            _ -> False
+        SurfaceIR.WireBoolIR -> case value of
+            Aeson.Bool _ -> True
+            _            -> False
+        SurfaceIR.WireUuidIR -> case value of
+            Aeson.String text -> isJust (UUID.fromText (Text.strip text))
+            _                 -> False
+        SurfaceIR.WireDayIR -> case value of
+            Aeson.String text -> not (Text.null text)
+            _                 -> False
+        SurfaceIR.WireListIR inner -> case value of
+            Aeson.Array values -> all (validateWire inner) values
+            _                  -> False
+        SurfaceIR.WireOptionalIR inner -> validateWire inner value
+        SurfaceIR.WireNullableIR inner -> value == Aeson.Null || validateWire inner value
+        SurfaceIR.WireRefIR _ -> True
+    where
+        isString = \case
+            Aeson.String _ -> True
+            _              -> False
 
 liveScopeSurfaceAndPayload :: LiveUpdateScope -> Maybe (Text, Aeson.Value)
 liveScopeSurfaceAndPayload scope = do

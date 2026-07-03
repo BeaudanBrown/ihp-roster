@@ -1,6 +1,7 @@
 module Web.Controller.LiveUpdates where
 
 import Application.Helper.Controller
+import Application.Helper.FrontendSurface.Authorization (validateFrontendSurfaceLiveSubscription)
 import Application.Helper.LiveUpdate.Runtime
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LByteString
@@ -45,7 +46,7 @@ handleCommand command =
         SubscribeLiveUpdates { subscription = liveSubscription, lastSeenVersion } -> do
             let scope = liveSubscription.subscriptionScope
             authorized <- authorizeRegisteredLiveSurfaceScope scope
-            if authorized
+            if authorized && validateFrontendSurfaceLiveSubscription liveSubscription
                 then do
                     unregisterScopeSubscription scope
                     subscriptionId <- UUIDv4.nextRandom
@@ -62,7 +63,7 @@ handleCommand command =
                 else
                     sendJSON
                         LiveUpdatesError
-                            { message = "Not authorized for requested live update scope"
+                            { message = "Not authorized for requested live update subscription"
                             }
         UnsubscribeLiveUpdates { subscription = liveSubscription } ->
             unregisterScopeSubscription liveSubscription.subscriptionScope
