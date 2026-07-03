@@ -451,12 +451,23 @@ activeRosterWeekScopes =
 
 activeRosterWeekScopesWithBus :: LiveBus -> IO [(UUID.UUID, UUID.UUID, Int)]
 activeRosterWeekScopesWithBus bus =
-    activeLiveUpdateScopeMatchesWithBus bus rosterWeekScopeParts
-    where
-        rosterWeekScopeParts RosterWeekScope { venueId, rosterGroupId, weekOffset } =
-            Just (venueId, rosterGroupId, weekOffset)
-        rosterWeekScopeParts _ =
-            Nothing
+    Set.toList . Set.fromList . mapMaybe rosterWeekSubscriptionParts <$> activeLiveUpdateSubscriptionsWithBus bus
+
+rosterWeekSubscriptionParts :: LiveUpdateSubscription -> Maybe (UUID.UUID, UUID.UUID, Int)
+rosterWeekSubscriptionParts subscription = do
+    let Wire.LiveUpdateScope { surface, scope } = liveUpdateScopeToWire subscription.subscriptionScope
+    guardMaybe (surface == "roster")
+    Aeson.parseMaybe (Aeson.withObject "RosterWeekScope" \object -> do
+        venueId <- parseUuidField object "venueId"
+        rosterGroupId <- parseUuidField object "rosterGroupId"
+        weekOffset <- object Aeson..: "weekOffset"
+        pure (venueId, rosterGroupId, weekOffset)
+        ) scope
+
+
+guardMaybe :: Bool -> Maybe ()
+guardMaybe True  = Just ()
+guardMaybe False = Nothing
 
 currentLiveUpdateVersion :: LiveUpdateScope -> IO Int
 currentLiveUpdateVersion =

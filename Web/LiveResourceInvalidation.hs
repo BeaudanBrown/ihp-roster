@@ -16,7 +16,6 @@ import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate.Runtime (LiveUpdateBroadcastResult (..),
                                               LiveUpdateScope (..),
                                               LiveUpdateSubscription (..),
-                                              activeLiveUpdateScopes,
                                               activeLiveUpdateSubscriptions,
                                               activeRosterWeekScopes)
 import Application.Helper.Profiling (profileActionSpanWithDetail)
@@ -36,20 +35,20 @@ import Web.LiveSurfaceRegistry (LiveSurfaceInvalidationTarget (..),
 
 expandLiveResources ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    [LiveUpdateScope] ->
+    [(UUID, UUID, Int)] ->
     Set.Set LiveResource ->
     IO (Set.Set LiveResource)
-expandLiveResources activeScopes resources = do
+expandLiveResources activeRosterScopes resources = do
     expanded <- Set.unions <$> mapM expandOne (Set.toList resources)
     pure (resources <> expanded)
     where
         expandOne resourceValue
             | resourceMatches "roster-end-times-config" resourceValue || resourceMatches "roster-week-boundary-config" resourceValue
             , Just venueId <- resourceFieldUuid "venueId" resourceValue =
-                pure (expandActiveVenueRosterWeekResources activeScopes venueId)
+                pure (expandActiveVenueRosterWeekResourcesWithoutContext activeRosterScopes venueId)
             | resourceMatches "staff-profile" resourceValue || resourceMatches "staff-preferences" resourceValue
             , Just staffId <- resourceFieldUuid "staffId" resourceValue =
-                activeRosterWeekResourcesForStaff activeScopes staffId
+                activeRosterWeekResourcesForStaff activeRosterScopes staffId
             | otherwise =
                 pure Set.empty
 
@@ -69,9 +68,11 @@ invalidateTouchedResources label result =
     profileActionSpanWithDetail "live_resources.invalidate" do
         startedAtNs <- getMonotonicTimeNSec
         (observed, observeDurationMs) <- measureDuration (recordLiveMutationDiagnostics label result)
-        (activeSubscriptions, activeDurationMs) <- measureDuration activeLiveUpdateSubscriptions
+        (activeSubscriptions, activeSubscriptionDurationMs) <- measureDuration activeLiveUpdateSubscriptions
+        (activeRosterScopes, activeRosterDurationMs) <- measureDuration activeRosterWeekScopes
+        let activeDurationMs = activeSubscriptionDurationMs + activeRosterDurationMs
         let activeScopes = coalesceScopes (map (.subscriptionScope) activeSubscriptions)
-        (expandedResources, expandDurationMs) <- measureDuration (expandLiveResources activeScopes (liveMutationTouchedResources observed))
+        (expandedResources, expandDurationMs) <- measureDuration (expandLiveResources activeRosterScopes (liveMutationTouchedResources observed))
         (candidateScopes, candidateDurationMs) <- measureDuration (candidateLiveScopesForResources expandedResources)
         let planningScopes = coalesceScopes (activeScopes <> candidateScopes)
         (dependencyTargets, planDurationMs) <- measureDuration (pure (planRegisteredLiveSurfaceInvalidations expandedResources activeSubscriptions))
@@ -306,14 +307,6 @@ coalesceScopes :: [LiveUpdateScope] -> [LiveUpdateScope]
 coalesceScopes =
     Set.toList . Set.fromList
 
-expandActiveVenueRosterWeekResources :: [LiveUpdateScope] -> UUID -> Set.Set LiveResource
-expandActiveVenueRosterWeekResources activeScopes venueId =
-    Set.fromList
-        [ rosterWeekResource rosterGroupId weekOffset
-        | RosterWeekScope { venueId = activeVenueId, rosterGroupId, weekOffset } <- activeScopes
-        , activeVenueId == venueId
-        ]
-
 expandActiveVenueRosterWeekResourcesWithoutContext :: [(UUID, UUID, Int)] -> UUID -> Set.Set LiveResource
 expandActiveVenueRosterWeekResourcesWithoutContext activeRosterScopes venueId =
     Set.fromList
@@ -324,10 +317,10 @@ expandActiveVenueRosterWeekResourcesWithoutContext activeRosterScopes venueId =
 
 activeRosterWeekResourcesForStaff ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    [LiveUpdateScope] ->
+    [(UUID, UUID, Int)] ->
     UUID ->
     IO (Set.Set LiveResource)
-activeRosterWeekResourcesForStaff activeScopes staffId = do
+activeRosterWeekResourcesForStaff activeRosterScopes staffId = do
     maybeStaff <- currentVenueStaff staffId
     case maybeStaff of
         Nothing -> pure Set.empty
@@ -337,7 +330,7 @@ activeRosterWeekResourcesForStaff activeScopes staffId = do
             pure $
                 Set.fromList
                     [ rosterWeekResource rosterGroupId weekOffset
-                    | RosterWeekScope { venueId, rosterGroupId, weekOffset } <- activeScopes
+                    | (venueId, rosterGroupId, weekOffset) <- activeRosterScopes
                     , venueId == unpackId currentVenueId
                     , rosterGroupId `Set.member` rosterGroupIdSet
                     ]
