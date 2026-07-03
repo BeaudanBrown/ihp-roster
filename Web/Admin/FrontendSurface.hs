@@ -32,15 +32,13 @@ import qualified Application.Helper.FrontendSurface.Admin as Surface
 import Application.Helper.FrontendSurface.DSL
 import Application.Helper.FrontendSurface.Runtime
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate.Runtime (FocusedFieldProtectionConfig (..),
-                                              LiveFragmentKey (..),
-                                              LiveFragmentProtection (..),
-                                              LiveUpdateWireFragment (..),
+import Application.Helper.LiveUpdate.Runtime (LiveUpdateWireFragment,
                                               coalesceLiveUpdateWireFragments)
 import Application.Helper.Url (appendQueryParams)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 
@@ -255,37 +253,18 @@ liveUpdateWireRefreshTriggerPayload fragments =
         ]
 
 adminSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment]
-adminSurfaceWireFragments = map \fragment -> LiveUpdateWireFragment
-    { fragmentKey = adminLiveFragmentKey fragment.mountedFragmentKey.fragmentKind
-    , targetId = fragment.mountedFragmentTargetId
-    , url = fragment.mountedFragmentUrl
-    , deferUntilBlur = False
-    , protectionPolicy = protection fragment.mountedFragmentProtection
-    }
-
-adminLiveFragmentKey :: Text -> LiveFragmentKey
-adminLiveFragmentKey = \case
-    "admin-venue-config" -> AdminVenueConfigFragment
-    "admin-invites" -> AdminInvitesFragment
-    "admin-exports" -> AdminExportsFragment
-    "admin-shift-types" -> AdminShiftTypesFragment
-    "admin-roster-groups" -> AdminRosterGroupsFragment
-    "admin-xero" -> AdminXeroFragment
-    "admin-xero-staff-mappings" -> AdminXeroStaffMappingsFragment
-    "admin-xero-pay-items" -> AdminXeroPayItemsFragment
-    "admin-xero-timesheets" -> AdminXeroTimesheetsFragment
-    _ -> AdminVenueConfigFragment
-
-protection :: FrontendSurfaceProtection -> LiveFragmentProtection
-protection = \case
-    FrontendSurfaceReplace -> NoProtection
-    FrontendSurfaceFocusedField -> NoProtection
-    FrontendSurfaceFocusedFieldConfig config -> FocusedFieldProtection FocusedFieldProtectionConfig
-        { activeSelector = config.focusedProtectionActiveSelector
-        , fieldKeyAttr = config.focusedProtectionFieldKeyAttr
-        , fieldNameFallback = config.focusedProtectionFieldNameFallback
-        , containerSelector = config.focusedProtectionContainerSelector
-        }
+adminSurfaceWireFragments fragments =
+    concatMap fragmentsForSurface groupedFragments
+    where
+        groupedFragments =
+            [ ("admin-venue-config", [fragment | fragment <- fragments, fragment.mountedFragmentKey.fragmentKind == "admin-venue-config"])
+            , ("admin-invites", [fragment | fragment <- fragments, fragment.mountedFragmentKey.fragmentKind == "admin-invites"])
+            , ("admin-exports", [fragment | fragment <- fragments, fragment.mountedFragmentKey.fragmentKind == "admin-exports"])
+            , ("admin-shift-types", [fragment | fragment <- fragments, fragment.mountedFragmentKey.fragmentKind == "admin-shift-types"])
+            , ("admin-roster-groups", [fragment | fragment <- fragments, fragment.mountedFragmentKey.fragmentKind == "admin-roster-groups"])
+            , ("admin-xero", [fragment | fragment <- fragments, Text.isPrefixOf "admin-xero" fragment.mountedFragmentKey.fragmentKind])
+            ]
+        fragmentsForSurface (surfaceName, surfaceFragments) = frontendSurfaceMountedFragmentsToWire surfaceName surfaceFragments
 
 adminPageContentFragment, adminXeroPageContentFragment, adminVenueSettingsFragment, adminExportsFragment, adminShiftTypesFragment, adminRosterGroupsFragment, adminXeroShellFragment, adminXeroStaffMappingsFragment, adminXeroPayItemsFragment, adminXeroTimesheetsFragment :: FrontendSurfaceMountedFragment
 adminPageContentFragment = fragment "admin-page-content" "admin-page-content-fragment" (pathTo AdminAction) FrontendSurfaceReplace
@@ -294,7 +273,7 @@ adminVenueSettingsFragment = fragment "admin-venue-config" "admin-venue-settings
 adminExportsFragment = fragment "admin-exports" "admin-exports-fragment" (pathTo ShowAdminExportsFragmentAction) FrontendSurfaceReplace
 adminShiftTypesFragment = fragment "admin-shift-types" "admin-shift-types-fragment" (pathTo ShowAdminShiftTypesFragmentAction) (FrontendSurfaceFocusedFieldConfig FrontendSurfaceFocusedFieldProtectionConfig { focusedProtectionActiveSelector = "input[data-admin-shift-type-field-key]:focus", focusedProtectionFieldKeyAttr = "data-admin-shift-type-field-key", focusedProtectionFieldNameFallback = True, focusedProtectionContainerSelector = Just "form[data-admin-shift-type-row]" })
 adminRosterGroupsFragment = fragment "admin-roster-groups" "admin-roster-groups-fragment" (pathTo ShowAdminRosterGroupsFragmentAction) FrontendSurfaceReplace
-adminXeroShellFragment = fragment "admin-xero" "admin-xero-fragment" (pathTo ShowAdminXeroFragmentAction) FrontendSurfaceReplace
+adminXeroShellFragment = fragment "admin-xero-shell" "admin-xero-fragment" (pathTo ShowAdminXeroFragmentAction) FrontendSurfaceReplace
 adminXeroStaffMappingsFragment = fragment "admin-xero-staff-mappings" "xero-staff-mappings-data" (pathTo ShowAdminXeroStaffMappingsFragmentAction) FrontendSurfaceReplace
 adminXeroPayItemsFragment = fragment "admin-xero-pay-items" "xero-pay-items-data" (pathTo ShowAdminXeroPayItemsFragmentAction) FrontendSurfaceReplace
 adminXeroTimesheetsFragment = fragment "admin-xero-timesheets" "xero-timesheets-data" (pathTo ShowAdminXeroTimesheetsFragmentAction) FrontendSurfaceReplace

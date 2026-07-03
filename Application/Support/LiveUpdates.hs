@@ -18,7 +18,7 @@ import Application.Helper.FrontendSurface.Runtime
 import qualified Application.Helper.FrontendSurface.Support as Surface
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveUpdate
-import Application.Helper.LiveUpdate.Runtime (LiveUpdateWireFragment (..))
+import Application.Helper.LiveUpdate.Runtime (LiveUpdateWireFragment)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import IHP.Prelude
@@ -68,37 +68,7 @@ supportFragmentDependencies fragment =
 
 supportSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment]
 supportSurfaceWireFragments =
-    mapMaybe mountedFragmentToWireFragment
-
-mountedFragmentToWireFragment :: FrontendSurfaceMountedFragment -> Maybe LiveUpdateWireFragment
-mountedFragmentToWireFragment fragment = do
-    fragmentKey <- mountedFragmentLiveKey fragment
-    pure LiveUpdateWireFragment
-        { fragmentKey
-        , targetId = fragment.mountedFragmentTargetId
-        , url = fragment.mountedFragmentUrl
-        , deferUntilBlur = False
-        , protectionPolicy = mountedFragmentProtectionPolicy fragment.mountedFragmentProtection
-        }
-
-mountedFragmentLiveKey :: FrontendSurfaceMountedFragment -> Maybe LiveFragmentKey
-mountedFragmentLiveKey fragment =
-    case fragment.mountedFragmentKey.fragmentKind of
-        "support-award-rates"     -> Just SupportAwardRatesSectionFragment
-        "support-public-holidays" -> Just SupportPublicHolidaysSectionFragment
-        _                         -> Nothing
-
-mountedFragmentProtectionPolicy :: FrontendSurfaceProtection -> LiveFragmentProtection
-mountedFragmentProtectionPolicy = \case
-    FrontendSurfaceReplace -> NoProtection
-    FrontendSurfaceFocusedField -> NoProtection
-    FrontendSurfaceFocusedFieldConfig config ->
-        FocusedFieldProtection FocusedFieldProtectionConfig
-            { activeSelector = config.focusedProtectionActiveSelector
-            , fieldKeyAttr = config.focusedProtectionFieldKeyAttr
-            , fieldNameFallback = config.focusedProtectionFieldNameFallback
-            , containerSelector = config.focusedProtectionContainerSelector
-            }
+    frontendSurfaceMountedFragmentsToWire "support"
 
 supportSurfaceHandlers :: SurfaceImplHandlers Surface.SupportSurface
 supportSurfaceHandlers =

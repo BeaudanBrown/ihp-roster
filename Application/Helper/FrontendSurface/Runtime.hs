@@ -35,6 +35,8 @@ module Application.Helper.FrontendSurface.Runtime
     , getSurfaceField
     , frontendSurfaceHtmxMethodText
     , frontendSurfaceMountConfigJson
+    , frontendSurfaceMountedFragmentToWire
+    , frontendSurfaceMountedFragmentsToWire
     , renderFrontendSurfaceHtmxForm
     , renderFrontendSurfaceIntentForm
     , renderFrontendSurfaceLazyFragment
@@ -45,6 +47,7 @@ module Application.Helper.FrontendSurface.Runtime
 
 import Application.Helper.FrontendSurface.DSL
 import qualified Application.Helper.FrontendSurface.Naming as Naming
+import qualified Application.Helper.LiveUpdate.Runtime as LiveUpdate
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Aeson.Key
 import qualified Data.Aeson.KeyMap as Aeson.KeyMap
@@ -566,6 +569,21 @@ liveProtectionDefers = \case
     FrontendSurfaceFocusedField -> True
     FrontendSurfaceFocusedFieldConfig {} -> True
 
+frontendSurfaceMountedFragmentsToWire :: Text -> [FrontendSurfaceMountedFragment] -> [LiveUpdate.LiveUpdateWireFragment]
+frontendSurfaceMountedFragmentsToWire surfaceName =
+    mapMaybe (frontendSurfaceMountedFragmentToWire surfaceName)
+
+frontendSurfaceMountedFragmentToWire :: Text -> FrontendSurfaceMountedFragment -> Maybe LiveUpdate.LiveUpdateWireFragment
+frontendSurfaceMountedFragmentToWire surfaceName fragment =
+    LiveUpdate.liveUpdateWireFragmentFromSurface
+        surfaceName
+        fragment.mountedFragmentKey.fragmentKind
+        fragment.mountedFragmentKey.fragmentParams
+        fragment.mountedFragmentTargetId
+        fragment.mountedFragmentUrl
+        (liveProtectionDefers fragment.mountedFragmentProtection)
+        (liveProtectionToWire fragment.mountedFragmentProtection)
+
 liveProtectionToJson :: FrontendSurfaceProtection -> Aeson.Value
 liveProtectionToJson = \case
     FrontendSurfaceReplace -> Aeson.object ["kind" Aeson..= ("none" :: Text)]
@@ -583,6 +601,22 @@ liveProtectionToJson = \case
         , "fieldNameFallback" Aeson..= config.focusedProtectionFieldNameFallback
         , "containerSelector" Aeson..= config.focusedProtectionContainerSelector
         ]
+
+liveProtectionToWire :: FrontendSurfaceProtection -> LiveUpdate.LiveFragmentProtection
+liveProtectionToWire = \case
+    FrontendSurfaceReplace -> LiveUpdate.NoProtection
+    FrontendSurfaceFocusedField -> LiveUpdate.FocusedFieldProtection LiveUpdate.FocusedFieldProtectionConfig
+        { activeSelector = "input, textarea, select, [contenteditable=\"true\"]"
+        , fieldKeyAttr = "data-bepis-field-key"
+        , fieldNameFallback = True
+        , containerSelector = Nothing
+        }
+    FrontendSurfaceFocusedFieldConfig config -> LiveUpdate.FocusedFieldProtection LiveUpdate.FocusedFieldProtectionConfig
+        { activeSelector = config.focusedProtectionActiveSelector
+        , fieldKeyAttr = config.focusedProtectionFieldKeyAttr
+        , fieldNameFallback = config.focusedProtectionFieldNameFallback
+        , containerSelector = config.focusedProtectionContainerSelector
+        }
 
 protectionToJson :: FrontendSurfaceProtection -> Aeson.Value
 protectionToJson = \case

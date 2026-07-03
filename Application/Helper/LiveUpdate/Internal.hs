@@ -32,6 +32,7 @@ module Application.Helper.LiveUpdate.Internal
     , liveUpdateScopeToWire
     , liveFragmentKeyKind
     , liveUpdateWireFragmentFromWire
+    , liveUpdateWireFragmentFromSurface
     , liveUpdateWireFragmentKind
     , liveUpdateWireFragmentToWire
     , mkLiveUpdateWireFragment
@@ -216,6 +217,11 @@ mkLiveUpdateWireFragment fragmentKey targetId url =
         , deferUntilBlur = False
         , protectionPolicy = NoProtection
         }
+
+liveUpdateWireFragmentFromSurface :: Text -> Text -> Aeson.Value -> Text -> Text -> Bool -> LiveFragmentProtection -> Maybe LiveUpdateWireFragment
+liveUpdateWireFragmentFromSurface surface kind params targetId url deferUntilBlur protectionPolicy = do
+    fragmentKey <- Aeson.parseMaybe (liveFragmentKeyFromSurface surface kind) params
+    pure LiveUpdateWireFragment { fragmentKey, targetId, url, deferUntilBlur, protectionPolicy }
 
 data LiveUpdateCommand
     = SubscribeLiveUpdates

@@ -19,11 +19,8 @@ import Application.Helper.FrontendSurface.DSL
 import qualified Application.Helper.FrontendSurface.Profile as Surface
 import Application.Helper.FrontendSurface.Runtime
 import Application.Helper.LiveResource (LiveResource (..))
-import Application.Helper.LiveUpdate.Runtime (FocusedFieldProtectionConfig (..),
-                                              LiveFragmentKey (..),
-                                              LiveFragmentProtection (..),
-                                              LiveUpdateScope (..),
-                                              LiveUpdateWireFragment (..))
+import Application.Helper.LiveUpdate.Runtime (LiveUpdateScope (..),
+                                              LiveUpdateWireFragment)
 import Application.Helper.Url (appendQueryParams)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
@@ -86,38 +83,7 @@ profileFragmentDependencies scope fragment =
 
 profileSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment]
 profileSurfaceWireFragments =
-    map mountedFragmentToWireFragment
-
-mountedFragmentToWireFragment :: FrontendSurfaceMountedFragment -> LiveUpdateWireFragment
-mountedFragmentToWireFragment fragment =
-    LiveUpdateWireFragment
-        { fragmentKey = profileLiveFragmentKey fragment.mountedFragmentKey.fragmentKind
-        , targetId = fragment.mountedFragmentTargetId
-        , url = fragment.mountedFragmentUrl
-        , deferUntilBlur = False
-        , protectionPolicy = mountedFragmentProtectionPolicy fragment.mountedFragmentProtection
-        }
-
-profileLiveFragmentKey :: Text -> LiveFragmentKey
-profileLiveFragmentKey = \case
-    "profile-details-section" -> ProfileDetailsSectionFragment
-    "profile-preferences-section" -> ProfilePreferencesSectionFragment
-    "profile-security-section" -> ProfileSecuritySectionFragment
-    "profile-leave-section" -> ProfileLeaveSectionFragment
-    "profile-rsa-section" -> ProfileRsaSectionFragment
-    _ -> ProfileContentFragment
-
-mountedFragmentProtectionPolicy :: FrontendSurfaceProtection -> LiveFragmentProtection
-mountedFragmentProtectionPolicy = \case
-    FrontendSurfaceReplace -> NoProtection
-    FrontendSurfaceFocusedField -> NoProtection
-    FrontendSurfaceFocusedFieldConfig config ->
-        FocusedFieldProtection FocusedFieldProtectionConfig
-            { activeSelector = config.focusedProtectionActiveSelector
-            , fieldKeyAttr = config.focusedProtectionFieldKeyAttr
-            , fieldNameFallback = config.focusedProtectionFieldNameFallback
-            , containerSelector = config.focusedProtectionContainerSelector
-            }
+    frontendSurfaceMountedFragmentsToWire "profile"
 
 profileSurfaceHandlers :: ProfileScopeValue -> SurfaceImplHandlers Surface.ProfileSurface
 profileSurfaceHandlers scope =

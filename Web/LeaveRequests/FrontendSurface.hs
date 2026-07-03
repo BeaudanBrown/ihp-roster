@@ -18,11 +18,8 @@ import Application.Helper.FrontendSurface.DSL
 import qualified Application.Helper.FrontendSurface.LeaveRequests as Surface
 import Application.Helper.FrontendSurface.Runtime
 import Application.Helper.LiveResource (LiveResource (..))
-import Application.Helper.LiveUpdate.Runtime (FocusedFieldProtectionConfig (..),
-                                              LiveFragmentKey (..),
-                                              LiveFragmentProtection (..),
-                                              LiveUpdateScope (..),
-                                              LiveUpdateWireFragment (..))
+import Application.Helper.LiveUpdate.Runtime (LiveUpdateScope (..),
+                                              LiveUpdateWireFragment)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import qualified Data.UUID as UUID
@@ -74,29 +71,7 @@ leaveRequestsFragmentDependencies scope _ =
 
 leaveRequestsSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment]
 leaveRequestsSurfaceWireFragments =
-    map mountedFragmentToWireFragment
-
-mountedFragmentToWireFragment :: FrontendSurfaceMountedFragment -> LiveUpdateWireFragment
-mountedFragmentToWireFragment fragment =
-    LiveUpdateWireFragment
-        { fragmentKey = LeaveRequestsContentFragment
-        , targetId = fragment.mountedFragmentTargetId
-        , url = fragment.mountedFragmentUrl
-        , deferUntilBlur = False
-        , protectionPolicy = mountedFragmentProtectionPolicy fragment.mountedFragmentProtection
-        }
-
-mountedFragmentProtectionPolicy :: FrontendSurfaceProtection -> LiveFragmentProtection
-mountedFragmentProtectionPolicy = \case
-    FrontendSurfaceReplace -> NoProtection
-    FrontendSurfaceFocusedField -> NoProtection
-    FrontendSurfaceFocusedFieldConfig config ->
-        FocusedFieldProtection FocusedFieldProtectionConfig
-            { activeSelector = config.focusedProtectionActiveSelector
-            , fieldKeyAttr = config.focusedProtectionFieldKeyAttr
-            , fieldNameFallback = config.focusedProtectionFieldNameFallback
-            , containerSelector = config.focusedProtectionContainerSelector
-            }
+    frontendSurfaceMountedFragmentsToWire "leave-requests"
 
 leaveRequestsSurfaceHandlers :: LeaveRequestsScopeValue -> SurfaceImplHandlers Surface.LeaveRequestsSurface
 leaveRequestsSurfaceHandlers scope =

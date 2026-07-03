@@ -33,11 +33,8 @@ import Application.Helper.FrontendSurface.Reflect (reflectRegisteredFrontendSurf
 import qualified Application.Helper.FrontendSurface.Roster as Surface
 import Application.Helper.FrontendSurface.Runtime
 import Application.Helper.LiveResource (LiveResource (..))
-import Application.Helper.LiveUpdate.Runtime (FocusedFieldProtectionConfig (..),
-                                              LiveFragmentKey (..),
-                                              LiveFragmentProtection (..),
-                                              LiveUpdateScope (..),
-                                              LiveUpdateWireFragment (..))
+import Application.Helper.LiveUpdate.Runtime (LiveUpdateScope (..),
+                                              LiveUpdateWireFragment)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Lazy as LBS
@@ -285,7 +282,7 @@ rosterLiveUpdateScope scope =
 
 rosterSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment]
 rosterSurfaceWireFragments =
-    mapMaybe mountedFragmentToWireFragment
+    frontendSurfaceMountedFragmentsToWire "roster"
 
 rosterCandidateMountedFragments :: RosterWeekScopeValue -> RosterMountedFragmentPlan -> [FrontendSurfaceMountedFragment]
 rosterCandidateMountedFragments scope plan =
@@ -364,44 +361,6 @@ rosterDayDependencies scope rosterDayId =
     , RosterEndTimesConfigResource scope.rosterWeekVenueId
     , RosterWeekBoundaryConfigResource scope.rosterWeekVenueId
     ]
-
-mountedFragmentToWireFragment :: FrontendSurfaceMountedFragment -> Maybe LiveUpdateWireFragment
-mountedFragmentToWireFragment fragment = do
-    fragmentKey <- mountedFragmentLiveKey fragment
-    pure LiveUpdateWireFragment
-        { fragmentKey
-        , targetId = fragment.mountedFragmentTargetId
-        , url = fragment.mountedFragmentUrl
-        , deferUntilBlur = False
-        , protectionPolicy = mountedFragmentProtectionPolicy fragment.mountedFragmentProtection
-        }
-
-mountedFragmentLiveKey :: FrontendSurfaceMountedFragment -> Maybe LiveFragmentKey
-mountedFragmentLiveKey fragment =
-    case fragment.mountedFragmentKey.fragmentKind of
-        "roster-content" -> Just RosterContentFragment
-        "roster-grid-toolbar" -> Just RosterGridToolbarFragment
-        "roster-grid-frame" -> Just RosterGridFrameFragment
-        "roster-day-columns" -> Just RosterDayColumnsFragment
-        "roster-day-rail" -> Just RosterDayRailFragment
-        "roster-wage-rail" -> Just RosterWageRailFragment
-        "roster-slots-grid" -> Just RosterSlotsGridFragment
-        "roster-staff-panel" -> Just RosterStaffPanelFragment
-        "roster-day-section" -> RosterDaySectionFragment <$> parseFragmentRosterDayId fragment.mountedFragmentKey.fragmentParams
-        "roster-row" -> RosterRowFragment <$> parseFragmentRosterDayId fragment.mountedFragmentKey.fragmentParams <*> parseFragmentRowIndex fragment.mountedFragmentKey.fragmentParams
-        _ -> Nothing
-
-mountedFragmentProtectionPolicy :: FrontendSurfaceProtection -> LiveFragmentProtection
-mountedFragmentProtectionPolicy = \case
-    FrontendSurfaceReplace -> NoProtection
-    FrontendSurfaceFocusedField -> NoProtection
-    FrontendSurfaceFocusedFieldConfig config ->
-        FocusedFieldProtection FocusedFieldProtectionConfig
-            { activeSelector = config.focusedProtectionActiveSelector
-            , fieldKeyAttr = config.focusedProtectionFieldKeyAttr
-            , fieldNameFallback = config.focusedProtectionFieldNameFallback
-            , containerSelector = config.focusedProtectionContainerSelector
-            }
 
 rosterSurfaceHandlers :: RosterWeekScopeValue -> RosterMountedFragmentPlan -> SurfaceImplHandlers Surface.RosterSurface
 rosterSurfaceHandlers scope _plan =

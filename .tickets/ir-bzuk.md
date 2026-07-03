@@ -1,6 +1,6 @@
 ---
 id: ir-bzuk
-status: open
+status: closed
 deps: [ir-najm]
 links: []
 created: 2026-07-03T06:55:44Z

@@ -22,11 +22,8 @@ import Application.Helper.FrontendSurface.Runtime
 import qualified Application.Helper.FrontendSurface.Timesheets as Surface
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface (LiveSurfaceConfig (..))
-import Application.Helper.LiveUpdate.Runtime (FocusedFieldProtectionConfig (..),
-                                              LiveFragmentKey (..),
-                                              LiveFragmentProtection (..),
-                                              LiveUpdateScope (..),
-                                              LiveUpdateWireFragment (..),
+import Application.Helper.LiveUpdate.Runtime (LiveUpdateScope (..),
+                                              LiveUpdateWireFragment,
                                               liveUpdateScopeKey)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
@@ -104,7 +101,7 @@ timesheetsLegacyLiveSurfaceConfig impl scope =
 
 timesheetsSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment]
 timesheetsSurfaceWireFragments =
-    mapMaybe mountedFragmentToWireFragment
+    frontendSurfaceMountedFragmentsToWire "timesheets"
 
 timesheetsCandidateMountedFragments :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> [FrontendSurfaceMountedFragment]
 timesheetsCandidateMountedFragments scope mountState =
@@ -147,37 +144,6 @@ timesheetsFragmentDependencies scope (TimesheetSurfaceDaySection dayOffset) =
     [ TimesheetDayResource scope.timesheetWeekVenueId scope.timesheetWeekWeekOffset dayOffset
     , TimesheetWeekBoundaryConfigResource scope.timesheetWeekVenueId
     ]
-
-mountedFragmentToWireFragment :: FrontendSurfaceMountedFragment -> Maybe LiveUpdateWireFragment
-mountedFragmentToWireFragment fragment = do
-    fragmentKey <- mountedFragmentLiveKey fragment
-    pure LiveUpdateWireFragment
-        { fragmentKey
-        , targetId = fragment.mountedFragmentTargetId
-        , url = fragment.mountedFragmentUrl
-        , deferUntilBlur = False
-        , protectionPolicy = mountedFragmentProtectionPolicy fragment.mountedFragmentProtection
-        }
-
-mountedFragmentLiveKey :: FrontendSurfaceMountedFragment -> Maybe LiveFragmentKey
-mountedFragmentLiveKey fragment =
-    case fragment.mountedFragmentKey.fragmentKind of
-        "timesheet-toolbar" -> Just TimesheetToolbarFragment
-        "timesheet-day-columns" -> Just TimesheetDayColumnsFragment
-        "timesheet-day-section" -> TimesheetDaySectionFragment <$> parseFragmentDayOffset fragment.mountedFragmentKey.fragmentParams
-        _ -> Nothing
-
-mountedFragmentProtectionPolicy :: FrontendSurfaceProtection -> LiveFragmentProtection
-mountedFragmentProtectionPolicy = \case
-    FrontendSurfaceReplace -> NoProtection
-    FrontendSurfaceFocusedField -> NoProtection
-    FrontendSurfaceFocusedFieldConfig config ->
-        FocusedFieldProtection FocusedFieldProtectionConfig
-            { activeSelector = config.focusedProtectionActiveSelector
-            , fieldKeyAttr = config.focusedProtectionFieldKeyAttr
-            , fieldNameFallback = config.focusedProtectionFieldNameFallback
-            , containerSelector = config.focusedProtectionContainerSelector
-            }
 
 timesheetsSurfaceHandlers :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> SurfaceImplHandlers Surface.TimesheetsSurface
 timesheetsSurfaceHandlers scope mountState =

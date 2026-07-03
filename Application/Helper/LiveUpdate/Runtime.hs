@@ -30,6 +30,7 @@ module Application.Helper.LiveUpdate.Runtime
     , liveUpdateScopeToWire
     , liveFragmentKeyKind
     , liveUpdateSourceClientId
+    , liveUpdateWireFragmentFromSurface
     , liveUpdateWireFragmentKind
     , liveUpdateWireFragmentToWire
     , newInMemoryLiveBus
