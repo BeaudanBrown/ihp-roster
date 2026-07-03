@@ -42,6 +42,94 @@
   }
   var UiRegionDom = { "fragment": "data-bepis-fragment", "lazyFragment": "data-bepis-lazy-fragment", "lazyRetry": "data-bepis-lazy-retry", "lazySurface": "data-bepis-lazy-surface", "transition": "data-bepis-region-transition" };
   var UiRegionEvents = { "afterSwap": "bepis:region-after-swap", "beforeSwap": "bepis:region-before-swap", "error": "bepis:region-error", "requestStart": "bepis:region-request-start", "settle": "bepis:region-settle" };
+  var surfaceLabSurfaceManifest = { surface: "surface-lab", scopes: ["lab"], fragments: ["lab-shell", "lab-panel"], liveFragments: [], htmxActions: ["refresh-panel"], intents: ["move-lab-card"], sessions: ["drag"], layers: ["drag-preview"], domTokens: ["lab-root", "lab-dropzone"], overlayLanes: [], containedSurfaces: {} };
+  var timesheetsSurfaceManifest = { surface: "timesheets", scopes: ["timesheet-week"], fragments: ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"], liveFragments: ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
+  var rosterSurfaceManifest = { surface: "roster", scopes: ["roster-week"], fragments: ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-day-section", "roster-row"], liveFragments: ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-day-section", "roster-row"], htmxActions: ["set-roster-layout-mode", "move-roster-shift-to-slot"], intents: ["set-roster-layout-mode", "move-roster-shift-to-slot"], sessions: ["drag"], layers: ["drag-preview"], domTokens: [], overlayLanes: [], containedSurfaces: {} };
+  var leaveRequestsSurfaceManifest = { surface: "leave-requests", scopes: ["leave-requests"], fragments: ["leave-requests-content"], liveFragments: ["leave-requests-content"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
+  var billingSurfaceManifest = { surface: "billing", scopes: ["billing-venue"], fragments: ["billing-status"], liveFragments: ["billing-status"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
+  var supportSurfaceManifest = { surface: "support", scopes: ["support-platform"], fragments: ["support-award-rates", "support-public-holidays"], liveFragments: ["support-award-rates", "support-public-holidays"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
+  var profileSurfaceManifest = { surface: "profile", scopes: ["profile"], fragments: ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section", "profile-rsa-section"], liveFragments: ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section", "profile-rsa-section"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
+  var adminPageSurfaceManifest = { surface: "admin-page", scopes: ["admin-page"], fragments: ["admin-page-content"], liveFragments: [], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: { "admin-page-content": ["admin-invites", "admin-venue-config", "admin-exports", "admin-shift-types", "admin-roster-groups"] } };
+  var adminXeroPageSurfaceManifest = { surface: "admin-xero-page", scopes: ["admin-xero-page"], fragments: ["admin-xero-page-content"], liveFragments: [], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: { "admin-xero-page-content": ["admin-xero"] } };
+  var adminVenueConfigSurfaceManifest = { surface: "admin-venue-config", scopes: ["admin-venue-config"], fragments: ["admin-venue-config"], liveFragments: ["admin-venue-config"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
+  var adminInvitesSurfaceManifest = { surface: "admin-invites", scopes: ["admin-invites"], fragments: ["admin-invites"], liveFragments: ["admin-invites"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
+  var adminExportsSurfaceManifest = { surface: "admin-exports", scopes: ["admin-exports"], fragments: ["admin-exports"], liveFragments: ["admin-exports"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
+  var adminShiftTypesSurfaceManifest = { surface: "admin-shift-types", scopes: ["admin-shift-types"], fragments: ["admin-shift-types"], liveFragments: ["admin-shift-types"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
+  var adminRosterGroupsSurfaceManifest = { surface: "admin-roster-groups", scopes: ["admin-roster-groups"], fragments: ["admin-roster-groups"], liveFragments: ["admin-roster-groups"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
+  var adminXeroSurfaceManifest = { surface: "admin-xero", scopes: ["admin-xero"], fragments: ["admin-xero-shell", "admin-xero-staff-mappings", "admin-xero-pay-items", "admin-xero-timesheets"], liveFragments: ["admin-xero-shell", "admin-xero-staff-mappings", "admin-xero-pay-items", "admin-xero-timesheets"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
+  function isFrontendSurfaceLiveScope(value) {
+    if (!__isFrontendSurfaceRecord(value)) return false;
+    if (!isFrontendSurfaceName(value.surface)) return false;
+    return __isFrontendSurfaceRecord(value.scope);
+  }
+  function isFrontendSurfaceLiveFragment(value) {
+    if (!__isFrontendSurfaceRecord(value)) return false;
+    if (!isFrontendSurfaceName(value.surface)) return false;
+    if (!__isFrontendSurfaceRecord(value.fragment)) return false;
+    return typeof value.fragment.kind === "string" && __surfaceHasFragment(value.surface, value.fragment.kind);
+  }
+  function __isFrontendSurfaceRecord(value) {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  }
+  function __surfaceHasFragment(surface, fragment) {
+    return FrontendSurfaceRegistry[surface].fragments.includes(fragment);
+  }
+  function isFrontendSurfaceLiveFragmentProtection(value) {
+    if (!__isFrontendSurfaceRecord(value)) return false;
+    if (value.kind === "none") return true;
+    return value.kind === "focused-field" && typeof value.activeSelector === "string" && typeof value.fieldKeyAttr === "string" && typeof value.fieldNameFallback === "boolean" && (value.containerSelector === null || typeof value.containerSelector === "string");
+  }
+  function isFrontendSurfaceLiveWireFragment(value) {
+    if (!__isFrontendSurfaceRecord(value)) return false;
+    return isFrontendSurfaceLiveFragment(value.fragment) && typeof value.targetId === "string" && typeof value.url === "string" && typeof value.deferUntilBlur === "boolean" && isFrontendSurfaceLiveFragmentProtection(value.protectionPolicy);
+  }
+  function isFrontendSurfaceLiveSubscription(value) {
+    if (!__isFrontendSurfaceRecord(value)) return false;
+    return isFrontendSurfaceLiveScope(value.scope) && typeof value.scopeKey === "string" && Array.isArray(value.resyncFragments) && value.resyncFragments.every(isFrontendSurfaceLiveWireFragment);
+  }
+  function isFrontendSurfaceMountedFragmentConfigForSurface(surface, value) {
+    if (!__isFrontendSurfaceRecord(value)) return false;
+    if (!__isFrontendSurfaceRecord(value.key)) return false;
+    if (typeof value.key.kind !== "string" || !__surfaceHasFragment(surface, value.key.kind)) return false;
+    if (typeof value.targetId !== "string" || typeof value.url !== "string") return false;
+    if (value.protection !== null && value.protection !== void 0 && !__isFrontendSurfaceRecord(value.protection)) return false;
+    if (value.loadPolicy !== null && value.loadPolicy !== void 0 && typeof value.loadPolicy !== "string") return false;
+    return true;
+  }
+  function isFrontendSurfaceMountConfig(value) {
+    if (!__isFrontendSurfaceRecord(value)) return false;
+    if (!isFrontendSurfaceName(value.surface)) return false;
+    if (typeof value.scopeKey !== "string" || typeof value.mountKey !== "string") return false;
+    if (!Array.isArray(value.fragments) || !value.fragments.every((fragment) => isFrontendSurfaceMountedFragmentConfigForSurface(value.surface, fragment))) return false;
+    if (value.subscription !== null && value.subscription !== void 0 && !isFrontendSurfaceLiveSubscription(value.subscription)) return false;
+    return true;
+  }
+  function parseFrontendSurfaceMountConfig(value) {
+    if (isFrontendSurfaceMountConfig(value)) {
+      return { ...value, subscription: value.subscription ?? null, fragments: value.fragments.map((fragment) => ({ ...fragment, protection: fragment.protection ?? null, loadPolicy: fragment.loadPolicy ?? null })) };
+    }
+    throw new Error("Invalid FrontendSurfaceMountConfig");
+  }
+  var FrontendSurfaceRegistry = {
+    "surface-lab": surfaceLabSurfaceManifest,
+    timesheets: timesheetsSurfaceManifest,
+    roster: rosterSurfaceManifest,
+    "leave-requests": leaveRequestsSurfaceManifest,
+    billing: billingSurfaceManifest,
+    support: supportSurfaceManifest,
+    profile: profileSurfaceManifest,
+    "admin-page": adminPageSurfaceManifest,
+    "admin-xero-page": adminXeroPageSurfaceManifest,
+    "admin-venue-config": adminVenueConfigSurfaceManifest,
+    "admin-invites": adminInvitesSurfaceManifest,
+    "admin-exports": adminExportsSurfaceManifest,
+    "admin-shift-types": adminShiftTypesSurfaceManifest,
+    "admin-roster-groups": adminRosterGroupsSurfaceManifest,
+    "admin-xero": adminXeroSurfaceManifest
+  };
+  function isFrontendSurfaceName(value) {
+    return typeof value === "string" && Object.prototype.hasOwnProperty.call(FrontendSurfaceRegistry, value);
+  }
 
   // frontend/ts/shared/dom.ts
   function isElement(value) {
@@ -307,7 +395,7 @@
 
   // frontend/ts/live-updates/frontend-surface.ts
   function parseFrontendSurfaceSubscriptionConfig(value) {
-    const config = parseFrontendSurfaceMountConfig(value);
+    const config = parseFrontendSurfaceMountConfig2(value);
     if (!config?.subscription) return null;
     const resyncFragments = config.subscription.resyncFragments.map(surfaceLiveFragmentToWire);
     if (resyncFragments.length === 0) return null;
@@ -322,79 +410,12 @@
       decorateRequestsWithin: config.subscription.resyncFragments.map((fragment) => `#${fragment.targetId}`)
     };
   }
-  function parseFrontendSurfaceMountConfig(value) {
-    if (!isRecord(value)) return null;
-    if (typeof value.surface !== "string") return null;
-    if (typeof value.scopeKey !== "string") return null;
-    if (typeof value.mountKey !== "string") return null;
-    if (!Array.isArray(value.fragments)) return null;
-    const fragments = value.fragments.map(parseMountedFragmentConfig);
-    if (fragments.some((fragment) => fragment === null)) return null;
-    const subscription = value.subscription === null || value.subscription === void 0 ? null : parseLiveSubscriptionConfig(value.subscription);
-    if (value.subscription !== null && value.subscription !== void 0 && !subscription) return null;
-    return {
-      surface: value.surface,
-      scopeKey: value.scopeKey,
-      mountKey: value.mountKey,
-      mountState: value.mountState,
-      fragments,
-      subscription
-    };
-  }
-  function parseMountedFragmentConfig(value) {
-    if (!isRecord(value)) return null;
-    if (!isRecord(value.key)) return null;
-    if (typeof value.key.kind !== "string") return null;
-    if (typeof value.targetId !== "string") return null;
-    if (typeof value.url !== "string") return null;
-    return {
-      key: { kind: value.key.kind, params: value.key.params },
-      targetId: value.targetId,
-      url: value.url,
-      protection: isRecord(value.protection) ? {
-        kind: typeof value.protection.kind === "string" ? value.protection.kind : void 0,
-        activeSelector: value.protection.activeSelector,
-        fieldKeyAttr: value.protection.fieldKeyAttr,
-        fieldNameFallback: value.protection.fieldNameFallback,
-        containerSelector: value.protection.containerSelector
-      } : null,
-      loadPolicy: typeof value.loadPolicy === "string" ? value.loadPolicy : null
-    };
-  }
-  function parseLiveSubscriptionConfig(value) {
-    if (!isRecord(value)) return null;
-    if (!isRecord(value.scope)) return null;
-    if (typeof value.scope.surface !== "string") return null;
-    if (typeof value.scopeKey !== "string") return null;
-    if (!Array.isArray(value.resyncFragments)) return null;
-    const fragments = value.resyncFragments.map(parseLiveWireFragmentConfig);
-    if (fragments.some((fragment) => fragment === null)) return null;
-    return {
-      scope: { surface: value.scope.surface, scope: value.scope.scope },
-      scopeKey: value.scopeKey,
-      resyncFragments: fragments
-    };
-  }
-  function parseLiveWireFragmentConfig(value) {
-    if (!isRecord(value)) return null;
-    if (!isRecord(value.fragment)) return null;
-    if (!isRecord(value.fragment.fragment)) return null;
-    if (typeof value.fragment.surface !== "string") return null;
-    if (typeof value.fragment.fragment.kind !== "string") return null;
-    if (typeof value.targetId !== "string") return null;
-    if (typeof value.url !== "string") return null;
-    if (typeof value.deferUntilBlur !== "boolean") return null;
-    if (!isRecord(value.protectionPolicy)) return null;
-    return {
-      fragment: {
-        surface: value.fragment.surface,
-        fragment: { kind: value.fragment.fragment.kind, params: value.fragment.fragment.params }
-      },
-      targetId: value.targetId,
-      url: value.url,
-      deferUntilBlur: value.deferUntilBlur,
-      protectionPolicy: value.protectionPolicy
-    };
+  function parseFrontendSurfaceMountConfig2(value) {
+    try {
+      return parseFrontendSurfaceMountConfig(value);
+    } catch (_error) {
+      return null;
+    }
   }
   function surfaceLiveFragmentToWire(fragment) {
     return {
@@ -440,7 +461,7 @@
       } catch (_error) {
         return;
       }
-      const config = parseFrontendSurfaceMountConfig(parsedJson);
+      const config = parseFrontendSurfaceMountConfig2(parsedJson);
       if (!config) return;
       instances.push({
         instanceId: frontendSurfaceInstanceId(config),
@@ -477,9 +498,6 @@
       current = current.parentElement;
     }
     return depth;
-  }
-  function isRecord(value) {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
   }
 
   // frontend/ts/live-updates/lazy-surface.ts
@@ -1053,7 +1071,7 @@
       }
       const parsedConfig = parseFrontendSurfaceSubscriptionConfig(config);
       if (parsedConfig === null) {
-        if (config && typeof config === "object" && (config.surface === "admin-page" || config.surface === "admin-xero-page")) return null;
+        if (parseFrontendSurfaceMountConfig2(config) !== null) return null;
         reportSurfaceConfigError(ownerEl, new Error("Invalid FrontendSurface config"));
         return null;
       }

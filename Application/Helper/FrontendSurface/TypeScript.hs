@@ -19,6 +19,7 @@ renderFrontendSurfaceContractsTypeScript contract =
             <> brandAliasLines contract
             <> concatMap renderSurface contract.contractSurfaces
             <> renderLiveTransportTypes contract
+            <> renderMountConfigTypes contract
             <> renderRegistry contract
 
 renderSurface :: SurfaceIR -> [Text]
@@ -185,14 +186,19 @@ renderLiveTransportTypes contract =
            , "export type FrontendSurfaceLiveWireFragment = { fragment: FrontendSurfaceLiveFragment; targetId: string; url: string; deferUntilBlur: boolean; protectionPolicy: FrontendSurfaceLiveFragmentProtection };"
            , "export type FrontendSurfaceLiveSubscription = { scope: FrontendSurfaceLiveScope; scopeKey: string; resyncFragments: FrontendSurfaceLiveWireFragment[] };"
            , "export function isFrontendSurfaceLiveScope(value: unknown): value is FrontendSurfaceLiveScope {"
-           , "    return typeof value === \"object\" && value !== null && isFrontendSurfaceName((value as Record<string, unknown>).surface);"
+           , "    if (!__isFrontendSurfaceRecord(value)) return false;"
+           , "    if (!isFrontendSurfaceName(value.surface)) return false;"
+           , "    return __isFrontendSurfaceRecord(value.scope);"
            , "}"
            , "export function parseFrontendSurfaceLiveScope(value: unknown): FrontendSurfaceLiveScope {"
            , "    if (isFrontendSurfaceLiveScope(value)) return value;"
            , "    throw new Error(\"Invalid FrontendSurfaceLiveScope\");"
            , "}"
            , "export function isFrontendSurfaceLiveFragment(value: unknown): value is FrontendSurfaceLiveFragment {"
-           , "    return typeof value === \"object\" && value !== null && isFrontendSurfaceName((value as Record<string, unknown>).surface);"
+           , "    if (!__isFrontendSurfaceRecord(value)) return false;"
+           , "    if (!isFrontendSurfaceName(value.surface)) return false;"
+           , "    if (!__isFrontendSurfaceRecord(value.fragment)) return false;"
+           , "    return typeof value.fragment.kind === \"string\" && __surfaceHasFragment(value.surface, value.fragment.kind);"
            , "}"
            , "export function parseFrontendSurfaceLiveFragment(value: unknown): FrontendSurfaceLiveFragment {"
            , "    if (isFrontendSurfaceLiveFragment(value)) return value;"
@@ -217,6 +223,55 @@ renderLiveTransportTypes contract =
         renderFragmentVariant surface =
             let prefix = tsTypeName surface.surfaceName
              in ["    | { surface: " <> tsString surface.surfaceName <> "; fragment: " <> prefix <> "FragmentKey }"]
+
+renderMountConfigTypes :: SurfaceContractIR -> [Text]
+renderMountConfigTypes _contract =
+    [ "export type FrontendSurfaceMountedFragmentConfig = { key: { kind: string; params: unknown }; targetId: string; url: string; protection: Record<string, unknown> | null; loadPolicy: string | null };"
+    , "export type FrontendSurfaceMountConfig = { surface: FrontendSurfaceName; scopeKey: string; mountKey: string; mountState: unknown; fragments: FrontendSurfaceMountedFragmentConfig[]; subscription: FrontendSurfaceLiveSubscription | null };"
+    , "function __isFrontendSurfaceRecord(value: unknown): value is Record<string, unknown> {"
+    , "    return typeof value === \"object\" && value !== null && !Array.isArray(value);"
+    , "}"
+    , "function __surfaceHasFragment(surface: FrontendSurfaceName, fragment: string): boolean {"
+    , "    return (FrontendSurfaceRegistry[surface].fragments as readonly string[]).includes(fragment);"
+    , "}"
+    , "export function isFrontendSurfaceLiveFragmentProtection(value: unknown): value is FrontendSurfaceLiveFragmentProtection {"
+    , "    if (!__isFrontendSurfaceRecord(value)) return false;"
+    , "    if (value.kind === \"none\") return true;"
+    , "    return value.kind === \"focused-field\" && typeof value.activeSelector === \"string\" && typeof value.fieldKeyAttr === \"string\" && typeof value.fieldNameFallback === \"boolean\" && (value.containerSelector === null || typeof value.containerSelector === \"string\");"
+    , "}"
+    , "export function isFrontendSurfaceLiveWireFragment(value: unknown): value is FrontendSurfaceLiveWireFragment {"
+    , "    if (!__isFrontendSurfaceRecord(value)) return false;"
+    , "    return isFrontendSurfaceLiveFragment(value.fragment) && typeof value.targetId === \"string\" && typeof value.url === \"string\" && typeof value.deferUntilBlur === \"boolean\" && isFrontendSurfaceLiveFragmentProtection(value.protectionPolicy);"
+    , "}"
+    , "export function isFrontendSurfaceLiveSubscription(value: unknown): value is FrontendSurfaceLiveSubscription {"
+    , "    if (!__isFrontendSurfaceRecord(value)) return false;"
+    , "    return isFrontendSurfaceLiveScope(value.scope) && typeof value.scopeKey === \"string\" && Array.isArray(value.resyncFragments) && value.resyncFragments.every(isFrontendSurfaceLiveWireFragment);"
+    , "}"
+    , "export function isFrontendSurfaceMountedFragmentConfigForSurface(surface: FrontendSurfaceName, value: unknown): value is FrontendSurfaceMountedFragmentConfig {"
+    , "    if (!__isFrontendSurfaceRecord(value)) return false;"
+    , "    if (!__isFrontendSurfaceRecord(value.key)) return false;"
+    , "    if (typeof value.key.kind !== \"string\" || !__surfaceHasFragment(surface, value.key.kind)) return false;"
+    , "    if (typeof value.targetId !== \"string\" || typeof value.url !== \"string\") return false;"
+    , "    if (value.protection !== null && value.protection !== undefined && !__isFrontendSurfaceRecord(value.protection)) return false;"
+    , "    if (value.loadPolicy !== null && value.loadPolicy !== undefined && typeof value.loadPolicy !== \"string\") return false;"
+    , "    return true;"
+    , "}"
+    , "export function isFrontendSurfaceMountConfig(value: unknown): value is FrontendSurfaceMountConfig {"
+    , "    if (!__isFrontendSurfaceRecord(value)) return false;"
+    , "    if (!isFrontendSurfaceName(value.surface)) return false;"
+    , "    if (typeof value.scopeKey !== \"string\" || typeof value.mountKey !== \"string\") return false;"
+    , "    if (!Array.isArray(value.fragments) || !value.fragments.every((fragment) => isFrontendSurfaceMountedFragmentConfigForSurface(value.surface as FrontendSurfaceName, fragment))) return false;"
+    , "    if (value.subscription !== null && value.subscription !== undefined && !isFrontendSurfaceLiveSubscription(value.subscription)) return false;"
+    , "    return true;"
+    , "}"
+    , "export function parseFrontendSurfaceMountConfig(value: unknown): FrontendSurfaceMountConfig {"
+    , "    if (isFrontendSurfaceMountConfig(value)) {"
+    , "        return { ...value, subscription: value.subscription ?? null, fragments: value.fragments.map((fragment) => ({ ...fragment, protection: fragment.protection ?? null, loadPolicy: fragment.loadPolicy ?? null })) };"
+    , "    }"
+    , "    throw new Error(\"Invalid FrontendSurfaceMountConfig\");"
+    , "}"
+    , ""
+    ]
 
 containedSurfaceNames :: [OptionIR] -> [Text]
 containedSurfaceNames = concatMap \case

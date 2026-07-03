@@ -1,6 +1,6 @@
 ---
 id: ir-najm
-status: open
+status: closed
 deps: [ir-qhzl]
 links: []
 created: 2026-07-03T06:55:44Z
