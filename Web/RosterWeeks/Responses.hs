@@ -26,8 +26,8 @@ import Web.RosterWeeks.RenderData (fetchVisibleRosterReadModel,
 import Web.RosterWeeks.Types (RosterGridRenderModel (..),
                               RosterProjectionFragment (..),
                               RosterRenderData (..))
-import Web.View.RosterWeeks.Grid (renderRosterContentFragment,
-                                  renderRosterContentFragmentOob)
+import Web.View.RosterWeeks.Grid (renderrosterContentLiveFragment,
+                                  renderrosterContentLiveFragmentOob)
 
 respondWithRosterContent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO ()
 respondWithRosterContent rosterGroupId weekOffset = do
@@ -58,7 +58,7 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
         Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } -> do
             let viewCapabilities = buildRosterViewCapabilities (Just rosterWeek)
             respondHtmlProfiled $
-                    renderRosterContentFragmentOob
+                    renderrosterContentLiveFragmentOob
                         RosterGridRenderModel
                             { gridRosterWeek = Just rosterWeek
                             , gridRosterDays = rosterDays
@@ -104,7 +104,7 @@ respondWithRosterContentToast rosterGroupId weekOffset publishAttempted toast = 
                 Nothing -> [hsx|<div id="roster-content"></div>|]
                 Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } ->
                     let viewCapabilities = buildRosterViewCapabilities (Just rosterWeek)
-                     in renderRosterContentFragment
+                     in renderrosterContentLiveFragment
                             RosterGridRenderModel
                                 { gridRosterWeek = Just rosterWeek
                                 , gridRosterDays = rosterDays

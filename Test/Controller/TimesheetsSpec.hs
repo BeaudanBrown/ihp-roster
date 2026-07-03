@@ -7,9 +7,8 @@ import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceFragmentKey (.
                                                    FrontendSurfaceMountedFragment (..),
                                                    SurfaceImpl (..))
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate (LiveUpdateScope (..),
-                                      currentLiveUpdateVersion)
-import Application.Helper.LiveUpdate.Runtime (LiveUpdateWireFragment (..))
+import Application.Helper.LiveUpdate
+import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.WeekBoundaries (venueWeekOffsetForDay)
 import Config
 import qualified Data.Aeson as Aeson
@@ -203,9 +202,9 @@ tests = beforeAll testContext do
                 _ <- createStaffRecord venue (Just manager) "Mia" "Manager"
 
                 toolbarResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction ShowTimesheetToolbarFragmentAction { weekOffset = 0 }
+                    callAction ShowtimesheetToolbarLiveFragmentAction { weekOffset = 0 }
                 columnsResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction ShowTimesheetDayColumnsFragmentAction { weekOffset = 0 }
+                    callAction ShowtimesheetDayColumnsLiveFragmentAction { weekOffset = 0 }
 
                 toolbarResponse `responseStatusShouldBe` status200
                 toolbarResponse `responseBodyShouldContain` "id=\"timesheet-week-toolbar\""
@@ -683,7 +682,7 @@ tests = beforeAll testContext do
                 payLevel <- createPayLevelRecord venue "Level 1"
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
 
-                versionBefore <- currentLiveUpdateVersion TimesheetWeekScope { venueId = unpackId venue.id, weekOffset = 0 }
+                versionBefore <- currentLiveUpdateVersion (timesheetWeekLiveScope (unpackId venue.id) 0)
 
                 response <- withUserAndCurrentVenue user venue.id do
                     withRequestHeaders
@@ -704,7 +703,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Timesheet entry created"
                 response `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
 
-                versionAfter <- currentLiveUpdateVersion TimesheetWeekScope { venueId = unpackId venue.id, weekOffset = 0 }
+                versionAfter <- currentLiveUpdateVersion (timesheetWeekLiveScope (unpackId venue.id) 0)
                 versionAfter `shouldBe` versionBefore + 1
 
         it "editing a timesheet date refreshes both old and new day sections" $ withContext do
@@ -717,7 +716,7 @@ tests = beforeAll testContext do
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
 
-                versionBefore <- currentLiveUpdateVersion TimesheetWeekScope { venueId = unpackId venue.id, weekOffset = 0 }
+                versionBefore <- currentLiveUpdateVersion (timesheetWeekLiveScope (unpackId venue.id) 0)
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders
@@ -741,7 +740,7 @@ tests = beforeAll testContext do
 
                 updatedEntry <- fetch entry.id
                 updatedEntry.workedOn `shouldBe` fromGregorian 2025 1 8
-                versionAfter <- currentLiveUpdateVersion TimesheetWeekScope { venueId = unpackId venue.id, weekOffset = 0 }
+                versionAfter <- currentLiveUpdateVersion (timesheetWeekLiveScope (unpackId venue.id) 0)
                 versionAfter `shouldBe` versionBefore + 1
 
         it "manager review actions bump the timesheet week scope version" $ withContext do
@@ -752,7 +751,7 @@ tests = beforeAll testContext do
                 staff <- createStaffRecord venue Nothing "Tia" "Shift"
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
 
-                versionBefore <- currentLiveUpdateVersion TimesheetWeekScope { venueId = unpackId venue.id, weekOffset = 0 }
+                versionBefore <- currentLiveUpdateVersion (timesheetWeekLiveScope (unpackId venue.id) 0)
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true"), ("X-Live-Update-Client-Id", "timesheet-approve-client")] do
@@ -761,7 +760,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "id=\"timesheet-day-section-1\""
                 response `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
-                versionAfter <- currentLiveUpdateVersion TimesheetWeekScope { venueId = unpackId venue.id, weekOffset = 0 }
+                versionAfter <- currentLiveUpdateVersion (timesheetWeekLiveScope (unpackId venue.id) 0)
                 versionAfter `shouldBe` versionBefore + 1
 
         it "writes an audit event when approving a timesheet entry" $ withContext do

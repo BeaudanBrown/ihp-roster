@@ -18,8 +18,7 @@ import Application.Helper.FrontendSurface.DSL
 import qualified Application.Helper.FrontendSurface.LeaveRequests as Surface
 import Application.Helper.FrontendSurface.Runtime
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate.Runtime (LiveUpdateScope (..),
-                                              LiveUpdateWireFragment)
+import Application.Helper.LiveUpdate.Runtime
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import qualified Data.UUID as UUID
@@ -54,7 +53,7 @@ leaveRequestsSurfaceScopeKey scope =
 
 leaveRequestsLiveUpdateScope :: LeaveRequestsScopeValue -> LiveUpdateScope
 leaveRequestsLiveUpdateScope scope =
-    LeaveRequestsScope { venueId = scope.leaveRequestsVenueId }
+    leaveRequestsLiveScope scope.leaveRequestsVenueId
 
 leaveRequestsCandidateMountedFragments :: LeaveRequestsScopeValue -> [FrontendSurfaceMountedFragment]
 leaveRequestsCandidateMountedFragments _ =
@@ -105,7 +104,7 @@ leaveRequestsContentMountedFragment =
     FrontendSurfaceMountedFragment
         { mountedFragmentKey = FrontendSurfaceFragmentKey "leave-requests-content" Aeson.Null
         , mountedFragmentTargetId = leaveRequestsContentFragmentId
-        , mountedFragmentUrl = pathTo ShowLeaveRequestsContentFragmentAction
+        , mountedFragmentUrl = pathTo ShowleaveRequestsContentLiveFragmentAction
         , mountedFragmentProtection = FrontendSurfaceReplace
         , mountedFragmentLoadPolicy = "eager"
         }

@@ -1,7 +1,7 @@
 module Web.View.RosterWeeks.StaffPanel
-    ( renderRosterStaffPanelFragment
-    , renderRosterStaffPanelFragmentOob
-    , renderRosterStaffPanelFragmentWithSwap
+    ( renderrosterStaffPanelLiveFragment
+    , renderrosterStaffPanelLiveFragmentOob
+    , renderrosterStaffPanelLiveFragmentWithSwap
     , renderRosterStaffPanelPlaceholder
     ) where
 
@@ -17,16 +17,16 @@ import Web.RosterWeeks.Types (RosterStaffPanelEntry (..),
                               RosterStaffPanelScope (..))
 import Web.View.Prelude
 
-renderRosterStaffPanelFragment :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Bool -> RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Html
-renderRosterStaffPanelFragment =
-    renderRosterStaffPanelFragmentWithSwap Nothing
+renderrosterStaffPanelLiveFragment :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Bool -> RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Html
+renderrosterStaffPanelLiveFragment =
+    renderrosterStaffPanelLiveFragmentWithSwap Nothing
 
-renderRosterStaffPanelFragmentOob :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Bool -> RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Html
-renderRosterStaffPanelFragmentOob =
-    renderRosterStaffPanelFragmentWithSwap (Just "outerHTML")
+renderrosterStaffPanelLiveFragmentOob :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Bool -> RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Html
+renderrosterStaffPanelLiveFragmentOob =
+    renderrosterStaffPanelLiveFragmentWithSwap (Just "outerHTML")
 
-renderRosterStaffPanelFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Int -> Id RosterGroup -> Bool -> RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Html
-renderRosterStaffPanelFragmentWithSwap maybeSwapOob weekOffset currentRosterGroupId hasMultipleRosterGroups panelScope panelStaff =
+renderrosterStaffPanelLiveFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Int -> Id RosterGroup -> Bool -> RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Html
+renderrosterStaffPanelLiveFragmentWithSwap maybeSwapOob weekOffset currentRosterGroupId hasMultipleRosterGroups panelScope panelStaff =
     if currentUserIsManager
         then profileHtmlComponent "render.roster.staff_panel_fragment" [hsx|
             <div id={rosterStaffPanelFragmentId}

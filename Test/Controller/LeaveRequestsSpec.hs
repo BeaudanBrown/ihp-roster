@@ -2,8 +2,7 @@ module Test.Controller.LeaveRequestsSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate (LiveUpdateScope (..),
-                                      currentLiveUpdateVersion)
+import Application.Helper.LiveUpdate
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
 import Application.Helper.WeekBoundaries (affectedVenueWeekOffsetsForDateRange)
 import Config
@@ -49,7 +48,7 @@ tests = beforeAll testContext do
                 responseHeaders response `shouldContain` [("Location", "http://localhost/Support")]
 
         it "redirects unauthenticated users from leave requests fragment page" $ withContext do
-            response <- callAction ShowLeaveRequestsContentFragmentAction
+            response <- callAction ShowleaveRequestsContentLiveFragmentAction
             response `responseStatusShouldBe` status302
 
         it "redirects unauthenticated users from new leave request page" $ withContext do
@@ -96,18 +95,18 @@ tests = beforeAll testContext do
                             ]
                 activeTargets `shouldBe` [(rosterGroupA.id, 0), (rosterGroupA.id, 1)]
 
-                versionA0Before <- currentLiveUpdateVersion RosterWeekScope { venueId = unpackId venueA.id, rosterGroupId = unpackId rosterGroupA.id, weekOffset = 0 }
-                versionA1Before <- currentLiveUpdateVersion RosterWeekScope { venueId = unpackId venueA.id, rosterGroupId = unpackId rosterGroupA.id, weekOffset = 1 }
-                versionB0Before <- currentLiveUpdateVersion RosterWeekScope { venueId = unpackId venueB.id, rosterGroupId = unpackId rosterGroupB.id, weekOffset = 0 }
+                versionA0Before <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupA.id) 0)
+                versionA1Before <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupA.id) 1)
+                versionB0Before <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venueB.id) (unpackId rosterGroupB.id) 0)
 
                 response <- withUserAndCurrentVenue manager venueA.id do
                     callAction ApproveLeaveRequestAction { leaveRequestId = leaveRequest.id }
 
                 response `responseStatusShouldBe` status302
 
-                versionA0After <- currentLiveUpdateVersion RosterWeekScope { venueId = unpackId venueA.id, rosterGroupId = unpackId rosterGroupA.id, weekOffset = 0 }
-                versionA1After <- currentLiveUpdateVersion RosterWeekScope { venueId = unpackId venueA.id, rosterGroupId = unpackId rosterGroupA.id, weekOffset = 1 }
-                versionB0After <- currentLiveUpdateVersion RosterWeekScope { venueId = unpackId venueB.id, rosterGroupId = unpackId rosterGroupB.id, weekOffset = 0 }
+                versionA0After <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupA.id) 0)
+                versionA1After <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupA.id) 1)
+                versionB0After <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venueB.id) (unpackId rosterGroupB.id) 0)
                 refreshedWeekA <- fetch rosterWeekA.id
                 refreshedWeekA1 <- fetch rosterWeekA1.id
                 refreshedWeekB <- fetch rosterWeekB.id
@@ -315,7 +314,7 @@ tests = beforeAll testContext do
                 olderPageResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams LeaveRequestsAction [("archivePage", "2")]
                 fragmentResponse <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams ShowLeaveRequestsContentFragmentAction [("archivePage", "2")]
+                    callActionWithParams ShowleaveRequestsContentLiveFragmentAction [("archivePage", "2")]
 
                 firstPageResponse `responseStatusShouldBe` status200
                 firstPageResponse `responseBodyShouldContain` "Pending (1)"
@@ -355,7 +354,7 @@ tests = beforeAll testContext do
                         |> updateRecord
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams ShowLeaveRequestsContentFragmentAction
+                    callActionWithParams ShowleaveRequestsContentLiveFragmentAction
                         [ ("archivePage", "2")
                         , ("openSection", "archive")
                         , ("swapOob", "true")
@@ -402,9 +401,9 @@ tests = beforeAll testContext do
                 _ <- createLeaveRequestRecord venue workerB (fromGregorian 2025 1 11) (fromGregorian 2025 1 12) "pending"
 
                 managerResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction ShowLeaveRequestsContentFragmentAction
+                    callAction ShowleaveRequestsContentLiveFragmentAction
                 workerResponse <- withUserAndCurrentVenue workerAUser venue.id do
-                    callAction ShowLeaveRequestsContentFragmentAction
+                    callAction ShowleaveRequestsContentLiveFragmentAction
 
                 managerResponse `responseStatusShouldBe` status200
                 managerResponse `responseBodyShouldContain` "Ava Viewer"
@@ -422,14 +421,14 @@ tests = beforeAll testContext do
                 _ <- createRosterWeekRecord venue 0 False
                 leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 8) (fromGregorian 2025 1 10) "approved"
 
-                versionBefore <- currentLiveUpdateVersion RosterWeekScope { venueId = unpackId venue.id, rosterGroupId = unpackId rosterGroup.id, weekOffset = 0 }
+                versionBefore <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venue.id) (unpackId rosterGroup.id) 0)
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction DenyLeaveRequestAction { leaveRequestId = leaveRequest.id }
 
                 response `responseStatusShouldBe` status302
 
-                versionAfter <- currentLiveUpdateVersion RosterWeekScope { venueId = unpackId venue.id, rosterGroupId = unpackId rosterGroup.id, weekOffset = 0 }
+                versionAfter <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venue.id) (unpackId rosterGroup.id) 0)
                 versionAfter `shouldBe` versionBefore
 
         it "creating leave via HTMX updates the actor fragment and bumps the leave scope version" $ withContext do
@@ -439,7 +438,7 @@ tests = beforeAll testContext do
                 _ <- createVenueMembershipRecord venue user "worker"
                 _ <- createStaffRecord venue (Just user) "Liv" "Create"
 
-                versionBefore <- currentLiveUpdateVersion LeaveRequestsScope { venueId = unpackId venue.id }
+                versionBefore <- currentLiveUpdateVersion (leaveRequestsLiveScope (unpackId venue.id))
 
                 response <- withUserAndCurrentVenue user venue.id do
                     withRequestHeaders
@@ -464,7 +463,7 @@ tests = beforeAll testContext do
                 bodyText `shouldContain` "Unavailable periods"
                 bodyText `shouldNotContain` "id=\"profile-content-fragment\""
 
-                versionAfter <- currentLiveUpdateVersion LeaveRequestsScope { venueId = unpackId venue.id }
+                versionAfter <- currentLiveUpdateVersion (leaveRequestsLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` versionBefore + 1
 
         it "creating leave from roster self-service refreshes the declared form fragment" $ withContext do
@@ -552,7 +551,7 @@ tests = beforeAll testContext do
                 staff <- createStaffRecord venue Nothing "Dina" "Leave"
                 leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 8) (fromGregorian 2025 1 10) "pending"
 
-                versionBefore <- currentLiveUpdateVersion LeaveRequestsScope { venueId = unpackId venue.id }
+                versionBefore <- currentLiveUpdateVersion (leaveRequestsLiveScope (unpackId venue.id))
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true"), ("X-Live-Update-Client-Id", "leave-approve-client")] do
@@ -563,7 +562,7 @@ tests = beforeAll testContext do
                 let bodyText = cs (LByteString.unpack body)
                 bodyText `shouldContain` "id=\"leave-requests-content\" hx-swap-oob=\"outerHTML\""
                 bodyText `shouldContain` "id=\"dialog-overlay-mount\" hx-swap-oob=\"innerHTML\""
-                versionAfter <- currentLiveUpdateVersion LeaveRequestsScope { venueId = unpackId venue.id }
+                versionAfter <- currentLiveUpdateVersion (leaveRequestsLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` versionBefore + 1
 
         it "writes an audit event when approving a leave request" $ withContext do

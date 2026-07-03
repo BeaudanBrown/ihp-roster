@@ -13,11 +13,7 @@ module Web.LiveResourceInvalidation
 import Application.Bepis.Fact (BepisFact (..), BepisLiveFact (..),
                                BepisLiveMechanism (..), emitBepisFact)
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate.Runtime (LiveUpdateBroadcastResult (..),
-                                              LiveUpdateScope (..),
-                                              LiveUpdateSubscription (..),
-                                              activeLiveUpdateSubscriptions,
-                                              activeRosterWeekScopes)
+import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.Profiling (profileActionSpanWithDetail)
 import Application.Helper.RosterGroups (fetchStaffRosterGroupIds)
 import qualified Data.Set as Set
@@ -247,30 +243,30 @@ candidateLiveScopesForResources resources =
     where
         candidateScopesForResource resourceValue
             | resourceMatches "leave-requests" resourceValue
-            , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [LeaveRequestsScope { venueId }]
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [leaveRequestsLiveScope venueId]
             | resourceMatches "staff-leave-requests" resourceValue || resourceMatches "staff-profile" resourceValue || resourceMatches "staff-preferences" resourceValue || resourceMatches "staff-rsa-documents" resourceValue
             , Just staffId <- resourceFieldUuid "staffId" resourceValue = staffProfileScope staffId
             | resourceMatches "timesheet-week" resourceValue || resourceMatches "timesheet-day" resourceValue
             , Just venueId <- resourceFieldUuid "venueId" resourceValue
-            , Just weekOffset <- resourceFieldInt "weekOffset" resourceValue = pure [TimesheetWeekScope { venueId, weekOffset }]
+            , Just weekOffset <- resourceFieldInt "weekOffset" resourceValue = pure [timesheetWeekLiveScope venueId weekOffset]
             | resourceMatches "roster-week" resourceValue
             , Just rosterGroupId <- resourceFieldUuid "rosterGroupId" resourceValue
-            , Just weekOffset <- resourceFieldInt "weekOffset" resourceValue = pure [RosterWeekScope { venueId = unpackId currentVenueId, rosterGroupId, weekOffset }]
+            , Just weekOffset <- resourceFieldInt "weekOffset" resourceValue = pure [rosterWeekLiveScope (unpackId currentVenueId) rosterGroupId weekOffset]
             | resourceMatches "admin-venue-settings" resourceValue
-            , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [AdminVenueConfigScope { venueId }]
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [adminVenueConfigLiveScope venueId]
             | resourceMatches "admin-invites" resourceValue
-            , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [AdminInvitesScope { venueId }]
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [adminInvitesLiveScope venueId]
             | resourceMatches "admin-roster-groups" resourceValue
-            , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [AdminRosterGroupsScope { venueId }]
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [adminRosterGroupsLiveScope venueId]
             | resourceMatches "admin-shift-types" resourceValue
-            , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [AdminShiftTypesScope { venueId }]
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [adminShiftTypesLiveScope venueId]
             | resourceMatches "admin-exports" resourceValue
-            , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [AdminExportsScope { venueId }]
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [adminExportsLiveScope venueId]
             | resourceMatches "billing" resourceValue
-            , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [BillingScope { venueId }]
-            | resourceMatches "support-award-rates" resourceValue || resourceMatches "support-public-holidays" resourceValue = pure [SupportPlatformScope]
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [billingLiveScope venueId]
+            | resourceMatches "support-award-rates" resourceValue || resourceMatches "support-public-holidays" resourceValue = pure [supportPlatformLiveScope]
             | resourceMatches "xero-connection" resourceValue || resourceMatches "xero-mappings" resourceValue || resourceMatches "xero-pay-items" resourceValue || resourceMatches "xero-timesheets" resourceValue
-            , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [AdminXeroScope { venueId }]
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [adminXeroLiveScope venueId]
             | otherwise = pure []
 
 candidateLiveScopesForResourcesWithoutContext :: Set.Set LiveResource -> [LiveUpdateScope]
@@ -280,16 +276,16 @@ candidateLiveScopesForResourcesWithoutContext resources =
         candidateScopesForResource resourceValue
             | resourceMatches "timesheet-week" resourceValue || resourceMatches "timesheet-day" resourceValue
             , Just venueId <- resourceFieldUuid "venueId" resourceValue
-            , Just weekOffset <- resourceFieldInt "weekOffset" resourceValue = [TimesheetWeekScope { venueId, weekOffset }]
+            , Just weekOffset <- resourceFieldInt "weekOffset" resourceValue = [timesheetWeekLiveScope venueId weekOffset]
             | resourceMatches "admin-venue-settings" resourceValue
-            , Just venueId <- resourceFieldUuid "venueId" resourceValue = [AdminVenueConfigScope { venueId }]
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue = [adminVenueConfigLiveScope venueId]
             | resourceMatches "admin-invites" resourceValue
-            , Just venueId <- resourceFieldUuid "venueId" resourceValue = [AdminInvitesScope { venueId }]
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue = [adminInvitesLiveScope venueId]
             | resourceMatches "billing" resourceValue
-            , Just venueId <- resourceFieldUuid "venueId" resourceValue = [BillingScope { venueId }]
-            | resourceMatches "support-award-rates" resourceValue || resourceMatches "support-public-holidays" resourceValue = [SupportPlatformScope]
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue = [billingLiveScope venueId]
+            | resourceMatches "support-award-rates" resourceValue || resourceMatches "support-public-holidays" resourceValue = [supportPlatformLiveScope]
             | resourceMatches "xero-connection" resourceValue || resourceMatches "xero-mappings" resourceValue || resourceMatches "xero-pay-items" resourceValue || resourceMatches "xero-timesheets" resourceValue
-            , Just venueId <- resourceFieldUuid "venueId" resourceValue = [AdminXeroScope { venueId }]
+            , Just venueId <- resourceFieldUuid "venueId" resourceValue = [adminXeroLiveScope venueId]
             | otherwise = []
 
 staffProfileScope ::
@@ -299,7 +295,7 @@ staffProfileScope ::
 staffProfileScope staffId = do
     maybeStaff <- currentVenueStaff staffId
     pure
-        [ ProfileScope { venueId = staff.venueId, staffId }
+        [ profileLiveScope staff.venueId staffId
         | staff <- maybeToList maybeStaff
         ]
 

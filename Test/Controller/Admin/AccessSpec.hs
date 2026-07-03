@@ -1,8 +1,7 @@
 module Test.Controller.Admin.AccessSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
-import Application.Helper.LiveUpdate (LiveUpdateScope (..),
-                                      currentLiveUpdateVersion)
+import Application.Helper.LiveUpdate
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         fetchActiveRosterGroupSlotNames)
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)

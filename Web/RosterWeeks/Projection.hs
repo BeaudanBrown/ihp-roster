@@ -17,7 +17,7 @@ module Web.RosterWeeks.Projection
     , rosterStaffPanelFragment
     ) where
 
-import Application.Helper.LiveUpdate (LiveUpdateScope (..))
+import Application.Helper.LiveUpdate
 import Data.Coerce (coerce)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
@@ -32,11 +32,7 @@ buildRosterProjectionScope rosterGroupId weekOffset =
 
 buildRosterWeekScope :: (?context :: ControllerContext) => Id RosterGroup -> Int -> LiveUpdateScope
 buildRosterWeekScope rosterGroupId weekOffset =
-    RosterWeekScope
-        { venueId = unpackId currentVenueId
-        , rosterGroupId = unpackId rosterGroupId
-        , weekOffset
-        }
+    rosterWeekLiveScope (unpackId currentVenueId) (unpackId rosterGroupId) weekOffset
 
 rosterContentFragment :: RosterProjectionFragment
 rosterContentFragment =

@@ -16,6 +16,8 @@ import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.LiveResource
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate
+import Application.Helper.LiveUpdate.Runtime (liveUpdateScopeFieldUuid,
+                                              liveUpdateScopeKind)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminExportsSurfaceImpl)
 import Web.View.Admin.Common
@@ -47,19 +49,17 @@ adminExportsLiveSurfaceDefinitionForVenue surfaceVenueId =
         RequireCurrentVenueAdmin
         [ staticLiveFragmentDescriptor
             adminExportsFragment
-            AdminExportsFragment
+            adminExportsLiveFragment
             adminExportsFragmentId
-            (pathTo ShowAdminExportsFragmentAction)
+            (pathTo ShowadminExportsLiveFragmentAction)
             (const (liveFragmentDependsOn (adminExportsResource surfaceVenueId) []))
         ]
 
 adminExportsVenueScope :: VenueLiveUpdateScope
 adminExportsVenueScope =
     venueLiveUpdateScope
-        AdminExportsScope
-        (\case
-            AdminExportsScope { venueId } -> Just venueId
-            _ -> Nothing)
+        adminExportsLiveScope
+        (\scope -> if liveUpdateScopeKind scope == "admin-exports" then liveUpdateScopeFieldUuid "venueId" scope else Nothing)
 
 currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =

@@ -246,7 +246,7 @@ tests = beforeAll testContext do
                 manager <- createUserRecord "staff-trial-invite-manager@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
                 staff <- createStaffRecord venue Nothing "Trial" "Invite"
-                versionBefore <- LiveUpdate.currentLiveUpdateVersion LiveUpdate.AdminInvitesScope { venueId = unpackId venue.id }
+                versionBefore <- LiveUpdate.currentLiveUpdateVersion (LiveUpdate.adminInvitesLiveScope (unpackId venue.id))
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -272,7 +272,7 @@ tests = beforeAll testContext do
                     |> filterWhere (#relatedId, Just (unpackId invitation.id))
                     |> fetchOne
                 appJob.jobKind `shouldBe` venueInvitationDeliveryJobKind
-                versionAfter <- LiveUpdate.currentLiveUpdateVersion LiveUpdate.AdminInvitesScope { venueId = unpackId venue.id }
+                versionAfter <- LiveUpdate.currentLiveUpdateVersion (LiveUpdate.adminInvitesLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` versionBefore + 1
 
         it "prevents non-managers from creating trial staff adoption invitations" $ withContext do
@@ -459,7 +459,7 @@ tests = beforeAll testContext do
                 payLevel <- createPayLevelRecord venue "Level 2"
                 staff <- createStaffRecord venue Nothing "Alpha" "Crew"
 
-                xeroVersionBefore <- LiveUpdate.currentLiveUpdateVersion LiveUpdate.AdminXeroScope { LiveUpdate.venueId = unpackId venue.id }
+                xeroVersionBefore <- LiveUpdate.currentLiveUpdateVersion (LiveUpdate.adminXeroLiveScope (unpackId venue.id))
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin (get #id venue) do
                     callActionWithParams
                         (UpdateStaffAction staff.id)
@@ -480,7 +480,7 @@ tests = beforeAll testContext do
                 updatedStaff <- fetch staff.id
                 updatedStaff.employmentBasis `shouldBe` Permanent
                 updatedStaff.defaultAwardLevelId `shouldBe` Just payLevel.id
-                xeroVersionAfter <- LiveUpdate.currentLiveUpdateVersion LiveUpdate.AdminXeroScope { LiveUpdate.venueId = unpackId venue.id }
+                xeroVersionAfter <- LiveUpdate.currentLiveUpdateVersion (LiveUpdate.adminXeroLiveScope (unpackId venue.id))
                 xeroVersionAfter `shouldBe` (xeroVersionBefore + 1)
 
         it "shows synced award level hourly rates in the staff pay selector" $ withContext do

@@ -16,7 +16,7 @@ module Web.LeaveRequests.ReadModel
 
 import qualified Application.Helper.FrontendSurface.LeaveRequests as Surface
 import Application.Helper.FrontendSurface.Runtime (SurfaceImpl)
-import Application.Helper.LiveUpdate (LiveUpdateScope (..))
+import Application.Helper.LiveUpdate
 import Application.Helper.Profiling
 import Application.Helper.View.Oob (OobSwapAttr)
 import Data.Coerce (coerce)
@@ -96,8 +96,8 @@ renderLeaveRequestsFragmentFromReadModel renderMode readModel LeaveRequestsConte
         )
     where
         contentRenderer = case renderMode of
-            LeaveRequestsFragmentPlain        -> renderLeaveRequestsContentFragment
-            LeaveRequestsFragmentOob swapAttr -> renderLeaveRequestsContentFragmentWithSwap swapAttr
+            LeaveRequestsFragmentPlain        -> renderleaveRequestsContentLiveFragment
+            LeaveRequestsFragmentOob swapAttr -> renderleaveRequestsContentLiveFragmentWithSwap swapAttr
 
 leaveRequestsIndexView :: (?context :: ControllerContext, ?request :: Request) => LeaveRequestsReadModel -> IndexView
 leaveRequestsIndexView LeaveRequestsReadModel { leaveReadModelRequests, leaveReadModelStaffMembers, leaveReadModelCurrentViewerStaffId, leaveReadModelToday } =
@@ -143,9 +143,7 @@ affectedRosterWeekInvalidationTargetsForScopes venueId venueConfig leaveRequest 
 
 buildLeaveRequestsScope :: Id Venue -> LiveUpdateScope
 buildLeaveRequestsScope venueId =
-    LeaveRequestsScope
-        { venueId = unpackId venueId
-        }
+    leaveRequestsLiveScope (unpackId venueId)
 
 currentLeaveRequestsSurface :: (?context :: ControllerContext) => SurfaceImpl Surface.LeaveRequestsSurface
 currentLeaveRequestsSurface =

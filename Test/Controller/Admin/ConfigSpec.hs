@@ -4,13 +4,8 @@ import Application.Helper.Controller (PlatformRole (SuperAdminRole),
                                       unsafeEnumFromText)
 import Application.Helper.Export (ExportJobType (..), exportJobTypeToText)
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate (LiveFragmentKey (..),
-                                      LiveFragmentProtection (..),
-                                      LiveUpdateScope (..),
-                                      currentLiveUpdateVersion,
-                                      liveUpdateScopeKey)
-import Application.Helper.LiveUpdate.Runtime (LiveUpdateSubscription (..),
-                                              LiveUpdateWireFragment (..))
+import Application.Helper.LiveUpdate
+import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey)
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
@@ -108,15 +103,15 @@ tests = beforeAll testContext do
                 _ <- createVenueMembershipRecord venue admin "venue_admin"
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 let venueId = unpackId venue.id
-                let scope = RosterWeekScope { venueId, rosterGroupId = unpackId rosterGroup.id, weekOffset = 0 }
+                let scope = rosterWeekLiveScope venueId (unpackId rosterGroup.id) 0
                 let rosterContentFragments =
-                        [ RosterContentFragment
-                        , RosterGridToolbarFragment
-                        , RosterGridFrameFragment
-                        , RosterDayColumnsFragment
-                        , RosterDayRailFragment
-                        , RosterWageRailFragment
-                        , RosterSlotsGridFragment
+                        [ rosterContentLiveFragment
+                        , rosterGridToolbarLiveFragment
+                        , rosterGridFrameLiveFragment
+                        , rosterDayColumnsLiveFragment
+                        , rosterDayRailLiveFragment
+                        , rosterWageRailLiveFragment
+                        , rosterSlotsGridLiveFragment
                         ]
                 let subscription =
                         LiveUpdateSubscription
@@ -182,7 +177,7 @@ tests = beforeAll testContext do
                 importedPayItem <- createImportedXeroPayItemRecord venue admin "Imported Bar Rate" "imported-bar-rate" 42.50
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction ShowAdminShiftTypesFragmentAction
+                    callAction ShowadminShiftTypesLiveFragmentAction
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "id=\"admin-shift-types-fragment\""
@@ -224,7 +219,7 @@ tests = beforeAll testContext do
                     |> updateRecord
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction ShowAdminShiftTypesFragmentAction
+                    callAction ShowadminShiftTypesLiveFragmentAction
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Pay Rate"
@@ -245,7 +240,7 @@ tests = beforeAll testContext do
                 _ <- createVenueRosterGroupWithDefaults venue "Inactive Group" 20 False
 
                 hiddenShiftTypesResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams ShowAdminShiftTypesFragmentAction
+                    callActionWithParams ShowadminShiftTypesLiveFragmentAction
                         [("showInactiveShiftTypes", "false")]
                 hiddenShiftTypesResponse `responseStatusShouldBe` status200
                 hiddenShiftTypesResponse `responseBodyShouldContain` "id=\"admin-shift-types-fragment\""
@@ -253,7 +248,7 @@ tests = beforeAll testContext do
                 hiddenShiftTypesResponse `responseBodyShouldContain` "admin-shift-types"
                 hiddenShiftTypesResponse `responseBodyShouldContain` "&quot;fieldNameFallback&quot;:true"
                 hiddenShiftTypesResponse `responseBodyShouldContain` "&quot;kind&quot;:&quot;focused-field&quot;"
-                hiddenShiftTypesResponse `responseBodyShouldContain` "hx-get=\"/ShowAdminShiftTypesFragment?showInactiveShiftTypes=true\""
+                hiddenShiftTypesResponse `responseBodyShouldContain` "hx-get=\"/ShowadminShiftTypesLiveFragment?showInactiveShiftTypes=true\""
                 hiddenShiftTypesResponse `responseBodyShouldContain` "hx-target=\"#admin-shift-types-fragment\""
                 hiddenShiftTypesResponse `responseBodyShouldContain` "Active Shift"
                 hiddenShiftTypesResponse `responseBodyShouldNotContain` "btn btn-outline-secondary w-100"
@@ -261,7 +256,7 @@ tests = beforeAll testContext do
                 hiddenShiftTypesResponse `responseBodyShouldNotContain` "id=\"app\""
 
                 visibleShiftTypesResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams ShowAdminShiftTypesFragmentAction
+                    callActionWithParams ShowadminShiftTypesLiveFragmentAction
                         [("showInactiveShiftTypes", "true")]
                 visibleShiftTypesResponse `responseStatusShouldBe` status200
                 visibleShiftTypesResponse `responseBodyShouldContain` "Inactive Shift"
@@ -270,19 +265,19 @@ tests = beforeAll testContext do
                 visibleShiftTypesResponse `responseBodyShouldContain` "checked=\"checked\""
 
                 hiddenRosterGroupsResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams ShowAdminRosterGroupsFragmentAction
+                    callActionWithParams ShowadminRosterGroupsLiveFragmentAction
                         [("showInactiveRosterGroups", "false")]
                 hiddenRosterGroupsResponse `responseStatusShouldBe` status200
                 hiddenRosterGroupsResponse `responseBodyShouldContain` "id=\"admin-roster-groups-fragment\""
                 hiddenRosterGroupsResponse `responseBodyShouldContain` "data-bepis-surface=\""
                 hiddenRosterGroupsResponse `responseBodyShouldContain` "admin-roster-groups"
-                hiddenRosterGroupsResponse `responseBodyShouldContain` "hx-get=\"/ShowAdminRosterGroupsFragment?showInactiveRosterGroups=true\""
+                hiddenRosterGroupsResponse `responseBodyShouldContain` "hx-get=\"/ShowadminRosterGroupsLiveFragment?showInactiveRosterGroups=true\""
                 hiddenRosterGroupsResponse `responseBodyShouldContain` "hx-target=\"#admin-roster-groups-fragment\""
                 hiddenRosterGroupsResponse `responseBodyShouldContain` "Active Group"
                 hiddenRosterGroupsResponse `responseBodyShouldNotContain` "Inactive Group"
 
                 visibleRosterGroupsResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams ShowAdminRosterGroupsFragmentAction
+                    callActionWithParams ShowadminRosterGroupsLiveFragmentAction
                         [("showInactiveRosterGroups", "true")]
                 visibleRosterGroupsResponse `responseStatusShouldBe` status200
                 visibleRosterGroupsResponse `responseBodyShouldContain` "Inactive Group"
@@ -312,7 +307,7 @@ tests = beforeAll testContext do
                 venueSettingsResponse `responseBodyShouldNotContain` "id=\"app\""
 
                 exportsResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction ShowAdminExportsFragmentAction
+                    callAction ShowadminExportsLiveFragmentAction
 
                 exportsResponse `responseStatusShouldBe` status200
                 exportsResponse `responseBodyShouldContain` "id=\"admin-exports-fragment\""
@@ -329,7 +324,7 @@ tests = beforeAll testContext do
                 admin <- createUserRecord "admin-export-fragment-mutation@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin "venue_admin"
 
-                versionBefore <- currentLiveUpdateVersion AdminExportsScope { venueId = unpackId venue.id }
+                versionBefore <- currentLiveUpdateVersion (adminExportsLiveScope (unpackId venue.id))
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams CreateExportJobAction
@@ -343,7 +338,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "id=\"admin-exports-fragment\" hx-swap-oob=\"outerHTML\""
                 response `responseBodyShouldContain` "approved-timesheets-2025-01-06-to-2025-01-12.csv"
                 response `responseBodyShouldNotContain` "id=\"app\""
-                versionAfter <- currentLiveUpdateVersion AdminExportsScope { venueId = unpackId venue.id }
+                versionAfter <- currentLiveUpdateVersion (adminExportsLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` (versionBefore + 1)
 
         it "serves shift type and roster group add/update through targeted admin fragments" $ withContext do
@@ -392,8 +387,8 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` ("hx-post=\"/UpdateRosterGroup?rosterGroupId=" <> tshow rosterGroup.id)
                 pageResponse `responseBodyShouldContain` "hx-push-url=\"false\""
 
-                shiftTypesVersionBefore <- currentLiveUpdateVersion AdminShiftTypesScope { venueId = unpackId venue.id }
-                xeroVersionBefore <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
+                shiftTypesVersionBefore <- currentLiveUpdateVersion (adminShiftTypesLiveScope (unpackId venue.id))
+                xeroVersionBefore <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
                 createShiftResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams CreateShiftTypeAction
@@ -409,9 +404,9 @@ tests = beforeAll testContext do
                 createShiftResponse `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
                 createShiftResponse `responseBodyShouldNotContain` "hx-swap-oob=\"outerHTML\""
                 createShiftResponse `responseBodyShouldNotContain` "id=\"app\""
-                shiftTypesVersionAfter <- currentLiveUpdateVersion AdminShiftTypesScope { venueId = unpackId venue.id }
+                shiftTypesVersionAfter <- currentLiveUpdateVersion (adminShiftTypesLiveScope (unpackId venue.id))
                 shiftTypesVersionAfter `shouldBe` (shiftTypesVersionBefore + 1)
-                xeroVersionAfterCreateShift <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
+                xeroVersionAfterCreateShift <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
                 xeroVersionAfterCreateShift `shouldBe` (xeroVersionBefore + 1)
 
                 moveShiftResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -422,7 +417,7 @@ tests = beforeAll testContext do
                 moveShiftResponse `responseBodyShouldContain` "id=\"admin-shift-types-fragment\""
                 moveShiftResponse `responseBodyShouldContain` "Fragment Shift"
                 moveShiftResponse `responseBodyShouldNotContain` "id=\"app\""
-                shiftTypesVersionAfterMove <- currentLiveUpdateVersion AdminShiftTypesScope { venueId = unpackId venue.id }
+                shiftTypesVersionAfterMove <- currentLiveUpdateVersion (adminShiftTypesLiveScope (unpackId venue.id))
                 shiftTypesVersionAfterMove `shouldBe` (shiftTypesVersionAfter + 1)
 
                 updateShiftResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -438,10 +433,10 @@ tests = beforeAll testContext do
                 updateShiftResponse `responseBodyShouldContain` "inactive"
                 updateShiftResponse `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
                 updateShiftResponse `responseBodyShouldNotContain` "hx-swap-oob=\"outerHTML\""
-                xeroVersionAfterUpdateShift <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
+                xeroVersionAfterUpdateShift <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
                 xeroVersionAfterUpdateShift `shouldBe` (xeroVersionAfterCreateShift + 1)
 
-                rosterGroupsVersionBefore <- currentLiveUpdateVersion AdminRosterGroupsScope { venueId = unpackId venue.id }
+                rosterGroupsVersionBefore <- currentLiveUpdateVersion (adminRosterGroupsLiveScope (unpackId venue.id))
                 createRosterGroupResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams CreateRosterGroupAction
@@ -456,7 +451,7 @@ tests = beforeAll testContext do
                 createRosterGroupResponse `responseBodyShouldContain` "Archived Group"
                 createRosterGroupResponse `responseBodyShouldContain` "checked=\"checked\""
                 createRosterGroupResponse `responseBodyShouldNotContain` "id=\"app\""
-                rosterGroupsVersionAfter <- currentLiveUpdateVersion AdminRosterGroupsScope { venueId = unpackId venue.id }
+                rosterGroupsVersionAfter <- currentLiveUpdateVersion (adminRosterGroupsLiveScope (unpackId venue.id))
                 rosterGroupsVersionAfter `shouldBe` (rosterGroupsVersionBefore + 1)
 
                 moveRosterGroupResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -468,7 +463,7 @@ tests = beforeAll testContext do
                 moveRosterGroupResponse `responseBodyShouldContain` "id=\"admin-roster-groups-fragment\" hx-swap-oob=\"outerHTML\""
                 moveRosterGroupResponse `responseBodyShouldContain` "Fragment Group"
                 moveRosterGroupResponse `responseBodyShouldNotContain` "id=\"app\""
-                rosterGroupsVersionAfterMove <- currentLiveUpdateVersion AdminRosterGroupsScope { venueId = unpackId venue.id }
+                rosterGroupsVersionAfterMove <- currentLiveUpdateVersion (adminRosterGroupsLiveScope (unpackId venue.id))
                 rosterGroupsVersionAfterMove `shouldBe` (rosterGroupsVersionAfter + 1)
 
                 updateRosterGroupResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -666,7 +661,7 @@ tests = beforeAll testContext do
                 _ <- createVenueMembershipRecord venue admin "venue_admin"
                 rosterGroup <- createVenueRosterGroupWithDefaults venue "Default Group" 0 True
 
-                versionBefore <- currentLiveUpdateVersion AdminInvitesScope { venueId = unpackId venue.id }
+                versionBefore <- currentLiveUpdateVersion (adminInvitesLiveScope (unpackId venue.id))
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams CreateVenueInvitationAction
@@ -679,7 +674,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "id=\"admin-invites-fragment\" hx-swap-oob=\"outerHTML\""
                 invitationCount <- query @VenueInvitation |> fetchCount
                 invitationCount `shouldBe` 0
-                versionAfter <- currentLiveUpdateVersion AdminInvitesScope { venueId = unpackId venue.id }
+                versionAfter <- currentLiveUpdateVersion (adminInvitesLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` versionBefore
 
         it "keeps at least one active roster group when admins edit config" $ withContext do
@@ -693,7 +688,7 @@ tests = beforeAll testContext do
                         |> filterWhere (#isActive, True)
                         |> fetchOne
 
-                versionBefore <- currentLiveUpdateVersion AdminRosterGroupsScope { venueId = unpackId venue.id }
+                versionBefore <- currentLiveUpdateVersion (adminRosterGroupsLiveScope (unpackId venue.id))
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams (UpdateRosterGroupAction rosterGroup.id)
@@ -707,7 +702,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "id=\"admin-roster-groups-fragment\" hx-swap-oob=\"outerHTML\""
                 unchangedRosterGroup <- fetch rosterGroup.id
                 unchangedRosterGroup.isActive `shouldBe` True
-                versionAfter <- currentLiveUpdateVersion AdminRosterGroupsScope { venueId = unpackId venue.id }
+                versionAfter <- currentLiveUpdateVersion (adminRosterGroupsLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` versionBefore
 
         it "updates venue settings through targeted admin fragments" $ withContext do
@@ -727,7 +722,7 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldNotContain` "admin-roster-week-starts-on"
                 pageResponse `responseBodyShouldNotContain` "name=\"rosterWeekStartsOn\""
 
-                versionBefore <- currentLiveUpdateVersion AdminVenueConfigScope { venueId = unpackId venue.id }
+                versionBefore <- currentLiveUpdateVersion (adminVenueConfigLiveScope (unpackId venue.id))
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams UpdateVenueConfigAction
@@ -742,7 +737,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "id=\"app\""
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 venueConfig.rosterEndTimesEnabled `shouldBe` True
-                versionAfter <- currentLiveUpdateVersion AdminVenueConfigScope { venueId = unpackId venue.id }
+                versionAfter <- currentLiveUpdateVersion (adminVenueConfigLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` (versionBefore + 1)
 
         it "updates non-pay config rows from the admin page" $ withContext do

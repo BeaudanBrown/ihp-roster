@@ -22,9 +22,9 @@ instance Controller BillingController where
         viewModel <- fetchBillingViewModel
         render BillingView { .. }
 
-    action currentAction@ShowBillingStatusFragmentAction = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowbillingStatusLiveFragmentAction = runBepis currentAction BepisFragmentAction do
         viewModel <- fetchBillingViewModel
-        respondHtml (renderBillingStatusFragment viewModel)
+        respondHtml (renderbillingStatusLiveFragment viewModel)
 
     action currentAction@CreateBillingCheckoutSessionAction = runBepis currentAction BepisMutationAction $
         createBillingCheckoutSessionAction

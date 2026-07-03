@@ -172,7 +172,7 @@ renderStaffEditBody formMode staff maybeLinkedUserEmail pendingTrialStaffInvitat
                             { staffProfileSectionKey = "leave"
                             , staffProfileSectionId = "staff-profile-leave"
                             , staffProfileSectionTitle = "Unavailability"
-                            , staffProfileSectionBody = renderStaffLeaveRequestsContentFragment staff leaveRequest leaveRequests
+                            , staffProfileSectionBody = renderStaffleaveRequestsContentLiveFragment staff leaveRequest leaveRequests
                             }
                        | currentUserIsManager
                        ]
@@ -194,8 +194,8 @@ staffLeaveRequestFormFragmentId = "staff-leave-request-form-fragment"
 staffLeaveRequestsListFragmentId :: Text
 staffLeaveRequestsListFragmentId = "staff-leave-requests-list-fragment"
 
-renderStaffLeaveRequestsContentFragment :: Staff -> LeaveRequest -> [LeaveRequest] -> Html
-renderStaffLeaveRequestsContentFragment staff leaveRequest leaveRequests = [hsx|
+renderStaffleaveRequestsContentLiveFragment :: Staff -> LeaveRequest -> [LeaveRequest] -> Html
+renderStaffleaveRequestsContentLiveFragment staff leaveRequest leaveRequests = [hsx|
     <div class="row g-4 align-items-start">
         <div class="col-12 col-xl-5">
             {renderStaffLeaveRequestFormFragment staff.id leaveRequest}

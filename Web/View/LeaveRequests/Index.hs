@@ -41,7 +41,7 @@ renderLeaveRequestsShell IndexView { .. } =
                 , appPanelCustomHeader = mempty
                 , appPanelClass = "overflow-hidden"
                 , appPanelBodyClass = ""
-                , appPanelBody = renderLeaveRequestsContentFragment leaveRequests staffMembers currentViewerStaffId today archivePage archiveIsOpen
+                , appPanelBody = renderleaveRequestsContentLiveFragment leaveRequests staffMembers currentViewerStaffId today archivePage archiveIsOpen
                 }
         page = renderAppPage (AppPageConfig
             { appPageTitle = "Unavailability"
@@ -59,12 +59,12 @@ renderLeaveRequestsShell IndexView { .. } =
         </section>
     |]
 
-renderLeaveRequestsContentFragment :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> Int -> Bool -> Html
-renderLeaveRequestsContentFragment =
-    renderLeaveRequestsContentFragmentWithSwap Nothing
+renderleaveRequestsContentLiveFragment :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> Int -> Bool -> Html
+renderleaveRequestsContentLiveFragment =
+    renderleaveRequestsContentLiveFragmentWithSwap Nothing
 
-renderLeaveRequestsContentFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> Int -> Bool -> Html
-renderLeaveRequestsContentFragmentWithSwap maybeSwapOob leaveRequests staffMembers currentViewerStaffId today archivePage archiveIsOpen = [hsx|
+renderleaveRequestsContentLiveFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> Int -> Bool -> Html
+renderleaveRequestsContentLiveFragmentWithSwap maybeSwapOob leaveRequests staffMembers currentViewerStaffId today archivePage archiveIsOpen = [hsx|
     <div id={leaveRequestsContentFragmentId} hx-swap-oob={maybeSwapOob}>
         {if currentUserIsManager
             then renderManagerLeaveRequests leaveRequests staffMembers currentViewerStaffId today archivePage archiveIsOpen
@@ -284,7 +284,7 @@ renderArchivePageLink ArchivePagination { archivePaginationCurrentPage, archiveP
         effectivePage = if isDisabled then archivePaginationCurrentPage else targetPage
         pageParam = [("archivePage", tshow effectivePage), ("openSection", "archive")]
         href = appendQueryParams (pathTo LeaveRequestsAction) pageParam
-        fragmentHref = appendQueryParams (pathTo ShowLeaveRequestsContentFragmentAction) (pageParam <> [("swapOob", "true")])
+        fragmentHref = appendQueryParams (pathTo ShowleaveRequestsContentLiveFragmentAction) (pageParam <> [("swapOob", "true")])
 
 renderManagerSection :: (?context :: ControllerContext) => Text -> Text -> Int -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Bool -> Bool -> Html
 renderManagerSection sectionId title displayCount requests staffMembers currentViewerStaffId isOpen showActions =

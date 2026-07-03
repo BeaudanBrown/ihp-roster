@@ -17,7 +17,7 @@ module Web.RosterWeeks.Types
     ) where
 
 import Application.Helper.Conflict (RosterConflict)
-import Application.Helper.LiveUpdate (LiveUpdateScope)
+import Application.Helper.LiveUpdate
 import Application.Helper.RosterWagePrediction (RosterWagePrediction)
 import Data.Map.Strict (Map)
 import Data.Time.Calendar (Day)

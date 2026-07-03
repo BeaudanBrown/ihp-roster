@@ -12,10 +12,9 @@ import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.LiveResource
 import Application.Helper.LiveSurface
-import Application.Helper.LiveUpdate (FocusedFieldProtectionConfig (..),
-                                      LiveFragmentKey (..),
-                                      LiveFragmentProtection (..),
-                                      LiveUpdateScope (..))
+import Application.Helper.LiveUpdate
+import Application.Helper.LiveUpdate.Runtime (liveUpdateScopeFieldUuid,
+                                              liveUpdateScopeKind)
 import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey,
                                             normalizeShiftTypeColourKey,
                                             shiftTypeColourPaletteKeys)
@@ -29,7 +28,7 @@ renderShiftTypesSection :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBas
 renderShiftTypesSection shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems =
     renderConfigSection
         "admin-shift-types-section"
-        (renderInactiveToggleSummary "showInactiveShiftTypes" (pathTo ShowAdminShiftTypesFragmentAction) "admin-shift-types-fragment" shiftTypes showInactive)
+        (renderInactiveToggleSummary "showInactiveShiftTypes" (pathTo ShowadminShiftTypesLiveFragmentAction) "admin-shift-types-fragment" shiftTypes showInactive)
         (renderShiftTypeCreateForm shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems)
         (renderShiftTypeRows shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems)
 
@@ -68,9 +67,9 @@ adminShiftTypesLiveSurfaceDefinitionForVenue surfaceVenueId =
         RequireCurrentVenueAdmin
         [ staticLiveFragmentDescriptor
             adminShiftTypesFragment
-            AdminShiftTypesFragment
+            adminShiftTypesLiveFragment
             "admin-shift-types-fragment"
-            (pathTo ShowAdminShiftTypesFragmentAction)
+            (pathTo ShowadminShiftTypesLiveFragmentAction)
             (const (liveFragmentDependsOn (adminShiftTypesResource surfaceVenueId) []))
             |> liveFragmentDescriptorWithFocusedProtection adminShiftTypesFocusProtection
         ]
@@ -78,10 +77,8 @@ adminShiftTypesLiveSurfaceDefinitionForVenue surfaceVenueId =
 adminShiftTypesVenueScope :: VenueLiveUpdateScope
 adminShiftTypesVenueScope =
     venueLiveUpdateScope
-        AdminShiftTypesScope
-        (\case
-            AdminShiftTypesScope { venueId } -> Just venueId
-            _ -> Nothing)
+        adminShiftTypesLiveScope
+        (\scope -> if liveUpdateScopeKind scope == "admin-shift-types" then liveUpdateScopeFieldUuid "venueId" scope else Nothing)
 
 currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =

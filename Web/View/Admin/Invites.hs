@@ -15,8 +15,9 @@ import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.LiveResource
 import Application.Helper.LiveSurface
-import Application.Helper.LiveUpdate (LiveFragmentKey (..),
-                                      LiveUpdateScope (..))
+import Application.Helper.LiveUpdate
+import Application.Helper.LiveUpdate.Runtime (liveUpdateScopeFieldUuid,
+                                              liveUpdateScopeKind)
 import Application.Helper.UiRegion (UiRegionTransitionProfile (..))
 import qualified Text.Blaze.Html as Blaze
 import Text.Blaze.Html ((!))
@@ -115,17 +116,15 @@ adminInvitesLiveSurfaceDefinitionForVenue surfaceVenueId =
 adminInvitesVenueScope :: VenueLiveUpdateScope
 adminInvitesVenueScope =
     venueLiveUpdateScope
-        AdminInvitesScope
-        (\case
-            AdminInvitesScope { venueId } -> Just venueId
-            _ -> Nothing)
+        adminInvitesLiveScope
+        (\scope -> if liveUpdateScopeKind scope == "admin-invites" then liveUpdateScopeFieldUuid "venueId" scope else Nothing)
 
 adminInvitesLiveFragmentRef :: AdminInvitesSurfaceKey -> AdminInvitesLiveFragment -> SurfaceFragmentRef AdminInvitesSurface
 adminInvitesLiveFragmentRef AdminInvitesSurfaceKey { adminInvitesRosterGroupId } AdminInvitesLiveFragment =
     mkSurfaceFragmentRef
-        AdminInvitesFragment
+        adminInvitesLiveFragment
         "admin-invites-fragment"
-        (appendQueryParams (pathTo ShowAdminInvitesFragmentAction) (maybe [] (\rosterGroupId -> [("rosterGroupId", tshow rosterGroupId)]) adminInvitesRosterGroupId))
+        (appendQueryParams (pathTo ShowadminInvitesLiveFragmentAction) (maybe [] (\rosterGroupId -> [("rosterGroupId", tshow rosterGroupId)]) adminInvitesRosterGroupId))
 
 attr :: Text -> Text -> Blaze.Attribute
 attr name value =

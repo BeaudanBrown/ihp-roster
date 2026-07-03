@@ -4,8 +4,7 @@ import qualified Application.Helper.Frontend.Dto.Interaction as InteractionDto
 import qualified Application.Helper.Frontend.Generic as Frontend
 import Application.Helper.Interaction
 import Application.Helper.LiveSurface
-import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..),
-                                              LiveUpdateScope (..))
+import Application.Helper.LiveUpdate.Runtime
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import Generated.Types
@@ -231,7 +230,7 @@ testLiveSurfaceDefinition :: TypedLiveSurfaceDefinition TestInteractionSurface (
 testLiveSurfaceDefinition =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "test-interaction"
-        , typedSurfaceScope = const (SurfaceScope SupportPlatformScope)
+        , typedSurfaceScope = const (SurfaceScope supportPlatformLiveScope)
         , typedSurfaceScopeFromWire = const (Just ())
         , typedSurfaceDefaultFragments = const [TestInteractionContent]
         , typedSurfaceFragmentContract = \() fragment ->
@@ -248,7 +247,7 @@ emptyTestLiveSurfaceDefinition :: TypedLiveSurfaceDefinition TestInteractionSurf
 emptyTestLiveSurfaceDefinition =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "test-interaction"
-        , typedSurfaceScope = const (SurfaceScope SupportPlatformScope)
+        , typedSurfaceScope = const (SurfaceScope supportPlatformLiveScope)
         , typedSurfaceScopeFromWire = const (Just ())
         , typedSurfaceDefaultFragments = const [TestInteractionContent]
         , typedSurfaceFragmentContract = \() fragment ->
@@ -337,7 +336,7 @@ moveIntentForm targetRef =
 
 testFragmentRef :: TestInteractionFragment -> SurfaceFragmentRef TestInteractionSurface
 testFragmentRef TestInteractionContent =
-    mkSurfaceFragmentRef RosterContentFragment "test-interaction-content" "/test-interaction-content"
+    mkSurfaceFragmentRef rosterContentLiveFragment "test-interaction-content" "/test-interaction-content"
 
 renderText :: Html5.Html -> Text
 renderText =

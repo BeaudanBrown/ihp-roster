@@ -13,11 +13,7 @@ import Application.Helper.Interaction.Types (InteractionCapability (..),
 import Application.Helper.LiveResource
 import Application.Helper.LiveSurface
 import Application.Helper.LiveSurface.Internal (SurfaceFragmentRef (..))
-import Application.Helper.LiveUpdate.Runtime (FocusedFieldProtectionConfig (..),
-                                              LiveFragmentKey (..),
-                                              LiveFragmentProtection (..),
-                                              LiveUpdateScope (..),
-                                              LiveUpdateWireFragment (..))
+import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.UiRegion (UiRegionTransitionProfile (..))
 import Application.Helper.View.LazySurface
 import Application.Helper.View.UiRegion
@@ -46,12 +42,12 @@ import Web.View.Admin.Xero
 tests :: Spec
 tests = describe "LiveSurface contract helpers" do
     it "normalizes fragment refs by containment path" do
-        let parent = testFragmentRef RosterContentFragment "roster-content" ["roster-content"]
-        let child = testFragmentRef RosterStaffPanelFragment "roster-staff-panel-fragment" ["roster-content", "staff-panel"]
-        let duplicateChild = testFragmentRef RosterStaffPanelFragment "roster-staff-panel-fragment-duplicate" ["roster-content", "staff-panel"]
-        let grandchild = testFragmentRef RosterRowFragment { rosterDayId = expectUuid "22222222-2222-2222-2222-222222222222", rowIndex = 3 } "roster-row-3" ["roster-content", "day", "22222222", "row", "3"]
-        let day = testFragmentRef RosterDaySectionFragment { rosterDayId = expectUuid "22222222-2222-2222-2222-222222222222" } "roster-day-22222222" ["roster-content", "day", "22222222"]
-        let sibling = testFragmentRef BillingStatusFragment "billing-status-fragment" ["billing-status-fragment"]
+        let parent = testFragmentRef rosterContentLiveFragment "roster-content" ["roster-content"]
+        let child = testFragmentRef rosterStaffPanelLiveFragment "roster-staff-panel-fragment" ["roster-content", "staff-panel"]
+        let duplicateChild = testFragmentRef rosterStaffPanelLiveFragment "roster-staff-panel-fragment-duplicate" ["roster-content", "staff-panel"]
+        let grandchild = testFragmentRef rosterRowLiveFragment expectUuid "22222222-2222-2222-2222-222222222222" 3 "roster-row-3" ["roster-content", "day", "22222222", "row", "3"]
+        let day = testFragmentRef rosterDaySectionLiveFragment expectUuid "22222222-2222-2222-2222-222222222222" 0 "roster-day-22222222" ["roster-content", "day", "22222222"]
+        let sibling = testFragmentRef billingStatusLiveFragment "billing-status-fragment" ["billing-status-fragment"]
 
         targetIds (normalizeSurfaceFragmentRefs [child, duplicateChild])
             `shouldBe` ["roster-staff-panel-fragment"]
@@ -125,7 +121,7 @@ tests = describe "LiveSurface contract helpers" do
         concatMap (billingFragmentDependencies billingScope) fragments `shouldBe` [billingResource venueId]
 
     it "requires fragment contracts to declare resource dependencies or resync-only intent" do
-        let ref = testFragmentRef BillingStatusFragment "billing-status-fragment" ["billing-status-fragment"]
+        let ref = testFragmentRef billingStatusLiveFragment "billing-status-fragment" ["billing-status-fragment"]
         let dependent = mkSurfaceFragmentContract ref (liveFragmentDependsOn (billingResource (expectUuid "11111111-1111-1111-1111-111111111111")) [])
         let resyncOnly = mkSurfaceFragmentContract ref (liveFragmentResyncOnly "no passive dependency")
 
@@ -148,14 +144,14 @@ tests = describe "LiveSurface contract helpers" do
         let lazyDescriptor =
                 liveFragmentDescriptor
                     TestDescriptorSecondary
-                    (const (mkSurfaceFragmentRef SupportAwardRatesSectionFragment "test-secondary-fragment" "/test-secondary"))
+                    (const (mkSurfaceFragmentRef supportAwardRatesSectionLiveFragment "test-secondary-fragment" "/test-secondary"))
                     (const (liveFragmentResyncOnly "secondary is resync-only"))
                     |> liveFragmentDescriptorWithLazyLoad lazyConfig
         let eagerDescriptor = lazyDescriptor |> liveFragmentDescriptorWithEagerLoad
         let definition = descriptorToTypedLiveSurfaceDefinition (testDescriptorSurfaceWithFragments venueId [lazyDescriptor])
         let manualContract =
                 mkSurfaceFragmentContract
-                    (testFragmentRef BillingStatusFragment "billing-status-fragment" ["billing-status-fragment"])
+                    (testFragmentRef billingStatusLiveFragment "billing-status-fragment" ["billing-status-fragment"])
                     (liveFragmentResyncOnly "manual")
                     |> fragmentContractWithLazyLoad lazyConfig
 
@@ -203,13 +199,13 @@ tests = describe "LiveSurface contract helpers" do
                     venueId
                     testBillingVenueScope
                     RequireCurrentVenueOwner
-                    [ staticLiveFragmentDescriptor TestDescriptorPrimary BillingStatusFragment "billing-status-fragment" "/billing" (const (liveFragmentDependsOn (billingResource venueId) []))
+                    [ staticLiveFragmentDescriptor TestDescriptorPrimary billingStatusLiveFragment "billing-status-fragment" "/billing" (const (liveFragmentDependsOn (billingResource venueId) []))
                     ]
 
         unSurfaceScope (definition.typedSurfaceScope ()) `shouldBe` BillingScope venueId
         definition.typedSurfaceScopeFromWire (BillingScope venueId) `shouldBe` Just ()
         definition.typedSurfaceScopeFromWire (BillingScope otherVenueId) `shouldBe` Nothing
-        definition.typedSurfaceScopeFromWire SupportPlatformScope `shouldBe` Nothing
+        definition.typedSurfaceScopeFromWire supportPlatformLiveScope `shouldBe` Nothing
         (mkTypedDefinedLiveSurface definition ()).decorateRequestsWithin `shouldBe` ["#billing-status-fragment"]
 
     it "builds keyed current-venue descriptors while preserving explicit local keys" do
@@ -223,7 +219,7 @@ tests = describe "LiveSurface contract helpers" do
                     RequireCurrentVenueOwner
                     testVenueKeyVenueId
                     TestVenueKey
-                    [ staticLiveFragmentDescriptor TestDescriptorPrimary BillingStatusFragment "billing-status-fragment" "/billing" (\key -> liveFragmentDependsOn (billingResource key.testVenueKeyVenueId) [])
+                    [ staticLiveFragmentDescriptor TestDescriptorPrimary billingStatusLiveFragment "billing-status-fragment" "/billing" (\key -> liveFragmentDependsOn (billingResource key.testVenueKeyVenueId) [])
                     ]
         let definition = descriptorToTypedLiveSurfaceDefinition descriptor
         let key = TestVenueKey venueId
@@ -235,13 +231,13 @@ tests = describe "LiveSurface contract helpers" do
 
     it "builds static fragment descriptors with protection and containment modifiers" do
         let descriptor =
-                staticLiveFragmentDescriptor TestDescriptorPrimary BillingStatusFragment "initial-target" "/initial" (const (liveFragmentResyncOnly "static"))
+                staticLiveFragmentDescriptor TestDescriptorPrimary billingStatusLiveFragment "initial-target" "/initial" (const (liveFragmentResyncOnly "static"))
                     |> liveFragmentDescriptorWithFocusedProtection testFocusedProtection
                     |> liveFragmentDescriptorWithPath ["outer", "inner"]
         let ref = descriptor.liveFragmentDescriptorRef ()
 
         ref.surfaceFragmentContainmentPath `shouldBe` ["outer", "inner"]
-        ref.unSurfaceFragmentRef.fragmentKey `shouldBe` BillingStatusFragment
+        ref.unSurfaceFragmentRef.fragmentKey `shouldBe` billingStatusLiveFragment
         ref.unSurfaceFragmentRef.targetId `shouldBe` "initial-target"
         ref.unSurfaceFragmentRef.url `shouldBe` "/initial"
         ref.unSurfaceFragmentRef.deferUntilBlur `shouldBe` True
@@ -249,12 +245,12 @@ tests = describe "LiveSurface contract helpers" do
 
     it "can retarget fragment descriptors while keeping URL and fragment key stable" do
         let descriptor =
-                staticLiveFragmentDescriptor TestDescriptorPrimary BillingStatusFragment "old-target" "/fragment" (const (liveFragmentResyncOnly "static"))
+                staticLiveFragmentDescriptor TestDescriptorPrimary billingStatusLiveFragment "old-target" "/fragment" (const (liveFragmentResyncOnly "static"))
                     |> liveFragmentDescriptorWithTargetId "new-target"
         let ref = descriptor.liveFragmentDescriptorRef ()
 
         ref.surfaceFragmentContainmentPath `shouldBe` ["new-target"]
-        ref.unSurfaceFragmentRef.fragmentKey `shouldBe` BillingStatusFragment
+        ref.unSurfaceFragmentRef.fragmentKey `shouldBe` billingStatusLiveFragment
         ref.unSurfaceFragmentRef.targetId `shouldBe` "new-target"
         ref.unSurfaceFragmentRef.url `shouldBe` "/fragment"
 
@@ -307,9 +303,9 @@ tests = describe "LiveSurface contract helpers" do
         let billingFragments = billingSurfaceWireFragments (billingAffectedMountedFragments billingScope (Set.fromList [billingResource venueId]))
         billingFragments `shouldBe`
             [ LiveUpdateWireFragment
-                { fragmentKey = BillingStatusFragment
+                { fragmentKey = billingStatusLiveFragment
                 , targetId = "billing-status-fragment"
-                , url = "/ShowBillingStatusFragment"
+                , url = "/ShowbillingStatusLiveFragment"
                 , deferUntilBlur = False
                 , protectionPolicy = NoProtection
                 }
@@ -317,25 +313,25 @@ tests = describe "LiveSurface contract helpers" do
         let timesheetFragments = timesheetsSurfaceWireFragments (timesheetsCandidateMountedFragments timesheetScope timesheetMountState)
         timesheetFragments `shouldContain`
             [ LiveUpdateWireFragment
-                { fragmentKey = TimesheetToolbarFragment
+                { fragmentKey = timesheetToolbarLiveFragment
                 , targetId = "timesheet-week-toolbar"
-                , url = "/ShowTimesheetToolbarFragment?weekOffset=1&showApproved=true&showAllStaff=true"
+                , url = "/ShowtimesheetToolbarLiveFragment?weekOffset=1&showApproved=true&showAllStaff=true"
                 , deferUntilBlur = False
                 , protectionPolicy = NoProtection
                 }
             ]
         timesheetFragments `shouldContain`
             [ LiveUpdateWireFragment
-                { fragmentKey = TimesheetDayColumnsFragment
+                { fragmentKey = timesheetDayColumnsLiveFragment
                 , targetId = "timesheet-day-columns"
-                , url = "/ShowTimesheetDayColumnsFragment?weekOffset=1&showApproved=true&showAllStaff=true"
+                , url = "/ShowtimesheetDayColumnsLiveFragment?weekOffset=1&showApproved=true&showAllStaff=true"
                 , deferUntilBlur = False
                 , protectionPolicy = NoProtection
                 }
             ]
         timesheetFragments `shouldContain`
             [ LiveUpdateWireFragment
-                { fragmentKey = TimesheetDaySectionFragment { dayOffset = 2 }
+                { fragmentKey = timesheetDaySectionLiveFragment 2
                 , targetId = "timesheet-day-section-2"
                 , url = "/ShowTimesheetDaySectionFragment?weekOffset=1&dayOffset=2&showApproved=true&showAllStaff=true"
                 , deferUntilBlur = False
@@ -346,9 +342,9 @@ tests = describe "LiveSurface contract helpers" do
             (adminXeroLiveSurfaceDefinitionForVenue venueId)
             ()
             adminXeroPayItemsFragment
-            AdminXeroPayItemsFragment
+            adminXeroPayItemsLiveFragment
             "xero-pay-items-data"
-            "/ShowAdminXeroPayItemsFragment"
+            "/ShowadminXeroPayItemsLiveFragment"
         map (.feature) surfaces `shouldBe` ["timesheets", "admin-venue-config", "admin-invites", "admin-xero"]
         map (.scopeKey) surfaces
             `shouldBe`
@@ -408,10 +404,8 @@ data TestVenueKey = TestVenueKey
 testBillingVenueScope :: VenueLiveUpdateScope
 testBillingVenueScope =
     venueLiveUpdateScope
-        BillingScope
-        (\scope -> case scope of
-            BillingScope { venueId } -> Just venueId
-            _                        -> Nothing)
+        billingLiveScope
+        (\scope -> if liveUpdateScopeKind scope == "billing" then liveUpdateScopeFieldUuid "venueId" scope else Nothing)
 
 testFocusedProtection :: LiveFragmentProtection
 testFocusedProtection =
@@ -429,11 +423,11 @@ testDescriptorSurface venueId =
         venueId
         [ liveFragmentDescriptor
             TestDescriptorPrimary
-            (const (mkSurfaceFragmentRef BillingStatusFragment "test-descriptor-primary-fragment" "/test-primary"))
+            (const (mkSurfaceFragmentRef billingStatusLiveFragment "test-descriptor-primary-fragment" "/test-primary"))
             (const (liveFragmentDependsOn (billingResource venueId) []))
         , liveFragmentDescriptor
             TestDescriptorSecondary
-            (const (mkSurfaceFragmentRef SupportAwardRatesSectionFragment "test-descriptor-secondary-fragment" "/test-secondary"))
+            (const (mkSurfaceFragmentRef supportAwardRatesSectionLiveFragment "test-descriptor-secondary-fragment" "/test-secondary"))
             (const (liveFragmentResyncOnly "secondary is resync-only"))
         ]
 
@@ -441,10 +435,8 @@ testDescriptorSurfaceWithFragments :: UUID.UUID -> [LiveFragmentDescriptor TestD
 testDescriptorSurfaceWithFragments venueId fragments =
     liveSurfaceDescriptor
         "test-descriptor"
-        (const (SurfaceScope BillingScope { venueId }))
-        (\wireScope -> case wireScope of
-            BillingScope { venueId = wireVenueId } | wireVenueId == venueId -> Just ()
-            _ -> Nothing)
+        (const (SurfaceScope (billingLiveScope venueId)))
+        (\wireScope -> if liveUpdateScopeKind wireScope == "billing" && liveUpdateScopeFieldUuid "venueId" wireScope == Just venueId then Just () else Nothing)
         (liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueOwner venueId)))
         fragments
 
@@ -461,7 +453,7 @@ testActorLiveSurfaceDefinition :: TypedLiveSurfaceDefinition TestActorSurface ()
 testActorLiveSurfaceDefinition =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "test-actor"
-        , typedSurfaceScope = const (SurfaceScope SupportPlatformScope)
+        , typedSurfaceScope = const (SurfaceScope supportPlatformLiveScope)
         , typedSurfaceScopeFromWire = const (Just ())
         , typedSurfaceDefaultFragments = const [TestActorParent]
         , typedSurfaceFragmentContract = \() fragment ->
@@ -476,15 +468,15 @@ testActorLiveSurfaceDefinition =
 
 testActorFragmentRef :: TestActorFragment -> SurfaceFragmentRef TestActorSurface
 testActorFragmentRef TestActorParent =
-    mkSurfaceFragmentRef RosterContentFragment "actor-parent" "/actor-parent"
+    mkSurfaceFragmentRef rosterContentLiveFragment "actor-parent" "/actor-parent"
 testActorFragmentRef TestActorChild =
-    mkSurfaceFragmentRef RosterStaffPanelFragment "actor-child" "/actor-child"
+    mkSurfaceFragmentRef rosterStaffPanelLiveFragment "actor-child" "/actor-child"
         |> surfaceFragmentRefWithPath ["actor-parent", "actor-child"]
 testActorFragmentRef TestActorDuplicateChild =
-    mkSurfaceFragmentRef RosterStaffPanelFragment "actor-duplicate-child" "/actor-duplicate-child"
+    mkSurfaceFragmentRef rosterStaffPanelLiveFragment "actor-duplicate-child" "/actor-duplicate-child"
         |> surfaceFragmentRefWithPath ["actor-parent", "actor-child"]
 testActorFragmentRef TestActorSibling =
-    mkSurfaceFragmentRef BillingStatusFragment "actor-sibling" "/actor-sibling"
+    mkSurfaceFragmentRef billingStatusLiveFragment "actor-sibling" "/actor-sibling"
 
 renderTestActorFragment :: FragmentRenderMode -> Text -> TestActorFragment -> Maybe Blaze.Html
 renderTestActorFragment renderMode snapshot fragment =

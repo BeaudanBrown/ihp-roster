@@ -37,8 +37,7 @@ import qualified Application.Helper.FrontendSurface.Admin as Surface
 import Application.Helper.FrontendSurface.DSL
 import Application.Helper.FrontendSurface.Runtime
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate.Runtime (LiveUpdateWireFragment,
-                                              coalesceLiveUpdateWireFragments)
+import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.Url (appendQueryParams)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
@@ -275,17 +274,17 @@ adminPageContentFragment, adminXeroPageContentFragment, adminVenueSettingsFragme
 adminPageContentFragment = fragment "admin-page-content" "admin-page-content-fragment" (pathTo AdminAction) FrontendSurfaceReplace
 adminXeroPageContentFragment = fragment "admin-xero-page-content" "admin-xero-page-content-fragment" (pathTo XeroAction) FrontendSurfaceReplace
 adminVenueSettingsFragment = fragment "admin-venue-config" "admin-venue-settings-fragment" (pathTo ShowAdminVenueSettingsFragmentAction) FrontendSurfaceReplace
-adminExportsFragment = fragment "admin-exports" "admin-exports-fragment" (pathTo ShowAdminExportsFragmentAction) FrontendSurfaceReplace
-adminShiftTypesFragment = fragment "admin-shift-types" "admin-shift-types-fragment" (pathTo ShowAdminShiftTypesFragmentAction) (FrontendSurfaceFocusedFieldConfig FrontendSurfaceFocusedFieldProtectionConfig { focusedProtectionActiveSelector = "input[data-admin-shift-type-field-key]:focus", focusedProtectionFieldKeyAttr = "data-admin-shift-type-field-key", focusedProtectionFieldNameFallback = True, focusedProtectionContainerSelector = Just "form[data-admin-shift-type-row]" })
-adminRosterGroupsFragment = fragment "admin-roster-groups" "admin-roster-groups-fragment" (pathTo ShowAdminRosterGroupsFragmentAction) FrontendSurfaceReplace
-adminXeroShellFragment = fragment "admin-xero-shell" "admin-xero-fragment" (pathTo ShowAdminXeroFragmentAction) FrontendSurfaceReplace
-adminXeroStaffMappingsFragment = fragment "admin-xero-staff-mappings" "xero-staff-mappings-data" (pathTo ShowAdminXeroStaffMappingsFragmentAction) FrontendSurfaceReplace
-adminXeroPayItemsFragment = fragment "admin-xero-pay-items" "xero-pay-items-data" (pathTo ShowAdminXeroPayItemsFragmentAction) FrontendSurfaceReplace
-adminXeroTimesheetsFragment = fragment "admin-xero-timesheets" "xero-timesheets-data" (pathTo ShowAdminXeroTimesheetsFragmentAction) FrontendSurfaceReplace
+adminExportsFragment = fragment "admin-exports" "admin-exports-fragment" (pathTo ShowadminExportsLiveFragmentAction) FrontendSurfaceReplace
+adminShiftTypesFragment = fragment "admin-shift-types" "admin-shift-types-fragment" (pathTo ShowadminShiftTypesLiveFragmentAction) (FrontendSurfaceFocusedFieldConfig FrontendSurfaceFocusedFieldProtectionConfig { focusedProtectionActiveSelector = "input[data-admin-shift-type-field-key]:focus", focusedProtectionFieldKeyAttr = "data-admin-shift-type-field-key", focusedProtectionFieldNameFallback = True, focusedProtectionContainerSelector = Just "form[data-admin-shift-type-row]" })
+adminRosterGroupsFragment = fragment "admin-roster-groups" "admin-roster-groups-fragment" (pathTo ShowadminRosterGroupsLiveFragmentAction) FrontendSurfaceReplace
+adminXeroShellFragment = fragment "admin-xero-shell" "admin-xero-fragment" (pathTo ShowadminXeroShellLiveFragmentAction) FrontendSurfaceReplace
+adminXeroStaffMappingsFragment = fragment "admin-xero-staff-mappings" "xero-staff-mappings-data" (pathTo ShowadminXeroStaffMappingsLiveFragmentAction) FrontendSurfaceReplace
+adminXeroPayItemsFragment = fragment "admin-xero-pay-items" "xero-pay-items-data" (pathTo ShowadminXeroPayItemsLiveFragmentAction) FrontendSurfaceReplace
+adminXeroTimesheetsFragment = fragment "admin-xero-timesheets" "xero-timesheets-data" (pathTo ShowadminXeroTimesheetsLiveFragmentAction) FrontendSurfaceReplace
 
 adminInvitesFragment :: Maybe UUID.UUID -> FrontendSurfaceMountedFragment
 adminInvitesFragment maybeRosterGroupId =
-    fragment "admin-invites" "admin-invites-fragment" (appendQueryParams (pathTo ShowAdminInvitesFragmentAction) (maybe [] (\rg -> [("rosterGroupId", tshow rg)]) maybeRosterGroupId)) FrontendSurfaceReplace
+    fragment "admin-invites" "admin-invites-fragment" (appendQueryParams (pathTo ShowadminInvitesLiveFragmentAction) (maybe [] (\rg -> [("rosterGroupId", tshow rg)]) maybeRosterGroupId)) FrontendSurfaceReplace
 
 fragment :: Text -> Text -> Text -> FrontendSurfaceProtection -> FrontendSurfaceMountedFragment
 fragment kind targetId url prot = FrontendSurfaceMountedFragment

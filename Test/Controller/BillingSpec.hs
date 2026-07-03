@@ -51,7 +51,7 @@ tests = beforeAll testContext do
                 _ <- createVenueMembershipRecord venue owner "venue_owner"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
-                    callAction ShowBillingStatusFragmentAction
+                    callAction ShowbillingStatusLiveFragmentAction
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "id=\"billing-status-fragment\""
@@ -166,7 +166,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "app-page-dialog-modal"
                 response `responseBodyShouldNotContain` "data-billing-checkout-modal"
                 response `responseBodyShouldNotContain` "data-billing-checkout-modal-backdrop"
-                response `responseBodyShouldContain` "data-live-update-url=\"/ShowBillingStatusFragment?checkout=success&amp;session_id=cs_test_123\""
+                response `responseBodyShouldContain` "data-live-update-url=\"/ShowbillingStatusLiveFragment?checkout=success&amp;session_id=cs_test_123\""
 
         it "updates the Checkout modal to confirmed once the subscription webhook is processed" $ withContext do
             withCleanDb do
@@ -184,7 +184,7 @@ tests = beforeAll testContext do
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
                     withRequestQuery "checkout=success&session_id=cs_test_123" do
-                        callAction ShowBillingStatusFragmentAction
+                        callAction ShowbillingStatusLiveFragmentAction
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Subscription confirmed"
@@ -212,7 +212,7 @@ tests = beforeAll testContext do
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
                     withRequestQuery "checkout=success&session_id=cs_test_123" do
-                        callAction ShowBillingStatusFragmentAction
+                        callAction ShowbillingStatusLiveFragmentAction
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Subscription needs attention"

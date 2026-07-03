@@ -19,8 +19,7 @@ import Application.Helper.FrontendSurface.DSL
 import qualified Application.Helper.FrontendSurface.Profile as Surface
 import Application.Helper.FrontendSurface.Runtime
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate.Runtime (LiveUpdateScope (..),
-                                              LiveUpdateWireFragment)
+import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.Url (appendQueryParams)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
@@ -56,7 +55,7 @@ profileSurfaceScopeKey scope =
 
 profileLiveUpdateScope :: ProfileScopeValue -> LiveUpdateScope
 profileLiveUpdateScope scope =
-    ProfileScope { venueId = scope.profileVenueId, staffId = scope.profileStaffId }
+    profileLiveScope scope.profileVenueId scope.profileStaffId
 
 profileCandidateMountedFragments :: ProfileScopeValue -> [FrontendSurfaceMountedFragment]
 profileCandidateMountedFragments _ =
@@ -166,7 +165,7 @@ profileSectionMountedFragment keyName targetId section =
     FrontendSurfaceMountedFragment
         { mountedFragmentKey = FrontendSurfaceFragmentKey keyName Aeson.Null
         , mountedFragmentTargetId = targetId
-        , mountedFragmentUrl = appendQueryParams (pathTo ShowProfileContentFragmentAction) [("section", section)]
+        , mountedFragmentUrl = appendQueryParams (pathTo ShowprofileContentLiveFragmentAction) [("section", section)]
         , mountedFragmentProtection = FrontendSurfaceReplace
         , mountedFragmentLoadPolicy = "eager"
         }

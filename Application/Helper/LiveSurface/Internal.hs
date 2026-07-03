@@ -679,30 +679,36 @@ liveSurfaceAuthorizationByRequirement requirement =
         }
 
 defaultLiveUpdateScopeAuthorizationRequirement :: LiveUpdateScope -> LiveScopeAuthorizationRequirement
-defaultLiveUpdateScopeAuthorizationRequirement RosterWeekScope { venueId, rosterGroupId } =
-    RequireCurrentVenueRosterGroup venueId rosterGroupId
-defaultLiveUpdateScopeAuthorizationRequirement AdminVenueConfigScope { venueId } =
-    RequireCurrentVenueAdmin venueId
-defaultLiveUpdateScopeAuthorizationRequirement AdminInvitesScope { venueId } =
-    RequireCurrentVenueAdmin venueId
-defaultLiveUpdateScopeAuthorizationRequirement AdminExportsScope { venueId } =
-    RequireCurrentVenueAdmin venueId
-defaultLiveUpdateScopeAuthorizationRequirement AdminShiftTypesScope { venueId } =
-    RequireCurrentVenueAdmin venueId
-defaultLiveUpdateScopeAuthorizationRequirement AdminRosterGroupsScope { venueId } =
-    RequireCurrentVenueAdmin venueId
-defaultLiveUpdateScopeAuthorizationRequirement AdminXeroScope { venueId } =
-    RequireCurrentVenueOwner venueId
-defaultLiveUpdateScopeAuthorizationRequirement BillingScope { venueId } =
-    RequireCurrentVenueOwner venueId
-defaultLiveUpdateScopeAuthorizationRequirement LeaveRequestsScope { venueId } =
-    RequireCurrentVenueManager venueId
-defaultLiveUpdateScopeAuthorizationRequirement TimesheetWeekScope { venueId } =
-    RequireCurrentVenue venueId
-defaultLiveUpdateScopeAuthorizationRequirement ProfileScope { venueId, staffId } =
-    RequireCurrentVenueStaff venueId staffId
-defaultLiveUpdateScopeAuthorizationRequirement SupportPlatformScope =
-    RequireSupportSuperAdmin
+defaultLiveUpdateScopeAuthorizationRequirement scope =
+    case liveUpdateScopeToWire scope of
+        Wire.LiveUpdateScope { surface = "roster", scope = payload }
+            | Just (venueId, rosterGroupId) <- parseScope2 payload "venueId" "rosterGroupId" -> RequireCurrentVenueRosterGroup venueId rosterGroupId
+        Wire.LiveUpdateScope { surface = "admin-xero", scope = payload }
+            | Just venueId <- parseScopeUuid payload "venueId" -> RequireCurrentVenueOwner venueId
+        Wire.LiveUpdateScope { surface = "billing", scope = payload }
+            | Just venueId <- parseScopeUuid payload "venueId" -> RequireCurrentVenueOwner venueId
+        Wire.LiveUpdateScope { surface = "leave-requests", scope = payload }
+            | Just venueId <- parseScopeUuid payload "venueId" -> RequireCurrentVenueManager venueId
+        Wire.LiveUpdateScope { surface = "timesheets", scope = payload }
+            | Just venueId <- parseScopeUuid payload "venueId" -> RequireCurrentVenue venueId
+        Wire.LiveUpdateScope { surface = "profile", scope = payload }
+            | Just (venueId, staffId) <- parseScope2 payload "venueId" "staffId" -> RequireCurrentVenueStaff venueId staffId
+        Wire.LiveUpdateScope { surface = "support" } -> RequireSupportSuperAdmin
+        Wire.LiveUpdateScope { scope = payload }
+            | Just venueId <- parseScopeUuid payload "venueId" -> RequireCurrentVenueAdmin venueId
+        _ -> RequireSupportSuperAdmin
+
+parseScopeUuid :: Aeson.Value -> Text -> Maybe UUID.UUID
+parseScopeUuid payload fieldName =
+    Aeson.parseMaybe (Aeson.withObject "live scope" (\object -> parseUuid =<< object Aeson..: cs fieldName)) payload
+
+parseScope2 :: Aeson.Value -> Text -> Text -> Maybe (UUID.UUID, UUID.UUID)
+parseScope2 payload leftField rightField =
+    Aeson.parseMaybe (Aeson.withObject "live scope" (\object -> (,) <$> (parseUuid =<< object Aeson..: cs leftField) <*> (parseUuid =<< object Aeson..: cs rightField))) payload
+
+parseUuid :: Text -> Aeson.Parser UUID.UUID
+parseUuid value =
+    maybe (fail ("Invalid UUID: " <> cs value)) pure (UUID.fromText (Text.strip value))
 
 authorizeLiveScopeRequirement ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>

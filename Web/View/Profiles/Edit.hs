@@ -46,8 +46,8 @@ profileShiftPreferencesFormId = "profile-shift-preferences-form"
 profileSectionsAccordionId :: Text
 profileSectionsAccordionId = "profile-sections"
 
-profileLeaveRequestsContentFragmentId :: Text
-profileLeaveRequestsContentFragmentId = "profile-leave-requests-content"
+profileleaveRequestsContentLiveFragmentId :: Text
+profileleaveRequestsContentLiveFragmentId = "profile-leave-requests-content"
 
 profileLeaveRequestFormFragmentId :: Text
 profileLeaveRequestFormFragmentId = "profile-leave-request-form-fragment"
@@ -101,7 +101,7 @@ instance View EditView where
                         renderProfileLiveSurface
                             staff
                             openSection
-                            (renderProfileContentFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection)
+                            (renderprofileContentLiveFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection)
                     }
             })
 
@@ -116,12 +116,12 @@ renderProfileLiveSurface staff _openSection body =
         </div>
     |]
 
-renderProfileContentFragment :: Staff -> Text -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> [Passkey] -> [LeaveRequest] -> LeaveRequest -> Maybe StaffDocument -> Day -> UTCTime -> Text -> Html
-renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument =
-    renderProfileContentFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument Nothing
+renderprofileContentLiveFragment :: Staff -> Text -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> [Passkey] -> [LeaveRequest] -> LeaveRequest -> Maybe StaffDocument -> Day -> UTCTime -> Text -> Html
+renderprofileContentLiveFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument =
+    renderprofileContentLiveFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument Nothing
 
-renderProfileContentFragmentWithManagement :: Staff -> Text -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> [Passkey] -> [LeaveRequest] -> LeaveRequest -> Maybe StaffDocument -> Maybe StaffManagementFieldData -> Day -> UTCTime -> Text -> Html
-renderProfileContentFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection =
+renderprofileContentLiveFragmentWithManagement :: Staff -> Text -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> [Passkey] -> [LeaveRequest] -> LeaveRequest -> Maybe StaffDocument -> Maybe StaffManagementFieldData -> Day -> UTCTime -> Text -> Html
+renderprofileContentLiveFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection =
     let accordionConfig =
             StaffProfileAccordionConfig
                 { staffProfileAccordionId = profileSectionsAccordionId
@@ -177,7 +177,7 @@ profileLeaveAccordionSection staff leaveRequestForm leaveRequests =
         { staffProfileSectionKey = "leave"
         , staffProfileSectionId = profileLeaveSectionId
         , staffProfileSectionTitle = "Unavailability"
-        , staffProfileSectionBody = renderProfileLeaveRequestsContentFragment staff leaveRequestForm leaveRequests
+        , staffProfileSectionBody = renderProfileleaveRequestsContentLiveFragment staff leaveRequestForm leaveRequests
         }
 
 profileRsaAccordionSection :: Staff -> Maybe StaffDocument -> Day -> StaffProfileAccordionSection
@@ -304,13 +304,13 @@ renderProfileRsaSection staff staffRsaDocument today =
                 , rsaPanelShowHeader = False
                 }
 
-renderProfileLeaveRequestsContentFragment :: Staff -> LeaveRequest -> [LeaveRequest] -> Html
-renderProfileLeaveRequestsContentFragment =
-    renderProfileLeaveRequestsContentFragmentWithSwap Nothing
+renderProfileleaveRequestsContentLiveFragment :: Staff -> LeaveRequest -> [LeaveRequest] -> Html
+renderProfileleaveRequestsContentLiveFragment =
+    renderProfileleaveRequestsContentLiveFragmentWithSwap Nothing
 
-renderProfileLeaveRequestsContentFragmentWithSwap :: Maybe Text -> Staff -> LeaveRequest -> [LeaveRequest] -> Html
-renderProfileLeaveRequestsContentFragmentWithSwap maybeSwapOob staff leaveRequest leaveRequests = [hsx|
-    <div id={profileLeaveRequestsContentFragmentId}
+renderProfileleaveRequestsContentLiveFragmentWithSwap :: Maybe Text -> Staff -> LeaveRequest -> [LeaveRequest] -> Html
+renderProfileleaveRequestsContentLiveFragmentWithSwap maybeSwapOob staff leaveRequest leaveRequests = [hsx|
+    <div id={profileleaveRequestsContentLiveFragmentId}
          hx-swap-oob={maybeSwapOob}>
         <div class="row g-4 align-items-start">
             <div class="col-12 col-xl-5">

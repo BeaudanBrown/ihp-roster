@@ -18,7 +18,7 @@ import Application.Helper.FrontendSurface.Runtime
 import qualified Application.Helper.FrontendSurface.Support as Surface
 import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate
-import Application.Helper.LiveUpdate.Runtime (LiveUpdateWireFragment)
+import Application.Helper.LiveUpdate.Runtime
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import IHP.Prelude
@@ -29,7 +29,7 @@ data SupportLiveFragment
     deriving (Eq, Show)
 
 supportLiveUpdateScope :: LiveUpdateScope
-supportLiveUpdateScope = SupportPlatformScope
+supportLiveUpdateScope = supportPlatformLiveScope
 
 supportLiveSurface :: SurfaceImpl Surface.SupportSurface
 supportLiveSurface =

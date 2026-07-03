@@ -7,7 +7,7 @@ module Web.Profiles.Mutations
     ) where
 
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate (activeRosterWeekScopes)
+import Application.Helper.LiveUpdate
 import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
                                         fetchStaffRosterGroupIds,
                                         syncStaffRosterGroupAssignments)

@@ -200,22 +200,22 @@ renderProfileSeedManifest plan =
         , "    \"timesheetsStaffFilter\": " <> jsonString (timesheetStaffFilterPath plan.currentWeekOffset (staffId 1 1)) <> ","
         , "    \"timesheetDayFragment\": " <> jsonString (timesheetDayFragmentPath plan.currentWeekOffset 0) <> ","
         , "    \"leaveRequests\": \"/LeaveRequests\","
-        , "    \"leaveRequestsFragment\": \"/ShowLeaveRequestsContentFragment\","
+        , "    \"leaveRequestsFragment\": \"/ShowleaveRequestsContentLiveFragment\","
         , "    \"editProfile\": \"/EditProfile\","
         , "    \"profileSecurity\": \"/EditProfile?section=security\","
         , "    \"profileLeave\": \"/EditProfile?section=leave\","
         , "    \"profileRsa\": \"/EditProfile?section=rsa\","
-        , "    \"profileLeaveRequestsFragment\": \"/ShowProfileLeaveRequestsContentFragment\","
+        , "    \"profileLeaveRequestsFragment\": \"/ShowProfileleaveRequestsContentLiveFragment\","
         , "    \"admin\": \"/Admin\","
         , "    \"adminExports\": \"/Admin#exports\","
         , "    \"adminInvitesFragment\": " <> jsonString (adminInvitesFragmentPath 1 1) <> ","
-        , "    \"adminShiftTypesFragment\": \"/ShowAdminShiftTypesFragment\","
-        , "    \"adminRosterGroupsFragment\": \"/ShowAdminRosterGroupsFragment\","
+        , "    \"adminShiftTypesFragment\": \"/ShowadminShiftTypesLiveFragment\","
+        , "    \"adminRosterGroupsFragment\": \"/ShowadminRosterGroupsLiveFragment\","
         , "    \"xero\": \"/Xero\","
-        , "    \"adminXeroFragment\": \"/ShowAdminXeroFragment\","
-        , "    \"adminXeroStaffMappingsFragment\": \"/ShowAdminXeroStaffMappingsFragment\","
-        , "    \"adminXeroPayItemsFragment\": \"/ShowAdminXeroPayItemsFragment\","
-        , "    \"adminXeroTimesheetsFragment\": \"/ShowAdminXeroTimesheetsFragment\""
+        , "    \"adminXeroFragment\": \"/ShowadminXeroShellLiveFragment\","
+        , "    \"adminXeroStaffMappingsFragment\": \"/ShowadminXeroStaffMappingsLiveFragment\","
+        , "    \"adminXeroPayItemsFragment\": \"/ShowadminXeroPayItemsLiveFragment\","
+        , "    \"adminXeroTimesheetsFragment\": \"/ShowadminXeroTimesheetsLiveFragment\""
         , "  },"
         , "  \"xero\": {"
         , "    \"connectionId\": " <> jsonString (xeroConnectionId 1) <> ","
@@ -292,7 +292,7 @@ timesheetDayFragmentPath weekOffset dayOffset =
 
 adminInvitesFragmentPath :: Int -> Int -> Text
 adminInvitesFragmentPath venueIndex groupIndex =
-    "/ShowAdminInvitesFragment?rosterGroupId=" <> rosterGroupId venueIndex groupIndex
+    "/ShowadminInvitesLiveFragment?rosterGroupId=" <> rosterGroupId venueIndex groupIndex
 
 jsonString :: Text -> Text
 jsonString value =

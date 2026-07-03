@@ -33,8 +33,7 @@ import Application.Helper.FrontendSurface.Reflect (reflectRegisteredFrontendSurf
 import qualified Application.Helper.FrontendSurface.Roster as Surface
 import Application.Helper.FrontendSurface.Runtime
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate.Runtime (LiveUpdateScope (..),
-                                              LiveUpdateWireFragment)
+import Application.Helper.LiveUpdate.Runtime
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Lazy as LBS
@@ -274,11 +273,7 @@ fsAttr name value =
 
 rosterLiveUpdateScope :: RosterWeekScopeValue -> LiveUpdateScope
 rosterLiveUpdateScope scope =
-    RosterWeekScope
-        { venueId = scope.rosterWeekVenueId
-        , rosterGroupId = unpackId scope.rosterWeekGroupId
-        , weekOffset = scope.rosterWeekWeekOffset
-        }
+    rosterWeekLiveScope scope.rosterWeekVenueId (unpackId scope.rosterWeekGroupId) scope.rosterWeekWeekOffset
 
 rosterSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment]
 rosterSurfaceWireFragments =

@@ -19,12 +19,12 @@ tests = describe "LiveUpdate runtime types" do
     it "encodes runtime values through the generated live-update wire schema" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
-        let scope = RosterWeekScope { venueId, rosterGroupId, weekOffset = 0 }
+        let scope = rosterWeekLiveScope venueId rosterGroupId 0
         let fragment =
                 LiveUpdateWireFragment
-                    { fragmentKey = RosterStaffPanelFragment
+                    { fragmentKey = rosterStaffPanelLiveFragment
                     , targetId = "roster-staff-panel"
-                    , url = "/ShowRosterStaffPanelFragment?weekOffset=0"
+                    , url = "/ShowrosterStaffPanelLiveFragment?weekOffset=0"
                     , deferUntilBlur = False
                     , protectionPolicy = NoProtection
                     }
@@ -55,18 +55,18 @@ tests = describe "LiveUpdate runtime types" do
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
         let staffId = expectUuid "44444444-4444-4444-4444-444444444444"
         let scopes =
-                [ RosterWeekScope { venueId, rosterGroupId, weekOffset = 0 }
-                , AdminVenueConfigScope { venueId }
-                , AdminShiftTypesScope { venueId }
-                , AdminRosterGroupsScope { venueId }
-                , AdminInvitesScope { venueId }
-                , AdminExportsScope { venueId }
-                , AdminXeroScope { venueId }
-                , BillingScope { venueId }
-                , LeaveRequestsScope { venueId }
-                , TimesheetWeekScope { venueId, weekOffset = 2 }
-                , ProfileScope { venueId, staffId }
-                , SupportPlatformScope
+                [ rosterWeekLiveScope venueId rosterGroupId 0
+                , adminVenueConfigLiveScope venueId
+                , adminShiftTypesLiveScope venueId
+                , adminRosterGroupsLiveScope venueId
+                , adminInvitesLiveScope venueId
+                , adminExportsLiveScope venueId
+                , adminXeroLiveScope venueId
+                , billingLiveScope venueId
+                , leaveRequestsLiveScope venueId
+                , timesheetWeekLiveScope venueId 2
+                , profileLiveScope venueId staffId
+                , supportPlatformLiveScope
                 ]
 
         forM_ scopes \scope ->
@@ -75,25 +75,25 @@ tests = describe "LiveUpdate runtime types" do
     it "round-trips roster, admin, profile, leave, timesheet, and support fragment keys through JSON" do
         let rosterDayId = expectUuid "22222222-2222-2222-2222-222222222222"
         let fragmentKeys =
-                [ RosterContentFragment
-                , RosterStaffPanelFragment
-                , RosterRowFragment { rosterDayId, rowIndex = 1 }
-                , LeaveRequestsContentFragment
-                , TimesheetDaySectionFragment { dayOffset = 4 }
-                , AdminVenueConfigFragment
-                , AdminInvitesFragment
-                , AdminExportsFragment
-                , AdminShiftTypesFragment
-                , AdminRosterGroupsFragment
-                , AdminXeroFragment
-                , AdminXeroStaffMappingsFragment
-                , AdminXeroPayItemsFragment
-                , AdminXeroTimesheetsFragment
-                , BillingStatusFragment
-                , ProfileContentFragment
-                , ProfileLeaveRequestsContentFragment
-                , SupportAwardRatesSectionFragment
-                , SupportPublicHolidaysSectionFragment
+                [ rosterContentLiveFragment
+                , rosterStaffPanelLiveFragment
+                , rosterRowLiveFragment rosterDayId 1
+                , leaveRequestsContentLiveFragment
+                , timesheetDaySectionLiveFragment 4
+                , adminVenueConfigLiveFragment
+                , adminInvitesLiveFragment
+                , adminExportsLiveFragment
+                , adminShiftTypesLiveFragment
+                , adminRosterGroupsLiveFragment
+                , adminXeroShellLiveFragment
+                , adminXeroStaffMappingsLiveFragment
+                , adminXeroPayItemsLiveFragment
+                , adminXeroTimesheetsLiveFragment
+                , billingStatusLiveFragment
+                , profileContentLiveFragment
+                , ProfileleaveRequestsContentLiveFragment
+                , supportAwardRatesSectionLiveFragment
+                , supportPublicHolidaysSectionLiveFragment
                 ]
 
         forM_ fragmentKeys \fragmentKey ->
@@ -103,7 +103,7 @@ tests = describe "LiveUpdate runtime types" do
         let rosterDayId = expectUuid "22222222-2222-2222-2222-222222222222"
         let fragment =
                 LiveUpdateWireFragment
-                    { fragmentKey = RosterRowFragment { rosterDayId, rowIndex = 2 }
+                    { fragmentKey = rosterRowLiveFragment rosterDayId 2
                     , targetId = "roster-row-2"
                     , url = "/ShowRosterWeekRowFragment?weekOffset=0&rowIndex=2"
                     , deferUntilBlur = True
@@ -132,40 +132,40 @@ tests = describe "LiveUpdate runtime types" do
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
         let staffId = expectUuid "44444444-4444-4444-4444-444444444444"
 
-        liveUpdateScopeKey RosterWeekScope { venueId, rosterGroupId, weekOffset = -1 }
+        liveUpdateScopeKey rosterWeekLiveScope venueId rosterGroupId -1
             `shouldBe` "roster:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333:-1"
-        liveUpdateScopeKey AdminVenueConfigScope { venueId }
+        liveUpdateScopeKey adminVenueConfigLiveScope venueId
             `shouldBe` "admin-venue-config:11111111-1111-1111-1111-111111111111"
-        liveUpdateScopeKey AdminShiftTypesScope { venueId }
+        liveUpdateScopeKey adminShiftTypesLiveScope venueId
             `shouldBe` "admin-shift-types:11111111-1111-1111-1111-111111111111"
-        liveUpdateScopeKey AdminRosterGroupsScope { venueId }
+        liveUpdateScopeKey adminRosterGroupsLiveScope venueId
             `shouldBe` "admin-roster-groups:11111111-1111-1111-1111-111111111111"
-        liveUpdateScopeKey AdminInvitesScope { venueId }
+        liveUpdateScopeKey adminInvitesLiveScope venueId
             `shouldBe` "admin-invites:11111111-1111-1111-1111-111111111111"
-        liveUpdateScopeKey AdminExportsScope { venueId }
+        liveUpdateScopeKey adminExportsLiveScope venueId
             `shouldBe` "admin-exports:11111111-1111-1111-1111-111111111111"
-        liveUpdateScopeKey AdminXeroScope { venueId }
+        liveUpdateScopeKey adminXeroLiveScope venueId
             `shouldBe` "admin-xero:11111111-1111-1111-1111-111111111111"
-        liveUpdateScopeKey BillingScope { venueId }
+        liveUpdateScopeKey billingLiveScope venueId
             `shouldBe` "billing:11111111-1111-1111-1111-111111111111"
-        liveUpdateScopeKey LeaveRequestsScope { venueId }
+        liveUpdateScopeKey leaveRequestsLiveScope venueId
             `shouldBe` "leave-requests:11111111-1111-1111-1111-111111111111"
-        liveUpdateScopeKey TimesheetWeekScope { venueId, weekOffset = 2 }
+        liveUpdateScopeKey timesheetWeekLiveScope venueId 2
             `shouldBe` "timesheets:11111111-1111-1111-1111-111111111111:2"
-        liveUpdateScopeKey ProfileScope { venueId, staffId }
+        liveUpdateScopeKey profileLiveScope venueId staffId
             `shouldBe` "profile:11111111-1111-1111-1111-111111111111:44444444-4444-4444-4444-444444444444"
-        liveUpdateScopeKey SupportPlatformScope
+        liveUpdateScopeKey supportPlatformLiveScope
             `shouldBe` "support"
 
     it "round-trips commands and encodes subscribed, invalidation, and error payloads as JSON" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
-        let scope = RosterWeekScope { venueId, rosterGroupId, weekOffset = 0 }
+        let scope = rosterWeekLiveScope venueId rosterGroupId 0
         let fragment =
                 LiveUpdateWireFragment
-                    { fragmentKey = RosterStaffPanelFragment
+                    { fragmentKey = rosterStaffPanelLiveFragment
                     , targetId = "roster-staff-panel"
-                    , url = "/ShowRosterStaffPanelFragment?weekOffset=0"
+                    , url = "/ShowrosterStaffPanelLiveFragment?weekOffset=0"
                     , deferUntilBlur = False
                     , protectionPolicy = NoProtection
                     }
@@ -205,12 +205,12 @@ tests = describe "LiveUpdate runtime types" do
 
     it "exercises isolated in-memory live buses without global state leakage" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
-        let scope = LeaveRequestsScope { venueId }
+        let scope = leaveRequestsLiveScope venueId
         let fragment =
                 LiveUpdateWireFragment
-                    { fragmentKey = LeaveRequestsContentFragment
+                    { fragmentKey = leaveRequestsContentLiveFragment
                     , targetId = "leave-requests-content"
-                    , url = "/ShowLeaveRequestsContentFragment"
+                    , url = "/ShowleaveRequestsContentLiveFragment"
                     , deferUntilBlur = False
                     , protectionPolicy = NoProtection
                     }
@@ -249,12 +249,12 @@ tests = describe "LiveUpdate runtime types" do
 
     it "reports broadcast fanout counts for profiling hooks" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
-        let scope = LeaveRequestsScope { venueId }
+        let scope = leaveRequestsLiveScope venueId
         let fragment =
                 LiveUpdateWireFragment
-                    { fragmentKey = LeaveRequestsContentFragment
+                    { fragmentKey = leaveRequestsContentLiveFragment
                     , targetId = "leave-requests-content"
-                    , url = "/ShowLeaveRequestsContentFragment"
+                    , url = "/ShowleaveRequestsContentLiveFragment"
                     , deferUntilBlur = False
                     , protectionPolicy = NoProtection
                     }
@@ -270,12 +270,12 @@ tests = describe "LiveUpdate runtime types" do
 
     it "coalesces duplicate fragment refs before broadcasting" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
-        let scope = LeaveRequestsScope { venueId }
+        let scope = leaveRequestsLiveScope venueId
         let fragment =
                 LiveUpdateWireFragment
-                    { fragmentKey = LeaveRequestsContentFragment
+                    { fragmentKey = leaveRequestsContentLiveFragment
                     , targetId = "leave-requests-content"
-                    , url = "/ShowLeaveRequestsContentFragment"
+                    , url = "/ShowleaveRequestsContentLiveFragment"
                     , deferUntilBlur = False
                     , protectionPolicy = NoProtection
                     }
@@ -296,10 +296,10 @@ tests = describe "LiveUpdate runtime types" do
 
     it "validates live subscriptions from generated FrontendSurface metadata" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
-        let scope = TimesheetWeekScope { venueId, weekOffset = 0 }
+        let scope = timesheetWeekLiveScope venueId 0
         let fragment =
                 LiveUpdateWireFragment
-                    { fragmentKey = TimesheetDaySectionFragment { dayOffset = 1 }
+                    { fragmentKey = timesheetDaySectionLiveFragment 1
                     , targetId = "timesheet-day-1"
                     , url = "/ShowTimesheetDaySectionFragment?weekOffset=0&dayOffset=1"
                     , deferUntilBlur = False
@@ -314,17 +314,17 @@ tests = describe "LiveUpdate runtime types" do
 
         validateFrontendSurfaceLiveSubscription subscription `shouldBe` True
         validateFrontendSurfaceLiveSubscription subscription { subscriptionScopeKey = "timesheets:wrong" } `shouldBe` False
-        validateFrontendSurfaceLiveSubscription subscription { subscriptionMountedFragments = [fragment { fragmentKey = LeaveRequestsContentFragment }] } `shouldBe` False
-        validateFrontendSurfaceLiveSubscription subscription { subscriptionMountedFragments = [fragment { fragmentKey = TimesheetToolbarFragment }] } `shouldBe` True
+        validateFrontendSurfaceLiveSubscription subscription { subscriptionMountedFragments = [fragment { fragmentKey = leaveRequestsContentLiveFragment }] } `shouldBe` False
+        validateFrontendSurfaceLiveSubscription subscription { subscriptionMountedFragments = [fragment { fragmentKey = timesheetToolbarLiveFragment }] } `shouldBe` True
 
     it "declares live authorization requirements at the surface boundary" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
 
-        defaultLiveUpdateScopeAuthorizationRequirement SupportPlatformScope `shouldBe` RequireSupportSuperAdmin
-        defaultLiveUpdateScopeAuthorizationRequirement AdminXeroScope { venueId } `shouldBe` RequireCurrentVenueOwner venueId
-        frontendSurfaceScopeAuthorizationRequirement SupportPlatformScope `shouldBe` Just (Just RequireSupportSuperAdmin)
-        frontendSurfaceScopeAuthorizationRequirement AdminXeroScope { venueId } `shouldBe` Just (Just (RequireCurrentVenueOwner venueId))
-        frontendSurfaceScopeAuthorizationRequirement TimesheetWeekScope { venueId, weekOffset = 0 } `shouldBe` Just (Just (RequireCurrentVenue venueId))
+        defaultLiveUpdateScopeAuthorizationRequirement supportPlatformLiveScope `shouldBe` RequireSupportSuperAdmin
+        defaultLiveUpdateScopeAuthorizationRequirement adminXeroLiveScope venueId `shouldBe` RequireCurrentVenueOwner venueId
+        frontendSurfaceScopeAuthorizationRequirement supportPlatformLiveScope `shouldBe` Just (Just RequireSupportSuperAdmin)
+        frontendSurfaceScopeAuthorizationRequirement adminXeroLiveScope venueId `shouldBe` Just (Just (RequireCurrentVenueOwner venueId))
+        frontendSurfaceScopeAuthorizationRequirement timesheetWeekLiveScope venueId 0 `shouldBe` Just (Just (RequireCurrentVenue venueId))
 
     it "round-trips leave, timesheet, and protected roster surface configs through JSON" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
@@ -332,20 +332,20 @@ tests = describe "LiveUpdate runtime types" do
         let surfaces =
                 [ testLiveSurfaceConfig
                     "leave-requests"
-                    LeaveRequestsScope { venueId }
+                    leaveRequestsLiveScope venueId
                     [ LiveUpdateWireFragment
-                        { fragmentKey = LeaveRequestsContentFragment
+                        { fragmentKey = leaveRequestsContentLiveFragment
                         , targetId = "leave-requests-content"
-                        , url = "/ShowLeaveRequestsContentFragment"
+                        , url = "/ShowleaveRequestsContentLiveFragment"
                         , deferUntilBlur = False
                         , protectionPolicy = NoProtection
                         }
                     ]
                 , testLiveSurfaceConfig
                     "timesheets"
-                    TimesheetWeekScope { venueId, weekOffset = 1 }
+                    timesheetWeekLiveScope venueId 1
                     [ LiveUpdateWireFragment
-                        { fragmentKey = TimesheetDaySectionFragment { dayOffset = 2 }
+                        { fragmentKey = timesheetDaySectionLiveFragment 2
                         , targetId = "timesheet-day-2"
                         , url = "/ShowTimesheetDaySectionFragment?weekOffset=1&dayOffset=2"
                         , deferUntilBlur = False
@@ -354,9 +354,9 @@ tests = describe "LiveUpdate runtime types" do
                     ]
                 , testLiveSurfaceConfig
                     "roster"
-                    RosterWeekScope { venueId, rosterGroupId, weekOffset = 0 }
+                    rosterWeekLiveScope venueId rosterGroupId 0
                     [ LiveUpdateWireFragment
-                        { fragmentKey = RosterContentFragment
+                        { fragmentKey = rosterContentLiveFragment
                         , targetId = "roster-content"
                         , url = "/ShowRosterWeekContentFragment?weekOffset=0"
                         , deferUntilBlur = False
@@ -382,7 +382,7 @@ testLiveSurfaceConfig feature scope resyncFragments =
 supportAwardRatesSectionFragmentRef :: LiveUpdateWireFragment
 supportAwardRatesSectionFragmentRef =
     LiveUpdateWireFragment
-        { fragmentKey = SupportAwardRatesSectionFragment
+        { fragmentKey = supportAwardRatesSectionLiveFragment
         , targetId = "support-award-rates-section"
         , url = "/ShowFwcMapdAwardRatesSection"
         , deferUntilBlur = False
@@ -392,7 +392,7 @@ supportAwardRatesSectionFragmentRef =
 supportPublicHolidaysSectionFragmentRef :: LiveUpdateWireFragment
 supportPublicHolidaysSectionFragmentRef =
     LiveUpdateWireFragment
-        { fragmentKey = SupportPublicHolidaysSectionFragment
+        { fragmentKey = supportPublicHolidaysSectionLiveFragment
         , targetId = "support-public-holidays-section"
         , url = "/ShowPublicHolidaysSection"
         , deferUntilBlur = False
@@ -404,5 +404,5 @@ expectUuid value =
     fromMaybe (error ("Invalid UUID fixture: " <> cs value)) (UUID.fromText value)
 
 supportScopeLabel :: LiveUpdateScope -> Maybe Text
-supportScopeLabel SupportPlatformScope = Just "support"
-supportScopeLabel _                    = Nothing
+supportScopeLabel supportPlatformLiveScope = Just "support"
+supportScopeLabel _                        = Nothing

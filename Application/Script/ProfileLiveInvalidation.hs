@@ -1,13 +1,7 @@
 module Application.Script.ProfileLiveInvalidation where
 
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..),
-                                              LiveFragmentProtection (..),
-                                              LiveUpdateBroadcastResult (..),
-                                              LiveUpdateScope (..),
-                                              LiveUpdateSubscription (..),
-                                              LiveUpdateWireFragment (..),
-                                              liveUpdateScopeKey)
+import Application.Helper.LiveUpdate.Runtime
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.Set as Set
@@ -188,25 +182,25 @@ buildBenchmarkPlan scenario requestedScopeCount =
         BillingDirectScenario ->
             BenchmarkPlan
                 { planResources = Set.singleton (billingResource targetVenueId)
-                , planActiveScopes = [BillingScope (venueIdFor index) | index <- [0 .. requestedScopeCount - 1]]
+                , planActiveScopes = [billingLiveScope (venueIdFor index) | index <- [0 .. requestedScopeCount - 1]]
                 , planActiveRosterScopes = []
                 }
         TimesheetWeekScenario ->
             BenchmarkPlan
                 { planResources = Set.singleton (timesheetWeekResource targetVenueId targetWeekOffset)
-                , planActiveScopes = [TimesheetWeekScope (venueIdFor index) (index `mod` 52) | index <- [0 .. requestedScopeCount - 1]]
+                , planActiveScopes = [timesheetWeekLiveScope (venueIdFor index) (index `mod` 52) | index <- [0 .. requestedScopeCount - 1]]
                 , planActiveRosterScopes = []
                 }
         XeroMappingsScenario ->
             BenchmarkPlan
                 { planResources = Set.singleton (xeroMappingsResource targetVenueId)
-                , planActiveScopes = [AdminXeroScope (venueIdFor index) | index <- [0 .. requestedScopeCount - 1]]
+                , planActiveScopes = [adminXeroLiveScope (venueIdFor index) | index <- [0 .. requestedScopeCount - 1]]
                 , planActiveRosterScopes = []
                 }
         RosterWeekFanoutScenario ->
             BenchmarkPlan
                 { planResources = Set.fromList [rosterWeekResource (rosterGroupIdFor index) targetWeekOffset | index <- [0 .. requestedScopeCount - 1]]
-                , planActiveScopes = [RosterWeekScope targetVenueId (rosterGroupIdFor index) targetWeekOffset | index <- [0 .. requestedScopeCount - 1]]
+                , planActiveScopes = [rosterWeekLiveScope targetVenueId (rosterGroupIdFor index) targetWeekOffset | index <- [0 .. requestedScopeCount - 1]]
                 , planActiveRosterScopes = [(targetVenueId, rosterGroupIdFor index, targetWeekOffset) | index <- [0 .. requestedScopeCount - 1]]
                 }
         MixedContextFreeScenario ->
@@ -226,11 +220,11 @@ buildBenchmarkPlan scenario requestedScopeCount =
         targetVenueId = venueIdFor 0
         targetWeekOffset = 0
         mixedScopes =
-            [ SupportPlatformScope
-            , BillingScope targetVenueId
-            , AdminInvitesScope targetVenueId
-            , TimesheetWeekScope targetVenueId targetWeekOffset
-            , AdminXeroScope targetVenueId
+            [ supportPlatformLiveScope
+            , billingLiveScope targetVenueId
+            , adminInvitesLiveScope targetVenueId
+            , timesheetWeekLiveScope targetVenueId targetWeekOffset
+            , adminXeroLiveScope targetVenueId
             ]
 
 benchmarkSubscription :: LiveUpdateScope -> LiveUpdateSubscription
@@ -243,36 +237,38 @@ benchmarkSubscription scope =
 
 benchmarkFragments :: LiveUpdateScope -> [LiveUpdateWireFragment]
 benchmarkFragments = \case
-    BillingScope {} -> [fragment BillingStatusFragment]
-    TimesheetWeekScope {} -> [fragment TimesheetToolbarFragment]
-    AdminXeroScope {} -> [fragment AdminXeroStaffMappingsFragment, fragment AdminXeroPayItemsFragment]
-    RosterWeekScope {} -> [fragment RosterContentFragment]
-    SupportPlatformScope -> [fragment SupportAwardRatesSectionFragment]
-    AdminInvitesScope {} -> [fragment AdminInvitesFragment]
-    AdminVenueConfigScope {} -> [fragment AdminVenueConfigFragment]
-    AdminShiftTypesScope {} -> [fragment AdminShiftTypesFragment]
-    AdminRosterGroupsScope {} -> [fragment AdminRosterGroupsFragment]
-    AdminExportsScope {} -> [fragment AdminExportsFragment]
-    LeaveRequestsScope {} -> [fragment LeaveRequestsContentFragment]
-    ProfileScope {} -> [fragment ProfileContentFragment]
+    scope
+        | liveUpdateScopeKind scope == "billing" -> [fragment billingStatusLiveFragment]
+        | liveUpdateScopeKind scope == "timesheets" -> [fragment timesheetToolbarLiveFragment]
+        | liveUpdateScopeKind scope == "admin-xero" -> [fragment adminXeroStaffMappingsLiveFragment, fragment adminXeroPayItemsLiveFragment]
+        | liveUpdateScopeKind scope == "roster" -> [fragment rosterContentLiveFragment]
+        | liveUpdateScopeKind scope == "support" -> [fragment supportAwardRatesSectionLiveFragment]
+        | liveUpdateScopeKind scope == "admin-invites" -> [fragment adminInvitesLiveFragment]
+        | liveUpdateScopeKind scope == "admin-venue-config" -> [fragment adminVenueConfigLiveFragment]
+        | liveUpdateScopeKind scope == "admin-shift-types" -> [fragment adminShiftTypesLiveFragment]
+        | liveUpdateScopeKind scope == "admin-roster-groups" -> [fragment adminRosterGroupsLiveFragment]
+        | liveUpdateScopeKind scope == "admin-exports" -> [fragment adminExportsLiveFragment]
+        | liveUpdateScopeKind scope == "leave-requests" -> [fragment leaveRequestsContentLiveFragment]
+        | liveUpdateScopeKind scope == "profile" -> [fragment profileContentLiveFragment]
+        | otherwise -> []
     where
         fragment key = LiveUpdateWireFragment key ("profile-" <> liveFragmentKeyKindForProfile key) "/profile-live-invalidation" False NoProtection
 
 liveFragmentKeyKindForProfile :: LiveFragmentKey -> Text
 liveFragmentKeyKindForProfile = \case
-    BillingStatusFragment -> "billing-status"
-    TimesheetToolbarFragment -> "timesheet-toolbar"
-    AdminXeroStaffMappingsFragment -> "admin-xero-staff-mappings"
-    AdminXeroPayItemsFragment -> "admin-xero-pay-items"
-    RosterContentFragment -> "roster-content"
-    SupportAwardRatesSectionFragment -> "support-award-rates"
-    AdminInvitesFragment -> "admin-invites"
-    AdminVenueConfigFragment -> "admin-venue-config"
-    AdminShiftTypesFragment -> "admin-shift-types"
-    AdminRosterGroupsFragment -> "admin-roster-groups"
-    AdminExportsFragment -> "admin-exports"
-    LeaveRequestsContentFragment -> "leave-requests-content"
-    ProfileContentFragment -> "profile-content"
+    billingStatusLiveFragment -> "billing-status"
+    timesheetToolbarLiveFragment -> "timesheet-toolbar"
+    adminXeroStaffMappingsLiveFragment -> "admin-xero-staff-mappings"
+    adminXeroPayItemsLiveFragment -> "admin-xero-pay-items"
+    rosterContentLiveFragment -> "roster-content"
+    supportAwardRatesSectionLiveFragment -> "support-award-rates"
+    adminInvitesLiveFragment -> "admin-invites"
+    adminVenueConfigLiveFragment -> "admin-venue-config"
+    adminShiftTypesLiveFragment -> "admin-shift-types"
+    adminRosterGroupsLiveFragment -> "admin-roster-groups"
+    adminExportsLiveFragment -> "admin-exports"
+    leaveRequestsContentLiveFragment -> "leave-requests-content"
+    profileContentLiveFragment -> "profile-content"
     _ -> "fragment"
 
 venueIdFor :: Int -> UUID

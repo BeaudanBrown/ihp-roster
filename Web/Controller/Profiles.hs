@@ -50,7 +50,7 @@ instance Controller ProfilesController where
             let today = utctDay now
             profileActionSpan "profile.page.render_response" (render EditView { .. })
 
-    action currentAction@ShowProfileLeaveRequestsContentFragmentAction = runBepis currentAction BepisFragmentAction $
+    action currentAction@ShowProfileleaveRequestsContentLiveFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "profile.leave_fragment.respond" do
             maybeExistingStaff <- profileActionSpan "profile.leave_fragment.fetch_staff" fetchCurrentUserStaff
             case maybeExistingStaff of
@@ -59,7 +59,7 @@ instance Controller ProfilesController where
                     model <- profileActionSpan "profile.leave_fragment.fetch_model" (fetchProfileLeaveFragmentModel staff)
                     profileActionSpan "profile.leave_fragment.render_response" (respondHtml (renderProfileLeaveFragment FragmentPlain model profileLeaveRequestsFragment))
 
-    action currentAction@ShowProfileContentFragmentAction = runBepis currentAction BepisFragmentAction $
+    action currentAction@ShowprofileContentLiveFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "profile.content_fragment.respond" do
             let openSection = normalizeProfileOpenSection (paramOrDefault @Text "" "section")
             profileActionSpan "profile.content_fragment.fetch_staff" fetchCurrentUserStaff >>= \case

@@ -2,8 +2,7 @@ module Test.Controller.ProfilesSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate (LiveUpdateScope (..),
-                                      currentLiveUpdateVersion)
+import Application.Helper.LiveUpdate
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..),
                                                  encodeShiftPreferenceKey,
@@ -48,11 +47,11 @@ tests = beforeAll testContext do
             response `responseStatusShouldBe` status302
 
         it "redirects unauthenticated users away from profile leave fragments" $ withContext do
-            response <- callAction ShowProfileLeaveRequestsContentFragmentAction
+            response <- callAction ShowProfileleaveRequestsContentLiveFragmentAction
             response `responseStatusShouldBe` status302
 
         it "redirects unauthenticated users away from profile content fragments" $ withContext do
-            response <- callAction ShowProfileContentFragmentAction
+            response <- callAction ShowprofileContentLiveFragmentAction
             response `responseStatusShouldBe` status302
 
         it "denies super-admin access to staff profile setup" $ withContext do
@@ -120,7 +119,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-bepis-surface=\"profile\""
                 response `responseBodyShouldContain` "profile-details-section"
                 response `responseBodyShouldContain` "profile-preferences-section"
-                response `responseBodyShouldContain` "ShowProfileContentFragment"
+                response `responseBodyShouldContain` "ShowprofileContentLiveFragment"
                 response `responseBodyShouldContain` "profile-details-form"
                 response `responseBodyShouldContain` "profile:"
                 response `responseBodyShouldContain` "id=\"profile-leave-requests-content\""
@@ -156,14 +155,14 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "Login email is read-only here for now."
 
                 fragmentResponse <- withUserAndCurrentVenue user venue.id do
-                    callAction ShowProfileLeaveRequestsContentFragmentAction
+                    callAction ShowProfileleaveRequestsContentLiveFragmentAction
                 fragmentResponse `responseStatusShouldBe` status200
                 fragmentResponse `responseBodyShouldContain` "id=\"profile-leave-requests-content\""
                 fragmentResponse `responseBodyShouldNotContain` "data-live-update-surface=\""
                 fragmentResponse `responseBodyShouldNotContain` "id=\"app\""
 
                 profileFragmentResponse <- withUserAndCurrentVenue user venue.id do
-                    callAction ShowProfileContentFragmentAction
+                    callAction ShowprofileContentLiveFragmentAction
                 profileFragmentResponse `responseStatusShouldBe` status200
                 profileFragmentResponse `responseBodyShouldContain` "id=\"profile-details\""
                 profileFragmentResponse `responseBodyShouldContain` "id=\"profile-details-form\""
@@ -395,7 +394,7 @@ tests = beforeAll testContext do
                 user <- createUserRecord "profile-htmx@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user "worker"
                 staff <- createStaffRecord venue (Just user) "Taylor" "Smith"
-                profileVersionBefore <- currentLiveUpdateVersion ProfileScope { venueId = unpackId venue.id, staffId = unpackId staff.id }
+                profileVersionBefore <- currentLiveUpdateVersion profileLiveScope unpackId venue.id unpackId staff.id
 
                 response <- withUserAndCurrentVenue user venue.id do
                     withRequestHeaders [("HX-Request", "true"), ("X-Live-Update-Client-Id", "profile-htmx-client")] do
@@ -413,7 +412,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "id=\"profile-details\""
                 response `responseBodyShouldContain` "Profile updated"
                 response `responseBodyShouldContain` "hx-swap-oob=\"innerHTML\""
-                profileVersionAfter <- currentLiveUpdateVersion ProfileScope { venueId = unpackId venue.id, staffId = unpackId staff.id }
+                profileVersionAfter <- currentLiveUpdateVersion profileLiveScope unpackId venue.id unpackId staff.id
                 profileVersionAfter `shouldBe` profileVersionBefore + 1
 
         it "selects profile roster invalidation targets from active roster week scopes" $ withContext do
@@ -451,9 +450,9 @@ tests = beforeAll testContext do
                 fmap (\(_, _, rowKeys) -> rowKeys) frontEntry `shouldBe` Just [(unpackId frontDay.id, assignedSlot.rowIndex)]
                 backEntry `shouldBe` Nothing
 
-                frontVersionBefore <- currentLiveUpdateVersion RosterWeekScope { venueId = unpackId venue.id, rosterGroupId = unpackId frontGroup.id, weekOffset = 0 }
-                backVersionBefore <- currentLiveUpdateVersion RosterWeekScope { venueId = unpackId venue.id, rosterGroupId = unpackId backGroup.id, weekOffset = 0 }
-                profileVersionBefore <- currentLiveUpdateVersion ProfileScope { venueId = unpackId venue.id, staffId = unpackId staff.id }
+                frontVersionBefore <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venue.id) (unpackId frontGroup.id) 0)
+                backVersionBefore <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venue.id) (unpackId backGroup.id) 0)
+                profileVersionBefore <- currentLiveUpdateVersion profileLiveScope unpackId venue.id unpackId staff.id
 
                 response <- withUserAndCurrentVenue user venue.id do
                     withRequestHeaders [("HX-Request", "true"), ("X-Live-Update-Client-Id", "profile-update-client")] do
@@ -468,9 +467,9 @@ tests = beforeAll testContext do
                             ]
 
                 response `responseStatusShouldBe` status200
-                frontVersionAfter <- currentLiveUpdateVersion RosterWeekScope { venueId = unpackId venue.id, rosterGroupId = unpackId frontGroup.id, weekOffset = 0 }
-                backVersionAfter <- currentLiveUpdateVersion RosterWeekScope { venueId = unpackId venue.id, rosterGroupId = unpackId backGroup.id, weekOffset = 0 }
-                profileVersionAfter <- currentLiveUpdateVersion ProfileScope { venueId = unpackId venue.id, staffId = unpackId staff.id }
+                frontVersionAfter <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venue.id) (unpackId frontGroup.id) 0)
+                backVersionAfter <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venue.id) (unpackId backGroup.id) 0)
+                profileVersionAfter <- currentLiveUpdateVersion profileLiveScope unpackId venue.id unpackId staff.id
 
                 frontVersionAfter `shouldBe` frontVersionBefore
                 backVersionAfter `shouldBe` backVersionBefore

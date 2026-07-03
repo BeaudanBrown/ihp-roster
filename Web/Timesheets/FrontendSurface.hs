@@ -22,9 +22,7 @@ import Application.Helper.FrontendSurface.Runtime
 import qualified Application.Helper.FrontendSurface.Timesheets as Surface
 import Application.Helper.LiveResource
 import Application.Helper.LiveSurface (LiveSurfaceConfig (..))
-import Application.Helper.LiveUpdate.Runtime (LiveUpdateScope (..),
-                                              LiveUpdateWireFragment,
-                                              liveUpdateScopeKey)
+import Application.Helper.LiveUpdate.Runtime
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.Set as Set
@@ -82,10 +80,7 @@ timesheetsSurfaceScopeKey scope =
 
 timesheetsLiveUpdateScope :: TimesheetWeekScopeValue -> LiveUpdateScope
 timesheetsLiveUpdateScope scope =
-    TimesheetWeekScope
-        { venueId = scope.timesheetWeekVenueId
-        , weekOffset = scope.timesheetWeekWeekOffset
-        }
+    timesheetWeekLiveScope scope.timesheetWeekVenueId scope.timesheetWeekWeekOffset
 
 timesheetsLegacyLiveSurfaceConfig :: SurfaceImpl Surface.TimesheetsSurface -> TimesheetWeekScopeValue -> LiveSurfaceConfig
 timesheetsLegacyLiveSurfaceConfig impl scope =

@@ -2,8 +2,7 @@ module Test.Controller.Admin.XeroSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate (LiveUpdateScope (..),
-                                      currentLiveUpdateVersion)
+import Application.Helper.LiveUpdate
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         fetchActiveRosterGroupSlotNames)
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
@@ -81,7 +80,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "id=\"xero-timesheets-data\""
 
                 fragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction ShowAdminXeroFragmentAction
+                    callAction ShowadminXeroShellLiveFragmentAction
                 fragmentResponse `responseStatusShouldBe` status200
                 fragmentResponse `responseBodyShouldContain` "id=\"admin-xero-fragment\""
                 fragmentResponse `responseBodyShouldContain` "not connected"
@@ -419,14 +418,14 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldNotContain` "Connected</dt>"
                 pageResponse `responseBodyShouldNotContain` "Last sync:"
 
-                xeroVersionBefore <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
+                xeroVersionBefore <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
                 response <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest (referenceSyncXeroClient tokenResponse employees earningsRates payrollCalendars) do
                         withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                             callAction SyncXeroPayrollReferenceDataAction
 
                 response `responseStatusShouldBe` status302
-                xeroVersionAfter <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
+                xeroVersionAfter <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
                 xeroVersionAfter `shouldBe` (xeroVersionBefore + 2)
                 employeeCount <- query @XeroEmployee |> fetchCount
                 employeeCount `shouldBe` 1
@@ -549,20 +548,20 @@ tests = beforeAll testContext do
                 _ <- createStaffRecord venue (Just admin) "Local" "Worker"
 
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction ShowAdminXeroFragmentAction
+                    callAction ShowadminXeroShellLiveFragmentAction
                 pageResponse `responseStatusShouldBe` status200
                 pageResponse `responseBodyShouldNotContain` "Staff mappings"
                 pageResponse `responseBodyShouldNotContain` "id=\"xero-staff-mappings-data\""
 
                 unsyncedResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction ShowAdminXeroStaffMappingsFragmentAction
+                    callAction ShowadminXeroStaffMappingsLiveFragmentAction
                 unsyncedResponse `responseStatusShouldBe` status200
                 unsyncedResponse `responseBodyShouldContain` "Sync payroll reference data before mapping staff to Xero employees."
                 unsyncedResponse `responseBodyShouldNotContain` "name=\"xeroEmployeeSelection\""
 
                 _ <- createXeroEmployeeRecord connection "Local Worker" (Just "local@example.com") "employee-local"
                 syncedResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction ShowAdminXeroStaffMappingsFragmentAction
+                    callAction ShowadminXeroStaffMappingsLiveFragmentAction
                 syncedResponse `responseStatusShouldBe` status200
                 syncedResponse `responseBodyShouldContain` "Local Worker - local@example.com"
                 syncedResponse `responseBodyShouldNotContain` "Possible Xero match: Local Worker"
@@ -597,7 +596,7 @@ tests = beforeAll testContext do
                 trialStaff <- createStaffRecord venue Nothing "Trial" "Worker"
                 employee <- createXeroEmployeeRecord connection "Ada Lovelace" (Just "ada@example.com") "employee-ada"
 
-                versionBefore <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
+                versionBefore <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams SaveXeroStaffMappingAction
@@ -616,8 +615,8 @@ tests = beforeAll testContext do
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin_xero_staff_mappings")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "xero-staff-mappings-data")
                 triggerHeader `shouldSatisfy` maybe True (not . Text.isInfixOf "\"targetId\":\"xero-staff-mappings\"")
-                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "/ShowAdminXeroStaffMappingsFragment")
-                versionAfter <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "/ShowadminXeroStaffMappingsLiveFragment")
+                versionAfter <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` (versionBefore + 1)
                 mapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId staff.id) |> fetchOne
                 mapping.mappingStatus `shouldBe` "verified"
@@ -625,7 +624,7 @@ tests = beforeAll testContext do
                 mapping.xeroEmployeeName `shouldBe` Just employee.displayName
                 mapping.lastVerifiedAt `shouldSatisfy` isJust
                 mappingResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction ShowAdminXeroStaffMappingsFragmentAction
+                    callAction ShowadminXeroStaffMappingsLiveFragmentAction
                 mappingResponse `responseStatusShouldBe` status200
                 mappingResponse `responseBodyShouldContain` "id=\"xero-staff-mappings-data\""
                 mappingResponse `responseBodyShouldNotContain` "id=\"xero-staff-mappings\""
@@ -642,7 +641,7 @@ tests = beforeAll testContext do
                 beforeMatchedAdaInMutation `shouldSatisfy` Text.isInfixOf "Grace Hopper"
                 mappingText `shouldSatisfy` not . Text.isInfixOf "Trial Worker"
                 fullFragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction ShowAdminXeroFragmentAction
+                    callAction ShowadminXeroShellLiveFragmentAction
                 fullFragmentResponse `responseBodyShouldNotContain` "xero-staff-mapping-row-matched"
                 fullFragmentResponse `responseBodyShouldNotContain` "id=\"xero-staff-mappings-data\""
 
@@ -772,14 +771,14 @@ tests = beforeAll testContext do
                 payrollCalendar <- createXeroPayrollCalendarRecord connection "Weekly" "calendar-weekly"
 
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction ShowAdminXeroFragmentAction
+                    callAction ShowadminXeroShellLiveFragmentAction
                 pageResponse `responseStatusShouldBe` status200
                 pageResponse `responseBodyShouldNotContain` "id=\"xero-pay-items-data\""
                 pageResponse `responseBodyShouldNotContain` "Imported Xero pay items"
                 pageResponse `responseBodyShouldNotContain` "Pay item requirements"
                 pageResponse `responseBodyShouldNotContain` "name=\"xeroPayItemAccountCodeSelection\""
                 payItemsFragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction ShowAdminXeroPayItemsFragmentAction
+                    callAction ShowadminXeroPayItemsLiveFragmentAction
                 payItemsFragmentResponse `responseStatusShouldBe` status200
                 payItemsFragmentResponse `responseBodyShouldContain` "id=\"xero-pay-items-data\""
                 payItemsFragmentResponse `responseBodyShouldContain` "Imported Xero pay items"
@@ -802,7 +801,7 @@ tests = beforeAll testContext do
                 delayedRequirement.requirementStatus `shouldBe` "proposed"
                 delayedRequirement.ratePerUnit `shouldBe` Just 47.25
 
-                versionBefore <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
+                versionBefore <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
                 accountCodeResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams SaveXeroPayItemAccountCodeSelectionAction
@@ -810,7 +809,7 @@ tests = beforeAll testContext do
 
                 accountCodeResponse `responseStatusShouldBe` status200
                 accountCodeResponse `responseBodyShouldContain` "Saved Xero pay item account code 477."
-                versionAfterAccountCode <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
+                versionAfterAccountCode <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
                 versionAfterAccountCode `shouldBe` (versionBefore + 1)
                 accountCodeSelection <- query @XeroPayItemAccountCodeSelection |> fetchOne
                 accountCodeSelection.selectionStatus `shouldBe` "verified"
@@ -823,7 +822,7 @@ tests = beforeAll testContext do
 
                 calendarResponse `responseStatusShouldBe` status200
                 calendarResponse `responseBodyShouldContain` "Saved Xero payroll calendar selection."
-                versionAfterCalendar <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
+                versionAfterCalendar <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
                 versionAfterCalendar `shouldBe` (versionAfterAccountCode + 1)
                 selection <- query @XeroPayrollCalendarSelection |> fetchOne
                 selection.calendarStatus `shouldBe` "verified"
@@ -845,7 +844,7 @@ tests = beforeAll testContext do
                 requestsRef <- IORef.newIORef []
                 let tokenResponse = XeroTokenResponse "pay-item-access-token" "pay-item-refresh-token" 1800 (Just requiredXeroScopesText)
 
-                versionBefore <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
+                versionBefore <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
                 response <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest (payItemCreateXeroClient tokenResponse requestsRef) do
                         withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
@@ -885,7 +884,7 @@ tests = beforeAll testContext do
                 syncRun <- query @XeroSyncRun |> filterWhere (#syncKind, "pay_item_create" :: Text) |> fetchOne
                 syncRun.syncStatus `shouldBe` "succeeded"
                 syncRun.earningsRatesCount `shouldBe` 7
-                versionAfter <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
+                versionAfter <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` (versionBefore + 2)
 
         it "reports pay item creates that are not present after the Xero verification pull" $ withContext do
@@ -901,7 +900,7 @@ tests = beforeAll testContext do
                 requestsRef <- IORef.newIORef []
                 let tokenResponse = XeroTokenResponse "pay-item-access-token" "pay-item-refresh-token" 1800 (Just requiredXeroScopesText)
 
-                versionBefore <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
+                versionBefore <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
                 response <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest (payItemCreateXeroClientWithVerifiedLimit tokenResponse requestsRef (Just 1)) do
                         withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
@@ -932,7 +931,7 @@ tests = beforeAll testContext do
                 syncRun <- query @XeroSyncRun |> filterWhere (#syncKind, "pay_item_create" :: Text) |> fetchOne
                 syncRun.syncStatus `shouldBe` "failed"
                 syncRun.earningsRatesCount `shouldBe` 1
-                versionAfter <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
+                versionAfter <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` (versionBefore + 2)
 
         it "continues creating pay items after Xero rejects one and reports the rejected item" $ withContext do
@@ -991,7 +990,7 @@ tests = beforeAll testContext do
                     |> createRecord
 
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction ShowAdminXeroPayItemsFragmentAction
+                    callAction ShowadminXeroPayItemsLiveFragmentAction
 
                 pageResponse `responseStatusShouldBe` status200
                 pageResponse `responseBodyShouldContain` "Imported Xero pay items"
@@ -1011,7 +1010,7 @@ tests = beforeAll testContext do
                 _ <- createStaffUsingAwardLevel venue "Casual" "Worker" awardLevel Casual
 
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction ShowAdminXeroPayItemsFragmentAction
+                    callAction ShowadminXeroPayItemsLiveFragmentAction
 
                 pageResponse `responseStatusShouldBe` status200
                 pageResponse `responseBodyShouldContain` "Imported Xero pay items"
@@ -1042,7 +1041,7 @@ tests = beforeAll testContext do
                 _ <- createXeroEarningsRateRecord connection "Ordinary - Level 2 - PERM - Undated" "earnings-unmanaged-ordinary"
 
                 _ <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction ShowAdminXeroFragmentAction
+                    callAction ShowadminXeroShellLiveFragmentAction
 
                 let ordinaryKey = "xero:pay-item:classification:" <> tshow awardLevel.classificationFixedId <> ":basis:permanent:effective:undated:ordinary"
                 ordinaryRequirement <- query @XeroPayItemRequirementRecord
@@ -1064,7 +1063,7 @@ tests = beforeAll testContext do
                 _ <- createXeroEarningsRateRecord connection "Bepis - HIGA - PERM - Undated - Level 2 - Saturday Penalty" "earnings-legacy-saturday"
 
                 _ <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction ShowAdminXeroFragmentAction
+                    callAction ShowadminXeroShellLiveFragmentAction
 
                 let saturdayKey = "xero:pay-item:classification:" <> tshow awardLevel.classificationFixedId <> ":basis:permanent:effective:undated:penalty:saturday_penalty"
                 saturdayRequirement <- query @XeroPayItemRequirementRecord
@@ -1092,7 +1091,7 @@ tests = beforeAll testContext do
                 _ <- createShiftTypeRecord venue kitchenLevel "Kitchen"
 
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction ShowAdminXeroPayItemsFragmentAction
+                    callAction ShowadminXeroPayItemsLiveFragmentAction
 
                 pageResponse `responseStatusShouldBe` status200
                 pageResponse `responseBodyShouldContain` "Imported Xero pay items"
@@ -1127,7 +1126,7 @@ tests = beforeAll testContext do
                 _ <- createXeroEarningsRateRecord connection "Saturday Penalty - Level 2 - PERM - Bepis - Undated" "earnings-saturday"
 
                 _ <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction ShowAdminXeroFragmentAction
+                    callAction ShowadminXeroShellLiveFragmentAction
                 let saturdayKey = "xero:pay-item:classification:" <> tshow awardLevel.classificationFixedId <> ":basis:permanent:effective:undated:penalty:saturday_penalty"
                 saturdayRequirement <- query @XeroPayItemRequirementRecord
                     |> filterWhere (#xeroConnectionId, unpackId connection.id)
@@ -1146,7 +1145,7 @@ tests = beforeAll testContext do
                     |> updateRecord
 
                 rateChangedResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction ShowAdminXeroPayItemsFragmentAction
+                    callAction ShowadminXeroPayItemsLiveFragmentAction
 
                 rateChangedResponse `responseStatusShouldBe` status200
                 rateChangedResponse `responseBodyShouldContain` "Imported Xero pay items"
@@ -1223,7 +1222,7 @@ tests = beforeAll testContext do
                         |> updateRecord
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    callAction ShowAdminXeroFragmentAction
+                    callAction ShowadminXeroShellLiveFragmentAction
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "name=\"periodKey\""
@@ -1237,7 +1236,7 @@ tests = beforeAll testContext do
                 _ <- createSubmissionRunForFixture fixture "submitted"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    callAction ShowAdminXeroFragmentAction
+                    callAction ShowadminXeroShellLiveFragmentAction
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "name=\"periodKey\""
@@ -1253,7 +1252,7 @@ tests = beforeAll testContext do
                 _ <- newer |> set #updatedAt now |> updateRecord
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    callAction ShowAdminXeroFragmentAction
+                    callAction ShowadminXeroShellLiveFragmentAction
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "submitted already"
@@ -1276,7 +1275,7 @@ tests = beforeAll testContext do
                         |> createRecord
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    callAction ShowAdminXeroFragmentAction
+                    callAction ShowadminXeroShellLiveFragmentAction
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "name=\"periodKey\""
@@ -1295,7 +1294,7 @@ tests = beforeAll testContext do
                 let otherPeriodKey = "calendar-other:" <> tshow fixture.periodStart <> ":" <> tshow fixture.periodEnd
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    callAction ShowAdminXeroFragmentAction
+                    callAction ShowadminXeroShellLiveFragmentAction
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "name=\"periodKey\""
@@ -1314,7 +1313,7 @@ tests = beforeAll testContext do
                         |> updateRecord
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    callAction ShowAdminXeroFragmentAction
+                    callAction ShowadminXeroShellLiveFragmentAction
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "name=\"periodKey\""
@@ -1327,7 +1326,7 @@ tests = beforeAll testContext do
                 _ <- payRun |> set #payRunStatus (Just ("POSTED" :: Text)) |> updateRecord
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    callAction ShowAdminXeroFragmentAction
+                    callAction ShowadminXeroShellLiveFragmentAction
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "name=\"periodKey\""
@@ -1340,7 +1339,7 @@ tests = beforeAll testContext do
                 _ <- createXeroPayRunForFixture fixture "DRAFT"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    callAction ShowAdminXeroFragmentAction
+                    callAction ShowadminXeroShellLiveFragmentAction
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "name=\"periodKey\""
@@ -1917,14 +1916,14 @@ tests = beforeAll testContext do
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "app-live-fragments-refresh")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin_xero_timesheets")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "xero-timesheets-data")
-                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "/ShowAdminXeroTimesheetsFragment")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "/ShowadminXeroTimesheetsLiveFragment")
                 run <- query @XeroSubmissionRun |> fetchOne
                 run.status `shouldBe` "previewed"
                 run.previewPayloadJson `shouldSatisfy` Preview.jsonContainsKey "timesheets"
                 run.readinessSnapshotJson `shouldSatisfy` Preview.jsonContainsKey "blockers"
                 run.xeroDuplicateCheckJson `shouldSatisfy` Preview.jsonContainsKey "remoteTimesheets"
                 fragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    callAction ShowAdminXeroTimesheetsFragmentAction
+                    callAction ShowadminXeroTimesheetsLiveFragmentAction
                 fragmentResponse `responseStatusShouldBe` status200
                 fragmentResponse `responseBodyShouldContain` "id=\"xero-timesheets-data\""
                 fragmentResponse `responseBodyShouldNotContain` "Latest run"
@@ -1954,13 +1953,13 @@ tests = beforeAll testContext do
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "app-live-fragments-refresh")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin_xero_timesheets")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "xero-timesheets-data")
-                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "/ShowAdminXeroTimesheetsFragment")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "/ShowadminXeroTimesheetsLiveFragment")
                 run <- query @XeroSubmissionRun |> fetchOne
                 run.status `shouldBe` "submitted"
                 submission <- query @XeroTimesheetSubmission |> fetchOne
                 submission.status `shouldBe` "submitted"
                 fragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    callAction ShowAdminXeroTimesheetsFragmentAction
+                    callAction ShowadminXeroTimesheetsLiveFragmentAction
                 fragmentResponse `responseStatusShouldBe` status200
                 fragmentResponse `responseBodyShouldContain` "id=\"xero-timesheets-data\""
                 fragmentResponse `responseBodyShouldNotContain` "Latest run"
@@ -2018,7 +2017,7 @@ tests = beforeAll testContext do
                 submission <- query @XeroTimesheetSubmission |> fetchOne
                 submission.status `shouldBe` "failed"
                 fragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    callAction ShowAdminXeroTimesheetsFragmentAction
+                    callAction ShowadminXeroTimesheetsLiveFragmentAction
                 fragmentResponse `responseStatusShouldBe` status200
                 fragmentResponse `responseBodyShouldContain` "id=\"xero-timesheets-data\""
                 fragmentResponse `responseBodyShouldNotContain` "Xero validation failed: units are invalid"
@@ -2063,7 +2062,7 @@ tests = beforeAll testContext do
                 updatedConnection.encryptedAccessToken `shouldBe` Nothing
                 updatedConnection.lastError `shouldSatisfy` maybe False ("refresh token expired" `Text.isInfixOf`)
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
-                    callAction ShowAdminXeroFragmentAction
+                    callAction ShowadminXeroShellLiveFragmentAction
                 pageResponse `responseBodyShouldContain` "reconnect required"
                 pageResponse `responseBodyShouldContain` "Xero needs to be reconnected before sync can continue."
                 pageResponse `responseBodyShouldNotContain` "Draft timesheet submission"

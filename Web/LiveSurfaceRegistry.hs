@@ -10,14 +10,7 @@ module Web.LiveSurfaceRegistry
 import Application.Helper.FrontendSurface.Authorization (authorizeFrontendSurfaceLiveScope)
 import Application.Helper.FrontendSurface.DependencyPlanner (planFrontendSurfaceWireInvalidation)
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate.Runtime (LiveUpdateBroadcastResult,
-                                              LiveUpdateScope,
-                                              LiveUpdateSubscription (..),
-                                              LiveUpdateWireFragment,
-                                              broadcastLiveInvalidationDetailed,
-                                              broadcastLiveInvalidationDetailedWithoutContext,
-                                              coalesceLiveUpdateWireFragments,
-                                              liveUpdateSourceClientId)
+import Application.Helper.LiveUpdate.Runtime
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Web.Controller.Prelude

@@ -1,11 +1,11 @@
 module Web.LeaveRequests.ProfileSelfService
     ( profileLeaveRequestFormFragmentId
-    , profileLeaveRequestsContentFragmentId
+    , profileleaveRequestsContentLiveFragmentId
     , profileLeaveRequestsListFragmentId
     , profileLeaveTargetFragmentIds
     , renderProfileLeaveRequestFormFragment
-    , renderProfileLeaveRequestsContentFragment
-    , renderProfileLeaveRequestsContentFragmentWithSwap
+    , renderProfileleaveRequestsContentLiveFragment
+    , renderProfileleaveRequestsContentLiveFragmentWithSwap
     ) where
 
 import IHP.Prelude
@@ -13,7 +13,7 @@ import Web.View.Profiles.Edit
 
 profileLeaveTargetFragmentIds :: [Text]
 profileLeaveTargetFragmentIds =
-    [ profileLeaveRequestsContentFragmentId
+    [ profileleaveRequestsContentLiveFragmentId
     , profileLeaveRequestFormFragmentId
     , profileLeaveRequestsListFragmentId
     ]

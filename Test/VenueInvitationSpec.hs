@@ -2,8 +2,7 @@ module Test.VenueInvitationSpec where
 
 import Application.Async.Queue (EnqueueAppJobResult (..))
 import Application.Helper.Controller (unsafeEnumFromText)
-import Application.Helper.LiveUpdate (LiveUpdateScope (..),
-                                      currentLiveUpdateVersion)
+import Application.Helper.LiveUpdate
 import Application.Helper.VenueInvitation (venueInvitationUrl)
 import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob,
                                            performVenueInvitationDeliveryJob,
@@ -53,7 +52,7 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Invite Delivery Venue"
                 invitation <- createVenueInvitationRecord venue Nothing "deliver-invite@example.com" "manager"
                 EnqueuedAppJob appJob <- enqueueVenueInvitationDeliveryJob Nothing invitation
-                versionBefore <- currentLiveUpdateVersion AdminInvitesScope { venueId = unpackId venue.id }
+                versionBefore <- currentLiveUpdateVersion (adminInvitesLiveScope (unpackId venue.id))
 
                 withFrameworkConfig config \frameworkConfig -> do
                     let ?context = frameworkConfig
@@ -65,7 +64,7 @@ tests = beforeAll testContext do
                 updatedInvitation.deliveryError `shouldBe` Nothing
                 updatedInvitation.deliveredAt `shouldSatisfy` isJust
                 updatedJob.status `shouldBe` JobStatusSucceeded
-                versionAfter <- currentLiveUpdateVersion AdminInvitesScope { venueId = unpackId venue.id }
+                versionAfter <- currentLiveUpdateVersion (adminInvitesLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` versionBefore + 1
 
         it "does not resend accepted venue invitations when a delivery job is retried" $ withContext do

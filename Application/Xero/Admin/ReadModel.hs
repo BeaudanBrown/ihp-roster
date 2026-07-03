@@ -53,9 +53,7 @@ import IHP.ControllerPrelude
 
 adminXeroScope :: Id Venue -> LiveUpdateScope
 adminXeroScope venueId =
-    AdminXeroScope
-        { venueId = unpackId venueId
-        }
+    adminXeroLiveScope (unpackId venueId)
 
 fetchActiveCurrentVenueXeroConnection :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO (Maybe XeroConnection)
 fetchActiveCurrentVenueXeroConnection =

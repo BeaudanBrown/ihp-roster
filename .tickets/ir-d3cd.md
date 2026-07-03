@@ -28,3 +28,7 @@ No legacy scope/fragment constructor ADTs or planning adapter case lists remain.
 **2026-07-03T11:47:43Z**
 
 Reached implementation decision point before final cleanup: fully deleting legacy LiveUpdateScope/LiveFragmentKey constructors requires either (a) a big-bang replacement of ~299 constructor call sites with generated/surface-native smart constructors and typed payload helpers, or (b) temporary pattern-synonym compatibility that removes the old ADT definitions but keeps legacy constructor names. User preference says no stale shim/compat/dead code, so option (a) is the consistent path; pausing before making that broad mechanical migration.
+
+**2026-07-03T13:10:58Z**
+
+Replaced production LiveUpdateScope/LiveFragmentKey runtime ADTs with generic surface-native records and lower-case smart constructors. Production typecheck passes. Remaining work is broad test-suite call-site cleanup where old constructor syntax was mechanically rewritten into partially-applied smart constructors; hspec currently fails at compile time in test modules only.

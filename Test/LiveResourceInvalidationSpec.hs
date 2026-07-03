@@ -1,11 +1,7 @@
 module Test.LiveResourceInvalidationSpec where
 
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..),
-                                              LiveFragmentProtection (..),
-                                              LiveUpdateBroadcastResult (..),
-                                              LiveUpdateScope (..),
-                                              LiveUpdateWireFragment (..))
+import Application.Helper.LiveUpdate.Runtime
 import qualified Data.Set as Set
 import Data.UUID (fromWords)
 import IHP.Prelude
@@ -70,12 +66,12 @@ tests = do
 
         it "renders live invalidation profile counts for timing diagnostics" do
             let venueId = fromWords 1 0 0 0
-            let scope = BillingScope venueId
+            let scope = billingLiveScope venueId
             let fragment =
                     LiveUpdateWireFragment
-                        { fragmentKey = BillingStatusFragment
+                        { fragmentKey = billingStatusLiveFragment
                         , targetId = "billing-status"
-                        , url = "/ShowBillingStatusFragment"
+                        , url = "/ShowbillingStatusLiveFragment"
                         , deferUntilBlur = False
                         , protectionPolicy = NoProtection
                         }

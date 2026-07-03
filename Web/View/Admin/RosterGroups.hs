@@ -13,8 +13,9 @@ import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.LiveResource
 import Application.Helper.LiveSurface
-import Application.Helper.LiveUpdate (LiveFragmentKey (..),
-                                      LiveUpdateScope (..))
+import Application.Helper.LiveUpdate
+import Application.Helper.LiveUpdate.Runtime (liveUpdateScopeFieldUuid,
+                                              liveUpdateScopeKind)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminRosterGroupsSurfaceImpl)
 import Web.View.Admin.Common
@@ -24,7 +25,7 @@ renderRosterGroupsSection :: [RosterGroup] -> Bool -> Html
 renderRosterGroupsSection rosterGroups showInactive =
     renderConfigSection
         "admin-roster-groups-section"
-        (renderInactiveToggleSummary "showInactiveRosterGroups" (pathTo ShowAdminRosterGroupsFragmentAction) "admin-roster-groups-fragment" rosterGroups showInactive)
+        (renderInactiveToggleSummary "showInactiveRosterGroups" (pathTo ShowadminRosterGroupsLiveFragmentAction) "admin-roster-groups-fragment" rosterGroups showInactive)
         [hsx|
             {renderRosterGroupCreateForm showInactive}
         |]
@@ -70,19 +71,17 @@ adminRosterGroupsLiveSurfaceDefinitionForVenue surfaceVenueId =
         RequireCurrentVenueAdmin
         [ staticLiveFragmentDescriptor
             adminRosterGroupsFragment
-            AdminRosterGroupsFragment
+            adminRosterGroupsLiveFragment
             "admin-roster-groups-fragment"
-            (pathTo ShowAdminRosterGroupsFragmentAction)
+            (pathTo ShowadminRosterGroupsLiveFragmentAction)
             (const (liveFragmentDependsOn (adminRosterGroupsResource surfaceVenueId) []))
         ]
 
 adminRosterGroupsVenueScope :: VenueLiveUpdateScope
 adminRosterGroupsVenueScope =
     venueLiveUpdateScope
-        AdminRosterGroupsScope
-        (\case
-            AdminRosterGroupsScope { venueId } -> Just venueId
-            _ -> Nothing)
+        adminRosterGroupsLiveScope
+        (\scope -> if liveUpdateScopeKind scope == "admin-roster-groups" then liveUpdateScopeFieldUuid "venueId" scope else Nothing)
 
 currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =

@@ -38,7 +38,7 @@ timesheetWeekResetUrl showApproved showAllStaff staffFilterId =
 timesheetToolbarFragmentUrl :: Int -> Bool -> Bool -> Maybe UUID -> Text
 timesheetToolbarFragmentUrl weekOffset showApproved showAllStaff staffFilterId =
     appendQueryParams
-        (pathTo ShowTimesheetToolbarFragmentAction { weekOffset })
+        (pathTo ShowtimesheetToolbarLiveFragmentAction { weekOffset })
         [ ("showApproved", toBoolText showApproved)
         , ("showAllStaff", toBoolText showAllStaff)
         , ("staffFilterId", maybe "" tshow staffFilterId)
@@ -47,7 +47,7 @@ timesheetToolbarFragmentUrl weekOffset showApproved showAllStaff staffFilterId =
 timesheetDayColumnsFragmentUrl :: Int -> Bool -> Bool -> Maybe UUID -> Text
 timesheetDayColumnsFragmentUrl weekOffset showApproved showAllStaff staffFilterId =
     appendQueryParams
-        (pathTo ShowTimesheetDayColumnsFragmentAction { weekOffset })
+        (pathTo ShowtimesheetDayColumnsLiveFragmentAction { weekOffset })
         [ ("showApproved", toBoolText showApproved)
         , ("showAllStaff", toBoolText showAllStaff)
         , ("staffFilterId", maybe "" tshow staffFilterId)

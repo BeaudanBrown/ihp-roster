@@ -20,8 +20,7 @@ import qualified Application.Helper.FrontendSurface.Billing as Surface
 import Application.Helper.FrontendSurface.DSL
 import Application.Helper.FrontendSurface.Runtime
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate.Runtime (LiveUpdateScope (..),
-                                              LiveUpdateWireFragment)
+import Application.Helper.LiveUpdate.Runtime
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import qualified Data.UUID as UUID
@@ -59,7 +58,7 @@ billingSurfaceScopeKey scope =
 
 billingLiveUpdateScope :: BillingScopeValue -> LiveUpdateScope
 billingLiveUpdateScope scope =
-    BillingScope { venueId = scope.billingVenueId }
+    billingLiveScope scope.billingVenueId
 
 billingCandidateMountedFragments :: Text -> [FrontendSurfaceMountedFragment]
 billingCandidateMountedFragments statusUrl =
@@ -67,7 +66,7 @@ billingCandidateMountedFragments statusUrl =
 
 billingAffectedMountedFragments :: BillingScopeValue -> Set.Set LiveResource -> [FrontendSurfaceMountedFragment]
 billingAffectedMountedFragments scope touchedResources =
-    billingCandidateMountedFragments (pathTo ShowBillingStatusFragmentAction)
+    billingCandidateMountedFragments (pathTo ShowbillingStatusLiveFragmentAction)
         |> filter (not . Set.null . Set.intersection touchedResources . Set.fromList . billingFragmentDependencies scope)
 
 billingFragmentDependencies :: BillingScopeValue -> FrontendSurfaceMountedFragment -> [LiveResource]

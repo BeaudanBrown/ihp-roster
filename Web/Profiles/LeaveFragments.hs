@@ -15,7 +15,7 @@ import Application.Helper.View.Oob (outerHtmlOobSwap)
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.Profiles.LiveUpdates
-import Web.View.Profiles.Edit (renderProfileLeaveRequestsContentFragmentWithSwap)
+import Web.View.Profiles.Edit (renderProfileleaveRequestsContentLiveFragmentWithSwap)
 
 data FragmentRenderMode
     = FragmentPlain
@@ -40,7 +40,7 @@ fetchProfileLeaveFragmentModel staff = do
 
 renderProfileLeaveFragment :: (?context :: ControllerContext, ?request :: Request) => FragmentRenderMode -> ProfileLeaveFragmentModel -> ProfileLeaveFragment -> Blaze.Html
 renderProfileLeaveFragment renderMode model ProfileLeaveRequestsLiveFragment =
-    renderProfileLeaveRequestsContentFragmentWithSwap
+    renderProfileleaveRequestsContentLiveFragmentWithSwap
         maybeSwap
         model.profileLeaveModelStaff
         model.profileLeaveModelForm

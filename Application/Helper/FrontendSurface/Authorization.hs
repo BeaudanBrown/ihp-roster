@@ -9,12 +9,7 @@ import qualified Application.Helper.FrontendSurface.ContractIR as SurfaceIR
 import Application.Helper.FrontendSurface.Reflect (reflectRegisteredFrontendSurfaces)
 import Application.Helper.LiveSurface (LiveScopeAuthorizationRequirement (..),
                                        authorizeLiveScopeRequirement)
-import Application.Helper.LiveUpdate.Runtime (LiveUpdateScope,
-                                              LiveUpdateSubscription (..),
-                                              LiveUpdateWireFragment,
-                                              liveUpdateScopeKey,
-                                              liveUpdateScopeToWire,
-                                              liveUpdateWireFragmentToWire)
+import Application.Helper.LiveUpdate.Runtime
 import Control.Monad (guard)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Aeson.Key

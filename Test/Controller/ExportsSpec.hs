@@ -464,7 +464,7 @@ tests = beforeAll testContext do
                     |> createRecord
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venueB.id do
-                    callAction ShowAdminExportsFragmentAction
+                    callAction ShowadminExportsLiveFragmentAction
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Exports"

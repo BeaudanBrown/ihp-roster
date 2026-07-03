@@ -61,16 +61,16 @@ data UsersController
 
 data ProfilesController
     = EditProfileAction
-    | ShowProfileContentFragmentAction
-    | ShowProfileLeaveRequestsContentFragmentAction
+    | ShowprofileContentLiveFragmentAction
+    | ShowProfileleaveRequestsContentLiveFragmentAction
     | UpdateProfileAction
     deriving (Eq, Show, Data)
 
 data TimesheetsController
     = TimesheetsAction
     | ShowTimesheetWeekAction { weekOffset :: !Int }
-    | ShowTimesheetToolbarFragmentAction { weekOffset :: !Int }
-    | ShowTimesheetDayColumnsFragmentAction { weekOffset :: !Int }
+    | ShowtimesheetToolbarLiveFragmentAction { weekOffset :: !Int }
+    | ShowtimesheetDayColumnsLiveFragmentAction { weekOffset :: !Int }
     | ShowTimesheetDaySectionFragmentAction { weekOffset :: !Int, dayOffset :: !Int }
     | NewTimesheetEntryAction
     | CreateTimesheetEntryAction
@@ -83,7 +83,7 @@ data TimesheetsController
 
 data LeaveRequestsController
     = LeaveRequestsAction
-    | ShowLeaveRequestsContentFragmentAction
+    | ShowleaveRequestsContentLiveFragmentAction
     | NewLeaveRequestAction
     | CreateLeaveRequestAction
     | ApproveLeaveRequestAction { leaveRequestId :: !(Id LeaveRequest) }
@@ -105,7 +105,7 @@ data StaffDocumentsController
 
 data BillingController
     = BillingAction
-    | ShowBillingStatusFragmentAction
+    | ShowbillingStatusLiveFragmentAction
     | CreateBillingCheckoutSessionAction
     | CreateBillingPortalSessionAction
     | BillingSuccessAction
@@ -154,14 +154,14 @@ data AdminController
     | RetryXeroDraftTimesheetSubmissionAction { xeroTimesheetSubmissionId :: !(Id XeroTimesheetSubmission) }
     | UpdateVenueConfigAction
     | ShowAdminVenueSettingsFragmentAction
-    | ShowAdminInvitesFragmentAction
-    | ShowAdminShiftTypesFragmentAction
-    | ShowAdminRosterGroupsFragmentAction
-    | ShowAdminExportsFragmentAction
-    | ShowAdminXeroFragmentAction
-    | ShowAdminXeroStaffMappingsFragmentAction
-    | ShowAdminXeroPayItemsFragmentAction
-    | ShowAdminXeroTimesheetsFragmentAction
+    | ShowadminInvitesLiveFragmentAction
+    | ShowadminShiftTypesLiveFragmentAction
+    | ShowadminRosterGroupsLiveFragmentAction
+    | ShowadminExportsLiveFragmentAction
+    | ShowadminXeroShellLiveFragmentAction
+    | ShowadminXeroStaffMappingsLiveFragmentAction
+    | ShowadminXeroPayItemsLiveFragmentAction
+    | ShowadminXeroTimesheetsLiveFragmentAction
     | CreateVenueInvitationAction
     | RevokeVenueInvitationAction { venueInvitationId :: !(Id VenueInvitation) }
     | SendStaffPasskeySetupEmailAction { staffId :: !(Id Staff) }

@@ -28,12 +28,12 @@ instance Controller TimesheetsController where
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         renderTimesheetWeekPage weekOffset showApproved showAllStaff selectedStaffFilterId
 
-    action currentAction@ShowTimesheetToolbarFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowtimesheetToolbarLiveFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         let requestKey = TimesheetProjectionRequest weekOffset showApproved showAllStaff selectedStaffFilterId
         respondWithTimesheetFragment requestKey TimesheetProjectionToolbar
 
-    action currentAction@ShowTimesheetDayColumnsFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
+    action currentAction@ShowtimesheetDayColumnsLiveFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         let requestKey = TimesheetProjectionRequest weekOffset showApproved showAllStaff selectedStaffFilterId
         respondWithTimesheetFragment requestKey TimesheetProjectionDayColumns

@@ -28,12 +28,60 @@ module Application.Helper.LiveUpdate.Internal
     , currentLiveUpdateVersion
     , currentLiveUpdateVersionWithBus
     , incrementLiveUpdateVersionWithBus
+    , adminExportsLiveFragment
+    , adminExportsLiveScope
+    , adminInvitesLiveFragment
+    , adminInvitesLiveScope
+    , adminRosterGroupsLiveFragment
+    , adminRosterGroupsLiveScope
+    , adminShiftTypesLiveFragment
+    , adminShiftTypesLiveScope
+    , adminVenueConfigLiveFragment
+    , adminVenueConfigLiveScope
+    , adminXeroLiveScope
+    , adminXeroPayItemsLiveFragment
+    , adminXeroShellLiveFragment
+    , adminXeroStaffMappingsLiveFragment
+    , adminXeroTimesheetsLiveFragment
+    , billingLiveScope
+    , billingStatusLiveFragment
+    , frontendSurfaceLiveFragmentKey
+    , frontendSurfaceLiveScope
+    , leaveRequestsContentLiveFragment
+    , leaveRequestsLiveScope
     , liveUpdateSourceClientId
     , liveUpdateScopeFromWire
+    , liveUpdateScopeFieldUuid
     , liveUpdateScopeKey
     , liveUpdateScopeKind
     , liveUpdateScopeToWire
     , liveFragmentKeyKind
+    , profileContentLiveFragment
+    , profileDetailsSectionLiveFragment
+    , profileLeaveRequestsContentLiveFragment
+    , profileLeaveSectionLiveFragment
+    , profileLiveScope
+    , profilePreferencesSectionLiveFragment
+    , profileRsaSectionLiveFragment
+    , profileSecuritySectionLiveFragment
+    , rosterContentLiveFragment
+    , rosterDayColumnsLiveFragment
+    , rosterDayRailLiveFragment
+    , rosterDaySectionLiveFragment
+    , rosterGridFrameLiveFragment
+    , rosterGridToolbarLiveFragment
+    , rosterRowLiveFragment
+    , rosterSlotsGridLiveFragment
+    , rosterStaffPanelLiveFragment
+    , rosterWageRailLiveFragment
+    , rosterWeekLiveScope
+    , supportAwardRatesSectionLiveFragment
+    , supportPlatformLiveScope
+    , supportPublicHolidaysSectionLiveFragment
+    , timesheetDayColumnsLiveFragment
+    , timesheetDaySectionLiveFragment
+    , timesheetToolbarLiveFragment
+    , timesheetWeekLiveScope
     , liveUpdateWireFragmentFromWire
     , liveUpdateWireFragmentFromSurface
     , liveUpdateWireFragmentKind
@@ -48,6 +96,8 @@ module Application.Helper.LiveUpdate.Internal
 
 import qualified Control.Exception.Safe as Exception
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Key as Aeson.Key
+import qualified Data.Aeson.KeyMap as Aeson.KeyMap
 import qualified Data.Aeson.Types as Aeson
 import Data.IORef
 import qualified Data.Map.Strict as Map
@@ -64,130 +114,124 @@ import qualified Application.Helper.Frontend.LiveUpdateSchema as Wire
 import Application.Helper.Profiling (profileActionSpan,
                                      profileActionSpanWithDetail)
 
-data LiveUpdateScope
-    = RosterWeekScope
-        { venueId       :: !UUID.UUID
-        , rosterGroupId :: !UUID.UUID
-        , weekOffset    :: !Int
-        }
-    | AdminVenueConfigScope
-        { venueId :: !UUID.UUID
-        }
-    | AdminShiftTypesScope
-        { venueId :: !UUID.UUID
-        }
-    | AdminRosterGroupsScope
-        { venueId :: !UUID.UUID
-        }
-    | AdminInvitesScope
-        { venueId :: !UUID.UUID
-        }
-    | AdminExportsScope
-        { venueId :: !UUID.UUID
-        }
-    | AdminXeroScope
-        { venueId :: !UUID.UUID
-        }
-    | BillingScope
-        { venueId :: !UUID.UUID
-        }
-    | LeaveRequestsScope
-        { venueId :: !UUID.UUID
-        }
-    | TimesheetWeekScope
-        { venueId    :: !UUID.UUID
-        , weekOffset :: !Int
-        }
-    | ProfileScope
-        { venueId :: !UUID.UUID
-        , staffId :: !UUID.UUID
-        }
-    | SupportPlatformScope
+data LiveUpdateScope = FrontendSurfaceLiveScope
+    { liveUpdateScopeSurface   :: !Text
+    , liveUpdateScopePayload   :: !Aeson.Value
+    , liveUpdateScopeStableKey :: !Text
+    }
     deriving (Eq, Ord, Show)
 
 liveUpdateScopeKind :: LiveUpdateScope -> Text
-liveUpdateScopeKind = liveUpdateSurfaceName
+liveUpdateScopeKind = (.liveUpdateScopeSurface)
 
-data LiveFragmentKey
-    = RosterContentFragment
-    | RosterGridToolbarFragment
-    | RosterGridFrameFragment
-    | RosterDayColumnsFragment
-    | RosterDayRailFragment
-    | RosterWageRailFragment
-    | RosterSlotsGridFragment
-    | RosterStaffPanelFragment
-    | RosterDaySectionFragment
-        { rosterDayId :: !UUID.UUID
-        }
-    | RosterRowFragment
-        { rosterDayId :: !UUID.UUID
-        , rowIndex    :: !Int
-        }
-    | LeaveRequestsContentFragment
-    | TimesheetToolbarFragment
-    | TimesheetDayColumnsFragment
-    | TimesheetDaySectionFragment
-        { dayOffset :: !Int
-        }
-    | AdminVenueConfigFragment
-    | AdminInvitesFragment
-    | AdminExportsFragment
-    | AdminShiftTypesFragment
-    | AdminRosterGroupsFragment
-    | AdminXeroFragment
-    | AdminXeroStaffMappingsFragment
-    | AdminXeroPayItemsFragment
-    | AdminXeroTimesheetsFragment
-    | BillingStatusFragment
-    | ProfileContentFragment
-    | ProfileDetailsSectionFragment
-    | ProfilePreferencesSectionFragment
-    | ProfileSecuritySectionFragment
-    | ProfileLeaveSectionFragment
-    | ProfileRsaSectionFragment
-    | ProfileLeaveRequestsContentFragment
-    | SupportAwardRatesSectionFragment
-    | SupportPublicHolidaysSectionFragment
+liveUpdateScopeFieldUuid :: Text -> LiveUpdateScope -> Maybe UUID.UUID
+liveUpdateScopeFieldUuid fieldName scope =
+    case scope.liveUpdateScopePayload of
+        Aeson.Object object -> do
+            Aeson.String value <- Aeson.KeyMap.lookup (Aeson.Key.fromText fieldName) object
+            UUID.fromText (Text.strip value)
+        _ -> Nothing
+
+data LiveFragmentKey = FrontendSurfaceLiveFragmentKey
+    { liveFragmentSurface  :: !Text
+    , liveFragmentWireKind :: !Text
+    , liveFragmentParams   :: !Aeson.Value
+    }
     deriving (Eq, Ord, Show)
 
 liveFragmentKeyKind :: LiveFragmentKey -> Text
-liveFragmentKeyKind RosterContentFragment = "roster_content"
-liveFragmentKeyKind RosterGridToolbarFragment = "roster_grid_toolbar"
-liveFragmentKeyKind RosterGridFrameFragment = "roster_grid_frame"
-liveFragmentKeyKind RosterDayColumnsFragment = "roster_day_columns"
-liveFragmentKeyKind RosterDayRailFragment = "roster_day_rail"
-liveFragmentKeyKind RosterWageRailFragment = "roster_wage_rail"
-liveFragmentKeyKind RosterSlotsGridFragment = "roster_slots_grid"
-liveFragmentKeyKind RosterStaffPanelFragment = "roster_staff_panel"
-liveFragmentKeyKind RosterDaySectionFragment {} = "roster_day_section"
-liveFragmentKeyKind RosterRowFragment {} = "roster_row"
-liveFragmentKeyKind LeaveRequestsContentFragment = "leave_requests_content"
-liveFragmentKeyKind TimesheetToolbarFragment = "timesheet_toolbar"
-liveFragmentKeyKind TimesheetDayColumnsFragment = "timesheet_day_columns"
-liveFragmentKeyKind TimesheetDaySectionFragment {} = "timesheet_day_section"
-liveFragmentKeyKind AdminVenueConfigFragment = "admin_venue_config"
-liveFragmentKeyKind AdminInvitesFragment = "admin_invites"
-liveFragmentKeyKind AdminExportsFragment = "admin_exports"
-liveFragmentKeyKind AdminShiftTypesFragment = "admin_shift_types"
-liveFragmentKeyKind AdminRosterGroupsFragment = "admin_roster_groups"
-liveFragmentKeyKind AdminXeroFragment = "admin_xero"
-liveFragmentKeyKind AdminXeroStaffMappingsFragment = "admin_xero_staff_mappings"
-liveFragmentKeyKind AdminXeroPayItemsFragment = "admin_xero_pay_items"
-liveFragmentKeyKind AdminXeroTimesheetsFragment = "admin_xero_timesheets"
-liveFragmentKeyKind BillingStatusFragment = "billing_status"
-liveFragmentKeyKind ProfileContentFragment = "profile_content"
-liveFragmentKeyKind ProfileDetailsSectionFragment = "profile_details_section"
-liveFragmentKeyKind ProfilePreferencesSectionFragment = "profile_preferences_section"
-liveFragmentKeyKind ProfileSecuritySectionFragment = "profile_security_section"
-liveFragmentKeyKind ProfileLeaveSectionFragment = "profile_leave_section"
-liveFragmentKeyKind ProfileRsaSectionFragment = "profile_rsa_section"
-liveFragmentKeyKind ProfileLeaveRequestsContentFragment = "profile_leave_requests_content"
-liveFragmentKeyKind SupportAwardRatesSectionFragment = "support_award_rates_section"
-liveFragmentKeyKind SupportPublicHolidaysSectionFragment = "support_public_holidays_section"
+liveFragmentKeyKind = Text.replace "-" "_" . (.liveFragmentWireKind)
 
 liveUpdateWireFragmentKind :: LiveUpdateWireFragment -> Text
 liveUpdateWireFragmentKind fragment = liveFragmentKeyKind fragment.fragmentKey
+
+frontendSurfaceLiveScope :: Text -> Aeson.Value -> Text -> LiveUpdateScope
+frontendSurfaceLiveScope liveUpdateScopeSurface liveUpdateScopePayload liveUpdateScopeStableKey =
+    FrontendSurfaceLiveScope { liveUpdateScopeSurface, liveUpdateScopePayload, liveUpdateScopeStableKey }
+
+venueScopePayload :: UUID.UUID -> Aeson.Value
+venueScopePayload scopeVenueId = Aeson.object ["venueId" Aeson..= UUID.toText scopeVenueId]
+
+rosterWeekLiveScope :: UUID.UUID -> UUID.UUID -> Int -> LiveUpdateScope
+rosterWeekLiveScope scopeVenueId scopeRosterGroupId scopeWeekOffset =
+    frontendSurfaceLiveScope "roster" payload (Text.intercalate ":" ["roster", UUID.toText scopeVenueId, UUID.toText scopeRosterGroupId, tshow scopeWeekOffset])
+    where
+        payload = Aeson.object ["venueId" Aeson..= UUID.toText scopeVenueId, "rosterGroupId" Aeson..= UUID.toText scopeRosterGroupId, "weekOffset" Aeson..= scopeWeekOffset]
+
+adminVenueConfigLiveScope, adminShiftTypesLiveScope, adminRosterGroupsLiveScope, adminInvitesLiveScope, adminExportsLiveScope, adminXeroLiveScope, billingLiveScope, leaveRequestsLiveScope :: UUID.UUID -> LiveUpdateScope
+adminVenueConfigLiveScope scopeVenueId = frontendSurfaceLiveScope "admin-venue-config" (venueScopePayload scopeVenueId) (Text.intercalate ":" ["admin-venue-config", UUID.toText scopeVenueId])
+adminShiftTypesLiveScope scopeVenueId = frontendSurfaceLiveScope "admin-shift-types" (venueScopePayload scopeVenueId) (Text.intercalate ":" ["admin-shift-types", UUID.toText scopeVenueId])
+adminRosterGroupsLiveScope scopeVenueId = frontendSurfaceLiveScope "admin-roster-groups" (venueScopePayload scopeVenueId) (Text.intercalate ":" ["admin-roster-groups", UUID.toText scopeVenueId])
+adminInvitesLiveScope scopeVenueId = frontendSurfaceLiveScope "admin-invites" (venueScopePayload scopeVenueId) (Text.intercalate ":" ["admin-invites", UUID.toText scopeVenueId])
+adminExportsLiveScope scopeVenueId = frontendSurfaceLiveScope "admin-exports" (venueScopePayload scopeVenueId) (Text.intercalate ":" ["admin-exports", UUID.toText scopeVenueId])
+adminXeroLiveScope scopeVenueId = frontendSurfaceLiveScope "admin-xero" (venueScopePayload scopeVenueId) (Text.intercalate ":" ["admin-xero", UUID.toText scopeVenueId])
+billingLiveScope scopeVenueId = frontendSurfaceLiveScope "billing" (venueScopePayload scopeVenueId) (Text.intercalate ":" ["billing", UUID.toText scopeVenueId])
+leaveRequestsLiveScope scopeVenueId = frontendSurfaceLiveScope "leave-requests" (venueScopePayload scopeVenueId) (Text.intercalate ":" ["leave-requests", UUID.toText scopeVenueId])
+
+timesheetWeekLiveScope :: UUID.UUID -> Int -> LiveUpdateScope
+timesheetWeekLiveScope scopeVenueId scopeWeekOffset =
+    frontendSurfaceLiveScope "timesheets" payload (Text.intercalate ":" ["timesheets", UUID.toText scopeVenueId, tshow scopeWeekOffset])
+    where
+        payload = Aeson.object ["venueId" Aeson..= UUID.toText scopeVenueId, "weekOffset" Aeson..= scopeWeekOffset]
+
+profileLiveScope :: UUID.UUID -> UUID.UUID -> LiveUpdateScope
+profileLiveScope scopeVenueId scopeStaffId =
+    frontendSurfaceLiveScope "profile" payload (Text.intercalate ":" ["profile", UUID.toText scopeVenueId, UUID.toText scopeStaffId])
+    where
+        payload = Aeson.object ["venueId" Aeson..= UUID.toText scopeVenueId, "staffId" Aeson..= UUID.toText scopeStaffId]
+
+supportPlatformLiveScope :: LiveUpdateScope
+supportPlatformLiveScope = frontendSurfaceLiveScope "support" (Aeson.object []) "support"
+
+frontendSurfaceLiveFragmentKey :: Text -> Text -> Aeson.Value -> LiveFragmentKey
+frontendSurfaceLiveFragmentKey liveFragmentSurface liveFragmentWireKind liveFragmentParams =
+    FrontendSurfaceLiveFragmentKey { liveFragmentSurface, liveFragmentWireKind, liveFragmentParams }
+
+simpleLiveFragmentKey :: Text -> Text -> LiveFragmentKey
+simpleLiveFragmentKey surface kind = frontendSurfaceLiveFragmentKey surface kind (Aeson.object [])
+
+rosterContentLiveFragment, rosterGridToolbarLiveFragment, rosterGridFrameLiveFragment, rosterDayColumnsLiveFragment, rosterDayRailLiveFragment, rosterWageRailLiveFragment, rosterSlotsGridLiveFragment, rosterStaffPanelLiveFragment :: LiveFragmentKey
+rosterContentLiveFragment = simpleLiveFragmentKey "roster" "roster-content"
+rosterGridToolbarLiveFragment = simpleLiveFragmentKey "roster" "roster-grid-toolbar"
+rosterGridFrameLiveFragment = simpleLiveFragmentKey "roster" "roster-grid-frame"
+rosterDayColumnsLiveFragment = simpleLiveFragmentKey "roster" "roster-day-columns"
+rosterDayRailLiveFragment = simpleLiveFragmentKey "roster" "roster-day-rail"
+rosterWageRailLiveFragment = simpleLiveFragmentKey "roster" "roster-wage-rail"
+rosterSlotsGridLiveFragment = simpleLiveFragmentKey "roster" "roster-slots-grid"
+rosterStaffPanelLiveFragment = simpleLiveFragmentKey "roster" "roster-staff-panel"
+
+rosterDaySectionLiveFragment, rosterRowLiveFragment :: UUID.UUID -> Int -> LiveFragmentKey
+rosterDaySectionLiveFragment dayId _ = frontendSurfaceLiveFragmentKey "roster" "roster-day-section" (Aeson.object ["rosterDayId" Aeson..= UUID.toText dayId])
+rosterRowLiveFragment dayId row = frontendSurfaceLiveFragmentKey "roster" "roster-row" (Aeson.object ["rosterDayId" Aeson..= UUID.toText dayId, "rowIndex" Aeson..= row])
+
+leaveRequestsContentLiveFragment, timesheetToolbarLiveFragment, timesheetDayColumnsLiveFragment :: LiveFragmentKey
+leaveRequestsContentLiveFragment = simpleLiveFragmentKey "leave-requests" "leave-requests-content"
+timesheetToolbarLiveFragment = simpleLiveFragmentKey "timesheets" "timesheet-toolbar"
+timesheetDayColumnsLiveFragment = simpleLiveFragmentKey "timesheets" "timesheet-day-columns"
+
+timesheetDaySectionLiveFragment :: Int -> LiveFragmentKey
+timesheetDaySectionLiveFragment offset = frontendSurfaceLiveFragmentKey "timesheets" "timesheet-day-section" (Aeson.object ["dayOffset" Aeson..= offset])
+
+adminVenueConfigLiveFragment, adminInvitesLiveFragment, adminExportsLiveFragment, adminShiftTypesLiveFragment, adminRosterGroupsLiveFragment, adminXeroShellLiveFragment, adminXeroStaffMappingsLiveFragment, adminXeroPayItemsLiveFragment, adminXeroTimesheetsLiveFragment, billingStatusLiveFragment, profileContentLiveFragment, profileDetailsSectionLiveFragment, profilePreferencesSectionLiveFragment, profileSecuritySectionLiveFragment, profileLeaveSectionLiveFragment, profileRsaSectionLiveFragment, profileLeaveRequestsContentLiveFragment, supportAwardRatesSectionLiveFragment, supportPublicHolidaysSectionLiveFragment :: LiveFragmentKey
+adminVenueConfigLiveFragment = simpleLiveFragmentKey "admin-venue-config" "admin-venue-config"
+adminInvitesLiveFragment = simpleLiveFragmentKey "admin-invites" "admin-invites"
+adminExportsLiveFragment = simpleLiveFragmentKey "admin-exports" "admin-exports"
+adminShiftTypesLiveFragment = simpleLiveFragmentKey "admin-shift-types" "admin-shift-types"
+adminRosterGroupsLiveFragment = simpleLiveFragmentKey "admin-roster-groups" "admin-roster-groups"
+adminXeroShellLiveFragment = simpleLiveFragmentKey "admin-xero" "admin-xero-shell"
+adminXeroStaffMappingsLiveFragment = simpleLiveFragmentKey "admin-xero" "admin-xero-staff-mappings"
+adminXeroPayItemsLiveFragment = simpleLiveFragmentKey "admin-xero" "admin-xero-pay-items"
+adminXeroTimesheetsLiveFragment = simpleLiveFragmentKey "admin-xero" "admin-xero-timesheets"
+billingStatusLiveFragment = simpleLiveFragmentKey "billing" "billing-status"
+profileContentLiveFragment = simpleLiveFragmentKey "profile" "profile-content"
+profileDetailsSectionLiveFragment = simpleLiveFragmentKey "profile" "profile-details-section"
+profilePreferencesSectionLiveFragment = simpleLiveFragmentKey "profile" "profile-preferences-section"
+profileSecuritySectionLiveFragment = simpleLiveFragmentKey "profile" "profile-security-section"
+profileLeaveSectionLiveFragment = simpleLiveFragmentKey "profile" "profile-leave-section"
+profileRsaSectionLiveFragment = simpleLiveFragmentKey "profile" "profile-rsa-section"
+profileLeaveRequestsContentLiveFragment = simpleLiveFragmentKey "profile" "profile-leave-requests-content"
+supportAwardRatesSectionLiveFragment = simpleLiveFragmentKey "support" "support-award-rates"
+supportPublicHolidaysSectionLiveFragment = simpleLiveFragmentKey "support" "support-public-holidays"
 
 data FocusedFieldProtectionConfig = FocusedFieldProtectionConfig
     { activeSelector    :: !Text
@@ -222,9 +266,8 @@ mkLiveUpdateWireFragment fragmentKey targetId url =
         }
 
 liveUpdateWireFragmentFromSurface :: Text -> Text -> Aeson.Value -> Text -> Text -> Bool -> LiveFragmentProtection -> Maybe LiveUpdateWireFragment
-liveUpdateWireFragmentFromSurface surface kind params targetId url deferUntilBlur protectionPolicy = do
-    fragmentKey <- Aeson.parseMaybe (liveFragmentKeyFromSurface surface kind) params
-    pure LiveUpdateWireFragment { fragmentKey, targetId, url, deferUntilBlur, protectionPolicy }
+liveUpdateWireFragmentFromSurface surface kind params targetId url deferUntilBlur protectionPolicy =
+    Just LiveUpdateWireFragment { fragmentKey = frontendSurfaceLiveFragmentKey surface kind params, targetId, url, deferUntilBlur, protectionPolicy }
 
 data LiveUpdateSubscription = LiveUpdateSubscription
     { subscriptionScope            :: !LiveUpdateScope
@@ -274,30 +317,7 @@ data LiveUpdateBroadcastResult = LiveUpdateBroadcastResult
     deriving (Eq, Show)
 
 liveUpdateScopeKey :: LiveUpdateScope -> Text
-liveUpdateScopeKey RosterWeekScope { venueId, rosterGroupId, weekOffset } =
-    Text.intercalate ":" ["roster", UUID.toText venueId, UUID.toText rosterGroupId, tshow weekOffset]
-liveUpdateScopeKey AdminVenueConfigScope { venueId } =
-    Text.intercalate ":" ["admin-venue-config", UUID.toText venueId]
-liveUpdateScopeKey AdminShiftTypesScope { venueId } =
-    Text.intercalate ":" ["admin-shift-types", UUID.toText venueId]
-liveUpdateScopeKey AdminRosterGroupsScope { venueId } =
-    Text.intercalate ":" ["admin-roster-groups", UUID.toText venueId]
-liveUpdateScopeKey AdminInvitesScope { venueId } =
-    Text.intercalate ":" ["admin-invites", UUID.toText venueId]
-liveUpdateScopeKey AdminExportsScope { venueId } =
-    Text.intercalate ":" ["admin-exports", UUID.toText venueId]
-liveUpdateScopeKey AdminXeroScope { venueId } =
-    Text.intercalate ":" ["admin-xero", UUID.toText venueId]
-liveUpdateScopeKey BillingScope { venueId } =
-    Text.intercalate ":" ["billing", UUID.toText venueId]
-liveUpdateScopeKey LeaveRequestsScope { venueId } =
-    Text.intercalate ":" ["leave-requests", UUID.toText venueId]
-liveUpdateScopeKey TimesheetWeekScope { venueId, weekOffset } =
-    Text.intercalate ":" ["timesheets", UUID.toText venueId, tshow weekOffset]
-liveUpdateScopeKey ProfileScope { venueId, staffId } =
-    Text.intercalate ":" ["profile", UUID.toText venueId, UUID.toText staffId]
-liveUpdateScopeKey SupportPlatformScope =
-    "support"
+liveUpdateScopeKey = (.liveUpdateScopeStableKey)
 
 liveUpdateSourceClientId :: (?request :: Request) => Maybe Text
 liveUpdateSourceClientId =
@@ -601,190 +621,24 @@ sendInvalidation scope version sourceClientId fragments subscription = do
 
 liveUpdateScopeToWire :: LiveUpdateScope -> Wire.LiveUpdateScope
 liveUpdateScopeToWire scope = Wire.LiveUpdateScope
-    { Wire.surface = liveUpdateSurfaceName scope
-    , Wire.scope = liveUpdateScopePayload scope
+    { Wire.surface = scope.liveUpdateScopeSurface
+    , Wire.scope = scope.liveUpdateScopePayload
     }
 
 liveUpdateScopeFromWire :: Wire.LiveUpdateScope -> Aeson.Parser LiveUpdateScope
 liveUpdateScopeFromWire Wire.LiveUpdateScope { surface, scope } =
-    liveUpdateScopeFromSurface surface scope
-
-liveUpdateSurfaceName :: LiveUpdateScope -> Text
-liveUpdateSurfaceName = \case
-    RosterWeekScope {} -> "roster"
-    AdminVenueConfigScope {} -> "admin-venue-config"
-    AdminShiftTypesScope {} -> "admin-shift-types"
-    AdminRosterGroupsScope {} -> "admin-roster-groups"
-    AdminInvitesScope {} -> "admin-invites"
-    AdminExportsScope {} -> "admin-exports"
-    AdminXeroScope {} -> "admin-xero"
-    BillingScope {} -> "billing"
-    LeaveRequestsScope {} -> "leave-requests"
-    TimesheetWeekScope {} -> "timesheets"
-    ProfileScope {} -> "profile"
-    SupportPlatformScope -> "support"
-
-liveUpdateScopePayload :: LiveUpdateScope -> Aeson.Value
-liveUpdateScopePayload = \case
-    RosterWeekScope { venueId, rosterGroupId, weekOffset } -> Aeson.object ["venueId" Aeson..= UUID.toText venueId, "rosterGroupId" Aeson..= UUID.toText rosterGroupId, "weekOffset" Aeson..= weekOffset]
-    AdminVenueConfigScope { venueId } -> venueScopePayload venueId
-    AdminShiftTypesScope { venueId } -> venueScopePayload venueId
-    AdminRosterGroupsScope { venueId } -> venueScopePayload venueId
-    AdminInvitesScope { venueId } -> venueScopePayload venueId
-    AdminExportsScope { venueId } -> venueScopePayload venueId
-    AdminXeroScope { venueId } -> venueScopePayload venueId
-    BillingScope { venueId } -> venueScopePayload venueId
-    LeaveRequestsScope { venueId } -> venueScopePayload venueId
-    TimesheetWeekScope { venueId, weekOffset } -> Aeson.object ["venueId" Aeson..= UUID.toText venueId, "weekOffset" Aeson..= weekOffset]
-    ProfileScope { venueId, staffId } -> Aeson.object ["venueId" Aeson..= UUID.toText venueId, "staffId" Aeson..= UUID.toText staffId]
-    SupportPlatformScope -> Aeson.object []
-    where
-        venueScopePayload venueId = Aeson.object ["venueId" Aeson..= UUID.toText venueId]
-
-liveUpdateScopeFromSurface :: Text -> Aeson.Value -> Aeson.Parser LiveUpdateScope
-liveUpdateScopeFromSurface surface = Aeson.withObject "FrontendSurfaceLiveScope" \object ->
-    case surface of
-        "roster" -> RosterWeekScope <$> parseUuidField object "venueId" <*> parseUuidField object "rosterGroupId" <*> object Aeson..: "weekOffset"
-        "admin-venue-config" -> AdminVenueConfigScope <$> parseUuidField object "venueId"
-        "admin-shift-types" -> AdminShiftTypesScope <$> parseUuidField object "venueId"
-        "admin-roster-groups" -> AdminRosterGroupsScope <$> parseUuidField object "venueId"
-        "admin-invites" -> AdminInvitesScope <$> parseUuidField object "venueId"
-        "admin-exports" -> AdminExportsScope <$> parseUuidField object "venueId"
-        "admin-xero" -> AdminXeroScope <$> parseUuidField object "venueId"
-        "billing" -> BillingScope <$> parseUuidField object "venueId"
-        "leave-requests" -> LeaveRequestsScope <$> parseUuidField object "venueId"
-        "timesheets" -> TimesheetWeekScope <$> parseUuidField object "venueId" <*> object Aeson..: "weekOffset"
-        "profile" -> ProfileScope <$> parseUuidField object "venueId" <*> parseUuidField object "staffId"
-        "support" -> pure SupportPlatformScope
-        _ -> fail ("Unknown FrontendSurface live scope: " <> cs surface)
+    pure (frontendSurfaceLiveScope surface scope surface)
 
 liveFragmentKeyToWire :: LiveFragmentKey -> Wire.LiveFragmentKey
 liveFragmentKeyToWire key = Wire.LiveFragmentKey
-    { Wire.surface = liveFragmentSurfaceName key
-    , Wire.kind = liveFragmentWireKind key
-    , Wire.params = liveFragmentKeyParams key
+    { Wire.surface = key.liveFragmentSurface
+    , Wire.kind = key.liveFragmentWireKind
+    , Wire.params = key.liveFragmentParams
     }
 
 liveFragmentKeyFromWire :: Wire.LiveFragmentKey -> Aeson.Parser LiveFragmentKey
 liveFragmentKeyFromWire Wire.LiveFragmentKey { surface, kind, params } =
-    liveFragmentKeyFromSurface surface kind params
-
-liveFragmentSurfaceName :: LiveFragmentKey -> Text
-liveFragmentSurfaceName = \case
-    RosterContentFragment -> "roster"
-    RosterGridToolbarFragment -> "roster"
-    RosterGridFrameFragment -> "roster"
-    RosterDayColumnsFragment -> "roster"
-    RosterDayRailFragment -> "roster"
-    RosterWageRailFragment -> "roster"
-    RosterSlotsGridFragment -> "roster"
-    RosterStaffPanelFragment -> "roster"
-    RosterDaySectionFragment {} -> "roster"
-    RosterRowFragment {} -> "roster"
-    LeaveRequestsContentFragment -> "leave-requests"
-    TimesheetToolbarFragment -> "timesheets"
-    TimesheetDayColumnsFragment -> "timesheets"
-    TimesheetDaySectionFragment {} -> "timesheets"
-    AdminVenueConfigFragment -> "admin-venue-config"
-    AdminInvitesFragment -> "admin-invites"
-    AdminExportsFragment -> "admin-exports"
-    AdminShiftTypesFragment -> "admin-shift-types"
-    AdminRosterGroupsFragment -> "admin-roster-groups"
-    AdminXeroFragment -> "admin-xero"
-    AdminXeroStaffMappingsFragment -> "admin-xero"
-    AdminXeroPayItemsFragment -> "admin-xero"
-    AdminXeroTimesheetsFragment -> "admin-xero"
-    BillingStatusFragment -> "billing"
-    ProfileContentFragment -> "profile"
-    ProfileDetailsSectionFragment -> "profile"
-    ProfilePreferencesSectionFragment -> "profile"
-    ProfileSecuritySectionFragment -> "profile"
-    ProfileLeaveSectionFragment -> "profile"
-    ProfileRsaSectionFragment -> "profile"
-    ProfileLeaveRequestsContentFragment -> "profile"
-    SupportAwardRatesSectionFragment -> "support"
-    SupportPublicHolidaysSectionFragment -> "support"
-
-liveFragmentWireKind :: LiveFragmentKey -> Text
-liveFragmentWireKind = \case
-    RosterContentFragment -> "roster-content"
-    RosterGridToolbarFragment -> "roster-grid-toolbar"
-    RosterGridFrameFragment -> "roster-grid-frame"
-    RosterDayColumnsFragment -> "roster-day-columns"
-    RosterDayRailFragment -> "roster-day-rail"
-    RosterWageRailFragment -> "roster-wage-rail"
-    RosterSlotsGridFragment -> "roster-slots-grid"
-    RosterStaffPanelFragment -> "roster-staff-panel"
-    RosterDaySectionFragment {} -> "roster-day-section"
-    RosterRowFragment {} -> "roster-row"
-    LeaveRequestsContentFragment -> "leave-requests-content"
-    TimesheetToolbarFragment -> "timesheet-toolbar"
-    TimesheetDayColumnsFragment -> "timesheet-day-columns"
-    TimesheetDaySectionFragment {} -> "timesheet-day-section"
-    AdminVenueConfigFragment -> "admin-venue-config"
-    AdminInvitesFragment -> "admin-invites"
-    AdminExportsFragment -> "admin-exports"
-    AdminShiftTypesFragment -> "admin-shift-types"
-    AdminRosterGroupsFragment -> "admin-roster-groups"
-    AdminXeroFragment -> "admin-xero-shell"
-    AdminXeroStaffMappingsFragment -> "admin-xero-staff-mappings"
-    AdminXeroPayItemsFragment -> "admin-xero-pay-items"
-    AdminXeroTimesheetsFragment -> "admin-xero-timesheets"
-    BillingStatusFragment -> "billing-status"
-    ProfileContentFragment -> "profile-content"
-    ProfileDetailsSectionFragment -> "profile-details-section"
-    ProfilePreferencesSectionFragment -> "profile-preferences-section"
-    ProfileSecuritySectionFragment -> "profile-security-section"
-    ProfileLeaveSectionFragment -> "profile-leave-section"
-    ProfileRsaSectionFragment -> "profile-rsa-section"
-    ProfileLeaveRequestsContentFragment -> "profile-leave-requests-content"
-    SupportAwardRatesSectionFragment -> "support-award-rates"
-    SupportPublicHolidaysSectionFragment -> "support-public-holidays"
-
-liveFragmentKeyParams :: LiveFragmentKey -> Aeson.Value
-liveFragmentKeyParams = \case
-    RosterDaySectionFragment { rosterDayId } -> Aeson.object ["rosterDayId" Aeson..= UUID.toText rosterDayId]
-    RosterRowFragment { rosterDayId, rowIndex } -> Aeson.object ["rosterDayId" Aeson..= UUID.toText rosterDayId, "rowIndex" Aeson..= rowIndex]
-    TimesheetDaySectionFragment { dayOffset } -> Aeson.object ["dayOffset" Aeson..= dayOffset]
-    _ -> Aeson.object []
-
-liveFragmentKeyFromSurface :: Text -> Text -> Aeson.Value -> Aeson.Parser LiveFragmentKey
-liveFragmentKeyFromSurface surface kind params =
-    case (surface, kind) of
-        ("roster", "roster-content") -> pure RosterContentFragment
-        ("roster", "roster-grid-toolbar") -> pure RosterGridToolbarFragment
-        ("roster", "roster-grid-frame") -> pure RosterGridFrameFragment
-        ("roster", "roster-day-columns") -> pure RosterDayColumnsFragment
-        ("roster", "roster-day-rail") -> pure RosterDayRailFragment
-        ("roster", "roster-wage-rail") -> pure RosterWageRailFragment
-        ("roster", "roster-slots-grid") -> pure RosterSlotsGridFragment
-        ("roster", "roster-staff-panel") -> pure RosterStaffPanelFragment
-        ("roster", "roster-day-section") -> Aeson.withObject "RosterDaySection" (\object -> RosterDaySectionFragment <$> parseUuidField object "rosterDayId") params
-        ("roster", "roster-row") -> Aeson.withObject "RosterRow" (\object -> RosterRowFragment <$> parseUuidField object "rosterDayId" <*> object Aeson..: "rowIndex") params
-        ("leave-requests", "leave-requests-content") -> pure LeaveRequestsContentFragment
-        ("timesheets", "timesheet-toolbar") -> pure TimesheetToolbarFragment
-        ("timesheets", "timesheet-day-columns") -> pure TimesheetDayColumnsFragment
-        ("timesheets", "timesheet-day-section") -> Aeson.withObject "TimesheetDaySection" (\object -> TimesheetDaySectionFragment <$> object Aeson..: "dayOffset") params
-        ("admin-venue-config", "admin-venue-config") -> pure AdminVenueConfigFragment
-        ("admin-invites", "admin-invites") -> pure AdminInvitesFragment
-        ("admin-exports", "admin-exports") -> pure AdminExportsFragment
-        ("admin-shift-types", "admin-shift-types") -> pure AdminShiftTypesFragment
-        ("admin-roster-groups", "admin-roster-groups") -> pure AdminRosterGroupsFragment
-        ("admin-xero", "admin-xero-shell") -> pure AdminXeroFragment
-        ("admin-xero", "admin-xero-staff-mappings") -> pure AdminXeroStaffMappingsFragment
-        ("admin-xero", "admin-xero-pay-items") -> pure AdminXeroPayItemsFragment
-        ("admin-xero", "admin-xero-timesheets") -> pure AdminXeroTimesheetsFragment
-        ("billing", "billing-status") -> pure BillingStatusFragment
-        ("profile", "profile-content") -> pure ProfileContentFragment
-        ("profile", "profile-details-section") -> pure ProfileDetailsSectionFragment
-        ("profile", "profile-preferences-section") -> pure ProfilePreferencesSectionFragment
-        ("profile", "profile-security-section") -> pure ProfileSecuritySectionFragment
-        ("profile", "profile-leave-section") -> pure ProfileLeaveSectionFragment
-        ("profile", "profile-rsa-section") -> pure ProfileRsaSectionFragment
-        ("profile", "profile-leave-requests-content") -> pure ProfileLeaveRequestsContentFragment
-        ("support", "support-award-rates") -> pure SupportAwardRatesSectionFragment
-        ("support", "support-public-holidays") -> pure SupportPublicHolidaysSectionFragment
-        _ -> fail ("Unknown FrontendSurface live fragment: " <> cs surface <> ":" <> cs kind)
+    pure (frontendSurfaceLiveFragmentKey surface kind params)
 
 focusedFieldProtectionConfigToWire :: FocusedFieldProtectionConfig -> Wire.FocusedFieldProtectionConfig
 focusedFieldProtectionConfigToWire FocusedFieldProtectionConfig { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector } =
@@ -823,7 +677,8 @@ liveUpdateSubscriptionToWire LiveUpdateSubscription { subscriptionScope, subscri
 
 liveUpdateSubscriptionFromWire :: Wire.LiveUpdateSubscription -> Aeson.Parser LiveUpdateSubscription
 liveUpdateSubscriptionFromWire Wire.LiveUpdateSubscription { scope, scopeKey, mountedFragments } = do
-    subscriptionScope <- liveUpdateScopeFromWire scope
+    parsedScope <- liveUpdateScopeFromWire scope
+    let subscriptionScope = parsedScope { liveUpdateScopeStableKey = scopeKey }
     subscriptionMountedFragments <- mapM liveUpdateWireFragmentFromWire mountedFragments
     pure LiveUpdateSubscription { subscriptionScope, subscriptionScopeKey = scopeKey, subscriptionMountedFragments }
 

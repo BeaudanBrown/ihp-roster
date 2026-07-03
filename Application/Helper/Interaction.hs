@@ -120,8 +120,8 @@ import Application.Helper.Interaction.Types (DisposableLayerDefinition (..),
                                              interactionFieldPresenceValues)
 import qualified Application.Helper.Interaction.Types as Types
 import Application.Helper.LiveSurface
-import Application.Helper.LiveUpdate (liveUpdateScopeKey)
-import Application.Helper.LiveUpdate.Runtime (LiveUpdateWireFragment (..))
+import Application.Helper.LiveUpdate
+import Application.Helper.LiveUpdate.Runtime
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Char as Char

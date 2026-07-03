@@ -8,7 +8,7 @@ module Web.Controller.RosterWeeks where
 
 import Application.Helper.Controller
 import Application.Helper.LiveResource (LiveMutationResult (..), LiveResource)
-import Application.Helper.LiveUpdate (LiveUpdateScope (..))
+import Application.Helper.LiveUpdate
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.UserPreferences
@@ -57,8 +57,8 @@ import Web.RosterWeeks.Types
 import Web.View.RosterWeeks.Overview (renderWeekOverviewPanelFragment)
 import Web.View.RosterWeeks.ShiftDialog
 import Web.View.RosterWeeks.Show (renderRosterWeekShell)
-import Web.View.RosterWeeks.StaffPanel (renderRosterStaffPanelFragment,
-                                        renderRosterStaffPanelFragmentOob)
+import Web.View.RosterWeeks.StaffPanel (renderrosterStaffPanelLiveFragment,
+                                        renderrosterStaffPanelLiveFragmentOob)
 
 instance Controller RosterWeeksController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
@@ -138,7 +138,7 @@ instance Controller RosterWeeksController where
         rosterGroups <- fetchCurrentVenueRosterGroups
         panelStaff <- fetchVisibleRosterStaffPanelEntries panelScope rosterGroup.id weekOffset
         respondHtmlProfiled $
-            maybe mempty (renderRosterStaffPanelFragment weekOffset rosterGroup.id (length rosterGroups > 1) panelScope) panelStaff
+            maybe mempty (renderrosterStaffPanelLiveFragment weekOffset rosterGroup.id (length rosterGroups > 1) panelScope) panelStaff
 
     action currentAction@ShowRosterWeekDaySectionFragmentAction { weekOffset, rosterDayId } = runBepis currentAction BepisFragmentAction do
         rosterGroupId <- resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId
@@ -1041,7 +1041,7 @@ respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys shouldRefresh
             let uniqueRowKeys = nub requestedRowKeys
             let renderedRows = mapMaybe (renderRequestedRow weekStartDate orderedSlotNames assignmentFilters staffMembers shiftTypes renderIndexes rosterLayoutMode rosterEndTimesEnabled) uniqueRowKeys
             rosterGroups <- fetchCurrentVenueRosterGroups
-            let renderedStaffPanel = [renderRosterStaffPanelFragmentOob weekOffset rosterGroupId (length rosterGroups > 1) RosterStaffPanelCurrentGroup panelStaff | shouldRefreshStaffPanel]
+            let renderedStaffPanel = [renderrosterStaffPanelLiveFragmentOob weekOffset rosterGroupId (length rosterGroups > 1) RosterStaffPanelCurrentGroup panelStaff | shouldRefreshStaffPanel]
             respondHtmlProfiled (mconcat (renderedRows <> renderedStaffPanel))
 
 renderRosterWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Int -> Id RosterGroup -> IO ()
@@ -1082,7 +1082,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId =
                                 , allSlots
                                 , slotConflicts
                                 , renderIndexes
-                                , liveUpdateScope = Just (RosterWeekScope { venueId = unpackId currentVenueId, rosterGroupId = unpackId currentRosterGroup.id, weekOffset })
+                                , liveUpdateScope = Just (rosterWeekLiveScope (unpackId currentVenueId) (unpackId currentRosterGroup.id) weekOffset)
                                 , viewCapabilities = buildRosterViewCapabilities visibleRosterWeek
                                 , rosterLayoutMode
                                 , rosterEndTimesEnabled

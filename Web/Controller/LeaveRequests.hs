@@ -34,7 +34,7 @@ instance Controller LeaveRequestsController where
             readModel <- profileActionSpan "leave.page.fetch_read_model" fetchLeaveRequestsReadModel
             profileActionSpan "leave.page.render_response" (renderProfiled (leaveRequestsIndexView readModel))
 
-    action currentAction@ShowLeaveRequestsContentFragmentAction = runBepis currentAction BepisFragmentAction $
+    action currentAction@ShowleaveRequestsContentLiveFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "leave.fragment.respond" do
             ensureProfileCompleted
             ensureManagerRole

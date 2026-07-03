@@ -3,12 +3,7 @@ module Test.LiveSurfaceDependencySpec where
 import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceMountedFragment (..))
 import Application.Helper.LiveResource
 import Application.Helper.LiveSurface (typedSurfaceDependsOn)
-import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..),
-                                              LiveFragmentProtection (..),
-                                              LiveUpdateScope (..),
-                                              LiveUpdateSubscription (..),
-                                              LiveUpdateWireFragment (..),
-                                              liveUpdateScopeKey)
+import Application.Helper.LiveUpdate.Runtime
 import Application.Support.LiveUpdates (supportAffectedMountedFragments,
                                         supportFragmentDependencies)
 import qualified Data.Set as Set
@@ -67,31 +62,31 @@ tests = do
 
         it "plans affected fragments from generated FrontendSurface dependencies" do
             let venueId = fromWords 1 0 0 0
-            let scope = TimesheetWeekScope { venueId, weekOffset = 2 }
-            let subscription = liveTestSubscription scope [LiveUpdateWireFragment (TimesheetDaySectionFragment 4) "timesheet-day-section-4" "/ShowTimesheetDaySectionFragment?weekOffset=2&dayOffset=4&showApproved=true&showAllStaff=true" False NoProtection]
+            let scope = timesheetWeekLiveScope venueId 2
+            let subscription = liveTestSubscription scope [LiveUpdateWireFragment (timesheetDaySectionLiveFragment 4) "timesheet-day-section-4" "/ShowTimesheetDaySectionFragment?weekOffset=2&dayOffset=4&showApproved=true&showAllStaff=true" False NoProtection]
             let targets = planRegisteredLiveSurfaceInvalidationsWithoutContext (Set.fromList [timesheetDayResource venueId 2 4]) [subscription]
 
             map targetFragments targets
-                `shouldBe` [[LiveUpdateWireFragment (TimesheetDaySectionFragment 4) "timesheet-day-section-4" "/ShowTimesheetDaySectionFragment?weekOffset=2&dayOffset=4&showApproved=true&showAllStaff=true" False NoProtection]]
+                `shouldBe` [[LiveUpdateWireFragment (timesheetDaySectionLiveFragment 4) "timesheet-day-section-4" "/ShowTimesheetDaySectionFragment?weekOffset=2&dayOffset=4&showApproved=true&showAllStaff=true" False NoProtection]]
 
         it "keeps generated dependency planning precise across surface resources" do
             let venueId = fromWords 2 0 0 0
-            let adminScope = AdminXeroScope { venueId }
-            let supportScope = SupportPlatformScope
+            let adminScope = adminXeroLiveScope venueId
+            let supportScope = supportPlatformLiveScope
             let subscriptions =
                     [ liveTestSubscription adminScope
-                        [ LiveUpdateWireFragment AdminXeroFragment "admin-xero-shell" "/admin/xero" False NoProtection
-                        , LiveUpdateWireFragment AdminXeroStaffMappingsFragment "admin-xero-staff-mappings" "/admin/xero/staff" False NoProtection
-                        , LiveUpdateWireFragment AdminXeroPayItemsFragment "admin-xero-pay-items" "/admin/xero/pay-items" False NoProtection
-                        , LiveUpdateWireFragment AdminXeroTimesheetsFragment "admin-xero-timesheets" "/admin/xero/timesheets" False NoProtection
+                        [ LiveUpdateWireFragment adminXeroShellLiveFragment "admin-xero-shell" "/admin/xero" False NoProtection
+                        , LiveUpdateWireFragment adminXeroStaffMappingsLiveFragment "admin-xero-staff-mappings" "/admin/xero/staff" False NoProtection
+                        , LiveUpdateWireFragment adminXeroPayItemsLiveFragment "admin-xero-pay-items" "/admin/xero/pay-items" False NoProtection
+                        , LiveUpdateWireFragment adminXeroTimesheetsLiveFragment "admin-xero-timesheets" "/admin/xero/timesheets" False NoProtection
                         ]
                     , liveTestSubscription supportScope
-                        [ LiveUpdateWireFragment SupportAwardRatesSectionFragment "support-award-rates" "/support/award-rates" False NoProtection
+                        [ LiveUpdateWireFragment supportAwardRatesSectionLiveFragment "support-award-rates" "/support/award-rates" False NoProtection
                         ]
                     ]
             let targets = planRegisteredLiveSurfaceInvalidationsWithoutContext (Set.fromList [xeroPayItemsResource venueId]) subscriptions
 
-            map (map fragmentKey . targetFragments) targets `shouldBe` [[AdminXeroPayItemsFragment]]
+            map (map fragmentKey . targetFragments) targets `shouldBe` [[adminXeroPayItemsLiveFragment]]
 
         it "declares support dependencies by support fragment" do
             let awardRatesFragments = supportAffectedMountedFragments (Set.fromList [supportAwardRatesResource])

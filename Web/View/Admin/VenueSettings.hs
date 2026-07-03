@@ -15,6 +15,8 @@ import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.LiveResource
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate
+import Application.Helper.LiveUpdate.Runtime (liveUpdateScopeFieldUuid,
+                                              liveUpdateScopeKind)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminVenueSettingsSurfaceImpl)
 import Web.View.Admin.Common
@@ -46,7 +48,7 @@ adminVenueSettingsLiveSurfaceDefinitionForVenue surfaceVenueId =
         RequireCurrentVenueAdmin
         [ staticLiveFragmentDescriptor
             adminVenueSettingsFragment
-            AdminVenueConfigFragment
+            adminVenueConfigLiveFragment
             adminVenueSettingsFragmentId
             (pathTo ShowAdminVenueSettingsFragmentAction)
             (const (liveFragmentDependsOn (adminVenueSettingsResource surfaceVenueId) []))
@@ -55,10 +57,8 @@ adminVenueSettingsLiveSurfaceDefinitionForVenue surfaceVenueId =
 adminVenueSettingsVenueScope :: VenueLiveUpdateScope
 adminVenueSettingsVenueScope =
     venueLiveUpdateScope
-        AdminVenueConfigScope
-        (\case
-            AdminVenueConfigScope { venueId } -> Just venueId
-            _ -> Nothing)
+        adminVenueConfigLiveScope
+        (\scope -> if liveUpdateScopeKind scope == "admin-venue-config" then liveUpdateScopeFieldUuid "venueId" scope else Nothing)
 
 currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =

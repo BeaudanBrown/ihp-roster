@@ -9,8 +9,7 @@ module Web.Staff.Mutations
 
 import Application.Helper.Audit (updateVenueMembershipRoleWithAudit)
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate.Runtime (LiveUpdateScope (..),
-                                              activeLiveUpdateScopes)
+import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.Pay (ensureStaffPayVersionForStaff)
 import Application.Helper.RosterGroups (syncStaffRosterGroupAssignments)
 import Application.Helper.Staff (isAdoptableTrialStaff)
@@ -22,6 +21,7 @@ import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
+import Data.UUID (UUID)
 import Web.Controller.Prelude
 import Web.LiveResourceInvalidation (invalidateTouchedResources)
 
@@ -72,8 +72,8 @@ createTrialStaffMember staff selectedRosterGroupIds = do
         createdStaff <- staff |> createRecord
         syncStaffRosterGroupAssignments createdStaff selectedRosterGroupIds
         pure createdStaff
-    activeScopes <- activeLiveUpdateScopes
-    invalidateTouchedResources "staff.create_trial" (liveMutationResult createdStaff (staffCreateTouchedResources createdStaff <> staffRosterGroupResources activeScopes selectedRosterGroupIds))
+    activeRosterScopes <- activeRosterWeekScopes
+    invalidateTouchedResources "staff.create_trial" (liveMutationResult createdStaff (staffCreateTouchedResources createdStaff <> staffRosterGroupResources activeRosterScopes selectedRosterGroupIds))
 
 staffCreateTouchedResources :: Staff -> [LiveResource]
 staffCreateTouchedResources staff =
@@ -99,8 +99,8 @@ updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections
             venueRole
             (Aeson.object ["staffId" Aeson..= tshow staff.id])
     let payScopeChanged = staffXeroPayItemScopeChanged originalStaff updatedStaff
-    activeScopes <- activeLiveUpdateScopes
-    invalidateTouchedResources "staff.update" (liveMutationResult updatedStaff (staffUpdateTouchedResources payScopeChanged updatedStaff <> staffRosterGroupResources activeScopes selectedRosterGroupIds))
+    activeRosterScopes <- activeRosterWeekScopes
+    invalidateTouchedResources "staff.update" (liveMutationResult updatedStaff (staffUpdateTouchedResources payScopeChanged updatedStaff <> staffRosterGroupResources activeRosterScopes selectedRosterGroupIds))
 
 staffUpdateTouchedResources :: Bool -> Staff -> [LiveResource]
 staffUpdateTouchedResources payScopeChanged staff =
@@ -109,11 +109,11 @@ staffUpdateTouchedResources payScopeChanged staff =
     ]
         <> [xeroMappingsResource staff.venueId | payScopeChanged]
 
-staffRosterGroupResources :: (?context :: ControllerContext) => [LiveUpdateScope] -> [Id RosterGroup] -> [LiveResource]
+staffRosterGroupResources :: (?context :: ControllerContext) => [(UUID, UUID, Int)] -> [Id RosterGroup] -> [LiveResource]
 staffRosterGroupResources activeScopes rosterGroupIds =
     Set.toList $ Set.fromList
         [ rosterWeekResource rosterGroupId weekOffset
-        | RosterWeekScope { venueId = activeVenueId, rosterGroupId, weekOffset } <- activeScopes
+        | (activeVenueId, rosterGroupId, weekOffset) <- activeScopes
         , activeVenueId == unpackId currentVenueId
         , rosterGroupId `Set.member` rosterGroupIdSet
         ]

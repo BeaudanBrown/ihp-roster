@@ -9,8 +9,8 @@ module Test.Support.LiveSurfaceContract
     ) where
 
 import Application.Helper.LiveSurface
-import Application.Helper.LiveUpdate (LiveFragmentKey)
-import Application.Helper.LiveUpdate.Runtime (LiveUpdateWireFragment (..))
+import Application.Helper.LiveUpdate
+import Application.Helper.LiveUpdate.Runtime
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import IHP.Prelude

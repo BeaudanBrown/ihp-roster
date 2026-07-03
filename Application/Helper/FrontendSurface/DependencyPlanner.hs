@@ -11,10 +11,7 @@ import Application.Helper.FrontendSurface.Resource (FrontendSurfaceResourceValue
 import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceFragmentKey (..),
                                                    FrontendSurfaceMountedFragment (..))
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate.Runtime (LiveUpdateScope,
-                                              LiveUpdateWireFragment,
-                                              liveUpdateScopeToWire,
-                                              liveUpdateWireFragmentToWire)
+import Application.Helper.LiveUpdate.Runtime
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Aeson.Key
 import qualified Data.Aeson.KeyMap as Aeson.KeyMap

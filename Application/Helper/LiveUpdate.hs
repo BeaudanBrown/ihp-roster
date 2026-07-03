@@ -3,9 +3,58 @@ module Application.Helper.LiveUpdate
     , LiveFragmentProtection (..)
     , FocusedFieldProtectionConfig (..)
     , LiveUpdateScope (..)
+    , adminExportsLiveFragment
+    , adminExportsLiveScope
+    , adminInvitesLiveFragment
+    , adminInvitesLiveScope
+    , adminRosterGroupsLiveFragment
+    , adminRosterGroupsLiveScope
+    , adminShiftTypesLiveFragment
+    , adminShiftTypesLiveScope
+    , adminVenueConfigLiveFragment
+    , adminVenueConfigLiveScope
+    , adminXeroLiveScope
+    , adminXeroPayItemsLiveFragment
+    , adminXeroShellLiveFragment
+    , adminXeroStaffMappingsLiveFragment
+    , adminXeroTimesheetsLiveFragment
+    , billingLiveScope
+    , billingStatusLiveFragment
+    , frontendSurfaceLiveFragmentKey
+    , frontendSurfaceLiveScope
+    , leaveRequestsContentLiveFragment
+    , leaveRequestsLiveScope
+    , profileContentLiveFragment
+    , profileDetailsSectionLiveFragment
+    , profileLeaveRequestsContentLiveFragment
+    , profileLeaveSectionLiveFragment
+    , profileLiveScope
+    , profilePreferencesSectionLiveFragment
+    , profileRsaSectionLiveFragment
+    , profileSecuritySectionLiveFragment
+    , rosterContentLiveFragment
+    , rosterDayColumnsLiveFragment
+    , rosterDayRailLiveFragment
+    , rosterDaySectionLiveFragment
+    , rosterGridFrameLiveFragment
+    , rosterGridToolbarLiveFragment
+    , rosterRowLiveFragment
+    , rosterSlotsGridLiveFragment
+    , rosterStaffPanelLiveFragment
+    , rosterWageRailLiveFragment
+    , rosterWeekLiveScope
+    , supportAwardRatesSectionLiveFragment
+    , supportPlatformLiveScope
+    , supportPublicHolidaysSectionLiveFragment
+    , timesheetDayColumnsLiveFragment
+    , timesheetDaySectionLiveFragment
+    , timesheetToolbarLiveFragment
+    , timesheetWeekLiveScope
     , activeRosterWeekScopes
     , currentLiveUpdateVersion
+    , liveUpdateScopeFieldUuid
     , liveUpdateScopeKey
+    , liveUpdateScopeKind
     ) where
 
 import Application.Helper.LiveUpdate.Internal

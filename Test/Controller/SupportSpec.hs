@@ -5,8 +5,8 @@ import Application.FwcMapd.Job (fwcMapdRefreshJobKind)
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceFragmentKey (..),
                                                    FrontendSurfaceMountedFragment (..))
-import Application.Helper.LiveUpdate (currentLiveUpdateVersion)
-import Application.Helper.LiveUpdate.Runtime (LiveUpdateWireFragment)
+import Application.Helper.LiveUpdate
+import Application.Helper.LiveUpdate.Runtime
 import Application.Support.LiveUpdates
 import Config
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar)
