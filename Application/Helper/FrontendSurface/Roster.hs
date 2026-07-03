@@ -58,6 +58,7 @@ type RosterScopeBundle =
          , Field RosterGroupId 'WireUUID
          , Field WeekOffset 'WireInt
          ]
+        '[ 'NoAuth ]
      ]
 
 type RosterFragmentBundle =
@@ -65,33 +66,35 @@ type RosterFragmentBundle =
         '[]
         '[ 'Eager
          , 'Live
+         , 'ResyncOnly
          , 'Contains RosterGridToolbar
          , 'Contains RosterGridFrame
          ]
-     , Fragment RosterGridToolbar '[] '[ 'Eager, 'Live ]
+     , Fragment RosterGridToolbar '[] '[ 'Eager, 'Live, 'ResyncOnly ]
      , Fragment RosterGridFrame
         '[]
         '[ 'Eager
          , 'Live
+         , 'ResyncOnly
          , 'Contains RosterDayColumns
          , 'Contains RosterDayRail
          , 'Contains RosterWageRail
          , 'Contains RosterSlotsGrid
          , 'Contains RosterDaySection
          ]
-     , Fragment RosterDayColumns '[] '[ 'Eager, 'Live ]
-     , Fragment RosterDayRail '[] '[ 'Eager, 'Live ]
-     , Fragment RosterWageRail '[] '[ 'Eager, 'Live ]
-     , Fragment RosterSlotsGrid '[] '[ 'Eager, 'Live ]
-     , Fragment RosterStaffPanel '[] '[ 'Lazy '[ 'DependsOn RosterContent ], 'Live ]
+     , Fragment RosterDayColumns '[] '[ 'Eager, 'Live, 'ResyncOnly ]
+     , Fragment RosterDayRail '[] '[ 'Eager, 'Live, 'ResyncOnly ]
+     , Fragment RosterWageRail '[] '[ 'Eager, 'Live, 'ResyncOnly ]
+     , Fragment RosterSlotsGrid '[] '[ 'Eager, 'Live, 'ResyncOnly ]
+     , Fragment RosterStaffPanel '[] '[ 'Lazy '[ 'DependsOnFragment RosterContent ], 'Live, 'ResyncOnly ]
      , Fragment RosterDaySection
         '[ Field RosterDayId 'WireUUID ]
-        '[ 'Lazy '[ 'DependsOn RosterGridFrame, 'Contains RosterRow ], 'Live ]
+        '[ 'Lazy '[ 'DependsOnFragment RosterGridFrame, 'Contains RosterRow ], 'Live, 'ResyncOnly ]
      , Fragment RosterRow
         '[ Field RosterDayId 'WireUUID
          , Field RowIndex 'WireInt
          ]
-        '[ 'Lazy '[ 'DependsOn RosterDaySection ], 'Live ]
+        '[ 'Lazy '[ 'DependsOnFragment RosterDaySection ], 'Live, 'ResyncOnly ]
      ]
 
 type RosterInteractionBundle =

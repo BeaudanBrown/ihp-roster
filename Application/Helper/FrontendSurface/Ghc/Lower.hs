@@ -53,13 +53,15 @@ addPrimitive surface primitive
     | isUnsupportedTypeFamily primitive = Left [unsupportedTypeFamilyDiagnostic "surface primitive" primitive]
     | otherwise =
     case (primitive.rawTypeName, primitive.rawTypeArgs) of
-        (Just "Scope", marker : fields : _) -> do
+        (Just "Scope", marker : fields : options : _) -> do
             markerName <- rawMarkerName marker
             fieldList <- lowerFieldList fields
+            optionList <- lowerScopeOptionList options
             Right surface { IR.surfaceScopes = IR.surfaceScopes surface <> [IR.ScopeIR
                 { IR.scopeMarker = text markerName
                 , IR.scopeName = protocol Naming.ScopeName markerName
                 , IR.scopeFields = fieldList
+                , IR.scopeOptions = optionList
                 }] }
         (Just "MountState", marker : fields : _) -> do
             markerName <- rawMarkerName marker
@@ -177,6 +179,18 @@ lowerWire wire
         (Just "WireRef", marker : _) -> IR.WireRefIR <$> (protocol Naming.ScopeName <$> rawMarkerName marker)
         _ -> Left ["unsupported wire type " <> wire.rawTypePretty]
 
+lowerScopeOptionList :: RawType -> Either [String] [IR.ScopeAuthIR]
+lowerScopeOptionList options = rawListElements "scope option list" options >>= collectEither . map lowerScopeOption
+
+lowerScopeOption :: RawType -> Either [String] IR.ScopeAuthIR
+lowerScopeOption option
+    | isUnsupportedTypeFamily option = Left [unsupportedTypeFamilyDiagnostic "scope option" option]
+    | otherwise =
+    case (option.rawTypeName, option.rawTypeArgs) of
+        (Just "NoAuth", _) -> Right IR.NoAuthIR
+        (Just "Authorize", policy : fields : _) -> IR.AuthorizeIR <$> (protocol Naming.ScopeName <$> rawMarkerName policy) <*> lowerMarkerNameList Naming.FieldName "authorization field list" fields
+        _ -> Left ["unsupported scope option " <> option.rawTypePretty]
+
 lowerOptionList :: RawType -> Either [String] [IR.OptionIR]
 lowerOptionList options = rawListElements "option list" options >>= collectEither . map lowerOption
 
@@ -187,10 +201,12 @@ lowerOption option
     case (option.rawTypeName, option.rawTypeArgs) of
         (Just "Eager", _) -> Right IR.EagerOption
         (Just "Live", _) -> Right IR.LiveOption
+        (Just "ResyncOnly", _) -> Right IR.ResyncOnlyOption
         (Just "Lazy", nested : _) -> IR.LazyOption <$> lowerOptionList nested
         (Just "Trigger", marker : _) -> IR.TriggerOption <$> (protocol Naming.DomTokenName <$> rawMarkerName marker)
         (Just "Placeholder", marker : _) -> IR.PlaceholderOption <$> (protocol Naming.DomTokenName <$> rawMarkerName marker)
-        (Just "DependsOn", marker : _) -> IR.DependsOnOption <$> (protocol Naming.DomTokenName <$> rawMarkerName marker)
+        (Just "DependsOn", resource : sources : _) -> IR.DependsOnOption <$> (IR.ResourceDependencyIR <$> lowerResource resource <*> lowerDependencySourceList sources)
+        (Just "DependsOnFragment", marker : _) -> IR.DependsOnFragmentOption <$> (protocol Naming.FragmentName <$> rawMarkerName marker)
         (Just "Target", marker : _) -> IR.TargetOption <$> (protocol Naming.FragmentName <$> rawMarkerName marker)
         (Just "BackedBy", marker : _) -> IR.BackedByOption <$> (protocol Naming.ActionName <$> rawMarkerName marker)
         (Just "Layer", marker : _) -> IR.LayerOption <$> (protocol Naming.LayerName <$> rawMarkerName marker)
@@ -201,6 +217,36 @@ lowerOption option
         (Just "ContainsSurface", marker : _) -> IR.ContainsSurfaceOption <$> (protocol Naming.SurfaceName <$> rawMarkerName marker)
         (Just "UsesDto", marker : _) -> IR.UsesDtoOption <$> (protocol Naming.ScopeName <$> rawMarkerName marker)
         _ -> Left ["unsupported option " <> option.rawTypePretty]
+
+lowerResource :: RawType -> Either [String] IR.ResourceIR
+lowerResource resource
+    | isUnsupportedTypeFamily resource = Left [unsupportedTypeFamilyDiagnostic "resource" resource]
+    | otherwise =
+    case (resource.rawTypeName, resource.rawTypeArgs) of
+        (Just "Resource", marker : fields : _) -> do
+            markerName <- rawMarkerName marker
+            fieldList <- lowerFieldList fields
+            Right IR.ResourceIR
+                { IR.resourceMarker = text markerName
+                , IR.resourceName = protocol Naming.ScopeName markerName
+                , IR.resourceFields = fieldList
+                }
+        _ -> Left ["unsupported resource " <> resource.rawTypePretty]
+
+lowerDependencySourceList :: RawType -> Either [String] [IR.ResourceSourceIR]
+lowerDependencySourceList sources = rawListElements "dependency source list" sources >>= collectEither . map lowerDependencySource
+
+lowerDependencySource :: RawType -> Either [String] IR.ResourceSourceIR
+lowerDependencySource source
+    | isUnsupportedTypeFamily source = Left [unsupportedTypeFamilyDiagnostic "dependency source" source]
+    | otherwise =
+    case (source.rawTypeName, source.rawTypeArgs) of
+        (Just "FromScope", marker : _) -> IR.FromScopeIR <$> (protocol Naming.FieldName <$> rawMarkerName marker)
+        (Just "FromFragment", marker : _) -> IR.FromFragmentIR <$> (protocol Naming.FieldName <$> rawMarkerName marker)
+        _ -> Left ["unsupported dependency source " <> source.rawTypePretty]
+
+lowerMarkerNameList :: Naming.FrontendSurfaceNameContext -> String -> RawType -> Either [String] [Text]
+lowerMarkerNameList context label raw = rawListElements label raw >>= collectEither . map (fmap (protocol context) . rawMarkerName)
 
 lowerSessionSelector :: RawType -> Either [String] IR.SessionSelectorIR
 lowerSessionSelector selector

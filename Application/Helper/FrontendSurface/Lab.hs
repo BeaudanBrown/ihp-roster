@@ -63,6 +63,7 @@ type LabScopeBundle =
         '[ Field VenueId 'WireUUID
          , Field WeekOffset 'WireInt
          ]
+        '[ 'NoAuth ]
      , MountState LabViewState
         '[ Field ShowArchived 'WireBool
          , OptionalField StaffFilterId 'WireUUID

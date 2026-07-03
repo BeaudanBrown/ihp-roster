@@ -22,3 +22,9 @@ Attach explicit Authorize/NoAuth policies to all current scopes. Generate dispat
 
 Web.LiveSurfaceRegistry.authorizeRegisteredLiveSurfaceScope hard-coded cases are removed/replaced. Unknown surface, malformed scope payload, missing fields, wrong field types, and missing policy deny by default. VenueAccess/LiveUpdate Hspec assert generated dispatch behavior for current policies.
 
+
+## Notes
+
+**2026-07-03T07:16:17Z**
+
+ir-qhzl introduced NoAuth metadata on current scopes only to satisfy mandatory auth validation before generated dispatch exists. Replace these with real per-scope policies before wiring generated subscription authorization; do not treat current NoAuth declarations as final business authorization.

@@ -22,3 +22,9 @@ Migrate Timesheets, Roster, Leave Requests, Billing, Support, Profile, and Admin
 
 Every current Live fragment has explicit dependency or resync declarations. Generated planner matches existing focused Hspec expectations. No current live resource remains outside generated declarations.
 
+
+## Notes
+
+**2026-07-03T07:16:17Z**
+
+ir-qhzl marked current Live fragments ResyncOnly as a validation placeholder. Replace ResyncOnly with explicit Resource/DependsOn declarations during current-resource migration except where a fragment is genuinely resync-only.

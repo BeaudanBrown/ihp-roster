@@ -1,6 +1,6 @@
 ---
 id: ir-qhzl
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-07-03T06:55:44Z

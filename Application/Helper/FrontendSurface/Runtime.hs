@@ -219,7 +219,7 @@ data FrontendSurfaceScopeHandler (requirement :: SurfacePrimitive) where
     FrontendSurfaceScopeHandler ::
         { scopeHandlerDefaultValue :: !(FrontendSurfaceFieldValues fields)
         , scopeHandlerKey          :: !(FrontendSurfaceFieldValues fields -> Text)
-        } -> FrontendSurfaceScopeHandler ('Scope marker fields)
+        } -> FrontendSurfaceScopeHandler ('Scope marker fields options)
 
 data FrontendSurfaceMountStateHandler (requirement :: SurfacePrimitive) where
     FrontendSurfaceMountStateHandler ::
@@ -270,7 +270,7 @@ type family SurfaceIntentRequirements (spec :: SurfaceSpec) :: [SurfacePrimitive
 
 type family PrimitiveScopeRequirements (primitives :: [SurfacePrimitive]) :: [SurfacePrimitive] where
     PrimitiveScopeRequirements '[] = '[]
-    PrimitiveScopeRequirements (('Scope marker fields) ': rest) = ('Scope marker fields) ': PrimitiveScopeRequirements rest
+    PrimitiveScopeRequirements (('Scope marker fields options) ': rest) = ('Scope marker fields options) ': PrimitiveScopeRequirements rest
     PrimitiveScopeRequirements (primitive ': rest) = PrimitiveScopeRequirements rest
 
 type family PrimitiveMountStateRequirements (primitives :: [SurfacePrimitive]) :: [SurfacePrimitive] where

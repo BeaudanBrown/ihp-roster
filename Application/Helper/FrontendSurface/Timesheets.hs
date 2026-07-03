@@ -39,6 +39,7 @@ type TimesheetScopeBundle =
         '[ Field VenueId 'WireUUID
          , Field WeekOffset 'WireInt
          ]
+        '[ 'NoAuth ]
      , MountState TimesheetsMountState
         '[ Field ShowApproved 'WireBool
          , Field ShowAllStaff 'WireBool
@@ -47,11 +48,11 @@ type TimesheetScopeBundle =
      ]
 
 type TimesheetFragmentBundle =
-    '[ Fragment TimesheetToolbar '[] '[ 'Eager, 'Live ]
-     , Fragment TimesheetDayColumns '[] '[ 'Eager, 'Live ]
+    '[ Fragment TimesheetToolbar '[] '[ 'Eager, 'Live, 'ResyncOnly ]
+     , Fragment TimesheetDayColumns '[] '[ 'Eager, 'Live, 'ResyncOnly ]
      , Fragment TimesheetDaySection
         '[ Field DayOffset 'WireInt ]
-        '[ 'Lazy '[ 'DependsOn TimesheetDayColumns ], 'Live ]
+        '[ 'Lazy '[ 'DependsOnFragment TimesheetDayColumns ], 'Live, 'ResyncOnly ]
      ]
 
 type TimesheetsSurface =

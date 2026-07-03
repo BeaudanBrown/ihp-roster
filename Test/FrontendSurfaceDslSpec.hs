@@ -211,11 +211,27 @@ tests = describe "FrontendSurface DSL foundation" do
         let missingReference = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[MissingReferenceSurface]))
         let conflictingShared = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[SharedScopeA, SharedScopeB]))
         let missingDtoRef = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[MissingDtoRefSurface]))
+        let missingAuth = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[MissingAuthSurface]))
+        let missingLiveInvalidation = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[MissingLiveInvalidationSurface]))
+        let missingResourceSource = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[MissingResourceSourceSurface]))
+        let invalidScopeSource = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[InvalidScopeSourceSurface]))
+        let invalidFragmentSource = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[InvalidFragmentSourceSurface]))
+        let sourceTypeMismatch = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[ResourceSourceTypeMismatchSurface]))
+        let duplicateResourceSource = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[DuplicateResourceSourceSurface]))
+        let conflictingResources = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[DuplicateResourceSurfaceA, DuplicateResourceSurfaceB]))
 
         diagnosticMessages duplicateFields `shouldContain` ["surface duplicate has duplicate scope field panelId"]
         diagnosticMessages missingReference `shouldContain` ["htmx action bad references missing fragment missing on surface missing-reference"]
         diagnosticMessages conflictingShared `shouldContain` ["conflicting shared declaration: scope shared"]
         diagnosticMessages missingDtoRef `shouldContain` ["field missingPayload references missing dto missing-payload on surface missing-dto-ref"]
+        diagnosticMessages missingAuth `shouldContain` ["surface missing-auth scope lab must declare exactly one authorization policy"]
+        diagnosticMessages missingLiveInvalidation `shouldContain` ["surface missing-live-invalidation live fragment bad must declare DependsOn or ResyncOnly"]
+        diagnosticMessages missingResourceSource `shouldContain` ["surface missing-resource-source fragment bad dependency test-resource missing source for resource field weekOffset"]
+        diagnosticMessages invalidScopeSource `shouldContain` ["surface invalid-scope-source fragment bad dependency test-resource references missing scope field weekOffset"]
+        diagnosticMessages invalidFragmentSource `shouldContain` ["surface invalid-fragment-source fragment bad dependency test-resource references missing fragment field panelId"]
+        diagnosticMessages sourceTypeMismatch `shouldContain` ["surface resource-source-type-mismatch fragment bad dependency mismatched-resource maps scope field venueId with incompatible wire type or presence"]
+        diagnosticMessages duplicateResourceSource `shouldContain` ["surface duplicate-resource-source fragment bad dependency test-resource supplies resource field venueId more than once"]
+        diagnosticMessages conflictingResources `shouldContain` ["conflicting shared declaration: resource test-resource"]
 
     it "renders minimal HTMX action and intent forms from SurfaceImpl metadata" do
         let request = FrontendSurfaceHtmxRequest
@@ -248,8 +264,19 @@ data SharedA
 data SharedB
 data Shared
 data Bad
+data TestResource
+data MismatchedResource
 data MissingFragment
 data MissingDtoRef
+data MissingAuth
+data MissingLiveInvalidation
+data MissingResourceSource
+data InvalidScopeSource
+data InvalidFragmentSource
+data ResourceSourceTypeMismatch
+data DuplicateResourceSource
+data DuplicateResourceA
+data DuplicateResourceB
 data MissingPayload
 data PanelId
 data StaffFilterId
@@ -269,28 +296,110 @@ type DuplicateFieldSurface =
             '[ Field PanelId 'WireUUID
              , Field PanelId 'WireText
              ]
+            '[ 'NoAuth ]
          ]
 
 type MissingReferenceSurface =
     Surface MissingReference
-        '[ Scope LabScope '[ Field VenueId 'WireUUID ]
+        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
          , Action Bad '[] '[ 'Target MissingFragment ]
          ]
 
 type MissingDtoRefSurface =
     Surface MissingDtoRef
-        '[ Scope LabScope '[ Field VenueId 'WireUUID ]
+        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
          , Dto Bad '[ Field MissingPayload ('WireRef MissingPayload) ]
+         ]
+
+type MissingAuthSurface =
+    Surface MissingAuth
+        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[]
+         ]
+
+type MissingLiveInvalidationSurface =
+    Surface MissingLiveInvalidation
+        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+         , Fragment Bad '[] '[ 'Live ]
+         ]
+
+type MissingResourceSourceSurface =
+    Surface MissingResourceSource
+        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+         , Fragment Bad '[]
+            '[ 'Live
+             , 'DependsOn ('Resource TestResource '[ Field VenueId 'WireUUID, Field WeekOffset 'WireInt ])
+                '[ 'FromScope VenueId ]
+             ]
+         ]
+
+type InvalidScopeSourceSurface =
+    Surface InvalidScopeSource
+        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+         , Fragment Bad '[]
+            '[ 'Live
+             , 'DependsOn ('Resource TestResource '[ Field WeekOffset 'WireInt ])
+                '[ 'FromScope WeekOffset ]
+             ]
+         ]
+
+type InvalidFragmentSourceSurface =
+    Surface InvalidFragmentSource
+        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+         , Fragment Bad '[]
+            '[ 'Live
+             , 'DependsOn ('Resource TestResource '[ Field PanelId 'WireUUID ])
+                '[ 'FromFragment PanelId ]
+             ]
+         ]
+
+type ResourceSourceTypeMismatchSurface =
+    Surface ResourceSourceTypeMismatch
+        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+         , Fragment Bad '[]
+            '[ 'Live
+             , 'DependsOn ('Resource MismatchedResource '[ Field VenueId 'WireText ])
+                '[ 'FromScope VenueId ]
+             ]
+         ]
+
+type DuplicateResourceSourceSurface =
+    Surface DuplicateResourceSource
+        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+         , Fragment Bad '[ Field VenueId 'WireUUID ]
+            '[ 'Live
+             , 'DependsOn ('Resource TestResource '[ Field VenueId 'WireUUID ])
+                '[ 'FromScope VenueId, 'FromFragment VenueId ]
+             ]
+         ]
+
+type DuplicateResourceSurfaceA =
+    Surface DuplicateResourceA
+        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+         , Fragment Bad '[]
+            '[ 'Live
+             , 'DependsOn ('Resource TestResource '[ Field VenueId 'WireUUID ])
+                '[ 'FromScope VenueId ]
+             ]
+         ]
+
+type DuplicateResourceSurfaceB =
+    Surface DuplicateResourceB
+        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+         , Fragment Bad '[]
+            '[ 'Live
+             , 'DependsOn ('Resource TestResource '[ Field VenueId 'WireText ])
+                '[ 'FromScope VenueId ]
+             ]
          ]
 
 type SharedScopeA =
     Surface SharedA
-        '[ Scope Shared '[ Field VenueId 'WireUUID ]
+        '[ Scope Shared '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
          ]
 
 type SharedScopeB =
     Surface SharedB
-        '[ Scope Shared '[ Field WeekOffset 'WireInt ]
+        '[ Scope Shared '[ Field WeekOffset 'WireInt ] '[ 'NoAuth ]
          ]
 
 shouldContainText :: Text -> Text -> Expectation

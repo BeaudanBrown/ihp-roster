@@ -18,6 +18,7 @@ import Application.Helper.FrontendSurface.DSL
 import Application.Helper.FrontendSurface.Naming (FrontendSurfaceNameContext (..),
                                                   deriveFrontendSurfaceName)
 import Application.Helper.FrontendSurface.Registry (RegisteredFrontendSurfaces)
+import Data.Kind (Type)
 import qualified Data.List as List
 import qualified Data.Text as Text
 import Data.Typeable (Proxy (..), Typeable, tyConName, typeRep, typeRepTyCon)
@@ -75,11 +76,12 @@ data ReflectedPrimitive
 class ReflectPrimitive (primitive :: SurfacePrimitive) where
     reflectPrimitive :: ReflectedPrimitive
 
-instance (Typeable marker, ReflectFieldList fields) => ReflectPrimitive ('Scope marker fields) where
+instance (Typeable marker, ReflectFieldList fields, ReflectScopeOptionList options) => ReflectPrimitive ('Scope marker fields options) where
     reflectPrimitive = ReflectedScope ScopeIR
         { scopeMarker = typeMarker @marker
         , scopeName = protocolName @marker ScopeName
         , scopeFields = reflectFieldList @fields
+        , scopeOptions = reflectScopeOptionList @options
         }
 
 instance (Typeable marker, ReflectFieldList fields) => ReflectPrimitive ('MountState marker fields) where
@@ -166,6 +168,61 @@ instance ReflectWire inner => ReflectWire ('WireOptional inner) where reflectWir
 instance ReflectWire inner => ReflectWire ('WireNullable inner) where reflectWire = WireNullableIR (reflectWire @inner)
 instance Typeable marker => ReflectWire ('WireRef marker) where reflectWire = WireRefIR (protocolName @marker ScopeName)
 
+class ReflectScopeOptionList (options :: [ScopeOption]) where
+    reflectScopeOptionList :: [ScopeAuthIR]
+
+instance ReflectScopeOptionList '[] where
+    reflectScopeOptionList = []
+
+instance (ReflectScopeOption option, ReflectScopeOptionList rest) => ReflectScopeOptionList (option ': rest) where
+    reflectScopeOptionList = reflectScopeOption @option : reflectScopeOptionList @rest
+
+class ReflectScopeOption (option :: ScopeOption) where
+    reflectScopeOption :: ScopeAuthIR
+
+instance ReflectScopeOption 'NoAuth where
+    reflectScopeOption = NoAuthIR
+
+instance (Typeable policy, ReflectMarkerList fields) => ReflectScopeOption ('Authorize policy fields) where
+    reflectScopeOption = AuthorizeIR (protocolName @policy ScopeName) (reflectMarkerList @fields FieldName)
+
+class ReflectMarkerList (markers :: [Type]) where
+    reflectMarkerList :: FrontendSurfaceNameContext -> [Text]
+
+instance ReflectMarkerList '[] where
+    reflectMarkerList _ = []
+
+instance (Typeable marker, ReflectMarkerList rest) => ReflectMarkerList (marker ': rest) where
+    reflectMarkerList context = protocolName @marker context : reflectMarkerList @rest context
+
+class ReflectResource (resource :: ResourceSpec) where
+    reflectResource :: ResourceIR
+
+instance (Typeable marker, ReflectFieldList fields) => ReflectResource ('Resource marker fields) where
+    reflectResource = ResourceIR
+        { resourceMarker = typeMarker @marker
+        , resourceName = protocolName @marker ScopeName
+        , resourceFields = reflectFieldList @fields
+        }
+
+class ReflectDependencySourceList (sources :: [DependencySource]) where
+    reflectDependencySourceList :: [ResourceSourceIR]
+
+instance ReflectDependencySourceList '[] where
+    reflectDependencySourceList = []
+
+instance (ReflectDependencySource source, ReflectDependencySourceList rest) => ReflectDependencySourceList (source ': rest) where
+    reflectDependencySourceList = reflectDependencySource @source : reflectDependencySourceList @rest
+
+class ReflectDependencySource (source :: DependencySource) where
+    reflectDependencySource :: ResourceSourceIR
+
+instance Typeable marker => ReflectDependencySource ('FromScope marker) where
+    reflectDependencySource = FromScopeIR (protocolName @marker FieldName)
+
+instance Typeable marker => ReflectDependencySource ('FromFragment marker) where
+    reflectDependencySource = FromFragmentIR (protocolName @marker FieldName)
+
 class ReflectOptionList (options :: [PrimitiveOption]) where
     reflectOptionList :: [OptionIR]
 
@@ -180,10 +237,16 @@ class ReflectOption (option :: PrimitiveOption) where
 
 instance ReflectOption 'Eager where reflectOption = EagerOption
 instance ReflectOption 'Live where reflectOption = LiveOption
+instance ReflectOption 'ResyncOnly where reflectOption = ResyncOnlyOption
 instance ReflectOptionList options => ReflectOption ('Lazy options) where reflectOption = LazyOption (reflectOptionList @options)
 instance Typeable marker => ReflectOption ('Trigger marker) where reflectOption = TriggerOption (protocolName @marker DomTokenName)
 instance Typeable marker => ReflectOption ('Placeholder marker) where reflectOption = PlaceholderOption (protocolName @marker DomTokenName)
-instance Typeable marker => ReflectOption ('DependsOn marker) where reflectOption = DependsOnOption (protocolName @marker DomTokenName)
+instance (ReflectResource resource, ReflectDependencySourceList sources) => ReflectOption ('DependsOn resource sources) where
+    reflectOption = DependsOnOption ResourceDependencyIR
+        { dependencyResource = reflectResource @resource
+        , dependencySources = reflectDependencySourceList @sources
+        }
+instance Typeable marker => ReflectOption ('DependsOnFragment marker) where reflectOption = DependsOnFragmentOption (protocolName @marker FragmentName)
 instance Typeable marker => ReflectOption ('Target marker) where reflectOption = TargetOption (protocolName @marker FragmentName)
 instance Typeable marker => ReflectOption ('BackedBy marker) where reflectOption = BackedByOption (protocolName @marker ActionName)
 instance Typeable marker => ReflectOption ('Layer marker) where reflectOption = LayerOption (protocolName @marker LayerName)

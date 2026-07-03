@@ -10,7 +10,11 @@ module Application.Helper.FrontendSurface.ContractIR
     , IntentIR (..)
     , MountStateIR (..)
     , OptionIR (..)
+    , ResourceDependencyIR (..)
+    , ResourceIR (..)
+    , ResourceSourceIR (..)
     , PrimitiveRefKind (..)
+    , ScopeAuthIR (..)
     , ScopeIR (..)
     , SessionSelectorIR (..)
     , SurfaceContractIR (..)
@@ -50,10 +54,16 @@ data SurfaceIR = SurfaceIR
     deriving (Eq, Show)
 
 data ScopeIR = ScopeIR
-    { scopeMarker :: !Text
-    , scopeName   :: !Text
-    , scopeFields :: ![FieldIR]
+    { scopeMarker  :: !Text
+    , scopeName    :: !Text
+    , scopeFields  :: ![FieldIR]
+    , scopeOptions :: ![ScopeAuthIR]
     }
+    deriving (Eq, Show)
+
+data ScopeAuthIR
+    = AuthorizeIR !Text ![Text]
+    | NoAuthIR
     deriving (Eq, Show)
 
 data MountStateIR = MountStateIR
@@ -102,6 +112,24 @@ data FieldPresence
     | NullableFieldPresence
     deriving (Eq, Show)
 
+data ResourceIR = ResourceIR
+    { resourceMarker :: !Text
+    , resourceName   :: !Text
+    , resourceFields :: ![FieldIR]
+    }
+    deriving (Eq, Show)
+
+data ResourceSourceIR
+    = FromScopeIR !Text
+    | FromFragmentIR !Text
+    deriving (Eq, Show)
+
+data ResourceDependencyIR = ResourceDependencyIR
+    { dependencyResource :: !ResourceIR
+    , dependencySources  :: ![ResourceSourceIR]
+    }
+    deriving (Eq, Show)
+
 data WireIR
     = WireTextIR
     | WireIntIR
@@ -118,9 +146,11 @@ data OptionIR
     = EagerOption
     | LazyOption ![OptionIR]
     | LiveOption
+    | ResyncOnlyOption
     | TriggerOption !Text
     | PlaceholderOption !Text
-    | DependsOnOption !Text
+    | DependsOnOption !ResourceDependencyIR
+    | DependsOnFragmentOption !Text
     | TargetOption !Text
     | BackedByOption !Text
     | LayerOption !Text
@@ -181,6 +211,7 @@ validateSurfaceContractIR :: SurfaceContractIR -> [ContractDiagnostic]
 validateSurfaceContractIR contract =
     concatMap validateSurface contract.contractSurfaces
         <> validateSharedDeclarations contract
+        <> validateSharedResources contract
         <> validateSurfaceNameCollisions contract
         <> validateContainedSurfaceReferences contract
         <> validateContainmentCycles contract
@@ -204,6 +235,9 @@ validateSurface surface =
         <> validateUnique surface.surfaceName "layer" surface.surfaceLayers
         <> validateUnique surface.surfaceName "dom token" surface.surfaceDomTokens
         <> validateUnique surface.surfaceName "dto" (map fst surface.surfaceDtos)
+        <> validateScopeAuthorization surface
+        <> validateLiveFragmentInvalidation surface
+        <> validateResourceDependencies surface
         <> validateCrossReferences surface
 
 validateSingleScope :: SurfaceIR -> [ContractDiagnostic]
@@ -218,6 +252,85 @@ validateAtMostOneMountState surface =
     if length surface.surfaceMountStates <= 1
         then []
         else [diagnostic "multiple-mount-states" ("surface " <> surface.surfaceName <> " declares multiple mount states")]
+
+validateScopeAuthorization :: SurfaceIR -> [ContractDiagnostic]
+validateScopeAuthorization surface =
+    concatMap validateScope surface.surfaceScopes
+    where
+        validateScope scope =
+            case scope.scopeOptions of
+                [auth] -> validateAuthFields scope auth
+                []  -> [diagnostic "missing-scope-auth" ("surface " <> surface.surfaceName <> " scope " <> scope.scopeName <> " must declare exactly one authorization policy")]
+                _   -> [diagnostic "multiple-scope-auth" ("surface " <> surface.surfaceName <> " scope " <> scope.scopeName <> " must declare exactly one authorization policy")]
+
+        validateAuthFields scope = \case
+            NoAuthIR -> []
+            AuthorizeIR policy fields ->
+                [ diagnostic "invalid-auth-field" ("surface " <> surface.surfaceName <> " scope " <> scope.scopeName <> " authorization " <> policy <> " references missing field " <> fieldName)
+                | fieldName <- fields
+                , fieldName `notElem` map (.fieldName) scope.scopeFields
+                ]
+
+validateLiveFragmentInvalidation :: SurfaceIR -> [ContractDiagnostic]
+validateLiveFragmentInvalidation surface =
+    [ diagnostic "missing-live-invalidation"
+        ("surface " <> surface.surfaceName <> " live fragment " <> fragment.fragmentName <> " must declare DependsOn or ResyncOnly")
+    | fragment <- surface.surfaceFragments
+    , optionsContainLive fragment.fragmentOptions
+    , not (optionsContainLiveInvalidation fragment.fragmentOptions)
+    ]
+
+validateResourceDependencies :: SurfaceIR -> [ContractDiagnostic]
+validateResourceDependencies surface =
+    concatMap validateFragment surface.surfaceFragments
+    where
+        scopeFields = maybe [] (.scopeFields) (listToMaybe surface.surfaceScopes)
+
+        validateFragment fragment =
+            concatMap (validateOptionDependency fragment) fragment.fragmentOptions
+
+        validateOptionDependency fragment = \case
+            LazyOption options -> concatMap (validateOptionDependency fragment) options
+            EffectOption _ options -> concatMap (validateOptionDependency fragment) options
+            DependsOnOption dependency -> validateDependency fragment dependency
+            _ -> []
+
+        validateDependency fragment dependency =
+            validateDuplicateFields surface.surfaceName "resource" dependency.dependencyResource.resourceFields
+                <> validateResourceFieldCoverage fragment dependency
+                <> validateSourceFields fragment dependency
+
+        validateResourceFieldCoverage fragment dependency =
+            let resourceFieldNames = map (.fieldName) dependency.dependencyResource.resourceFields
+                sourceNames = map resourceSourceName dependency.dependencySources
+                missing = resourceFieldNames List.\\ sourceNames
+                extra = sourceNames List.\\ resourceFieldNames
+                duplicates = duplicateNames sourceNames
+             in map (\name -> diagnostic "missing-resource-field-source" (dependencyLabel fragment dependency <> " missing source for resource field " <> name)) missing
+                    <> map (\name -> diagnostic "unknown-resource-field-source" (dependencyLabel fragment dependency <> " supplies unknown resource field " <> name)) extra
+                    <> map (\name -> diagnostic "duplicate-resource-field-source" (dependencyLabel fragment dependency <> " supplies resource field " <> name <> " more than once")) duplicates
+
+        validateSourceFields fragment dependency =
+            concatMap (validateSourceField fragment dependency) dependency.dependencySources
+
+        validateSourceField fragment dependency source =
+            case source of
+                FromScopeIR fieldName -> validateSource "scope" scopeFields fragment dependency fieldName
+                FromFragmentIR fieldName -> validateSource "fragment" fragment.fragmentParams fragment dependency fieldName
+
+        validateSource sourceKind availableFields fragment dependency fieldName =
+            case (findField fieldName availableFields, findField fieldName dependency.dependencyResource.resourceFields) of
+                (Nothing, _) -> [diagnostic ("invalid-from-" <> sourceKind) (dependencyLabel fragment dependency <> " references missing " <> sourceKind <> " field " <> fieldName)]
+                (_, Nothing) -> []
+                (Just sourceField, Just resourceField)
+                    | sourceField.fieldWire == resourceField.fieldWire && sourceField.fieldPresence == resourceField.fieldPresence -> []
+                    | otherwise -> [diagnostic "resource-source-type-mismatch" (dependencyLabel fragment dependency <> " maps " <> sourceKind <> " field " <> fieldName <> " with incompatible wire type or presence")]
+
+        findField name = List.find (\field -> field.fieldName == name)
+        resourceSourceName = \case
+            FromScopeIR name -> name
+            FromFragmentIR name -> name
+        dependencyLabel fragment dependency = "surface " <> surface.surfaceName <> " fragment " <> fragment.fragmentName <> " dependency " <> dependency.dependencyResource.resourceName
 
 validateDuplicateFields :: Text -> Text -> [FieldIR] -> [ContractDiagnostic]
 validateDuplicateFields surfaceName owner fields =
@@ -238,6 +351,7 @@ validateWireReferences surface =
             concatMap scopeFields surface.surfaceScopes
                 <> concatMap mountStateFields surface.surfaceMountStates
                 <> concatMap fragmentParams surface.surfaceFragments
+                <> concatMap (concatMap (resourceFields . dependencyResource) . optionResourceDependencies . fragmentOptions) surface.surfaceFragments
                 <> concatMap htmxActionFields surface.surfaceHtmxActions
                 <> concatMap intentFields surface.surfaceIntents
                 <> concatMap snd surface.surfaceClientEvents
@@ -254,6 +368,28 @@ validateWireReferences surface =
             WireOptionalIR inner -> validateWire fieldName inner
             WireNullableIR inner -> validateWire fieldName inner
             _ -> []
+
+optionsContainLive :: [OptionIR] -> Bool
+optionsContainLive = any \case
+    LiveOption -> True
+    LazyOption options -> optionsContainLive options
+    EffectOption _ options -> optionsContainLive options
+    _ -> False
+
+optionsContainLiveInvalidation :: [OptionIR] -> Bool
+optionsContainLiveInvalidation = any \case
+    ResyncOnlyOption -> True
+    DependsOnOption _ -> True
+    LazyOption options -> optionsContainLiveInvalidation options
+    EffectOption _ options -> optionsContainLiveInvalidation options
+    _ -> False
+
+optionResourceDependencies :: [OptionIR] -> [ResourceDependencyIR]
+optionResourceDependencies = concatMap \case
+    DependsOnOption dependency -> [dependency]
+    LazyOption options -> optionResourceDependencies options
+    EffectOption _ options -> optionResourceDependencies options
+    _ -> []
 
 validateCrossReferences :: SurfaceIR -> [ContractDiagnostic]
 validateCrossReferences surface =
@@ -358,6 +494,12 @@ validateSharedDeclarations contract =
     where
         allScopes = concatMap (.surfaceScopes) contract.contractSurfaces
         allDtos = concatMap (.surfaceDtos) contract.contractSurfaces
+
+validateSharedResources :: SurfaceContractIR -> [ContractDiagnostic]
+validateSharedResources contract =
+    validateShared "resource" resourceName resourceFields allResources
+    where
+        allResources = concatMap (concatMap (map dependencyResource . optionResourceDependencies . fragmentOptions) . (.surfaceFragments)) contract.contractSurfaces
 
 validateShared :: Eq declaration => Text -> (declaration -> Text) -> (declaration -> [FieldIR]) -> [declaration] -> [ContractDiagnostic]
 validateShared kind nameOf fieldsOf declarations =

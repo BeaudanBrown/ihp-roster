@@ -35,10 +35,10 @@ tests = describe "FrontendSurface GHC raw lowering" do
                 [ ( registryWithPrimitives [scopePrimitive, unsupportedFamily "Concat '[Broken]"]
                   , "unsupported type family in surface primitive: Concat '[Broken]"
                   )
-                , ( registryWithPrimitives [raw "Scope" [marker "LabScope", raw "NotAList" []]]
+                , ( registryWithPrimitives [raw "Scope" [marker "LabScope", raw "NotAList" [], promotedList [raw "NoAuth" []]]]
                   , "expected field list as normalized PromotedList, got NotAList"
                   )
-                , ( registryWithPrimitives [raw "Scope" [marker "LabScope", promotedList [fieldWithWire "VenueId" (raw "WireMagic" [])]]]
+                , ( registryWithPrimitives [raw "Scope" [marker "LabScope", promotedList [fieldWithWire "VenueId" (raw "WireMagic" [])], promotedList [raw "NoAuth" []]]]
                   , "unsupported wire type WireMagic"
                   )
                 , ( registryWithPrimitives [scopePrimitive, raw "Fragment" [marker "LabPanel", promotedList [], promotedList [raw "MagicOption" []]]]
@@ -197,6 +197,7 @@ timesheetsRawRegistry =
             [ raw "Scope"
                 [ marker "TimesheetWeek"
                 , promotedList [field "VenueId" "WireUUID", field "WeekOffset" "WireInt"]
+                , promotedList [raw "NoAuth" []]
                 ]
             , raw "MountState"
                 [ marker "TimesheetsMountState"
@@ -206,12 +207,12 @@ timesheetsRawRegistry =
                     , fieldWithWire "StaffFilterId" (raw "WireOptional" [raw "WireUUID" []])
                     ]
                 ]
-            , raw "Fragment" [marker "TimesheetToolbar", promotedList [], promotedList [raw "Eager" [], raw "Live" []]]
-            , raw "Fragment" [marker "TimesheetDayColumns", promotedList [], promotedList [raw "Eager" [], raw "Live" []]]
+            , raw "Fragment" [marker "TimesheetToolbar", promotedList [], promotedList [raw "Eager" [], raw "Live" [], raw "ResyncOnly" []]]
+            , raw "Fragment" [marker "TimesheetDayColumns", promotedList [], promotedList [raw "Eager" [], raw "Live" [], raw "ResyncOnly" []]]
             , raw "Fragment"
                 [ marker "TimesheetDaySection"
                 , promotedList [field "DayOffset" "WireInt"]
-                , promotedList [raw "Lazy" [promotedList [raw "DependsOn" [marker "TimesheetDayColumns"]]], raw "Live" []]
+                , promotedList [raw "Lazy" [promotedList [raw "DependsOnFragment" [marker "TimesheetDayColumns"]]], raw "Live" [], raw "ResyncOnly" []]
                 ]
             ]
         ]
@@ -223,14 +224,15 @@ rosterRawRegistry =
             [ raw "Scope"
                 [ marker "RosterWeek"
                 , promotedList [field "VenueId" "WireUUID", field "RosterGroupId" "WireUUID", field "WeekOffset" "WireInt"]
+                , promotedList [raw "NoAuth" []]
                 ]
-            , raw "Fragment" [marker "RosterContent", promotedList [], promotedList [raw "Eager" [], raw "Live" [], raw "Contains" [marker "RosterGridToolbar"], raw "Contains" [marker "RosterGridFrame"]]]
-            , raw "Fragment" [marker "RosterGridToolbar", promotedList [], promotedList [raw "Eager" [], raw "Live" []]]
+            , raw "Fragment" [marker "RosterContent", promotedList [], promotedList [raw "Eager" [], raw "Live" [], raw "ResyncOnly" [], raw "Contains" [marker "RosterGridToolbar"], raw "Contains" [marker "RosterGridFrame"]]]
+            , raw "Fragment" [marker "RosterGridToolbar", promotedList [], promotedList [raw "Eager" [], raw "Live" [], raw "ResyncOnly" []]]
             , raw "Fragment"
                 [ marker "RosterGridFrame"
                 , promotedList []
                 , promotedList
-                    [ raw "Eager" [], raw "Live" []
+                    [ raw "Eager" [], raw "Live" [], raw "ResyncOnly" []
                     , raw "Contains" [marker "RosterDayColumns"]
                     , raw "Contains" [marker "RosterDayRail"]
                     , raw "Contains" [marker "RosterWageRail"]
@@ -238,20 +240,20 @@ rosterRawRegistry =
                     , raw "Contains" [marker "RosterDaySection"]
                     ]
                 ]
-            , raw "Fragment" [marker "RosterDayColumns", promotedList [], promotedList [raw "Eager" [], raw "Live" []]]
-            , raw "Fragment" [marker "RosterDayRail", promotedList [], promotedList [raw "Eager" [], raw "Live" []]]
-            , raw "Fragment" [marker "RosterWageRail", promotedList [], promotedList [raw "Eager" [], raw "Live" []]]
-            , raw "Fragment" [marker "RosterSlotsGrid", promotedList [], promotedList [raw "Eager" [], raw "Live" []]]
-            , raw "Fragment" [marker "RosterStaffPanel", promotedList [], promotedList [raw "Lazy" [promotedList [raw "DependsOn" [marker "RosterContent"]]], raw "Live" []]]
+            , raw "Fragment" [marker "RosterDayColumns", promotedList [], promotedList [raw "Eager" [], raw "Live" [], raw "ResyncOnly" []]]
+            , raw "Fragment" [marker "RosterDayRail", promotedList [], promotedList [raw "Eager" [], raw "Live" [], raw "ResyncOnly" []]]
+            , raw "Fragment" [marker "RosterWageRail", promotedList [], promotedList [raw "Eager" [], raw "Live" [], raw "ResyncOnly" []]]
+            , raw "Fragment" [marker "RosterSlotsGrid", promotedList [], promotedList [raw "Eager" [], raw "Live" [], raw "ResyncOnly" []]]
+            , raw "Fragment" [marker "RosterStaffPanel", promotedList [], promotedList [raw "Lazy" [promotedList [raw "DependsOnFragment" [marker "RosterContent"]]], raw "Live" [], raw "ResyncOnly" []]]
             , raw "Fragment"
                 [ marker "RosterDaySection"
                 , promotedList [field "RosterDayId" "WireUUID"]
-                , promotedList [raw "Lazy" [promotedList [raw "DependsOn" [marker "RosterGridFrame"], raw "Contains" [marker "RosterRow"]]], raw "Live" []]
+                , promotedList [raw "Lazy" [promotedList [raw "DependsOnFragment" [marker "RosterGridFrame"], raw "Contains" [marker "RosterRow"]]], raw "Live" [], raw "ResyncOnly" []]
                 ]
             , raw "Fragment"
                 [ marker "RosterRow"
                 , promotedList [field "RosterDayId" "WireUUID", field "RowIndex" "WireInt"]
-                , promotedList [raw "Lazy" [promotedList [raw "DependsOn" [marker "RosterDaySection"]]], raw "Live" []]
+                , promotedList [raw "Lazy" [promotedList [raw "DependsOnFragment" [marker "RosterDaySection"]]], raw "Live" [], raw "ResyncOnly" []]
                 ]
             , raw "Action" [marker "SetRosterLayoutMode", promotedList [field "RosterLayoutMode" "WireText"], promotedList [raw "Target" [marker "RosterContent"]]]
             , raw "Intent" [marker "SetRosterLayoutMode", promotedList [field "RosterLayoutMode" "WireText"], promotedList [raw "BackedBy" [marker "SetRosterLayoutMode"]]]
@@ -314,6 +316,7 @@ scopePrimitive :: RawType
 scopePrimitive = raw "Scope"
     [ marker "LabScope"
     , promotedList [field "VenueId" "WireUUID", field "WeekOffset" "WireInt"]
+    , promotedList [raw "NoAuth" []]
     ]
 
 field :: String -> String -> RawType

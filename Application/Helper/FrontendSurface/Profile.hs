@@ -32,9 +32,10 @@ type ProfileSurface =
             '[ Field VenueId 'WireUUID
              , Field StaffId 'WireUUID
              ]
-         , Fragment ProfileDetailsSection '[] '[ 'Eager, 'Live ]
-         , Fragment ProfilePreferencesSection '[] '[ 'Eager, 'Live ]
-         , Fragment ProfileSecuritySection '[] '[ 'Eager, 'Live ]
-         , Fragment ProfileLeaveSection '[] '[ 'Eager, 'Live ]
-         , Fragment ProfileRsaSection '[] '[ 'Eager, 'Live ]
+            '[ 'NoAuth ]
+         , Fragment ProfileDetailsSection '[] '[ 'Eager, 'Live, 'ResyncOnly ]
+         , Fragment ProfilePreferencesSection '[] '[ 'Eager, 'Live, 'ResyncOnly ]
+         , Fragment ProfileSecuritySection '[] '[ 'Eager, 'Live, 'ResyncOnly ]
+         , Fragment ProfileLeaveSection '[] '[ 'Eager, 'Live, 'ResyncOnly ]
+         , Fragment ProfileRsaSection '[] '[ 'Eager, 'Live, 'ResyncOnly ]
          ]

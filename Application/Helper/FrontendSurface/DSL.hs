@@ -7,7 +7,10 @@
 module Application.Helper.FrontendSurface.DSL
     ( SurfaceSpec (..)
     , SurfacePrimitive (..)
+    , DependencySource (..)
     , FieldSpec (..)
+    , ResourceSpec (..)
+    , ScopeOption (..)
     , WireType (..)
     , PrimitiveOption (..)
     , ConflictResolution (..)
@@ -16,6 +19,7 @@ module Application.Helper.FrontendSurface.DSL
     , Surface
     , Scope
     , Fragment
+    , Resource
     , Action
     , Intent
     , Field
@@ -29,6 +33,7 @@ module Application.Helper.FrontendSurface.DSL
     , DomToken
     , Dto
     , ContainsSurface
+    , DependsOnFragment
     , Append
     , Concat
     ) where
@@ -51,13 +56,26 @@ data FieldSpec
     | OptionalField Type WireType
     | NullableField Type WireType
 
+data ResourceSpec
+    = Resource Type [FieldSpec]
+
+data DependencySource
+    = FromScope Type
+    | FromFragment Type
+
+data ScopeOption
+    = Authorize Type [Type]
+    | NoAuth
+
 data PrimitiveOption
     = Eager
     | Lazy [PrimitiveOption]
     | Live
+    | ResyncOnly
     | Trigger Type
     | Placeholder Type
-    | DependsOn Type
+    | DependsOn ResourceSpec [DependencySource]
+    | DependsOnFragment Type
     | Target Type
     | BackedBy Type
     | Layer Type
@@ -83,7 +101,7 @@ data ConflictResolution
     | Cancel
 
 data SurfacePrimitive
-    = Scope Type [FieldSpec]
+    = Scope Type [FieldSpec] [ScopeOption]
     | Fragment Type [FieldSpec] [PrimitiveOption]
     | Action Type [FieldSpec] [PrimitiveOption]
     | Intent Type [FieldSpec] [PrimitiveOption]
@@ -98,8 +116,9 @@ data SurfaceSpec
     = Surface Type [SurfacePrimitive]
 
 type Surface name capabilities = 'Surface name capabilities
-type Scope name fields = 'Scope name fields
+type Scope name fields options = 'Scope name fields options
 type Fragment name params options = 'Fragment name params options
+type Resource name fields = 'Resource name fields
 type Action name fields options = 'Action name fields options
 type Intent name fields options = 'Intent name fields options
 type Field name wire = 'Field name wire
@@ -113,6 +132,7 @@ type Event name detail = 'Event name detail
 type DomToken name = 'DomToken name
 type Dto name fields = 'Dto name fields
 type ContainsSurface name = 'ContainsSurface name
+type DependsOnFragment name = 'DependsOnFragment name
 
 type family Append (left :: [kind]) (right :: [kind]) :: [kind] where
     Append '[] right = right
