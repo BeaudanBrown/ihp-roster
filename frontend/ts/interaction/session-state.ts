@@ -65,7 +65,7 @@ export function createActiveInteractionSessionTracker(root: Document) {
 
     return {
         findForTarget(target: Element): InteractionSessionSnapshot | null {
-            const mount = target.closest(`[${attrs.surface}="true"]`);
+            const mount = target.closest(`[${attrs.surface}]`);
             if (!isElementLike(mount)) return null;
             return sessionsByMountId.get(mount.id) ?? null;
         },

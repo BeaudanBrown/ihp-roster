@@ -1,6 +1,6 @@
 ---
 id: ir-dhbc
-status: open
+status: closed
 deps: [ir-ot1h]
 links: []
 created: 2026-07-03T02:45:01Z

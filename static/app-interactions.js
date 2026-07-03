@@ -13,7 +13,6 @@
 
   // frontend/ts/interaction/form-bridge.ts
   var attrs = InteractionDom.attributes;
-  var values = InteractionDom.values;
   function submitCommittedInteractionIntent(intent, logger = console) {
     if (intent.phase !== "commit") return { ok: false, reason: "intent phase is not commit" };
     const mount = resolveInteractionMount(intent);
@@ -41,11 +40,10 @@
     return null;
   }
   function isInteractionMount(element) {
-    return element.getAttribute(attrs.surface) === values.enabled;
+    return Boolean(element.getAttribute(attrs.surface));
   }
   function closestInteractionMount(element) {
-    const selector = attrEqualsSelector(attrs.surface, values.enabled);
-    const closest = element.closest?.(selector) ?? null;
+    const closest = element.closest?.(attrSelector(attrs.surface)) ?? null;
     return isElementLike(closest) ? closest : null;
   }
   function findIntentForm(mount, intentName) {
@@ -97,9 +95,6 @@
   }
   function attrSelector(attribute) {
     return `[${attribute}]`;
-  }
-  function attrEqualsSelector(attribute, value) {
-    return `[${attribute}="${value}"]`;
   }
   function hasOwn(object, key) {
     return Object.prototype.hasOwnProperty.call(object, key);
@@ -169,8 +164,8 @@
 
   // frontend/ts/interaction/activation.ts
   var attrs2 = InteractionDom.attributes;
-  var values2 = InteractionDom.values;
-  var activationSelector = `[${attrs2.marker}="${values2.activationMarker}"]`;
+  var values = InteractionDom.values;
+  var activationSelector = `[${attrs2.marker}="${values.activationMarker}"]`;
   function enableGenericInteractionActivations(options = {}) {
     if (typeof document === "undefined") return () => void 0;
     const root = options.root ?? document;
@@ -277,8 +272,8 @@
 
   // frontend/ts/interaction/pointer-session.ts
   var attrs4 = InteractionDom.attributes;
-  var values3 = InteractionDom.values;
-  var sessionSelector = `[${attrs4.pointerSession}="${values3.enabled}"]`;
+  var values2 = InteractionDom.values;
+  var sessionSelector = `[${attrs4.pointerSession}="${values2.enabled}"]`;
   var dropzoneSelector = `[${attrs4.dropzone}]`;
   var disposableLayerSelector = `[${attrs4.disposableLayer}]`;
   var pointerFields = InteractionDom.pointerFields;
@@ -682,7 +677,7 @@
     return isElementLike3(marker) ? marker : null;
   }
   function closestInteractionMount2(marker) {
-    const mount = marker.closest(`[${attrs4.surface}="${values3.enabled}"]`);
+    const mount = marker.closest(`[${attrs4.surface}]`);
     return isElementLike3(mount) ? mount : null;
   }
   function clearDisposableLayers(mount) {
@@ -691,7 +686,7 @@
   function setDocumentInteractionActive(mount, active) {
     const root = mount.ownerDocument?.documentElement;
     if (!root) return;
-    if (active) root.setAttribute(attrs4.interactionActive, values3.enabled);
+    if (active) root.setAttribute(attrs4.interactionActive, values2.enabled);
     else root.removeAttribute(attrs4.interactionActive);
   }
   function clearElement(element) {
@@ -724,7 +719,7 @@
     else element.removeAttribute("class");
   }
   function isDisabled(marker) {
-    return marker.getAttribute(attrs4.sessionDisabled) === values3.enabled || marker.getAttribute(attrs4.sessionReadOnly) === values3.enabled;
+    return marker.getAttribute(attrs4.sessionDisabled) === values2.enabled || marker.getAttribute(attrs4.sessionReadOnly) === values2.enabled;
   }
   function isMatchingPointerEvent(event, session) {
     return numberValue(event.pointerId) === session.pointerId;

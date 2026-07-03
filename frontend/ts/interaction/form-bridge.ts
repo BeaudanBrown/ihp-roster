@@ -26,7 +26,6 @@ type FieldContract = {
 };
 
 const attrs = InteractionDom.attributes;
-const values = InteractionDom.values;
 
 export function submitCommittedInteractionIntent(intent: NormalizedInteractionIntent, logger: InteractionBridgeLogger = console): IntentSubmitResult {
     if (intent.phase !== "commit") return { ok: false, reason: "intent phase is not commit" };
@@ -63,12 +62,11 @@ function resolveInteractionMount(intent: NormalizedInteractionIntent): ElementLi
 }
 
 function isInteractionMount(element: ElementLike): boolean {
-    return element.getAttribute(attrs.surface) === values.enabled;
+    return Boolean(element.getAttribute(attrs.surface));
 }
 
 function closestInteractionMount(element: ElementLike): ElementLike | null {
-    const selector = attrEqualsSelector(attrs.surface, values.enabled);
-    const closest = element.closest?.(selector) ?? null;
+    const closest = element.closest?.(attrSelector(attrs.surface)) ?? null;
     return isElementLike(closest) ? closest : null;
 }
 
@@ -134,10 +132,6 @@ function isElementLike(value: unknown): value is ElementLike {
 
 function attrSelector(attribute: string): string {
     return `[${attribute}]`;
-}
-
-function attrEqualsSelector(attribute: string, value: string): string {
-    return `[${attribute}="${value}"]`;
 }
 
 function hasOwn(object: Record<string, string>, key: string): boolean {

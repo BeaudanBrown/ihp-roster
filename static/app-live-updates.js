@@ -233,7 +233,7 @@
     }
   }
   function matchingConflictPolicy(session, fragment, target) {
-    const mount = target.closest(`[${attrs.surface}="true"]`);
+    const mount = target.closest(`[${attrs.surface}]`);
     if (!mount) return null;
     const policies = readInteractionConflictPolicies(mount);
     return policies.find((policy) => {
@@ -285,7 +285,7 @@
     root.addEventListener(interactionSessionEndEventName, handleEnd);
     return {
       findForTarget(target) {
-        const mount = target.closest(`[${attrs2.surface}="true"]`);
+        const mount = target.closest(`[${attrs2.surface}]`);
         if (!isElementLike(mount)) return null;
         return sessionsByMountId.get(mount.id) ?? null;
       },

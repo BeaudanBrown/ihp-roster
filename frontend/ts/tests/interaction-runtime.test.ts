@@ -268,6 +268,37 @@ test("bridge resolves the concrete mount from an activation marker", () => {
     assertEqual(required.value, "cell-2");
 });
 
+test("bridge resolves named nested FrontendSurface mounts from the closest owner", () => {
+    const parent = new MiniElement({ [attrs.surface]: "parent", [attrs.mountKey]: "primary" });
+    const child = parent.append(new MiniElement({ [attrs.surface]: "child", [attrs.mountKey]: "primary" }));
+    const marker = child.append(new MiniElement({ [attrs.intent]: "select-cell" }));
+    const parentForm = parent.append(new MiniElement({
+        [attrs.intentForm]: "select-cell",
+        [attrs.intent]: "select-cell",
+        "hx-trigger": `${AppEvents.interactionIntentSubmit} from:this`,
+    }));
+    const parentRequired = parentForm.append(new MiniElement({ name: "cellId", value: "", [attrs.intentField]: "cellId", [attrs.fieldPresence]: "required" }));
+    const childForm = child.append(new MiniElement({
+        [attrs.intentForm]: "select-cell",
+        [attrs.intent]: "select-cell",
+        "hx-trigger": `${AppEvents.interactionIntentSubmit} from:this`,
+    }));
+    const childRequired = childForm.append(new MiniElement({ name: "cellId", value: "", [attrs.intentField]: "cellId", [attrs.fieldPresence]: "required" }));
+
+    const result = submitCommittedInteractionIntent({
+        phase: "commit",
+        intent: "select-cell",
+        fields: { cellId: "child-cell" },
+        mount: null,
+        marker: marker as unknown as Element,
+        sourceEvent: null,
+    }, { warn: () => undefined });
+
+    assertEqual(result.ok, true);
+    assertEqual(parentRequired.value, "");
+    assertEqual(childRequired.value, "child-cell");
+});
+
 test("strict validation rejects unknown and missing fields without partial mutation", () => {
     const { mount, required } = buildMount();
     const warnings: string[] = [];
@@ -544,6 +575,22 @@ test("live fragment conflicts defer matching active interaction sessions and ign
     assertEqual(unrelated, null);
     dispatchInteractionSessionEnd({ mount: mount as unknown as Element, mountId: "mount-1", sessionKind: "drag", intent: "move" }, root);
     assertEqual(resolveLiveFragmentInteractionConflict({ targetId: "fragment-1" }, target as unknown as Element, tracker), null);
+    tracker.stop();
+});
+
+test("live fragment conflicts resolve named child surface sessions from nearest mount", () => {
+    const root = new EventTarget() as Document;
+    const tracker = createActiveInteractionSessionTracker(root);
+    const parent = new MiniElement({ id: "parent-mount", [attrs.surface]: "parent" });
+    const child = parent.append(new MiniElement({ id: "child-mount", [attrs.surface]: "child" }));
+    const target = child.append(new MiniElement({ id: "child-fragment" }));
+
+    dispatchInteractionSessionStart({ mount: parent as unknown as Element, mountId: "parent-mount", sessionKind: "drag", intent: "move" }, root);
+    dispatchInteractionSessionStart({ mount: child as unknown as Element, mountId: "child-mount", sessionKind: "resize", intent: "resize" }, root);
+
+    const conflict = resolveLiveFragmentInteractionConflict({ targetId: "child-fragment" }, target as unknown as Element, tracker);
+
+    assertEqual(conflict?.session.mountId, "child-mount");
     tracker.stop();
 });
 

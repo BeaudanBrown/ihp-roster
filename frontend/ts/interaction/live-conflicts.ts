@@ -54,7 +54,7 @@ export function readInteractionConflictPolicies(mount: Element): WireConflictPol
 }
 
 function matchingConflictPolicy(session: InteractionSessionSnapshot, fragment: Pick<LiveUpdateWireFragment, "targetId">, target: Element): WireConflictPolicy | null {
-    const mount = target.closest(`[${attrs.surface}="true"]`);
+    const mount = target.closest(`[${attrs.surface}]`);
     if (!mount) return null;
 
     const policies = readInteractionConflictPolicies(mount);

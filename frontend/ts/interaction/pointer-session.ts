@@ -529,7 +529,7 @@ function closestPointerSessionMarker(target: EventTarget | null): ElementLike | 
 }
 
 function closestInteractionMount(marker: ElementLike): ElementLike | null {
-    const mount = marker.closest(`[${attrs.surface}="${values.enabled}"]`);
+    const mount = marker.closest(`[${attrs.surface}]`);
     return isElementLike(mount) ? mount : null;
 }
 
