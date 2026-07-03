@@ -1,6 +1,6 @@
 ---
 id: ir-d3cd
-status: open
+status: in_progress
 deps: [ir-7x48]
 links: []
 created: 2026-07-03T11:15:32Z
@@ -22,3 +22,9 @@ Delete old LiveUpdateScope and LiveFragmentKey ADTs if no longer needed, liveUpd
 
 No legacy scope/fragment constructor ADTs or planning adapter case lists remain. Docs describe final runtime. Guardrail scan enforces deletion. Full agreed verification passes and epic closeout note records final state.
 
+
+## Notes
+
+**2026-07-03T11:47:43Z**
+
+Reached implementation decision point before final cleanup: fully deleting legacy LiveUpdateScope/LiveFragmentKey constructors requires either (a) a big-bang replacement of ~299 constructor call sites with generated/surface-native smart constructors and typed payload helpers, or (b) temporary pattern-synonym compatibility that removes the old ADT definitions but keeps legacy constructor names. User preference says no stale shim/compat/dead code, so option (a) is the consistent path; pausing before making that broad mechanical migration.
