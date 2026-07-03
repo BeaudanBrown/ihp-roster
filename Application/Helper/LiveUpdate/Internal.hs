@@ -8,6 +8,7 @@ module Application.Helper.LiveUpdate.Internal
     , LiveUpdateCommand (..)
     , LiveUpdateMessage (..)
     , LiveUpdateScope (..)
+    , LiveUpdateSubscription (..)
     , activeLiveUpdateScopes
     , activeLiveUpdateScopesWithBus
     , activeLiveUpdateScopeMatches
@@ -223,14 +224,21 @@ liveUpdateWireFragmentFromSurface surface kind params targetId url deferUntilBlu
     fragmentKey <- Aeson.parseMaybe (liveFragmentKeyFromSurface surface kind) params
     pure LiveUpdateWireFragment { fragmentKey, targetId, url, deferUntilBlur, protectionPolicy }
 
+data LiveUpdateSubscription = LiveUpdateSubscription
+    { subscriptionScope            :: !LiveUpdateScope
+    , subscriptionScopeKey         :: !Text
+    , subscriptionMountedFragments :: ![LiveUpdateWireFragment]
+    }
+    deriving (Eq, Show)
+
 data LiveUpdateCommand
     = SubscribeLiveUpdates
-        { scope           :: !LiveUpdateScope
+        { subscription    :: !LiveUpdateSubscription
         , clientId        :: !Text
         , lastSeenVersion :: !(Maybe Int)
         }
     | UnsubscribeLiveUpdates
-        { scope :: !LiveUpdateScope
+        { subscription :: !LiveUpdateSubscription
         }
     deriving (Eq, Show)
 
@@ -782,13 +790,27 @@ liveUpdateWireFragmentFromWire Wire.LiveUpdateWireFragment { fragmentKey, target
     parsedFragmentKey <- liveFragmentKeyFromWire fragmentKey
     pure LiveUpdateWireFragment { fragmentKey = parsedFragmentKey, targetId, url, deferUntilBlur, protectionPolicy = liveFragmentProtectionFromWire protectionPolicy }
 
+liveUpdateSubscriptionToWire :: LiveUpdateSubscription -> Wire.LiveUpdateSubscription
+liveUpdateSubscriptionToWire LiveUpdateSubscription { subscriptionScope, subscriptionScopeKey, subscriptionMountedFragments } =
+    Wire.LiveUpdateSubscription
+        { Wire.scope = liveUpdateScopeToWire subscriptionScope
+        , Wire.scopeKey = subscriptionScopeKey
+        , Wire.mountedFragments = map liveUpdateWireFragmentToWire subscriptionMountedFragments
+        }
+
+liveUpdateSubscriptionFromWire :: Wire.LiveUpdateSubscription -> Aeson.Parser LiveUpdateSubscription
+liveUpdateSubscriptionFromWire Wire.LiveUpdateSubscription { scope, scopeKey, mountedFragments } = do
+    subscriptionScope <- liveUpdateScopeFromWire scope
+    subscriptionMountedFragments <- mapM liveUpdateWireFragmentFromWire mountedFragments
+    pure LiveUpdateSubscription { subscriptionScope, subscriptionScopeKey = scopeKey, subscriptionMountedFragments }
+
 liveUpdateCommandToWire :: LiveUpdateCommand -> Wire.LiveUpdateCommand
-liveUpdateCommandToWire SubscribeLiveUpdates { scope, clientId, lastSeenVersion } = Wire.Subscribe (liveUpdateScopeToWire scope) clientId lastSeenVersion
-liveUpdateCommandToWire UnsubscribeLiveUpdates { scope } = Wire.Unsubscribe (liveUpdateScopeToWire scope)
+liveUpdateCommandToWire SubscribeLiveUpdates { subscription, clientId, lastSeenVersion } = Wire.Subscribe (liveUpdateSubscriptionToWire subscription) clientId lastSeenVersion
+liveUpdateCommandToWire UnsubscribeLiveUpdates { subscription } = Wire.Unsubscribe (liveUpdateSubscriptionToWire subscription)
 
 liveUpdateCommandFromWire :: Wire.LiveUpdateCommand -> Aeson.Parser LiveUpdateCommand
-liveUpdateCommandFromWire Wire.Subscribe { scope, clientId, lastSeenVersion } = SubscribeLiveUpdates <$> liveUpdateScopeFromWire scope <*> pure clientId <*> pure lastSeenVersion
-liveUpdateCommandFromWire Wire.Unsubscribe { scope } = UnsubscribeLiveUpdates <$> liveUpdateScopeFromWire scope
+liveUpdateCommandFromWire Wire.Subscribe { subscription, clientId, lastSeenVersion } = SubscribeLiveUpdates <$> liveUpdateSubscriptionFromWire subscription <*> pure clientId <*> pure lastSeenVersion
+liveUpdateCommandFromWire Wire.Unsubscribe { subscription } = UnsubscribeLiveUpdates <$> liveUpdateSubscriptionFromWire subscription
 
 liveUpdateMessageToWire :: LiveUpdateMessage -> Wire.LiveUpdateMessage
 liveUpdateMessageToWire LiveUpdatesSubscribed { scope, scopeKey, currentVersion, resync } =

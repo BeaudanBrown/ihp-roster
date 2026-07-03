@@ -168,10 +168,16 @@ tests = describe "LiveUpdate runtime types" do
                     , deferUntilBlur = False
                     , protectionPolicy = NoProtection
                     }
+        let subscription =
+                LiveUpdateSubscription
+                    { subscriptionScope = scope
+                    , subscriptionScopeKey = liveUpdateScopeKey scope
+                    , subscriptionMountedFragments = [fragment]
+                    }
         let commands =
-                [ SubscribeLiveUpdates { scope, clientId = "client-1", lastSeenVersion = Nothing }
-                , SubscribeLiveUpdates { scope, clientId = "client-1", lastSeenVersion = Just 4 }
-                , UnsubscribeLiveUpdates { scope }
+                [ SubscribeLiveUpdates { subscription, clientId = "client-1", lastSeenVersion = Nothing }
+                , SubscribeLiveUpdates { subscription, clientId = "client-1", lastSeenVersion = Just 4 }
+                , UnsubscribeLiveUpdates { subscription }
                 ]
         let messages =
                 [ LiveUpdatesSubscribed { scope, scopeKey = liveUpdateScopeKey scope, currentVersion = 4, resync = False }

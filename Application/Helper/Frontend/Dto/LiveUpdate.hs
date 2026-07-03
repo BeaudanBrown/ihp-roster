@@ -8,6 +8,7 @@ module Application.Helper.Frontend.Dto.LiveUpdate
     , LiveUpdateCommand (..)
     , LiveUpdateMessage (..)
     , LiveUpdateScope (..)
+    , LiveUpdateSubscription (..)
     , LiveUpdateWireFragment (..)
     ) where
 
@@ -67,14 +68,21 @@ data LiveUpdateWireFragment = LiveUpdateWireFragment
     }
     deriving (Eq, Show, Generic)
 
+data LiveUpdateSubscription = LiveUpdateSubscription
+    { scope            :: !LiveUpdateScope
+    , scopeKey         :: !Text
+    , mountedFragments :: ![LiveUpdateWireFragment]
+    }
+    deriving (Eq, Show, Generic)
+
 data LiveUpdateCommand
     = Subscribe
-        { scope           :: !LiveUpdateScope
+        { subscription    :: !LiveUpdateSubscription
         , clientId        :: !Text
         , lastSeenVersion :: !(Maybe Int)
         }
     | Unsubscribe
-        { scope :: !LiveUpdateScope
+        { subscription :: !LiveUpdateSubscription
         }
     deriving (Eq, Show, Generic)
 
@@ -164,6 +172,11 @@ instance HasFrontendCodec LiveSurfaceConfig where
         { frontendTypeNameOverride = Just "LiveSurfaceConfig"
         }
 
+instance HasFrontendCodec LiveUpdateSubscription where
+    frontendCodec = genericFrontendCodecWith defaultFrontendCodecOptions
+        { frontendTypeNameOverride = Just "LiveUpdateSubscription"
+        }
+
 instance HasFrontendCodec LiveUpdateCommand where
     frontendCodec = genericFrontendCodecWith defaultFrontendCodecOptions
         { frontendTypeNameOverride = Just "LiveUpdateCommand"
@@ -205,6 +218,12 @@ instance Aeson.ToJSON LiveUpdateWireFragment where
 
 instance Aeson.FromJSON LiveUpdateWireFragment where
     parseJSON = parseFrontend (frontendCodec @LiveUpdateWireFragment)
+
+instance Aeson.ToJSON LiveUpdateSubscription where
+    toJSON = encodeFrontend (frontendCodec @LiveUpdateSubscription)
+
+instance Aeson.FromJSON LiveUpdateSubscription where
+    parseJSON = parseFrontend (frontendCodec @LiveUpdateSubscription)
 
 instance Aeson.ToJSON LiveUpdateCommand where
     toJSON = encodeFrontend (frontendCodec @LiveUpdateCommand)

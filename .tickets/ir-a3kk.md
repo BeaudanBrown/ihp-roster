@@ -1,6 +1,6 @@
 ---
 id: ir-a3kk
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-07-03T11:15:32Z

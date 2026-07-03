@@ -14,6 +14,8 @@ import {
 import { enableLazySurfaceErrorHandling } from "./live-updates/lazy-surface";
 import {
     buildLiveUpdateSubscribeCommand,
+    buildLiveUpdateSubscription,
+    buildLiveUpdateUnsubscribeCommand,
     liveUpdateFragmentMergeKey,
     liveUpdateMessageScopeKey,
     normalizeLiveUpdateVersion,
@@ -624,16 +626,17 @@ type HtmxConfigRequestEvent = Event & {
         return liveUpdateMessageScopeKey(message as { scopeKey?: unknown } | null | undefined);
     }
 
+    function wireSubscription(subscription: LiveUpdateSubscription) {
+        return buildLiveUpdateSubscription(subscription.scope, subscription.scopeKey, subscription.resyncFragments);
+    }
+
     function subscribeScope(subscription: LiveUpdateSubscription): void {
         const lastSeenVersion = getScopeVersion(subscription.scopeKey);
-        sendCommand(buildLiveUpdateSubscribeCommand(subscription.scope, ensureClientId(), lastSeenVersion));
+        sendCommand(buildLiveUpdateSubscribeCommand(wireSubscription(subscription), ensureClientId(), lastSeenVersion));
     }
 
     function unsubscribeScope(subscription: LiveUpdateSubscription): void {
-        sendCommand({
-            type: 'unsubscribe',
-            scope: subscription.scope,
-        });
+        sendCommand(buildLiveUpdateUnsubscribeCommand(wireSubscription(subscription)));
     }
 
     // FrontendSurface discovery and merging.

@@ -42,7 +42,8 @@ handleCommand ::
     IO ()
 handleCommand command =
     case command of
-        SubscribeLiveUpdates { scope, lastSeenVersion } -> do
+        SubscribeLiveUpdates { subscription = liveSubscription, lastSeenVersion } -> do
+            let scope = liveSubscription.subscriptionScope
             authorized <- authorizeRegisteredLiveSurfaceScope scope
             if authorized
                 then do
@@ -54,7 +55,7 @@ handleCommand command =
                     sendJSON
                         LiveUpdatesSubscribed
                             { scope
-                            , scopeKey = liveUpdateScopeKey scope
+                            , scopeKey = liveSubscription.subscriptionScopeKey
                             , currentVersion
                             , resync = maybe False (/= currentVersion) lastSeenVersion
                             }
@@ -63,8 +64,8 @@ handleCommand command =
                         LiveUpdatesError
                             { message = "Not authorized for requested live update scope"
                             }
-        UnsubscribeLiveUpdates { scope } ->
-            unregisterScopeSubscription scope
+        UnsubscribeLiveUpdates { subscription = liveSubscription } ->
+            unregisterScopeSubscription liveSubscription.subscriptionScope
 
 unregisterScopeSubscription ::
     (?state :: IORef LiveUpdatesWSApp) =>

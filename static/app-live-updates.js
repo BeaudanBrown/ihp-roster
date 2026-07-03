@@ -582,12 +582,25 @@
   function normalizeLiveUpdateVersion(value) {
     return Number.isInteger(value) && value >= 0 ? value : null;
   }
-  function buildLiveUpdateSubscribeCommand(scope, clientId, lastSeenVersion) {
+  function buildLiveUpdateSubscription(scope, scopeKey, mountedFragments) {
+    return {
+      scope,
+      scopeKey,
+      mountedFragments
+    };
+  }
+  function buildLiveUpdateSubscribeCommand(subscription, clientId, lastSeenVersion) {
     return encodeLiveUpdateCommand({
       type: "subscribe",
-      scope,
+      subscription,
       clientId,
       lastSeenVersion
+    });
+  }
+  function buildLiveUpdateUnsubscribeCommand(subscription) {
+    return encodeLiveUpdateCommand({
+      type: "unsubscribe",
+      subscription
     });
   }
   function liveUpdateFragmentMergeKey(fragment) {
@@ -1048,15 +1061,15 @@
     function messageScopeKey(message) {
       return liveUpdateMessageScopeKey(message);
     }
+    function wireSubscription(subscription) {
+      return buildLiveUpdateSubscription(subscription.scope, subscription.scopeKey, subscription.resyncFragments);
+    }
     function subscribeScope(subscription) {
       const lastSeenVersion = getScopeVersion(subscription.scopeKey);
-      sendCommand(buildLiveUpdateSubscribeCommand(subscription.scope, ensureClientId(), lastSeenVersion));
+      sendCommand(buildLiveUpdateSubscribeCommand(wireSubscription(subscription), ensureClientId(), lastSeenVersion));
     }
     function unsubscribeScope(subscription) {
-      sendCommand({
-        type: "unsubscribe",
-        scope: subscription.scope
-      });
+      sendCommand(buildLiveUpdateUnsubscribeCommand(wireSubscription(subscription)));
     }
     function readFrontendSurface(ownerEl) {
       if (!(ownerEl instanceof HTMLElement)) return null;

@@ -187,12 +187,32 @@ export function encodeLiveSurfaceConfig(value: LiveSurfaceConfig): LiveSurfaceCo
 }
 
 
+export type LiveUpdateSubscription = {
+    scope: LiveUpdateScope;
+    scopeKey: string;
+    mountedFragments: LiveUpdateWireFragment[];
+};
+
+export function isLiveUpdateSubscription(value: unknown): value is LiveUpdateSubscription {
+    return __isLiveUpdateScopeExactRecord(value, ["scope", "scopeKey", "mountedFragments"], []) && (isLiveUpdateScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (Array.isArray(value["mountedFragments"]) && value["mountedFragments"].every((item) => isLiveUpdateWireFragment(item)));
+}
+
+export function parseLiveUpdateSubscription(value: unknown): LiveUpdateSubscription {
+    if (isLiveUpdateSubscription(value)) return value;
+    throw new Error("Invalid LiveUpdateSubscription");
+}
+
+export function encodeLiveUpdateSubscription(value: LiveUpdateSubscription): LiveUpdateSubscription {
+    return value;
+}
+
+
 export type LiveUpdateCommand =
-    | { type: "subscribe"; scope: LiveUpdateScope; clientId: string; lastSeenVersion: number | null }
-    | { type: "unsubscribe"; scope: LiveUpdateScope };
+    | { type: "subscribe"; subscription: LiveUpdateSubscription; clientId: string; lastSeenVersion: number | null }
+    | { type: "unsubscribe"; subscription: LiveUpdateSubscription };
 
 export function isLiveUpdateCommand(value: unknown): value is LiveUpdateCommand {
-    return (__isLiveUpdateScopeExactRecord(value, ["type", "scope", "clientId", "lastSeenVersion"], []) && value["type"] === "subscribe" && (isLiveUpdateScope(value["scope"])) && (typeof value["clientId"] === "string") && (value["lastSeenVersion"] === null || (typeof value["lastSeenVersion"] === "number" && Number.isInteger(value["lastSeenVersion"])))) || (__isLiveUpdateScopeExactRecord(value, ["type", "scope"], []) && value["type"] === "unsubscribe" && (isLiveUpdateScope(value["scope"])));
+    return (__isLiveUpdateScopeExactRecord(value, ["type", "subscription", "clientId", "lastSeenVersion"], []) && value["type"] === "subscribe" && (isLiveUpdateSubscription(value["subscription"])) && (typeof value["clientId"] === "string") && (value["lastSeenVersion"] === null || (typeof value["lastSeenVersion"] === "number" && Number.isInteger(value["lastSeenVersion"])))) || (__isLiveUpdateScopeExactRecord(value, ["type", "subscription"], []) && value["type"] === "unsubscribe" && (isLiveUpdateSubscription(value["subscription"])));
 }
 
 export function parseLiveUpdateCommand(value: unknown): LiveUpdateCommand {

@@ -1,4 +1,4 @@
-import type { LiveUpdateCommand, LiveUpdateScope, LiveUpdateWireFragment } from "../generated/contracts";
+import type { LiveUpdateCommand, LiveUpdateScope, LiveUpdateSubscription, LiveUpdateWireFragment } from "../generated/contracts";
 import { encodeLiveUpdateCommand } from "../generated/contracts";
 
 type MessageWithScopeKey = { scopeKey?: unknown };
@@ -15,12 +15,27 @@ export function normalizeLiveUpdateVersion(value: unknown): number | null {
     return Number.isInteger(value) && (value as number) >= 0 ? value as number : null;
 }
 
-export function buildLiveUpdateSubscribeCommand(scope: LiveUpdateScope, clientId: string, lastSeenVersion: number | null): LiveUpdateCommand {
+export function buildLiveUpdateSubscription(scope: LiveUpdateScope, scopeKey: string, mountedFragments: LiveUpdateWireFragment[]): LiveUpdateSubscription {
+    return {
+        scope,
+        scopeKey,
+        mountedFragments,
+    };
+}
+
+export function buildLiveUpdateSubscribeCommand(subscription: LiveUpdateSubscription, clientId: string, lastSeenVersion: number | null): LiveUpdateCommand {
     return encodeLiveUpdateCommand({
         type: "subscribe",
-        scope,
+        subscription,
         clientId,
         lastSeenVersion,
+    });
+}
+
+export function buildLiveUpdateUnsubscribeCommand(subscription: LiveUpdateSubscription): LiveUpdateCommand {
+    return encodeLiveUpdateCommand({
+        type: "unsubscribe",
+        subscription,
     });
 }
 

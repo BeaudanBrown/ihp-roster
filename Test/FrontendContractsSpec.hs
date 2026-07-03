@@ -250,7 +250,8 @@ tests = describe "Frontend contract generator foundation" do
                     "/TimesheetDay?offset=2"
                     True
                     (Live.FocusedFieldProtection ".timesheet-input:focus" "data-field-key" True (Just ".timesheet-row"))
-            let command = Live.Subscribe scope "client-1" (Just 9)
+            let subscription = Live.LiveUpdateSubscription scope "timesheets:venue-1:4" [fragment]
+            let command = Live.Subscribe subscription "client-1" (Just 9)
             let message = Live.Invalidate scope "timesheets:venue-1:4" 10 [fragment] (Just "client-2")
             let config = Live.LiveSurfaceConfig "timesheets" "/live-updates" scope "timesheets:venue-1:4" [fragment] ["#timesheet-week-shell"]
 

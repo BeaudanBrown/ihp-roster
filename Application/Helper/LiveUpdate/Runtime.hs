@@ -7,6 +7,7 @@ module Application.Helper.LiveUpdate.Runtime
     , LiveUpdateCommand (..)
     , LiveUpdateMessage (..)
     , LiveUpdateScope (..)
+    , LiveUpdateSubscription (..)
     , LiveUpdateWireFragment (..)
     , activeLiveUpdateScopeMatches
     , activeLiveUpdateScopeMatchesWithBus

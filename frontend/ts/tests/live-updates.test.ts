@@ -1,6 +1,8 @@
 import type { LiveUpdateScope, LiveUpdateWireFragment } from "../generated/contracts";
 import {
     buildLiveUpdateSubscribeCommand,
+    buildLiveUpdateSubscription,
+    buildLiveUpdateUnsubscribeCommand,
     liveUpdateFragmentMergeKey,
     liveUpdateInvalidationShouldResync,
     liveUpdateMessageScopeKey,
@@ -30,18 +32,28 @@ const fragment: LiveUpdateWireFragment = {
     },
 };
 
-test("live update command builder preserves backend-owned subscribe contract", () => {
-    assertDeepEqual(buildLiveUpdateSubscribeCommand(scope, "client-1", null), {
-        type: "subscribe",
+test("live update command builder preserves backend-owned surface subscription contract", () => {
+    const subscription = buildLiveUpdateSubscription(scope, "timesheets:v:0", [fragment]);
+    assertDeepEqual(subscription, {
         scope,
+        scopeKey: "timesheets:v:0",
+        mountedFragments: [fragment],
+    });
+    assertDeepEqual(buildLiveUpdateSubscribeCommand(subscription, "client-1", null), {
+        type: "subscribe",
+        subscription,
         clientId: "client-1",
         lastSeenVersion: null,
     });
-    assertDeepEqual(buildLiveUpdateSubscribeCommand(scope, "client-1", 4), {
+    assertDeepEqual(buildLiveUpdateSubscribeCommand(subscription, "client-1", 4), {
         type: "subscribe",
-        scope,
+        subscription,
         clientId: "client-1",
         lastSeenVersion: 4,
+    });
+    assertDeepEqual(buildLiveUpdateUnsubscribeCommand(subscription), {
+        type: "unsubscribe",
+        subscription,
     });
 });
 

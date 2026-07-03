@@ -8,6 +8,7 @@ module Application.Helper.Frontend.LiveUpdateSchema
     , LiveUpdateCommand (..)
     , LiveUpdateMessage (..)
     , LiveUpdateScope (..)
+    , LiveUpdateSubscription (..)
     , LiveUpdateWireFragment (..)
     , liveUpdateSchemaDeclaration
     ) where
@@ -30,6 +31,7 @@ liveUpdateSchemaDeclaration =
             , someFrontendCodec @LiveFragmentProtection
             , someFrontendCodec @LiveUpdateWireFragment
             , someFrontendCodec @LiveSurfaceConfig
+            , someFrontendCodec @LiveUpdateSubscription
             , someFrontendCodec @LiveUpdateCommand
             , someFrontendCodec @LiveUpdateMessage
             ]
