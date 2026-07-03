@@ -1,6 +1,6 @@
 ---
 id: ir-kb9l
-status: open
+status: closed
 deps: [ir-tarj]
 links: []
 created: 2026-07-03T02:45:01Z

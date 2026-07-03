@@ -9,7 +9,9 @@ import Application.Helper.FrontendSurface.ContractIR (FragmentIR (..),
 import Application.Helper.FrontendSurface.Contracts (registeredFrontendSurfaceContractIR)
 import Application.Helper.FrontendSurface.Ghc.Lower
 import Application.Helper.FrontendSurface.Ghc.Raw
+import Application.Helper.FrontendSurface.TypeScript (renderFrontendSurfaceContractsTypeScript)
 import qualified Data.List as List
+import qualified Data.Text as Text
 import IHP.Prelude
 import Test.Hspec
 
@@ -71,6 +73,24 @@ tests = describe "FrontendSurface GHC raw lowering" do
                     }]
                 , []
                 ]
+
+    it "renders generated TypeScript topology for contained child surfaces" do
+        let rawRegistry = registryWithSurfaces
+                [ rawSurfaceWithPrimitives "ParentSurface" "Parent"
+                    [ scopePrimitive
+                    , raw "Fragment" [marker "ParentContent", promotedList [], promotedList [raw "ContainsSurface" [marker "Child"]]]
+                    ]
+                , rawSurfaceWithPrimitives "ChildSurface" "Child" [scopePrimitive]
+                ]
+        case lowerRawRegistry rawRegistry of
+            Left diagnostics -> expectationFailure ("expected valid registry: " ++ cs (show diagnostics :: Text))
+            Right contract -> do
+                let rendered = renderFrontendSurfaceContractsTypeScript contract
+                rendered `shouldContainText` "containedSurfaces: { \"parent-content\": [\"child\"] }"
+                rendered `shouldContainText` "export type FrontendSurfaceContainmentEdge"
+                rendered `shouldContainText` "export const FrontendSurfaceContainmentTopology = ["
+                rendered `shouldContainText` "{ parentSurface: \"parent\", parentFragment: \"parent-content\", childSurface: \"child\" }"
+                rendered `shouldContainText` "export function isFrontendSurfaceContainmentEdge"
 
     it "reports invalid and cyclic contained child surface references after GHC lowering" do
         let cases =
@@ -356,3 +376,7 @@ leftContains :: String -> Either [String] a -> Bool
 leftContains expected = \case
     Left diagnostics -> any (expected `List.isInfixOf`) diagnostics
     Right _ -> False
+
+shouldContainText :: Text -> Text -> Expectation
+shouldContainText actual expected =
+    actual `shouldSatisfy` Text.isInfixOf expected

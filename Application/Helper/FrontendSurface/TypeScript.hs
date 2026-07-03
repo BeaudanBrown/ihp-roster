@@ -109,6 +109,16 @@ renderRegistry contract =
            , "    if (isFrontendSurfaceName(value)) return value;"
            , "    throw new Error(\"Invalid FrontendSurfaceName\");"
            , "}"
+           , "export type FrontendSurfaceContainmentEdge = { parentSurface: FrontendSurfaceName; parentFragment: string; childSurface: FrontendSurfaceName };"
+           , "export const FrontendSurfaceContainmentTopology = ["
+           ]
+        <> renderContainmentTopology contract
+        <> [ "] as const;"
+           , "export function isFrontendSurfaceContainmentEdge(value: unknown): value is FrontendSurfaceContainmentEdge {"
+           , "    if (typeof value !== \"object\" || value === null) return false;"
+           , "    const edge = value as Record<string, unknown>;"
+           , "    return isFrontendSurfaceName(edge.parentSurface) && typeof edge.parentFragment === \"string\" && isFrontendSurfaceName(edge.childSurface);"
+           , "}"
            ]
 
 renderManifestObject :: SurfaceIR -> Text
@@ -122,7 +132,41 @@ renderManifestObject surface =
         <> ", layers: " <> renderStringArray surface.surfaceLayers
         <> ", domTokens: " <> renderStringArray surface.surfaceDomTokens
         <> ", overlayLanes: " <> renderStringArray surface.surfaceOverlayLanes
+        <> ", containedSurfaces: " <> renderContainedSurfaceMap surface
         <> " }"
+
+renderContainmentTopology :: SurfaceContractIR -> [Text]
+renderContainmentTopology contract =
+    [ "    { parentSurface: " <> tsString parentSurface <> ", parentFragment: " <> tsString parentFragment <> ", childSurface: " <> tsString childSurface <> " },"
+    | (parentSurface, parentFragment, childSurface) <- containmentEdges contract
+    ]
+
+renderContainedSurfaceMap :: SurfaceIR -> Text
+renderContainedSurfaceMap surface =
+    case fragmentEntries of
+        [] -> "{}"
+        _  -> "{ " <> Text.intercalate ", " fragmentEntries <> " }"
+    where
+        fragmentEntries =
+            [ tsObjectKey fragment.fragmentName <> ": " <> renderStringArray childSurfaces
+            | fragment <- surface.surfaceFragments
+            , let childSurfaces = containedSurfaceNames fragment.fragmentOptions
+            , not (null childSurfaces)
+            ]
+
+containmentEdges :: SurfaceContractIR -> [(Text, Text, Text)]
+containmentEdges contract =
+    [ (surface.surfaceName, fragment.fragmentName, childSurface)
+    | surface <- contract.contractSurfaces
+    , fragment <- surface.surfaceFragments
+    , childSurface <- containedSurfaceNames fragment.fragmentOptions
+    ]
+
+containedSurfaceNames :: [OptionIR] -> [Text]
+containedSurfaceNames = concatMap \case
+    LazyOption options -> containedSurfaceNames options
+    ContainsSurfaceOption surfaceName -> [surfaceName]
+    _ -> []
 
 renderRecord :: Maybe (Text, Text) -> [FieldIR] -> Text
 renderRecord maybeKind fields =
