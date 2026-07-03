@@ -12,12 +12,15 @@ import Application.Helper.FrontendSurface.DSL
 import Application.Helper.FrontendSurface.Lab (SurfaceLabSurface)
 import Application.Helper.FrontendSurface.Reflect
 import Application.Helper.FrontendSurface.Registry (RegisteredFrontendSurfaces)
+import Application.Helper.FrontendSurface.Resource
 import qualified Application.Helper.FrontendSurface.Roster as RosterSurface
 import Application.Helper.FrontendSurface.Runtime
 import qualified Application.Helper.FrontendSurface.Timesheets as TimesheetsSurface
+import Application.Helper.LiveResource (LiveResource (..))
 import qualified Data.Aeson as Aeson
 import Data.Proxy (Proxy (..))
 import qualified Data.Text as Text
+import qualified Data.UUID as UUID
 import IHP.Prelude
 import Test.Hspec
 import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
@@ -232,6 +235,17 @@ tests = describe "FrontendSurface DSL foundation" do
         diagnosticMessages sourceTypeMismatch `shouldContain` ["surface resource-source-type-mismatch fragment bad dependency mismatched-resource maps scope field venueId with incompatible wire type or presence"]
         diagnosticMessages duplicateResourceSource `shouldContain` ["surface duplicate-resource-source fragment bad dependency test-resource supplies resource field venueId more than once"]
         diagnosticMessages conflictingResources `shouldContain` ["conflicting shared declaration: resource test-resource"]
+
+    it "bridges legacy live resources into generated FrontendSurface resource values" do
+        let venueId = fromMaybe (error "invalid UUID") (UUID.fromString "11111111-1111-1111-1111-111111111111")
+        let values = liveResourceToFrontendSurfaceResourceValues (TimesheetDayResource venueId 0 2)
+
+        values `shouldBe`
+            [ FrontendSurfaceResourceValue
+                { resourceValueName = "timesheet-day"
+                , resourceValueFields = Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "weekOffset" Aeson..= (0 :: Int), "dayOffset" Aeson..= (2 :: Int)]
+                }
+            ]
 
     it "renders minimal HTMX action and intent forms from SurfaceImpl metadata" do
         let request = FrontendSurfaceHtmxRequest

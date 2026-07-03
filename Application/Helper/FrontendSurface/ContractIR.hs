@@ -21,6 +21,7 @@ module Application.Helper.FrontendSurface.ContractIR
     , SurfaceIR (..)
     , WireIR (..)
     , checkedSurfaceContractIR
+    , optionResourceDependencies
     , validateSurfaceContractIR
     ) where
 
