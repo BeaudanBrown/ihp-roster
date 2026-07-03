@@ -20,3 +20,9 @@ Update FrontendSurface authoring docs and agent guidance to describe the final p
 
 Docs reflect the final architecture. Guardrails pass. Epic closeout notes document that no known stale compatibility layer remains.
 
+
+## Notes
+
+**2026-07-03T04:55:09Z**
+
+User approved temporary bridge/pattern compatibility during incremental implementation only if final docs/guardrails include a thorough scan and purge proving no old bridge code remains.

@@ -315,109 +315,21 @@
   // frontend/ts/live-updates/frontend-surface.ts
   function parseFrontendSurfaceSubscriptionConfig(value) {
     const config = parseFrontendSurfaceMountConfig(value);
-    if (!config) return null;
-    if (config.surface === "admin-page" || config.surface === "admin-xero-page") return null;
-    if (config.surface === "timesheets") {
-      const scope = parseTimesheetsScope(config.scopeKey);
-      if (!scope) return null;
-      const resyncFragments = config.fragments.map(timesheetsFragmentToWire).filter((fragment) => fragment !== null);
-      if (resyncFragments.length === 0) return null;
-      return {
-        feature: config.surface,
-        surface: config.surface,
-        scope,
-        scopeKey: `timesheet_week:${scope.venueId}:${scope.weekOffset}`,
-        mountKey: config.mountKey,
-        socketPath: "/live-updates",
-        resyncFragments,
-        decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`)
-      };
-    }
-    if (config.surface === "roster") {
-      const scope = parseRosterScope(config.scopeKey);
-      if (!scope) return null;
-      const resyncFragments = config.fragments.map(rosterFragmentToWire).filter((fragment) => fragment !== null);
-      if (resyncFragments.length === 0) return null;
-      return {
-        feature: config.surface,
-        surface: config.surface,
-        scope,
-        scopeKey: `roster_week:${scope.venueId}:${scope.rosterGroupId}:${scope.weekOffset}`,
-        mountKey: config.mountKey,
-        socketPath: "/live-updates",
-        resyncFragments,
-        decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`)
-      };
-    }
-    if (config.surface === "leave-requests") {
-      const scope = parseLeaveRequestsScope(config.scopeKey);
-      if (!scope) return null;
-      const resyncFragments = config.fragments.map(leaveRequestsFragmentToWire).filter((fragment) => fragment !== null);
-      if (resyncFragments.length === 0) return null;
-      return {
-        feature: config.surface,
-        surface: config.surface,
-        scope,
-        scopeKey: `leave_requests:${scope.venueId}`,
-        mountKey: config.mountKey,
-        socketPath: "/live-updates",
-        resyncFragments,
-        decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`)
-      };
-    }
-    if (config.surface === "billing") {
-      const scope = parseBillingScope(config.scopeKey);
-      if (!scope) return null;
-      const resyncFragments = config.fragments.map(billingFragmentToWire).filter((fragment) => fragment !== null);
-      if (resyncFragments.length === 0) return null;
-      return {
-        feature: config.surface,
-        surface: config.surface,
-        scope,
-        scopeKey: `billing:${scope.venueId}`,
-        mountKey: config.mountKey,
-        socketPath: "/live-updates",
-        resyncFragments,
-        decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`)
-      };
-    }
-    if (config.surface === "support") {
-      const scope = parseSupportScope(config.scopeKey);
-      if (!scope) return null;
-      const resyncFragments = config.fragments.map(supportFragmentToWire).filter((fragment) => fragment !== null);
-      if (resyncFragments.length === 0) return null;
-      return {
-        feature: config.surface,
-        surface: config.surface,
-        scope,
-        scopeKey: "support_platform",
-        mountKey: config.mountKey,
-        socketPath: "/live-updates",
-        resyncFragments,
-        decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`)
-      };
-    }
-    if (config.surface.startsWith("admin-")) {
-      const parsed = parseAdminSurface(config);
-      if (parsed) return parsed;
-    }
-    if (config.surface === "profile") {
-      const scope = parseProfileScope(config.scopeKey);
-      if (!scope) return null;
-      const resyncFragments = config.fragments.map(profileFragmentToWire).filter((fragment) => fragment !== null);
-      if (resyncFragments.length === 0) return null;
-      return {
-        feature: config.surface,
-        surface: config.surface,
-        scope,
-        scopeKey: `profile:${scope.venueId}:${scope.staffId}`,
-        mountKey: config.mountKey,
-        socketPath: "/live-updates",
-        resyncFragments,
-        decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`)
-      };
-    }
-    return null;
+    if (!config?.subscription) return null;
+    const bridgedScope = surfaceLiveScopeToLegacy(config.subscription.scope);
+    if (!bridgedScope) return null;
+    const resyncFragments = config.subscription.resyncFragments.map(surfaceLiveFragmentToLegacy).filter((fragment) => fragment !== null);
+    if (resyncFragments.length === 0) return null;
+    return {
+      feature: config.surface,
+      surface: config.surface,
+      scope: bridgedScope,
+      scopeKey: legacyScopeKey(bridgedScope),
+      mountKey: config.mountKey,
+      socketPath: "/live-updates",
+      resyncFragments,
+      decorateRequestsWithin: config.subscription.resyncFragments.map((fragment) => `#${fragment.targetId}`)
+    };
   }
   function parseFrontendSurfaceMountConfig(value) {
     if (!isRecord(value)) return null;
@@ -427,12 +339,15 @@
     if (!Array.isArray(value.fragments)) return null;
     const fragments = value.fragments.map(parseMountedFragmentConfig);
     if (fragments.some((fragment) => fragment === null)) return null;
+    const subscription = value.subscription === null || value.subscription === void 0 ? null : parseLiveSubscriptionConfig(value.subscription);
+    if (value.subscription !== null && value.subscription !== void 0 && !subscription) return null;
     return {
       surface: value.surface,
       scopeKey: value.scopeKey,
       mountKey: value.mountKey,
       mountState: value.mountState,
-      fragments
+      fragments,
+      subscription
     };
   }
   function parseMountedFragmentConfig(value) {
@@ -442,10 +357,7 @@
     if (typeof value.targetId !== "string") return null;
     if (typeof value.url !== "string") return null;
     return {
-      key: {
-        kind: value.key.kind,
-        params: value.key.params
-      },
+      key: { kind: value.key.kind, params: value.key.params },
       targetId: value.targetId,
       url: value.url,
       protection: isRecord(value.protection) ? {
@@ -458,189 +370,152 @@
       loadPolicy: typeof value.loadPolicy === "string" ? value.loadPolicy : null
     };
   }
-  function parseTimesheetsScope(scopeKey) {
-    const match = /^timesheets:([^:]+):(-?\d+)$/.exec(scopeKey);
-    if (!match) return null;
-    const weekOffset = Number(match[2]);
-    if (!Number.isInteger(weekOffset)) return null;
-    return { kind: "timesheet_week", venueId: match[1], weekOffset };
-  }
-  function timesheetsFragmentToWire(fragment) {
-    const base = liveFragmentBase(fragment);
-    if (fragment.key.kind === "timesheet-toolbar") {
-      return { ...base, fragmentKey: { kind: "timesheet_toolbar" } };
-    }
-    if (fragment.key.kind === "timesheet-day-columns") {
-      return { ...base, fragmentKey: { kind: "timesheet_day_columns" } };
-    }
-    if (fragment.key.kind === "timesheet-day-section") {
-      const params = fragment.key.params;
-      if (!isRecord(params) || typeof params.dayOffset !== "number" || !Number.isInteger(params.dayOffset)) return null;
-      return { ...base, fragmentKey: { kind: "timesheet_day_section", dayOffset: params.dayOffset } };
-    }
-    return null;
-  }
-  function parseRosterScope(scopeKey) {
-    const match = /^roster:([^:]+):([^:]+):(-?\d+)$/.exec(scopeKey);
-    if (!match) return null;
-    const weekOffset = Number(match[3]);
-    if (!Number.isInteger(weekOffset)) return null;
-    return { kind: "roster_week", venueId: match[1], rosterGroupId: match[2], weekOffset };
-  }
-  function rosterFragmentToWire(fragment) {
-    const base = liveFragmentBase(fragment);
-    if (fragment.key.kind === "roster-content") {
-      return { ...base, fragmentKey: { kind: "roster_content" } };
-    }
-    if (fragment.key.kind === "roster-grid-toolbar") {
-      return { ...base, fragmentKey: { kind: "roster_grid_toolbar" } };
-    }
-    if (fragment.key.kind === "roster-grid-frame") {
-      return { ...base, fragmentKey: { kind: "roster_grid_frame" } };
-    }
-    if (fragment.key.kind === "roster-day-columns") {
-      return { ...base, fragmentKey: { kind: "roster_day_columns" } };
-    }
-    if (fragment.key.kind === "roster-day-rail") {
-      return { ...base, fragmentKey: { kind: "roster_day_rail" } };
-    }
-    if (fragment.key.kind === "roster-wage-rail") {
-      return { ...base, fragmentKey: { kind: "roster_wage_rail" } };
-    }
-    if (fragment.key.kind === "roster-slots-grid") {
-      return { ...base, fragmentKey: { kind: "roster_slots_grid" } };
-    }
-    if (fragment.key.kind === "roster-staff-panel") {
-      return { ...base, fragmentKey: { kind: "roster_staff_panel" } };
-    }
-    if (fragment.key.kind === "roster-day-section") {
-      const params = fragment.key.params;
-      if (!isRecord(params) || typeof params.rosterDayId !== "string") return null;
-      return { ...base, fragmentKey: { kind: "roster_day_section", rosterDayId: params.rosterDayId } };
-    }
-    if (fragment.key.kind === "roster-row") {
-      const params = fragment.key.params;
-      if (!isRecord(params) || typeof params.rosterDayId !== "string" || typeof params.rowIndex !== "number" || !Number.isInteger(params.rowIndex)) return null;
-      return { ...base, fragmentKey: { kind: "roster_row", rosterDayId: params.rosterDayId, rowIndex: params.rowIndex } };
-    }
-    return null;
-  }
-  function parseLeaveRequestsScope(scopeKey) {
-    const match = /^leave-requests:([^:]+)$/.exec(scopeKey);
-    if (!match) return null;
-    return { kind: "leave_requests", venueId: match[1] };
-  }
-  function leaveRequestsFragmentToWire(fragment) {
-    const base = liveFragmentBase(fragment);
-    if (fragment.key.kind === "leave-requests-content") {
-      return { ...base, fragmentKey: { kind: "leave_requests_content" } };
-    }
-    return null;
-  }
-  function parseBillingScope(scopeKey) {
-    const match = /^billing:([^:]+)$/.exec(scopeKey);
-    if (!match) return null;
-    return { kind: "billing", venueId: match[1] };
-  }
-  function billingFragmentToWire(fragment) {
-    const base = liveFragmentBase(fragment);
-    if (fragment.key.kind === "billing-status") {
-      return { ...base, fragmentKey: { kind: "billing_status" } };
-    }
-    return null;
-  }
-  function parseSupportScope(scopeKey) {
-    if (scopeKey !== "support") return null;
-    return { kind: "support_platform" };
-  }
-  function supportFragmentToWire(fragment) {
-    const base = liveFragmentBase(fragment);
-    if (fragment.key.kind === "support-award-rates") {
-      return { ...base, fragmentKey: { kind: "support_award_rates_section" } };
-    }
-    if (fragment.key.kind === "support-public-holidays") {
-      return { ...base, fragmentKey: { kind: "support_public_holidays_section" } };
-    }
-    return null;
-  }
-  function parseAdminSurface(config) {
-    const scope = parseAdminScope(config.surface, config.scopeKey);
-    if (!scope) return null;
-    const resyncFragments = config.fragments.map(adminFragmentToWire).filter((fragment) => fragment !== null);
-    if (resyncFragments.length === 0) return null;
+  function parseLiveSubscriptionConfig(value) {
+    if (!isRecord(value)) return null;
+    if (!isRecord(value.scope)) return null;
+    if (typeof value.scope.surface !== "string") return null;
+    if (typeof value.scopeKey !== "string") return null;
+    if (!Array.isArray(value.resyncFragments)) return null;
+    const fragments = value.resyncFragments.map(parseLiveWireFragmentConfig);
+    if (fragments.some((fragment) => fragment === null)) return null;
     return {
-      feature: config.surface,
-      surface: config.surface,
-      scope,
-      scopeKey: adminWireScopeKey(scope),
-      mountKey: config.mountKey,
-      socketPath: "/live-updates",
-      resyncFragments,
-      decorateRequestsWithin: config.fragments.map((fragment) => `#${fragment.targetId}`)
+      scope: { surface: value.scope.surface, scope: value.scope.scope },
+      scopeKey: value.scopeKey,
+      resyncFragments: fragments
     };
   }
-  function parseAdminScope(surface, scopeKey) {
-    const match = /^admin-[^:]+(?:-[^:]+)*:([^:]+)(?::([^:]+))?$/.exec(scopeKey);
-    if (!match) return null;
-    const venueId = match[1];
-    if (surface === "admin-venue-config") return { kind: "admin_venue_config", venueId };
-    if (surface === "admin-invites") return { kind: "admin_invites", venueId };
-    if (surface === "admin-exports") return { kind: "admin_exports", venueId };
-    if (surface === "admin-shift-types") return { kind: "admin_shift_types", venueId };
-    if (surface === "admin-roster-groups") return { kind: "admin_roster_groups", venueId };
-    if (surface === "admin-xero") return { kind: "admin_xero", venueId };
-    return null;
-  }
-  function adminWireScopeKey(scope) {
-    return `${scope.kind}:${scope.venueId}`;
-  }
-  function adminFragmentToWire(fragment) {
-    const base = liveFragmentBase(fragment);
-    if (fragment.key.kind === "admin-venue-config") return { ...base, fragmentKey: { kind: "admin_venue_config" } };
-    if (fragment.key.kind === "admin-invites") return { ...base, fragmentKey: { kind: "admin_invites" } };
-    if (fragment.key.kind === "admin-exports") return { ...base, fragmentKey: { kind: "admin_exports" } };
-    if (fragment.key.kind === "admin-shift-types") return { ...base, fragmentKey: { kind: "admin_shift_types" } };
-    if (fragment.key.kind === "admin-roster-groups") return { ...base, fragmentKey: { kind: "admin_roster_groups" } };
-    if (fragment.key.kind === "admin-xero") return { ...base, fragmentKey: { kind: "admin_xero" } };
-    if (fragment.key.kind === "admin-xero-staff-mappings") return { ...base, fragmentKey: { kind: "admin_xero_staff_mappings" } };
-    if (fragment.key.kind === "admin-xero-pay-items") return { ...base, fragmentKey: { kind: "admin_xero_pay_items" } };
-    if (fragment.key.kind === "admin-xero-timesheets") return { ...base, fragmentKey: { kind: "admin_xero_timesheets" } };
-    return null;
-  }
-  function parseProfileScope(scopeKey) {
-    const match = /^profile:([^:]+):([^:]+)$/.exec(scopeKey);
-    if (!match) return null;
-    return { kind: "profile", venueId: match[1], staffId: match[2] };
-  }
-  function profileFragmentToWire(fragment) {
-    const base = liveFragmentBase(fragment);
-    if (fragment.key.kind === "profile-details-section") {
-      return { ...base, fragmentKey: { kind: "profile_details_section" } };
-    }
-    if (fragment.key.kind === "profile-preferences-section") {
-      return { ...base, fragmentKey: { kind: "profile_preferences_section" } };
-    }
-    if (fragment.key.kind === "profile-security-section") {
-      return { ...base, fragmentKey: { kind: "profile_security_section" } };
-    }
-    if (fragment.key.kind === "profile-leave-section") {
-      return { ...base, fragmentKey: { kind: "profile_leave_section" } };
-    }
-    if (fragment.key.kind === "profile-rsa-section") {
-      return { ...base, fragmentKey: { kind: "profile_rsa_section" } };
-    }
-    return null;
-  }
-  function liveFragmentBase(fragment) {
+  function parseLiveWireFragmentConfig(value) {
+    if (!isRecord(value)) return null;
+    if (!isRecord(value.fragment)) return null;
+    if (!isRecord(value.fragment.fragment)) return null;
+    if (typeof value.fragment.surface !== "string") return null;
+    if (typeof value.fragment.fragment.kind !== "string") return null;
+    if (typeof value.targetId !== "string") return null;
+    if (typeof value.url !== "string") return null;
+    if (typeof value.deferUntilBlur !== "boolean") return null;
+    if (!isRecord(value.protectionPolicy)) return null;
     return {
+      fragment: {
+        surface: value.fragment.surface,
+        fragment: { kind: value.fragment.fragment.kind, params: value.fragment.fragment.params }
+      },
+      targetId: value.targetId,
+      url: value.url,
+      deferUntilBlur: value.deferUntilBlur,
+      protectionPolicy: value.protectionPolicy
+    };
+  }
+  function surfaceLiveScopeToLegacy(scope) {
+    const fields = scope.scope;
+    if (scope.surface === "support") return { kind: "support_platform" };
+    if (!isRecord(fields)) return null;
+    if (scope.surface === "timesheets" && typeof fields.venueId === "string" && isInteger(fields.weekOffset)) return { kind: "timesheet_week", venueId: fields.venueId, weekOffset: fields.weekOffset };
+    if (scope.surface === "roster" && typeof fields.venueId === "string" && typeof fields.rosterGroupId === "string" && isInteger(fields.weekOffset)) return { kind: "roster_week", venueId: fields.venueId, rosterGroupId: fields.rosterGroupId, weekOffset: fields.weekOffset };
+    if (scope.surface === "leave-requests" && typeof fields.venueId === "string") return { kind: "leave_requests", venueId: fields.venueId };
+    if (scope.surface === "billing" && typeof fields.venueId === "string") return { kind: "billing", venueId: fields.venueId };
+    if (scope.surface === "profile" && typeof fields.venueId === "string" && typeof fields.staffId === "string") return { kind: "profile", venueId: fields.venueId, staffId: fields.staffId };
+    if (scope.surface === "admin-venue-config" && typeof fields.venueId === "string") return { kind: "admin_venue_config", venueId: fields.venueId };
+    if (scope.surface === "admin-invites" && typeof fields.venueId === "string") return { kind: "admin_invites", venueId: fields.venueId };
+    if (scope.surface === "admin-exports" && typeof fields.venueId === "string") return { kind: "admin_exports", venueId: fields.venueId };
+    if (scope.surface === "admin-shift-types" && typeof fields.venueId === "string") return { kind: "admin_shift_types", venueId: fields.venueId };
+    if (scope.surface === "admin-roster-groups" && typeof fields.venueId === "string") return { kind: "admin_roster_groups", venueId: fields.venueId };
+    if (scope.surface === "admin-xero" && typeof fields.venueId === "string") return { kind: "admin_xero", venueId: fields.venueId };
+    return null;
+  }
+  function surfaceLiveFragmentToLegacy(fragment) {
+    const fragmentKey = legacyFragmentKey(fragment.fragment.fragment);
+    if (!fragmentKey) return null;
+    return {
+      fragmentKey,
       targetId: fragment.targetId,
       url: fragment.url,
-      deferUntilBlur: false,
-      protectionPolicy: fragmentProtectionToWire(fragment.protection)
+      deferUntilBlur: fragment.deferUntilBlur,
+      protectionPolicy: fragmentProtectionToLegacy(fragment.protectionPolicy)
     };
   }
-  function fragmentProtectionToWire(protection) {
-    if (protection?.kind !== "focused-field") return { kind: "none" };
+  function legacyFragmentKey(fragment) {
+    const params = fragment.params;
+    switch (fragment.kind) {
+      case "timesheet-toolbar":
+        return { kind: "timesheet_toolbar" };
+      case "timesheet-day-columns":
+        return { kind: "timesheet_day_columns" };
+      case "timesheet-day-section":
+        return isRecord(params) && isInteger(params.dayOffset) ? { kind: "timesheet_day_section", dayOffset: params.dayOffset } : null;
+      case "roster-content":
+        return { kind: "roster_content" };
+      case "roster-grid-toolbar":
+        return { kind: "roster_grid_toolbar" };
+      case "roster-grid-frame":
+        return { kind: "roster_grid_frame" };
+      case "roster-day-columns":
+        return { kind: "roster_day_columns" };
+      case "roster-day-rail":
+        return { kind: "roster_day_rail" };
+      case "roster-wage-rail":
+        return { kind: "roster_wage_rail" };
+      case "roster-slots-grid":
+        return { kind: "roster_slots_grid" };
+      case "roster-staff-panel":
+        return { kind: "roster_staff_panel" };
+      case "roster-day-section":
+        return isRecord(params) && typeof params.rosterDayId === "string" ? { kind: "roster_day_section", rosterDayId: params.rosterDayId } : null;
+      case "roster-row":
+        return isRecord(params) && typeof params.rosterDayId === "string" && isInteger(params.rowIndex) ? { kind: "roster_row", rosterDayId: params.rosterDayId, rowIndex: params.rowIndex } : null;
+      case "leave-requests-content":
+        return { kind: "leave_requests_content" };
+      case "billing-status":
+        return { kind: "billing_status" };
+      case "support-award-rates":
+        return { kind: "support_award_rates_section" };
+      case "support-public-holidays":
+        return { kind: "support_public_holidays_section" };
+      case "profile-details-section":
+        return { kind: "profile_details_section" };
+      case "profile-preferences-section":
+        return { kind: "profile_preferences_section" };
+      case "profile-security-section":
+        return { kind: "profile_security_section" };
+      case "profile-leave-section":
+        return { kind: "profile_leave_section" };
+      case "profile-rsa-section":
+        return { kind: "profile_rsa_section" };
+      case "admin-venue-config":
+        return { kind: "admin_venue_config" };
+      case "admin-invites":
+        return { kind: "admin_invites" };
+      case "admin-exports":
+        return { kind: "admin_exports" };
+      case "admin-shift-types":
+        return { kind: "admin_shift_types" };
+      case "admin-roster-groups":
+        return { kind: "admin_roster_groups" };
+      case "admin-xero-shell":
+        return { kind: "admin_xero" };
+      case "admin-xero-staff-mappings":
+        return { kind: "admin_xero_staff_mappings" };
+      case "admin-xero-pay-items":
+        return { kind: "admin_xero_pay_items" };
+      case "admin-xero-timesheets":
+        return { kind: "admin_xero_timesheets" };
+    }
+    return null;
+  }
+  function legacyScopeKey(scope) {
+    switch (scope.kind) {
+      case "roster_week":
+        return `roster_week:${scope.venueId}:${scope.rosterGroupId}:${scope.weekOffset}`;
+      case "timesheet_week":
+        return `timesheet_week:${scope.venueId}:${scope.weekOffset}`;
+      case "profile":
+        return `profile:${scope.venueId}:${scope.staffId}`;
+      case "support_platform":
+        return "support_platform";
+    }
+    return `${scope.kind}:${"venueId" in scope ? scope.venueId : ""}`;
+  }
+  function fragmentProtectionToLegacy(protection) {
+    if (protection.kind !== "focused-field") return { kind: "none" };
     if (typeof protection.activeSelector !== "string") return { kind: "none" };
     if (typeof protection.fieldKeyAttr !== "string") return { kind: "none" };
     if (typeof protection.fieldNameFallback !== "boolean") return { kind: "none" };
@@ -707,6 +582,9 @@
       current = current.parentElement;
     }
     return depth;
+  }
+  function isInteger(value) {
+    return typeof value === "number" && Number.isInteger(value);
   }
   function isRecord(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);

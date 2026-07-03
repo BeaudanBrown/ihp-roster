@@ -28,6 +28,25 @@ const validSurfaceConfig = {
     decorateRequestsWithin: ["form"],
 };
 
+function withSurfaceSubscription(config: any, scopeFields: unknown) {
+    return {
+        ...config,
+        subscription: {
+            scope: { surface: config.surface, scope: scopeFields },
+            scopeKey: config.scopeKey,
+            resyncFragments: config.fragments.map((fragment: any) => ({
+                fragment: { surface: config.surface, fragment: fragment.key },
+                targetId: fragment.targetId,
+                url: fragment.url,
+                deferUntilBlur: fragment.protection?.kind === "focused-field",
+                protectionPolicy: fragment.protection?.kind === "focused-field"
+                    ? fragment.protection
+                    : { kind: "none" },
+            })),
+        },
+    };
+}
+
 test("generated live update surface validator accepts backend-owned declarative configs", () => {
     const config = parseLiveUpdateSurfaceConfig(validSurfaceConfig);
 
@@ -49,7 +68,7 @@ test("generated parse helpers reject unknown input and encode helpers preserve J
 });
 
 test("FrontendSurface config parser derives Timesheets live subscriptions from mounted fragments", () => {
-    const config = parseFrontendSurfaceSubscriptionConfig({
+    const config = parseFrontendSurfaceSubscriptionConfig(withSurfaceSubscription({
         surface: "timesheets",
         scopeKey: "timesheets:venue-1:3",
         mountKey: "primary",
@@ -63,7 +82,7 @@ test("FrontendSurface config parser derives Timesheets live subscriptions from m
                 loadPolicy: "eager",
             },
         ],
-    });
+    }, { venueId: "venue-1", weekOffset: 3 }));
 
     assertEqual(config?.feature, "timesheets");
     assertDeepEqual(config?.scope, { kind: "timesheet_week", venueId: "venue-1", weekOffset: 3 });
@@ -73,7 +92,7 @@ test("FrontendSurface config parser derives Timesheets live subscriptions from m
 });
 
 test("FrontendSurface config parser derives Roster live subscriptions from mounted fragments", () => {
-    const config = parseFrontendSurfaceSubscriptionConfig({
+    const config = parseFrontendSurfaceSubscriptionConfig(withSurfaceSubscription({
         surface: "roster",
         scopeKey: "roster:venue-1:group-1:-1",
         mountKey: "primary",
@@ -94,7 +113,7 @@ test("FrontendSurface config parser derives Roster live subscriptions from mount
                 loadPolicy: "lazy",
             },
         ],
-    });
+    }, { venueId: "venue-1", rosterGroupId: "group-1", weekOffset: -1 }));
 
     assertEqual(config?.feature, "roster");
     assertDeepEqual(config?.scope, { kind: "roster_week", venueId: "venue-1", rosterGroupId: "group-1", weekOffset: -1 });
@@ -104,7 +123,7 @@ test("FrontendSurface config parser derives Roster live subscriptions from mount
 });
 
 test("FrontendSurface config parser derives Leave Requests live subscriptions from mounted fragments", () => {
-    const config = parseFrontendSurfaceSubscriptionConfig({
+    const config = parseFrontendSurfaceSubscriptionConfig(withSurfaceSubscription({
         surface: "leave-requests",
         scopeKey: "leave-requests:venue-1",
         mountKey: "primary",
@@ -118,7 +137,7 @@ test("FrontendSurface config parser derives Leave Requests live subscriptions fr
                 loadPolicy: "eager",
             },
         ],
-    });
+    }, { venueId: "venue-1" }));
 
     assertEqual(config?.feature, "leave-requests");
     assertDeepEqual(config?.scope, { kind: "leave_requests", venueId: "venue-1" });
@@ -127,7 +146,7 @@ test("FrontendSurface config parser derives Leave Requests live subscriptions fr
 });
 
 test("FrontendSurface config parser derives Billing and Support live subscriptions from mounted fragments", () => {
-    const billing = parseFrontendSurfaceSubscriptionConfig({
+    const billing = parseFrontendSurfaceSubscriptionConfig(withSurfaceSubscription({
         surface: "billing",
         scopeKey: "billing:venue-1",
         mountKey: "primary",
@@ -141,12 +160,12 @@ test("FrontendSurface config parser derives Billing and Support live subscriptio
                 loadPolicy: "eager",
             },
         ],
-    });
+    }, { venueId: "venue-1" }));
 
     assertDeepEqual(billing?.scope, { kind: "billing", venueId: "venue-1" });
     assertDeepEqual(billing?.resyncFragments[0]?.fragmentKey, { kind: "billing_status" });
 
-    const support = parseFrontendSurfaceSubscriptionConfig({
+    const support = parseFrontendSurfaceSubscriptionConfig(withSurfaceSubscription({
         surface: "support",
         scopeKey: "support",
         mountKey: "primary",
@@ -160,14 +179,14 @@ test("FrontendSurface config parser derives Billing and Support live subscriptio
                 loadPolicy: "eager",
             },
         ],
-    });
+    }, {}));
 
     assertDeepEqual(support?.scope, { kind: "support_platform" });
     assertDeepEqual(support?.resyncFragments[0]?.fragmentKey, { kind: "support_public_holidays_section" });
 });
 
 test("FrontendSurface config parser derives Profile live subscriptions from mounted fragments", () => {
-    const config = parseFrontendSurfaceSubscriptionConfig({
+    const config = parseFrontendSurfaceSubscriptionConfig(withSurfaceSubscription({
         surface: "profile",
         scopeKey: "profile:venue-1:staff-1",
         mountKey: "primary",
@@ -181,7 +200,7 @@ test("FrontendSurface config parser derives Profile live subscriptions from moun
                 loadPolicy: "eager",
             },
         ],
-    });
+    }, { venueId: "venue-1", staffId: "staff-1" }));
 
     assertEqual(config?.feature, "profile");
     assertDeepEqual(config?.scope, { kind: "profile", venueId: "venue-1", staffId: "staff-1" });
@@ -227,7 +246,7 @@ test("FrontendSurface config parser treats Admin page composition mount as non-s
 });
 
 test("FrontendSurface config parser preserves reusable focused-field protection", () => {
-    const config = parseFrontendSurfaceSubscriptionConfig({
+    const config = parseFrontendSurfaceSubscriptionConfig(withSurfaceSubscription({
         surface: "profile",
         scopeKey: "profile:venue-1:staff-1",
         mountKey: "primary",
@@ -247,7 +266,7 @@ test("FrontendSurface config parser preserves reusable focused-field protection"
                 loadPolicy: "eager",
             },
         ],
-    });
+    }, { venueId: "venue-1", staffId: "staff-1" }));
 
     assertDeepEqual(config?.resyncFragments[0]?.protectionPolicy, {
         kind: "focused_field",
