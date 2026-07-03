@@ -27,8 +27,6 @@ import Application.Helper.Frontend.Options (FrontendCodecOptions (..),
                                             dropPrefix, lowerInitial)
 import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..),
                                                TypeScriptDeclarationOrigin (..))
-import Web.LiveSurfaceRegistry (RegisteredLiveSurfaceManifest (..),
-                                registeredLiveSurfaceManifest)
 
 tests :: Spec
 tests = describe "Frontend contract generator foundation" do
@@ -51,7 +49,6 @@ tests = describe "Frontend contract generator foundation" do
                        , ("InteractionContracts", HaskellSchemaGenerated)
                        , ("UiRegionContracts", HaskellSchemaGenerated)
                        , ("RosterContracts", HaskellSchemaGenerated)
-                       , ("LiveSurfaceManifest", HaskellSchemaGenerated)
                        , ("FrontendSurfaceContracts", HaskellSchemaGenerated)
                        ]
 
@@ -77,18 +74,10 @@ tests = describe "Frontend contract generator foundation" do
                        , "InteractionSchema.hs"
                        , "LiveUpdateSchema.hs"
                        , "RosterSchema.hs"
-                       , "SurfaceManifestSchema.hs"
                        , "UiRegionSchema.hs"
                        ]
         let declarationNames = fmap (.name) frontendContractDeclarations
-        List.sort declarationNames `shouldBe` List.sort ["AppSharedConstants", "FrontendSurfaceContracts", "InteractionContracts", "LiveUpdateContracts", "RosterContracts", "LiveSurfaceManifest", "OverlayLane", "UiRegionContracts"]
-
-    it "generates a manifest for every registered live surface family" do
-        let generatedSource = frontendContractsTypeScript
-        forM_ registeredLiveSurfaceManifest \surface -> do
-            generatedSource `shouldSatisfy` Text.isInfixOf ("\"" <> surface.surfaceFamily <> "\":{")
-        generatedSource `shouldSatisfy` Text.isInfixOf "export const LiveSurfaceManifest"
-        generatedSource `shouldSatisfy` Text.isInfixOf "export type LiveSurfaceFamily"
+        List.sort declarationNames `shouldBe` List.sort ["AppSharedConstants", "FrontendSurfaceContracts", "InteractionContracts", "LiveUpdateContracts", "RosterContracts", "OverlayLane", "UiRegionContracts"]
 
     it "keeps handwritten legacy declaration helpers out of the generator" do
         files <- collectSourceFiles "Application/Helper/Frontend"

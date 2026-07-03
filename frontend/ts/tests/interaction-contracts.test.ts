@@ -1,4 +1,4 @@
-import { AppEvents, InteractionDom, InteractionStaticSchemas, LiveSurfaceManifest, isInteractionSessionEffect, parseInteractionSessionEffect, encodeInteractionSessionEffect, type InteractionCapabilityContract, type IntentFormContract } from "../generated/contracts";
+import { AppEvents, FrontendSurfaceRegistry, InteractionDom, InteractionStaticSchemas, isInteractionSessionEffect, parseInteractionSessionEffect, encodeInteractionSessionEffect, type InteractionCapabilityContract, type IntentFormContract } from "../generated/contracts";
 import { assertDeepEqual, assertEqual, test } from "./harness";
 
 test("generated interaction contracts describe mount-local intent forms", () => {
@@ -40,16 +40,14 @@ test("generated interaction contracts describe mount-local intent forms", () => 
     assertDeepEqual(capability.intentForms[0]?.fields, [{ name: "sourceItemKey", presence: "required" }]);
 });
 
-test("generated live surface manifest exposes registered surface schemas without runtime urls", () => {
-    const rosterManifest = LiveSurfaceManifest.roster;
-    const timesheetManifest = LiveSurfaceManifest.timesheets;
-    if (!rosterManifest || !timesheetManifest) throw new Error("Expected registered roster and timesheets surface manifests");
+test("generated FrontendSurface registry exposes registered surface schemas without runtime urls", () => {
+    const rosterManifest = FrontendSurfaceRegistry.roster;
+    const timesheetManifest = FrontendSurfaceRegistry.timesheets;
 
-    assertEqual(rosterManifest.interactionSchema, "roster");
-    assertDeepEqual(rosterManifest.scopeKinds, ["roster_week"]);
-    assertEqual(rosterManifest.fragmentKinds.includes("roster_day_section"), true);
-    assertEqual(timesheetManifest.scopeKinds[0], "timesheet_week");
-    assertEqual(JSON.stringify(LiveSurfaceManifest).includes("/ShowRosterWeek"), false);
+    assertDeepEqual(rosterManifest.scopes, ["roster-week"]);
+    assertEqual(rosterManifest.liveFragments.includes("roster-day-section"), true);
+    assertEqual(timesheetManifest.scopes[0], "timesheet-week");
+    assertEqual(JSON.stringify(FrontendSurfaceRegistry).includes("/ShowRosterWeek"), false);
 });
 
 test("generated interaction static schemas expose roster intents and fields", () => {

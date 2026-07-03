@@ -17,7 +17,6 @@ import Application.Helper.Frontend.Dto.App (OverlayLane)
 import Application.Helper.Frontend.InteractionSchema (interactionSchemaDeclaration)
 import Application.Helper.Frontend.LiveUpdateSchema (liveUpdateSchemaDeclaration)
 import Application.Helper.Frontend.RosterSchema (rosterContractsDeclaration)
-import Application.Helper.Frontend.SurfaceManifestSchema (surfaceManifestDeclaration)
 import Application.Helper.Frontend.TypeScript (TypeScriptDeclaration (..),
                                                renderTypeScriptDeclarations)
 import Application.Helper.Frontend.UiRegionSchema (uiRegionSchemaDeclaration)
@@ -49,7 +48,6 @@ frontendContractDeclarationsWithFrontendSurface frontendSurfaceDeclaration =
     , interactionSchemaDeclaration
     , uiRegionSchemaDeclaration
     , rosterContractsDeclaration
-    , surfaceManifestDeclaration
     , frontendSurfaceDeclaration
     ]
 
