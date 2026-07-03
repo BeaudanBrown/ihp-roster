@@ -74,7 +74,7 @@ type LabFragmentBundle =
      , Fragment LabPanel
         '[ Field PanelId 'WireUUID ]
         '[ 'Lazy '[ 'Trigger Load, 'Placeholder Panel ] ]
-     , HtmxAction RefreshPanel
+     , Action RefreshPanel
         '[ Field PanelId 'WireUUID ]
         '[ 'Target LabPanel ]
      ]
@@ -85,17 +85,12 @@ type LabInteractionBundle =
          , Field TargetDropzoneKey 'WireText
          ]
         '[ 'BackedBy RefreshPanel ]
-     , Session DragSession '[]
-     , DisposableLayer DragPreview
-     , InteractionEffect CloneShadow '[ 'Layer DragPreview ]
-     , InteractionEffect DropzoneHighlight '[]
+     , Session DragSession '[ 'Layer DragPreview, 'Effect CloneShadow '[ 'Layer DragPreview ], 'Effect DropzoneHighlight '[] ]
      , ConflictPolicy DragSession LabPanel 'Defer
      ]
 
 type LabSharedBundle =
-    '[ LoadPolicy Panel
-     , OverlayLane Dialog
-     , ClientEvent LabCommitted '[ Field PanelId 'WireUUID ]
+    '[ Event LabCommitted '[ Field PanelId 'WireUUID ]
      , DomToken LabRoot
      , DomToken LabDropzone
      , Dto LabPayload

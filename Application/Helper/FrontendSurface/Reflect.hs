@@ -18,6 +18,7 @@ import Application.Helper.FrontendSurface.DSL
 import Application.Helper.FrontendSurface.Naming (FrontendSurfaceNameContext (..),
                                                   deriveFrontendSurfaceName)
 import Application.Helper.FrontendSurface.Registry (RegisteredFrontendSurfaces)
+import qualified Data.List as List
 import qualified Data.Text as Text
 import Data.Typeable (Proxy (..), Typeable, tyConName, typeRep, typeRepTyCon)
 import IHP.Prelude
@@ -61,7 +62,7 @@ data ReflectedPrimitive
     | ReflectedFragment !FragmentIR
     | ReflectedHtmxAction !HtmxActionIR
     | ReflectedIntent !IntentIR
-    | ReflectedSession !Text
+    | ReflectedSessionWithOptions !Text ![OptionIR]
     | ReflectedLayer !Text
     | ReflectedEffect !Text ![OptionIR]
     | ReflectedPolicy !ConflictPolicyIR
@@ -96,7 +97,7 @@ instance (Typeable marker, ReflectFieldList fields, ReflectOptionList options) =
         , fragmentOptions = reflectOptionList @options
         }
 
-instance (Typeable marker, ReflectFieldList fields, ReflectOptionList options) => ReflectPrimitive ('HtmxAction marker fields options) where
+instance (Typeable marker, ReflectFieldList fields, ReflectOptionList options) => ReflectPrimitive ('Action marker fields options) where
     reflectPrimitive = ReflectedHtmxAction HtmxActionIR
         { htmxActionMarker = typeMarker @marker
         , htmxActionName = protocolName @marker ActionName
@@ -113,13 +114,7 @@ instance (Typeable marker, ReflectFieldList fields, ReflectOptionList options) =
         }
 
 instance (Typeable marker, ReflectOptionList options) => ReflectPrimitive ('Session marker options) where
-    reflectPrimitive = ReflectedSession (protocolName @marker SessionName)
-
-instance Typeable marker => ReflectPrimitive ('DisposableLayer marker) where
-    reflectPrimitive = ReflectedLayer (protocolName @marker LayerName)
-
-instance (Typeable marker, ReflectOptionList options) => ReflectPrimitive ('InteractionEffect marker options) where
-    reflectPrimitive = ReflectedEffect (protocolName @marker ActionName) (reflectOptionList @options)
+    reflectPrimitive = ReflectedSessionWithOptions (protocolName @marker SessionName) (reflectOptionList @options)
 
 instance (ReflectSessionSelector session, ReflectFragmentSelector fragment, ReflectConflictResolution resolution) => ReflectPrimitive ('ConflictPolicy session fragment resolution) where
     reflectPrimitive = ReflectedPolicy ConflictPolicyIR
@@ -128,13 +123,7 @@ instance (ReflectSessionSelector session, ReflectFragmentSelector fragment, Refl
         , conflictPolicyResolution = reflectConflictResolution @resolution
         }
 
-instance Typeable marker => ReflectPrimitive ('LoadPolicy marker) where
-    reflectPrimitive = ReflectedLoadPolicy (protocolName @marker FragmentName)
-
-instance Typeable marker => ReflectPrimitive ('OverlayLane marker) where
-    reflectPrimitive = ReflectedOverlayLane (protocolName @marker LayerName)
-
-instance (Typeable marker, ReflectFieldList fields) => ReflectPrimitive ('ClientEvent marker fields) where
+instance (Typeable marker, ReflectFieldList fields) => ReflectPrimitive ('Event marker fields) where
     reflectPrimitive = ReflectedClientEvent (protocolName @marker EventName) (reflectFieldList @fields)
 
 instance Typeable marker => ReflectPrimitive ('DomToken marker) where
@@ -190,6 +179,7 @@ class ReflectOption (option :: PrimitiveOption) where
     reflectOption :: OptionIR
 
 instance ReflectOption 'Eager where reflectOption = EagerOption
+instance ReflectOption 'Live where reflectOption = LiveOption
 instance ReflectOptionList options => ReflectOption ('Lazy options) where reflectOption = LazyOption (reflectOptionList @options)
 instance Typeable marker => ReflectOption ('Trigger marker) where reflectOption = TriggerOption (protocolName @marker DomTokenName)
 instance Typeable marker => ReflectOption ('Placeholder marker) where reflectOption = PlaceholderOption (protocolName @marker DomTokenName)
@@ -197,6 +187,7 @@ instance Typeable marker => ReflectOption ('DependsOn marker) where reflectOptio
 instance Typeable marker => ReflectOption ('Target marker) where reflectOption = TargetOption (protocolName @marker FragmentName)
 instance Typeable marker => ReflectOption ('BackedBy marker) where reflectOption = BackedByOption (protocolName @marker ActionName)
 instance Typeable marker => ReflectOption ('Layer marker) where reflectOption = LayerOption (protocolName @marker LayerName)
+instance (Typeable marker, ReflectOptionList options) => ReflectOption ('Effect marker options) where reflectOption = EffectOption (protocolName @marker ActionName) (reflectOptionList @options)
 instance Typeable marker => ReflectOption ('SessionOption marker) where reflectOption = SessionOptionIR (protocolName @marker SessionName)
 instance Typeable marker => ReflectOption ('Emits marker) where reflectOption = EmitsOption (protocolName @marker EventName)
 instance Typeable marker => ReflectOption ('Contains marker) where reflectOption = ContainsOption (protocolName @marker DomTokenName)
@@ -241,7 +232,7 @@ addPrimitives primitives surface =
             ReflectedFragment fragment -> current { surfaceFragments = current.surfaceFragments <> [fragment] }
             ReflectedHtmxAction action -> current { surfaceHtmxActions = current.surfaceHtmxActions <> [action] }
             ReflectedIntent intent -> current { surfaceIntents = current.surfaceIntents <> [intent] }
-            ReflectedSession name -> current { surfaceSessions = current.surfaceSessions <> [name] }
+            ReflectedSessionWithOptions name options -> current { surfaceSessions = current.surfaceSessions <> [name] } |> addOptionMetadata options
             ReflectedLayer name -> current { surfaceLayers = current.surfaceLayers <> [name] }
             ReflectedEffect name options -> current { surfaceEffects = current.surfaceEffects <> [(name, options)] }
             ReflectedPolicy policy -> current { surfacePolicies = current.surfacePolicies <> [policy] }
@@ -250,6 +241,23 @@ addPrimitives primitives surface =
             ReflectedClientEvent name fields -> current { surfaceClientEvents = current.surfaceClientEvents <> [(name, fields)] }
             ReflectedDomToken name -> current { surfaceDomTokens = current.surfaceDomTokens <> [name] }
             ReflectedDto name fields -> current { surfaceDtos = current.surfaceDtos <> [(name, fields)] }
+
+addOptionMetadata :: [OptionIR] -> SurfaceIR -> SurfaceIR
+addOptionMetadata options surface =
+    surface
+        { surfaceLayers = List.nub (surface.surfaceLayers <> layersIn options)
+        , surfaceEffects = List.nub (surface.surfaceEffects <> effectsIn options)
+        }
+    where
+        layersIn = concatMap \case
+            LazyOption nested -> layersIn nested
+            LayerOption name -> [name]
+            EffectOption _ nested -> layersIn nested
+            _ -> []
+        effectsIn = concatMap \case
+            LazyOption nested -> effectsIn nested
+            EffectOption name nested -> (name, nested) : effectsIn nested
+            _ -> []
 
 emptySurface :: SurfaceIR
 emptySurface = SurfaceIR

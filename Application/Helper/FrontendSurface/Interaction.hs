@@ -67,16 +67,13 @@ type DragDropFields =
          ]
 
 type DragDropInteraction (intent :: Type) (targetFragment :: Type) =
-    '[ Session DragSession '[]
-     , DisposableLayer DragPreviewLayer
-     , InteractionEffect CloneShadow '[ 'Layer DragPreviewLayer ]
-     , InteractionEffect DropzoneHighlight '[]
-     , HtmxAction intent DragDropFields '[ 'Target targetFragment ]
+    '[ Session DragSession '[ 'Layer DragPreviewLayer, 'Effect CloneShadow '[ 'Layer DragPreviewLayer ], 'Effect DropzoneHighlight '[] ]
+     , Action intent DragDropFields '[ 'Target targetFragment ]
      , Intent intent DragDropFields '[ 'SessionOption DragSession, 'BackedBy intent ]
      , ConflictPolicyFor ('SessionKind DragSession) 'AnyFragment 'Defer
      ]
 
 type LayoutModeInteraction (intent :: Type) (targetFragment :: Type) (layoutModeField :: Type) =
-    '[ HtmxAction intent '[ Field layoutModeField 'WireText ] '[ 'Target targetFragment ]
+    '[ Action intent '[ Field layoutModeField 'WireText ] '[ 'Target targetFragment ]
      , Intent intent '[ Field layoutModeField 'WireText ] '[ 'BackedBy intent ]
      ]

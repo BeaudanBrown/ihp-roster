@@ -124,19 +124,19 @@ tests = describe "FrontendSurface GHC raw lowering" do
                 , ( duplicateSurfaceRegistry
                   , "duplicate surface name surface-lab"
                   )
-                , ( registryWithPrimitives [scopePrimitive, raw "Fragment" [marker "LabPanel", promotedList [], promotedList []], raw "HtmxAction" [marker "RefreshPanel", promotedList [], promotedList [raw "Target" [marker "RefreshPanel"]]]]
+                , ( registryWithPrimitives [scopePrimitive, raw "Fragment" [marker "LabPanel", promotedList [], promotedList []], raw "Action" [marker "RefreshPanel", promotedList [], promotedList [raw "Target" [marker "RefreshPanel"]]]]
                   , "htmx action refresh-panel references missing fragment refresh-panel on surface surface-lab"
                   )
                 , ( registryWithPrimitives [scopePrimitive, raw "Fragment" [marker "LabPanel", promotedList [], promotedList []], raw "Intent" [marker "MoveLabCard", promotedList [], promotedList [raw "BackedBy" [marker "LabPanel"]]]]
                   , "intent move-lab-card references missing htmx action lab-panel on surface surface-lab"
                   )
-                , ( registryWithPrimitives [scopePrimitive, raw "InteractionEffect" [marker "CloneShadow", promotedList [raw "Layer" [marker "MissingLayer"]]]]
-                  , "effect clone-shadow references missing layer missing on surface surface-lab"
+                , ( registryWithPrimitives [scopePrimitive, raw "Session" [marker "DragSession", promotedList [raw "Effect" [marker "CloneShadow", promotedList [raw "Target" [marker "MissingFragment"]]]]]]
+                  , "effect clone-shadow references missing fragment missing on surface surface-lab"
                   )
                 , ( registryWithPrimitives [scopePrimitive, raw "ConflictPolicy" [raw "SessionKind" [marker "DragSession"], raw "AnyFragment" [], raw "Defer" []]]
                   , "conflict policy references missing session drag on surface surface-lab"
                   )
-                , ( registryWithPrimitives [scopePrimitive, raw "ClientEvent" [marker "LabCommitted", promotedList [fieldWithWire "Payload" (raw "WireRef" [marker "MissingPayload"])] ]]
+                , ( registryWithPrimitives [scopePrimitive, raw "Event" [marker "LabCommitted", promotedList [fieldWithWire "Payload" (raw "WireRef" [marker "MissingPayload"])] ]]
                   , "field payload references missing dto missing-payload on surface surface-lab"
                   )
                 ]
@@ -159,7 +159,7 @@ labRawRegistry = registryWithPrimitives
         , promotedList [field "PanelId" "WireUUID"]
         , promotedList [raw "Lazy" [promotedList [raw "Trigger" [marker "Load"], raw "Placeholder" [marker "Panel"]]]]
         ]
-    , raw "HtmxAction"
+    , raw "Action"
         [ marker "RefreshPanel"
         , promotedList [field "PanelId" "WireUUID"]
         , promotedList [raw "Target" [marker "LabPanel"]]
@@ -169,14 +169,9 @@ labRawRegistry = registryWithPrimitives
         , promotedList [field "SourceItemKey" "WireText", field "TargetDropzoneKey" "WireText"]
         , promotedList [raw "BackedBy" [marker "RefreshPanel"]]
         ]
-    , raw "Session" [marker "DragSession", promotedList []]
-    , raw "DisposableLayer" [marker "DragPreview"]
-    , raw "InteractionEffect" [marker "CloneShadow", promotedList [raw "Layer" [marker "DragPreview"]]]
-    , raw "InteractionEffect" [marker "DropzoneHighlight", promotedList []]
+    , raw "Session" [marker "DragSession", promotedList [raw "Layer" [marker "DragPreview"], raw "Effect" [marker "CloneShadow", promotedList [raw "Layer" [marker "DragPreview"]]], raw "Effect" [marker "DropzoneHighlight", promotedList []]]]
     , raw "ConflictPolicy" [raw "SessionKind" [marker "DragSession"], raw "FragmentKind" [marker "LabPanel"], raw "Defer" []]
-    , raw "LoadPolicy" [marker "Panel"]
-    , raw "OverlayLane" [marker "Dialog"]
-    , raw "ClientEvent" [marker "LabCommitted", promotedList [field "PanelId" "WireUUID"]]
+    , raw "Event" [marker "LabCommitted", promotedList [field "PanelId" "WireUUID"]]
     , raw "DomToken" [marker "LabRoot"]
     , raw "DomToken" [marker "LabDropzone"]
     , raw "Dto"
@@ -258,13 +253,10 @@ rosterRawRegistry =
                 , promotedList [field "RosterDayId" "WireUUID", field "RowIndex" "WireInt"]
                 , promotedList [raw "Lazy" [promotedList [raw "DependsOn" [marker "RosterDaySection"]]]]
                 ]
-            , raw "HtmxAction" [marker "SetRosterLayoutMode", promotedList [field "RosterLayoutMode" "WireText"], promotedList [raw "Target" [marker "RosterContent"]]]
+            , raw "Action" [marker "SetRosterLayoutMode", promotedList [field "RosterLayoutMode" "WireText"], promotedList [raw "Target" [marker "RosterContent"]]]
             , raw "Intent" [marker "SetRosterLayoutMode", promotedList [field "RosterLayoutMode" "WireText"], promotedList [raw "BackedBy" [marker "SetRosterLayoutMode"]]]
-            , raw "Session" [marker "DragSession", promotedList []]
-            , raw "DisposableLayer" [marker "DragPreviewLayer"]
-            , raw "InteractionEffect" [marker "CloneShadow", promotedList [raw "Layer" [marker "DragPreviewLayer"]]]
-            , raw "InteractionEffect" [marker "DropzoneHighlight", promotedList []]
-            , raw "HtmxAction" [marker "MoveRosterShiftToSlot", promotedList dragDropFieldsRaw, promotedList [raw "Target" [marker "RosterContent"]]]
+            , raw "Session" [marker "DragSession", promotedList [raw "Layer" [marker "DragPreviewLayer"], raw "Effect" [marker "CloneShadow", promotedList [raw "Layer" [marker "DragPreviewLayer"]]], raw "Effect" [marker "DropzoneHighlight", promotedList []]]]
+            , raw "Action" [marker "MoveRosterShiftToSlot", promotedList dragDropFieldsRaw, promotedList [raw "Target" [marker "RosterContent"]]]
             , raw "Intent" [marker "MoveRosterShiftToSlot", promotedList dragDropFieldsRaw, promotedList [raw "SessionOption" [marker "DragSession"], raw "BackedBy" [marker "MoveRosterShiftToSlot"]]]
             , raw "ConflictPolicy" [raw "SessionKind" [marker "DragSession"], raw "AnyFragment" [], raw "Defer" []]
             ]

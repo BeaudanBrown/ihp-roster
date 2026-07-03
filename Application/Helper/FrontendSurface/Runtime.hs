@@ -235,7 +235,7 @@ data FrontendSurfaceActionHandler (requirement :: SurfacePrimitive) where
     FrontendSurfaceActionHandler ::
         { actionHandlerDefaultFields :: !(FrontendSurfaceFieldValues fields)
         , actionHandlerRequest       :: !(FrontendSurfaceFieldValues fields -> FrontendSurfaceHtmxRequest)
-        } -> FrontendSurfaceActionHandler ('HtmxAction marker fields options)
+        } -> FrontendSurfaceActionHandler ('Action marker fields options)
 
 data FrontendSurfaceIntentHandler (requirement :: SurfacePrimitive) where
     FrontendSurfaceIntentHandler ::
@@ -283,7 +283,7 @@ type family PrimitiveFragmentRequirements (primitives :: [SurfacePrimitive]) :: 
 
 type family PrimitiveActionRequirements (primitives :: [SurfacePrimitive]) :: [SurfacePrimitive] where
     PrimitiveActionRequirements '[] = '[]
-    PrimitiveActionRequirements (('HtmxAction marker fields options) ': rest) = ('HtmxAction marker fields options) ': PrimitiveActionRequirements rest
+    PrimitiveActionRequirements (('Action marker fields options) ': rest) = ('Action marker fields options) ': PrimitiveActionRequirements rest
     PrimitiveActionRequirements (primitive ': rest) = PrimitiveActionRequirements rest
 
 type family PrimitiveIntentRequirements (primitives :: [SurfacePrimitive]) :: [SurfacePrimitive] where

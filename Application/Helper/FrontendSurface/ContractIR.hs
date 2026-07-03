@@ -117,12 +117,14 @@ data WireIR
 data OptionIR
     = EagerOption
     | LazyOption ![OptionIR]
+    | LiveOption
     | TriggerOption !Text
     | PlaceholderOption !Text
     | DependsOnOption !Text
     | TargetOption !Text
     | BackedByOption !Text
     | LayerOption !Text
+    | EffectOption !Text ![OptionIR]
     | SessionOptionIR !Text
     | EmitsOption !Text
     | ContainsOption !Text
@@ -275,6 +277,7 @@ validateCrossReferences surface =
 
         validateOptionRef owner = \case
             LazyOption options -> concatMap (validateOptionRef owner) options
+            EffectOption _ options -> concatMap (validateOptionRef owner) options
             TargetOption name -> requireRef owner RefFragment fragmentNames name
             BackedByOption name -> requireRef owner RefAction actionNames name
             LayerOption name -> requireRef owner RefLayer layerNames name
@@ -344,6 +347,7 @@ validateContainmentCycles contract =
 containedSurfaceNames :: [OptionIR] -> [Text]
 containedSurfaceNames = concatMap \case
     LazyOption options -> containedSurfaceNames options
+    EffectOption _ options -> containedSurfaceNames options
     ContainsSurfaceOption surfaceName -> [surfaceName]
     _ -> []
 

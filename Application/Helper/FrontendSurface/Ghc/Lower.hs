@@ -79,7 +79,7 @@ addPrimitive surface primitive
                 , IR.fragmentParams = fieldList
                 , IR.fragmentOptions = optionList
                 }] }
-        (Just "HtmxAction", marker : fields : options : _) -> do
+        (Just "Action", marker : fields : options : _) -> do
             markerName <- rawMarkerName marker
             fieldList <- lowerFieldList fields
             optionList <- lowerOptionList options
@@ -99,26 +99,14 @@ addPrimitive surface primitive
                 , IR.intentFields = fieldList
                 , IR.intentOptions = optionList
                 }] }
-        (Just "Session", marker : _) -> do
-            markerName <- rawMarkerName marker
-            Right surface { IR.surfaceSessions = IR.surfaceSessions surface <> [protocol Naming.SessionName markerName] }
-        (Just "DisposableLayer", marker : _) -> do
-            markerName <- rawMarkerName marker
-            Right surface { IR.surfaceLayers = IR.surfaceLayers surface <> [protocol Naming.LayerName markerName] }
-        (Just "InteractionEffect", marker : options : _) -> do
+        (Just "Session", marker : options : _) -> do
             markerName <- rawMarkerName marker
             optionList <- lowerOptionList options
-            Right surface { IR.surfaceEffects = IR.surfaceEffects surface <> [(protocol Naming.ActionName markerName, optionList)] }
+            Right (surface { IR.surfaceSessions = IR.surfaceSessions surface <> [protocol Naming.SessionName markerName] } |> addSessionOptionMetadata optionList)
         (Just "ConflictPolicy", session : fragment : resolution : _) -> do
             policy <- IR.ConflictPolicyIR <$> lowerSessionSelector session <*> lowerFragmentSelector fragment <*> lowerConflictResolution resolution
             Right surface { IR.surfacePolicies = IR.surfacePolicies surface <> [policy] }
-        (Just "LoadPolicy", marker : _) -> do
-            markerName <- rawMarkerName marker
-            Right surface { IR.surfaceLoadPolicies = IR.surfaceLoadPolicies surface <> [protocol Naming.FragmentName markerName] }
-        (Just "OverlayLane", marker : _) -> do
-            markerName <- rawMarkerName marker
-            Right surface { IR.surfaceOverlayLanes = IR.surfaceOverlayLanes surface <> [protocol Naming.LayerName markerName] }
-        (Just "ClientEvent", marker : fields : _) -> do
+        (Just "Event", marker : fields : _) -> do
             markerName <- rawMarkerName marker
             fieldList <- lowerFieldList fields
             Right surface { IR.surfaceClientEvents = IR.surfaceClientEvents surface <> [(protocol Naming.EventName markerName, fieldList)] }
@@ -130,6 +118,23 @@ addPrimitive surface primitive
             fieldList <- lowerFieldList fields
             Right surface { IR.surfaceDtos = IR.surfaceDtos surface <> [(protocol Naming.ScopeName markerName, fieldList)] }
         _ -> Left ["unsupported primitive " <> primitive.rawTypePretty]
+
+addSessionOptionMetadata :: [IR.OptionIR] -> IR.SurfaceIR -> IR.SurfaceIR
+addSessionOptionMetadata options surface =
+    surface
+        { IR.surfaceLayers = List.nub (IR.surfaceLayers surface <> layersIn options)
+        , IR.surfaceEffects = List.nub (IR.surfaceEffects surface <> effectsIn options)
+        }
+    where
+        layersIn = concatMap \case
+            IR.LazyOption nested -> layersIn nested
+            IR.LayerOption name -> [name]
+            IR.EffectOption _ nested -> layersIn nested
+            _ -> []
+        effectsIn = concatMap \case
+            IR.LazyOption nested -> effectsIn nested
+            IR.EffectOption name nested -> (name, nested) : effectsIn nested
+            _ -> []
 
 lowerFieldList :: RawType -> Either [String] [IR.FieldIR]
 lowerFieldList fields = rawListElements "field list" fields >>= collectEither . map lowerField
@@ -181,6 +186,7 @@ lowerOption option
     | otherwise =
     case (option.rawTypeName, option.rawTypeArgs) of
         (Just "Eager", _) -> Right IR.EagerOption
+        (Just "Live", _) -> Right IR.LiveOption
         (Just "Lazy", nested : _) -> IR.LazyOption <$> lowerOptionList nested
         (Just "Trigger", marker : _) -> IR.TriggerOption <$> (protocol Naming.DomTokenName <$> rawMarkerName marker)
         (Just "Placeholder", marker : _) -> IR.PlaceholderOption <$> (protocol Naming.DomTokenName <$> rawMarkerName marker)
@@ -188,6 +194,7 @@ lowerOption option
         (Just "Target", marker : _) -> IR.TargetOption <$> (protocol Naming.FragmentName <$> rawMarkerName marker)
         (Just "BackedBy", marker : _) -> IR.BackedByOption <$> (protocol Naming.ActionName <$> rawMarkerName marker)
         (Just "Layer", marker : _) -> IR.LayerOption <$> (protocol Naming.LayerName <$> rawMarkerName marker)
+        (Just "Effect", marker : options : _) -> IR.EffectOption <$> (protocol Naming.ActionName <$> rawMarkerName marker) <*> lowerOptionList options
         (Just "SessionOption", marker : _) -> IR.SessionOptionIR <$> (protocol Naming.SessionName <$> rawMarkerName marker)
         (Just "Emits", marker : _) -> IR.EmitsOption <$> (protocol Naming.EventName <$> rawMarkerName marker)
         (Just "Contains", marker : _) -> IR.ContainsOption <$> (protocol Naming.DomTokenName <$> rawMarkerName marker)

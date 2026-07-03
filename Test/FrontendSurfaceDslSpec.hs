@@ -272,7 +272,7 @@ type DuplicateFieldSurface =
 type MissingReferenceSurface =
     Surface MissingReference
         '[ Scope LabScope '[ Field VenueId 'WireUUID ]
-         , HtmxAction Bad '[] '[ 'Target MissingFragment ]
+         , Action Bad '[] '[ 'Target MissingFragment ]
          ]
 
 type MissingDtoRefSurface =

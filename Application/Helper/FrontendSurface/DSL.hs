@@ -16,20 +16,16 @@ module Application.Helper.FrontendSurface.DSL
     , Surface
     , Scope
     , Fragment
-    , HtmxAction
+    , Action
     , Intent
     , Field
     , OptionalField
     , NullableField
     , MountState
     , Session
-    , DisposableLayer
-    , InteractionEffect
     , ConflictPolicy
     , ConflictPolicyFor
-    , LoadPolicy
-    , OverlayLane
-    , ClientEvent
+    , Event
     , DomToken
     , Dto
     , ContainsSurface
@@ -58,12 +54,14 @@ data FieldSpec
 data PrimitiveOption
     = Eager
     | Lazy [PrimitiveOption]
+    | Live
     | Trigger Type
     | Placeholder Type
     | DependsOn Type
     | Target Type
     | BackedBy Type
     | Layer Type
+    | Effect Type [PrimitiveOption]
     | SessionOption Type
     | Emits Type
     | Contains Type
@@ -87,16 +85,12 @@ data ConflictResolution
 data SurfacePrimitive
     = Scope Type [FieldSpec]
     | Fragment Type [FieldSpec] [PrimitiveOption]
-    | HtmxAction Type [FieldSpec] [PrimitiveOption]
+    | Action Type [FieldSpec] [PrimitiveOption]
     | Intent Type [FieldSpec] [PrimitiveOption]
     | MountState Type [FieldSpec]
     | Session Type [PrimitiveOption]
-    | DisposableLayer Type
-    | InteractionEffect Type [PrimitiveOption]
     | ConflictPolicy SessionSelector FragmentSelector ConflictResolution
-    | LoadPolicy Type
-    | OverlayLane Type
-    | ClientEvent Type [FieldSpec]
+    | Event Type [FieldSpec]
     | DomToken Type
     | Dto Type [FieldSpec]
 
@@ -106,20 +100,16 @@ data SurfaceSpec
 type Surface name capabilities = 'Surface name capabilities
 type Scope name fields = 'Scope name fields
 type Fragment name params options = 'Fragment name params options
-type HtmxAction name fields options = 'HtmxAction name fields options
+type Action name fields options = 'Action name fields options
 type Intent name fields options = 'Intent name fields options
 type Field name wire = 'Field name wire
 type OptionalField name wire = 'OptionalField name wire
 type NullableField name wire = 'NullableField name wire
 type MountState name fields = 'MountState name fields
 type Session name options = 'Session name options
-type DisposableLayer name = 'DisposableLayer name
-type InteractionEffect kind options = 'InteractionEffect kind options
 type ConflictPolicy session fragment resolution = 'ConflictPolicy ('SessionKind session) ('FragmentKind fragment) resolution
 type ConflictPolicyFor sessionSelector fragmentSelector resolution = 'ConflictPolicy sessionSelector fragmentSelector resolution
-type LoadPolicy kind = 'LoadPolicy kind
-type OverlayLane name = 'OverlayLane name
-type ClientEvent name detail = 'ClientEvent name detail
+type Event name detail = 'Event name detail
 type DomToken name = 'DomToken name
 type Dto name fields = 'Dto name fields
 type ContainsSurface name = 'ContainsSurface name

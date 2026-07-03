@@ -1348,8 +1348,7 @@ export type MoveLabCardIntentFields = { sourceItemKey: string; targetDropzoneKey
 export type SurfaceLabSessionName = "drag";
 export type SurfaceLabDisposableLayerName = "drag-preview";
 export type SurfaceLabDomToken = "lab-root" | "lab-dropzone";
-export type SurfaceLabOverlayLane = "dialog";
-export const surfaceLabSurfaceManifest = { surface: "surface-lab", scopes: ["lab"], fragments: ["lab-shell", "lab-panel"], htmxActions: ["refresh-panel"], intents: ["move-lab-card"], sessions: ["drag"], layers: ["drag-preview"], domTokens: ["lab-root", "lab-dropzone"], overlayLanes: ["dialog"], containedSurfaces: {} } as const;
+export const surfaceLabSurfaceManifest = { surface: "surface-lab", scopes: ["lab"], fragments: ["lab-shell", "lab-panel"], htmxActions: ["refresh-panel"], intents: ["move-lab-card"], sessions: ["drag"], layers: ["drag-preview"], domTokens: ["lab-root", "lab-dropzone"], overlayLanes: [], containedSurfaces: {} } as const;
 
 export type TimesheetsSurfaceName = "timesheets";
 export type TimesheetWeekScope = { kind: "timesheet-week"; venueId: VenueId; weekOffset: number };
