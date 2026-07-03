@@ -7,7 +7,7 @@ Read this before editing `frontend/ts/`.
 - App-owned JavaScript source lives in `frontend/ts/`.
 - Generated browser assets live in `static/app*.js` and are still loaded by IHP through `assetPath`.
 - Generated TypeScript contracts live in `frontend/ts/generated/` and are backend-owned. Do not hand-edit generated files.
-- Contracts are for browser boundary data only: JSON/data-* payloads, live-update config/messages, legacy live-surface manifests, FrontendSurface metadata, interaction/static capability DTOs, roster UI config, overlay lanes, and capability/config objects. Do not generate broad database models for frontend use.
+- Contracts are for browser boundary data only: JSON/data-* payloads, live-update config/messages, FrontendSurface metadata, interaction/static capability DTOs, roster UI config, overlay lanes, and capability/config objects. Do not generate broad database models for frontend use.
 - Generated contracts provide `type X`, `isX`, `parseX`, and `encodeX`. Unknown JSON boundaries should use `parseX`; outbound JSON-shaped DTOs should use `encodeX`; runtime code must not recreate generated validators/parsers/encoders by hand.
 - Use Nix/devenv entrypoints, not developer-facing `npm`/`npx` commands.
 - Supported commands:
@@ -55,8 +55,8 @@ Read this before editing `frontend/ts/`.
   Haskell-declared disposable layers, but must not mutate server-owned business
   DOM or construct persistence URLs. Committed intents submit through
   Haskell-rendered HTMX forms. For production surfaces, closest-mount discovery
-  is based on `data-bepis-surface`/`data-bepis-surface-config`; legacy
-  `data-live-update-surface` support remains compatibility-only.
+  is based on `data-bepis-surface`/`data-bepis-surface-config` only. Do not add
+  browser support for `data-live-update-surface`.
 - Generic UI region runtime may adapt HTMX lifecycle events, lazy retry UI, and
   transition classes only for `data-bepis-fragment="true"` roots rendered by
   Haskell helpers/contracts. Do not make ordinary HTMX, dialogs, validation

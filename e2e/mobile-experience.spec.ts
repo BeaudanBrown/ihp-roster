@@ -452,9 +452,10 @@ test.describe('Mobile experience smoke', () => {
         const afterWeekScroll = await readScroll();
         expect(Math.abs(afterWeekScroll - beforeWeekScroll)).toBeLessThanOrEqual(2);
 
-        const dayColumnsLiveConfig = await page.locator('#timesheet-day-columns').getAttribute('data-live-update-surface');
-        expect(dayColumnsLiveConfig).toContain('timesheet_week');
-        await expect(page.locator('#timesheet-day-section-0')).toHaveAttribute('data-live-update-url', /weekOffset=1/);
+        const surfaceConfig = await page.locator('#timesheet-week-shell').getAttribute('data-bepis-surface-config');
+        expect(surfaceConfig).toContain('timesheets');
+        expect(surfaceConfig).toContain('timesheet-day-columns');
+        await expect(page.locator('#timesheet-day-section-0')).toHaveAttribute('data-bepis-fragment-url', /weekOffset=1/);
     });
 
     test('timesheet entries use uniform mobile actions for approved and pending entries', async ({ page }) => {

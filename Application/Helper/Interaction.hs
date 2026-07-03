@@ -243,7 +243,6 @@ renderInteractionSurfaceMountWithAttrs ::
 renderInteractionSurfaceMountWithAttrs definition mount extraAttrs =
     Html5.div
         ! attr "id" mountId
-        ! attr "data-live-update-surface" (liveSurfaceConfigJson (interactionSurfaceLiveConfig definition mount))
         ! attr interactionDomAttrs.interactionDomSurfaceAttribute interactionDomVals.interactionDomEnabledValue
         ! attr interactionDomAttrs.interactionDomSurfaceFamilyAttribute definition.typedSurfaceFeature
         ! attr interactionDomAttrs.interactionDomScopeKeyAttribute (liveUpdateScopeKey surfaceScope)

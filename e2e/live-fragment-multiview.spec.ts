@@ -137,7 +137,7 @@ test.describe('Live fragment multi-view coverage', () => {
         await gotoWhenReady(actorPage, '/EditProfile', '#profile-live-surface');
         await gotoWhenReady(viewerPage, '/EditProfile', '#profile-live-surface');
 
-        await expect(actorPage.locator('#profile-live-surface')).toHaveAttribute('data-live-update-surface', /profile_content/);
+        await expect(actorPage.locator('#profile-live-surface')).toHaveAttribute('data-bepis-surface-config', /profile-content/);
         await openProfileDetailsSection(actorPage);
         await openProfileDetailsSection(viewerPage);
         await expect(viewerPage.locator('#preferredName')).not.toHaveValue(preferredName);

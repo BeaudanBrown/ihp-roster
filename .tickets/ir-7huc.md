@@ -1,6 +1,6 @@
 ---
 id: ir-7huc
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-07-03T04:16:45Z

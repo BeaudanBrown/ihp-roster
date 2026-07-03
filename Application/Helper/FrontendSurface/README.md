@@ -75,12 +75,14 @@ type ExampleSurface =
 Available primitives include:
 
 - `Scope` for the authorized live data slice;
-- `Fragment` for refreshable server-rendered DOM targets;
-- `HtmxAction` and `Intent` for Haskell-owned HTMX action/form metadata;
+- `Fragment` for refreshable server-rendered DOM targets. Add the `Live`
+  fragment option when the fragment participates in websocket invalidation;
+- `Action` and `Intent` for Haskell-owned HTMX action/form metadata;
 - `MountState` for view state that is not part of the live subscription scope;
-- `Session`, `DisposableLayer`, `InteractionEffect`, and `ConflictPolicy` for
-  typed interaction runtime coordination;
-- `ClientEvent`, `DomToken`, and `Dto` for narrow browser-boundary metadata.
+- `Session` plus session options such as `Layer` and `Effect` for typed
+  interaction runtime coordination;
+- `ConflictPolicy` for session/fragment conflict behavior;
+- `Event`, `DomToken`, and `Dto` for narrow browser-boundary metadata.
 
 Wire fields use the closed browser wire universe: `WireText`, `WireInt`,
 `WireBool`, `WireUUID`, `WireDay`, `WireList`, `WireOptional`, `WireNullable`,
@@ -133,11 +135,13 @@ refresh through the unified live invalidation/refetch path.
 
 ## Live Invalidation And Fragment Rendering
 
-Migrated `FrontendSurface` invalidations are semantic and mount-resolved:
-transport identifies surface/scope/fragment plus typed params, and each mounted
-surface resolves the concrete target id, URL, protection policy, and current
-mount state locally. Do not send concrete global target ids as the canonical
-server invalidation contract for migrated surfaces.
+Migrated `FrontendSurface` invalidations are semantic and surface-native:
+transport identifies generated kebab-case surface names, generated scope DTOs,
+and generated fragment names plus typed params. Haskell emits ready-to-use mount
+subscription JSON from `Scope` plus `Fragment ... Live`; composition-only parent
+surfaces omit `Live` fragments and therefore do not subscribe. The browser
+runtime reads the generated subscription payload and must not parse scope keys or
+switch on app-specific surface/fragment names.
 
 Use direct database/read-model rendering first. There is no shared
 `Application.Helper.SurfaceProjection` cache. If profiling later proves caching
@@ -167,10 +171,9 @@ field names, surface names, or mutation endpoints.
 Production feature surfaces have migrated to the `FrontendSurface` path. Do not
 start new production work with `TypedLiveSurfaceDefinition`,
 `data-live-update-surface`, `serveTypedLiveFragment`, legacy
-`Web.LiveSurfaceRegistry` catalog entries, or a shared `SurfaceProjection` cache.
-Compatibility code may remain in shared internals and tests while the runtime is
-simplified, but feature-facing authoring should use type-level specs plus
-`SurfaceImpl`.
+`Web.LiveSurfaceRegistry` catalog entries, handwritten live-surface manifest
+DTOs, or a shared `SurfaceProjection` cache. Feature-facing authoring uses
+type-level specs plus `SurfaceImpl`.
 
 For a new surface or migration:
 

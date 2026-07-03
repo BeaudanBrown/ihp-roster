@@ -102,6 +102,28 @@ expect_no_match \
     'Application\.Helper\.SurfaceProjection|SurfaceProjection' \
     Application Web
 
+expect_no_match \
+    "production/browser code must not resurrect legacy declarative live-surface attributes" \
+    'data-live-update-surface|parseLiveUpdateSurfaceConfig' \
+    Application Web frontend/ts e2e static
+
+expect_no_match \
+    "frontend contracts must not resurrect legacy live-surface manifest DTOs" \
+    'LiveSurfaceManifest|LiveSurfaceFamily|SurfaceManifestSchema|Application\.Helper\.Frontend\.Dto\.LiveSurface' \
+    Application Web frontend/ts static
+
+expect_no_match \
+    "FrontendSurface specs must use current DSL primitive names" \
+    '\b(HtmxAction|ClientEvent|DisposableLayer|InteractionEffect)\b' \
+    Application/Helper/FrontendSurface/Admin.hs \
+    Application/Helper/FrontendSurface/Billing.hs \
+    Application/Helper/FrontendSurface/Lab.hs \
+    Application/Helper/FrontendSurface/LeaveRequests.hs \
+    Application/Helper/FrontendSurface/Profile.hs \
+    Application/Helper/FrontendSurface/Roster.hs \
+    Application/Helper/FrontendSurface/Support.hs \
+    Application/Helper/FrontendSurface/Timesheets.hs
+
 if [ "$failures" -ne 0 ]; then
     exit 1
 fi

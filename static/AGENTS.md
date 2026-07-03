@@ -72,13 +72,12 @@ Read this before editing `static/` assets.
 - Do not add feature-specific adapters for normal live-surface discovery,
   subscription, request decoration, version-gap resync, fragment fetching,
   swapping, or focused-field protection.
-- Treat both legacy `data-live-update-surface` JSON and migrated
-  `data-bepis-surface-config` JSON as server-owned surface output. Static JS
-  should not infer feature scopes, target ids, or URLs that belong in Haskell
-  surface definitions. Migrated FrontendSurface invalidations are mount-resolved;
-  legacy websocket/actor-refresh payloads remain self-describing until those
-  surfaces migrate. Do not switch protocols without a migration ticket and
-  browser coverage.
+- Treat `data-bepis-surface-config` JSON as server-owned surface output.
+  Static JS should not infer feature scopes, target ids, or URLs that belong in
+  Haskell surface definitions. FrontendSurface invalidations are surface-native
+  and mount-resolved: Haskell emits the subscription payload, and the browser
+  runtime consumes it generically. Do not add `data-live-update-surface` support
+  or feature-specific live transport switches.
 - Feature scripts may handle genuinely feature-specific UI behavior.
 
 ## Typed Interaction Runtime

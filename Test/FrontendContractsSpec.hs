@@ -96,7 +96,6 @@ tests = describe "Frontend contract generator foundation" do
         files
             `shouldBe` [ "App.hs"
                        , "Interaction.hs"
-                       , "LiveSurface.hs"
                        , "LiveUpdate.hs"
                        , "Roster.hs"
                        , "UiRegion.hs"

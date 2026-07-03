@@ -160,7 +160,7 @@ tests = describe "Typed interaction surface capabilities" do
                     renderInteractionItemMarker "card-1" (Html5.toHtml ("Card 1" :: Text))
 
         html `shouldContainText` "id=\"bepis-surface--test-interaction--support-platform--primary\""
-        html `shouldContainText` "data-live-update-surface=\"{&quot;decorateRequestsWithin&quot;:[],&quot;feature&quot;:&quot;test-interaction&quot;"
+        html `shouldNotContainText` "data-live-update-surface"
         html `shouldContainText` "data-bepis-surface=\"true\""
         html `shouldContainText` "id=\"bepis-surface--test-interaction--support-platform--primary--server-layer--server\""
         html `shouldContainText` "data-bepis-server-layer=\"server\""
@@ -351,3 +351,8 @@ shouldContainText :: Text -> Text -> Expectation
 shouldContainText haystack needle =
     unless (needle `Text.isInfixOf` haystack) do
         expectationFailure (cs ("Expected rendered HTML to contain: " <> needle <> "\nRendered HTML:\n" <> haystack :: Text))
+
+shouldNotContainText :: Text -> Text -> Expectation
+shouldNotContainText haystack needle =
+    when (needle `Text.isInfixOf` haystack) do
+        expectationFailure (cs ("Expected rendered HTML not to contain: " <> needle <> "\nRendered HTML:\n" <> haystack :: Text))

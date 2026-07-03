@@ -10,13 +10,13 @@ Haskell owns the browser contract. Do not add hand-written TypeScript unions,
 validators, parsers, encoders, or canonical browser strings for backend-owned
 concepts.
 
-There are two contract sources while the live-surface migration is hybrid:
+There are two contract sources:
 
-- Migrated live/interaction surfaces use the type-level `FrontendSurface`
+- Live/interaction surface contracts use the type-level `FrontendSurface`
   registry in `Application.Helper.FrontendSurface.Registry`; see
   `Application/Helper/FrontendSurface/README.md`.
-- Non-surface DTOs and still-legacy live-surface DTOs use `FrontendCodec` and a
-  registered contract group in this directory.
+- Non-surface DTOs use `FrontendCodec` and a registered contract group in this
+  directory.
 
 Generated TypeScript lives in `frontend/ts/generated/contracts.ts` and is not
 hand-edited. Every named codec emits the same public shape:
@@ -38,13 +38,12 @@ path as inbound parsing.
 - `Generic.hs` derives codecs for narrow DTO records, enums, tagged unions,
   arrays, refs, optional fields, nullable fields, and partial record containers.
 - `Options.hs` owns naming/tag options such as snake/kebab-case conversion.
-- `Dto/*.hs` modules contain browser-facing DTOs/enums only. Live-update,
-  interaction, and live-surface DTOs remain here for shared transport and
-  legacy-surface compatibility while migrated surface-specific contracts are
-  generated from `Application.Helper.FrontendSurface`.
+- `Dto/*.hs` modules contain browser-facing DTOs/enums only. Live-update and
+  interaction DTOs remain here for shared transport while surface-specific
+  contracts are generated from `Application.Helper.FrontendSurface`.
 - `*Schema.hs` modules are thin contract-group registration roots. They should
   not contain large hand-authored field lists or raw TypeScript snippets.
-- `Contracts.hs` composes legacy/non-surface groups with the generated
+- `Contracts.hs` composes non-surface groups with the generated
   `FrontendSurface` declarations.
 
 Use explicit frontend DTOs instead of arbitrary internal server/domain types.
@@ -85,11 +84,9 @@ contracts. Do not add migrated surfaces to `Web.LiveSurfaceRegistry`, handwrite
 `data-bepis-surface-config`, or author old surface-specific `FrontendCodec`
 schema groups.
 
-Still-legacy live surfaces may continue to update generated `LiveSurfaceFamily`,
-registered scope/fragment kind unions, `LiveSurfaceManifest`, and optional
-interaction-schema linkage through `Web.LiveSurfaceRegistry` until they migrate.
-Keep that path out of support lab, Timesheets, Roster, and future
-`FrontendSurface` migrations.
+Surface-native live transport is generated from `FrontendSurface` specs. Do not
+recreate `LiveSurfaceManifest`, handwritten surface family registries, or
+`data-live-update-surface` compatibility paths.
 
 Adding an interaction intent for a migrated surface should update the type-level
 surface spec and generated static interaction schema. Generic TypeScript should
