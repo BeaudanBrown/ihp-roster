@@ -255,16 +255,16 @@ tests = describe "Frontend contract generator foundation" do
             constantSource `shouldBe` "export const InteractionDom: InteractionDom = {\"enabled\":\"true\",\"surface\":\"data-bepis-surface\"};"
 
         it "round-trips real live-update wire DTOs through their production codecs" do
-            let scope = Live.TimesheetWeek "venue-1" 4
+            let scope = Live.LiveUpdateScope "timesheets" (Aeson.object ["venueId" Aeson..= ("venue-1" :: Text), "weekOffset" Aeson..= (4 :: Int)])
             let fragment = Live.LiveUpdateWireFragment
-                    (Live.TimesheetDaySection 2)
+                    (Live.LiveFragmentKey "timesheets" "timesheet-day-section" (Aeson.object ["dayOffset" Aeson..= (2 :: Int)]))
                     "timesheet-day-2"
                     "/TimesheetDay?offset=2"
                     True
                     (Live.FocusedFieldProtection ".timesheet-input:focus" "data-field-key" True (Just ".timesheet-row"))
             let command = Live.Subscribe scope "client-1" (Just 9)
-            let message = Live.Invalidate scope "timesheet_week:venue-1:4" 10 [fragment] (Just "client-2")
-            let config = Live.LiveSurfaceConfig "timesheets" "/live-updates" scope "timesheet_week:venue-1:4" [fragment] ["#timesheet-week-shell"]
+            let message = Live.Invalidate scope "timesheets:venue-1:4" 10 [fragment] (Just "client-2")
+            let config = Live.LiveSurfaceConfig "timesheets" "/live-updates" scope "timesheets:venue-1:4" [fragment] ["#timesheet-week-shell"]
 
             Aeson.eitherDecode (Aeson.encode command) `shouldBe` Right command
             Aeson.eitherDecode (Aeson.encode message) `shouldBe` Right message

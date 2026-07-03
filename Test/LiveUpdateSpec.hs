@@ -112,9 +112,12 @@ tests = describe "LiveUpdate runtime types" do
             `shouldBe`
                 Aeson.object
                     [ "fragmentKey" Aeson..= Aeson.object
-                        [ "kind" Aeson..= ("roster_row" :: Text)
-                        , "rosterDayId" Aeson..= UUID.toText rosterDayId
-                        , "rowIndex" Aeson..= (2 :: Int)
+                        [ "surface" Aeson..= ("roster" :: Text)
+                        , "kind" Aeson..= ("roster-row" :: Text)
+                        , "params" Aeson..= Aeson.object
+                            [ "rosterDayId" Aeson..= UUID.toText rosterDayId
+                            , "rowIndex" Aeson..= (2 :: Int)
+                            ]
                         ]
                     , "targetId" Aeson..= ("roster-row-2" :: Text)
                     , "url" Aeson..= ("/ShowRosterWeekRowFragment?weekOffset=0&rowIndex=2" :: Text)
@@ -128,29 +131,29 @@ tests = describe "LiveUpdate runtime types" do
         let staffId = expectUuid "44444444-4444-4444-4444-444444444444"
 
         liveUpdateScopeKey RosterWeekScope { venueId, rosterGroupId, weekOffset = -1 }
-            `shouldBe` "roster_week:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333:-1"
+            `shouldBe` "roster:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333:-1"
         liveUpdateScopeKey AdminVenueConfigScope { venueId }
-            `shouldBe` "admin_venue_config:11111111-1111-1111-1111-111111111111"
+            `shouldBe` "admin-venue-config:11111111-1111-1111-1111-111111111111"
         liveUpdateScopeKey AdminShiftTypesScope { venueId }
-            `shouldBe` "admin_shift_types:11111111-1111-1111-1111-111111111111"
+            `shouldBe` "admin-shift-types:11111111-1111-1111-1111-111111111111"
         liveUpdateScopeKey AdminRosterGroupsScope { venueId }
-            `shouldBe` "admin_roster_groups:11111111-1111-1111-1111-111111111111"
+            `shouldBe` "admin-roster-groups:11111111-1111-1111-1111-111111111111"
         liveUpdateScopeKey AdminInvitesScope { venueId }
-            `shouldBe` "admin_invites:11111111-1111-1111-1111-111111111111"
+            `shouldBe` "admin-invites:11111111-1111-1111-1111-111111111111"
         liveUpdateScopeKey AdminExportsScope { venueId }
-            `shouldBe` "admin_exports:11111111-1111-1111-1111-111111111111"
+            `shouldBe` "admin-exports:11111111-1111-1111-1111-111111111111"
         liveUpdateScopeKey AdminXeroScope { venueId }
-            `shouldBe` "admin_xero:11111111-1111-1111-1111-111111111111"
+            `shouldBe` "admin-xero:11111111-1111-1111-1111-111111111111"
         liveUpdateScopeKey BillingScope { venueId }
             `shouldBe` "billing:11111111-1111-1111-1111-111111111111"
         liveUpdateScopeKey LeaveRequestsScope { venueId }
-            `shouldBe` "leave_requests:11111111-1111-1111-1111-111111111111"
+            `shouldBe` "leave-requests:11111111-1111-1111-1111-111111111111"
         liveUpdateScopeKey TimesheetWeekScope { venueId, weekOffset = 2 }
-            `shouldBe` "timesheet_week:11111111-1111-1111-1111-111111111111:2"
+            `shouldBe` "timesheets:11111111-1111-1111-1111-111111111111:2"
         liveUpdateScopeKey ProfileScope { venueId, staffId }
             `shouldBe` "profile:11111111-1111-1111-1111-111111111111:44444444-4444-4444-4444-444444444444"
         liveUpdateScopeKey SupportPlatformScope
-            `shouldBe` "support_platform"
+            `shouldBe` "support"
 
     it "round-trips commands and encodes subscribed, invalidation, and error payloads as JSON" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
@@ -184,8 +187,8 @@ tests = describe "LiveUpdate runtime types" do
 
         let encodedSubscribed = cs (LBS.toStrict (Aeson.encode (LiveUpdatesSubscribed { scope, scopeKey = liveUpdateScopeKey scope, currentVersion = 4, resync = False }))) :: Text
         let encodedInvalidated = cs (LBS.toStrict (Aeson.encode (LiveUpdatesInvalidated { scope, scopeKey = liveUpdateScopeKey scope, version = 6, fragments = [fragment], sourceClientId = Nothing }))) :: Text
-        encodedSubscribed `shouldSatisfy` Text.isInfixOf "\"scopeKey\":\"roster_week:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333:0\""
-        encodedInvalidated `shouldSatisfy` Text.isInfixOf "\"scopeKey\":\"roster_week:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333:0\""
+        encodedSubscribed `shouldSatisfy` Text.isInfixOf "\"scopeKey\":\"roster:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333:0\""
+        encodedInvalidated `shouldSatisfy` Text.isInfixOf "\"scopeKey\":\"roster:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333:0\""
 
     it "exposes active live scopes without leaking websocket subscription internals" do
         activeLiveUpdateScopes `shouldReturn` []

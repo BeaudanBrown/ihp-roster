@@ -9,13 +9,15 @@ import {
 import { assertDeepEqual, assertEqual, test } from "./harness";
 
 const scope: LiveUpdateScope = {
-    kind: "timesheet_week",
-    venueId: "00000000-0000-0000-0000-000000000001",
-    weekOffset: 0,
+    surface: "timesheets",
+    scope: {
+        venueId: "00000000-0000-0000-0000-000000000001",
+        weekOffset: 0,
+    },
 };
 
 const fragment: LiveUpdateWireFragment = {
-    fragmentKey: { kind: "timesheet_day_section", dayOffset: 1 },
+    fragmentKey: { surface: "timesheets", kind: "timesheet-day-section", params: { dayOffset: 1 } },
     targetId: "timesheet-day-1",
     url: "/ShowTimesheetDay?dayOffset=1",
     deferUntilBlur: true,
@@ -44,7 +46,7 @@ test("live update command builder preserves backend-owned subscribe contract", (
 });
 
 test("live update message helpers normalize scope keys and versions", () => {
-    assertEqual(liveUpdateMessageScopeKey({ scopeKey: "timesheet_week:v:0" }), "timesheet_week:v:0");
+    assertEqual(liveUpdateMessageScopeKey({ scopeKey: "timesheets:v:0" }), "timesheets:v:0");
     assertEqual(liveUpdateMessageScopeKey({ scopeKey: "" }), null);
     assertEqual(normalizeLiveUpdateVersion(0), 0);
     assertEqual(normalizeLiveUpdateVersion(12), 12);
@@ -55,7 +57,7 @@ test("live update message helpers normalize scope keys and versions", () => {
 test("live update fragment merge key includes structural fragment key and target", () => {
     assertEqual(
         liveUpdateFragmentMergeKey(fragment),
-        '{"kind":"timesheet_day_section","dayOffset":1}:timesheet-day-1'
+        '{"surface":"timesheets","kind":"timesheet-day-section","params":{"dayOffset":1}}:timesheet-day-1'
     );
     assertEqual(liveUpdateFragmentMergeKey({ ...fragment, targetId: "" }), null);
 });

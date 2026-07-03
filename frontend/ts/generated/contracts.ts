@@ -85,22 +85,13 @@ function __isLiveUpdateScopeExactRecord(value: unknown, requiredKeys: string[], 
 }
 
 
-export type LiveUpdateScope =
-    | { kind: "roster_week"; venueId: string; rosterGroupId: string; weekOffset: number }
-    | { kind: "admin_venue_config"; venueId: string }
-    | { kind: "admin_shift_types"; venueId: string }
-    | { kind: "admin_roster_groups"; venueId: string }
-    | { kind: "admin_invites"; venueId: string }
-    | { kind: "admin_exports"; venueId: string }
-    | { kind: "admin_xero"; venueId: string }
-    | { kind: "billing"; venueId: string }
-    | { kind: "leave_requests"; venueId: string }
-    | { kind: "timesheet_week"; venueId: string; weekOffset: number }
-    | { kind: "profile"; venueId: string; staffId: string }
-    | { kind: "support_platform" };
+export type LiveUpdateScope = {
+    surface: string;
+    scope: unknown;
+};
 
 export function isLiveUpdateScope(value: unknown): value is LiveUpdateScope {
-    return (__isLiveUpdateScopeExactRecord(value, ["kind", "venueId", "rosterGroupId", "weekOffset"], []) && value["kind"] === "roster_week" && (typeof value["venueId"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]))) || (__isLiveUpdateScopeExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "admin_venue_config" && (typeof value["venueId"] === "string")) || (__isLiveUpdateScopeExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "admin_shift_types" && (typeof value["venueId"] === "string")) || (__isLiveUpdateScopeExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "admin_roster_groups" && (typeof value["venueId"] === "string")) || (__isLiveUpdateScopeExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "admin_invites" && (typeof value["venueId"] === "string")) || (__isLiveUpdateScopeExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "admin_exports" && (typeof value["venueId"] === "string")) || (__isLiveUpdateScopeExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "admin_xero" && (typeof value["venueId"] === "string")) || (__isLiveUpdateScopeExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "billing" && (typeof value["venueId"] === "string")) || (__isLiveUpdateScopeExactRecord(value, ["kind", "venueId"], []) && value["kind"] === "leave_requests" && (typeof value["venueId"] === "string")) || (__isLiveUpdateScopeExactRecord(value, ["kind", "venueId", "weekOffset"], []) && value["kind"] === "timesheet_week" && (typeof value["venueId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]))) || (__isLiveUpdateScopeExactRecord(value, ["kind", "venueId", "staffId"], []) && value["kind"] === "profile" && (typeof value["venueId"] === "string") && (typeof value["staffId"] === "string")) || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "support_platform");
+    return __isLiveUpdateScopeExactRecord(value, ["surface", "scope"], []) && (typeof value["surface"] === "string") && (true);
 }
 
 export function parseLiveUpdateScope(value: unknown): LiveUpdateScope {
@@ -113,43 +104,14 @@ export function encodeLiveUpdateScope(value: LiveUpdateScope): LiveUpdateScope {
 }
 
 
-export type LiveFragmentKey =
-    | { kind: "roster_content" }
-    | { kind: "roster_grid_toolbar" }
-    | { kind: "roster_grid_frame" }
-    | { kind: "roster_day_columns" }
-    | { kind: "roster_day_rail" }
-    | { kind: "roster_wage_rail" }
-    | { kind: "roster_slots_grid" }
-    | { kind: "roster_staff_panel" }
-    | { kind: "roster_day_section"; rosterDayId: string }
-    | { kind: "roster_row"; rosterDayId: string; rowIndex: number }
-    | { kind: "leave_requests_content" }
-    | { kind: "timesheet_toolbar" }
-    | { kind: "timesheet_day_columns" }
-    | { kind: "timesheet_day_section"; dayOffset: number }
-    | { kind: "admin_venue_config" }
-    | { kind: "admin_invites" }
-    | { kind: "admin_exports" }
-    | { kind: "admin_shift_types" }
-    | { kind: "admin_roster_groups" }
-    | { kind: "admin_xero" }
-    | { kind: "admin_xero_staff_mappings" }
-    | { kind: "admin_xero_pay_items" }
-    | { kind: "admin_xero_timesheets" }
-    | { kind: "billing_status" }
-    | { kind: "profile_content" }
-    | { kind: "profile_details_section" }
-    | { kind: "profile_preferences_section" }
-    | { kind: "profile_security_section" }
-    | { kind: "profile_leave_section" }
-    | { kind: "profile_rsa_section" }
-    | { kind: "profile_leave_requests_content" }
-    | { kind: "support_award_rates_section" }
-    | { kind: "support_public_holidays_section" };
+export type LiveFragmentKey = {
+    surface: string;
+    kind: string;
+    params: unknown;
+};
 
 export function isLiveFragmentKey(value: unknown): value is LiveFragmentKey {
-    return (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_content") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_grid_toolbar") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_grid_frame") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_day_columns") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_day_rail") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_wage_rail") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_slots_grid") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "roster_staff_panel") || (__isLiveUpdateScopeExactRecord(value, ["kind", "rosterDayId"], []) && value["kind"] === "roster_day_section" && (typeof value["rosterDayId"] === "string")) || (__isLiveUpdateScopeExactRecord(value, ["kind", "rosterDayId", "rowIndex"], []) && value["kind"] === "roster_row" && (typeof value["rosterDayId"] === "string") && (typeof value["rowIndex"] === "number" && Number.isInteger(value["rowIndex"]))) || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "leave_requests_content") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "timesheet_toolbar") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "timesheet_day_columns") || (__isLiveUpdateScopeExactRecord(value, ["kind", "dayOffset"], []) && value["kind"] === "timesheet_day_section" && (typeof value["dayOffset"] === "number" && Number.isInteger(value["dayOffset"]))) || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_venue_config") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_invites") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_exports") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_shift_types") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_roster_groups") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero_staff_mappings") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero_pay_items") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "admin_xero_timesheets") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "billing_status") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "profile_content") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "profile_details_section") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "profile_preferences_section") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "profile_security_section") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "profile_leave_section") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "profile_rsa_section") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "profile_leave_requests_content") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "support_award_rates_section") || (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "support_public_holidays_section");
+    return __isLiveUpdateScopeExactRecord(value, ["surface", "kind", "params"], []) && (typeof value["surface"] === "string") && (typeof value["kind"] === "string") && (true);
 }
 
 export function parseLiveFragmentKey(value: unknown): LiveFragmentKey {

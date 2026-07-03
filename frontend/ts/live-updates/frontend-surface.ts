@@ -73,21 +73,14 @@ export function parseFrontendSurfaceSubscriptionConfig(value: unknown): ParsedFr
     const config = parseFrontendSurfaceMountConfig(value);
     if (!config?.subscription) return null;
 
-    // Temporary bridge while the websocket/server runtime migrates from legacy
-    // LiveUpdateScope/LiveFragmentKey DTOs to the generated surface-native
-    // transport. Final cleanup ticket ir-iyd8 must remove this adapter.
-    const bridgedScope = surfaceLiveScopeToLegacy(config.subscription.scope);
-    if (!bridgedScope) return null;
-    const resyncFragments = config.subscription.resyncFragments
-        .map(surfaceLiveFragmentToLegacy)
-        .filter((fragment): fragment is LiveUpdateWireFragment => fragment !== null);
+    const resyncFragments = config.subscription.resyncFragments.map(surfaceLiveFragmentToWire);
     if (resyncFragments.length === 0) return null;
 
     return {
         feature: config.surface,
         surface: config.surface,
-        scope: bridgedScope,
-        scopeKey: legacyScopeKey(bridgedScope),
+        scope: config.subscription.scope as unknown as LiveUpdateScope,
+        scopeKey: config.subscription.scopeKey,
         mountKey: config.mountKey,
         socketPath: "/live-updates",
         resyncFragments,
@@ -180,85 +173,21 @@ function parseLiveWireFragmentConfig(value: unknown): FrontendSurfaceLiveWireFra
     };
 }
 
-function surfaceLiveScopeToLegacy(scope: FrontendSurfaceLiveSubscriptionConfig["scope"]): LiveUpdateScope | null {
-    const fields = scope.scope;
-    if (scope.surface === "support") return { kind: "support_platform" };
-    if (!isRecord(fields)) return null;
-    if (scope.surface === "timesheets" && typeof fields.venueId === "string" && isInteger(fields.weekOffset)) return { kind: "timesheet_week", venueId: fields.venueId, weekOffset: fields.weekOffset };
-    if (scope.surface === "roster" && typeof fields.venueId === "string" && typeof fields.rosterGroupId === "string" && isInteger(fields.weekOffset)) return { kind: "roster_week", venueId: fields.venueId, rosterGroupId: fields.rosterGroupId, weekOffset: fields.weekOffset };
-    if (scope.surface === "leave-requests" && typeof fields.venueId === "string") return { kind: "leave_requests", venueId: fields.venueId };
-    if (scope.surface === "billing" && typeof fields.venueId === "string") return { kind: "billing", venueId: fields.venueId };
-    if (scope.surface === "profile" && typeof fields.venueId === "string" && typeof fields.staffId === "string") return { kind: "profile", venueId: fields.venueId, staffId: fields.staffId };
-    if (scope.surface === "admin-venue-config" && typeof fields.venueId === "string") return { kind: "admin_venue_config", venueId: fields.venueId };
-    if (scope.surface === "admin-invites" && typeof fields.venueId === "string") return { kind: "admin_invites", venueId: fields.venueId };
-    if (scope.surface === "admin-exports" && typeof fields.venueId === "string") return { kind: "admin_exports", venueId: fields.venueId };
-    if (scope.surface === "admin-shift-types" && typeof fields.venueId === "string") return { kind: "admin_shift_types", venueId: fields.venueId };
-    if (scope.surface === "admin-roster-groups" && typeof fields.venueId === "string") return { kind: "admin_roster_groups", venueId: fields.venueId };
-    if (scope.surface === "admin-xero" && typeof fields.venueId === "string") return { kind: "admin_xero", venueId: fields.venueId };
-    return null;
-}
-
-function surfaceLiveFragmentToLegacy(fragment: FrontendSurfaceLiveWireFragmentConfig): LiveUpdateWireFragment | null {
-    const fragmentKey = legacyFragmentKey(fragment.fragment.fragment);
-    if (!fragmentKey) return null;
+function surfaceLiveFragmentToWire(fragment: FrontendSurfaceLiveWireFragmentConfig): LiveUpdateWireFragment {
     return {
-        fragmentKey,
+        fragmentKey: {
+            surface: fragment.fragment.surface,
+            kind: fragment.fragment.fragment.kind,
+            params: fragment.fragment.fragment.params,
+        } as LiveUpdateWireFragment["fragmentKey"],
         targetId: fragment.targetId,
         url: fragment.url,
         deferUntilBlur: fragment.deferUntilBlur,
-        protectionPolicy: fragmentProtectionToLegacy(fragment.protectionPolicy),
+        protectionPolicy: fragmentProtectionToWire(fragment.protectionPolicy),
     };
 }
 
-function legacyFragmentKey(fragment: { kind: string; params: unknown }): LiveUpdateWireFragment["fragmentKey"] | null {
-    const params = fragment.params;
-    switch (fragment.kind) {
-        case "timesheet-toolbar": return { kind: "timesheet_toolbar" };
-        case "timesheet-day-columns": return { kind: "timesheet_day_columns" };
-        case "timesheet-day-section": return isRecord(params) && isInteger(params.dayOffset) ? { kind: "timesheet_day_section", dayOffset: params.dayOffset } : null;
-        case "roster-content": return { kind: "roster_content" };
-        case "roster-grid-toolbar": return { kind: "roster_grid_toolbar" };
-        case "roster-grid-frame": return { kind: "roster_grid_frame" };
-        case "roster-day-columns": return { kind: "roster_day_columns" };
-        case "roster-day-rail": return { kind: "roster_day_rail" };
-        case "roster-wage-rail": return { kind: "roster_wage_rail" };
-        case "roster-slots-grid": return { kind: "roster_slots_grid" };
-        case "roster-staff-panel": return { kind: "roster_staff_panel" };
-        case "roster-day-section": return isRecord(params) && typeof params.rosterDayId === "string" ? { kind: "roster_day_section", rosterDayId: params.rosterDayId } : null;
-        case "roster-row": return isRecord(params) && typeof params.rosterDayId === "string" && isInteger(params.rowIndex) ? { kind: "roster_row", rosterDayId: params.rosterDayId, rowIndex: params.rowIndex } : null;
-        case "leave-requests-content": return { kind: "leave_requests_content" };
-        case "billing-status": return { kind: "billing_status" };
-        case "support-award-rates": return { kind: "support_award_rates_section" };
-        case "support-public-holidays": return { kind: "support_public_holidays_section" };
-        case "profile-details-section": return { kind: "profile_details_section" };
-        case "profile-preferences-section": return { kind: "profile_preferences_section" };
-        case "profile-security-section": return { kind: "profile_security_section" };
-        case "profile-leave-section": return { kind: "profile_leave_section" };
-        case "profile-rsa-section": return { kind: "profile_rsa_section" };
-        case "admin-venue-config": return { kind: "admin_venue_config" };
-        case "admin-invites": return { kind: "admin_invites" };
-        case "admin-exports": return { kind: "admin_exports" };
-        case "admin-shift-types": return { kind: "admin_shift_types" };
-        case "admin-roster-groups": return { kind: "admin_roster_groups" };
-        case "admin-xero-shell": return { kind: "admin_xero" };
-        case "admin-xero-staff-mappings": return { kind: "admin_xero_staff_mappings" };
-        case "admin-xero-pay-items": return { kind: "admin_xero_pay_items" };
-        case "admin-xero-timesheets": return { kind: "admin_xero_timesheets" };
-    }
-    return null;
-}
-
-function legacyScopeKey(scope: LiveUpdateScope): string {
-    switch (scope.kind) {
-        case "roster_week": return `roster_week:${scope.venueId}:${scope.rosterGroupId}:${scope.weekOffset}`;
-        case "timesheet_week": return `timesheet_week:${scope.venueId}:${scope.weekOffset}`;
-        case "profile": return `profile:${scope.venueId}:${scope.staffId}`;
-        case "support_platform": return "support_platform";
-    }
-    return `${scope.kind}:${"venueId" in scope ? scope.venueId : ""}`;
-}
-
-function fragmentProtectionToLegacy(protection: FrontendSurfaceLiveWireFragmentConfig["protectionPolicy"]): LiveFragmentProtection {
+function fragmentProtectionToWire(protection: FrontendSurfaceLiveWireFragmentConfig["protectionPolicy"]): LiveFragmentProtection {
     if (protection.kind !== "focused-field") return { kind: "none" };
     if (typeof protection.activeSelector !== "string") return { kind: "none" };
     if (typeof protection.fieldKeyAttr !== "string") return { kind: "none" };

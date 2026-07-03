@@ -56,6 +56,7 @@ data FrontendSchema
     = SchemaString
     | SchemaInt
     | SchemaBool
+    | SchemaUnknown
     | SchemaNullable !FrontendSchema
     | SchemaOptional !FrontendSchema
     | SchemaArray !FrontendSchema
@@ -241,6 +242,7 @@ schemaType = \case
     SchemaString -> "string"
     SchemaInt -> "number"
     SchemaBool -> "boolean"
+    SchemaUnknown -> "unknown"
     SchemaNullable inner -> schemaType inner <> " | null"
     SchemaOptional inner -> schemaType inner <> " | undefined"
     SchemaArray inner -> schemaType inner <> "[]"
@@ -280,6 +282,7 @@ guardExpr valueExpr = \case
     SchemaString -> "typeof " <> valueExpr <> " === \"string\""
     SchemaInt -> "typeof " <> valueExpr <> " === \"number\" && Number.isInteger(" <> valueExpr <> ")"
     SchemaBool -> "typeof " <> valueExpr <> " === \"boolean\""
+    SchemaUnknown -> "true"
     SchemaNullable inner -> valueExpr <> " === null || (" <> guardExpr valueExpr inner <> ")"
     SchemaOptional inner -> valueExpr <> " === undefined || (" <> guardExpr valueExpr inner <> ")"
     SchemaArray inner -> "Array.isArray(" <> valueExpr <> ") && " <> valueExpr <> ".every((item) => " <> guardExpr "item" inner <> ")"

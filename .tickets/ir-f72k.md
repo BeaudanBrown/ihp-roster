@@ -1,6 +1,6 @@
 ---
 id: ir-f72k
-status: in_progress
+status: closed
 deps: [ir-vdwn]
 links: []
 created: 2026-07-03T04:17:38Z

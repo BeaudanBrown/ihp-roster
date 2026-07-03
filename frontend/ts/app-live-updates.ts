@@ -832,7 +832,7 @@ type HtmxConfigRequestEvent = Event & {
         if (message.sourceClientId && message.sourceClientId === activeClientId) return;
         const perfSpan = beginPerfSpan('live_updates.handle_invalidate', {
             fragmentCount: message.fragments.length,
-            scopeKind: message.scope && message.scope.kind ? message.scope.kind : null,
+            scopeKind: message.scope && typeof (message.scope as unknown as { surface?: unknown }).surface === 'string' ? (message.scope as unknown as { surface: string }).surface : null,
             version: normalizeVersion(message.version),
         });
 

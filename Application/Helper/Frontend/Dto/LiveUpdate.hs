@@ -11,99 +11,33 @@ module Application.Helper.Frontend.Dto.LiveUpdate
     , LiveUpdateWireFragment (..)
     ) where
 
-import Application.Helper.Frontend.Codec (HasFrontendCodec (..), encodeFrontend,
+import Application.Helper.Frontend.Codec (FrontendCodec (..),
+                                          FrontendField (..),
+                                          FrontendSchema (..),
+                                          HasFrontendCodec (..), encodeFrontend,
                                           parseFrontend)
 import Application.Helper.Frontend.Generic (genericFrontendCodecWith)
 import Application.Helper.Frontend.Options (FrontendCodecOptions (..),
-                                            camelToSnakeLower,
-                                            defaultFrontendCodecOptions,
-                                            dropSuffix)
+                                            defaultFrontendCodecOptions)
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as AesonTypes
 import GHC.Generics (Generic)
 import IHP.Prelude
 
-data LiveUpdateScope
-    = RosterWeek
-        { venueId       :: !Text
-        , rosterGroupId :: !Text
-        , weekOffset    :: !Int
-        }
-    | AdminVenueConfig
-        { venueId :: !Text
-        }
-    | AdminShiftTypes
-        { venueId :: !Text
-        }
-    | AdminRosterGroups
-        { venueId :: !Text
-        }
-    | AdminInvites
-        { venueId :: !Text
-        }
-    | AdminExports
-        { venueId :: !Text
-        }
-    | AdminXero
-        { venueId :: !Text
-        }
-    | Billing
-        { venueId :: !Text
-        }
-    | LeaveRequests
-        { venueId :: !Text
-        }
-    | TimesheetWeek
-        { venueId    :: !Text
-        , weekOffset :: !Int
-        }
-    | Profile
-        { venueId :: !Text
-        , staffId :: !Text
-        }
-    | SupportPlatform
+-- Surface-native live transport. The surface/scope/fragment names are generated
+-- kebab-case FrontendSurface names; scope and params are generated surface DTO
+-- payloads owned by the FrontendSurface contract.
+data LiveUpdateScope = LiveUpdateScope
+    { surface :: !Text
+    , scope   :: !Aeson.Value
+    }
     deriving (Eq, Show, Generic)
 
-data LiveFragmentKey
-    = RosterContent
-    | RosterGridToolbar
-    | RosterGridFrame
-    | RosterDayColumns
-    | RosterDayRail
-    | RosterWageRail
-    | RosterSlotsGrid
-    | RosterStaffPanel
-    | RosterDaySection
-        { rosterDayId :: !Text
-        }
-    | RosterRow
-        { rosterDayId :: !Text
-        , rowIndex    :: !Int
-        }
-    | LeaveRequestsContent
-    | TimesheetToolbar
-    | TimesheetDayColumns
-    | TimesheetDaySection
-        { dayOffset :: !Int
-        }
-    | AdminVenueConfigFragment
-    | AdminInvitesFragment
-    | AdminExportsFragment
-    | AdminShiftTypesFragment
-    | AdminRosterGroupsFragment
-    | AdminXeroFragment
-    | AdminXeroStaffMappings
-    | AdminXeroPayItems
-    | AdminXeroTimesheets
-    | BillingStatus
-    | ProfileContent
-    | ProfileDetailsSection
-    | ProfilePreferencesSection
-    | ProfileSecuritySection
-    | ProfileLeaveSection
-    | ProfileRsaSection
-    | ProfileLeaveRequestsContent
-    | SupportAwardRatesSection
-    | SupportPublicHolidaysSection
+data LiveFragmentKey = LiveFragmentKey
+    { surface :: !Text
+    , kind    :: !Text
+    , params  :: !Aeson.Value
+    }
     deriving (Eq, Show, Generic)
 
 data FocusedFieldProtectionConfig = FocusedFieldProtectionConfig
@@ -173,16 +107,38 @@ data LiveSurfaceConfig = LiveSurfaceConfig
     }
     deriving (Eq, Show, Generic)
 
+jsonValueSchema :: FrontendSchema
+jsonValueSchema = SchemaUnknown
+
+jsonValueCodec :: FrontendCodec Aeson.Value
+jsonValueCodec = FrontendCodec
+    { codecName = Nothing
+    , codecSchema = jsonValueSchema
+    , codecEncode = id
+    , codecParse = pure
+    }
+
+liveUpdateScopeCodec :: FrontendCodec LiveUpdateScope
+liveUpdateScopeCodec = FrontendCodec
+    { codecName = Just "LiveUpdateScope"
+    , codecSchema = SchemaRecord "LiveUpdateScope" [FrontendField "surface" SchemaString, FrontendField "scope" jsonValueSchema]
+    , codecEncode = \LiveUpdateScope { surface, scope } -> Aeson.object ["surface" Aeson..= surface, "scope" Aeson..= scope]
+    , codecParse = Aeson.withObject "LiveUpdateScope" \object -> LiveUpdateScope <$> object Aeson..: "surface" <*> object Aeson..: "scope"
+    }
+
+liveFragmentKeyCodec :: FrontendCodec LiveFragmentKey
+liveFragmentKeyCodec = FrontendCodec
+    { codecName = Just "LiveFragmentKey"
+    , codecSchema = SchemaRecord "LiveFragmentKey" [FrontendField "surface" SchemaString, FrontendField "kind" SchemaString, FrontendField "params" jsonValueSchema]
+    , codecEncode = \LiveFragmentKey { surface, kind, params } -> Aeson.object ["surface" Aeson..= surface, "kind" Aeson..= kind, "params" Aeson..= params]
+    , codecParse = Aeson.withObject "LiveFragmentKey" \object -> LiveFragmentKey <$> object Aeson..: "surface" <*> object Aeson..: "kind" <*> object Aeson..: "params"
+    }
+
 instance HasFrontendCodec LiveUpdateScope where
-    frontendCodec = genericFrontendCodecWith defaultFrontendCodecOptions
-        { frontendTypeNameOverride = Just "LiveUpdateScope"
-        }
+    frontendCodec = liveUpdateScopeCodec
 
 instance HasFrontendCodec LiveFragmentKey where
-    frontendCodec = genericFrontendCodecWith defaultFrontendCodecOptions
-        { frontendTypeNameOverride = Just "LiveFragmentKey"
-        , frontendConstructorTagModifier = camelToSnakeLower . stripFragmentSuffix
-        }
+    frontendCodec = liveFragmentKeyCodec
 
 instance HasFrontendCodec FocusedFieldProtectionConfig where
     frontendCodec = genericFrontendCodecWith defaultFrontendCodecOptions
@@ -195,7 +151,7 @@ instance HasFrontendCodec LiveFragmentProtection where
         , frontendConstructorTagModifier = \case
             "NoProtection" -> "none"
             "FocusedFieldProtection" -> "focused_field"
-            constructorName -> camelToSnakeLower constructorName
+            constructorName -> constructorName
         }
 
 instance HasFrontendCodec LiveUpdateWireFragment where
@@ -267,6 +223,3 @@ instance Aeson.ToJSON LiveSurfaceConfig where
 
 instance Aeson.FromJSON LiveSurfaceConfig where
     parseJSON = parseFrontend (frontendCodec @LiveSurfaceConfig)
-
-stripFragmentSuffix :: Text -> Text
-stripFragmentSuffix = dropSuffix "Fragment"

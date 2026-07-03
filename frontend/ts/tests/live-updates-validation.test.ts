@@ -10,19 +10,19 @@ import { parseLiveUpdateSurfaceConfig } from "../live-updates/validation";
 import { assertDeepEqual, assertEqual, assertThrows, test } from "./harness";
 
 const validFragment = {
-    fragmentKey: { kind: "timesheet_toolbar" },
+    fragmentKey: { surface: "timesheets", kind: "timesheet-toolbar", params: null },
     targetId: "timesheet-toolbar",
     url: "/TimesheetToolbar",
     deferUntilBlur: false,
     protectionPolicy: { kind: "none" },
 };
 
-const validScope = { kind: "timesheet_week", venueId: "venue-1", weekOffset: 0 };
+const validScope = { surface: "timesheets", scope: { venueId: "venue-1", weekOffset: 0 } };
 
 const validSurfaceConfig = {
     feature: "timesheets",
     scope: validScope,
-    scopeKey: "timesheet_week:venue-1:0",
+    scopeKey: "timesheets:venue-1:0",
     socketPath: "/custom-live",
     resyncFragments: [validFragment],
     decorateRequestsWithin: ["form"],
@@ -51,7 +51,7 @@ test("generated live update surface validator accepts backend-owned declarative 
     const config = parseLiveUpdateSurfaceConfig(validSurfaceConfig);
 
     assertEqual(config?.feature, "timesheets");
-    assertEqual(config?.scopeKey, "timesheet_week:venue-1:0");
+    assertEqual(config?.scopeKey, "timesheets:venue-1:0");
     assertEqual(config?.socketPath, "/custom-live");
     assertEqual(config?.resyncFragments.length, 1);
     assertDeepEqual(config?.decorateRequestsWithin, ["form"]);
@@ -62,7 +62,7 @@ test("generated parse helpers reject unknown input and encode helpers preserve J
 
     assertDeepEqual(encodeLiveSurfaceConfig(config), validSurfaceConfig);
     assertThrows(
-        () => parseLiveSurfaceConfig({ ...validSurfaceConfig, scope: { kind: "unknown_scope" } }),
+        () => parseLiveSurfaceConfig({ ...validSurfaceConfig, scope: { surface: 42, scope: {} } }),
         "Invalid LiveSurfaceConfig",
     );
 });
@@ -85,10 +85,10 @@ test("FrontendSurface config parser derives Timesheets live subscriptions from m
     }, { venueId: "venue-1", weekOffset: 3 }));
 
     assertEqual(config?.feature, "timesheets");
-    assertDeepEqual(config?.scope, { kind: "timesheet_week", venueId: "venue-1", weekOffset: 3 });
-    assertEqual(config?.scopeKey, "timesheet_week:venue-1:3");
+    assertDeepEqual(config?.scope, { surface: "timesheets", scope: { venueId: "venue-1", weekOffset: 3 } });
+    assertEqual(config?.scopeKey, "timesheets:venue-1:3");
     assertEqual(config?.resyncFragments[0]?.targetId, "timesheet-day-section-2");
-    assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { kind: "timesheet_day_section", dayOffset: 2 });
+    assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { surface: "timesheets", kind: "timesheet-day-section", params: { dayOffset: 2 } });
 });
 
 test("FrontendSurface config parser derives Roster live subscriptions from mounted fragments", () => {
@@ -116,10 +116,10 @@ test("FrontendSurface config parser derives Roster live subscriptions from mount
     }, { venueId: "venue-1", rosterGroupId: "group-1", weekOffset: -1 }));
 
     assertEqual(config?.feature, "roster");
-    assertDeepEqual(config?.scope, { kind: "roster_week", venueId: "venue-1", rosterGroupId: "group-1", weekOffset: -1 });
-    assertEqual(config?.scopeKey, "roster_week:venue-1:group-1:-1");
-    assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { kind: "roster_content" });
-    assertDeepEqual(config?.resyncFragments[1]?.fragmentKey, { kind: "roster_row", rosterDayId: "day-1", rowIndex: 3 });
+    assertDeepEqual(config?.scope, { surface: "roster", scope: { venueId: "venue-1", rosterGroupId: "group-1", weekOffset: -1 } });
+    assertEqual(config?.scopeKey, "roster:venue-1:group-1:-1");
+    assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { surface: "roster", kind: "roster-content", params: null });
+    assertDeepEqual(config?.resyncFragments[1]?.fragmentKey, { surface: "roster", kind: "roster-row", params: { rosterDayId: "day-1", rowIndex: 3 } });
 });
 
 test("FrontendSurface config parser derives Leave Requests live subscriptions from mounted fragments", () => {
@@ -140,9 +140,9 @@ test("FrontendSurface config parser derives Leave Requests live subscriptions fr
     }, { venueId: "venue-1" }));
 
     assertEqual(config?.feature, "leave-requests");
-    assertDeepEqual(config?.scope, { kind: "leave_requests", venueId: "venue-1" });
-    assertEqual(config?.scopeKey, "leave_requests:venue-1");
-    assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { kind: "leave_requests_content" });
+    assertDeepEqual(config?.scope, { surface: "leave-requests", scope: { venueId: "venue-1" } });
+    assertEqual(config?.scopeKey, "leave-requests:venue-1");
+    assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { surface: "leave-requests", kind: "leave-requests-content", params: null });
 });
 
 test("FrontendSurface config parser derives Billing and Support live subscriptions from mounted fragments", () => {
@@ -162,8 +162,8 @@ test("FrontendSurface config parser derives Billing and Support live subscriptio
         ],
     }, { venueId: "venue-1" }));
 
-    assertDeepEqual(billing?.scope, { kind: "billing", venueId: "venue-1" });
-    assertDeepEqual(billing?.resyncFragments[0]?.fragmentKey, { kind: "billing_status" });
+    assertDeepEqual(billing?.scope, { surface: "billing", scope: { venueId: "venue-1" } });
+    assertDeepEqual(billing?.resyncFragments[0]?.fragmentKey, { surface: "billing", kind: "billing-status", params: null });
 
     const support = parseFrontendSurfaceSubscriptionConfig(withSurfaceSubscription({
         surface: "support",
@@ -181,8 +181,8 @@ test("FrontendSurface config parser derives Billing and Support live subscriptio
         ],
     }, {}));
 
-    assertDeepEqual(support?.scope, { kind: "support_platform" });
-    assertDeepEqual(support?.resyncFragments[0]?.fragmentKey, { kind: "support_public_holidays_section" });
+    assertDeepEqual(support?.scope, { surface: "support", scope: {} });
+    assertDeepEqual(support?.resyncFragments[0]?.fragmentKey, { surface: "support", kind: "support-public-holidays", params: null });
 });
 
 test("FrontendSurface config parser derives Profile live subscriptions from mounted fragments", () => {
@@ -203,9 +203,9 @@ test("FrontendSurface config parser derives Profile live subscriptions from moun
     }, { venueId: "venue-1", staffId: "staff-1" }));
 
     assertEqual(config?.feature, "profile");
-    assertDeepEqual(config?.scope, { kind: "profile", venueId: "venue-1", staffId: "staff-1" });
+    assertDeepEqual(config?.scope, { surface: "profile", scope: { venueId: "venue-1", staffId: "staff-1" } });
     assertEqual(config?.scopeKey, "profile:venue-1:staff-1");
-    assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { kind: "profile_details_section" });
+    assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { surface: "profile", kind: "profile-details-section", params: null });
 });
 
 test("FrontendSurface config parser treats Admin page composition mount as non-subscribing", () => {
@@ -323,7 +323,7 @@ test("FrontendSurface instance reconciliation handles same, removed, and newly s
 
 test("generated live update surface validator rejects malformed boundary JSON", () => {
     assertEqual(parseLiveUpdateSurfaceConfig(null), null);
-    assertEqual(parseLiveUpdateSurfaceConfig({ ...validSurfaceConfig, scope: { kind: "unknown_scope" } }), null);
+    assertEqual(parseLiveUpdateSurfaceConfig({ ...validSurfaceConfig, scope: { surface: 42, scope: {} } }), null);
     assertEqual(parseLiveUpdateSurfaceConfig({ ...validSurfaceConfig, scopeKey: 42 }), null);
     assertEqual(parseLiveUpdateSurfaceConfig({ ...validSurfaceConfig, socketPath: null }), null);
     assertEqual(parseLiveUpdateSurfaceConfig({ ...validSurfaceConfig, resyncFragments: [{ ...validFragment, url: 42 }] }), null);
@@ -341,14 +341,14 @@ test("generated live update message guard checks websocket payload discriminants
     assertEqual(isLiveUpdateMessage({
         type: "subscribed",
         scope: validScope,
-        scopeKey: "timesheet_week:venue-1:0",
+        scopeKey: "timesheets:venue-1:0",
         currentVersion: 1,
         resync: false,
     }), true);
     assertEqual(isLiveUpdateMessage({
         type: "invalidate",
         scope: validScope,
-        scopeKey: "timesheet_week:venue-1:0",
+        scopeKey: "timesheets:venue-1:0",
         version: 2,
         fragments: [validFragment],
         sourceClientId: null,
