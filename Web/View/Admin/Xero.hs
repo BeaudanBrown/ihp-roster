@@ -45,6 +45,7 @@ import Application.Helper.LiveUpdate (LiveFragmentKey (..),
 import Application.Helper.View.Overlay (dialogOverlayMountId)
 import Application.Helper.XeroAdminTypes
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
+                                  adminXeroPageSurfaceImpl,
                                   adminXeroSurfaceImpl)
 import Web.View.Admin.Common
 import Web.View.Admin.Xero.Connection
@@ -70,7 +71,7 @@ instance View XeroView where
                     , appPanelCustomHeader = mempty
                     , appPanelClass = "overflow-hidden"
                     , appPanelBodyClass = ""
-                    , appPanelBody = renderXeroSectionFragmentWithAutoSync xeroAutoSyncAfterConnect xeroSectionData
+                    , appPanelBody = renderXeroPageContentSurface (renderXeroSectionFragmentWithAutoSync xeroAutoSyncAfterConnect xeroSectionData)
                     }
          in renderAppPage AppPageConfig
             { appPageTitle = "Xero"
@@ -180,6 +181,14 @@ currentVenueScopeId =
     case currentVenueOrNothing of
         Just venue -> unpackId venue.id
         Nothing    -> error "Admin Xero live surface requires a current venue"
+
+renderXeroPageContentSurface :: (?context :: ControllerContext) => Html -> Html
+renderXeroPageContentSurface body =
+    renderFrontendSurfaceMount (adminXeroPageSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
+        <div id="admin-xero-page-content-fragment">
+            {body}
+        </div>
+    |]
 
 renderXeroSection :: XeroAdminSectionData -> Html
 renderXeroSection XeroAdminSectionData { xeroConnection = maybeConnection, .. } =

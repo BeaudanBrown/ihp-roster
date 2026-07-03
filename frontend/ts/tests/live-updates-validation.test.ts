@@ -207,6 +207,23 @@ test("FrontendSurface config parser treats Admin page composition mount as non-s
     });
 
     assertEqual(config, null);
+
+    const xeroConfig = parseFrontendSurfaceSubscriptionConfig({
+        surface: "admin-xero-page",
+        scopeKey: "admin-xero-page:venue-1",
+        mountKey: "primary",
+        mountState: null,
+        fragments: [
+            {
+                key: { kind: "admin-xero-page-content", params: null },
+                targetId: "admin-xero-page-content-fragment",
+                url: "/Xero",
+                protection: { kind: "replace" },
+                loadPolicy: "eager",
+            },
+        ],
+    });
+    assertEqual(xeroConfig, null);
 });
 
 test("FrontendSurface config parser preserves reusable focused-field protection", () => {

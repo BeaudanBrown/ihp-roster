@@ -137,6 +137,9 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "href=\"/Xero\""
+                response `responseBodyShouldContain` "data-bepis-surface=\"admin-xero-page\""
+                response `responseBodyShouldContain` "id=\"admin-xero-page-content-fragment\""
+                response `responseBodyShouldContain` "data-bepis-surface=\"admin-xero\""
                 response `responseBodyShouldContain` "id=\"admin-xero-fragment\""
                 response `responseBodyShouldContain` "Connect Xero"
 

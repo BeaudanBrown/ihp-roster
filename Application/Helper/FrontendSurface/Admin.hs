@@ -3,6 +3,7 @@
 
 module Application.Helper.FrontendSurface.Admin
     ( AdminPageSurface
+    , AdminXeroPageSurface
     , AdminVenueSettingsSurface
     , AdminInvitesSurface
     , AdminExportsSurface
@@ -10,6 +11,7 @@ module Application.Helper.FrontendSurface.Admin
     , AdminRosterGroupsSurface
     , AdminXeroSurface
     , AdminPageScope
+    , AdminXeroPageScope
     , AdminVenueConfigScope
     , AdminInvitesScope
     , AdminExportsScope
@@ -19,6 +21,7 @@ module Application.Helper.FrontendSurface.Admin
     , VenueId
     , RosterGroupId
     , AdminPageContentFragment
+    , AdminXeroPageContentFragment
     , AdminVenueConfigFragment
     , AdminInvitesFragment
     , AdminExportsFragment
@@ -33,6 +36,7 @@ module Application.Helper.FrontendSurface.Admin
 import Application.Helper.FrontendSurface.DSL
 
 data AdminPageScope
+data AdminXeroPageScope
 data AdminVenueConfigScope
 data AdminInvitesScope
 data AdminExportsScope
@@ -43,6 +47,7 @@ data VenueId
 data RosterGroupId
 
 data AdminPage
+data AdminXeroPage
 data AdminVenueConfig
 data AdminInvites
 data AdminExports
@@ -51,6 +56,7 @@ data AdminRosterGroups
 data AdminXero
 
 data AdminPageContentFragment
+data AdminXeroPageContentFragment
 data AdminVenueConfigFragment
 data AdminInvitesFragment
 data AdminExportsFragment
@@ -71,6 +77,15 @@ type AdminPageSurface =
              , ContainsSurface AdminExports
              , ContainsSurface AdminShiftTypes
              , ContainsSurface AdminRosterGroups
+             ]
+         ]
+
+type AdminXeroPageSurface =
+    Surface AdminXeroPage
+        '[ Scope AdminXeroPageScope '[ Field VenueId 'WireUUID ]
+         , Fragment AdminXeroPageContentFragment '[]
+            '[ 'Eager
+             , ContainsSurface AdminXero
              ]
          ]
 

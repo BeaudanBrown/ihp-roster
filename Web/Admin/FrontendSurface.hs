@@ -5,6 +5,7 @@
 module Web.Admin.FrontendSurface
     ( AdminVenueScopeValue (..)
     , adminPageSurfaceImpl
+    , adminXeroPageSurfaceImpl
     , adminVenueSettingsSurfaceImpl
     , adminInvitesSurfaceImpl
     , adminExportsSurfaceImpl
@@ -61,6 +62,18 @@ adminPageSurfaceImpl scope =
         impl = mkSurfaceImpl "admin-page" config (adminPageHandlers scope adminPageContentFragment)
      in impl { surfaceImplMountConfig = config }
 
+adminXeroPageSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminXeroPageSurface
+adminXeroPageSurfaceImpl scope =
+    let config = FrontendSurfaceMountConfig
+            { mountSurfaceName = "admin-xero-page"
+            , mountScopeKey = "admin-xero-page:" <> tshow scope.adminVenueId
+            , mountKey = "primary"
+            , mountState = Aeson.Null
+            , mountFragments = [adminXeroPageContentFragment]
+            }
+        impl = mkSurfaceImpl "admin-xero-page" config (adminXeroPageHandlers scope adminXeroPageContentFragment)
+     in impl { surfaceImplMountConfig = config }
+
 adminVenueSettingsSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminVenueSettingsSurface
 adminVenueSettingsSurfaceImpl scope = oneFragmentImpl "admin-venue-config" scope adminVenueSettingsFragment
 
@@ -109,6 +122,20 @@ adminScopeKey name scope =
 
 adminPageHandlers :: AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImplHandlers Surface.AdminPageSurface
 adminPageHandlers scope fragment =
+    SurfaceImplHandlers
+        { surfaceScopeHandlers = scopeHandler scope `HandlerCons` HandlerNil
+        , surfaceMountStateHandlers = HandlerNil
+        , surfaceFragmentHandlers = FrontendSurfaceFragmentHandler
+            { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
+            , fragmentHandlerMountedFragment = const fragment
+            , fragmentHandlerRender = const mempty
+            } `HandlerCons` HandlerNil
+        , surfaceActionHandlers = HandlerNil
+        , surfaceIntentHandlers = HandlerNil
+        }
+
+adminXeroPageHandlers :: AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImplHandlers Surface.AdminXeroPageSurface
+adminXeroPageHandlers scope fragment =
     SurfaceImplHandlers
         { surfaceScopeHandlers = scopeHandler scope `HandlerCons` HandlerNil
         , surfaceMountStateHandlers = HandlerNil
@@ -248,8 +275,9 @@ protection = \case
         , containerSelector = config.focusedProtectionContainerSelector
         }
 
-adminPageContentFragment, adminVenueSettingsFragment, adminExportsFragment, adminShiftTypesFragment, adminRosterGroupsFragment, adminXeroShellFragment, adminXeroStaffMappingsFragment, adminXeroPayItemsFragment, adminXeroTimesheetsFragment :: FrontendSurfaceMountedFragment
+adminPageContentFragment, adminXeroPageContentFragment, adminVenueSettingsFragment, adminExportsFragment, adminShiftTypesFragment, adminRosterGroupsFragment, adminXeroShellFragment, adminXeroStaffMappingsFragment, adminXeroPayItemsFragment, adminXeroTimesheetsFragment :: FrontendSurfaceMountedFragment
 adminPageContentFragment = fragment "admin-page-content" "admin-page-content-fragment" (pathTo AdminAction) FrontendSurfaceReplace
+adminXeroPageContentFragment = fragment "admin-xero-page-content" "admin-xero-page-content-fragment" (pathTo XeroAction) FrontendSurfaceReplace
 adminVenueSettingsFragment = fragment "admin-venue-config" "admin-venue-settings-fragment" (pathTo ShowAdminVenueSettingsFragmentAction) FrontendSurfaceReplace
 adminExportsFragment = fragment "admin-exports" "admin-exports-fragment" (pathTo ShowAdminExportsFragmentAction) FrontendSurfaceReplace
 adminShiftTypesFragment = fragment "admin-shift-types" "admin-shift-types-fragment" (pathTo ShowAdminShiftTypesFragmentAction) (FrontendSurfaceFocusedFieldConfig FrontendSurfaceFocusedFieldProtectionConfig { focusedProtectionActiveSelector = "input[data-admin-shift-type-field-key]:focus", focusedProtectionFieldKeyAttr = "data-admin-shift-type-field-key", focusedProtectionFieldNameFallback = True, focusedProtectionContainerSelector = Just "form[data-admin-shift-type-row]" })

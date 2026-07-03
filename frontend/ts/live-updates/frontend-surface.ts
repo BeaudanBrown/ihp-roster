@@ -68,7 +68,7 @@ export function parseFrontendSurfaceSubscriptionConfig(value: unknown): ParsedFr
     const config = parseFrontendSurfaceMountConfig(value);
     if (!config) return null;
 
-    if (config.surface === "admin-page") return null;
+    if (config.surface === "admin-page" || config.surface === "admin-xero-page") return null;
 
     if (config.surface === "timesheets") {
         const scope = parseTimesheetsScope(config.scopeKey);

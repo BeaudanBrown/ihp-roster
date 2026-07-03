@@ -7,6 +7,7 @@ import {
     parseFrontendSurfaceName,
     surfaceLabSurfaceManifest,
     timesheetsSurfaceManifest,
+    type FrontendSurfaceContainmentEdge,
     type FrontendSurfaceDay,
     type LabPayload,
     type LabRelatedPayload,
@@ -45,14 +46,16 @@ test("generated FrontendSurface registry exposes Admin page containment topology
         "admin-roster-groups",
     ]);
     assertDeepEqual(FrontendSurfaceRegistry["admin-page"], adminPageSurfaceManifest);
-    assertEqual(isFrontendSurfaceContainmentEdge(FrontendSurfaceContainmentTopology[0]), true);
-    assertDeepEqual(FrontendSurfaceContainmentTopology.filter((edge) => edge.parentSurface === "admin-page").map((edge) => edge.childSurface), [
+    const topology: ReadonlyArray<FrontendSurfaceContainmentEdge> = FrontendSurfaceContainmentTopology;
+    assertEqual(isFrontendSurfaceContainmentEdge(topology[0]), true);
+    assertDeepEqual(topology.filter((edge) => String(edge.parentSurface) === "admin-page").map((edge) => edge.childSurface), [
         "admin-invites",
         "admin-venue-config",
         "admin-exports",
         "admin-shift-types",
         "admin-roster-groups",
     ]);
+    assertDeepEqual(topology.filter((edge) => String(edge.parentSurface) === "admin-xero-page").map((edge) => edge.childSurface), ["admin-xero"]);
 });
 
 test("generated FrontendSurface registry exposes timesheets surface primitives", () => {

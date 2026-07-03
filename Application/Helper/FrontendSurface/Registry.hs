@@ -11,6 +11,7 @@ import Application.Helper.FrontendSurface.Admin (AdminExportsSurface,
                                                  AdminRosterGroupsSurface,
                                                  AdminShiftTypesSurface,
                                                  AdminVenueSettingsSurface,
+                                                 AdminXeroPageSurface,
                                                  AdminXeroSurface)
 import Application.Helper.FrontendSurface.Billing (BillingSurface)
 import Application.Helper.FrontendSurface.Lab (SurfaceLabSurface)
@@ -29,6 +30,7 @@ type RegisteredFrontendSurfaces =
      , SupportSurface
      , ProfileSurface
      , AdminPageSurface
+     , AdminXeroPageSurface
      , AdminVenueSettingsSurface
      , AdminInvitesSurface
      , AdminExportsSurface

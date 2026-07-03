@@ -1425,6 +1425,13 @@ export type AdminPageFragmentKey =
 ;
 export const adminPageSurfaceManifest = { surface: "admin-page", scopes: ["admin-page"], fragments: ["admin-page-content"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: { "admin-page-content": ["admin-invites", "admin-venue-config", "admin-exports", "admin-shift-types", "admin-roster-groups"] } } as const;
 
+export type AdminXeroPageSurfaceName = "admin-xero-page";
+export type AdminXeroPageScope = { kind: "admin-xero-page"; venueId: VenueId };
+export type AdminXeroPageFragmentKey =
+    | { kind: "admin-xero-page-content"; params: Record<string, never> }
+;
+export const adminXeroPageSurfaceManifest = { surface: "admin-xero-page", scopes: ["admin-xero-page"], fragments: ["admin-xero-page-content"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: { "admin-xero-page-content": ["admin-xero"] } } as const;
+
 export type AdminVenueConfigSurfaceName = "admin-venue-config";
 export type AdminVenueConfigScope = { kind: "admin-venue-config"; venueId: VenueId };
 export type AdminVenueConfigFragmentKey =
@@ -1470,7 +1477,7 @@ export type AdminXeroFragmentKey =
 ;
 export const adminXeroSurfaceManifest = { surface: "admin-xero", scopes: ["admin-xero"], fragments: ["admin-xero-shell", "admin-xero-staff-mappings", "admin-xero-pay-items", "admin-xero-timesheets"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
 
-export type FrontendSurfaceName = "surface-lab" | "timesheets" | "roster" | "leave-requests" | "billing" | "support" | "profile" | "admin-page" | "admin-venue-config" | "admin-invites" | "admin-exports" | "admin-shift-types" | "admin-roster-groups" | "admin-xero";
+export type FrontendSurfaceName = "surface-lab" | "timesheets" | "roster" | "leave-requests" | "billing" | "support" | "profile" | "admin-page" | "admin-xero-page" | "admin-venue-config" | "admin-invites" | "admin-exports" | "admin-shift-types" | "admin-roster-groups" | "admin-xero";
 export const FrontendSurfaceRegistry = {
     "surface-lab": surfaceLabSurfaceManifest,
     timesheets: timesheetsSurfaceManifest,
@@ -1480,6 +1487,7 @@ export const FrontendSurfaceRegistry = {
     support: supportSurfaceManifest,
     profile: profileSurfaceManifest,
     "admin-page": adminPageSurfaceManifest,
+    "admin-xero-page": adminXeroPageSurfaceManifest,
     "admin-venue-config": adminVenueConfigSurfaceManifest,
     "admin-invites": adminInvitesSurfaceManifest,
     "admin-exports": adminExportsSurfaceManifest,
@@ -1501,6 +1509,7 @@ export const FrontendSurfaceContainmentTopology = [
     { parentSurface: "admin-page", parentFragment: "admin-page-content", childSurface: "admin-exports" },
     { parentSurface: "admin-page", parentFragment: "admin-page-content", childSurface: "admin-shift-types" },
     { parentSurface: "admin-page", parentFragment: "admin-page-content", childSurface: "admin-roster-groups" },
+    { parentSurface: "admin-xero-page", parentFragment: "admin-xero-page-content", childSurface: "admin-xero" },
 ] as const;
 export function isFrontendSurfaceContainmentEdge(value: unknown): value is FrontendSurfaceContainmentEdge {
     if (typeof value !== "object" || value === null) return false;

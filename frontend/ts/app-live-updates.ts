@@ -687,7 +687,7 @@ type HtmxConfigRequestEvent = Event & {
 
         const parsedConfig = parseFrontendSurfaceSubscriptionConfig(config);
         if (parsedConfig === null) {
-            if (config && typeof config === 'object' && (config as { surface?: unknown }).surface === 'admin-page') return null;
+            if (config && typeof config === 'object' && ((config as { surface?: unknown }).surface === 'admin-page' || (config as { surface?: unknown }).surface === 'admin-xero-page')) return null;
             reportSurfaceConfigError(ownerEl, new Error('Invalid FrontendSurface config'));
             return null;
         }

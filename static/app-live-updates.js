@@ -316,7 +316,7 @@
   function parseFrontendSurfaceSubscriptionConfig(value) {
     const config = parseFrontendSurfaceMountConfig(value);
     if (!config) return null;
-    if (config.surface === "admin-page") return null;
+    if (config.surface === "admin-page" || config.surface === "admin-xero-page") return null;
     if (config.surface === "timesheets") {
       const scope = parseTimesheetsScope(config.scopeKey);
       if (!scope) return null;
@@ -1321,7 +1321,7 @@
       }
       const parsedConfig = parseFrontendSurfaceSubscriptionConfig(config);
       if (parsedConfig === null) {
-        if (config && typeof config === "object" && config.surface === "admin-page") return null;
+        if (config && typeof config === "object" && (config.surface === "admin-page" || config.surface === "admin-xero-page")) return null;
         reportSurfaceConfigError(ownerEl, new Error("Invalid FrontendSurface config"));
         return null;
       }

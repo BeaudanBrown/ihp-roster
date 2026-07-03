@@ -1,6 +1,6 @@
 ---
 id: ir-u2u2
-status: open
+status: closed
 deps: [ir-rwi8]
 links: []
 created: 2026-07-03T02:45:01Z
