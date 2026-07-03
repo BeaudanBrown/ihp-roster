@@ -2,7 +2,8 @@
 {-# LANGUAGE TypeOperators #-}
 
 module Application.Helper.FrontendSurface.Billing
-    ( BillingStatus
+    ( BillingResource
+    , BillingStatus
     , BillingSurface
     , BillingVenue
     , VenueId
@@ -17,11 +18,13 @@ data VenueId
 
 data BillingStatus
 
+type BillingResource = Resource Billing '[ Field VenueId 'WireUUID ]
+
 type BillingSurface =
     Surface Billing
         '[ Scope BillingVenue
             '[ Field VenueId 'WireUUID
              ]
             '[ 'Authorize 'CurrentVenueOwner '[ VenueId ] ]
-         , Fragment BillingStatus '[] '[ 'Eager, 'Live, 'ResyncOnly ]
+         , Fragment BillingStatus '[] '[ 'Eager, 'Live, 'DependsOn BillingResource '[ 'FromScope VenueId ] ]
          ]

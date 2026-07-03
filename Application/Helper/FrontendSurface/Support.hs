@@ -3,7 +3,9 @@
 
 module Application.Helper.FrontendSurface.Support
     ( SupportAwardRates
+    , SupportAwardRatesResource
     , SupportPublicHolidays
+    , SupportPublicHolidaysResource
     , SupportSurface
     , SupportPlatform
     ) where
@@ -17,9 +19,12 @@ data SupportPlatform
 data SupportAwardRates
 data SupportPublicHolidays
 
+type SupportAwardRatesResource = Resource SupportAwardRates '[]
+type SupportPublicHolidaysResource = Resource SupportPublicHolidays '[]
+
 type SupportSurface =
     Surface Support
         '[ Scope SupportPlatform '[] '[ 'Authorize 'SupportSuperAdmin '[] ]
-         , Fragment SupportAwardRates '[] '[ 'Eager, 'Live, 'ResyncOnly ]
-         , Fragment SupportPublicHolidays '[] '[ 'Eager, 'Live, 'ResyncOnly ]
+         , Fragment SupportAwardRates '[] '[ 'Eager, 'Live, 'DependsOn SupportAwardRatesResource '[] ]
+         , Fragment SupportPublicHolidays '[] '[ 'Eager, 'Live, 'DependsOn SupportPublicHolidaysResource '[] ]
          ]

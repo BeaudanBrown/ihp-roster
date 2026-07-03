@@ -67,6 +67,26 @@ data AdminXeroStaffMappingsFragment
 data AdminXeroPayItemsFragment
 data AdminXeroTimesheetsFragment
 
+data AdminVenueSettings
+data AdminInvitesResourceMarker
+data AdminExportsResourceMarker
+data AdminShiftTypesResourceMarker
+data AdminRosterGroupsResourceMarker
+data XeroConnection
+data XeroMappings
+data XeroPayItems
+data XeroTimesheets
+
+type AdminVenueSettingsResource = Resource AdminVenueSettings '[ Field VenueId 'WireUUID ]
+type AdminInvitesResource = Resource AdminInvites '[ Field VenueId 'WireUUID ]
+type AdminExportsResource = Resource AdminExports '[ Field VenueId 'WireUUID ]
+type AdminShiftTypesResource = Resource AdminShiftTypes '[ Field VenueId 'WireUUID ]
+type AdminRosterGroupsResource = Resource AdminRosterGroups '[ Field VenueId 'WireUUID ]
+type XeroConnectionResource = Resource XeroConnection '[ Field VenueId 'WireUUID ]
+type XeroMappingsResource = Resource XeroMappings '[ Field VenueId 'WireUUID ]
+type XeroPayItemsResource = Resource XeroPayItems '[ Field VenueId 'WireUUID ]
+type XeroTimesheetsResource = Resource XeroTimesheets '[ Field VenueId 'WireUUID ]
+
 type AdminPageSurface =
     Surface AdminPage
         '[ Scope AdminPageScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
@@ -92,7 +112,7 @@ type AdminXeroPageSurface =
 type AdminVenueSettingsSurface =
     Surface AdminVenueConfig
         '[ Scope AdminVenueConfigScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
-         , Fragment AdminVenueConfigFragment '[] '[ 'Eager, 'Live, 'ResyncOnly ]
+         , Fragment AdminVenueConfigFragment '[] '[ 'Eager, 'Live, 'DependsOn AdminVenueSettingsResource '[ 'FromScope VenueId ] ]
          ]
 
 type AdminInvitesSurface =
@@ -102,32 +122,32 @@ type AdminInvitesSurface =
              , Field RosterGroupId 'WireUUID
              ]
             '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
-         , Fragment AdminInvitesFragment '[] '[ 'Eager, 'Live, 'ResyncOnly ]
+         , Fragment AdminInvitesFragment '[] '[ 'Eager, 'Live, 'DependsOn AdminInvitesResource '[ 'FromScope VenueId ] ]
          ]
 
 type AdminExportsSurface =
     Surface AdminExports
         '[ Scope AdminExportsScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
-         , Fragment AdminExportsFragment '[] '[ 'Eager, 'Live, 'ResyncOnly ]
+         , Fragment AdminExportsFragment '[] '[ 'Eager, 'Live, 'DependsOn AdminExportsResource '[ 'FromScope VenueId ] ]
          ]
 
 type AdminShiftTypesSurface =
     Surface AdminShiftTypes
         '[ Scope AdminShiftTypesScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
-         , Fragment AdminShiftTypesFragment '[] '[ 'Eager, 'Live, 'ResyncOnly ]
+         , Fragment AdminShiftTypesFragment '[] '[ 'Eager, 'Live, 'DependsOn AdminShiftTypesResource '[ 'FromScope VenueId ] ]
          ]
 
 type AdminRosterGroupsSurface =
     Surface AdminRosterGroups
         '[ Scope AdminRosterGroupsScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
-         , Fragment AdminRosterGroupsFragment '[] '[ 'Eager, 'Live, 'ResyncOnly ]
+         , Fragment AdminRosterGroupsFragment '[] '[ 'Eager, 'Live, 'DependsOn AdminRosterGroupsResource '[ 'FromScope VenueId ] ]
          ]
 
 type AdminXeroSurface =
     Surface AdminXero
         '[ Scope AdminXeroScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueOwner '[ VenueId ] ]
-         , Fragment AdminXeroShellFragment '[] '[ 'Eager, 'Live, 'ResyncOnly ]
-         , Fragment AdminXeroStaffMappingsFragment '[] '[ 'Eager, 'Live, 'ResyncOnly ]
-         , Fragment AdminXeroPayItemsFragment '[] '[ 'Eager, 'Live, 'ResyncOnly ]
-         , Fragment AdminXeroTimesheetsFragment '[] '[ 'Eager, 'Live, 'ResyncOnly ]
+         , Fragment AdminXeroShellFragment '[] '[ 'Eager, 'Live, 'DependsOn XeroConnectionResource '[ 'FromScope VenueId ] ]
+         , Fragment AdminXeroStaffMappingsFragment '[] '[ 'Eager, 'Live, 'DependsOn XeroMappingsResource '[ 'FromScope VenueId ] ]
+         , Fragment AdminXeroPayItemsFragment '[] '[ 'Eager, 'Live, 'DependsOn XeroPayItemsResource '[ 'FromScope VenueId ] ]
+         , Fragment AdminXeroTimesheetsFragment '[] '[ 'Eager, 'Live, 'DependsOn XeroTimesheetsResource '[ 'FromScope VenueId ] ]
          ]

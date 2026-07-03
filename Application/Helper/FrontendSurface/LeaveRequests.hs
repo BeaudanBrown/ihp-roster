@@ -3,6 +3,7 @@
 
 module Application.Helper.FrontendSurface.LeaveRequests
     ( LeaveRequestsContent
+    , LeaveRequestsResource
     , LeaveRequestsSurface
     , LeaveRequestsScope
     , VenueId
@@ -17,11 +18,13 @@ data VenueId
 
 data LeaveRequestsContent
 
+type LeaveRequestsResource = Resource LeaveRequests '[ Field VenueId 'WireUUID ]
+
 type LeaveRequestsSurface =
     Surface LeaveRequests
         '[ Scope LeaveRequestsScope
             '[ Field VenueId 'WireUUID
              ]
             '[ 'Authorize 'CurrentVenueManager '[ VenueId ] ]
-         , Fragment LeaveRequestsContent '[] '[ 'Eager, 'Live, 'ResyncOnly ]
+         , Fragment LeaveRequestsContent '[] '[ 'Eager, 'Live, 'DependsOn LeaveRequestsResource '[ 'FromScope VenueId ] ]
          ]

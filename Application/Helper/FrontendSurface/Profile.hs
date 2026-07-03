@@ -7,6 +7,10 @@ module Application.Helper.FrontendSurface.Profile
     , ProfilePreferencesSection
     , ProfileRsaSection
     , ProfileSecuritySection
+    , StaffLeaveRequests
+    , StaffPreferences
+    , StaffProfile
+    , StaffRsaDocuments
     , ProfileScope
     , ProfileSurface
     , StaffId
@@ -26,6 +30,17 @@ data ProfilePreferencesSection
 data ProfileSecuritySection
 data ProfileLeaveSection
 data ProfileRsaSection
+
+data StaffProfile
+data StaffPreferences
+data StaffLeaveRequests
+data StaffRsaDocuments
+
+type StaffProfileResource = Resource StaffProfile '[ Field StaffId 'WireUUID ]
+type StaffPreferencesResource = Resource StaffPreferences '[ Field StaffId 'WireUUID ]
+type StaffLeaveRequestsResource = Resource StaffLeaveRequests '[ Field StaffId 'WireUUID ]
+type StaffRsaDocumentsResource = Resource StaffRsaDocuments '[ Field StaffId 'WireUUID ]
+
 type ProfileSurface =
     Surface Profile
         '[ Scope ProfileScope
@@ -33,9 +48,15 @@ type ProfileSurface =
              , Field StaffId 'WireUUID
              ]
             '[ 'Authorize 'CurrentVenueStaff '[ VenueId, StaffId ] ]
-         , Fragment ProfileDetailsSection '[] '[ 'Eager, 'Live, 'ResyncOnly ]
-         , Fragment ProfilePreferencesSection '[] '[ 'Eager, 'Live, 'ResyncOnly ]
+         , Fragment ProfileDetailsSection
+            '[]
+            '[ 'Eager
+             , 'Live
+             , 'DependsOn StaffProfileResource '[ 'FromScope StaffId ]
+             , 'DependsOn StaffPreferencesResource '[ 'FromScope StaffId ]
+             ]
+         , Fragment ProfilePreferencesSection '[] '[ 'Eager, 'Live, 'DependsOn StaffPreferencesResource '[ 'FromScope StaffId ] ]
          , Fragment ProfileSecuritySection '[] '[ 'Eager, 'Live, 'ResyncOnly ]
-         , Fragment ProfileLeaveSection '[] '[ 'Eager, 'Live, 'ResyncOnly ]
-         , Fragment ProfileRsaSection '[] '[ 'Eager, 'Live, 'ResyncOnly ]
+         , Fragment ProfileLeaveSection '[] '[ 'Eager, 'Live, 'DependsOn StaffLeaveRequestsResource '[ 'FromScope StaffId ] ]
+         , Fragment ProfileRsaSection '[] '[ 'Eager, 'Live, 'DependsOn StaffRsaDocumentsResource '[ 'FromScope StaffId ] ]
          ]

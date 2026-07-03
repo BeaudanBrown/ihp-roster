@@ -207,12 +207,17 @@ timesheetsRawRegistry =
                     , fieldWithWire "StaffFilterId" (raw "WireOptional" [raw "WireUUID" []])
                     ]
                 ]
-            , raw "Fragment" [marker "TimesheetToolbar", promotedList [], promotedList [raw "Eager" [], raw "Live" [], raw "ResyncOnly" []]]
-            , raw "Fragment" [marker "TimesheetDayColumns", promotedList [], promotedList [raw "Eager" [], raw "Live" [], raw "ResyncOnly" []]]
+            , raw "Fragment" [marker "TimesheetToolbar", promotedList [], promotedList ([raw "Eager" [], raw "Live" []] <> timesheetWeekDependencyOptions)]
+            , raw "Fragment" [marker "TimesheetDayColumns", promotedList [], promotedList ([raw "Eager" [], raw "Live" []] <> timesheetWeekDependencyOptions)]
             , raw "Fragment"
                 [ marker "TimesheetDaySection"
                 , promotedList [field "DayOffset" "WireInt"]
-                , promotedList [raw "Lazy" [promotedList [raw "DependsOnFragment" [marker "TimesheetDayColumns"]]], raw "Live" [], raw "ResyncOnly" []]
+                , promotedList
+                    [ raw "Lazy" [promotedList [raw "DependsOnFragment" [marker "TimesheetDayColumns"]]]
+                    , raw "Live" []
+                    , dependsOn "TimesheetDay" [field "VenueId" "WireUUID", field "WeekOffset" "WireInt", field "DayOffset" "WireInt"] [fromScope "VenueId", fromScope "WeekOffset", fromFragment "DayOffset"]
+                    , dependsOn "TimesheetWeekBoundaryConfig" [field "VenueId" "WireUUID"] [fromScope "VenueId"]
+                    ]
                 ]
             ]
         ]
@@ -226,34 +231,36 @@ rosterRawRegistry =
                 , promotedList [field "VenueId" "WireUUID", field "RosterGroupId" "WireUUID", field "WeekOffset" "WireInt"]
                 , promotedList [raw "Authorize" [raw "CurrentVenueRosterGroup" [], promotedList [marker "VenueId", marker "RosterGroupId"]]]
                 ]
-            , raw "Fragment" [marker "RosterContent", promotedList [], promotedList [raw "Eager" [], raw "Live" [], raw "ResyncOnly" [], raw "Contains" [marker "RosterGridToolbar"], raw "Contains" [marker "RosterGridFrame"]]]
-            , raw "Fragment" [marker "RosterGridToolbar", promotedList [], promotedList [raw "Eager" [], raw "Live" [], raw "ResyncOnly" []]]
+            , raw "Fragment" [marker "RosterContent", promotedList [], promotedList ([raw "Eager" [], raw "Live" []] <> rosterWeekDependencyOptions <> [raw "Contains" [marker "RosterGridToolbar"], raw "Contains" [marker "RosterGridFrame"]])]
+            , raw "Fragment" [marker "RosterGridToolbar", promotedList [], promotedList ([raw "Eager" [], raw "Live" []] <> rosterWeekDependencyOptions)]
             , raw "Fragment"
                 [ marker "RosterGridFrame"
                 , promotedList []
                 , promotedList
-                    [ raw "Eager" [], raw "Live" [], raw "ResyncOnly" []
-                    , raw "Contains" [marker "RosterDayColumns"]
-                    , raw "Contains" [marker "RosterDayRail"]
-                    , raw "Contains" [marker "RosterWageRail"]
-                    , raw "Contains" [marker "RosterSlotsGrid"]
-                    , raw "Contains" [marker "RosterDaySection"]
-                    ]
+                    ( [ raw "Eager" [], raw "Live" [] ]
+                        <> rosterWeekDependencyOptions
+                        <> [ raw "Contains" [marker "RosterDayColumns"]
+                           , raw "Contains" [marker "RosterDayRail"]
+                           , raw "Contains" [marker "RosterWageRail"]
+                           , raw "Contains" [marker "RosterSlotsGrid"]
+                           , raw "Contains" [marker "RosterDaySection"]
+                           ]
+                    )
                 ]
-            , raw "Fragment" [marker "RosterDayColumns", promotedList [], promotedList [raw "Eager" [], raw "Live" [], raw "ResyncOnly" []]]
-            , raw "Fragment" [marker "RosterDayRail", promotedList [], promotedList [raw "Eager" [], raw "Live" [], raw "ResyncOnly" []]]
-            , raw "Fragment" [marker "RosterWageRail", promotedList [], promotedList [raw "Eager" [], raw "Live" [], raw "ResyncOnly" []]]
-            , raw "Fragment" [marker "RosterSlotsGrid", promotedList [], promotedList [raw "Eager" [], raw "Live" [], raw "ResyncOnly" []]]
-            , raw "Fragment" [marker "RosterStaffPanel", promotedList [], promotedList [raw "Lazy" [promotedList [raw "DependsOnFragment" [marker "RosterContent"]]], raw "Live" [], raw "ResyncOnly" []]]
+            , raw "Fragment" [marker "RosterDayColumns", promotedList [], promotedList ([raw "Eager" [], raw "Live" []] <> rosterWeekDependencyOptions)]
+            , raw "Fragment" [marker "RosterDayRail", promotedList [], promotedList ([raw "Eager" [], raw "Live" []] <> rosterWeekDependencyOptions)]
+            , raw "Fragment" [marker "RosterWageRail", promotedList [], promotedList ([raw "Eager" [], raw "Live" []] <> rosterWeekDependencyOptions)]
+            , raw "Fragment" [marker "RosterSlotsGrid", promotedList [], promotedList ([raw "Eager" [], raw "Live" []] <> rosterWeekDependencyOptions)]
+            , raw "Fragment" [marker "RosterStaffPanel", promotedList [], promotedList [raw "Lazy" [promotedList [raw "DependsOnFragment" [marker "RosterContent"]]], raw "Live" [], rosterWeekResourceDependency]]
             , raw "Fragment"
                 [ marker "RosterDaySection"
                 , promotedList [field "RosterDayId" "WireUUID"]
-                , promotedList [raw "Lazy" [promotedList [raw "DependsOnFragment" [marker "RosterGridFrame"], raw "Contains" [marker "RosterRow"]]], raw "Live" [], raw "ResyncOnly" []]
+                , promotedList ([raw "Lazy" [promotedList [raw "DependsOnFragment" [marker "RosterGridFrame"], raw "Contains" [marker "RosterRow"]]], raw "Live" []] <> rosterDayDependencyOptions)
                 ]
             , raw "Fragment"
                 [ marker "RosterRow"
                 , promotedList [field "RosterDayId" "WireUUID", field "RowIndex" "WireInt"]
-                , promotedList [raw "Lazy" [promotedList [raw "DependsOnFragment" [marker "RosterDaySection"]]], raw "Live" [], raw "ResyncOnly" []]
+                , promotedList ([raw "Lazy" [promotedList [raw "DependsOnFragment" [marker "RosterDaySection"]]], raw "Live" []] <> rosterDayDependencyOptions)
                 ]
             , raw "Action" [marker "SetRosterLayoutMode", promotedList [field "RosterLayoutMode" "WireText"], promotedList [raw "Target" [marker "RosterContent"]]]
             , raw "Intent" [marker "SetRosterLayoutMode", promotedList [field "RosterLayoutMode" "WireText"], promotedList [raw "BackedBy" [marker "SetRosterLayoutMode"]]]
@@ -263,6 +270,30 @@ rosterRawRegistry =
             , raw "ConflictPolicy" [raw "SessionKind" [marker "DragSession"], raw "AnyFragment" [], raw "Defer" []]
             ]
         ]
+
+timesheetWeekDependencyOptions :: [RawType]
+timesheetWeekDependencyOptions =
+    [ dependsOn "TimesheetWeek" [field "VenueId" "WireUUID", field "WeekOffset" "WireInt"] [fromScope "VenueId", fromScope "WeekOffset"]
+    , dependsOn "TimesheetWeekBoundaryConfig" [field "VenueId" "WireUUID"] [fromScope "VenueId"]
+    ]
+
+rosterWeekResourceDependency :: RawType
+rosterWeekResourceDependency =
+    dependsOn "RosterWeek" [field "RosterGroupId" "WireUUID", field "WeekOffset" "WireInt"] [fromScope "RosterGroupId", fromScope "WeekOffset"]
+
+rosterWeekDependencyOptions :: [RawType]
+rosterWeekDependencyOptions =
+    [ rosterWeekResourceDependency
+    , dependsOn "RosterEndTimesConfig" [field "VenueId" "WireUUID"] [fromScope "VenueId"]
+    , dependsOn "RosterWeekBoundaryConfig" [field "VenueId" "WireUUID"] [fromScope "VenueId"]
+    ]
+
+rosterDayDependencyOptions :: [RawType]
+rosterDayDependencyOptions =
+    [ dependsOn "RosterDay" [field "RosterDayId" "WireUUID"] [fromFragment "RosterDayId"]
+    , dependsOn "RosterEndTimesConfig" [field "VenueId" "WireUUID"] [fromScope "VenueId"]
+    , dependsOn "RosterWeekBoundaryConfig" [field "VenueId" "WireUUID"] [fromScope "VenueId"]
+    ]
 
 dragDropFieldsRaw :: [RawType]
 dragDropFieldsRaw =
@@ -351,6 +382,16 @@ raw name args = RawType
     , rawTypeSource = Nothing
     , rawTypeArgs = args
     }
+
+dependsOn :: String -> [RawType] -> [RawType] -> RawType
+dependsOn resourceName resourceFields sources =
+    raw "DependsOn" [raw "Resource" [marker resourceName, promotedList resourceFields], promotedList sources]
+
+fromScope :: String -> RawType
+fromScope name = raw "FromScope" [marker name]
+
+fromFragment :: String -> RawType
+fromFragment name = raw "FromFragment" [marker name]
 
 unsupportedFamily :: String -> RawType
 unsupportedFamily pretty = RawType

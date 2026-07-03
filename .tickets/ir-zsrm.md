@@ -1,6 +1,6 @@
 ---
 id: ir-zsrm
-status: open
+status: closed
 deps: [ir-ai98]
 links: []
 created: 2026-07-03T06:55:44Z
@@ -28,3 +28,7 @@ Every current Live fragment has explicit dependency or resync declarations. Decl
 **2026-07-03T07:16:17Z**
 
 ir-qhzl marked current Live fragments ResyncOnly as a validation placeholder. Replace ResyncOnly with explicit Resource/DependsOn declarations during current-resource migration except where a fragment is genuinely resync-only.
+
+**2026-07-03T08:04:03Z**
+
+Migrated direct planner dependencies from ResyncOnly placeholders into explicit FrontendSurface DependsOn declarations. Expansion-only resources such as StaffRosterMembership and StaffPayProfile still feed existing expansion before planner consumption.
