@@ -237,14 +237,33 @@ after a migrated write path. Actor-specific HTMX responses, toasts, redirects,
 dialog updates, and OOB fragments may remain in controllers when they only serve
 the requester.
 
-`Web.LiveResourceInvalidation` is the planner/adapter layer. It expands indirect
-semantic resources only through active-scope-bounded rules, then asks
-`Web.LiveSurfaceRegistry` to match the touched/expanded `LiveResource` set
-against each surface's fragment-contract dependency declarations. The registry
+`Web.LiveResourceInvalidation` is the planner/adapter layer. It receives
+concrete generated `LiveResource` values (`FrontendSurfaceResourceValue`s),
+applies the small set of approved active-scope-bounded domain expansions, then
+asks `Web.LiveSurfaceRegistry` to match those resources against generated
+`FrontendSurface` dependency metadata. The registry derives affected fragments
+from mounted candidates plus each fragment's declared `DependsOn` fields; it
 owns passive broadcast emission for matched scope/fragment targets. Feature
 mutation modules must not call or recreate legacy feature refresh helpers such as
 `refreshRosterFragments`, `refreshProfileContent`, `refreshAdminXero`,
 `refreshTimesheetFragments`, or removed `broadcastSurface*` pathways.
+
+Authoring a passive live update now means:
+
+1. declare a `Resource` in the relevant `FrontendSurface` spec;
+2. add `Live` plus either `DependsOn Resource '[FromScope ..., FromFragment ...]`
+   or `ResyncOnly` to each affected fragment;
+3. emit the generated resource smart constructor from mutation/domain code;
+4. if the mutation is broader than one concrete resource, expand it in the
+   producer or a feature-owned helper to concrete generated resources before
+   calling invalidation;
+5. run frontend surface contract, guardrail, typecheck, and focused live tests.
+
+The static `FrontendSurface` layer only models concrete resource-to-fragment
+matching. It does not provide custom dependency hooks, legacy bridge conversion,
+or a fragment fanout primitive. If many producers repeat the same broad
+expansion, introduce a typed domain helper that projects the domain event to
+concrete generated resources before the planner boundary.
 
 Allowed direct live calls after migration are limited to the passive planner,
 transport runtime, and actor-only response helpers:

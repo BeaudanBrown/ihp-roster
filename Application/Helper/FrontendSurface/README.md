@@ -129,11 +129,12 @@ runtime render helpers so HTMX attributes and hidden fields stay Haskell-owned.
 
 Controllers remain normal IHP mutation entrypoints in this epic. They parse and
 authorize params, call feature mutation/read-model code, and render validation
-failures or successful actor extras. Successful mutations should still report
-semantic `LiveResource` touches so actor duplicate mounts and passive viewers
+failures or successful actor extras. Successful mutations should report typed
+`LiveResource` touches using the generated smart constructors exported from
+`Application.Helper.LiveResource` so actor duplicate mounts and passive viewers
 refresh through the unified live invalidation/refetch path.
 
-## Live Invalidation And Fragment Rendering
+## Live Authorization, Resources, And Fragment Rendering
 
 Migrated `FrontendSurface` invalidations are semantic and surface-native:
 transport identifies generated kebab-case surface names, generated scope DTOs,
@@ -142,6 +143,43 @@ subscription JSON from `Scope` plus `Fragment ... Live`; composition-only parent
 surfaces omit `Live` fragments and therefore do not subscribe. The browser
 runtime reads the generated subscription payload and must not parse scope keys or
 switch on app-specific surface/fragment names.
+
+`Scope` owns websocket subscription identity and authorization. Every scope must
+carry exactly one auth marker: `Authorize SomePolicy` for server-checked scopes,
+or explicit `NoAuth` for public/test-only scopes. `Web.LiveSurfaceRegistry`
+derives subscription authorization from the reflected `RegisteredFrontendSurfaces`
+metadata; feature code must not add hard-coded fallback authorization for a
+surface/scope pair.
+
+Fragments that participate in passive invalidation declare `Live` and then one
+invalidation mode. Prefer explicit `DependsOn SomeResource '[ ...sources... ]`,
+where each dependency field is sourced with `FromScope ScopeField` or
+`FromFragment FragmentField`. Use `ResyncOnly` only when a live fragment is
+refreshed by reconnect/resync or actor paths and has no passive business-resource
+dependency. The generator validates that live fragments have one mode and that
+resource field sources are concrete and non-conflicting.
+
+`Resource` declarations live in the type-level surface specs and are discovered
+by walking `RegisteredFrontendSurfaces`. Generated Haskell smart constructors in
+`Application.Helper.FrontendSurface.Resource` / `Application.Helper.LiveResource`
+construct concrete `FrontendSurfaceResourceValue`s such as `rosterWeekResource`,
+`timesheetDayResource`, or `xeroMappingsResource`. Mutation/domain code emits
+those concrete generated values; it must not introduce legacy sentinel resources,
+custom dependency hooks, or bridge conversions.
+
+The passive planner is generated-data driven:
+
+1. collect candidate mounted fragments from active live scopes;
+2. evaluate each fragment's `DependsOn` declarations from scope/fragment params;
+3. intersect those concrete dependency values with touched generated resources;
+4. broadcast the affected generated wire fragments.
+
+Runtime/domain expansion is separate from static fragment dependency planning.
+When a mutation has broad semantic effects, expand it in the producer or a small
+feature-owned helper to concrete generated resources before invalidation (for
+example, active roster-week resources for roster-affecting leave/staff changes).
+Do not encode broad fanout as a `FrontendSurface` custom dependency or fragment
+fanout DSL.
 
 Use direct database/read-model rendering first. There is no shared
 `Application.Helper.SurfaceProjection` cache. If profiling later proves caching
