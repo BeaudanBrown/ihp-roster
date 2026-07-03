@@ -126,6 +126,7 @@ data OptionIR
     | SessionOptionIR !Text
     | EmitsOption !Text
     | ContainsOption !Text
+    | ContainsSurfaceOption !Text
     | UsesDtoOption !Text
     deriving (Eq, Show)
 
@@ -179,6 +180,8 @@ validateSurfaceContractIR contract =
     concatMap validateSurface contract.contractSurfaces
         <> validateSharedDeclarations contract
         <> validateSurfaceNameCollisions contract
+        <> validateContainedSurfaceReferences contract
+        <> validateContainmentCycles contract
 
 validateSurface :: SurfaceIR -> [ContractDiagnostic]
 validateSurface surface =
@@ -294,6 +297,55 @@ validateCrossReferences surface =
             if name `elem` available
                 then []
                 else [diagnostic "invalid-reference" (owner <> " references missing " <> refKindLabel refKind <> " " <> name <> " on surface " <> surface.surfaceName)]
+
+validateContainedSurfaceReferences :: SurfaceContractIR -> [ContractDiagnostic]
+validateContainedSurfaceReferences contract =
+    concatMap validateSurfaceChildren contract.contractSurfaces
+    where
+        surfaceNames = map (.surfaceName) contract.contractSurfaces
+        validateSurfaceChildren surface =
+            [ diagnostic "invalid-contained-surface"
+                ( "surface " <> surface.surfaceName
+                    <> " fragment " <> fragment.fragmentName
+                    <> " contains missing surface " <> childName
+                )
+            | fragment <- surface.surfaceFragments
+            , childName <- containedSurfaceNames fragment.fragmentOptions
+            , childName `notElem` surfaceNames
+            ]
+
+validateContainmentCycles :: SurfaceContractIR -> [ContractDiagnostic]
+validateContainmentCycles contract =
+    contract.contractSurfaces
+        |> mapMaybe cycleForSurface
+        |> List.nub
+    where
+        edges =
+            [ (surface.surfaceName, childName)
+            | surface <- contract.contractSurfaces
+            , fragment <- surface.surfaceFragments
+            , childName <- containedSurfaceNames fragment.fragmentOptions
+            ]
+        surfaceNames = map (.surfaceName) contract.contractSurfaces
+
+        cycleForSurface surface =
+            if any (reaches surface.surfaceName []) (childrenOf surface.surfaceName)
+                then Just (diagnostic "contained-surface-cycle" ("surface containment cycle includes " <> surface.surfaceName))
+                else Nothing
+
+        reaches target visited current
+            | current == target = True
+            | current `elem` visited = False
+            | current `notElem` surfaceNames = False
+            | otherwise = any (reaches target (current : visited)) (childrenOf current)
+
+        childrenOf parent = [child | (edgeParent, child) <- edges, edgeParent == parent]
+
+containedSurfaceNames :: [OptionIR] -> [Text]
+containedSurfaceNames = concatMap \case
+    LazyOption options -> containedSurfaceNames options
+    ContainsSurfaceOption surfaceName -> [surfaceName]
+    _ -> []
 
 validateSharedDeclarations :: SurfaceContractIR -> [ContractDiagnostic]
 validateSharedDeclarations contract =

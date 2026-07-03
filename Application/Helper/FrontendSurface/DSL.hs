@@ -32,6 +32,7 @@ module Application.Helper.FrontendSurface.DSL
     , ClientEvent
     , DomToken
     , Dto
+    , ContainsSurface
     , Append
     , Concat
     ) where
@@ -66,6 +67,7 @@ data PrimitiveOption
     | SessionOption Type
     | Emits Type
     | Contains Type
+    | ContainsSurface Type
     | UsesDto Type
 
 data SessionSelector
@@ -120,6 +122,7 @@ type OverlayLane name = 'OverlayLane name
 type ClientEvent name detail = 'ClientEvent name detail
 type DomToken name = 'DomToken name
 type Dto name fields = 'Dto name fields
+type ContainsSurface name = 'ContainsSurface name
 
 type family Append (left :: [kind]) (right :: [kind]) :: [kind] where
     Append '[] right = right

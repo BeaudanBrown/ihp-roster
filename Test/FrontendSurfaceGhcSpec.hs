@@ -2,7 +2,9 @@ module Test.FrontendSurfaceGhcSpec
     ( tests
     ) where
 
-import Application.Helper.FrontendSurface.ContractIR (SurfaceContractIR (..),
+import Application.Helper.FrontendSurface.ContractIR (FragmentIR (..),
+                                                      OptionIR (..),
+                                                      SurfaceContractIR (..),
                                                       SurfaceIR (..))
 import Application.Helper.FrontendSurface.Contracts (registeredFrontendSurfaceContractIR)
 import Application.Helper.FrontendSurface.Ghc.Lower
@@ -50,6 +52,49 @@ tests = describe "FrontendSurface GHC raw lowering" do
             , raw "Dto" [marker "BadDto", promotedList [fieldWithWire "MissingPayload" (raw "WireRef" [marker "MissingPayload"])] ]
             ])
             `shouldSatisfy` leftContains "field missingPayload references missing dto missing-payload on surface surface-lab"
+
+    it "lowers contained child surface topology from fragment options" do
+        let result = lowerRawRegistry (registryWithSurfaces
+                [ rawSurfaceWithPrimitives "ParentSurface" "Parent"
+                    [ scopePrimitive
+                    , raw "Fragment" [marker "ParentContent", promotedList [], promotedList [raw "ContainsSurface" [marker "Child"]]]
+                    ]
+                , rawSurfaceWithPrimitives "ChildSurface" "Child" [scopePrimitive]
+                ])
+        fmap (map (.surfaceFragments) . (.contractSurfaces)) result
+            `shouldBe` Right
+                [ [FragmentIR
+                    { fragmentMarker = "ParentContent"
+                    , fragmentName = "parent-content"
+                    , fragmentParams = []
+                    , fragmentOptions = [ContainsSurfaceOption "child"]
+                    }]
+                , []
+                ]
+
+    it "reports invalid and cyclic contained child surface references after GHC lowering" do
+        let cases =
+                [ ( registryWithPrimitives
+                        [ scopePrimitive
+                        , raw "Fragment" [marker "LabPanel", promotedList [], promotedList [raw "ContainsSurface" [marker "MissingSurface"]]]
+                        ]
+                  , "surface surface-lab fragment lab-panel contains missing surface missing"
+                  )
+                , ( registryWithSurfaces
+                        [ rawSurfaceWithPrimitives "ParentSurface" "Parent"
+                            [ scopePrimitive
+                            , raw "Fragment" [marker "ParentContent", promotedList [], promotedList [raw "ContainsSurface" [marker "Child"]]]
+                            ]
+                        , rawSurfaceWithPrimitives "ChildSurface" "Child"
+                            [ scopePrimitive
+                            , raw "Fragment" [marker "ChildContent", promotedList [], promotedList [raw "ContainsSurface" [marker "Parent"]]]
+                            ]
+                        ]
+                  , "surface containment cycle includes parent"
+                  )
+                ]
+        forM_ cases \(rawRegistry, expected) ->
+            lowerRawRegistry rawRegistry `shouldSatisfy` leftContains expected
 
     it "reports duplicate declarations and invalid reference kinds after GHC lowering" do
         let cases =

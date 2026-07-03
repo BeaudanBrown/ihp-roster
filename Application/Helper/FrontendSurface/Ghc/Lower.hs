@@ -191,6 +191,7 @@ lowerOption option
         (Just "SessionOption", marker : _) -> IR.SessionOptionIR <$> (protocol Naming.SessionName <$> rawMarkerName marker)
         (Just "Emits", marker : _) -> IR.EmitsOption <$> (protocol Naming.EventName <$> rawMarkerName marker)
         (Just "Contains", marker : _) -> IR.ContainsOption <$> (protocol Naming.DomTokenName <$> rawMarkerName marker)
+        (Just "ContainsSurface", marker : _) -> IR.ContainsSurfaceOption <$> (protocol Naming.SurfaceName <$> rawMarkerName marker)
         (Just "UsesDto", marker : _) -> IR.UsesDtoOption <$> (protocol Naming.ScopeName <$> rawMarkerName marker)
         _ -> Left ["unsupported option " <> option.rawTypePretty]
 
