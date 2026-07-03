@@ -1,6 +1,10 @@
 module Web.View.Admin.Index where
 
+import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.Export (ReportWeekSelection (..))
+import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
+import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
+                                  adminPageSurfaceImpl)
 import Web.View.Admin.Common
 import Web.View.Admin.Invites
 import Web.View.Admin.RosterGroups
@@ -38,8 +42,10 @@ instance View IndexView where
                     , appPanelCustomHeader = mempty
                     , appPanelClass = "overflow-hidden"
                     , appPanelBodyClass = ""
-                    , appPanelBody = [hsx|
-                        {renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes venueConfig awardLevels awardLevelBaseRates importedPayItems invitations}
+                    , appPanelBody = renderAdminPageContentSurface [hsx|
+                        <div id="admin-page-content-fragment">
+                            {renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes venueConfig awardLevels awardLevelBaseRates importedPayItems invitations}
+                        </div>
                     |]
                     }
          in renderAppPage (AppPageConfig
@@ -51,6 +57,16 @@ instance View IndexView where
                 {adminContentPanel}
             |]
             })
+
+renderAdminPageContentSurface :: (?context :: ControllerContext) => Html -> Html
+renderAdminPageContentSurface body =
+    renderFrontendSurfaceMount (adminPageSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) body
+
+currentVenueScopeId :: (?context :: ControllerContext) => UUID
+currentVenueScopeId =
+    case currentVenueOrNothing of
+        Just venue -> unpackId venue.id
+        Nothing    -> error "Admin page surface requires a current venue"
 
 renderConfigSectionsAccordion :: [RosterGroup] -> RosterGroup -> Bool -> [ShiftType] -> Bool -> VenueConfig -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [VenueInvitation] -> Html
 renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes venueConfig awardLevels awardLevelBaseRates importedPayItems invitations = [hsx|

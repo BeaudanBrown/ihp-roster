@@ -62,6 +62,12 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Roster Groups"
+                response `responseBodyShouldContain` "data-bepis-surface=\"admin-page\""
+                response `responseBodyShouldContain` "id=\"admin-page-content-fragment\""
+                response `responseBodyShouldContain` "data-bepis-surface=\"admin-invites\""
+                response `responseBodyShouldContain` "data-bepis-surface=\"admin-venue-config\""
+                response `responseBodyShouldContain` "data-bepis-surface=\"admin-shift-types\""
+                response `responseBodyShouldContain` "data-bepis-surface=\"admin-roster-groups\""
                 response `responseBodyShouldNotContain` "Exports"
                 response `responseBodyShouldContain` "id=\"invites-collapse\" class=\"accordion-collapse collapse\""
                 response `responseBodyShouldContain` "id=\"venue-settings-collapse\" class=\"accordion-collapse collapse\""

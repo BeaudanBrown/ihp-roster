@@ -200,6 +200,7 @@ instance Typeable marker => ReflectOption ('Layer marker) where reflectOption = 
 instance Typeable marker => ReflectOption ('SessionOption marker) where reflectOption = SessionOptionIR (protocolName @marker SessionName)
 instance Typeable marker => ReflectOption ('Emits marker) where reflectOption = EmitsOption (protocolName @marker EventName)
 instance Typeable marker => ReflectOption ('Contains marker) where reflectOption = ContainsOption (protocolName @marker DomTokenName)
+instance Typeable marker => ReflectOption ('ContainsSurface marker) where reflectOption = ContainsSurfaceOption (protocolName @marker SurfaceName)
 instance Typeable marker => ReflectOption ('UsesDto marker) where reflectOption = UsesDtoOption (protocolName @marker ScopeName)
 
 class ReflectSessionSelector (selector :: SessionSelector) where

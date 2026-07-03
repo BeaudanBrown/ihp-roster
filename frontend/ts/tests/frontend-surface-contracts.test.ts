@@ -1,5 +1,8 @@
 import {
+    FrontendSurfaceContainmentTopology,
     FrontendSurfaceRegistry,
+    adminPageSurfaceManifest,
+    isFrontendSurfaceContainmentEdge,
     isFrontendSurfaceName,
     parseFrontendSurfaceName,
     surfaceLabSurfaceManifest,
@@ -31,6 +34,25 @@ test("generated FrontendSurface registry exposes lab surface primitives", () => 
     assertDeepEqual(surfaceLabSurfaceManifest.sessions, ["drag"]);
     assertDeepEqual(surfaceLabSurfaceManifest.layers, ["drag-preview"]);
     assertDeepEqual(surfaceLabSurfaceManifest.domTokens, ["lab-root", "lab-dropzone"]);
+});
+
+test("generated FrontendSurface registry exposes Admin page containment topology", () => {
+    assertDeepEqual(adminPageSurfaceManifest.containedSurfaces["admin-page-content"], [
+        "admin-invites",
+        "admin-venue-config",
+        "admin-exports",
+        "admin-shift-types",
+        "admin-roster-groups",
+    ]);
+    assertDeepEqual(FrontendSurfaceRegistry["admin-page"], adminPageSurfaceManifest);
+    assertEqual(isFrontendSurfaceContainmentEdge(FrontendSurfaceContainmentTopology[0]), true);
+    assertDeepEqual(FrontendSurfaceContainmentTopology.filter((edge) => edge.parentSurface === "admin-page").map((edge) => edge.childSurface), [
+        "admin-invites",
+        "admin-venue-config",
+        "admin-exports",
+        "admin-shift-types",
+        "admin-roster-groups",
+    ]);
 });
 
 test("generated FrontendSurface registry exposes timesheets surface primitives", () => {

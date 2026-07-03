@@ -189,6 +189,26 @@ test("FrontendSurface config parser derives Profile live subscriptions from moun
     assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { kind: "profile_details_section" });
 });
 
+test("FrontendSurface config parser treats Admin page composition mount as non-subscribing", () => {
+    const config = parseFrontendSurfaceSubscriptionConfig({
+        surface: "admin-page",
+        scopeKey: "admin-page:venue-1",
+        mountKey: "primary",
+        mountState: null,
+        fragments: [
+            {
+                key: { kind: "admin-page-content", params: null },
+                targetId: "admin-page-content-fragment",
+                url: "/Admin",
+                protection: { kind: "replace" },
+                loadPolicy: "eager",
+            },
+        ],
+    });
+
+    assertEqual(config, null);
+});
+
 test("FrontendSurface config parser preserves reusable focused-field protection", () => {
     const config = parseFrontendSurfaceSubscriptionConfig({
         surface: "profile",

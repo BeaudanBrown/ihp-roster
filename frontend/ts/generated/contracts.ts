@@ -1418,12 +1418,19 @@ export type ProfileFragmentKey =
 ;
 export const profileSurfaceManifest = { surface: "profile", scopes: ["profile"], fragments: ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section", "profile-rsa-section"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
 
-export type AdminVenueSettingsSurfaceName = "admin-venue-settings";
-export type AdminVenueSettingsScope = { kind: "admin-venue-settings"; venueId: VenueId };
-export type AdminVenueSettingsFragmentKey =
-    | { kind: "admin-venue-settings"; params: Record<string, never> }
+export type AdminPageSurfaceName = "admin-page";
+export type AdminPageScope = { kind: "admin-page"; venueId: VenueId };
+export type AdminPageFragmentKey =
+    | { kind: "admin-page-content"; params: Record<string, never> }
 ;
-export const adminVenueSettingsSurfaceManifest = { surface: "admin-venue-settings", scopes: ["admin-venue-settings"], fragments: ["admin-venue-settings"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
+export const adminPageSurfaceManifest = { surface: "admin-page", scopes: ["admin-page"], fragments: ["admin-page-content"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: { "admin-page-content": ["admin-invites", "admin-venue-config", "admin-exports", "admin-shift-types", "admin-roster-groups"] } } as const;
+
+export type AdminVenueConfigSurfaceName = "admin-venue-config";
+export type AdminVenueConfigScope = { kind: "admin-venue-config"; venueId: VenueId };
+export type AdminVenueConfigFragmentKey =
+    | { kind: "admin-venue-config"; params: Record<string, never> }
+;
+export const adminVenueConfigSurfaceManifest = { surface: "admin-venue-config", scopes: ["admin-venue-config"], fragments: ["admin-venue-config"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
 
 export type AdminInvitesSurfaceName = "admin-invites";
 export type AdminInvitesScope = { kind: "admin-invites"; venueId: VenueId; rosterGroupId: RosterGroupId };
@@ -1463,7 +1470,7 @@ export type AdminXeroFragmentKey =
 ;
 export const adminXeroSurfaceManifest = { surface: "admin-xero", scopes: ["admin-xero"], fragments: ["admin-xero-shell", "admin-xero-staff-mappings", "admin-xero-pay-items", "admin-xero-timesheets"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
 
-export type FrontendSurfaceName = "surface-lab" | "timesheets" | "roster" | "leave-requests" | "billing" | "support" | "profile" | "admin-venue-settings" | "admin-invites" | "admin-exports" | "admin-shift-types" | "admin-roster-groups" | "admin-xero";
+export type FrontendSurfaceName = "surface-lab" | "timesheets" | "roster" | "leave-requests" | "billing" | "support" | "profile" | "admin-page" | "admin-venue-config" | "admin-invites" | "admin-exports" | "admin-shift-types" | "admin-roster-groups" | "admin-xero";
 export const FrontendSurfaceRegistry = {
     "surface-lab": surfaceLabSurfaceManifest,
     timesheets: timesheetsSurfaceManifest,
@@ -1472,7 +1479,8 @@ export const FrontendSurfaceRegistry = {
     billing: billingSurfaceManifest,
     support: supportSurfaceManifest,
     profile: profileSurfaceManifest,
-    "admin-venue-settings": adminVenueSettingsSurfaceManifest,
+    "admin-page": adminPageSurfaceManifest,
+    "admin-venue-config": adminVenueConfigSurfaceManifest,
     "admin-invites": adminInvitesSurfaceManifest,
     "admin-exports": adminExportsSurfaceManifest,
     "admin-shift-types": adminShiftTypesSurfaceManifest,
@@ -1488,6 +1496,11 @@ export function parseFrontendSurfaceName(value: unknown): FrontendSurfaceName {
 }
 export type FrontendSurfaceContainmentEdge = { parentSurface: FrontendSurfaceName; parentFragment: string; childSurface: FrontendSurfaceName };
 export const FrontendSurfaceContainmentTopology = [
+    { parentSurface: "admin-page", parentFragment: "admin-page-content", childSurface: "admin-invites" },
+    { parentSurface: "admin-page", parentFragment: "admin-page-content", childSurface: "admin-venue-config" },
+    { parentSurface: "admin-page", parentFragment: "admin-page-content", childSurface: "admin-exports" },
+    { parentSurface: "admin-page", parentFragment: "admin-page-content", childSurface: "admin-shift-types" },
+    { parentSurface: "admin-page", parentFragment: "admin-page-content", childSurface: "admin-roster-groups" },
 ] as const;
 export function isFrontendSurfaceContainmentEdge(value: unknown): value is FrontendSurfaceContainmentEdge {
     if (typeof value !== "object" || value === null) return false;

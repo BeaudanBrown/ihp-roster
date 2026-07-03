@@ -4,6 +4,7 @@
 
 module Web.Admin.FrontendSurface
     ( AdminVenueScopeValue (..)
+    , adminPageSurfaceImpl
     , adminVenueSettingsSurfaceImpl
     , adminInvitesSurfaceImpl
     , adminExportsSurfaceImpl
@@ -47,6 +48,18 @@ data AdminVenueScopeValue = AdminVenueScopeValue
     , adminRosterGroupId :: !(Maybe UUID.UUID)
     }
     deriving (Eq, Show)
+
+adminPageSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminPageSurface
+adminPageSurfaceImpl scope =
+    let config = FrontendSurfaceMountConfig
+            { mountSurfaceName = "admin-page"
+            , mountScopeKey = "admin-page:" <> tshow scope.adminVenueId
+            , mountKey = "primary"
+            , mountState = Aeson.Null
+            , mountFragments = [adminPageContentFragment]
+            }
+        impl = mkSurfaceImpl "admin-page" config (adminPageHandlers scope adminPageContentFragment)
+     in impl { surfaceImplMountConfig = config }
 
 adminVenueSettingsSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminVenueSettingsSurface
 adminVenueSettingsSurfaceImpl scope = oneFragmentImpl "admin-venue-config" scope adminVenueSettingsFragment
@@ -93,6 +106,20 @@ mountConfig name scope fragments =
 adminScopeKey :: Text -> AdminVenueScopeValue -> Text
 adminScopeKey name scope =
     name <> ":" <> tshow scope.adminVenueId <> maybe "" ((":" <>) . tshow) scope.adminRosterGroupId
+
+adminPageHandlers :: AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImplHandlers Surface.AdminPageSurface
+adminPageHandlers scope fragment =
+    SurfaceImplHandlers
+        { surfaceScopeHandlers = scopeHandler scope `HandlerCons` HandlerNil
+        , surfaceMountStateHandlers = HandlerNil
+        , surfaceFragmentHandlers = FrontendSurfaceFragmentHandler
+            { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
+            , fragmentHandlerMountedFragment = const fragment
+            , fragmentHandlerRender = const mempty
+            } `HandlerCons` HandlerNil
+        , surfaceActionHandlers = HandlerNil
+        , surfaceIntentHandlers = HandlerNil
+        }
 
 unitHandlers :: AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImplHandlers ('Surface marker '[ 'Scope scopeMarker '[ 'Field Surface.VenueId 'WireUUID ], 'Fragment fragment '[] '[ 'Eager ]])
 unitHandlers scope fragment =
@@ -221,7 +248,8 @@ protection = \case
         , containerSelector = config.focusedProtectionContainerSelector
         }
 
-adminVenueSettingsFragment, adminExportsFragment, adminShiftTypesFragment, adminRosterGroupsFragment, adminXeroShellFragment, adminXeroStaffMappingsFragment, adminXeroPayItemsFragment, adminXeroTimesheetsFragment :: FrontendSurfaceMountedFragment
+adminPageContentFragment, adminVenueSettingsFragment, adminExportsFragment, adminShiftTypesFragment, adminRosterGroupsFragment, adminXeroShellFragment, adminXeroStaffMappingsFragment, adminXeroPayItemsFragment, adminXeroTimesheetsFragment :: FrontendSurfaceMountedFragment
+adminPageContentFragment = fragment "admin-page-content" "admin-page-content-fragment" (pathTo AdminAction) FrontendSurfaceReplace
 adminVenueSettingsFragment = fragment "admin-venue-config" "admin-venue-settings-fragment" (pathTo ShowAdminVenueSettingsFragmentAction) FrontendSurfaceReplace
 adminExportsFragment = fragment "admin-exports" "admin-exports-fragment" (pathTo ShowAdminExportsFragmentAction) FrontendSurfaceReplace
 adminShiftTypesFragment = fragment "admin-shift-types" "admin-shift-types-fragment" (pathTo ShowAdminShiftTypesFragmentAction) (FrontendSurfaceFocusedFieldConfig FrontendSurfaceFocusedFieldProtectionConfig { focusedProtectionActiveSelector = "input[data-admin-shift-type-field-key]:focus", focusedProtectionFieldKeyAttr = "data-admin-shift-type-field-key", focusedProtectionFieldNameFallback = True, focusedProtectionContainerSelector = Just "form[data-admin-shift-type-row]" })

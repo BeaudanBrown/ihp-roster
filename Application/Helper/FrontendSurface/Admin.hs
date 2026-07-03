@@ -2,13 +2,15 @@
 {-# LANGUAGE TypeOperators #-}
 
 module Application.Helper.FrontendSurface.Admin
-    ( AdminVenueSettingsSurface
+    ( AdminPageSurface
+    , AdminVenueSettingsSurface
     , AdminInvitesSurface
     , AdminExportsSurface
     , AdminShiftTypesSurface
     , AdminRosterGroupsSurface
     , AdminXeroSurface
-    , AdminVenueSettingsScope
+    , AdminPageScope
+    , AdminVenueConfigScope
     , AdminInvitesScope
     , AdminExportsScope
     , AdminShiftTypesScope
@@ -16,7 +18,8 @@ module Application.Helper.FrontendSurface.Admin
     , AdminXeroScope
     , VenueId
     , RosterGroupId
-    , AdminVenueSettingsFragment
+    , AdminPageContentFragment
+    , AdminVenueConfigFragment
     , AdminInvitesFragment
     , AdminExportsFragment
     , AdminShiftTypesFragment
@@ -29,7 +32,8 @@ module Application.Helper.FrontendSurface.Admin
 
 import Application.Helper.FrontendSurface.DSL
 
-data AdminVenueSettingsScope
+data AdminPageScope
+data AdminVenueConfigScope
 data AdminInvitesScope
 data AdminExportsScope
 data AdminShiftTypesScope
@@ -38,14 +42,16 @@ data AdminXeroScope
 data VenueId
 data RosterGroupId
 
-data AdminVenueSettings
+data AdminPage
+data AdminVenueConfig
 data AdminInvites
 data AdminExports
 data AdminShiftTypes
 data AdminRosterGroups
 data AdminXero
 
-data AdminVenueSettingsFragment
+data AdminPageContentFragment
+data AdminVenueConfigFragment
 data AdminInvitesFragment
 data AdminExportsFragment
 data AdminShiftTypesFragment
@@ -55,10 +61,23 @@ data AdminXeroStaffMappingsFragment
 data AdminXeroPayItemsFragment
 data AdminXeroTimesheetsFragment
 
+type AdminPageSurface =
+    Surface AdminPage
+        '[ Scope AdminPageScope '[ Field VenueId 'WireUUID ]
+         , Fragment AdminPageContentFragment '[]
+            '[ 'Eager
+             , ContainsSurface AdminInvites
+             , ContainsSurface AdminVenueConfig
+             , ContainsSurface AdminExports
+             , ContainsSurface AdminShiftTypes
+             , ContainsSurface AdminRosterGroups
+             ]
+         ]
+
 type AdminVenueSettingsSurface =
-    Surface AdminVenueSettings
-        '[ Scope AdminVenueSettingsScope '[ Field VenueId 'WireUUID ]
-         , Fragment AdminVenueSettingsFragment '[] '[ 'Eager ]
+    Surface AdminVenueConfig
+        '[ Scope AdminVenueConfigScope '[ Field VenueId 'WireUUID ]
+         , Fragment AdminVenueConfigFragment '[] '[ 'Eager ]
          ]
 
 type AdminInvitesSurface =

@@ -7,6 +7,7 @@ module Application.Helper.FrontendSurface.Registry
 
 import Application.Helper.FrontendSurface.Admin (AdminExportsSurface,
                                                  AdminInvitesSurface,
+                                                 AdminPageSurface,
                                                  AdminRosterGroupsSurface,
                                                  AdminShiftTypesSurface,
                                                  AdminVenueSettingsSurface,
@@ -27,6 +28,7 @@ type RegisteredFrontendSurfaces =
      , BillingSurface
      , SupportSurface
      , ProfileSurface
+     , AdminPageSurface
      , AdminVenueSettingsSurface
      , AdminInvitesSurface
      , AdminExportsSurface
