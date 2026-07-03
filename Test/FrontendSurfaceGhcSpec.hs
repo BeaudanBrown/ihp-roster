@@ -206,12 +206,12 @@ timesheetsRawRegistry =
                     , fieldWithWire "StaffFilterId" (raw "WireOptional" [raw "WireUUID" []])
                     ]
                 ]
-            , raw "Fragment" [marker "TimesheetToolbar", promotedList [], promotedList [raw "Eager" []]]
-            , raw "Fragment" [marker "TimesheetDayColumns", promotedList [], promotedList [raw "Eager" []]]
+            , raw "Fragment" [marker "TimesheetToolbar", promotedList [], promotedList [raw "Eager" [], raw "Live" []]]
+            , raw "Fragment" [marker "TimesheetDayColumns", promotedList [], promotedList [raw "Eager" [], raw "Live" []]]
             , raw "Fragment"
                 [ marker "TimesheetDaySection"
                 , promotedList [field "DayOffset" "WireInt"]
-                , promotedList [raw "Lazy" [promotedList [raw "DependsOn" [marker "TimesheetDayColumns"]]]]
+                , promotedList [raw "Lazy" [promotedList [raw "DependsOn" [marker "TimesheetDayColumns"]]], raw "Live" []]
                 ]
             ]
         ]
@@ -224,13 +224,13 @@ rosterRawRegistry =
                 [ marker "RosterWeek"
                 , promotedList [field "VenueId" "WireUUID", field "RosterGroupId" "WireUUID", field "WeekOffset" "WireInt"]
                 ]
-            , raw "Fragment" [marker "RosterContent", promotedList [], promotedList [raw "Eager" [], raw "Contains" [marker "RosterGridToolbar"], raw "Contains" [marker "RosterGridFrame"]]]
-            , raw "Fragment" [marker "RosterGridToolbar", promotedList [], promotedList [raw "Eager" []]]
+            , raw "Fragment" [marker "RosterContent", promotedList [], promotedList [raw "Eager" [], raw "Live" [], raw "Contains" [marker "RosterGridToolbar"], raw "Contains" [marker "RosterGridFrame"]]]
+            , raw "Fragment" [marker "RosterGridToolbar", promotedList [], promotedList [raw "Eager" [], raw "Live" []]]
             , raw "Fragment"
                 [ marker "RosterGridFrame"
                 , promotedList []
                 , promotedList
-                    [ raw "Eager" []
+                    [ raw "Eager" [], raw "Live" []
                     , raw "Contains" [marker "RosterDayColumns"]
                     , raw "Contains" [marker "RosterDayRail"]
                     , raw "Contains" [marker "RosterWageRail"]
@@ -238,20 +238,20 @@ rosterRawRegistry =
                     , raw "Contains" [marker "RosterDaySection"]
                     ]
                 ]
-            , raw "Fragment" [marker "RosterDayColumns", promotedList [], promotedList [raw "Eager" []]]
-            , raw "Fragment" [marker "RosterDayRail", promotedList [], promotedList [raw "Eager" []]]
-            , raw "Fragment" [marker "RosterWageRail", promotedList [], promotedList [raw "Eager" []]]
-            , raw "Fragment" [marker "RosterSlotsGrid", promotedList [], promotedList [raw "Eager" []]]
-            , raw "Fragment" [marker "RosterStaffPanel", promotedList [], promotedList [raw "Lazy" [promotedList [raw "DependsOn" [marker "RosterContent"]]]]]
+            , raw "Fragment" [marker "RosterDayColumns", promotedList [], promotedList [raw "Eager" [], raw "Live" []]]
+            , raw "Fragment" [marker "RosterDayRail", promotedList [], promotedList [raw "Eager" [], raw "Live" []]]
+            , raw "Fragment" [marker "RosterWageRail", promotedList [], promotedList [raw "Eager" [], raw "Live" []]]
+            , raw "Fragment" [marker "RosterSlotsGrid", promotedList [], promotedList [raw "Eager" [], raw "Live" []]]
+            , raw "Fragment" [marker "RosterStaffPanel", promotedList [], promotedList [raw "Lazy" [promotedList [raw "DependsOn" [marker "RosterContent"]]], raw "Live" []]]
             , raw "Fragment"
                 [ marker "RosterDaySection"
                 , promotedList [field "RosterDayId" "WireUUID"]
-                , promotedList [raw "Lazy" [promotedList [raw "DependsOn" [marker "RosterGridFrame"], raw "Contains" [marker "RosterRow"]]]]
+                , promotedList [raw "Lazy" [promotedList [raw "DependsOn" [marker "RosterGridFrame"], raw "Contains" [marker "RosterRow"]]], raw "Live" []]
                 ]
             , raw "Fragment"
                 [ marker "RosterRow"
                 , promotedList [field "RosterDayId" "WireUUID", field "RowIndex" "WireInt"]
-                , promotedList [raw "Lazy" [promotedList [raw "DependsOn" [marker "RosterDaySection"]]]]
+                , promotedList [raw "Lazy" [promotedList [raw "DependsOn" [marker "RosterDaySection"]]], raw "Live" []]
                 ]
             , raw "Action" [marker "SetRosterLayoutMode", promotedList [field "RosterLayoutMode" "WireText"], promotedList [raw "Target" [marker "RosterContent"]]]
             , raw "Intent" [marker "SetRosterLayoutMode", promotedList [field "RosterLayoutMode" "WireText"], promotedList [raw "BackedBy" [marker "SetRosterLayoutMode"]]]

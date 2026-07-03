@@ -47,11 +47,11 @@ type TimesheetScopeBundle =
      ]
 
 type TimesheetFragmentBundle =
-    '[ Fragment TimesheetToolbar '[] '[ 'Eager ]
-     , Fragment TimesheetDayColumns '[] '[ 'Eager ]
+    '[ Fragment TimesheetToolbar '[] '[ 'Eager, 'Live ]
+     , Fragment TimesheetDayColumns '[] '[ 'Eager, 'Live ]
      , Fragment TimesheetDaySection
         '[ Field DayOffset 'WireInt ]
-        '[ 'Lazy '[ 'DependsOn TimesheetDayColumns ] ]
+        '[ 'Lazy '[ 'DependsOn TimesheetDayColumns ], 'Live ]
      ]
 
 type TimesheetsSurface =

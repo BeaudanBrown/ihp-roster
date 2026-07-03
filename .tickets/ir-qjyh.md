@@ -1,6 +1,6 @@
 ---
 id: ir-qjyh
-status: open
+status: closed
 deps: [ir-j23l]
 links: []
 created: 2026-07-03T04:17:38Z

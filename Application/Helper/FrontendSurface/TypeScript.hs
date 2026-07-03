@@ -18,6 +18,7 @@ renderFrontendSurfaceContractsTypeScript contract =
         ]
             <> brandAliasLines contract
             <> concatMap renderSurface contract.contractSurfaces
+            <> renderLiveTransportTypes contract
             <> renderRegistry contract
 
 renderSurface :: SurfaceIR -> [Text]
@@ -126,6 +127,7 @@ renderManifestObject surface =
     "{ surface: " <> tsString surface.surfaceName
         <> ", scopes: " <> renderStringArray (map (.scopeName) surface.surfaceScopes)
         <> ", fragments: " <> renderStringArray (map (.fragmentName) surface.surfaceFragments)
+        <> ", liveFragments: " <> renderStringArray (map (.fragmentName) (liveFragments surface))
         <> ", htmxActions: " <> renderStringArray (map (.htmxActionName) surface.surfaceHtmxActions)
         <> ", intents: " <> renderStringArray (map (.intentName) surface.surfaceIntents)
         <> ", sessions: " <> renderStringArray surface.surfaceSessions
@@ -161,6 +163,60 @@ containmentEdges contract =
     , fragment <- surface.surfaceFragments
     , childSurface <- containedSurfaceNames fragment.fragmentOptions
     ]
+
+liveFragments :: SurfaceIR -> [FragmentIR]
+liveFragments surface = filter (hasLiveOption . (.fragmentOptions)) surface.surfaceFragments
+
+hasLiveOption :: [OptionIR] -> Bool
+hasLiveOption = any \case
+    LiveOption -> True
+    LazyOption options -> hasLiveOption options
+    EffectOption _ options -> hasLiveOption options
+    _ -> False
+
+renderLiveTransportTypes :: SurfaceContractIR -> [Text]
+renderLiveTransportTypes contract =
+    [ "export type FrontendSurfaceLiveScope ="
+    ] <> liveScopeVariants <> [ ";" ]
+        <> [ "export type FrontendSurfaceLiveFragment =" ] <> liveFragmentVariants <> [ ";" ]
+        <> [ "export type FrontendSurfaceLiveFragmentProtection ="
+           , "    | { kind: \"none\" }"
+           , "    | { kind: \"focused-field\"; activeSelector: string; fieldKeyAttr: string; fieldNameFallback: boolean; containerSelector: string | null };"
+           , "export type FrontendSurfaceLiveWireFragment = { fragment: FrontendSurfaceLiveFragment; targetId: string; url: string; deferUntilBlur: boolean; protectionPolicy: FrontendSurfaceLiveFragmentProtection };"
+           , "export type FrontendSurfaceLiveSubscription = { scope: FrontendSurfaceLiveScope; scopeKey: string; resyncFragments: FrontendSurfaceLiveWireFragment[] };"
+           , "export function isFrontendSurfaceLiveScope(value: unknown): value is FrontendSurfaceLiveScope {"
+           , "    return typeof value === \"object\" && value !== null && isFrontendSurfaceName((value as Record<string, unknown>).surface);"
+           , "}"
+           , "export function parseFrontendSurfaceLiveScope(value: unknown): FrontendSurfaceLiveScope {"
+           , "    if (isFrontendSurfaceLiveScope(value)) return value;"
+           , "    throw new Error(\"Invalid FrontendSurfaceLiveScope\");"
+           , "}"
+           , "export function isFrontendSurfaceLiveFragment(value: unknown): value is FrontendSurfaceLiveFragment {"
+           , "    return typeof value === \"object\" && value !== null && isFrontendSurfaceName((value as Record<string, unknown>).surface);"
+           , "}"
+           , "export function parseFrontendSurfaceLiveFragment(value: unknown): FrontendSurfaceLiveFragment {"
+           , "    if (isFrontendSurfaceLiveFragment(value)) return value;"
+           , "    throw new Error(\"Invalid FrontendSurfaceLiveFragment\");"
+           , "}"
+           , ""
+           ]
+    where
+        liveSurfaces = filter (not . null . liveFragments) contract.contractSurfaces
+        liveScopeVariants =
+            case liveSurfaces of
+                [] -> ["    never"]
+                _  -> concatMap renderScopeVariant liveSurfaces
+        liveFragmentVariants =
+            case liveSurfaces of
+                [] -> ["    never"]
+                _  -> concatMap renderFragmentVariant liveSurfaces
+        renderScopeVariant surface =
+            case surface.surfaceScopes of
+                scope : _ -> ["    | { surface: " <> tsString surface.surfaceName <> "; scope: " <> tsTypeName scope.scopeName <> "Scope }"]
+                [] -> []
+        renderFragmentVariant surface =
+            let prefix = tsTypeName surface.surfaceName
+             in ["    | { surface: " <> tsString surface.surfaceName <> "; fragment: " <> prefix <> "FragmentKey }"]
 
 containedSurfaceNames :: [OptionIR] -> [Text]
 containedSurfaceNames = concatMap \case

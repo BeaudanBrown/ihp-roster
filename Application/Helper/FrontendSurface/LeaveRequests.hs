@@ -22,5 +22,5 @@ type LeaveRequestsSurface =
         '[ Scope LeaveRequestsScope
             '[ Field VenueId 'WireUUID
              ]
-         , Fragment LeaveRequestsContent '[] '[ 'Eager ]
+         , Fragment LeaveRequestsContent '[] '[ 'Eager, 'Live ]
          ]

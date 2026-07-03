@@ -1,6 +1,6 @@
 ---
 id: ir-j23l
-status: open
+status: closed
 deps: [ir-81wq]
 links: []
 created: 2026-07-03T04:17:38Z

@@ -92,7 +92,7 @@ type AdminXeroPageSurface =
 type AdminVenueSettingsSurface =
     Surface AdminVenueConfig
         '[ Scope AdminVenueConfigScope '[ Field VenueId 'WireUUID ]
-         , Fragment AdminVenueConfigFragment '[] '[ 'Eager ]
+         , Fragment AdminVenueConfigFragment '[] '[ 'Eager, 'Live ]
          ]
 
 type AdminInvitesSurface =
@@ -101,32 +101,32 @@ type AdminInvitesSurface =
             '[ Field VenueId 'WireUUID
              , Field RosterGroupId 'WireUUID
              ]
-         , Fragment AdminInvitesFragment '[] '[ 'Eager ]
+         , Fragment AdminInvitesFragment '[] '[ 'Eager, 'Live ]
          ]
 
 type AdminExportsSurface =
     Surface AdminExports
         '[ Scope AdminExportsScope '[ Field VenueId 'WireUUID ]
-         , Fragment AdminExportsFragment '[] '[ 'Eager ]
+         , Fragment AdminExportsFragment '[] '[ 'Eager, 'Live ]
          ]
 
 type AdminShiftTypesSurface =
     Surface AdminShiftTypes
         '[ Scope AdminShiftTypesScope '[ Field VenueId 'WireUUID ]
-         , Fragment AdminShiftTypesFragment '[] '[ 'Eager ]
+         , Fragment AdminShiftTypesFragment '[] '[ 'Eager, 'Live ]
          ]
 
 type AdminRosterGroupsSurface =
     Surface AdminRosterGroups
         '[ Scope AdminRosterGroupsScope '[ Field VenueId 'WireUUID ]
-         , Fragment AdminRosterGroupsFragment '[] '[ 'Eager ]
+         , Fragment AdminRosterGroupsFragment '[] '[ 'Eager, 'Live ]
          ]
 
 type AdminXeroSurface =
     Surface AdminXero
         '[ Scope AdminXeroScope '[ Field VenueId 'WireUUID ]
-         , Fragment AdminXeroShellFragment '[] '[ 'Eager ]
-         , Fragment AdminXeroStaffMappingsFragment '[] '[ 'Eager ]
-         , Fragment AdminXeroPayItemsFragment '[] '[ 'Eager ]
-         , Fragment AdminXeroTimesheetsFragment '[] '[ 'Eager ]
+         , Fragment AdminXeroShellFragment '[] '[ 'Eager, 'Live ]
+         , Fragment AdminXeroStaffMappingsFragment '[] '[ 'Eager, 'Live ]
+         , Fragment AdminXeroPayItemsFragment '[] '[ 'Eager, 'Live ]
+         , Fragment AdminXeroTimesheetsFragment '[] '[ 'Eager, 'Live ]
          ]

@@ -22,5 +22,5 @@ type BillingSurface =
         '[ Scope BillingVenue
             '[ Field VenueId 'WireUUID
              ]
-         , Fragment BillingStatus '[] '[ 'Eager ]
+         , Fragment BillingStatus '[] '[ 'Eager, 'Live ]
          ]

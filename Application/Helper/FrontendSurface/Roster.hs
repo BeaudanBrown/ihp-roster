@@ -64,32 +64,34 @@ type RosterFragmentBundle =
     '[ Fragment RosterContent
         '[]
         '[ 'Eager
+         , 'Live
          , 'Contains RosterGridToolbar
          , 'Contains RosterGridFrame
          ]
-     , Fragment RosterGridToolbar '[] '[ 'Eager ]
+     , Fragment RosterGridToolbar '[] '[ 'Eager, 'Live ]
      , Fragment RosterGridFrame
         '[]
         '[ 'Eager
+         , 'Live
          , 'Contains RosterDayColumns
          , 'Contains RosterDayRail
          , 'Contains RosterWageRail
          , 'Contains RosterSlotsGrid
          , 'Contains RosterDaySection
          ]
-     , Fragment RosterDayColumns '[] '[ 'Eager ]
-     , Fragment RosterDayRail '[] '[ 'Eager ]
-     , Fragment RosterWageRail '[] '[ 'Eager ]
-     , Fragment RosterSlotsGrid '[] '[ 'Eager ]
-     , Fragment RosterStaffPanel '[] '[ 'Lazy '[ 'DependsOn RosterContent ] ]
+     , Fragment RosterDayColumns '[] '[ 'Eager, 'Live ]
+     , Fragment RosterDayRail '[] '[ 'Eager, 'Live ]
+     , Fragment RosterWageRail '[] '[ 'Eager, 'Live ]
+     , Fragment RosterSlotsGrid '[] '[ 'Eager, 'Live ]
+     , Fragment RosterStaffPanel '[] '[ 'Lazy '[ 'DependsOn RosterContent ], 'Live ]
      , Fragment RosterDaySection
         '[ Field RosterDayId 'WireUUID ]
-        '[ 'Lazy '[ 'DependsOn RosterGridFrame, 'Contains RosterRow ] ]
+        '[ 'Lazy '[ 'DependsOn RosterGridFrame, 'Contains RosterRow ], 'Live ]
      , Fragment RosterRow
         '[ Field RosterDayId 'WireUUID
          , Field RowIndex 'WireInt
          ]
-        '[ 'Lazy '[ 'DependsOn RosterDaySection ] ]
+        '[ 'Lazy '[ 'DependsOn RosterDaySection ], 'Live ]
      ]
 
 type RosterInteractionBundle =

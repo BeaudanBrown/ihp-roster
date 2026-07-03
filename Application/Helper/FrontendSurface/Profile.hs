@@ -32,9 +32,9 @@ type ProfileSurface =
             '[ Field VenueId 'WireUUID
              , Field StaffId 'WireUUID
              ]
-         , Fragment ProfileDetailsSection '[] '[ 'Eager ]
-         , Fragment ProfilePreferencesSection '[] '[ 'Eager ]
-         , Fragment ProfileSecuritySection '[] '[ 'Eager ]
-         , Fragment ProfileLeaveSection '[] '[ 'Eager ]
-         , Fragment ProfileRsaSection '[] '[ 'Eager ]
+         , Fragment ProfileDetailsSection '[] '[ 'Eager, 'Live ]
+         , Fragment ProfilePreferencesSection '[] '[ 'Eager, 'Live ]
+         , Fragment ProfileSecuritySection '[] '[ 'Eager, 'Live ]
+         , Fragment ProfileLeaveSection '[] '[ 'Eager, 'Live ]
+         , Fragment ProfileRsaSection '[] '[ 'Eager, 'Live ]
          ]
