@@ -1,17 +1,17 @@
-module Test.LiveResourceInvalidationSpec where
+module Test.SurfaceInvalidationSpec where
 
-import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate.Runtime
+import Application.Helper.SurfaceResource
 import qualified Data.Set as Set
 import Data.UUID (fromWords)
 import IHP.Prelude
 import Test.Hspec
-import Web.LiveResourceInvalidation
-import Web.LiveResourceInvalidation (LiveSurfaceInvalidationTarget (..))
+import Web.SurfaceInvalidation
+import Web.SurfaceInvalidation (SurfaceInvalidationTarget (..))
 
 tests :: Spec
 tests = do
-    describe "Live resource invalidation planning" do
+    describe "Surface resource invalidation planning" do
         it "expands roster-affecting venue config resources to active roster week resources" do
             let venueId = fromWords 1 0 0 0
             let otherVenueId = fromWords 2 0 0 0
@@ -19,13 +19,13 @@ tests = do
             let otherRosterGroupId = fromWords 5 0 0 0
             let activeScopes = [(venueId, rosterGroupId, 0), (venueId, rosterGroupId, 1), (otherVenueId, otherRosterGroupId, 0)]
 
-            expandLiveResourcesWithoutContext activeScopes (Set.singleton (rosterEndTimesConfigResource venueId))
+            expandSurfaceResourcesWithoutContext activeScopes (Set.singleton (rosterEndTimesConfigResource venueId))
                 `shouldBe` Set.fromList
                     [ rosterEndTimesConfigResource venueId
                     , rosterWeekResource rosterGroupId 0
                     , rosterWeekResource rosterGroupId 1
                     ]
-            expandLiveResourcesWithoutContext activeScopes (Set.singleton (rosterWeekBoundaryConfigResource venueId))
+            expandSurfaceResourcesWithoutContext activeScopes (Set.singleton (rosterWeekBoundaryConfigResource venueId))
                 `shouldBe` Set.fromList
                     [ rosterWeekBoundaryConfigResource venueId
                     , rosterWeekResource rosterGroupId 0
@@ -61,7 +61,7 @@ tests = do
                         , xeroTimesheetsResource venueId
                         ]
 
-            expandLiveResourcesWithoutContext [] directResources
+            expandSurfaceResourcesWithoutContext [] directResources
                 `shouldBe` directResources
 
         it "renders live invalidation profile counts for timing diagnostics" do
@@ -75,7 +75,7 @@ tests = do
                         , deferUntilBlur = False
                         , protectionPolicy = NoProtection
                         }
-            let target = LiveSurfaceInvalidationTarget scope [fragment]
+            let target = SurfaceInvalidationTarget scope [fragment]
             let broadcastResult =
                     LiveUpdateBroadcastResult
                         { broadcastVersion = 3

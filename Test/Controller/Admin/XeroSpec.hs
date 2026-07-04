@@ -1,10 +1,10 @@
 module Test.Controller.Admin.XeroSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
-import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         fetchActiveRosterGroupSlotNames)
+import Application.Helper.SurfaceResource
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes (XeroLocalEarningsBucket (..))

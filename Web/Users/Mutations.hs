@@ -3,13 +3,13 @@ module Web.Users.Mutations
     , acceptedVenueInvitationTouchedResources
     ) where
 
-import Application.Helper.LiveResource
+import Application.Helper.SurfaceResource
 import Application.Helper.VenueBootstrap (ensureLinkedStaffRecord,
                                           provisionVenueMembership)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Web.Controller.Prelude
-import Web.LiveResourceInvalidation (invalidateTouchedResourcesWithoutContext)
+import Web.SurfaceInvalidation (invalidateTouchedResourcesWithoutContext)
 
 acceptVenueInvitation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UTCTime -> VenueInvitation -> User -> Text -> Staff -> IO (LiveMutationResult User)
 acceptVenueInvitation acceptedAt invitation user hashedPassword staffInput = do
@@ -93,7 +93,7 @@ applyAcceptedStaffInput staff staffInput =
         |> set #emergencyContactPhone staffInput.emergencyContactPhone
         |> set #idealShiftsPerWeek staffInput.idealShiftsPerWeek
 
-acceptedVenueInvitationTouchedResources :: VenueInvitation -> [LiveResource]
+acceptedVenueInvitationTouchedResources :: VenueInvitation -> [SurfaceResourceValue]
 acceptedVenueInvitationTouchedResources invitation =
     [adminInvitesResource invitation.venueId]
         <> case invitation.staffId of

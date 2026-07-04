@@ -1,7 +1,7 @@
 module Web.Controller.Billing where
 
 import Application.Billing.Stripe
-import Application.Helper.LiveResource (LiveMutationResult (..))
+import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.Url (appendQueryParams)
 import Control.Monad (guard, void)
 import qualified Data.Aeson as Aeson

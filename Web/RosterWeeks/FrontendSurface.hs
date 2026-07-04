@@ -32,8 +32,8 @@ import qualified Application.Helper.FrontendSurface.Interaction as SurfaceIntera
 import Application.Helper.FrontendSurface.Reflect (reflectRegisteredFrontendSurfaces)
 import qualified Application.Helper.FrontendSurface.Roster as Surface
 import Application.Helper.FrontendSurface.Runtime
-import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate.Runtime
+import Application.Helper.SurfaceResource
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Lazy as LBS
@@ -293,7 +293,7 @@ rosterCandidateMountedFragments scope plan =
         <> map (rosterDaySectionMountedFragment scope) plan.rosterMountedDayIds
         <> map (uncurry (rosterRowMountedFragment scope)) plan.rosterMountedRows
 
-rosterAffectedMountedFragments :: RosterWeekScopeValue -> RosterMountedFragmentPlan -> Set.Set LiveResource -> [FrontendSurfaceMountedFragment]
+rosterAffectedMountedFragments :: RosterWeekScopeValue -> RosterMountedFragmentPlan -> Set.Set SurfaceResourceValue -> [FrontendSurfaceMountedFragment]
 rosterAffectedMountedFragments scope plan touchedResources =
     rosterCandidateMountedFragments scope plan
         |> filter (fragmentDependsOnTouchedResource scope touchedResources . mountedFragmentToSurfaceFragment)
@@ -326,11 +326,11 @@ parseFragmentRowIndex :: Aeson.Value -> Maybe Int
 parseFragmentRowIndex value =
     Aeson.parseMaybe (Aeson.withObject "RosterRowFragment" (.: "rowIndex")) value
 
-fragmentDependsOnTouchedResource :: RosterWeekScopeValue -> Set.Set LiveResource -> RosterSurfaceFragment -> Bool
+fragmentDependsOnTouchedResource :: RosterWeekScopeValue -> Set.Set SurfaceResourceValue -> RosterSurfaceFragment -> Bool
 fragmentDependsOnTouchedResource scope touchedResources fragment =
     not (Set.null (Set.intersection touchedResources (Set.fromList (rosterFragmentDependencies scope fragment))))
 
-rosterFragmentDependencies :: RosterWeekScopeValue -> RosterSurfaceFragment -> [LiveResource]
+rosterFragmentDependencies :: RosterWeekScopeValue -> RosterSurfaceFragment -> [SurfaceResourceValue]
 rosterFragmentDependencies scope = \case
     RosterSurfaceContent -> rosterWeekDependencies scope
     RosterSurfaceGridToolbar -> rosterWeekDependencies scope
@@ -343,14 +343,14 @@ rosterFragmentDependencies scope = \case
     RosterSurfaceDaySection rosterDayId -> rosterDayDependencies scope rosterDayId
     RosterSurfaceRow rosterDayId _ -> rosterDayDependencies scope rosterDayId
 
-rosterWeekDependencies :: RosterWeekScopeValue -> [LiveResource]
+rosterWeekDependencies :: RosterWeekScopeValue -> [SurfaceResourceValue]
 rosterWeekDependencies scope =
     [ rosterWeekResource (unpackId scope.rosterWeekGroupId) scope.rosterWeekWeekOffset
     , rosterEndTimesConfigResource scope.rosterWeekVenueId
     , rosterWeekBoundaryConfigResource scope.rosterWeekVenueId
     ]
 
-rosterDayDependencies :: RosterWeekScopeValue -> UUID.UUID -> [LiveResource]
+rosterDayDependencies :: RosterWeekScopeValue -> UUID.UUID -> [SurfaceResourceValue]
 rosterDayDependencies scope rosterDayId =
     [ rosterDayResource rosterDayId
     , rosterEndTimesConfigResource scope.rosterWeekVenueId

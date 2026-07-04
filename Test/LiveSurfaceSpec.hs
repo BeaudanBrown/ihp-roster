@@ -10,10 +10,10 @@ import Application.Helper.Interaction.Types (InteractionCapability (..),
                                              InteractionFragmentSelector (..),
                                              InteractionSessionSelector (..),
                                              InteractionStaticSchema (..))
-import Application.Helper.LiveResource
 import Application.Helper.LiveSurface
 import Application.Helper.LiveSurface.Internal (SurfaceFragmentRef (..))
 import Application.Helper.LiveUpdate.Runtime
+import Application.Helper.SurfaceResource
 import Application.Helper.UiRegion (UiRegionTransitionProfile (..))
 import Application.Helper.View.LazySurface
 import Application.Helper.View.UiRegion
@@ -125,7 +125,7 @@ tests = describe "LiveSurface contract helpers" do
         let dependent = mkSurfaceFragmentContract ref (liveFragmentDependsOn (billingResource (expectUuid "11111111-1111-1111-1111-111111111111")) [])
         let resyncOnly = mkSurfaceFragmentContract ref (liveFragmentResyncOnly "no passive dependency")
 
-        fragmentContractDependencies dependent `shouldBe` DependsOnLiveResources (billingResource (expectUuid "11111111-1111-1111-1111-111111111111") :| [])
+        fragmentContractDependencies dependent `shouldBe` DependsOnSurfaceResourceValues (billingResource (expectUuid "11111111-1111-1111-1111-111111111111") :| [])
         fragmentContractDependencies resyncOnly `shouldBe` ResyncOnlyFragment "no passive dependency"
         fragmentContractLoadPolicy dependent `shouldBe` FragmentEager
         fragmentContractLoadPolicy resyncOnly `shouldBe` FragmentEager

@@ -22,7 +22,7 @@ websocket controllers, and `static/app-live-updates.js`.
 - Scope keys are server-owned and carried through surface config/messages.
 - Bepis live facts are emitted by `invalidateTouchedResources*` after actual
   touched-resource expansion/planning/broadcast. This does not replace
-  `LiveResource` or FrontendSurface dependency planning; it records that the
+  `SurfaceResourceValue` or FrontendSurface dependency planning; it records that the
   same invalidation helper consumed the touched-resource set used by passive
   invalidation.
 
@@ -84,11 +84,11 @@ default. Use `liveFragmentDescriptorWithLazyLoad` on descriptor-based surfaces o
 `fragmentContractWithLazyLoad` on hand-written typed definitions when a
 secondary expensive fragment should render a shared lazy placeholder first and
 fetch the same authoritative GET URL on demand. Use `liveFragmentDependsOn` when
-a fragment is passively invalidated by semantic `LiveResource` changes, and use
+a fragment is passively invalidated by semantic `SurfaceResourceValue` changes, and use
 `liveFragmentResyncOnly` only for fragments that have no passive resource
 subscription and are refreshed by resync or actor paths.
 
-`LiveResource` declares what business data changed. FrontendSurface dependency
+`SurfaceResourceValue` declares what business data changed. FrontendSurface dependency
 contracts declare which fragments read those resources. The dependency planner
 matches changed/expanded resources against active surface-native subscriptions to
 decide which mounted scope fragments are stale. Fragment containment paths then
@@ -96,7 +96,7 @@ normalize the selected refs before transport: exact duplicates collapse, a child
 ref is dropped when an ancestor ref is present, and sibling refs are preserved.
 
 Containment metadata is server-only. It complements, but does not replace,
-`LiveResource`: resources describe data semantics; containment paths describe DOM
+`SurfaceResourceValue`: resources describe data semantics; containment paths describe DOM
 ownership among already-selected fragments; structural fragment refs still
 describe how the browser refetches and swaps HTML.
 
@@ -220,16 +220,16 @@ subscription.
 
 ## Mutation Invalidation Boundary
 
-`Application.Helper.LiveResource` is the business-mutation boundary for passive
+`Application.Helper.SurfaceResource` is the business-mutation boundary for passive
 live invalidation. A mutation returns `LiveMutationResult a`, where
 `liveMutationValue` is the domain result and `liveMutationTouchedResources` is
-the set of semantic `LiveResource` values changed by the write.
+the set of semantic `SurfaceResourceValue` values changed by the write.
 
 Mutation modules own three things together:
 
 - business database writes and their audit/version side effects
 - semantic touched-resource calculation, including old/new scope comparisons
-- passive invalidation via `Web.LiveResourceInvalidation.invalidateTouchedResources`
+- passive invalidation via `Web.SurfaceInvalidation.invalidateTouchedResources`
 
 Controllers should parse, authorize, choose actor response shape, and inspect
 `liveMutationValue`. They should not perform passive refresh/broadcast calls
@@ -237,13 +237,13 @@ after a migrated write path. Actor-specific HTMX responses, toasts, redirects,
 dialog updates, and OOB fragments may remain in controllers when they only serve
 the requester.
 
-`Web.LiveResourceInvalidation` is the planner/adapter layer. It receives
-concrete generated `LiveResource` values (`FrontendSurfaceResourceValue`s),
-applies the small set of approved active-scope-bounded domain expansions, then
-asks `Web.LiveResourceInvalidation` to match those resources against generated
-`FrontendSurface` dependency metadata. The registry derives affected fragments
-from mounted candidates plus each fragment's declared `DependsOn` fields; it
-owns passive broadcast emission for matched scope/fragment targets. Feature
+`Web.SurfaceInvalidation` is the planner/orchestration layer. It receives
+concrete generated `SurfaceResourceValue`s, applies the small set of approved
+active-scope-bounded domain expansions, then matches those resources against
+generated `FrontendSurface` dependency metadata. The planner derives affected
+fragments from active mounted fragments plus each fragment's declared
+`DependsOn` fields; it owns passive broadcast emission for matched
+scope/fragment targets. Feature
 mutation modules must not call or recreate legacy feature refresh helpers such as
 `refreshRosterFragments`, `refreshProfileContent`, `refreshAdminXero`,
 `refreshTimesheetFragments`, or removed `broadcastSurface*` pathways.
@@ -268,14 +268,14 @@ concrete generated resources before the planner boundary.
 Allowed direct live calls after migration are limited to the passive planner,
 transport runtime, and actor-only response helpers:
 
-- `Web.LiveResourceInvalidation` is the passive adapter that turns planned targets
-  into raw transport invalidations
+- `Web.SurfaceInvalidation` is the passive planner that turns matched mounted
+  fragments into raw transport invalidations
 - `Application.Helper.LiveUpdate.Runtime` owns the transport bus and raw
   websocket invalidation primitives
 - controllers may call `setTypedLiveSurfaceActorRefresh` or helpers that only
   set actor refresh headers for the requester
-- background jobs should call a touched-resource invalidation adapter, such as
-  `invalidateTouchedResourcesWithoutContext`, when passive viewers need updates
+- background jobs should call the touched-resource invalidation boundary, such
+  as `invalidateTouchedResourcesWithoutContext`, when passive viewers need updates
 - controllers and mutation modules must not call typed broadcast/mutation
   helpers for passive updates; those compatibility pathways have been removed
 
@@ -304,8 +304,8 @@ When adding or migrating a mutation flow:
   `SurfaceImpl`/FrontendSurface fragment handler and return the authoritative
   target node. Legacy typed helpers remain compatibility-only.
 - Websocket subscription authorization must go through registered generated
-  surface metadata and the live surface registry/planner; unregistered wire
-  scopes are denied instead of falling back to default scope authorization.
+  surface metadata and `Web.SurfaceInvalidation`; unregistered wire scopes are
+  denied instead of falling back to default scope authorization.
 - Mutating controllers should use actor-only refresh helpers only for
   requester-local refresh triggers; passive invalidation belongs behind touched
   resources.
@@ -316,11 +316,11 @@ When adding or migrating a mutation flow:
 
 Live-update profiling has three layers:
 
-1. Request-scoped instrumentation in `Web.LiveResourceInvalidation` records the
-   `live_resources.invalidate` span and emits `[live-invalidation]` diagnostics
+1. Request-scoped instrumentation in `Web.SurfaceInvalidation` records the
+   `surface_resources.invalidate` span and emits `[live-invalidation]` diagnostics
    when `LIVE_INVALIDATION_PROFILING=1` is enabled.
 2. `profile-live-invalidation` is a synthetic benchmark for resource expansion,
-   candidate-scope derivation, registry planning, and target coalescing without
+   candidate-scope derivation, dependency planning, and target coalescing without
    websocket clients.
 3. `profile-live-load` is a k6 websocket profile that starts an isolated profile
    server and DB by default, subscribes live clients, performs mutations, and

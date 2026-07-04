@@ -3,7 +3,7 @@ module Test.Controller.UsersSpec where
 import Application.Helper.Controller (unsafeEnumFromText,
                                       updateVenueMembershipRoleWithAudit,
                                       validRosterWeekStartDays)
-import Application.Helper.LiveResource
+import Application.Helper.SurfaceResource
 import Application.Helper.VenueBootstrap (defaultVenueBootstrapTimezone)
 import Config
 import Data.Aeson (Value (Null))

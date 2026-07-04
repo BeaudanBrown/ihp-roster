@@ -19,7 +19,7 @@ module Web.RosterWeeks.Mutations
     , removeRosterWeekSlotDefinitionMutation
     ) where
 
-import Application.Helper.LiveResource
+import Application.Helper.SurfaceResource
 import Application.RosterTimesheets.Automation (cancelPendingRosterTimesheetCreationJobsForWeek,
                                                 enqueueRosterTimesheetCreationJobsForWeek,
                                                 rosterSlotHasGeneratedTimesheet)
@@ -28,8 +28,8 @@ import Data.List (nub)
 import Data.Time (getCurrentTime)
 import Data.UUID (UUID)
 import Web.Controller.Prelude
-import Web.LiveResourceInvalidation (invalidateTouchedResources)
 import Web.RosterWeeks.Service
+import Web.SurfaceInvalidation (invalidateTouchedResources)
 
 data RosterSlotMutationResult = RosterSlotMutationResult
     { rosterSlotMutationSlot                              :: !(Maybe RosterSlot)
@@ -183,16 +183,16 @@ deleteRosterSlotMutation rosterGroupId rosterWeek rosterDay rosterSlot = do
                 }
             (rosterSlotTouchedResources rosterGroupId rosterWeek.weekOffset rosterDay (Just deletedSlot))
 
-rosterWeekTouchedResources :: Id RosterGroup -> Int -> [LiveResource]
+rosterWeekTouchedResources :: Id RosterGroup -> Int -> [SurfaceResourceValue]
 rosterWeekTouchedResources rosterGroupId weekOffset =
     [ rosterWeekResource (unpackId rosterGroupId) weekOffset ]
 
-rosterDayTouchedResources :: Id RosterGroup -> Int -> RosterDay -> [LiveResource]
+rosterDayTouchedResources :: Id RosterGroup -> Int -> RosterDay -> [SurfaceResourceValue]
 rosterDayTouchedResources rosterGroupId weekOffset rosterDay =
     rosterWeekTouchedResources rosterGroupId weekOffset
         <> [rosterDayResource (unpackId rosterDay.id)]
 
-rosterSlotTouchedResources :: Id RosterGroup -> Int -> RosterDay -> Maybe RosterSlot -> [LiveResource]
+rosterSlotTouchedResources :: Id RosterGroup -> Int -> RosterDay -> Maybe RosterSlot -> [SurfaceResourceValue]
 rosterSlotTouchedResources rosterGroupId weekOffset rosterDay maybeSlot =
     rosterDayTouchedResources rosterGroupId weekOffset rosterDay
 

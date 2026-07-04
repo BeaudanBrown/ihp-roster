@@ -1,6 +1,6 @@
 module Application.Helper.FrontendSurface.Resource
     ( FrontendSurfaceResourceDefinition (..)
-    , FrontendSurfaceResourceValue (..)
+    , SurfaceResourceValue (..)
     , adminExportsResource
     , adminInvitesResource
     , adminRosterGroupsResource
@@ -53,7 +53,7 @@ data FrontendSurfaceResourceDefinition = FrontendSurfaceResourceDefinition
 
 -- | Concrete runtime resource value consumed by the generated FrontendSurface
 -- dependency planner.
-data FrontendSurfaceResourceValue = FrontendSurfaceResourceValue
+data SurfaceResourceValue = SurfaceResourceValue
     { resourceValueName   :: !Text
     , resourceValueFields :: !Aeson.Value
     }
@@ -75,7 +75,7 @@ frontendSurfaceResourceDefinitions =
             , resourceFields = resourceDefinition.resourceFields
             }
 
-leaveRequestsResource, staffLeaveRequestsResource, staffProfileResource, staffPreferencesResource, staffRsaDocumentsResource, rosterDayResource, adminVenueSettingsResource, rosterEndTimesConfigResource, rosterWeekBoundaryConfigResource, timesheetWeekBoundaryConfigResource, adminRosterGroupsResource, adminShiftTypesResource, adminInvitesResource, adminExportsResource, billingResource, xeroConnectionResource, xeroMappingsResource, xeroPayItemsResource, xeroTimesheetsResource :: UUID.UUID -> FrontendSurfaceResourceValue
+leaveRequestsResource, staffLeaveRequestsResource, staffProfileResource, staffPreferencesResource, staffRsaDocumentsResource, rosterDayResource, adminVenueSettingsResource, rosterEndTimesConfigResource, rosterWeekBoundaryConfigResource, timesheetWeekBoundaryConfigResource, adminRosterGroupsResource, adminShiftTypesResource, adminInvitesResource, adminExportsResource, billingResource, xeroConnectionResource, xeroMappingsResource, xeroPayItemsResource, xeroTimesheetsResource :: UUID.UUID -> SurfaceResourceValue
 leaveRequestsResource venueId = resource "leave-requests" ["venueId" Aeson..= uuid venueId]
 staffLeaveRequestsResource staffId = resource "staff-leave-requests" ["staffId" Aeson..= uuid staffId]
 staffProfileResource staffId = resource "staff-profile" ["staffId" Aeson..= uuid staffId]
@@ -96,48 +96,48 @@ xeroMappingsResource venueId = resource "xero-mappings" ["venueId" Aeson..= uuid
 xeroPayItemsResource venueId = resource "xero-pay-items" ["venueId" Aeson..= uuid venueId]
 xeroTimesheetsResource venueId = resource "xero-timesheets" ["venueId" Aeson..= uuid venueId]
 
-timesheetWeekResource :: UUID.UUID -> Int -> FrontendSurfaceResourceValue
+timesheetWeekResource :: UUID.UUID -> Int -> SurfaceResourceValue
 timesheetWeekResource venueId weekOffset = resource "timesheet-week" ["venueId" Aeson..= uuid venueId, "weekOffset" Aeson..= weekOffset]
 
-timesheetDayResource :: UUID.UUID -> Int -> Int -> FrontendSurfaceResourceValue
+timesheetDayResource :: UUID.UUID -> Int -> Int -> SurfaceResourceValue
 timesheetDayResource venueId weekOffset dayOffset = resource "timesheet-day" ["venueId" Aeson..= uuid venueId, "weekOffset" Aeson..= weekOffset, "dayOffset" Aeson..= dayOffset]
 
-rosterWeekResource :: UUID.UUID -> Int -> FrontendSurfaceResourceValue
+rosterWeekResource :: UUID.UUID -> Int -> SurfaceResourceValue
 rosterWeekResource rosterGroupId weekOffset = resource "roster-week" ["rosterGroupId" Aeson..= uuid rosterGroupId, "weekOffset" Aeson..= weekOffset]
 
-supportAwardRatesResource, supportPublicHolidaysResource :: FrontendSurfaceResourceValue
+supportAwardRatesResource, supportPublicHolidaysResource :: SurfaceResourceValue
 supportAwardRatesResource = resource "support-award-rates" []
 supportPublicHolidaysResource = resource "support-public-holidays" []
 
-resourceMatches :: Text -> FrontendSurfaceResourceValue -> Bool
+resourceMatches :: Text -> SurfaceResourceValue -> Bool
 resourceMatches name value = value.resourceValueName == name
 
-resourceFieldUuid :: Text -> FrontendSurfaceResourceValue -> Maybe UUID.UUID
+resourceFieldUuid :: Text -> SurfaceResourceValue -> Maybe UUID.UUID
 resourceFieldUuid fieldName value = do
     text <- resourceFieldText fieldName value
     UUID.fromText text
 
-resourceFieldInt :: Text -> FrontendSurfaceResourceValue -> Maybe Int
+resourceFieldInt :: Text -> SurfaceResourceValue -> Maybe Int
 resourceFieldInt fieldName value = do
     raw <- resourceField fieldName value
     case raw of
         Aeson.Number number -> Scientific.toBoundedInteger number
         _                   -> Nothing
 
-resourceFieldText :: Text -> FrontendSurfaceResourceValue -> Maybe Text
+resourceFieldText :: Text -> SurfaceResourceValue -> Maybe Text
 resourceFieldText fieldName value = do
     raw <- resourceField fieldName value
     case raw of
         Aeson.String text -> Just text
         _                 -> Nothing
 
-resourceField :: Text -> FrontendSurfaceResourceValue -> Maybe Aeson.Value
+resourceField :: Text -> SurfaceResourceValue -> Maybe Aeson.Value
 resourceField fieldName value = case value.resourceValueFields of
     Aeson.Object object -> Aeson.KeyMap.lookup (Aeson.Key.fromText fieldName) object
     _ -> Nothing
 
-resource :: Text -> [Aeson.Types.Pair] -> FrontendSurfaceResourceValue
-resource name fields = FrontendSurfaceResourceValue
+resource :: Text -> [Aeson.Types.Pair] -> SurfaceResourceValue
+resource name fields = SurfaceResourceValue
     { resourceValueName = name
     , resourceValueFields = Aeson.object fields
     }

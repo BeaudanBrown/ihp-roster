@@ -35,7 +35,7 @@ HTMX/intent behavior, mount metadata, and mount-state backend behavior.
 
 The final target removes/replaces author-facing surface contract machinery based
 on `FrontendCodec`, `FrontendSchema`, manual DTO schema groups,
-`TypedLiveSurfaceDefinition`, `Web.LiveResourceInvalidation`, and the removed generic
+`TypedLiveSurfaceDefinition`, `Web.SurfaceInvalidation`, and the removed generic
 server render cache for migrated surfaces. Renderer-internal IR/data structures
 may remain when they are fed only by the new
 `SurfaceContractIR`.
@@ -109,7 +109,7 @@ registered surface without an impl should fail compilation.
 During migration, the application has two registry families with an explicit
 boundary:
 
-- Legacy `TypedLiveSurfaceDefinition` surfaces remain in `Web.LiveResourceInvalidation`
+- Legacy `TypedLiveSurfaceDefinition` surfaces remain in `Web.SurfaceInvalidation`
   and continue to emit self-describing wire fragments containing concrete
   `targetId`, `url`, protection, and containment metadata.
 - Migrated `FrontendSurface` surfaces live only in
@@ -117,7 +117,7 @@ boundary:
   `RegisteredFrontendSurfaces`. Their runtime metadata is derived from
   `HasSurfaceImpl` instances by a typeclass fold over that type-level list.
 
-`Web.LiveResourceInvalidation` may remain the temporary orchestration module for
+`Web.SurfaceInvalidation` may remain the temporary orchestration module for
 shared planner/authorization entrypoints, but it must consume the derived
 `FrontendSurface` registry rather than re-listing migrated surfaces. In other
 words, a migrated surface can flow through a legacy-named compatibility function,
@@ -126,7 +126,7 @@ but the migrated surface's membership comes only from `RegisteredFrontendSurface
 Hybrid planning is a concatenation of two derived target sets:
 
 ```text
-touched LiveResource set + active scopes
+touched SurfaceResourceValue set + active scopes
   -> surface-native dependency planner
        -> legacy self-describing wire-fragment invalidations
   -> FrontendSurface dependency planner
@@ -476,7 +476,7 @@ boilerplate justifies it.
 
 ## Live Updates And Invalidation
 
-Keep `LiveResource` as the semantic mutation boundary, but change the
+Keep `SurfaceResourceValue` as the semantic mutation boundary, but change the
 successful-update flow for new `FrontendSurface` surfaces to be mount-resolved
 and universal. The server plans invalidations once, then delivers the same
 semantic invalidation through two request-correlated channels:
@@ -673,7 +673,7 @@ The first implementation target is a support-super-admin-only lab page. It must:
 - exercise one real HTMX action and one intent path;
 - emit/consume generated TypeScript contract shapes;
 - avoid old author-facing `FrontendCodec`, DTO schema groups,
-  `TypedLiveSurfaceDefinition`, `Web.LiveResourceInvalidation`, manual
+  `TypedLiveSurfaceDefinition`, `Web.SurfaceInvalidation`, manual
   `InteractionStaticSchema`, and raw protocol attrs in lab views.
 
 ## Timesheets Migration

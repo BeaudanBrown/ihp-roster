@@ -7,13 +7,13 @@ module Application.FwcMapd.Job
 
 import Application.Async.Queue
 import Application.FwcMapd.Sync
-import Application.Helper.LiveResource
+import Application.Helper.SurfaceResource
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
-import Web.LiveResourceInvalidation (invalidateTouchedResourcesWithoutContext)
+import Web.SurfaceInvalidation (invalidateTouchedResourcesWithoutContext)
 
 fwcMapdRefreshJobKind :: Text
 fwcMapdRefreshJobKind = "fwc_mapd_refresh"

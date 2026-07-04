@@ -2,7 +2,7 @@ module Web.Controller.Admin.Xero.ReferenceSync
     ( syncXeroPayrollReferenceDataAction
     ) where
 
-import Application.Helper.LiveResource (LiveMutationResult (..))
+import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.Xero
 import Application.Xero.Admin.ReadModel
 import Application.Xero.Connection

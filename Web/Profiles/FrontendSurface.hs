@@ -18,8 +18,8 @@ module Web.Profiles.FrontendSurface
 import Application.Helper.FrontendSurface.DSL
 import qualified Application.Helper.FrontendSurface.Profile as Surface
 import Application.Helper.FrontendSurface.Runtime
-import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate.Runtime
+import Application.Helper.SurfaceResource
 import Application.Helper.Url (appendQueryParams)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
@@ -66,12 +66,12 @@ profileCandidateMountedFragments _ =
     , profileRsaMountedFragment
     ]
 
-profileAffectedMountedFragments :: ProfileScopeValue -> Set.Set LiveResource -> [FrontendSurfaceMountedFragment]
+profileAffectedMountedFragments :: ProfileScopeValue -> Set.Set SurfaceResourceValue -> [FrontendSurfaceMountedFragment]
 profileAffectedMountedFragments scope touchedResources =
     profileCandidateMountedFragments scope
         |> filter (not . Set.null . Set.intersection touchedResources . Set.fromList . profileFragmentDependencies scope)
 
-profileFragmentDependencies :: ProfileScopeValue -> FrontendSurfaceMountedFragment -> [LiveResource]
+profileFragmentDependencies :: ProfileScopeValue -> FrontendSurfaceMountedFragment -> [SurfaceResourceValue]
 profileFragmentDependencies scope fragment =
     case fragment.mountedFragmentKey.fragmentKind of
         "profile-details-section" -> [staffProfileResource scope.profileStaffId, staffPreferencesResource scope.profileStaffId]

@@ -1,6 +1,6 @@
 module Web.Controller.Timesheets where
 
-import Application.Helper.LiveResource (LiveMutationResult (..))
+import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Web.Controller.Prelude
 import Web.Timesheets.Mutations
 import Web.Timesheets.Paths (timesheetWeekUrl)

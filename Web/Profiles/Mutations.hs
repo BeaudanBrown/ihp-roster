@@ -6,18 +6,18 @@ module Web.Profiles.Mutations
     , updateCurrentUserProfile
     ) where
 
-import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate
 import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
                                         fetchStaffRosterGroupIds,
                                         syncStaffRosterGroupAssignments)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection,
                                                  replaceStaffShiftPreferences)
+import Application.Helper.SurfaceResource
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
-import Web.LiveResourceInvalidation (invalidateTouchedResources)
+import Web.SurfaceInvalidation (invalidateTouchedResources)
 
 data ProfileUpdateMutationResult = ProfileUpdateMutationResult
     { profileUpdatedStaff       :: !Staff
@@ -44,7 +44,7 @@ updateCurrentUserProfile openSection staffInput submittedSelections = do
                 }
             (profileUpdateTouchedResources staff)
 
-profileUpdateTouchedResources :: Staff -> [LiveResource]
+profileUpdateTouchedResources :: Staff -> [SurfaceResourceValue]
 profileUpdateTouchedResources staff =
     [ staffProfileResource (unpackId staff.id)
     , staffPreferencesResource (unpackId staff.id)

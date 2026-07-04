@@ -1,7 +1,6 @@
-module Application.Helper.LiveResource
-    ( FrontendSurfaceResourceValue (..)
+module Application.Helper.SurfaceResource
+    ( SurfaceResourceValue (..)
     , LiveMutationResult (..)
-    , LiveResource
     , adminExportsResource
     , adminInvitesResource
     , adminRosterGroupsResource
@@ -39,15 +38,13 @@ import qualified Data.Text.IO as TextIO
 import IHP.Prelude
 import System.Environment (lookupEnv)
 
-type LiveResource = FrontendSurfaceResourceValue
-
 data LiveMutationResult a = LiveMutationResult
     { liveMutationValue            :: !a
-    , liveMutationTouchedResources :: !(Set.Set LiveResource)
+    , liveMutationTouchedResources :: !(Set.Set SurfaceResourceValue)
     }
     deriving (Eq, Show)
 
-liveMutationResult :: a -> [LiveResource] -> LiveMutationResult a
+liveMutationResult :: a -> [SurfaceResourceValue] -> LiveMutationResult a
 liveMutationResult value resources =
     LiveMutationResult
         { liveMutationValue = value

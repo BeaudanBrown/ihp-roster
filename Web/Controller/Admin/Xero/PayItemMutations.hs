@@ -2,7 +2,7 @@ module Web.Controller.Admin.Xero.PayItemMutations
     ( createMissingXeroPayItemsAction
     ) where
 
-import Application.Helper.LiveResource (LiveMutationResult (..))
+import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems

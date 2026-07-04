@@ -7,7 +7,7 @@ module Application.Xero.Keepalive
     ) where
 
 import Application.Async.Queue
-import Application.Helper.LiveResource
+import Application.Helper.SurfaceResource
 import Application.Helper.Xero
 import Application.Xero.Connection
 import Control.Monad (void)
@@ -16,7 +16,7 @@ import qualified Data.Text.IO as TextIO
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Job.Types
-import Web.LiveResourceInvalidation (invalidateTouchedResourcesWithoutContext)
+import Web.SurfaceInvalidation (invalidateTouchedResourcesWithoutContext)
 
 data XeroKeepaliveSweepSummary = XeroKeepaliveSweepSummary
     { dueConnectionCount :: !Int

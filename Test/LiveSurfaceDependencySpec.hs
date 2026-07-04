@@ -1,9 +1,9 @@
 module Test.LiveSurfaceDependencySpec where
 
 import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceMountedFragment (..))
-import Application.Helper.LiveResource
 import Application.Helper.LiveSurface (typedSurfaceDependsOn)
 import Application.Helper.LiveUpdate.Runtime
+import Application.Helper.SurfaceResource
 import Application.Support.LiveUpdates (supportAffectedMountedFragments,
                                         supportFragmentDependencies)
 import qualified Data.Set as Set
@@ -13,11 +13,11 @@ import Test.Hspec
 import Web.Billing.FrontendSurface (BillingScopeValue (..),
                                     billingAffectedMountedFragments,
                                     billingFragmentDependencies)
-import Web.LiveResourceInvalidation (LiveSurfaceInvalidationTarget (..),
-                                     planRegisteredLiveSurfaceInvalidationsWithoutContext)
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
                                      profileAffectedMountedFragments,
                                      profileFragmentDependencies)
+import Web.SurfaceInvalidation (SurfaceInvalidationTarget (..),
+                                planSurfaceInvalidationsWithoutContext)
 import Web.Timesheets.FrontendSurface (TimesheetSurfaceFragment (..),
                                        TimesheetWeekScopeValue (..),
                                        TimesheetsMountStateValue (..),
@@ -64,7 +64,7 @@ tests = do
             let venueId = fromWords 1 0 0 0
             let scope = timesheetWeekLiveScope venueId 2
             let subscription = liveTestSubscription scope [LiveUpdateWireFragment (timesheetDaySectionLiveFragment 4) "timesheet-day-section-4" "/ShowTimesheetDaySectionFragment?weekOffset=2&dayOffset=4&showApproved=true&showAllStaff=true" False NoProtection]
-            let targets = planRegisteredLiveSurfaceInvalidationsWithoutContext (Set.fromList [timesheetDayResource venueId 2 4]) [subscription]
+            let targets = planSurfaceInvalidationsWithoutContext (Set.fromList [timesheetDayResource venueId 2 4]) [subscription]
 
             map targetFragments targets
                 `shouldBe` [[LiveUpdateWireFragment (timesheetDaySectionLiveFragment 4) "timesheet-day-section-4" "/ShowTimesheetDaySectionFragment?weekOffset=2&dayOffset=4&showApproved=true&showAllStaff=true" False NoProtection]]
@@ -84,7 +84,7 @@ tests = do
                         [ LiveUpdateWireFragment supportAwardRatesSectionLiveFragment "support-award-rates" "/support/award-rates" False NoProtection
                         ]
                     ]
-            let targets = planRegisteredLiveSurfaceInvalidationsWithoutContext (Set.fromList [xeroPayItemsResource venueId]) subscriptions
+            let targets = planSurfaceInvalidationsWithoutContext (Set.fromList [xeroPayItemsResource venueId]) subscriptions
 
             map (map fragmentKey . targetFragments) targets `shouldBe` [[adminXeroPayItemsLiveFragment]]
 

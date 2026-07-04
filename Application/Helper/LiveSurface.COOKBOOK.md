@@ -14,7 +14,7 @@ fragments. The source of truth for production authoring is the type-level
   with exactly one `Authorize ...` or `NoAuth` marker.
 - **Live fragment**: a `Fragment ... '[ ..., Live, ... ]` whose currently
   mounted instance can be invalidated over the websocket.
-- **Resource**: a generated `FrontendSurfaceResourceValue` emitted by mutation
+- **Resource**: a generated `SurfaceResourceValue` emitted by mutation
   or domain code to describe concrete data that changed.
 - **Dependency planning**: active subscriptions provide mounted wire fragments;
   generated `DependsOn` declarations turn scope/fragment params into concrete
@@ -44,7 +44,7 @@ fragments. The source of truth for production authoring is the type-level
    URL, focused-field protection, load policy, and renderer.
 5. Render mounts/fragments with FrontendSurface runtime helpers; do not handwrite
    live-update attrs or construct wire DTOs in feature views.
-6. Make mutations emit generated `LiveResource` smart constructors for the
+6. Make mutations emit generated `SurfaceResourceValue` smart constructors for the
    concrete values they changed. Keep any broad domain expansion producer-side or
    in a small feature-owned helper before invalidation.
 7. Add focused Hspec/frontend/E2E coverage for mount config, subscription
@@ -59,5 +59,5 @@ legacy registry/catalog adapters, `SurfaceProjection` cache plumbing, custom
 FrontendSurface dependency hooks, or handwritten live transport case lists.
 Surface metadata comes from `RegisteredFrontendSurfaces`; runtime subscriptions
 are surface-native `LiveUpdateSubscription` values; passive invalidation is
-planned in `Web.LiveResourceInvalidation` via generated FrontendSurface
+planned in `Web.SurfaceInvalidation` via generated FrontendSurface
 resources and dependencies.

@@ -19,8 +19,8 @@ import Application.Helper.Controller (automaticMealBreakForShift,
                                       unsafeEnumFromText,
                                       validRosterShiftDurationMinutes,
                                       venueWeekOffsetForDay, venueWeekStartDate)
-import Application.Helper.LiveResource
 import Application.Helper.Staff (isLinkedActiveStaff)
+import Application.Helper.SurfaceResource
 import Control.Monad (forM, void)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
@@ -33,7 +33,7 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Job.Types
 import IHP.ModelSupport (ModelContext, sqlQuery, sqlQueryScalar)
-import Web.LiveResourceInvalidation (invalidateTouchedResourcesWithoutContext)
+import Web.SurfaceInvalidation (invalidateTouchedResourcesWithoutContext)
 
 rosterTimesheetCreationJobKind :: Text
 rosterTimesheetCreationJobKind = "roster_timesheet_creation"
@@ -176,7 +176,7 @@ performRosterTimesheetCreationJob appJob = do
                                     invalidateTouchedResourcesWithoutContext "timesheet.roster_automation.create" $
                                         liveMutationResult timesheetEntry [rosterTimesheetTouchedResource venueConfig rosterWeek workedOn]
 
-rosterTimesheetTouchedResource :: VenueConfig -> RosterWeek -> Day -> LiveResource
+rosterTimesheetTouchedResource :: VenueConfig -> RosterWeek -> Day -> SurfaceResourceValue
 rosterTimesheetTouchedResource venueConfig rosterWeek workedOn =
     timesheetDayResource rosterWeek.venueId weekOffset dayOffset
     where

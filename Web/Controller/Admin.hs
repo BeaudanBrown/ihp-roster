@@ -1,10 +1,10 @@
 module Web.Controller.Admin where
 
 import Application.Helper.Export
-import Application.Helper.LiveResource
 import Application.Helper.PasskeySetupTokens
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
+import Application.Helper.SurfaceResource
 import Application.Helper.Url (appendQueryParams)
 import Application.Helper.WeekBoundaries (validRosterWeekStartDays,
                                           weekdayIndexLabel)
@@ -22,7 +22,7 @@ import Web.Controller.Admin.Support
 import Web.Controller.Admin.Xero
 import Web.Controller.Admin.Xero.Responses
 import Web.Controller.Prelude
-import Web.LiveResourceInvalidation (invalidateTouchedResources)
+import Web.SurfaceInvalidation (invalidateTouchedResources)
 import Web.View.Admin.Exports
 import Web.View.Admin.Index
 import Web.View.Admin.Invites
@@ -31,11 +31,11 @@ import Web.View.Admin.ShiftTypes
 import Web.View.Admin.VenueSettings
 import Web.View.Admin.Xero
 
-profileLiveResourcesFor ::
+profileSurfaceResourcesFor ::
     (?context :: ControllerContext, ?request :: Request) =>
     Text ->
-    IO [LiveResource]
-profileLiveResourcesFor resourceName = do
+    IO [SurfaceResourceValue]
+profileSurfaceResourcesFor resourceName = do
     let venueUuid = unpackId currentVenueId
     let weekOffset = paramOrDefault @Int 0 "weekOffset"
     let dayOffset = paramOrDefault @Int 0 "dayOffset"
@@ -176,7 +176,7 @@ instance Controller AdminController where
         profilingEnabled <- liftIO isRequestProfilingEnabled
         redirectPermissionDeniedUnless profilingEnabled "Live profiling endpoints are only available while profiling is enabled."
         let resourceName = param @Text "resource"
-        resources <- profileLiveResourcesFor resourceName
+        resources <- profileSurfaceResourcesFor resourceName
         _ <- invalidateTouchedResources ("profile.live." <> resourceName) (liveMutationResult () resources)
         respondHtml "ok"
 

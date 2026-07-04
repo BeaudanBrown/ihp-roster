@@ -9,7 +9,7 @@ module Application.InvitationDelivery.Job
 
 import Application.Async.Queue
 import Application.Helper.Controller (unsafeEnumFromText)
-import Application.Helper.LiveResource
+import Application.Helper.SurfaceResource
 import Application.Helper.VenueInvitation (deliverVenueInvitationEmail)
 import Application.Helper.VenueOnboardingInvitation (deliverVenueOnboardingInvitationEmail)
 import Control.Monad (void)
@@ -17,7 +17,7 @@ import qualified Data.Aeson as Aeson
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig (FrameworkConfig)
-import Web.LiveResourceInvalidation (invalidateTouchedResourcesWithoutContext)
+import Web.SurfaceInvalidation (invalidateTouchedResourcesWithoutContext)
 
 venueInvitationDeliveryJobKind :: Text
 venueInvitationDeliveryJobKind = "venue_invitation_delivery"

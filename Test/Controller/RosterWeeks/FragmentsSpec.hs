@@ -7,11 +7,11 @@ import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceFragmentKey (.
                                                    FrontendSurfaceMountConfig (..),
                                                    FrontendSurfaceMountedFragment (..),
                                                    SurfaceImpl (..))
-import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
+import Application.Helper.SurfaceResource
 import Config
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as ByteString
@@ -32,13 +32,13 @@ import Test.Hspec
 import Test.Support
 import Web.Controller.RosterWeeks ()
 import Web.FrontController ()
-import Web.LiveResourceInvalidation (LiveSurfaceInvalidationTarget (..),
-                                     planRegisteredLiveSurfaceInvalidations)
 import Web.RosterWeeks.Dom (rosterDayColumnsFragmentId, rosterDaySectionDomId,
                             rosterGridFrameFragmentId, rosterRowDomIdText,
                             rosterStaffPanelFragmentId)
 import Web.RosterWeeks.FrontendSurface
 import Web.Routes
+import Web.SurfaceInvalidation (SurfaceInvalidationTarget (..),
+                                planSurfaceInvalidations)
 import Web.Types
 
 countText :: Text -> Text -> Int
@@ -108,7 +108,7 @@ tests = beforeAll testContext do
                                     , subscriptionScopeKey = liveUpdateScopeKey scope
                                     , subscriptionMountedFragments = rosterSurfaceWireFragments (rosterCandidateMountedFragments scopeValue mountedPlan)
                                     }
-                        pure $ planRegisteredLiveSurfaceInvalidations
+                        pure $ planSurfaceInvalidations
                             (Set.singleton (rosterWeekResource rosterWeek.rosterGroupId rosterWeek.weekOffset))
                             [subscription]
 
@@ -904,7 +904,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-week-overview-date=\"2025-01-01\""
                 response `responseBodyShouldContain` "weekDate=2025-01-13"
 
-targetFragmentKeys :: [LiveSurfaceInvalidationTarget] -> [[LiveFragmentKey]]
+targetFragmentKeys :: [SurfaceInvalidationTarget] -> [[LiveFragmentKey]]
 targetFragmentKeys targets =
     [ map (.fragmentKey) target.targetFragments
     | target <- targets

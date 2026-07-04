@@ -16,7 +16,7 @@ import Application.Helper.FrontendSurface.Resource
 import qualified Application.Helper.FrontendSurface.Roster as RosterSurface
 import Application.Helper.FrontendSurface.Runtime
 import qualified Application.Helper.FrontendSurface.Timesheets as TimesheetsSurface
-import Application.Helper.LiveResource
+import Application.Helper.SurfaceResource
 import qualified Data.Aeson as Aeson
 import Data.Proxy (Proxy (..))
 import qualified Data.Text as Text
@@ -240,7 +240,7 @@ tests = describe "FrontendSurface DSL foundation" do
         let venueId = fromMaybe (error "invalid UUID") (UUID.fromString "11111111-1111-1111-1111-111111111111")
 
         timesheetDayResource venueId 0 2
-            `shouldBe` FrontendSurfaceResourceValue
+            `shouldBe` SurfaceResourceValue
                 { resourceValueName = "timesheet-day"
                 , resourceValueFields = Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "weekOffset" Aeson..= (0 :: Int), "dayOffset" Aeson..= (2 :: Int)]
                 }

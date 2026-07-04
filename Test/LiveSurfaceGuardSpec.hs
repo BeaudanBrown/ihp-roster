@@ -39,13 +39,13 @@ tests = describe "LiveSurface strict API guard" do
 legacyRegistryAdapterViolations :: IO [Text]
 legacyRegistryAdapterViolations = do
     registryExists <- doesFileExist "Web/LiveSurfaceRegistry.hs"
-    invalidation <- Text.readFile "Web/LiveResourceInvalidation.hs"
+    invalidation <- Text.readFile "Web/SurfaceInvalidation.hs"
     pure $ concat
         [ ["Web/LiveSurfaceRegistry.hs: legacy registry adapter module should stay deleted" | registryExists]
-        , ["Web/LiveResourceInvalidation.hs: manual legacy manifestDescriptor entry bypasses FrontendSurface descriptors" | "manifestDescriptor \"" `Text.isInfixOf` invalidation]
-        , ["Web/LiveResourceInvalidation.hs: registeredLiveSurfaceManifestCatalog should not return as a parallel registry list" | "registeredLiveSurfaceManifestCatalog" `Text.isInfixOf` invalidation]
-        , ["Web/LiveResourceInvalidation.hs: wire kind helpers belong in Application.Helper.LiveUpdate.Internal" | "liveUpdateScopeKind ::" `Text.isInfixOf` invalidation || "liveFragmentKeyKind ::" `Text.isInfixOf` invalidation]
-        , ["Web/LiveResourceInvalidation.hs: legacy registeredLiveSurfaceCatalog should be removed after FrontendSurface migration" | "registeredLiveSurfaceCatalog" `Text.isInfixOf` invalidation]
+        , ["Web/SurfaceInvalidation.hs: manual legacy manifestDescriptor entry bypasses FrontendSurface descriptors" | "manifestDescriptor \"" `Text.isInfixOf` invalidation]
+        , ["Web/SurfaceInvalidation.hs: registeredLiveSurfaceManifestCatalog should not return as a parallel registry list" | "registeredLiveSurfaceManifestCatalog" `Text.isInfixOf` invalidation]
+        , ["Web/SurfaceInvalidation.hs: wire kind helpers belong in Application.Helper.LiveUpdate.Internal" | "liveUpdateScopeKind ::" `Text.isInfixOf` invalidation || "liveFragmentKeyKind ::" `Text.isInfixOf` invalidation]
+        , ["Web/SurfaceInvalidation.hs: legacy registeredLiveSurfaceCatalog should be removed after FrontendSurface migration" | "registeredLiveSurfaceCatalog" `Text.isInfixOf` invalidation]
         ]
 
 frontendContractWatcherViolations :: IO [Text]
@@ -228,7 +228,7 @@ isAllowedInfrastructureFile path =
             , "Web/Billing/FrontendSurface.hs"
             , "Web/Controller/LiveUpdates.hs"
             , "Web/LeaveRequests/FrontendSurface.hs"
-            , "Web/LiveResourceInvalidation.hs"
+            , "Web/SurfaceInvalidation.hs"
             , "Web/Profiles/FrontendSurface.hs"
             , "Web/RosterWeeks/FrontendSurface.hs"
             , "Web/Staff/Mutations.hs"

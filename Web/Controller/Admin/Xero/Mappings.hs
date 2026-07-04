@@ -6,9 +6,9 @@ module Web.Controller.Admin.Xero.Mappings
     , suggestXeroStaffMappingAction
     ) where
 
-import Application.Helper.LiveResource (LiveMutationResult (..))
 import Application.Helper.Profiling
 import Application.Helper.Staff (isLinkedActiveStaff)
+import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
 import Application.Xero.Admin.ReadModel

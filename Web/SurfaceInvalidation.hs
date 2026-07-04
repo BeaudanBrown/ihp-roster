@@ -1,18 +1,18 @@
-module Web.LiveResourceInvalidation
+module Web.SurfaceInvalidation
     ( LiveInvalidationProfile (..)
     , LiveInvalidationStageDurations (..)
-    , LiveSurfaceInvalidationTarget (..)
-    , authorizeRegisteredLiveSurfaceScope
-    , candidateLiveScopesForResourcesWithoutContext
-    , expandLiveResources
-    , expandLiveResourcesWithoutContext
+    , SurfaceInvalidationTarget (..)
+    , authorizeSurfaceScope
+    , candidateLiveScopesForSurfaceResourcesWithoutContext
+    , expandSurfaceResources
+    , expandSurfaceResourcesWithoutContext
     , invalidateTouchedResources
     , invalidateTouchedResourcesWithoutContext
     , liveInvalidationProfile
-    , performLiveSurfaceInvalidationTarget
-    , performLiveSurfaceInvalidationTargetWithoutContext
-    , planRegisteredLiveSurfaceInvalidations
-    , planRegisteredLiveSurfaceInvalidationsWithoutContext
+    , performSurfaceInvalidationTarget
+    , performSurfaceInvalidationTargetWithoutContext
+    , planSurfaceInvalidations
+    , planSurfaceInvalidationsWithoutContext
     , renderLiveInvalidationProfile
     ) where
 
@@ -20,10 +20,10 @@ import Application.Bepis.Fact (BepisFact (..), BepisLiveFact (..),
                                BepisLiveMechanism (..), emitBepisFact)
 import Application.Helper.FrontendSurface.Authorization (authorizeFrontendSurfaceLiveScope)
 import Application.Helper.FrontendSurface.DependencyPlanner (planFrontendSurfaceWireInvalidation)
-import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.Profiling (profileActionSpanWithDetail)
 import Application.Helper.RosterGroups (fetchStaffRosterGroupIds)
+import Application.Helper.SurfaceResource
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -33,47 +33,47 @@ import GHC.Clock (getMonotonicTimeNSec)
 import qualified System.Environment as Environment
 import Web.Controller.Prelude
 
-data LiveSurfaceInvalidationTarget = LiveSurfaceInvalidationTarget
+data SurfaceInvalidationTarget = SurfaceInvalidationTarget
     { targetScope     :: !LiveUpdateScope
     , targetFragments :: ![LiveUpdateWireFragment]
     }
     deriving (Eq, Show)
 
-authorizeRegisteredLiveSurfaceScope :: (?context :: ControllerContext, ?modelContext :: ModelContext) => LiveUpdateScope -> IO Bool
-authorizeRegisteredLiveSurfaceScope = authorizeFrontendSurfaceLiveScope
+authorizeSurfaceScope :: (?context :: ControllerContext, ?modelContext :: ModelContext) => LiveUpdateScope -> IO Bool
+authorizeSurfaceScope = authorizeFrontendSurfaceLiveScope
 
-planRegisteredLiveSurfaceInvalidations :: (?context :: ControllerContext) => Set.Set LiveResource -> [LiveUpdateSubscription] -> [LiveSurfaceInvalidationTarget]
-planRegisteredLiveSurfaceInvalidations = planRegisteredLiveSurfaceInvalidationsWithoutContext
+planSurfaceInvalidations :: (?context :: ControllerContext) => Set.Set SurfaceResourceValue -> [LiveUpdateSubscription] -> [SurfaceInvalidationTarget]
+planSurfaceInvalidations = planSurfaceInvalidationsWithoutContext
 
-planRegisteredLiveSurfaceInvalidationsWithoutContext :: Set.Set LiveResource -> [LiveUpdateSubscription] -> [LiveSurfaceInvalidationTarget]
-planRegisteredLiveSurfaceInvalidationsWithoutContext resources subscriptions =
+planSurfaceInvalidationsWithoutContext :: Set.Set SurfaceResourceValue -> [LiveUpdateSubscription] -> [SurfaceInvalidationTarget]
+planSurfaceInvalidationsWithoutContext resources subscriptions =
     coalesceTargets $ mapMaybe (planSubscriptionInvalidation resources) subscriptions
 
-performLiveSurfaceInvalidationTarget :: (?context :: ControllerContext, ?request :: Request) => LiveSurfaceInvalidationTarget -> IO LiveUpdateBroadcastResult
-performLiveSurfaceInvalidationTarget target = broadcastLiveInvalidationDetailed target.targetScope liveUpdateSourceClientId target.targetFragments
+performSurfaceInvalidationTarget :: (?context :: ControllerContext, ?request :: Request) => SurfaceInvalidationTarget -> IO LiveUpdateBroadcastResult
+performSurfaceInvalidationTarget target = broadcastLiveInvalidationDetailed target.targetScope liveUpdateSourceClientId target.targetFragments
 
-performLiveSurfaceInvalidationTargetWithoutContext :: LiveSurfaceInvalidationTarget -> IO LiveUpdateBroadcastResult
-performLiveSurfaceInvalidationTargetWithoutContext target = broadcastLiveInvalidationDetailedWithoutContext target.targetScope Nothing target.targetFragments
+performSurfaceInvalidationTargetWithoutContext :: SurfaceInvalidationTarget -> IO LiveUpdateBroadcastResult
+performSurfaceInvalidationTargetWithoutContext target = broadcastLiveInvalidationDetailedWithoutContext target.targetScope Nothing target.targetFragments
 
-planSubscriptionInvalidation :: Set.Set LiveResource -> LiveUpdateSubscription -> Maybe LiveSurfaceInvalidationTarget
+planSubscriptionInvalidation :: Set.Set SurfaceResourceValue -> LiveUpdateSubscription -> Maybe SurfaceInvalidationTarget
 planSubscriptionInvalidation resources subscription = do
     let fragments = planFrontendSurfaceWireInvalidation resources subscription.subscriptionScope subscription.subscriptionMountedFragments
-    if null fragments then Nothing else Just LiveSurfaceInvalidationTarget { targetScope = subscription.subscriptionScope, targetFragments = fragments }
+    if null fragments then Nothing else Just SurfaceInvalidationTarget { targetScope = subscription.subscriptionScope, targetFragments = fragments }
 
-coalesceTargets :: [LiveSurfaceInvalidationTarget] -> [LiveSurfaceInvalidationTarget]
+coalesceTargets :: [SurfaceInvalidationTarget] -> [SurfaceInvalidationTarget]
 coalesceTargets targets =
-    [ LiveSurfaceInvalidationTarget scope (coalesceLiveUpdateWireFragments fragments)
+    [ SurfaceInvalidationTarget scope (coalesceLiveUpdateWireFragments fragments)
     | (scope, fragments) <- Map.toAscList grouped
     ]
     where
         grouped = Map.fromListWith (<>) [(target.targetScope, target.targetFragments) | target <- targets]
 
-expandLiveResources ::
+expandSurfaceResources ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     [(UUID, UUID, Int)] ->
-    Set.Set LiveResource ->
-    IO (Set.Set LiveResource)
-expandLiveResources activeRosterScopes resources = do
+    Set.Set SurfaceResourceValue ->
+    IO (Set.Set SurfaceResourceValue)
+expandSurfaceResources activeRosterScopes resources = do
     expanded <- Set.unions <$> mapM expandOne (Set.toList resources)
     pure (resources <> expanded)
     where
@@ -87,8 +87,8 @@ expandLiveResources activeRosterScopes resources = do
             | otherwise =
                 pure Set.empty
 
-expandLiveResourcesWithoutContext :: [(UUID, UUID, Int)] -> Set.Set LiveResource -> Set.Set LiveResource
-expandLiveResourcesWithoutContext activeRosterScopes resources =
+expandSurfaceResourcesWithoutContext :: [(UUID, UUID, Int)] -> Set.Set SurfaceResourceValue -> Set.Set SurfaceResourceValue
+expandSurfaceResourcesWithoutContext activeRosterScopes resources =
     resources <> Set.unions (map expandOne (Set.toList resources))
     where
         expandOne resourceValue
@@ -100,18 +100,18 @@ expandLiveResourcesWithoutContext activeRosterScopes resources =
 
 invalidateTouchedResources :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> LiveMutationResult a -> IO (LiveMutationResult a)
 invalidateTouchedResources label result =
-    profileActionSpanWithDetail "live_resources.invalidate" do
+    profileActionSpanWithDetail "surface_resources.invalidate" do
         startedAtNs <- getMonotonicTimeNSec
         (observed, observeDurationMs) <- measureDuration (recordLiveMutationDiagnostics label result)
         (activeSubscriptions, activeSubscriptionDurationMs) <- measureDuration activeLiveUpdateSubscriptions
         (activeRosterScopes, activeRosterDurationMs) <- measureDuration activeRosterWeekScopes
         let activeDurationMs = activeSubscriptionDurationMs + activeRosterDurationMs
         let activeScopes = coalesceScopes (map (.subscriptionScope) activeSubscriptions)
-        (expandedResources, expandDurationMs) <- measureDuration (expandLiveResources activeRosterScopes (liveMutationTouchedResources observed))
-        (candidateScopes, candidateDurationMs) <- measureDuration (candidateLiveScopesForResources expandedResources)
+        (expandedResources, expandDurationMs) <- measureDuration (expandSurfaceResources activeRosterScopes (liveMutationTouchedResources observed))
+        (candidateScopes, candidateDurationMs) <- measureDuration (candidateLiveScopesForSurfaceResources expandedResources)
         let planningScopes = coalesceScopes (activeScopes <> candidateScopes)
-        (dependencyTargets, planDurationMs) <- measureDuration (pure (planRegisteredLiveSurfaceInvalidations expandedResources activeSubscriptions))
-        (broadcastResults, broadcastDurationMs) <- measureDuration (mapM performLiveSurfaceInvalidationTarget dependencyTargets)
+        (dependencyTargets, planDurationMs) <- measureDuration (pure (planSurfaceInvalidations expandedResources activeSubscriptions))
+        (broadcastResults, broadcastDurationMs) <- measureDuration (mapM performSurfaceInvalidationTarget dependencyTargets)
         completedAtNs <- getMonotonicTimeNSec
         let profile =
                 liveInvalidationProfile
@@ -137,11 +137,11 @@ invalidateTouchedResourcesWithoutContext label result = do
     let activeScopes = coalesceScopes (map (.subscriptionScope) activeSubscriptions)
     (activeRosterScopes, activeRosterDurationMs) <- measureDuration activeRosterWeekScopes
     let activeDurationMs' = activeDurationMs + activeRosterDurationMs
-    (expandedResources, expandDurationMs) <- measureDuration (pure (expandLiveResourcesWithoutContext activeRosterScopes (liveMutationTouchedResources observed)))
-    (candidateScopes, candidateDurationMs) <- measureDuration (pure (candidateLiveScopesForResourcesWithoutContext expandedResources))
+    (expandedResources, expandDurationMs) <- measureDuration (pure (expandSurfaceResourcesWithoutContext activeRosterScopes (liveMutationTouchedResources observed)))
+    (candidateScopes, candidateDurationMs) <- measureDuration (pure (candidateLiveScopesForSurfaceResourcesWithoutContext expandedResources))
     let planningScopes = coalesceScopes (activeScopes <> candidateScopes)
-    (dependencyTargets, planDurationMs) <- measureDuration (pure (planRegisteredLiveSurfaceInvalidationsWithoutContext expandedResources activeSubscriptions))
-    (broadcastResults, broadcastDurationMs) <- measureDuration (mapM performLiveSurfaceInvalidationTargetWithoutContext dependencyTargets)
+    (dependencyTargets, planDurationMs) <- measureDuration (pure (planSurfaceInvalidationsWithoutContext expandedResources activeSubscriptions))
+    (broadcastResults, broadcastDurationMs) <- measureDuration (mapM performSurfaceInvalidationTargetWithoutContext dependencyTargets)
     completedAtNs <- getMonotonicTimeNSec
     let profile =
             liveInvalidationProfile
@@ -188,12 +188,12 @@ data LiveInvalidationStageDurations = LiveInvalidationStageDurations
 liveInvalidationProfile ::
     Text ->
     Double ->
-    Set.Set LiveResource ->
+    Set.Set SurfaceResourceValue ->
     [LiveUpdateScope] ->
-    Set.Set LiveResource ->
+    Set.Set SurfaceResourceValue ->
     [LiveUpdateScope] ->
     [LiveUpdateScope] ->
-    [LiveSurfaceInvalidationTarget] ->
+    [SurfaceInvalidationTarget] ->
     [LiveUpdateBroadcastResult] ->
     LiveInvalidationStageDurations ->
     LiveInvalidationProfile
@@ -273,11 +273,11 @@ renderDuration :: Double -> Text
 renderDuration durationMs =
     tshow (fromIntegral (round (durationMs * 10)) / 10 :: Double)
 
-candidateLiveScopesForResources ::
+candidateLiveScopesForSurfaceResources ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    Set.Set LiveResource ->
+    Set.Set SurfaceResourceValue ->
     IO [LiveUpdateScope]
-candidateLiveScopesForResources resources =
+candidateLiveScopesForSurfaceResources resources =
     coalesceScopes . concat <$> mapM candidateScopesForResource (Set.toList resources)
     where
         candidateScopesForResource resourceValue
@@ -308,8 +308,8 @@ candidateLiveScopesForResources resources =
             , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [adminXeroLiveScope venueId]
             | otherwise = pure []
 
-candidateLiveScopesForResourcesWithoutContext :: Set.Set LiveResource -> [LiveUpdateScope]
-candidateLiveScopesForResourcesWithoutContext resources =
+candidateLiveScopesForSurfaceResourcesWithoutContext :: Set.Set SurfaceResourceValue -> [LiveUpdateScope]
+candidateLiveScopesForSurfaceResourcesWithoutContext resources =
     coalesceScopes (concatMap candidateScopesForResource (Set.toList resources))
     where
         candidateScopesForResource resourceValue
@@ -342,7 +342,7 @@ coalesceScopes :: [LiveUpdateScope] -> [LiveUpdateScope]
 coalesceScopes =
     Set.toList . Set.fromList
 
-expandActiveVenueRosterWeekResourcesWithoutContext :: [(UUID, UUID, Int)] -> UUID -> Set.Set LiveResource
+expandActiveVenueRosterWeekResourcesWithoutContext :: [(UUID, UUID, Int)] -> UUID -> Set.Set SurfaceResourceValue
 expandActiveVenueRosterWeekResourcesWithoutContext activeRosterScopes venueId =
     Set.fromList
         [ rosterWeekResource rosterGroupId weekOffset
@@ -354,7 +354,7 @@ activeRosterWeekResourcesForStaff ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     [(UUID, UUID, Int)] ->
     UUID ->
-    IO (Set.Set LiveResource)
+    IO (Set.Set SurfaceResourceValue)
 activeRosterWeekResourcesForStaff activeRosterScopes staffId = do
     maybeStaff <- currentVenueStaff staffId
     case maybeStaff of

@@ -10,7 +10,6 @@ module Web.View.Admin.ShiftTypes
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
-import Application.Helper.LiveResource
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate
 import Application.Helper.LiveUpdate.Runtime (liveUpdateScopeFieldUuid,
@@ -18,6 +17,7 @@ import Application.Helper.LiveUpdate.Runtime (liveUpdateScopeFieldUuid,
 import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey,
                                             normalizeShiftTypeColourKey,
                                             shiftTypeColourPaletteKeys)
+import Application.Helper.SurfaceResource
 import qualified Data.Text as Text
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminShiftTypesSurfaceImpl)

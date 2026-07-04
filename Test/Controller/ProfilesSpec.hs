@@ -1,13 +1,13 @@
 module Test.Controller.ProfilesSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
-import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..),
                                                  encodeShiftPreferenceKey,
                                                  shiftPreferenceEndHourParamName,
                                                  shiftPreferenceStartHourParamName)
+import Application.Helper.SurfaceResource
 import Config
 import qualified Data.Set as Set
 import qualified Data.Text as Text

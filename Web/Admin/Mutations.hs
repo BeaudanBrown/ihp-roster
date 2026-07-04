@@ -20,7 +20,6 @@ module Web.Admin.Mutations
     , updateShiftTypeMutation
     ) where
 
-import Application.Helper.LiveResource
 import Application.Helper.Pay (ensureShiftTypePayVersionForShiftType)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         ensureDefaultRosterSlots,
@@ -28,6 +27,7 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
 import Application.Helper.ShiftTypeColours (assignShiftTypeColourKey,
                                             blankShiftTypeColourKey,
                                             normalizeShiftTypeColourKey)
+import Application.Helper.SurfaceResource
 import Application.Helper.VenueInvitation
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
 import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob)
@@ -35,7 +35,7 @@ import Control.Monad (void)
 import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
 import Web.Controller.Admin.Support
 import Web.Controller.Prelude
-import Web.LiveResourceInvalidation (invalidateTouchedResources)
+import Web.SurfaceInvalidation (invalidateTouchedResources)
 
 data AdminShiftTypeMutationResult = AdminShiftTypeMutationResult
     { adminShiftTypeMutationShiftType         :: !ShiftType
@@ -65,19 +65,19 @@ setRosterWeekStartsOnMutation venueConfig rosterWeekStartsOn = do
             |> updateRecord
     invalidateTouchedResources "admin.venue_config.week_start" (liveMutationResult updated (rosterWeekStartsOnTouchedResources currentVenueId))
 
-adminVenueSettingsTouchedResources :: Id Venue -> [LiveResource]
+adminVenueSettingsTouchedResources :: Id Venue -> [SurfaceResourceValue]
 adminVenueSettingsTouchedResources venueId =
     [adminVenueSettingsResource (unpackId venueId)]
 
-rosterEndTimesTouchedResources :: Id Venue -> [LiveResource]
+rosterEndTimesTouchedResources :: Id Venue -> [SurfaceResourceValue]
 rosterEndTimesTouchedResources venueId =
     adminVenueSettingsTouchedResources venueId <> [rosterEndTimesConfigResource (unpackId venueId)]
 
-autoTimesheetCreationTouchedResources :: Id Venue -> [LiveResource]
+autoTimesheetCreationTouchedResources :: Id Venue -> [SurfaceResourceValue]
 autoTimesheetCreationTouchedResources =
     adminVenueSettingsTouchedResources
 
-rosterWeekStartsOnTouchedResources :: Id Venue -> [LiveResource]
+rosterWeekStartsOnTouchedResources :: Id Venue -> [SurfaceResourceValue]
 rosterWeekStartsOnTouchedResources venueId =
     adminVenueSettingsTouchedResources venueId
         <> [ rosterWeekBoundaryConfigResource (unpackId venueId)
@@ -199,7 +199,7 @@ moveShiftTypeMutation shiftType direction = do
         pure ()
     invalidateTouchedResources "admin.shift_type.move" (liveMutationResult () [adminShiftTypesResource (unpackId currentVenueId)])
 
-shiftTypeTouchedResources :: (?context :: ControllerContext) => Bool -> [LiveResource]
+shiftTypeTouchedResources :: (?context :: ControllerContext) => Bool -> [SurfaceResourceValue]
 shiftTypeTouchedResources shouldRefreshXero =
     [adminShiftTypesResource (unpackId currentVenueId)]
         <> [xeroPayItemsResource (unpackId currentVenueId) | shouldRefreshXero]

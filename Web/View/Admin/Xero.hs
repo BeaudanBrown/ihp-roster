@@ -23,7 +23,6 @@ module Web.View.Admin.Xero
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
-import Application.Helper.LiveResource
 import Application.Helper.LiveSurface (EmptyInteractionIntent,
                                        EmptyInteractionLayer,
                                        EmptyInteractionSession,
@@ -43,6 +42,7 @@ import Application.Helper.LiveSurface (EmptyInteractionIntent,
 import Application.Helper.LiveUpdate
 import Application.Helper.LiveUpdate.Runtime (liveUpdateScopeFieldUuid,
                                               liveUpdateScopeKind)
+import Application.Helper.SurfaceResource
 import Application.Helper.View.Overlay (dialogOverlayMountId)
 import Application.Helper.XeroAdminTypes
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),

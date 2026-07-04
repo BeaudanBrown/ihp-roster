@@ -5,9 +5,9 @@ module Web.Exports.Mutations
     ) where
 
 import Application.Helper.Export
-import Application.Helper.LiveResource
+import Application.Helper.SurfaceResource
 import Web.Controller.Prelude
-import Web.LiveResourceInvalidation (invalidateTouchedResources)
+import Web.SurfaceInvalidation (invalidateTouchedResources)
 
 requestFixedExportMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ExportJobType -> Day -> Day -> IO (Either Text (LiveMutationResult ExportJob))
 requestFixedExportMutation exportType rangeStart rangeEnd = do
@@ -25,6 +25,6 @@ recordExportDownloadMutation exportJob = do
     invalidateTouchedResources "export.download" $
         liveMutationResult updatedExportJob (exportJobTouchedResources updatedExportJob)
 
-exportJobTouchedResources :: ExportJob -> [LiveResource]
+exportJobTouchedResources :: ExportJob -> [SurfaceResourceValue]
 exportJobTouchedResources exportJob =
     [adminExportsResource exportJob.venueId]

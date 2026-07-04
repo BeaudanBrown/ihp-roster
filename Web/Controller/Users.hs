@@ -1,8 +1,8 @@
 module Web.Controller.Users where
 
 import Application.Helper.Controller (defaultRosterWeekStartsOn)
-import Application.Helper.LiveResource (LiveMutationResult (..))
 import Application.Helper.Staff (isAdoptableTrialStaff)
+import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.VenueBootstrap (VenueBootstrapConfig (..),
                                           createVenueWithBootstrapConfigInCurrentTransaction,
                                           defaultStaffNameFromEmail,

@@ -12,9 +12,10 @@ import Application.Helper.Feedback (SupportUnreadFeedbackCount (..),
                                     allowedFeedbackStatuses,
                                     fetchSupportUnreadFeedbackCount)
 import Application.Helper.FwcMapd (FwcMapdAdminData, fetchFwcMapdAdminData)
-import Application.Helper.LiveResource (LiveResource, liveMutationResult,
-                                        supportAwardRatesResource,
-                                        supportPublicHolidaysResource)
+import Application.Helper.SurfaceResource (SurfaceResourceValue,
+                                           liveMutationResult,
+                                           supportAwardRatesResource,
+                                           supportPublicHolidaysResource)
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationLifetime)
 import Application.InvitationDelivery.Job (enqueueVenueOnboardingInvitationDeliveryJob)
 import Application.PublicHolidays.Coverage (PublicHolidayCoverageYear,
@@ -27,8 +28,8 @@ import Control.Monad (forM, forM_, void)
 import Data.Coerce (coerce)
 import qualified Data.Text as Text
 import Web.Controller.Prelude
-import Web.LiveResourceInvalidation (invalidateTouchedResources)
 import Web.Support.FrontendSurfaceLab (renderSurfaceLabPanelFragment)
+import Web.SurfaceInvalidation (invalidateTouchedResources)
 import Web.View.Support.FrontendSurfaceLab
 import Web.View.Support.Index
 

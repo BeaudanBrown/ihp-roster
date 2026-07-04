@@ -1,6 +1,6 @@
-module Test.LiveResourceSpec where
+module Test.SurfaceResourceSpec where
 
-import Application.Helper.LiveResource
+import Application.Helper.SurfaceResource
 import qualified Data.Set as Set
 import Data.UUID (nil)
 import IHP.Prelude
@@ -9,7 +9,7 @@ import Test.Hspec
 
 tests :: Spec
 tests = do
-    describe "LiveResource diagnostics" do
+    describe "Surface resource diagnostics" do
         it "preserves mutation results when diagnostics are disabled" do
             unsetEnv "LIVE_MUTATION_DIAGNOSTICS"
             let result = liveMutationResult ("ok" :: Text) [adminVenueSettingsResource nil, adminVenueSettingsResource nil]

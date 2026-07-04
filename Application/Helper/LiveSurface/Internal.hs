@@ -92,9 +92,9 @@ import Application.Helper.Interaction.Types (EmptyInteractionIntent,
                                              InteractionStaticSchema,
                                              emptyInteractionCapability,
                                              emptyInteractionStaticSchema)
-import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate.Internal
 import Application.Helper.Profiling (respondHtmlProfiled)
+import Application.Helper.SurfaceResource
 import Application.Helper.UiRegion (UiRegionTransitionProfile)
 import Application.Helper.View.Oob (OobSwapAttr, outerHtmlOobSwap)
 import qualified Data.Aeson as Aeson
@@ -151,7 +151,7 @@ data AuthorizedLiveFragment surface scope fragment = AuthorizedLiveFragment
     }
 
 data FragmentDependencies
-    = DependsOnLiveResources !(NonEmpty LiveResource)
+    = DependsOnSurfaceResourceValues !(NonEmpty SurfaceResourceValue)
     | ResyncOnlyFragment !Text
     deriving (Eq, Show)
 
@@ -306,9 +306,9 @@ surfaceFragmentRefWithFocusedProtection :: LiveFragmentProtection -> SurfaceFrag
 surfaceFragmentRefWithFocusedProtection protection =
     surfaceFragmentRefWithDeferUntilBlur True . surfaceFragmentRefWithProtection protection
 
-liveFragmentDependsOn :: LiveResource -> [LiveResource] -> FragmentDependencies
+liveFragmentDependsOn :: SurfaceResourceValue -> [SurfaceResourceValue] -> FragmentDependencies
 liveFragmentDependsOn resource additionalResources =
-    DependsOnLiveResources (resource :| additionalResources)
+    DependsOnSurfaceResourceValues (resource :| additionalResources)
 
 liveFragmentResyncOnly :: Text -> FragmentDependencies
 liveFragmentResyncOnly =
@@ -340,7 +340,7 @@ staticLiveFragmentDescriptor fragment fragmentKey targetId url =
         fragment
         (const (mkSurfaceFragmentRef fragmentKey targetId url))
 
-currentVenueLiveFragmentDescriptor :: (?context :: ControllerContext) => fragment -> LiveFragmentKey -> Text -> Text -> (UUID.UUID -> LiveResource) -> LiveFragmentDescriptor surface () fragment
+currentVenueLiveFragmentDescriptor :: (?context :: ControllerContext) => fragment -> LiveFragmentKey -> Text -> Text -> (UUID.UUID -> SurfaceResourceValue) -> LiveFragmentDescriptor surface () fragment
 currentVenueLiveFragmentDescriptor fragment fragmentKey targetId url resource =
     staticLiveFragmentDescriptor
         fragment
@@ -557,18 +557,18 @@ typedLiveSurfaceFragmentLoadPolicy :: TypedLiveSurfaceDefinition surface scope f
 typedLiveSurfaceFragmentLoadPolicy definition surfaceKey fragment =
     (definition.typedSurfaceFragmentContract surfaceKey fragment).fragmentContractLoadPolicy
 
-typedLiveSurfaceAffectedFragments :: TypedLiveSurfaceDefinition surface scope fragment layer session intent -> scope -> Set.Set LiveResource -> [fragment] -> [fragment]
+typedLiveSurfaceAffectedFragments :: TypedLiveSurfaceDefinition surface scope fragment layer session intent -> scope -> Set.Set SurfaceResourceValue -> [fragment] -> [fragment]
 typedLiveSurfaceAffectedFragments definition surfaceKey touchedResources =
     filter dependsOnTouchedResource
     where
         dependsOnTouchedResource fragment =
             not (Set.null (Set.intersection touchedResources (Set.fromList (typedSurfaceDependsOn definition surfaceKey fragment))))
 
-typedSurfaceDependsOn :: TypedLiveSurfaceDefinition surface scope fragment layer session intent -> scope -> fragment -> [LiveResource]
+typedSurfaceDependsOn :: TypedLiveSurfaceDefinition surface scope fragment layer session intent -> scope -> fragment -> [SurfaceResourceValue]
 typedSurfaceDependsOn definition surfaceKey fragment =
     case (definition.typedSurfaceFragmentContract surfaceKey fragment).fragmentContractDependencies of
-        DependsOnLiveResources resources -> NonEmpty.toList resources
-        ResyncOnlyFragment _             -> []
+        DependsOnSurfaceResourceValues resources -> NonEmpty.toList resources
+        ResyncOnlyFragment _                     -> []
 
 unSurfaceFragmentRefs :: [SurfaceFragmentRef surface] -> [LiveUpdateWireFragment]
 unSurfaceFragmentRefs =

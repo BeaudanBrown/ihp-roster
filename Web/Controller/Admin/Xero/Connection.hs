@@ -6,7 +6,7 @@ module Web.Controller.Admin.Xero.Connection
     , xeroOAuthCallbackAction
     ) where
 
-import Application.Helper.LiveResource (LiveMutationResult (..))
+import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.Url (appendQueryParams)
 import Application.Helper.Xero
 import Application.Xero.Admin.ReadModel

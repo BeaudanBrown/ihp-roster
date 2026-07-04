@@ -1,7 +1,7 @@
 module Application.Script.ProfileLiveInvalidation where
 
-import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate.Runtime
+import Application.Helper.SurfaceResource
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.Set as Set
@@ -15,11 +15,11 @@ import qualified System.Environment as Environment
 import System.Exit (exitSuccess)
 import System.FilePath ((</>))
 import qualified Text.Read as TextRead
-import Web.LiveResourceInvalidation (LiveSurfaceInvalidationTarget (..),
-                                     candidateLiveScopesForResourcesWithoutContext,
-                                     expandLiveResourcesWithoutContext,
-                                     performLiveSurfaceInvalidationTargetWithoutContext,
-                                     planRegisteredLiveSurfaceInvalidationsWithoutContext)
+import Web.SurfaceInvalidation (SurfaceInvalidationTarget (..),
+                                candidateLiveScopesForSurfaceResourcesWithoutContext,
+                                expandSurfaceResourcesWithoutContext,
+                                performSurfaceInvalidationTargetWithoutContext,
+                                planSurfaceInvalidationsWithoutContext)
 
 run :: IO ()
 run = do
@@ -64,7 +64,7 @@ allScenarios =
     ]
 
 data BenchmarkPlan = BenchmarkPlan
-    { planResources          :: !(Set.Set LiveResource)
+    { planResources          :: !(Set.Set SurfaceResourceValue)
     , planActiveScopes       :: ![LiveUpdateScope]
     , planActiveRosterScopes :: ![(UUID, UUID, Int)]
     }
@@ -117,15 +117,15 @@ runOne scenario requestedScopeCount = do
     let benchmarkPlan = buildBenchmarkPlan scenario requestedScopeCount
     startedAtNs <- getMonotonicTimeNSec
     (expandedResources, expandMs) <- measureDuration do
-        pure (expandLiveResourcesWithoutContext benchmarkPlan.planActiveRosterScopes benchmarkPlan.planResources)
+        pure (expandSurfaceResourcesWithoutContext benchmarkPlan.planActiveRosterScopes benchmarkPlan.planResources)
     (candidateScopes, candidateMs) <- measureDuration do
-        pure (candidateLiveScopesForResourcesWithoutContext expandedResources)
+        pure (candidateLiveScopesForSurfaceResourcesWithoutContext expandedResources)
     let planningScopes = coalesceScopes (benchmarkPlan.planActiveScopes <> candidateScopes)
     let activeSubscriptions = map benchmarkSubscription benchmarkPlan.planActiveScopes
     (targets, planMs) <- measureDuration do
-        pure (planRegisteredLiveSurfaceInvalidationsWithoutContext expandedResources activeSubscriptions)
+        pure (planSurfaceInvalidationsWithoutContext expandedResources activeSubscriptions)
     (broadcastResults, broadcastMs) <- measureDuration do
-        mapM performLiveSurfaceInvalidationTargetWithoutContext targets
+        mapM performSurfaceInvalidationTargetWithoutContext targets
     completedAtNs <- getMonotonicTimeNSec
     pure
         BenchmarkResult

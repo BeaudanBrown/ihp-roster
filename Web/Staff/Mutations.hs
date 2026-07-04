@@ -8,13 +8,13 @@ module Web.Staff.Mutations
     ) where
 
 import Application.Helper.Audit (updateVenueMembershipRoleWithAudit)
-import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.Pay (ensureStaffPayVersionForStaff)
 import Application.Helper.RosterGroups (syncStaffRosterGroupAssignments)
 import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection,
                                                  replaceStaffShiftPreferences)
+import Application.Helper.SurfaceResource
 import Application.Helper.VenueInvitation (venueInvitationLifetime)
 import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob)
 import Control.Monad (void)
@@ -23,7 +23,7 @@ import qualified Data.Set as Set
 import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
 import Data.UUID (UUID)
 import Web.Controller.Prelude
-import Web.LiveResourceInvalidation (invalidateTouchedResources)
+import Web.SurfaceInvalidation (invalidateTouchedResources)
 
 staffXeroPayItemScopeChanged :: Staff -> Staff -> Bool
 staffXeroPayItemScopeChanged oldStaff newStaff =
@@ -60,7 +60,7 @@ createTrialStaffInvitationMutation staff email
                 void (enqueueVenueInvitationDeliveryJob (Just currentUser.id) invitation)
                 Right <$> invalidateTouchedResources "staff.invite_trial" (liveMutationResult invitation (trialStaffInvitationTouchedResources staff))
 
-trialStaffInvitationTouchedResources :: (?context :: ControllerContext) => Staff -> [LiveResource]
+trialStaffInvitationTouchedResources :: (?context :: ControllerContext) => Staff -> [SurfaceResourceValue]
 trialStaffInvitationTouchedResources staff =
     [ adminInvitesResource (unpackId currentVenueId)
     , staffProfileResource (unpackId staff.id)
@@ -75,7 +75,7 @@ createTrialStaffMember staff selectedRosterGroupIds = do
     activeRosterScopes <- activeRosterWeekScopes
     invalidateTouchedResources "staff.create_trial" (liveMutationResult createdStaff (staffCreateTouchedResources createdStaff <> staffRosterGroupResources activeRosterScopes selectedRosterGroupIds))
 
-staffCreateTouchedResources :: Staff -> [LiveResource]
+staffCreateTouchedResources :: Staff -> [SurfaceResourceValue]
 staffCreateTouchedResources staff =
     [ staffProfileResource (unpackId staff.id)
     , staffPreferencesResource (unpackId staff.id)
@@ -102,14 +102,14 @@ updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections
     activeRosterScopes <- activeRosterWeekScopes
     invalidateTouchedResources "staff.update" (liveMutationResult updatedStaff (staffUpdateTouchedResources payScopeChanged updatedStaff <> staffRosterGroupResources activeRosterScopes selectedRosterGroupIds))
 
-staffUpdateTouchedResources :: Bool -> Staff -> [LiveResource]
+staffUpdateTouchedResources :: Bool -> Staff -> [SurfaceResourceValue]
 staffUpdateTouchedResources payScopeChanged staff =
     [ staffProfileResource (unpackId staff.id)
     , staffPreferencesResource (unpackId staff.id)
     ]
         <> [xeroMappingsResource staff.venueId | payScopeChanged]
 
-staffRosterGroupResources :: (?context :: ControllerContext) => [(UUID, UUID, Int)] -> [Id RosterGroup] -> [LiveResource]
+staffRosterGroupResources :: (?context :: ControllerContext) => [(UUID, UUID, Int)] -> [Id RosterGroup] -> [SurfaceResourceValue]
 staffRosterGroupResources activeScopes rosterGroupIds =
     Set.toList $ Set.fromList
         [ rosterWeekResource rosterGroupId weekOffset

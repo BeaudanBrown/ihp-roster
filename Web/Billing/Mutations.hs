@@ -6,15 +6,15 @@ module Web.Billing.Mutations
     ) where
 
 import Application.Billing.Webhook (BillingWebhookResult (..))
-import Application.Helper.LiveResource
+import Application.Helper.SurfaceResource
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import Web.Controller.Prelude
-import Web.LiveResourceInvalidation (invalidateTouchedResources,
-                                     invalidateTouchedResourcesWithoutContext)
+import Web.SurfaceInvalidation (invalidateTouchedResources,
+                                invalidateTouchedResourcesWithoutContext)
 
-billingTouchedResources :: Id Venue -> [LiveResource]
+billingTouchedResources :: Id Venue -> [SurfaceResourceValue]
 billingTouchedResources venueId =
     [billingResource (unpackId venueId)]
 

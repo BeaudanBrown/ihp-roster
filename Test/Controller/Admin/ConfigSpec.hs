@@ -3,11 +3,11 @@ module Test.Controller.Admin.ConfigSpec where
 import Application.Helper.Controller (PlatformRole (SuperAdminRole),
                                       unsafeEnumFromText)
 import Application.Helper.Export (ExportJobType (..), exportJobTypeToText)
-import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey)
+import Application.Helper.SurfaceResource
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
 import Application.Helper.Xero
 import Config
@@ -41,9 +41,9 @@ import Web.Admin.Mutations (adminVenueSettingsTouchedResources,
                             rosterWeekStartsOnTouchedResources)
 import Web.Controller.Admin ()
 import Web.FrontController ()
-import Web.LiveResourceInvalidation (LiveSurfaceInvalidationTarget (..),
-                                     planRegisteredLiveSurfaceInvalidations)
 import Web.Routes
+import Web.SurfaceInvalidation (SurfaceInvalidationTarget (..),
+                                planSurfaceInvalidations)
 import Web.Types
 
 tests :: Spec
@@ -126,7 +126,7 @@ tests = beforeAll testContext do
                         withCurrentControllerContext do
                             pure
                                 [ (target.targetScope, map (.fragmentKey) target.targetFragments)
-                                | target <- planRegisteredLiveSurfaceInvalidations (Set.singleton resource) [subscription]
+                                | target <- planSurfaceInvalidations (Set.singleton resource) [subscription]
                                 ]
 
                 planFragments (rosterEndTimesConfigResource venueId)

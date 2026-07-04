@@ -6,15 +6,15 @@ module Web.LeaveRequests.Mutations
     , submitLeaveRequest
     ) where
 
-import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate
+import Application.Helper.SurfaceResource
 import Application.Helper.WeekBoundaries (affectedVenueWeekOffsetsForDateRange)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
 import Data.UUID (UUID)
 import Web.Controller.Prelude
-import Web.LiveResourceInvalidation (invalidateTouchedResources)
+import Web.SurfaceInvalidation (invalidateTouchedResources)
 
 data LeaveReviewDecision
     = ApproveLeave
@@ -81,17 +81,17 @@ reviewLeaveRequest decision leaveRequest = do
                 }
             touchedResources
 
-baseLeaveTouchedResources :: LeaveRequest -> [LiveResource]
+baseLeaveTouchedResources :: LeaveRequest -> [SurfaceResourceValue]
 baseLeaveTouchedResources leaveRequest =
     [ leaveRequestsResource leaveRequest.venueId
     , staffLeaveRequestsResource leaveRequest.staffId
     ]
 
-leaveReviewTouchedResources :: VenueConfig -> LeaveReviewDecision -> Bool -> LeaveRequest -> [LiveResource]
+leaveReviewTouchedResources :: VenueConfig -> LeaveReviewDecision -> Bool -> LeaveRequest -> [SurfaceResourceValue]
 leaveReviewTouchedResources _venueConfig _decision _wasApproved leaveRequest =
     baseLeaveTouchedResources leaveRequest
 
-leaveReviewRosterWeekResources :: [(UUID, UUID, Int)] -> VenueConfig -> LeaveReviewDecision -> Bool -> LeaveRequest -> [LiveResource]
+leaveReviewRosterWeekResources :: [(UUID, UUID, Int)] -> VenueConfig -> LeaveReviewDecision -> Bool -> LeaveRequest -> [SurfaceResourceValue]
 leaveReviewRosterWeekResources activeScopes venueConfig decision wasApproved leaveRequest
     | not (reviewDecisionChangesRoster decision wasApproved) = []
     | otherwise =

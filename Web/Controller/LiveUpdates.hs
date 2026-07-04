@@ -9,7 +9,7 @@ import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDv4
 import qualified Network.WebSockets as WebSocket
 import Web.Controller.Prelude
-import Web.LiveResourceInvalidation (authorizeRegisteredLiveSurfaceScope)
+import Web.SurfaceInvalidation (authorizeSurfaceScope)
 
 instance WSApp LiveUpdatesWSApp where
     initialState = LiveUpdatesWSApp { subscriptionIds = [] }
@@ -45,7 +45,7 @@ handleCommand command =
     case command of
         SubscribeLiveUpdates { subscription = liveSubscription, lastSeenVersion } -> do
             let scope = liveSubscription.subscriptionScope
-            authorized <- authorizeRegisteredLiveSurfaceScope scope
+            authorized <- authorizeSurfaceScope scope
             if authorized && validateFrontendSurfaceLiveSubscription liveSubscription
                 then do
                     unregisterScopeSubscription scope

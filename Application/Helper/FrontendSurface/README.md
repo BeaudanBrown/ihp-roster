@@ -3,7 +3,7 @@
 `Application.Helper.FrontendSurface` owns the type-level surface contract system
 for server-rendered interactive surfaces. New production surfaces should use this
 path instead of authoring `FrontendCodec` DTO schema groups,
-`TypedLiveSurfaceDefinition`, `Web.LiveResourceInvalidation` entries, or a shared
+`TypedLiveSurfaceDefinition`, `Web.SurfaceInvalidation` entries, or a shared
 projection cache.
 
 ## Source Of Truth
@@ -130,8 +130,8 @@ runtime render helpers so HTMX attributes and hidden fields stay Haskell-owned.
 Controllers remain normal IHP mutation entrypoints in this epic. They parse and
 authorize params, call feature mutation/read-model code, and render validation
 failures or successful actor extras. Successful mutations should report typed
-`LiveResource` touches using the generated smart constructors exported from
-`Application.Helper.LiveResource` so actor duplicate mounts and passive viewers
+`SurfaceResourceValue` touches using the generated smart constructors exported from
+`Application.Helper.SurfaceResource` so actor duplicate mounts and passive viewers
 refresh through the unified live invalidation/refetch path.
 
 ## Live Authorization, Resources, And Fragment Rendering
@@ -146,7 +146,7 @@ switch on app-specific surface/fragment names.
 
 `Scope` owns websocket subscription identity and authorization. Every scope must
 carry exactly one auth marker: `Authorize SomePolicy` for server-checked scopes,
-or explicit `NoAuth` for public/test-only scopes. `Web.LiveResourceInvalidation`
+or explicit `NoAuth` for public/test-only scopes. `Web.SurfaceInvalidation`
 derives subscription authorization from the reflected `RegisteredFrontendSurfaces`
 metadata; feature code must not add hard-coded fallback authorization for a
 surface/scope pair.
@@ -161,8 +161,8 @@ resource field sources are concrete and non-conflicting.
 
 `Resource` declarations live in the type-level surface specs and are discovered
 by walking `RegisteredFrontendSurfaces`. Generated Haskell smart constructors in
-`Application.Helper.FrontendSurface.Resource` / `Application.Helper.LiveResource`
-construct concrete `FrontendSurfaceResourceValue`s such as `rosterWeekResource`,
+`Application.Helper.FrontendSurface.Resource` / `Application.Helper.SurfaceResource`
+construct concrete `SurfaceResourceValue`s such as `rosterWeekResource`,
 `timesheetDayResource`, or `xeroMappingsResource`. Mutation/domain code emits
 those concrete generated values; it must not introduce legacy sentinel resources,
 custom dependency hooks, or bridge conversions.

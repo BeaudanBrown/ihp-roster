@@ -4,12 +4,12 @@ module Web.StaffDocuments.Mutations
     , uploadRsaDocument
     ) where
 
-import Application.Helper.LiveResource
+import Application.Helper.SurfaceResource
 import Application.StaffDocuments.Rsa
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Web.Controller.Prelude
-import Web.LiveResourceInvalidation (invalidateTouchedResources)
+import Web.SurfaceInvalidation (invalidateTouchedResources)
 
 uploadRsaDocument :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id User -> Staff -> RsaDocumentUpload -> IO (LiveMutationResult StaffDocument)
 uploadRsaDocument actorUserId staff upload = do
@@ -48,7 +48,7 @@ reviewStaffDocument reviewerUserId staffDocument newStatus maybeRejectionReason 
     invalidateTouchedResources "staff_document.rsa.review" $
         liveMutationResult updatedDocument (rsaStaffDocumentTouchedResources updatedDocument)
 
-rsaStaffDocumentTouchedResources :: StaffDocument -> [LiveResource]
+rsaStaffDocumentTouchedResources :: StaffDocument -> [SurfaceResourceValue]
 rsaStaffDocumentTouchedResources staffDocument =
     [ staffRsaDocumentsResource staffDocument.staffId
     ]

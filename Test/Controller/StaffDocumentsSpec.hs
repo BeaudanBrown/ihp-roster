@@ -1,6 +1,6 @@
 module Test.Controller.StaffDocumentsSpec where
 
-import Application.Helper.LiveResource
+import Application.Helper.SurfaceResource
 import Application.StaffDocuments.Rsa
 import qualified Data.Aeson as Aeson
 import Data.Time.Calendar (fromGregorian)

@@ -1,12 +1,12 @@
 module Web.Controller.Profiles where
 
-import Application.Helper.LiveResource (LiveMutationResult (..))
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchCurrentUserLeaveRequests)
 import Application.Helper.Profiling (profileActionSpan)
 import Application.Helper.RosterGroups (fetchCurrentVenueRosterGroups,
                                         fetchStaffRosterGroupIds)
 import Application.Helper.StaffShiftPreferences
+import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter),
                                 renderToastOob, successToast)
 import Application.StaffDocuments.Rsa (latestRsaDocumentForStaff)

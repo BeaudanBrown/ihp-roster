@@ -7,10 +7,11 @@
 module Web.Controller.RosterWeeks where
 
 import Application.Helper.Controller
-import Application.Helper.LiveResource (LiveMutationResult (..), LiveResource)
 import Application.Helper.LiveUpdate
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
+import Application.Helper.SurfaceResource (LiveMutationResult (..),
+                                           SurfaceResourceValue)
 import Application.Helper.UserPreferences
 import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 OverlayButtonAction (..),
@@ -976,7 +977,7 @@ respondWithRosterRows :: (?context :: ControllerContext, ?modelContext :: ModelC
 respondWithRosterRows rosterGroupId weekOffset requestedRowKeys =
     respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys False
 
-rosterActorFragmentsForTouchedResources :: (?context :: ControllerContext) => Id RosterGroup -> Int -> Set.Set LiveResource -> [RosterProjectionFragment] -> [RosterProjectionFragment]
+rosterActorFragmentsForTouchedResources :: (?context :: ControllerContext) => Id RosterGroup -> Int -> Set.Set SurfaceResourceValue -> [RosterProjectionFragment] -> [RosterProjectionFragment]
 rosterActorFragmentsForTouchedResources rosterGroupId weekOffset touchedResources candidates =
     filter fragmentTouched candidates
     where

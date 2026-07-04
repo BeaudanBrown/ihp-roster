@@ -124,13 +124,13 @@ expect_no_match \
     Application/Helper/FrontendSurface/Timesheets.hs
 
 expect_no_match \
-    "live resources must remain generated FrontendSurfaceResourceValue aliases, not a resurrected ADT" \
-    '\bdata[[:space:]]+LiveResource\b|\bnewtype[[:space:]]+LiveResource\b' \
+    "legacy LiveResource alias/ADT must stay deleted" \
+    '\b(type|data|newtype)[[:space:]]+LiveResource\b' \
     Application Web Test
 
 expect_no_match \
-    "temporary LiveResource bridge conversion helpers must stay deleted" \
-    'liveResourceToFrontendSurfaceResourceValues|liveResourcesToFrontendSurfaceResourceValues|FrontendSurfaceResourceValue bridge' \
+    "temporary surface-resource bridge conversion helpers must stay deleted" \
+    'liveResourceToSurfaceResourceValues|liveResourcesToSurfaceResourceValues|SurfaceResourceValue bridge' \
     Application Web Test
 
 expect_no_match \
@@ -149,19 +149,19 @@ expect_no_match \
     Application Web Test frontend/ts
 
 expect_no_match \
-    "registered live-surface authorization must delegate to generated FrontendSurface scope auth" \
+    "surface subscription authorization must delegate to generated FrontendSurface scope auth" \
     'CurrentVenueManager|CurrentVenueOwner|CurrentVenueAdmin|CurrentVenueRosterGroup|CurrentVenueStaff|SupportSuperAdmin|NoAuthIR|AuthorizeIR' \
-    Web/LiveResourceInvalidation.hs
+    Web/SurfaceInvalidation.hs
 
 expect_match \
-    "registered live-surface authorization delegates to generated FrontendSurface scope auth" \
-    'authorizeRegisteredLiveSurfaceScope = authorizeFrontendSurfaceLiveScope' \
-    Web/LiveResourceInvalidation.hs
+    "surface subscription authorization delegates to generated FrontendSurface scope auth" \
+    'authorizeSurfaceScope = authorizeFrontendSurfaceLiveScope' \
+    Web/SurfaceInvalidation.hs
 
 expect_match \
-    "registered live-surface planning delegates dependency matching to generated FrontendSurface planner" \
+    "surface invalidation planning delegates dependency matching to generated FrontendSurface planner" \
     'planFrontendSurfaceWireInvalidation resources subscription\.subscriptionScope subscription\.subscriptionMountedFragments' \
-    Web/LiveResourceInvalidation.hs
+    Web/SurfaceInvalidation.hs
 
 if [ "$failures" -ne 0 ]; then
     exit 1

@@ -75,7 +75,7 @@ from that typed contract.
   key and definition that produced the fragment contract.
 - Websocket subscription authorization uses a typed surface registry. Unknown
   or unregistered live scopes are rejected.
-- Business mutations emit touched `LiveResource` values. `Web.LiveResourceInvalidation`
+- Business mutations emit touched `SurfaceResourceValue` values. `Web.SurfaceInvalidation`
   matches those resources against `liveFragmentDependsOn` declarations from each
   `FragmentContract` and owns passive broadcast emission.
 - Controllers may set actor-only refresh headers, but do not broadcast passive

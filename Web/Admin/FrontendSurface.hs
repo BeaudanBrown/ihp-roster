@@ -36,8 +36,8 @@ import Application.Helper.Frontend.AppConstants (AppEvents (..),
 import qualified Application.Helper.FrontendSurface.Admin as Surface
 import Application.Helper.FrontendSurface.DSL
 import Application.Helper.FrontendSurface.Runtime
-import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate.Runtime
+import Application.Helper.SurfaceResource
 import Application.Helper.Url (appendQueryParams)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
@@ -227,7 +227,7 @@ invitesScopeHandler scope = FrontendSurfaceScopeHandler
          in venueId <> ":" <> rosterGroupId
     }
 
-adminVenueSettingsAffectedFragments, adminInvitesAffectedFragments, adminExportsAffectedFragments, adminShiftTypesAffectedFragments, adminRosterGroupsAffectedFragments, adminXeroAffectedFragments :: AdminVenueScopeValue -> Set.Set LiveResource -> [FrontendSurfaceMountedFragment]
+adminVenueSettingsAffectedFragments, adminInvitesAffectedFragments, adminExportsAffectedFragments, adminShiftTypesAffectedFragments, adminRosterGroupsAffectedFragments, adminXeroAffectedFragments :: AdminVenueScopeValue -> Set.Set SurfaceResourceValue -> [FrontendSurfaceMountedFragment]
 adminVenueSettingsAffectedFragments scope resources = if Set.member (adminVenueSettingsResource scope.adminVenueId) resources then [adminVenueSettingsFragment] else []
 adminInvitesAffectedFragments scope resources = if Set.member (adminInvitesResource scope.adminVenueId) resources then [adminInvitesFragment scope.adminRosterGroupId] else []
 adminExportsAffectedFragments scope resources = if Set.member (adminExportsResource scope.adminVenueId) resources then [adminExportsFragment] else []

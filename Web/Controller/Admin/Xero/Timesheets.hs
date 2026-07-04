@@ -16,7 +16,7 @@ module Web.Controller.Admin.Xero.Timesheets
     , submitXeroTimesheetPreparationAction
     ) where
 
-import Application.Helper.LiveResource (LiveMutationResult (..))
+import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter),
                                 renderToastOverlayHostOob)
 import Application.Helper.XeroAdminTypes (XeroTimesheetPreparationState (XeroPreparationSubmitted),

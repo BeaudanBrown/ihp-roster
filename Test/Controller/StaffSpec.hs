@@ -1,11 +1,11 @@
 module Test.Controller.StaffSpec where
 
-import Application.Helper.LiveResource
 import qualified Application.Helper.LiveUpdate as LiveUpdate
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.StaffShiftPreferences (encodeShiftPreferenceKey,
                                                  shiftPreferenceEndHourParamName,
                                                  shiftPreferenceStartHourParamName)
+import Application.Helper.SurfaceResource
 import Application.InvitationDelivery.Job (venueInvitationDeliveryJobKind)
 import Config
 import qualified Data.List as List

@@ -11,11 +11,11 @@ module Web.View.Admin.RosterGroups
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
-import Application.Helper.LiveResource
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate
 import Application.Helper.LiveUpdate.Runtime (liveUpdateScopeFieldUuid,
                                               liveUpdateScopeKind)
+import Application.Helper.SurfaceResource
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminRosterGroupsSurfaceImpl)
 import Web.View.Admin.Common

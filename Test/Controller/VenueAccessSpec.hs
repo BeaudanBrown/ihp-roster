@@ -39,7 +39,7 @@ import Web.Controller.Staff ()
 import Web.Controller.Support ()
 import Web.Controller.Timesheets ()
 import Web.FrontController ()
-import Web.LiveResourceInvalidation (authorizeRegisteredLiveSurfaceScope)
+import Web.SurfaceInvalidation (authorizeSurfaceScope)
 import Web.Types
 
 tests :: Spec
@@ -148,7 +148,7 @@ tests = beforeAll testContext do
                 _ <- createVenueMembershipRecord venue manager "manager"
 
                 authorized <- withAuthenticatedControllerContext manager venue.id do
-                    authorizeRegisteredLiveSurfaceScope (adminRosterGroupsLiveScope (unpackId venue.id))
+                    authorizeSurfaceScope (adminRosterGroupsLiveScope (unpackId venue.id))
 
                 authorized `shouldBe` False
 
@@ -159,11 +159,11 @@ tests = beforeAll testContext do
                 _ <- createVenueMembershipRecord venue admin "venue_admin"
 
                 rosterGroupsAuthorized <- withAuthenticatedControllerContext admin venue.id do
-                    authorizeRegisteredLiveSurfaceScope (adminRosterGroupsLiveScope (unpackId venue.id))
+                    authorizeSurfaceScope (adminRosterGroupsLiveScope (unpackId venue.id))
                 invitesAuthorized <- withAuthenticatedControllerContext admin venue.id do
-                    authorizeRegisteredLiveSurfaceScope (adminInvitesLiveScope (unpackId venue.id))
+                    authorizeSurfaceScope (adminInvitesLiveScope (unpackId venue.id))
                 exportsAuthorized <- withAuthenticatedControllerContext admin venue.id do
-                    authorizeRegisteredLiveSurfaceScope (adminExportsLiveScope (unpackId venue.id))
+                    authorizeSurfaceScope (adminExportsLiveScope (unpackId venue.id))
 
                 rosterGroupsAuthorized `shouldBe` True
                 invitesAuthorized `shouldBe` True
@@ -178,13 +178,13 @@ tests = beforeAll testContext do
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
 
                 rosterAuthorized <- withAuthenticatedControllerContext user venue.id do
-                    authorizeRegisteredLiveSurfaceScope (rosterWeekLiveScope (unpackId venue.id) (unpackId rosterGroup.id) 0)
+                    authorizeSurfaceScope (rosterWeekLiveScope (unpackId venue.id) (unpackId rosterGroup.id) 0)
                 leaveAuthorized <- withAuthenticatedControllerContext user venue.id do
-                    authorizeRegisteredLiveSurfaceScope (leaveRequestsLiveScope (unpackId venue.id))
+                    authorizeSurfaceScope (leaveRequestsLiveScope (unpackId venue.id))
                 timesheetAuthorized <- withAuthenticatedControllerContext user venue.id do
-                    authorizeRegisteredLiveSurfaceScope (timesheetWeekLiveScope (unpackId venue.id) 0)
+                    authorizeSurfaceScope (timesheetWeekLiveScope (unpackId venue.id) 0)
                 profileAuthorized <- withAuthenticatedControllerContext user venue.id do
-                    authorizeRegisteredLiveSurfaceScope (profileLiveScope (unpackId venue.id) (unpackId staff.id))
+                    authorizeSurfaceScope (profileLiveScope (unpackId venue.id) (unpackId staff.id))
 
                 rosterAuthorized `shouldBe` True
                 leaveAuthorized `shouldBe` False
@@ -201,17 +201,17 @@ tests = beforeAll testContext do
                 foreignStaff <- createStaffRecord venueB Nothing "Foreign" "Staff"
 
                 rosterAuthorized <- withAuthenticatedControllerContext admin venueA.id do
-                    authorizeRegisteredLiveSurfaceScope (rosterWeekLiveScope (unpackId venueB.id) (unpackId rosterGroupB.id) 0)
+                    authorizeSurfaceScope (rosterWeekLiveScope (unpackId venueB.id) (unpackId rosterGroupB.id) 0)
                 adminXeroAuthorized <- withAuthenticatedControllerContext admin venueA.id do
-                    authorizeRegisteredLiveSurfaceScope (adminXeroLiveScope (unpackId venueB.id))
+                    authorizeSurfaceScope (adminXeroLiveScope (unpackId venueB.id))
                 billingAuthorized <- withAuthenticatedControllerContext admin venueA.id do
-                    authorizeRegisteredLiveSurfaceScope (billingLiveScope (unpackId venueB.id))
+                    authorizeSurfaceScope (billingLiveScope (unpackId venueB.id))
                 leaveAuthorized <- withAuthenticatedControllerContext admin venueA.id do
-                    authorizeRegisteredLiveSurfaceScope (leaveRequestsLiveScope (unpackId venueB.id))
+                    authorizeSurfaceScope (leaveRequestsLiveScope (unpackId venueB.id))
                 timesheetAuthorized <- withAuthenticatedControllerContext admin venueA.id do
-                    authorizeRegisteredLiveSurfaceScope (timesheetWeekLiveScope (unpackId venueB.id) 0)
+                    authorizeSurfaceScope (timesheetWeekLiveScope (unpackId venueB.id) 0)
                 profileAuthorized <- withAuthenticatedControllerContext admin venueA.id do
-                    authorizeRegisteredLiveSurfaceScope (profileLiveScope (unpackId venueB.id) (unpackId foreignStaff.id))
+                    authorizeSurfaceScope (profileLiveScope (unpackId venueB.id) (unpackId foreignStaff.id))
 
                 rosterAuthorized `shouldBe` False
                 adminXeroAuthorized `shouldBe` False
@@ -230,7 +230,7 @@ tests = beforeAll testContext do
                 otherStaff <- createStaffRecord venue (Just otherUser) "Other" "Profile"
 
                 authorized <- withAuthenticatedControllerContext user venue.id do
-                    authorizeRegisteredLiveSurfaceScope (profileLiveScope (unpackId venue.id) (unpackId otherStaff.id))
+                    authorizeSurfaceScope (profileLiveScope (unpackId venue.id) (unpackId otherStaff.id))
 
                 authorized `shouldBe` False
 
@@ -243,9 +243,9 @@ tests = beforeAll testContext do
                 rosterGroupB <- query @RosterGroup |> filterWhere (#venueId, unpackId venueB.id) |> fetchOne
 
                 rosterAuthorized <- withAuthenticatedControllerContext admin venueA.id do
-                    authorizeRegisteredLiveSurfaceScope (rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupB.id) 0)
+                    authorizeSurfaceScope (rosterWeekLiveScope (unpackId venueA.id) (unpackId rosterGroupB.id) 0)
                 adminRosterGroupsAuthorized <- withAuthenticatedControllerContext admin venueA.id do
-                    authorizeRegisteredLiveSurfaceScope (adminRosterGroupsLiveScope (unpackId venueA.id))
+                    authorizeSurfaceScope (adminRosterGroupsLiveScope (unpackId venueA.id))
 
                 rosterAuthorized `shouldBe` False
                 adminRosterGroupsAuthorized `shouldBe` True
@@ -255,7 +255,7 @@ tests = beforeAll testContext do
                 founder <- createUserRecordWithPlatformRole "founder-support-live@example.com" "staff" (Just SuperAdminRole) True
 
                 authorized <- withAuthenticatedControllerContextNoVenue founder do
-                    authorizeRegisteredLiveSurfaceScope supportPlatformLiveScope
+                    authorizeSurfaceScope supportPlatformLiveScope
 
                 authorized `shouldBe` True
 
@@ -264,7 +264,7 @@ tests = beforeAll testContext do
                 user <- createUserRecord "ordinary-support-live@example.com" "staff" True
 
                 authorized <- withAuthenticatedControllerContextNoVenue user do
-                    authorizeRegisteredLiveSurfaceScope supportPlatformLiveScope
+                    authorizeSurfaceScope supportPlatformLiveScope
 
                 authorized `shouldBe` False
 

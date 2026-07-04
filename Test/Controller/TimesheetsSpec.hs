@@ -6,9 +6,9 @@ import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceFragmentKey (.
                                                    FrontendSurfaceMountConfig (..),
                                                    FrontendSurfaceMountedFragment (..),
                                                    SurfaceImpl (..))
-import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate
 import Application.Helper.LiveUpdate.Runtime
+import Application.Helper.SurfaceResource
 import Application.Helper.WeekBoundaries (venueWeekOffsetForDay)
 import Config
 import qualified Data.Aeson as Aeson

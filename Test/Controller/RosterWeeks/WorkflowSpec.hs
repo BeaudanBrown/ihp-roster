@@ -3,9 +3,9 @@ module Test.Controller.RosterWeeks.WorkflowSpec where
 import Application.Async.Queue (EnqueueAppJobResult (..))
 import Application.Helper.Controller (PlatformRole (SuperAdminRole),
                                       venueWeekStartDate)
-import Application.Helper.LiveResource
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
+import Application.Helper.SurfaceResource
 import Application.Helper.UserPreferences
 import Application.RosterTimesheets.Automation (enqueueRosterTimesheetCreationJobsForWeek,
                                                 performRosterTimesheetCreationJob,

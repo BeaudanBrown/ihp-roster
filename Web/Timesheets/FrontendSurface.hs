@@ -20,9 +20,9 @@ module Web.Timesheets.FrontendSurface
 import Application.Helper.FrontendSurface.DSL
 import Application.Helper.FrontendSurface.Runtime
 import qualified Application.Helper.FrontendSurface.Timesheets as Surface
-import Application.Helper.LiveResource
 import Application.Helper.LiveSurface (LiveSurfaceConfig (..))
 import Application.Helper.LiveUpdate.Runtime
+import Application.Helper.SurfaceResource
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.Set as Set
@@ -104,7 +104,7 @@ timesheetsCandidateMountedFragments scope mountState =
     , timesheetDayColumnsMountedFragment mountState scope.timesheetWeekWeekOffset
     ] <> map (timesheetDaySectionMountedFragment mountState scope.timesheetWeekWeekOffset) [0 .. 6]
 
-timesheetsAffectedMountedFragments :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> Set.Set LiveResource -> [FrontendSurfaceMountedFragment]
+timesheetsAffectedMountedFragments :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> Set.Set SurfaceResourceValue -> [FrontendSurfaceMountedFragment]
 timesheetsAffectedMountedFragments scope mountState touchedResources =
     timesheetsCandidateMountedFragments scope mountState
         |> filter (fragmentDependsOnTouchedResource scope touchedResources . mountedFragmentToSurfaceFragment)
@@ -122,11 +122,11 @@ parseFragmentDayOffset :: Aeson.Value -> Maybe Int
 parseFragmentDayOffset value =
     Aeson.parseMaybe (Aeson.withObject "TimesheetDaySectionFragment" (.: "dayOffset")) value
 
-fragmentDependsOnTouchedResource :: TimesheetWeekScopeValue -> Set.Set LiveResource -> TimesheetSurfaceFragment -> Bool
+fragmentDependsOnTouchedResource :: TimesheetWeekScopeValue -> Set.Set SurfaceResourceValue -> TimesheetSurfaceFragment -> Bool
 fragmentDependsOnTouchedResource scope touchedResources fragment =
     not (Set.null (Set.intersection touchedResources (Set.fromList (timesheetsFragmentDependencies scope fragment))))
 
-timesheetsFragmentDependencies :: TimesheetWeekScopeValue -> TimesheetSurfaceFragment -> [LiveResource]
+timesheetsFragmentDependencies :: TimesheetWeekScopeValue -> TimesheetSurfaceFragment -> [SurfaceResourceValue]
 timesheetsFragmentDependencies scope TimesheetSurfaceToolbar =
     [ timesheetWeekResource scope.timesheetWeekVenueId scope.timesheetWeekWeekOffset
     , timesheetWeekBoundaryConfigResource scope.timesheetWeekVenueId

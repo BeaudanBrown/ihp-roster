@@ -7,16 +7,16 @@ module Web.Timesheets.Mutations
     , updateTimesheetEntryMutation
     ) where
 
-import Application.Helper.LiveResource
 import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval,
                                payVersionManifestForEntry)
+import Application.Helper.SurfaceResource
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Time.Calendar (diffDays)
 import Data.Time.Clock (getCurrentTime)
 import Web.Controller.Prelude
-import Web.LiveResourceInvalidation (invalidateTouchedResources)
+import Web.SurfaceInvalidation (invalidateTouchedResources)
 import Web.Timesheets.Validation (resetApprovalOnEdit)
 
 createTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetEntry -> IO (LiveMutationResult TimesheetEntry)
@@ -163,7 +163,7 @@ unapproveTimesheetEntryMutation _weekOffset timesheetEntry = do
     venueConfig <- fetchVenueConfig
     invalidateTouchedResources "timesheet.unapprove" (liveMutationResult updatedEntry (timesheetEntryTouchedResources venueConfig [updatedEntry]))
 
-timesheetEntryTouchedResources :: VenueConfig -> [TimesheetEntry] -> [LiveResource]
+timesheetEntryTouchedResources :: VenueConfig -> [TimesheetEntry] -> [SurfaceResourceValue]
 timesheetEntryTouchedResources venueConfig =
     concatMap entryResources
     where

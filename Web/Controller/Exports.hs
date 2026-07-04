@@ -1,7 +1,7 @@
 module Web.Controller.Exports where
 
 import Application.Helper.Export
-import Application.Helper.LiveResource (LiveMutationResult (..))
+import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)

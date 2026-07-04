@@ -4,7 +4,7 @@ module Web.Controller.Admin.Xero.ImportedPayItems
     , openXeroPayItemImportAction
     ) where
 
-import Application.Helper.LiveResource (LiveMutationResult (..))
+import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.View (ToastOverlayConfig (..),
                                 ToastOverlayPosition (ToastBottomCenter),
                                 renderToastOverlayHostOob)

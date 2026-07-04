@@ -36,7 +36,7 @@ module Web.Admin.Xero.Mutations
     , xeroTimesheetsTouchedResources
     ) where
 
-import Application.Helper.LiveResource
+import Application.Helper.SurfaceResource
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroTimesheetReadiness
@@ -48,7 +48,7 @@ import qualified Application.Xero.Timesheets.Submission as XeroSubmission
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Web.Controller.Prelude
-import Web.LiveResourceInvalidation (invalidateTouchedResources)
+import Web.SurfaceInvalidation (invalidateTouchedResources)
 
 startXeroConnectionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => XeroConfig -> UTCTime -> Text -> IO (LiveMutationResult XeroOauthState)
 startXeroConnectionMutation xeroConfig now stateToken = do
@@ -560,25 +560,25 @@ retryXeroDraftTimesheetSubmissionMutation :: (?context :: ControllerContext, ?mo
 retryXeroDraftTimesheetSubmissionMutation submissionId =
     XeroSubmission.retryXeroDraftTimesheetSubmission submissionId >>= recordXeroTimesheetsMutation "xero.timesheets.retry"
 
-xeroConnectionTouchedResources :: Id Venue -> [LiveResource]
+xeroConnectionTouchedResources :: Id Venue -> [SurfaceResourceValue]
 xeroConnectionTouchedResources venueId =
     [xeroConnectionResource (unpackId venueId)]
 
-xeroPayItemsTouchedResources :: Id Venue -> [LiveResource]
+xeroPayItemsTouchedResources :: Id Venue -> [SurfaceResourceValue]
 xeroPayItemsTouchedResources venueId =
     [ xeroPayItemsResource (unpackId venueId)
     , adminShiftTypesResource (unpackId venueId)
     ]
 
-xeroMappingsTouchedResources :: Id Venue -> [LiveResource]
+xeroMappingsTouchedResources :: Id Venue -> [SurfaceResourceValue]
 xeroMappingsTouchedResources venueId =
     [xeroMappingsResource (unpackId venueId)]
 
-xeroTimesheetsTouchedResources :: Id Venue -> [LiveResource]
+xeroTimesheetsTouchedResources :: Id Venue -> [SurfaceResourceValue]
 xeroTimesheetsTouchedResources venueId =
     [xeroTimesheetsResource (unpackId venueId)]
 
-xeroReferenceSyncTouchedResources :: Id Venue -> [LiveResource]
+xeroReferenceSyncTouchedResources :: Id Venue -> [SurfaceResourceValue]
 xeroReferenceSyncTouchedResources venueId =
     [ xeroConnectionResource (unpackId venueId)
     , xeroMappingsResource (unpackId venueId)

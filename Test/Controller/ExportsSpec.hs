@@ -1,7 +1,7 @@
 module Test.Controller.ExportsSpec where
 
 import Application.Helper.Export
-import Application.Helper.LiveResource
+import Application.Helper.SurfaceResource
 import qualified Codec.Archive.Zip as Zip
 import Config
 import qualified Data.Aeson as Aeson

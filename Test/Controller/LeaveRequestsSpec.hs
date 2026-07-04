@@ -1,9 +1,9 @@
 module Test.Controller.LeaveRequestsSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
-import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
+import Application.Helper.SurfaceResource
 import Application.Helper.WeekBoundaries (affectedVenueWeekOffsetsForDateRange)
 import Config
 import qualified Data.ByteString.Lazy.Char8 as LByteString
