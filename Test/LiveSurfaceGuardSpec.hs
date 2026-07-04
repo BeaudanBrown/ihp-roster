@@ -121,6 +121,9 @@ forbiddenReferences =
     , ExactIdentifier "ensureTypedLiveSurfaceAuthorized"
     , ExactIdentifier "liveSurfaceAuthorizationByScope"
     , ExactIdentifier "typedLiveSurfaceDefinition"
+    , ExactIdentifier "Application.Helper.Interaction"
+    , IdentifierPrefix "renderInteraction"
+    , IdentifierPrefix "withInteraction"
     ]
 
 forbiddenName :: ForbiddenReference -> Text
@@ -193,6 +196,7 @@ isAllowedInfrastructureFile path =
             , "Application/Helper/FrontendSurface/DependencyPlanner.hs"
             , "Application/Helper/FrontendSurface/Naming.hs"
             , "Application/Helper/FrontendSurface/Runtime.hs"
+            , "Application/Helper/FrontendSurface/TypeScript.hs"
             , "Application/Helper/Interaction.hs"
             , "Application/Helper/View/LazySurface.hs"
             , "Application/Helper/Interaction/Types.hs"
@@ -201,6 +205,7 @@ isAllowedInfrastructureFile path =
             , "Application/Helper/LiveUpdate/Runtime.hs"
             , "Application/Helper/FrontendSurface/AuthorizationRequirement.hs"
             , "Application/Helper/FrontendSurface/FragmentRender.hs"
+            , "Application/Helper/FrontendSurface/Interaction.hs"
             , "Application/Helper/UiRegion.hs"
             , "Application/Script/ProfileLiveInvalidation.hs"
             , "Application/Support/LiveUpdates.hs"

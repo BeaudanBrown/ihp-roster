@@ -1,6 +1,6 @@
 ---
 id: ir-gaxt
-status: open
+status: closed
 deps: [ir-729e]
 links: []
 created: 2026-07-04T02:44:57Z

@@ -107,6 +107,11 @@ expect_no_match \
     Application Web frontend/ts e2e static
 
 expect_no_match \
+    "production Web code must not author legacy semantic interaction helpers or attrs" \
+    'Application\.Helper\.Interaction|withInteraction|renderInteraction|data-bepis-(pointer-session|session-kind|session-intent|activation-intent|activation-trigger|marker|item=|dropzone=)' \
+    Web
+
+expect_no_match \
     "frontend contracts must not resurrect legacy live-surface manifest DTOs" \
     'LiveSurfaceManifest|LiveSurfaceFamily|SurfaceManifestSchema|Application\.Helper\.Frontend\.Dto\.LiveSurface' \
     Application Web frontend/ts static
