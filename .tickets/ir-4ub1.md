@@ -10,15 +10,17 @@ assignee: Beaudan Brown
 parent: ir-888o
 tags: [agent-loop, surfaces, interaction, planning]
 ---
-# Specify generated interaction render helper API
+# Specify generated interaction manifest and DOM ref contract
 
-Write the concrete API contract for FrontendSurface-aware interaction render helpers before implementation.
+Lock the concrete schema, DOM attachment model, and migration/deletion rules before implementation.
 
 ## Design
 
-Inventory current Application.Helper.Interaction marker/form/layer helpers and their call sites. Decide the exported high-level API shape, likely in Application.Helper.FrontendSurface.Interaction or a sibling render module, for activation intents, pointer sessions, dropzones, disposable layers, intent forms, generated target resolution, and conflict-policy metadata. Keep low-level marker helpers available internally but define which modules/views may import them.
+Define the generated static manifest shape for source refs, dropzone refs, activation refs, session kinds, intent mapping, field mapping, source/dropzone/session compatibility, effect metadata, and conflict policies. Define role-specific DOM ref attrs such as source ref/key, dropzone ref/key, activation ref, and any DOM-local disabled/read-only/threshold/timeout attrs. Decide exact naming and generation source. Update `Application/Helper/Interaction.SPEC.md` and `Application/Helper/FrontendSurface/README.md`. The spec must preserve DOM-owned HTMX forms and mark old semantic marker attrs as transitional.
 
 ## Acceptance Criteria
 
-A living SPEC/README section defines helper names, inputs, expected markup, ownership of data-bepis-* attributes, migration rules, and non-goals; tickets downstream can implement without reopening architecture decisions.
-
+- Spec explains manifest/ref contract, dynamic opaque keys, DOM-owned HTMX forms, and migration/deletion path.
+- Role-specific refs are generated from surface types/shared constants, not feature-local strings.
+- Old semantic marker attrs are explicitly transitional and not the durable API.
+- Downstream tickets can implement without reopening the core architecture decision.

@@ -1,7 +1,7 @@
 ---
 id: ir-mi5w
 status: open
-deps: [ir-4ub1]
+deps: [ir-f7ho]
 links: []
 created: 2026-07-04T02:44:57Z
 type: task
@@ -10,15 +10,17 @@ assignee: Beaudan Brown
 parent: ir-888o
 tags: [agent-loop, surfaces, interaction, haskell]
 ---
-# Implement FrontendSurface-aware interaction render helpers
+# Add Haskell render helpers for generated role-specific refs
 
-Add the Haskell helper layer that renders interaction markers/forms/layers from generated FrontendSurface metadata instead of feature-local string wiring.
+Add high-level Haskell helpers that emit generated source/dropzone/activation refs and DOM-owned intent forms without feature-local raw marker wiring.
 
 ## Design
 
-Use existing generated/reflected FrontendSurface interaction metadata where possible. Wrap current marker primitives behind typed helpers that take surface/intent/session/action references, mount ownership context, and strongly typed field names. Do not change browser protocol unless the spec ticket proves it necessary. Preserve current runtime behavior and generated TypeScript contracts.
+Add helpers under `Application.Helper.FrontendSurface.Interaction` or the runtime render module. Helpers should emit source refs/keys, dropzone refs/keys, activation refs, disposable layer mounts, and generated HTMX intent forms. Helpers hide raw attr names from feature views and use generated/reflected surface metadata. Existing low-level marker helpers remain only as transitional/internal APIs until deletion.
 
 ## Acceptance Criteria
 
-New helpers cover existing activation intent, pointer session, dropzone, disposable layer, and hidden intent form use cases; focused tests assert emitted markup and generated metadata integration; no LiveSurface compatibility types are introduced.
-
+- Roster can render source/dropzone/activation refs without hand-written semantic marker helpers.
+- Render tests assert exact attrs and generated refs.
+- No feature view needs generated attr string names for migrated paths.
+- DOM-owned HTMX forms continue to own action URLs, hidden fields, targets, swaps, sync, and trigger attrs.

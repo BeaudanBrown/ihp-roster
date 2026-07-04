@@ -10,15 +10,17 @@ assignee: Beaudan Brown
 parent: ir-888o
 tags: [agent-loop, surfaces, interaction, guardrails]
 ---
-# Migrate remaining interaction helper call sites and restrict low-level marker imports
+# Migrate remaining interaction call sites and add guardrails
 
-Move non-roster feature views/tests to generated helpers and make low-level data-bepis-* primitives internal by convention or guardrail.
+Move all remaining production interaction usage off old semantic marker helpers and protect the generated-ref path.
 
 ## Design
 
-Audit all imports of Application.Helper.Interaction and direct data-bepis-* literals in production views. Keep genuinely generic shared primitives, but route feature markup through FrontendSurface-aware helpers. Add a guardrail or documented allowlist if practical.
+Audit production imports/usages of `Application.Helper.Interaction`, `renderInteraction*Marker`, `withInteraction*Marker`, and old semantic `data-bepis-*` interaction attrs. Migrate remaining production call sites to generated refs/helpers. Add guardrails or an allowlist for low-level marker/runtime usage. Keep low-level attrs only in generated/runtime modules, tests/fixtures, or explicitly documented internals.
 
 ## Acceptance Criteria
 
-Production feature views no longer hand-wire interaction markers where a generated helper exists; remaining low-level usage is documented/allowlisted; tests cover the guardrail.
-
+- Production feature views do not hand-wire old semantic interaction markers.
+- Guardrails fail if old semantic marker APIs are used outside allowlisted modules.
+- Remaining low-level usage is documented and intentionally internal/transitional.
+- Tests cover the guardrail.
