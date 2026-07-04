@@ -405,7 +405,8 @@ tests = beforeAll testContext do
                 bodyText `shouldContain` "<span class=\"roster-shift-create-plus\" aria-hidden=\"true\">+</span>"
                 bodyText `shouldContain` "<span class=\"visually-hidden\">Add shift</span>"
                 bodyText `shouldContain` ("data-roster-shift-group-key=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
-                bodyText `shouldContain` ("data-bepis-dropzone=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
+                bodyText `shouldContain` "data-bepis-dropzone-ref=\"drag-dropzone\""
+                bodyText `shouldContain` ("data-bepis-dropzone-key=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
                 bodyText `shouldNotContain` ">Add shift</div>"
 
         it "renders editable day-column shifts as typed drag sources and create cards as drop targets" $ withContext do
@@ -429,11 +430,10 @@ tests = beforeAll testContext do
                 let sourceGroupKey = "existing:" <> tshow sourceSlot.id
                 let targetGroupKey = "new:" <> tshow rosterDay.id <> ":" <> tshow sourceSlot.rosterWeekSlotDefinitionId <> ":1"
                 bodyText `shouldContain` "roster-day-columns"
-                bodyText `shouldContain` ("data-bepis-pointer-session=\"true\"")
-                bodyText `shouldContain` ("data-bepis-session-kind=\"drag\"")
-                bodyText `shouldContain` ("data-bepis-session-intent=\"move-roster-shift-to-slot\"")
-                bodyText `shouldContain` ("data-bepis-item=\"" <> cs sourceGroupKey <> "\"")
-                bodyText `shouldContain` ("data-bepis-dropzone=\"" <> cs targetGroupKey <> "\"")
+                bodyText `shouldContain` "data-bepis-source-ref=\"drag-source\""
+                bodyText `shouldContain` ("data-bepis-source-key=\"" <> cs sourceGroupKey <> "\"")
+                bodyText `shouldContain` "data-bepis-dropzone-ref=\"drag-dropzone\""
+                bodyText `shouldContain` ("data-bepis-dropzone-key=\"" <> cs targetGroupKey <> "\"")
                 bodyText `shouldContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow sourceSlot.id) <> "\"")
                 bodyText `shouldContain` ("hx-get=\"/NewRosterSlotDialog?rosterDayId=" <> cs (tshow rosterDay.id) <> "&amp;rosterWeekSlotDefinitionId=" <> cs (tshow sourceSlot.rosterWeekSlotDefinitionId) <> "&amp;rowIndex=1\"")
 
@@ -804,14 +804,13 @@ tests = beforeAll testContext do
                     callAction (ShowRosterWeekAction 0)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-bepis-surface=\"true\""
+                response `responseBodyShouldContain` "data-bepis-surface=\"roster\""
                 response `responseBodyShouldContain` "data-bepis-intent-form=\"set-roster-layout-mode\""
                 response `responseBodyShouldContain` "hx-trigger=\"bepis:intent-submit\""
                 response `responseBodyShouldContain` "name=\"rosterLayoutMode\" value=\"day_rows\" data-bepis-intent-field=\"rosterLayoutMode\" data-bepis-field-presence=\"required\""
-                response `responseBodyShouldContain` "data-bepis-marker=\"activation\" data-bepis-activation=\"roster-layout-day_columns\""
-                response `responseBodyShouldContain` "data-bepis-activation-intent=\"set-roster-layout-mode\""
-                response `responseBodyShouldContain` "data-bepis-activation-trigger=\"change\""
-                response `responseBodyShouldContain` "data-bepis-activation-value-field=\"rosterLayoutMode\""
+                response `responseBodyShouldContain` "data-bepis-activation-ref=\"roster-layout-mode-activation\""
+                response `responseBodyShouldNotContain` "data-bepis-activation-intent=\"set-roster-layout-mode\""
+                response `responseBodyShouldNotContain` "data-bepis-activation-trigger=\"change\""
 
         it "renders typed drag/drop intent markup for editable row-grid shifts" $ withContext do
             withCleanDb do
@@ -832,11 +831,10 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-bepis-intent-form=\"move-roster-shift-to-slot\""
                 response `responseBodyShouldContain` "name=\"sourceItemKey\" value=\"\" data-bepis-intent-field=\"sourceItemKey\" data-bepis-field-presence=\"required\""
                 response `responseBodyShouldContain` "name=\"targetDropzoneKey\" value=\"\" data-bepis-intent-field=\"targetDropzoneKey\" data-bepis-field-presence=\"required\""
-                response `responseBodyShouldContain` "data-bepis-pointer-session=\"true\""
-                response `responseBodyShouldContain` "data-bepis-session-kind=\"drag\""
-                response `responseBodyShouldContain` "data-bepis-session-intent=\"move-roster-shift-to-slot\""
-                response `responseBodyShouldContain` "data-bepis-item=\"existing:"
-                response `responseBodyShouldContain` "data-bepis-dropzone=\"new:"
+                response `responseBodyShouldContain` "data-bepis-source-ref=\"drag-source\""
+                response `responseBodyShouldContain` "data-bepis-source-key=\"existing:"
+                response `responseBodyShouldContain` "data-bepis-dropzone-ref=\"drag-dropzone\""
+                response `responseBodyShouldContain` "data-bepis-dropzone-key=\"new:"
 
         it "moves an editable roster shift to a typed empty dropzone intent target" $ withContext do
             withCleanDb do

@@ -2,9 +2,7 @@ module Web.View.RosterWeeks.Header
     ( renderRosterGridHeader
     ) where
 
-import Application.Helper.Interaction (IntentFieldName (..),
-                                       InteractionActivationTrigger (..),
-                                       withInteractionActivationIntentMarker)
+import qualified Application.Helper.FrontendSurface.Interaction as SurfaceInteraction
 import Application.Helper.RosterWagePrediction (RosterWagePrediction (..),
                                                 formatMoneyAmount)
 import Application.Helper.UserPreferences (rosterLayoutModeLabel,
@@ -12,8 +10,7 @@ import Application.Helper.UserPreferences (rosterLayoutModeLabel,
                                            rosterLayoutModes)
 import Data.Time.Calendar (Day)
 import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterWeekShellId)
-import Web.RosterWeeks.FrontendSurface (rosterLayoutModeIntentFieldName,
-                                        rosterLayoutModeIntentName)
+import Web.RosterWeeks.FrontendSurface (rosterLayoutModeActivationRef)
 import Web.RosterWeeks.Paths (rosterAssignmentFiltersUrl, rosterCopyWeekUrl,
                               rosterWageEstimatePreferenceUrl,
                               rosterWarningPreferenceUrl, rosterWeekUrl)
@@ -179,7 +176,6 @@ renderRosterLayoutModeOption :: RosterLayoutModeEnum -> RosterLayoutModeEnum -> 
 renderRosterLayoutModeOption selectedLayoutMode layoutMode =
     let inputId = "roster-layout-mode-" <> rosterLayoutModeValue layoutMode
         layoutValue = rosterLayoutModeValue layoutMode
-        markerKey = "roster-layout-" <> layoutValue
         inputHtml = [hsx|
             <input type="radio"
                    class="btn-check"
@@ -189,7 +185,7 @@ renderRosterLayoutModeOption selectedLayoutMode layoutMode =
                    checked={rosterLayoutModeValue selectedLayoutMode == layoutValue} />
         |]
      in [hsx|
-        {withInteractionActivationIntentMarker markerKey rosterLayoutModeIntentName InteractionActivationChange (Just (IntentFieldName rosterLayoutModeIntentFieldName)) inputHtml}
+        {SurfaceInteraction.withFrontendSurfaceActivationRef rosterLayoutModeActivationRef inputHtml}
         <label class="btn btn-outline-secondary btn-sm" for={inputId}>{rosterLayoutModeLabel layoutMode}</label>
     |]
 

@@ -25,13 +25,12 @@ module Web.View.RosterWeeks.Grid
     , rowsForDay
     ) where
 
+import qualified Application.Helper.FrontendSurface.Interaction as SurfaceInteraction
 import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceFragmentKey (..),
                                                    FrontendSurfaceMountConfig (..),
                                                    FrontendSurfaceMountedFragment (..),
                                                    SurfaceImpl (..),
                                                    renderFrontendSurfaceLazyFragment)
-import Application.Helper.Interaction (withInteractionDropzoneMarker,
-                                       withInteractionPointerSessionMarker)
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
 import Application.Helper.RosterWagePrediction
 import Application.Helper.ShiftTypeColours (shiftTypeColourPaletteKeys)
@@ -52,9 +51,9 @@ import Data.UUID (UUID)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
                                         renderRosterFrontendSurfaceInteractionShell,
-                                        rosterDragSessionKindName,
+                                        rosterDragDropzoneRef,
+                                        rosterDragSourceRef,
                                         rosterMountedFragmentPlanFromRenderData,
-                                        rosterMoveShiftIntentName,
                                         rosterSurfaceImpl)
 import Web.RosterWeeks.Types
 import Web.View.Prelude
@@ -941,7 +940,7 @@ renderEditableNoEndTimeSlotCells display target groupKey blockIndex slot =
 -- attributes across every cell.
 renderEditableShiftUnit :: (?context :: ControllerContext) => RosterSlotCellTarget -> Text -> RosterSlot -> Int -> [ReadOnlyExistingSlotCell] -> Html
 renderEditableShiftUnit target groupKey slot gridSpan cells =
-    withInteractionPointerSessionMarker groupKey rosterDragSessionKindName rosterMoveShiftIntentName [hsx|
+    SurfaceInteraction.withFrontendSurfaceSourceRef rosterDragSourceRef groupKey [hsx|
         <div role="gridcell"
              class="roster-shift-unit roster-shift-launcher"
              style={rosterGridColumnSpanStyle gridSpan}
@@ -1098,7 +1097,7 @@ renderDayColumnCreateCard RosterDayRenderModel { dayIsEditable } rosterDay maybe
 renderDayColumnCreateLauncherCard :: (?context :: ControllerContext) => RosterSlotCellTarget -> Html
 renderDayColumnCreateLauncherCard target =
     let groupKey = rosterShiftGroupKey target
-     in withInteractionDropzoneMarker groupKey [hsx|
+     in SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDragDropzoneRef groupKey [hsx|
         <article class="roster-shift-card roster-shift-card-empty roster-shift-card-create roster-shift-launcher roster-shift-create-plus-card"
                  data-roster-shift-group-key={groupKey}
                  data-roster-shift-launcher="true"
@@ -1174,7 +1173,7 @@ renderDayColumnSlotCardContent isEditable _assignmentFilters _staffMembers shift
             </article>
         |]
      in if isEditable && targetHasExistingSlot target
-            then withInteractionPointerSessionMarker groupKey rosterDragSessionKindName rosterMoveShiftIntentName card
+            then SurfaceInteraction.withFrontendSurfaceSourceRef rosterDragSourceRef groupKey card
             else card
 
 targetHasExistingSlot :: RosterSlotCellTarget -> Bool
@@ -1227,7 +1226,7 @@ createShiftUnitVisualCellClasses False blockIndex =
 
 renderCreateShiftUnit :: (?context :: ControllerContext) => RosterSlotCellTarget -> Text -> [Text] -> Int -> Html
 renderCreateShiftUnit target groupKey visualCellClasses gridSpan =
-    withInteractionDropzoneMarker groupKey [hsx|
+    SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDragDropzoneRef groupKey [hsx|
         <div role="gridcell"
              class="roster-shift-unit roster-shift-launcher roster-shift-create-unit"
              style={rosterGridColumnSpanStyle gridSpan}

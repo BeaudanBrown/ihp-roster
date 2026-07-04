@@ -10,8 +10,11 @@ module Web.RosterWeeks.FrontendSurface
     , rosterCandidateMountedFragments
     , rosterMountedFragmentForProjection
     , renderRosterFrontendSurfaceInteractionShell
+    , rosterDragDropzoneRef
     , rosterDragSessionKindName
+    , rosterDragSourceRef
     , rosterInteractionMountKey
+    , rosterLayoutModeActivationRef
     , rosterLayoutModeIntentFieldName
     , rosterLayoutModeIntentName
     , rosterSurfaceScope
@@ -123,6 +126,22 @@ rosterLayoutModeIntentFieldName = "rosterLayoutMode"
 rosterMoveShiftIntentName :: Text
 rosterMoveShiftIntentName = "move-roster-shift-to-slot"
 
+rosterDragSourceRef :: SurfaceIR.InteractionSourceRefIR
+rosterDragSourceRef = expectOne "source ref" rosterFrontendSurfaceIR.surfaceSourceRefs
+
+rosterDragDropzoneRef :: SurfaceIR.InteractionDropzoneRefIR
+rosterDragDropzoneRef = expectOne "dropzone ref" rosterFrontendSurfaceIR.surfaceDropzoneRefs
+
+rosterLayoutModeActivationRef :: SurfaceIR.InteractionActivationRefIR
+rosterLayoutModeActivationRef = expectOne "activation ref" rosterFrontendSurfaceIR.surfaceActivationRefs
+
+expectOne :: Text -> [value] -> value
+expectOne label values =
+    case values of
+        [value] -> value
+        []      -> error ("missing roster " <> cs label)
+        _       -> error ("multiple roster " <> cs label <> " declarations")
+
 -- Native FrontendSurface interaction shell for Roster. It preserves the
 -- existing DOM/runtime contract while sourcing forms, layers, and policies from
 -- the Roster FrontendSurface spec/SurfaceImpl.
@@ -130,7 +149,7 @@ renderRosterFrontendSurfaceInteractionShell :: SurfaceImpl Surface.RosterSurface
 renderRosterFrontendSurfaceInteractionShell impl serverHtml =
     Html5.div
         ! fsAttr "id" mountId
-        ! fsAttr "data-bepis-surface" "true"
+        ! fsAttr "data-bepis-surface" impl.surfaceImplName
         ! fsAttr "data-bepis-surface-family" impl.surfaceImplName
         ! fsAttr "data-bepis-scope-key" impl.surfaceImplMountConfig.mountScopeKey
         ! fsAttr "data-bepis-mount-key" impl.surfaceImplMountConfig.mountKey
