@@ -1,6 +1,9 @@
-{-# LANGUAGE DataKinds     #-}
-{-# LANGUAGE PolyKinds     #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE NoImplicitPrelude   #-}
+{-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE PolyKinds           #-}
+{-# LANGUAGE TypeOperators       #-}
 
 module Application.Helper.FrontendSurface.Interaction
     ( CloneShadow

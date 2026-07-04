@@ -10,6 +10,42 @@
   }
   var InteractionDom = { "attributes": { "activation": "data-bepis-activation", "activationIntent": "data-bepis-activation-intent", "activationTrigger": "data-bepis-activation-trigger", "activationValueField": "data-bepis-activation-value-field", "conflictPolicies": "data-bepis-conflict-policies", "container": "data-bepis-container", "disposableLayer": "data-bepis-disposable-layer", "dropzone": "data-bepis-dropzone", "fieldPresence": "data-bepis-field-presence", "intent": "data-bepis-intent", "intentField": "data-bepis-intent-field", "intentForm": "data-bepis-intent-form", "intentHiddenField": "data-bepis-intent-hidden-field", "interactionActive": "data-bepis-interaction-active", "item": "data-bepis-item", "layer": "data-bepis-layer", "marker": "data-bepis-marker", "mountKey": "data-bepis-mount-key", "pointerSession": "data-bepis-pointer-session", "resizeHandle": "data-bepis-resize-handle", "scopeKey": "data-bepis-scope-key", "serverLayer": "data-bepis-server-layer", "sessionDisabled": "data-bepis-session-disabled", "sessionIntent": "data-bepis-session-intent", "sessionKind": "data-bepis-session-kind", "sessionReadOnly": "data-bepis-session-read-only", "sessionThreshold": "data-bepis-session-threshold", "sessionTimeoutMs": "data-bepis-session-timeout-ms", "slot": "data-bepis-slot", "surface": "data-bepis-surface", "surfaceFamily": "data-bepis-surface-family" }, "pointerFields": { "currentClientX": "currentClientX", "currentClientY": "currentClientY", "deltaX": "deltaX", "deltaY": "deltaY", "pointerId": "pointerId", "pointerType": "pointerType", "sessionKind": "sessionKind", "sourceItemKey": "sourceItemKey", "startClientX": "startClientX", "startClientY": "startClientY", "targetDropzoneKey": "targetDropzoneKey" }, "values": { "activationMarker": "activation", "containerMarker": "container", "dropzoneMarker": "dropzone", "enabled": "true", "itemMarker": "item", "resizeHandleMarker": "resize-handle", "slotMarker": "slot" } };
   var InteractionStaticSchemas = { "roster": { "conflictPolicies": [{ "fragment": { "kind": "any" }, "resolution": "defer", "session": { "kind": "session", "session": "drag" }, "timeoutMs": 5e3 }], "disposableLayers": [{ "domIdSuffix": "drag-preview", "name": "drag-preview" }], "intents": [{ "fields": [{ "defaultValue": null, "name": "rosterLayoutMode", "presence": "required" }], "name": "set-roster-layout-mode" }, { "fields": [{ "defaultValue": null, "name": "sourceItemKey", "presence": "required" }, { "defaultValue": null, "name": "targetDropzoneKey", "presence": "required" }, { "defaultValue": null, "name": "sessionKind", "presence": "optional" }, { "defaultValue": null, "name": "pointerId", "presence": "optional" }, { "defaultValue": null, "name": "pointerType", "presence": "optional" }, { "defaultValue": null, "name": "startClientX", "presence": "optional" }, { "defaultValue": null, "name": "startClientY", "presence": "optional" }, { "defaultValue": null, "name": "currentClientX", "presence": "optional" }, { "defaultValue": null, "name": "currentClientY", "presence": "optional" }, { "defaultValue": null, "name": "deltaX", "presence": "optional" }, { "defaultValue": null, "name": "deltaY", "presence": "optional" }], "name": "move-roster-shift-to-slot" }], "serverLayers": [], "sessionKinds": [{ "description": "Roster drag/drop prototype", "effects": { "contextual": [{ "className": "bepis-dropzone-highlight", "kind": "dropzone-highlight" }], "global": [{ "className": "bepis-pointer-clone-shadow", "kind": "clone-shadow", "layer": "drag-preview", "preserveGrabOffset": true, "source": "pointer-marker" }] }, "kind": "drag" }] } };
+  var FrontendSurfaceInteractionDom = { sourceRef: "data-bepis-source-ref", sourceKey: "data-bepis-source-key", dropzoneRef: "data-bepis-dropzone-ref", dropzoneKey: "data-bepis-dropzone-key", activationRef: "data-bepis-activation-ref" };
+  var surfaceLabSurfaceManifest = { surface: "surface-lab", scopes: ["lab"], fragments: ["lab-shell", "lab-panel"], liveFragments: [], htmxActions: ["refresh-panel"], intents: ["move-lab-card"], sessions: ["drag"], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: ["drag-preview"], domTokens: ["lab-root", "lab-dropzone"], overlayLanes: [], containedSurfaces: {} };
+  var timesheetsSurfaceManifest = { surface: "timesheets", scopes: ["timesheet-week"], fragments: ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"], liveFragments: ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
+  var rosterSurfaceManifest = { surface: "roster", scopes: ["roster-week"], fragments: ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-day-section", "roster-row"], liveFragments: ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-day-section", "roster-row"], htmxActions: ["set-roster-layout-mode", "move-roster-shift-to-slot"], intents: ["set-roster-layout-mode", "move-roster-shift-to-slot"], sessions: ["drag"], interaction: { sourceRefs: [{ ref: "drag-source", session: "drag", intent: "move-roster-shift-to-slot", sourceField: "sourceItemKey" }], dropzoneRefs: [{ ref: "drag-dropzone", session: "drag", targetField: "targetDropzoneKey" }], activationRefs: [{ ref: "roster-layout-mode-activation", intent: "set-roster-layout-mode", valueField: "rosterLayoutMode", trigger: "click" }] }, layers: ["drag-preview"], domTokens: [], overlayLanes: [], containedSurfaces: {} };
+  var leaveRequestsSurfaceManifest = { surface: "leave-requests", scopes: ["leave-requests"], fragments: ["leave-requests-content"], liveFragments: ["leave-requests-content"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
+  var billingSurfaceManifest = { surface: "billing", scopes: ["billing-venue"], fragments: ["billing-status"], liveFragments: ["billing-status"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
+  var supportSurfaceManifest = { surface: "support", scopes: ["support-platform"], fragments: ["support-award-rates", "support-public-holidays"], liveFragments: ["support-award-rates", "support-public-holidays"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
+  var profileSurfaceManifest = { surface: "profile", scopes: ["profile"], fragments: ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section", "profile-rsa-section"], liveFragments: ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section", "profile-rsa-section"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
+  var adminPageSurfaceManifest = { surface: "admin-page", scopes: ["admin-page"], fragments: ["admin-page-content"], liveFragments: [], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: { "admin-page-content": ["admin-invites", "admin-venue-config", "admin-exports", "admin-shift-types", "admin-roster-groups"] } };
+  var adminXeroPageSurfaceManifest = { surface: "admin-xero-page", scopes: ["admin-xero-page"], fragments: ["admin-xero-page-content"], liveFragments: [], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: { "admin-xero-page-content": ["admin-xero"] } };
+  var adminVenueConfigSurfaceManifest = { surface: "admin-venue-config", scopes: ["admin-venue-config"], fragments: ["admin-venue-config"], liveFragments: ["admin-venue-config"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
+  var adminInvitesSurfaceManifest = { surface: "admin-invites", scopes: ["admin-invites"], fragments: ["admin-invites"], liveFragments: ["admin-invites"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
+  var adminExportsSurfaceManifest = { surface: "admin-exports", scopes: ["admin-exports"], fragments: ["admin-exports"], liveFragments: ["admin-exports"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
+  var adminShiftTypesSurfaceManifest = { surface: "admin-shift-types", scopes: ["admin-shift-types"], fragments: ["admin-shift-types"], liveFragments: ["admin-shift-types"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
+  var adminRosterGroupsSurfaceManifest = { surface: "admin-roster-groups", scopes: ["admin-roster-groups"], fragments: ["admin-roster-groups"], liveFragments: ["admin-roster-groups"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
+  var adminXeroSurfaceManifest = { surface: "admin-xero", scopes: ["admin-xero"], fragments: ["admin-xero-shell", "admin-xero-staff-mappings", "admin-xero-pay-items", "admin-xero-timesheets"], liveFragments: ["admin-xero-shell", "admin-xero-staff-mappings", "admin-xero-pay-items", "admin-xero-timesheets"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
+  var FrontendSurfaceRegistry = {
+    "surface-lab": surfaceLabSurfaceManifest,
+    timesheets: timesheetsSurfaceManifest,
+    roster: rosterSurfaceManifest,
+    "leave-requests": leaveRequestsSurfaceManifest,
+    billing: billingSurfaceManifest,
+    support: supportSurfaceManifest,
+    profile: profileSurfaceManifest,
+    "admin-page": adminPageSurfaceManifest,
+    "admin-xero-page": adminXeroPageSurfaceManifest,
+    "admin-venue-config": adminVenueConfigSurfaceManifest,
+    "admin-invites": adminInvitesSurfaceManifest,
+    "admin-exports": adminExportsSurfaceManifest,
+    "admin-shift-types": adminShiftTypesSurfaceManifest,
+    "admin-roster-groups": adminRosterGroupsSurfaceManifest,
+    "admin-xero": adminXeroSurfaceManifest
+  };
+  function isFrontendSurfaceName(value) {
+    return typeof value === "string" && Object.prototype.hasOwnProperty.call(FrontendSurfaceRegistry, value);
+  }
 
   // frontend/ts/interaction/form-bridge.ts
   var attrs = InteractionDom.attributes;
@@ -165,7 +201,8 @@
   // frontend/ts/interaction/activation.ts
   var attrs2 = InteractionDom.attributes;
   var values = InteractionDom.values;
-  var activationSelector = `[${attrs2.marker}="${values.activationMarker}"]`;
+  var legacyActivationSelector = `[${attrs2.marker}="${values.activationMarker}"]`;
+  var surfaceActivationSelector = `[${FrontendSurfaceInteractionDom.activationRef}]`;
   function enableGenericInteractionActivations(options = {}) {
     if (typeof document === "undefined") return () => void 0;
     const root = options.root ?? document;
@@ -183,13 +220,38 @@
     };
   }
   function readActivationIntentPayload(event, expectedTrigger) {
-    const marker = closestActivationMarker(event.target);
+    return readSurfaceActivationIntentPayload(event, expectedTrigger) ?? readLegacyActivationIntentPayload(event, expectedTrigger);
+  }
+  function readSurfaceActivationIntentPayload(event, expectedTrigger) {
+    const marker = closestSurfaceActivationRef(event.target);
+    if (!marker) return null;
+    const mount = closestInteractionMount2(marker);
+    if (!mount) return null;
+    const surface = mount.getAttribute(attrs2.surface);
+    if (!isFrontendSurfaceName(surface)) return null;
+    const ref = marker.getAttribute(FrontendSurfaceInteractionDom.activationRef);
+    const definition = FrontendSurfaceRegistry[surface].interaction.activationRefs.find((candidate) => candidate.ref === ref);
+    if (!definition) return null;
+    if (expectedTrigger && definition.trigger !== expectedTrigger) return null;
+    const fields = readSurfaceActivationFields(marker, event, definition.valueField);
+    if (fields === null) return null;
+    return {
+      phase: "commit",
+      intent: definition.intent,
+      fields,
+      mount,
+      marker,
+      sourceEvent: event
+    };
+  }
+  function readLegacyActivationIntentPayload(event, expectedTrigger) {
+    const marker = closestLegacyActivationMarker(event.target);
     if (!marker) return null;
     const trigger = marker.getAttribute(attrs2.activationTrigger);
     if (!trigger || expectedTrigger && trigger !== expectedTrigger) return null;
     const intent = marker.getAttribute(attrs2.activationIntent);
     if (!intent) return null;
-    const fields = readActivationFields(marker, event);
+    const fields = readLegacyActivationFields(marker, event);
     if (fields === null) return null;
     return {
       phase: "commit",
@@ -216,12 +278,27 @@
     if (event.key === " " || event.key === "Spacebar") return "keydown-space";
     return null;
   }
-  function closestActivationMarker(target) {
+  function closestSurfaceActivationRef(target) {
     if (!isElementLike2(target)) return null;
-    const marker = target.closest(activationSelector);
+    const marker = target.closest(surfaceActivationSelector);
     return isElementLike2(marker) ? marker : null;
   }
-  function readActivationFields(marker, event) {
+  function closestLegacyActivationMarker(target) {
+    if (!isElementLike2(target)) return null;
+    const marker = target.closest(legacyActivationSelector);
+    return isElementLike2(marker) ? marker : null;
+  }
+  function closestInteractionMount2(marker) {
+    const mount = marker.closest(`[${attrs2.surface}]`);
+    return isElementLike2(mount) ? mount : null;
+  }
+  function readSurfaceActivationFields(marker, event, valueField) {
+    if (!valueField) return {};
+    const valueElement = valueSourceElement(marker, event);
+    if (!valueElement) return null;
+    return { [valueField]: valueElement.value };
+  }
+  function readLegacyActivationFields(marker, event) {
     const valueField = marker.getAttribute(attrs2.activationValueField);
     if (!valueField) return {};
     const valueElement = valueSourceElement(marker, event);
@@ -274,7 +351,8 @@
   var attrs4 = InteractionDom.attributes;
   var values2 = InteractionDom.values;
   var sessionSelector = `[${attrs4.pointerSession}="${values2.enabled}"]`;
-  var dropzoneSelector = `[${attrs4.dropzone}]`;
+  var sourceRefSelector = `[${FrontendSurfaceInteractionDom.sourceRef}]`;
+  var legacyDropzoneSelector = `[${attrs4.dropzone}]`;
   var disposableLayerSelector = `[${attrs4.disposableLayer}]`;
   var pointerFields = InteractionDom.pointerFields;
   var defaultThresholdPx = 4;
@@ -455,25 +533,51 @@
     };
   }
   function readPointerSessionStart(event, fallbackThresholdPx = defaultThresholdPx) {
+    return readSurfacePointerSessionStart(event, fallbackThresholdPx) ?? readLegacyPointerSessionStart(event, fallbackThresholdPx);
+  }
+  function readSurfacePointerSessionStart(event, fallbackThresholdPx) {
+    const pointerEvent = event;
+    const marker = closestSurfaceSourceRef(event.target);
+    if (!marker) return null;
+    if (isDisabled(marker)) return null;
+    const mount = closestInteractionMount3(marker);
+    if (!mount) return null;
+    const surface = mount.getAttribute(attrs4.surface);
+    if (!isFrontendSurfaceName(surface)) return null;
+    const sourceRef = marker.getAttribute(FrontendSurfaceInteractionDom.sourceRef);
+    const source = FrontendSurfaceRegistry[surface].interaction.sourceRefs.find((candidate) => candidate.ref === sourceRef);
+    if (!source) return null;
+    const sourceKey = marker.getAttribute(FrontendSurfaceInteractionDom.sourceKey);
+    if (!sourceKey) return null;
+    const targetField = FrontendSurfaceRegistry[surface].interaction.dropzoneRefs.find((candidate) => candidate.session === source.session)?.targetField ?? null;
+    return buildPointerSession({ event: pointerEvent, marker, mount, intent: source.intent, sessionKind: source.session, sourceField: source.sourceField, sourceKey, targetField, fallbackThresholdPx });
+  }
+  function readLegacyPointerSessionStart(event, fallbackThresholdPx) {
     const pointerEvent = event;
     const marker = closestPointerSessionMarker(event.target);
     if (!marker) return null;
     if (isDisabled(marker)) return null;
-    const mount = closestInteractionMount2(marker);
+    const mount = closestInteractionMount3(marker);
     if (!mount) return null;
     const intent = marker.getAttribute(attrs4.sessionIntent);
     const sessionKind = marker.getAttribute(attrs4.sessionKind);
     if (!intent || !sessionKind) return null;
-    const startClientX = numberValue(pointerEvent.clientX);
-    const startClientY = numberValue(pointerEvent.clientY);
-    const thresholdPx = numberAttribute(marker, attrs4.sessionThreshold) ?? fallbackThresholdPx;
+    return buildPointerSession({ event: pointerEvent, marker, mount, intent, sessionKind, sourceField: pointerFields.sourceItemKey, sourceKey: marker.getAttribute(attrs4.item), targetField: pointerFields.targetDropzoneKey, fallbackThresholdPx });
+  }
+  function buildPointerSession(input) {
+    const startClientX = numberValue(input.event.clientX);
+    const startClientY = numberValue(input.event.clientY);
+    const thresholdPx = numberAttribute(input.marker, attrs4.sessionThreshold) ?? input.fallbackThresholdPx;
     const session = {
-      mount,
-      marker,
-      intent,
-      sessionKind,
-      pointerId: numberValue(pointerEvent.pointerId),
-      pointerType: pointerEvent.pointerType ?? "unknown",
+      mount: input.mount,
+      marker: input.marker,
+      intent: input.intent,
+      sessionKind: input.sessionKind,
+      sourceField: input.sourceField,
+      sourceKey: input.sourceKey,
+      targetField: input.targetField,
+      pointerId: numberValue(input.event.pointerId),
+      pointerType: input.event.pointerType ?? "unknown",
       startClientX,
       startClientY,
       currentClientX: startClientX,
@@ -621,15 +725,30 @@
       [pointerFields.deltaX]: String(deltaX),
       [pointerFields.deltaY]: String(deltaY)
     };
-    const sourceItemKey = session.marker.getAttribute(attrs4.item);
-    if (sourceItemKey) fields[pointerFields.sourceItemKey] = sourceItemKey;
+    if (session.sourceField && session.sourceKey) fields[session.sourceField] = session.sourceKey;
     const targetDropzone = activeDropzone(session);
-    const targetDropzoneKey = targetDropzone?.getAttribute(attrs4.dropzone);
-    if (targetDropzoneKey) fields[pointerFields.targetDropzoneKey] = targetDropzoneKey;
+    const targetDropzoneKey = targetDropzoneKeyForSession(session, targetDropzone);
+    if (session.targetField && targetDropzoneKey) fields[session.targetField] = targetDropzoneKey;
     return fields;
   }
   function activeDropzone(session) {
-    return hitTestClosest(session.mount, session.currentClientX, session.currentClientY, dropzoneSelector);
+    return hitTestClosest(session.mount, session.currentClientX, session.currentClientY, surfaceDropzoneSelectorForSession(session)) ?? hitTestClosest(session.mount, session.currentClientX, session.currentClientY, legacyDropzoneSelector);
+  }
+  function surfaceDropzoneSelectorForSession(session) {
+    const surface = session.mount.getAttribute(attrs4.surface);
+    if (!isFrontendSurfaceName(surface)) return `[${FrontendSurfaceInteractionDom.dropzoneRef}]`;
+    const compatibleRefs = FrontendSurfaceRegistry[surface].interaction.dropzoneRefs.filter((candidate) => candidate.session === session.sessionKind).map((candidate) => candidate.ref);
+    if (compatibleRefs.length === 0) return `[${FrontendSurfaceInteractionDom.dropzoneRef}]`;
+    return compatibleRefs.map((ref) => `[${FrontendSurfaceInteractionDom.dropzoneRef}="${cssString(ref)}"]`).join(",");
+  }
+  function targetDropzoneKeyForSession(session, target) {
+    if (!target) return null;
+    const surfaceKey = target.getAttribute(FrontendSurfaceInteractionDom.dropzoneKey);
+    if (surfaceKey) return surfaceKey;
+    return target.getAttribute(attrs4.dropzone);
+  }
+  function cssString(value) {
+    return value.replace(/\\/g, "\\\\").replace(/\"/g, '\\"');
   }
   function disposableLayerByName(mount, layerName) {
     for (const layer of mount.querySelectorAll(disposableLayerSelector)) {
@@ -671,12 +790,17 @@
     const deltaY = session.currentClientY - session.startClientY;
     return Math.hypot(deltaX, deltaY);
   }
+  function closestSurfaceSourceRef(target) {
+    if (!isElementLike3(target)) return null;
+    const marker = target.closest(sourceRefSelector);
+    return isElementLike3(marker) ? marker : null;
+  }
   function closestPointerSessionMarker(target) {
     if (!isElementLike3(target)) return null;
     const marker = target.closest(sessionSelector);
     return isElementLike3(marker) ? marker : null;
   }
-  function closestInteractionMount2(marker) {
+  function closestInteractionMount3(marker) {
     const mount = marker.closest(`[${attrs4.surface}]`);
     return isElementLike3(mount) ? mount : null;
   }

@@ -1,4 +1,4 @@
-import { AppEvents, InteractionDom } from "../generated/contracts";
+import { AppEvents, FrontendSurfaceInteractionDom, InteractionDom } from "../generated/contracts";
 import { readActivationIntentPayload } from "../interaction/activation";
 import { submitCommittedInteractionIntent } from "../interaction/form-bridge";
 import { resolveLiveFragmentInteractionConflict } from "../interaction/live-conflicts";
@@ -126,6 +126,7 @@ class MiniElement extends EventTarget {
 const attrs = InteractionDom.attributes;
 
 function matchesSelector(element: MiniElement, selector: string): boolean {
+    if (selector.includes(",")) return selector.split(",").some((part) => matchesSelector(element, part.trim()));
     const equalsMatch = selector.match(/^\[([^=]+)="([^"]*)"\]$/);
     if (equalsMatch) return element.getAttribute(equalsMatch[1] ?? "") === (equalsMatch[2] ?? "");
     const attrMatch = selector.match(/^\[([^\]]+)\]$/);
@@ -213,6 +214,20 @@ test("generic activation markers emit committed intent payloads from closest mar
     assertEqual(payload?.phase, "commit");
     assertEqual(payload?.intent, "set-roster-layout-mode");
     assertEqual(payload?.fields?.rosterLayoutMode, "day_columns");
+    assertEqual(payload?.marker, marker as unknown as Element);
+});
+
+test("generated activation refs emit manifest-backed committed intent payloads", () => {
+    const mount = new MiniElement({ [attrs.surface]: "roster", [attrs.mountKey]: "primary" });
+    const marker = mount.append(new MiniElement({ [FrontendSurfaceInteractionDom.activationRef]: "roster-layout-mode-activation" }));
+    const input = marker.append(new MiniElement({ tag: "input", value: "day_columns" }));
+
+    const payload = readActivationIntentPayload(eventWithTarget("click", input), "click");
+
+    assertEqual(payload?.phase, "commit");
+    assertEqual(payload?.intent, "set-roster-layout-mode");
+    assertEqual(payload?.fields?.rosterLayoutMode, "day_columns");
+    assertEqual(payload?.mount, mount as unknown as Element);
     assertEqual(payload?.marker, marker as unknown as Element);
 });
 
@@ -340,6 +355,61 @@ test("runtime submits uncanceled committed intents and does not submit canceled 
     assertEqual(canceled.canceled, true);
     assertEqual(required.value, "cell-3");
     runtime.stop();
+});
+
+test("generated source refs start manifest-backed pointer sessions", () => {
+    const mount = new MiniElement({ [attrs.surface]: "roster" });
+    const marker = mount.append(new MiniElement({
+        [FrontendSurfaceInteractionDom.sourceRef]: "drag-source",
+        [FrontendSurfaceInteractionDom.sourceKey]: "shift:1",
+    }));
+
+    const session = readPointerSessionStart(pointerEventWithTarget("pointerdown", marker, 7, 10, 20), 4);
+
+    assertEqual(session?.intent, "move-roster-shift-to-slot");
+    assertEqual(session?.sessionKind, "drag");
+    assertEqual(session?.sourceField, "sourceItemKey");
+    assertEqual(session?.sourceKey, "shift:1");
+    assertEqual(session?.targetField, "targetDropzoneKey");
+});
+
+test("generated pointer sessions emit manifest fields from compatible dropzones", () => {
+    const observed: string[] = [];
+    const mount = new MiniElement({ [attrs.surface]: "roster", [attrs.surfaceFamily]: "roster" });
+    const marker = mount.append(new MiniElement({
+        [FrontendSurfaceInteractionDom.sourceRef]: "drag-source",
+        [FrontendSurfaceInteractionDom.sourceKey]: "shift:1",
+        [attrs.sessionThreshold]: "0",
+    }));
+    const dropzone = mount.append(new MiniElement({
+        [FrontendSurfaceInteractionDom.dropzoneRef]: "drag-dropzone",
+        [FrontendSurfaceInteractionDom.dropzoneKey]: "slot:2",
+    }));
+    const layer = mount.append(new MiniElement({ [attrs.disposableLayer]: "drag-preview" }));
+    const doc = { elementFromPoint: (_x: number, _y: number) => dropzone, createElement: (_tag: string) => new MiniElement() };
+    mount.ownerDocument = doc;
+    marker.ownerDocument = doc;
+    dropzone.ownerDocument = doc;
+    layer.ownerDocument = doc;
+
+    const controller = createPointerSessionController({
+        runtime: {
+            emit(payload) {
+                if (payload.phase === "preview" || payload.phase === "commit") {
+                    observed.push(`${payload.fields?.sourceItemKey ?? ""}->${payload.fields?.targetDropzoneKey ?? ""}`);
+                }
+                return { canceled: false };
+            },
+        },
+    });
+
+    controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 1, 0, 0));
+    controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 1, 1, 0));
+    controller.handlePointerUp(pointerEventWithTarget("pointerup", marker, 1, 2, 0));
+
+    assertEqual(observed.join(","), "shift:1->slot:2,shift:1->slot:2,shift:1->slot:2");
+    assertEqual(dropzone.getAttribute("class"), null);
+    assertEqual(layer.children.length, 0);
 });
 
 test("pointer session markers start only from enabled mounted handles", () => {

@@ -1,6 +1,6 @@
 ---
 id: ir-88is
-status: open
+status: closed
 deps: [ir-f7ho]
 links: []
 created: 2026-07-04T03:20:00Z

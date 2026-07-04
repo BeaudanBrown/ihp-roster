@@ -1,3 +1,9 @@
+{-# LANGUAGE BlockArguments      #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE NoImplicitPrelude   #-}
+{-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE OverloadedStrings   #-}
+
 module Application.Helper.FrontendSurface.ContractIR
     ( ContractDiagnostic (..)
     , ConflictPolicyIR (..)

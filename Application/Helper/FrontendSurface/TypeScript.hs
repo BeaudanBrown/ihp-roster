@@ -12,6 +12,7 @@ renderFrontendSurfaceContractsTypeScript :: SurfaceContractIR -> Text
 renderFrontendSurfaceContractsTypeScript contract =
     Text.unlines $
         [ "// FrontendSurface contracts generated from Application.Helper.FrontendSurface.Registry."
+        , "export const FrontendSurfaceInteractionDom = { sourceRef: \"data-bepis-source-ref\", sourceKey: \"data-bepis-source-key\", dropzoneRef: \"data-bepis-dropzone-ref\", dropzoneKey: \"data-bepis-dropzone-key\", activationRef: \"data-bepis-activation-ref\" } as const;"
         , "export type FrontendSurfaceUUID = string & { readonly __brand: \"FrontendSurfaceUUID\" };"
         , "export type FrontendSurfaceDay = string & { readonly __brand: \"FrontendSurfaceDay\" };"
         , ""
