@@ -259,7 +259,7 @@ explicit live fragments.
 
 **Recommendation:** Make `static/app-live-updates.js` the single owner of
 focused-field protection. Migrate any remaining morphdom override behavior into
-the declarative `LiveFragmentProtection` path from
+the declarative `SurfaceFragmentProtection` path from
 `docs/archive/plans/56-declarative-live-fragments.md`, then remove the legacy
 `enableRosterGridAutoRefreshDeferral` block from `static/app.js`.
 

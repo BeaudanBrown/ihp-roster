@@ -20,7 +20,7 @@ tests = describe "LiveUpdate runtime types" do
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
         let scope = rosterWeekLiveScope venueId rosterGroupId 0
         let fragment =
-                LiveUpdateWireFragment
+                SurfaceWireFragment
                     { fragmentKey = rosterStaffPanelLiveFragment
                     , targetId = "roster-staff-panel"
                     , url = "/ShowrosterStaffPanelLiveFragment?weekOffset=0"
@@ -30,17 +30,17 @@ tests = describe "LiveUpdate runtime types" do
         let message =
                 LiveUpdatesInvalidated
                     { scope
-                    , scopeKey = liveUpdateScopeKey scope
+                    , scopeKey = surfaceScopeKey scope
                     , version = 6
                     , fragments = [fragment]
                     , sourceClientId = Just "client-1"
                     }
-        Aeson.toJSON scope `shouldBe` Aeson.toJSON (liveUpdateScopeToWire scope)
-        Aeson.toJSON fragment `shouldBe` Aeson.toJSON (liveUpdateWireFragmentToWire fragment)
+        Aeson.toJSON scope `shouldBe` Aeson.toJSON (surfaceScopeToWire scope)
+        Aeson.toJSON fragment `shouldBe` Aeson.toJSON (surfaceWireFragmentToWire fragment)
         Aeson.toJSON message
             `shouldBe`
                 Aeson.toJSON
-                    (Wire.Invalidate (liveUpdateScopeToWire scope) (liveUpdateScopeKey scope) 6 [liveUpdateWireFragmentToWire fragment] (Just "client-1"))
+                    (Wire.Invalidate (surfaceScopeToWire scope) (surfaceScopeKey scope) 6 [surfaceWireFragmentToWire fragment] (Just "client-1"))
 
     it "round-trips roster, admin, leave, timesheet, and support scopes through JSON" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
@@ -94,7 +94,7 @@ tests = describe "LiveUpdate runtime types" do
     it "keeps wire fragment payloads self-describing for the browser" do
         let rosterDayId = expectUuid "22222222-2222-2222-2222-222222222222"
         let fragment =
-                LiveUpdateWireFragment
+                SurfaceWireFragment
                     { fragmentKey = rosterRowLiveFragment rosterDayId 2
                     , targetId = "roster-row-2"
                     , url = "/ShowRosterWeekRowFragment?weekOffset=0&rowIndex=2"
@@ -124,29 +124,29 @@ tests = describe "LiveUpdate runtime types" do
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
         let staffId = expectUuid "44444444-4444-4444-4444-444444444444"
 
-        liveUpdateScopeKey (rosterWeekLiveScope venueId rosterGroupId (-1))
+        surfaceScopeKey (rosterWeekLiveScope venueId rosterGroupId (-1))
             `shouldBe` "roster:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333:-1"
-        liveUpdateScopeKey (adminVenueConfigLiveScope venueId)
+        surfaceScopeKey (adminVenueConfigLiveScope venueId)
             `shouldBe` "admin-venue-config:11111111-1111-1111-1111-111111111111"
-        liveUpdateScopeKey (adminShiftTypesLiveScope venueId)
+        surfaceScopeKey (adminShiftTypesLiveScope venueId)
             `shouldBe` "admin-shift-types:11111111-1111-1111-1111-111111111111"
-        liveUpdateScopeKey (adminRosterGroupsLiveScope venueId)
+        surfaceScopeKey (adminRosterGroupsLiveScope venueId)
             `shouldBe` "admin-roster-groups:11111111-1111-1111-1111-111111111111"
-        liveUpdateScopeKey (adminInvitesLiveScope venueId)
+        surfaceScopeKey (adminInvitesLiveScope venueId)
             `shouldBe` "admin-invites:11111111-1111-1111-1111-111111111111"
-        liveUpdateScopeKey (adminExportsLiveScope venueId)
+        surfaceScopeKey (adminExportsLiveScope venueId)
             `shouldBe` "admin-exports:11111111-1111-1111-1111-111111111111"
-        liveUpdateScopeKey (adminXeroLiveScope venueId)
+        surfaceScopeKey (adminXeroLiveScope venueId)
             `shouldBe` "admin-xero:11111111-1111-1111-1111-111111111111"
-        liveUpdateScopeKey (billingLiveScope venueId)
+        surfaceScopeKey (billingLiveScope venueId)
             `shouldBe` "billing:11111111-1111-1111-1111-111111111111"
-        liveUpdateScopeKey (leaveRequestsLiveScope venueId)
+        surfaceScopeKey (leaveRequestsLiveScope venueId)
             `shouldBe` "leave-requests:11111111-1111-1111-1111-111111111111"
-        liveUpdateScopeKey (timesheetWeekLiveScope venueId 2)
+        surfaceScopeKey (timesheetWeekLiveScope venueId 2)
             `shouldBe` "timesheets:11111111-1111-1111-1111-111111111111:2"
-        liveUpdateScopeKey (profileLiveScope venueId staffId)
+        surfaceScopeKey (profileLiveScope venueId staffId)
             `shouldBe` "profile:11111111-1111-1111-1111-111111111111:44444444-4444-4444-4444-444444444444"
-        liveUpdateScopeKey supportPlatformLiveScope
+        surfaceScopeKey supportPlatformLiveScope
             `shouldBe` "support"
 
     it "round-trips commands and encodes subscribed, invalidation, and error payloads as JSON" do
@@ -154,7 +154,7 @@ tests = describe "LiveUpdate runtime types" do
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
         let scope = rosterWeekLiveScope venueId rosterGroupId 0
         let fragment =
-                LiveUpdateWireFragment
+                SurfaceWireFragment
                     { fragmentKey = rosterStaffPanelLiveFragment
                     , targetId = "roster-staff-panel"
                     , url = "/ShowrosterStaffPanelLiveFragment?weekOffset=0"
@@ -162,9 +162,9 @@ tests = describe "LiveUpdate runtime types" do
                     , protectionPolicy = NoProtection
                     }
         let subscription =
-                LiveUpdateSubscription
+                SurfaceSubscription
                     { subscriptionScope = scope
-                    , subscriptionScopeKey = liveUpdateScopeKey scope
+                    , subscriptionScopeKey = surfaceScopeKey scope
                     , subscriptionMountedFragments = [fragment]
                     }
         let commands =
@@ -173,10 +173,10 @@ tests = describe "LiveUpdate runtime types" do
                 , UnsubscribeLiveUpdates { subscription }
                 ]
         let messages =
-                [ LiveUpdatesSubscribed { scope, scopeKey = liveUpdateScopeKey scope, currentVersion = 4, resync = False }
-                , LiveUpdatesSubscribed { scope, scopeKey = liveUpdateScopeKey scope, currentVersion = 5, resync = True }
-                , LiveUpdatesInvalidated { scope, scopeKey = liveUpdateScopeKey scope, version = 6, fragments = [fragment], sourceClientId = Just "client-1" }
-                , LiveUpdatesInvalidated { scope, scopeKey = liveUpdateScopeKey scope, version = 7, fragments = [], sourceClientId = Nothing }
+                [ LiveUpdatesSubscribed { scope, scopeKey = surfaceScopeKey scope, currentVersion = 4, resync = False }
+                , LiveUpdatesSubscribed { scope, scopeKey = surfaceScopeKey scope, currentVersion = 5, resync = True }
+                , LiveUpdatesInvalidated { scope, scopeKey = surfaceScopeKey scope, version = 6, fragments = [fragment], sourceClientId = Just "client-1" }
+                , LiveUpdatesInvalidated { scope, scopeKey = surfaceScopeKey scope, version = 7, fragments = [], sourceClientId = Nothing }
                 , LiveUpdatesError { message = "Not authorized for requested live update scope" }
                 ]
 
@@ -185,21 +185,21 @@ tests = describe "LiveUpdate runtime types" do
         forM_ messages \message ->
             (Aeson.decode (Aeson.encode message) :: Maybe Aeson.Value) `shouldSatisfy` isJust
 
-        let encodedSubscribed = cs (LBS.toStrict (Aeson.encode (LiveUpdatesSubscribed { scope, scopeKey = liveUpdateScopeKey scope, currentVersion = 4, resync = False }))) :: Text
-        let encodedInvalidated = cs (LBS.toStrict (Aeson.encode (LiveUpdatesInvalidated { scope, scopeKey = liveUpdateScopeKey scope, version = 6, fragments = [fragment], sourceClientId = Nothing }))) :: Text
+        let encodedSubscribed = cs (LBS.toStrict (Aeson.encode (LiveUpdatesSubscribed { scope, scopeKey = surfaceScopeKey scope, currentVersion = 4, resync = False }))) :: Text
+        let encodedInvalidated = cs (LBS.toStrict (Aeson.encode (LiveUpdatesInvalidated { scope, scopeKey = surfaceScopeKey scope, version = 6, fragments = [fragment], sourceClientId = Nothing }))) :: Text
         encodedSubscribed `shouldSatisfy` Text.isInfixOf "\"scopeKey\":\"roster:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333:0\""
         encodedInvalidated `shouldSatisfy` Text.isInfixOf "\"scopeKey\":\"roster:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333:0\""
 
     it "exposes active live scopes without leaking websocket subscription internals" do
-        activeLiveUpdateScopes `shouldReturn` []
-        activeLiveUpdateScopeMatches supportScopeLabel `shouldReturn` []
+        activeSurfaceScopes `shouldReturn` []
+        activeSurfaceScopeMatches supportScopeLabel `shouldReturn` []
         activeRosterWeekScopes `shouldReturn` []
 
     it "exercises isolated in-memory live buses without global state leakage" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let scope = leaveRequestsLiveScope venueId
         let fragment =
-                LiveUpdateWireFragment
+                SurfaceWireFragment
                     { fragmentKey = leaveRequestsContentLiveFragment
                     , targetId = "leave-requests-content"
                     , url = "/ShowleaveRequestsContentLiveFragment"
@@ -209,22 +209,22 @@ tests = describe "LiveUpdate runtime types" do
         firstBus <- newInMemoryLiveBus
         secondBus <- newInMemoryLiveBus
 
-        activeLiveUpdateScopesWithBus firstBus `shouldReturn` []
-        activeLiveUpdateSubscriptionsWithBus firstBus `shouldReturn` []
-        activeLiveUpdateScopeMatchesWithBus firstBus supportScopeLabel `shouldReturn` []
+        activeSurfaceScopesWithBus firstBus `shouldReturn` []
+        activeSurfaceSubscriptionsWithBus firstBus `shouldReturn` []
+        activeSurfaceScopeMatchesWithBus firstBus supportScopeLabel `shouldReturn` []
         activeRosterWeekScopesWithBus firstBus `shouldReturn` []
 
         let subscription =
-                LiveUpdateSubscription
+                SurfaceSubscription
                     { subscriptionScope = scope
-                    , subscriptionScopeKey = liveUpdateScopeKey scope
+                    , subscriptionScopeKey = surfaceScopeKey scope
                     , subscriptionMountedFragments = [fragment]
                     }
-        registerLiveSubscriptionWithBus firstBus venueId subscription (error "unused websocket connection")
-        activeLiveUpdateSubscriptionsWithBus firstBus `shouldReturn` [subscription]
-        activeLiveUpdateScopesWithBus firstBus `shouldReturn` [scope]
-        unregisterLiveSubscriptionWithBus firstBus venueId
-        activeLiveUpdateSubscriptionsWithBus firstBus `shouldReturn` []
+        registerSurfaceSubscriptionWithBus firstBus venueId subscription (error "unused websocket connection")
+        activeSurfaceSubscriptionsWithBus firstBus `shouldReturn` [subscription]
+        activeSurfaceScopesWithBus firstBus `shouldReturn` [scope]
+        unregisterSurfaceSubscriptionWithBus firstBus venueId
+        activeSurfaceSubscriptionsWithBus firstBus `shouldReturn` []
         currentLiveUpdateVersionWithBus firstBus scope `shouldReturn` 0
         incrementLiveUpdateVersionWithBus firstBus scope `shouldReturn` 1
         currentLiveUpdateVersionWithBus firstBus scope `shouldReturn` 1
@@ -243,7 +243,7 @@ tests = describe "LiveUpdate runtime types" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let scope = leaveRequestsLiveScope venueId
         let fragment =
-                LiveUpdateWireFragment
+                SurfaceWireFragment
                     { fragmentKey = leaveRequestsContentLiveFragment
                     , targetId = "leave-requests-content"
                     , url = "/ShowleaveRequestsContentLiveFragment"
@@ -264,7 +264,7 @@ tests = describe "LiveUpdate runtime types" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let scope = leaveRequestsLiveScope venueId
         let fragment =
-                LiveUpdateWireFragment
+                SurfaceWireFragment
                     { fragmentKey = leaveRequestsContentLiveFragment
                     , targetId = "leave-requests-content"
                     , url = "/ShowleaveRequestsContentLiveFragment"
@@ -272,7 +272,7 @@ tests = describe "LiveUpdate runtime types" do
                     , protectionPolicy = NoProtection
                     }
 
-        coalesceLiveUpdateWireFragments [fragment, fragment] `shouldBe` [fragment]
+        coalesceSurfaceWireFragments [fragment, fragment] `shouldBe` [fragment]
         result <- broadcastLiveInvalidationDetailedWithoutContext scope Nothing [fragment, fragment]
 
         result.broadcastFragmentCount `shouldBe` 2
@@ -290,7 +290,7 @@ tests = describe "LiveUpdate runtime types" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let scope = timesheetWeekLiveScope venueId 0
         let fragment =
-                LiveUpdateWireFragment
+                SurfaceWireFragment
                     { fragmentKey = timesheetDaySectionLiveFragment 1
                     , targetId = "timesheet-day-1"
                     , url = "/ShowTimesheetDaySectionFragment?weekOffset=0&dayOffset=1"
@@ -298,9 +298,9 @@ tests = describe "LiveUpdate runtime types" do
                     , protectionPolicy = NoProtection
                     }
         let subscription =
-                LiveUpdateSubscription
+                SurfaceSubscription
                     { subscriptionScope = scope
-                    , subscriptionScopeKey = liveUpdateScopeKey scope
+                    , subscriptionScopeKey = surfaceScopeKey scope
                     , subscriptionMountedFragments = [fragment]
                     }
 
@@ -316,9 +316,9 @@ tests = describe "LiveUpdate runtime types" do
         frontendSurfaceScopeAuthorizationRequirement (adminXeroLiveScope venueId) `shouldBe` Just (Just (RequireCurrentVenueOwner venueId))
         frontendSurfaceScopeAuthorizationRequirement (timesheetWeekLiveScope venueId 0) `shouldBe` Just (Just (RequireCurrentVenue venueId))
 
-supportAwardRatesSectionFragmentRef :: LiveUpdateWireFragment
+supportAwardRatesSectionFragmentRef :: SurfaceWireFragment
 supportAwardRatesSectionFragmentRef =
-    LiveUpdateWireFragment
+    SurfaceWireFragment
         { fragmentKey = supportAwardRatesSectionLiveFragment
         , targetId = "support-award-rates-section"
         , url = "/ShowFwcMapdAwardRatesSection"
@@ -326,9 +326,9 @@ supportAwardRatesSectionFragmentRef =
         , protectionPolicy = NoProtection
         }
 
-supportPublicHolidaysSectionFragmentRef :: LiveUpdateWireFragment
+supportPublicHolidaysSectionFragmentRef :: SurfaceWireFragment
 supportPublicHolidaysSectionFragmentRef =
-    LiveUpdateWireFragment
+    SurfaceWireFragment
         { fragmentKey = supportPublicHolidaysSectionLiveFragment
         , targetId = "support-public-holidays-section"
         , url = "/ShowPublicHolidaysSection"
@@ -340,6 +340,6 @@ expectUuid :: Text -> UUID.UUID
 expectUuid value =
     fromMaybe (error ("Invalid UUID fixture: " <> cs value)) (UUID.fromText value)
 
-supportScopeLabel :: LiveUpdateScope -> Maybe Text
+supportScopeLabel :: SurfaceScope -> Maybe Text
 supportScopeLabel supportPlatformLiveScope = Just "support"
 supportScopeLabel _                        = Nothing

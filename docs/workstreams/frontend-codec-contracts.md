@@ -17,7 +17,7 @@ shapes.
 Wire-shape note (ir-akhw, 2026-06-26): for app-owned domain alternatives,
 prefer closed tagged unions over `null` sentinel states. `null` remains
 available in `FrontendCodec` for external/legacy JSON boundaries, but contracts
-such as `LiveFragmentProtection` should encode absence explicitly, e.g.
+such as `SurfaceFragmentProtection` should encode absence explicitly, e.g.
 `{ kind: "none" }`, so future variants remain regular and validator generation
 stays deterministic.
 
@@ -68,7 +68,7 @@ follow-up review found that some output is still only "generated" in the sense
 that Haskell concatenates TypeScript strings. Current examples include:
 
 - `Application/Helper/Frontend/LiveUpdateSchema.hs`
-  - handwritten `LiveFragmentProtection` TypeScript declaration;
+  - handwritten `SurfaceFragmentProtection` TypeScript declaration;
   - handwritten `isLiveUpdate*` validator block.
 - `Application/Helper/Frontend/InteractionSchema.hs`
   - handwritten interaction DTO TypeScript declarations;
@@ -112,7 +112,7 @@ artifacts of Haskell codec/schema definitions and registered runtime descriptors
 ## Generator Options To Spike
 
 The first ticket compares two realistic approaches using the same representative
-contracts: `LiveUpdateScope`, `LiveFragmentProtection`, `LiveSurfaceConfig`,
+contracts: `SurfaceScope`, `SurfaceFragmentProtection`, `LiveSurfaceConfig`,
 `InteractionDom`, `IntentFormContract`, and `LiveSurfaceManifestEntry`.
 
 ### Option A: Library-backed codec/schema first
@@ -210,10 +210,10 @@ from codec/schema values and be covered by generator tests.
 
 Migrate these concepts first because they are unknown browser JSON boundaries:
 
-- `LiveUpdateScope`;
-- `LiveFragmentKey`;
-- `LiveFragmentProtection`;
-- `LiveUpdateWireFragment`;
+- `SurfaceScope`;
+- `SurfaceFragmentKey`;
+- `SurfaceFragmentProtection`;
+- `SurfaceWireFragment`;
 - `LiveUpdateCommand`;
 - `LiveUpdateMessage`;
 - `LiveSurfaceConfig`.

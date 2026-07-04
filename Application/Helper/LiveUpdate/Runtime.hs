@@ -1,20 +1,20 @@
 module Application.Helper.LiveUpdate.Runtime
     ( LiveBus
-    , LiveFragmentKey (..)
-    , LiveFragmentProtection (..)
+    , SurfaceFragmentKey (..)
+    , SurfaceFragmentProtection (..)
     , FocusedFieldProtectionConfig (..)
     , LiveUpdateBroadcastResult (..)
     , LiveUpdateCommand (..)
     , LiveUpdateMessage (..)
-    , LiveUpdateScope (..)
-    , LiveUpdateSubscription (..)
-    , LiveUpdateWireFragment (..)
-    , activeLiveUpdateSubscriptions
-    , activeLiveUpdateSubscriptionsWithBus
-    , activeLiveUpdateScopeMatches
-    , activeLiveUpdateScopeMatchesWithBus
-    , activeLiveUpdateScopes
-    , activeLiveUpdateScopesWithBus
+    , SurfaceScope (..)
+    , SurfaceSubscription (..)
+    , SurfaceWireFragment (..)
+    , activeSurfaceSubscriptions
+    , activeSurfaceSubscriptionsWithBus
+    , activeSurfaceScopeMatches
+    , activeSurfaceScopeMatchesWithBus
+    , activeSurfaceScopes
+    , activeSurfaceScopesWithBus
     , activeRosterWeekScopes
     , activeRosterWeekScopesWithBus
     , broadcastLiveInvalidation
@@ -24,7 +24,7 @@ module Application.Helper.LiveUpdate.Runtime
     , broadcastLiveInvalidationWithoutContext
     , broadcastLiveResync
     , broadcastLiveResyncWithoutContext
-    , coalesceLiveUpdateWireFragments
+    , coalesceSurfaceWireFragments
     , currentLiveUpdateVersion
     , currentLiveUpdateVersionWithBus
     , incrementLiveUpdateVersionWithBus
@@ -45,7 +45,7 @@ module Application.Helper.LiveUpdate.Runtime
     , adminXeroTimesheetsLiveFragment
     , billingLiveScope
     , billingStatusLiveFragment
-    , frontendSurfaceLiveFragmentKey
+    , frontendSurfaceSurfaceFragmentKey
     , frontendSurfaceLiveScope
     , leaveRequestsContentLiveFragment
     , leaveRequestsLiveScope
@@ -75,20 +75,20 @@ module Application.Helper.LiveUpdate.Runtime
     , timesheetDaySectionLiveFragment
     , timesheetToolbarLiveFragment
     , timesheetWeekLiveScope
-    , liveUpdateScopeFieldUuid
-    , liveUpdateScopeKey
-    , liveUpdateScopeKind
-    , liveUpdateScopeToWire
-    , liveFragmentKeyKind
+    , surfaceScopeFieldUuid
+    , surfaceScopeKey
+    , surfaceScopeKind
+    , surfaceScopeToWire
+    , surfaceFragmentKeyKind
     , liveUpdateSourceClientId
-    , liveUpdateWireFragmentFromSurface
-    , liveUpdateWireFragmentKind
-    , liveUpdateWireFragmentToWire
+    , surfaceWireFragmentFromSurface
+    , surfaceWireFragmentKind
+    , surfaceWireFragmentToWire
     , newInMemoryLiveBus
-    , registerLiveSubscription
-    , registerLiveSubscriptionWithBus
-    , unregisterLiveSubscription
-    , unregisterLiveSubscriptionWithBus
+    , registerSurfaceSubscription
+    , registerSurfaceSubscriptionWithBus
+    , unregisterSurfaceSubscription
+    , unregisterSurfaceSubscriptionWithBus
     ) where
 
 import Application.Helper.LiveUpdate.Internal

@@ -30,7 +30,7 @@ buildRosterProjectionScope rosterGroupId weekOffset =
         , rosterProjectionWeekOffset = weekOffset
         }
 
-buildRosterWeekScope :: (?context :: ControllerContext) => Id RosterGroup -> Int -> LiveUpdateScope
+buildRosterWeekScope :: (?context :: ControllerContext) => Id RosterGroup -> Int -> SurfaceScope
 buildRosterWeekScope rosterGroupId weekOffset =
     rosterWeekLiveScope (unpackId currentVenueId) (unpackId rosterGroupId) weekOffset
 

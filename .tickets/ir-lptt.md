@@ -1,6 +1,6 @@
 ---
 id: ir-lptt
-status: open
+status: closed
 deps: [ir-7ylh]
 links: []
 created: 2026-07-04T01:20:55Z

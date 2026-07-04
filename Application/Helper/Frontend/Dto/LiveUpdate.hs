@@ -2,13 +2,13 @@
 
 module Application.Helper.Frontend.Dto.LiveUpdate
     ( FocusedFieldProtectionConfig (..)
-    , LiveFragmentKey (..)
-    , LiveFragmentProtection (..)
+    , SurfaceFragmentKey (..)
+    , SurfaceFragmentProtection (..)
     , LiveUpdateCommand (..)
     , LiveUpdateMessage (..)
-    , LiveUpdateScope (..)
-    , LiveUpdateSubscription (..)
-    , LiveUpdateWireFragment (..)
+    , SurfaceScope (..)
+    , SurfaceSubscription (..)
+    , SurfaceWireFragment (..)
     ) where
 
 import Application.Helper.Frontend.Codec (FrontendCodec (..),
@@ -27,13 +27,13 @@ import IHP.Prelude
 -- Surface-native live transport. The surface/scope/fragment names are generated
 -- kebab-case FrontendSurface names; scope and params are generated surface DTO
 -- payloads owned by the FrontendSurface contract.
-data LiveUpdateScope = LiveUpdateScope
+data SurfaceScope = SurfaceScope
     { surface :: !Text
     , scope   :: !Aeson.Value
     }
     deriving (Eq, Show, Generic)
 
-data LiveFragmentKey = LiveFragmentKey
+data SurfaceFragmentKey = SurfaceFragmentKey
     { surface :: !Text
     , kind    :: !Text
     , params  :: !Aeson.Value
@@ -48,7 +48,7 @@ data FocusedFieldProtectionConfig = FocusedFieldProtectionConfig
     }
     deriving (Eq, Show, Generic)
 
-data LiveFragmentProtection
+data SurfaceFragmentProtection
     = NoProtection
     | FocusedFieldProtection
         { activeSelector    :: !Text
@@ -58,45 +58,45 @@ data LiveFragmentProtection
         }
     deriving (Eq, Show, Generic)
 
-data LiveUpdateWireFragment = LiveUpdateWireFragment
-    { fragmentKey      :: !LiveFragmentKey
+data SurfaceWireFragment = SurfaceWireFragment
+    { fragmentKey      :: !SurfaceFragmentKey
     , targetId         :: !Text
     , url              :: !Text
     , deferUntilBlur   :: !Bool
-    , protectionPolicy :: !LiveFragmentProtection
+    , protectionPolicy :: !SurfaceFragmentProtection
     }
     deriving (Eq, Show, Generic)
 
-data LiveUpdateSubscription = LiveUpdateSubscription
-    { scope            :: !LiveUpdateScope
+data SurfaceSubscription = SurfaceSubscription
+    { scope            :: !SurfaceScope
     , scopeKey         :: !Text
-    , mountedFragments :: ![LiveUpdateWireFragment]
+    , mountedFragments :: ![SurfaceWireFragment]
     }
     deriving (Eq, Show, Generic)
 
 data LiveUpdateCommand
     = Subscribe
-        { subscription    :: !LiveUpdateSubscription
+        { subscription    :: !SurfaceSubscription
         , clientId        :: !Text
         , lastSeenVersion :: !(Maybe Int)
         }
     | Unsubscribe
-        { subscription :: !LiveUpdateSubscription
+        { subscription :: !SurfaceSubscription
         }
     deriving (Eq, Show, Generic)
 
 data LiveUpdateMessage
     = Subscribed
-        { scope          :: !LiveUpdateScope
+        { scope          :: !SurfaceScope
         , scopeKey       :: !Text
         , currentVersion :: !Int
         , resync         :: !Bool
         }
     | Invalidate
-        { scope          :: !LiveUpdateScope
+        { scope          :: !SurfaceScope
         , scopeKey       :: !Text
         , version        :: !Int
-        , fragments      :: ![LiveUpdateWireFragment]
+        , fragments      :: ![SurfaceWireFragment]
         , sourceClientId :: !(Maybe Text)
         }
     | Error
@@ -115,50 +115,50 @@ jsonValueCodec = FrontendCodec
     , codecParse = pure
     }
 
-liveUpdateScopeCodec :: FrontendCodec LiveUpdateScope
-liveUpdateScopeCodec = FrontendCodec
-    { codecName = Just "LiveUpdateScope"
-    , codecSchema = SchemaRecord "LiveUpdateScope" [FrontendField "surface" SchemaString, FrontendField "scope" jsonValueSchema]
-    , codecEncode = \LiveUpdateScope { surface, scope } -> Aeson.object ["surface" Aeson..= surface, "scope" Aeson..= scope]
-    , codecParse = Aeson.withObject "LiveUpdateScope" \object -> LiveUpdateScope <$> object Aeson..: "surface" <*> object Aeson..: "scope"
+surfaceScopeCodec :: FrontendCodec SurfaceScope
+surfaceScopeCodec = FrontendCodec
+    { codecName = Just "SurfaceScope"
+    , codecSchema = SchemaRecord "SurfaceScope" [FrontendField "surface" SchemaString, FrontendField "scope" jsonValueSchema]
+    , codecEncode = \SurfaceScope { surface, scope } -> Aeson.object ["surface" Aeson..= surface, "scope" Aeson..= scope]
+    , codecParse = Aeson.withObject "SurfaceScope" \object -> SurfaceScope <$> object Aeson..: "surface" <*> object Aeson..: "scope"
     }
 
-liveFragmentKeyCodec :: FrontendCodec LiveFragmentKey
-liveFragmentKeyCodec = FrontendCodec
-    { codecName = Just "LiveFragmentKey"
-    , codecSchema = SchemaRecord "LiveFragmentKey" [FrontendField "surface" SchemaString, FrontendField "kind" SchemaString, FrontendField "params" jsonValueSchema]
-    , codecEncode = \LiveFragmentKey { surface, kind, params } -> Aeson.object ["surface" Aeson..= surface, "kind" Aeson..= kind, "params" Aeson..= params]
-    , codecParse = Aeson.withObject "LiveFragmentKey" \object -> LiveFragmentKey <$> object Aeson..: "surface" <*> object Aeson..: "kind" <*> object Aeson..: "params"
+surfaceFragmentKeyCodec :: FrontendCodec SurfaceFragmentKey
+surfaceFragmentKeyCodec = FrontendCodec
+    { codecName = Just "SurfaceFragmentKey"
+    , codecSchema = SchemaRecord "SurfaceFragmentKey" [FrontendField "surface" SchemaString, FrontendField "kind" SchemaString, FrontendField "params" jsonValueSchema]
+    , codecEncode = \SurfaceFragmentKey { surface, kind, params } -> Aeson.object ["surface" Aeson..= surface, "kind" Aeson..= kind, "params" Aeson..= params]
+    , codecParse = Aeson.withObject "SurfaceFragmentKey" \object -> SurfaceFragmentKey <$> object Aeson..: "surface" <*> object Aeson..: "kind" <*> object Aeson..: "params"
     }
 
-instance HasFrontendCodec LiveUpdateScope where
-    frontendCodec = liveUpdateScopeCodec
+instance HasFrontendCodec SurfaceScope where
+    frontendCodec = surfaceScopeCodec
 
-instance HasFrontendCodec LiveFragmentKey where
-    frontendCodec = liveFragmentKeyCodec
+instance HasFrontendCodec SurfaceFragmentKey where
+    frontendCodec = surfaceFragmentKeyCodec
 
 instance HasFrontendCodec FocusedFieldProtectionConfig where
     frontendCodec = genericFrontendCodecWith defaultFrontendCodecOptions
         { frontendTypeNameOverride = Just "FocusedFieldProtectionConfig"
         }
 
-instance HasFrontendCodec LiveFragmentProtection where
+instance HasFrontendCodec SurfaceFragmentProtection where
     frontendCodec = genericFrontendCodecWith defaultFrontendCodecOptions
-        { frontendTypeNameOverride = Just "LiveFragmentProtection"
+        { frontendTypeNameOverride = Just "SurfaceFragmentProtection"
         , frontendConstructorTagModifier = \case
             "NoProtection" -> "none"
             "FocusedFieldProtection" -> "focused_field"
             constructorName -> constructorName
         }
 
-instance HasFrontendCodec LiveUpdateWireFragment where
+instance HasFrontendCodec SurfaceWireFragment where
     frontendCodec = genericFrontendCodecWith defaultFrontendCodecOptions
-        { frontendTypeNameOverride = Just "LiveUpdateWireFragment"
+        { frontendTypeNameOverride = Just "SurfaceWireFragment"
         }
 
-instance HasFrontendCodec LiveUpdateSubscription where
+instance HasFrontendCodec SurfaceSubscription where
     frontendCodec = genericFrontendCodecWith defaultFrontendCodecOptions
-        { frontendTypeNameOverride = Just "LiveUpdateSubscription"
+        { frontendTypeNameOverride = Just "SurfaceSubscription"
         }
 
 instance HasFrontendCodec LiveUpdateCommand where
@@ -173,17 +173,17 @@ instance HasFrontendCodec LiveUpdateMessage where
         , frontendTaggedUnionTagField = "type"
         }
 
-instance Aeson.ToJSON LiveUpdateScope where
-    toJSON = encodeFrontend (frontendCodec @LiveUpdateScope)
+instance Aeson.ToJSON SurfaceScope where
+    toJSON = encodeFrontend (frontendCodec @SurfaceScope)
 
-instance Aeson.FromJSON LiveUpdateScope where
-    parseJSON = parseFrontend (frontendCodec @LiveUpdateScope)
+instance Aeson.FromJSON SurfaceScope where
+    parseJSON = parseFrontend (frontendCodec @SurfaceScope)
 
-instance Aeson.ToJSON LiveFragmentKey where
-    toJSON = encodeFrontend (frontendCodec @LiveFragmentKey)
+instance Aeson.ToJSON SurfaceFragmentKey where
+    toJSON = encodeFrontend (frontendCodec @SurfaceFragmentKey)
 
-instance Aeson.FromJSON LiveFragmentKey where
-    parseJSON = parseFrontend (frontendCodec @LiveFragmentKey)
+instance Aeson.FromJSON SurfaceFragmentKey where
+    parseJSON = parseFrontend (frontendCodec @SurfaceFragmentKey)
 
 instance Aeson.ToJSON FocusedFieldProtectionConfig where
     toJSON = encodeFrontend (frontendCodec @FocusedFieldProtectionConfig)
@@ -191,23 +191,23 @@ instance Aeson.ToJSON FocusedFieldProtectionConfig where
 instance Aeson.FromJSON FocusedFieldProtectionConfig where
     parseJSON = parseFrontend (frontendCodec @FocusedFieldProtectionConfig)
 
-instance Aeson.ToJSON LiveFragmentProtection where
-    toJSON = encodeFrontend (frontendCodec @LiveFragmentProtection)
+instance Aeson.ToJSON SurfaceFragmentProtection where
+    toJSON = encodeFrontend (frontendCodec @SurfaceFragmentProtection)
 
-instance Aeson.FromJSON LiveFragmentProtection where
-    parseJSON = parseFrontend (frontendCodec @LiveFragmentProtection)
+instance Aeson.FromJSON SurfaceFragmentProtection where
+    parseJSON = parseFrontend (frontendCodec @SurfaceFragmentProtection)
 
-instance Aeson.ToJSON LiveUpdateWireFragment where
-    toJSON = encodeFrontend (frontendCodec @LiveUpdateWireFragment)
+instance Aeson.ToJSON SurfaceWireFragment where
+    toJSON = encodeFrontend (frontendCodec @SurfaceWireFragment)
 
-instance Aeson.FromJSON LiveUpdateWireFragment where
-    parseJSON = parseFrontend (frontendCodec @LiveUpdateWireFragment)
+instance Aeson.FromJSON SurfaceWireFragment where
+    parseJSON = parseFrontend (frontendCodec @SurfaceWireFragment)
 
-instance Aeson.ToJSON LiveUpdateSubscription where
-    toJSON = encodeFrontend (frontendCodec @LiveUpdateSubscription)
+instance Aeson.ToJSON SurfaceSubscription where
+    toJSON = encodeFrontend (frontendCodec @SurfaceSubscription)
 
-instance Aeson.FromJSON LiveUpdateSubscription where
-    parseJSON = parseFrontend (frontendCodec @LiveUpdateSubscription)
+instance Aeson.FromJSON SurfaceSubscription where
+    parseJSON = parseFrontend (frontendCodec @SurfaceSubscription)
 
 instance Aeson.ToJSON LiveUpdateCommand where
     toJSON = encodeFrontend (frontendCodec @LiveUpdateCommand)

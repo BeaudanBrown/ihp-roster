@@ -14,7 +14,7 @@ module Web.RosterWeeks.FrontendSurface
     , rosterInteractionMountKey
     , rosterLayoutModeIntentFieldName
     , rosterLayoutModeIntentName
-    , rosterLiveUpdateScope
+    , rosterSurfaceScope
     , rosterMountedFragmentPlanFromRenderData
     , rosterMoveShiftIntentName
     , rosterSurfaceImpl
@@ -256,11 +256,11 @@ fsAttr :: Text -> Text -> Html5.Attribute
 fsAttr name value =
     customAttribute (textTag name) (Blaze.toValue value)
 
-rosterLiveUpdateScope :: RosterWeekScopeValue -> LiveUpdateScope
-rosterLiveUpdateScope scope =
+rosterSurfaceScope :: RosterWeekScopeValue -> SurfaceScope
+rosterSurfaceScope scope =
     rosterWeekLiveScope scope.rosterWeekVenueId (unpackId scope.rosterWeekGroupId) scope.rosterWeekWeekOffset
 
-rosterSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment]
+rosterSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [SurfaceWireFragment]
 rosterSurfaceWireFragments =
     frontendSurfaceMountedFragmentsToWire "roster"
 

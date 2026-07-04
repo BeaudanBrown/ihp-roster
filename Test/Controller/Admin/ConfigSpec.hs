@@ -114,11 +114,11 @@ tests = beforeAll testContext do
                         , rosterSlotsGridLiveFragment
                         ]
                 let subscription =
-                        LiveUpdateSubscription
+                        SurfaceSubscription
                             { subscriptionScope = scope
-                            , subscriptionScopeKey = liveUpdateScopeKey scope
+                            , subscriptionScopeKey = surfaceScopeKey scope
                             , subscriptionMountedFragments =
-                                [ LiveUpdateWireFragment fragment ("target-" <> tshow index) ("/fragment/" <> tshow index) False NoProtection
+                                [ SurfaceWireFragment fragment ("target-" <> tshow index) ("/fragment/" <> tshow index) False NoProtection
                                 | (index, fragment) <- zip [(1 :: Int) ..] rosterContentFragments
                                 ]
                             }

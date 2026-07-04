@@ -50,8 +50,8 @@ module Application.Helper.Frontend.Dto.Interaction
 import Application.Helper.Frontend.Codec (FrontendCodec (..),
                                           FrontendSchema (..),
                                           HasFrontendCodec (..))
-import Application.Helper.Frontend.Dto.LiveUpdate (LiveFragmentKey,
-                                                   LiveUpdateWireFragment)
+import Application.Helper.Frontend.Dto.LiveUpdate (SurfaceFragmentKey,
+                                                   SurfaceWireFragment)
 import Application.Helper.Frontend.Generic (FrontendNullable (..),
                                             FrontendOptional (..),
                                             genericFrontendCodecWith)
@@ -211,7 +211,7 @@ data InteractionSessionSelector
 data InteractionFragmentSelector
     = AnyFragment
     | LiveFragment
-        { fragment :: !LiveFragmentKey
+        { fragment :: !SurfaceFragmentKey
         }
     deriving (Eq, Show, Generic)
 
@@ -257,7 +257,7 @@ data IntentHiddenField = IntentHiddenField
 
 data InteractionIntentTarget
     = TargetLiveFragment
-        { fragment :: !LiveUpdateWireFragment
+        { fragment :: !SurfaceWireFragment
         }
     | TargetMountLocal
         { target :: !Text

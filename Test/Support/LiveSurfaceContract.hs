@@ -10,7 +10,7 @@ import Network.HTTP.Types.Status (Status, status200)
 import Network.Wai (Response)
 import Test.Hspec
 
-liveFragmentResponseShouldRenderTarget :: Response -> LiveUpdateWireFragment -> Expectation
+liveFragmentResponseShouldRenderTarget :: Response -> SurfaceWireFragment -> Expectation
 liveFragmentResponseShouldRenderTarget response fragment = do
     response `responseStatusShouldBe` status200
     response `responseBodyShouldContain` ("id=\"" <> fragment.targetId <> "\"")

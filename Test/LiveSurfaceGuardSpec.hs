@@ -40,7 +40,7 @@ legacyRegistryAdapterViolations = do
         [ ["Web/LiveSurfaceRegistry.hs: legacy registry adapter module should stay deleted" | registryExists]
         , ["Web/SurfaceInvalidation.hs: manual legacy manifestDescriptor entry bypasses FrontendSurface descriptors" | "manifestDescriptor \"" `Text.isInfixOf` invalidation]
         , ["Web/SurfaceInvalidation.hs: registeredLiveSurfaceManifestCatalog should not return as a parallel registry list" | "registeredLiveSurfaceManifestCatalog" `Text.isInfixOf` invalidation]
-        , ["Web/SurfaceInvalidation.hs: wire kind helpers belong in Application.Helper.LiveUpdate.Internal" | "liveUpdateScopeKind ::" `Text.isInfixOf` invalidation || "liveFragmentKeyKind ::" `Text.isInfixOf` invalidation]
+        , ["Web/SurfaceInvalidation.hs: wire kind helpers belong in Application.Helper.LiveUpdate.Internal" | "surfaceScopeKind ::" `Text.isInfixOf` invalidation || "surfaceFragmentKeyKind ::" `Text.isInfixOf` invalidation]
         , ["Web/SurfaceInvalidation.hs: legacy registeredLiveSurfaceCatalog should be removed after FrontendSurface migration" | "registeredLiveSurfaceCatalog" `Text.isInfixOf` invalidation]
         ]
 
@@ -101,9 +101,9 @@ forbiddenReferences =
     , ExactIdentifier "mkDefinedLiveSurface"
     , ExactIdentifier "mkLiveFragmentRef"
     , ExactIdentifier "LiveFragmentRef"
-    , ExactIdentifier "mkLiveUpdateWireFragment"
+    , ExactIdentifier "mkSurfaceWireFragment"
     , ExactIdentifier "Application.Helper.LiveUpdate.Runtime"
-    , ExactIdentifier "LiveUpdateWireFragment"
+    , ExactIdentifier "SurfaceWireFragment"
     , IdentifierPrefix "broadcastLiveInvalidation"
     , IdentifierPrefix "broadcastLiveResync"
     , IdentifierPrefix "broadcastSurface"
@@ -117,7 +117,7 @@ forbiddenReferences =
     , ExactIdentifier "typedLiveSurfaceMutationRefs"
     , ExactIdentifier "liveFragmentsRefreshTriggerPayload"
     , ExactIdentifier "liveUpdateWireRefreshTriggerPayload"
-    , ExactIdentifier "authorizeLiveUpdateScope"
+    , ExactIdentifier "authorizeSurfaceScope"
     , ExactIdentifier "ensureTypedLiveSurfaceAuthorized"
     , ExactIdentifier "liveSurfaceAuthorizationByScope"
     , ExactIdentifier "typedLiveSurfaceDefinition"

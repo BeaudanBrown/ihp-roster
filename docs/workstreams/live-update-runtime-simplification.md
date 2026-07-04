@@ -66,11 +66,11 @@ The remaining old names are internal compatibility/runtime details:
 | `typedLiveSurfaceDefinition` | Defined/exported by `Application.Helper.LiveSurface.Internal`; used only by `mkTypedDefinedLiveSurface`. | No. | Delete; reimplement config construction from `TypedLiveSurfaceDefinition`. |
 | typed/direct broadcast helpers (`broadcastSurface*`, `broadcastTypedSurface*`, `broadcastProjectionSurface*`) | Previously exposed by the typed facade/internal live-surface layer; feature callers have been removed. | No. | Public aliases and internal exports are removed; passive broadcast emission is owned by `Web.SurfaceInvalidation` and raw transport stays in `Application.Helper.LiveUpdate.Runtime`. |
 | old typed projection bridge | Removed during cleanup. | No. | Keep deleted. |
-| `LiveFragmentRef` | Transport payload type in `Application.Helper.LiveUpdate.Internal`, `LiveSurfaceConfig`, controller/support tests, and contract helpers. | Not feature-facing by guard; tests/runtime only. | Rename to `LiveUpdateWireFragment` while preserving JSON keys and field names. |
-| `mkLiveFragmentRef` | Constructor helper used by `mkSurfaceFragmentRef`. | Not feature-facing. | Rename to `mkLiveUpdateWireFragment`; keep typed `mkSurfaceFragmentRef` as feature entrypoint. |
+| `LiveFragmentRef` | Transport payload type in `Application.Helper.LiveUpdate.Internal`, `LiveSurfaceConfig`, controller/support tests, and contract helpers. | Not feature-facing by guard; tests/runtime only. | Rename to `SurfaceWireFragment` while preserving JSON keys and field names. |
+| `mkLiveFragmentRef` | Constructor helper used by `mkSurfaceFragmentRef`. | Not feature-facing. | Rename to `mkSurfaceWireFragment`; keep typed `mkSurfaceFragmentRef` as feature entrypoint. |
 | `liveFragmentsRefreshTriggerPayload` | Used by `setLiveSurfaceActorRefresh` and `setTypedLiveSurfaceActorRefresh`; guard rejects feature use. | No current feature use, but the exported name reads API-shaped. | Replace with typed-only actor refresh helpers and a private/local transport encoder name. |
-| `authorizeLiveUpdateScope` and default authorization | `authorizeLiveUpdateScope` only backs `liveSurfaceAuthorizationByScope`; default requirement used by tests. Registry already authorizes via typed definitions. | Guard rejects direct feature use. | Delete fallback function; keep explicit `LiveScopeAuthorizationRequirement` helpers for typed definitions/tests. |
-| raw bus broadcasts | `Application.Helper.LiveUpdate.Runtime` re-exports broadcast functions for registry/websocket/runtime tests; `Application.Helper.LiveUpdate.Internal` owns implementation details. | Guard rejects feature use of raw invalidation/resync helpers and runtime-module imports. | Keep quarantined in the runtime facade; signatures use `LiveUpdateWireFragment`. |
+| `authorizeSurfaceScope` and default authorization | `authorizeSurfaceScope` only backs `liveSurfaceAuthorizationByScope`; default requirement used by tests. Registry already authorizes via typed definitions. | Guard rejects direct feature use. | Delete fallback function; keep explicit `LiveScopeAuthorizationRequirement` helpers for typed definitions/tests. |
+| raw bus broadcasts | `Application.Helper.LiveUpdate.Runtime` re-exports broadcast functions for registry/websocket/runtime tests; `Application.Helper.LiveUpdate.Internal` owns implementation details. | Guard rejects feature use of raw invalidation/resync helpers and runtime-module imports. | Keep quarantined in the runtime facade; signatures use `SurfaceWireFragment`. |
 
 Inventory result: browser JSON stays stable through `ir-myld`, `ir-wqa4`, and `ir-r27i`; only Haskell type/helper names and the untyped projection bridge change before the compact-protocol decision.
 
@@ -107,8 +107,8 @@ not expose names that read like supported authoring primitives.
    - Keep tests on typed config construction; `mkLiveSurface` compatibility has
      been removed.
 3. `ir-wqa4`: rename or quarantine internal wire fragment primitives.
-   - Prefer names such as `LiveUpdateWireFragment` and
-     `mkLiveUpdateWireFragment` if the rename is tractable.
+   - Prefer names such as `SurfaceWireFragment` and
+     `mkSurfaceWireFragment` if the rename is tractable.
    - Preserve JSON object fields unless `ir-mxsn` changes the protocol.
    - Update projection and contract-test helpers.
 4. `ir-r27i`: make actor refresh payload construction typed-only.

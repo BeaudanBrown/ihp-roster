@@ -12,8 +12,8 @@ while keeping the public entrypoints unchanged:
 
 Representative contracts considered:
 
-- `LiveUpdateScope`
-- `LiveFragmentProtection`
+- `SurfaceScope`
+- `SurfaceFragmentProtection`
 - `LiveSurfaceConfig`
 - `InteractionDom`
 - `IntentFormContract`
@@ -53,7 +53,7 @@ instance HasCodec LiveSurfaceConfig where
             <*> requiredField "decorateRequestsWithin" "request decoration selectors" .= (.decorateRequestsWithin)
 ```
 
-A regular tagged-union `LiveUpdateScope` would need to be encoded as explicit
+A regular tagged-union `SurfaceScope` would need to be encoded as explicit
 objects, for example:
 
 ```json
@@ -61,7 +61,7 @@ objects, for example:
 { "kind": "support_platform" }
 ```
 
-`LiveFragmentProtection` can be represented as a nullable codec over a closed
+`SurfaceFragmentProtection` can be represented as a nullable codec over a closed
 sum:
 
 ```json
@@ -92,21 +92,21 @@ is extra build-system work for the foundation ticket.
 A schema-tooling path should produce declarations equivalent to:
 
 ```ts
-export type LiveUpdateScope =
+export type SurfaceScope =
     | { kind: "roster_week"; venueId: string; rosterGroupId: string; weekOffset: number }
     | { kind: "admin_venue_config"; venueId: string }
     | { kind: "support_platform" };
 
-export type LiveFragmentProtection =
+export type SurfaceFragmentProtection =
     | null
     | { kind: "focused_field"; activeSelector: string; fieldKeyAttr: string; fieldNameFallback: boolean; containerSelector: string | null };
 
 export type LiveSurfaceConfig = {
     feature: string;
     socketPath: string;
-    scope: LiveUpdateScope;
+    scope: SurfaceScope;
     scopeKey: string;
-    resyncFragments: LiveUpdateWireFragment[];
+    resyncFragments: SurfaceWireFragment[];
     decorateRequestsWithin: string[];
 };
 ```
@@ -194,8 +194,8 @@ instance Aeson.FromJSON LiveSurfaceConfig where
 ### Representative contract prototypes
 
 ```haskell
-liveUpdateScopeCodec :: FrontendCodec LiveUpdateScope
-liveUpdateScopeCodec = taggedUnion "LiveUpdateScope" "kind"
+liveUpdateScopeCodec :: FrontendCodec SurfaceScope
+liveUpdateScopeCodec = taggedUnion "SurfaceScope" "kind"
     [ variant "roster_week" RosterWeek
         |> field "venueId" text (.venueId)
         |> field "rosterGroupId" text (.rosterGroupId)
@@ -203,8 +203,8 @@ liveUpdateScopeCodec = taggedUnion "LiveUpdateScope" "kind"
     , variant "support_platform" SupportPlatform
     ]
 
-liveFragmentProtectionCodec :: FrontendCodec LiveFragmentProtection
-liveFragmentProtectionCodec = nullable $ taggedUnion "LiveFragmentProtectionPolicy" "kind"
+surfaceFragmentProtectionCodec :: FrontendCodec SurfaceFragmentProtection
+surfaceFragmentProtectionCodec = nullable $ taggedUnion "SurfaceFragmentProtectionPolicy" "kind"
     [ variant "focused_field" FocusedFieldProtectionConfig
         |> field "activeSelector" text (.activeSelector)
         |> field "fieldKeyAttr" text (.fieldKeyAttr)
@@ -270,9 +270,9 @@ The custom renderer can intentionally emit the small style this repo wants:
 export type LiveSurfaceConfig = {
     feature: string;
     socketPath: string;
-    scope: LiveUpdateScope;
+    scope: SurfaceScope;
     scopeKey: string;
-    resyncFragments: LiveUpdateWireFragment[];
+    resyncFragments: SurfaceWireFragment[];
     decorateRequestsWithin: string[];
 };
 
@@ -280,9 +280,9 @@ export function isLiveSurfaceConfig(value: unknown): value is LiveSurfaceConfig 
     return isRecord(value)
         && typeof value.feature === "string"
         && typeof value.socketPath === "string"
-        && isLiveUpdateScope(value.scope)
+        && isSurfaceScope(value.scope)
         && typeof value.scopeKey === "string"
-        && isArrayOf(value.resyncFragments, isLiveUpdateWireFragment)
+        && isArrayOf(value.resyncFragments, isSurfaceWireFragment)
         && isArrayOf(value.decorateRequestsWithin, isString);
 }
 

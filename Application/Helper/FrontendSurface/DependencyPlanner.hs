@@ -19,41 +19,41 @@ import qualified Data.List as List
 import qualified Data.Set as Set
 import IHP.Prelude
 
-planFrontendSurfaceInvalidation :: Set.Set SurfaceResourceValue -> LiveUpdateScope -> [FrontendSurfaceMountedFragment] -> [FrontendSurfaceMountedFragment]
+planFrontendSurfaceInvalidation :: Set.Set SurfaceResourceValue -> SurfaceScope -> [FrontendSurfaceMountedFragment] -> [FrontendSurfaceMountedFragment]
 planFrontendSurfaceInvalidation touchedResources scope candidates =
     filter (frontendSurfaceFragmentDependsOnTouchedResource touchedValues scope) candidates
     where
         touchedValues = touchedResources
 
-planFrontendSurfaceWireInvalidation :: Set.Set SurfaceResourceValue -> LiveUpdateScope -> [LiveUpdateWireFragment] -> [LiveUpdateWireFragment]
+planFrontendSurfaceWireInvalidation :: Set.Set SurfaceResourceValue -> SurfaceScope -> [SurfaceWireFragment] -> [SurfaceWireFragment]
 planFrontendSurfaceWireInvalidation touchedResources scope fragments =
     filter (frontendSurfaceWireFragmentDependsOnTouchedResource touchedResources scope) fragments
 
-frontendSurfaceFragmentDependsOnTouchedResource :: Set.Set SurfaceResourceValue -> LiveUpdateScope -> FrontendSurfaceMountedFragment -> Bool
+frontendSurfaceFragmentDependsOnTouchedResource :: Set.Set SurfaceResourceValue -> SurfaceScope -> FrontendSurfaceMountedFragment -> Bool
 frontendSurfaceFragmentDependsOnTouchedResource touchedValues scope mountedFragment =
     case mountedFragmentDependencies scope mountedFragment of
         [] -> False
         dependencies -> not (Set.null (Set.intersection touchedValues (Set.fromList dependencies)))
 
-frontendSurfaceWireFragmentDependsOnTouchedResource :: Set.Set SurfaceResourceValue -> LiveUpdateScope -> LiveUpdateWireFragment -> Bool
+frontendSurfaceWireFragmentDependsOnTouchedResource :: Set.Set SurfaceResourceValue -> SurfaceScope -> SurfaceWireFragment -> Bool
 frontendSurfaceWireFragmentDependsOnTouchedResource touchedValues scope fragment =
     case wireFragmentDependencies scope fragment of
         [] -> False
         dependencies -> not (Set.null (Set.intersection touchedValues (Set.fromList dependencies)))
 
-mountedFragmentDependencies :: LiveUpdateScope -> FrontendSurfaceMountedFragment -> [SurfaceResourceValue]
+mountedFragmentDependencies :: SurfaceScope -> FrontendSurfaceMountedFragment -> [SurfaceResourceValue]
 mountedFragmentDependencies scope mountedFragment = do
     surface <- maybeToList (findSurface scopeWire.surface)
     fragment <- maybeToList (findFragment mountedFragment.mountedFragmentKey.fragmentKind surface)
     dependency <- SurfaceIR.optionResourceDependencies fragment.fragmentOptions
     maybeToList (resourceValueFromDependency scopeWire.scope mountedFragment.mountedFragmentKey.fragmentParams dependency)
     where
-        scopeWire = liveUpdateScopeToWire scope
+        scopeWire = surfaceScopeToWire scope
 
-wireFragmentDependencies :: LiveUpdateScope -> LiveUpdateWireFragment -> [SurfaceResourceValue]
+wireFragmentDependencies :: SurfaceScope -> SurfaceWireFragment -> [SurfaceResourceValue]
 wireFragmentDependencies scope fragment = do
-    let scopeWire = liveUpdateScopeToWire scope
-    let Wire.LiveUpdateWireFragment { fragmentKey = Wire.LiveFragmentKey { surface = fragmentSurface, kind = fragmentKind, params = fragmentParams } } = liveUpdateWireFragmentToWire fragment
+    let scopeWire = surfaceScopeToWire scope
+    let Wire.SurfaceWireFragment { fragmentKey = Wire.SurfaceFragmentKey { surface = fragmentSurface, kind = fragmentKind, params = fragmentParams } } = surfaceWireFragmentToWire fragment
     True <- pure (fragmentSurface == scopeWire.surface)
     surface <- maybeToList (findSurface scopeWire.surface)
     fragmentIR <- maybeToList (findFragment fragmentKind surface)

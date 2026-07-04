@@ -228,15 +228,15 @@ setAdminXeroActorRefresh fragments =
         , cs (Aeson.encode (adminRefreshTriggerPayload (adminSurfaceWireFragments fragments)))
         )
 
-adminRefreshTriggerPayload :: [LiveUpdateWireFragment] -> Aeson.Value
+adminRefreshTriggerPayload :: [SurfaceWireFragment] -> Aeson.Value
 adminRefreshTriggerPayload fragments =
     Aeson.object
         [ AesonKey.fromText canonicalAppEvents.appLiveFragmentsRefreshEventName Aeson..= Aeson.object
-            [ "fragments" Aeson..= coalesceLiveUpdateWireFragments fragments
+            [ "fragments" Aeson..= coalesceSurfaceWireFragments fragments
             ]
         ]
 
-adminSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment]
+adminSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [SurfaceWireFragment]
 adminSurfaceWireFragments fragments =
     concatMap fragmentsForSurface groupedFragments
     where

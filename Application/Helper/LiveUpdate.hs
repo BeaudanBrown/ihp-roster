@@ -1,8 +1,8 @@
 module Application.Helper.LiveUpdate
-    ( LiveFragmentKey (..)
-    , LiveFragmentProtection (..)
+    ( SurfaceFragmentKey (..)
+    , SurfaceFragmentProtection (..)
     , FocusedFieldProtectionConfig (..)
-    , LiveUpdateScope (..)
+    , SurfaceScope (..)
     , adminExportsLiveFragment
     , adminExportsLiveScope
     , adminInvitesLiveFragment
@@ -20,7 +20,7 @@ module Application.Helper.LiveUpdate
     , adminXeroTimesheetsLiveFragment
     , billingLiveScope
     , billingStatusLiveFragment
-    , frontendSurfaceLiveFragmentKey
+    , frontendSurfaceSurfaceFragmentKey
     , frontendSurfaceLiveScope
     , leaveRequestsContentLiveFragment
     , leaveRequestsLiveScope
@@ -52,9 +52,9 @@ module Application.Helper.LiveUpdate
     , timesheetWeekLiveScope
     , activeRosterWeekScopes
     , currentLiveUpdateVersion
-    , liveUpdateScopeFieldUuid
-    , liveUpdateScopeKey
-    , liveUpdateScopeKind
+    , surfaceScopeFieldUuid
+    , surfaceScopeKey
+    , surfaceScopeKind
     ) where
 
 import Application.Helper.LiveUpdate.Internal

@@ -1,7 +1,7 @@
-import type { LiveUpdateScope, LiveUpdateWireFragment } from "../generated/contracts";
+import type { SurfaceScope, SurfaceWireFragment } from "../generated/contracts";
 import {
     buildLiveUpdateSubscribeCommand,
-    buildLiveUpdateSubscription,
+    buildSurfaceSubscription,
     buildLiveUpdateUnsubscribeCommand,
     liveUpdateFragmentMergeKey,
     liveUpdateInvalidationShouldResync,
@@ -10,7 +10,7 @@ import {
 } from "../live-updates/protocol";
 import { assertDeepEqual, assertEqual, test } from "./harness";
 
-const scope: LiveUpdateScope = {
+const scope: SurfaceScope = {
     surface: "timesheets",
     scope: {
         venueId: "00000000-0000-0000-0000-000000000001",
@@ -18,7 +18,7 @@ const scope: LiveUpdateScope = {
     },
 };
 
-const fragment: LiveUpdateWireFragment = {
+const fragment: SurfaceWireFragment = {
     fragmentKey: { surface: "timesheets", kind: "timesheet-day-section", params: { dayOffset: 1 } },
     targetId: "timesheet-day-1",
     url: "/ShowTimesheetDay?dayOffset=1",
@@ -33,7 +33,7 @@ const fragment: LiveUpdateWireFragment = {
 };
 
 test("live update command builder preserves backend-owned surface subscription contract", () => {
-    const subscription = buildLiveUpdateSubscription(scope, "timesheets:v:0", [fragment]);
+    const subscription = buildSurfaceSubscription(scope, "timesheets:v:0", [fragment]);
     assertDeepEqual(subscription, {
         scope,
         scopeKey: "timesheets:v:0",

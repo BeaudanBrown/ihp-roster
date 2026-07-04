@@ -2,9 +2,9 @@ import {
     parseFrontendSurfaceMountConfig as parseGeneratedFrontendSurfaceMountConfig,
     type FrontendSurfaceLiveWireFragment,
     type FrontendSurfaceMountConfig,
-    type LiveFragmentProtection,
-    type LiveUpdateScope,
-    type LiveUpdateWireFragment,
+    type SurfaceFragmentProtection,
+    type SurfaceScope,
+    type SurfaceWireFragment,
 } from "../generated/contracts";
 
 export type { FrontendSurfaceMountConfig } from "../generated/contracts";
@@ -12,11 +12,11 @@ export type { FrontendSurfaceMountConfig } from "../generated/contracts";
 export type ParsedFrontendSurfaceSubscriptionConfig = {
     feature: string;
     surface: string;
-    scope: LiveUpdateScope;
+    scope: SurfaceScope;
     scopeKey: string;
     mountKey: string;
     socketPath: string;
-    resyncFragments: LiveUpdateWireFragment[];
+    resyncFragments: SurfaceWireFragment[];
     decorateRequestsWithin: string[];
 };
 
@@ -45,7 +45,7 @@ export function parseFrontendSurfaceSubscriptionConfig(value: unknown): ParsedFr
     return {
         feature: config.surface,
         surface: config.surface,
-        scope: config.subscription.scope as unknown as LiveUpdateScope,
+        scope: config.subscription.scope as unknown as SurfaceScope,
         scopeKey: config.subscription.scopeKey,
         mountKey: config.mountKey,
         socketPath: "/live-updates",
@@ -62,13 +62,13 @@ export function parseFrontendSurfaceMountConfig(value: unknown): FrontendSurface
     }
 }
 
-function surfaceLiveFragmentToWire(fragment: FrontendSurfaceLiveWireFragment): LiveUpdateWireFragment {
+function surfaceLiveFragmentToWire(fragment: FrontendSurfaceLiveWireFragment): SurfaceWireFragment {
     return {
         fragmentKey: {
             surface: fragment.fragment.surface,
             kind: fragment.fragment.fragment.kind,
             params: fragment.fragment.fragment.params,
-        } as LiveUpdateWireFragment["fragmentKey"],
+        } as SurfaceWireFragment["fragmentKey"],
         targetId: fragment.targetId,
         url: fragment.url,
         deferUntilBlur: fragment.deferUntilBlur,
@@ -76,7 +76,7 @@ function surfaceLiveFragmentToWire(fragment: FrontendSurfaceLiveWireFragment): L
     };
 }
 
-function fragmentProtectionToWire(protection: FrontendSurfaceLiveWireFragment["protectionPolicy"]): LiveFragmentProtection {
+function fragmentProtectionToWire(protection: FrontendSurfaceLiveWireFragment["protectionPolicy"]): SurfaceFragmentProtection {
     if (protection.kind !== "focused-field") return { kind: "none" };
     if (typeof protection.activeSelector !== "string") return { kind: "none" };
     if (typeof protection.fieldKeyAttr !== "string") return { kind: "none" };

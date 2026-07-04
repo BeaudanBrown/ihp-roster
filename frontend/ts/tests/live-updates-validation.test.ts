@@ -1,4 +1,4 @@
-import { isLiveUpdateMessage, isLiveUpdateWireFragment } from "../generated/contracts";
+import { isLiveUpdateMessage, isSurfaceWireFragment } from "../generated/contracts";
 import {
     frontendSurfaceInstanceId,
     parseFrontendSurfaceSubscriptionConfig,
@@ -292,10 +292,10 @@ test("FrontendSurface instance reconciliation handles same, removed, and newly s
 });
 
 test("generated live update wire fragment guard rejects malformed fragment keys and fields", () => {
-    assertEqual(isLiveUpdateWireFragment(validFragment), true);
-    assertEqual(isLiveUpdateWireFragment({ ...validFragment, fragmentKey: { kind: "timesheet_day_section" } }), false);
-    assertEqual(isLiveUpdateWireFragment({ ...validFragment, deferUntilBlur: "false" }), false);
-    assertEqual(isLiveUpdateWireFragment({ ...validFragment, protectionPolicy: undefined }), false);
+    assertEqual(isSurfaceWireFragment(validFragment), true);
+    assertEqual(isSurfaceWireFragment({ ...validFragment, fragmentKey: { kind: "timesheet_day_section" } }), false);
+    assertEqual(isSurfaceWireFragment({ ...validFragment, deferUntilBlur: "false" }), false);
+    assertEqual(isSurfaceWireFragment({ ...validFragment, protectionPolicy: undefined }), false);
 });
 
 test("generated live update message guard checks websocket payload discriminants and primitives", () => {

@@ -569,13 +569,13 @@ liveProtectionDefers = \case
     FrontendSurfaceFocusedField -> True
     FrontendSurfaceFocusedFieldConfig {} -> True
 
-frontendSurfaceMountedFragmentsToWire :: Text -> [FrontendSurfaceMountedFragment] -> [LiveUpdate.LiveUpdateWireFragment]
+frontendSurfaceMountedFragmentsToWire :: Text -> [FrontendSurfaceMountedFragment] -> [LiveUpdate.SurfaceWireFragment]
 frontendSurfaceMountedFragmentsToWire surfaceName =
     mapMaybe (frontendSurfaceMountedFragmentToWire surfaceName)
 
-frontendSurfaceMountedFragmentToWire :: Text -> FrontendSurfaceMountedFragment -> Maybe LiveUpdate.LiveUpdateWireFragment
+frontendSurfaceMountedFragmentToWire :: Text -> FrontendSurfaceMountedFragment -> Maybe LiveUpdate.SurfaceWireFragment
 frontendSurfaceMountedFragmentToWire surfaceName fragment =
-    LiveUpdate.liveUpdateWireFragmentFromSurface
+    LiveUpdate.surfaceWireFragmentFromSurface
         surfaceName
         fragment.mountedFragmentKey.fragmentKind
         fragment.mountedFragmentKey.fragmentParams
@@ -602,7 +602,7 @@ liveProtectionToJson = \case
         , "containerSelector" Aeson..= config.focusedProtectionContainerSelector
         ]
 
-liveProtectionToWire :: FrontendSurfaceProtection -> LiveUpdate.LiveFragmentProtection
+liveProtectionToWire :: FrontendSurfaceProtection -> LiveUpdate.SurfaceFragmentProtection
 liveProtectionToWire = \case
     FrontendSurfaceReplace -> LiveUpdate.NoProtection
     FrontendSurfaceFocusedField -> LiveUpdate.FocusedFieldProtection LiveUpdate.FocusedFieldProtectionConfig

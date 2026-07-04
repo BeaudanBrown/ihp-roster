@@ -31,7 +31,7 @@ instance WSApp LiveUpdatesWSApp where
 
     onClose = do
         LiveUpdatesWSApp { subscriptionIds } <- getState
-        mapM_ (unregisterLiveSubscription . fst) subscriptionIds
+        mapM_ (unregisterSurfaceSubscription . fst) subscriptionIds
 
 handleCommand ::
     ( ?state :: IORef LiveUpdatesWSApp
@@ -50,7 +50,7 @@ handleCommand command =
                 then do
                     unregisterScopeSubscription scope
                     subscriptionId <- UUIDv4.nextRandom
-                    registerLiveSubscription subscriptionId liveSubscription ?connection
+                    registerSurfaceSubscription subscriptionId liveSubscription ?connection
                     addScopeSubscription subscriptionId scope
                     currentVersion <- liftIO (currentLiveUpdateVersion scope)
                     sendJSON
@@ -70,18 +70,18 @@ handleCommand command =
 
 unregisterScopeSubscription ::
     (?state :: IORef LiveUpdatesWSApp) =>
-    LiveUpdateScope ->
+    SurfaceScope ->
     IO ()
 unregisterScopeSubscription scope = do
     LiveUpdatesWSApp { subscriptionIds } <- getState
     let (removed, kept) = partition (\(_, encodedScope) -> encodedScope == encodeScopeKey scope) subscriptionIds
-    mapM_ (unregisterLiveSubscription . fst) removed
+    mapM_ (unregisterSurfaceSubscription . fst) removed
     setState LiveUpdatesWSApp { subscriptionIds = kept }
 
 addScopeSubscription ::
     (?state :: IORef LiveUpdatesWSApp) =>
     UUID.UUID ->
-    LiveUpdateScope ->
+    SurfaceScope ->
     IO ()
 addScopeSubscription subscriptionId scope = do
     LiveUpdatesWSApp { subscriptionIds } <- getState
@@ -90,5 +90,5 @@ addScopeSubscription subscriptionId scope = do
             { subscriptionIds = (subscriptionId, encodeScopeKey scope) : subscriptionIds
             }
 
-encodeScopeKey :: LiveUpdateScope -> Text
+encodeScopeKey :: SurfaceScope -> Text
 encodeScopeKey = cs . Aeson.encode

@@ -40,8 +40,8 @@ import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
-                                        rosterLiveUpdateScope,
-                                        rosterMountedFragmentForProjection)
+                                        rosterMountedFragmentForProjection,
+                                        rosterSurfaceScope)
 import Web.RosterWeeks.Mutations
 import Web.RosterWeeks.Overview
 import Web.RosterWeeks.Paths (rosterWeekUrl)
@@ -989,7 +989,7 @@ rosterActorFragmentsForTouchedResources rosterGroupId weekOffset touchedResource
             , rosterWeekWeekOffset = weekOffset
             }
         candidatePairs = [(fragment, rosterMountedFragmentForProjection scope fragment) | fragment <- candidates]
-        affectedMounted = planFrontendSurfaceInvalidation touchedResources (rosterLiveUpdateScope scope) (map snd candidatePairs)
+        affectedMounted = planFrontendSurfaceInvalidation touchedResources (rosterSurfaceScope scope) (map snd candidatePairs)
         affectedTargets :: Set.Set Text
         affectedTargets = Set.fromList (map (\(fragment :: FrontendSurfaceMountedFragment) -> fragment.mountedFragmentTargetId) affectedMounted)
         affectedPairs = filter (\(_, mountedFragment) -> Set.member mountedFragment.mountedFragmentTargetId affectedTargets) candidatePairs
@@ -1075,7 +1075,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId =
                                 , allSlots
                                 , slotConflicts
                                 , renderIndexes
-                                , liveUpdateScope = Just (rosterWeekLiveScope (unpackId currentVenueId) (unpackId currentRosterGroup.id) weekOffset)
+                                , surfaceScope = Just (rosterWeekLiveScope (unpackId currentVenueId) (unpackId currentRosterGroup.id) weekOffset)
                                 , viewCapabilities = buildRosterViewCapabilities visibleRosterWeek
                                 , rosterLayoutMode
                                 , rosterEndTimesEnabled

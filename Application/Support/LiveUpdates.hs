@@ -7,7 +7,7 @@ module Application.Support.LiveUpdates
     ( SupportLiveFragment (..)
     , supportCandidateMountedFragments
     , supportLiveSurface
-    , supportLiveUpdateScope
+    , supportSurfaceScope
     , supportSurfaceWireFragments
     ) where
 
@@ -24,8 +24,8 @@ data SupportLiveFragment
     | SupportPublicHolidaysLiveFragment
     deriving (Eq, Show)
 
-supportLiveUpdateScope :: LiveUpdateScope
-supportLiveUpdateScope = supportPlatformLiveScope
+supportSurfaceScope :: SurfaceScope
+supportSurfaceScope = supportPlatformLiveScope
 
 supportLiveSurface :: SurfaceImpl Surface.SupportSurface
 supportLiveSurface =
@@ -50,7 +50,7 @@ supportCandidateMountedFragments =
     , supportPublicHolidaysMountedFragment
     ]
 
-supportSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment]
+supportSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [SurfaceWireFragment]
 supportSurfaceWireFragments =
     frontendSurfaceMountedFragmentsToWire "support"
 

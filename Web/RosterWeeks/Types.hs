@@ -42,7 +42,7 @@ data ShowView = ShowView
     , allSlots              :: [RosterSlot]
     , slotConflicts         :: [(Id RosterSlot, [RosterConflict])]
     , renderIndexes         :: RosterRenderIndexes
-    , liveUpdateScope       :: Maybe LiveUpdateScope
+    , surfaceScope          :: Maybe SurfaceScope
     , viewCapabilities      :: RosterViewCapabilities
     , rosterLayoutMode      :: RosterLayoutModeEnum
     , rosterEndTimesEnabled :: Bool

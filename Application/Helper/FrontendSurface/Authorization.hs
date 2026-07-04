@@ -1,5 +1,5 @@
 module Application.Helper.FrontendSurface.Authorization
-    ( authorizeFrontendSurfaceLiveScope
+    ( authorizeFrontendSurfaceScope
     , frontendSurfaceScopeAuthorizationRequirement
     , validateFrontendSurfaceLiveSubscription
     ) where
@@ -25,8 +25,8 @@ import Web.Controller.Prelude
 -- | Authorizes a surface-native websocket subscription from the generated
 -- FrontendSurface scope auth metadata. Unknown surfaces, malformed payloads, and
 -- malformed policy fields deny by default.
-authorizeFrontendSurfaceLiveScope :: (?context :: ControllerContext, ?modelContext :: ModelContext) => LiveUpdateScope -> IO Bool
-authorizeFrontendSurfaceLiveScope scope =
+authorizeFrontendSurfaceScope :: (?context :: ControllerContext, ?modelContext :: ModelContext) => SurfaceScope -> IO Bool
+authorizeFrontendSurfaceScope scope =
     case frontendSurfaceScopeAuthorizationRequirement scope of
         Nothing                 -> pure False
         Just Nothing            -> pure True
@@ -35,7 +35,7 @@ authorizeFrontendSurfaceLiveScope scope =
 -- | Resolves generated FrontendSurface scope auth metadata to the existing
 -- business authorization requirement vocabulary. The outer Maybe is missing or
 -- malformed generated metadata/payload; the inner Maybe is explicit NoAuth.
-frontendSurfaceScopeAuthorizationRequirement :: LiveUpdateScope -> Maybe (Maybe SurfaceScopeAuthorizationRequirement)
+frontendSurfaceScopeAuthorizationRequirement :: SurfaceScope -> Maybe (Maybe SurfaceScopeAuthorizationRequirement)
 frontendSurfaceScopeAuthorizationRequirement scope = do
     (surfaceName, scopePayload) <- liveScopeSurfaceAndPayload scope
     surface <- find ((== surfaceName) . (.surfaceName)) reflectRegisteredFrontendSurfaces.contractSurfaces
@@ -45,20 +45,20 @@ frontendSurfaceScopeAuthorizationRequirement scope = do
         SurfaceIR.NoAuthIR -> Just Nothing
         SurfaceIR.AuthorizeIR policy fields -> Just <$> requirementFor policy fields scopePayload
 
-validateFrontendSurfaceLiveSubscription :: LiveUpdateSubscription -> Bool
-validateFrontendSurfaceLiveSubscription LiveUpdateSubscription { subscriptionScope, subscriptionScopeKey, subscriptionMountedFragments } =
+validateFrontendSurfaceLiveSubscription :: SurfaceSubscription -> Bool
+validateFrontendSurfaceLiveSubscription SurfaceSubscription { subscriptionScope, subscriptionScopeKey, subscriptionMountedFragments } =
     fromMaybe False do
-        let Wire.LiveUpdateScope { surface = scopeSurface, scope = scopePayload } = liveUpdateScopeToWire subscriptionScope
+        let Wire.SurfaceScope { surface = scopeSurface, scope = scopePayload } = surfaceScopeToWire subscriptionScope
         surface <- find ((== scopeSurface) . (.surfaceName)) reflectRegisteredFrontendSurfaces.contractSurfaces
         scopeIR <- listToMaybe surface.surfaceScopes
-        guard (subscriptionScopeKey == liveUpdateScopeKey subscriptionScope)
+        guard (subscriptionScopeKey == surfaceScopeKey subscriptionScope)
         guard (validateFields scopeIR.scopeFields scopePayload)
         guard (all (validateMountedFragment surface scopeSurface) subscriptionMountedFragments)
         pure True
 
-validateMountedFragment :: SurfaceIR.SurfaceIR -> Text -> LiveUpdateWireFragment -> Bool
+validateMountedFragment :: SurfaceIR.SurfaceIR -> Text -> SurfaceWireFragment -> Bool
 validateMountedFragment surface expectedSurface fragment =
-    let Wire.LiveUpdateWireFragment { fragmentKey = Wire.LiveFragmentKey { surface = fragmentSurface, kind = fragmentKind, params = fragmentParams } } = liveUpdateWireFragmentToWire fragment
+    let Wire.SurfaceWireFragment { fragmentKey = Wire.SurfaceFragmentKey { surface = fragmentSurface, kind = fragmentKind, params = fragmentParams } } = surfaceWireFragmentToWire fragment
      in fragmentSurface == expectedSurface
             && fromMaybe False do
                 fragmentIR <- List.find ((== fragmentKind) . (.fragmentName)) surface.surfaceFragments
@@ -112,7 +112,7 @@ validateWire wire value =
             Aeson.String _ -> True
             _              -> False
 
-liveScopeSurfaceAndPayload :: LiveUpdateScope -> Maybe (Text, Aeson.Value)
+liveScopeSurfaceAndPayload :: SurfaceScope -> Maybe (Text, Aeson.Value)
 liveScopeSurfaceAndPayload scope = do
     object <- case Aeson.toJSON scope of
         Aeson.Object object -> Just object

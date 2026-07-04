@@ -68,7 +68,7 @@ tests = do
             let venueId = fromWords 1 0 0 0
             let scope = billingLiveScope venueId
             let fragment =
-                    LiveUpdateWireFragment
+                    SurfaceWireFragment
                         { fragmentKey = billingStatusLiveFragment
                         , targetId = "billing-status"
                         , url = "/ShowbillingStatusLiveFragment"

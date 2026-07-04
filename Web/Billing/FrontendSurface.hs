@@ -5,7 +5,7 @@
 module Web.Billing.FrontendSurface
     ( BillingScopeValue (..)
     , billingCandidateMountedFragments
-    , billingLiveUpdateScope
+    , billingSurfaceScope
     , billingSurfaceImpl
     , billingSurfaceMountConfig
     , billingSurfaceScopeKey
@@ -52,15 +52,15 @@ billingSurfaceScopeKey :: BillingScopeValue -> Text
 billingSurfaceScopeKey scope =
     "billing:" <> tshow scope.billingVenueId
 
-billingLiveUpdateScope :: BillingScopeValue -> LiveUpdateScope
-billingLiveUpdateScope scope =
+billingSurfaceScope :: BillingScopeValue -> SurfaceScope
+billingSurfaceScope scope =
     billingLiveScope scope.billingVenueId
 
 billingCandidateMountedFragments :: Text -> [FrontendSurfaceMountedFragment]
 billingCandidateMountedFragments statusUrl =
     [billingStatusMountedFragment statusUrl]
 
-billingSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment]
+billingSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [SurfaceWireFragment]
 billingSurfaceWireFragments =
     frontendSurfaceMountedFragmentsToWire "billing"
 

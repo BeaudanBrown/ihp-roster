@@ -65,7 +65,7 @@ allScenarios =
 
 data BenchmarkPlan = BenchmarkPlan
     { planResources          :: !(Set.Set SurfaceResourceValue)
-    , planActiveScopes       :: ![LiveUpdateScope]
+    , planActiveScopes       :: ![SurfaceScope]
     , planActiveRosterScopes :: ![(UUID, UUID, Int)]
     }
 
@@ -227,35 +227,35 @@ buildBenchmarkPlan scenario requestedScopeCount =
             , adminXeroLiveScope targetVenueId
             ]
 
-benchmarkSubscription :: LiveUpdateScope -> LiveUpdateSubscription
+benchmarkSubscription :: SurfaceScope -> SurfaceSubscription
 benchmarkSubscription scope =
-    LiveUpdateSubscription
+    SurfaceSubscription
         { subscriptionScope = scope
-        , subscriptionScopeKey = liveUpdateScopeKey scope
+        , subscriptionScopeKey = surfaceScopeKey scope
         , subscriptionMountedFragments = benchmarkFragments scope
         }
 
-benchmarkFragments :: LiveUpdateScope -> [LiveUpdateWireFragment]
+benchmarkFragments :: SurfaceScope -> [SurfaceWireFragment]
 benchmarkFragments = \case
     scope
-        | liveUpdateScopeKind scope == "billing" -> [fragment billingStatusLiveFragment]
-        | liveUpdateScopeKind scope == "timesheets" -> [fragment timesheetToolbarLiveFragment]
-        | liveUpdateScopeKind scope == "admin-xero" -> [fragment adminXeroStaffMappingsLiveFragment, fragment adminXeroPayItemsLiveFragment]
-        | liveUpdateScopeKind scope == "roster" -> [fragment rosterContentLiveFragment]
-        | liveUpdateScopeKind scope == "support" -> [fragment supportAwardRatesSectionLiveFragment]
-        | liveUpdateScopeKind scope == "admin-invites" -> [fragment adminInvitesLiveFragment]
-        | liveUpdateScopeKind scope == "admin-venue-config" -> [fragment adminVenueConfigLiveFragment]
-        | liveUpdateScopeKind scope == "admin-shift-types" -> [fragment adminShiftTypesLiveFragment]
-        | liveUpdateScopeKind scope == "admin-roster-groups" -> [fragment adminRosterGroupsLiveFragment]
-        | liveUpdateScopeKind scope == "admin-exports" -> [fragment adminExportsLiveFragment]
-        | liveUpdateScopeKind scope == "leave-requests" -> [fragment leaveRequestsContentLiveFragment]
-        | liveUpdateScopeKind scope == "profile" -> [fragment profileContentLiveFragment]
+        | surfaceScopeKind scope == "billing" -> [fragment billingStatusLiveFragment]
+        | surfaceScopeKind scope == "timesheets" -> [fragment timesheetToolbarLiveFragment]
+        | surfaceScopeKind scope == "admin-xero" -> [fragment adminXeroStaffMappingsLiveFragment, fragment adminXeroPayItemsLiveFragment]
+        | surfaceScopeKind scope == "roster" -> [fragment rosterContentLiveFragment]
+        | surfaceScopeKind scope == "support" -> [fragment supportAwardRatesSectionLiveFragment]
+        | surfaceScopeKind scope == "admin-invites" -> [fragment adminInvitesLiveFragment]
+        | surfaceScopeKind scope == "admin-venue-config" -> [fragment adminVenueConfigLiveFragment]
+        | surfaceScopeKind scope == "admin-shift-types" -> [fragment adminShiftTypesLiveFragment]
+        | surfaceScopeKind scope == "admin-roster-groups" -> [fragment adminRosterGroupsLiveFragment]
+        | surfaceScopeKind scope == "admin-exports" -> [fragment adminExportsLiveFragment]
+        | surfaceScopeKind scope == "leave-requests" -> [fragment leaveRequestsContentLiveFragment]
+        | surfaceScopeKind scope == "profile" -> [fragment profileContentLiveFragment]
         | otherwise -> []
     where
-        fragment key = LiveUpdateWireFragment key ("profile-" <> liveFragmentKeyKindForProfile key) "/profile-live-invalidation" False NoProtection
+        fragment key = SurfaceWireFragment key ("profile-" <> surfaceFragmentKeyKindForProfile key) "/profile-live-invalidation" False NoProtection
 
-liveFragmentKeyKindForProfile :: LiveFragmentKey -> Text
-liveFragmentKeyKindForProfile = \case
+surfaceFragmentKeyKindForProfile :: SurfaceFragmentKey -> Text
+surfaceFragmentKeyKindForProfile = \case
     billingStatusLiveFragment -> "billing-status"
     timesheetToolbarLiveFragment -> "timesheet-toolbar"
     adminXeroStaffMappingsLiveFragment -> "admin-xero-staff-mappings"
@@ -279,7 +279,7 @@ rosterGroupIdFor :: Int -> UUID
 rosterGroupIdFor index =
     fromWords 0x20000000 0 0 (fromIntegral (index + 1))
 
-coalesceScopes :: [LiveUpdateScope] -> [LiveUpdateScope]
+coalesceScopes :: [SurfaceScope] -> [SurfaceScope]
 coalesceScopes =
     Set.toList . Set.fromList
 

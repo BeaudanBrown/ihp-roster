@@ -51,7 +51,7 @@ import Data.Time.Calendar (Day, addDays, diffDays)
 import Generated.Types
 import IHP.ControllerPrelude
 
-adminXeroScope :: Id Venue -> LiveUpdateScope
+adminXeroScope :: Id Venue -> SurfaceScope
 adminXeroScope venueId =
     adminXeroLiveScope (unpackId venueId)
 

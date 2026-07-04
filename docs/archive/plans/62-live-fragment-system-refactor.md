@@ -25,8 +25,8 @@ Runtime work should stay in the existing browser-plus-HTMX architecture:
 Core implementation:
 
 - `Application/Helper/LiveUpdate.hs`
-  - `LiveUpdateScope`
-  - `LiveFragmentKey`
+  - `SurfaceScope`
+  - `SurfaceFragmentKey`
   - `LiveFragmentRef`
   - protection policy metadata
   - per-scope versions
@@ -85,7 +85,7 @@ Fix:
 
 ### 2. Server And Client Both Encode Scope Keys
 
-`Application.Helper.LiveUpdate.liveUpdateScopeKey` is authoritative server-side, but JavaScript rebuilds the same key with a switch statement.
+`Application.Helper.LiveUpdate.surfaceScopeKey` is authoritative server-side, but JavaScript rebuilds the same key with a switch statement.
 
 This makes every new scope a two-language protocol change. The `admin_xero` miss is the visible failure mode.
 

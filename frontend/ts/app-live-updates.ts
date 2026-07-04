@@ -1,4 +1,4 @@
-import type { LiveUpdateCommand, LiveUpdateMessage, LiveUpdateScope, LiveUpdateWireFragment } from "./generated/contracts";
+import type { LiveUpdateCommand, LiveUpdateMessage, SurfaceScope, SurfaceWireFragment } from "./generated/contracts";
 import { AppEvents, parseLiveUpdateMessage } from "./generated/contracts";
 import { enableHtmxUiRegionEventAdapter } from "./fragments/htmx-adapter";
 import { enableUiRegionTransitions } from "./fragments/transitions";
@@ -14,7 +14,7 @@ import {
 import { enableLazySurfaceErrorHandling } from "./live-updates/lazy-surface";
 import {
     buildLiveUpdateSubscribeCommand,
-    buildLiveUpdateSubscription,
+    buildSurfaceSubscription,
     buildLiveUpdateUnsubscribeCommand,
     liveUpdateFragmentMergeKey,
     liveUpdateMessageScopeKey,
@@ -29,10 +29,10 @@ enableLazySurfaceErrorHandling();
 
 export type LiveUpdateSurfaceConfig = {
     feature?: string | null;
-    scope: LiveUpdateScope;
+    scope: SurfaceScope;
     scopeKey: string;
     socketPath?: string | null;
-    resyncFragments?: LiveUpdateWireFragment[];
+    resyncFragments?: SurfaceWireFragment[];
     decorateRequestsWithin?: string[];
 };
 
@@ -50,19 +50,19 @@ type LiveUpdatePreservedField = {
     name?: string | null;
     value?: string;
 };
-type LiveUpdateFragmentWithState = LiveUpdateWireFragment & {
+type LiveUpdateFragmentWithState = SurfaceWireFragment & {
     preserveField?: LiveUpdatePreservedField;
 };
-type LiveUpdateSubscription = {
+type SurfaceSubscription = {
     feature: string | null;
-    scope: LiveUpdateScope;
+    scope: SurfaceScope;
     scopeKey: string;
     path: string;
     resyncFragments: LiveUpdateFragmentWithState[];
     decorateRequestsWithin: string[];
     ownerEl?: HTMLElement;
     ownerEls?: HTMLElement[];
-    resync: (subscription: LiveUpdateSubscription) => void;
+    resync: (subscription: SurfaceSubscription) => void;
 };
 type InFlightFragmentState = {
     next: LiveUpdateFragmentWithState | null;
@@ -73,7 +73,7 @@ type FragmentProtectionAdapter = {
     captureState: (target: HTMLElement, fragment: LiveUpdateFragmentWithState) => LiveUpdateFragmentWithState;
     restoreState: (target: HTMLElement, fragment: LiveUpdateFragmentWithState) => void;
 };
-type FocusedFieldProtectionPolicy = Extract<LiveUpdateWireFragment["protectionPolicy"], { kind: "focused_field" }>;
+type FocusedFieldProtectionPolicy = Extract<SurfaceWireFragment["protectionPolicy"], { kind: "focused_field" }>;
 type LiveUpdateSubscribedMessage = Extract<LiveUpdateMessage, { type: "subscribed" }>;
 type LiveUpdateInvalidateMessage = Extract<LiveUpdateMessage, { type: "invalidate" }>;
 type HtmxConfigRequestEvent = Event & {
@@ -93,7 +93,7 @@ type HtmxConfigRequestEvent = Event & {
     const pendingInteractionTimers = new Map<string, ReturnType<typeof window.setTimeout>>();
     const activeInteractionSessions = createActiveInteractionSessionTracker(document);
     const inFlightFragments = new Map<string, InFlightFragmentState>();
-    const activeSubscriptions = new Map<string, LiveUpdateSubscription>();
+    const activeSubscriptions = new Map<string, SurfaceSubscription>();
     const activeSurfaceInstances = new Map<string, FrontendSurfaceMountedInstance>();
     const scopeVersions = new Map<string, number>();
     let socket: WebSocket | null = null;
@@ -626,21 +626,21 @@ type HtmxConfigRequestEvent = Event & {
         return liveUpdateMessageScopeKey(message as { scopeKey?: unknown } | null | undefined);
     }
 
-    function wireSubscription(subscription: LiveUpdateSubscription) {
-        return buildLiveUpdateSubscription(subscription.scope, subscription.scopeKey, subscription.resyncFragments);
+    function wireSubscription(subscription: SurfaceSubscription) {
+        return buildSurfaceSubscription(subscription.scope, subscription.scopeKey, subscription.resyncFragments);
     }
 
-    function subscribeScope(subscription: LiveUpdateSubscription): void {
+    function subscribeScope(subscription: SurfaceSubscription): void {
         const lastSeenVersion = getScopeVersion(subscription.scopeKey);
         sendCommand(buildLiveUpdateSubscribeCommand(wireSubscription(subscription), ensureClientId(), lastSeenVersion));
     }
 
-    function unsubscribeScope(subscription: LiveUpdateSubscription): void {
+    function unsubscribeScope(subscription: SurfaceSubscription): void {
         sendCommand(buildLiveUpdateUnsubscribeCommand(wireSubscription(subscription)));
     }
 
     // FrontendSurface discovery and merging.
-    function readFrontendSurface(ownerEl: Element): LiveUpdateSubscription | null {
+    function readFrontendSurface(ownerEl: Element): SurfaceSubscription | null {
         if (!(ownerEl instanceof HTMLElement)) return null;
 
         const rawConfig = ownerEl.getAttribute('data-bepis-surface-config');
@@ -669,7 +669,7 @@ type HtmxConfigRequestEvent = Event & {
             resyncFragments: parsedConfig.resyncFragments,
             decorateRequestsWithin: parsedConfig.decorateRequestsWithin,
             ownerEls: [ownerEl],
-            resync: function (subscription: LiveUpdateSubscription): void {
+            resync: function (subscription: SurfaceSubscription): void {
                 subscription.resyncFragments.forEach(handleFragmentRefreshRequest);
             },
         };
@@ -691,8 +691,8 @@ type HtmxConfigRequestEvent = Event & {
         }));
     }
 
-    function collectDeclarativeSubscriptions(): LiveUpdateSubscription[] {
-        const subscriptions: LiveUpdateSubscription[] = [];
+    function collectDeclarativeSubscriptions(): SurfaceSubscription[] {
+        const subscriptions: SurfaceSubscription[] = [];
         document.querySelectorAll('[data-bepis-surface-config]').forEach(function (ownerEl) {
             if (!(ownerEl instanceof HTMLElement)) return;
             const scopeInfo = readFrontendSurface(ownerEl);
@@ -749,7 +749,7 @@ type HtmxConfigRequestEvent = Event & {
         return Array.from(new Set(existingValues.concat(nextValues).filter(Boolean)));
     }
 
-    function mergeSubscription(existing: LiveUpdateSubscription | undefined, next: LiveUpdateSubscription): LiveUpdateSubscription {
+    function mergeSubscription(existing: SurfaceSubscription | undefined, next: SurfaceSubscription): SurfaceSubscription {
         if (!existing) return next;
 
         return {
@@ -761,8 +761,8 @@ type HtmxConfigRequestEvent = Event & {
         };
     }
 
-    function desiredSubscriptions(): Map<string, LiveUpdateSubscription> {
-        const desired = new Map<string, LiveUpdateSubscription>();
+    function desiredSubscriptions(): Map<string, SurfaceSubscription> {
+        const desired = new Map<string, SurfaceSubscription>();
 
         collectDeclarativeSubscriptions().forEach(function (subscription) {
             desired.set(subscription.scopeKey, mergeSubscription(desired.get(subscription.scopeKey), subscription));
@@ -860,7 +860,7 @@ type HtmxConfigRequestEvent = Event & {
         endPerfSpan(perfSpan, { outcome: 'queued_fragments', scopeKey });
     }
 
-    function resolveMountedFragmentForSubscription(subscription: LiveUpdateSubscription, fragment: LiveUpdateFragmentWithState): LiveUpdateFragmentWithState {
+    function resolveMountedFragmentForSubscription(subscription: SurfaceSubscription, fragment: LiveUpdateFragmentWithState): LiveUpdateFragmentWithState {
         const fragmentKey = JSON.stringify(fragment.fragmentKey);
         const mountedFragment = subscription.resyncFragments.find(function (candidate) {
             return JSON.stringify(candidate.fragmentKey) === fragmentKey;
@@ -965,7 +965,7 @@ type HtmxConfigRequestEvent = Event & {
         reconcileSurfaceMountInstances();
 
         const desired = desiredSubscriptions();
-        const firstDesired = desired.values().next().value as LiveUpdateSubscription | undefined;
+        const firstDesired = desired.values().next().value as SurfaceSubscription | undefined;
         const nextPath = firstDesired?.path ?? null;
 
         if (desired.size === 0 || !nextPath) {
@@ -975,14 +975,14 @@ type HtmxConfigRequestEvent = Event & {
             return;
         }
 
-        const removed: LiveUpdateSubscription[] = [];
+        const removed: SurfaceSubscription[] = [];
         activeSubscriptions.forEach(function (subscription, scopeKey) {
             if (!desired.has(scopeKey)) {
                 removed.push(subscription);
             }
         });
 
-        const added: LiveUpdateSubscription[] = [];
+        const added: SurfaceSubscription[] = [];
         desired.forEach(function (subscription, scopeKey) {
             if (!activeSubscriptions.has(scopeKey)) {
                 added.push(subscription);

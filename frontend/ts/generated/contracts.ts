@@ -77,7 +77,7 @@ export function encodeAppEvents(value: AppEvents): AppEvents {
 export const AppOverlayDom: AppOverlayDom = {"dialogOverlayMountId":"dialog-overlay-mount","toastOverlayMountId":"toast-overlay-mount"};
 export const AppEvents: AppEvents = {"interactionIntent":"bepis:interaction-intent","interactionIntentSubmit":"bepis:intent-submit","interactionSessionCancelRequest":"bepis:interaction-session-cancel-request","interactionSessionEnd":"bepis:interaction-session-end","interactionSessionStart":"bepis:interaction-session-start","liveFragmentsRefresh":"app-live-fragments-refresh","pageReady":"app:page-ready"};
 // Live-update wire protocol generated from Haskell DTO codecs.
-function __isLiveUpdateScopeExactRecord(value: unknown, requiredKeys: string[], optionalKeys: string[]): value is Record<string, unknown> {
+function __isSurfaceScopeExactRecord(value: unknown, requiredKeys: string[], optionalKeys: string[]): value is Record<string, unknown> {
     if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
     const actualKeys = Object.keys(value);
     const allowedKeys = new Set([...requiredKeys, ...optionalKeys]);
@@ -85,111 +85,111 @@ function __isLiveUpdateScopeExactRecord(value: unknown, requiredKeys: string[], 
 }
 
 
-export type LiveUpdateScope = {
+export type SurfaceScope = {
     surface: string;
     scope: unknown;
 };
 
-export function isLiveUpdateScope(value: unknown): value is LiveUpdateScope {
-    return __isLiveUpdateScopeExactRecord(value, ["surface", "scope"], []) && (typeof value["surface"] === "string") && (true);
+export function isSurfaceScope(value: unknown): value is SurfaceScope {
+    return __isSurfaceScopeExactRecord(value, ["surface", "scope"], []) && (typeof value["surface"] === "string") && (true);
 }
 
-export function parseLiveUpdateScope(value: unknown): LiveUpdateScope {
-    if (isLiveUpdateScope(value)) return value;
-    throw new Error("Invalid LiveUpdateScope");
+export function parseSurfaceScope(value: unknown): SurfaceScope {
+    if (isSurfaceScope(value)) return value;
+    throw new Error("Invalid SurfaceScope");
 }
 
-export function encodeLiveUpdateScope(value: LiveUpdateScope): LiveUpdateScope {
+export function encodeSurfaceScope(value: SurfaceScope): SurfaceScope {
     return value;
 }
 
 
-export type LiveFragmentKey = {
+export type SurfaceFragmentKey = {
     surface: string;
     kind: string;
     params: unknown;
 };
 
-export function isLiveFragmentKey(value: unknown): value is LiveFragmentKey {
-    return __isLiveUpdateScopeExactRecord(value, ["surface", "kind", "params"], []) && (typeof value["surface"] === "string") && (typeof value["kind"] === "string") && (true);
+export function isSurfaceFragmentKey(value: unknown): value is SurfaceFragmentKey {
+    return __isSurfaceScopeExactRecord(value, ["surface", "kind", "params"], []) && (typeof value["surface"] === "string") && (typeof value["kind"] === "string") && (true);
 }
 
-export function parseLiveFragmentKey(value: unknown): LiveFragmentKey {
-    if (isLiveFragmentKey(value)) return value;
-    throw new Error("Invalid LiveFragmentKey");
+export function parseSurfaceFragmentKey(value: unknown): SurfaceFragmentKey {
+    if (isSurfaceFragmentKey(value)) return value;
+    throw new Error("Invalid SurfaceFragmentKey");
 }
 
-export function encodeLiveFragmentKey(value: LiveFragmentKey): LiveFragmentKey {
+export function encodeSurfaceFragmentKey(value: SurfaceFragmentKey): SurfaceFragmentKey {
     return value;
 }
 
 
-export type LiveFragmentProtection =
+export type SurfaceFragmentProtection =
     | { kind: "none" }
     | { kind: "focused_field"; activeSelector: string; fieldKeyAttr: string; fieldNameFallback: boolean; containerSelector: string | null };
 
-export function isLiveFragmentProtection(value: unknown): value is LiveFragmentProtection {
-    return (__isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "none") || (__isLiveUpdateScopeExactRecord(value, ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"], []) && value["kind"] === "focused_field" && (typeof value["activeSelector"] === "string") && (typeof value["fieldKeyAttr"] === "string") && (typeof value["fieldNameFallback"] === "boolean") && (value["containerSelector"] === null || (typeof value["containerSelector"] === "string")));
+export function isSurfaceFragmentProtection(value: unknown): value is SurfaceFragmentProtection {
+    return (__isSurfaceScopeExactRecord(value, ["kind"], []) && value["kind"] === "none") || (__isSurfaceScopeExactRecord(value, ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"], []) && value["kind"] === "focused_field" && (typeof value["activeSelector"] === "string") && (typeof value["fieldKeyAttr"] === "string") && (typeof value["fieldNameFallback"] === "boolean") && (value["containerSelector"] === null || (typeof value["containerSelector"] === "string")));
 }
 
-export function parseLiveFragmentProtection(value: unknown): LiveFragmentProtection {
-    if (isLiveFragmentProtection(value)) return value;
-    throw new Error("Invalid LiveFragmentProtection");
+export function parseSurfaceFragmentProtection(value: unknown): SurfaceFragmentProtection {
+    if (isSurfaceFragmentProtection(value)) return value;
+    throw new Error("Invalid SurfaceFragmentProtection");
 }
 
-export function encodeLiveFragmentProtection(value: LiveFragmentProtection): LiveFragmentProtection {
+export function encodeSurfaceFragmentProtection(value: SurfaceFragmentProtection): SurfaceFragmentProtection {
     return value;
 }
 
 
-export type LiveUpdateWireFragment = {
-    fragmentKey: LiveFragmentKey;
+export type SurfaceWireFragment = {
+    fragmentKey: SurfaceFragmentKey;
     targetId: string;
     url: string;
     deferUntilBlur: boolean;
-    protectionPolicy: LiveFragmentProtection;
+    protectionPolicy: SurfaceFragmentProtection;
 };
 
-export function isLiveUpdateWireFragment(value: unknown): value is LiveUpdateWireFragment {
-    return __isLiveUpdateScopeExactRecord(value, ["fragmentKey", "targetId", "url", "deferUntilBlur", "protectionPolicy"], []) && (isLiveFragmentKey(value["fragmentKey"])) && (typeof value["targetId"] === "string") && (typeof value["url"] === "string") && (typeof value["deferUntilBlur"] === "boolean") && (isLiveFragmentProtection(value["protectionPolicy"]));
+export function isSurfaceWireFragment(value: unknown): value is SurfaceWireFragment {
+    return __isSurfaceScopeExactRecord(value, ["fragmentKey", "targetId", "url", "deferUntilBlur", "protectionPolicy"], []) && (isSurfaceFragmentKey(value["fragmentKey"])) && (typeof value["targetId"] === "string") && (typeof value["url"] === "string") && (typeof value["deferUntilBlur"] === "boolean") && (isSurfaceFragmentProtection(value["protectionPolicy"]));
 }
 
-export function parseLiveUpdateWireFragment(value: unknown): LiveUpdateWireFragment {
-    if (isLiveUpdateWireFragment(value)) return value;
-    throw new Error("Invalid LiveUpdateWireFragment");
+export function parseSurfaceWireFragment(value: unknown): SurfaceWireFragment {
+    if (isSurfaceWireFragment(value)) return value;
+    throw new Error("Invalid SurfaceWireFragment");
 }
 
-export function encodeLiveUpdateWireFragment(value: LiveUpdateWireFragment): LiveUpdateWireFragment {
+export function encodeSurfaceWireFragment(value: SurfaceWireFragment): SurfaceWireFragment {
     return value;
 }
 
 
-export type LiveUpdateSubscription = {
-    scope: LiveUpdateScope;
+export type SurfaceSubscription = {
+    scope: SurfaceScope;
     scopeKey: string;
-    mountedFragments: LiveUpdateWireFragment[];
+    mountedFragments: SurfaceWireFragment[];
 };
 
-export function isLiveUpdateSubscription(value: unknown): value is LiveUpdateSubscription {
-    return __isLiveUpdateScopeExactRecord(value, ["scope", "scopeKey", "mountedFragments"], []) && (isLiveUpdateScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (Array.isArray(value["mountedFragments"]) && value["mountedFragments"].every((item) => isLiveUpdateWireFragment(item)));
+export function isSurfaceSubscription(value: unknown): value is SurfaceSubscription {
+    return __isSurfaceScopeExactRecord(value, ["scope", "scopeKey", "mountedFragments"], []) && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (Array.isArray(value["mountedFragments"]) && value["mountedFragments"].every((item) => isSurfaceWireFragment(item)));
 }
 
-export function parseLiveUpdateSubscription(value: unknown): LiveUpdateSubscription {
-    if (isLiveUpdateSubscription(value)) return value;
-    throw new Error("Invalid LiveUpdateSubscription");
+export function parseSurfaceSubscription(value: unknown): SurfaceSubscription {
+    if (isSurfaceSubscription(value)) return value;
+    throw new Error("Invalid SurfaceSubscription");
 }
 
-export function encodeLiveUpdateSubscription(value: LiveUpdateSubscription): LiveUpdateSubscription {
+export function encodeSurfaceSubscription(value: SurfaceSubscription): SurfaceSubscription {
     return value;
 }
 
 
 export type LiveUpdateCommand =
-    | { type: "subscribe"; subscription: LiveUpdateSubscription; clientId: string; lastSeenVersion: number | null }
-    | { type: "unsubscribe"; subscription: LiveUpdateSubscription };
+    | { type: "subscribe"; subscription: SurfaceSubscription; clientId: string; lastSeenVersion: number | null }
+    | { type: "unsubscribe"; subscription: SurfaceSubscription };
 
 export function isLiveUpdateCommand(value: unknown): value is LiveUpdateCommand {
-    return (__isLiveUpdateScopeExactRecord(value, ["type", "subscription", "clientId", "lastSeenVersion"], []) && value["type"] === "subscribe" && (isLiveUpdateSubscription(value["subscription"])) && (typeof value["clientId"] === "string") && (value["lastSeenVersion"] === null || (typeof value["lastSeenVersion"] === "number" && Number.isInteger(value["lastSeenVersion"])))) || (__isLiveUpdateScopeExactRecord(value, ["type", "subscription"], []) && value["type"] === "unsubscribe" && (isLiveUpdateSubscription(value["subscription"])));
+    return (__isSurfaceScopeExactRecord(value, ["type", "subscription", "clientId", "lastSeenVersion"], []) && value["type"] === "subscribe" && (isSurfaceSubscription(value["subscription"])) && (typeof value["clientId"] === "string") && (value["lastSeenVersion"] === null || (typeof value["lastSeenVersion"] === "number" && Number.isInteger(value["lastSeenVersion"])))) || (__isSurfaceScopeExactRecord(value, ["type", "subscription"], []) && value["type"] === "unsubscribe" && (isSurfaceSubscription(value["subscription"])));
 }
 
 export function parseLiveUpdateCommand(value: unknown): LiveUpdateCommand {
@@ -203,12 +203,12 @@ export function encodeLiveUpdateCommand(value: LiveUpdateCommand): LiveUpdateCom
 
 
 export type LiveUpdateMessage =
-    | { type: "subscribed"; scope: LiveUpdateScope; scopeKey: string; currentVersion: number; resync: boolean }
-    | { type: "invalidate"; scope: LiveUpdateScope; scopeKey: string; version: number; fragments: LiveUpdateWireFragment[]; sourceClientId: string | null }
+    | { type: "subscribed"; scope: SurfaceScope; scopeKey: string; currentVersion: number; resync: boolean }
+    | { type: "invalidate"; scope: SurfaceScope; scopeKey: string; version: number; fragments: SurfaceWireFragment[]; sourceClientId: string | null }
     | { type: "error"; message: string };
 
 export function isLiveUpdateMessage(value: unknown): value is LiveUpdateMessage {
-    return (__isLiveUpdateScopeExactRecord(value, ["type", "scope", "scopeKey", "currentVersion", "resync"], []) && value["type"] === "subscribed" && (isLiveUpdateScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && (typeof value["resync"] === "boolean")) || (__isLiveUpdateScopeExactRecord(value, ["type", "scope", "scopeKey", "version", "fragments", "sourceClientId"], []) && value["type"] === "invalidate" && (isLiveUpdateScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isLiveUpdateWireFragment(item))) && (value["sourceClientId"] === null || (typeof value["sourceClientId"] === "string"))) || (__isLiveUpdateScopeExactRecord(value, ["type", "message"], []) && value["type"] === "error" && (typeof value["message"] === "string"));
+    return (__isSurfaceScopeExactRecord(value, ["type", "scope", "scopeKey", "currentVersion", "resync"], []) && value["type"] === "subscribed" && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && (typeof value["resync"] === "boolean")) || (__isSurfaceScopeExactRecord(value, ["type", "scope", "scopeKey", "version", "fragments", "sourceClientId"], []) && value["type"] === "invalidate" && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceWireFragment(item))) && (value["sourceClientId"] === null || (typeof value["sourceClientId"] === "string"))) || (__isSurfaceScopeExactRecord(value, ["type", "message"], []) && value["type"] === "error" && (typeof value["message"] === "string"));
 }
 
 export function parseLiveUpdateMessage(value: unknown): LiveUpdateMessage {
@@ -668,10 +668,10 @@ export function encodeInteractionSessionSelector(value: InteractionSessionSelect
 
 export type InteractionFragmentSelector =
     | { kind: "any" }
-    | { kind: "live_fragment"; fragment: LiveFragmentKey };
+    | { kind: "live_fragment"; fragment: SurfaceFragmentKey };
 
 export function isInteractionFragmentSelector(value: unknown): value is InteractionFragmentSelector {
-    return (__isInteractionDomAttributesExactRecord(value, ["kind"], []) && value["kind"] === "any") || (__isInteractionDomAttributesExactRecord(value, ["kind", "fragment"], []) && value["kind"] === "live_fragment" && (isLiveFragmentKey(value["fragment"])));
+    return (__isInteractionDomAttributesExactRecord(value, ["kind"], []) && value["kind"] === "any") || (__isInteractionDomAttributesExactRecord(value, ["kind", "fragment"], []) && value["kind"] === "live_fragment" && (isSurfaceFragmentKey(value["fragment"])));
 }
 
 export function parseInteractionFragmentSelector(value: unknown): InteractionFragmentSelector {
@@ -803,11 +803,11 @@ export function encodeIntentHiddenField(value: IntentHiddenField): IntentHiddenF
 
 
 export type InteractionIntentTarget =
-    | { kind: "live_fragment"; fragment: LiveUpdateWireFragment }
+    | { kind: "live_fragment"; fragment: SurfaceWireFragment }
     | { kind: "mount_local"; target: string };
 
 export function isInteractionIntentTarget(value: unknown): value is InteractionIntentTarget {
-    return (__isInteractionDomAttributesExactRecord(value, ["kind", "fragment"], []) && value["kind"] === "live_fragment" && (isLiveUpdateWireFragment(value["fragment"]))) || (__isInteractionDomAttributesExactRecord(value, ["kind", "target"], []) && value["kind"] === "mount_local" && (typeof value["target"] === "string"));
+    return (__isInteractionDomAttributesExactRecord(value, ["kind", "fragment"], []) && value["kind"] === "live_fragment" && (isSurfaceWireFragment(value["fragment"]))) || (__isInteractionDomAttributesExactRecord(value, ["kind", "target"], []) && value["kind"] === "mount_local" && (typeof value["target"] === "string"));
 }
 
 export function parseInteractionIntentTarget(value: unknown): InteractionIntentTarget {
@@ -1286,7 +1286,7 @@ export type AdminXeroFragmentKey =
 ;
 export const adminXeroSurfaceManifest = { surface: "admin-xero", scopes: ["admin-xero"], fragments: ["admin-xero-shell", "admin-xero-staff-mappings", "admin-xero-pay-items", "admin-xero-timesheets"], liveFragments: ["admin-xero-shell", "admin-xero-staff-mappings", "admin-xero-pay-items", "admin-xero-timesheets"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
 
-export type FrontendSurfaceLiveScope =
+export type FrontendSurfaceScope =
     | { surface: "timesheets"; scope: TimesheetWeekScope }
     | { surface: "roster"; scope: RosterWeekScope }
     | { surface: "leave-requests"; scope: LeaveRequestsScope }
@@ -1314,19 +1314,19 @@ export type FrontendSurfaceLiveFragment =
     | { surface: "admin-roster-groups"; fragment: AdminRosterGroupsFragmentKey }
     | { surface: "admin-xero"; fragment: AdminXeroFragmentKey }
 ;
-export type FrontendSurfaceLiveFragmentProtection =
+export type FrontendSurfaceSurfaceFragmentProtection =
     | { kind: "none" }
     | { kind: "focused-field"; activeSelector: string; fieldKeyAttr: string; fieldNameFallback: boolean; containerSelector: string | null };
-export type FrontendSurfaceLiveWireFragment = { fragment: FrontendSurfaceLiveFragment; targetId: string; url: string; deferUntilBlur: boolean; protectionPolicy: FrontendSurfaceLiveFragmentProtection };
-export type FrontendSurfaceLiveSubscription = { scope: FrontendSurfaceLiveScope; scopeKey: string; resyncFragments: FrontendSurfaceLiveWireFragment[] };
-export function isFrontendSurfaceLiveScope(value: unknown): value is FrontendSurfaceLiveScope {
+export type FrontendSurfaceLiveWireFragment = { fragment: FrontendSurfaceLiveFragment; targetId: string; url: string; deferUntilBlur: boolean; protectionPolicy: FrontendSurfaceSurfaceFragmentProtection };
+export type FrontendSurfaceLiveSubscription = { scope: FrontendSurfaceScope; scopeKey: string; resyncFragments: FrontendSurfaceLiveWireFragment[] };
+export function isFrontendSurfaceScope(value: unknown): value is FrontendSurfaceScope {
     if (!__isFrontendSurfaceRecord(value)) return false;
     if (!isFrontendSurfaceName(value.surface)) return false;
     return __isFrontendSurfaceRecord(value.scope);
 }
-export function parseFrontendSurfaceLiveScope(value: unknown): FrontendSurfaceLiveScope {
-    if (isFrontendSurfaceLiveScope(value)) return value;
-    throw new Error("Invalid FrontendSurfaceLiveScope");
+export function parseFrontendSurfaceScope(value: unknown): FrontendSurfaceScope {
+    if (isFrontendSurfaceScope(value)) return value;
+    throw new Error("Invalid FrontendSurfaceScope");
 }
 export function isFrontendSurfaceLiveFragment(value: unknown): value is FrontendSurfaceLiveFragment {
     if (!__isFrontendSurfaceRecord(value)) return false;
@@ -1347,18 +1347,18 @@ function __isFrontendSurfaceRecord(value: unknown): value is Record<string, unkn
 function __surfaceHasFragment(surface: FrontendSurfaceName, fragment: string): boolean {
     return (FrontendSurfaceRegistry[surface].fragments as readonly string[]).includes(fragment);
 }
-export function isFrontendSurfaceLiveFragmentProtection(value: unknown): value is FrontendSurfaceLiveFragmentProtection {
+export function isFrontendSurfaceSurfaceFragmentProtection(value: unknown): value is FrontendSurfaceSurfaceFragmentProtection {
     if (!__isFrontendSurfaceRecord(value)) return false;
     if (value.kind === "none") return true;
     return value.kind === "focused-field" && typeof value.activeSelector === "string" && typeof value.fieldKeyAttr === "string" && typeof value.fieldNameFallback === "boolean" && (value.containerSelector === null || typeof value.containerSelector === "string");
 }
 export function isFrontendSurfaceLiveWireFragment(value: unknown): value is FrontendSurfaceLiveWireFragment {
     if (!__isFrontendSurfaceRecord(value)) return false;
-    return isFrontendSurfaceLiveFragment(value.fragment) && typeof value.targetId === "string" && typeof value.url === "string" && typeof value.deferUntilBlur === "boolean" && isFrontendSurfaceLiveFragmentProtection(value.protectionPolicy);
+    return isFrontendSurfaceLiveFragment(value.fragment) && typeof value.targetId === "string" && typeof value.url === "string" && typeof value.deferUntilBlur === "boolean" && isFrontendSurfaceSurfaceFragmentProtection(value.protectionPolicy);
 }
 export function isFrontendSurfaceLiveSubscription(value: unknown): value is FrontendSurfaceLiveSubscription {
     if (!__isFrontendSurfaceRecord(value)) return false;
-    return isFrontendSurfaceLiveScope(value.scope) && typeof value.scopeKey === "string" && Array.isArray(value.resyncFragments) && value.resyncFragments.every(isFrontendSurfaceLiveWireFragment);
+    return isFrontendSurfaceScope(value.scope) && typeof value.scopeKey === "string" && Array.isArray(value.resyncFragments) && value.resyncFragments.every(isFrontendSurfaceLiveWireFragment);
 }
 export function isFrontendSurfaceMountedFragmentConfigForSurface(surface: FrontendSurfaceName, value: unknown): value is FrontendSurfaceMountedFragmentConfig {
     if (!__isFrontendSurfaceRecord(value)) return false;

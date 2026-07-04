@@ -155,7 +155,7 @@ expect_no_match \
 
 expect_match \
     "surface subscription authorization delegates to generated FrontendSurface scope auth" \
-    'authorizeSurfaceScope = authorizeFrontendSurfaceLiveScope' \
+    'authorizeSurfaceScope = authorizeFrontendSurfaceScope' \
     Web/SurfaceInvalidation.hs
 
 expect_match \

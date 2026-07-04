@@ -138,9 +138,9 @@ helpers, and outbound browser commands should use generated `encodeX` helpers.
 
 Feature-facing code must not use compatibility/manual authoring helpers such as
 `mkLiveSurface`, `mkDefinedLiveSurface`, `mkLiveFragmentRef`, raw
-`LiveFragmentRef` constructors, internal `LiveUpdateWireFragment` constructors,
+`LiveFragmentRef` constructors, internal `SurfaceWireFragment` constructors,
 raw live broadcasts, raw actor-refresh payloads, or fallback
-`authorizeLiveUpdateScope` checks. The `LiveSurfaceGuard` Hspec coverage
+`authorizeSurfaceScope` checks. The `LiveSurfaceGuard` Hspec coverage
 enforces this across `Web/` and feature `Application/` modules.
 
 ## UI Region Lifecycle Boundaries
@@ -205,8 +205,8 @@ fragments, broadcasts, subscriptions, and isolated `LiveBus` helpers.
 
 Future distributed implementations, such as Postgres `LISTEN`/`NOTIFY` or
 Redis pub/sub, must preserve the public `LiveBus` contract: structural
-`LiveUpdateWireFragment` invalidations, monotonically increasing versions per
-`LiveUpdateScope`, and server-side authorization before websocket
+`SurfaceWireFragment` invalidations, monotonically increasing versions per
+`SurfaceScope`, and server-side authorization before websocket
 subscription.
 
 ## Mutation Invalidation Boundary

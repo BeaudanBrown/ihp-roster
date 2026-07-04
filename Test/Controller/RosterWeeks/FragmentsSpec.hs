@@ -103,9 +103,9 @@ tests = beforeAll testContext do
                         let scopeValue = RosterWeekScopeValue { rosterWeekVenueId = unpackId venue.id, rosterWeekGroupId = Id rosterWeek.rosterGroupId, rosterWeekWeekOffset = rosterWeek.weekOffset }
                         let mountedPlan = RosterMountedFragmentPlan { rosterMountedDayIds = [], rosterMountedRows = [] }
                         let subscription =
-                                LiveUpdateSubscription
+                                SurfaceSubscription
                                     { subscriptionScope = scope
-                                    , subscriptionScopeKey = liveUpdateScopeKey scope
+                                    , subscriptionScopeKey = surfaceScopeKey scope
                                     , subscriptionMountedFragments = rosterSurfaceWireFragments (rosterCandidateMountedFragments scopeValue mountedPlan)
                                     }
                         pure $ planSurfaceInvalidations
@@ -904,7 +904,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-week-overview-date=\"2025-01-01\""
                 response `responseBodyShouldContain` "weekDate=2025-01-13"
 
-targetFragmentKeys :: [SurfaceInvalidationTarget] -> [[LiveFragmentKey]]
+targetFragmentKeys :: [SurfaceInvalidationTarget] -> [[SurfaceFragmentKey]]
 targetFragmentKeys targets =
     [ map (.fragmentKey) target.targetFragments
     | target <- targets

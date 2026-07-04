@@ -24,7 +24,7 @@ import Web.Controller.Support ()
 import Web.FrontController ()
 import Web.Types
 
-supportFragmentRef :: SupportLiveFragment -> LiveUpdateWireFragment
+supportFragmentRef :: SupportLiveFragment -> SurfaceWireFragment
 supportFragmentRef fragment =
     case supportSurfaceWireFragments (filter matchesFragment supportCandidateMountedFragments) of
         [fragmentRef] -> fragmentRef
@@ -126,12 +126,12 @@ tests = beforeAll testContext do
         it "routes support refresh mutations through touched resources" $ withContext do
             withCleanDb do
                 superAdmin <- createUserRecordWithPlatformRole "support-mutation-super@example.com" "staff" (Just SuperAdminRole) True
-                versionBefore <- currentLiveUpdateVersion supportLiveUpdateScope
+                versionBefore <- currentLiveUpdateVersion supportSurfaceScope
 
                 response <- withPasskeyVerifiedUser superAdmin do
                     withRequestHeaders [("HX-Request", "true")] do
                         callAction CreatePublicHolidayRefreshJobAction
-                versionAfter <- currentLiveUpdateVersion supportLiveUpdateScope
+                versionAfter <- currentLiveUpdateVersion supportSurfaceScope
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "id=\"support-public-holidays-section\""

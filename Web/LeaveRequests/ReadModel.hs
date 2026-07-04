@@ -141,7 +141,7 @@ affectedRosterWeekInvalidationTargetsForScopes venueId venueConfig leaveRequest 
                     leaveRequest.startDate
                     leaveRequest.endDate
 
-buildLeaveRequestsScope :: Id Venue -> LiveUpdateScope
+buildLeaveRequestsScope :: Id Venue -> SurfaceScope
 buildLeaveRequestsScope venueId =
     leaveRequestsLiveScope (unpackId venueId)
 

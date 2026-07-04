@@ -5,7 +5,7 @@
 module Web.LeaveRequests.FrontendSurface
     ( LeaveRequestsScopeValue (..)
     , leaveRequestsCandidateMountedFragments
-    , leaveRequestsLiveUpdateScope
+    , leaveRequestsSurfaceScope
     , leaveRequestsSurfaceImpl
     , leaveRequestsSurfaceMountConfig
     , leaveRequestsSurfaceScopeKey
@@ -47,15 +47,15 @@ leaveRequestsSurfaceScopeKey :: LeaveRequestsScopeValue -> Text
 leaveRequestsSurfaceScopeKey scope =
     "leave-requests:" <> tshow scope.leaveRequestsVenueId
 
-leaveRequestsLiveUpdateScope :: LeaveRequestsScopeValue -> LiveUpdateScope
-leaveRequestsLiveUpdateScope scope =
+leaveRequestsSurfaceScope :: LeaveRequestsScopeValue -> SurfaceScope
+leaveRequestsSurfaceScope scope =
     leaveRequestsLiveScope scope.leaveRequestsVenueId
 
 leaveRequestsCandidateMountedFragments :: LeaveRequestsScopeValue -> [FrontendSurfaceMountedFragment]
 leaveRequestsCandidateMountedFragments _ =
     [leaveRequestsContentMountedFragment]
 
-leaveRequestsSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment]
+leaveRequestsSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [SurfaceWireFragment]
 leaveRequestsSurfaceWireFragments =
     frontendSurfaceMountedFragmentsToWire "leave-requests"
 

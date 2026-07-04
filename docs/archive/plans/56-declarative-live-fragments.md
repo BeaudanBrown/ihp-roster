@@ -14,7 +14,7 @@ Add a Haskell-first surface model:
 data LiveSurfaceConfig = LiveSurfaceConfig
     { feature                :: Text
     , socketPath             :: Text
-    , scope                  :: LiveUpdateScope
+    , scope                  :: SurfaceScope
     , resyncFragments        :: [LiveFragmentRef]
     , decorateRequestsWithin :: [Text]
     }
@@ -23,7 +23,7 @@ data LiveSurfaceConfig = LiveSurfaceConfig
 Extend fragment metadata so interactive sections can declare browser-side protection policies:
 
 ```haskell
-data LiveFragmentProtection
+data SurfaceFragmentProtection
     = NoProtection
     | FocusedFieldProtection FocusedFieldProtectionConfig
 ```

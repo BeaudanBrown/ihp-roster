@@ -18,7 +18,7 @@ module Web.SurfaceInvalidation
 
 import Application.Bepis.Fact (BepisFact (..), BepisLiveFact (..),
                                BepisLiveMechanism (..), emitBepisFact)
-import Application.Helper.FrontendSurface.Authorization (authorizeFrontendSurfaceLiveScope)
+import Application.Helper.FrontendSurface.Authorization (authorizeFrontendSurfaceScope)
 import Application.Helper.FrontendSurface.DependencyPlanner (planFrontendSurfaceWireInvalidation)
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.Profiling (profileActionSpanWithDetail)
@@ -34,18 +34,18 @@ import qualified System.Environment as Environment
 import Web.Controller.Prelude
 
 data SurfaceInvalidationTarget = SurfaceInvalidationTarget
-    { targetScope     :: !LiveUpdateScope
-    , targetFragments :: ![LiveUpdateWireFragment]
+    { targetScope     :: !SurfaceScope
+    , targetFragments :: ![SurfaceWireFragment]
     }
     deriving (Eq, Show)
 
-authorizeSurfaceScope :: (?context :: ControllerContext, ?modelContext :: ModelContext) => LiveUpdateScope -> IO Bool
-authorizeSurfaceScope = authorizeFrontendSurfaceLiveScope
+authorizeSurfaceScope :: (?context :: ControllerContext, ?modelContext :: ModelContext) => SurfaceScope -> IO Bool
+authorizeSurfaceScope = authorizeFrontendSurfaceScope
 
-planSurfaceInvalidations :: (?context :: ControllerContext) => Set.Set SurfaceResourceValue -> [LiveUpdateSubscription] -> [SurfaceInvalidationTarget]
+planSurfaceInvalidations :: (?context :: ControllerContext) => Set.Set SurfaceResourceValue -> [SurfaceSubscription] -> [SurfaceInvalidationTarget]
 planSurfaceInvalidations = planSurfaceInvalidationsWithoutContext
 
-planSurfaceInvalidationsWithoutContext :: Set.Set SurfaceResourceValue -> [LiveUpdateSubscription] -> [SurfaceInvalidationTarget]
+planSurfaceInvalidationsWithoutContext :: Set.Set SurfaceResourceValue -> [SurfaceSubscription] -> [SurfaceInvalidationTarget]
 planSurfaceInvalidationsWithoutContext resources subscriptions =
     coalesceTargets $ mapMaybe (planSubscriptionInvalidation resources) subscriptions
 
@@ -55,14 +55,14 @@ performSurfaceInvalidationTarget target = broadcastLiveInvalidationDetailed targ
 performSurfaceInvalidationTargetWithoutContext :: SurfaceInvalidationTarget -> IO LiveUpdateBroadcastResult
 performSurfaceInvalidationTargetWithoutContext target = broadcastLiveInvalidationDetailedWithoutContext target.targetScope Nothing target.targetFragments
 
-planSubscriptionInvalidation :: Set.Set SurfaceResourceValue -> LiveUpdateSubscription -> Maybe SurfaceInvalidationTarget
+planSubscriptionInvalidation :: Set.Set SurfaceResourceValue -> SurfaceSubscription -> Maybe SurfaceInvalidationTarget
 planSubscriptionInvalidation resources subscription = do
     let fragments = planFrontendSurfaceWireInvalidation resources subscription.subscriptionScope subscription.subscriptionMountedFragments
     if null fragments then Nothing else Just SurfaceInvalidationTarget { targetScope = subscription.subscriptionScope, targetFragments = fragments }
 
 coalesceTargets :: [SurfaceInvalidationTarget] -> [SurfaceInvalidationTarget]
 coalesceTargets targets =
-    [ SurfaceInvalidationTarget scope (coalesceLiveUpdateWireFragments fragments)
+    [ SurfaceInvalidationTarget scope (coalesceSurfaceWireFragments fragments)
     | (scope, fragments) <- Map.toAscList grouped
     ]
     where
@@ -103,7 +103,7 @@ invalidateTouchedResources label result =
     profileActionSpanWithDetail "surface_resources.invalidate" do
         startedAtNs <- getMonotonicTimeNSec
         (observed, observeDurationMs) <- measureDuration (recordLiveMutationDiagnostics label result)
-        (activeSubscriptions, activeSubscriptionDurationMs) <- measureDuration activeLiveUpdateSubscriptions
+        (activeSubscriptions, activeSubscriptionDurationMs) <- measureDuration activeSurfaceSubscriptions
         (activeRosterScopes, activeRosterDurationMs) <- measureDuration activeRosterWeekScopes
         let activeDurationMs = activeSubscriptionDurationMs + activeRosterDurationMs
         let activeScopes = coalesceScopes (map (.subscriptionScope) activeSubscriptions)
@@ -133,7 +133,7 @@ invalidateTouchedResourcesWithoutContext :: Text -> LiveMutationResult a -> IO (
 invalidateTouchedResourcesWithoutContext label result = do
     startedAtNs <- getMonotonicTimeNSec
     (observed, observeDurationMs) <- measureDuration (recordLiveMutationDiagnostics label result)
-    (activeSubscriptions, activeDurationMs) <- measureDuration activeLiveUpdateSubscriptions
+    (activeSubscriptions, activeDurationMs) <- measureDuration activeSurfaceSubscriptions
     let activeScopes = coalesceScopes (map (.subscriptionScope) activeSubscriptions)
     (activeRosterScopes, activeRosterDurationMs) <- measureDuration activeRosterWeekScopes
     let activeDurationMs' = activeDurationMs + activeRosterDurationMs
@@ -189,10 +189,10 @@ liveInvalidationProfile ::
     Text ->
     Double ->
     Set.Set SurfaceResourceValue ->
-    [LiveUpdateScope] ->
+    [SurfaceScope] ->
     Set.Set SurfaceResourceValue ->
-    [LiveUpdateScope] ->
-    [LiveUpdateScope] ->
+    [SurfaceScope] ->
+    [SurfaceScope] ->
     [SurfaceInvalidationTarget] ->
     [LiveUpdateBroadcastResult] ->
     LiveInvalidationStageDurations ->
@@ -276,7 +276,7 @@ renderDuration durationMs =
 candidateLiveScopesForSurfaceResources ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     Set.Set SurfaceResourceValue ->
-    IO [LiveUpdateScope]
+    IO [SurfaceScope]
 candidateLiveScopesForSurfaceResources resources =
     coalesceScopes . concat <$> mapM candidateScopesForResource (Set.toList resources)
     where
@@ -308,7 +308,7 @@ candidateLiveScopesForSurfaceResources resources =
             , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [adminXeroLiveScope venueId]
             | otherwise = pure []
 
-candidateLiveScopesForSurfaceResourcesWithoutContext :: Set.Set SurfaceResourceValue -> [LiveUpdateScope]
+candidateLiveScopesForSurfaceResourcesWithoutContext :: Set.Set SurfaceResourceValue -> [SurfaceScope]
 candidateLiveScopesForSurfaceResourcesWithoutContext resources =
     coalesceScopes (concatMap candidateScopesForResource (Set.toList resources))
     where
@@ -330,7 +330,7 @@ candidateLiveScopesForSurfaceResourcesWithoutContext resources =
 staffProfileScope ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     UUID ->
-    IO [LiveUpdateScope]
+    IO [SurfaceScope]
 staffProfileScope staffId = do
     maybeStaff <- currentVenueStaff staffId
     pure
@@ -338,7 +338,7 @@ staffProfileScope staffId = do
         | staff <- maybeToList maybeStaff
         ]
 
-coalesceScopes :: [LiveUpdateScope] -> [LiveUpdateScope]
+coalesceScopes :: [SurfaceScope] -> [SurfaceScope]
 coalesceScopes =
     Set.toList . Set.fromList
 

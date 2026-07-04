@@ -96,7 +96,7 @@ tests:
 - raw feature-level `broadcastLiveInvalidation`
 - feature imports of `Application.Helper.LiveUpdate.Runtime`
 - raw feature-level `liveFragmentsRefreshTriggerPayload`
-- fallback feature-scope authorization such as default `authorizeLiveUpdateScope`
+- fallback feature-scope authorization such as default `authorizeSurfaceScope`
 - direct feature/controller use of `ensureTypedLiveSurfaceAuthorized` instead of
   `serveTypedLiveFragment`
 

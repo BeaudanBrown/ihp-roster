@@ -1,4 +1,4 @@
-import type { LiveUpdateCommand, LiveUpdateScope, LiveUpdateSubscription, LiveUpdateWireFragment } from "../generated/contracts";
+import type { LiveUpdateCommand, SurfaceScope, SurfaceSubscription, SurfaceWireFragment } from "../generated/contracts";
 import { encodeLiveUpdateCommand } from "../generated/contracts";
 
 type MessageWithScopeKey = { scopeKey?: unknown };
@@ -15,7 +15,7 @@ export function normalizeLiveUpdateVersion(value: unknown): number | null {
     return Number.isInteger(value) && (value as number) >= 0 ? value as number : null;
 }
 
-export function buildLiveUpdateSubscription(scope: LiveUpdateScope, scopeKey: string, mountedFragments: LiveUpdateWireFragment[]): LiveUpdateSubscription {
+export function buildSurfaceSubscription(scope: SurfaceScope, scopeKey: string, mountedFragments: SurfaceWireFragment[]): SurfaceSubscription {
     return {
         scope,
         scopeKey,
@@ -23,7 +23,7 @@ export function buildLiveUpdateSubscription(scope: LiveUpdateScope, scopeKey: st
     };
 }
 
-export function buildLiveUpdateSubscribeCommand(subscription: LiveUpdateSubscription, clientId: string, lastSeenVersion: number | null): LiveUpdateCommand {
+export function buildLiveUpdateSubscribeCommand(subscription: SurfaceSubscription, clientId: string, lastSeenVersion: number | null): LiveUpdateCommand {
     return encodeLiveUpdateCommand({
         type: "subscribe",
         subscription,
@@ -32,14 +32,14 @@ export function buildLiveUpdateSubscribeCommand(subscription: LiveUpdateSubscrip
     });
 }
 
-export function buildLiveUpdateUnsubscribeCommand(subscription: LiveUpdateSubscription): LiveUpdateCommand {
+export function buildLiveUpdateUnsubscribeCommand(subscription: SurfaceSubscription): LiveUpdateCommand {
     return encodeLiveUpdateCommand({
         type: "unsubscribe",
         subscription,
     });
 }
 
-export function liveUpdateFragmentMergeKey(fragment: Pick<LiveUpdateWireFragment, "fragmentKey" | "targetId"> | null | undefined): string | null {
+export function liveUpdateFragmentMergeKey(fragment: Pick<SurfaceWireFragment, "fragmentKey" | "targetId"> | null | undefined): string | null {
     if (!fragment || !fragment.targetId) return null;
     const fragmentKey = fragment.fragmentKey ? JSON.stringify(fragment.fragmentKey) : "";
     return `${fragmentKey}:${fragment.targetId}`;

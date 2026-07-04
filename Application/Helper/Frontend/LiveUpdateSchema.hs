@@ -2,13 +2,13 @@
 
 module Application.Helper.Frontend.LiveUpdateSchema
     ( FocusedFieldProtectionConfig (..)
-    , LiveFragmentKey (..)
-    , LiveFragmentProtection (..)
+    , SurfaceFragmentKey (..)
+    , SurfaceFragmentProtection (..)
     , LiveUpdateCommand (..)
     , LiveUpdateMessage (..)
-    , LiveUpdateScope (..)
-    , LiveUpdateSubscription (..)
-    , LiveUpdateWireFragment (..)
+    , SurfaceScope (..)
+    , SurfaceSubscription (..)
+    , SurfaceWireFragment (..)
     , liveUpdateSchemaDeclaration
     ) where
 
@@ -22,14 +22,14 @@ import IHP.Prelude
 liveUpdateSchemaDeclaration :: TypeScriptDeclaration
 liveUpdateSchemaDeclaration =
     renderFrontendContractGroup FrontendContractGroup
-        { contractGroupName = "LiveUpdateContracts"
+        { contractGroupName = "SurfaceLiveUpdateContracts"
         , contractGroupComment = Just "Live-update wire protocol generated from Haskell DTO codecs."
         , contractGroupCodecs =
-            [ someFrontendCodec @LiveUpdateScope
-            , someFrontendCodec @LiveFragmentKey
-            , someFrontendCodec @LiveFragmentProtection
-            , someFrontendCodec @LiveUpdateWireFragment
-            , someFrontendCodec @LiveUpdateSubscription
+            [ someFrontendCodec @SurfaceScope
+            , someFrontendCodec @SurfaceFragmentKey
+            , someFrontendCodec @SurfaceFragmentProtection
+            , someFrontendCodec @SurfaceWireFragment
+            , someFrontendCodec @SurfaceSubscription
             , someFrontendCodec @LiveUpdateCommand
             , someFrontendCodec @LiveUpdateMessage
             ]

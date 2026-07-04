@@ -5,7 +5,7 @@
 module Web.Profiles.FrontendSurface
     ( ProfileScopeValue (..)
     , profileCandidateMountedFragments
-    , profileLiveUpdateScope
+    , profileSurfaceScope
     , profileSectionFragmentForSection
     , profileSurfaceImpl
     , profileSurfaceMountConfig
@@ -49,8 +49,8 @@ profileSurfaceScopeKey :: ProfileScopeValue -> Text
 profileSurfaceScopeKey scope =
     "profile:" <> tshow scope.profileVenueId <> ":" <> tshow scope.profileStaffId
 
-profileLiveUpdateScope :: ProfileScopeValue -> LiveUpdateScope
-profileLiveUpdateScope scope =
+profileSurfaceScope :: ProfileScopeValue -> SurfaceScope
+profileSurfaceScope scope =
     profileLiveScope scope.profileVenueId scope.profileStaffId
 
 profileCandidateMountedFragments :: ProfileScopeValue -> [FrontendSurfaceMountedFragment]
@@ -62,7 +62,7 @@ profileCandidateMountedFragments _ =
     , profileRsaMountedFragment
     ]
 
-profileSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment]
+profileSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [SurfaceWireFragment]
 profileSurfaceWireFragments =
     frontendSurfaceMountedFragmentsToWire "profile"
 

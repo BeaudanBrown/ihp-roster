@@ -2,29 +2,29 @@
 (() => {
   // frontend/ts/generated/contracts.ts
   var AppEvents = { "interactionIntent": "bepis:interaction-intent", "interactionIntentSubmit": "bepis:intent-submit", "interactionSessionCancelRequest": "bepis:interaction-session-cancel-request", "interactionSessionEnd": "bepis:interaction-session-end", "interactionSessionStart": "bepis:interaction-session-start", "liveFragmentsRefresh": "app-live-fragments-refresh", "pageReady": "app:page-ready" };
-  function __isLiveUpdateScopeExactRecord(value, requiredKeys, optionalKeys) {
+  function __isSurfaceScopeExactRecord(value, requiredKeys, optionalKeys) {
     if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
     const actualKeys = Object.keys(value);
     const allowedKeys = /* @__PURE__ */ new Set([...requiredKeys, ...optionalKeys]);
     return requiredKeys.every((key) => Object.prototype.hasOwnProperty.call(value, key)) && actualKeys.every((key) => allowedKeys.has(key));
   }
-  function isLiveUpdateScope(value) {
-    return __isLiveUpdateScopeExactRecord(value, ["surface", "scope"], []) && typeof value["surface"] === "string" && true;
+  function isSurfaceScope(value) {
+    return __isSurfaceScopeExactRecord(value, ["surface", "scope"], []) && typeof value["surface"] === "string" && true;
   }
-  function isLiveFragmentKey(value) {
-    return __isLiveUpdateScopeExactRecord(value, ["surface", "kind", "params"], []) && typeof value["surface"] === "string" && typeof value["kind"] === "string" && true;
+  function isSurfaceFragmentKey(value) {
+    return __isSurfaceScopeExactRecord(value, ["surface", "kind", "params"], []) && typeof value["surface"] === "string" && typeof value["kind"] === "string" && true;
   }
-  function isLiveFragmentProtection(value) {
-    return __isLiveUpdateScopeExactRecord(value, ["kind"], []) && value["kind"] === "none" || __isLiveUpdateScopeExactRecord(value, ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"], []) && value["kind"] === "focused_field" && typeof value["activeSelector"] === "string" && typeof value["fieldKeyAttr"] === "string" && typeof value["fieldNameFallback"] === "boolean" && (value["containerSelector"] === null || typeof value["containerSelector"] === "string");
+  function isSurfaceFragmentProtection(value) {
+    return __isSurfaceScopeExactRecord(value, ["kind"], []) && value["kind"] === "none" || __isSurfaceScopeExactRecord(value, ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"], []) && value["kind"] === "focused_field" && typeof value["activeSelector"] === "string" && typeof value["fieldKeyAttr"] === "string" && typeof value["fieldNameFallback"] === "boolean" && (value["containerSelector"] === null || typeof value["containerSelector"] === "string");
   }
-  function isLiveUpdateWireFragment(value) {
-    return __isLiveUpdateScopeExactRecord(value, ["fragmentKey", "targetId", "url", "deferUntilBlur", "protectionPolicy"], []) && isLiveFragmentKey(value["fragmentKey"]) && typeof value["targetId"] === "string" && typeof value["url"] === "string" && typeof value["deferUntilBlur"] === "boolean" && isLiveFragmentProtection(value["protectionPolicy"]);
+  function isSurfaceWireFragment(value) {
+    return __isSurfaceScopeExactRecord(value, ["fragmentKey", "targetId", "url", "deferUntilBlur", "protectionPolicy"], []) && isSurfaceFragmentKey(value["fragmentKey"]) && typeof value["targetId"] === "string" && typeof value["url"] === "string" && typeof value["deferUntilBlur"] === "boolean" && isSurfaceFragmentProtection(value["protectionPolicy"]);
   }
   function encodeLiveUpdateCommand(value) {
     return value;
   }
   function isLiveUpdateMessage(value) {
-    return __isLiveUpdateScopeExactRecord(value, ["type", "scope", "scopeKey", "currentVersion", "resync"], []) && value["type"] === "subscribed" && isLiveUpdateScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && typeof value["resync"] === "boolean" || __isLiveUpdateScopeExactRecord(value, ["type", "scope", "scopeKey", "version", "fragments", "sourceClientId"], []) && value["type"] === "invalidate" && isLiveUpdateScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isLiveUpdateWireFragment(item))) && (value["sourceClientId"] === null || typeof value["sourceClientId"] === "string") || __isLiveUpdateScopeExactRecord(value, ["type", "message"], []) && value["type"] === "error" && typeof value["message"] === "string";
+    return __isSurfaceScopeExactRecord(value, ["type", "scope", "scopeKey", "currentVersion", "resync"], []) && value["type"] === "subscribed" && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && typeof value["resync"] === "boolean" || __isSurfaceScopeExactRecord(value, ["type", "scope", "scopeKey", "version", "fragments", "sourceClientId"], []) && value["type"] === "invalidate" && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceWireFragment(item))) && (value["sourceClientId"] === null || typeof value["sourceClientId"] === "string") || __isSurfaceScopeExactRecord(value, ["type", "message"], []) && value["type"] === "error" && typeof value["message"] === "string";
   }
   function parseLiveUpdateMessage(value) {
     if (isLiveUpdateMessage(value)) return value;
@@ -57,7 +57,7 @@
   var adminShiftTypesSurfaceManifest = { surface: "admin-shift-types", scopes: ["admin-shift-types"], fragments: ["admin-shift-types"], liveFragments: ["admin-shift-types"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
   var adminRosterGroupsSurfaceManifest = { surface: "admin-roster-groups", scopes: ["admin-roster-groups"], fragments: ["admin-roster-groups"], liveFragments: ["admin-roster-groups"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
   var adminXeroSurfaceManifest = { surface: "admin-xero", scopes: ["admin-xero"], fragments: ["admin-xero-shell", "admin-xero-staff-mappings", "admin-xero-pay-items", "admin-xero-timesheets"], liveFragments: ["admin-xero-shell", "admin-xero-staff-mappings", "admin-xero-pay-items", "admin-xero-timesheets"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
-  function isFrontendSurfaceLiveScope(value) {
+  function isFrontendSurfaceScope(value) {
     if (!__isFrontendSurfaceRecord(value)) return false;
     if (!isFrontendSurfaceName(value.surface)) return false;
     return __isFrontendSurfaceRecord(value.scope);
@@ -74,18 +74,18 @@
   function __surfaceHasFragment(surface, fragment) {
     return FrontendSurfaceRegistry[surface].fragments.includes(fragment);
   }
-  function isFrontendSurfaceLiveFragmentProtection(value) {
+  function isFrontendSurfaceSurfaceFragmentProtection(value) {
     if (!__isFrontendSurfaceRecord(value)) return false;
     if (value.kind === "none") return true;
     return value.kind === "focused-field" && typeof value.activeSelector === "string" && typeof value.fieldKeyAttr === "string" && typeof value.fieldNameFallback === "boolean" && (value.containerSelector === null || typeof value.containerSelector === "string");
   }
   function isFrontendSurfaceLiveWireFragment(value) {
     if (!__isFrontendSurfaceRecord(value)) return false;
-    return isFrontendSurfaceLiveFragment(value.fragment) && typeof value.targetId === "string" && typeof value.url === "string" && typeof value.deferUntilBlur === "boolean" && isFrontendSurfaceLiveFragmentProtection(value.protectionPolicy);
+    return isFrontendSurfaceLiveFragment(value.fragment) && typeof value.targetId === "string" && typeof value.url === "string" && typeof value.deferUntilBlur === "boolean" && isFrontendSurfaceSurfaceFragmentProtection(value.protectionPolicy);
   }
   function isFrontendSurfaceLiveSubscription(value) {
     if (!__isFrontendSurfaceRecord(value)) return false;
-    return isFrontendSurfaceLiveScope(value.scope) && typeof value.scopeKey === "string" && Array.isArray(value.resyncFragments) && value.resyncFragments.every(isFrontendSurfaceLiveWireFragment);
+    return isFrontendSurfaceScope(value.scope) && typeof value.scopeKey === "string" && Array.isArray(value.resyncFragments) && value.resyncFragments.every(isFrontendSurfaceLiveWireFragment);
   }
   function isFrontendSurfaceMountedFragmentConfigForSurface(surface, value) {
     if (!__isFrontendSurfaceRecord(value)) return false;
@@ -582,7 +582,7 @@
   function normalizeLiveUpdateVersion(value) {
     return Number.isInteger(value) && value >= 0 ? value : null;
   }
-  function buildLiveUpdateSubscription(scope, scopeKey, mountedFragments) {
+  function buildSurfaceSubscription(scope, scopeKey, mountedFragments) {
     return {
       scope,
       scopeKey,
@@ -1062,7 +1062,7 @@
       return liveUpdateMessageScopeKey(message);
     }
     function wireSubscription(subscription) {
-      return buildLiveUpdateSubscription(subscription.scope, subscription.scopeKey, subscription.resyncFragments);
+      return buildSurfaceSubscription(subscription.scope, subscription.scopeKey, subscription.resyncFragments);
     }
     function subscribeScope(subscription) {
       const lastSeenVersion = getScopeVersion(subscription.scopeKey);

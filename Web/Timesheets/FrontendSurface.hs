@@ -6,7 +6,7 @@ module Web.Timesheets.FrontendSurface
     ( TimesheetWeekScopeValue (..)
     , TimesheetsMountStateValue (..)
     , timesheetsCandidateMountedFragments
-    , timesheetsLiveUpdateScope
+    , timesheetsSurfaceScope
     , timesheetsSurfaceImpl
     , timesheetsSurfaceMountConfig
     , timesheetsSurfaceScopeKey
@@ -64,11 +64,11 @@ timesheetsSurfaceScopeKey :: TimesheetWeekScopeValue -> Text
 timesheetsSurfaceScopeKey scope =
     "timesheets:" <> tshow scope.timesheetWeekVenueId <> ":" <> tshow scope.timesheetWeekWeekOffset
 
-timesheetsLiveUpdateScope :: TimesheetWeekScopeValue -> LiveUpdateScope
-timesheetsLiveUpdateScope scope =
+timesheetsSurfaceScope :: TimesheetWeekScopeValue -> SurfaceScope
+timesheetsSurfaceScope scope =
     timesheetWeekLiveScope scope.timesheetWeekVenueId scope.timesheetWeekWeekOffset
 
-timesheetsSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment]
+timesheetsSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [SurfaceWireFragment]
 timesheetsSurfaceWireFragments =
     frontendSurfaceMountedFragmentsToWire "timesheets"
 
