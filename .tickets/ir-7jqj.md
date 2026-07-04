@@ -1,8 +1,8 @@
 ---
 id: ir-7jqj
-status: open
+status: closed
 deps: []
-links: []
+links: [ir-u84h]
 created: 2026-07-04T01:20:55Z
 type: epic
 priority: 2

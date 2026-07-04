@@ -2,12 +2,11 @@
 id: ir-u84h
 status: open
 deps: [ir-lptt]
-links: []
+links: [ir-7jqj]
 created: 2026-07-04T02:01:20Z
 type: chore
 priority: 2
 assignee: Beaudan Brown
-parent: ir-7jqj
 tags: [agent-loop, surfaces, interaction, planning]
 ---
 # Plan generated FrontendSurface interaction render helpers
