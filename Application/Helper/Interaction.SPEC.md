@@ -18,7 +18,8 @@ Haskell owns the canonical definitions for:
 - surface family, surface scope, and concrete mount metadata;
 - live fragment types, refs, target ids, refetch URLs, protection policy, and
   containment paths;
-- server layers, disposable layer types, item/slot/handle markers, and DOM ids;
+- server layers, disposable layer types, generated role-specific interaction
+  refs, dynamic opaque key fields, and DOM ids;
 - intent types, intent field schemas, and strict form contracts;
 - HTMX method/route/trigger/target/swap attributes, including concurrency aids
   such as `hx-sync` or `hx-disabled-elt` where needed;
@@ -65,8 +66,8 @@ SurfaceFamily
 ## DOM Ownership Boundaries
 
 - **Server-owned DOM** is rendered by Haskell and swapped through HTMX/live
-  fragments. TypeScript may read typed markers from it but must not persistently
-  mutate business structure, ids, field names, or server data.
+  fragments. TypeScript may read generated interaction refs from it but must not
+  persistently mutate business structure, ids, field names, or server data.
 - **Live fragments** are server-owned DOM targets with typed refetch URLs and
   containment metadata. Fragment GET endpoints return exactly the target node.
 - **Disposable UI** is temporary client-owned DOM inside declared disposable
@@ -77,12 +78,50 @@ SurfaceFamily
   rendered back by the server as an authoritative fragment.
 - **Intent forms** are hidden or visible Haskell-rendered HTMX forms for
   committed intents. They are server-owned contracts; TypeScript only fills
-  validated generated inputs and dispatches the generated trigger.
+  validated generated inputs and dispatches the generated trigger. Mount JSON is
+  not a mutation transport contract and must not replace DOM-owned HTMX forms.
 
-Views should not handwrite raw interaction `data-bepis-*` attributes, marker
-names, disposable layer mounts, intent forms, HTMX intent attributes, or target
-ids once helpers exist. Feature views should call typed Haskell helpers derived
-from closed feature-local contracts.
+Views should not handwrite raw interaction `data-bepis-*` attributes, ref names,
+disposable layer mounts, intent forms, HTMX intent attributes, or target ids once
+helpers exist. Feature views should call typed Haskell helpers derived from
+closed `FrontendSurface` contracts.
+
+## Generated Interaction Manifest And DOM Refs
+
+The durable browser contract is a generated interaction manifest plus minimal
+role-specific DOM refs. `FrontendSurface` declarations own the static semantics:
+source refs, dropzone refs, activation refs, sessions, intents, intent fields,
+compatible source/dropzone/session/intent combinations, effects, layers, and
+conflict policies. `SurfaceImpl` and view helpers render the concrete mount-local
+HTML: ids, HTMX forms, hidden values, dynamic opaque keys, and the generated ref
+attributes.
+
+Generated role-specific DOM refs are intentionally small and readable. The exact
+attribute names are backend-owned constants in generated/shared contracts, not
+feature-local string literals. The initial roles are:
+
+- `data-bepis-source-ref` with `data-bepis-source-key` for elements that can
+  start a pointer session;
+- `data-bepis-dropzone-ref` with `data-bepis-dropzone-key` for candidate pointer
+  targets;
+- `data-bepis-activation-ref` for controls that emit a committed activation
+  intent;
+- generated form/field refs for DOM-owned HTMX intent forms.
+
+`*-ref` values are generated static names derived from the surface type-level
+spec. `*-key` values are dynamic, server-rendered, opaque browser-boundary
+strings submitted back through generated intent fields. The browser may compare
+and forward keys but must not parse them for business meaning; controllers parse
+and validate all keys against venue/scope/domain state.
+
+Legacy semantic marker attributes such as `data-bepis-marker`,
+`data-bepis-item`, `data-bepis-dropzone`, `data-bepis-pointer-session`,
+`data-bepis-session-kind`, `data-bepis-session-intent`,
+`data-bepis-activation-intent`, and `data-bepis-activation-trigger` are
+transitional only. They may exist during a dual-runtime migration, but the final
+runtime must derive behavior from generated manifest entries and role-specific
+refs. The epic that introduces the manifest must delete or guard old semantic
+marker authoring before close.
 
 ## Surface Portability And Duplicate Mounts
 
@@ -100,23 +139,19 @@ or infer a singleton surface for a scope.
 
 1. Feature code declares closed Haskell types for disposable layers, intents,
    intent fields, and any interaction-specific markers.
-2. Haskell contracts attach a scope-free static interaction schema plus optional
-   runtime interaction capability to the same surface definition. For migrated
-   surfaces this is the type-level `FrontendSurface` spec plus `SurfaceImpl`;
-   for still-legacy surfaces it is the typed live surface definition. The static
-   schema enumerates layer names, session names, intent names, field schemas,
-   marker semantics, and default conflict policy without constructing a fake
-   scope. Runtime capability still owns concrete HTMX form actions, targets,
-   sync selectors, hidden values, and any fragment refs whose URLs depend on the
-   mounted scope. Existing surfaces can use empty static schema and empty
-   capability.
+2. Haskell contracts attach a scope-free generated interaction manifest to the
+   same type-level `FrontendSurface` definition. The static manifest enumerates
+   layer names, session names, intent names, field schemas, source refs,
+   dropzone refs, activation refs, ref compatibility, effects, and default
+   conflict policy without constructing a fake scope. `SurfaceImpl` owns
+   concrete HTMX form actions, targets, sync selectors, hidden values, and any
+   fragment refs whose URLs depend on the mounted scope. Existing surfaces can
+   use empty static interaction metadata.
 3. Haskell helpers render surface mounts, server layers, disposable layers,
-   typed item/slot/handle markers, and generated HTMX intent forms. Use
-   `renderInteractionCapabilityShell` for the standard mount/layer/form shell,
-   `renderInteractionSurfaceMount`/`renderInteractionServerLayer`/
-   `renderInteractionDisposableLayer` for custom layouts, `renderInteraction*Marker`
-   for item/container/slot/dropzone/resize/activation markers, and
-   `renderInteractionIntentForm` for server-owned HTMX intent submission forms.
+   generated source/dropzone/activation refs with dynamic opaque keys, and
+   generated HTMX intent forms. Helpers are the only production feature-facing
+   API for interaction attrs; raw semantic marker helpers are temporary internal
+   migration aids only.
 4. Haskell-generated TypeScript exposes narrow browser DTOs/unions for live
    update payloads, registered surface families, static interaction schemas,
    layers, session kinds, intents, fields, live fragments, and conflict policy.
@@ -150,26 +185,29 @@ protection, session kind, or intent name, it must use an exhaustive switch with
 new case is handled. Prefer data-driven generic behavior when no branch is
 needed.
 
-Generic activation markers may promote ordinary click/change controls into the
-intent path without feature-specific TypeScript. A helper-rendered activation
-marker has a mount-local key, an intent name, an activation trigger (`click`,
-`change`, `keydown-enter`, or `keydown-space`), and optionally one value field
-whose value is read from the event target/control. The browser runtime resolves
-the closest activation marker from the event target and emits a committed intent;
+Generic activation refs may promote ordinary click/change controls into the
+intent path without feature-specific TypeScript. A helper-rendered activation ref
+has a generated ref name, an activation trigger (`click`, `change`,
+`keydown-enter`, or `keydown-space`), and optionally one value field whose value
+is read from the event target/control. The browser runtime resolves the closest
+activation ref from the event target, looks up the generated manifest entry for
+that ref in the current mounted surface instance, and emits a committed intent;
 server submission still happens only through the matching generated intent form.
-Marker keys should be unique within a concrete mount for the marker kind unless
+Activation keys should be unique within a concrete mount for the ref kind unless
 multiple rendered controls intentionally alias the same logical action.
 
-Generic pointer session markers may start local disposable sessions from mouse,
-pen, or touch pointer events. A helper-rendered pointer marker declares the
-session kind and eventual intent name; generated attributes may disable/read-only
-a marker, set a movement threshold, or set a timeout. The runtime keeps one
-active session at a time, captures the pointer when possible, emits
-`start`/`preview`/`commit`/`cancel` phases, hit-tests with `elementFromPoint`,
-and clears disposable layers in the same concrete mount on cancel, timeout,
-HTMX cleanup, explicit stop, or commit. Preview phases are local only; the server
-DOM remains authoritative until a committed intent submits through a generated
-intent form.
+Generic pointer session refs may start local disposable sessions from mouse,
+pen, or touch pointer events. A helper-rendered source ref declares only the
+static generated source ref plus an opaque source key; the generated manifest
+maps that source ref to the session kind, compatible dropzone refs, eventual
+intent, submitted source/target field names, and effect metadata. Generated or
+helper-owned DOM attributes may disable/read-only a source, set a movement
+threshold, or set a timeout. The runtime keeps one active session at a time,
+captures the pointer when possible, emits `start`/`preview`/`commit`/`cancel`
+phases, hit-tests with `elementFromPoint`, and clears disposable layers in the
+same concrete mount on cancel, timeout, HTMX cleanup, explicit stop, or commit.
+Preview phases are local only; the server DOM remains authoritative until a
+committed intent submits through a generated intent form.
 
 Pointer-session effects are Haskell-owned static interaction-schema metadata,
 not frontend-only configuration. A `SessionKindDefinition` may declare a bounded

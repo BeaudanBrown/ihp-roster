@@ -81,6 +81,8 @@ Available primitives include:
 - `MountState` for view state that is not part of the live subscription scope;
 - `Session` plus session options such as `Layer` and `Effect` for typed
   interaction runtime coordination;
+- generated source, dropzone, and activation refs for generic browser
+  interactions;
 - `ConflictPolicy` for session/fragment conflict behavior;
 - `Event`, `DomToken`, and `Dto` for narrow browser-boundary metadata.
 
@@ -101,6 +103,44 @@ Generated names are derived from marker type names by
 and acronym handling. Prefer descriptive marker names and avoid exact-name
 overrides unless the naming guardrails require them. Run the naming and surface
 checks after adding markers.
+
+## Generated Interaction Manifest
+
+`FrontendSurface` is also the source of truth for generic browser interaction
+semantics. The generator emits a static interaction manifest for each surface:
+source refs, dropzone refs, activation refs, sessions, intents, intent fields,
+compatible source/dropzone/session/intent mappings, effects, disposable layers,
+and conflict policies. TypeScript consumes that manifest to interpret mounted
+surface instances; it must not invent feature-local interaction names or infer
+business behavior from ad-hoc DOM strings.
+
+Feature views still own ordinary HTML layout. They attach minimal role-specific
+refs through generated Haskell helpers:
+
+- `data-bepis-source-ref` plus `data-bepis-source-key` for pointer/session
+  sources;
+- `data-bepis-dropzone-ref` plus `data-bepis-dropzone-key` for compatible
+  targets;
+- `data-bepis-activation-ref` for controls that immediately emit an intent;
+- generated intent form/field attrs for DOM-owned HTMX forms.
+
+Ref values are generated static names. Key values are dynamic opaque strings
+rendered by the server and submitted back through generated intent fields; the
+browser may forward them but must not parse them as domain authority.
+
+Concrete HTMX forms remain DOM-owned and server-rendered. `SurfaceImpl` intent
+handlers/render helpers own action URLs, methods, hidden inputs, targets, swaps,
+sync selectors, disabled selectors, and trigger events. Mount JSON must not
+become a custom mutation transport contract. The generic browser runtime only
+validates generated semantics and matching DOM forms, fills declared fields, and
+dispatches the generated HTMX trigger.
+
+Legacy semantic marker attributes such as `data-bepis-marker`,
+`data-bepis-pointer-session`, `data-bepis-session-kind`,
+`data-bepis-session-intent`, `data-bepis-activation-intent`, and
+`data-bepis-activation-trigger` are transitional migration details, not the
+long-term API. Production feature views should not author them once generated ref
+helpers exist, and guardrails should prevent reintroduction after migration.
 
 ## Runtime Implementation
 
@@ -218,7 +258,8 @@ For a new surface or migration:
 1. Define the type-level spec and add it to `RegisteredFrontendSurfaces`.
 2. Implement `SurfaceImpl` handlers and render mounts with runtime helpers.
 3. Move static interaction/action metadata into the spec or shared helper
-   aliases.
+   aliases, including generated source/dropzone/activation refs and their
+   session/intent compatibility.
 4. Render fragments directly from feature read models; do not add a
    `SurfaceProjection` cache.
 5. Generate contracts and update TypeScript to consume generated surface data.
