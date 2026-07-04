@@ -930,7 +930,7 @@
       if (!fragment || !fragment.targetId || !fragment.url) return;
       const target = document.getElementById(fragment.targetId);
       if (!(target instanceof HTMLElement)) return;
-      const resolvedFragment = { ...fragment, url: target.dataset.liveUpdateUrl || fragment.url };
+      const resolvedFragment = fragment;
       const interactionConflict = resolveLiveFragmentInteractionConflict(resolvedFragment, target, activeInteractionSessions);
       if (interactionConflict && interactionConflict.action === "cancel") {
         activeInteractionSessions.requestCancel(interactionConflict.session, "live-fragment-conflict");

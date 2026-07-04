@@ -2,9 +2,9 @@ module Web.View.Billing.Index where
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
-import Application.Helper.Url (appendQueryParams)
 import qualified Data.Text as Text
-import Web.Billing.FrontendSurface (billingSurfaceImpl,
+import Web.Billing.FrontendSurface (BillingCheckoutReturnState (..),
+                                    billingSurfaceImpl,
                                     currentBillingScopeValue)
 import Web.View.Prelude
 
@@ -43,7 +43,7 @@ instance View BillingView where
             , appPageWidthClass = ""
             , appPageBody = [hsx|
                 <div id="billing-live-surface" class="app-page-stack">
-                    {renderFrontendSurfaceMount (billingSurfaceImpl currentBillingScopeValue (billingStatusFragmentUrl viewModel.checkoutReturn)) (renderbillingStatusLiveFragment viewModel)}
+                    {renderFrontendSurfaceMount (billingSurfaceImpl currentBillingScopeValue (billingCheckoutReturnState viewModel.checkoutReturn)) (renderbillingStatusLiveFragment viewModel)}
                 </div>
             |]
             }
@@ -75,7 +75,7 @@ renderBillingResultPage title message =
 
 renderbillingStatusLiveFragment :: BillingViewModel -> Html
 renderbillingStatusLiveFragment viewModel@BillingViewModel { recentEvents, maybeControl, checkoutReturn } = [hsx|
-    <div id="billing-status-fragment" data-live-update-url={billingStatusFragmentUrl checkoutReturn}>
+    <div id="billing-status-fragment">
         {renderBillingStatusPanel viewModel}
         {if currentUserIsSupportAdmin then renderBillingControlPanel maybeControl else mempty}
         {renderBillingEventsPanel recentEvents}
@@ -83,11 +83,17 @@ renderbillingStatusLiveFragment viewModel@BillingViewModel { recentEvents, maybe
     </div>
 |]
 
-billingStatusFragmentUrl :: Maybe BillingCheckoutReturn -> Text
-billingStatusFragmentUrl Nothing = pathTo ShowbillingStatusLiveFragmentAction
-billingStatusFragmentUrl (Just BillingCheckoutReturn { checkoutSessionId }) =
-    appendQueryParams (pathTo ShowbillingStatusLiveFragmentAction) $
-        ("checkout", "success") : maybe [] (\sessionId -> [("session_id", sessionId)]) checkoutSessionId
+billingCheckoutReturnState :: Maybe BillingCheckoutReturn -> BillingCheckoutReturnState
+billingCheckoutReturnState Nothing =
+    BillingCheckoutReturnState
+        { billingCheckoutReturned = False
+        , billingCheckoutSessionId = Nothing
+        }
+billingCheckoutReturnState (Just BillingCheckoutReturn { checkoutSessionId }) =
+    BillingCheckoutReturnState
+        { billingCheckoutReturned = True
+        , billingCheckoutSessionId = checkoutSessionId
+        }
 
 renderBillingCheckoutReturnDialog :: Maybe BillingCheckoutReturn -> Html
 renderBillingCheckoutReturnDialog Nothing = mempty

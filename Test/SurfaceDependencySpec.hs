@@ -10,7 +10,8 @@ import qualified Data.Set as Set
 import Data.UUID (fromWords)
 import IHP.Prelude
 import Test.Hspec
-import Web.Billing.FrontendSurface (BillingScopeValue (..),
+import Web.Billing.FrontendSurface (BillingCheckoutReturnState (..),
+                                    BillingScopeValue (..),
                                     billingCandidateMountedFragments,
                                     billingSurfaceScope)
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
@@ -75,7 +76,8 @@ tests = do
         it "selects billing fragments through generated dependencies" do
             let venueId = fromWords 6 0 0 0
             let scopeValue = BillingScopeValue venueId
-            let fragments = planFrontendSurfaceInvalidation (Set.fromList [billingResource venueId]) (billingSurfaceScope scopeValue) (billingCandidateMountedFragments "/ShowbillingStatusLiveFragment")
+            let checkoutState = BillingCheckoutReturnState False Nothing
+            let fragments = planFrontendSurfaceInvalidation (Set.fromList [billingResource venueId]) (billingSurfaceScope scopeValue) (billingCandidateMountedFragments checkoutState)
 
             map (.mountedFragmentTargetId) fragments `shouldBe` ["billing-status-fragment"]
 

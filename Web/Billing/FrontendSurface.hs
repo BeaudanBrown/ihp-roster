@@ -3,13 +3,15 @@
 {-# LANGUAGE TypeOperators    #-}
 
 module Web.Billing.FrontendSurface
-    ( BillingScopeValue (..)
+    ( BillingCheckoutReturnState (..)
+    , BillingScopeValue (..)
     , billingCandidateMountedFragments
     , billingSurfaceScope
     , billingSurfaceImpl
     , billingSurfaceMountConfig
     , billingSurfaceScopeKey
     , billingSurfaceWireFragments
+    , currentBillingCheckoutReturnState
     , currentBillingScopeValue
     ) where
 
@@ -18,6 +20,7 @@ import qualified Application.Helper.FrontendSurface.Billing as Surface
 import Application.Helper.FrontendSurface.DSL
 import Application.Helper.FrontendSurface.Runtime
 import Application.Helper.LiveUpdate.Runtime
+import Application.Helper.Url (appendQueryParams)
 import qualified Data.Aeson as Aeson
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
@@ -27,25 +30,38 @@ data BillingScopeValue = BillingScopeValue
     }
     deriving (Eq, Show)
 
+data BillingCheckoutReturnState = BillingCheckoutReturnState
+    { billingCheckoutReturned  :: !Bool
+    , billingCheckoutSessionId :: !(Maybe Text)
+    }
+    deriving (Eq, Show)
+
+currentBillingCheckoutReturnState :: BillingCheckoutReturnState
+currentBillingCheckoutReturnState =
+    BillingCheckoutReturnState
+        { billingCheckoutReturned = False
+        , billingCheckoutSessionId = Nothing
+        }
+
 currentBillingScopeValue :: (?context :: ControllerContext) => BillingScopeValue
 currentBillingScopeValue =
     BillingScopeValue { billingVenueId = currentVenueScopeId }
 
-billingSurfaceImpl :: BillingScopeValue -> Text -> SurfaceImpl Surface.BillingSurface
-billingSurfaceImpl scope statusUrl =
-    let impl = mkSurfaceImpl "billing" (billingSurfaceMountConfig scope statusUrl) (billingSurfaceHandlers scope statusUrl)
-     in impl { surfaceImplMountConfig = impl.surfaceImplMountConfig { mountFragments = billingCandidateMountedFragments statusUrl } }
+billingSurfaceImpl :: BillingScopeValue -> BillingCheckoutReturnState -> SurfaceImpl Surface.BillingSurface
+billingSurfaceImpl scope checkoutReturnState =
+    let impl = mkSurfaceImpl "billing" (billingSurfaceMountConfig scope checkoutReturnState) (billingSurfaceHandlers scope checkoutReturnState)
+     in impl { surfaceImplMountConfig = impl.surfaceImplMountConfig { mountFragments = billingCandidateMountedFragments checkoutReturnState } }
 
-billingSurfaceMountConfig :: BillingScopeValue -> Text -> FrontendSurfaceMountConfig
-billingSurfaceMountConfig scope statusUrl =
+billingSurfaceMountConfig :: BillingScopeValue -> BillingCheckoutReturnState -> FrontendSurfaceMountConfig
+billingSurfaceMountConfig scope checkoutReturnState =
     FrontendSurfaceMountConfig
         { mountSurfaceName = "billing"
         , mountScopeKey = billingSurfaceScopeKey scope
         , mountKey = "primary"
         , mountScope = Aeson.Null
         , mountSubscription = Nothing
-        , mountState = Aeson.Null
-        , mountFragments = billingCandidateMountedFragments statusUrl
+        , mountState = (billingMountStateFields checkoutReturnState).fieldValuesJson
+        , mountFragments = billingCandidateMountedFragments checkoutReturnState
         }
 
 billingSurfaceScopeKey :: BillingScopeValue -> Text
@@ -56,16 +72,16 @@ billingSurfaceScope :: BillingScopeValue -> SurfaceScope
 billingSurfaceScope scope =
     billingLiveScope scope.billingVenueId
 
-billingCandidateMountedFragments :: Text -> [FrontendSurfaceMountedFragment]
-billingCandidateMountedFragments statusUrl =
-    [billingStatusMountedFragment statusUrl]
+billingCandidateMountedFragments :: BillingCheckoutReturnState -> [FrontendSurfaceMountedFragment]
+billingCandidateMountedFragments checkoutReturnState =
+    [billingStatusMountedFragment (billingStatusFragmentUrl checkoutReturnState)]
 
 billingSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [SurfaceWireFragment]
 billingSurfaceWireFragments =
     frontendSurfaceMountedFragmentsToWire "billing"
 
-billingSurfaceHandlers :: BillingScopeValue -> Text -> SurfaceImplHandlers Surface.BillingSurface
-billingSurfaceHandlers scope statusUrl =
+billingSurfaceHandlers :: BillingScopeValue -> BillingCheckoutReturnState -> SurfaceImplHandlers Surface.BillingSurface
+billingSurfaceHandlers scope checkoutReturnState =
     SurfaceImplHandlers
         { surfaceScopeHandlers =
             FrontendSurfaceScopeHandler
@@ -75,11 +91,15 @@ billingSurfaceHandlers scope statusUrl =
                      in "billing:" <> venueId
                 }
                 `HandlerCons` HandlerNil
-        , surfaceMountStateHandlers = HandlerNil
+        , surfaceMountStateHandlers =
+            FrontendSurfaceMountStateHandler
+                { mountStateHandlerDefaultValue = billingMountStateFields checkoutReturnState
+                }
+                `HandlerCons` HandlerNil
         , surfaceFragmentHandlers =
             FrontendSurfaceFragmentHandler
                 { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
-                , fragmentHandlerMountedFragment = const (billingStatusMountedFragment statusUrl)
+                , fragmentHandlerMountedFragment = const (billingStatusMountedFragment (billingStatusFragmentUrl checkoutReturnState))
                 , fragmentHandlerRender = const mempty
                 }
                 `HandlerCons` HandlerNil
@@ -90,6 +110,20 @@ billingSurfaceHandlers scope statusUrl =
 billingScopeFields :: BillingScopeValue -> FrontendSurfaceFieldValues '[ 'Field Surface.VenueId 'WireUUID]
 billingScopeFields scope =
     frontendSurfaceFieldValues (Aeson.object ["venueId" Aeson..= tshow scope.billingVenueId])
+
+billingMountStateFields :: BillingCheckoutReturnState -> FrontendSurfaceFieldValues '[ 'Field Surface.CheckoutReturned 'WireBool, 'Field Surface.CheckoutSessionId ('WireOptional 'WireText)]
+billingMountStateFields checkoutReturnState =
+    frontendSurfaceFieldValues (Aeson.object
+        [ "checkoutReturned" Aeson..= checkoutReturnState.billingCheckoutReturned
+        , "checkoutSessionId" Aeson..= checkoutReturnState.billingCheckoutSessionId
+        ])
+
+billingStatusFragmentUrl :: BillingCheckoutReturnState -> Text
+billingStatusFragmentUrl BillingCheckoutReturnState { billingCheckoutReturned = False } =
+    pathTo ShowbillingStatusLiveFragmentAction
+billingStatusFragmentUrl BillingCheckoutReturnState { billingCheckoutReturned = True, billingCheckoutSessionId } =
+    appendQueryParams (pathTo ShowbillingStatusLiveFragmentAction) $
+        ("checkout", "success") : maybe [] (\sessionId -> [("session_id", sessionId)]) billingCheckoutSessionId
 
 billingStatusMountedFragment :: Text -> FrontendSurfaceMountedFragment
 billingStatusMountedFragment statusUrl =

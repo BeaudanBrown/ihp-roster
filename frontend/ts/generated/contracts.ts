@@ -1134,6 +1134,7 @@ export const FrontendSurfaceInteractionDom = { sourceRef: "data-bepis-source-ref
 export type FrontendSurfaceUUID = string & { readonly __brand: "FrontendSurfaceUUID" };
 export type FrontendSurfaceDay = string & { readonly __brand: "FrontendSurfaceDay" };
 
+export type CheckoutSessionId = FrontendSurfaceUUID & { readonly __brand: "CheckoutSessionId" };
 export type PanelId = FrontendSurfaceUUID & { readonly __brand: "PanelId" };
 export type PointerId = FrontendSurfaceUUID & { readonly __brand: "PointerId" };
 export type RosterDayId = FrontendSurfaceUUID & { readonly __brand: "RosterDayId" };
@@ -1207,6 +1208,7 @@ export const leaveRequestsSurfaceManifest = { surface: "leave-requests", scopes:
 
 export type BillingSurfaceName = "billing";
 export type BillingVenueScope = { kind: "billing-venue"; venueId: VenueId };
+export type BillingMountState = { checkoutReturned: boolean; checkoutSessionId: string | undefined };
 export type BillingFragmentKey =
     | { kind: "billing-status"; params: Record<string, never> }
 ;
