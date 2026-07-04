@@ -1,8 +1,8 @@
 ---
 id: ir-u84h
-status: open
+status: closed
 deps: [ir-lptt]
-links: [ir-7jqj]
+links: [ir-7jqj, ir-888o]
 created: 2026-07-04T02:01:20Z
 type: chore
 priority: 2
@@ -21,3 +21,9 @@ Keep current marker helpers for this cleanup. Later evaluate how FrontendSurface
 
 A concrete design plan exists for generated interaction render helper APIs, migration scope, tests, and guardrails.
 
+
+## Notes
+
+**2026-07-04T02:45:04Z**
+
+Concrete plan created as epic ir-888o with implementation, migration, guardrail, naming, and documentation child tickets.
