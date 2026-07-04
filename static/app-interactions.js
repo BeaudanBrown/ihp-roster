@@ -200,8 +200,6 @@
 
   // frontend/ts/interaction/activation.ts
   var attrs2 = InteractionDom.attributes;
-  var values = InteractionDom.values;
-  var legacyActivationSelector = `[${attrs2.marker}="${values.activationMarker}"]`;
   var surfaceActivationSelector = `[${FrontendSurfaceInteractionDom.activationRef}]`;
   function enableGenericInteractionActivations(options = {}) {
     if (typeof document === "undefined") return () => void 0;
@@ -220,9 +218,6 @@
     };
   }
   function readActivationIntentPayload(event, expectedTrigger) {
-    return readSurfaceActivationIntentPayload(event, expectedTrigger) ?? readLegacyActivationIntentPayload(event, expectedTrigger);
-  }
-  function readSurfaceActivationIntentPayload(event, expectedTrigger) {
     const marker = closestSurfaceActivationRef(event.target);
     if (!marker) return null;
     const mount = closestInteractionMount2(marker);
@@ -240,23 +235,6 @@
       intent: definition.intent,
       fields,
       mount,
-      marker,
-      sourceEvent: event
-    };
-  }
-  function readLegacyActivationIntentPayload(event, expectedTrigger) {
-    const marker = closestLegacyActivationMarker(event.target);
-    if (!marker) return null;
-    const trigger = marker.getAttribute(attrs2.activationTrigger);
-    if (!trigger || expectedTrigger && trigger !== expectedTrigger) return null;
-    const intent = marker.getAttribute(attrs2.activationIntent);
-    if (!intent) return null;
-    const fields = readLegacyActivationFields(marker, event);
-    if (fields === null) return null;
-    return {
-      phase: "commit",
-      intent,
-      fields,
       marker,
       sourceEvent: event
     };
@@ -283,23 +261,11 @@
     const marker = target.closest(surfaceActivationSelector);
     return isElementLike2(marker) ? marker : null;
   }
-  function closestLegacyActivationMarker(target) {
-    if (!isElementLike2(target)) return null;
-    const marker = target.closest(legacyActivationSelector);
-    return isElementLike2(marker) ? marker : null;
-  }
   function closestInteractionMount2(marker) {
     const mount = marker.closest(`[${attrs2.surface}]`);
     return isElementLike2(mount) ? mount : null;
   }
   function readSurfaceActivationFields(marker, event, valueField) {
-    if (!valueField) return {};
-    const valueElement = valueSourceElement(marker, event);
-    if (!valueElement) return null;
-    return { [valueField]: valueElement.value };
-  }
-  function readLegacyActivationFields(marker, event) {
-    const valueField = marker.getAttribute(attrs2.activationValueField);
     if (!valueField) return {};
     const valueElement = valueSourceElement(marker, event);
     if (!valueElement) return null;
@@ -349,10 +315,8 @@
 
   // frontend/ts/interaction/pointer-session.ts
   var attrs4 = InteractionDom.attributes;
-  var values2 = InteractionDom.values;
-  var sessionSelector = `[${attrs4.pointerSession}="${values2.enabled}"]`;
+  var values = InteractionDom.values;
   var sourceRefSelector = `[${FrontendSurfaceInteractionDom.sourceRef}]`;
-  var legacyDropzoneSelector = `[${attrs4.dropzone}]`;
   var disposableLayerSelector = `[${attrs4.disposableLayer}]`;
   var pointerFields = InteractionDom.pointerFields;
   var defaultThresholdPx = 4;
@@ -516,7 +480,7 @@
       },
       handleClick(event) {
         if (!suppressNextClickMarker) return;
-        const marker = closestPointerSessionMarker(event.target);
+        const marker = closestSurfaceSourceRef(event.target);
         if (marker !== suppressNextClickMarker) return;
         suppressNextClickMarker = null;
         if (event.cancelable) event.preventDefault();
@@ -533,9 +497,6 @@
     };
   }
   function readPointerSessionStart(event, fallbackThresholdPx = defaultThresholdPx) {
-    return readSurfacePointerSessionStart(event, fallbackThresholdPx) ?? readLegacyPointerSessionStart(event, fallbackThresholdPx);
-  }
-  function readSurfacePointerSessionStart(event, fallbackThresholdPx) {
     const pointerEvent = event;
     const marker = closestSurfaceSourceRef(event.target);
     if (!marker) return null;
@@ -551,18 +512,6 @@
     if (!sourceKey) return null;
     const targetField = FrontendSurfaceRegistry[surface].interaction.dropzoneRefs.find((candidate) => candidate.session === source.session)?.targetField ?? null;
     return buildPointerSession({ event: pointerEvent, marker, mount, intent: source.intent, sessionKind: source.session, sourceField: source.sourceField, sourceKey, targetField, fallbackThresholdPx });
-  }
-  function readLegacyPointerSessionStart(event, fallbackThresholdPx) {
-    const pointerEvent = event;
-    const marker = closestPointerSessionMarker(event.target);
-    if (!marker) return null;
-    if (isDisabled(marker)) return null;
-    const mount = closestInteractionMount3(marker);
-    if (!mount) return null;
-    const intent = marker.getAttribute(attrs4.sessionIntent);
-    const sessionKind = marker.getAttribute(attrs4.sessionKind);
-    if (!intent || !sessionKind) return null;
-    return buildPointerSession({ event: pointerEvent, marker, mount, intent, sessionKind, sourceField: pointerFields.sourceItemKey, sourceKey: marker.getAttribute(attrs4.item), targetField: pointerFields.targetDropzoneKey, fallbackThresholdPx });
   }
   function buildPointerSession(input) {
     const startClientX = numberValue(input.event.clientX);
@@ -732,7 +681,7 @@
     return fields;
   }
   function activeDropzone(session) {
-    return hitTestClosest(session.mount, session.currentClientX, session.currentClientY, surfaceDropzoneSelectorForSession(session)) ?? hitTestClosest(session.mount, session.currentClientX, session.currentClientY, legacyDropzoneSelector);
+    return hitTestClosest(session.mount, session.currentClientX, session.currentClientY, surfaceDropzoneSelectorForSession(session));
   }
   function surfaceDropzoneSelectorForSession(session) {
     const surface = session.mount.getAttribute(attrs4.surface);
@@ -743,9 +692,7 @@
   }
   function targetDropzoneKeyForSession(session, target) {
     if (!target) return null;
-    const surfaceKey = target.getAttribute(FrontendSurfaceInteractionDom.dropzoneKey);
-    if (surfaceKey) return surfaceKey;
-    return target.getAttribute(attrs4.dropzone);
+    return target.getAttribute(FrontendSurfaceInteractionDom.dropzoneKey);
   }
   function cssString(value) {
     return value.replace(/\\/g, "\\\\").replace(/\"/g, '\\"');
@@ -795,11 +742,6 @@
     const marker = target.closest(sourceRefSelector);
     return isElementLike3(marker) ? marker : null;
   }
-  function closestPointerSessionMarker(target) {
-    if (!isElementLike3(target)) return null;
-    const marker = target.closest(sessionSelector);
-    return isElementLike3(marker) ? marker : null;
-  }
   function closestInteractionMount3(marker) {
     const mount = marker.closest(`[${attrs4.surface}]`);
     return isElementLike3(mount) ? mount : null;
@@ -810,7 +752,7 @@
   function setDocumentInteractionActive(mount, active) {
     const root = mount.ownerDocument?.documentElement;
     if (!root) return;
-    if (active) root.setAttribute(attrs4.interactionActive, values2.enabled);
+    if (active) root.setAttribute(attrs4.interactionActive, values.enabled);
     else root.removeAttribute(attrs4.interactionActive);
   }
   function clearElement(element) {
@@ -843,7 +785,7 @@
     else element.removeAttribute("class");
   }
   function isDisabled(marker) {
-    return marker.getAttribute(attrs4.sessionDisabled) === values2.enabled || marker.getAttribute(attrs4.sessionReadOnly) === values2.enabled;
+    return marker.getAttribute(attrs4.sessionDisabled) === values.enabled || marker.getAttribute(attrs4.sessionReadOnly) === values.enabled;
   }
   function isMatchingPointerEvent(event, session) {
     return numberValue(event.pointerId) === session.pointerId;

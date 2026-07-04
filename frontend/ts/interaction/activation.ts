@@ -21,8 +21,6 @@ type ElementLike = Element & {
 type ValueElement = ElementLike & { value: string };
 
 const attrs = InteractionDom.attributes;
-const values = InteractionDom.values;
-const legacyActivationSelector = `[${attrs.marker}="${values.activationMarker}"]`;
 const surfaceActivationSelector = `[${FrontendSurfaceInteractionDom.activationRef}]`;
 
 export function enableGenericInteractionActivations(options: InteractionActivationOptions = {}): () => void {
@@ -46,10 +44,6 @@ export function enableGenericInteractionActivations(options: InteractionActivati
 }
 
 export function readActivationIntentPayload(event: Event, expectedTrigger?: InteractionActivationTrigger): InteractionIntentPayload | null {
-    return readSurfaceActivationIntentPayload(event, expectedTrigger) ?? readLegacyActivationIntentPayload(event, expectedTrigger);
-}
-
-function readSurfaceActivationIntentPayload(event: Event, expectedTrigger?: InteractionActivationTrigger): InteractionIntentPayload | null {
     const marker = closestSurfaceActivationRef(event.target);
     if (!marker) return null;
 
@@ -72,28 +66,6 @@ function readSurfaceActivationIntentPayload(event: Event, expectedTrigger?: Inte
         intent: definition.intent,
         fields,
         mount,
-        marker,
-        sourceEvent: event,
-    };
-}
-
-function readLegacyActivationIntentPayload(event: Event, expectedTrigger?: InteractionActivationTrigger): InteractionIntentPayload | null {
-    const marker = closestLegacyActivationMarker(event.target);
-    if (!marker) return null;
-
-    const trigger = marker.getAttribute(attrs.activationTrigger) as InteractionActivationTrigger | null;
-    if (!trigger || (expectedTrigger && trigger !== expectedTrigger)) return null;
-
-    const intent = marker.getAttribute(attrs.activationIntent);
-    if (!intent) return null;
-
-    const fields = readLegacyActivationFields(marker, event);
-    if (fields === null) return null;
-
-    return {
-        phase: "commit",
-        intent,
-        fields,
         marker,
         sourceEvent: event,
     };
@@ -127,28 +99,12 @@ function closestSurfaceActivationRef(target: EventTarget | null): ElementLike | 
     return isElementLike(marker) ? marker : null;
 }
 
-function closestLegacyActivationMarker(target: EventTarget | null): ElementLike | null {
-    if (!isElementLike(target)) return null;
-    const marker = target.closest(legacyActivationSelector);
-    return isElementLike(marker) ? marker : null;
-}
-
 function closestInteractionMount(marker: ElementLike): ElementLike | null {
     const mount = marker.closest(`[${attrs.surface}]`);
     return isElementLike(mount) ? mount : null;
 }
 
 function readSurfaceActivationFields(marker: ElementLike, event: Event, valueField: string | null): Record<string, string> | null {
-    if (!valueField) return {};
-
-    const valueElement = valueSourceElement(marker, event);
-    if (!valueElement) return null;
-
-    return { [valueField]: valueElement.value };
-}
-
-function readLegacyActivationFields(marker: ElementLike, event: Event): Record<string, string> | null {
-    const valueField = marker.getAttribute(attrs.activationValueField);
     if (!valueField) return {};
 
     const valueElement = valueSourceElement(marker, event);

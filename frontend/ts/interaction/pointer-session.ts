@@ -72,9 +72,7 @@ type ContextualEffectHandler = {
 
 const attrs = InteractionDom.attributes;
 const values = InteractionDom.values;
-const sessionSelector = `[${attrs.pointerSession}="${values.enabled}"]`;
 const sourceRefSelector = `[${FrontendSurfaceInteractionDom.sourceRef}]`;
-const legacyDropzoneSelector = `[${attrs.dropzone}]`;
 const disposableLayerSelector = `[${attrs.disposableLayer}]`;
 const pointerFields = InteractionDom.pointerFields;
 const defaultThresholdPx = 4;
@@ -253,7 +251,7 @@ export function createPointerSessionController(options: PointerSessionOptions = 
         },
         handleClick(event: Event) {
             if (!suppressNextClickMarker) return;
-            const marker = closestPointerSessionMarker(event.target);
+            const marker = closestSurfaceSourceRef(event.target);
             if (marker !== suppressNextClickMarker) return;
             suppressNextClickMarker = null;
             if (event.cancelable) event.preventDefault();
@@ -271,10 +269,6 @@ export function createPointerSessionController(options: PointerSessionOptions = 
 }
 
 export function readPointerSessionStart(event: Event, fallbackThresholdPx = defaultThresholdPx): ActivePointerSession | null {
-    return readSurfacePointerSessionStart(event, fallbackThresholdPx) ?? readLegacyPointerSessionStart(event, fallbackThresholdPx);
-}
-
-function readSurfacePointerSessionStart(event: Event, fallbackThresholdPx: number): ActivePointerSession | null {
     const pointerEvent = event as PointerEventLike;
     const marker = closestSurfaceSourceRef(event.target);
     if (!marker) return null;
@@ -295,22 +289,6 @@ function readSurfacePointerSessionStart(event: Event, fallbackThresholdPx: numbe
 
     const targetField = FrontendSurfaceRegistry[surface].interaction.dropzoneRefs.find((candidate) => candidate.session === source.session)?.targetField ?? null;
     return buildPointerSession({ event: pointerEvent, marker, mount, intent: source.intent, sessionKind: source.session, sourceField: source.sourceField, sourceKey, targetField, fallbackThresholdPx });
-}
-
-function readLegacyPointerSessionStart(event: Event, fallbackThresholdPx: number): ActivePointerSession | null {
-    const pointerEvent = event as PointerEventLike;
-    const marker = closestPointerSessionMarker(event.target);
-    if (!marker) return null;
-    if (isDisabled(marker)) return null;
-
-    const mount = closestInteractionMount(marker);
-    if (!mount) return null;
-
-    const intent = marker.getAttribute(attrs.sessionIntent);
-    const sessionKind = marker.getAttribute(attrs.sessionKind);
-    if (!intent || !sessionKind) return null;
-
-    return buildPointerSession({ event: pointerEvent, marker, mount, intent, sessionKind, sourceField: pointerFields.sourceItemKey, sourceKey: marker.getAttribute(attrs.item), targetField: pointerFields.targetDropzoneKey, fallbackThresholdPx });
 }
 
 type PointerSessionBuildInput = {
@@ -521,8 +499,7 @@ function pointerSessionFields(session: ActivePointerSession): Record<string, str
 }
 
 function activeDropzone(session: ActivePointerSession): Element | null {
-    return hitTestClosest(session.mount, session.currentClientX, session.currentClientY, surfaceDropzoneSelectorForSession(session))
-        ?? hitTestClosest(session.mount, session.currentClientX, session.currentClientY, legacyDropzoneSelector);
+    return hitTestClosest(session.mount, session.currentClientX, session.currentClientY, surfaceDropzoneSelectorForSession(session));
 }
 
 function surfaceDropzoneSelectorForSession(session: ActivePointerSession): string {
@@ -537,9 +514,7 @@ function surfaceDropzoneSelectorForSession(session: ActivePointerSession): strin
 
 function targetDropzoneKeyForSession(session: ActivePointerSession, target: Element | null): string | null {
     if (!target) return null;
-    const surfaceKey = target.getAttribute(FrontendSurfaceInteractionDom.dropzoneKey);
-    if (surfaceKey) return surfaceKey;
-    return target.getAttribute(attrs.dropzone);
+    return target.getAttribute(FrontendSurfaceInteractionDom.dropzoneKey);
 }
 
 function cssString(value: string): string {
@@ -596,12 +571,6 @@ function movementDistance(session: ActivePointerSession): number {
 function closestSurfaceSourceRef(target: EventTarget | null): ElementLike | null {
     if (!isElementLike(target)) return null;
     const marker = target.closest(sourceRefSelector);
-    return isElementLike(marker) ? marker : null;
-}
-
-function closestPointerSessionMarker(target: EventTarget | null): ElementLike | null {
-    if (!isElementLike(target)) return null;
-    const marker = target.closest(sessionSelector);
     return isElementLike(marker) ? marker : null;
 }
 

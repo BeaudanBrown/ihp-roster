@@ -112,6 +112,11 @@ expect_no_match \
     Web
 
 expect_no_match \
+    "interaction runtime must not keep legacy semantic marker fallback paths" \
+    'readLegacy|legacyActivation|legacyDropzone|attrs\.(marker|item|dropzone|pointerSession|sessionKind|sessionIntent|activationIntent|activationTrigger)' \
+    frontend/ts/interaction
+
+expect_no_match \
     "frontend contracts must not resurrect legacy live-surface manifest DTOs" \
     'LiveSurfaceManifest|LiveSurfaceFamily|SurfaceManifestSchema|Application\.Helper\.Frontend\.Dto\.LiveSurface' \
     Application Web frontend/ts static
