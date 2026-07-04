@@ -27,9 +27,11 @@ module Web.View.RosterWeeks.Grid
 
 import qualified Application.Helper.FrontendSurface.Interaction as SurfaceInteraction
 import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceFragmentKey (..),
+                                                   FrontendSurfaceInteractionShellConfig (..),
                                                    FrontendSurfaceMountConfig (..),
                                                    FrontendSurfaceMountedFragment (..),
                                                    SurfaceImpl (..),
+                                                   renderFrontendSurfaceInteractionShell,
                                                    renderFrontendSurfaceLazyFragment)
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
 import Application.Helper.RosterWagePrediction
@@ -50,9 +52,9 @@ import Data.Time.LocalTime (TimeOfDay)
 import Data.UUID (UUID)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
-                                        renderRosterFrontendSurfaceInteractionShell,
                                         rosterDragDropzoneRef,
                                         rosterDragSourceRef,
+                                        rosterFrontendSurfaceIR,
                                         rosterMountedFragmentPlanFromRenderData,
                                         rosterSurfaceImpl)
 import Web.RosterWeeks.Types
@@ -124,7 +126,7 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
                             (renderRosterStaffPanelPlaceholder (length gridRosterGroups > 1))
                 else mempty
      in profileHtmlComponent "render.roster.layout" do
-        renderRosterFrontendSurfaceInteractionShell rosterSurface [hsx|
+        renderFrontendSurfaceInteractionShell rosterSurface rosterFrontendSurfaceIR FrontendSurfaceInteractionShellConfig { interactionShellHtmxSync = Just ("#" <> rosterWeekShellId <> ":replace") } [hsx|
             <div class="row g-4 align-items-start roster-layout">
                 {renderrosterContentLiveFragment gridModel}
                 {forEach gridRosterWeek renderStaffPanelMount}

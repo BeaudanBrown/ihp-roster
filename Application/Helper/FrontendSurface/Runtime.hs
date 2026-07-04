@@ -19,6 +19,7 @@ module Application.Helper.FrontendSurface.Runtime
     , FrontendSurfaceFragmentKey (..)
     , FrontendSurfaceHtmxMethod (..)
     , FrontendSurfaceHtmxRequest (..)
+    , FrontendSurfaceInteractionShellConfig (..)
     , FrontendSurfaceIntentForm (..)
     , FrontendSurfaceMountConfig (..)
     , FrontendSurfaceMountedFragment (..)
@@ -34,10 +35,12 @@ module Application.Helper.FrontendSurface.Runtime
     , frontendSurfaceFieldValues
     , getSurfaceField
     , frontendSurfaceHtmxMethodText
+    , frontendSurfaceInteractionMountDomId
     , frontendSurfaceMountConfigJson
     , frontendSurfaceMountedFragmentToWire
     , frontendSurfaceMountedFragmentsToWire
     , renderFrontendSurfaceHtmxForm
+    , renderFrontendSurfaceInteractionShell
     , renderFrontendSurfaceIntentForm
     , renderFrontendSurfaceLazyFragment
     , requireSurfaceField
@@ -45,6 +48,8 @@ module Application.Helper.FrontendSurface.Runtime
     , renderFrontendSurfaceMount
     ) where
 
+import Application.Helper.Frontend.AppConstants (interactionIntentSubmitHtmxTrigger)
+import qualified Application.Helper.FrontendSurface.ContractIR as SurfaceIR
 import Application.Helper.FrontendSurface.DSL
 import qualified Application.Helper.FrontendSurface.Naming as Naming
 import qualified Application.Helper.LiveUpdate.Runtime as LiveUpdate
@@ -53,6 +58,7 @@ import qualified Data.Aeson.Key as Aeson.Key
 import qualified Data.Aeson.KeyMap as Aeson.KeyMap
 import qualified Data.Aeson.Types as Aeson.Types
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Char as Char
 import Data.Kind (Type)
 import qualified Data.Scientific as Scientific
 import qualified Data.Text as Text
@@ -469,6 +475,127 @@ renderFrontendSurfaceLazyFragment fragment placeholder =
         ! attr "hx-swap" "outerHTML"
         ! attr "hx-push-url" "false"
         $ placeholder
+
+data FrontendSurfaceInteractionShellConfig = FrontendSurfaceInteractionShellConfig
+    { interactionShellHtmxSync :: !(Maybe Text)
+    }
+    deriving (Eq, Show)
+
+renderFrontendSurfaceInteractionShell :: SurfaceImpl spec -> SurfaceIR.SurfaceIR -> FrontendSurfaceInteractionShellConfig -> Blaze.Html -> Blaze.Html
+renderFrontendSurfaceInteractionShell impl surface config serverHtml =
+    Html5.div
+        ! attr "id" mountId
+        ! attr "data-bepis-surface" impl.surfaceImplName
+        ! attr "data-bepis-surface-family" impl.surfaceImplName
+        ! attr "data-bepis-scope-key" impl.surfaceImplMountConfig.mountScopeKey
+        ! attr "data-bepis-mount-key" impl.surfaceImplMountConfig.mountKey
+        ! attr "data-bepis-conflict-policies" (frontendSurfaceInteractionConflictPoliciesJson surface)
+        $ do
+            renderFrontendSurfaceInteractionServerLayer serverHtml
+            mapM_ (renderFrontendSurfaceInteractionDisposableLayer mountId) surface.surfaceLayers
+            mapM_ (renderFrontendSurfaceInteractionIntentForm surface config mountId) impl.surfaceImplIntents
+    where
+        mountId = frontendSurfaceInteractionMountDomId impl
+
+frontendSurfaceInteractionMountDomId :: SurfaceImpl spec -> Text
+frontendSurfaceInteractionMountDomId impl =
+    Text.intercalate
+        "--"
+        [ "bepis-surface"
+        , domIdSegment impl.surfaceImplName
+        , domIdSegment impl.surfaceImplMountConfig.mountScopeKey
+        , domIdSegment impl.surfaceImplMountConfig.mountKey
+        ]
+
+renderFrontendSurfaceInteractionServerLayer :: Blaze.Html -> Blaze.Html
+renderFrontendSurfaceInteractionServerLayer =
+    Html5.div
+        ! attr "data-bepis-server-layer" "server"
+        ! attr "data-bepis-layer" "server"
+
+renderFrontendSurfaceInteractionDisposableLayer :: Text -> Text -> Blaze.Html
+renderFrontendSurfaceInteractionDisposableLayer mountId layerName =
+    Html5.div
+        ! attr "id" (mountId <> "--disposable-layer--" <> domIdSegment layerName)
+        ! attr "data-bepis-disposable-layer" layerName
+        ! attr "data-bepis-layer" layerName
+        $ mempty
+
+renderFrontendSurfaceInteractionIntentForm :: SurfaceIR.SurfaceIR -> FrontendSurfaceInteractionShellConfig -> Text -> FrontendSurfaceIntentForm -> Blaze.Html
+renderFrontendSurfaceInteractionIntentForm surface config mountId FrontendSurfaceIntentForm { intentFormName, intentFormSubmit } =
+    Html5.form
+        ! attr "id" (mountId <> "--intent-form--" <> domIdSegment intentFormName)
+        ! attr "data-bepis-intent-form" intentFormName
+        ! attr "data-bepis-intent" intentFormName
+        ! attr "action" intentFormSubmit.htmxRequestUrl
+        ! attr (frontendSurfaceHtmxMethodAttr intentFormSubmit.htmxRequestMethod) intentFormSubmit.htmxRequestUrl
+        ! attr "hx-trigger" interactionIntentSubmitHtmxTrigger
+        ! attr "hx-target" intentFormSubmit.htmxRequestTarget
+        ! attr "hx-swap" intentFormSubmit.htmxRequestSwap
+        ! maybe mempty (attr "hx-sync") config.interactionShellHtmxSync
+        $ mapM_ (renderFrontendSurfaceInteractionIntentInput intentFormSubmit) (frontendSurfaceIntentFields surface intentFormName)
+
+renderFrontendSurfaceInteractionIntentInput :: FrontendSurfaceHtmxRequest -> SurfaceIR.FieldIR -> Blaze.Html
+renderFrontendSurfaceInteractionIntentInput request field =
+    Html5.input
+        ! attr "type" "hidden"
+        ! attr "name" field.fieldName
+        ! attr "value" (fromMaybe "" (lookup field.fieldName [(value.fieldValueName, value.fieldValueValue) | value <- request.htmxRequestFields]))
+        ! attr "data-bepis-intent-field" field.fieldName
+        ! attr "data-bepis-field-presence" (frontendSurfaceIntentFieldPresence field.fieldPresence)
+
+frontendSurfaceIntentFields :: SurfaceIR.SurfaceIR -> Text -> [SurfaceIR.FieldIR]
+frontendSurfaceIntentFields surface intentName =
+    maybe [] (.intentFields) (find ((== intentName) . (.intentName)) surface.surfaceIntents)
+
+frontendSurfaceIntentFieldPresence :: SurfaceIR.FieldPresence -> Text
+frontendSurfaceIntentFieldPresence SurfaceIR.RequiredField         = "required"
+frontendSurfaceIntentFieldPresence SurfaceIR.OptionalFieldPresence = "optional"
+frontendSurfaceIntentFieldPresence SurfaceIR.NullableFieldPresence = "optional"
+
+frontendSurfaceInteractionConflictPoliciesJson :: SurfaceIR.SurfaceIR -> Text
+frontendSurfaceInteractionConflictPoliciesJson surface =
+    Text.Encoding.decodeUtf8 (LBS.toStrict (Aeson.encode (fmap frontendSurfaceConflictPolicyJson surface.surfacePolicies)))
+
+frontendSurfaceConflictPolicyJson :: SurfaceIR.ConflictPolicyIR -> Aeson.Value
+frontendSurfaceConflictPolicyJson policy =
+    Aeson.object
+        [ "session" Aeson..= frontendSurfaceConflictPolicySessionName policy.conflictPolicySession
+        , "targetId" Aeson..= frontendSurfaceConflictPolicyTargetId policy.conflictPolicyFragment
+        , "resolution" Aeson..= frontendSurfaceConflictResolutionName policy.conflictPolicyResolution
+        , "timeoutMs" Aeson..= frontendSurfaceConflictPolicyTimeout policy
+        ]
+
+frontendSurfaceConflictPolicySessionName :: SurfaceIR.SessionSelectorIR -> Text
+frontendSurfaceConflictPolicySessionName SurfaceIR.AnySessionIR = "*"
+frontendSurfaceConflictPolicySessionName (SurfaceIR.SessionKindIR sessionName) = sessionName
+
+frontendSurfaceConflictPolicyTargetId :: SurfaceIR.FragmentSelectorIR -> Text
+frontendSurfaceConflictPolicyTargetId SurfaceIR.AnyFragmentIR        = "*"
+frontendSurfaceConflictPolicyTargetId SurfaceIR.FragmentKindIR {}    = "*"
+frontendSurfaceConflictPolicyTargetId SurfaceIR.FragmentSubtreeIR {} = "*"
+
+frontendSurfaceConflictResolutionName :: SurfaceIR.ConflictResolutionIR -> Text
+frontendSurfaceConflictResolutionName SurfaceIR.ApplyIR  = "apply"
+frontendSurfaceConflictResolutionName SurfaceIR.DeferIR  = "defer"
+frontendSurfaceConflictResolutionName SurfaceIR.CancelIR = "cancel"
+
+frontendSurfaceConflictPolicyTimeout :: SurfaceIR.ConflictPolicyIR -> Maybe Int
+frontendSurfaceConflictPolicyTimeout policy =
+    case policy.conflictPolicyResolution of
+        SurfaceIR.DeferIR -> Just 5000
+        _                 -> Nothing
+
+domIdSegment :: Text -> Text
+domIdSegment value =
+    value
+        |> Text.map normalizeChar
+        |> Text.dropAround (== '-')
+        |> \normalized -> if Text.null normalized then "surface" else normalized
+    where
+        normalizeChar char
+            | Char.isAlphaNum char = char
+            | otherwise = '-'
 
 renderFrontendSurfaceHtmxForm :: FrontendSurfaceHtmxRequest -> Blaze.Html -> Blaze.Html
 renderFrontendSurfaceHtmxForm request body =

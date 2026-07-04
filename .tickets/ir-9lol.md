@@ -1,6 +1,6 @@
 ---
 id: ir-9lol
-status: open
+status: closed
 deps: [ir-2rnj]
 links: []
 created: 2026-07-04T04:34:06Z
