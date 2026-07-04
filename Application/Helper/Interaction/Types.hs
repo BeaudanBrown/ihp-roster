@@ -53,48 +53,29 @@ data EmptyInteractionSession deriving (Eq, Show)
 data EmptyInteractionIntent deriving (Eq, Show)
 
 data InteractionDomAttributes = InteractionDomAttributes
-    { interactionDomSurfaceAttribute              :: !Text
-    , interactionDomSurfaceFamilyAttribute        :: !Text
-    , interactionDomScopeKeyAttribute             :: !Text
-    , interactionDomMountKeyAttribute             :: !Text
-    , interactionDomMarkerAttribute               :: !Text
-    , interactionDomItemAttribute                 :: !Text
-    , interactionDomContainerAttribute            :: !Text
-    , interactionDomSlotAttribute                 :: !Text
-    , interactionDomDropzoneAttribute             :: !Text
-    , interactionDomResizeHandleAttribute         :: !Text
-    , interactionDomActivationAttribute           :: !Text
-    , interactionDomActivationIntentAttribute     :: !Text
-    , interactionDomActivationTriggerAttribute    :: !Text
-    , interactionDomActivationValueFieldAttribute :: !Text
-    , interactionDomPointerSessionAttribute       :: !Text
-    , interactionDomSessionKindAttribute          :: !Text
-    , interactionDomSessionIntentAttribute        :: !Text
-    , interactionDomSessionDisabledAttribute      :: !Text
-    , interactionDomSessionReadOnlyAttribute      :: !Text
-    , interactionDomSessionThresholdAttribute     :: !Text
-    , interactionDomSessionTimeoutMsAttribute     :: !Text
-    , interactionDomInteractionActiveAttribute    :: !Text
-    , interactionDomServerLayerAttribute          :: !Text
-    , interactionDomDisposableLayerAttribute      :: !Text
-    , interactionDomLayerAttribute                :: !Text
-    , interactionDomConflictPoliciesAttribute     :: !Text
-    , interactionDomIntentFormAttribute           :: !Text
-    , interactionDomIntentAttribute               :: !Text
-    , interactionDomIntentFieldAttribute          :: !Text
-    , interactionDomFieldPresenceAttribute        :: !Text
-    , interactionDomIntentHiddenFieldAttribute    :: !Text
+    { interactionDomSurfaceAttribute           :: !Text
+    , interactionDomSurfaceFamilyAttribute     :: !Text
+    , interactionDomScopeKeyAttribute          :: !Text
+    , interactionDomMountKeyAttribute          :: !Text
+    , interactionDomSessionDisabledAttribute   :: !Text
+    , interactionDomSessionReadOnlyAttribute   :: !Text
+    , interactionDomSessionThresholdAttribute  :: !Text
+    , interactionDomSessionTimeoutMsAttribute  :: !Text
+    , interactionDomInteractionActiveAttribute :: !Text
+    , interactionDomServerLayerAttribute       :: !Text
+    , interactionDomDisposableLayerAttribute   :: !Text
+    , interactionDomLayerAttribute             :: !Text
+    , interactionDomConflictPoliciesAttribute  :: !Text
+    , interactionDomIntentFormAttribute        :: !Text
+    , interactionDomIntentAttribute            :: !Text
+    , interactionDomIntentFieldAttribute       :: !Text
+    , interactionDomFieldPresenceAttribute     :: !Text
+    , interactionDomIntentHiddenFieldAttribute :: !Text
     }
     deriving (Eq, Show)
 
 data InteractionDomValues = InteractionDomValues
-    { interactionDomEnabledValue            :: !Text
-    , interactionDomItemMarkerValue         :: !Text
-    , interactionDomContainerMarkerValue    :: !Text
-    , interactionDomSlotMarkerValue         :: !Text
-    , interactionDomDropzoneMarkerValue     :: !Text
-    , interactionDomResizeHandleMarkerValue :: !Text
-    , interactionDomActivationMarkerValue   :: !Text
+    { interactionDomEnabledValue :: !Text
     }
     deriving (Eq, Show)
 
@@ -128,19 +109,6 @@ canonicalInteractionDom =
             , interactionDomSurfaceFamilyAttribute = "data-bepis-surface-family"
             , interactionDomScopeKeyAttribute = "data-bepis-scope-key"
             , interactionDomMountKeyAttribute = "data-bepis-mount-key"
-            , interactionDomMarkerAttribute = "data-bepis-marker"
-            , interactionDomItemAttribute = "data-bepis-item"
-            , interactionDomContainerAttribute = "data-bepis-container"
-            , interactionDomSlotAttribute = "data-bepis-slot"
-            , interactionDomDropzoneAttribute = "data-bepis-dropzone"
-            , interactionDomResizeHandleAttribute = "data-bepis-resize-handle"
-            , interactionDomActivationAttribute = "data-bepis-activation"
-            , interactionDomActivationIntentAttribute = "data-bepis-activation-intent"
-            , interactionDomActivationTriggerAttribute = "data-bepis-activation-trigger"
-            , interactionDomActivationValueFieldAttribute = "data-bepis-activation-value-field"
-            , interactionDomPointerSessionAttribute = "data-bepis-pointer-session"
-            , interactionDomSessionKindAttribute = "data-bepis-session-kind"
-            , interactionDomSessionIntentAttribute = "data-bepis-session-intent"
             , interactionDomSessionDisabledAttribute = "data-bepis-session-disabled"
             , interactionDomSessionReadOnlyAttribute = "data-bepis-session-read-only"
             , interactionDomSessionThresholdAttribute = "data-bepis-session-threshold"
@@ -158,12 +126,6 @@ canonicalInteractionDom =
             }
         , interactionDomValues = InteractionDomValues
             { interactionDomEnabledValue = "true"
-            , interactionDomItemMarkerValue = "item"
-            , interactionDomContainerMarkerValue = "container"
-            , interactionDomSlotMarkerValue = "slot"
-            , interactionDomDropzoneMarkerValue = "dropzone"
-            , interactionDomResizeHandleMarkerValue = "resize-handle"
-            , interactionDomActivationMarkerValue = "activation"
             }
         , interactionDomPointerFields = InteractionPointerFields
             { interactionPointerSessionKindField = "sessionKind"

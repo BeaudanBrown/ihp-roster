@@ -1,6 +1,6 @@
 ---
 id: ir-2rnj
-status: open
+status: closed
 deps: [ir-2gi9]
 links: []
 created: 2026-07-04T04:34:06Z

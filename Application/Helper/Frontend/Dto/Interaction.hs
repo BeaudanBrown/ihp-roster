@@ -134,48 +134,29 @@ data InteractionSessionEffects = InteractionSessionEffects
     deriving (Eq, Show, Generic)
 
 data InteractionDomAttributes = InteractionDomAttributes
-    { surface              :: !Text
-    , surfaceFamily        :: !Text
-    , scopeKey             :: !Text
-    , mountKey             :: !Text
-    , marker               :: !Text
-    , item                 :: !Text
-    , container            :: !Text
-    , slot                 :: !Text
-    , dropzone             :: !Text
-    , resizeHandle         :: !Text
-    , activation           :: !Text
-    , activationIntent     :: !Text
-    , activationTrigger    :: !Text
-    , activationValueField :: !Text
-    , pointerSession       :: !Text
-    , sessionKind          :: !Text
-    , sessionIntent        :: !Text
-    , sessionDisabled      :: !Text
-    , sessionReadOnly      :: !Text
-    , sessionThreshold     :: !Text
-    , sessionTimeoutMs     :: !Text
-    , interactionActive    :: !Text
-    , serverLayer          :: !Text
-    , disposableLayer      :: !Text
-    , layer                :: !Text
-    , conflictPolicies     :: !Text
-    , intentForm           :: !Text
-    , intent               :: !Text
-    , intentField          :: !Text
-    , fieldPresence        :: !Text
-    , intentHiddenField    :: !Text
+    { surface           :: !Text
+    , surfaceFamily     :: !Text
+    , scopeKey          :: !Text
+    , mountKey          :: !Text
+    , sessionDisabled   :: !Text
+    , sessionReadOnly   :: !Text
+    , sessionThreshold  :: !Text
+    , sessionTimeoutMs  :: !Text
+    , interactionActive :: !Text
+    , serverLayer       :: !Text
+    , disposableLayer   :: !Text
+    , layer             :: !Text
+    , conflictPolicies  :: !Text
+    , intentForm        :: !Text
+    , intent            :: !Text
+    , intentField       :: !Text
+    , fieldPresence     :: !Text
+    , intentHiddenField :: !Text
     }
     deriving (Eq, Show, Generic)
 
 data InteractionDomValues = InteractionDomValues
-    { enabled            :: !Text
-    , itemMarker         :: !Text
-    , containerMarker    :: !Text
-    , slotMarker         :: !Text
-    , dropzoneMarker     :: !Text
-    , resizeHandleMarker :: !Text
-    , activationMarker   :: !Text
+    { enabled :: !Text
     }
     deriving (Eq, Show, Generic)
 
@@ -509,19 +490,6 @@ interactionDomAttributesDto attrs = InteractionDomAttributes
     , surfaceFamily = attrs.interactionDomSurfaceFamilyAttribute
     , scopeKey = attrs.interactionDomScopeKeyAttribute
     , mountKey = attrs.interactionDomMountKeyAttribute
-    , marker = attrs.interactionDomMarkerAttribute
-    , item = attrs.interactionDomItemAttribute
-    , container = attrs.interactionDomContainerAttribute
-    , slot = attrs.interactionDomSlotAttribute
-    , dropzone = attrs.interactionDomDropzoneAttribute
-    , resizeHandle = attrs.interactionDomResizeHandleAttribute
-    , activation = attrs.interactionDomActivationAttribute
-    , activationIntent = attrs.interactionDomActivationIntentAttribute
-    , activationTrigger = attrs.interactionDomActivationTriggerAttribute
-    , activationValueField = attrs.interactionDomActivationValueFieldAttribute
-    , pointerSession = attrs.interactionDomPointerSessionAttribute
-    , sessionKind = attrs.interactionDomSessionKindAttribute
-    , sessionIntent = attrs.interactionDomSessionIntentAttribute
     , sessionDisabled = attrs.interactionDomSessionDisabledAttribute
     , sessionReadOnly = attrs.interactionDomSessionReadOnlyAttribute
     , sessionThreshold = attrs.interactionDomSessionThresholdAttribute
@@ -541,12 +509,6 @@ interactionDomAttributesDto attrs = InteractionDomAttributes
 interactionDomValuesDto :: Interaction.InteractionDomValues -> InteractionDomValues
 interactionDomValuesDto values = InteractionDomValues
     { enabled = values.interactionDomEnabledValue
-    , itemMarker = values.interactionDomItemMarkerValue
-    , containerMarker = values.interactionDomContainerMarkerValue
-    , slotMarker = values.interactionDomSlotMarkerValue
-    , dropzoneMarker = values.interactionDomDropzoneMarkerValue
-    , resizeHandleMarker = values.interactionDomResizeHandleMarkerValue
-    , activationMarker = values.interactionDomActivationMarkerValue
     }
 
 interactionPointerFieldsDto :: Interaction.InteractionPointerFields -> InteractionPointerFields
@@ -765,19 +727,6 @@ interactionDomAttributeValues =
         , attrs.interactionDomSurfaceFamilyAttribute
         , attrs.interactionDomScopeKeyAttribute
         , attrs.interactionDomMountKeyAttribute
-        , attrs.interactionDomMarkerAttribute
-        , attrs.interactionDomItemAttribute
-        , attrs.interactionDomContainerAttribute
-        , attrs.interactionDomSlotAttribute
-        , attrs.interactionDomDropzoneAttribute
-        , attrs.interactionDomResizeHandleAttribute
-        , attrs.interactionDomActivationAttribute
-        , attrs.interactionDomActivationIntentAttribute
-        , attrs.interactionDomActivationTriggerAttribute
-        , attrs.interactionDomActivationValueFieldAttribute
-        , attrs.interactionDomPointerSessionAttribute
-        , attrs.interactionDomSessionKindAttribute
-        , attrs.interactionDomSessionIntentAttribute
         , attrs.interactionDomSessionDisabledAttribute
         , attrs.interactionDomSessionReadOnlyAttribute
         , attrs.interactionDomSessionThresholdAttribute
