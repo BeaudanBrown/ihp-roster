@@ -27,7 +27,7 @@ Living docs to update as slices land:
 - `Web/Controller/AGENTS.md`
 - `Web/View/AGENTS.md`
 - `static/AGENTS.md`
-- `Test/LiveSurfaceGuardSpec.hs`
+- `Test/SurfaceGuardSpec.hs`
 
 ## Goal
 
@@ -52,7 +52,7 @@ browser protocol itself.
 
 Feature modules now use strict typed contracts through
 `TypedLiveSurfaceDefinition`. `Web.SurfaceInvalidation` authorizes websocket
-subscriptions through registered typed definitions, and `Test.LiveSurfaceGuard`
+subscriptions through registered typed definitions, and `Test.SurfaceGuard`
 rejects old feature-facing API names under `Web/` and feature `Application/`.
 
 The remaining old names are internal compatibility/runtime details:
@@ -60,7 +60,7 @@ The remaining old names are internal compatibility/runtime details:
 | Primitive | Current callers from inventory | Feature-facing? | Target |
 | --- | --- | --- | --- |
 | old untyped surface bridge | Removed during cleanup. | No. | Keep deleted. |
-| `mkLiveSurface` | Removed from the live-surface facade/internal runtime; retained only as a forbidden identifier in `Test.LiveSurfaceGuard`. | No. | Keep deleted; use typed definitions for config construction. |
+| `mkLiveSurface` | Removed from the live-surface facade/internal runtime; retained only as a forbidden identifier in `Test.SurfaceGuard`. | No. | Keep deleted; use typed definitions for config construction. |
 | `mkDefinedLiveSurface` | Defined/exported by `Application.Helper.LiveSurface.Internal`; used only by `mkTypedDefinedLiveSurface`. | No. | Delete; construct `LiveSurfaceConfig` directly in `mkTypedDefinedLiveSurface`. |
 | `liveSurfaceFragmentRef(s)` | Defined/exported by `Application.Helper.LiveSurface.Internal`; used by untyped broadcasts. | No. | Delete; use `typedLiveSurfaceFragmentRef(s)` and stored typed projection fragment builder fields. |
 | `typedLiveSurfaceDefinition` | Defined/exported by `Application.Helper.LiveSurface.Internal`; used only by `mkTypedDefinedLiveSurface`. | No. | Delete; reimplement config construction from `TypedLiveSurfaceDefinition`. |

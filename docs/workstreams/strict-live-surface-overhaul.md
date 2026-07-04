@@ -100,7 +100,7 @@ tests:
 - direct feature/controller use of `ensureTypedLiveSurfaceAuthorized` instead of
   `serveTypedLiveFragment`
 
-`Test.LiveSurfaceGuard` covers `Web/` and feature `Application/` modules so old
+`Test.SurfaceGuard` covers `Web/` and feature `Application/` modules so old
 wiring cannot creep back in.
 
 ## Existing Inventory

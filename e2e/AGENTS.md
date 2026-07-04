@@ -121,7 +121,7 @@ Exports are no longer a standalone page and report definitions are not managed t
 
 ### UI behavior expectations worth covering
 - For HTMX week pagers, assert both the shell swap and that no full page navigation occurred by preserving a `window` marker across clicks.
-- For FrontendSurface live surfaces, cover the browser contract when behavior changes: the rendered owner has `data-bepis-surface-config`, legacy `data-live-update-surface` / `data-live-update-owner` / `data-live-update-feature` attrs are absent, subscriptions are sent from the generated config, matching HTMX requests receive `X-Live-Update-Client-Id`, resync refreshes the declared fragments, and focused-field protection defers only the protected fragment.
+- For FrontendSurface surfaces, cover the browser contract when behavior changes: the rendered owner has `data-bepis-surface-config`, legacy `data-live-update-surface` / `data-live-update-owner` / `data-live-update-feature` attrs are absent, subscriptions are sent from the generated config, matching HTMX requests receive `X-Live-Update-Client-Id`, resync refreshes the declared fragments, and focused-field protection defers only the protected fragment.
 - For roster sidebar layout, prefer checking computed CSS (`position: sticky`, capped height, internal scroll container) over brittle pixel-perfect comparisons against neighboring panels.
 - For responsive work, prefer structural assertions over screenshots first:
   - page-level horizontal overflow stays off the viewport

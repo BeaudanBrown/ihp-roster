@@ -742,7 +742,7 @@ bash ./bin/in-env typecheck
 bash ./bin/in-env frontend-contracts-check
 bash ./bin/in-env frontend-check
 bash ./bin/in-env hspec-test --match "FrontendSurface"
-bash ./bin/in-env hspec-test --match "LiveSurface"
+bash ./bin/in-env hspec-test --match "FrontendSurface"
 bash ./bin/in-env hspec-test --match "Interaction"
 bash ./bin/in-env hspec-test --match "LiveUpdate"
 bash ./bin/in-env ./bin/doc-drift-check

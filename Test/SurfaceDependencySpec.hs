@@ -1,4 +1,4 @@
-module Test.LiveSurfaceDependencySpec where
+module Test.SurfaceDependencySpec where
 
 import Application.Helper.FrontendSurface.DependencyPlanner (planFrontendSurfaceInvalidation)
 import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceMountedFragment (..))

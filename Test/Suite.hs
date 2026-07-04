@@ -42,8 +42,6 @@ import qualified Test.FrontendSurfaceDslSpec
 import qualified Test.FrontendSurfaceGhcSpec
 import qualified Test.FrontendSurfaceNamingSpec
 import qualified Test.FwcMapdSyncSpec
-import qualified Test.LiveSurfaceDependencySpec
-import qualified Test.LiveSurfaceGuardSpec
 import qualified Test.LiveUpdateSpec
 import qualified Test.MailSpec
 import qualified Test.MutationBoundarySpec
@@ -56,6 +54,8 @@ import qualified Test.SchemaSpec
 import qualified Test.StaffDocumentsRsaSpec
 import qualified Test.StripeBillingSpec
 import qualified Test.StripeContractSpec
+import qualified Test.SurfaceDependencySpec
+import qualified Test.SurfaceGuardSpec
 import qualified Test.SurfaceInvalidationSpec
 import qualified Test.SurfaceResourceSpec
 import qualified Test.VenueInvitationSpec
@@ -188,8 +188,8 @@ allSuites =
     , TestSuite "LiveUpdate" Test.LiveUpdateSpec.tests
     , TestSuite "SurfaceResource" Test.SurfaceResourceSpec.tests
     , TestSuite "SurfaceInvalidation" Test.SurfaceInvalidationSpec.tests
-    , TestSuite "LiveSurfaceDependency" Test.LiveSurfaceDependencySpec.tests
-    , TestSuite "LiveSurfaceGuard" Test.LiveSurfaceGuardSpec.tests
+    , TestSuite "SurfaceDependency" Test.SurfaceDependencySpec.tests
+    , TestSuite "SurfaceGuard" Test.SurfaceGuardSpec.tests
     , TestSuite "Mail" Test.MailSpec.tests
     , TestSuite "MutationBoundary" Test.MutationBoundarySpec.tests
     , TestSuite "XeroContract" Test.XeroContractSpec.tests

@@ -1,249 +1,47 @@
 # Typed Interaction Surfaces
 
-Status: active; durable implementation contract lives in `Application/Helper/Interaction.SPEC.md`.
+Status: active; durable implementation contract lives in `Application/Helper/Interaction.SPEC.md` and `Application/Helper/FrontendSurface/README.md`.
 
-Tickets:
-
-- `ir-jsyd` - parent epic
-- `ir-4uuy` - document the typed interaction contract
-- `ir-fq28` - add Haskell interaction capability types
-- `ir-95e7` - generate TypeScript contracts for interaction capabilities
-- `ir-w50d` - render typed interaction surfaces, layers, and HTMX intent forms
-- `ir-ojl5` - implement the generic TypeScript intent bus/form bridge
-- `ir-gyit` - prove a low-risk click/select prototype
-- `ir-mlle` - implement pointer/touch disposable session primitives
-- `ir-ptnv` - coordinate disposable sessions with live fragments
-- `ir-mwrz` - prototype timeline drop intent
-- `ir-z2ej` - prototype timeline edge resize intent
-
-Related workstreams and docs:
-
-- `docs/workstreams/live-surface-architecture.md`
-- `docs/workstreams/strict-live-surface-overhaul.md`
-- `docs/workstreams/live-update-runtime-simplification.md`
-- `Application/Helper/Interaction.SPEC.md` (living contract)
-- `Application/Helper/LiveUpdate.SPEC.md`
-- `Application/Helper/LiveSurface.COOKBOOK.md`
-- `frontend/AGENTS.md`
-- `static/AGENTS.md`
+This workstream now tracks the generated `FrontendSurface` interaction architecture. Historical typed-live-surface planning has moved to archive/history and must not guide new production work.
 
 ## Goal
 
-The durable implementation contract lives in
-`Application/Helper/Interaction.SPEC.md`; keep this workstream as the active
-planning/ticket index until the remaining interaction stream exits.
+`FrontendSurface` declarations are the source of truth for live fragments and interaction semantics. A surface declaration owns:
 
-Extend the typed live-surface architecture with optional typed interaction
-capabilities. Haskell should remain the source of truth for surface families,
-scopes, concrete mounts, live fragments, disposable UI layers, intent types,
-intent field schemas, HTMX form contracts, and live-fragment conflict policy.
-TypeScript should consume generated contracts and provide generic runtime
-behavior; it must not invent canonical surface, fragment, layer, or intent
-strings.
+- surface, scope, fragment, resource, intent, field, session, layer, effect, and conflict-policy names;
+- generated source, dropzone, and activation refs;
+- generated TypeScript manifests consumed by generic browser runtimes;
+- Haskell render helpers that attach role-specific refs plus opaque dynamic keys to server-rendered DOM;
+- server-rendered HTMX intent forms used for mutation transport.
 
-The target authoring model is:
+TypeScript remains generic and surface-instance-centric. It resolves refs through the generated manifest, manages disposable sessions/effects, validates payloads/forms, and dispatches generated HTMX triggers. It must not invent canonical `data-bepis-*` names, business rules, mutation URLs, fragment keys, layer names, intent names, field names, or target ids.
 
-- feature modules define closed Haskell types for live fragments, disposable
-  layers, intents, and intent fields;
-- existing `TypedLiveSurfaceDefinition` values remain the base for server-owned
-  fragments;
-- interaction capability attaches to the same typed surface origin and may be
-  empty for non-interactive surfaces;
-- Haskell helpers render valid surface mounts, server layers, disposable layers,
-  typed item/slot/handle attributes, and HTMX intent forms;
-- generated TypeScript contracts describe the browser boundary, including
-  live-update payloads, registered surface families/fragments, static
-  interaction schemas, and runtime metadata shapes;
-- generic TypeScript runtimes manage disposable sessions, dispatch normalized
-  intents, fill generated forms, and coordinate live updates without owning
-  business state.
+## Current Contract
 
-## Vocabulary And Hierarchy
+- Render a surface with `renderFrontendSurfaceMount` and a `SurfaceImpl`.
+- Declare interaction refs in the `FrontendSurface` spec.
+- Render role-specific DOM refs via `Application.Helper.FrontendSurface.Interaction` helpers:
+  - source refs carry a generated source ref and an opaque server-owned source key;
+  - dropzone refs carry a generated dropzone ref and an opaque server-owned target key;
+  - activation refs carry only the generated activation ref unless a concrete control needs normal form values.
+- Submit mutations through generated/server-rendered HTMX forms. Mount JSON is not a mutation transport contract.
+- Keep all business authorization and validation server-side.
+- Coordinate live updates through generated surface subscriptions and conflict policies.
 
-| Level | Term | Source of truth | Meaning |
-| ---: | --- | --- | --- |
-| 1 | Surface family | Haskell | Reusable UI surface type independent of a page. |
-| 2 | Surface scope | Haskell | Authorized logical data slice such as one roster week. |
-| 3 | Surface instance / mount | Haskell render helper | One concrete occurrence of a surface on a page; includes a mount key so the same scope can appear more than once. |
-| 4 | Server layer | Haskell render helper | Authoritative server-rendered DOM under the mount. |
-| 5 | Live fragment type | Haskell | Closed feature-local enum for refreshable server DOM. |
-| 6 | Live fragment ref | Haskell | Target id, GET URL, protection policy, and containment path derived from the fragment contract. |
-| 7 | Disposable layer type | Haskell | Typed client-owned ephemeral UI region such as drag preview, selection, context menu, or measurement overlay. |
-| 8 | Disposable session | TypeScript runtime constrained by generated contracts | Temporary frontend interaction state such as click-select, drag, resize, draw-range, menu, or keyboard command. |
-| 9 | Intent type | Haskell | Typed user action that may submit to the server. |
-| 10 | Intent field schema | Haskell | Allowed string fields for a committed intent. |
-| 11 | Intent form contract | Haskell render helper | HTMX method/route/trigger/target/swap and hidden fields for one intent. |
-| 12 | Conflict policy | Haskell, consumed by TypeScript | Whether a live fragment update during an active disposable session may apply, must defer, or cancels the session. |
+## Guardrails
 
-Conceptual structure:
-
-```text
-SurfaceFamily
-└── SurfaceScope
-    └── SurfaceInstance / Mount
-        ├── ServerLayer
-        │   └── LiveFragments
-        │       ├── FragmentRef
-        │       ├── TargetId
-        │       ├── RefetchUrl
-        │       └── ContainmentPath
-        ├── DisposableLayers
-        │   └── DisposableSessions
-        │       ├── SessionKind
-        │       ├── Anchors
-        │       └── ConflictPolicy with LiveFragments
-        └── IntentForms
-            ├── IntentType
-            ├── FieldSchema
-            ├── HTMX route/method
-            ├── HTMX target/swap
-            └── Trigger event
-```
-
-## Intended Contract
-
-### Haskell-owned contracts
-
-Haskell owns all canonical names and relationships. Feature code should not
-handwrite free-text `data-bepis-*` values, intent field names, target ids, or
-HTMX intent forms. Instead, typed helpers derive markup from feature-local
-closed ADTs and typed contracts.
-
-The first implementation may use a sibling wrapper around
-`TypedLiveSurfaceDefinition`, for example a typed interaction capability that
-contains disposable layers, intent contracts, and conflict policies. Existing
-surfaces should be representable with empty disposable layers, empty intents,
-and default non-interactive policy.
-
-### Generated TypeScript
-
-Generated TypeScript stays narrow and browser-boundary focused:
-
-- registered surface family values, scope kinds, and fragment kinds;
-- surface scope and mount metadata needed by generic runtime;
-- live-update config, command, message, fragment, and protection DTOs plus
-  runtime type guards;
-- static interaction schemas;
-- disposable layer names;
-- session kinds;
-- intent names;
-- intent field object shapes;
-- conflict-policy DTOs.
-
-Runtime-specific URLs, DOM ids, current scope keys, HTMX actions, targets, and
-hidden values remain Haskell-rendered metadata. Do not generate broad database
-models or make TypeScript authoritative for business state.
-`frontend-contracts-check` and `frontend-check` must catch drift.
-
-### Surface portability
-
-A surface family and scope can be moved across pages or mounted multiple times.
-A concrete mount key must participate in derived DOM ids, HTMX targets, and form
-ids so duplicate mounts do not collide. Intent forms must target within their
-own surface instance instead of global hardcoded ids.
-
-### Disposable UI ownership
-
-Disposable UI is not a live fragment and is not authoritative. It may be
-created, moved, or cleared by generic TypeScript in a declared disposable layer.
-It must be safe to discard on cancel, timeout, HTMX response, live-swap conflict,
-or page cleanup.
-
-Examples include drag ghosts, resize previews, selection rectangles, context
-menus, command palettes, measurement guides, and drawing previews. Drag/drop is
-only one session type; the system should remain general.
-
-### Intent submission
-
-The generic intent bridge submits only committed intents by default. Start and
-preview phases are local unless a future typed form explicitly opts in.
-
-On commit, TypeScript finds the matching generated HTMX form inside the same
-surface mount, validates that emitted string fields match the generated field
-schema/hidden inputs, fills the inputs, and dispatches the form's generated
-custom trigger. The bridge must not construct URLs, call `fetch` for
-persistence, or mutate business DOM.
-
-Use standard HTMX primitives first:
-
-- generated forms;
-- `hx-trigger` with custom events such as `bepis:intent-submit from:this`;
-- lifecycle events for cleanup;
-- `hx-sync`/`hx-disabled-elt` where useful for request concurrency and disabled
-  controls;
-- OOB swaps for authoritative actor responses, toasts, and dialog cleanup.
-
-Do not start with HTMX extensions or custom elements. Revisit extensions only
-after repeated lifecycle behavior is stable enough to consolidate.
-
-### Live-fragment coordination
-
-Interactive surfaces should prefer a stable outer mount with server-owned live
-fragments under a server layer and disposable UI in sibling disposable layers.
-Live updates may apply behind active disposable UI when the selected fragment
-cannot invalidate the active session.
-
-Conflict policy is typed and conservative at first:
-
-- non-conflicting fragments may apply immediately;
-- fragments touching active anchors, active targets, intent forms, disposable
-  layer mounts, or the whole surface shell should defer or cancel according to
-  policy;
-- actor HTMX responses for the committed intent win, clear disposable UI, and
-  replace authoritative DOM;
-- passive deferred swaps must not be blocked indefinitely; timeout should cancel
-  stale sessions and apply/refetch the server state.
-
-## Non-Goals
-
-- Do not replace HTMX or server-rendered HTML with a client framework.
-- Do not move business authority or validation into TypeScript.
-- Do not build persistence URLs in JavaScript.
-- Do not create feature-specific JavaScript adapters for generic live-update or
-  interaction behavior.
-- Do not migrate the live-update wire protocol to compact fragment keys as part
-  of this stream.
-- Do not generate broad database/domain models for the browser.
-
-## Implementation Order
-
-1. Document the contract and update local agent docs (`ir-4uuy`).
-2. Add Haskell interaction capability types with empty capabilities for existing
-   live surfaces (`ir-fq28`).
-3. Generate TypeScript contracts from Haskell declarations (`ir-95e7`, plus
-   `ir-vpmd` for live-update/schema-owned frontend wire contracts).
-4. Add typed Haskell render helpers and guardrails (`ir-w50d`).
-5. Implement the generic TypeScript intent bus and HTMX form bridge (`ir-ojl5`).
-6. Prove the golden path on a low-risk click/select prototype (`ir-gyit`).
-7. Add reusable pointer/touch disposable session primitives (`ir-mlle`).
-8. Coordinate active disposable sessions with live-fragment swaps (`ir-ptnv`).
-9. Prototype roster/timeline drop (`ir-mwrz`).
-10. Prototype roster/timeline resize (`ir-z2ej`).
+- Do not reintroduce `TypedLiveSurfaceDefinition`, `LiveSurfaceConfig`, `LiveSurfaceManifest`, `data-live-update-surface`, or feature-local dependency mirrors.
+- Do not reintroduce legacy semantic interaction markers such as `data-bepis-marker`, `data-bepis-pointer-session`, `data-bepis-session-kind`, `data-bepis-session-intent`, `data-bepis-activation-intent`, or broad `data-bepis-item`/`data-bepis-dropzone` runtime parsing.
+- Do not add feature-specific JavaScript adapters for roster/profile/timesheet behavior.
+- Do not handwrite production surface config, subscription, or interaction attributes in views; use generated helpers.
 
 ## Verification
 
-Use focused checks as each slice lands:
+Use the focused checks relevant to a change:
 
 ```bash
-bash ./bin/in-env frontend-contracts-check
+bash ./bin/in-env frontend-contracts
 bash ./bin/in-env frontend-check
 bash ./bin/in-env typecheck
-bash ./bin/in-env hspec-test --match "LiveSurface"
-bash ./bin/in-env hspec-test --match "LiveUpdate"
+bash ./bin/in-env hspec-test --match "FrontendSurface"
 ```
-
-Add Hspec/golden-style coverage for helper-rendered attrs/forms and guard tests
-that reject raw interaction attrs/forms outside approved helper modules. Use
-frontend unit/DOM tests for the generic runtime. Use focused Playwright only
-when browser/HTMX/live behavior is the contract.
-
-## Exit Criteria
-
-- Existing live surfaces can declare empty interaction capabilities.
-- At least one surface declares typed disposable layers and typed intents.
-- TypeScript consumes generated interaction contracts.
-- Haskell helpers render all interaction markup used by the prototype.
-- The generic bridge submits committed intents through generated HTMX forms.
-- The low-risk prototype proves portability, typed fields, server authority, and
-  no JS-built persistence URL.
-- Follow-up drag/drop and resize prototypes use the same typed model.

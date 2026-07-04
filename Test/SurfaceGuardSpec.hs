@@ -1,4 +1,4 @@
-module Test.LiveSurfaceGuardSpec where
+module Test.SurfaceGuardSpec where
 
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
@@ -8,7 +8,7 @@ import System.FilePath (takeExtension, (</>))
 import Test.Hspec
 
 tests :: Spec
-tests = describe "LiveSurface strict API guard" do
+tests = describe "FrontendSurface strict API guard" do
     it "keeps raw live-update authoring out of feature modules" do
         files <- featureSourceFiles
         violations <- concat <$> forM files forbiddenReferencesInFile

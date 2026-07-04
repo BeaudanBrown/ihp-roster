@@ -1,4 +1,4 @@
-module Test.Support.LiveSurfaceContract
+module Test.Support.SurfaceContract
     ( liveFragmentResponseShouldBeDenied
     , liveFragmentResponseShouldRenderTarget
     ) where

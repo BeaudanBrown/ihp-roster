@@ -140,7 +140,7 @@ Feature-facing code must not use compatibility/manual authoring helpers such as
 `mkLiveSurface`, `mkDefinedLiveSurface`, `mkLiveFragmentRef`, raw
 `LiveFragmentRef` constructors, internal `SurfaceWireFragment` constructors,
 raw live broadcasts, raw actor-refresh payloads, or fallback
-`authorizeSurfaceScope` checks. The `LiveSurfaceGuard` Hspec coverage
+`authorizeSurfaceScope` checks. The `SurfaceGuard` Hspec coverage
 enforces this across `Web/` and feature `Application/` modules.
 
 ## UI Region Lifecycle Boundaries

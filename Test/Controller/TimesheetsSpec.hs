@@ -28,7 +28,7 @@ import Network.HTTP.Types.Status
 import Network.Wai
 import Test.Hspec
 import Test.Support
-import Test.Support.LiveSurfaceContract
+import Test.Support.SurfaceContract
 import Web.Controller.Timesheets ()
 import Web.FrontController ()
 import Web.Routes

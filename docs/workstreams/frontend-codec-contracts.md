@@ -293,7 +293,7 @@ bash ./bin/in-env typecheck
 bash ./bin/in-env hspec-test --match "Frontend contract"
 bash ./bin/in-env hspec-test --match "LiveUpdate"
 bash ./bin/in-env hspec-test --match "Typed interaction surface capabilities"
-bash ./bin/in-env hspec-test --match "LiveSurface"
+bash ./bin/in-env hspec-test --match "FrontendSurface"
 ```
 
 If the chosen option adds packages or tools, also verify the Nix/devenv entry

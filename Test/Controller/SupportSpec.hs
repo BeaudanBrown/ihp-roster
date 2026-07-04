@@ -19,7 +19,7 @@ import IHP.Test.Mocking
 import Network.HTTP.Types.Status
 import Test.Hspec
 import Test.Support
-import Test.Support.LiveSurfaceContract
+import Test.Support.SurfaceContract
 import Web.Controller.Support ()
 import Web.FrontController ()
 import Web.Types
