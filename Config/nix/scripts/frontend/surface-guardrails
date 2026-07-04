@@ -103,7 +103,7 @@ expect_no_match \
 
 expect_no_match \
     "production/browser code must not resurrect legacy declarative live-surface attributes" \
-    'data-live-update-surface|parseLiveUpdateSurfaceConfig' \
+    'data-live-update-(surface|url)|parseLiveUpdateSurfaceConfig|liveUpdateUrl' \
     Application Web frontend/ts e2e static
 
 expect_no_match \
@@ -113,8 +113,18 @@ expect_no_match \
 
 expect_no_match \
     "interaction runtime must not keep legacy semantic marker fallback paths" \
-    'readLegacy|legacyActivation|legacyDropzone|attrs\.(marker|item|dropzone|pointerSession|sessionKind|sessionIntent|activationIntent|activationTrigger)' \
+    'readLegacy|legacyActivation|legacyDropzone|attrs\.(marker|item|dropzone|pointerSession|sessionKind|sessionIntent|activationIntent|activationTrigger|activationValueField)' \
     frontend/ts/interaction
+
+expect_no_match \
+    "generated/static contracts must not expose deleted semantic interaction DOM attrs" \
+    'data-bepis-(marker|item|pointer-session|session-kind|session-intent|activation-intent|activation-trigger|activation-value-field)|"(marker|item|pointerSession|sessionIntent|activationIntent|activationTrigger|activationValueField|activationMarker|itemMarker|dropzoneMarker)"' \
+    frontend/ts/generated/contracts.ts static/app-interactions.js static/app-live-updates.js
+
+expect_no_match \
+    "roster must use generic FrontendSurface interaction shell rendering" \
+    'renderRosterFrontendSurfaceInteractionShell|renderRosterFrontendSurfaceIntentForm|rosterInteractionConflictPoliciesJson|renderRosterDisposableLayer|renderRosterServerLayer' \
+    Web/RosterWeeks Web/View/RosterWeeks
 
 expect_no_match \
     "frontend contracts must not resurrect legacy live-surface manifest DTOs" \

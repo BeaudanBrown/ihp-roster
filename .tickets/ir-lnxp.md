@@ -1,6 +1,6 @@
 ---
 id: ir-lnxp
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-07-04T04:34:06Z
@@ -21,3 +21,9 @@ Reuse existing FrontendSurface concepts rather than adding new ones. Billing che
 
 No production data-live-update-url support remains. Generated InteractionDom no longer exposes deleted semantic marker attrs/values. Roster interaction shell/layers/forms/conflict policies are rendered by generic FrontendSurface helpers, not feature-local boilerplate. Low-risk stale LiveSurface naming/docs are cleaned or archived. Guardrails forbid reintroducing the removed seams. Verification passes: frontend-contracts, frontend-check, typecheck, hspec-test, and focused roster pointer e2e if DOM behavior changes.
 
+
+## Notes
+
+**2026-07-04T05:05:23Z**
+
+Final verification passed: frontend-check, typecheck, hspec-test, doc-drift-check, and e2e/roster-pointer-effects.spec.ts. Guardrails now cover data-live-update-url, stale semantic InteractionDom attrs, and roster-specific interaction shell rendering.

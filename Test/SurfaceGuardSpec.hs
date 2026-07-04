@@ -32,6 +32,10 @@ tests = describe "FrontendSurface strict API guard" do
         violations <- frontendContractWatcherViolations
         violations `shouldBe` []
 
+    it "keeps final FrontendSurface cleanup seams deleted" do
+        violations <- finalFrontendSurfaceCleanupViolations
+        violations `shouldBe` []
+
 legacyRegistryAdapterViolations :: IO [Text]
 legacyRegistryAdapterViolations = do
     registryExists <- doesFileExist "Web/LiveSurfaceRegistry.hs"
@@ -42,6 +46,38 @@ legacyRegistryAdapterViolations = do
         , ["Web/SurfaceInvalidation.hs: registeredLiveSurfaceManifestCatalog should not return as a parallel registry list" | "registeredLiveSurfaceManifestCatalog" `Text.isInfixOf` invalidation]
         , ["Web/SurfaceInvalidation.hs: wire kind helpers belong in Application.Helper.LiveUpdate.Internal" | "surfaceScopeKind ::" `Text.isInfixOf` invalidation || "surfaceFragmentKeyKind ::" `Text.isInfixOf` invalidation]
         , ["Web/SurfaceInvalidation.hs: legacy registeredLiveSurfaceCatalog should be removed after FrontendSurface migration" | "registeredLiveSurfaceCatalog" `Text.isInfixOf` invalidation]
+        ]
+
+finalFrontendSurfaceCleanupViolations :: IO [Text]
+finalFrontendSurfaceCleanupViolations = do
+    billingView <- Text.readFile "Web/View/Billing/Index.hs"
+    liveRuntime <- Text.readFile "frontend/ts/app-live-updates.ts"
+    contracts <- Text.readFile "frontend/ts/generated/contracts.ts"
+    rosterSurface <- Text.readFile "Web/RosterWeeks/FrontendSurface.hs"
+    rosterGrid <- Text.readFile "Web/View/RosterWeeks/Grid.hs"
+    let deletedInteractionAttrs =
+            [ "data-bepis-marker"
+            , "data-bepis-item"
+            , "data-bepis-pointer-session"
+            , "data-bepis-session-kind"
+            , "data-bepis-session-intent"
+            , "data-bepis-activation-intent"
+            , "data-bepis-activation-trigger"
+            , "data-bepis-activation-value-field"
+            ]
+        rosterShellHelpers =
+            [ "renderRosterFrontendSurfaceInteractionShell"
+            , "renderRosterFrontendSurfaceIntentForm"
+            , "rosterInteractionConflictPoliciesJson"
+            , "renderRosterDisposableLayer"
+            , "renderRosterServerLayer"
+            ]
+    pure $ concat
+        [ ["Web/View/Billing/Index.hs: data-live-update-url override must stay deleted" | "data-live-update-url" `Text.isInfixOf` billingView]
+        , ["frontend/ts/app-live-updates.ts: dataset.liveUpdateUrl fallback must stay deleted" | "liveUpdateUrl" `Text.isInfixOf` liveRuntime]
+        , ["frontend/ts/generated/contracts.ts: deleted semantic interaction attr still exported: " <> attr | attr <- deletedInteractionAttrs, attr `Text.isInfixOf` contracts]
+        , ["Web/RosterWeeks/FrontendSurface.hs: roster-specific interaction shell helper must stay deleted: " <> helper | helper <- rosterShellHelpers, helper `Text.isInfixOf` rosterSurface]
+        , ["Web/View/RosterWeeks/Grid.hs: roster must render through generic FrontendSurface interaction shell" | not ("renderFrontendSurfaceInteractionShell" `Text.isInfixOf` rosterGrid)]
         ]
 
 frontendContractWatcherViolations :: IO [Text]
