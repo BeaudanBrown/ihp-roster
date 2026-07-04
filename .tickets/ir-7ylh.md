@@ -22,3 +22,9 @@ Delete or shrink Application.Helper.LiveSurface/Internal to only current primiti
 
 Production code no longer imports Application.Helper.LiveSurface for typed-live compatibility; legacy typed live authoring identifiers are absent or test-local with explicit justification; guardrails prevent reintroduction; docs describe only FrontendSurface/SurfaceImpl generated path.
 
+
+## Notes
+
+**2026-07-04T01:54:14Z**
+
+Paused before implementation: remaining Application.Helper.LiveSurface deletion is not just stale compatibility; Application.Helper.Interaction still exposes a TypedLiveSurfaceDefinition-based API and generated frontend LiveSurfaceConfig DTO/tests remain. Need decide whether to migrate/delete the typed interaction surface shell and remove LiveSurfaceConfig from generated frontend contracts in the same cleanup.
