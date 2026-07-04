@@ -283,13 +283,8 @@ tests = describe "LiveSurface contract helpers" do
         let timesheetScope = TimesheetWeekScopeValue venueId 1
         let timesheetMountState = TimesheetsMountStateValue True True Nothing
         let timesheetImpl = timesheetsSurfaceImpl timesheetScope timesheetMountState
-        let timesheetSurface = timesheetsLegacyLiveSurfaceConfig timesheetImpl timesheetScope
-        let surfaces = [timesheetSurface]
-
-        forM_ surfaces liveSurfaceConfigShouldRoundTrip
-        liveSurfaceConfigShouldExposeRefs
-            timesheetSurface
-            timesheetSurface.resyncFragments
+        timesheetImpl.surfaceImplMountConfig.mountSurfaceName `shouldBe` "timesheets"
+        timesheetImpl.surfaceImplMountConfig.mountScopeKey `shouldBe` "timesheets:11111111-1111-1111-1111-111111111111:1"
         let billingFragments = billingSurfaceWireFragments (billingAffectedMountedFragments billingScope (Set.fromList [billingResource venueId]))
         billingFragments `shouldBe`
             [ LiveUpdateWireFragment
@@ -328,11 +323,6 @@ tests = describe "LiveSurface contract helpers" do
                 , protectionPolicy = NoProtection
                 }
             ]
-        map (.feature) surfaces `shouldBe` ["timesheets"]
-        map (.scopeKey) surfaces
-            `shouldBe`
-                [ "timesheets:11111111-1111-1111-1111-111111111111:1"
-                ]
 
 testFragmentRef :: LiveFragmentKey -> Text -> [Text] -> SurfaceFragmentRef ()
 testFragmentRef fragmentKey target path =

@@ -9,7 +9,6 @@ module Web.Timesheets.FrontendSurface
     , timesheetsAffectedMountedFragments
     , timesheetsCandidateMountedFragments
     , timesheetsFragmentDependencies
-    , timesheetsLegacyLiveSurfaceConfig
     , timesheetsLiveUpdateScope
     , timesheetsSurfaceImpl
     , timesheetsSurfaceMountConfig
@@ -20,7 +19,6 @@ module Web.Timesheets.FrontendSurface
 import Application.Helper.FrontendSurface.DSL
 import Application.Helper.FrontendSurface.Runtime
 import qualified Application.Helper.FrontendSurface.Timesheets as Surface
-import Application.Helper.LiveSurface (LiveSurfaceConfig (..))
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
 import qualified Data.Aeson as Aeson
@@ -81,18 +79,6 @@ timesheetsSurfaceScopeKey scope =
 timesheetsLiveUpdateScope :: TimesheetWeekScopeValue -> LiveUpdateScope
 timesheetsLiveUpdateScope scope =
     timesheetWeekLiveScope scope.timesheetWeekVenueId scope.timesheetWeekWeekOffset
-
-timesheetsLegacyLiveSurfaceConfig :: SurfaceImpl Surface.TimesheetsSurface -> TimesheetWeekScopeValue -> LiveSurfaceConfig
-timesheetsLegacyLiveSurfaceConfig impl scope =
-    let wireScope = timesheetsLiveUpdateScope scope
-     in LiveSurfaceConfig
-            { feature = "timesheets"
-            , socketPath = "/live-updates"
-            , scope = wireScope
-            , scopeKey = liveUpdateScopeKey wireScope
-            , resyncFragments = timesheetsSurfaceWireFragments impl.surfaceImplMountConfig.mountFragments
-            , decorateRequestsWithin = ["#" <> timesheetDayColumnsId, "#roster-staff-self-service-timesheet-live-surface"]
-            }
 
 timesheetsSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment]
 timesheetsSurfaceWireFragments =

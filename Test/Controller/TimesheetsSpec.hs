@@ -88,17 +88,17 @@ tests = beforeAll testContext do
                 _ <- createVenueMembershipRecord venue user "worker"
                 _ <- createStaffRecord venue (Just user) "Tess" "Viewer"
 
-                (response, liveSurface, expectedRefs) <- withUserAndCurrentVenue user venue.id do
+                (response, mountConfig, expectedRefs) <- withUserAndCurrentVenue user venue.id do
                     withCurrentControllerContext do
                         let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = unpackId venue.id, timesheetWeekWeekOffset = 0 }
                         let mountState = TimesheetsMountStateValue { timesheetsMountShowApproved = False, timesheetsMountShowAllStaff = True, timesheetsMountStaffFilterId = Nothing }
                         let impl = timesheetsSurfaceImpl scope mountState
-                        let liveSurface = timesheetsLegacyLiveSurfaceConfig impl scope
                         response <- callAction ShowTimesheetWeekAction { weekOffset = 0 }
-                        pure (response, liveSurface, timesheetsSurfaceWireFragments impl.surfaceImplMountConfig.mountFragments)
+                        pure (response, impl.surfaceImplMountConfig, timesheetsSurfaceWireFragments impl.surfaceImplMountConfig.mountFragments)
 
-                liveSurfaceConfigShouldRoundTrip liveSurface
-                liveSurfaceConfigShouldExposeRefs liveSurface expectedRefs
+                mountConfig.mountSurfaceName `shouldBe` "timesheets"
+                mountConfig.mountScopeKey `shouldBe` "timesheets:" <> tshow (unpackId venue.id) <> ":0"
+                expectedRefs `shouldNotBe` []
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-bepis-surface=\"timesheets\""

@@ -1,6 +1,6 @@
 ---
 id: ir-o5og
-status: open
+status: closed
 deps: [ir-2j46]
 links: []
 created: 2026-07-04T01:20:55Z
