@@ -1,11 +1,7 @@
 {-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 
 module Web.View.Admin.Exports
-    ( AdminExportsLiveFragment (..)
-    , adminExportsFragment
-    , adminExportsLiveSurfaceDefinition
-    , adminExportsLiveSurfaceDefinitionForVenue
-    , renderExportsSection
+    ( renderExportsSection
     , renderExportsSectionFragment
     , renderExportsSectionFragmentWithSwap
     ) where
@@ -13,53 +9,13 @@ module Web.View.Admin.Exports
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.Export
 import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
-import Application.Helper.LiveSurface
-import Application.Helper.LiveUpdate
-import Application.Helper.LiveUpdate.Runtime (liveUpdateScopeFieldUuid,
-                                              liveUpdateScopeKind)
-import Application.Helper.SurfaceResource
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminExportsSurfaceImpl)
 import Web.View.Admin.Common
 import Web.View.Prelude
 
-data AdminExportsSurface
-
-data AdminExportsLiveFragment
-    = AdminExportsLiveFragment
-    deriving (Eq, Show)
-
-adminExportsFragment :: AdminExportsLiveFragment
-adminExportsFragment =
-    AdminExportsLiveFragment
-
 adminExportsFragmentId :: Text
 adminExportsFragmentId = "admin-exports-fragment"
-
-adminExportsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminExportsSurface () AdminExportsLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
-adminExportsLiveSurfaceDefinition =
-    adminExportsLiveSurfaceDefinitionForVenue currentVenueScopeId
-
-adminExportsLiveSurfaceDefinitionForVenue :: UUID -> TypedLiveSurfaceDefinition AdminExportsSurface () AdminExportsLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
-adminExportsLiveSurfaceDefinitionForVenue surfaceVenueId =
-    currentVenueUnitScopeSurfaceForVenue
-        "admin-exports"
-        surfaceVenueId
-        adminExportsVenueScope
-        RequireCurrentVenueAdmin
-        [ staticLiveFragmentDescriptor
-            adminExportsFragment
-            adminExportsLiveFragment
-            adminExportsFragmentId
-            (pathTo ShowadminExportsLiveFragmentAction)
-            (const (liveFragmentDependsOn (adminExportsResource surfaceVenueId) []))
-        ]
-
-adminExportsVenueScope :: VenueLiveUpdateScope
-adminExportsVenueScope =
-    venueLiveUpdateScope
-        adminExportsLiveScope
-        (\scope -> if liveUpdateScopeKind scope == "admin-exports" then liveUpdateScopeFieldUuid "venueId" scope else Nothing)
 
 currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =

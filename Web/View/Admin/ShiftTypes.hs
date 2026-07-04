@@ -1,19 +1,11 @@
 {-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 
 module Web.View.Admin.ShiftTypes
-    ( AdminShiftTypesLiveFragment (..)
-    , adminShiftTypesFragment
-    , adminShiftTypesLiveSurfaceDefinition
-    , adminShiftTypesLiveSurfaceDefinitionForVenue
-    , renderShiftTypesSectionFragment
+    ( renderShiftTypesSectionFragment
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
-import Application.Helper.LiveSurface
-import Application.Helper.LiveUpdate
-import Application.Helper.LiveUpdate.Runtime (liveUpdateScopeFieldUuid,
-                                              liveUpdateScopeKind)
 import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey,
                                             normalizeShiftTypeColourKey,
                                             shiftTypeColourPaletteKeys)
@@ -40,61 +32,11 @@ renderShiftTypesSectionFragment shiftTypes showInactive awardLevels awardLevelBa
         </div>
     |]
 
-data AdminShiftTypesSurface
-
-data AdminShiftTypesLiveFragment
-    = AdminShiftTypesLiveFragment
-    deriving (Eq, Show)
-
-adminShiftTypesFragment :: AdminShiftTypesLiveFragment
-adminShiftTypesFragment =
-    AdminShiftTypesLiveFragment
-
-adminShiftTypesLiveSurface :: (?context :: ControllerContext) => LiveSurfaceConfig
-adminShiftTypesLiveSurface =
-    mkTypedDefinedLiveSurface adminShiftTypesLiveSurfaceDefinition ()
-
-adminShiftTypesLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminShiftTypesSurface () AdminShiftTypesLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
-adminShiftTypesLiveSurfaceDefinition =
-    adminShiftTypesLiveSurfaceDefinitionForVenue currentVenueScopeId
-
-adminShiftTypesLiveSurfaceDefinitionForVenue :: UUID -> TypedLiveSurfaceDefinition AdminShiftTypesSurface () AdminShiftTypesLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
-adminShiftTypesLiveSurfaceDefinitionForVenue surfaceVenueId =
-    currentVenueUnitScopeSurfaceForVenue
-        "admin-shift-types"
-        surfaceVenueId
-        adminShiftTypesVenueScope
-        RequireCurrentVenueAdmin
-        [ staticLiveFragmentDescriptor
-            adminShiftTypesFragment
-            adminShiftTypesLiveFragment
-            "admin-shift-types-fragment"
-            (pathTo ShowadminShiftTypesLiveFragmentAction)
-            (const (liveFragmentDependsOn (adminShiftTypesResource surfaceVenueId) []))
-            |> liveFragmentDescriptorWithFocusedProtection adminShiftTypesFocusProtection
-        ]
-
-adminShiftTypesVenueScope :: VenueLiveUpdateScope
-adminShiftTypesVenueScope =
-    venueLiveUpdateScope
-        adminShiftTypesLiveScope
-        (\scope -> if liveUpdateScopeKind scope == "admin-shift-types" then liveUpdateScopeFieldUuid "venueId" scope else Nothing)
-
 currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =
     case currentVenueOrNothing of
         Just venue -> unpackId venue.id
         Nothing -> error "Admin shift types live surface requires a current venue"
-
-adminShiftTypesFocusProtection :: LiveFragmentProtection
-adminShiftTypesFocusProtection =
-    FocusedFieldProtection
-        FocusedFieldProtectionConfig
-            { activeSelector = "input[data-admin-shift-type-field-key]:focus"
-            , fieldKeyAttr = "data-admin-shift-type-field-key"
-            , fieldNameFallback = True
-            , containerSelector = Just "form[data-admin-shift-type-row]"
-            }
 
 renderShiftTypeCreateForm :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Html
 renderShiftTypeCreateForm _shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems = [hsx|

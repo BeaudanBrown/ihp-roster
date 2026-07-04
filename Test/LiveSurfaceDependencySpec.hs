@@ -1,7 +1,6 @@
 module Test.LiveSurfaceDependencySpec where
 
 import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceMountedFragment (..))
-import Application.Helper.LiveSurface (typedSurfaceDependsOn)
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
 import Application.Support.LiveUpdates (supportAffectedMountedFragments,
@@ -23,15 +22,6 @@ import Web.Timesheets.FrontendSurface (TimesheetSurfaceFragment (..),
                                        TimesheetsMountStateValue (..),
                                        timesheetsAffectedMountedFragments,
                                        timesheetsFragmentDependencies)
-import Web.View.Admin.Invites (AdminInvitesSurfaceKey (..),
-                               adminInvitesFragment,
-                               adminInvitesLiveSurfaceDefinitionForVenue)
-import Web.View.Admin.VenueSettings (adminVenueSettingsFragment,
-                                     adminVenueSettingsLiveSurfaceDefinitionForVenue)
-import Web.View.Admin.Xero (adminXeroLiveSurfaceDefinitionForVenue,
-                            adminXeroPayItemsFragment, adminXeroShellFragment,
-                            adminXeroStaffMappingsFragment,
-                            adminXeroTimesheetsFragment)
 
 tests :: Spec
 tests = do
@@ -95,25 +85,6 @@ tests = do
             concatMap supportFragmentDependencies awardRatesFragments `shouldBe` [supportAwardRatesResource]
             concatMap supportFragmentDependencies publicHolidayFragments `shouldBe` [supportPublicHolidaysResource]
 
-        it "declares admin Xero dependencies by fragment" do
-            let venueId = fromWords 2 0 0 0
-            let definition = adminXeroLiveSurfaceDefinitionForVenue venueId
-            let shellDependencies = Set.fromList (typedSurfaceDependsOn definition () adminXeroShellFragment)
-
-            shellDependencies
-                `shouldBe` Set.fromList
-                    [ xeroConnectionResource venueId
-                    , xeroMappingsResource venueId
-                    , xeroPayItemsResource venueId
-                    , xeroTimesheetsResource venueId
-                    ]
-            typedSurfaceDependsOn definition () adminXeroStaffMappingsFragment
-                `shouldBe` [xeroMappingsResource venueId]
-            typedSurfaceDependsOn definition () adminXeroPayItemsFragment
-                `shouldBe` [xeroPayItemsResource venueId]
-            typedSurfaceDependsOn definition () adminXeroTimesheetsFragment
-                `shouldBe` [xeroTimesheetsResource venueId]
-
         it "declares billing dependencies for billing status fragments" do
             let venueId = fromWords 6 0 0 0
             let scope = BillingScopeValue venueId
@@ -135,21 +106,6 @@ tests = do
                 `shouldBe` [staffRsaDocumentsResource staffId]
             concatMap (profileFragmentDependencies scope) affectedByLeave
                 `shouldBe` [staffLeaveRequestsResource staffId]
-
-        it "declares admin venue settings dependencies for venue-scoped settings surfaces" do
-            let venueId = fromWords 7 0 0 0
-            let definition = adminVenueSettingsLiveSurfaceDefinitionForVenue venueId
-
-            typedSurfaceDependsOn definition () adminVenueSettingsFragment
-                `shouldBe` [adminVenueSettingsResource venueId]
-
-        it "declares admin invitation dependencies for venue-scoped invite surfaces" do
-            let venueId = fromWords 3 0 0 0
-            let definition = adminInvitesLiveSurfaceDefinitionForVenue venueId
-            let key = AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing }
-
-            typedSurfaceDependsOn definition key adminInvitesFragment
-                `shouldBe` [adminInvitesResource venueId]
 
 liveTestSubscription :: LiveUpdateScope -> [LiveUpdateWireFragment] -> LiveUpdateSubscription
 liveTestSubscription scope fragments =

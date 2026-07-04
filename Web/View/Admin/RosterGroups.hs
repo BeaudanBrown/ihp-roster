@@ -1,21 +1,12 @@
 {-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 
 module Web.View.Admin.RosterGroups
-    ( AdminRosterGroupsLiveFragment (..)
-    , adminRosterGroupsFragment
-    , adminRosterGroupsLiveSurfaceDefinition
-    , adminRosterGroupsLiveSurfaceDefinitionForVenue
-    , renderRosterGroupsSectionFragment
+    ( renderRosterGroupsSectionFragment
     , renderRosterGroupsSectionFragmentWithSwap
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
-import Application.Helper.LiveSurface
-import Application.Helper.LiveUpdate
-import Application.Helper.LiveUpdate.Runtime (liveUpdateScopeFieldUuid,
-                                              liveUpdateScopeKind)
-import Application.Helper.SurfaceResource
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminRosterGroupsSurfaceImpl)
 import Web.View.Admin.Common
@@ -43,45 +34,6 @@ renderRosterGroupsSectionFragmentWithSwap maybeSwapOob rosterGroups showInactive
             {renderRosterGroupsSection rosterGroups showInactive}
         </div>
     |]
-
-data AdminRosterGroupsSurface
-
-data AdminRosterGroupsLiveFragment
-    = AdminRosterGroupsLiveFragment
-    deriving (Eq, Show)
-
-adminRosterGroupsFragment :: AdminRosterGroupsLiveFragment
-adminRosterGroupsFragment =
-    AdminRosterGroupsLiveFragment
-
-adminRosterGroupsLiveSurface :: (?context :: ControllerContext) => Maybe LiveSurfaceConfig
-adminRosterGroupsLiveSurface =
-    Just (mkTypedDefinedLiveSurface adminRosterGroupsLiveSurfaceDefinition ())
-
-adminRosterGroupsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminRosterGroupsSurface () AdminRosterGroupsLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
-adminRosterGroupsLiveSurfaceDefinition =
-    adminRosterGroupsLiveSurfaceDefinitionForVenue currentVenueScopeId
-
-adminRosterGroupsLiveSurfaceDefinitionForVenue :: UUID -> TypedLiveSurfaceDefinition AdminRosterGroupsSurface () AdminRosterGroupsLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
-adminRosterGroupsLiveSurfaceDefinitionForVenue surfaceVenueId =
-    currentVenueUnitScopeSurfaceForVenue
-        "admin-roster-groups"
-        surfaceVenueId
-        adminRosterGroupsVenueScope
-        RequireCurrentVenueAdmin
-        [ staticLiveFragmentDescriptor
-            adminRosterGroupsFragment
-            adminRosterGroupsLiveFragment
-            "admin-roster-groups-fragment"
-            (pathTo ShowadminRosterGroupsLiveFragmentAction)
-            (const (liveFragmentDependsOn (adminRosterGroupsResource surfaceVenueId) []))
-        ]
-
-adminRosterGroupsVenueScope :: VenueLiveUpdateScope
-adminRosterGroupsVenueScope =
-    venueLiveUpdateScope
-        adminRosterGroupsLiveScope
-        (\scope -> if liveUpdateScopeKind scope == "admin-roster-groups" then liveUpdateScopeFieldUuid "venueId" scope else Nothing)
 
 currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =

@@ -35,9 +35,6 @@ import Web.RosterWeeks.FrontendSurface (RosterMountedFragmentPlan (..),
                                         RosterWeekScopeValue (..),
                                         rosterSurfaceImpl)
 import Web.Timesheets.FrontendSurface
-import Web.View.Admin.Invites
-import Web.View.Admin.VenueSettings
-import Web.View.Admin.Xero
 
 tests :: Spec
 tests = describe "LiveSurface contract helpers" do
@@ -282,19 +279,12 @@ tests = describe "LiveSurface contract helpers" do
 
     it "verifies context-free typed surface contracts used by background updates" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
-        let rosterGroupId = "22222222-2222-2222-2222-222222222222" :: Id RosterGroup
         let billingScope = BillingScopeValue { billingVenueId = venueId }
         let timesheetScope = TimesheetWeekScopeValue venueId 1
         let timesheetMountState = TimesheetsMountStateValue True True Nothing
         let timesheetImpl = timesheetsSurfaceImpl timesheetScope timesheetMountState
         let timesheetSurface = timesheetsLegacyLiveSurfaceConfig timesheetImpl timesheetScope
-        let invitesKey = AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Just rosterGroupId }
-        let surfaces =
-                [ timesheetSurface
-                , mkTypedDefinedLiveSurface (adminVenueSettingsLiveSurfaceDefinitionForVenue venueId) ()
-                , mkTypedDefinedLiveSurface (adminInvitesLiveSurfaceDefinitionForVenue venueId) invitesKey
-                , mkTypedDefinedLiveSurface (adminXeroLiveSurfaceDefinitionForVenue venueId) ()
-                ]
+        let surfaces = [timesheetSurface]
 
         forM_ surfaces liveSurfaceConfigShouldRoundTrip
         liveSurfaceConfigShouldExposeRefs
@@ -338,20 +328,10 @@ tests = describe "LiveSurface contract helpers" do
                 , protectionPolicy = NoProtection
                 }
             ]
-        typedLiveSurfaceFragmentShouldMapTo
-            (adminXeroLiveSurfaceDefinitionForVenue venueId)
-            ()
-            adminXeroPayItemsFragment
-            adminXeroPayItemsLiveFragment
-            "xero-pay-items-data"
-            "/ShowadminXeroPayItemsLiveFragment"
-        map (.feature) surfaces `shouldBe` ["timesheets", "admin-venue-config", "admin-invites", "admin-xero"]
+        map (.feature) surfaces `shouldBe` ["timesheets"]
         map (.scopeKey) surfaces
             `shouldBe`
                 [ "timesheets:11111111-1111-1111-1111-111111111111:1"
-                , "admin-venue-config:11111111-1111-1111-1111-111111111111"
-                , "admin-invites:11111111-1111-1111-1111-111111111111"
-                , "admin-xero:11111111-1111-1111-1111-111111111111"
                 ]
 
 testFragmentRef :: LiveFragmentKey -> Text -> [Text] -> SurfaceFragmentRef ()

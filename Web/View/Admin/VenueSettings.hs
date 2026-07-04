@@ -1,64 +1,20 @@
 {-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 
 module Web.View.Admin.VenueSettings
-    ( AdminVenueSettingsLiveFragment (..)
-    , adminVenueSettingsFragment
-    , adminVenueSettingsLiveSurfaceDefinition
-    , adminVenueSettingsLiveSurfaceDefinitionForVenue
-    , renderVenueSettingsSection
+    ( renderVenueSettingsSection
     , renderVenueSettingsSectionFragment
     , renderVenueSettingsSectionFragmentWithSwap
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
-import Application.Helper.LiveSurface
-import Application.Helper.LiveUpdate
-import Application.Helper.LiveUpdate.Runtime (liveUpdateScopeFieldUuid,
-                                              liveUpdateScopeKind)
-import Application.Helper.SurfaceResource
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminVenueSettingsSurfaceImpl)
 import Web.View.Admin.Common
 import Web.View.Prelude
 
-data AdminVenueSettingsSurface
-
-data AdminVenueSettingsLiveFragment
-    = AdminVenueSettingsLiveFragment
-    deriving (Eq, Show)
-
-adminVenueSettingsFragment :: AdminVenueSettingsLiveFragment
-adminVenueSettingsFragment =
-    AdminVenueSettingsLiveFragment
-
 adminVenueSettingsFragmentId :: Text
 adminVenueSettingsFragmentId = "admin-venue-settings-fragment"
-
-adminVenueSettingsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminVenueSettingsSurface () AdminVenueSettingsLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
-adminVenueSettingsLiveSurfaceDefinition =
-    adminVenueSettingsLiveSurfaceDefinitionForVenue currentVenueScopeId
-
-adminVenueSettingsLiveSurfaceDefinitionForVenue :: UUID -> TypedLiveSurfaceDefinition AdminVenueSettingsSurface () AdminVenueSettingsLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
-adminVenueSettingsLiveSurfaceDefinitionForVenue surfaceVenueId =
-    currentVenueUnitScopeSurfaceForVenue
-        "admin-venue-config"
-        surfaceVenueId
-        adminVenueSettingsVenueScope
-        RequireCurrentVenueAdmin
-        [ staticLiveFragmentDescriptor
-            adminVenueSettingsFragment
-            adminVenueConfigLiveFragment
-            adminVenueSettingsFragmentId
-            (pathTo ShowAdminVenueSettingsFragmentAction)
-            (const (liveFragmentDependsOn (adminVenueSettingsResource surfaceVenueId) []))
-        ]
-
-adminVenueSettingsVenueScope :: VenueLiveUpdateScope
-adminVenueSettingsVenueScope =
-    venueLiveUpdateScope
-        adminVenueConfigLiveScope
-        (\scope -> if liveUpdateScopeKind scope == "admin-venue-config" then liveUpdateScopeFieldUuid "venueId" scope else Nothing)
 
 currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =

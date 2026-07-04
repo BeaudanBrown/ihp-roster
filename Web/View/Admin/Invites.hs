@@ -1,23 +1,12 @@
 {-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 
 module Web.View.Admin.Invites
-    ( AdminInvitesLiveFragment (..)
-    , AdminInvitesSurfaceKey (..)
-    , adminInvitesFragment
-    , adminInvitesLiveSurface
-    , adminInvitesLiveSurfaceDefinition
-    , adminInvitesLiveSurfaceDefinitionForVenue
-    , renderInvitesSectionFragment
+    ( renderInvitesSectionFragment
     , renderInvitesSectionFragmentWithSwap
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
-import Application.Helper.LiveSurface
-import Application.Helper.LiveUpdate
-import Application.Helper.LiveUpdate.Runtime (liveUpdateScopeFieldUuid,
-                                              liveUpdateScopeKind)
-import Application.Helper.SurfaceResource
 import Application.Helper.UiRegion (UiRegionTransitionProfile (..))
 import qualified Text.Blaze.Html as Blaze
 import Text.Blaze.Html ((!))
@@ -72,59 +61,6 @@ renderInvitesSectionFragmentWithSwap maybeSwapOob invitations rosterGroupId =
             ! maybeAttr "hx-swap-oob" maybeSwapOob
             ! uiRegionTransitionAttrs UiRegionTransitionFade
             $ renderInvitesSection invitations rosterGroupId
-
-data AdminInvitesSurface
-
-data AdminInvitesSurfaceKey = AdminInvitesSurfaceKey
-    { adminInvitesRosterGroupId :: !(Maybe (Id RosterGroup))
-    }
-    deriving (Eq, Show)
-
-data AdminInvitesLiveFragment
-    = AdminInvitesLiveFragment
-    deriving (Eq, Show)
-
-adminInvitesFragment :: AdminInvitesLiveFragment
-adminInvitesFragment =
-    AdminInvitesLiveFragment
-
-adminInvitesLiveSurface :: (?context :: ControllerContext) => Id RosterGroup -> LiveSurfaceConfig
-adminInvitesLiveSurface rosterGroupId =
-    mkTypedDefinedLiveSurface adminInvitesLiveSurfaceDefinition AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Just rosterGroupId }
-
-adminInvitesLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminInvitesSurface AdminInvitesSurfaceKey AdminInvitesLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
-adminInvitesLiveSurfaceDefinition =
-    adminInvitesLiveSurfaceDefinitionForVenue currentVenueScopeId
-
-adminInvitesLiveSurfaceDefinitionForVenue :: UUID -> TypedLiveSurfaceDefinition AdminInvitesSurface AdminInvitesSurfaceKey AdminInvitesLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
-adminInvitesLiveSurfaceDefinitionForVenue surfaceVenueId =
-    descriptorToTypedLiveSurfaceDefinition
-        ( venueLiveSurfaceDescriptorForVenue
-            "admin-invites"
-            surfaceVenueId
-            adminInvitesVenueScope
-            RequireCurrentVenueAdmin
-            (const surfaceVenueId)
-            (const AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing })
-            [ liveFragmentDescriptor
-                adminInvitesFragment
-                (`adminInvitesLiveFragmentRef` adminInvitesFragment)
-                (const (liveFragmentDependsOn (adminInvitesResource surfaceVenueId) []))
-            ]
-        )
-
-adminInvitesVenueScope :: VenueLiveUpdateScope
-adminInvitesVenueScope =
-    venueLiveUpdateScope
-        adminInvitesLiveScope
-        (\scope -> if liveUpdateScopeKind scope == "admin-invites" then liveUpdateScopeFieldUuid "venueId" scope else Nothing)
-
-adminInvitesLiveFragmentRef :: AdminInvitesSurfaceKey -> AdminInvitesLiveFragment -> SurfaceFragmentRef AdminInvitesSurface
-adminInvitesLiveFragmentRef AdminInvitesSurfaceKey { adminInvitesRosterGroupId } AdminInvitesLiveFragment =
-    mkSurfaceFragmentRef
-        adminInvitesLiveFragment
-        "admin-invites-fragment"
-        (appendQueryParams (pathTo ShowadminInvitesLiveFragmentAction) (maybe [] (\rosterGroupId -> [("rosterGroupId", tshow rosterGroupId)]) adminInvitesRosterGroupId))
 
 attr :: Text -> Text -> Blaze.Attribute
 attr name value =

@@ -10,39 +10,11 @@ module Web.View.Admin.Xero
     , renderXeroPayItemsFragmentOob
     , renderXeroStaffMappingsFragment
     , renderXeroStaffMappingsOob
-    , AdminXeroLiveFragment (..)
-    , adminXeroDefaultFragments
-    , adminXeroLiveSurfaceDefinition
-    , adminXeroLiveSurfaceDefinitionForVenue
-    , adminXeroPayItemsFragment
-    , adminXeroShellFragment
-    , adminXeroStaffMappingsFragment
-    , adminXeroTimesheetsFragment
     , renderXeroTimesheetsFragment
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
-import Application.Helper.LiveSurface (EmptyInteractionIntent,
-                                       EmptyInteractionLayer,
-                                       EmptyInteractionSession,
-                                       FragmentDependencies,
-                                       LiveScopeAuthorizationRequirement (..),
-                                       LiveSurfaceConfig (..),
-                                       SurfaceFragmentRef, SurfaceScope (..),
-                                       TypedLiveSurfaceDefinition (..),
-                                       emptyInteractionCapability,
-                                       emptyInteractionStaticSchema,
-                                       liveFragmentDependsOn,
-                                       liveSurfaceAuthorizationByRequirement,
-                                       liveSurfaceConfigJson,
-                                       mkSurfaceFragmentContract,
-                                       mkSurfaceFragmentRef,
-                                       mkTypedDefinedLiveSurface)
-import Application.Helper.LiveUpdate
-import Application.Helper.LiveUpdate.Runtime (liveUpdateScopeFieldUuid,
-                                              liveUpdateScopeKind)
-import Application.Helper.SurfaceResource
 import Application.Helper.View.Overlay (dialogOverlayMountId)
 import Application.Helper.XeroAdminTypes
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
@@ -81,101 +53,6 @@ instance View XeroView where
             , appPageWidthClass = ""
             , appPageBody = xeroPanel
             }
-
-data AdminXeroSurface
-
-data AdminXeroLiveFragment
-    = AdminXeroShellLiveFragment
-    | AdminXeroStaffMappingsLiveFragment
-    | AdminXeroPayItemsLiveFragment
-    | AdminXeroTimesheetsLiveFragment
-    deriving (Eq, Show)
-
-adminXeroShellFragment :: AdminXeroLiveFragment
-adminXeroShellFragment =
-    AdminXeroShellLiveFragment
-
-adminXeroStaffMappingsFragment :: AdminXeroLiveFragment
-adminXeroStaffMappingsFragment =
-    AdminXeroStaffMappingsLiveFragment
-
-adminXeroPayItemsFragment :: AdminXeroLiveFragment
-adminXeroPayItemsFragment =
-    AdminXeroPayItemsLiveFragment
-
-adminXeroTimesheetsFragment :: AdminXeroLiveFragment
-adminXeroTimesheetsFragment =
-    AdminXeroTimesheetsLiveFragment
-
-adminXeroDefaultFragments :: [AdminXeroLiveFragment]
-adminXeroDefaultFragments =
-    [ adminXeroShellFragment
-    , adminXeroTimesheetsFragment
-    ]
-
-adminXeroLiveSurface :: (?context :: ControllerContext) => Maybe LiveSurfaceConfig
-adminXeroLiveSurface =
-    Just (mkTypedDefinedLiveSurface adminXeroLiveSurfaceDefinition ())
-
-adminXeroLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminXeroSurface () AdminXeroLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
-adminXeroLiveSurfaceDefinition =
-    adminXeroLiveSurfaceDefinitionForVenue currentVenueScopeId
-
-adminXeroLiveSurfaceDefinitionForVenue :: UUID -> TypedLiveSurfaceDefinition AdminXeroSurface () AdminXeroLiveFragment EmptyInteractionLayer EmptyInteractionSession EmptyInteractionIntent
-adminXeroLiveSurfaceDefinitionForVenue surfaceVenueId =
-    TypedLiveSurfaceDefinition
-        { typedSurfaceFeature = "admin-xero"
-        , typedSurfaceScope = const (SurfaceScope (adminXeroLiveScope surfaceVenueId))
-        , typedSurfaceScopeFromWire = \case
-            scope | liveUpdateScopeKind scope == "admin-xero" && liveUpdateScopeFieldUuid "venueId" scope == Just surfaceVenueId -> Just ()
-            _ -> Nothing
-        , typedSurfaceDefaultFragments = const adminXeroDefaultFragments
-        , typedSurfaceFragmentContract = \() fragment ->
-            mkSurfaceFragmentContract
-                (adminXeroLiveFragmentRef fragment)
-                (adminXeroLiveFragmentDependencies surfaceVenueId fragment)
-        , typedSurfaceDecorateRequestsWithin = const ["#admin-xero-fragment"]
-        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueOwner surfaceVenueId))
-        , typedSurfaceInteractionSchema = emptyInteractionStaticSchema
-        , typedSurfaceInteraction = const emptyInteractionCapability
-        }
-
-adminXeroLiveFragmentDependencies :: UUID -> AdminXeroLiveFragment -> FragmentDependencies
-adminXeroLiveFragmentDependencies surfaceVenueId AdminXeroShellLiveFragment =
-    liveFragmentDependsOn
-        (xeroConnectionResource surfaceVenueId)
-        [ xeroMappingsResource surfaceVenueId
-        , xeroPayItemsResource surfaceVenueId
-        , xeroTimesheetsResource surfaceVenueId
-        ]
-adminXeroLiveFragmentDependencies surfaceVenueId AdminXeroStaffMappingsLiveFragment =
-    liveFragmentDependsOn (xeroMappingsResource surfaceVenueId) []
-adminXeroLiveFragmentDependencies surfaceVenueId AdminXeroPayItemsLiveFragment =
-    liveFragmentDependsOn (xeroPayItemsResource surfaceVenueId) []
-adminXeroLiveFragmentDependencies surfaceVenueId AdminXeroTimesheetsLiveFragment =
-    liveFragmentDependsOn (xeroTimesheetsResource surfaceVenueId) []
-
-adminXeroLiveFragmentRef :: AdminXeroLiveFragment -> SurfaceFragmentRef AdminXeroSurface
-adminXeroLiveFragmentRef AdminXeroShellLiveFragment =
-    mkSurfaceFragmentRef
-        adminXeroShellLiveFragment
-        "admin-xero-fragment"
-        (pathTo ShowadminXeroShellLiveFragmentAction)
-adminXeroLiveFragmentRef AdminXeroStaffMappingsLiveFragment =
-    mkSurfaceFragmentRef
-        adminXeroStaffMappingsLiveFragment
-        "xero-staff-mappings-data"
-        (pathTo ShowadminXeroStaffMappingsLiveFragmentAction)
-adminXeroLiveFragmentRef AdminXeroPayItemsLiveFragment =
-    mkSurfaceFragmentRef
-        adminXeroPayItemsLiveFragment
-        "xero-pay-items-data"
-        (pathTo ShowadminXeroPayItemsLiveFragmentAction)
-adminXeroLiveFragmentRef AdminXeroTimesheetsLiveFragment =
-    mkSurfaceFragmentRef
-        adminXeroTimesheetsLiveFragment
-        "xero-timesheets-data"
-        (pathTo ShowadminXeroTimesheetsLiveFragmentAction)
 
 currentVenueScopeId :: (?context :: ControllerContext) => UUID
 currentVenueScopeId =
