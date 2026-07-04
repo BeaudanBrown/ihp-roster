@@ -262,9 +262,12 @@ rosterRawRegistry =
                 , promotedList [field "RosterDayId" "WireUUID", field "RowIndex" "WireInt"]
                 , promotedList ([raw "Lazy" [promotedList [raw "DependsOnFragment" [marker "RosterDaySection"]]], raw "Live" []] <> rosterDayDependencyOptions)
                 ]
+            , raw "ActivationRef" [marker "RosterLayoutModeActivationRef", promotedList [raw "Submits" [marker "SetRosterLayoutMode"], raw "ValueField" [marker "RosterLayoutMode"]]]
             , raw "Action" [marker "SetRosterLayoutMode", promotedList [field "RosterLayoutMode" "WireText"], promotedList [raw "Target" [marker "RosterContent"]]]
             , raw "Intent" [marker "SetRosterLayoutMode", promotedList [field "RosterLayoutMode" "WireText"], promotedList [raw "BackedBy" [marker "SetRosterLayoutMode"]]]
             , raw "Session" [marker "DragSession", promotedList [raw "Layer" [marker "DragPreviewLayer"], raw "Effect" [marker "CloneShadow", promotedList [raw "Layer" [marker "DragPreviewLayer"]]], raw "Effect" [marker "DropzoneHighlight", promotedList []]]]
+            , raw "SourceRef" [marker "DragSourceRef", promotedList [raw "SessionOption" [marker "DragSession"], raw "Submits" [marker "MoveRosterShiftToSlot"], raw "SourceField" [marker "SourceItemKey"]]]
+            , raw "DropzoneRef" [marker "DragDropzoneRef", promotedList [raw "SessionOption" [marker "DragSession"], raw "TargetField" [marker "TargetDropzoneKey"]]]
             , raw "Action" [marker "MoveRosterShiftToSlot", promotedList dragDropFieldsRaw, promotedList [raw "Target" [marker "RosterContent"]]]
             , raw "Intent" [marker "MoveRosterShiftToSlot", promotedList dragDropFieldsRaw, promotedList [raw "SessionOption" [marker "DragSession"], raw "BackedBy" [marker "MoveRosterShiftToSlot"]]]
             , raw "ConflictPolicy" [raw "SessionKind" [marker "DragSession"], raw "AnyFragment" [], raw "Defer" []]
