@@ -117,11 +117,10 @@ and validate all keys against venue/scope/domain state.
 Legacy semantic marker attributes such as `data-bepis-marker`,
 `data-bepis-item`, `data-bepis-dropzone`, `data-bepis-pointer-session`,
 `data-bepis-session-kind`, `data-bepis-session-intent`,
-`data-bepis-activation-intent`, and `data-bepis-activation-trigger` are
-transitional only. They may exist during a dual-runtime migration, but the final
-runtime must derive behavior from generated manifest entries and role-specific
-refs. The epic that introduces the manifest must delete or guard old semantic
-marker authoring before close.
+`data-bepis-activation-intent`, and `data-bepis-activation-trigger` are deleted
+from the production interaction runtime and helpers. Current behavior derives
+from generated manifest entries and role-specific refs only; guardrails prevent
+reintroducing the old semantic marker protocol.
 
 ## Surface Portability And Duplicate Mounts
 
@@ -150,8 +149,7 @@ or infer a singleton surface for a scope.
 3. Haskell helpers render surface mounts, server layers, disposable layers,
    generated source/dropzone/activation refs with dynamic opaque keys, and
    generated HTMX intent forms. Helpers are the only production feature-facing
-   API for interaction attrs; raw semantic marker helpers are temporary internal
-   migration aids only.
+   API for interaction attrs; raw semantic marker helpers are deleted.
 4. Haskell-generated TypeScript exposes narrow browser DTOs/unions for live
    update payloads, registered surface families, static interaction schemas,
    layers, session kinds, intents, fields, live fragments, and conflict policy.
@@ -227,19 +225,19 @@ Effects have two lifecycles:
   effects may create or update disposable UI only inside a declared disposable
   layer in the same concrete mount.
 - **Contextual target effects** are driven by generic hit-testing and the current
-  marker target. They enter/update/leave as the pointer moves across matching
-  marker elements, must clean the previous target before highlighting a new one,
-  and must clean any active target on session end. Targets provide only typed
-  marker data and configured CSS classes; targets do not inject arbitrary effect
+  ref target. They enter/update/leave as the pointer moves across matching
+  dropzone ref elements, must clean the previous target before highlighting a new one,
+  and must clean any active target on session end. Targets provide only generated
+  ref data and configured CSS classes; targets do not inject arbitrary effect
   behavior.
 
 The initial generated effect union is intentionally small. `clone-shadow` is a
-session-global effect that measures the configured source marker, renders an
+session-global effect that measures the configured source ref element, renders an
 inert same-size proxy shape in the configured disposable layer, disables pointer
 events, and preserves the original pointer grab offset while following the
 pointer. It deliberately does not try to screenshot or reconstruct arbitrary DOM;
 visual styling comes from the configured generic CSS class. `dropzone-highlight`
-is a contextual effect that uses the generic dropzone marker hit-test, applies
+is a contextual effect that uses the generic dropzone ref hit-test, applies
 the configured CSS class to the active dropzone, removes it from the previous
 target on switch/leave, and cleans up at session end. These effects are examples
 of the generic lifecycle; they do not authorize a runtime to mutate server-owned
@@ -294,7 +292,7 @@ consolidation.
 
 ### Click/select
 
-A roster cell exposes a typed selectable marker in the server layer. The surface
+A roster cell exposes a generated activation/source ref in the server layer. The surface
 capability declares a `SelectionOverlay` disposable layer and `SelectCell`
 intent with fields such as `cellId` and `mode`. TypeScript creates a selection
 highlight locally, supports keyboard/touch activation, and on commit fills the
@@ -303,7 +301,7 @@ scope, then returns authoritative selection state or next-step fragments.
 
 ### Drop
 
-A draggable card and target slot are rendered with typed markers. The capability
+A draggable card and target slot are rendered with generated source/dropzone refs. The capability
 declares a `DragPreview` disposable layer and `MoveAssignment` intent with
 fields such as `assignmentId`, `targetSlotId`, and `position`. TypeScript may
 render a ghost and insertion guide in disposable layers while dragging. On drop,
@@ -319,7 +317,7 @@ fragments plus toast feedback.
 
 ### Resize
 
-A timeline item exposes typed edge handles. The capability declares a
+A timeline item exposes generated source refs for typed edge handles. The capability declares a
 `ResizePreview` disposable layer and `ResizeAssignment` intent with fields such
 as `assignmentId`, `edge`, `newStart`, and `newEnd`. Pointer movement updates
 only a preview guide. Commit submits the form; server validation decides whether

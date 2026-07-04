@@ -138,9 +138,10 @@ dispatches the generated HTMX trigger.
 Legacy semantic marker attributes such as `data-bepis-marker`,
 `data-bepis-pointer-session`, `data-bepis-session-kind`,
 `data-bepis-session-intent`, `data-bepis-activation-intent`, and
-`data-bepis-activation-trigger` are transitional migration details, not the
-long-term API. Production feature views should not author them once generated ref
-helpers exist, and guardrails should prevent reintroduction after migration.
+`data-bepis-activation-trigger` are deleted from production helpers and the
+browser runtime. Production feature views author generated refs through
+`Application.Helper.FrontendSurface.Interaction`; guardrails prevent
+reintroducing the old semantic marker protocol.
 
 ## Runtime Implementation
 
@@ -260,13 +261,17 @@ For a new surface or migration:
 3. Move static interaction/action metadata into the spec or shared helper
    aliases, including generated source/dropzone/activation refs and their
    session/intent compatibility.
-4. Render fragments directly from feature read models; do not add a
+4. Render role-specific refs with `withFrontendSurfaceSourceRef`,
+   `withFrontendSurfaceDropzoneRef`, or `withFrontendSurfaceActivationRef`, and
+   render intent forms through `SurfaceImpl`/runtime helpers so URLs, targets,
+   swaps, sync, hidden values, and triggers remain server-owned.
+5. Render fragments directly from feature read models; do not add a
    `SurfaceProjection` cache.
-5. Generate contracts and update TypeScript to consume generated surface data.
-6. Add/adjust Hspec, frontend, and E2E coverage for mount discovery, duplicate
+6. Generate contracts and update TypeScript to consume generated surface data.
+7. Add/adjust Hspec, frontend, and E2E coverage for mount discovery, duplicate
    mounts, actor refresh, passive invalidation, lazy fragments, and interaction
    behavior as applicable.
-7. Add guardrails if the migration removes a legacy path that should not return.
+8. Add guardrails if the migration removes a legacy path that should not return.
 
 ## Verification
 

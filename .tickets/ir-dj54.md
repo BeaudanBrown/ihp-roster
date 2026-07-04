@@ -1,6 +1,6 @@
 ---
 id: ir-dj54
-status: open
+status: closed
 deps: [ir-fh80, ir-dhl7]
 links: []
 created: 2026-07-04T02:44:57Z
