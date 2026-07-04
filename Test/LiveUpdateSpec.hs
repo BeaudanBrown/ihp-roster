@@ -3,8 +3,7 @@ module Test.LiveUpdateSpec where
 import qualified Application.Helper.Frontend.LiveUpdateSchema as Wire
 import Application.Helper.FrontendSurface.Authorization (frontendSurfaceScopeAuthorizationRequirement,
                                                          validateFrontendSurfaceLiveSubscription)
-import Application.Helper.LiveSurface
-import Application.Helper.LiveSurface.Internal (defaultLiveUpdateScopeAuthorizationRequirement)
+import Application.Helper.FrontendSurface.AuthorizationRequirement (SurfaceScopeAuthorizationRequirement (..))
 import Application.Helper.LiveUpdate.Runtime
 import Application.Support.LiveUpdates
 import qualified Data.Aeson as Aeson
@@ -36,19 +35,12 @@ tests = describe "LiveUpdate runtime types" do
                     , fragments = [fragment]
                     , sourceClientId = Just "client-1"
                     }
-        let surface =
-                testLiveSurfaceConfig
-                    "roster"
-                    scope
-                    [fragment]
-
         Aeson.toJSON scope `shouldBe` Aeson.toJSON (liveUpdateScopeToWire scope)
         Aeson.toJSON fragment `shouldBe` Aeson.toJSON (liveUpdateWireFragmentToWire fragment)
         Aeson.toJSON message
             `shouldBe`
                 Aeson.toJSON
                     (Wire.Invalidate (liveUpdateScopeToWire scope) (liveUpdateScopeKey scope) 6 [liveUpdateWireFragmentToWire fragment] (Just "client-1"))
-        Aeson.decode (Aeson.encode surface) `shouldBe` Just surface
 
     it "round-trips roster, admin, leave, timesheet, and support scopes through JSON" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
@@ -320,64 +312,9 @@ tests = describe "LiveUpdate runtime types" do
     it "declares live authorization requirements at the surface boundary" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
 
-        defaultLiveUpdateScopeAuthorizationRequirement supportPlatformLiveScope `shouldBe` RequireSupportSuperAdmin
-        defaultLiveUpdateScopeAuthorizationRequirement (adminXeroLiveScope venueId) `shouldBe` RequireCurrentVenueOwner venueId
         frontendSurfaceScopeAuthorizationRequirement supportPlatformLiveScope `shouldBe` Just (Just RequireSupportSuperAdmin)
         frontendSurfaceScopeAuthorizationRequirement (adminXeroLiveScope venueId) `shouldBe` Just (Just (RequireCurrentVenueOwner venueId))
         frontendSurfaceScopeAuthorizationRequirement (timesheetWeekLiveScope venueId 0) `shouldBe` Just (Just (RequireCurrentVenue venueId))
-
-    it "round-trips leave, timesheet, and protected roster surface configs through JSON" do
-        let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
-        let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
-        let surfaces =
-                [ testLiveSurfaceConfig
-                    "leave-requests"
-                    (leaveRequestsLiveScope venueId)
-                    [ LiveUpdateWireFragment
-                        { fragmentKey = leaveRequestsContentLiveFragment
-                        , targetId = "leave-requests-content"
-                        , url = "/ShowleaveRequestsContentLiveFragment"
-                        , deferUntilBlur = False
-                        , protectionPolicy = NoProtection
-                        }
-                    ]
-                , testLiveSurfaceConfig
-                    "timesheets"
-                    (timesheetWeekLiveScope venueId 1)
-                    [ LiveUpdateWireFragment
-                        { fragmentKey = timesheetDaySectionLiveFragment 2
-                        , targetId = "timesheet-day-2"
-                        , url = "/ShowTimesheetDaySectionFragment?weekOffset=1&dayOffset=2"
-                        , deferUntilBlur = False
-                        , protectionPolicy = NoProtection
-                        }
-                    ]
-                , testLiveSurfaceConfig
-                    "roster"
-                    (rosterWeekLiveScope venueId rosterGroupId 0)
-                    [ LiveUpdateWireFragment
-                        { fragmentKey = rosterContentLiveFragment
-                        , targetId = "roster-content"
-                        , url = "/ShowRosterWeekContentFragment?weekOffset=0"
-                        , deferUntilBlur = False
-                        , protectionPolicy = NoProtection
-                        }
-                    ]
-                ]
-
-        forM_ surfaces \surface ->
-            Aeson.decode (LBS.fromStrict (cs (liveSurfaceConfigJson surface))) `shouldBe` Just surface
-
-testLiveSurfaceConfig :: Text -> LiveUpdateScope -> [LiveUpdateWireFragment] -> LiveSurfaceConfig
-testLiveSurfaceConfig feature scope resyncFragments =
-    LiveSurfaceConfig
-        { feature
-        , socketPath = "/live-updates"
-        , scope
-        , scopeKey = liveUpdateScopeKey scope
-        , resyncFragments
-        , decorateRequestsWithin = []
-        }
 
 supportAwardRatesSectionFragmentRef :: LiveUpdateWireFragment
 supportAwardRatesSectionFragmentRef =

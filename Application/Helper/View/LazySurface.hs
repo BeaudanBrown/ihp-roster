@@ -1,31 +1,18 @@
 module Application.Helper.View.LazySurface
-    ( lazyFragmentPlaceholderCustom
+    ( LazyFragmentConfig (..)
+    , lazyFragmentPlaceholderCustom
     , lazyFragmentPlaceholderList
     , lazyFragmentPlaceholderPanel
     , lazyFragmentPlaceholderSpinner
     , lazyFragmentPlaceholderTable
     , lazySurfacePlaceholderRootClasses
-    , renderLazyLiveFragmentMount
     , renderLazySurfacePlaceholder
     , renderLazySurfacePlaceholderBody
     , renderLazySurfacePlaceholderWithCustom
-    , renderLiveSurfaceFragmentMount
-    , renderLiveSurfaceFragmentMountWithPlaceholder
     ) where
 
-import Application.Helper.LiveSurface (FragmentContract (..),
-                                       FragmentLoadPolicy (..),
-                                       LazyFragmentConfig (..),
-                                       SurfaceFragmentRef,
-                                       TypedLiveSurfaceDefinition (..),
-                                       lazyFragmentPlaceholderCustom,
-                                       lazyFragmentPlaceholderList,
-                                       lazyFragmentPlaceholderPanel,
-                                       lazyFragmentPlaceholderSpinner,
-                                       lazyFragmentPlaceholderTable,
-                                       surfaceFragmentRefTargetId,
-                                       surfaceFragmentRefUrl)
 import Application.Helper.UiRegion (UiRegionDomAttributes (..),
+                                    UiRegionTransitionProfile (..),
                                     canonicalUiRegionDomAttributes,
                                     uiRegionFragmentEnabledValue,
                                     uiRegionTransitionProfileText)
@@ -35,55 +22,30 @@ import qualified Text.Blaze.Html as Blaze
 import Text.Blaze.Html ((!))
 import qualified Text.Blaze.Html5 as Html5
 
-renderLiveSurfaceFragmentMount ::
-    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
-    scope ->
-    fragment ->
-    Blaze.Html ->
-    Blaze.Html
-renderLiveSurfaceFragmentMount definition scope fragment eagerHtml =
-    renderLiveSurfaceFragmentMountWithPlaceholder definition scope fragment mempty eagerHtml
+data LazyFragmentConfig = LazyFragmentConfig
+    { lazyFragmentTrigger         :: !Text
+    , lazyFragmentPlaceholderKind :: !Text
+    , lazyFragmentAccessibleLabel :: !Text
+    , lazyFragmentClasses         :: ![Text]
+    , lazyFragmentDelayMs         :: !(Maybe Int)
+    , lazyFragmentTransition      :: !UiRegionTransitionProfile
+    }
+    deriving (Eq, Show)
 
-renderLiveSurfaceFragmentMountWithPlaceholder ::
-    TypedLiveSurfaceDefinition surface scope fragment layer session intent ->
-    scope ->
-    fragment ->
-    Blaze.Html ->
-    Blaze.Html ->
-    Blaze.Html
-renderLiveSurfaceFragmentMountWithPlaceholder definition scope fragment placeholderHtml eagerHtml =
-    case contract.fragmentContractLoadPolicy of
-        FragmentEager -> eagerHtml
-        FragmentLazy config -> renderLazyLiveFragmentMountWithPlaceholder config contract.fragmentContractRef placeholderHtml
-    where
-        contract = definition.typedSurfaceFragmentContract scope fragment
+lazyFragmentPlaceholderPanel :: Text
+lazyFragmentPlaceholderPanel = "panel"
 
-renderLazyLiveFragmentMount :: LazyFragmentConfig -> SurfaceFragmentRef surface -> Blaze.Html
-renderLazyLiveFragmentMount config fragmentRef =
-    renderLazyLiveFragmentMountWithPlaceholder config fragmentRef mempty
+lazyFragmentPlaceholderTable :: Text
+lazyFragmentPlaceholderTable = "table"
 
-renderLazyLiveFragmentMountWithPlaceholder :: LazyFragmentConfig -> SurfaceFragmentRef surface -> Blaze.Html -> Blaze.Html
-renderLazyLiveFragmentMountWithPlaceholder config fragmentRef placeholderHtml =
-    Html5.div
-        ! attr "id" (surfaceFragmentRefTargetId fragmentRef)
-        ! attr "class" (lazySurfacePlaceholderRootClasses config)
-        ! attr canonicalUiRegionDomAttributes.uiRegionFragmentAttribute uiRegionFragmentEnabledValue
-        ! attr canonicalUiRegionDomAttributes.uiRegionLazySurfaceAttribute uiRegionFragmentEnabledValue
-        ! attr canonicalUiRegionDomAttributes.uiRegionLazyFragmentAttribute (surfaceFragmentRefTargetId fragmentRef)
-        ! attr canonicalUiRegionDomAttributes.uiRegionLazyRetryAttribute uiRegionFragmentEnabledValue
-        ! attr canonicalUiRegionDomAttributes.uiRegionTransitionAttribute (uiRegionTransitionProfileText config.lazyFragmentTransition)
-        ! attr "hx-get" (surfaceFragmentRefUrl fragmentRef)
-        ! attr "hx-trigger" (lazySurfaceHtmxTrigger config)
-        ! attr "hx-target" "this"
-        ! attr "hx-swap" "outerHTML"
-        ! attr "hx-push-url" "false"
-        ! attr "role" "status"
-        ! attr "aria-live" "polite"
-        ! attr "aria-busy" "true"
-        ! attr "aria-label" config.lazyFragmentAccessibleLabel
-        $ do
-            Html5.span ! attr "class" "visually-hidden" $ Html5.toHtml config.lazyFragmentAccessibleLabel
-            renderLazySurfacePlaceholderBody config placeholderHtml
+lazyFragmentPlaceholderList :: Text
+lazyFragmentPlaceholderList = "list"
+
+lazyFragmentPlaceholderSpinner :: Text
+lazyFragmentPlaceholderSpinner = "spinner"
+
+lazyFragmentPlaceholderCustom :: Text
+lazyFragmentPlaceholderCustom = "custom"
 
 renderLazySurfacePlaceholder :: LazyFragmentConfig -> Blaze.Html
 renderLazySurfacePlaceholder config =

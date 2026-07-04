@@ -164,29 +164,6 @@ export function encodeLiveUpdateWireFragment(value: LiveUpdateWireFragment): Liv
 }
 
 
-export type LiveSurfaceConfig = {
-    feature: string;
-    socketPath: string;
-    scope: LiveUpdateScope;
-    scopeKey: string;
-    resyncFragments: LiveUpdateWireFragment[];
-    decorateRequestsWithin: string[];
-};
-
-export function isLiveSurfaceConfig(value: unknown): value is LiveSurfaceConfig {
-    return __isLiveUpdateScopeExactRecord(value, ["feature", "socketPath", "scope", "scopeKey", "resyncFragments", "decorateRequestsWithin"], []) && (typeof value["feature"] === "string") && (typeof value["socketPath"] === "string") && (isLiveUpdateScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (Array.isArray(value["resyncFragments"]) && value["resyncFragments"].every((item) => isLiveUpdateWireFragment(item))) && (Array.isArray(value["decorateRequestsWithin"]) && value["decorateRequestsWithin"].every((item) => typeof item === "string"));
-}
-
-export function parseLiveSurfaceConfig(value: unknown): LiveSurfaceConfig {
-    if (isLiveSurfaceConfig(value)) return value;
-    throw new Error("Invalid LiveSurfaceConfig");
-}
-
-export function encodeLiveSurfaceConfig(value: LiveSurfaceConfig): LiveSurfaceConfig {
-    return value;
-}
-
-
 export type LiveUpdateSubscription = {
     scope: LiveUpdateScope;
     scopeKey: string;

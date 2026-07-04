@@ -29,10 +29,9 @@ websocket controllers, and `static/app-live-updates.js`.
 ## Surface Declaration
 
 For the step-by-step checklist and glossary used when adding a fragment, see
-`Application/Helper/LiveSurface.COOKBOOK.md`. For new type-level surface
-authoring, see `Application/Helper/FrontendSurface/README.md`. For typed
-disposable layers, intent forms, generated browser contracts, and live-fragment
-conflict policy, see `Application/Helper/Interaction.SPEC.md`.
+`Application/Helper/FrontendSurface/README.md`. For typed disposable layers,
+intent fields, generated browser contracts, and live-fragment conflict policy,
+see `Application/Helper/Interaction.SPEC.md`.
 
 Declarative UI region capabilities are a browser-facing layer on top of
 server-owned fragments. Haskell owns the allowed `data-bepis-*` names,
@@ -43,12 +42,11 @@ thin: it translates raw HTMX events into Bepis region events only for
 `data-bepis-fragment="true"` roots, and downstream lazy/retry/transition code is
 parameterized by those server-rendered attrs.
 
-New production live surfaces must be declared with a type-level
-`FrontendSurface` spec in `Application.Helper.FrontendSurface.Registry` and
-rendered with `SurfaceImpl` helpers as `data-bepis-surface` plus
-`data-bepis-surface-config`. `Application.Helper.LiveSurface.TypedLiveSurfaceDefinition`
-and `data-live-update-surface` remain compatibility vocabulary for shared
-internals/tests only; do not use them as the feature-authoring path.
+Production live surfaces must be declared with a type-level `FrontendSurface`
+spec in `Application.Helper.FrontendSurface.Registry` and rendered with
+`SurfaceImpl` helpers as `data-bepis-surface` plus
+`data-bepis-surface-config`. The old typed-live-surface compatibility layer and
+legacy `data-live-update-surface` mount format have been removed.
 
 A surface owns:
 
@@ -76,17 +74,15 @@ recursively reconcile child/grandchild lifecycles after page loads and swaps:
 new mounts initialize, removed mounts dispose, and websocket subscriptions remain
 the union of currently mounted surface scopes.
 
-Each fragment is declared through `typedSurfaceFragmentContract`, usually by
-building a `FragmentContract` with `mkSurfaceFragmentContract`. The contract is
-the single source for the fragment ref (`targetId`, URL, protection policy, and
-containment path), dependency intent, and load policy. Fragments are eager by
-default. Use `liveFragmentDescriptorWithLazyLoad` on descriptor-based surfaces or
-`fragmentContractWithLazyLoad` on hand-written typed definitions when a
-secondary expensive fragment should render a shared lazy placeholder first and
-fetch the same authoritative GET URL on demand. Use `liveFragmentDependsOn` when
-a fragment is passively invalidated by semantic `SurfaceResourceValue` changes, and use
-`liveFragmentResyncOnly` only for fragments that have no passive resource
-subscription and are refreshed by resync or actor paths.
+Each live fragment declares invalidation intent in the type-level
+`FrontendSurface` spec with `DependsOn` or `ResyncOnly`. `SurfaceImpl` handlers
+materialize the mounted fragment target id, URL, protection policy, and load
+policy for the current request. Fragments are eager by default; lazy fragments
+use the mounted-fragment load policy plus the shared lazy placeholder helpers.
+Use `DependsOn` when a fragment is passively invalidated by semantic
+`SurfaceResourceValue` changes, and use `ResyncOnly` only for fragments that
+have no passive resource subscription and are refreshed by resync or actor
+paths.
 
 `SurfaceResourceValue` declares what business data changed. FrontendSurface dependency
 contracts declare which fragments read those resources. The dependency planner
@@ -102,23 +98,18 @@ describe how the browser refetches and swaps HTML.
 
 The wire-fragment transport boundary is isolated behind
 `Application.Helper.LiveUpdate.Runtime`, `Application.Helper.LiveUpdate.Internal`,
-`Application.Helper.LiveSurface.Internal`, and the migrated
-`Application.Helper.FrontendSurface.Runtime` bridge. Browser wire DTOs live in
+and `Application.Helper.FrontendSurface.Runtime`. Browser wire DTOs live in
 `Application.Helper.Frontend.Dto.LiveUpdate` plus generated FrontendSurface
 contracts and provide TypeScript types, guards, `parseX`, and `encodeX` helpers
 consumed by the runtime. Feature modules should keep fragment enums
 feature-local and cross the typed-to-wire boundary only through strict helpers.
-For migrated surfaces that means `SurfaceImpl`/`renderFrontendSurfaceMount` and
-mount-local fragment/action/intent handlers. Legacy helpers such as
-`mkSurfaceFragmentRef`, `mkSurfaceFragmentContract`, `mkTypedDefinedLiveSurface`,
-`typedLiveSurfaceFragmentRef(s)`, `serveTypedLiveFragment`, and
-`respondWithTypedLiveSurfaceFragments` are compatibility internals for remaining
-shared code/tests, not the path for new production features. The runtime no
-longer keeps feature-facing broadcast or typed mutation helpers.
+Feature modules cross the surface-to-wire boundary through
+`SurfaceImpl`/`renderFrontendSurfaceMount` and mount-local fragment/action/intent
+handlers. The runtime no longer keeps feature-facing broadcast, typed-live
+compatibility, or typed mutation helpers.
 
 Actor responses and passive live updates should use one fragment model with
-multiple triggers. A feature-local fragment enum and either a migrated
-`SurfaceImpl` or a legacy `TypedLiveSurfaceDefinition` names the fragments once;
+multiple triggers. A feature-local fragment enum and `SurfaceImpl` name the fragments once;
 successful actor HTMX responses render selected fragments immediately as OOB
 swaps, while passive viewers receive structural invalidations and refetch the
 same fragments through their GET endpoints. Actor responses may append extras
@@ -272,7 +263,7 @@ transport runtime, and actor-only response helpers:
   fragments into raw transport invalidations
 - `Application.Helper.LiveUpdate.Runtime` owns the transport bus and raw
   websocket invalidation primitives
-- controllers may call `setTypedLiveSurfaceActorRefresh` or helpers that only
+- controllers may call FrontendSurface actor refresh helpers that only
   set actor refresh headers for the requester
 - background jobs should call the touched-resource invalidation boundary, such
   as `invalidateTouchedResourcesWithoutContext`, when passive viewers need updates

@@ -8,7 +8,7 @@ module Web.RosterWeeks.Responses
     , respondWithRosterToast
     ) where
 
-import Application.Helper.LiveSurface (FragmentRenderMode (..))
+import Application.Helper.FrontendSurface.FragmentRender (FragmentRenderMode (..))
 import Application.Helper.Profiling (respondHtmlProfiled)
 import Application.Helper.RosterGroups (fetchCurrentVenueRosterGroupOrDefault,
                                         fetchCurrentVenueRosterGroups)

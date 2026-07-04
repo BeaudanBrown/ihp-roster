@@ -1,4 +1,4 @@
-import { encodeLiveSurfaceConfig, isLiveUpdateMessage, isLiveUpdateWireFragment, parseLiveSurfaceConfig } from "../generated/contracts";
+import { isLiveUpdateMessage, isLiveUpdateWireFragment } from "../generated/contracts";
 import {
     frontendSurfaceInstanceId,
     parseFrontendSurfaceSubscriptionConfig,
@@ -6,7 +6,7 @@ import {
     scanFrontendSurfaceMountInstances,
     type FrontendSurfaceMountedInstance,
 } from "../live-updates/frontend-surface";
-import { assertDeepEqual, assertEqual, assertThrows, test } from "./harness";
+import { assertDeepEqual, assertEqual, test } from "./harness";
 
 const validFragment = {
     fragmentKey: { surface: "timesheets", kind: "timesheet-toolbar", params: null },
@@ -17,15 +17,6 @@ const validFragment = {
 };
 
 const validScope = { surface: "timesheets", scope: { venueId: "venue-1", weekOffset: 0 } };
-
-const validSurfaceConfig = {
-    feature: "timesheets",
-    scope: validScope,
-    scopeKey: "timesheets:venue-1:0",
-    socketPath: "/custom-live",
-    resyncFragments: [validFragment],
-    decorateRequestsWithin: ["form"],
-};
 
 function withSurfaceSubscription(config: any, scopeFields: unknown) {
     return {
@@ -45,16 +36,6 @@ function withSurfaceSubscription(config: any, scopeFields: unknown) {
         },
     };
 }
-
-test("generated parse helpers reject unknown input and encode helpers preserve JSON-shaped DTOs", () => {
-    const config = parseLiveSurfaceConfig(validSurfaceConfig);
-
-    assertDeepEqual(encodeLiveSurfaceConfig(config), validSurfaceConfig);
-    assertThrows(
-        () => parseLiveSurfaceConfig({ ...validSurfaceConfig, scope: { surface: 42, scope: {} } }),
-        "Invalid LiveSurfaceConfig",
-    );
-});
 
 test("FrontendSurface config parser derives Timesheets live subscriptions from mounted fragments", () => {
     const config = parseFrontendSurfaceSubscriptionConfig(withSurfaceSubscription({

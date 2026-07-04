@@ -3,7 +3,7 @@
 `Application.Helper.FrontendSurface` owns the type-level surface contract system
 for server-rendered interactive surfaces. New production surfaces should use this
 path instead of authoring `FrontendCodec` DTO schema groups,
-`TypedLiveSurfaceDefinition`, `Web.SurfaceInvalidation` entries, or a shared
+`Web.SurfaceInvalidation` entries, or a shared
 projection cache.
 
 ## Source Of Truth
@@ -106,7 +106,7 @@ checks after adding markers.
 
 Every migrated surface supplies runtime behavior through
 `Application.Helper.FrontendSurface.Runtime.SurfaceImpl spec`. `SurfaceImpl`
-replaces feature-facing `TypedLiveSurfaceDefinition` for migrated surfaces.
+is the feature-facing runtime for surfaces.
 
 Use `mkSurfaceImpl` with typed handler lists:
 
@@ -207,8 +207,8 @@ field names, surface names, or mutation endpoints.
 ## Authoring Rules
 
 Production feature surfaces have migrated to the `FrontendSurface` path. Do not
-start new production work with `TypedLiveSurfaceDefinition`,
-`data-live-update-surface`, `serveTypedLiveFragment`, handwritten
+start new production work with deleted typed-live compatibility concepts,
+legacy mount attributes, handwritten
 live-surface manifest DTOs, legacy registry/catalog adapters, or a shared
 `SurfaceProjection` cache. Feature-facing authoring uses
 type-level specs plus `SurfaceImpl`.

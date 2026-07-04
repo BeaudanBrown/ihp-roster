@@ -4,7 +4,6 @@ module Application.Helper.Frontend.Dto.LiveUpdate
     ( FocusedFieldProtectionConfig (..)
     , LiveFragmentKey (..)
     , LiveFragmentProtection (..)
-    , LiveSurfaceConfig (..)
     , LiveUpdateCommand (..)
     , LiveUpdateMessage (..)
     , LiveUpdateScope (..)
@@ -105,16 +104,6 @@ data LiveUpdateMessage
         }
     deriving (Eq, Show, Generic)
 
-data LiveSurfaceConfig = LiveSurfaceConfig
-    { feature                :: !Text
-    , socketPath             :: !Text
-    , scope                  :: !LiveUpdateScope
-    , scopeKey               :: !Text
-    , resyncFragments        :: ![LiveUpdateWireFragment]
-    , decorateRequestsWithin :: ![Text]
-    }
-    deriving (Eq, Show, Generic)
-
 jsonValueSchema :: FrontendSchema
 jsonValueSchema = SchemaUnknown
 
@@ -165,11 +154,6 @@ instance HasFrontendCodec LiveFragmentProtection where
 instance HasFrontendCodec LiveUpdateWireFragment where
     frontendCodec = genericFrontendCodecWith defaultFrontendCodecOptions
         { frontendTypeNameOverride = Just "LiveUpdateWireFragment"
-        }
-
-instance HasFrontendCodec LiveSurfaceConfig where
-    frontendCodec = genericFrontendCodecWith defaultFrontendCodecOptions
-        { frontendTypeNameOverride = Just "LiveSurfaceConfig"
         }
 
 instance HasFrontendCodec LiveUpdateSubscription where
@@ -237,8 +221,3 @@ instance Aeson.ToJSON LiveUpdateMessage where
 instance Aeson.FromJSON LiveUpdateMessage where
     parseJSON = parseFrontend (frontendCodec @LiveUpdateMessage)
 
-instance Aeson.ToJSON LiveSurfaceConfig where
-    toJSON = encodeFrontend (frontendCodec @LiveSurfaceConfig)
-
-instance Aeson.FromJSON LiveSurfaceConfig where
-    parseJSON = parseFrontend (frontendCodec @LiveSurfaceConfig)

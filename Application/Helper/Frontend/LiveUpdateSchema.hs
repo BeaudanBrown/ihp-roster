@@ -4,7 +4,6 @@ module Application.Helper.Frontend.LiveUpdateSchema
     ( FocusedFieldProtectionConfig (..)
     , LiveFragmentKey (..)
     , LiveFragmentProtection (..)
-    , LiveSurfaceConfig (..)
     , LiveUpdateCommand (..)
     , LiveUpdateMessage (..)
     , LiveUpdateScope (..)
@@ -30,7 +29,6 @@ liveUpdateSchemaDeclaration =
             , someFrontendCodec @LiveFragmentKey
             , someFrontendCodec @LiveFragmentProtection
             , someFrontendCodec @LiveUpdateWireFragment
-            , someFrontendCodec @LiveSurfaceConfig
             , someFrontendCodec @LiveUpdateSubscription
             , someFrontendCodec @LiveUpdateCommand
             , someFrontendCodec @LiveUpdateMessage

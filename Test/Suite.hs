@@ -42,10 +42,8 @@ import qualified Test.FrontendSurfaceDslSpec
 import qualified Test.FrontendSurfaceGhcSpec
 import qualified Test.FrontendSurfaceNamingSpec
 import qualified Test.FwcMapdSyncSpec
-import qualified Test.InteractionSpec
 import qualified Test.LiveSurfaceDependencySpec
 import qualified Test.LiveSurfaceGuardSpec
-import qualified Test.LiveSurfaceSpec
 import qualified Test.LiveUpdateSpec
 import qualified Test.MailSpec
 import qualified Test.MutationBoundarySpec
@@ -187,13 +185,11 @@ allSuites =
     , TestSuite "FrontendSurfaceNaming" Test.FrontendSurfaceNamingSpec.tests
     , TestSuite "FrontendSurfaceDSL" Test.FrontendSurfaceDslSpec.tests
     , TestSuite "FrontendSurfaceGHC" Test.FrontendSurfaceGhcSpec.tests
-    , TestSuite "Interaction" Test.InteractionSpec.tests
     , TestSuite "LiveUpdate" Test.LiveUpdateSpec.tests
     , TestSuite "SurfaceResource" Test.SurfaceResourceSpec.tests
     , TestSuite "SurfaceInvalidation" Test.SurfaceInvalidationSpec.tests
     , TestSuite "LiveSurfaceDependency" Test.LiveSurfaceDependencySpec.tests
     , TestSuite "LiveSurfaceGuard" Test.LiveSurfaceGuardSpec.tests
-    , TestSuite "LiveSurface" Test.LiveSurfaceSpec.tests
     , TestSuite "Mail" Test.MailSpec.tests
     , TestSuite "MutationBoundary" Test.MutationBoundarySpec.tests
     , TestSuite "XeroContract" Test.XeroContractSpec.tests

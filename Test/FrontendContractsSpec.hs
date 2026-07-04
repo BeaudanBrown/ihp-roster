@@ -193,13 +193,13 @@ tests = describe "Frontend contract generator foundation" do
             rendered `shouldSatisfy` Text.isInfixOf "value === \"get\" || value === \"post\""
 
         it "renders records, arrays, nullable fields, nested refs, and exact object guards" do
-            let config = ExampleLiveSurfaceConfig
+            let config = ExampleSurfaceConfig
                     { exampleFeature = "roster"
                     , exampleScope = ExampleRosterWeek "venue-1" 0
                     , exampleFragments = ["roster_content"]
                     , exampleProtection = Just (ExampleLiveFragmentProtection "input:focus")
                     }
-            encodeFrontend liveSurfaceConfigCodec config `shouldBe` Aeson.object
+            encodeFrontend surfaceConfigCodec config `shouldBe` Aeson.object
                 [ "feature" Aeson..= ("roster" :: Text)
                 , "scope" Aeson..= Aeson.object
                     [ "kind" Aeson..= ("roster_week" :: Text)
@@ -213,9 +213,9 @@ tests = describe "Frontend contract generator foundation" do
             rendered <- renderShouldSucceed
                 [ SomeFrontendCodec liveUpdateScopeCodec
                 , SomeFrontendCodec liveFragmentProtectionCodec
-                , SomeFrontendCodec liveSurfaceConfigCodec
+                , SomeFrontendCodec surfaceConfigCodec
                 ]
-            rendered `shouldSatisfy` Text.isInfixOf "export type LiveSurfaceConfig = {"
+            rendered `shouldSatisfy` Text.isInfixOf "export type SurfaceConfig = {"
             rendered `shouldSatisfy` Text.isInfixOf "scope: LiveUpdateScope;"
             rendered `shouldSatisfy` Text.isInfixOf "fragments: string[];"
             rendered `shouldSatisfy` Text.isInfixOf "protection: LiveFragmentProtection | null;"
@@ -254,16 +254,13 @@ tests = describe "Frontend contract generator foundation" do
             let subscription = Live.LiveUpdateSubscription scope "timesheets:venue-1:4" [fragment]
             let command = Live.Subscribe subscription "client-1" (Just 9)
             let message = Live.Invalidate scope "timesheets:venue-1:4" 10 [fragment] (Just "client-2")
-            let config = Live.LiveSurfaceConfig "timesheets" "/live-updates" scope "timesheets:venue-1:4" [fragment] ["#timesheet-week-shell"]
 
             Aeson.eitherDecode (Aeson.encode command) `shouldBe` Right command
             Aeson.eitherDecode (Aeson.encode message) `shouldBe` Right message
-            Aeson.eitherDecode (Aeson.encode config) `shouldBe` Right config
+            Aeson.eitherDecode (Aeson.encode subscription) `shouldBe` Right subscription
 
             let encodedCommandText = TextEncoding.decodeUtf8 (LBS.toStrict (Aeson.encode command))
-            let encodedConfigText = TextEncoding.decodeUtf8 (LBS.toStrict (Aeson.encode config))
             encodedCommandText `shouldSatisfy` Text.isInfixOf "\"type\""
-            encodedConfigText `shouldSatisfy` Text.isInfixOf "\"resyncFragments\""
 
         it "rejects duplicate top-level codec names" do
             renderFrontendContracts [SomeFrontendCodec htmxMethodCodec, SomeFrontendCodec htmxMethodCodec]
@@ -387,7 +384,7 @@ liveFragmentProtectionCodec = FrontendCodec
         ExampleLiveFragmentProtection <$> object Aeson..: "activeSelector"
     }
 
-data ExampleLiveSurfaceConfig = ExampleLiveSurfaceConfig
+data ExampleSurfaceConfig = ExampleSurfaceConfig
     { exampleFeature    :: !Text
     , exampleScope      :: !ExampleLiveUpdateScope
     , exampleFragments  :: ![Text]
@@ -395,10 +392,10 @@ data ExampleLiveSurfaceConfig = ExampleLiveSurfaceConfig
     }
     deriving (Eq, Show)
 
-liveSurfaceConfigCodec :: FrontendCodec ExampleLiveSurfaceConfig
-liveSurfaceConfigCodec = FrontendCodec
-    { codecName = Just "LiveSurfaceConfig"
-    , codecSchema = SchemaRecord "LiveSurfaceConfig"
+surfaceConfigCodec :: FrontendCodec ExampleSurfaceConfig
+surfaceConfigCodec = FrontendCodec
+    { codecName = Just "SurfaceConfig"
+    , codecSchema = SchemaRecord "SurfaceConfig"
         [ FrontendField "feature" SchemaString
         , FrontendField "scope" (SchemaRef "LiveUpdateScope")
         , FrontendField "fragments" (SchemaArray SchemaString)
@@ -411,8 +408,8 @@ liveSurfaceConfigCodec = FrontendCodec
         , "fragments" Aeson..= config.exampleFragments
         , "protection" Aeson..= maybe Aeson.Null (encodeFrontend liveFragmentProtectionCodec) config.exampleProtection
         ]
-    , codecParse = Aeson.withObject "LiveSurfaceConfig" \object ->
-        ExampleLiveSurfaceConfig
+    , codecParse = Aeson.withObject "SurfaceConfig" \object ->
+        ExampleSurfaceConfig
             <$> object Aeson..: "feature"
             <*> (object Aeson..: "scope" >>= parseFrontend liveUpdateScopeCodec)
             <*> object Aeson..: "fragments"

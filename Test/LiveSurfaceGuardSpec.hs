@@ -24,10 +24,6 @@ tests = describe "LiveSurface strict API guard" do
         violations <- concat <$> forM files textBackedFragmentSelectorsInFile
         violations `shouldBe` []
 
-    it "keeps simple descriptor-backed surfaces off the raw record constructor" do
-        violations <- concat <$> forM simpleDescriptorBackedSurfaceFiles rawTypedSurfaceConstructorsInFile
-        violations `shouldBe` []
-
     it "keeps the legacy live surface registry adapter deleted" do
         violations <- legacyRegistryAdapterViolations
         violations `shouldBe` []
@@ -82,14 +78,6 @@ rawInteractionAttributesInFile path = do
         [ cs path <> ":" <> tshow lineNumber <> ": raw data-bepis-* interaction attribute"
         | (lineNumber, line) <- zip [(1 :: Int)..] (Text.lines source)
         , "data-bepis-" `Text.isInfixOf` line
-        ]
-
-rawTypedSurfaceConstructorsInFile :: FilePath -> IO [Text]
-rawTypedSurfaceConstructorsInFile path = do
-    source <- Text.readFile path
-    pure
-        [ cs path <> ": raw TypedLiveSurfaceDefinition constructor in simple descriptor-backed surface"
-        | "TypedLiveSurfaceDefinition\n        {" `Text.isInfixOf` source
         ]
 
 textBackedFragmentSelectorsInFile :: FilePath -> IO [Text]
@@ -167,15 +155,6 @@ isIdentifierChar :: Char -> Bool
 isIdentifierChar value =
     value == '_' || value == '\'' || ('a' <= value && value <= 'z') || ('A' <= value && value <= 'Z') || ('0' <= value && value <= '9')
 
-simpleDescriptorBackedSurfaceFiles :: [FilePath]
-simpleDescriptorBackedSurfaceFiles =
-    [ "Web/View/Admin/Exports.hs"
-    , "Web/View/Admin/Invites.hs"
-    , "Web/View/Admin/RosterGroups.hs"
-    , "Web/View/Admin/ShiftTypes.hs"
-    , "Web/View/Admin/VenueSettings.hs"
-    ]
-
 featureSourceFiles :: IO [FilePath]
 featureSourceFiles = do
     applicationFiles <- sourceFilesUnder "Application"
@@ -215,12 +194,13 @@ isAllowedInfrastructureFile path =
             , "Application/Helper/FrontendSurface/Naming.hs"
             , "Application/Helper/FrontendSurface/Runtime.hs"
             , "Application/Helper/Interaction.hs"
+            , "Application/Helper/View/LazySurface.hs"
             , "Application/Helper/Interaction/Types.hs"
             , "Application/Helper/LiveUpdate.hs"
             , "Application/Helper/LiveUpdate/Internal.hs"
             , "Application/Helper/LiveUpdate/Runtime.hs"
-            , "Application/Helper/LiveSurface.hs"
-            , "Application/Helper/LiveSurface/Internal.hs"
+            , "Application/Helper/FrontendSurface/AuthorizationRequirement.hs"
+            , "Application/Helper/FrontendSurface/FragmentRender.hs"
             , "Application/Helper/UiRegion.hs"
             , "Application/Script/ProfileLiveInvalidation.hs"
             , "Application/Support/LiveUpdates.hs"

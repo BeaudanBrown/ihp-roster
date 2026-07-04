@@ -2,18 +2,16 @@
 
 This living spec defines the implementation contract for typed disposable
 interaction surfaces. This is the durable contract for the seam shared by
-`Application.Helper.LiveSurface`, `Application.Helper.LiveUpdate`, Haskell view
-helpers, generated TypeScript contracts, and the generic browser runtime.
+`Application.Helper.FrontendSurface`, `Application.Helper.LiveUpdate`, Haskell
+view helpers, generated TypeScript contracts, and the generic browser runtime.
 
 ## Scope And Source Of Truth
 
 Server-rendered HTML remains authoritative. Interaction capability is optional
 metadata attached to the same typed surface origin. Migrated surfaces declare it
 in the type-level `FrontendSurface` spec and implement runtime form/fragment
-metadata through `SurfaceImpl`; still-legacy surfaces may attach it to
-`TypedLiveSurfaceDefinition` until they migrate. Existing surfaces should be
-representable with empty disposable-layer, intent, field-schema, and
-conflict-policy definitions.
+metadata through `SurfaceImpl`. Existing surfaces should be representable with
+empty disposable-layer, intent, field-schema, and conflict-policy definitions.
 
 Haskell owns the canonical definitions for:
 
@@ -238,7 +236,6 @@ change HTMX routes/targets/swaps, or mutate server-owned business DOM.
 The standard Haskell helper output is intentionally ordinary HTML/HTMX. For a
 mount key `primary`, a helper-rendered shell includes the live-update surface
 metadata plus interaction metadata on the same owner, e.g.
-`data-live-update-surface=...` for legacy mounts,
 `data-bepis-surface="..."`, `data-bepis-surface-config="..."`, and
 `data-bepis-mount-key="primary"`. `renderInteractionIntentForm` renders the
 server-owned `action`, `hx-post`/`hx-patch`/etc., `hx-trigger`, `hx-target`,

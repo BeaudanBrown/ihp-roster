@@ -5,10 +5,10 @@ module Application.Helper.FrontendSurface.Authorization
     ) where
 
 import qualified Application.Helper.Frontend.LiveUpdateSchema as Wire
+import Application.Helper.FrontendSurface.AuthorizationRequirement (SurfaceScopeAuthorizationRequirement (..),
+                                                                    authorizeSurfaceScopeRequirement)
 import qualified Application.Helper.FrontendSurface.ContractIR as SurfaceIR
 import Application.Helper.FrontendSurface.Reflect (reflectRegisteredFrontendSurfaces)
-import Application.Helper.LiveSurface (LiveScopeAuthorizationRequirement (..),
-                                       authorizeLiveScopeRequirement)
 import Application.Helper.LiveUpdate.Runtime
 import Control.Monad (guard)
 import qualified Data.Aeson as Aeson
@@ -30,12 +30,12 @@ authorizeFrontendSurfaceLiveScope scope =
     case frontendSurfaceScopeAuthorizationRequirement scope of
         Nothing                 -> pure False
         Just Nothing            -> pure True
-        Just (Just requirement) -> authorizeLiveScopeRequirement requirement
+        Just (Just requirement) -> authorizeSurfaceScopeRequirement requirement
 
 -- | Resolves generated FrontendSurface scope auth metadata to the existing
 -- business authorization requirement vocabulary. The outer Maybe is missing or
 -- malformed generated metadata/payload; the inner Maybe is explicit NoAuth.
-frontendSurfaceScopeAuthorizationRequirement :: LiveUpdateScope -> Maybe (Maybe LiveScopeAuthorizationRequirement)
+frontendSurfaceScopeAuthorizationRequirement :: LiveUpdateScope -> Maybe (Maybe SurfaceScopeAuthorizationRequirement)
 frontendSurfaceScopeAuthorizationRequirement scope = do
     (surfaceName, scopePayload) <- liveScopeSurfaceAndPayload scope
     surface <- find ((== surfaceName) . (.surfaceName)) reflectRegisteredFrontendSurfaces.contractSurfaces
@@ -121,7 +121,7 @@ liveScopeSurfaceAndPayload scope = do
     scopePayload <- Aeson.KeyMap.lookup "scope" object
     pure (surfaceName, scopePayload)
 
-requirementFor :: Text -> [Text] -> Aeson.Value -> Maybe LiveScopeAuthorizationRequirement
+requirementFor :: Text -> [Text] -> Aeson.Value -> Maybe SurfaceScopeAuthorizationRequirement
 requirementFor policy fields payload =
     case policy of
         "current-venue" -> RequireCurrentVenue <$> uuidField "venueId"
