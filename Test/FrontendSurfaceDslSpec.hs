@@ -196,6 +196,9 @@ tests = describe "FrontendSurface DSL foundation" do
         map (.htmxActionName) surface.surfaceHtmxActions `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot"]
         map (.intentName) surface.surfaceIntents `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot"]
         surface.surfaceSessions `shouldBe` ["drag"]
+        map (.sourceRefName) surface.surfaceSourceRefs `shouldBe` ["drag-source"]
+        map (.dropzoneRefName) surface.surfaceDropzoneRefs `shouldBe` ["drag-dropzone"]
+        map (.activationRefName) surface.surfaceActivationRefs `shouldBe` ["roster-layout-mode-activation"]
         surface.surfaceLayers `shouldBe` ["drag-preview"]
         map fst surface.surfaceEffects `shouldBe` ["clone-shadow", "dropzone-highlight"]
         map (.conflictPolicyResolution) surface.surfacePolicies `shouldBe` [DeferIR]
@@ -207,6 +210,12 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterIntentName = \"set-roster-layout-mode\" | \"move-roster-shift-to-slot\";"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type MoveRosterShiftToSlotIntentFields = { sourceItemKey: string; targetDropzoneKey: string; sessionKind?: string; pointerId?: string; pointerType?: string; startClientX?: string; startClientY?: string; currentClientX?: string; currentClientY?: string; deltaX?: string; deltaY?: string };"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterSessionName = \"drag\";"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterSourceRef = \"drag-source\";"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterDropzoneRef = \"drag-dropzone\";"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterActivationRef = \"roster-layout-mode-activation\";"
+        frontendSurfaceContractsTypeScript `shouldContainText` "interaction: { sourceRefs: [{ ref: \"drag-source\", session: \"drag\", intent: \"move-roster-shift-to-slot\", sourceField: \"sourceItemKey\" }]"
+        frontendSurfaceContractsTypeScript `shouldContainText` "dropzoneRefs: [{ ref: \"drag-dropzone\", session: \"drag\", targetField: \"targetDropzoneKey\" }]"
+        frontendSurfaceContractsTypeScript `shouldContainText` "activationRefs: [{ ref: \"roster-layout-mode-activation\", intent: \"set-roster-layout-mode\", valueField: \"rosterLayoutMode\", trigger: \"click\" }]"
         frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterSurfaceManifest"
 
     it "reports stable diagnostics for malformed reflected specs" do
@@ -222,6 +231,7 @@ tests = describe "FrontendSurface DSL foundation" do
         let sourceTypeMismatch = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[ResourceSourceTypeMismatchSurface]))
         let duplicateResourceSource = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[DuplicateResourceSourceSurface]))
         let conflictingResources = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[DuplicateResourceSurfaceA, DuplicateResourceSurfaceB]))
+        let invalidInteractionRef = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[InvalidInteractionRefSurface]))
 
         diagnosticMessages duplicateFields `shouldContain` ["surface duplicate has duplicate scope field panelId"]
         diagnosticMessages missingReference `shouldContain` ["htmx action bad references missing fragment missing on surface missing-reference"]
@@ -235,6 +245,8 @@ tests = describe "FrontendSurface DSL foundation" do
         diagnosticMessages sourceTypeMismatch `shouldContain` ["surface resource-source-type-mismatch fragment bad dependency mismatched-resource maps scope field venueId with incompatible wire type or presence"]
         diagnosticMessages duplicateResourceSource `shouldContain` ["surface duplicate-resource-source fragment bad dependency test-resource supplies resource field venueId more than once"]
         diagnosticMessages conflictingResources `shouldContain` ["conflicting shared declaration: resource test-resource"]
+        diagnosticMessages invalidInteractionRef `shouldContain` ["source ref bad references missing session missing-fragment on surface invalid-interaction-ref"]
+        diagnosticMessages invalidInteractionRef `shouldContain` ["source ref bad references missing intent field missingPayload for intent bad on surface invalid-interaction-ref"]
 
     it "constructs generated FrontendSurface resource values" do
         let venueId = fromMaybe (error "invalid UUID") (UUID.fromString "11111111-1111-1111-1111-111111111111")
@@ -289,6 +301,7 @@ data ResourceSourceTypeMismatch
 data DuplicateResourceSource
 data DuplicateResourceA
 data DuplicateResourceB
+data InvalidInteractionRef
 data MissingPayload
 data PanelId
 data StaffFilterId
@@ -402,6 +415,13 @@ type DuplicateResourceSurfaceB =
              , 'DependsOn ('Resource TestResource '[ Field VenueId 'WireText ])
                 '[ 'FromScope VenueId ]
              ]
+         ]
+
+type InvalidInteractionRefSurface =
+    Surface InvalidInteractionRef
+        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+         , Intent Bad '[ Field PanelId 'WireUUID ] '[]
+         , SourceRef Bad '[ 'SessionOption MissingFragment, 'Submits Bad, 'SourceField MissingPayload ]
          ]
 
 type SharedScopeA =

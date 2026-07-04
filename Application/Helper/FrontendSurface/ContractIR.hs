@@ -7,6 +7,9 @@ module Application.Helper.FrontendSurface.ContractIR
     , FragmentIR (..)
     , FragmentSelectorIR (..)
     , HtmxActionIR (..)
+    , InteractionActivationRefIR (..)
+    , InteractionDropzoneRefIR (..)
+    , InteractionSourceRefIR (..)
     , IntentIR (..)
     , MountStateIR (..)
     , OptionIR (..)
@@ -35,22 +38,25 @@ data SurfaceContractIR = SurfaceContractIR
     deriving (Eq, Show)
 
 data SurfaceIR = SurfaceIR
-    { surfaceMarker       :: !Text
-    , surfaceName         :: !Text
-    , surfaceScopes       :: ![ScopeIR]
-    , surfaceMountStates  :: ![MountStateIR]
-    , surfaceFragments    :: ![FragmentIR]
-    , surfaceHtmxActions  :: ![HtmxActionIR]
-    , surfaceIntents      :: ![IntentIR]
-    , surfaceSessions     :: ![Text]
-    , surfaceLayers       :: ![Text]
-    , surfaceEffects      :: ![(Text, [OptionIR])]
-    , surfacePolicies     :: ![ConflictPolicyIR]
-    , surfaceLoadPolicies :: ![Text]
-    , surfaceOverlayLanes :: ![Text]
-    , surfaceClientEvents :: ![(Text, [FieldIR])]
-    , surfaceDomTokens    :: ![Text]
-    , surfaceDtos         :: ![(Text, [FieldIR])]
+    { surfaceMarker         :: !Text
+    , surfaceName           :: !Text
+    , surfaceScopes         :: ![ScopeIR]
+    , surfaceMountStates    :: ![MountStateIR]
+    , surfaceFragments      :: ![FragmentIR]
+    , surfaceHtmxActions    :: ![HtmxActionIR]
+    , surfaceIntents        :: ![IntentIR]
+    , surfaceSessions       :: ![Text]
+    , surfaceSourceRefs     :: ![InteractionSourceRefIR]
+    , surfaceDropzoneRefs   :: ![InteractionDropzoneRefIR]
+    , surfaceActivationRefs :: ![InteractionActivationRefIR]
+    , surfaceLayers         :: ![Text]
+    , surfaceEffects        :: ![(Text, [OptionIR])]
+    , surfacePolicies       :: ![ConflictPolicyIR]
+    , surfaceLoadPolicies   :: ![Text]
+    , surfaceOverlayLanes   :: ![Text]
+    , surfaceClientEvents   :: ![(Text, [FieldIR])]
+    , surfaceDomTokens      :: ![Text]
+    , surfaceDtos           :: ![(Text, [FieldIR])]
     }
     deriving (Eq, Show)
 
@@ -95,6 +101,32 @@ data IntentIR = IntentIR
     , intentName    :: !Text
     , intentFields  :: ![FieldIR]
     , intentOptions :: ![OptionIR]
+    }
+    deriving (Eq, Show)
+
+data InteractionSourceRefIR = InteractionSourceRefIR
+    { sourceRefMarker      :: !Text
+    , sourceRefName        :: !Text
+    , sourceRefSession     :: !Text
+    , sourceRefIntent      :: !Text
+    , sourceRefSourceField :: !Text
+    }
+    deriving (Eq, Show)
+
+data InteractionDropzoneRefIR = InteractionDropzoneRefIR
+    { dropzoneRefMarker      :: !Text
+    , dropzoneRefName        :: !Text
+    , dropzoneRefSession     :: !Text
+    , dropzoneRefTargetField :: !Text
+    }
+    deriving (Eq, Show)
+
+data InteractionActivationRefIR = InteractionActivationRefIR
+    { activationRefMarker     :: !Text
+    , activationRefName       :: !Text
+    , activationRefIntent     :: !Text
+    , activationRefValueField :: !(Maybe Text)
+    , activationRefTrigger    :: !Text
     }
     deriving (Eq, Show)
 
@@ -157,6 +189,10 @@ data OptionIR
     | LayerOption !Text
     | EffectOption !Text ![OptionIR]
     | SessionOptionIR !Text
+    | SubmitsOption !Text
+    | SourceFieldOption !Text
+    | TargetFieldOption !Text
+    | ValueFieldOption !Text
     | EmitsOption !Text
     | ContainsOption !Text
     | ContainsSurfaceOption !Text
@@ -190,6 +226,7 @@ data ConflictPolicyIR = ConflictPolicyIR
 data PrimitiveRefKind
     = RefFragment
     | RefAction
+    | RefIntent
     | RefLayer
     | RefSession
     | RefClientEvent
@@ -233,6 +270,9 @@ validateSurface surface =
         <> validateUnique surface.surfaceName "htmx action" (map (.htmxActionName) surface.surfaceHtmxActions)
         <> validateUnique surface.surfaceName "intent" (map (.intentName) surface.surfaceIntents)
         <> validateUnique surface.surfaceName "session" surface.surfaceSessions
+        <> validateUnique surface.surfaceName "source ref" (map (.sourceRefName) surface.surfaceSourceRefs)
+        <> validateUnique surface.surfaceName "dropzone ref" (map (.dropzoneRefName) surface.surfaceDropzoneRefs)
+        <> validateUnique surface.surfaceName "activation ref" (map (.activationRefName) surface.surfaceActivationRefs)
         <> validateUnique surface.surfaceName "layer" surface.surfaceLayers
         <> validateUnique surface.surfaceName "dom token" surface.surfaceDomTokens
         <> validateUnique surface.surfaceName "dto" (map fst surface.surfaceDtos)
@@ -398,14 +438,17 @@ validateCrossReferences surface =
         <> concatMap validateActionOption surface.surfaceHtmxActions
         <> concatMap validateIntentOption surface.surfaceIntents
         <> concatMap validateEffectOption surface.surfaceEffects
+        <> validateInteractionRefs
         <> concatMap validatePolicy surface.surfacePolicies
     where
         fragmentNames = map (.fragmentName) surface.surfaceFragments
         actionNames = map (.htmxActionName) surface.surfaceHtmxActions
+        intentNames = map (.intentName) surface.surfaceIntents
         layerNames = surface.surfaceLayers
         sessionNames = surface.surfaceSessions
         eventNames = map fst surface.surfaceClientEvents
         dtoNames = map fst surface.surfaceDtos
+        intentFields = [(intent.intentName, map (.fieldName) intent.intentFields) | intent <- surface.surfaceIntents]
 
         validateFragmentOption fragment = concatMap (validateOptionRef ("fragment " <> fragment.fragmentName)) fragment.fragmentOptions
         validateActionOption action = concatMap (validateOptionRef ("htmx action " <> action.htmxActionName)) action.htmxActionOptions
@@ -419,9 +462,28 @@ validateCrossReferences surface =
             BackedByOption name -> requireRef owner RefAction actionNames name
             LayerOption name -> requireRef owner RefLayer layerNames name
             SessionOptionIR name -> requireRef owner RefSession sessionNames name
+            SubmitsOption name -> requireRef owner RefIntent intentNames name
+            SourceFieldOption name -> requireAnyIntentField owner name
+            TargetFieldOption name -> requireAnyIntentField owner name
+            ValueFieldOption name -> requireAnyIntentField owner name
             EmitsOption name -> requireRef owner RefClientEvent eventNames name
             UsesDtoOption name -> requireRef owner RefDto dtoNames name
             _ -> []
+
+        validateInteractionRefs =
+            concatMap validateSourceRef surface.surfaceSourceRefs
+                <> concatMap validateDropzoneRef surface.surfaceDropzoneRefs
+                <> concatMap validateActivationRef surface.surfaceActivationRefs
+        validateSourceRef ref =
+            requireRef ("source ref " <> ref.sourceRefName) RefSession sessionNames ref.sourceRefSession
+                <> requireRef ("source ref " <> ref.sourceRefName) RefIntent intentNames ref.sourceRefIntent
+                <> requireIntentField ("source ref " <> ref.sourceRefName) ref.sourceRefIntent ref.sourceRefSourceField
+        validateDropzoneRef ref =
+            requireRef ("dropzone ref " <> ref.dropzoneRefName) RefSession sessionNames ref.dropzoneRefSession
+                <> requireAnyIntentField ("dropzone ref " <> ref.dropzoneRefName) ref.dropzoneRefTargetField
+        validateActivationRef ref =
+            requireRef ("activation ref " <> ref.activationRefName) RefIntent intentNames ref.activationRefIntent
+                <> maybe [] (requireIntentField ("activation ref " <> ref.activationRefName) ref.activationRefIntent) ref.activationRefValueField
 
         validatePolicy policy =
             validateSessionSelector policy.conflictPolicySession <> validateFragmentSelector policy.conflictPolicyFragment
@@ -437,6 +499,15 @@ validateCrossReferences surface =
             if name `elem` available
                 then []
                 else [diagnostic "invalid-reference" (owner <> " references missing " <> refKindLabel refKind <> " " <> name <> " on surface " <> surface.surfaceName)]
+        requireAnyIntentField owner name =
+            if any (elem name . snd) intentFields
+                then []
+                else [diagnostic "invalid-reference" (owner <> " references missing intent field " <> name <> " on surface " <> surface.surfaceName)]
+        requireIntentField owner intentName fieldName =
+            case lookup intentName intentFields of
+                Just fields | fieldName `elem` fields -> []
+                Just _ -> [diagnostic "invalid-reference" (owner <> " references missing intent field " <> fieldName <> " for intent " <> intentName <> " on surface " <> surface.surfaceName)]
+                Nothing -> []
 
 validateContainedSurfaceReferences :: SurfaceContractIR -> [ContractDiagnostic]
 validateContainedSurfaceReferences contract =
@@ -536,6 +607,7 @@ refKindLabel :: PrimitiveRefKind -> Text
 refKindLabel = \case
     RefFragment    -> "fragment"
     RefAction      -> "htmx action"
+    RefIntent      -> "intent"
     RefLayer       -> "layer"
     RefSession     -> "session"
     RefClientEvent -> "client event"

@@ -8,13 +8,16 @@ module Application.Helper.FrontendSurface.Interaction
     , CurrentClientY
     , DeltaX
     , DeltaY
+    , DragDropzoneRef
     , DragPreviewLayer
     , DragSession
+    , DragSourceRef
     , DropzoneHighlight
     , PointerDragFields
     , PointerId
     , PointerType
     , SessionKind
+    , RosterLayoutModeActivationRef
     , SourceItemKey
     , StartClientX
     , StartClientY
@@ -33,6 +36,9 @@ data DragSession
 data DragPreviewLayer
 data CloneShadow
 data DropzoneHighlight
+data DragSourceRef
+data DragDropzoneRef
+data RosterLayoutModeActivationRef
 
 data SourceItemKey
 data TargetDropzoneKey
@@ -68,12 +74,15 @@ type DragDropFields =
 
 type DragDropInteraction (intent :: Type) (targetFragment :: Type) =
     '[ Session DragSession '[ 'Layer DragPreviewLayer, 'Effect CloneShadow '[ 'Layer DragPreviewLayer ], 'Effect DropzoneHighlight '[] ]
+     , SourceRef DragSourceRef '[ 'SessionOption DragSession, 'Submits intent, 'SourceField SourceItemKey ]
+     , DropzoneRef DragDropzoneRef '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]
      , Action intent DragDropFields '[ 'Target targetFragment ]
      , Intent intent DragDropFields '[ 'SessionOption DragSession, 'BackedBy intent ]
      , ConflictPolicyFor ('SessionKind DragSession) 'AnyFragment 'Defer
      ]
 
 type LayoutModeInteraction (intent :: Type) (targetFragment :: Type) (layoutModeField :: Type) =
-    '[ Action intent '[ Field layoutModeField 'WireText ] '[ 'Target targetFragment ]
+    '[ ActivationRef RosterLayoutModeActivationRef '[ 'Submits intent, 'ValueField layoutModeField ]
+     , Action intent '[ Field layoutModeField 'WireText ] '[ 'Target targetFragment ]
      , Intent intent '[ Field layoutModeField 'WireText ] '[ 'BackedBy intent ]
      ]

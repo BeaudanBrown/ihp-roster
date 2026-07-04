@@ -39,6 +39,7 @@ data FrontendSurfaceNameContext
     | LayerName
     | FieldName
     | DomTokenName
+    | InteractionRefName
     | EventName
     deriving (Eq, Ord, Show)
 
@@ -225,6 +226,7 @@ contextSuffix = \case
     LayerName    -> Just "Layer"
     FieldName    -> Just "Field"
     DomTokenName -> Nothing
+    InteractionRefName -> Just "Ref"
     EventName    -> Nothing
 
 stripSuffixWords :: [Text] -> [Text] -> [Text]

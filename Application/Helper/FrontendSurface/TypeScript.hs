@@ -34,6 +34,9 @@ renderSurface surface =
             <> renderActionName prefix surface.surfaceHtmxActions
             <> renderIntentName prefix surface.surfaceIntents
             <> renderVocabulary (prefix <> "SessionName") surface.surfaceSessions
+            <> renderVocabulary (prefix <> "SourceRef") (map (.sourceRefName) surface.surfaceSourceRefs)
+            <> renderVocabulary (prefix <> "DropzoneRef") (map (.dropzoneRefName) surface.surfaceDropzoneRefs)
+            <> renderVocabulary (prefix <> "ActivationRef") (map (.activationRefName) surface.surfaceActivationRefs)
             <> renderVocabulary (prefix <> "DisposableLayerName") surface.surfaceLayers
             <> renderVocabulary (prefix <> "DomToken") surface.surfaceDomTokens
             <> renderVocabulary (prefix <> "OverlayLane") surface.surfaceOverlayLanes
@@ -121,6 +124,15 @@ renderRegistry contract =
            , "    const edge = value as Record<string, unknown>;"
            , "    return isFrontendSurfaceName(edge.parentSurface) && typeof edge.parentFragment === \"string\" && isFrontendSurfaceName(edge.childSurface);"
            , "}"
+           , "export function isFrontendSurfaceSourceRef(surface: FrontendSurfaceName, value: unknown): value is string {"
+           , "    return typeof value === \"string\" && (FrontendSurfaceRegistry[surface].interaction.sourceRefs as readonly { readonly ref: string }[]).some((entry) => entry.ref === value);"
+           , "}"
+           , "export function isFrontendSurfaceDropzoneRef(surface: FrontendSurfaceName, value: unknown): value is string {"
+           , "    return typeof value === \"string\" && (FrontendSurfaceRegistry[surface].interaction.dropzoneRefs as readonly { readonly ref: string }[]).some((entry) => entry.ref === value);"
+           , "}"
+           , "export function isFrontendSurfaceActivationRef(surface: FrontendSurfaceName, value: unknown): value is string {"
+           , "    return typeof value === \"string\" && (FrontendSurfaceRegistry[surface].interaction.activationRefs as readonly { readonly ref: string }[]).some((entry) => entry.ref === value);"
+           , "}"
            ]
 
 renderManifestObject :: SurfaceIR -> Text
@@ -132,6 +144,7 @@ renderManifestObject surface =
         <> ", htmxActions: " <> renderStringArray (map (.htmxActionName) surface.surfaceHtmxActions)
         <> ", intents: " <> renderStringArray (map (.intentName) surface.surfaceIntents)
         <> ", sessions: " <> renderStringArray surface.surfaceSessions
+        <> ", interaction: " <> renderInteractionManifest surface
         <> ", layers: " <> renderStringArray surface.surfaceLayers
         <> ", domTokens: " <> renderStringArray surface.surfaceDomTokens
         <> ", overlayLanes: " <> renderStringArray surface.surfaceOverlayLanes
@@ -143,6 +156,45 @@ renderContainmentTopology contract =
     [ "    { parentSurface: " <> tsString parentSurface <> ", parentFragment: " <> tsString parentFragment <> ", childSurface: " <> tsString childSurface <> " },"
     | (parentSurface, parentFragment, childSurface) <- containmentEdges contract
     ]
+
+renderInteractionManifest :: SurfaceIR -> Text
+renderInteractionManifest surface =
+    "{ sourceRefs: " <> renderSourceRefs surface.surfaceSourceRefs
+        <> ", dropzoneRefs: " <> renderDropzoneRefs surface.surfaceDropzoneRefs
+        <> ", activationRefs: " <> renderActivationRefs surface.surfaceActivationRefs
+        <> " }"
+
+renderSourceRefs :: [InteractionSourceRefIR] -> Text
+renderSourceRefs refs =
+    "[" <> Text.intercalate ", " (map renderRef refs) <> "]"
+    where
+        renderRef ref =
+            "{ ref: " <> tsString ref.sourceRefName
+                <> ", session: " <> tsString ref.sourceRefSession
+                <> ", intent: " <> tsString ref.sourceRefIntent
+                <> ", sourceField: " <> tsString ref.sourceRefSourceField
+                <> " }"
+
+renderDropzoneRefs :: [InteractionDropzoneRefIR] -> Text
+renderDropzoneRefs refs =
+    "[" <> Text.intercalate ", " (map renderRef refs) <> "]"
+    where
+        renderRef ref =
+            "{ ref: " <> tsString ref.dropzoneRefName
+                <> ", session: " <> tsString ref.dropzoneRefSession
+                <> ", targetField: " <> tsString ref.dropzoneRefTargetField
+                <> " }"
+
+renderActivationRefs :: [InteractionActivationRefIR] -> Text
+renderActivationRefs refs =
+    "[" <> Text.intercalate ", " (map renderRef refs) <> "]"
+    where
+        renderRef ref =
+            "{ ref: " <> tsString ref.activationRefName
+                <> ", intent: " <> tsString ref.activationRefIntent
+                <> ", valueField: " <> maybe "null" tsString ref.activationRefValueField
+                <> ", trigger: " <> tsString ref.activationRefTrigger
+                <> " }"
 
 renderContainedSurfaceMap :: SurfaceIR -> Text
 renderContainedSurfaceMap surface =

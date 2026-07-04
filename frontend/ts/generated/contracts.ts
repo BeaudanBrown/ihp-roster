@@ -1158,7 +1158,7 @@ export type MoveLabCardIntentFields = { sourceItemKey: string; targetDropzoneKey
 export type SurfaceLabSessionName = "drag";
 export type SurfaceLabDisposableLayerName = "drag-preview";
 export type SurfaceLabDomToken = "lab-root" | "lab-dropzone";
-export const surfaceLabSurfaceManifest = { surface: "surface-lab", scopes: ["lab"], fragments: ["lab-shell", "lab-panel"], liveFragments: [], htmxActions: ["refresh-panel"], intents: ["move-lab-card"], sessions: ["drag"], layers: ["drag-preview"], domTokens: ["lab-root", "lab-dropzone"], overlayLanes: [], containedSurfaces: {} } as const;
+export const surfaceLabSurfaceManifest = { surface: "surface-lab", scopes: ["lab"], fragments: ["lab-shell", "lab-panel"], liveFragments: [], htmxActions: ["refresh-panel"], intents: ["move-lab-card"], sessions: ["drag"], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: ["drag-preview"], domTokens: ["lab-root", "lab-dropzone"], overlayLanes: [], containedSurfaces: {} } as const;
 
 export type TimesheetsSurfaceName = "timesheets";
 export type TimesheetWeekScope = { kind: "timesheet-week"; venueId: VenueId; weekOffset: number };
@@ -1168,7 +1168,7 @@ export type TimesheetsFragmentKey =
     | { kind: "timesheet-day-columns"; params: Record<string, never> }
     | { kind: "timesheet-day-section"; params: { dayOffset: number } }
 ;
-export const timesheetsSurfaceManifest = { surface: "timesheets", scopes: ["timesheet-week"], fragments: ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"], liveFragments: ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
+export const timesheetsSurfaceManifest = { surface: "timesheets", scopes: ["timesheet-week"], fragments: ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"], liveFragments: ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
 
 export type RosterSurfaceName = "roster";
 export type RosterWeekScope = { kind: "roster-week"; venueId: VenueId; rosterGroupId: RosterGroupId; weekOffset: number };
@@ -1191,22 +1191,25 @@ export type RosterIntentName = "set-roster-layout-mode" | "move-roster-shift-to-
 export type SetRosterLayoutModeIntentFields = { rosterLayoutMode: string };
 export type MoveRosterShiftToSlotIntentFields = { sourceItemKey: string; targetDropzoneKey: string; sessionKind?: string; pointerId?: string; pointerType?: string; startClientX?: string; startClientY?: string; currentClientX?: string; currentClientY?: string; deltaX?: string; deltaY?: string };
 export type RosterSessionName = "drag";
+export type RosterSourceRef = "drag-source";
+export type RosterDropzoneRef = "drag-dropzone";
+export type RosterActivationRef = "roster-layout-mode-activation";
 export type RosterDisposableLayerName = "drag-preview";
-export const rosterSurfaceManifest = { surface: "roster", scopes: ["roster-week"], fragments: ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-day-section", "roster-row"], liveFragments: ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-day-section", "roster-row"], htmxActions: ["set-roster-layout-mode", "move-roster-shift-to-slot"], intents: ["set-roster-layout-mode", "move-roster-shift-to-slot"], sessions: ["drag"], layers: ["drag-preview"], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
+export const rosterSurfaceManifest = { surface: "roster", scopes: ["roster-week"], fragments: ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-day-section", "roster-row"], liveFragments: ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-day-section", "roster-row"], htmxActions: ["set-roster-layout-mode", "move-roster-shift-to-slot"], intents: ["set-roster-layout-mode", "move-roster-shift-to-slot"], sessions: ["drag"], interaction: { sourceRefs: [{ ref: "drag-source", session: "drag", intent: "move-roster-shift-to-slot", sourceField: "sourceItemKey" }], dropzoneRefs: [{ ref: "drag-dropzone", session: "drag", targetField: "targetDropzoneKey" }], activationRefs: [{ ref: "roster-layout-mode-activation", intent: "set-roster-layout-mode", valueField: "rosterLayoutMode", trigger: "click" }] }, layers: ["drag-preview"], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
 
 export type LeaveRequestsSurfaceName = "leave-requests";
 export type LeaveRequestsScope = { kind: "leave-requests"; venueId: VenueId };
 export type LeaveRequestsFragmentKey =
     | { kind: "leave-requests-content"; params: Record<string, never> }
 ;
-export const leaveRequestsSurfaceManifest = { surface: "leave-requests", scopes: ["leave-requests"], fragments: ["leave-requests-content"], liveFragments: ["leave-requests-content"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
+export const leaveRequestsSurfaceManifest = { surface: "leave-requests", scopes: ["leave-requests"], fragments: ["leave-requests-content"], liveFragments: ["leave-requests-content"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
 
 export type BillingSurfaceName = "billing";
 export type BillingVenueScope = { kind: "billing-venue"; venueId: VenueId };
 export type BillingFragmentKey =
     | { kind: "billing-status"; params: Record<string, never> }
 ;
-export const billingSurfaceManifest = { surface: "billing", scopes: ["billing-venue"], fragments: ["billing-status"], liveFragments: ["billing-status"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
+export const billingSurfaceManifest = { surface: "billing", scopes: ["billing-venue"], fragments: ["billing-status"], liveFragments: ["billing-status"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
 
 export type SupportSurfaceName = "support";
 export type SupportPlatformScope = { kind: "support-platform" };
@@ -1214,7 +1217,7 @@ export type SupportFragmentKey =
     | { kind: "support-award-rates"; params: Record<string, never> }
     | { kind: "support-public-holidays"; params: Record<string, never> }
 ;
-export const supportSurfaceManifest = { surface: "support", scopes: ["support-platform"], fragments: ["support-award-rates", "support-public-holidays"], liveFragments: ["support-award-rates", "support-public-holidays"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
+export const supportSurfaceManifest = { surface: "support", scopes: ["support-platform"], fragments: ["support-award-rates", "support-public-holidays"], liveFragments: ["support-award-rates", "support-public-holidays"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
 
 export type ProfileSurfaceName = "profile";
 export type ProfileScope = { kind: "profile"; venueId: VenueId; staffId: StaffId };
@@ -1225,56 +1228,56 @@ export type ProfileFragmentKey =
     | { kind: "profile-leave-section"; params: Record<string, never> }
     | { kind: "profile-rsa-section"; params: Record<string, never> }
 ;
-export const profileSurfaceManifest = { surface: "profile", scopes: ["profile"], fragments: ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section", "profile-rsa-section"], liveFragments: ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section", "profile-rsa-section"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
+export const profileSurfaceManifest = { surface: "profile", scopes: ["profile"], fragments: ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section", "profile-rsa-section"], liveFragments: ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section", "profile-rsa-section"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
 
 export type AdminPageSurfaceName = "admin-page";
 export type AdminPageScope = { kind: "admin-page"; venueId: VenueId };
 export type AdminPageFragmentKey =
     | { kind: "admin-page-content"; params: Record<string, never> }
 ;
-export const adminPageSurfaceManifest = { surface: "admin-page", scopes: ["admin-page"], fragments: ["admin-page-content"], liveFragments: [], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: { "admin-page-content": ["admin-invites", "admin-venue-config", "admin-exports", "admin-shift-types", "admin-roster-groups"] } } as const;
+export const adminPageSurfaceManifest = { surface: "admin-page", scopes: ["admin-page"], fragments: ["admin-page-content"], liveFragments: [], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: { "admin-page-content": ["admin-invites", "admin-venue-config", "admin-exports", "admin-shift-types", "admin-roster-groups"] } } as const;
 
 export type AdminXeroPageSurfaceName = "admin-xero-page";
 export type AdminXeroPageScope = { kind: "admin-xero-page"; venueId: VenueId };
 export type AdminXeroPageFragmentKey =
     | { kind: "admin-xero-page-content"; params: Record<string, never> }
 ;
-export const adminXeroPageSurfaceManifest = { surface: "admin-xero-page", scopes: ["admin-xero-page"], fragments: ["admin-xero-page-content"], liveFragments: [], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: { "admin-xero-page-content": ["admin-xero"] } } as const;
+export const adminXeroPageSurfaceManifest = { surface: "admin-xero-page", scopes: ["admin-xero-page"], fragments: ["admin-xero-page-content"], liveFragments: [], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: { "admin-xero-page-content": ["admin-xero"] } } as const;
 
 export type AdminVenueConfigSurfaceName = "admin-venue-config";
 export type AdminVenueConfigScope = { kind: "admin-venue-config"; venueId: VenueId };
 export type AdminVenueConfigFragmentKey =
     | { kind: "admin-venue-config"; params: Record<string, never> }
 ;
-export const adminVenueConfigSurfaceManifest = { surface: "admin-venue-config", scopes: ["admin-venue-config"], fragments: ["admin-venue-config"], liveFragments: ["admin-venue-config"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
+export const adminVenueConfigSurfaceManifest = { surface: "admin-venue-config", scopes: ["admin-venue-config"], fragments: ["admin-venue-config"], liveFragments: ["admin-venue-config"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
 
 export type AdminInvitesSurfaceName = "admin-invites";
 export type AdminInvitesScope = { kind: "admin-invites"; venueId: VenueId; rosterGroupId: RosterGroupId };
 export type AdminInvitesFragmentKey =
     | { kind: "admin-invites"; params: Record<string, never> }
 ;
-export const adminInvitesSurfaceManifest = { surface: "admin-invites", scopes: ["admin-invites"], fragments: ["admin-invites"], liveFragments: ["admin-invites"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
+export const adminInvitesSurfaceManifest = { surface: "admin-invites", scopes: ["admin-invites"], fragments: ["admin-invites"], liveFragments: ["admin-invites"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
 
 export type AdminExportsSurfaceName = "admin-exports";
 export type AdminExportsScope = { kind: "admin-exports"; venueId: VenueId };
 export type AdminExportsFragmentKey =
     | { kind: "admin-exports"; params: Record<string, never> }
 ;
-export const adminExportsSurfaceManifest = { surface: "admin-exports", scopes: ["admin-exports"], fragments: ["admin-exports"], liveFragments: ["admin-exports"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
+export const adminExportsSurfaceManifest = { surface: "admin-exports", scopes: ["admin-exports"], fragments: ["admin-exports"], liveFragments: ["admin-exports"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
 
 export type AdminShiftTypesSurfaceName = "admin-shift-types";
 export type AdminShiftTypesScope = { kind: "admin-shift-types"; venueId: VenueId };
 export type AdminShiftTypesFragmentKey =
     | { kind: "admin-shift-types"; params: Record<string, never> }
 ;
-export const adminShiftTypesSurfaceManifest = { surface: "admin-shift-types", scopes: ["admin-shift-types"], fragments: ["admin-shift-types"], liveFragments: ["admin-shift-types"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
+export const adminShiftTypesSurfaceManifest = { surface: "admin-shift-types", scopes: ["admin-shift-types"], fragments: ["admin-shift-types"], liveFragments: ["admin-shift-types"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
 
 export type AdminRosterGroupsSurfaceName = "admin-roster-groups";
 export type AdminRosterGroupsScope = { kind: "admin-roster-groups"; venueId: VenueId };
 export type AdminRosterGroupsFragmentKey =
     | { kind: "admin-roster-groups"; params: Record<string, never> }
 ;
-export const adminRosterGroupsSurfaceManifest = { surface: "admin-roster-groups", scopes: ["admin-roster-groups"], fragments: ["admin-roster-groups"], liveFragments: ["admin-roster-groups"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
+export const adminRosterGroupsSurfaceManifest = { surface: "admin-roster-groups", scopes: ["admin-roster-groups"], fragments: ["admin-roster-groups"], liveFragments: ["admin-roster-groups"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
 
 export type AdminXeroSurfaceName = "admin-xero";
 export type AdminXeroScope = { kind: "admin-xero"; venueId: VenueId };
@@ -1284,7 +1287,7 @@ export type AdminXeroFragmentKey =
     | { kind: "admin-xero-pay-items"; params: Record<string, never> }
     | { kind: "admin-xero-timesheets"; params: Record<string, never> }
 ;
-export const adminXeroSurfaceManifest = { surface: "admin-xero", scopes: ["admin-xero"], fragments: ["admin-xero-shell", "admin-xero-staff-mappings", "admin-xero-pay-items", "admin-xero-timesheets"], liveFragments: ["admin-xero-shell", "admin-xero-staff-mappings", "admin-xero-pay-items", "admin-xero-timesheets"], htmxActions: [], intents: [], sessions: [], layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
+export const adminXeroSurfaceManifest = { surface: "admin-xero", scopes: ["admin-xero"], fragments: ["admin-xero-shell", "admin-xero-staff-mappings", "admin-xero-pay-items", "admin-xero-timesheets"], liveFragments: ["admin-xero-shell", "admin-xero-staff-mappings", "admin-xero-pay-items", "admin-xero-timesheets"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} } as const;
 
 export type FrontendSurfaceScope =
     | { surface: "timesheets"; scope: TimesheetWeekScope }
@@ -1422,5 +1425,14 @@ export function isFrontendSurfaceContainmentEdge(value: unknown): value is Front
     if (typeof value !== "object" || value === null) return false;
     const edge = value as Record<string, unknown>;
     return isFrontendSurfaceName(edge.parentSurface) && typeof edge.parentFragment === "string" && isFrontendSurfaceName(edge.childSurface);
+}
+export function isFrontendSurfaceSourceRef(surface: FrontendSurfaceName, value: unknown): value is string {
+    return typeof value === "string" && (FrontendSurfaceRegistry[surface].interaction.sourceRefs as readonly { readonly ref: string }[]).some((entry) => entry.ref === value);
+}
+export function isFrontendSurfaceDropzoneRef(surface: FrontendSurfaceName, value: unknown): value is string {
+    return typeof value === "string" && (FrontendSurfaceRegistry[surface].interaction.dropzoneRefs as readonly { readonly ref: string }[]).some((entry) => entry.ref === value);
+}
+export function isFrontendSurfaceActivationRef(surface: FrontendSurfaceName, value: unknown): value is string {
+    return typeof value === "string" && (FrontendSurfaceRegistry[surface].interaction.activationRefs as readonly { readonly ref: string }[]).some((entry) => entry.ref === value);
 }
 

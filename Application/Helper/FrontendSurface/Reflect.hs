@@ -64,6 +64,9 @@ data ReflectedPrimitive
     | ReflectedHtmxAction !HtmxActionIR
     | ReflectedIntent !IntentIR
     | ReflectedSessionWithOptions !Text ![OptionIR]
+    | ReflectedSourceRef !InteractionSourceRefIR
+    | ReflectedDropzoneRef !InteractionDropzoneRefIR
+    | ReflectedActivationRef !InteractionActivationRefIR
     | ReflectedLayer !Text
     | ReflectedEffect !Text ![OptionIR]
     | ReflectedPolicy !ConflictPolicyIR
@@ -114,6 +117,38 @@ instance (Typeable marker, ReflectFieldList fields, ReflectOptionList options) =
         , intentFields = reflectFieldList @fields
         , intentOptions = reflectOptionList @options
         }
+
+instance (Typeable marker, ReflectOptionList options) => ReflectPrimitive ('SourceRef marker options) where
+    reflectPrimitive =
+        let options = reflectOptionList @options
+         in ReflectedSourceRef InteractionSourceRefIR
+            { sourceRefMarker = typeMarker @marker
+            , sourceRefName = protocolName @marker InteractionRefName
+            , sourceRefSession = requiredOption "source ref" (typeMarker @marker) "SessionOption" [name | SessionOptionIR name <- options]
+            , sourceRefIntent = requiredOption "source ref" (typeMarker @marker) "Submits" [name | SubmitsOption name <- options]
+            , sourceRefSourceField = requiredOption "source ref" (typeMarker @marker) "SourceField" [name | SourceFieldOption name <- options]
+            }
+
+instance (Typeable marker, ReflectOptionList options) => ReflectPrimitive ('DropzoneRef marker options) where
+    reflectPrimitive =
+        let options = reflectOptionList @options
+         in ReflectedDropzoneRef InteractionDropzoneRefIR
+            { dropzoneRefMarker = typeMarker @marker
+            , dropzoneRefName = protocolName @marker InteractionRefName
+            , dropzoneRefSession = requiredOption "dropzone ref" (typeMarker @marker) "SessionOption" [name | SessionOptionIR name <- options]
+            , dropzoneRefTargetField = requiredOption "dropzone ref" (typeMarker @marker) "TargetField" [name | TargetFieldOption name <- options]
+            }
+
+instance (Typeable marker, ReflectOptionList options) => ReflectPrimitive ('ActivationRef marker options) where
+    reflectPrimitive =
+        let options = reflectOptionList @options
+         in ReflectedActivationRef InteractionActivationRefIR
+            { activationRefMarker = typeMarker @marker
+            , activationRefName = protocolName @marker InteractionRefName
+            , activationRefIntent = requiredOption "activation ref" (typeMarker @marker) "Submits" [name | SubmitsOption name <- options]
+            , activationRefValueField = optionalUniqueOption "activation ref" (typeMarker @marker) "ValueField" [name | ValueFieldOption name <- options]
+            , activationRefTrigger = "click"
+            }
 
 instance (Typeable marker, ReflectOptionList options) => ReflectPrimitive ('Session marker options) where
     reflectPrimitive = ReflectedSessionWithOptions (protocolName @marker SessionName) (reflectOptionList @options)
@@ -265,10 +300,28 @@ instance Typeable marker => ReflectOption ('BackedBy marker) where reflectOption
 instance Typeable marker => ReflectOption ('Layer marker) where reflectOption = LayerOption (protocolName @marker LayerName)
 instance (Typeable marker, ReflectOptionList options) => ReflectOption ('Effect marker options) where reflectOption = EffectOption (protocolName @marker ActionName) (reflectOptionList @options)
 instance Typeable marker => ReflectOption ('SessionOption marker) where reflectOption = SessionOptionIR (protocolName @marker SessionName)
+instance Typeable marker => ReflectOption ('Submits marker) where reflectOption = SubmitsOption (protocolName @marker IntentName)
+instance Typeable marker => ReflectOption ('SourceField marker) where reflectOption = SourceFieldOption (protocolName @marker FieldName)
+instance Typeable marker => ReflectOption ('TargetField marker) where reflectOption = TargetFieldOption (protocolName @marker FieldName)
+instance Typeable marker => ReflectOption ('ValueField marker) where reflectOption = ValueFieldOption (protocolName @marker FieldName)
 instance Typeable marker => ReflectOption ('Emits marker) where reflectOption = EmitsOption (protocolName @marker EventName)
 instance Typeable marker => ReflectOption ('Contains marker) where reflectOption = ContainsOption (protocolName @marker DomTokenName)
 instance Typeable marker => ReflectOption ('ContainsSurface marker) where reflectOption = ContainsSurfaceOption (protocolName @marker SurfaceName)
 instance Typeable marker => ReflectOption ('UsesDto marker) where reflectOption = UsesDtoOption (protocolName @marker ScopeName)
+
+requiredOption :: Text -> Text -> Text -> [Text] -> Text
+requiredOption kind marker optionName values =
+    case values of
+        [value] -> value
+        [] -> error (cs (kind <> " " <> marker <> " must declare " <> optionName))
+        _ -> error (cs (kind <> " " <> marker <> " declares " <> optionName <> " more than once"))
+
+optionalUniqueOption :: Text -> Text -> Text -> [Text] -> Maybe Text
+optionalUniqueOption kind marker optionName values =
+    case values of
+        [] -> Nothing
+        [value] -> Just value
+        _ -> error (cs (kind <> " " <> marker <> " declares " <> optionName <> " more than once"))
 
 class ReflectSessionSelector (selector :: SessionSelector) where
     reflectSessionSelector :: SessionSelectorIR
@@ -309,6 +362,9 @@ addPrimitives primitives surface =
             ReflectedHtmxAction action -> current { surfaceHtmxActions = current.surfaceHtmxActions <> [action] }
             ReflectedIntent intent -> current { surfaceIntents = current.surfaceIntents <> [intent] }
             ReflectedSessionWithOptions name options -> current { surfaceSessions = current.surfaceSessions <> [name] } |> addOptionMetadata options
+            ReflectedSourceRef ref -> current { surfaceSourceRefs = current.surfaceSourceRefs <> [ref] }
+            ReflectedDropzoneRef ref -> current { surfaceDropzoneRefs = current.surfaceDropzoneRefs <> [ref] }
+            ReflectedActivationRef ref -> current { surfaceActivationRefs = current.surfaceActivationRefs <> [ref] }
             ReflectedLayer name -> current { surfaceLayers = current.surfaceLayers <> [name] }
             ReflectedEffect name options -> current { surfaceEffects = current.surfaceEffects <> [(name, options)] }
             ReflectedPolicy policy -> current { surfacePolicies = current.surfacePolicies <> [policy] }
@@ -345,6 +401,9 @@ emptySurface = SurfaceIR
     , surfaceHtmxActions = []
     , surfaceIntents = []
     , surfaceSessions = []
+    , surfaceSourceRefs = []
+    , surfaceDropzoneRefs = []
+    , surfaceActivationRefs = []
     , surfaceLayers = []
     , surfaceEffects = []
     , surfacePolicies = []

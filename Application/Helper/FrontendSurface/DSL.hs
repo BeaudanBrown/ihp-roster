@@ -28,6 +28,9 @@ module Application.Helper.FrontendSurface.DSL
     , NullableField
     , MountState
     , Session
+    , SourceRef
+    , DropzoneRef
+    , ActivationRef
     , ConflictPolicy
     , ConflictPolicyFor
     , Event
@@ -93,6 +96,10 @@ data PrimitiveOption
     | Layer Type
     | Effect Type [PrimitiveOption]
     | SessionOption Type
+    | Submits Type
+    | SourceField Type
+    | TargetField Type
+    | ValueField Type
     | Emits Type
     | Contains Type
     | ContainsSurface Type
@@ -119,6 +126,9 @@ data SurfacePrimitive
     | Intent Type [FieldSpec] [PrimitiveOption]
     | MountState Type [FieldSpec]
     | Session Type [PrimitiveOption]
+    | SourceRef Type [PrimitiveOption]
+    | DropzoneRef Type [PrimitiveOption]
+    | ActivationRef Type [PrimitiveOption]
     | ConflictPolicy SessionSelector FragmentSelector ConflictResolution
     | Event Type [FieldSpec]
     | DomToken Type
@@ -138,6 +148,9 @@ type OptionalField name wire = 'OptionalField name wire
 type NullableField name wire = 'NullableField name wire
 type MountState name fields = 'MountState name fields
 type Session name options = 'Session name options
+type SourceRef name options = 'SourceRef name options
+type DropzoneRef name options = 'DropzoneRef name options
+type ActivationRef name options = 'ActivationRef name options
 type ConflictPolicy session fragment resolution = 'ConflictPolicy ('SessionKind session) ('FragmentKind fragment) resolution
 type ConflictPolicyFor sessionSelector fragmentSelector resolution = 'ConflictPolicy sessionSelector fragmentSelector resolution
 type Event name detail = 'Event name detail

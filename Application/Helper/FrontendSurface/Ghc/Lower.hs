@@ -38,6 +38,9 @@ emptyLoweredSurface marker = IR.SurfaceIR
     , IR.surfaceHtmxActions = []
     , IR.surfaceIntents = []
     , IR.surfaceSessions = []
+    , IR.surfaceSourceRefs = []
+    , IR.surfaceDropzoneRefs = []
+    , IR.surfaceActivationRefs = []
     , IR.surfaceLayers = []
     , IR.surfaceEffects = []
     , IR.surfacePolicies = []
@@ -105,6 +108,21 @@ addPrimitive surface primitive
             markerName <- rawMarkerName marker
             optionList <- lowerOptionList options
             Right (surface { IR.surfaceSessions = IR.surfaceSessions surface <> [protocol Naming.SessionName markerName] } |> addSessionOptionMetadata optionList)
+        (Just "SourceRef", marker : options : _) -> do
+            markerName <- rawMarkerName marker
+            optionList <- lowerOptionList options
+            sourceRef <- interactionSourceRef markerName optionList
+            Right surface { IR.surfaceSourceRefs = IR.surfaceSourceRefs surface <> [sourceRef] }
+        (Just "DropzoneRef", marker : options : _) -> do
+            markerName <- rawMarkerName marker
+            optionList <- lowerOptionList options
+            dropzoneRef <- interactionDropzoneRef markerName optionList
+            Right surface { IR.surfaceDropzoneRefs = IR.surfaceDropzoneRefs surface <> [dropzoneRef] }
+        (Just "ActivationRef", marker : options : _) -> do
+            markerName <- rawMarkerName marker
+            optionList <- lowerOptionList options
+            activationRef <- interactionActivationRef markerName optionList
+            Right surface { IR.surfaceActivationRefs = IR.surfaceActivationRefs surface <> [activationRef] }
         (Just "ConflictPolicy", session : fragment : resolution : _) -> do
             policy <- IR.ConflictPolicyIR <$> lowerSessionSelector session <*> lowerFragmentSelector fragment <*> lowerConflictResolution resolution
             Right surface { IR.surfacePolicies = IR.surfacePolicies surface <> [policy] }
@@ -120,6 +138,57 @@ addPrimitive surface primitive
             fieldList <- lowerFieldList fields
             Right surface { IR.surfaceDtos = IR.surfaceDtos surface <> [(protocol Naming.ScopeName markerName, fieldList)] }
         _ -> Left ["unsupported primitive " <> primitive.rawTypePretty]
+
+interactionSourceRef :: String -> [IR.OptionIR] -> Either [String] IR.InteractionSourceRefIR
+interactionSourceRef marker options = do
+    session <- requiredOption "source ref" marker "SessionOption" [name | IR.SessionOptionIR name <- options]
+    intent <- requiredOption "source ref" marker "Submits" [name | IR.SubmitsOption name <- options]
+    sourceField <- requiredOption "source ref" marker "SourceField" [name | IR.SourceFieldOption name <- options]
+    Right IR.InteractionSourceRefIR
+        { IR.sourceRefMarker = text marker
+        , IR.sourceRefName = protocol Naming.InteractionRefName marker
+        , IR.sourceRefSession = session
+        , IR.sourceRefIntent = intent
+        , IR.sourceRefSourceField = sourceField
+        }
+
+interactionDropzoneRef :: String -> [IR.OptionIR] -> Either [String] IR.InteractionDropzoneRefIR
+interactionDropzoneRef marker options = do
+    session <- requiredOption "dropzone ref" marker "SessionOption" [name | IR.SessionOptionIR name <- options]
+    targetField <- requiredOption "dropzone ref" marker "TargetField" [name | IR.TargetFieldOption name <- options]
+    Right IR.InteractionDropzoneRefIR
+        { IR.dropzoneRefMarker = text marker
+        , IR.dropzoneRefName = protocol Naming.InteractionRefName marker
+        , IR.dropzoneRefSession = session
+        , IR.dropzoneRefTargetField = targetField
+        }
+
+interactionActivationRef :: String -> [IR.OptionIR] -> Either [String] IR.InteractionActivationRefIR
+interactionActivationRef marker options = do
+    intent <- requiredOption "activation ref" marker "Submits" [name | IR.SubmitsOption name <- options]
+    let valueFields = [name | IR.ValueFieldOption name <- options]
+    valueField <- optionalUniqueOption "activation ref" marker "ValueField" valueFields
+    Right IR.InteractionActivationRefIR
+        { IR.activationRefMarker = text marker
+        , IR.activationRefName = protocol Naming.InteractionRefName marker
+        , IR.activationRefIntent = intent
+        , IR.activationRefValueField = valueField
+        , IR.activationRefTrigger = "click"
+        }
+
+requiredOption :: String -> String -> String -> [Text] -> Either [String] Text
+requiredOption kind marker optionName values =
+    case values of
+        [value] -> Right value
+        [] -> Left [kind <> " " <> marker <> " must declare " <> optionName]
+        _ -> Left [kind <> " " <> marker <> " declares " <> optionName <> " more than once"]
+
+optionalUniqueOption :: String -> String -> String -> [Text] -> Either [String] (Maybe Text)
+optionalUniqueOption kind marker optionName values =
+    case values of
+        [] -> Right Nothing
+        [value] -> Right (Just value)
+        _ -> Left [kind <> " " <> marker <> " declares " <> optionName <> " more than once"]
 
 addSessionOptionMetadata :: [IR.OptionIR] -> IR.SurfaceIR -> IR.SurfaceIR
 addSessionOptionMetadata options surface =
@@ -226,6 +295,10 @@ lowerOption option
         (Just "Layer", marker : _) -> IR.LayerOption <$> (protocol Naming.LayerName <$> rawMarkerName marker)
         (Just "Effect", marker : options : _) -> IR.EffectOption <$> (protocol Naming.ActionName <$> rawMarkerName marker) <*> lowerOptionList options
         (Just "SessionOption", marker : _) -> IR.SessionOptionIR <$> (protocol Naming.SessionName <$> rawMarkerName marker)
+        (Just "Submits", marker : _) -> IR.SubmitsOption <$> (protocol Naming.IntentName <$> rawMarkerName marker)
+        (Just "SourceField", marker : _) -> IR.SourceFieldOption <$> (protocol Naming.FieldName <$> rawMarkerName marker)
+        (Just "TargetField", marker : _) -> IR.TargetFieldOption <$> (protocol Naming.FieldName <$> rawMarkerName marker)
+        (Just "ValueField", marker : _) -> IR.ValueFieldOption <$> (protocol Naming.FieldName <$> rawMarkerName marker)
         (Just "Emits", marker : _) -> IR.EmitsOption <$> (protocol Naming.EventName <$> rawMarkerName marker)
         (Just "Contains", marker : _) -> IR.ContainsOption <$> (protocol Naming.DomTokenName <$> rawMarkerName marker)
         (Just "ContainsSurface", marker : _) -> IR.ContainsSurfaceOption <$> (protocol Naming.SurfaceName <$> rawMarkerName marker)
