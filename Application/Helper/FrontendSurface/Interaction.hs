@@ -24,10 +24,80 @@ module Application.Helper.FrontendSurface.Interaction
     , TargetDropzoneKey
     , DragDropInteraction
     , LayoutModeInteraction
+    , frontendSurfaceActivationRefAttribute
+    , frontendSurfaceDropzoneKeyAttribute
+    , frontendSurfaceDropzoneRefAttribute
+    , frontendSurfaceSourceKeyAttribute
+    , frontendSurfaceSourceRefAttribute
+    , renderFrontendSurfaceActivationRef
+    , renderFrontendSurfaceDropzoneRef
+    , renderFrontendSurfaceSourceRef
+    , withFrontendSurfaceActivationRef
+    , withFrontendSurfaceDropzoneRef
+    , withFrontendSurfaceSourceRef
     ) where
 
+import Application.Helper.FrontendSurface.ContractIR
 import Application.Helper.FrontendSurface.DSL
 import Data.Kind (Type)
+import IHP.Prelude
+import qualified Text.Blaze.Html as Blaze
+import qualified Text.Blaze.Html5 as Html5
+import Text.Blaze.Html5 ((!))
+
+type Html = Blaze.Html
+
+frontendSurfaceSourceRefAttribute :: Text
+frontendSurfaceSourceRefAttribute = "data-bepis-source-ref"
+
+frontendSurfaceSourceKeyAttribute :: Text
+frontendSurfaceSourceKeyAttribute = "data-bepis-source-key"
+
+frontendSurfaceDropzoneRefAttribute :: Text
+frontendSurfaceDropzoneRefAttribute = "data-bepis-dropzone-ref"
+
+frontendSurfaceDropzoneKeyAttribute :: Text
+frontendSurfaceDropzoneKeyAttribute = "data-bepis-dropzone-key"
+
+frontendSurfaceActivationRefAttribute :: Text
+frontendSurfaceActivationRefAttribute = "data-bepis-activation-ref"
+
+renderFrontendSurfaceSourceRef :: InteractionSourceRefIR -> Text -> Html -> Html
+renderFrontendSurfaceSourceRef ref key =
+    Html5.div
+        ! attr frontendSurfaceSourceRefAttribute ref.sourceRefName
+        ! attr frontendSurfaceSourceKeyAttribute key
+
+withFrontendSurfaceSourceRef :: InteractionSourceRefIR -> Text -> Html -> Html
+withFrontendSurfaceSourceRef ref key html =
+    html
+        ! attr frontendSurfaceSourceRefAttribute ref.sourceRefName
+        ! attr frontendSurfaceSourceKeyAttribute key
+
+renderFrontendSurfaceDropzoneRef :: InteractionDropzoneRefIR -> Text -> Html -> Html
+renderFrontendSurfaceDropzoneRef ref key =
+    Html5.div
+        ! attr frontendSurfaceDropzoneRefAttribute ref.dropzoneRefName
+        ! attr frontendSurfaceDropzoneKeyAttribute key
+
+withFrontendSurfaceDropzoneRef :: InteractionDropzoneRefIR -> Text -> Html -> Html
+withFrontendSurfaceDropzoneRef ref key html =
+    html
+        ! attr frontendSurfaceDropzoneRefAttribute ref.dropzoneRefName
+        ! attr frontendSurfaceDropzoneKeyAttribute key
+
+renderFrontendSurfaceActivationRef :: InteractionActivationRefIR -> Html -> Html
+renderFrontendSurfaceActivationRef ref =
+    Html5.div
+        ! attr frontendSurfaceActivationRefAttribute ref.activationRefName
+
+withFrontendSurfaceActivationRef :: InteractionActivationRefIR -> Html -> Html
+withFrontendSurfaceActivationRef ref html =
+    html ! attr frontendSurfaceActivationRefAttribute ref.activationRefName
+
+attr :: Text -> Text -> Blaze.Attribute
+attr name value =
+    Blaze.customAttribute (Blaze.textTag name) (Blaze.toValue value)
 
 -- | Reusable browser interaction markers. Feature surfaces compose these via
 -- type aliases such as 'DragDropInteraction' instead of re-declaring the common

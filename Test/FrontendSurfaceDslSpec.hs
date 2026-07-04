@@ -9,6 +9,7 @@ module Test.FrontendSurfaceDslSpec
 import Application.Helper.FrontendSurface.ContractIR
 import Application.Helper.FrontendSurface.Contracts
 import Application.Helper.FrontendSurface.DSL
+import qualified Application.Helper.FrontendSurface.Interaction as SurfaceInteraction
 import Application.Helper.FrontendSurface.Lab (SurfaceLabSurface)
 import Application.Helper.FrontendSurface.Reflect
 import Application.Helper.FrontendSurface.Registry (RegisteredFrontendSurfaces)
@@ -256,6 +257,23 @@ tests = describe "FrontendSurface DSL foundation" do
                 { resourceValueName = "timesheet-day"
                 , resourceValueFields = Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "weekOffset" Aeson..= (0 :: Int), "dayOffset" Aeson..= (2 :: Int)]
                 }
+
+    it "renders generated role-specific interaction refs" do
+        let surface = expectSurface "roster" registeredFrontendSurfaceContractIR
+        let sourceRef = fromMaybe (error "missing source ref") (listToMaybe surface.surfaceSourceRefs)
+        let dropzoneRef = fromMaybe (error "missing dropzone ref") (listToMaybe surface.surfaceDropzoneRefs)
+        let activationRef = fromMaybe (error "missing activation ref") (listToMaybe surface.surfaceActivationRefs)
+        let sourceHtml = cs (HtmlRenderer.renderHtml (SurfaceInteraction.renderFrontendSurfaceSourceRef sourceRef "shift:1" (Html5.toHtml ("card" :: Text))))
+        let dropzoneHtml = cs (HtmlRenderer.renderHtml (SurfaceInteraction.renderFrontendSurfaceDropzoneRef dropzoneRef "slot:2" (Html5.toHtml ("slot" :: Text))))
+        let activationHtml = cs (HtmlRenderer.renderHtml (SurfaceInteraction.renderFrontendSurfaceActivationRef activationRef (Html5.toHtml ("mode" :: Text))))
+
+        sourceHtml `shouldContainText` "data-bepis-source-ref=\"drag-source\""
+        sourceHtml `shouldContainText` "data-bepis-source-key=\"shift:1\""
+        sourceHtml `shouldNotContainText` "data-bepis-session-kind"
+        dropzoneHtml `shouldContainText` "data-bepis-dropzone-ref=\"drag-dropzone\""
+        dropzoneHtml `shouldContainText` "data-bepis-dropzone-key=\"slot:2\""
+        activationHtml `shouldContainText` "data-bepis-activation-ref=\"roster-layout-mode-activation\""
+        activationHtml `shouldNotContainText` "data-bepis-activation-intent"
 
     it "renders minimal HTMX action and intent forms from SurfaceImpl metadata" do
         let request = FrontendSurfaceHtmxRequest
