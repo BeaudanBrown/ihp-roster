@@ -7,6 +7,8 @@
 module Web.Controller.RosterWeeks where
 
 import Application.Helper.Controller
+import Application.Helper.FrontendSurface.DependencyPlanner (planFrontendSurfaceInvalidation)
+import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceMountedFragment (..))
 import Application.Helper.LiveUpdate
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
@@ -37,9 +39,9 @@ import Web.Controller.Sessions (passkeySetupPromptSessionKey)
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Filters
-import Web.RosterWeeks.FrontendSurface (RosterSurfaceFragment (..),
-                                        RosterWeekScopeValue (..),
-                                        rosterFragmentDependencies)
+import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
+                                        rosterLiveUpdateScope,
+                                        rosterMountedFragmentForProjection)
 import Web.RosterWeeks.Mutations
 import Web.RosterWeeks.Overview
 import Web.RosterWeeks.Paths (rosterWeekUrl)
@@ -979,28 +981,18 @@ respondWithRosterRows rosterGroupId weekOffset requestedRowKeys =
 
 rosterActorFragmentsForTouchedResources :: (?context :: ControllerContext) => Id RosterGroup -> Int -> Set.Set SurfaceResourceValue -> [RosterProjectionFragment] -> [RosterProjectionFragment]
 rosterActorFragmentsForTouchedResources rosterGroupId weekOffset touchedResources candidates =
-    filter fragmentTouched candidates
+    map fst affectedPairs
     where
         scope = RosterWeekScopeValue
             { rosterWeekVenueId = unpackId currentVenueId
             , rosterWeekGroupId = rosterGroupId
             , rosterWeekWeekOffset = weekOffset
             }
-        fragmentTouched fragment =
-            not (Set.null (Set.intersection touchedResources (Set.fromList (rosterFragmentDependencies scope (projectionFragmentToSurfaceFragment fragment)))))
-
-projectionFragmentToSurfaceFragment :: RosterProjectionFragment -> RosterSurfaceFragment
-projectionFragmentToSurfaceFragment = \case
-    RosterProjectionContent -> RosterSurfaceContent
-    RosterProjectionGridToolbar -> RosterSurfaceGridToolbar
-    RosterProjectionGridFrame -> RosterSurfaceGridFrame
-    RosterProjectionDayColumns -> RosterSurfaceDayColumns
-    RosterProjectionDayRail -> RosterSurfaceDayRail
-    RosterProjectionWageRail -> RosterSurfaceWageRail
-    RosterProjectionSlotsGrid -> RosterSurfaceSlotsGrid
-    RosterProjectionStaffPanel -> RosterSurfaceStaffPanel
-    RosterProjectionDaySection rosterDayId -> RosterSurfaceDaySection rosterDayId
-    RosterProjectionRow rosterDayId rowIndex -> RosterSurfaceRow rosterDayId rowIndex
+        candidatePairs = [(fragment, rosterMountedFragmentForProjection scope fragment) | fragment <- candidates]
+        affectedMounted = planFrontendSurfaceInvalidation touchedResources (rosterLiveUpdateScope scope) (map snd candidatePairs)
+        affectedTargets :: Set.Set Text
+        affectedTargets = Set.fromList (map (\(fragment :: FrontendSurfaceMountedFragment) -> fragment.mountedFragmentTargetId) affectedMounted)
+        affectedPairs = filter (\(_, mountedFragment) -> Set.member mountedFragment.mountedFragmentTargetId affectedTargets) candidatePairs
 
 respondWithRosterActorRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> IO ()
 respondWithRosterActorRefresh rosterGroupId weekOffset fragments =

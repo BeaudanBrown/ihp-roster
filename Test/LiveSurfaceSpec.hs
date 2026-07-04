@@ -1,5 +1,6 @@
 module Test.LiveSurfaceSpec where
 
+import Application.Helper.FrontendSurface.DependencyPlanner (planFrontendSurfaceInvalidation)
 import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceFragmentKey (..),
                                                    FrontendSurfaceMountConfig (..),
                                                    FrontendSurfaceMountedFragment (..),
@@ -112,10 +113,9 @@ tests = describe "LiveSurface contract helpers" do
     it "derives FrontendSurface live fragment refs and dependencies from a single fragment contract" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let billingScope = BillingScopeValue { billingVenueId = venueId }
-        let fragments = billingAffectedMountedFragments billingScope (Set.fromList [billingResource venueId])
+        let fragments = planFrontendSurfaceInvalidation (Set.fromList [billingResource venueId]) (billingLiveUpdateScope billingScope) (billingCandidateMountedFragments "/ShowbillingStatusLiveFragment")
 
         map (.mountedFragmentTargetId) fragments `shouldBe` ["billing-status-fragment"]
-        concatMap (billingFragmentDependencies billingScope) fragments `shouldBe` [billingResource venueId]
 
     it "requires fragment contracts to declare resource dependencies or resync-only intent" do
         let ref = testFragmentRef billingStatusLiveFragment "billing-status-fragment" ["billing-status-fragment"]
@@ -285,7 +285,7 @@ tests = describe "LiveSurface contract helpers" do
         let timesheetImpl = timesheetsSurfaceImpl timesheetScope timesheetMountState
         timesheetImpl.surfaceImplMountConfig.mountSurfaceName `shouldBe` "timesheets"
         timesheetImpl.surfaceImplMountConfig.mountScopeKey `shouldBe` "timesheets:11111111-1111-1111-1111-111111111111:1"
-        let billingFragments = billingSurfaceWireFragments (billingAffectedMountedFragments billingScope (Set.fromList [billingResource venueId]))
+        let billingFragments = billingSurfaceWireFragments (planFrontendSurfaceInvalidation (Set.fromList [billingResource venueId]) (billingLiveUpdateScope billingScope) (billingCandidateMountedFragments "/ShowbillingStatusLiveFragment"))
         billingFragments `shouldBe`
             [ LiveUpdateWireFragment
                 { fragmentKey = billingStatusLiveFragment

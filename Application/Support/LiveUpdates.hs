@@ -5,9 +5,7 @@
 
 module Application.Support.LiveUpdates
     ( SupportLiveFragment (..)
-    , supportAffectedMountedFragments
     , supportCandidateMountedFragments
-    , supportFragmentDependencies
     , supportLiveSurface
     , supportLiveUpdateScope
     , supportSurfaceWireFragments
@@ -18,9 +16,7 @@ import Application.Helper.FrontendSurface.Runtime
 import qualified Application.Helper.FrontendSurface.Support as Surface
 import Application.Helper.LiveUpdate
 import Application.Helper.LiveUpdate.Runtime
-import Application.Helper.SurfaceResource
 import qualified Data.Aeson as Aeson
-import qualified Data.Set as Set
 import IHP.Prelude
 
 data SupportLiveFragment
@@ -53,18 +49,6 @@ supportCandidateMountedFragments =
     [ supportAwardRatesMountedFragment
     , supportPublicHolidaysMountedFragment
     ]
-
-supportAffectedMountedFragments :: Set.Set SurfaceResourceValue -> [FrontendSurfaceMountedFragment]
-supportAffectedMountedFragments touchedResources =
-    supportCandidateMountedFragments
-        |> filter (not . Set.null . Set.intersection touchedResources . Set.fromList . supportFragmentDependencies)
-
-supportFragmentDependencies :: FrontendSurfaceMountedFragment -> [SurfaceResourceValue]
-supportFragmentDependencies fragment =
-    case fragment.mountedFragmentKey.fragmentKind of
-        "support-award-rates"     -> [supportAwardRatesResource]
-        "support-public-holidays" -> [supportPublicHolidaysResource]
-        _                         -> []
 
 supportSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment]
 supportSurfaceWireFragments =

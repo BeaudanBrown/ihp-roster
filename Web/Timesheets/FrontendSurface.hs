@@ -5,10 +5,7 @@
 module Web.Timesheets.FrontendSurface
     ( TimesheetWeekScopeValue (..)
     , TimesheetsMountStateValue (..)
-    , TimesheetSurfaceFragment (..)
-    , timesheetsAffectedMountedFragments
     , timesheetsCandidateMountedFragments
-    , timesheetsFragmentDependencies
     , timesheetsLiveUpdateScope
     , timesheetsSurfaceImpl
     , timesheetsSurfaceMountConfig
@@ -20,10 +17,7 @@ import Application.Helper.FrontendSurface.DSL
 import Application.Helper.FrontendSurface.Runtime
 import qualified Application.Helper.FrontendSurface.Timesheets as Surface
 import Application.Helper.LiveUpdate.Runtime
-import Application.Helper.SurfaceResource
 import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Types as Aeson
-import qualified Data.Set as Set
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 import Web.Timesheets.Paths (timesheetDayColumnsFragmentUrl,
@@ -32,12 +26,6 @@ import Web.Timesheets.Paths (timesheetDayColumnsFragmentUrl,
 import Web.View.Timesheets.Index (timesheetDayColumnsId,
                                   timesheetDaySectionDomId,
                                   timesheetWeekToolbarId)
-
-data TimesheetSurfaceFragment
-    = TimesheetSurfaceToolbar
-    | TimesheetSurfaceDayColumns
-    | TimesheetSurfaceDaySection !Int
-    deriving (Eq, Show)
 
 -- | Logical live invalidation scope. Filter/query state intentionally lives in
 -- 'TimesheetsMountStateValue' instead of the scope so a future mount-state store
@@ -89,42 +77,6 @@ timesheetsCandidateMountedFragments scope mountState =
     [ timesheetToolbarMountedFragment mountState scope.timesheetWeekWeekOffset
     , timesheetDayColumnsMountedFragment mountState scope.timesheetWeekWeekOffset
     ] <> map (timesheetDaySectionMountedFragment mountState scope.timesheetWeekWeekOffset) [0 .. 6]
-
-timesheetsAffectedMountedFragments :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> Set.Set SurfaceResourceValue -> [FrontendSurfaceMountedFragment]
-timesheetsAffectedMountedFragments scope mountState touchedResources =
-    timesheetsCandidateMountedFragments scope mountState
-        |> filter (fragmentDependsOnTouchedResource scope touchedResources . mountedFragmentToSurfaceFragment)
-
-mountedFragmentToSurfaceFragment :: FrontendSurfaceMountedFragment -> TimesheetSurfaceFragment
-mountedFragmentToSurfaceFragment fragment =
-    case fragment.mountedFragmentKey.fragmentKind of
-        "timesheet-toolbar" -> TimesheetSurfaceToolbar
-        "timesheet-day-columns" -> TimesheetSurfaceDayColumns
-        "timesheet-day-section" ->
-            TimesheetSurfaceDaySection (fromMaybe 0 (parseFragmentDayOffset fragment.mountedFragmentKey.fragmentParams))
-        _ -> TimesheetSurfaceDayColumns
-
-parseFragmentDayOffset :: Aeson.Value -> Maybe Int
-parseFragmentDayOffset value =
-    Aeson.parseMaybe (Aeson.withObject "TimesheetDaySectionFragment" (.: "dayOffset")) value
-
-fragmentDependsOnTouchedResource :: TimesheetWeekScopeValue -> Set.Set SurfaceResourceValue -> TimesheetSurfaceFragment -> Bool
-fragmentDependsOnTouchedResource scope touchedResources fragment =
-    not (Set.null (Set.intersection touchedResources (Set.fromList (timesheetsFragmentDependencies scope fragment))))
-
-timesheetsFragmentDependencies :: TimesheetWeekScopeValue -> TimesheetSurfaceFragment -> [SurfaceResourceValue]
-timesheetsFragmentDependencies scope TimesheetSurfaceToolbar =
-    [ timesheetWeekResource scope.timesheetWeekVenueId scope.timesheetWeekWeekOffset
-    , timesheetWeekBoundaryConfigResource scope.timesheetWeekVenueId
-    ]
-timesheetsFragmentDependencies scope TimesheetSurfaceDayColumns =
-    [ timesheetWeekResource scope.timesheetWeekVenueId scope.timesheetWeekWeekOffset
-    , timesheetWeekBoundaryConfigResource scope.timesheetWeekVenueId
-    ]
-timesheetsFragmentDependencies scope (TimesheetSurfaceDaySection dayOffset) =
-    [ timesheetDayResource scope.timesheetWeekVenueId scope.timesheetWeekWeekOffset dayOffset
-    , timesheetWeekBoundaryConfigResource scope.timesheetWeekVenueId
-    ]
 
 timesheetsSurfaceHandlers :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> SurfaceImplHandlers Surface.TimesheetsSurface
 timesheetsSurfaceHandlers scope mountState =

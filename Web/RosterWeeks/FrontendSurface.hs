@@ -6,11 +6,9 @@
 
 module Web.RosterWeeks.FrontendSurface
     ( RosterMountedFragmentPlan (..)
-    , RosterSurfaceFragment (..)
     , RosterWeekScopeValue (..)
-    , rosterAffectedMountedFragments
     , rosterCandidateMountedFragments
-    , rosterFragmentDependencies
+    , rosterMountedFragmentForProjection
     , renderRosterFrontendSurfaceInteractionShell
     , rosterDragSessionKindName
     , rosterInteractionMountKey
@@ -33,14 +31,12 @@ import Application.Helper.FrontendSurface.Reflect (reflectRegisteredFrontendSurf
 import qualified Application.Helper.FrontendSurface.Roster as Surface
 import Application.Helper.FrontendSurface.Runtime
 import Application.Helper.LiveUpdate.Runtime
-import Application.Helper.SurfaceResource
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Char as Char
 import Data.Coerce (coerce)
 import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.Encoding
 import qualified Data.UUID as UUID
@@ -62,7 +58,8 @@ import Web.RosterWeeks.Paths (rosterLayoutPreferenceUrl, rosterMoveShiftUrl,
                               rosterWeekSlotsGridFragmentUrl,
                               rosterWeekStaffPanelFragmentUrl,
                               rosterWeekWageRailFragmentUrl)
-import Web.RosterWeeks.Types (RosterRenderIndexes (..))
+import Web.RosterWeeks.Types (RosterProjectionFragment (..),
+                              RosterRenderIndexes (..))
 
 -- | Logical roster week live invalidation scope. Viewer-specific preferences and
 -- visibility stay server-owned; the scope identifies the authorized data slice.
@@ -79,18 +76,6 @@ data RosterMountedFragmentPlan = RosterMountedFragmentPlan
     }
     deriving (Eq, Show)
 
-data RosterSurfaceFragment
-    = RosterSurfaceContent
-    | RosterSurfaceGridToolbar
-    | RosterSurfaceGridFrame
-    | RosterSurfaceDayColumns
-    | RosterSurfaceDayRail
-    | RosterSurfaceWageRail
-    | RosterSurfaceSlotsGrid
-    | RosterSurfaceStaffPanel
-    | RosterSurfaceDaySection !UUID.UUID
-    | RosterSurfaceRow !UUID.UUID !Int
-    deriving (Eq, Show)
 
 rosterMountedFragmentPlanFromRenderData :: [RosterDay] -> RosterRenderIndexes -> RosterMountedFragmentPlan
 rosterMountedFragmentPlanFromRenderData rosterDays renderIndexes =
@@ -293,69 +278,18 @@ rosterCandidateMountedFragments scope plan =
         <> map (rosterDaySectionMountedFragment scope) plan.rosterMountedDayIds
         <> map (uncurry (rosterRowMountedFragment scope)) plan.rosterMountedRows
 
-rosterAffectedMountedFragments :: RosterWeekScopeValue -> RosterMountedFragmentPlan -> Set.Set SurfaceResourceValue -> [FrontendSurfaceMountedFragment]
-rosterAffectedMountedFragments scope plan touchedResources =
-    rosterCandidateMountedFragments scope plan
-        |> filter (fragmentDependsOnTouchedResource scope touchedResources . mountedFragmentToSurfaceFragment)
-
-mountedFragmentToSurfaceFragment :: FrontendSurfaceMountedFragment -> RosterSurfaceFragment
-mountedFragmentToSurfaceFragment fragment =
-    case fragment.mountedFragmentKey.fragmentKind of
-        "roster-content" -> RosterSurfaceContent
-        "roster-grid-toolbar" -> RosterSurfaceGridToolbar
-        "roster-grid-frame" -> RosterSurfaceGridFrame
-        "roster-day-columns" -> RosterSurfaceDayColumns
-        "roster-day-rail" -> RosterSurfaceDayRail
-        "roster-wage-rail" -> RosterSurfaceWageRail
-        "roster-slots-grid" -> RosterSurfaceSlotsGrid
-        "roster-staff-panel" -> RosterSurfaceStaffPanel
-        "roster-day-section" -> maybe RosterSurfaceGridFrame RosterSurfaceDaySection (parseFragmentRosterDayId fragment.mountedFragmentKey.fragmentParams)
-        "roster-row" ->
-            let params = fragment.mountedFragmentKey.fragmentParams
-             in case (parseFragmentRosterDayId params, parseFragmentRowIndex params) of
-                    (Just rosterDayId, Just rowIndex) -> RosterSurfaceRow rosterDayId rowIndex
-                    _ -> RosterSurfaceGridFrame
-        _ -> RosterSurfaceGridFrame
-
-parseFragmentRosterDayId :: Aeson.Value -> Maybe UUID.UUID
-parseFragmentRosterDayId value = do
-    raw <- Aeson.parseMaybe (Aeson.withObject "RosterDayFragment" (.: "rosterDayId")) value
-    UUID.fromString (cs (raw :: Text))
-
-parseFragmentRowIndex :: Aeson.Value -> Maybe Int
-parseFragmentRowIndex value =
-    Aeson.parseMaybe (Aeson.withObject "RosterRowFragment" (.: "rowIndex")) value
-
-fragmentDependsOnTouchedResource :: RosterWeekScopeValue -> Set.Set SurfaceResourceValue -> RosterSurfaceFragment -> Bool
-fragmentDependsOnTouchedResource scope touchedResources fragment =
-    not (Set.null (Set.intersection touchedResources (Set.fromList (rosterFragmentDependencies scope fragment))))
-
-rosterFragmentDependencies :: RosterWeekScopeValue -> RosterSurfaceFragment -> [SurfaceResourceValue]
-rosterFragmentDependencies scope = \case
-    RosterSurfaceContent -> rosterWeekDependencies scope
-    RosterSurfaceGridToolbar -> rosterWeekDependencies scope
-    RosterSurfaceGridFrame -> rosterWeekDependencies scope
-    RosterSurfaceDayColumns -> rosterWeekDependencies scope
-    RosterSurfaceDayRail -> rosterWeekDependencies scope
-    RosterSurfaceWageRail -> rosterWeekDependencies scope
-    RosterSurfaceSlotsGrid -> rosterWeekDependencies scope
-    RosterSurfaceStaffPanel -> [rosterWeekResource (unpackId scope.rosterWeekGroupId) scope.rosterWeekWeekOffset]
-    RosterSurfaceDaySection rosterDayId -> rosterDayDependencies scope rosterDayId
-    RosterSurfaceRow rosterDayId _ -> rosterDayDependencies scope rosterDayId
-
-rosterWeekDependencies :: RosterWeekScopeValue -> [SurfaceResourceValue]
-rosterWeekDependencies scope =
-    [ rosterWeekResource (unpackId scope.rosterWeekGroupId) scope.rosterWeekWeekOffset
-    , rosterEndTimesConfigResource scope.rosterWeekVenueId
-    , rosterWeekBoundaryConfigResource scope.rosterWeekVenueId
-    ]
-
-rosterDayDependencies :: RosterWeekScopeValue -> UUID.UUID -> [SurfaceResourceValue]
-rosterDayDependencies scope rosterDayId =
-    [ rosterDayResource rosterDayId
-    , rosterEndTimesConfigResource scope.rosterWeekVenueId
-    , rosterWeekBoundaryConfigResource scope.rosterWeekVenueId
-    ]
+rosterMountedFragmentForProjection :: RosterWeekScopeValue -> RosterProjectionFragment -> FrontendSurfaceMountedFragment
+rosterMountedFragmentForProjection scope = \case
+    RosterProjectionContent -> rosterContentMountedFragment scope
+    RosterProjectionGridToolbar -> rosterGridToolbarMountedFragment scope
+    RosterProjectionGridFrame -> rosterGridFrameMountedFragment scope
+    RosterProjectionDayColumns -> rosterDayColumnsMountedFragment scope
+    RosterProjectionDayRail -> rosterDayRailMountedFragment scope
+    RosterProjectionWageRail -> rosterWageRailMountedFragment scope
+    RosterProjectionSlotsGrid -> rosterSlotsGridMountedFragment scope
+    RosterProjectionStaffPanel -> rosterStaffPanelMountedFragment scope
+    RosterProjectionDaySection rosterDayId -> rosterDaySectionMountedFragment scope (Id rosterDayId)
+    RosterProjectionRow rosterDayId rowIndex -> rosterRowMountedFragment scope (Id rosterDayId) rowIndex
 
 rosterSurfaceHandlers :: RosterWeekScopeValue -> RosterMountedFragmentPlan -> SurfaceImplHandlers Surface.RosterSurface
 rosterSurfaceHandlers scope _plan =

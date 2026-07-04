@@ -4,9 +4,7 @@
 
 module Web.Billing.FrontendSurface
     ( BillingScopeValue (..)
-    , billingAffectedMountedFragments
     , billingCandidateMountedFragments
-    , billingFragmentDependencies
     , billingLiveUpdateScope
     , billingSurfaceImpl
     , billingSurfaceMountConfig
@@ -20,9 +18,7 @@ import qualified Application.Helper.FrontendSurface.Billing as Surface
 import Application.Helper.FrontendSurface.DSL
 import Application.Helper.FrontendSurface.Runtime
 import Application.Helper.LiveUpdate.Runtime
-import Application.Helper.SurfaceResource
 import qualified Data.Aeson as Aeson
-import qualified Data.Set as Set
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 
@@ -63,15 +59,6 @@ billingLiveUpdateScope scope =
 billingCandidateMountedFragments :: Text -> [FrontendSurfaceMountedFragment]
 billingCandidateMountedFragments statusUrl =
     [billingStatusMountedFragment statusUrl]
-
-billingAffectedMountedFragments :: BillingScopeValue -> Set.Set SurfaceResourceValue -> [FrontendSurfaceMountedFragment]
-billingAffectedMountedFragments scope touchedResources =
-    billingCandidateMountedFragments (pathTo ShowbillingStatusLiveFragmentAction)
-        |> filter (not . Set.null . Set.intersection touchedResources . Set.fromList . billingFragmentDependencies scope)
-
-billingFragmentDependencies :: BillingScopeValue -> FrontendSurfaceMountedFragment -> [SurfaceResourceValue]
-billingFragmentDependencies scope _ =
-    [billingResource scope.billingVenueId]
 
 billingSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment]
 billingSurfaceWireFragments =

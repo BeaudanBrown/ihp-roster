@@ -4,9 +4,7 @@
 
 module Web.LeaveRequests.FrontendSurface
     ( LeaveRequestsScopeValue (..)
-    , leaveRequestsAffectedMountedFragments
     , leaveRequestsCandidateMountedFragments
-    , leaveRequestsFragmentDependencies
     , leaveRequestsLiveUpdateScope
     , leaveRequestsSurfaceImpl
     , leaveRequestsSurfaceMountConfig
@@ -18,9 +16,7 @@ import Application.Helper.FrontendSurface.DSL
 import qualified Application.Helper.FrontendSurface.LeaveRequests as Surface
 import Application.Helper.FrontendSurface.Runtime
 import Application.Helper.LiveUpdate.Runtime
-import Application.Helper.SurfaceResource
 import qualified Data.Aeson as Aeson
-import qualified Data.Set as Set
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 import Web.View.LeaveRequests.Index (leaveRequestsContentFragmentId)
@@ -58,15 +54,6 @@ leaveRequestsLiveUpdateScope scope =
 leaveRequestsCandidateMountedFragments :: LeaveRequestsScopeValue -> [FrontendSurfaceMountedFragment]
 leaveRequestsCandidateMountedFragments _ =
     [leaveRequestsContentMountedFragment]
-
-leaveRequestsAffectedMountedFragments :: LeaveRequestsScopeValue -> Set.Set SurfaceResourceValue -> [FrontendSurfaceMountedFragment]
-leaveRequestsAffectedMountedFragments scope touchedResources =
-    leaveRequestsCandidateMountedFragments scope
-        |> filter (not . Set.null . Set.intersection touchedResources . Set.fromList . leaveRequestsFragmentDependencies scope)
-
-leaveRequestsFragmentDependencies :: LeaveRequestsScopeValue -> FrontendSurfaceMountedFragment -> [SurfaceResourceValue]
-leaveRequestsFragmentDependencies scope _ =
-    [leaveRequestsResource scope.leaveRequestsVenueId]
 
 leaveRequestsSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment]
 leaveRequestsSurfaceWireFragments =

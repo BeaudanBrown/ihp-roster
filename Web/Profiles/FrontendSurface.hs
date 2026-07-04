@@ -4,9 +4,7 @@
 
 module Web.Profiles.FrontendSurface
     ( ProfileScopeValue (..)
-    , profileAffectedMountedFragments
     , profileCandidateMountedFragments
-    , profileFragmentDependencies
     , profileLiveUpdateScope
     , profileSectionFragmentForSection
     , profileSurfaceImpl
@@ -19,10 +17,8 @@ import Application.Helper.FrontendSurface.DSL
 import qualified Application.Helper.FrontendSurface.Profile as Surface
 import Application.Helper.FrontendSurface.Runtime
 import Application.Helper.LiveUpdate.Runtime
-import Application.Helper.SurfaceResource
 import Application.Helper.Url (appendQueryParams)
 import qualified Data.Aeson as Aeson
-import qualified Data.Set as Set
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 
@@ -65,20 +61,6 @@ profileCandidateMountedFragments _ =
     , profileLeaveMountedFragment
     , profileRsaMountedFragment
     ]
-
-profileAffectedMountedFragments :: ProfileScopeValue -> Set.Set SurfaceResourceValue -> [FrontendSurfaceMountedFragment]
-profileAffectedMountedFragments scope touchedResources =
-    profileCandidateMountedFragments scope
-        |> filter (not . Set.null . Set.intersection touchedResources . Set.fromList . profileFragmentDependencies scope)
-
-profileFragmentDependencies :: ProfileScopeValue -> FrontendSurfaceMountedFragment -> [SurfaceResourceValue]
-profileFragmentDependencies scope fragment =
-    case fragment.mountedFragmentKey.fragmentKind of
-        "profile-details-section" -> [staffProfileResource scope.profileStaffId, staffPreferencesResource scope.profileStaffId]
-        "profile-preferences-section" -> [staffPreferencesResource scope.profileStaffId]
-        "profile-rsa-section" -> [staffRsaDocumentsResource scope.profileStaffId]
-        "profile-leave-section" -> [staffLeaveRequestsResource scope.profileStaffId]
-        _ -> []
 
 profileSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [LiveUpdateWireFragment]
 profileSurfaceWireFragments =
