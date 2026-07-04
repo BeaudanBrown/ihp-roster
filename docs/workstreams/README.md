@@ -35,14 +35,16 @@ for forward-looking design.
 - `schema-hardening.md` - V1 schema hardening.
 - `subscription-billing.md` - per-venue Stripe Billing subscriptions.
 - `maintenance.md` - cross-cutting refactors and doc/agent cleanup.
-- `live-surface-architecture.md` - typed live-fragment surface ergonomics and
-  robustness.
-- `strict-live-surface-overhaul.md` - removal of the old live-surface
-  compatibility/manual authoring layer and strict typed migration.
-- `live-update-runtime-simplification.md` - follow-up cleanup of internal
-  live-update compatibility primitives and protocol simplification decisions.
-- `typed-interaction-surfaces.md` - typed disposable interaction layers,
-  generated intent contracts, and HTMX form bridge on top of live surfaces.
+- `live-surface-architecture.md` - historical typed live-fragment surface
+  ergonomics; superseded by generated `FrontendSurface` runtime docs.
+- `strict-live-surface-overhaul.md` - historical removal plan for the old
+  live-surface compatibility/manual authoring layer; superseded by
+  `Application/Helper/FrontendSurface/README.md`.
+- `live-update-runtime-simplification.md` - historical cleanup of internal
+  live-update compatibility primitives; current behavior lives in
+  `Application/Helper/LiveUpdate.SPEC.md` and FrontendSurface docs.
+- `typed-interaction-surfaces.md` - generated `FrontendSurface` interaction
+  refs, disposable layers, generated intent contracts, and HTMX form bridge.
 - `bepis-component-pipelines.md` - typed Bepis component pipelines for action
   contracts, mutations, scope/audit/realtime evidence, and generated facts.
 - `bepis-effect-evidence-finalization.md` - final no-legacy Bepis runtime fact

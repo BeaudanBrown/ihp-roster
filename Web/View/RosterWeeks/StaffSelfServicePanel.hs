@@ -4,7 +4,7 @@ module Web.View.RosterWeeks.StaffSelfServicePanel
     , renderRosterStaffSelfServiceLeaveFormFragmentWithSwap
     , rosterStaffSelfServiceLeaveFormFragmentId
     , rosterStaffSelfServicePanelFragmentId
-    , rosterStaffSelfServiceTimesheetLiveSurfaceId
+    , rosterStaffSelfServiceTimesheetSurfaceId
     ) where
 
 import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceMountConfig (..),
@@ -30,8 +30,8 @@ rosterStaffSelfServicePanelFragmentId = "roster-staff-self-service-panel-fragmen
 rosterStaffSelfServiceLeaveFormFragmentId :: Text
 rosterStaffSelfServiceLeaveFormFragmentId = "roster-staff-self-service-leave-form-fragment"
 
-rosterStaffSelfServiceTimesheetLiveSurfaceId :: Text
-rosterStaffSelfServiceTimesheetLiveSurfaceId = "roster-staff-self-service-timesheet-live-surface"
+rosterStaffSelfServiceTimesheetSurfaceId :: Text
+rosterStaffSelfServiceTimesheetSurfaceId = "roster-staff-self-service-timesheet-live-surface"
 
 renderRosterStaffSelfServicePanelFragment :: (?context :: ControllerContext) => Maybe RosterStaffSelfServicePanel -> Html
 renderRosterStaffSelfServicePanelFragment Nothing = mempty
@@ -44,9 +44,9 @@ renderRosterStaffSelfServicePanelFragment (Just panel)
             <div class="roster-staff-self-service-stack">
                 <div class="app-panel roster-quick-tool-panel">
                     <div class="app-panel-body p-0 roster-quick-tool-panel-body">
-                        <div id={rosterStaffSelfServiceTimesheetLiveSurfaceId}
+                        <div id={rosterStaffSelfServiceTimesheetSurfaceId}
                              class="roster-quick-tool-timesheet">
-                            {renderFrontendSurfaceMount (timesheetLiveSurface panel) (renderDaySection (timesheetDayModel panel))}
+                            {renderFrontendSurfaceMount (timesheetSurface panel) (renderDaySection (timesheetDayModel panel))}
                         </div>
                     </div>
                 </div>
@@ -114,8 +114,8 @@ timesheetDayModel panel =
         , dayOffset = operationalDayOffset
         }
 
-timesheetLiveSurface :: (?context :: ControllerContext) => RosterStaffSelfServicePanel -> SurfaceImpl Surface.TimesheetsSurface
-timesheetLiveSurface panel =
+timesheetSurface :: (?context :: ControllerContext) => RosterStaffSelfServicePanel -> SurfaceImpl Surface.TimesheetsSurface
+timesheetSurface panel =
     let scope = TimesheetWeekScopeValue
             { timesheetWeekVenueId = unpackId panel.quickToolsVenueId
             , timesheetWeekWeekOffset = panel.quickToolsTimesheetWeekOffset

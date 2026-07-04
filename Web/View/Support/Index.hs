@@ -8,7 +8,7 @@ import Application.Helper.FwcMapd (FwcMapdAdminData (..),
 import Application.PublicHolidays.Coverage (PublicHolidayCoverageStatus (..),
                                             PublicHolidayCoverageYear (..),
                                             publicHolidayCoverageHasWarning)
-import Application.Support.LiveUpdates (supportLiveSurface)
+import Application.Support.LiveUpdates (supportSurface)
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
@@ -98,7 +98,7 @@ instance View IndexView where
                     })
          in [hsx|
             <section id="support-shell" hx-history-elt="true">
-                {renderFrontendSurfaceMount supportLiveSurface page}
+                {renderFrontendSurfaceMount supportSurface page}
             </section>
         |]
 

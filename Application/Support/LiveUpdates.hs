@@ -6,7 +6,7 @@
 module Application.Support.LiveUpdates
     ( SupportLiveFragment (..)
     , supportCandidateMountedFragments
-    , supportLiveSurface
+    , supportSurface
     , supportSurfaceScope
     , supportSurfaceWireFragments
     ) where
@@ -27,8 +27,8 @@ data SupportLiveFragment
 supportSurfaceScope :: SurfaceScope
 supportSurfaceScope = supportPlatformLiveScope
 
-supportLiveSurface :: SurfaceImpl Surface.SupportSurface
-supportLiveSurface =
+supportSurface :: SurfaceImpl Surface.SupportSurface
+supportSurface =
     let impl = mkSurfaceImpl "support" supportSurfaceMountConfig supportSurfaceHandlers
      in impl { surfaceImplMountConfig = impl.surfaceImplMountConfig { mountFragments = supportCandidateMountedFragments } }
 

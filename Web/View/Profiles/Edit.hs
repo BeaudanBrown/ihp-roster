@@ -19,8 +19,8 @@ import Web.View.StaffProfileSections
 profileContentFragmentId :: Text
 profileContentFragmentId = "profile-content-fragment"
 
-profileLiveSurfaceId :: Text
-profileLiveSurfaceId = "profile-live-surface"
+profileSurfaceId :: Text
+profileSurfaceId = "profile-live-surface"
 
 profileDetailsSectionId :: Text
 profileDetailsSectionId = "profile-details"
@@ -98,20 +98,20 @@ instance View EditView where
                     , appPanelClass = ""
                     , appPanelBodyClass = ""
                     , appPanelBody =
-                        renderProfileLiveSurface
+                        renderProfileSurface
                             staff
                             openSection
                             (renderprofileContentLiveFragmentWithManagement staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection)
                     }
             })
 
-renderProfileLiveSurface :: Staff -> Text -> Html -> Html
-renderProfileLiveSurface staff _openSection body =
+renderProfileSurface :: Staff -> Text -> Html -> Html
+renderProfileSurface staff _openSection body =
     let mountedBody = case profileSurfaceMount staff of
             Just impl -> renderFrontendSurfaceMount impl body
             Nothing   -> body
      in [hsx|
-        <div id={profileLiveSurfaceId}>
+        <div id={profileSurfaceId}>
             {mountedBody}
         </div>
     |]
