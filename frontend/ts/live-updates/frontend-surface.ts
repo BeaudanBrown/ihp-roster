@@ -83,7 +83,7 @@ function fragmentProtectionToWire(protection: FrontendSurfaceLiveWireFragment["p
     if (typeof protection.fieldNameFallback !== "boolean") return { kind: "none" };
     if (protection.containerSelector !== null && protection.containerSelector !== undefined && typeof protection.containerSelector !== "string") return { kind: "none" };
     return {
-        kind: "focused_field",
+        kind: "focused-field",
         activeSelector: protection.activeSelector,
         fieldKeyAttr: protection.fieldKeyAttr,
         fieldNameFallback: protection.fieldNameFallback,

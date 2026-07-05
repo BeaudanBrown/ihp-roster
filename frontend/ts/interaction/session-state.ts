@@ -1,8 +1,8 @@
-import { AppEvents, InteractionDom, type InteractionConflictResolution } from "../generated/contracts";
+import { InteractionDom, type InteractionConflictResolution, interactionSessionStartEvent, interactionSessionEndEvent, interactionSessionCancelRequestEvent } from "../generated/contracts";
 
-export const interactionSessionStartEventName = AppEvents.interactionSessionStart;
-export const interactionSessionEndEventName = AppEvents.interactionSessionEnd;
-export const interactionSessionCancelRequestEventName = AppEvents.interactionSessionCancelRequest;
+export const interactionSessionStartEventName = interactionSessionStartEvent;
+export const interactionSessionEndEventName = interactionSessionEndEvent;
+export const interactionSessionCancelRequestEventName = interactionSessionCancelRequestEvent;
 
 export type InteractionSessionSnapshot = {
     mount: Element;

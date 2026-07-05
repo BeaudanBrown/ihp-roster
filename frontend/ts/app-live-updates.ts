@@ -1,5 +1,5 @@
 import type { LiveUpdateCommand, LiveUpdateMessage, SurfaceScope, SurfaceWireFragment } from "./generated/contracts";
-import { AppEvents, parseLiveUpdateMessage } from "./generated/contracts";
+import { parseLiveUpdateMessage, pageReadyEvent, liveFragmentsRefreshEvent, interactionSessionEndEvent } from "./generated/contracts";
 import { enableHtmxUiRegionEventAdapter } from "./fragments/htmx-adapter";
 import { enableUiRegionTransitions } from "./fragments/transitions";
 import { resolveLiveFragmentInteractionConflict } from "./interaction/live-conflicts";
@@ -73,7 +73,7 @@ type FragmentProtectionAdapter = {
     captureState: (target: HTMLElement, fragment: LiveUpdateFragmentWithState) => LiveUpdateFragmentWithState;
     restoreState: (target: HTMLElement, fragment: LiveUpdateFragmentWithState) => void;
 };
-type FocusedFieldProtectionPolicy = Extract<SurfaceWireFragment["protectionPolicy"], { kind: "focused_field" }>;
+type FocusedFieldProtectionPolicy = Extract<SurfaceWireFragment["protectionPolicy"], { kind: "focused-field" }>;
 type LiveUpdateSubscribedMessage = Extract<LiveUpdateMessage, { type: "subscribed" }>;
 type LiveUpdateInvalidateMessage = Extract<LiveUpdateMessage, { type: "invalidate" }>;
 type HtmxConfigRequestEvent = Event & {
@@ -87,7 +87,7 @@ type HtmxConfigRequestEvent = Event & {
 (function enableLiveUpdates() {
     if (typeof window === 'undefined') return;
 
-    const actorFragmentRefreshEventName = AppEvents.liveFragmentsRefresh;
+    const actorFragmentRefreshEventName = liveFragmentsRefreshEvent;
     const pendingDeferredFragments = new Map<string, LiveUpdateFragmentWithState>();
     const pendingInteractionDeferredFragments = new Map<string, LiveUpdateFragmentWithState>();
     const pendingInteractionTimers = new Map<string, ReturnType<typeof window.setTimeout>>();
@@ -433,7 +433,7 @@ type HtmxConfigRequestEvent = Event & {
         if (!fragment) return null;
 
         switch (fragment.protectionPolicy.kind) {
-            case 'focused_field':
+            case 'focused-field':
                 return focusedFieldProtection(fragment.protectionPolicy);
             case 'none':
                 return null;
@@ -1038,7 +1038,7 @@ type HtmxConfigRequestEvent = Event & {
 
     document.addEventListener(actorFragmentRefreshEventName, handleActorFragmentRefreshEvent);
 
-    document.addEventListener(AppEvents.interactionSessionEnd, function () {
+    document.addEventListener(interactionSessionEndEvent, function () {
         flushInteractionDeferredFragmentsWithoutActiveSessions();
         flushDeferredFragmentsWithoutActiveInputs();
     });
@@ -1074,5 +1074,5 @@ type HtmxConfigRequestEvent = Event & {
         }, 0);
     });
 
-    document.addEventListener(AppEvents.pageReady, syncConnection);
+    document.addEventListener(pageReadyEvent, syncConnection);
 })();

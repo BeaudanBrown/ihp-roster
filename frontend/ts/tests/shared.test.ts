@@ -1,11 +1,11 @@
-import { AppEvents } from "../generated/contracts";
+import { pageReadyEvent } from "../generated/contracts";
 import { detailRoot, detailTarget } from "../shared/lifecycle";
 import { isDomRoot, isElement, rootFromTarget } from "../shared/dom";
 import { assertEqual, test } from "./harness";
 
 test("detailTarget reads HTMX/app page-ready custom event detail values", () => {
     const target = { nodeType: 1 };
-    const event = new CustomEvent(AppEvents.pageReady, { detail: { target, elt: "fragment" } });
+    const event = new CustomEvent(pageReadyEvent, { detail: { target, elt: "fragment" } });
 
     assertEqual(detailTarget(event, "target"), target);
     assertEqual(detailTarget(event, "elt"), "fragment");
@@ -19,7 +19,7 @@ test("rootFromTarget and detailRoot fall back when values are not DOM roots", ()
         querySelectorAll: () => [],
     } as unknown as DocumentFragment;
 
-    const event = new CustomEvent(AppEvents.pageReady, { detail: { target: "not-a-root" } });
+    const event = new CustomEvent(pageReadyEvent, { detail: { target: "not-a-root" } });
 
     assertEqual(rootFromTarget("not-a-root", fallback), fallback);
     assertEqual(detailRoot(event, "target", fallback), fallback);

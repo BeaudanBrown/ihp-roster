@@ -1,4 +1,4 @@
-import { UiRegionDom, UiRegionEvents } from "../generated/contracts";
+import { fragmentDomAttr, regionRequestStartEvent, regionBeforeSwapEvent, regionAfterSwapEvent, regionSettleEvent, regionErrorEvent } from "../generated/contracts";
 import { enableHtmxUiRegionEventAdapter } from "../fragments/htmx-adapter";
 import type { UiRegionLifecycleDetail } from "../fragments/events";
 import { assertEqual, test } from "./harness";
@@ -11,7 +11,7 @@ test("HTMX region adapter emits normalized Bepis events only for marked fragment
     if (typeof document === "undefined") return;
 
     const region = document.createElement("section");
-    region.setAttribute(UiRegionDom.fragment, "true");
+    region.setAttribute(fragmentDomAttr, "true");
     const source = document.createElement("button");
     region.appendChild(source);
     document.body.appendChild(region);
@@ -24,7 +24,7 @@ test("HTMX region adapter emits normalized Bepis events only for marked fragment
     const seen: UiRegionLifecycleDetail[] = [];
     const disable = enableHtmxUiRegionEventAdapter(document);
     try {
-        document.addEventListener(UiRegionEvents.requestStart, (event) => {
+        document.addEventListener(regionRequestStartEvent, (event) => {
             seen.push((event as CustomEvent<UiRegionLifecycleDetail>).detail);
         });
 
@@ -37,7 +37,7 @@ test("HTMX region adapter emits normalized Bepis events only for marked fragment
     }
 
     assertEqual(seen.length, 1);
-    assertEqual(seen[0]?.lifecycleEvent, UiRegionEvents.requestStart);
+    assertEqual(seen[0]?.lifecycleEvent, regionRequestStartEvent);
     assertEqual(seen[0]?.htmxEventName, "htmx:beforeRequest");
     assertEqual(seen[0]?.region, region);
     assertEqual(seen[0]?.source, source);
@@ -48,7 +48,7 @@ test("HTMX region adapter normalizes swap and error lifecycle details", () => {
     if (typeof document === "undefined") return;
 
     const region = document.createElement("section");
-    region.setAttribute(UiRegionDom.fragment, "true");
+    region.setAttribute(fragmentDomAttr, "true");
     const target = document.createElement("div");
     region.appendChild(target);
     document.body.appendChild(region);
@@ -65,10 +65,10 @@ test("HTMX region adapter normalizes swap and error lifecycle details", () => {
     };
 
     try {
-        document.addEventListener(UiRegionEvents.beforeSwap, record);
-        document.addEventListener(UiRegionEvents.afterSwap, record);
-        document.addEventListener(UiRegionEvents.settle, record);
-        document.addEventListener(UiRegionEvents.error, record);
+        document.addEventListener(regionBeforeSwapEvent, record);
+        document.addEventListener(regionAfterSwapEvent, record);
+        document.addEventListener(regionSettleEvent, record);
+        document.addEventListener(regionErrorEvent, record);
 
         target.dispatchEvent(htmxEvent("htmx:beforeSwap", { target }));
         target.dispatchEvent(htmxEvent("htmx:afterSwap", { target }));
@@ -80,10 +80,10 @@ test("HTMX region adapter normalizes swap and error lifecycle details", () => {
     }
 
     assertEqual(phases.join(","), [
-        UiRegionEvents.beforeSwap,
-        UiRegionEvents.afterSwap,
-        UiRegionEvents.settle,
-        UiRegionEvents.error,
+        regionBeforeSwapEvent,
+        regionAfterSwapEvent,
+        regionSettleEvent,
+        regionErrorEvent,
     ].join(","));
     assertEqual(errorKinds[3], "timeout");
 });

@@ -24,7 +24,7 @@ const fragment: SurfaceWireFragment = {
     url: "/ShowTimesheetDay?dayOffset=1",
     deferUntilBlur: true,
     protectionPolicy: {
-        kind: "focused_field",
+        kind: "focused-field",
         activeSelector: "input:focus",
         fieldKeyAttr: "data-live-field-key",
         fieldNameFallback: true,

@@ -239,7 +239,7 @@ test("FrontendSurface config parser preserves reusable focused-field protection"
     }, { venueId: "venue-1", staffId: "staff-1" }));
 
     assertDeepEqual(config?.resyncFragments[0]?.protectionPolicy, {
-        kind: "focused_field",
+        kind: "focused-field",
         activeSelector: "input[data-profile-field]:focus",
         fieldKeyAttr: "data-profile-field",
         fieldNameFallback: true,

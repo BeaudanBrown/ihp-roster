@@ -1,4 +1,4 @@
-import { AppOverlayDom } from "./generated/contracts";
+import { dialogOverlayMountDomId } from "./generated/contracts";
 import { type DomRoot } from "./shared/dom";
 import { detailRoot, onAppPageReady } from "./shared/lifecycle";
 
@@ -40,7 +40,7 @@ function enableBreakTimeToggle(): void {
 
 enableBreakTimeToggle();
 
-const dialogMountId = AppOverlayDom.dialogOverlayMountId;
+const dialogMountId = dialogOverlayMountDomId;
 const entryLinkSelector = ".timesheet-entry-card-link";
 let pointerOpenedEntryLink: HTMLElement | null = null;
 let mountObserver: MutationObserver | null = null;

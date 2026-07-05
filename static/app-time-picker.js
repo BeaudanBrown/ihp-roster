@@ -23,7 +23,7 @@
   }
 
   // frontend/ts/generated/contracts.ts
-  var AppEvents = { "interactionIntent": "bepis:interaction-intent", "interactionIntentSubmit": "bepis:intent-submit", "interactionSessionCancelRequest": "bepis:interaction-session-cancel-request", "interactionSessionEnd": "bepis:interaction-session-end", "interactionSessionStart": "bepis:interaction-session-start", "liveFragmentsRefresh": "app-live-fragments-refresh", "pageReady": "app:page-ready" };
+  var pageReadyEvent = "bepis:page-ready";
 
   // frontend/ts/shared/lifecycle.ts
   function eventDetailRecord(event) {
@@ -36,7 +36,7 @@
   }
   function onAppPageReady(handler) {
     if (typeof document === "undefined") return;
-    document.addEventListener(AppEvents.pageReady, handler);
+    document.addEventListener(pageReadyEvent, handler);
   }
 
   // frontend/ts/time-picker/options.ts

@@ -1,8 +1,8 @@
 "use strict";
 (() => {
   // frontend/ts/generated/contracts.ts
-  var AppOverlayDom = { "dialogOverlayMountId": "dialog-overlay-mount", "toastOverlayMountId": "toast-overlay-mount" };
-  var AppEvents = { "interactionIntent": "bepis:interaction-intent", "interactionIntentSubmit": "bepis:intent-submit", "interactionSessionCancelRequest": "bepis:interaction-session-cancel-request", "interactionSessionEnd": "bepis:interaction-session-end", "interactionSessionStart": "bepis:interaction-session-start", "liveFragmentsRefresh": "app-live-fragments-refresh", "pageReady": "app:page-ready" };
+  var pageReadyEvent = "bepis:page-ready";
+  var dialogOverlayMountDomId = "dialog-overlay-mount";
 
   // frontend/ts/shared/dom.ts
   function isElement(value) {
@@ -35,7 +35,7 @@
   }
   function onAppPageReady(handler) {
     if (typeof document === "undefined") return;
-    document.addEventListener(AppEvents.pageReady, handler);
+    document.addEventListener(pageReadyEvent, handler);
   }
 
   // frontend/ts/app-timesheets.ts
@@ -68,7 +68,7 @@
     });
   }
   enableBreakTimeToggle();
-  var dialogMountId = AppOverlayDom.dialogOverlayMountId;
+  var dialogMountId = dialogOverlayMountDomId;
   var entryLinkSelector = ".timesheet-entry-card-link";
   var pointerOpenedEntryLink = null;
   var mountObserver = null;

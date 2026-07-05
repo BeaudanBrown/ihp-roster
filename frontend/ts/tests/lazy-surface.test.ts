@@ -1,4 +1,4 @@
-import { UiRegionDom, UiRegionEvents } from "../generated/contracts";
+import { fragmentDomAttr, lazySurfaceDomAttr, lazyRetryDomAttr, regionRequestStartEvent, regionErrorEvent } from "../generated/contracts";
 import type { UiRegionLifecycleDetail, UiRegionErrorKind } from "../fragments/events";
 import { enableLazySurfaceErrorHandling, lazySurfaceSelector, renderLazySurfaceError } from "../live-updates/lazy-surface";
 import { assertEqual, test } from "./harness";
@@ -18,9 +18,9 @@ function regionEvent(name: string, region: HTMLElement, errorKind?: UiRegionErro
 
 function lazySurface(): HTMLElement {
     const surface = document.createElement("div");
-    surface.setAttribute(UiRegionDom.fragment, "true");
-    surface.setAttribute(UiRegionDom.lazySurface, "true");
-    surface.setAttribute(UiRegionDom.lazyRetry, "true");
+    surface.setAttribute(fragmentDomAttr, "true");
+    surface.setAttribute(lazySurfaceDomAttr, "true");
+    surface.setAttribute(lazyRetryDomAttr, "true");
     surface.setAttribute("hx-get", "/lazy-fragment");
     surface.setAttribute("aria-busy", "true");
     return surface;
@@ -60,11 +60,11 @@ test("lazy surface handling consumes Bepis region request and response-error eve
 
     const disable = enableLazySurfaceErrorHandling(document);
     try {
-        surface.dispatchEvent(regionEvent(UiRegionEvents.requestStart, surface));
+        surface.dispatchEvent(regionEvent(regionRequestStartEvent, surface));
         assertEqual(surface.classList.contains("app-lazy-surface-error"), false);
         assertEqual(surface.getAttribute("aria-busy"), "true");
 
-        surface.dispatchEvent(regionEvent(UiRegionEvents.error, surface, "response-error"));
+        surface.dispatchEvent(regionEvent(regionErrorEvent, surface, "response-error"));
         assertEqual(surface.classList.contains("app-lazy-surface-error"), true);
         assertEqual(surface.querySelector(".app-lazy-surface-error-message")?.textContent, "We couldn't load this section.");
     } finally {
@@ -82,8 +82,8 @@ test("lazy surface handling covers send errors and timeout copy through region e
 
     const disable = enableLazySurfaceErrorHandling(document);
     try {
-        sendErrorSurface.dispatchEvent(regionEvent(UiRegionEvents.error, sendErrorSurface, "send-error"));
-        timeoutSurface.dispatchEvent(regionEvent(UiRegionEvents.error, timeoutSurface, "timeout"));
+        sendErrorSurface.dispatchEvent(regionEvent(regionErrorEvent, sendErrorSurface, "send-error"));
+        timeoutSurface.dispatchEvent(regionEvent(regionErrorEvent, timeoutSurface, "timeout"));
 
         assertEqual(sendErrorSurface.querySelector(".app-lazy-surface-error-message")?.textContent, "We couldn't load this section.");
         assertEqual(timeoutSurface.querySelector(".app-lazy-surface-error-message")?.textContent, "This section took too long to load.");
@@ -99,13 +99,13 @@ test("lazy surface handling ignores raw HTMX and retry-disabled regions", () => 
 
     const surface = lazySurface();
     const retryDisabled = lazySurface();
-    retryDisabled.setAttribute(UiRegionDom.lazyRetry, "false");
+    retryDisabled.setAttribute(lazyRetryDomAttr, "false");
     document.body.append(surface, retryDisabled);
 
     const disable = enableLazySurfaceErrorHandling(document);
     try {
         surface.dispatchEvent(new CustomEvent("htmx:responseError", { bubbles: true, detail: { elt: surface } }));
-        retryDisabled.dispatchEvent(regionEvent(UiRegionEvents.error, retryDisabled, "response-error"));
+        retryDisabled.dispatchEvent(regionEvent(regionErrorEvent, retryDisabled, "response-error"));
 
         assertEqual(surface.classList.contains("app-lazy-surface-error"), false);
         assertEqual(retryDisabled.classList.contains("app-lazy-surface-error"), false);

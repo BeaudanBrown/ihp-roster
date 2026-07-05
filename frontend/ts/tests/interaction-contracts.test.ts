@@ -1,4 +1,4 @@
-import { AppEvents, FrontendSurfaceInteractionDom, FrontendSurfaceRegistry, InteractionDom, InteractionStaticSchemas, isInteractionSessionEffect, parseInteractionSessionEffect, encodeInteractionSessionEffect, type InteractionCapabilityContract, type IntentFormContract } from "../generated/contracts";
+import { FrontendSurfaceInteractionDom, FrontendSurfaceRegistry, InteractionDom, InteractionStaticSchemas, isInteractionSessionEffect, parseInteractionSessionEffect, encodeInteractionSessionEffect, type InteractionCapabilityContract, type IntentFormContract, intentSubmitEvent } from "../generated/contracts";
 import { assertDeepEqual, assertEqual, test } from "./harness";
 
 test("generated interaction contracts describe mount-local intent forms", () => {
@@ -7,8 +7,8 @@ test("generated interaction contracts describe mount-local intent forms", () => 
         name: "move-roster-shift-to-slot",
         action: "/MoveRosterShiftToSlot",
         method: "post",
-        trigger: `${AppEvents.interactionIntentSubmit} from:this`,
-        target: { kind: "mount_local", target: "#surface-primary" },
+        trigger: `${intentSubmitEvent} from:this`,
+        target: { kind: "mount-local", target: "#surface-primary" },
         swap: "outerHTML",
         fields: [{ name: "sourceItemKey", presence: "required" }],
         hiddenFields: [{ name: "intent", value: "move-roster-shift-to-slot" }],

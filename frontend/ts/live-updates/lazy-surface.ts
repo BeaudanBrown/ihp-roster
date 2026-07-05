@@ -1,9 +1,9 @@
-import { UiRegionDom, UiRegionEvents } from "../generated/contracts";
+import { lazySurfaceDomAttr, lazyRetryDomAttr, regionRequestStartEvent, regionErrorEvent } from "../generated/contracts";
 import type { UiRegionLifecycleDetail } from "../fragments/events";
 import { closestHTMLElement, isHTMLElement } from "../shared/dom";
 
-export const lazySurfaceSelector = `[${UiRegionDom.lazySurface}="true"]`;
-export const lazySurfaceRetrySelector = `[${UiRegionDom.lazySurface}="true"][${UiRegionDom.lazyRetry}="true"]`;
+export const lazySurfaceSelector = `[${lazySurfaceDomAttr}="true"]`;
+export const lazySurfaceRetrySelector = `[${lazySurfaceDomAttr}="true"][${lazyRetryDomAttr}="true"]`;
 
 function customEventDetail(event: Event): UiRegionLifecycleDetail | null {
     if (typeof CustomEvent === "undefined" || !(event instanceof CustomEvent)) return null;
@@ -81,11 +81,11 @@ export function enableLazySurfaceErrorHandling(root: Document = document): () =>
         renderLazySurfaceError(surface, lazySurfaceErrorMessage(event));
     };
 
-    root.addEventListener(UiRegionEvents.requestStart, onRequestStart);
-    root.addEventListener(UiRegionEvents.error, onRegionError);
+    root.addEventListener(regionRequestStartEvent, onRequestStart);
+    root.addEventListener(regionErrorEvent, onRegionError);
 
     return function disableLazySurfaceErrorHandling(): void {
-        root.removeEventListener(UiRegionEvents.requestStart, onRequestStart);
-        root.removeEventListener(UiRegionEvents.error, onRegionError);
+        root.removeEventListener(regionRequestStartEvent, onRequestStart);
+        root.removeEventListener(regionErrorEvent, onRegionError);
     };
 }

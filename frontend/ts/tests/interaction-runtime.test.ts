@@ -1,4 +1,4 @@
-import { AppEvents, FrontendSurfaceInteractionDom, InteractionDom } from "../generated/contracts";
+import { FrontendSurfaceInteractionDom, InteractionDom, intentSubmitEvent } from "../generated/contracts";
 import { readActivationIntentPayload } from "../interaction/activation";
 import { submitCommittedInteractionIntent } from "../interaction/form-bridge";
 import { resolveLiveFragmentInteractionConflict } from "../interaction/live-conflicts";
@@ -166,7 +166,7 @@ function buildMount(): { mount: MiniElement; form: MiniElement; required: MiniEl
     const form = mount.append(new MiniElement({
         [attrs.intentForm]: "select-cell",
         [attrs.intent]: "select-cell",
-        "hx-trigger": `${AppEvents.interactionIntentSubmit} from:this`,
+        "hx-trigger": `${intentSubmitEvent} from:this`,
     }));
     const required = form.append(new MiniElement({
         name: "cellId",
@@ -225,7 +225,7 @@ test("generated activation refs ignore non-matching triggers", () => {
 test("committed intents fill the matching helper-rendered form and dispatch the generated trigger", () => {
     const { mount, form, required, optional } = buildMount();
     let dispatchedTrigger = "";
-    form.addEventListener(AppEvents.interactionIntentSubmit, (event) => {
+    form.addEventListener(intentSubmitEvent, (event) => {
         dispatchedTrigger = event.type;
     });
 
@@ -242,7 +242,7 @@ test("committed intents fill the matching helper-rendered form and dispatch the 
     assertEqual(required.value, "cell-1");
     assertEqual(required.getAttribute("value"), "cell-1");
     assertEqual(optional.value, "replace");
-    assertEqual(dispatchedTrigger, AppEvents.interactionIntentSubmit);
+    assertEqual(dispatchedTrigger, intentSubmitEvent);
 });
 
 test("bridge resolves the concrete mount from an activation marker", () => {
@@ -268,13 +268,13 @@ test("bridge resolves named nested FrontendSurface mounts from the closest owner
     const parentForm = parent.append(new MiniElement({
         [attrs.intentForm]: "select-cell",
         [attrs.intent]: "select-cell",
-        "hx-trigger": `${AppEvents.interactionIntentSubmit} from:this`,
+        "hx-trigger": `${intentSubmitEvent} from:this`,
     }));
     const parentRequired = parentForm.append(new MiniElement({ name: "cellId", value: "", [attrs.intentField]: "cellId", [attrs.fieldPresence]: "required" }));
     const childForm = child.append(new MiniElement({
         [attrs.intentForm]: "select-cell",
         [attrs.intent]: "select-cell",
-        "hx-trigger": `${AppEvents.interactionIntentSubmit} from:this`,
+        "hx-trigger": `${intentSubmitEvent} from:this`,
     }));
     const childRequired = childForm.append(new MiniElement({ name: "cellId", value: "", [attrs.intentField]: "cellId", [attrs.fieldPresence]: "required" }));
 

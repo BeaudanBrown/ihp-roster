@@ -1,103 +1,277 @@
 "use strict";
 (() => {
   // frontend/ts/generated/contracts.ts
-  var AppEvents = { "interactionIntent": "bepis:interaction-intent", "interactionIntentSubmit": "bepis:intent-submit", "interactionSessionCancelRequest": "bepis:interaction-session-cancel-request", "interactionSessionEnd": "bepis:interaction-session-end", "interactionSessionStart": "bepis:interaction-session-start", "liveFragmentsRefresh": "app-live-fragments-refresh", "pageReady": "app:page-ready" };
-  function __isSurfaceScopeExactRecord(value, requiredKeys, optionalKeys) {
-    if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-    const actualKeys = Object.keys(value);
-    const allowedKeys = /* @__PURE__ */ new Set([...requiredKeys, ...optionalKeys]);
-    return requiredKeys.every((key) => Object.prototype.hasOwnProperty.call(value, key)) && actualKeys.every((key) => allowedKeys.has(key));
+  function isRecord(value) {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+  }
+  function isSurfaceLabSurfaceScope(value) {
+    return isSurfaceLabLabScopeScope(value);
+  }
+  function isTimesheetsSurfaceScope(value) {
+    return isTimesheetsTimesheetWeekScope(value);
+  }
+  function isRosterSurfaceScope(value) {
+    return isRosterRosterWeekScope(value);
+  }
+  function isLeaveRequestsSurfaceScope(value) {
+    return isLeaveRequestsLeaveRequestsScopeScope(value);
+  }
+  function isBillingSurfaceScope(value) {
+    return isBillingBillingVenueScope(value);
+  }
+  function isSupportSurfaceScope(value) {
+    return isSupportSupportPlatformScope(value);
+  }
+  function isProfileSurfaceScope(value) {
+    return isProfileProfileScopeScope(value);
+  }
+  function isAdminPageSurfaceScope(value) {
+    return isAdminPageAdminPageScopeScope(value);
+  }
+  function isAdminXeroPageSurfaceScope(value) {
+    return isAdminXeroPageAdminXeroPageScopeScope(value);
+  }
+  function isAdminVenueConfigSurfaceScope(value) {
+    return isAdminVenueConfigAdminVenueConfigScopeScope(value);
+  }
+  function isAdminInvitesSurfaceScope(value) {
+    return isAdminInvitesAdminInvitesScopeScope(value);
+  }
+  function isAdminExportsSurfaceScope(value) {
+    return isAdminExportsAdminExportsScopeScope(value);
+  }
+  function isAdminShiftTypesSurfaceScope(value) {
+    return isAdminShiftTypesAdminShiftTypesScopeScope(value);
+  }
+  function isAdminRosterGroupsSurfaceScope(value) {
+    return isAdminRosterGroupsAdminRosterGroupsScopeScope(value);
+  }
+  function isAdminXeroSurfaceScope(value) {
+    return isAdminXeroAdminXeroScopeScope(value);
+  }
+  function isSurfaceLabSurfaceFragmentKey(value) {
+    return isRecord(value) && value.kind === "lab-shell" && (value["params"] === null || isRecord(value["params"])) || isRecord(value) && value.kind === "lab-panel" && (isRecord(value["params"]) && typeof value["params"]["panelId"] === "string");
+  }
+  function isTimesheetsSurfaceFragmentKey(value) {
+    return isRecord(value) && value.kind === "timesheet-toolbar" && (value["params"] === null || isRecord(value["params"])) || isRecord(value) && value.kind === "timesheet-day-columns" && (value["params"] === null || isRecord(value["params"])) || isRecord(value) && value.kind === "timesheet-day-section" && (isRecord(value["params"]) && (typeof value["params"]["dayOffset"] === "number" && Number.isInteger(value["params"]["dayOffset"])));
+  }
+  function isRosterSurfaceFragmentKey(value) {
+    return isRecord(value) && value.kind === "roster-content" && (value["params"] === null || isRecord(value["params"])) || isRecord(value) && value.kind === "roster-grid-toolbar" && (value["params"] === null || isRecord(value["params"])) || isRecord(value) && value.kind === "roster-grid-frame" && (value["params"] === null || isRecord(value["params"])) || isRecord(value) && value.kind === "roster-day-columns" && (value["params"] === null || isRecord(value["params"])) || isRecord(value) && value.kind === "roster-day-rail" && (value["params"] === null || isRecord(value["params"])) || isRecord(value) && value.kind === "roster-wage-rail" && (value["params"] === null || isRecord(value["params"])) || isRecord(value) && value.kind === "roster-slots-grid" && (value["params"] === null || isRecord(value["params"])) || isRecord(value) && value.kind === "roster-staff-panel" && (value["params"] === null || isRecord(value["params"])) || isRecord(value) && value.kind === "roster-day-section" && (isRecord(value["params"]) && typeof value["params"]["rosterDayId"] === "string") || isRecord(value) && value.kind === "roster-row" && (isRecord(value["params"]) && typeof value["params"]["rosterDayId"] === "string" && (typeof value["params"]["rowIndex"] === "number" && Number.isInteger(value["params"]["rowIndex"])));
+  }
+  function isLeaveRequestsSurfaceFragmentKey(value) {
+    return isRecord(value) && value.kind === "leave-requests-content" && (value["params"] === null || isRecord(value["params"]));
+  }
+  function isBillingSurfaceFragmentKey(value) {
+    return isRecord(value) && value.kind === "billing-status" && (value["params"] === null || isRecord(value["params"]));
+  }
+  function isSupportSurfaceFragmentKey(value) {
+    return isRecord(value) && value.kind === "support-award-rates" && (value["params"] === null || isRecord(value["params"])) || isRecord(value) && value.kind === "support-public-holidays" && (value["params"] === null || isRecord(value["params"]));
+  }
+  function isProfileSurfaceFragmentKey(value) {
+    return isRecord(value) && value.kind === "profile-details-section" && (value["params"] === null || isRecord(value["params"])) || isRecord(value) && value.kind === "profile-preferences-section" && (value["params"] === null || isRecord(value["params"])) || isRecord(value) && value.kind === "profile-security-section" && (value["params"] === null || isRecord(value["params"])) || isRecord(value) && value.kind === "profile-leave-section" && (value["params"] === null || isRecord(value["params"])) || isRecord(value) && value.kind === "profile-rsa-section" && (value["params"] === null || isRecord(value["params"]));
+  }
+  function isAdminPageSurfaceFragmentKey(value) {
+    return isRecord(value) && value.kind === "admin-page-content" && (value["params"] === null || isRecord(value["params"]));
+  }
+  function isAdminXeroPageSurfaceFragmentKey(value) {
+    return isRecord(value) && value.kind === "admin-xero-page-content" && (value["params"] === null || isRecord(value["params"]));
+  }
+  function isAdminVenueConfigSurfaceFragmentKey(value) {
+    return isRecord(value) && value.kind === "admin-venue-config" && (value["params"] === null || isRecord(value["params"]));
+  }
+  function isAdminInvitesSurfaceFragmentKey(value) {
+    return isRecord(value) && value.kind === "admin-invites" && (value["params"] === null || isRecord(value["params"]));
+  }
+  function isAdminExportsSurfaceFragmentKey(value) {
+    return isRecord(value) && value.kind === "admin-exports" && (value["params"] === null || isRecord(value["params"]));
+  }
+  function isAdminShiftTypesSurfaceFragmentKey(value) {
+    return isRecord(value) && value.kind === "admin-shift-types" && (value["params"] === null || isRecord(value["params"]));
+  }
+  function isAdminRosterGroupsSurfaceFragmentKey(value) {
+    return isRecord(value) && value.kind === "admin-roster-groups" && (value["params"] === null || isRecord(value["params"]));
+  }
+  function isAdminXeroSurfaceFragmentKey(value) {
+    return isRecord(value) && value.kind === "admin-xero-shell" && (value["params"] === null || isRecord(value["params"])) || isRecord(value) && value.kind === "admin-xero-staff-mappings" && (value["params"] === null || isRecord(value["params"])) || isRecord(value) && value.kind === "admin-xero-pay-items" && (value["params"] === null || isRecord(value["params"])) || isRecord(value) && value.kind === "admin-xero-timesheets" && (value["params"] === null || isRecord(value["params"]));
   }
   function isSurfaceScope(value) {
-    return __isSurfaceScopeExactRecord(value, ["surface", "scope"], []) && typeof value["surface"] === "string" && true;
+    return isRecord(value) && value.surface === "surface-lab" && isSurfaceLabSurfaceScope(value.scope) || isRecord(value) && value.surface === "timesheets" && isTimesheetsSurfaceScope(value.scope) || isRecord(value) && value.surface === "roster" && isRosterSurfaceScope(value.scope) || isRecord(value) && value.surface === "leave-requests" && isLeaveRequestsSurfaceScope(value.scope) || isRecord(value) && value.surface === "billing" && isBillingSurfaceScope(value.scope) || isRecord(value) && value.surface === "support" && isSupportSurfaceScope(value.scope) || isRecord(value) && value.surface === "profile" && isProfileSurfaceScope(value.scope) || isRecord(value) && value.surface === "admin-page" && isAdminPageSurfaceScope(value.scope) || isRecord(value) && value.surface === "admin-xero-page" && isAdminXeroPageSurfaceScope(value.scope) || isRecord(value) && value.surface === "admin-venue-config" && isAdminVenueConfigSurfaceScope(value.scope) || isRecord(value) && value.surface === "admin-invites" && isAdminInvitesSurfaceScope(value.scope) || isRecord(value) && value.surface === "admin-exports" && isAdminExportsSurfaceScope(value.scope) || isRecord(value) && value.surface === "admin-shift-types" && isAdminShiftTypesSurfaceScope(value.scope) || isRecord(value) && value.surface === "admin-roster-groups" && isAdminRosterGroupsSurfaceScope(value.scope) || isRecord(value) && value.surface === "admin-xero" && isAdminXeroSurfaceScope(value.scope);
   }
   function isSurfaceFragmentKey(value) {
-    return __isSurfaceScopeExactRecord(value, ["surface", "kind", "params"], []) && typeof value["surface"] === "string" && typeof value["kind"] === "string" && true;
+    return isRecord(value) && value.surface === "surface-lab" && isSurfaceLabSurfaceFragmentKey(value) || isRecord(value) && value.surface === "timesheets" && isTimesheetsSurfaceFragmentKey(value) || isRecord(value) && value.surface === "roster" && isRosterSurfaceFragmentKey(value) || isRecord(value) && value.surface === "leave-requests" && isLeaveRequestsSurfaceFragmentKey(value) || isRecord(value) && value.surface === "billing" && isBillingSurfaceFragmentKey(value) || isRecord(value) && value.surface === "support" && isSupportSurfaceFragmentKey(value) || isRecord(value) && value.surface === "profile" && isProfileSurfaceFragmentKey(value) || isRecord(value) && value.surface === "admin-page" && isAdminPageSurfaceFragmentKey(value) || isRecord(value) && value.surface === "admin-xero-page" && isAdminXeroPageSurfaceFragmentKey(value) || isRecord(value) && value.surface === "admin-venue-config" && isAdminVenueConfigSurfaceFragmentKey(value) || isRecord(value) && value.surface === "admin-invites" && isAdminInvitesSurfaceFragmentKey(value) || isRecord(value) && value.surface === "admin-exports" && isAdminExportsSurfaceFragmentKey(value) || isRecord(value) && value.surface === "admin-shift-types" && isAdminShiftTypesSurfaceFragmentKey(value) || isRecord(value) && value.surface === "admin-roster-groups" && isAdminRosterGroupsSurfaceFragmentKey(value) || isRecord(value) && value.surface === "admin-xero" && isAdminXeroSurfaceFragmentKey(value);
   }
+  var pageReadyEvent = "bepis:page-ready";
+  var liveFragmentsRefreshEvent = "bepis:live-fragments-refresh";
+  var interactionSessionStartEvent = "bepis:interaction-session-start";
+  var interactionSessionEndEvent = "bepis:interaction-session-end";
+  var interactionSessionCancelRequestEvent = "bepis:interaction-session-cancel-request";
+  function isUiRegionTransitionProfile(value) {
+    return typeof value === "string" && ["none", "fade", "fade-slide", "panel"].includes(value);
+  }
+  function isUiRegionLifecycleEvent(value) {
+    return typeof value === "string" && ["request-start", "before-swap", "after-swap", "settle", "error"].includes(value);
+  }
+  var regionRequestStartEvent = "bepis:region-request-start";
+  var regionBeforeSwapEvent = "bepis:region-before-swap";
+  var regionAfterSwapEvent = "bepis:region-after-swap";
+  var regionSettleEvent = "bepis:region-settle";
+  var regionErrorEvent = "bepis:region-error";
+  var fragmentDomAttr = "data-bepis-fragment";
+  var lazySurfaceDomAttr = "data-bepis-lazy-surface";
+  var lazyRetryDomAttr = "data-bepis-lazy-retry";
+  var regionTransitionDomAttr = "data-bepis-region-transition";
+  function isInteractionConflictResolution(value) {
+    return typeof value === "string" && ["apply", "defer", "cancel"].includes(value);
+  }
+  var surfaceDomAttr = "data-bepis-surface";
+  var surfaceFamilyDomAttr = "data-bepis-surface-family";
+  var scopeKeyDomAttr = "data-bepis-scope-key";
+  var mountKeyDomAttr = "data-bepis-mount-key";
+  var sessionDisabledDomAttr = "data-bepis-session-disabled";
+  var sessionReadOnlyDomAttr = "data-bepis-session-read-only";
+  var sessionThresholdDomAttr = "data-bepis-session-threshold";
+  var sessionTimeoutMsDomAttr = "data-bepis-session-timeout-ms";
+  var interactionActiveDomAttr = "data-bepis-interaction-active";
+  var serverLayerDomAttr = "data-bepis-server-layer";
+  var disposableLayerDomAttr = "data-bepis-disposable-layer";
+  var layerDomAttr = "data-bepis-layer";
+  var conflictPoliciesDomAttr = "data-bepis-conflict-policies";
+  var intentFormDomAttr = "data-bepis-intent-form";
+  var intentDomAttr = "data-bepis-intent";
+  var intentFieldDomAttr = "data-bepis-intent-field";
+  var fieldPresenceDomAttr = "data-bepis-field-presence";
+  var intentHiddenFieldDomAttr = "data-bepis-intent-hidden-field";
+  var enabledDomValue = "true";
+  var sessionKindFieldName = "sessionKind";
+  var pointerIdFieldName = "pointerId";
+  var pointerTypeFieldName = "pointerType";
+  var startClientXFieldName = "startClientX";
+  var startClientYFieldName = "startClientY";
+  var currentClientXFieldName = "currentClientX";
+  var currentClientYFieldName = "currentClientY";
+  var deltaXFieldName = "deltaX";
+  var deltaYFieldName = "deltaY";
+  var sourceItemKeyFieldName = "sourceItemKey";
+  var targetDropzoneKeyFieldName = "targetDropzoneKey";
+  var InteractionDom = {
+    attributes: { surface: surfaceDomAttr, surfaceFamily: surfaceFamilyDomAttr, scopeKey: scopeKeyDomAttr, mountKey: mountKeyDomAttr, sessionDisabled: sessionDisabledDomAttr, sessionReadOnly: sessionReadOnlyDomAttr, sessionThreshold: sessionThresholdDomAttr, sessionTimeoutMs: sessionTimeoutMsDomAttr, interactionActive: interactionActiveDomAttr, serverLayer: serverLayerDomAttr, disposableLayer: disposableLayerDomAttr, layer: layerDomAttr, conflictPolicies: conflictPoliciesDomAttr, intentForm: intentFormDomAttr, intent: intentDomAttr, intentField: intentFieldDomAttr, fieldPresence: fieldPresenceDomAttr, intentHiddenField: intentHiddenFieldDomAttr },
+    values: { enabled: enabledDomValue },
+    pointerFields: { sessionKind: sessionKindFieldName, pointerId: pointerIdFieldName, pointerType: pointerTypeFieldName, startClientX: startClientXFieldName, startClientY: startClientYFieldName, currentClientX: currentClientXFieldName, currentClientY: currentClientYFieldName, deltaX: deltaXFieldName, deltaY: deltaYFieldName, sourceItemKey: sourceItemKeyFieldName, targetDropzoneKey: targetDropzoneKeyFieldName }
+  };
   function isSurfaceFragmentProtection(value) {
-    return __isSurfaceScopeExactRecord(value, ["kind"], []) && value["kind"] === "none" || __isSurfaceScopeExactRecord(value, ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"], []) && value["kind"] === "focused_field" && typeof value["activeSelector"] === "string" && typeof value["fieldKeyAttr"] === "string" && typeof value["fieldNameFallback"] === "boolean" && (value["containerSelector"] === null || typeof value["containerSelector"] === "string");
+    return isRecord(value) && value["kind"] === "none" || isRecord(value) && value["kind"] === "focused-field" && typeof value["activeSelector"] === "string" && typeof value["fieldKeyAttr"] === "string" && typeof value["fieldNameFallback"] === "boolean" && (value["containerSelector"] === null || typeof value["containerSelector"] === "string");
   }
   function isSurfaceWireFragment(value) {
-    return __isSurfaceScopeExactRecord(value, ["fragmentKey", "targetId", "url", "deferUntilBlur", "protectionPolicy"], []) && isSurfaceFragmentKey(value["fragmentKey"]) && typeof value["targetId"] === "string" && typeof value["url"] === "string" && typeof value["deferUntilBlur"] === "boolean" && isSurfaceFragmentProtection(value["protectionPolicy"]);
+    return isRecord(value) && isSurfaceFragmentKey(value["fragmentKey"]) && typeof value["targetId"] === "string" && typeof value["url"] === "string" && typeof value["deferUntilBlur"] === "boolean" && isSurfaceFragmentProtection(value["protectionPolicy"]);
   }
   function encodeLiveUpdateCommand(value) {
     return value;
   }
   function isLiveUpdateMessage(value) {
-    return __isSurfaceScopeExactRecord(value, ["type", "scope", "scopeKey", "currentVersion", "resync"], []) && value["type"] === "subscribed" && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && typeof value["resync"] === "boolean" || __isSurfaceScopeExactRecord(value, ["type", "scope", "scopeKey", "version", "fragments", "sourceClientId"], []) && value["type"] === "invalidate" && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceWireFragment(item))) && (value["sourceClientId"] === null || typeof value["sourceClientId"] === "string") || __isSurfaceScopeExactRecord(value, ["type", "message"], []) && value["type"] === "error" && typeof value["message"] === "string";
+    return isRecord(value) && value["type"] === "subscribed" && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && typeof value["resync"] === "boolean" || isRecord(value) && value["type"] === "invalidate" && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceWireFragment(item))) && (value["sourceClientId"] === null || typeof value["sourceClientId"] === "string") || isRecord(value) && value["type"] === "error" && typeof value["message"] === "string";
   }
   function parseLiveUpdateMessage(value) {
     if (isLiveUpdateMessage(value)) return value;
     throw new Error("Invalid LiveUpdateMessage");
   }
-  function isInteractionConflictResolution(value) {
-    return value === "apply" || value === "defer" || value === "cancel";
+  function isSurfaceLabLabScopeScope(value) {
+    return isRecord(value) && typeof value["venueId"] === "string" && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
   }
-  var InteractionDom = { "attributes": { "conflictPolicies": "data-bepis-conflict-policies", "disposableLayer": "data-bepis-disposable-layer", "fieldPresence": "data-bepis-field-presence", "intent": "data-bepis-intent", "intentField": "data-bepis-intent-field", "intentForm": "data-bepis-intent-form", "intentHiddenField": "data-bepis-intent-hidden-field", "interactionActive": "data-bepis-interaction-active", "layer": "data-bepis-layer", "mountKey": "data-bepis-mount-key", "scopeKey": "data-bepis-scope-key", "serverLayer": "data-bepis-server-layer", "sessionDisabled": "data-bepis-session-disabled", "sessionReadOnly": "data-bepis-session-read-only", "sessionThreshold": "data-bepis-session-threshold", "sessionTimeoutMs": "data-bepis-session-timeout-ms", "surface": "data-bepis-surface", "surfaceFamily": "data-bepis-surface-family" }, "pointerFields": { "currentClientX": "currentClientX", "currentClientY": "currentClientY", "deltaX": "deltaX", "deltaY": "deltaY", "pointerId": "pointerId", "pointerType": "pointerType", "sessionKind": "sessionKind", "sourceItemKey": "sourceItemKey", "startClientX": "startClientX", "startClientY": "startClientY", "targetDropzoneKey": "targetDropzoneKey" }, "values": { "enabled": "true" } };
-  function isUiRegionTransitionProfile(value) {
-    return value === "none" || value === "fade" || value === "fade-slide" || value === "panel";
+  function isTimesheetsTimesheetWeekScope(value) {
+    return isRecord(value) && typeof value["venueId"] === "string" && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
   }
-  function isUiRegionLifecycleEvent(value) {
-    return value === "bepis:region-request-start" || value === "bepis:region-before-swap" || value === "bepis:region-after-swap" || value === "bepis:region-settle" || value === "bepis:region-error";
+  function isRosterRosterWeekScope(value) {
+    return isRecord(value) && typeof value["venueId"] === "string" && typeof value["rosterGroupId"] === "string" && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
   }
-  var UiRegionDom = { "fragment": "data-bepis-fragment", "lazyFragment": "data-bepis-lazy-fragment", "lazyRetry": "data-bepis-lazy-retry", "lazySurface": "data-bepis-lazy-surface", "transition": "data-bepis-region-transition" };
-  var UiRegionEvents = { "afterSwap": "bepis:region-after-swap", "beforeSwap": "bepis:region-before-swap", "error": "bepis:region-error", "requestStart": "bepis:region-request-start", "settle": "bepis:region-settle" };
-  var surfaceLabSurfaceManifest = { surface: "surface-lab", scopes: ["lab"], fragments: ["lab-shell", "lab-panel"], liveFragments: [], htmxActions: ["refresh-panel"], intents: ["move-lab-card"], sessions: ["drag"], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: ["drag-preview"], domTokens: ["lab-root", "lab-dropzone"], overlayLanes: [], containedSurfaces: {} };
-  var timesheetsSurfaceManifest = { surface: "timesheets", scopes: ["timesheet-week"], fragments: ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"], liveFragments: ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
-  var rosterSurfaceManifest = { surface: "roster", scopes: ["roster-week"], fragments: ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-day-section", "roster-row"], liveFragments: ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-day-section", "roster-row"], htmxActions: ["set-roster-layout-mode", "move-roster-shift-to-slot"], intents: ["set-roster-layout-mode", "move-roster-shift-to-slot"], sessions: ["drag"], interaction: { sourceRefs: [{ ref: "drag-source", session: "drag", intent: "move-roster-shift-to-slot", sourceField: "sourceItemKey" }], dropzoneRefs: [{ ref: "drag-dropzone", session: "drag", targetField: "targetDropzoneKey" }], activationRefs: [{ ref: "roster-layout-mode-activation", intent: "set-roster-layout-mode", valueField: "rosterLayoutMode", trigger: "click" }] }, layers: ["drag-preview"], domTokens: [], overlayLanes: [], containedSurfaces: {} };
-  var leaveRequestsSurfaceManifest = { surface: "leave-requests", scopes: ["leave-requests"], fragments: ["leave-requests-content"], liveFragments: ["leave-requests-content"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
-  var billingSurfaceManifest = { surface: "billing", scopes: ["billing-venue"], fragments: ["billing-status"], liveFragments: ["billing-status"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
-  var supportSurfaceManifest = { surface: "support", scopes: ["support-platform"], fragments: ["support-award-rates", "support-public-holidays"], liveFragments: ["support-award-rates", "support-public-holidays"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
-  var profileSurfaceManifest = { surface: "profile", scopes: ["profile"], fragments: ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section", "profile-rsa-section"], liveFragments: ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section", "profile-rsa-section"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
-  var adminPageSurfaceManifest = { surface: "admin-page", scopes: ["admin-page"], fragments: ["admin-page-content"], liveFragments: [], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: { "admin-page-content": ["admin-invites", "admin-venue-config", "admin-exports", "admin-shift-types", "admin-roster-groups"] } };
-  var adminXeroPageSurfaceManifest = { surface: "admin-xero-page", scopes: ["admin-xero-page"], fragments: ["admin-xero-page-content"], liveFragments: [], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: { "admin-xero-page-content": ["admin-xero"] } };
-  var adminVenueConfigSurfaceManifest = { surface: "admin-venue-config", scopes: ["admin-venue-config"], fragments: ["admin-venue-config"], liveFragments: ["admin-venue-config"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
-  var adminInvitesSurfaceManifest = { surface: "admin-invites", scopes: ["admin-invites"], fragments: ["admin-invites"], liveFragments: ["admin-invites"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
-  var adminExportsSurfaceManifest = { surface: "admin-exports", scopes: ["admin-exports"], fragments: ["admin-exports"], liveFragments: ["admin-exports"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
-  var adminShiftTypesSurfaceManifest = { surface: "admin-shift-types", scopes: ["admin-shift-types"], fragments: ["admin-shift-types"], liveFragments: ["admin-shift-types"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
-  var adminRosterGroupsSurfaceManifest = { surface: "admin-roster-groups", scopes: ["admin-roster-groups"], fragments: ["admin-roster-groups"], liveFragments: ["admin-roster-groups"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
-  var adminXeroSurfaceManifest = { surface: "admin-xero", scopes: ["admin-xero"], fragments: ["admin-xero-shell", "admin-xero-staff-mappings", "admin-xero-pay-items", "admin-xero-timesheets"], liveFragments: ["admin-xero-shell", "admin-xero-staff-mappings", "admin-xero-pay-items", "admin-xero-timesheets"], htmxActions: [], intents: [], sessions: [], interaction: { sourceRefs: [], dropzoneRefs: [], activationRefs: [] }, layers: [], domTokens: [], overlayLanes: [], containedSurfaces: {} };
+  function isLeaveRequestsLeaveRequestsScopeScope(value) {
+    return isRecord(value) && typeof value["venueId"] === "string";
+  }
+  function isBillingBillingVenueScope(value) {
+    return isRecord(value) && typeof value["venueId"] === "string";
+  }
+  function isSupportSupportPlatformScope(value) {
+    return isRecord(value);
+  }
+  function isProfileProfileScopeScope(value) {
+    return isRecord(value) && typeof value["venueId"] === "string" && typeof value["staffId"] === "string";
+  }
+  function isAdminPageAdminPageScopeScope(value) {
+    return isRecord(value) && typeof value["venueId"] === "string";
+  }
+  function isAdminXeroPageAdminXeroPageScopeScope(value) {
+    return isRecord(value) && typeof value["venueId"] === "string";
+  }
+  function isAdminVenueConfigAdminVenueConfigScopeScope(value) {
+    return isRecord(value) && typeof value["venueId"] === "string";
+  }
+  function isAdminInvitesAdminInvitesScopeScope(value) {
+    return isRecord(value) && typeof value["venueId"] === "string";
+  }
+  function isAdminExportsAdminExportsScopeScope(value) {
+    return isRecord(value) && typeof value["venueId"] === "string";
+  }
+  function isAdminShiftTypesAdminShiftTypesScopeScope(value) {
+    return isRecord(value) && typeof value["venueId"] === "string";
+  }
+  function isAdminRosterGroupsAdminRosterGroupsScopeScope(value) {
+    return isRecord(value) && typeof value["venueId"] === "string";
+  }
+  function isAdminXeroAdminXeroScopeScope(value) {
+    return isRecord(value) && typeof value["venueId"] === "string";
+  }
+  var surfaceLabSurfaceManifest = { "surface": "surface-lab", "scopes": ["lab"], "fragments": ["lab-shell", "lab-panel"], "liveFragments": [], "htmxActions": ["refresh-panel"], "intents": ["move-lab-card"], "sessions": ["drag"], "interaction": { "sourceRefs": [], "dropzoneRefs": [], "activationRefs": [] }, "layers": ["drag-preview"], "domTokens": ["lab-root", "lab-dropzone"], "overlayLanes": [], "containedSurfaces": {} };
+  var timesheetsSurfaceManifest = { "surface": "timesheets", "scopes": ["timesheet-week"], "fragments": ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"], "liveFragments": ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"], "htmxActions": [], "intents": [], "sessions": [], "interaction": { "sourceRefs": [], "dropzoneRefs": [], "activationRefs": [] }, "layers": [], "domTokens": [], "overlayLanes": [], "containedSurfaces": {} };
+  var rosterSurfaceManifest = { "surface": "roster", "scopes": ["roster-week"], "fragments": ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-day-section", "roster-row"], "liveFragments": ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-day-section", "roster-row"], "htmxActions": ["set-roster-layout-mode", "move-roster-shift-to-slot"], "intents": ["set-roster-layout-mode", "move-roster-shift-to-slot"], "sessions": ["drag"], "interaction": { "sourceRefs": [{ "ref": "drag-source", "session": "drag", "intent": "move-roster-shift-to-slot", "sourceField": "sourceItemKey" }], "dropzoneRefs": [{ "ref": "drag-dropzone", "session": "drag", "targetField": "targetDropzoneKey" }], "activationRefs": [{ "ref": "roster-layout-mode-activation", "intent": "set-roster-layout-mode", "valueField": "rosterLayoutMode", "trigger": "click" }] }, "layers": ["drag-preview"], "domTokens": [], "overlayLanes": [], "containedSurfaces": {} };
+  var leaveRequestsSurfaceManifest = { "surface": "leave-requests", "scopes": ["leave-requests"], "fragments": ["leave-requests-content"], "liveFragments": ["leave-requests-content"], "htmxActions": [], "intents": [], "sessions": [], "interaction": { "sourceRefs": [], "dropzoneRefs": [], "activationRefs": [] }, "layers": [], "domTokens": [], "overlayLanes": [], "containedSurfaces": {} };
+  var billingSurfaceManifest = { "surface": "billing", "scopes": ["billing-venue"], "fragments": ["billing-status"], "liveFragments": ["billing-status"], "htmxActions": [], "intents": [], "sessions": [], "interaction": { "sourceRefs": [], "dropzoneRefs": [], "activationRefs": [] }, "layers": [], "domTokens": [], "overlayLanes": [], "containedSurfaces": {} };
+  var supportSurfaceManifest = { "surface": "support", "scopes": ["support-platform"], "fragments": ["support-award-rates", "support-public-holidays"], "liveFragments": ["support-award-rates", "support-public-holidays"], "htmxActions": [], "intents": [], "sessions": [], "interaction": { "sourceRefs": [], "dropzoneRefs": [], "activationRefs": [] }, "layers": [], "domTokens": [], "overlayLanes": [], "containedSurfaces": {} };
+  var profileSurfaceManifest = { "surface": "profile", "scopes": ["profile"], "fragments": ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section", "profile-rsa-section"], "liveFragments": ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section", "profile-rsa-section"], "htmxActions": [], "intents": [], "sessions": [], "interaction": { "sourceRefs": [], "dropzoneRefs": [], "activationRefs": [] }, "layers": [], "domTokens": [], "overlayLanes": [], "containedSurfaces": {} };
+  var adminPageSurfaceManifest = { "surface": "admin-page", "scopes": ["admin-page"], "fragments": ["admin-page-content"], "liveFragments": [], "htmxActions": [], "intents": [], "sessions": [], "interaction": { "sourceRefs": [], "dropzoneRefs": [], "activationRefs": [] }, "layers": [], "domTokens": [], "overlayLanes": [], "containedSurfaces": { "admin-page-content": ["admin-invites", "admin-venue-config", "admin-exports", "admin-shift-types", "admin-roster-groups"] } };
+  var adminXeroPageSurfaceManifest = { "surface": "admin-xero-page", "scopes": ["admin-xero-page"], "fragments": ["admin-xero-page-content"], "liveFragments": [], "htmxActions": [], "intents": [], "sessions": [], "interaction": { "sourceRefs": [], "dropzoneRefs": [], "activationRefs": [] }, "layers": [], "domTokens": [], "overlayLanes": [], "containedSurfaces": { "admin-xero-page-content": ["admin-xero"] } };
+  var adminVenueConfigSurfaceManifest = { "surface": "admin-venue-config", "scopes": ["admin-venue-config"], "fragments": ["admin-venue-config"], "liveFragments": ["admin-venue-config"], "htmxActions": [], "intents": [], "sessions": [], "interaction": { "sourceRefs": [], "dropzoneRefs": [], "activationRefs": [] }, "layers": [], "domTokens": [], "overlayLanes": [], "containedSurfaces": {} };
+  var adminInvitesSurfaceManifest = { "surface": "admin-invites", "scopes": ["admin-invites"], "fragments": ["admin-invites"], "liveFragments": ["admin-invites"], "htmxActions": [], "intents": [], "sessions": [], "interaction": { "sourceRefs": [], "dropzoneRefs": [], "activationRefs": [] }, "layers": [], "domTokens": [], "overlayLanes": [], "containedSurfaces": {} };
+  var adminExportsSurfaceManifest = { "surface": "admin-exports", "scopes": ["admin-exports"], "fragments": ["admin-exports"], "liveFragments": ["admin-exports"], "htmxActions": [], "intents": [], "sessions": [], "interaction": { "sourceRefs": [], "dropzoneRefs": [], "activationRefs": [] }, "layers": [], "domTokens": [], "overlayLanes": [], "containedSurfaces": {} };
+  var adminShiftTypesSurfaceManifest = { "surface": "admin-shift-types", "scopes": ["admin-shift-types"], "fragments": ["admin-shift-types"], "liveFragments": ["admin-shift-types"], "htmxActions": [], "intents": [], "sessions": [], "interaction": { "sourceRefs": [], "dropzoneRefs": [], "activationRefs": [] }, "layers": [], "domTokens": [], "overlayLanes": [], "containedSurfaces": {} };
+  var adminRosterGroupsSurfaceManifest = { "surface": "admin-roster-groups", "scopes": ["admin-roster-groups"], "fragments": ["admin-roster-groups"], "liveFragments": ["admin-roster-groups"], "htmxActions": [], "intents": [], "sessions": [], "interaction": { "sourceRefs": [], "dropzoneRefs": [], "activationRefs": [] }, "layers": [], "domTokens": [], "overlayLanes": [], "containedSurfaces": {} };
+  var adminXeroSurfaceManifest = { "surface": "admin-xero", "scopes": ["admin-xero"], "fragments": ["admin-xero-shell", "admin-xero-staff-mappings", "admin-xero-pay-items", "admin-xero-timesheets"], "liveFragments": ["admin-xero-shell", "admin-xero-staff-mappings", "admin-xero-pay-items", "admin-xero-timesheets"], "htmxActions": [], "intents": [], "sessions": [], "interaction": { "sourceRefs": [], "dropzoneRefs": [], "activationRefs": [] }, "layers": [], "domTokens": [], "overlayLanes": [], "containedSurfaces": {} };
   function isFrontendSurfaceScope(value) {
-    if (!__isFrontendSurfaceRecord(value)) return false;
+    if (!isRecord(value)) return false;
     if (!isFrontendSurfaceName(value.surface)) return false;
-    return __isFrontendSurfaceRecord(value.scope);
+    return isRecord(value.scope);
   }
   function isFrontendSurfaceLiveFragment(value) {
-    if (!__isFrontendSurfaceRecord(value)) return false;
+    if (!isRecord(value)) return false;
     if (!isFrontendSurfaceName(value.surface)) return false;
-    if (!__isFrontendSurfaceRecord(value.fragment)) return false;
+    if (!isRecord(value.fragment)) return false;
     return typeof value.fragment.kind === "string" && __surfaceHasFragment(value.surface, value.fragment.kind);
-  }
-  function __isFrontendSurfaceRecord(value) {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
   }
   function __surfaceHasFragment(surface, fragment) {
     return FrontendSurfaceRegistry[surface].fragments.includes(fragment);
   }
   function isFrontendSurfaceSurfaceFragmentProtection(value) {
-    if (!__isFrontendSurfaceRecord(value)) return false;
+    if (!isRecord(value)) return false;
     if (value.kind === "none") return true;
     return value.kind === "focused-field" && typeof value.activeSelector === "string" && typeof value.fieldKeyAttr === "string" && typeof value.fieldNameFallback === "boolean" && (value.containerSelector === null || typeof value.containerSelector === "string");
   }
   function isFrontendSurfaceLiveWireFragment(value) {
-    if (!__isFrontendSurfaceRecord(value)) return false;
+    if (!isRecord(value)) return false;
     return isFrontendSurfaceLiveFragment(value.fragment) && typeof value.targetId === "string" && typeof value.url === "string" && typeof value.deferUntilBlur === "boolean" && isFrontendSurfaceSurfaceFragmentProtection(value.protectionPolicy);
   }
   function isFrontendSurfaceLiveSubscription(value) {
-    if (!__isFrontendSurfaceRecord(value)) return false;
+    if (!isRecord(value)) return false;
     return isFrontendSurfaceScope(value.scope) && typeof value.scopeKey === "string" && Array.isArray(value.resyncFragments) && value.resyncFragments.every(isFrontendSurfaceLiveWireFragment);
   }
   function isFrontendSurfaceMountedFragmentConfigForSurface(surface, value) {
-    if (!__isFrontendSurfaceRecord(value)) return false;
-    if (!__isFrontendSurfaceRecord(value.key)) return false;
+    if (!isRecord(value)) return false;
+    if (!isRecord(value.key)) return false;
     if (typeof value.key.kind !== "string" || !__surfaceHasFragment(surface, value.key.kind)) return false;
     if (typeof value.targetId !== "string" || typeof value.url !== "string") return false;
-    if (value.protection !== null && value.protection !== void 0 && !__isFrontendSurfaceRecord(value.protection)) return false;
+    if (value.protection !== null && value.protection !== void 0 && !isRecord(value.protection)) return false;
     if (value.loadPolicy !== null && value.loadPolicy !== void 0 && typeof value.loadPolicy !== "string") return false;
     return true;
   }
   function isFrontendSurfaceMountConfig(value) {
-    if (!__isFrontendSurfaceRecord(value)) return false;
+    if (!isRecord(value)) return false;
     if (!isFrontendSurfaceName(value.surface)) return false;
     if (typeof value.scopeKey !== "string" || typeof value.mountKey !== "string") return false;
     if (!Array.isArray(value.fragments) || !value.fragments.every((fragment) => isFrontendSurfaceMountedFragmentConfigForSurface(value.surface, fragment))) return false;
@@ -155,7 +329,7 @@
   }
 
   // frontend/ts/fragments/dom.ts
-  var uiRegionFragmentSelector = `[${UiRegionDom.fragment}="true"]`;
+  var uiRegionFragmentSelector = `[${fragmentDomAttr}="true"]`;
   function closestUiRegionFragment(value) {
     if (isHTMLElement(value)) {
       if (value.matches(uiRegionFragmentSelector)) return value;
@@ -166,7 +340,18 @@
 
   // frontend/ts/fragments/events.ts
   function uiRegionEventName(lifecycleEvent) {
-    return lifecycleEvent;
+    switch (lifecycleEvent) {
+      case "request-start":
+        return regionRequestStartEvent;
+      case "before-swap":
+        return regionBeforeSwapEvent;
+      case "after-swap":
+        return regionAfterSwapEvent;
+      case "settle":
+        return regionSettleEvent;
+      case "error":
+        return regionErrorEvent;
+    }
   }
   function emitUiRegionLifecycleEvent(region, detail) {
     region.dispatchEvent(new CustomEvent(uiRegionEventName(detail.lifecycleEvent), {
@@ -181,13 +366,13 @@
     throw new Error(`Invalid generated UI region lifecycle event: ${value}`);
   }
   var htmxRegionEventSpecs = [
-    { htmxEventName: "htmx:beforeRequest", lifecycleEvent: regionLifecycleEvent(UiRegionEvents.requestStart) },
-    { htmxEventName: "htmx:beforeSwap", lifecycleEvent: regionLifecycleEvent(UiRegionEvents.beforeSwap) },
-    { htmxEventName: "htmx:afterSwap", lifecycleEvent: regionLifecycleEvent(UiRegionEvents.afterSwap) },
-    { htmxEventName: "htmx:afterSettle", lifecycleEvent: regionLifecycleEvent(UiRegionEvents.settle) },
-    { htmxEventName: "htmx:responseError", lifecycleEvent: regionLifecycleEvent(UiRegionEvents.error), errorKind: "response-error" },
-    { htmxEventName: "htmx:sendError", lifecycleEvent: regionLifecycleEvent(UiRegionEvents.error), errorKind: "send-error" },
-    { htmxEventName: "htmx:timeout", lifecycleEvent: regionLifecycleEvent(UiRegionEvents.error), errorKind: "timeout" }
+    { htmxEventName: "htmx:beforeRequest", lifecycleEvent: regionLifecycleEvent("request-start") },
+    { htmxEventName: "htmx:beforeSwap", lifecycleEvent: regionLifecycleEvent("before-swap") },
+    { htmxEventName: "htmx:afterSwap", lifecycleEvent: regionLifecycleEvent("after-swap") },
+    { htmxEventName: "htmx:afterSettle", lifecycleEvent: regionLifecycleEvent("settle") },
+    { htmxEventName: "htmx:responseError", lifecycleEvent: regionLifecycleEvent("error"), errorKind: "response-error" },
+    { htmxEventName: "htmx:sendError", lifecycleEvent: regionLifecycleEvent("error"), errorKind: "send-error" },
+    { htmxEventName: "htmx:timeout", lifecycleEvent: regionLifecycleEvent("error"), errorKind: "timeout" }
   ];
   function htmxRegionEventSource(event) {
     const source = detailTarget(event, "elt");
@@ -229,7 +414,7 @@
   var transitionPhaseClasses = ["app-region-transition-before-swap", "app-region-transition-after-swap"];
   var transitionProfileClasses = transitionProfiles.map((profile) => regionTransitionProfileClass(profile));
   function regionTransitionProfile(region) {
-    const rawProfile = region.getAttribute(UiRegionDom.transition);
+    const rawProfile = region.getAttribute(regionTransitionDomAttr);
     return isUiRegionTransitionProfile(rawProfile) ? rawProfile : "none";
   }
   function regionTransitionProfileClass(profile) {
@@ -279,15 +464,15 @@
       if (detail === null) return;
       clearRegionTransitionClasses(detail.region);
     };
-    root.addEventListener(UiRegionEvents.beforeSwap, onBeforeSwap);
-    root.addEventListener(UiRegionEvents.afterSwap, onAfterSwap);
-    root.addEventListener(UiRegionEvents.settle, onDone);
-    root.addEventListener(UiRegionEvents.error, onDone);
+    root.addEventListener(regionBeforeSwapEvent, onBeforeSwap);
+    root.addEventListener(regionAfterSwapEvent, onAfterSwap);
+    root.addEventListener(regionSettleEvent, onDone);
+    root.addEventListener(regionErrorEvent, onDone);
     return function disableUiRegionTransitions() {
-      root.removeEventListener(UiRegionEvents.beforeSwap, onBeforeSwap);
-      root.removeEventListener(UiRegionEvents.afterSwap, onAfterSwap);
-      root.removeEventListener(UiRegionEvents.settle, onDone);
-      root.removeEventListener(UiRegionEvents.error, onDone);
+      root.removeEventListener(regionBeforeSwapEvent, onBeforeSwap);
+      root.removeEventListener(regionAfterSwapEvent, onAfterSwap);
+      root.removeEventListener(regionSettleEvent, onDone);
+      root.removeEventListener(regionErrorEvent, onDone);
     };
   }
 
@@ -336,9 +521,9 @@
   }
 
   // frontend/ts/interaction/session-state.ts
-  var interactionSessionStartEventName = AppEvents.interactionSessionStart;
-  var interactionSessionEndEventName = AppEvents.interactionSessionEnd;
-  var interactionSessionCancelRequestEventName = AppEvents.interactionSessionCancelRequest;
+  var interactionSessionStartEventName = interactionSessionStartEvent;
+  var interactionSessionEndEventName = interactionSessionEndEvent;
+  var interactionSessionCancelRequestEventName = interactionSessionCancelRequestEvent;
   var attrs2 = InteractionDom.attributes;
   function requestInteractionSessionCancel(detail, root) {
     const eventRoot = root ?? defaultDocument();
@@ -437,7 +622,7 @@
     if (typeof protection.fieldNameFallback !== "boolean") return { kind: "none" };
     if (protection.containerSelector !== null && protection.containerSelector !== void 0 && typeof protection.containerSelector !== "string") return { kind: "none" };
     return {
-      kind: "focused_field",
+      kind: "focused-field",
       activeSelector: protection.activeSelector,
       fieldKeyAttr: protection.fieldKeyAttr,
       fieldNameFallback: protection.fieldNameFallback,
@@ -501,8 +686,8 @@
   }
 
   // frontend/ts/live-updates/lazy-surface.ts
-  var lazySurfaceSelector = `[${UiRegionDom.lazySurface}="true"]`;
-  var lazySurfaceRetrySelector = `[${UiRegionDom.lazySurface}="true"][${UiRegionDom.lazyRetry}="true"]`;
+  var lazySurfaceSelector = `[${lazySurfaceDomAttr}="true"]`;
+  var lazySurfaceRetrySelector = `[${lazySurfaceDomAttr}="true"][${lazyRetryDomAttr}="true"]`;
   function customEventDetail(event) {
     if (typeof CustomEvent === "undefined" || !(event instanceof CustomEvent)) return null;
     const detail = event.detail;
@@ -564,11 +749,11 @@
       if (surface === null) return;
       renderLazySurfaceError(surface, lazySurfaceErrorMessage(event));
     };
-    root.addEventListener(UiRegionEvents.requestStart, onRequestStart);
-    root.addEventListener(UiRegionEvents.error, onRegionError);
+    root.addEventListener(regionRequestStartEvent, onRequestStart);
+    root.addEventListener(regionErrorEvent, onRegionError);
     return function disableLazySurfaceErrorHandling() {
-      root.removeEventListener(UiRegionEvents.requestStart, onRequestStart);
-      root.removeEventListener(UiRegionEvents.error, onRegionError);
+      root.removeEventListener(regionRequestStartEvent, onRequestStart);
+      root.removeEventListener(regionErrorEvent, onRegionError);
     };
   }
 
@@ -620,7 +805,7 @@
   enableLazySurfaceErrorHandling();
   (function enableLiveUpdates() {
     if (typeof window === "undefined") return;
-    const actorFragmentRefreshEventName = AppEvents.liveFragmentsRefresh;
+    const actorFragmentRefreshEventName = liveFragmentsRefreshEvent;
     const pendingDeferredFragments = /* @__PURE__ */ new Map();
     const pendingInteractionDeferredFragments = /* @__PURE__ */ new Map();
     const pendingInteractionTimers = /* @__PURE__ */ new Map();
@@ -901,7 +1086,7 @@
     function matchingFragmentProtection(fragment, _target) {
       if (!fragment) return null;
       switch (fragment.protectionPolicy.kind) {
-        case "focused_field":
+        case "focused-field":
           return focusedFieldProtection(fragment.protectionPolicy);
         case "none":
           return null;
@@ -1404,7 +1589,7 @@
       fragments.forEach(handleFragmentRefreshRequest);
     }
     document.addEventListener(actorFragmentRefreshEventName, handleActorFragmentRefreshEvent);
-    document.addEventListener(AppEvents.interactionSessionEnd, function() {
+    document.addEventListener(interactionSessionEndEvent, function() {
       flushInteractionDeferredFragmentsWithoutActiveSessions();
       flushDeferredFragmentsWithoutActiveInputs();
     });
@@ -1433,6 +1618,6 @@
         flushDeferredFragmentsWithoutActiveInputs();
       }, 0);
     });
-    document.addEventListener(AppEvents.pageReady, syncConnection);
+    document.addEventListener(pageReadyEvent, syncConnection);
   })();
 })();

@@ -1,4 +1,4 @@
-import { UiRegionDom, UiRegionEvents, isUiRegionTransitionProfile, type UiRegionTransitionProfile } from "../generated/contracts";
+import { isUiRegionTransitionProfile, type UiRegionTransitionProfile, regionTransitionDomAttr, regionBeforeSwapEvent, regionAfterSwapEvent, regionSettleEvent, regionErrorEvent } from "../generated/contracts";
 import type { UiRegionLifecycleDetail } from "./events";
 
 export type RegionTransitionPhase = "before-swap" | "after-swap";
@@ -8,7 +8,7 @@ const transitionPhaseClasses = ["app-region-transition-before-swap", "app-region
 const transitionProfileClasses = transitionProfiles.map((profile) => regionTransitionProfileClass(profile));
 
 export function regionTransitionProfile(region: HTMLElement): UiRegionTransitionProfile {
-    const rawProfile = region.getAttribute(UiRegionDom.transition);
+    const rawProfile = region.getAttribute(regionTransitionDomAttr);
     return isUiRegionTransitionProfile(rawProfile) ? rawProfile : "none";
 }
 
@@ -67,15 +67,15 @@ export function enableUiRegionTransitions(root: Document = document): () => void
         clearRegionTransitionClasses(detail.region);
     };
 
-    root.addEventListener(UiRegionEvents.beforeSwap, onBeforeSwap);
-    root.addEventListener(UiRegionEvents.afterSwap, onAfterSwap);
-    root.addEventListener(UiRegionEvents.settle, onDone);
-    root.addEventListener(UiRegionEvents.error, onDone);
+    root.addEventListener(regionBeforeSwapEvent, onBeforeSwap);
+    root.addEventListener(regionAfterSwapEvent, onAfterSwap);
+    root.addEventListener(regionSettleEvent, onDone);
+    root.addEventListener(regionErrorEvent, onDone);
 
     return function disableUiRegionTransitions(): void {
-        root.removeEventListener(UiRegionEvents.beforeSwap, onBeforeSwap);
-        root.removeEventListener(UiRegionEvents.afterSwap, onAfterSwap);
-        root.removeEventListener(UiRegionEvents.settle, onDone);
-        root.removeEventListener(UiRegionEvents.error, onDone);
+        root.removeEventListener(regionBeforeSwapEvent, onBeforeSwap);
+        root.removeEventListener(regionAfterSwapEvent, onAfterSwap);
+        root.removeEventListener(regionSettleEvent, onDone);
+        root.removeEventListener(regionErrorEvent, onDone);
     };
 }

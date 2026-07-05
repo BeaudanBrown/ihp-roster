@@ -1,7 +1,7 @@
 "use strict";
 (() => {
   // frontend/ts/generated/contracts.ts
-  var AppEvents = { "interactionIntent": "bepis:interaction-intent", "interactionIntentSubmit": "bepis:intent-submit", "interactionSessionCancelRequest": "bepis:interaction-session-cancel-request", "interactionSessionEnd": "bepis:interaction-session-end", "interactionSessionStart": "bepis:interaction-session-start", "liveFragmentsRefresh": "app-live-fragments-refresh", "pageReady": "app:page-ready" };
+  var pageReadyEvent = "bepis:page-ready";
 
   // frontend/ts/shared/dom.ts
   function isDocument(value) {
@@ -22,7 +22,7 @@
   }
 
   // frontend/ts/app-bootstrap.ts
-  var appPageReadyEventName = AppEvents.pageReady;
+  var appPageReadyEventName = pageReadyEvent;
   function detailRecord(detail) {
     return detail !== null && typeof detail === "object" ? detail : {};
   }

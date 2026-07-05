@@ -1,7 +1,7 @@
-import { UiRegionDom } from "../generated/contracts";
+import { fragmentDomAttr } from "../generated/contracts";
 import { closestHTMLElement, isHTMLElement } from "../shared/dom";
 
-export const uiRegionFragmentSelector = `[${UiRegionDom.fragment}="true"]`;
+export const uiRegionFragmentSelector = `[${fragmentDomAttr}="true"]`;
 
 export function closestUiRegionFragment(value: unknown): HTMLElement | null {
     if (isHTMLElement(value)) {

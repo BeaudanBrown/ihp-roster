@@ -1,4 +1,11 @@
-import { type UiRegionLifecycleEvent } from "../generated/contracts";
+import {
+    regionAfterSwapEvent,
+    regionBeforeSwapEvent,
+    regionErrorEvent,
+    regionRequestStartEvent,
+    regionSettleEvent,
+    type UiRegionLifecycleEvent,
+} from "../generated/contracts";
 
 export type UiRegionErrorKind = "response-error" | "send-error" | "timeout";
 
@@ -13,7 +20,13 @@ export type UiRegionLifecycleDetail = {
 };
 
 export function uiRegionEventName(lifecycleEvent: UiRegionLifecycleEvent): string {
-    return lifecycleEvent;
+    switch (lifecycleEvent) {
+        case "request-start": return regionRequestStartEvent;
+        case "before-swap": return regionBeforeSwapEvent;
+        case "after-swap": return regionAfterSwapEvent;
+        case "settle": return regionSettleEvent;
+        case "error": return regionErrorEvent;
+    }
 }
 
 export function emitUiRegionLifecycleEvent(region: HTMLElement, detail: UiRegionLifecycleDetail): void {

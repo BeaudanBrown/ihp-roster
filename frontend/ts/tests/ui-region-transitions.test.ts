@@ -1,12 +1,12 @@
-import { UiRegionDom, UiRegionEvents } from "../generated/contracts";
+import { fragmentDomAttr, regionTransitionDomAttr, regionBeforeSwapEvent, regionAfterSwapEvent, regionSettleEvent } from "../generated/contracts";
 import { applyRegionTransitionPhase, clearRegionTransitionClasses, enableUiRegionTransitions, regionTransitionProfile, shouldAnimateRegionTransition } from "../fragments/transitions";
 import type { UiRegionLifecycleDetail } from "../fragments/events";
 import { assertEqual, test } from "./harness";
 
 function region(profile?: string): HTMLElement {
     const element = document.createElement("section");
-    element.setAttribute(UiRegionDom.fragment, "true");
-    if (profile !== undefined) element.setAttribute(UiRegionDom.transition, profile);
+    element.setAttribute(fragmentDomAttr, "true");
+    if (profile !== undefined) element.setAttribute(regionTransitionDomAttr, profile);
     return element;
 }
 
@@ -65,14 +65,14 @@ test("region transition runtime only responds to Bepis region lifecycle events",
         fade.dispatchEvent(new CustomEvent("htmx:beforeSwap", { bubbles: true, detail: { target: fade } }));
         assertEqual(fade.classList.contains("app-region-transition"), false);
 
-        fade.dispatchEvent(lifecycleEvent(UiRegionEvents.beforeSwap, fade));
+        fade.dispatchEvent(lifecycleEvent(regionBeforeSwapEvent, fade));
         assertEqual(fade.classList.contains("app-region-transition-fade-slide"), true);
         assertEqual(fade.classList.contains("app-region-transition-before-swap"), true);
 
-        fade.dispatchEvent(lifecycleEvent(UiRegionEvents.afterSwap, fade));
+        fade.dispatchEvent(lifecycleEvent(regionAfterSwapEvent, fade));
         assertEqual(fade.classList.contains("app-region-transition-after-swap"), true);
 
-        fade.dispatchEvent(lifecycleEvent(UiRegionEvents.settle, fade));
+        fade.dispatchEvent(lifecycleEvent(regionSettleEvent, fade));
         assertEqual(fade.classList.contains("app-region-transition"), false);
         assertEqual(unmarked.classList.contains("app-region-transition"), false);
     } finally {

@@ -1,4 +1,4 @@
-import { AppEvents } from "../generated/contracts";
+import { pageReadyEvent } from "../generated/contracts";
 import { type DomRoot, rootFromTarget } from "./dom";
 
 export type HtmxDetailKey = "target" | "elt";
@@ -19,7 +19,7 @@ export function detailRoot(event: Event, key: HtmxDetailKey, fallback: DomRoot =
 
 export function onAppPageReady(handler: (event: Event) => void): void {
     if (typeof document === "undefined") return;
-    document.addEventListener(AppEvents.pageReady, handler);
+    document.addEventListener(pageReadyEvent, handler);
 }
 
 export function onHtmxLoad(handler: (event: Event) => void): void {

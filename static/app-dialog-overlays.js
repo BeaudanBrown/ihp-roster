@@ -1,8 +1,8 @@
 "use strict";
 (() => {
   // frontend/ts/generated/contracts.ts
-  var AppOverlayDom = { "dialogOverlayMountId": "dialog-overlay-mount", "toastOverlayMountId": "toast-overlay-mount" };
-  var AppEvents = { "interactionIntent": "bepis:interaction-intent", "interactionIntentSubmit": "bepis:intent-submit", "interactionSessionCancelRequest": "bepis:interaction-session-cancel-request", "interactionSessionEnd": "bepis:interaction-session-end", "interactionSessionStart": "bepis:interaction-session-start", "liveFragmentsRefresh": "app-live-fragments-refresh", "pageReady": "app:page-ready" };
+  var pageReadyEvent = "bepis:page-ready";
+  var dialogOverlayMountDomId = "dialog-overlay-mount";
 
   // frontend/ts/shared/dom.ts
   function isElement(value) {
@@ -33,7 +33,7 @@
   }
   (function enableDialogOverlayMount() {
     if (typeof window === "undefined") return;
-    const mountId = AppOverlayDom.dialogOverlayMountId;
+    const mountId = dialogOverlayMountDomId;
     function getMount() {
       const mountEl = document.getElementById(mountId);
       return isHTMLElement(mountEl) ? mountEl : null;
@@ -139,6 +139,6 @@
     });
     document.addEventListener("shown.bs.modal", syncDialogState);
     document.addEventListener("hidden.bs.modal", syncDialogState);
-    document.addEventListener(AppEvents.pageReady, syncDialogState);
+    document.addEventListener(pageReadyEvent, syncDialogState);
   })();
 })();

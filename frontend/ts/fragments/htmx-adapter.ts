@@ -1,4 +1,4 @@
-import { UiRegionEvents, isUiRegionLifecycleEvent, type UiRegionLifecycleEvent } from "../generated/contracts";
+import { isUiRegionLifecycleEvent, type UiRegionLifecycleEvent } from "../generated/contracts";
 import { isHTMLElement } from "../shared/dom";
 import { detailTarget } from "../shared/lifecycle";
 import { closestUiRegionFragment } from "./dom";
@@ -16,13 +16,13 @@ function regionLifecycleEvent(value: string): UiRegionLifecycleEvent {
 }
 
 const htmxRegionEventSpecs: HtmxRegionEventSpec[] = [
-    { htmxEventName: "htmx:beforeRequest", lifecycleEvent: regionLifecycleEvent(UiRegionEvents.requestStart) },
-    { htmxEventName: "htmx:beforeSwap", lifecycleEvent: regionLifecycleEvent(UiRegionEvents.beforeSwap) },
-    { htmxEventName: "htmx:afterSwap", lifecycleEvent: regionLifecycleEvent(UiRegionEvents.afterSwap) },
-    { htmxEventName: "htmx:afterSettle", lifecycleEvent: regionLifecycleEvent(UiRegionEvents.settle) },
-    { htmxEventName: "htmx:responseError", lifecycleEvent: regionLifecycleEvent(UiRegionEvents.error), errorKind: "response-error" },
-    { htmxEventName: "htmx:sendError", lifecycleEvent: regionLifecycleEvent(UiRegionEvents.error), errorKind: "send-error" },
-    { htmxEventName: "htmx:timeout", lifecycleEvent: regionLifecycleEvent(UiRegionEvents.error), errorKind: "timeout" },
+    { htmxEventName: "htmx:beforeRequest", lifecycleEvent: regionLifecycleEvent("request-start") },
+    { htmxEventName: "htmx:beforeSwap", lifecycleEvent: regionLifecycleEvent("before-swap") },
+    { htmxEventName: "htmx:afterSwap", lifecycleEvent: regionLifecycleEvent("after-swap") },
+    { htmxEventName: "htmx:afterSettle", lifecycleEvent: regionLifecycleEvent("settle") },
+    { htmxEventName: "htmx:responseError", lifecycleEvent: regionLifecycleEvent("error"), errorKind: "response-error" },
+    { htmxEventName: "htmx:sendError", lifecycleEvent: regionLifecycleEvent("error"), errorKind: "send-error" },
+    { htmxEventName: "htmx:timeout", lifecycleEvent: regionLifecycleEvent("error"), errorKind: "timeout" },
 ];
 
 export function htmxRegionEventSource(event: Event): HTMLElement | null {
