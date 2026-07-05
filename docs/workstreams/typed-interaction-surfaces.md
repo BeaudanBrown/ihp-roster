@@ -1,6 +1,6 @@
 # Typed Interaction Surfaces
 
-Status: active; durable implementation contract lives in `Application/Helper/Interaction.SPEC.md` and `Application/Helper/FrontendSurface/README.md`.
+Status: active; durable implementation contract lives in `Application/Helper/Interaction.SPEC.md` and `Application/Helper/FrontendContract/Surface/README.md`.
 
 This workstream now tracks the generated `FrontendSurface` interaction architecture. Historical typed-live-surface planning has moved to archive/history and must not guide new production work.
 
@@ -20,7 +20,7 @@ TypeScript remains generic and surface-instance-centric. It resolves refs throug
 
 - Render a surface with `renderFrontendSurfaceMount` and a `SurfaceImpl`.
 - Declare interaction refs in the `FrontendSurface` spec.
-- Render role-specific DOM refs via `Application.Helper.FrontendSurface.Interaction` helpers:
+- Render role-specific DOM refs via `Application.Helper.FrontendContract.Surface.Interaction` helpers:
   - source refs carry a generated source ref and an opaque server-owned source key;
   - dropzone refs carry a generated dropzone ref and an opaque server-owned target key;
   - activation refs carry only the generated activation ref unless a concrete control needs normal form values.

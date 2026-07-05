@@ -1,6 +1,6 @@
 # Codec-First Frontend Contracts
 
-Status: active
+Status: superseded by `docs/workstreams/generic-frontend-contracts.md` and `ir-pkmv`
 
 Decision note (ir-b797, 2026-06-26): choose a small project-owned
 `FrontendCodec` foundation over an `autodocodec`/external schema-tooling chain
@@ -65,11 +65,10 @@ may change to make contracts regular and fully generated.
 The completed `ir-vpmd` stream moved ownership of live-update and interaction
 contracts into Haskell and removed large legacy manual TypeScript blocks. A
 follow-up review found that some output is still only "generated" in the sense
-that Haskell concatenates TypeScript strings. Current examples include:
+that Haskell concatenates TypeScript strings. Historical examples included:
 
-- `Application/Helper/Frontend/LiveUpdateSchema.hs`
-  - handwritten `SurfaceFragmentProtection` TypeScript declaration;
-  - handwritten `isLiveUpdate*` validator block.
+- live-update schema modules that hand-authored transport TypeScript before the
+  FrontendContract registry owned live-update contracts.
 - `Application/Helper/Frontend/InteractionSchema.hs`
   - handwritten interaction DTO TypeScript declarations;
   - handwritten `InteractionDom` TypeScript constant;

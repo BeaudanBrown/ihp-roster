@@ -39,7 +39,7 @@ for forward-looking design.
   ergonomics; superseded by generated `FrontendSurface` runtime docs.
 - `strict-live-surface-overhaul.md` - historical removal plan for the old
   live-surface compatibility/manual authoring layer; superseded by
-  `Application/Helper/FrontendSurface/README.md`.
+  `Application/Helper/FrontendContract/Surface/README.md`.
 - `live-update-runtime-simplification.md` - historical cleanup of internal
   live-update compatibility primitives; current behavior lives in
   `Application/Helper/LiveUpdate.SPEC.md` and FrontendSurface docs.
@@ -49,15 +49,14 @@ for forward-looking design.
   contracts, mutations, scope/audit/realtime evidence, and generated facts.
 - `bepis-effect-evidence-finalization.md` - final no-legacy Bepis runtime fact
   model where actual effect helpers emit typed facts and telemetry.
-- `frontend-codec-contracts.md` - codec/schema-first replacement for any
-  remaining handwritten TypeScript contract emission.
-- `generic-frontend-contracts.md` - generic DTO-codec frontend/backend browser
-  seam with generated Haskell JSON, TypeScript types, guards, parse helpers,
-  encode helpers, constants, and no legacy/manual contract paths.
+- `frontend-codec-contracts.md` - superseded codec/schema-first replacement
+  history for handwritten TypeScript contract emission.
+- `generic-frontend-contracts.md` - superseded DTO-codec history; current
+  browser contracts live under `Application.Helper.FrontendContract`.
 - `type-level-frontend-surfaces.md` - fully type-level FrontendSurface specs,
   GHC API extraction/generation, `SurfaceImpl` runtime replacement for typed
   live-surface authoring, and migration away from old surface-related
-  `FrontendCodec`/schema registry paths.
+  schema registry paths.
 - `opentelemetry-observability.md` - OpenTelemetry traces, agent profile
   artifacts, production trace/log capture, and tailnet Grafana viewing.
 - `backlog.md` - smaller open streams that do not yet need dedicated files.

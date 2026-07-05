@@ -1,6 +1,6 @@
 # Generic Frontend Contract Codecs
 
-Status: implemented
+Status: superseded by `ir-pkmv` unified `FrontendContract` DSL migration
 
 Tickets:
 
@@ -59,25 +59,27 @@ Out of scope for this stream:
 - GHC API or HIE implementation. The DTO/schema IR should leave a clean future
   path for compiler-backed verification.
 
-## Implemented Design
+## Supersession
 
-Use explicit frontend DTO modules for browser-facing shapes rather than
-arbitrary internal server types. Implemented layout:
+The generic DTO-codec architecture has been replaced by the unified
+`Application.Helper.FrontendContract` DSL/registry. There is no remaining
+`Application.Helper.Frontend` codec/DTO/schema-group contract authority.
+
+Current implemented design:
 
 ```text
-Application/Helper/Frontend/Generic.hs
-Application/Helper/Frontend/Options.hs
-Application/Helper/Frontend/Dto/App.hs
-Application/Helper/Frontend/Dto/UiRegion.hs
-Application/Helper/Frontend/Dto/Roster.hs
-Application/Helper/Frontend/Dto/LiveUpdate.hs
-Application/Helper/Frontend/Dto/Interaction.hs
-Application/Helper/Frontend/Dto/LiveSurface.hs
+FrontendContract DSL declarations
+  -> RegisteredFrontendContracts
+  -> FrontendContract.IR
+  -> TypeScript renderer
+  -> frontend/ts/generated/contracts.ts
 ```
 
-`FrontendSchema` remains the central intermediate representation and TypeScript
-renderer. Generic codec derivation should produce this IR plus Haskell
-encode/decode functions.
+Haskell runtime wire carriers, currently including live updates, live under
+`Application.Helper.FrontendContract.Wire.*`. Their Aeson parse/render path
+validates against `FrontendContract.IR` through
+`Application.Helper.FrontendContract.Wire.Json`; carrier types are not contract
+authority.
 
 Generated TypeScript for each codec should include:
 
@@ -103,10 +105,13 @@ fields are the current registered values.
 
 Adding a frontend-visible concept should normally mean:
 
-1. Add or extend a Haskell frontend DTO/enum.
-2. Ensure it has a generic `FrontendCodec` or a justified generator-level
-   exception.
-3. Register it in exactly one contract group.
+1. Add or extend a `FrontendContract` DSL declaration under the appropriate
+   `Global` or `Surface` root.
+2. Ensure it is reachable from `RegisteredFrontendContracts` or the registered
+   surface registry.
+3. For Haskell runtime wire use, add typed carriers only under
+   `Application.Helper.FrontendContract.Wire.*` and delegate JSON validation to
+   `Wire.Json`.
 4. Run `bash ./bin/in-env frontend-contracts`.
 5. Run `bash ./bin/in-env frontend-check`.
 6. Fix TypeScript exhaustiveness failures where app-owned TS branches on a
@@ -136,7 +141,7 @@ The final state has no legacy/manual/spike contract generation leftovers:
 
 Implemented behavior is now documented in:
 
-- `Application/Helper/Frontend/README.md` - DTO/generic codec authoring workflow.
+- `Application/Helper/FrontendContract/README.md` - unified DSL/wire authoring workflow.
 - `Application/Helper/Interaction.SPEC.md` - interaction DTO and exhaustive TypeScript handling contract.
 - `Application/Helper/LiveUpdate.SPEC.md` - generated parse/encode and live-update wire boundary rules.
 - `Application/Helper/LiveSurface.COOKBOOK.md` - adding surfaces under the manifest/contract generation path.

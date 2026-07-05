@@ -143,7 +143,7 @@ Effect:
 
 Fix:
 
-- introduce `app-live-fragments-refresh`
+- introduce `bepis:live-fragments-refresh`
 - keep `app-roster-fragments-refresh` as a temporary compatibility alias
 - add a shared Haskell response helper for actor-local fragment refresh triggers
 
@@ -232,7 +232,7 @@ Keep as full-page/native flows unless the open page can reasonably go stale from
 ### Phase 3: Generic Client Runtime
 
 1. Merge same-scope surfaces instead of overwriting them.
-2. Replace `app-roster-fragments-refresh` with generic `app-live-fragments-refresh`.
+2. Replace `app-roster-fragments-refresh` with generic `bepis:live-fragments-refresh`.
 3. Make focus-protection flush policy-driven.
 4. Add exponential reconnect backoff with jitter.
 5. Add debug/performance events for:

@@ -13,7 +13,7 @@ fragment-refetch semantics?
 - `../ihp/Guide/auto-refresh.markdown`
 - `../ihp/ihp/IHP/AutoRefresh.hs`
 - `../ihp/ihp/data/static/ihp-auto-refresh.js`
-- Current Bepis live surface and invalidation code under `Application/Helper/FrontendSurface*`,
+- Current Bepis live surface and invalidation code under `Application/Helper/FrontendContract/Surface*`,
   `Application/Helper/SurfaceResource.hs`, and `Web/SurfaceInvalidation.hs`.
 
 ## Finding

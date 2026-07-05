@@ -3,7 +3,7 @@
 Status: implementation record. The DSL, GHC extraction/generation,
 `SurfaceImpl` runtime bridge, support lab, Timesheets migration, Roster
 migration, and SurfaceProjection removal have landed. Durable authoring rules now
-live in `Application/Helper/FrontendSurface/README.md` and the subsystem
+live in `Application/Helper/FrontendContract/Surface/README.md` and the subsystem
 README/SPEC/AGENTS files; this workstream remains as architectural context until
 `ir-9ogo` closes.
 
@@ -22,7 +22,7 @@ Tickets:
 - `ir-aleo` - Migrate Timesheets to FrontendSurface spec
 - `ir-ypt5` - Migrate Roster to FrontendSurface spec
 - `ir-ds06` - Document FrontendSurface authoring workflow
-- `ir-s7la` - Remove replaced FrontendCodec and old live-surface contract paths
+- `ir-s7la` - Remove replaced DTO/schema and old live-surface contract paths
 
 ## Intent
 
@@ -34,7 +34,7 @@ fragment URLs/target ids/renderers, concrete live-resource dependencies,
 HTMX/intent behavior, mount metadata, and mount-state backend behavior.
 
 The final target removes/replaces author-facing surface contract machinery based
-on `FrontendCodec`, `FrontendSchema`, manual DTO schema groups,
+on manual DTO schema groups,
 `TypedLiveSurfaceDefinition`, `Web.SurfaceInvalidation`, and the removed generic
 server render cache for migrated surfaces. Renderer-internal IR/data structures
 may remain when they are fed only by the new
@@ -49,8 +49,8 @@ by `ir-ds06`; this workstream records the architecture and migration decisions.
 
 Generation starts from a single explicit type-level registry containing only
 surfaces. The registry module is
-`Application.Helper.FrontendSurface.Registry`; the current migrated surface specs
-live under `Application.Helper.FrontendSurface` as `Lab`, `Timesheets`, and
+`Application.Helper.FrontendContract.Surface.Registry`; the current migrated surface specs
+live under `Application.Helper.FrontendContract.Surface` as `Lab`, `Timesheets`, and
 `Roster`, with runtime/view helpers in the relevant feature modules where useful.
 
 ```haskell
@@ -113,7 +113,7 @@ boundary:
   and continue to emit self-describing wire fragments containing concrete
   `targetId`, `url`, protection, and containment metadata.
 - Migrated `FrontendSurface` surfaces live only in
-  `Application.Helper.FrontendSurface.Registry` as members of
+  `Application.Helper.FrontendContract.Surface.Registry` as members of
   `RegisteredFrontendSurfaces`. Their runtime metadata is derived from
   `HasSurfaceImpl` instances by a typeclass fold over that type-level list.
 
@@ -672,7 +672,7 @@ The first implementation target is a support-super-admin-only lab page. It must:
 - render an eager fragment and lazy fragment;
 - exercise one real HTMX action and one intent path;
 - emit/consume generated TypeScript contract shapes;
-- avoid old author-facing `FrontendCodec`, DTO schema groups,
+- avoid old author-facing DTO schema groups,
   `TypedLiveSurfaceDefinition`, `Web.SurfaceInvalidation`, manual
   `InteractionStaticSchema`, and raw protocol attrs in lab views.
 
