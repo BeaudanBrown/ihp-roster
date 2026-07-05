@@ -1,13 +1,24 @@
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE TypeApplications    #-}
+
 module Test.LiveUpdateSpec where
 
 import Application.Helper.FrontendContract.Surface.Authorization (frontendSurfaceScopeAuthorizationRequirement,
                                                                   validateFrontendSurfaceLiveSubscription)
 import Application.Helper.FrontendContract.Surface.AuthorizationRequirement (SurfaceScopeAuthorizationRequirement (..))
+import Application.Helper.FrontendContract.Wire.Json (validateContractValue,
+                                                      validateSurfaceFragmentKeyValue,
+                                                      validateSurfaceScopeValue)
 import qualified Application.Helper.FrontendContract.Wire.LiveUpdate as Wire
 import Application.Helper.LiveUpdate.Runtime
 import Application.Support.LiveUpdates
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Key as AesonKey
+import qualified Data.Aeson.KeyMap as KeyMap
+import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.ByteString.Lazy as LBS
+import Data.Either (isLeft, isRight)
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import IHP.Prelude
@@ -148,6 +159,51 @@ tests = describe "LiveUpdate runtime types" do
             `shouldBe` "profile:11111111-1111-1111-1111-111111111111:44444444-4444-4444-4444-444444444444"
         surfaceScopeKey supportPlatformLiveScope
             `shouldBe` "support"
+
+    it "rejects unknown fields when decoding live-update wire carrier types directly" do
+        let scope = Wire.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "weekOffset" Aeson..= (4 :: Int)])
+        let fragmentKey = Wire.SurfaceFragmentKey "timesheets" "timesheet-day-section" (Aeson.object ["dayOffset" Aeson..= (2 :: Int)])
+        let protection = Wire.FocusedFieldProtection ".timesheet-input:focus" "data-field-key" True (Just ".timesheet-row")
+        let focusedConfig = Wire.FocusedFieldProtectionConfig ".timesheet-input:focus" "data-field-key" True (Just ".timesheet-row")
+        let fragment = Wire.SurfaceWireFragment fragmentKey "timesheet-day-2" "/TimesheetDay?offset=2" True protection
+        let subscription = Wire.SurfaceSubscription scope "timesheets:11111111-1111-1111-1111-111111111111:4" [fragment]
+        let command = Wire.Subscribe subscription "client-1" (Just 9)
+        let message = Wire.Invalidate scope subscription.scopeKey 10 [fragment] (Just "client-2")
+
+        decodeValueAs @Wire.SurfaceScope (addJsonField "extra" (Aeson.Bool True) (Aeson.toJSON scope)) `shouldSatisfy` isLeft
+        decodeValueAs @Wire.SurfaceFragmentKey (addJsonField "extra" (Aeson.Bool True) (Aeson.toJSON fragmentKey)) `shouldSatisfy` isLeft
+        decodeValueAs @Wire.FocusedFieldProtectionConfig (addJsonField "extra" (Aeson.Bool True) (Aeson.toJSON focusedConfig)) `shouldSatisfy` isLeft
+        decodeValueAs @Wire.SurfaceFragmentProtection (addJsonField "extra" (Aeson.Bool True) (Aeson.toJSON protection)) `shouldSatisfy` isLeft
+        decodeValueAs @Wire.SurfaceWireFragment (addJsonField "extra" (Aeson.Bool True) (Aeson.toJSON fragment)) `shouldSatisfy` isLeft
+        decodeValueAs @Wire.SurfaceSubscription (addJsonField "extra" (Aeson.Bool True) (Aeson.toJSON subscription)) `shouldSatisfy` isLeft
+        decodeValueAs @Wire.LiveUpdateCommand (addJsonField "extra" (Aeson.Bool True) (Aeson.toJSON command)) `shouldSatisfy` isLeft
+        decodeValueAs @Wire.LiveUpdateMessage (addJsonField "extra" (Aeson.Bool True) (Aeson.toJSON message)) `shouldSatisfy` isLeft
+
+    it "validates every live-update wire carrier constructor against FrontendContract IR on encode" do
+        let scope = Wire.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "weekOffset" Aeson..= (4 :: Int)])
+        let fragmentKey = Wire.SurfaceFragmentKey "timesheets" "timesheet-day-section" (Aeson.object ["dayOffset" Aeson..= (2 :: Int)])
+        let noProtection = Wire.NoProtection
+        let focusedProtection = Wire.FocusedFieldProtection ".timesheet-input:focus" "data-field-key" True (Just ".timesheet-row")
+        let fragment protection = Wire.SurfaceWireFragment fragmentKey "timesheet-day-2" "/TimesheetDay?offset=2" True protection
+        let subscription protection = Wire.SurfaceSubscription scope "timesheets:11111111-1111-1111-1111-111111111111:4" [fragment protection]
+        let commands =
+                [ Wire.Subscribe (subscription noProtection) "client-1" Nothing
+                , Wire.Subscribe (subscription focusedProtection) "client-1" (Just 9)
+                , Wire.Unsubscribe (subscription noProtection)
+                ]
+        let messages =
+                [ Wire.Subscribed scope "timesheets:11111111-1111-1111-1111-111111111111:4" 10 False
+                , Wire.Invalidate scope "timesheets:11111111-1111-1111-1111-111111111111:4" 11 [fragment noProtection, fragment focusedProtection] (Just "client-2")
+                , Wire.Error "Not authorized"
+                ]
+
+        AesonTypes.parseEither validateSurfaceScopeValue (Aeson.toJSON scope) `shouldSatisfy` isRight
+        AesonTypes.parseEither validateSurfaceFragmentKeyValue (Aeson.toJSON fragmentKey) `shouldSatisfy` isRight
+        forM_ [noProtection, focusedProtection] \value -> AesonTypes.parseEither (validateContractValue "SurfaceFragmentProtection") (Aeson.toJSON value) `shouldSatisfy` isRight
+        forM_ [fragment noProtection, fragment focusedProtection] \value -> AesonTypes.parseEither (validateContractValue "SurfaceWireFragment") (Aeson.toJSON value) `shouldSatisfy` isRight
+        forM_ [subscription noProtection, subscription focusedProtection] \value -> AesonTypes.parseEither (validateContractValue "SurfaceSubscription") (Aeson.toJSON value) `shouldSatisfy` isRight
+        forM_ commands \value -> AesonTypes.parseEither (validateContractValue "LiveUpdateCommand") (Aeson.toJSON value) `shouldSatisfy` isRight
+        forM_ messages \value -> AesonTypes.parseEither (validateContractValue "LiveUpdateMessage") (Aeson.toJSON value) `shouldSatisfy` isRight
 
     it "round-trips commands and encodes subscribed, invalidation, and error payloads as JSON" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
@@ -335,6 +391,14 @@ supportPublicHolidaysSectionFragmentRef =
         , deferUntilBlur = False
         , protectionPolicy = NoProtection
         }
+
+decodeValueAs :: forall value. Aeson.FromJSON value => Aeson.Value -> Either String value
+decodeValueAs value = Aeson.eitherDecode (Aeson.encode value)
+
+addJsonField :: Text -> Aeson.Value -> Aeson.Value -> Aeson.Value
+addJsonField name value = \case
+    Aeson.Object object -> Aeson.Object (KeyMap.insert (AesonKey.fromText name) value object)
+    other               -> other
 
 expectUuid :: Text -> UUID.UUID
 expectUuid value =

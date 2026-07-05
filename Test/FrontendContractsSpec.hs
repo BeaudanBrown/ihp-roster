@@ -1,16 +1,42 @@
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE TypeApplications    #-}
+
 module Test.FrontendContractsSpec
     ( tests
     ) where
 
+import qualified Application.Helper.FrontendContract.App as App
+import Application.Helper.FrontendContract.AppValues (AppEvents (..),
+                                                      AppOverlayDom (..),
+                                                      canonicalAppEvents,
+                                                      canonicalAppOverlayDom,
+                                                      interactionIntentSubmitHtmxTrigger,
+                                                      sharedDialogOverlayMountId,
+                                                      sharedToastOverlayMountId)
 import Application.Helper.FrontendContract.Contracts (TypeScriptDeclaration (..),
                                                       TypeScriptDeclarationOrigin (..),
                                                       frontendContractDeclarations,
                                                       frontendContractsTypeScript)
+import qualified Application.Helper.FrontendContract.IR as Contract
+import qualified Application.Helper.FrontendContract.Roster as Roster
+import Application.Helper.FrontendContract.RosterValues (RosterStaffSortKey (..),
+                                                         rosterStaffSortKeyAttribute,
+                                                         rosterStaffSortKeyValues)
+import Application.Helper.FrontendContract.Values (domIdValue, enumLiteralValue,
+                                                   eventNameValue,
+                                                   lookupDomIdValue,
+                                                   lookupEnumLiteralValue,
+                                                   lookupEventNameValue)
 import Application.Helper.FrontendContract.Wire.Json (validateContractValue,
+                                                      validateContractValueWith,
                                                       validateSurfaceFragmentKeyValue,
-                                                      validateSurfaceScopeValue)
+                                                      validateSurfaceScopeValue,
+                                                      validateWireValue)
 import qualified Application.Helper.FrontendContract.Wire.LiveUpdate as Live
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Key as AesonKey
+import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.ByteString.Lazy as LBS
 import Data.Either (isLeft, isRight)
@@ -43,6 +69,25 @@ tests = describe "Frontend contract generator foundation" do
         source `shouldNotSatisfy` Text.isInfixOf "export const InteractionDom"
         source `shouldNotSatisfy` Text.isInfixOf "export type UiRegionTransitionProfile"
 
+    it "resolves canonical Haskell value accessors from registered FrontendContract IR" do
+        lookupDomIdValue @App.DialogOverlayMount `shouldBe` Right sharedDialogOverlayMountId
+        lookupDomIdValue @App.ToastOverlayMount `shouldBe` Right sharedToastOverlayMountId
+        lookupEventNameValue @App.IntentSubmit `shouldBe` Right interactionIntentSubmitHtmxTrigger
+        lookupEnumLiteralValue @Roster.RosterStaffSortKey @Roster.Name `shouldBe` Right "name"
+        domIdValue @App.DialogOverlayMount `shouldBe` canonicalAppOverlayDom.appDialogOverlayMountId
+        eventNameValue @App.IntentSubmit `shouldBe` canonicalAppEvents.appInteractionIntentSubmitEventName
+        enumLiteralValue @Roster.RosterStaffSortKey @Roster.Name `shouldBe` rosterStaffSortKeyAttribute RosterStaffSortByName
+        rosterStaffSortKeyValues
+            `shouldBe` [ (RosterStaffSortByName, "name")
+                       , (RosterStaffSortByRole, "role")
+                       , (RosterStaffSortByShifts, "shifts")
+                       ]
+
+    it "returns deterministic diagnostics for missing Haskell value accessors" do
+        lookupDomIdValue @Text `shouldBe` Left "No FrontendContract DomId declaration for marker Text"
+        lookupEventNameValue @Text `shouldBe` Left "No FrontendContract Event declaration for marker Text"
+        lookupEnumLiteralValue @Text @Text `shouldBe` Left "No FrontendContract enum case Text for enum marker Text"
+
     it "validates records, refs, arrays, nullable fields, and tagged unions through the IR JSON interpreter" do
         let scope = Live.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "weekOffset" Aeson..= (4 :: Int)])
         let fragment = Live.SurfaceWireFragment
@@ -71,6 +116,60 @@ tests = describe "Frontend contract generator foundation" do
         AesonTypes.parseEither validateSurfaceFragmentKeyValue badFragment `shouldSatisfy` isLeft
         AesonTypes.parseEither (validateContractValue "SurfaceFragmentProtection") badProtection `shouldSatisfy` isLeft
         AesonTypes.parseEither (validateContractValue "LiveUpdateCommand") badCommand `shouldSatisfy` isLeft
+
+    it "covers Wire.Json field presence, nested refs, arrays, enums, and tagged unions" do
+        let contract = wireJsonSpecContract
+        let goodNested = Aeson.object
+                [ "name" Aeson..= ("Ada" :: Text)
+                , "count" Aeson..= (3 :: Int)
+                , "active" Aeson..= True
+                , "uuid" Aeson..= ("not-a-uuid-but-contract-string" :: Text)
+                , "day" Aeson..= ("not-a-day-but-contract-string" :: Text)
+                , "tags" Aeson..= (["alpha", "beta"] :: [Text])
+                , "maybeText" Aeson..= Aeson.Null
+                , "nullableText" Aeson..= Aeson.Null
+                , "status" Aeson..= ("ready" :: Text)
+                , "literal" Aeson..= ("special-case" :: Text)
+                ]
+        let goodRecord = Aeson.object
+                [ "nested" Aeson..= goodNested
+                , "items" Aeson..= [goodNested]
+                ]
+        AesonTypes.parseEither (validateContractValueWith contract "SpecRecord") goodRecord `shouldSatisfy` isRight
+        AesonTypes.parseEither (validateContractValueWith contract "SpecUnion") (Aeson.object ["kind" Aeson..= ("one" :: Text), "value" Aeson..= goodNested]) `shouldSatisfy` isRight
+        AesonTypes.parseEither (validateContractValueWith contract "SpecUnion") (Aeson.object ["kind" Aeson..= ("two" :: Text), "note" Aeson..= ("ok" :: Text)]) `shouldSatisfy` isRight
+        AesonTypes.parseEither (validateWireValue "uuid" Contract.WireUuidIR) (Aeson.String "not-a-uuid-but-contract-string") `shouldSatisfy` isRight
+        AesonTypes.parseEither (validateWireValue "day" Contract.WireDayIR) (Aeson.String "not-a-day-but-contract-string") `shouldSatisfy` isRight
+
+        AesonTypes.parseEither (validateContractValueWith contract "SpecNested") (addJsonField "extra" (Aeson.Bool True) goodNested) `shouldSatisfy` isLeft
+        AesonTypes.parseEither (validateContractValueWith contract "SpecNested") (removeJsonField "name" goodNested) `shouldSatisfy` isLeft
+        AesonTypes.parseEither (validateContractValueWith contract "SpecNested") (removeJsonField "maybeText" goodNested) `shouldSatisfy` isRight
+        AesonTypes.parseEither (validateContractValueWith contract "SpecNested") (removeJsonField "nullableText" goodNested) `shouldSatisfy` isLeft
+        AesonTypes.parseEither (validateContractValueWith contract "SpecNested") (replaceJsonField "name" (Aeson.Number 1) goodNested) `shouldSatisfy` isLeft
+        AesonTypes.parseEither (validateContractValueWith contract "SpecNested") (replaceJsonField "count" (Aeson.Number 1.5) goodNested) `shouldSatisfy` isLeft
+        AesonTypes.parseEither (validateContractValueWith contract "SpecNested") (replaceJsonField "tags" (Aeson.String "alpha") goodNested) `shouldSatisfy` isLeft
+        AesonTypes.parseEither (validateContractValueWith contract "SpecNested") (replaceJsonField "status" (Aeson.String "missing") goodNested) `shouldSatisfy` isLeft
+        AesonTypes.parseEither (validateContractValueWith contract "SpecNested") (replaceJsonField "literal" (Aeson.String "case") goodNested) `shouldSatisfy` isLeft
+        AesonTypes.parseEither (validateContractValueWith contract "SpecRecord") (replaceJsonField "nested" (Aeson.object []) goodRecord) `shouldSatisfy` isLeft
+        AesonTypes.parseEither (validateContractValueWith contract "SpecUnion") (Aeson.object ["kind" Aeson..= ("missing" :: Text)]) `shouldSatisfy` isLeft
+        AesonTypes.parseEither (validateContractValueWith contract "SpecUnion") (Aeson.object ["kind" Aeson..= ("one" :: Text), "value" Aeson..= goodNested, "extra" Aeson..= True]) `shouldSatisfy` isLeft
+
+    it "validates surface scope, fragment key, and SurfaceWireFragment wire constructors" do
+        let scope = Aeson.object ["surface" Aeson..= ("timesheets" :: Text), "scope" Aeson..= Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "weekOffset" Aeson..= (0 :: Int)]]
+        let key = Aeson.object ["surface" Aeson..= ("timesheets" :: Text), "kind" Aeson..= ("timesheet-day-section" :: Text), "params" Aeson..= Aeson.object ["dayOffset" Aeson..= (0 :: Int)]]
+        let fragment = Aeson.object
+                [ "fragmentKey" Aeson..= key
+                , "targetId" Aeson..= ("target" :: Text)
+                , "url" Aeson..= ("/fragment" :: Text)
+                , "deferUntilBlur" Aeson..= True
+                , "protectionPolicy" Aeson..= Aeson.object ["kind" Aeson..= ("none" :: Text)]
+                ]
+        AesonTypes.parseEither (validateWireValue "scope" Contract.WireSurfaceScopeIR) scope `shouldSatisfy` isRight
+        AesonTypes.parseEither (validateWireValue "key" Contract.WireSurfaceFragmentKeyIR) key `shouldSatisfy` isRight
+        AesonTypes.parseEither (validateWireValue "fragment" Contract.WireSurfaceWireFragmentIR) fragment `shouldSatisfy` isRight
+        AesonTypes.parseEither (validateWireValue "scope" Contract.WireSurfaceScopeIR) (addJsonField "extra" (Aeson.Bool True) scope) `shouldSatisfy` isLeft
+        AesonTypes.parseEither (validateWireValue "key" Contract.WireSurfaceFragmentKeyIR) (replaceJsonField "kind" (Aeson.String "missing") key) `shouldSatisfy` isLeft
+        AesonTypes.parseEither (validateWireValue "fragment" Contract.WireSurfaceWireFragmentIR) (removeJsonField "url" fragment) `shouldSatisfy` isLeft
 
     it "keeps generated contract validators, parsers, and encoders out of handwritten TypeScript" do
         offenders <- frontendGeneratedHelperOffenders (generatedContractTypeNames frontendContractsTypeScript)
@@ -165,6 +264,65 @@ rawEmitterPatterns =
     , "\"export function"
     , "stringUnionDeclaration"
     ]
+
+wireJsonSpecContract :: Contract.FrontendContractIR
+wireJsonSpecContract =
+    Contract.FrontendContractIR
+        { contractGlobals =
+            [ Contract.GlobalIR
+                { globalMarker = "SpecGlobal"
+                , globalName = "spec-global"
+                , globalPrimitives = fmap Contract.GlobalSchemaIR
+                    [ Contract.EnumIR "SpecStatus" "SpecStatus" ["ready", "paused"]
+                    , Contract.LiteralEnumIR "SpecLiteral" "SpecLiteral" [("SpecialCase", "special-case")]
+                    , Contract.RecordIR "SpecNested" "SpecNested"
+                        [ field "Name" "name" Contract.WireTextIR Contract.RequiredField
+                        , field "Count" "count" Contract.WireIntIR Contract.RequiredField
+                        , field "Active" "active" Contract.WireBoolIR Contract.RequiredField
+                        , field "Uuid" "uuid" Contract.WireUuidIR Contract.RequiredField
+                        , field "Day" "day" Contract.WireDayIR Contract.RequiredField
+                        , field "Tags" "tags" (Contract.WireListIR Contract.WireTextIR) Contract.RequiredField
+                        , field "MaybeText" "maybeText" (Contract.WireOptionalIR Contract.WireTextIR) Contract.OptionalFieldPresence
+                        , field "NullableText" "nullableText" (Contract.WireNullableIR Contract.WireTextIR) Contract.NullableFieldPresence
+                        , field "Status" "status" (Contract.WireRefIR "SpecStatus") Contract.RequiredField
+                        , field "Literal" "literal" (Contract.WireRefIR "SpecLiteral") Contract.RequiredField
+                        ]
+                    , Contract.RecordIR "SpecRecord" "SpecRecord"
+                        [ field "Nested" "nested" (Contract.WireRefIR "SpecNested") Contract.RequiredField
+                        , field "Items" "items" (Contract.WireListIR (Contract.WireRefIR "SpecNested")) Contract.RequiredField
+                        ]
+                    , Contract.TaggedUnionIR "SpecUnion" "SpecUnion" "kind"
+                        [ Contract.UnionCaseIR "One" "one" [field "Value" "value" (Contract.WireRefIR "SpecNested") Contract.RequiredField]
+                        , Contract.UnionCaseIR "Two" "two" [field "Note" "note" Contract.WireTextIR Contract.RequiredField]
+                        ]
+                    ]
+                }
+            ]
+        , contractSurfaces = []
+        }
+    where
+        field marker name wire presence =
+            Contract.FieldIR
+                { fieldMarker = marker
+                , fieldName = name
+                , fieldWire = wire
+                , fieldPresence = presence
+                }
+
+addJsonField :: Text -> Aeson.Value -> Aeson.Value -> Aeson.Value
+addJsonField name value = \case
+    Aeson.Object object -> Aeson.Object (KeyMap.insert (AesonKey.fromText name) value object)
+    other               -> other
+
+removeJsonField :: Text -> Aeson.Value -> Aeson.Value
+removeJsonField name = \case
+    Aeson.Object object -> Aeson.Object (KeyMap.delete (AesonKey.fromText name) object)
+    other               -> other
+
+replaceJsonField :: Text -> Aeson.Value -> Aeson.Value -> Aeson.Value
+replaceJsonField name value = \case
+    Aeson.Object object -> Aeson.Object (KeyMap.insert (AesonKey.fromText name) value object)
+    other               -> other
 
 collectSourceFiles :: FilePath -> IO [FilePath]
 collectSourceFiles root = do

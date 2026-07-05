@@ -1,6 +1,6 @@
 ---
 id: ir-04af
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-07-05T10:20:36Z

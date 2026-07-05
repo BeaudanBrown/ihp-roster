@@ -47,6 +47,16 @@ timesheets_paths=(
     Web/View/Timesheets/Index.hs
 )
 
+if find Application/Helper/Frontend -type f -name '*.hs' -print -quit 2>/dev/null | rg --quiet .; then
+    report_failure "legacy Application/Helper/Frontend Haskell contract authority must stay deleted"
+    find Application/Helper/Frontend -type f -name '*.hs' -print >&2
+fi
+
+expect_no_match \
+    "production Haskell must not import legacy Application.Helper.Frontend authorities" \
+    'Application\.Helper\.Frontend\.' \
+    Application Web Test
+
 expect_no_match \
     "migrated FrontendSurface lab must not author old frontend codec/DTO/schema groups" \
     'Application\.Helper\.Frontend\.(Codec|Generic|ContractGroup|Options|Contracts|TypeScript|Dto\.|.*Schema)|FrontendCodec|HasFrontendCodec|someFrontendCodec|genericFrontendCodec' \

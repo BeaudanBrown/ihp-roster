@@ -1,6 +1,6 @@
 ---
 id: ir-kc10
-status: open
+status: closed
 deps: [ir-sxo2, ir-4h3p]
 links: []
 created: 2026-07-05T10:20:36Z

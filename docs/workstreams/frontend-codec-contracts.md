@@ -1,6 +1,8 @@
 # Codec-First Frontend Contracts
 
-Status: superseded by `docs/workstreams/generic-frontend-contracts.md` and `ir-pkmv`
+Status: historical/superseded by `docs/workstreams/generic-frontend-contracts.md` and the implemented `ir-pkmv` unified `Application.Helper.FrontendContract` DSL migration. Do not use this document as an implementation guide.
+
+Current browser-visible contract authoring lives under `Application.Helper.FrontendContract.*`; the legacy `Application.Helper.Frontend` codec/DTO/schema-group tree is intentionally deleted and guarded against returning.
 
 Decision note (ir-b797, 2026-06-26): choose a small project-owned
 `FrontendCodec` foundation over an `autodocodec`/external schema-tooling chain

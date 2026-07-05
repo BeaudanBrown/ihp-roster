@@ -419,7 +419,15 @@ renderContainedSurfaceMap surface =
 
 renderFrontendSurfaceLiveTransport :: [SurfaceIR] -> [Text]
 renderFrontendSurfaceLiveTransport surfaces =
-    [ "export type FrontendSurfaceScope =" ]
+    -- FrontendSurface* live types model server-rendered mount metadata.
+    -- They intentionally bridge from HTML data attributes into the canonical
+    -- SurfaceScope/SurfaceFragmentKey/SurfaceWireFragment websocket contract
+    -- types above; they are runtime convenience views, not a second contract
+    -- authority.
+    [ "// FrontendSurface* live types are server-rendered mount metadata adapters."
+    , "// Canonical websocket wire contracts remain SurfaceScope, SurfaceFragmentKey, and SurfaceWireFragment."
+    , "export type FrontendSurfaceScope ="
+    ]
         <> renderFrontendSurfaceScopeCases liveSurfaces
         <> [ "export type FrontendSurfaceLiveFragment =" ]
         <> renderFrontendSurfaceLiveFragmentCases liveSurfaces
@@ -469,7 +477,9 @@ renderFrontendSurfaceLiveFragmentCases surfaces = zipWith render surfaces [0 :: 
 
 renderFrontendSurfaceMountConfigTypes :: [Text]
 renderFrontendSurfaceMountConfigTypes =
-    [ "export type FrontendSurfaceMountedFragmentConfig = { key: { kind: string; params: unknown }; targetId: string; url: string; protection: Record<string, unknown> | null; loadPolicy: string | null };"
+    [ "// FrontendSurfaceMountConfig is the HTML data attribute shape emitted by Haskell views."
+    , "// parseFrontendSurfaceMountConfig normalizes it before live-update code builds canonical SurfaceSubscription commands."
+    , "export type FrontendSurfaceMountedFragmentConfig = { key: { kind: string; params: unknown }; targetId: string; url: string; protection: Record<string, unknown> | null; loadPolicy: string | null };"
     , "export type FrontendSurfaceMountConfig = { surface: FrontendSurfaceName; scopeKey: string; mountKey: string; mountState: unknown; fragments: FrontendSurfaceMountedFragmentConfig[]; subscription: FrontendSurfaceLiveSubscription | null };"
     , "function __surfaceHasFragment(surface: FrontendSurfaceName, fragment: string): boolean {"
     , "    return (FrontendSurfaceRegistry[surface].fragments as readonly string[]).includes(fragment);"

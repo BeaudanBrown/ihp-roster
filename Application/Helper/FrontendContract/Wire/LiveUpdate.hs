@@ -16,6 +16,8 @@ import Application.Helper.FrontendContract.Wire.Json (validateContractValue,
                                                       validateSurfaceFragmentKeyValue,
                                                       validateSurfaceScopeValue)
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Key as AesonKey
+import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as AesonTypes
 import IHP.Prelude
 
@@ -107,10 +109,9 @@ instance Aeson.ToJSON SurfaceScope where
         ]
 
 instance Aeson.FromJSON SurfaceScope where
-    parseJSON = Aeson.withObject "SurfaceScope" \object -> do
-        value <- SurfaceScope <$> object Aeson..: "surface" <*> object Aeson..: "scope"
-        validateSurfaceScope value
-        pure value
+    parseJSON raw = do
+        validateSurfaceScopeValue raw
+        Aeson.withObject "SurfaceScope" (\object -> SurfaceScope <$> object Aeson..: "surface" <*> object Aeson..: "scope") raw
 
 instance Aeson.ToJSON SurfaceFragmentKey where
     toJSON SurfaceFragmentKey { surface, kind, params } = Aeson.object
@@ -120,10 +121,9 @@ instance Aeson.ToJSON SurfaceFragmentKey where
         ]
 
 instance Aeson.FromJSON SurfaceFragmentKey where
-    parseJSON = Aeson.withObject "SurfaceFragmentKey" \object -> do
-        value <- SurfaceFragmentKey <$> object Aeson..: "surface" <*> object Aeson..: "kind" <*> object Aeson..: "params"
-        validateSurfaceFragmentKey value
-        pure value
+    parseJSON raw = do
+        validateSurfaceFragmentKeyValue raw
+        Aeson.withObject "SurfaceFragmentKey" (\object -> SurfaceFragmentKey <$> object Aeson..: "surface" <*> object Aeson..: "kind" <*> object Aeson..: "params") raw
 
 instance Aeson.ToJSON FocusedFieldProtectionConfig where
     toJSON FocusedFieldProtectionConfig { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector } = Aeson.object
@@ -134,12 +134,17 @@ instance Aeson.ToJSON FocusedFieldProtectionConfig where
         ]
 
 instance Aeson.FromJSON FocusedFieldProtectionConfig where
-    parseJSON = Aeson.withObject "FocusedFieldProtectionConfig" \object ->
-        FocusedFieldProtectionConfig
-            <$> object Aeson..: "activeSelector"
-            <*> object Aeson..: "fieldKeyAttr"
-            <*> object Aeson..: "fieldNameFallback"
-            <*> object Aeson..: "containerSelector"
+    parseJSON raw = do
+        validateFocusedFieldProtectionConfigValue raw
+        Aeson.withObject "FocusedFieldProtectionConfig"
+            ( \object ->
+                FocusedFieldProtectionConfig
+                    <$> object Aeson..: "activeSelector"
+                    <*> object Aeson..: "fieldKeyAttr"
+                    <*> object Aeson..: "fieldNameFallback"
+                    <*> object Aeson..: "containerSelector"
+            )
+            raw
 
 instance Aeson.ToJSON SurfaceFragmentProtection where
     toJSON NoProtection = Aeson.object ["kind" Aeson..= ("none" :: Text)]
@@ -152,16 +157,21 @@ instance Aeson.ToJSON SurfaceFragmentProtection where
         ]
 
 instance Aeson.FromJSON SurfaceFragmentProtection where
-    parseJSON = Aeson.withObject "SurfaceFragmentProtection" \object -> do
-        kind <- object Aeson..: "kind" :: AesonTypes.Parser Text
-        case kind of
-            "none" -> pure NoProtection
-            "focused-field" -> FocusedFieldProtection
-                <$> object Aeson..: "activeSelector"
-                <*> object Aeson..: "fieldKeyAttr"
-                <*> object Aeson..: "fieldNameFallback"
-                <*> object Aeson..: "containerSelector"
-            other -> fail ("unsupported SurfaceFragmentProtection kind " <> cs other)
+    parseJSON raw = do
+        validateContractValue "SurfaceFragmentProtection" raw
+        Aeson.withObject "SurfaceFragmentProtection"
+            ( \object -> do
+                kind <- object Aeson..: "kind" :: AesonTypes.Parser Text
+                case kind of
+                    "none" -> pure NoProtection
+                    "focused-field" -> FocusedFieldProtection
+                        <$> object Aeson..: "activeSelector"
+                        <*> object Aeson..: "fieldKeyAttr"
+                        <*> object Aeson..: "fieldNameFallback"
+                        <*> object Aeson..: "containerSelector"
+                    other -> fail ("unsupported SurfaceFragmentProtection kind " <> cs other)
+            )
+            raw
 
 instance Aeson.ToJSON SurfaceWireFragment where
     toJSON SurfaceWireFragment { fragmentKey, targetId, url, deferUntilBlur, protectionPolicy } = Aeson.object
@@ -173,15 +183,18 @@ instance Aeson.ToJSON SurfaceWireFragment where
         ]
 
 instance Aeson.FromJSON SurfaceWireFragment where
-    parseJSON = Aeson.withObject "SurfaceWireFragment" \object -> do
-        value <- SurfaceWireFragment
-            <$> object Aeson..: "fragmentKey"
-            <*> object Aeson..: "targetId"
-            <*> object Aeson..: "url"
-            <*> object Aeson..: "deferUntilBlur"
-            <*> object Aeson..: "protectionPolicy"
-        validateSchemaValue "SurfaceWireFragment" value
-        pure value
+    parseJSON raw = do
+        validateContractValue "SurfaceWireFragment" raw
+        Aeson.withObject "SurfaceWireFragment"
+            ( \object ->
+                SurfaceWireFragment
+                    <$> object Aeson..: "fragmentKey"
+                    <*> object Aeson..: "targetId"
+                    <*> object Aeson..: "url"
+                    <*> object Aeson..: "deferUntilBlur"
+                    <*> object Aeson..: "protectionPolicy"
+            )
+            raw
 
 instance Aeson.ToJSON SurfaceSubscription where
     toJSON SurfaceSubscription { scope, scopeKey, mountedFragments } = Aeson.object
@@ -191,13 +204,16 @@ instance Aeson.ToJSON SurfaceSubscription where
         ]
 
 instance Aeson.FromJSON SurfaceSubscription where
-    parseJSON = Aeson.withObject "SurfaceSubscription" \object -> do
-        value <- SurfaceSubscription
-            <$> object Aeson..: "scope"
-            <*> object Aeson..: "scopeKey"
-            <*> object Aeson..: "mountedFragments"
-        validateSchemaValue "SurfaceSubscription" value
-        pure value
+    parseJSON raw = do
+        validateContractValue "SurfaceSubscription" raw
+        Aeson.withObject "SurfaceSubscription"
+            ( \object ->
+                SurfaceSubscription
+                    <$> object Aeson..: "scope"
+                    <*> object Aeson..: "scopeKey"
+                    <*> object Aeson..: "mountedFragments"
+            )
+            raw
 
 instance Aeson.ToJSON LiveUpdateCommand where
     toJSON Subscribe { subscription, clientId, lastSeenVersion } = Aeson.object
@@ -212,21 +228,20 @@ instance Aeson.ToJSON LiveUpdateCommand where
         ]
 
 instance Aeson.FromJSON LiveUpdateCommand where
-    parseJSON = Aeson.withObject "LiveUpdateCommand" \object -> do
-        commandType <- object Aeson..: "type" :: AesonTypes.Parser Text
-        case commandType of
-            "subscribe" -> do
-                value <- Subscribe
-                    <$> object Aeson..: "subscription"
-                    <*> object Aeson..: "clientId"
-                    <*> object Aeson..: "lastSeenVersion"
-                validateSchemaValue "LiveUpdateCommand" value
-                pure value
-            "unsubscribe" -> do
-                value <- Unsubscribe <$> object Aeson..: "subscription"
-                validateSchemaValue "LiveUpdateCommand" value
-                pure value
-            other -> fail ("unsupported LiveUpdateCommand type " <> cs other)
+    parseJSON raw = do
+        validateContractValue "LiveUpdateCommand" raw
+        Aeson.withObject "LiveUpdateCommand"
+            ( \object -> do
+                commandType <- object Aeson..: "type" :: AesonTypes.Parser Text
+                case commandType of
+                    "subscribe" -> Subscribe
+                        <$> object Aeson..: "subscription"
+                        <*> object Aeson..: "clientId"
+                        <*> object Aeson..: "lastSeenVersion"
+                    "unsubscribe" -> Unsubscribe <$> object Aeson..: "subscription"
+                    other -> fail ("unsupported LiveUpdateCommand type " <> cs other)
+            )
+            raw
 
 instance Aeson.ToJSON LiveUpdateMessage where
     toJSON Subscribed { scope, scopeKey, currentVersion, resync } = Aeson.object
@@ -250,37 +265,30 @@ instance Aeson.ToJSON LiveUpdateMessage where
         ]
 
 instance Aeson.FromJSON LiveUpdateMessage where
-    parseJSON = Aeson.withObject "LiveUpdateMessage" \object -> do
-        messageType <- object Aeson..: "type" :: AesonTypes.Parser Text
-        case messageType of
-            "subscribed" -> do
-                value <- Subscribed
-                    <$> object Aeson..: "scope"
-                    <*> object Aeson..: "scopeKey"
-                    <*> object Aeson..: "currentVersion"
-                    <*> object Aeson..: "resync"
-                validateSchemaValue "LiveUpdateMessage" value
-                pure value
-            "invalidate" -> do
-                value <- Invalidate
-                    <$> object Aeson..: "scope"
-                    <*> object Aeson..: "scopeKey"
-                    <*> object Aeson..: "version"
-                    <*> object Aeson..: "fragments"
-                    <*> object Aeson..: "sourceClientId"
-                validateSchemaValue "LiveUpdateMessage" value
-                pure value
-            "error" -> do
-                value <- Error <$> object Aeson..: "message"
-                validateSchemaValue "LiveUpdateMessage" value
-                pure value
-            other -> fail ("unsupported LiveUpdateMessage type " <> cs other)
+    parseJSON raw = do
+        validateContractValue "LiveUpdateMessage" raw
+        Aeson.withObject "LiveUpdateMessage"
+            ( \object -> do
+                messageType <- object Aeson..: "type" :: AesonTypes.Parser Text
+                case messageType of
+                    "subscribed" -> Subscribed
+                        <$> object Aeson..: "scope"
+                        <*> object Aeson..: "scopeKey"
+                        <*> object Aeson..: "currentVersion"
+                        <*> object Aeson..: "resync"
+                    "invalidate" -> Invalidate
+                        <$> object Aeson..: "scope"
+                        <*> object Aeson..: "scopeKey"
+                        <*> object Aeson..: "version"
+                        <*> object Aeson..: "fragments"
+                        <*> object Aeson..: "sourceClientId"
+                    "error" -> Error <$> object Aeson..: "message"
+                    other -> fail ("unsupported LiveUpdateMessage type " <> cs other)
+            )
+            raw
 
-validateSurfaceScope :: SurfaceScope -> AesonTypes.Parser ()
-validateSurfaceScope = validateSurfaceScopeValue . Aeson.toJSON
-
-validateSurfaceFragmentKey :: SurfaceFragmentKey -> AesonTypes.Parser ()
-validateSurfaceFragmentKey = validateSurfaceFragmentKeyValue . Aeson.toJSON
-
-validateSchemaValue :: Aeson.ToJSON value => Text -> value -> AesonTypes.Parser ()
-validateSchemaValue name = validateContractValue name . Aeson.toJSON
+validateFocusedFieldProtectionConfigValue :: Aeson.Value -> AesonTypes.Parser ()
+validateFocusedFieldProtectionConfigValue raw =
+    case raw of
+        Aeson.Object object -> validateContractValue "SurfaceFragmentProtection" (Aeson.Object (KeyMap.insert (AesonKey.fromText "kind") (Aeson.String "focused-field") object))
+        _ -> fail "FocusedFieldProtectionConfig must be an object"

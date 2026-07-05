@@ -1,6 +1,8 @@
 # Generic Frontend Contract Codecs
 
-Status: superseded by `ir-pkmv` unified `FrontendContract` DSL migration
+Status: historical/superseded by the implemented `ir-pkmv` unified `FrontendContract` DSL migration. Do not use this DTO-codec plan as an implementation guide.
+
+Current browser-visible contract authoring lives under `Application.Helper.FrontendContract.*`; the legacy `Application.Helper.Frontend` codec/DTO/schema-group tree is intentionally deleted and guarded against returning.
 
 Tickets:
 
@@ -81,7 +83,7 @@ validates against `FrontendContract.IR` through
 `Application.Helper.FrontendContract.Wire.Json`; carrier types are not contract
 authority.
 
-Generated TypeScript for each codec should include:
+Historical DTO-codec plans expected generated TypeScript for each codec to include:
 
 ```ts
 export type X = ...;

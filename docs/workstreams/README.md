@@ -49,10 +49,11 @@ for forward-looking design.
   contracts, mutations, scope/audit/realtime evidence, and generated facts.
 - `bepis-effect-evidence-finalization.md` - final no-legacy Bepis runtime fact
   model where actual effect helpers emit typed facts and telemetry.
-- `frontend-codec-contracts.md` - superseded codec/schema-first replacement
-  history for handwritten TypeScript contract emission.
-- `generic-frontend-contracts.md` - superseded DTO-codec history; current
-  browser contracts live under `Application.Helper.FrontendContract`.
+- `frontend-codec-contracts.md` - historical/superseded codec/schema-first
+  replacement history for handwritten TypeScript contract emission; do not use
+  as an implementation guide.
+- `generic-frontend-contracts.md` - historical/superseded DTO-codec history;
+  current browser contracts live under `Application.Helper.FrontendContract`.
 - `type-level-frontend-surfaces.md` - fully type-level FrontendSurface specs,
   GHC API extraction/generation, `SurfaceImpl` runtime replacement for typed
   live-surface authoring, and migration away from old surface-related

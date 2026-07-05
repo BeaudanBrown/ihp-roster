@@ -1836,6 +1836,8 @@ export type AdminXeroSurfaceName = "admin-xero";
 export type AdminXeroFragmentKey = AdminXeroSurfaceFragmentKey;
 export const adminXeroSurfaceManifest = {"surface":"admin-xero","scopes":["admin-xero"],"fragments":["admin-xero-shell","admin-xero-staff-mappings","admin-xero-pay-items","admin-xero-timesheets"],"liveFragments":["admin-xero-shell","admin-xero-staff-mappings","admin-xero-pay-items","admin-xero-timesheets"],"htmxActions":[],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":[],"overlayLanes":[],"containedSurfaces":{}} as const;
 
+// FrontendSurface* live types are server-rendered mount metadata adapters.
+// Canonical websocket wire contracts remain SurfaceScope, SurfaceFragmentKey, and SurfaceWireFragment.
 export type FrontendSurfaceScope =
     { surface: "timesheets"; scope: TimesheetsTimesheetWeekScope }
   | { surface: "roster"; scope: RosterRosterWeekScope }
@@ -1887,6 +1889,8 @@ export function parseFrontendSurfaceLiveFragment(value: unknown): FrontendSurfac
     throw new Error("Invalid FrontendSurfaceLiveFragment");
 }
 
+// FrontendSurfaceMountConfig is the HTML data attribute shape emitted by Haskell views.
+// parseFrontendSurfaceMountConfig normalizes it before live-update code builds canonical SurfaceSubscription commands.
 export type FrontendSurfaceMountedFragmentConfig = { key: { kind: string; params: unknown }; targetId: string; url: string; protection: Record<string, unknown> | null; loadPolicy: string | null };
 export type FrontendSurfaceMountConfig = { surface: FrontendSurfaceName; scopeKey: string; mountKey: string; mountState: unknown; fragments: FrontendSurfaceMountedFragmentConfig[]; subscription: FrontendSurfaceLiveSubscription | null };
 function __surfaceHasFragment(surface: FrontendSurfaceName, fragment: string): boolean {

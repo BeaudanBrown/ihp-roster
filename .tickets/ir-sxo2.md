@@ -1,6 +1,6 @@
 ---
 id: ir-sxo2
-status: open
+status: closed
 deps: [ir-uvf9]
 links: []
 created: 2026-07-05T10:20:36Z
