@@ -18,8 +18,8 @@ module Web.SurfaceInvalidation
 
 import Application.Bepis.Fact (BepisFact (..), BepisLiveFact (..),
                                BepisLiveMechanism (..), emitBepisFact)
-import Application.Helper.FrontendSurface.Authorization (authorizeFrontendSurfaceScope)
-import Application.Helper.FrontendSurface.DependencyPlanner (planFrontendSurfaceWireInvalidation)
+import Application.Helper.FrontendContract.Surface.Authorization (authorizeFrontendSurfaceScope)
+import Application.Helper.FrontendContract.Surface.DependencyPlanner (planFrontendSurfaceWireInvalidation)
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.Profiling (profileActionSpanWithDetail)
 import Application.Helper.RosterGroups (fetchStaffRosterGroupIds)

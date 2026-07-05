@@ -11,9 +11,9 @@ module Application.Support.LiveUpdates
     , supportSurfaceWireFragments
     ) where
 
-import Application.Helper.FrontendSurface.DSL
-import Application.Helper.FrontendSurface.Runtime
-import qualified Application.Helper.FrontendSurface.Support as Surface
+import Application.Helper.FrontendContract.Surface.DSL
+import Application.Helper.FrontendContract.Surface.Runtime
+import qualified Application.Helper.FrontendContract.Surface.Support as Surface
 import Application.Helper.LiveUpdate
 import Application.Helper.LiveUpdate.Runtime
 import qualified Data.Aeson as Aeson

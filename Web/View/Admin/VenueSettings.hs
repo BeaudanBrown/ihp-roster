@@ -7,7 +7,7 @@ module Web.View.Admin.VenueSettings
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
-import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
+import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminVenueSettingsSurfaceImpl)
 import Web.View.Admin.Common

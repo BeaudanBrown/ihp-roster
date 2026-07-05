@@ -5,8 +5,8 @@ module Web.View.RosterWeeks.StaffPanel
     , renderRosterStaffPanelPlaceholder
     ) where
 
-import Application.Helper.Frontend.RosterConstants (RosterStaffSortKey (..),
-                                                    rosterStaffSortKeyAttribute)
+import Application.Helper.FrontendContract.RosterValues (RosterStaffSortKey (..),
+                                                         rosterStaffSortKeyAttribute)
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
 import Application.Helper.View (staffDisplayName)
 import Data.List (sortBy)

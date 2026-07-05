@@ -1,9 +1,9 @@
 module Web.View.Timesheets.Index where
 
 import Application.Helper.Controller (isWithinEditWindow, shiftDurationMinutes)
-import Application.Helper.FrontendSurface.Runtime (SurfaceImpl,
-                                                   renderFrontendSurfaceMount)
-import qualified Application.Helper.FrontendSurface.Timesheets as Surface
+import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl,
+                                                            renderFrontendSurfaceMount)
+import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
 import Data.Fixed (Pico)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays)

@@ -1,7 +1,7 @@
 module Web.Controller.LiveUpdates where
 
 import Application.Helper.Controller
-import Application.Helper.FrontendSurface.Authorization (validateFrontendSurfaceLiveSubscription)
+import Application.Helper.FrontendContract.Surface.Authorization (validateFrontendSurfaceLiveSubscription)
 import Application.Helper.LiveUpdate.Runtime
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LByteString

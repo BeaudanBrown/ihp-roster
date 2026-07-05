@@ -36,7 +36,7 @@ expect_match() {
 }
 
 lab_paths=(
-    Application/Helper/FrontendSurface/Lab.hs
+    Application/Helper/FrontendContract/Surface/Lab.hs
     Web/Support/FrontendSurfaceLab.hs
     Web/View/Support/FrontendSurfaceLab.hs
 )
@@ -48,8 +48,8 @@ timesheets_paths=(
 )
 
 expect_no_match \
-    "migrated FrontendSurface lab must not author old FrontendCodec/schema groups" \
-    'Application\.Helper\.Frontend\.(Codec|Generic|ContractGroup|.*Schema)|FrontendCodec|HasFrontendCodec|someFrontendCodec|genericFrontendCodec' \
+    "migrated FrontendSurface lab must not author old frontend codec/DTO/schema groups" \
+    'Application\.Helper\.Frontend\.(Codec|Generic|ContractGroup|Options|Contracts|TypeScript|Dto\.|.*Schema)|FrontendCodec|HasFrontendCodec|someFrontendCodec|genericFrontendCodec' \
     "${lab_paths[@]}"
 
 expect_no_match \
@@ -134,14 +134,14 @@ expect_no_match \
 expect_no_match \
     "FrontendSurface specs must use current DSL primitive names" \
     '\b(HtmxAction|ClientEvent|DisposableLayer|InteractionEffect)\b' \
-    Application/Helper/FrontendSurface/Admin.hs \
-    Application/Helper/FrontendSurface/Billing.hs \
-    Application/Helper/FrontendSurface/Lab.hs \
-    Application/Helper/FrontendSurface/LeaveRequests.hs \
-    Application/Helper/FrontendSurface/Profile.hs \
-    Application/Helper/FrontendSurface/Roster.hs \
-    Application/Helper/FrontendSurface/Support.hs \
-    Application/Helper/FrontendSurface/Timesheets.hs
+    Application/Helper/FrontendContract/Surface/Admin.hs \
+    Application/Helper/FrontendContract/Surface/Billing.hs \
+    Application/Helper/FrontendContract/Surface/Lab.hs \
+    Application/Helper/FrontendContract/Surface/LeaveRequests.hs \
+    Application/Helper/FrontendContract/Surface/Profile.hs \
+    Application/Helper/FrontendContract/Surface/Roster.hs \
+    Application/Helper/FrontendContract/Surface/Support.hs \
+    Application/Helper/FrontendContract/Surface/Timesheets.hs
 
 expect_no_match \
     "legacy LiveResource alias/ADT must stay deleted" \

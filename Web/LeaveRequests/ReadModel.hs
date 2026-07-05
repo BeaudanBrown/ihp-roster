@@ -14,8 +14,8 @@ module Web.LeaveRequests.ReadModel
     , renderLeaveRequestsFragmentFromReadModel
     ) where
 
-import qualified Application.Helper.FrontendSurface.LeaveRequests as Surface
-import Application.Helper.FrontendSurface.Runtime (SurfaceImpl)
+import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
+import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl)
 import Application.Helper.LiveUpdate
 import Application.Helper.Profiling
 import Application.Helper.View.Oob (OobSwapAttr)

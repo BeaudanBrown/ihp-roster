@@ -7,12 +7,14 @@ module Web.Support.FrontendSurfaceLab
     , surfaceLabImpl
     ) where
 
-import Application.Helper.FrontendSurface.Lab (LabPanel, LabScope, LabShell,
-                                               LabViewState, MoveLabCard,
-                                               PanelId, RefreshPanel,
-                                               SourceItemKey, SurfaceLabSurface,
-                                               TargetDropzoneKey)
-import Application.Helper.FrontendSurface.Runtime
+import Application.Helper.FrontendContract.Surface.Lab (LabPanel, LabScope,
+                                                        LabShell, LabViewState,
+                                                        MoveLabCard, PanelId,
+                                                        RefreshPanel,
+                                                        SourceItemKey,
+                                                        SurfaceLabSurface,
+                                                        TargetDropzoneKey)
+import Application.Helper.FrontendContract.Surface.Runtime
 import qualified Data.Aeson as Aeson
 import Web.View.Prelude
 

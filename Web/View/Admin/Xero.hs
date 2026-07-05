@@ -14,7 +14,7 @@ module Web.View.Admin.Xero
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
-import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
+import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.View.Overlay (dialogOverlayMountId)
 import Application.Helper.XeroAdminTypes
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),

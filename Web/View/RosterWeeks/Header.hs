@@ -2,7 +2,7 @@ module Web.View.RosterWeeks.Header
     ( renderRosterGridHeader
     ) where
 
-import qualified Application.Helper.FrontendSurface.Interaction as SurfaceInteraction
+import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import Application.Helper.RosterWagePrediction (RosterWagePrediction (..),
                                                 formatMoneyAmount)
 import Application.Helper.UserPreferences (rosterLayoutModeLabel,

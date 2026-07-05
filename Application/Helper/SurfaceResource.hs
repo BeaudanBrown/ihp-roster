@@ -32,7 +32,7 @@ module Application.Helper.SurfaceResource
     , xeroTimesheetsResource
     ) where
 
-import Application.Helper.FrontendSurface.Resource
+import Application.Helper.FrontendContract.Surface.Resource
 import qualified Data.Set as Set
 import qualified Data.Text.IO as TextIO
 import IHP.Prelude

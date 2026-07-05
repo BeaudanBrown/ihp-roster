@@ -1,9 +1,12 @@
 module Application.Script.GenerateFrontendContractsGhc where
 
-import Application.Helper.Frontend.Contracts (frontendContractsTypeScriptWithFrontendSurface)
-import Application.Helper.FrontendSurface.Contracts (frontendSurfaceContractDeclarationFor)
-import Application.Helper.FrontendSurface.Ghc.Extract (inspectFrontendSurfaceRegistryRaw)
-import Application.Helper.FrontendSurface.Ghc.Lower (lowerRawRegistry)
+import Application.Helper.FrontendContract.Contracts (TypeScriptDeclaration (..),
+                                                      TypeScriptDeclarationOrigin (..),
+                                                      renderTypeScriptDeclarations)
+import Application.Helper.FrontendContract.Registry (registeredFrontendContractIRForSurfaceContract)
+import Application.Helper.FrontendContract.Surface.Ghc.Extract (inspectFrontendSurfaceRegistryRaw)
+import Application.Helper.FrontendContract.Surface.Ghc.Lower (lowerRawRegistry)
+import Application.Helper.FrontendContract.TypeScript (renderFrontendContractTypeScript)
 import qualified Data.Text.IO as Text
 import IHP.Prelude
 import qualified System.Directory as Directory
@@ -38,4 +41,11 @@ frontendContractsTypeScriptFromGhc libdir = do
             putStrLn "GenerateFrontendContractsGhc: FrontendSurface GHC lowering failed:"
             mapM_ (\diagnostic -> putStrLn (cs ("  " <> diagnostic) :: Text)) diagnostics
             exitFailure
-    pure (frontendContractsTypeScriptWithFrontendSurface (frontendSurfaceContractDeclarationFor contract))
+    let source = either error id (renderFrontendContractTypeScript (registeredFrontendContractIRForSurfaceContract contract))
+    pure (renderTypeScriptDeclarations
+        [ TypeScriptDeclaration
+            { name = "FrontendContractGlobals"
+            , origin = HaskellSchemaGenerated
+            , source = source
+            }
+        ])

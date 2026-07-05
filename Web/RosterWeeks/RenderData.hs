@@ -33,7 +33,7 @@ where
 
 import Application.Helper.Conflict
 import Application.Helper.Controller
-import Application.Helper.FrontendSurface.FragmentRender (FragmentRenderMode (..))
+import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.RosterWagePrediction

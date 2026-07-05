@@ -25,14 +25,14 @@ module Web.View.RosterWeeks.Grid
     , rowsForDay
     ) where
 
-import qualified Application.Helper.FrontendSurface.Interaction as SurfaceInteraction
-import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceFragmentKey (..),
-                                                   FrontendSurfaceInteractionShellConfig (..),
-                                                   FrontendSurfaceMountConfig (..),
-                                                   FrontendSurfaceMountedFragment (..),
-                                                   SurfaceImpl (..),
-                                                   renderFrontendSurfaceInteractionShell,
-                                                   renderFrontendSurfaceLazyFragment)
+import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceFragmentKey (..),
+                                                            FrontendSurfaceInteractionShellConfig (..),
+                                                            FrontendSurfaceMountConfig (..),
+                                                            FrontendSurfaceMountedFragment (..),
+                                                            SurfaceImpl (..),
+                                                            renderFrontendSurfaceInteractionShell,
+                                                            renderFrontendSurfaceLazyFragment)
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
 import Application.Helper.RosterWagePrediction
 import Application.Helper.ShiftTypeColours (shiftTypeColourPaletteKeys)

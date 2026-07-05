@@ -1,6 +1,6 @@
 module Application.Helper.View.Overlay where
 
-import Application.Helper.Frontend.AppConstants (sharedDialogOverlayMountId)
+import Application.Helper.FrontendContract.AppValues (sharedDialogOverlayMountId)
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ViewPrelude

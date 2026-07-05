@@ -5,7 +5,7 @@ module Web.View.Admin.ShiftTypes
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
-import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
+import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey,
                                             normalizeShiftTypeColourKey,
                                             shiftTypeColourPaletteKeys)

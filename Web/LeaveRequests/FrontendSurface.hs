@@ -12,9 +12,9 @@ module Web.LeaveRequests.FrontendSurface
     , leaveRequestsSurfaceWireFragments
     ) where
 
-import Application.Helper.FrontendSurface.DSL
-import qualified Application.Helper.FrontendSurface.LeaveRequests as Surface
-import Application.Helper.FrontendSurface.Runtime
+import Application.Helper.FrontendContract.Surface.DSL
+import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
+import Application.Helper.FrontendContract.Surface.Runtime
 import Application.Helper.LiveUpdate.Runtime
 import qualified Data.Aeson as Aeson
 import qualified Data.UUID as UUID

@@ -6,7 +6,7 @@ module Web.View.Admin.RosterGroups
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
-import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
+import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminRosterGroupsSurfaceImpl)
 import Web.View.Admin.Common

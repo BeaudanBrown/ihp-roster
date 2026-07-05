@@ -7,8 +7,8 @@
 module Web.Controller.RosterWeeks where
 
 import Application.Helper.Controller
-import Application.Helper.FrontendSurface.DependencyPlanner (planFrontendSurfaceInvalidation)
-import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceMountedFragment (..))
+import Application.Helper.FrontendContract.Surface.DependencyPlanner (planFrontendSurfaceInvalidation)
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment (..))
 import Application.Helper.LiveUpdate
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups

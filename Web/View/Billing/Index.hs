@@ -1,7 +1,7 @@
 module Web.View.Billing.Index where
 
 import Application.Helper.Controller (currentVenueOrNothing)
-import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
+import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import qualified Data.Text as Text
 import Web.Billing.FrontendSurface (BillingCheckoutReturnState (..),
                                     billingSurfaceImpl,

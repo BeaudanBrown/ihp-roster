@@ -89,7 +89,7 @@ tests = beforeAll testContext do
                     passiveRefetch `responseStatusShouldBe` status200
 
                     forM_ (lookup "HX-Trigger" (responseHeaders mutationResponse)) \triggerHeader ->
-                        triggerHeader `shouldContainBS` "app-live-fragments-refresh"
+                        triggerHeader `shouldContainBS` "bepis:live-fragments-refresh"
                     serverTiming mutationResponse `shouldContainBS` "app_total;dur="
                     serverTiming passiveRefetch `shouldContainBS` "roster_direct_build_slot_conflicts;dur="
                     dumpBaselineTimings [("slot-mutation", mutationResponse), ("passive-row-refetch", passiveRefetch)]

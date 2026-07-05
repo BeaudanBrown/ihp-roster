@@ -1,8 +1,8 @@
 module Web.View.Profiles.Edit where
 
-import qualified Application.Helper.FrontendSurface.Profile as Surface
-import Application.Helper.FrontendSurface.Runtime (SurfaceImpl,
-                                                   renderFrontendSurfaceMount)
+import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
+import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl,
+                                                            renderFrontendSurfaceMount)
 import Application.Helper.StaffShiftPreferences
 import Data.List (sortOn)
 import Data.Ord (Down (..))

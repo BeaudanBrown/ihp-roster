@@ -350,7 +350,7 @@ function parseFrontendContracts() {
       consumers.push({ path: relPath, imports: [...text.matchAll(/import\s+(?:type\s+)?\{([^}]+)\}\s+from\s+["'][^"']*generated\/contracts["']/g)].flatMap((m) => m[1].split(",").map((x) => x.trim().replace(/^type\s+/, ""))).filter(Boolean) });
     }
   }
-  const sources = ["Application/Helper/Frontend/Contracts.hs", "Application/Helper/Frontend/ContractGroup.hs", "Application/Script/GenerateFrontendContracts.hs"].filter((file) => fs.existsSync(path.join(repoRoot, file)));
+  const sources = ["Application/Helper/FrontendContract/Contracts.hs", "Application/Helper/FrontendContract/TypeScript.hs", "Application/Script/GenerateFrontendContracts.hs"].filter((file) => fs.existsSync(path.join(repoRoot, file)));
   const generated = generatedFiles.map((relPath) => {
     const text = readText(relPath);
     return {

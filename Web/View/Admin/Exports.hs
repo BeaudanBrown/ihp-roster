@@ -8,7 +8,7 @@ module Web.View.Admin.Exports
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.Export
-import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
+import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminExportsSurfaceImpl)
 import Web.View.Admin.Common

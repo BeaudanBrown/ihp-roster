@@ -29,7 +29,7 @@ websocket controllers, and `static/app-live-updates.js`.
 ## Surface Declaration
 
 For the step-by-step checklist and glossary used when adding a fragment, see
-`Application/Helper/FrontendSurface/README.md`. For typed disposable layers,
+`Application/Helper/FrontendContract/Surface/README.md`. For typed disposable layers,
 intent fields, generated browser contracts, and live-fragment conflict policy,
 see `Application/Helper/Interaction.SPEC.md`.
 
@@ -43,7 +43,7 @@ thin: it translates raw HTMX events into Bepis region events only for
 parameterized by those server-rendered attrs.
 
 Production live surfaces must be declared with a type-level `FrontendSurface`
-spec in `Application.Helper.FrontendSurface.Registry` and rendered with
+spec in `Application.Helper.FrontendContract.Surface.Registry` and rendered with
 `SurfaceImpl` helpers as `data-bepis-surface` plus
 `data-bepis-surface-config`. The old typed-live-surface compatibility layer and
 legacy `data-live-update-surface` mount format have been removed.
@@ -98,15 +98,21 @@ describe how the browser refetches and swaps HTML.
 
 The wire-fragment transport boundary is isolated behind
 `Application.Helper.LiveUpdate.Runtime`, `Application.Helper.LiveUpdate.Internal`,
-and `Application.Helper.FrontendSurface.Runtime`. Browser wire DTOs live in
-`Application.Helper.Frontend.Dto.LiveUpdate` plus generated FrontendSurface
-contracts and provide TypeScript types, guards, `parseX`, and `encodeX` helpers
-consumed by the runtime. Feature modules should keep fragment enums
-feature-local and cross the typed-to-wire boundary only through strict helpers.
-Feature modules cross the surface-to-wire boundary through
-`SurfaceImpl`/`renderFrontendSurfaceMount` and mount-local fragment/action/intent
-handlers. The runtime no longer keeps feature-facing broadcast, typed-live
-compatibility, or typed mutation helpers.
+and `Application.Helper.FrontendContract.Surface.Runtime`. Browser-visible live-update
+contracts are owned by `Application.Helper.FrontendContract.LiveUpdate` and the
+registered surface contracts: generated TypeScript exposes closed `SurfaceScope`
+and `SurfaceFragmentKey` unions derived from the registered surface scope and
+fragment payloads, plus generated live command/message guards, `parseX`, and
+`encodeX` helpers consumed by the runtime. The Haskell carrier types live in
+`Application.Helper.FrontendContract.Wire.LiveUpdate`; their Aeson parse/render
+validates against `registeredFrontendContractIR` through
+`Application.Helper.FrontendContract.Wire.Json`, so the DSL/IR remains the only
+browser-visible wire authority.
+Feature modules should keep fragment enums feature-local and cross the
+typed-to-wire boundary only through strict helpers. Feature modules cross the
+surface-to-wire boundary through `SurfaceImpl`/`renderFrontendSurfaceMount` and
+mount-local fragment/action/intent handlers. The runtime no longer keeps
+feature-facing broadcast, typed-live compatibility, or typed mutation helpers.
 
 Actor responses and passive live updates should use one fragment model with
 multiple triggers. A feature-local fragment enum and `SurfaceImpl` name the fragments once;
@@ -170,7 +176,7 @@ When a current HTMX interaction should become a region, migrate it through the
 Haskell contract first: closed fragment/region identity, stable target id,
 authoritative GET URL, optional lazy/retry/transition attrs, and focused-field
 or interaction conflict policy if needed. TypeScript may read the generated
-`UiRegionDom`, `UiRegionEvents`, and `UiRegionTransitionProfile` contracts, but
+the generated UI-region DOM attribute constants, event constants, and `UiRegionTransitionProfile` contract, but
 it must not invent attribute names, fragment names, routes, target ids, or
 business semantics. After that, the generic adapter may
 emit `bepis:region-request-start`, `bepis:region-before-swap`,

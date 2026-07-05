@@ -1,6 +1,6 @@
 module Application.Helper.View.Toast where
 
-import Application.Helper.Frontend.AppConstants (sharedToastOverlayMountId)
+import Application.Helper.FrontendContract.AppValues (sharedToastOverlayMountId)
 import Application.Helper.View.Oob
 import Generated.Types
 import IHP.ViewPrelude

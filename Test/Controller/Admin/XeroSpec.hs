@@ -611,7 +611,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "xero-staff-mapping-show-matched-toggle"
                 response `responseBodyShouldContain` "Saved Xero employee mapping for Ada Lovelace."
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
-                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "app-live-fragments-refresh")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-xero-staff-mappings")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "xero-staff-mappings-data")
                 triggerHeader `shouldSatisfy` maybe True (not . Text.isInfixOf "\"targetId\":\"xero-staff-mappings\"")
@@ -704,7 +704,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "id=\"xero-staff-mappings-data\""
                 response `responseBodyShouldNotContain` "xero-staff-mapping-show-matched-toggle"
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
-                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "app-live-fragments-refresh")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-xero-staff-mappings")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "xero-staff-mappings-data")
                 mapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId staff.id) |> fetchOne
@@ -1913,7 +1913,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Prepared Xero draft-timesheet preview."
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
-                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "app-live-fragments-refresh")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-xero-timesheets")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "xero-timesheets-data")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "/ShowadminXeroTimesheetsLiveFragment")
@@ -1950,7 +1950,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Submitted Xero draft timesheets."
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
-                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "app-live-fragments-refresh")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-xero-timesheets")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "xero-timesheets-data")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "/ShowadminXeroTimesheetsLiveFragment")
@@ -2011,7 +2011,7 @@ tests = beforeAll testContext do
                 failedResponse `responseBodyShouldContain` "Xero draft-timesheet submission did not complete successfully."
                 failedResponse `responseBodyShouldNotContain` "Retry"
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders failedResponse)
-                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "app-live-fragments-refresh")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-xero-timesheets")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "xero-timesheets-data")
                 submission <- query @XeroTimesheetSubmission |> fetchOne

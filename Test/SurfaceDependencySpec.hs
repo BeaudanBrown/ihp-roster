@@ -1,7 +1,7 @@
 module Test.SurfaceDependencySpec where
 
-import Application.Helper.FrontendSurface.DependencyPlanner (planFrontendSurfaceInvalidation)
-import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceMountedFragment (..))
+import Application.Helper.FrontendContract.Surface.DependencyPlanner (planFrontendSurfaceInvalidation)
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment (..))
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
 import Application.Support.LiveUpdates (supportCandidateMountedFragments,

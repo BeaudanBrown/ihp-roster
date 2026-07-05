@@ -110,7 +110,7 @@ import IHP.Prelude
 import qualified Network.WebSockets as WebSocket
 import System.IO.Unsafe (unsafePerformIO)
 
-import qualified Application.Helper.Frontend.LiveUpdateSchema as Wire
+import qualified Application.Helper.FrontendContract.Wire.LiveUpdate as Wire
 import Application.Helper.Profiling (profileActionSpan,
                                      profileActionSpanWithDetail)
 
@@ -227,13 +227,13 @@ adminXeroStaffMappingsLiveFragment = simpleSurfaceFragmentKey "admin-xero" "admi
 adminXeroPayItemsLiveFragment = simpleSurfaceFragmentKey "admin-xero" "admin-xero-pay-items"
 adminXeroTimesheetsLiveFragment = simpleSurfaceFragmentKey "admin-xero" "admin-xero-timesheets"
 billingStatusLiveFragment = simpleSurfaceFragmentKey "billing" "billing-status"
-profileContentLiveFragment = simpleSurfaceFragmentKey "profile" "profile-content"
+profileContentLiveFragment = profileDetailsSectionLiveFragment
 profileDetailsSectionLiveFragment = simpleSurfaceFragmentKey "profile" "profile-details-section"
 profilePreferencesSectionLiveFragment = simpleSurfaceFragmentKey "profile" "profile-preferences-section"
 profileSecuritySectionLiveFragment = simpleSurfaceFragmentKey "profile" "profile-security-section"
 profileLeaveSectionLiveFragment = simpleSurfaceFragmentKey "profile" "profile-leave-section"
 profileRsaSectionLiveFragment = simpleSurfaceFragmentKey "profile" "profile-rsa-section"
-profileLeaveRequestsContentLiveFragment = simpleSurfaceFragmentKey "profile" "profile-leave-requests-content"
+profileLeaveRequestsContentLiveFragment = profileLeaveSectionLiveFragment
 supportAwardRatesSectionLiveFragment = simpleSurfaceFragmentKey "support" "support-award-rates"
 supportPublicHolidaysSectionLiveFragment = simpleSurfaceFragmentKey "support" "support-public-holidays"
 

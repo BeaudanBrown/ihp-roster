@@ -25,11 +25,11 @@ module Web.Admin.FrontendSurface
     , adminXeroTimesheetsFragment
     ) where
 
-import Application.Helper.Frontend.AppConstants (AppEvents (..),
-                                                 canonicalAppEvents)
-import qualified Application.Helper.FrontendSurface.Admin as Surface
-import Application.Helper.FrontendSurface.DSL
-import Application.Helper.FrontendSurface.Runtime
+import Application.Helper.FrontendContract.AppValues (AppEvents (..),
+                                                      canonicalAppEvents)
+import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
+import Application.Helper.FrontendContract.Surface.DSL
+import Application.Helper.FrontendContract.Surface.Runtime
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
 import Application.Helper.Url (appendQueryParams)
@@ -212,13 +212,10 @@ scopeHandler scope = FrontendSurfaceScopeHandler
     , scopeHandlerKey = \fields -> fromMaybe (tshow scope.adminVenueId) (getSurfaceField @Surface.VenueId fields)
     }
 
-invitesScopeHandler :: AdminVenueScopeValue -> FrontendSurfaceScopeHandler ('Scope Surface.AdminInvitesScope '[ 'Field Surface.VenueId 'WireUUID, 'Field Surface.RosterGroupId 'WireUUID] auth)
+invitesScopeHandler :: AdminVenueScopeValue -> FrontendSurfaceScopeHandler ('Scope Surface.AdminInvitesScope '[ 'Field Surface.VenueId 'WireUUID] auth)
 invitesScopeHandler scope = FrontendSurfaceScopeHandler
-    { scopeHandlerDefaultValue = frontendSurfaceFieldValues (Aeson.object ["venueId" Aeson..= tshow scope.adminVenueId, "rosterGroupId" Aeson..= maybe "" tshow scope.adminRosterGroupId])
-    , scopeHandlerKey = \fields ->
-        let venueId = fromMaybe (tshow scope.adminVenueId) (getSurfaceField @Surface.VenueId fields)
-            rosterGroupId = fromMaybe (maybe "" tshow scope.adminRosterGroupId) (getSurfaceField @Surface.RosterGroupId fields)
-         in venueId <> ":" <> rosterGroupId
+    { scopeHandlerDefaultValue = frontendSurfaceFieldValues (Aeson.object ["venueId" Aeson..= tshow scope.adminVenueId])
+    , scopeHandlerKey = \fields -> fromMaybe (tshow scope.adminVenueId) (getSurfaceField @Surface.VenueId fields)
     }
 
 setAdminXeroActorRefresh :: (?context :: ControllerContext, ?request :: Request) => [FrontendSurfaceMountedFragment] -> IO ()

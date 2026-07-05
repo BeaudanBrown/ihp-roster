@@ -13,9 +13,9 @@ module Web.Profiles.FrontendSurface
     , profileSurfaceWireFragments
     ) where
 
-import Application.Helper.FrontendSurface.DSL
-import qualified Application.Helper.FrontendSurface.Profile as Surface
-import Application.Helper.FrontendSurface.Runtime
+import Application.Helper.FrontendContract.Surface.DSL
+import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
+import Application.Helper.FrontendContract.Surface.Runtime
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.Url (appendQueryParams)
 import qualified Data.Aeson as Aeson

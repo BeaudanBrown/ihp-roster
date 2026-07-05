@@ -3,8 +3,8 @@
 
 module Test.CompileFail.FrontendSurfaceMissingFragmentHandler where
 
-import Application.Helper.FrontendSurface.Lab (SurfaceLabSurface)
-import Application.Helper.FrontendSurface.Runtime
+import Application.Helper.FrontendContract.Surface.Lab (SurfaceLabSurface)
+import Application.Helper.FrontendContract.Surface.Runtime
 import qualified Data.Aeson as Aeson
 import IHP.Prelude
 

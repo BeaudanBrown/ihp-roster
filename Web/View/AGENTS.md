@@ -65,7 +65,7 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
 - Roster shift edits are whole-shift dialog submits. Grid cells/cards are launchers with `data-roster-shift-launcher`, not inline autosave inputs.
 - Dialog forms post atomically to the slot create/update actions and target `#dialog-overlay-mount`; successful actor responses clear the dialog and trigger live fragment refreshes.
 - Keep row/day/content fragment IDs stable (`data-roster-row="true"`, day section ids) so actor and passive live refreshes can replace the right server-rendered fragment.
-- Do not wire feature/view behavior directly to `turbolinks:load`. The shared client runtime emits `app:page-ready` for full-page loads and HTMX swaps, and that runtime is responsible for re-processing any fresh `hx-*` markup.
+- Do not wire feature/view behavior directly to `turbolinks:load`. The shared client runtime emits `bepis:page-ready` for full-page loads and HTMX swaps, and that runtime is responsible for re-processing any fresh `hx-*` markup.
 - When a roster shell participates in live fragments, render scope metadata on the stable shell (`#roster-week-shell`) so JS can subscribe/unsubscribe as `weekOffset` changes without guessing from the URL.
 - Live fragment refetch endpoints should return plain server-rendered fragments for the target DOM node; reserve `hx-swap-oob` variants for the actor path.
 - For viewer-side row refetches, do not return `hx-swap-oob` row wrappers from the fragment GET action; return the plain `<tr>` fragment and let JS replace the target row directly.

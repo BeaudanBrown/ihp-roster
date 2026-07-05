@@ -2,11 +2,12 @@ module Application.Script.FrontendSurfaceGhcProbe where
 
 import Prelude
 
-import qualified Application.Helper.FrontendSurface.ContractIR as IR
-import Application.Helper.FrontendSurface.Ghc.Extract (inspectFrontendSurfaceRegistryRaw)
-import Application.Helper.FrontendSurface.Ghc.Lower (lowerRawRegistry)
-import Application.Helper.FrontendSurface.Ghc.Raw hiding (rawRegistryToJson)
-import qualified Application.Helper.FrontendSurface.Ghc.Raw as Raw
+import qualified Application.Helper.FrontendContract.Surface.ContractIR as IR
+import Application.Helper.FrontendContract.Surface.Ghc.Extract (inspectFrontendSurfaceRegistryRaw)
+import Application.Helper.FrontendContract.Surface.Ghc.Lower (lowerRawRegistry)
+import Application.Helper.FrontendContract.Surface.Ghc.Raw hiding
+                                                           (rawRegistryToJson)
+import qualified Application.Helper.FrontendContract.Surface.Ghc.Raw as Raw
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import qualified Data.List as List

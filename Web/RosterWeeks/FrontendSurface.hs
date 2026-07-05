@@ -26,12 +26,12 @@ module Web.RosterWeeks.FrontendSurface
     , rosterSurfaceWireFragments
     ) where
 
-import qualified Application.Helper.FrontendSurface.ContractIR as SurfaceIR
-import Application.Helper.FrontendSurface.DSL
-import qualified Application.Helper.FrontendSurface.Interaction as SurfaceInteraction
-import Application.Helper.FrontendSurface.Reflect (reflectRegisteredFrontendSurfaces)
-import qualified Application.Helper.FrontendSurface.Roster as Surface
-import Application.Helper.FrontendSurface.Runtime
+import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
+import Application.Helper.FrontendContract.Surface.DSL
+import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
+import Application.Helper.FrontendContract.Surface.Reflect (reflectRegisteredFrontendSurfaces)
+import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
+import Application.Helper.FrontendContract.Surface.Runtime
 import Application.Helper.LiveUpdate.Runtime
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson

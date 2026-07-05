@@ -4,8 +4,8 @@
 
 module Test.CompileFail.FrontendSurfaceUndeclaredFieldAccessor where
 
-import Application.Helper.FrontendSurface.DSL
-import Application.Helper.FrontendSurface.Runtime
+import Application.Helper.FrontendContract.Surface.DSL
+import Application.Helper.FrontendContract.Surface.Runtime
 import IHP.Prelude
 
 data PanelId

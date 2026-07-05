@@ -7,11 +7,11 @@ module Web.View.RosterWeeks.StaffSelfServicePanel
     , rosterStaffSelfServiceTimesheetSurfaceId
     ) where
 
-import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceMountConfig (..),
-                                                   FrontendSurfaceMountedFragment (..),
-                                                   SurfaceImpl (..),
-                                                   renderFrontendSurfaceMount)
-import qualified Application.Helper.FrontendSurface.Timesheets as Surface
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountConfig (..),
+                                                            FrontendSurfaceMountedFragment (..),
+                                                            SurfaceImpl (..),
+                                                            renderFrontendSurfaceMount)
+import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
 import Application.Helper.Url (appendQueryParams)
 import Data.Time.Calendar (diffDays)
 import Web.RosterWeeks.Types (RosterStaffSelfServicePanel (..))

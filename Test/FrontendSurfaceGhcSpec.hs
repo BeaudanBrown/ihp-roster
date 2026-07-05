@@ -2,14 +2,15 @@ module Test.FrontendSurfaceGhcSpec
     ( tests
     ) where
 
-import Application.Helper.FrontendSurface.ContractIR (FragmentIR (..),
-                                                      OptionIR (..),
-                                                      SurfaceContractIR (..),
-                                                      SurfaceIR (..))
-import Application.Helper.FrontendSurface.Contracts (registeredFrontendSurfaceContractIR)
-import Application.Helper.FrontendSurface.Ghc.Lower
-import Application.Helper.FrontendSurface.Ghc.Raw
-import Application.Helper.FrontendSurface.TypeScript (renderFrontendSurfaceContractsTypeScript)
+import Application.Helper.FrontendContract.Registry (registeredFrontendContractIRForSurfaceContract)
+import Application.Helper.FrontendContract.Surface.ContractIR (FragmentIR (..),
+                                                               OptionIR (..),
+                                                               SurfaceContractIR (..),
+                                                               SurfaceIR (..))
+import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
+import Application.Helper.FrontendContract.Surface.Ghc.Lower
+import Application.Helper.FrontendContract.Surface.Ghc.Raw
+import Application.Helper.FrontendContract.TypeScript (renderFrontendContractTypeScript)
 import qualified Data.List as List
 import qualified Data.Text as Text
 import IHP.Prelude
@@ -85,8 +86,8 @@ tests = describe "FrontendSurface GHC raw lowering" do
         case lowerRawRegistry rawRegistry of
             Left diagnostics -> expectationFailure ("expected valid registry: " ++ cs (show diagnostics :: Text))
             Right contract -> do
-                let rendered = renderFrontendSurfaceContractsTypeScript contract
-                rendered `shouldContainText` "containedSurfaces: { \"parent-content\": [\"child\"] }"
+                let rendered = either error id (renderFrontendContractTypeScript (registeredFrontendContractIRForSurfaceContract contract))
+                rendered `shouldContainText` "\"containedSurfaces\":{\"parent-content\":[\"child\"]}"
                 rendered `shouldContainText` "export type FrontendSurfaceContainmentEdge"
                 rendered `shouldContainText` "export const FrontendSurfaceContainmentTopology = ["
                 rendered `shouldContainText` "{ parentSurface: \"parent\", parentFragment: \"parent-content\", childSurface: \"child\" }"

@@ -9,7 +9,7 @@ module Web.RosterWeeks.StaffSelfServiceLeaveFragments
     , respondWithRosterStaffSelfServiceLeaveFragments
     ) where
 
-import Application.Helper.FrontendSurface.FragmentRender (FragmentRenderMode (..))
+import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
 import Application.Helper.Profiling (respondHtmlProfiled)
 import Application.Helper.View.Oob (outerHtmlOobSwap)
 import qualified Data.List as List

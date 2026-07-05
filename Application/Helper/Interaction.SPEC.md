@@ -2,7 +2,7 @@
 
 This living spec defines the implementation contract for typed disposable
 interaction surfaces. This is the durable contract for the seam shared by
-`Application.Helper.FrontendSurface`, `Application.Helper.LiveUpdate`, Haskell
+`Application.Helper.FrontendContract.Surface`, `Application.Helper.LiveUpdate`, Haskell
 view helpers, generated TypeScript contracts, and the generic browser runtime.
 
 ## Scope And Source Of Truth
@@ -153,11 +153,11 @@ or infer a singleton surface for a scope.
 4. Haskell-generated TypeScript exposes narrow browser DTOs/unions for live
    update payloads, registered surface families, static interaction schemas,
    layers, session kinds, intents, fields, live fragments, and conflict policy.
-   Browser-facing interaction DTOs live in
-   `Application.Helper.Frontend.Dto.Interaction` and are registered by
-   `Application.Helper.Frontend.InteractionSchema`; static schema constants are
-   encoded through those DTO codecs, not hand-authored TypeScript or `Aeson.Value`
-   declarations.
+   Browser-facing interaction contracts live in the unified
+   `Application.Helper.FrontendContract` DSL registry. Static schema constants
+   are derived by the FrontendContract renderer from registered surface
+   interaction metadata, not from external DTO codecs, hand-authored TypeScript,
+   or `Aeson.Value` declarations.
 5. Generic TypeScript discovers mounted contracts, manages disposable sessions,
    emits normalized intents, validates fields against the generated schema,
    fills the matching generated form in the same mount, and dispatches the

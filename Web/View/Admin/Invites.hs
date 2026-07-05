@@ -6,7 +6,7 @@ module Web.View.Admin.Invites
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
-import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
+import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.UiRegion (UiRegionTransitionProfile (..))
 import qualified Text.Blaze.Html as Blaze
 import Text.Blaze.Html ((!))

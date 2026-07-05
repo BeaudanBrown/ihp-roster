@@ -37,6 +37,7 @@ import qualified Test.Controller.UsersSpec
 import qualified Test.Controller.VenueAccessSpec
 import qualified Test.DatabaseProtectionSpec
 import qualified Test.DevSeedSpec
+import qualified Test.FrontendContractSpec
 import qualified Test.FrontendContractsSpec
 import qualified Test.FrontendSurfaceDslSpec
 import qualified Test.FrontendSurfaceGhcSpec
@@ -181,6 +182,7 @@ allSuites =
     , TestSuite "VenueOnboardingInvitation" Test.VenueOnboardingInvitationSpec.tests
     , TestSuite "DevSeed" Test.DevSeedSpec.tests
     , TestSuite "Conflict" Test.ConflictSpec.tests
+    , TestSuite "FrontendContract" Test.FrontendContractSpec.tests
     , TestSuite "FrontendContracts" Test.FrontendContractsSpec.tests
     , TestSuite "FrontendSurfaceNaming" Test.FrontendSurfaceNamingSpec.tests
     , TestSuite "FrontendSurfaceDSL" Test.FrontendSurfaceDslSpec.tests

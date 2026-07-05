@@ -16,9 +16,9 @@ module Web.Billing.FrontendSurface
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
-import qualified Application.Helper.FrontendSurface.Billing as Surface
-import Application.Helper.FrontendSurface.DSL
-import Application.Helper.FrontendSurface.Runtime
+import qualified Application.Helper.FrontendContract.Surface.Billing as Surface
+import Application.Helper.FrontendContract.Surface.DSL
+import Application.Helper.FrontendContract.Surface.Runtime
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.Url (appendQueryParams)
 import qualified Data.Aeson as Aeson

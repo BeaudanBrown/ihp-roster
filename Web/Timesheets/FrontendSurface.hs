@@ -13,9 +13,9 @@ module Web.Timesheets.FrontendSurface
     , timesheetsSurfaceWireFragments
     ) where
 
-import Application.Helper.FrontendSurface.DSL
-import Application.Helper.FrontendSurface.Runtime
-import qualified Application.Helper.FrontendSurface.Timesheets as Surface
+import Application.Helper.FrontendContract.Surface.DSL
+import Application.Helper.FrontendContract.Surface.Runtime
+import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
 import Application.Helper.LiveUpdate.Runtime
 import qualified Data.Aeson as Aeson
 import qualified Data.UUID as UUID

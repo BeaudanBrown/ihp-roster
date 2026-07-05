@@ -1,6 +1,6 @@
 module Web.View.RosterWeeks.Show where
 
-import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
+import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.Profiling (profileHtmlComponent)
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.Dom

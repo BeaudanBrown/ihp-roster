@@ -2,9 +2,9 @@ module Web.View.LeaveRequests.Index where
 
 import Application.Helper.Controller (LeaveRequestStatus (..),
                                       parseLeaveRequestStatus)
-import qualified Application.Helper.FrontendSurface.LeaveRequests as Surface
-import Application.Helper.FrontendSurface.Runtime (SurfaceImpl,
-                                                   renderFrontendSurfaceMount)
+import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
+import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl,
+                                                            renderFrontendSurfaceMount)
 import Data.Coerce (coerce)
 import Data.List (sortOn)
 import Data.Ord (Down (..))

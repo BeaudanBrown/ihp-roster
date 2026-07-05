@@ -3,8 +3,8 @@ module Test.Controller.SupportSpec where
 import Application.Async.Queue (activeAppJobStatuses)
 import Application.FwcMapd.Job (fwcMapdRefreshJobKind)
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
-import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceFragmentKey (..),
-                                                   FrontendSurfaceMountedFragment (..))
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceFragmentKey (..),
+                                                            FrontendSurfaceMountedFragment (..))
 import Application.Helper.LiveUpdate
 import Application.Helper.LiveUpdate.Runtime
 import Application.Support.LiveUpdates

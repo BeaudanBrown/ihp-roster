@@ -1,9 +1,9 @@
 module Test.LiveUpdateSpec where
 
-import qualified Application.Helper.Frontend.LiveUpdateSchema as Wire
-import Application.Helper.FrontendSurface.Authorization (frontendSurfaceScopeAuthorizationRequirement,
-                                                         validateFrontendSurfaceLiveSubscription)
-import Application.Helper.FrontendSurface.AuthorizationRequirement (SurfaceScopeAuthorizationRequirement (..))
+import Application.Helper.FrontendContract.Surface.Authorization (frontendSurfaceScopeAuthorizationRequirement,
+                                                                  validateFrontendSurfaceLiveSubscription)
+import Application.Helper.FrontendContract.Surface.AuthorizationRequirement (SurfaceScopeAuthorizationRequirement (..))
+import qualified Application.Helper.FrontendContract.Wire.LiveUpdate as Wire
 import Application.Helper.LiveUpdate.Runtime
 import Application.Support.LiveUpdates
 import qualified Data.Aeson as Aeson

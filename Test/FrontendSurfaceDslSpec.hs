@@ -6,17 +6,19 @@ module Test.FrontendSurfaceDslSpec
     ( tests
     ) where
 
-import Application.Helper.FrontendSurface.ContractIR
-import Application.Helper.FrontendSurface.Contracts
-import Application.Helper.FrontendSurface.DSL
-import qualified Application.Helper.FrontendSurface.Interaction as SurfaceInteraction
-import Application.Helper.FrontendSurface.Lab (SurfaceLabSurface)
-import Application.Helper.FrontendSurface.Reflect
-import Application.Helper.FrontendSurface.Registry (RegisteredFrontendSurfaces)
-import Application.Helper.FrontendSurface.Resource
-import qualified Application.Helper.FrontendSurface.Roster as RosterSurface
-import Application.Helper.FrontendSurface.Runtime
-import qualified Application.Helper.FrontendSurface.Timesheets as TimesheetsSurface
+import Application.Helper.FrontendContract.Registry (registeredFrontendContractIRForSurfaceContract)
+import Application.Helper.FrontendContract.Surface.ContractIR
+import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
+import Application.Helper.FrontendContract.Surface.DSL
+import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
+import Application.Helper.FrontendContract.Surface.Lab (SurfaceLabSurface)
+import Application.Helper.FrontendContract.Surface.Reflect
+import Application.Helper.FrontendContract.Surface.Registry (RegisteredFrontendSurfaces)
+import Application.Helper.FrontendContract.Surface.Resource
+import qualified Application.Helper.FrontendContract.Surface.Roster as RosterSurface
+import Application.Helper.FrontendContract.Surface.Runtime
+import qualified Application.Helper.FrontendContract.Surface.Timesheets as TimesheetsSurface
+import Application.Helper.FrontendContract.TypeScript (renderFrontendContractTypeScript)
 import Application.Helper.SurfaceResource
 import qualified Data.Aeson as Aeson
 import Data.Proxy (Proxy (..))
@@ -26,6 +28,10 @@ import IHP.Prelude
 import Test.Hspec
 import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
 import qualified Text.Blaze.Html5 as Html5
+
+frontendSurfaceContractsTypeScript :: Text
+frontendSurfaceContractsTypeScript =
+    either error id (renderFrontendContractTypeScript (registeredFrontendContractIRForSurfaceContract registeredFrontendSurfaceContractIR))
 
 tests :: Spec
 tests = describe "FrontendSurface DSL foundation" do
@@ -159,18 +165,18 @@ tests = describe "FrontendSurface DSL foundation" do
 
     it "renders generated TypeScript contracts for every lab primitive family" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export type SurfaceLabFragmentKey ="
-        frontendSurfaceContractsTypeScript `shouldContainText` "{ kind: \"lab-panel\"; params: { panelId: PanelId } }"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type RefreshPanelActionFields = { panelId: PanelId };"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type MoveLabCardIntentFields = { sourceItemKey: string; targetDropzoneKey: string };"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type LabPayload = { label: string; count?: number; note: string | null; tags: ReadonlyArray<string>; dueDay: FrontendSurfaceDay; maybeRank: number | undefined; maybeMemo: string | null; relatedPayload: LabRelatedPayload };"
+        frontendSurfaceContractsTypeScript `shouldContainText` "{ kind: \"lab-panel\"; params: SurfaceLabLabPanelFragmentParams }"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type RefreshPanelActionFields = SurfaceLabRefreshPanelActionFields;"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type MoveLabCardIntentFields = SurfaceLabMoveLabCardIntentFields;"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type LabPayload = { label: string; count?: number; note: string | null; tags: ReadonlyArray<string>; dueDay: FrontendContractDay; maybeRank: number | undefined; maybeMemo: string | null; relatedPayload: LabRelatedPayload };"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type LabRelatedPayload = { label: string };"
         frontendSurfaceContractsTypeScript `shouldContainText` "export const surfaceLabSurfaceManifest"
         frontendSurfaceContractsTypeScript `shouldContainText` "export function parseFrontendSurfaceName"
 
     it "renders generated TypeScript contracts for the timesheets surface" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export type TimesheetsFragmentKey ="
-        frontendSurfaceContractsTypeScript `shouldContainText` "{ kind: \"timesheet-day-section\"; params: { dayOffset: number } }"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type TimesheetsMountState = { showApproved: boolean; showAllStaff: boolean; staffFilterId: StaffFilterId | undefined };"
+        frontendSurfaceContractsTypeScript `shouldContainText` "{ kind: \"timesheet-day-section\"; params: TimesheetsTimesheetDaySectionFragmentParams }"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type TimesheetsMountState = TimesheetsTimesheetsMountStateMountState;"
         frontendSurfaceContractsTypeScript `shouldContainText` "export const timesheetsSurfaceManifest"
 
     it "extracts the registered roster surface into checked contract IR" do
@@ -206,17 +212,17 @@ tests = describe "FrontendSurface DSL foundation" do
 
     it "renders generated TypeScript contracts for the roster surface" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterFragmentKey ="
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterWeekScope = { kind: \"roster-week\"; venueId: VenueId; rosterGroupId: RosterGroupId; weekOffset: number };"
-        frontendSurfaceContractsTypeScript `shouldContainText` "{ kind: \"roster-row\"; params: { rosterDayId: RosterDayId; rowIndex: number } }"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterIntentName = \"set-roster-layout-mode\" | \"move-roster-shift-to-slot\";"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type MoveRosterShiftToSlotIntentFields = { sourceItemKey: string; targetDropzoneKey: string; sessionKind?: string; pointerId?: string; pointerType?: string; startClientX?: string; startClientY?: string; currentClientX?: string; currentClientY?: string; deltaX?: string; deltaY?: string };"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterRosterWeekScope = { venueId: FrontendContractUuid; rosterGroupId: FrontendContractUuid; weekOffset: number };"
+        frontendSurfaceContractsTypeScript `shouldContainText` "{ kind: \"roster-row\"; params: RosterRosterRowFragmentParams }"
+        frontendSurfaceContractsTypeScript `shouldContainText` "\"intents\":[{\"name\":\"set-roster-layout-mode\""
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type MoveRosterShiftToSlotIntentFields = RosterMoveRosterShiftToSlotIntentFields;"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterSessionName = \"drag\";"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterSourceRef = \"drag-source\";"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterDropzoneRef = \"drag-dropzone\";"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterActivationRef = \"roster-layout-mode-activation\";"
-        frontendSurfaceContractsTypeScript `shouldContainText` "interaction: { sourceRefs: [{ ref: \"drag-source\", session: \"drag\", intent: \"move-roster-shift-to-slot\", sourceField: \"sourceItemKey\" }]"
-        frontendSurfaceContractsTypeScript `shouldContainText` "dropzoneRefs: [{ ref: \"drag-dropzone\", session: \"drag\", targetField: \"targetDropzoneKey\" }]"
-        frontendSurfaceContractsTypeScript `shouldContainText` "activationRefs: [{ ref: \"roster-layout-mode-activation\", intent: \"set-roster-layout-mode\", valueField: \"rosterLayoutMode\", trigger: \"click\" }]"
+        frontendSurfaceContractsTypeScript `shouldContainText` "\"interaction\":{\"sourceRefs\":[{\"ref\":\"drag-source\",\"session\":\"drag\",\"intent\":\"move-roster-shift-to-slot\",\"sourceField\":\"sourceItemKey\"}]"
+        frontendSurfaceContractsTypeScript `shouldContainText` "\"dropzoneRefs\":[{\"ref\":\"drag-dropzone\",\"session\":\"drag\",\"targetField\":\"targetDropzoneKey\"}]"
+        frontendSurfaceContractsTypeScript `shouldContainText` "\"activationRefs\":[{\"ref\":\"roster-layout-mode-activation\",\"intent\":\"set-roster-layout-mode\",\"valueField\":\"rosterLayoutMode\",\"trigger\":\"click\"}]"
         frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterSurfaceManifest"
 
     it "reports stable diagnostics for malformed reflected specs" do

@@ -1,6 +1,6 @@
 module Application.Script.GenerateFrontendContracts where
 
-import Application.Helper.Frontend.Contracts (frontendContractsTypeScript)
+import Application.Helper.FrontendContract.Contracts (frontendContractsTypeScript)
 import Application.Script.Prelude (Script)
 import qualified Data.Text.IO as Text
 import IHP.Prelude

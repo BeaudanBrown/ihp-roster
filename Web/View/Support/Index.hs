@@ -2,7 +2,7 @@ module Web.View.Support.Index where
 
 import Application.Helper.Feedback (allowedFeedbackPriorities,
                                     allowedFeedbackStatuses)
-import Application.Helper.FrontendSurface.Runtime (renderFrontendSurfaceMount)
+import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.FwcMapd (FwcMapdAdminData (..),
                                    FwcMapdDisplayPayRate (..))
 import Application.PublicHolidays.Coverage (PublicHolidayCoverageStatus (..),

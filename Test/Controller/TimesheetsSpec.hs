@@ -2,10 +2,10 @@ module Test.Controller.TimesheetsSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole),
                                       parseTimeParam)
-import Application.Helper.FrontendSurface.Runtime (FrontendSurfaceFragmentKey (..),
-                                                   FrontendSurfaceMountConfig (..),
-                                                   FrontendSurfaceMountedFragment (..),
-                                                   SurfaceImpl (..))
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceFragmentKey (..),
+                                                            FrontendSurfaceMountConfig (..),
+                                                            FrontendSurfaceMountedFragment (..),
+                                                            SurfaceImpl (..))
 import Application.Helper.LiveUpdate
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
