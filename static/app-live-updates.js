@@ -793,6 +793,36 @@
     const fragmentKey = fragment.fragmentKey ? JSON.stringify(fragment.fragmentKey) : "";
     return `${fragmentKey}:${fragment.targetId}`;
   }
+  function liveUpdateFragmentSemanticKey(fragment) {
+    return fragment && fragment.fragmentKey ? JSON.stringify(fragment.fragmentKey) : null;
+  }
+  function liveUpdateInvalidationIsOwnEcho(sourceClientId, activeClientId) {
+    return Boolean(sourceClientId && activeClientId && sourceClientId === activeClientId);
+  }
+  function resolveMountedFragmentsForInvalidation(subscriptions, fragments, scopeKey = null) {
+    const resolved = [];
+    const seen = /* @__PURE__ */ new Set();
+    fragments.forEach((fragment) => {
+      const semanticKey = liveUpdateFragmentSemanticKey(fragment);
+      const matches = [];
+      for (const subscription of subscriptions) {
+        if (scopeKey && subscription.scopeKey !== scopeKey) continue;
+        subscription.resyncFragments.forEach((mountedFragment) => {
+          if (liveUpdateFragmentSemanticKey(mountedFragment) === semanticKey) {
+            matches.push({ ...fragment, ...mountedFragment });
+          }
+        });
+      }
+      const selected = matches.length > 0 ? matches : [fragment];
+      selected.forEach((candidate) => {
+        const mergeKey = liveUpdateFragmentMergeKey(candidate);
+        if (mergeKey && seen.has(mergeKey)) return;
+        if (mergeKey) seen.add(mergeKey);
+        resolved.push(candidate);
+      });
+    });
+    return resolved;
+  }
 
   // frontend/ts/shared/exhaustive.ts
   function assertNever(value, message = "Unexpected generated union variant") {
@@ -1379,7 +1409,7 @@
     }
     function handleInvalidateMessage(message) {
       if (!message || !Array.isArray(message.fragments)) return;
-      if (message.sourceClientId && message.sourceClientId === activeClientId) return;
+      if (liveUpdateInvalidationIsOwnEcho(message.sourceClientId, activeClientId)) return;
       const perfSpan = beginPerfSpan("live_updates.handle_invalidate", {
         fragmentCount: message.fragments.length,
         scopeKind: message.scope && typeof message.scope.surface === "string" ? message.scope.surface : null,
@@ -1432,17 +1462,8 @@
         endPerfSpan(perfSpan, { outcome: "resync_empty_fragments", scopeKey });
         return;
       }
-      message.fragments.map(function(fragment) {
-        return resolveMountedFragmentForSubscription(subscription, fragment);
-      }).forEach(handleFragmentRefreshRequest);
+      resolveMountedFragmentsForInvalidation([subscription], message.fragments, scopeKey).forEach(handleFragmentRefreshRequest);
       endPerfSpan(perfSpan, { outcome: "queued_fragments", scopeKey });
-    }
-    function resolveMountedFragmentForSubscription(subscription, fragment) {
-      const fragmentKey = JSON.stringify(fragment.fragmentKey);
-      const mountedFragment = subscription.resyncFragments.find(function(candidate) {
-        return JSON.stringify(candidate.fragmentKey) === fragmentKey;
-      });
-      return mountedFragment ? { ...fragment, targetId: mountedFragment.targetId, url: mountedFragment.url } : fragment;
     }
     function openSocket(path) {
       const connectPerfSpan = beginPerfSpan("live_updates.open_socket", { path });
@@ -1586,7 +1607,8 @@
     function handleActorFragmentRefreshEvent(event) {
       const detail = event instanceof CustomEvent ? event.detail : null;
       const fragments = Array.isArray(detail && detail.fragments) ? detail.fragments : [];
-      fragments.forEach(handleFragmentRefreshRequest);
+      const scopeKey = detail && typeof detail.scopeKey === "string" ? detail.scopeKey : null;
+      resolveMountedFragmentsForInvalidation(activeSubscriptions.values(), fragments, scopeKey).forEach(handleFragmentRefreshRequest);
     }
     document.addEventListener(actorFragmentRefreshEventName, handleActorFragmentRefreshEvent);
     document.addEventListener(interactionSessionEndEvent, function() {

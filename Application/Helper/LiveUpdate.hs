@@ -67,17 +67,19 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import IHP.ControllerPrelude
 
-setActorLiveFragmentsRefresh :: (?context :: ControllerContext, ?request :: Request) => [SurfaceWireFragment] -> IO ()
-setActorLiveFragmentsRefresh fragments =
+setActorLiveFragmentsRefresh :: (?context :: ControllerContext, ?request :: Request) => SurfaceScope -> [SurfaceWireFragment] -> IO ()
+setActorLiveFragmentsRefresh scope fragments =
     setHeader
         ( "HX-Trigger"
-        , cs (Aeson.encode (actorLiveFragmentsRefreshTriggerPayload fragments))
+        , cs (Aeson.encode (actorLiveFragmentsRefreshTriggerPayload scope fragments))
         )
 
-actorLiveFragmentsRefreshTriggerPayload :: [SurfaceWireFragment] -> Aeson.Value
-actorLiveFragmentsRefreshTriggerPayload fragments =
+actorLiveFragmentsRefreshTriggerPayload :: SurfaceScope -> [SurfaceWireFragment] -> Aeson.Value
+actorLiveFragmentsRefreshTriggerPayload scope fragments =
     Aeson.object
         [ AesonKey.fromText canonicalAppEvents.appLiveFragmentsRefreshEventName Aeson..= Aeson.object
-            [ "fragments" Aeson..= coalesceSurfaceWireFragments fragments
+            [ "scope" Aeson..= scope
+            , "scopeKey" Aeson..= surfaceScopeKey scope
+            , "fragments" Aeson..= coalesceSurfaceWireFragments fragments
             ]
         ]

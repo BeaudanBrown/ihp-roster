@@ -65,11 +65,14 @@ tests = describe "LiveUpdate runtime types" do
                     , deferUntilBlur = False
                     , protectionPolicy = NoProtection
                     }
-        actorLiveFragmentsRefreshTriggerPayload [fragment, fragment]
+        let scope = adminXeroLiveScope (expectUuid "11111111-1111-1111-1111-111111111111")
+        actorLiveFragmentsRefreshTriggerPayload scope [fragment, fragment]
             `shouldBe`
                 Aeson.object
                     [ AesonKey.fromText canonicalAppEvents.appLiveFragmentsRefreshEventName Aeson..= Aeson.object
-                        [ "fragments" Aeson..= [fragment]
+                        [ "scope" Aeson..= scope
+                        , "scopeKey" Aeson..= surfaceScopeKey scope
+                        , "fragments" Aeson..= [fragment]
                         ]
                     ]
 

@@ -17,8 +17,10 @@ import {
     buildSurfaceSubscription,
     buildLiveUpdateUnsubscribeCommand,
     liveUpdateFragmentMergeKey,
+    liveUpdateInvalidationIsOwnEcho,
     liveUpdateMessageScopeKey,
     normalizeLiveUpdateVersion,
+    resolveMountedFragmentsForInvalidation,
 } from "./live-updates/protocol";
 import { assertNever } from "./shared/exhaustive";
 
@@ -792,7 +794,7 @@ type HtmxConfigRequestEvent = Event & {
 
     function handleInvalidateMessage(message: LiveUpdateInvalidateMessage): void {
         if (!message || !Array.isArray(message.fragments)) return;
-        if (message.sourceClientId && message.sourceClientId === activeClientId) return;
+        if (liveUpdateInvalidationIsOwnEcho(message.sourceClientId, activeClientId)) return;
         const perfSpan = beginPerfSpan('live_updates.handle_invalidate', {
             fragmentCount: message.fragments.length,
             scopeKind: message.scope && typeof (message.scope as unknown as { surface?: unknown }).surface === 'string' ? (message.scope as unknown as { surface: string }).surface : null,
@@ -852,20 +854,9 @@ type HtmxConfigRequestEvent = Event & {
             return;
         }
 
-        message.fragments
-            .map(function (fragment) {
-                return resolveMountedFragmentForSubscription(subscription, fragment);
-            })
+        resolveMountedFragmentsForInvalidation([subscription], message.fragments, scopeKey)
             .forEach(handleFragmentRefreshRequest);
         endPerfSpan(perfSpan, { outcome: 'queued_fragments', scopeKey });
-    }
-
-    function resolveMountedFragmentForSubscription(subscription: SurfaceSubscription, fragment: LiveUpdateFragmentWithState): LiveUpdateFragmentWithState {
-        const fragmentKey = JSON.stringify(fragment.fragmentKey);
-        const mountedFragment = subscription.resyncFragments.find(function (candidate) {
-            return JSON.stringify(candidate.fragmentKey) === fragmentKey;
-        });
-        return mountedFragment ? { ...fragment, targetId: mountedFragment.targetId, url: mountedFragment.url } : fragment;
     }
 
     function openSocket(path: string): void {
@@ -1033,7 +1024,9 @@ type HtmxConfigRequestEvent = Event & {
     function handleActorFragmentRefreshEvent(event: Event): void {
         const detail = event instanceof CustomEvent ? event.detail : null;
         const fragments = Array.isArray(detail && detail.fragments) ? detail.fragments : [];
-        fragments.forEach(handleFragmentRefreshRequest);
+        const scopeKey = detail && typeof detail.scopeKey === 'string' ? detail.scopeKey : null;
+        resolveMountedFragmentsForInvalidation(activeSubscriptions.values(), fragments, scopeKey)
+            .forEach(handleFragmentRefreshRequest);
     }
 
     document.addEventListener(actorFragmentRefreshEventName, handleActorFragmentRefreshEvent);

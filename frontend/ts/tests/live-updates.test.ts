@@ -4,9 +4,11 @@ import {
     buildSurfaceSubscription,
     buildLiveUpdateUnsubscribeCommand,
     liveUpdateFragmentMergeKey,
+    liveUpdateInvalidationIsOwnEcho,
     liveUpdateInvalidationShouldResync,
     liveUpdateMessageScopeKey,
     normalizeLiveUpdateVersion,
+    resolveMountedFragmentsForInvalidation,
 } from "../live-updates/protocol";
 import { assertDeepEqual, assertEqual, test } from "./harness";
 
@@ -79,4 +81,45 @@ test("live update invalidations request resync on version gaps and empty payload
     assertEqual(liveUpdateInvalidationShouldResync(2, 3, 0), "empty");
     assertEqual(liveUpdateInvalidationShouldResync(null, 10, 1), null);
     assertEqual(liveUpdateInvalidationShouldResync(3, 3, 1), null);
+});
+
+test("live update invalidations suppress same-client websocket echoes only", () => {
+    assertEqual(liveUpdateInvalidationIsOwnEcho("client-1", "client-1"), true);
+    assertEqual(liveUpdateInvalidationIsOwnEcho("client-2", "client-1"), false);
+    assertEqual(liveUpdateInvalidationIsOwnEcho(null, "client-1"), false);
+    assertEqual(liveUpdateInvalidationIsOwnEcho("client-1", null), false);
+});
+
+test("actor-local invalidation resolves through every duplicate mounted fragment in scope", () => {
+    const actorFragment: SurfaceWireFragment = {
+        ...fragment,
+        targetId: "initiating-timesheet-day",
+        url: "/initiating-only",
+    };
+    const firstMount: SurfaceWireFragment = {
+        ...fragment,
+        targetId: "timesheet-day-primary",
+        url: "/primary-day",
+    };
+    const duplicateMount: SurfaceWireFragment = {
+        ...fragment,
+        targetId: "timesheet-day-duplicate",
+        url: "/duplicate-day",
+    };
+    const otherScopeMount: SurfaceWireFragment = {
+        ...fragment,
+        targetId: "timesheet-day-other-week",
+        url: "/other-week-day",
+    };
+
+    const resolved = resolveMountedFragmentsForInvalidation(
+        [
+            { scopeKey: "timesheets:v:0", resyncFragments: [firstMount, duplicateMount] },
+            { scopeKey: "timesheets:v:1", resyncFragments: [otherScopeMount] },
+        ],
+        [actorFragment],
+        "timesheets:v:0",
+    );
+
+    assertDeepEqual(resolved, [firstMount, duplicateMount]);
 });
