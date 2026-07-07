@@ -456,12 +456,17 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 body <- responseBody response
                 let bodyText = cs (LByteString.unpack body)
-                bodyText `shouldContain` "id=\"profile-leave-requests-content\" hx-swap-oob=\"outerHTML\""
-                bodyText `shouldContain` "id=\"profile-leave-request-form-fragment\""
-                bodyText `shouldContain` "id=\"profile-leave-requests-list-fragment\""
+                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
+                bodyText `shouldNotContain` "id=\"profile-leave-requests-content\""
+                bodyText `shouldNotContain` "id=\"profile-leave-request-form-fragment\""
+                bodyText `shouldNotContain` "id=\"profile-leave-requests-list-fragment\""
                 bodyText `shouldContain` "Unavailable period submitted"
-                bodyText `shouldContain` "Unavailable periods"
+                bodyText `shouldNotContain` "Unavailable periods"
                 bodyText `shouldNotContain` "id=\"profile-content-fragment\""
+                let profileLeaveTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                profileLeaveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
+                profileLeaveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "profile-leave-section")
+                profileLeaveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "profile-leave")
 
                 versionAfter <- currentLiveUpdateVersion (leaveRequestsLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` versionBefore
@@ -536,12 +541,15 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 body <- responseBody response
                 let bodyText = cs (LByteString.unpack body)
-                bodyText `shouldContain` "id=\"profile-leave-requests-content\" hx-swap-oob=\"outerHTML\""
-                bodyText `shouldContain` "id=\"profile-leave-request-form-fragment\""
-                bodyText `shouldContain` "id=\"profile-leave-requests-list-fragment\""
-                bodyText `shouldContain` "HTMX target inference"
+                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
+                bodyText `shouldNotContain` "id=\"profile-leave-requests-content\""
+                bodyText `shouldNotContain` "id=\"profile-leave-request-form-fragment\""
+                bodyText `shouldNotContain` "id=\"profile-leave-requests-list-fragment\""
+                bodyText `shouldContain` "Unavailable period submitted"
                 bodyText `shouldNotContain` "id=\"leave-requests-content\""
                 bodyText `shouldNotContain` "Pending ("
+                let inferredProfileLeaveTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                inferredProfileLeaveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "profile-leave-section")
 
         it "manager review actions bump the leave scope version" $ withContext do
             withCleanDb do
@@ -560,8 +568,12 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 body <- responseBody response
                 let bodyText = cs (LByteString.unpack body)
-                bodyText `shouldContain` "id=\"leave-requests-content\" hx-swap-oob=\"outerHTML\""
+                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
+                bodyText `shouldNotContain` "id=\"leave-requests-content\""
                 bodyText `shouldContain` "id=\"dialog-overlay-mount\" hx-swap-oob=\"innerHTML\""
+                let leaveReviewTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                leaveReviewTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
+                leaveReviewTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "leave-requests-content")
                 versionAfter <- currentLiveUpdateVersion (leaveRequestsLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` versionBefore
 

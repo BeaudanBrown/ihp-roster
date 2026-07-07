@@ -1,5 +1,6 @@
 module Web.Controller.LeaveRequests where
 
+import Application.Helper.LiveUpdate (setActorLiveFragmentsRefresh)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchStaffLeaveRequests)
 import Application.Helper.Profiling
@@ -9,9 +10,17 @@ import Application.Helper.View.Oob (outerHtmlOobSwap)
 import Data.Coerce (coerce)
 import qualified Data.Text.IO as TextIO
 import Web.Controller.Prelude
+import Web.LeaveRequests.FrontendSurface (LeaveRequestsScopeValue (..),
+                                          leaveRequestsCandidateMountedFragments,
+                                          leaveRequestsSurfaceScope,
+                                          leaveRequestsSurfaceWireFragments)
 import Web.LeaveRequests.Mutations
 import Web.LeaveRequests.ProfileSelfService
 import Web.LeaveRequests.ReadModel
+import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
+                                     profileSectionFragmentForSection,
+                                     profileSurfaceScope,
+                                     profileSurfaceWireFragments)
 import Web.Profiles.LeaveFragments
 import Web.Profiles.LiveUpdates (profileLeaveRequestsFragment)
 import Web.RosterWeeks.StaffSelfServiceLeaveFragments
@@ -127,13 +136,21 @@ instance Controller LeaveRequestsController where
                 setSuccessMessage "Unavailable period denied"
                 redirectTo LeaveRequestsAction
 
-respondWithLeaveRequestsContent :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => Text -> IO ()
+respondWithLeaveRequestsContent :: (?context :: ControllerContext, ?request :: Request) => Text -> IO ()
 respondWithLeaveRequestsContent successMessage = do
-    readModel <- fetchLeaveRequestsReadModel
+    let scope = LeaveRequestsScopeValue (unpackId currentVenueId)
+    setHeader ("HX-Reswap", "none")
+    setActorLiveFragmentsRefresh (leaveRequestsSurfaceScope scope) (leaveRequestsSurfaceWireFragments (leaveRequestsCandidateMountedFragments scope))
     respondHtmlProfiled $
-        fromMaybe mempty (renderLeaveRequestsFragmentFromReadModel (LeaveRequestsFragmentOob outerHtmlOobSwap) readModel LeaveRequestsContent)
-            <> [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
+        [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
             <> renderToastOob ToastBottomCenter (successToast successMessage)
+
+respondWithProfileLeaveActorInvalidation :: (?context :: ControllerContext, ?request :: Request) => Staff -> Text -> IO ()
+respondWithProfileLeaveActorInvalidation staff successMessage = do
+    let scope = ProfileScopeValue (unpackId currentVenueId) (unpackId staff.id)
+    setHeader ("HX-Reswap", "none")
+    setActorLiveFragmentsRefresh (profileSurfaceScope scope) (profileSurfaceWireFragments [profileSectionFragmentForSection "leave"])
+    respondHtmlProfiled (renderToastOob ToastBottomCenter (successToast successMessage))
 
 data LeaveResponseContext
     = LeavePageResponseContext
@@ -195,10 +212,7 @@ respondWithLeaveMutationSuccess responseContext successMessage =
             case maybeStaff of
                 Nothing -> respondWithLeaveContextError LeaveProfileResponseContext "No staff record found. Contact an administrator."
                 Just staff ->
-                    respondWithProfileLeaveFragments
-                        staff
-                        [profileLeaveRequestsFragment]
-                        (renderToastOob ToastBottomCenter (successToast successMessage))
+                    respondWithProfileLeaveActorInvalidation staff successMessage
         LeaveRosterResponseContext ->
             respondWithRosterStaffSelfServiceLeaveFragments
                 [RosterStaffSelfServiceLeaveFormFragment]
