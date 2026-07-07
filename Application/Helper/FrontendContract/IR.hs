@@ -10,6 +10,7 @@ module Application.Helper.FrontendContract.IR
     , FrontendContractIR (..)
     , GlobalIR (..)
     , GlobalPrimitiveIR (..)
+    , OverlayActionIR (..)
     , SchemaIR (..)
     , SurfaceIR (..)
     , SurfaceActionOptionIR (..)
@@ -71,6 +72,15 @@ data GlobalPrimitiveIR
     | GlobalDomValueIR !Text !Text
     | GlobalFieldNameIR !Text !Text
     | GlobalDomTokenIR !Text !Text
+    | GlobalOverlayActionIR !OverlayActionIR
+    deriving (Eq, Show)
+
+data OverlayActionIR = OverlayActionIR
+    { overlayActionMarker  :: !Text
+    , overlayActionName    :: !Text
+    , overlayActionFields  :: ![FieldIR]
+    , overlayActionOptions :: ![SurfaceActionOptionIR]
+    }
     deriving (Eq, Show)
 
 data SurfaceActionOptionIR
@@ -186,6 +196,7 @@ validateGlobalPrimitive = \case
     GlobalDomValueIR _ _ -> []
     GlobalFieldNameIR _ _ -> []
     GlobalDomTokenIR _ _ -> []
+    GlobalOverlayActionIR action -> validateFieldNames action.overlayActionFields
 
 validateSurfacePrimitive :: SurfacePrimitiveIR -> [ContractDiagnostic]
 validateSurfacePrimitive = \case
@@ -267,6 +278,7 @@ globalNamedPrimitives global =
         GlobalDomValueIR marker name  -> [(marker, name)]
         GlobalFieldNameIR marker name -> [(marker, name)]
         GlobalDomTokenIR marker name  -> [(marker, name)]
+        GlobalOverlayActionIR action  -> [(action.overlayActionMarker, "overlay-action:" <> action.overlayActionName)]
     ]
 
 surfacePrimitiveNames :: SurfaceIR -> [(Text, Text)]
@@ -298,6 +310,7 @@ globalPrimitiveRefs = \case
     GlobalDomValueIR _ _ -> []
     GlobalFieldNameIR _ _ -> []
     GlobalDomTokenIR _ _ -> []
+    GlobalOverlayActionIR action -> fieldRefs action.overlayActionFields
 
 surfacePrimitiveRefs :: SurfacePrimitiveIR -> [Text]
 surfacePrimitiveRefs = \case

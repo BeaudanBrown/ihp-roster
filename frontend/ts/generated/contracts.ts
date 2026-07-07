@@ -1142,6 +1142,18 @@ export function parseLiveUpdateMessage(value: unknown): LiveUpdateMessage {
 }
 export function encodeLiveUpdateMessage(value: LiveUpdateMessage): LiveUpdateMessage { return value; }
 
+export type OpenFeedbackDialogOverlayActionFields = {  };
+export function isOpenFeedbackDialogOverlayActionFields(value: unknown): value is OpenFeedbackDialogOverlayActionFields {
+    return isRecord(value);
+}
+export function parseOpenFeedbackDialogOverlayActionFields(value: unknown): OpenFeedbackDialogOverlayActionFields {
+    if (isOpenFeedbackDialogOverlayActionFields(value)) return value;
+    throw new Error("Invalid OpenFeedbackDialogOverlayActionFields");
+}
+export function encodeOpenFeedbackDialogOverlayActionFields(value: OpenFeedbackDialogOverlayActionFields): OpenFeedbackDialogOverlayActionFields { return value; }
+
+export const openFeedbackDialogOverlayActionManifest = {"name":"open-feedback-dialog","fields":[],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
 export type SurfaceLabLabScopeScope = { venueId: FrontendContractUuid; weekOffset: number };
 export function isSurfaceLabLabScopeScope(value: unknown): value is SurfaceLabLabScopeScope {
     return isRecord(value) && (typeof value["venueId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
@@ -2073,6 +2085,9 @@ export function parseFrontendSurfaceLiveFragment(value: unknown): FrontendSurfac
 export type FrontendSurfaceHtmxMethod = "get" | "post" | "put" | "patch" | "delete";
 export type FrontendSurfaceActionHtmxOptions = { method: FrontendSurfaceHtmxMethod | null; trigger: string | null; include: string | null; sync: string | null; indicator: string | null; confirm: string | null; select: string | null; target: string | null; swap: string | null; pushUrl: boolean | null; custom: ReadonlyArray<{ name: string; reason: string }> };
 export type FrontendSurfaceActionManifest = { name: string; fields: readonly string[]; htmx: FrontendSurfaceActionHtmxOptions };
+export type OverlayActionManifest = FrontendSurfaceActionManifest;
+export function isOverlayActionManifest(value: unknown): value is OverlayActionManifest { return isFrontendSurfaceActionManifest(value); }
+export function parseOverlayActionManifest(value: unknown): OverlayActionManifest { if (isOverlayActionManifest(value)) return value; throw new Error("Invalid OverlayActionManifest"); }
 export function isFrontendSurfaceHtmxMethod(value: unknown): value is FrontendSurfaceHtmxMethod {
     return value === "get" || value === "post" || value === "put" || value === "patch" || value === "delete";
 }

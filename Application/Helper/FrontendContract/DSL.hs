@@ -8,6 +8,9 @@ module Application.Helper.FrontendContract.DSL
     ( FrontendContract (..)
     , GlobalPrimitive (..)
     , SurfacePrimitive (..)
+    , OverlayActionOption (..)
+    , OverlayRequestMethod (..)
+    , OverlayPushUrlValue (..)
     , SchemaPrimitive (..)
     , UnionCaseSpec (..)
     , LiteralCaseSpec (..)
@@ -34,6 +37,18 @@ module Application.Helper.FrontendContract.DSL
     , DomValue
     , FieldName
     , DomToken
+    , OverlayAction
+    , OverlayHtmxMethod
+    , OverlayHtmxTrigger
+    , OverlayHtmxInclude
+    , OverlayHtmxSync
+    , OverlayHtmxIndicator
+    , OverlayHtmxConfirm
+    , OverlayHtmxSelect
+    , OverlayHtmxTarget
+    , OverlayHtmxSwap
+    , OverlayHtmxPushUrl
+    , OverlayCustomHtmx
     , Scope
     , Fragment
     , Action
@@ -68,6 +83,31 @@ data FieldSpec
     | OptionalField Type WireType
     | NullableField Type WireType
 
+data OverlayRequestMethod
+    = OverlayGet
+    | OverlayPost
+    | OverlayPut
+    | OverlayPatch
+    | OverlayDelete
+
+data OverlayPushUrlValue
+    = OverlayPushUrlTrue
+    | OverlayPushUrlFalse
+
+-- | Browser-visible HTMX metadata for app-owned overlay/dialog request initiators.
+data OverlayActionOption
+    = OverlayHtmxMethod OverlayRequestMethod
+    | OverlayHtmxTrigger Symbol
+    | OverlayHtmxInclude Symbol
+    | OverlayHtmxSync Symbol
+    | OverlayHtmxIndicator Symbol
+    | OverlayHtmxConfirm Symbol
+    | OverlayHtmxSelect Symbol
+    | OverlayHtmxTarget Type
+    | OverlayHtmxSwap Symbol
+    | OverlayHtmxPushUrl OverlayPushUrlValue
+    | OverlayCustomHtmx Type Symbol
+
 -- | Shared schema declarations available under Global and Surface roots.
 data SchemaPrimitive
     = Record Type [FieldSpec]
@@ -91,6 +131,7 @@ data GlobalPrimitive
     | DomValue Type Symbol
     | FieldName Type
     | DomToken Type
+    | OverlayAction Type [FieldSpec] [OverlayActionOption]
 
 -- | Mounted feature UI semantics. This starts intentionally small; later tickets
 -- port the full FrontendSurface primitive family here.
@@ -130,6 +171,18 @@ type DomAttr name = 'DomAttr name
 type DomValue name value = 'DomValue name value
 type FieldName name = 'FieldName name
 type DomToken name = 'DomToken name
+type OverlayAction name fields options = 'OverlayAction name fields options
+type OverlayHtmxMethod method = 'OverlayHtmxMethod method
+type OverlayHtmxTrigger value = 'OverlayHtmxTrigger value
+type OverlayHtmxInclude value = 'OverlayHtmxInclude value
+type OverlayHtmxSync value = 'OverlayHtmxSync value
+type OverlayHtmxIndicator value = 'OverlayHtmxIndicator value
+type OverlayHtmxConfirm value = 'OverlayHtmxConfirm value
+type OverlayHtmxSelect value = 'OverlayHtmxSelect value
+type OverlayHtmxTarget target = 'OverlayHtmxTarget target
+type OverlayHtmxSwap value = 'OverlayHtmxSwap value
+type OverlayHtmxPushUrl value = 'OverlayHtmxPushUrl value
+type OverlayCustomHtmx marker reason = 'OverlayCustomHtmx marker reason
 type Scope name fields = 'Scope name fields
 type Fragment name fields = 'Fragment name fields
 type Action name fields = 'Action name fields

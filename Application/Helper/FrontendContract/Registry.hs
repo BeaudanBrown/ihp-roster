@@ -12,6 +12,7 @@ import Application.Helper.FrontendContract.DSL
 import Application.Helper.FrontendContract.Interaction
 import Application.Helper.FrontendContract.IR
 import Application.Helper.FrontendContract.LiveUpdate
+import Application.Helper.FrontendContract.Overlay
 import Application.Helper.FrontendContract.Reflect
 import Application.Helper.FrontendContract.Roster
 import Application.Helper.FrontendContract.Surface.Adapter
@@ -28,6 +29,7 @@ type RegisteredFrontendContracts =
      , RosterGlobalContract
      , InteractionContract
      , LiveUpdateContract
+     , OverlayContract
      ] :: [FrontendContractSpec]
 
 registeredFrontendContractIR :: FrontendContractIR
