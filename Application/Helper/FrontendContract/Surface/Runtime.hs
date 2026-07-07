@@ -846,7 +846,7 @@ frontendSurfaceActionConfigToJson action =
             , "target" Aeson..= firstOptionText action htmxTargetValue
             , "swap" Aeson..= firstOptionText action htmxSwapValue
             , "pushUrl" Aeson..= firstPushUrlOption action
-            , "custom" Aeson..= [Aeson.object ["marker" Aeson..= marker, "reason" Aeson..= reason] | SurfaceIR.CustomHtmxOption marker reason <- action.htmxActionOptions]
+            , "custom" Aeson..= [Aeson.object ["name" Aeson..= marker, "reason" Aeson..= reason] | SurfaceIR.CustomHtmxOption marker reason <- action.htmxActionOptions]
             ]
         ]
 

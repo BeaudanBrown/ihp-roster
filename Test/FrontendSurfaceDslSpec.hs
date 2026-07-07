@@ -213,7 +213,7 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RefreshPanelActionFields = SurfaceLabRefreshPanelActionFields;"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type FrontendSurfaceActionManifest ="
         frontendSurfaceContractsTypeScript `shouldContainText` "\"htmxActions\":[{\"name\":\"refresh-panel\",\"fields\":[\"panelId\"],\"htmx\":{\"method\":\"post\""
-        frontendSurfaceContractsTypeScript `shouldContainText` "\"custom\":[{\"marker\":\"lab-panel-custom-htmx\",\"reason\":\"lab fixture covers auditable custom HTMX metadata\"}]"
+        frontendSurfaceContractsTypeScript `shouldContainText` "\"custom\":[{\"name\":\"lab-panel-custom-htmx\",\"reason\":\"lab fixture covers auditable custom HTMX metadata\"}]"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type MoveLabCardIntentFields = SurfaceLabMoveLabCardIntentFields;"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type LabPayload = { label: string; count?: number; note: string | null; tags: ReadonlyArray<string>; dueDay: FrontendContractDay; maybeRank: number | undefined; maybeMemo: string | null; relatedPayload: LabRelatedPayload };"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type LabRelatedPayload = { label: string };"

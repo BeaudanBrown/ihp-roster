@@ -45,7 +45,7 @@ test("generated FrontendSurface registry exposes lab surface primitives", () => 
         target: "lab-panel-target",
         swap: "outer-html",
         pushUrl: false,
-        custom: [{ marker: "lab-panel-custom-htmx", reason: "lab fixture covers auditable custom HTMX metadata" }],
+        custom: [{ name: "lab-panel-custom-htmx", reason: "lab fixture covers auditable custom HTMX metadata" }],
     });
     assertEqual(isFrontendSurfaceActionManifest(surfaceLabSurfaceManifest.htmxActions[0]), true);
     assertEqual(parseFrontendSurfaceActionManifest(surfaceLabSurfaceManifest.htmxActions[0]).name, "refresh-panel");

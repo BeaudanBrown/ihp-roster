@@ -418,7 +418,7 @@ renderSurfaceActionHtmxOptions options = objectLiteral
     , ("target", maybe "null" quote (listToMaybe [value | SurfaceActionTargetIR value <- options]))
     , ("swap", maybe "null" quote (listToMaybe [value | SurfaceActionSwapIR value <- options]))
     , ("pushUrl", maybe "null" boolLiteral (listToMaybe [value | SurfaceActionPushUrlIR value <- options]))
-    , ("custom", arrayLiteral [objectLiteral [("marker", quote marker), ("reason", quote reason)] | SurfaceActionCustomHtmxIR marker reason <- options])
+    , ("custom", arrayLiteral [objectLiteral [("name", quote marker), ("reason", quote reason)] | SurfaceActionCustomHtmxIR marker reason <- options])
     ]
 
 boolLiteral :: Bool -> Text
@@ -506,7 +506,7 @@ renderFrontendSurfaceLiveFragmentCases surfaces = zipWith render surfaces [0 :: 
 renderFrontendSurfaceMountConfigTypes :: [Text]
 renderFrontendSurfaceMountConfigTypes =
     [ "export type FrontendSurfaceHtmxMethod = \"get\" | \"post\" | \"put\" | \"patch\" | \"delete\";"
-    , "export type FrontendSurfaceActionHtmxOptions = { method: FrontendSurfaceHtmxMethod | null; trigger: string | null; include: string | null; sync: string | null; indicator: string | null; confirm: string | null; select: string | null; target: string | null; swap: string | null; pushUrl: boolean | null; custom: ReadonlyArray<{ marker: string; reason: string }> };"
+    , "export type FrontendSurfaceActionHtmxOptions = { method: FrontendSurfaceHtmxMethod | null; trigger: string | null; include: string | null; sync: string | null; indicator: string | null; confirm: string | null; select: string | null; target: string | null; swap: string | null; pushUrl: boolean | null; custom: ReadonlyArray<{ name: string; reason: string }> };"
     , "export type FrontendSurfaceActionManifest = { name: string; fields: readonly string[]; htmx: FrontendSurfaceActionHtmxOptions };"
     , "export function isFrontendSurfaceHtmxMethod(value: unknown): value is FrontendSurfaceHtmxMethod {"
     , "    return value === \"get\" || value === \"post\" || value === \"put\" || value === \"patch\" || value === \"delete\";"
@@ -516,7 +516,7 @@ renderFrontendSurfaceMountConfigTypes =
     , "    const nullableString = (candidate: unknown) => candidate === null || typeof candidate === \"string\";"
     , "    const methodOk = value.method === null || isFrontendSurfaceHtmxMethod(value.method);"
     , "    const pushUrlOk = value.pushUrl === null || typeof value.pushUrl === \"boolean\";"
-    , "    const customOk = Array.isArray(value.custom) && value.custom.every((entry) => isRecord(entry) && typeof entry.marker === \"string\" && entry.marker.length > 0 && typeof entry.reason === \"string\" && entry.reason.length > 0);"
+    , "    const customOk = Array.isArray(value.custom) && value.custom.every((entry) => isRecord(entry) && typeof entry.name === \"string\" && entry.name.length > 0 && typeof entry.reason === \"string\" && entry.reason.length > 0);"
     , "    return methodOk && nullableString(value.trigger) && nullableString(value.include) && nullableString(value.sync) && nullableString(value.indicator) && nullableString(value.confirm) && nullableString(value.select) && nullableString(value.target) && nullableString(value.swap) && pushUrlOk && customOk;"
     , "}"
     , "export function isFrontendSurfaceActionManifest(value: unknown): value is FrontendSurfaceActionManifest {"

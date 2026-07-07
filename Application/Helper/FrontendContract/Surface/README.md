@@ -135,6 +135,43 @@ become a custom mutation transport contract. The generic browser runtime only
 validates generated semantics and matching DOM forms, fills declared fields, and
 dispatches the generated HTMX trigger.
 
+## Generated HTMX Request Actions
+
+`Action name fields options` describes surface-owned request initiators, not
+successful business refresh behavior. Its `fields` list is the browser-submitted
+payload/form boundary. Route params and venue/page context stay in Haskell route
+builders such as `pathTo` and `appendQueryParams`; do not move IHP routes into
+the type-level DSL.
+
+Use standard HTMX options for stable request metadata:
+
+- `HtmxMethod` for `hx-get`, `hx-post`, `hx-put`, `hx-patch`, or `hx-delete`;
+- `HtmxTarget`, `HtmxSwap`, `HtmxTrigger`, `HtmxPushUrl`, and the other closed
+  request options when the value is part of the generated contract;
+- `CustomHtmx Marker "reason"` only when a standard option is not expressive
+  enough or a surface needs a deliberate temporary escape hatch. The reason is
+  emitted into generated manifests and guardrails should make it visible.
+
+Runtime views combine the generated action IR with a `FrontendSurfaceActionRoute`
+using the form, submit-button, link, or HTMX-only render helper. These helpers
+render generated `data-bepis-surface-action` metadata plus the declared HTMX
+attrs. They can also render standard `method`/`action`, `formaction`, or `href`
+attrs for browser semantics, but that is not a complete no-JS UX unless the
+controller returns full-page or redirect fallbacks.
+
+Successful migrated mutations must not return authoritative business fragment
+HTML/OOB for the same surface. They should set `HX-Reswap: none`, emit
+actor-local live-fragment refresh metadata through `setActorLiveFragmentsRefresh`,
+and rely on passive invalidation for other tabs/viewers. OOB remains valid for
+extras such as dialog clears, toasts, disposable-layer cleanup, focus/scroll
+hints, and validation-local responses. Plain fragment GET/refetch endpoints
+should return the target node itself, not OOB wrappers.
+
+Admin Roster Groups is the reference migration: create/update/move/toggle
+request initiators are declared in `Surface.Admin`, rendered from generated
+helpers in `Web.View.Admin.RosterGroups`, and successful create/update/move
+responses use actor-local invalidation instead of roster-group business OOB.
+
 Legacy semantic marker attributes such as `data-bepis-marker`,
 `data-bepis-pointer-session`, `data-bepis-session-kind`,
 `data-bepis-session-intent`, `data-bepis-activation-intent`, and
