@@ -95,6 +95,8 @@ data RosterStaffPanelEntry = RosterStaffPanelEntry
 data RosterStaffSelfServicePanel = RosterStaffSelfServicePanel
     { quickToolsLeaveRequest            :: LeaveRequest
     , quickToolsVenueId                 :: Id Venue
+    , quickToolsRosterGroupId           :: Id RosterGroup
+    , quickToolsRosterWeekOffset        :: Int
     , quickToolsTimesheetEntries        :: [TimesheetEntry]
     , quickToolsStaffMembers            :: [Staff]
     , quickToolsShiftTypes              :: [ShiftType]

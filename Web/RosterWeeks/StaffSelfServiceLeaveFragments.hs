@@ -6,13 +6,9 @@ module Web.RosterWeeks.StaffSelfServiceLeaveFragments
     , buildDefaultRosterStaffSelfServiceLeaveRequest
     , fetchRosterStaffSelfServiceLeaveFragmentModel
     , renderRosterStaffSelfServiceLeaveFragment
-    , respondWithRosterStaffSelfServiceLeaveFragments
     ) where
 
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
-import Application.Helper.Profiling (respondHtmlProfiled)
-import Application.Helper.View.Oob (outerHtmlOobSwap)
-import qualified Data.List as List
 import qualified Data.Time.Calendar as Calendar
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
@@ -42,16 +38,9 @@ fetchRosterStaffSelfServiceLeaveFragmentModel = do
 
 renderRosterStaffSelfServiceLeaveFragment :: (?context :: ControllerContext, ?request :: Request) => FragmentRenderMode -> RosterStaffSelfServiceLeaveFragmentModel -> RosterStaffSelfServiceLeaveFragment -> Blaze.Html
 renderRosterStaffSelfServiceLeaveFragment renderMode model RosterStaffSelfServiceLeaveFormFragment =
-    renderRosterStaffSelfServiceLeaveFormFragmentWithSwap maybeSwap model.rosterStaffSelfServiceLeaveModelForm
+    renderRosterStaffSelfServiceLeaveFormFragmentWithSwap maybeSwap Nothing model.rosterStaffSelfServiceLeaveModelForm
     where
         maybeSwap = case renderMode of
             FragmentPlain        -> Nothing
             FragmentOob swapAttr -> swapAttr
 
-respondWithRosterStaffSelfServiceLeaveFragments :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => [RosterStaffSelfServiceLeaveFragment] -> Blaze.Html -> IO ()
-respondWithRosterStaffSelfServiceLeaveFragments fragments extraHtml = do
-    model <- fetchRosterStaffSelfServiceLeaveFragmentModel
-    setHeader ("HX-Reswap", "none")
-    respondHtmlProfiled $
-        mconcat (map (renderRosterStaffSelfServiceLeaveFragment (FragmentOob outerHtmlOobSwap) model) (List.nub fragments))
-            <> extraHtml

@@ -4,9 +4,9 @@ import Application.Helper.LiveUpdate (setActorLiveFragmentsRefresh)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchStaffLeaveRequests)
 import Application.Helper.Profiling
+import Application.Helper.RosterGroups (fetchCurrentVenueRosterGroupOrDefault)
 import Application.Helper.View (ToastOverlayPosition (..), dialogOverlayMountId,
                                 errorToast, renderToastOob, successToast)
-import Application.Helper.View.Oob (outerHtmlOobSwap)
 import Data.Coerce (coerce)
 import qualified Data.Text.IO as TextIO
 import Web.Controller.Prelude
@@ -23,10 +23,13 @@ import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
                                      profileSurfaceWireFragments)
 import Web.Profiles.LeaveFragments
 import Web.Profiles.LiveUpdates (profileLeaveRequestsFragment)
-import Web.RosterWeeks.StaffSelfServiceLeaveFragments
+import Web.RosterWeeks.Responses (respondWithRosterFragments)
+import Web.RosterWeeks.StaffSelfServiceLeaveFragments (buildDefaultRosterStaffSelfServiceLeaveRequest)
+import Web.RosterWeeks.Types (RosterProjectionFragment (..))
 import Web.View.LeaveRequests.Index
 import Web.View.LeaveRequests.New
-import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServiceLeaveFormFragment)
+import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServiceLeaveFormFragment,
+                                                   renderRosterStaffSelfServiceLeaveFormFragmentForRoster)
 import Web.View.Staff.Edit (renderStaffLeaveRequestFormFragment,
                             renderStaffLeaveRequestsListFragmentOob)
 
@@ -152,6 +155,12 @@ respondWithProfileLeaveActorInvalidation staff successMessage = do
     setActorLiveFragmentsRefresh (profileSurfaceScope scope) (profileSurfaceWireFragments [profileSectionFragmentForSection "leave"])
     respondHtmlProfiled (renderToastOob ToastBottomCenter (successToast successMessage))
 
+resolveRosterLeaveScope :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Id RosterGroup, Int)
+resolveRosterLeaveScope = do
+    currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing @(Id RosterGroup) "rosterGroupId")
+    let weekOffset = paramOrDefault @Int 0 "weekOffset"
+    pure (currentRosterGroup.id, weekOffset)
+
 data LeaveResponseContext
     = LeavePageResponseContext
     | LeaveProfileResponseContext
@@ -197,8 +206,9 @@ respondWithLeaveRequestValidationFailure responseContext leaveRequest =
             respondHtml (renderNewLeaveRequestDialog leaveRequest)
         LeaveProfileResponseContext ->
             respondHtml (renderProfileLeaveRequestFormFragment leaveRequest)
-        LeaveRosterResponseContext ->
-            respondHtml (renderRosterStaffSelfServiceLeaveFormFragment leaveRequest)
+        LeaveRosterResponseContext -> do
+            (rosterGroupId, weekOffset) <- resolveRosterLeaveScope
+            respondHtml (renderRosterStaffSelfServiceLeaveFormFragmentForRoster rosterGroupId weekOffset leaveRequest)
         LeaveStaffResponseContext ->
             respondHtml (renderStaffLeaveRequestFormFragment (Id leaveRequest.staffId) leaveRequest)
 
@@ -213,9 +223,12 @@ respondWithLeaveMutationSuccess responseContext successMessage =
                 Nothing -> respondWithLeaveContextError LeaveProfileResponseContext "No staff record found. Contact an administrator."
                 Just staff ->
                     respondWithProfileLeaveActorInvalidation staff successMessage
-        LeaveRosterResponseContext ->
-            respondWithRosterStaffSelfServiceLeaveFragments
-                [RosterStaffSelfServiceLeaveFormFragment]
+        LeaveRosterResponseContext -> do
+            (rosterGroupId, weekOffset) <- resolveRosterLeaveScope
+            respondWithRosterFragments
+                rosterGroupId
+                weekOffset
+                [RosterProjectionContent]
                 (renderToastOob ToastBottomCenter (successToast successMessage))
         LeaveStaffResponseContext -> do
             maybeStaff <- fetchLeaveRequestTargetStaff LeaveStaffResponseContext
@@ -264,9 +277,10 @@ respondWithLeaveContextError responseContext errorMessage =
                     ]
         LeaveRosterResponseContext -> do
             leaveRequest <- buildDefaultRosterStaffSelfServiceLeaveRequest
+            (rosterGroupId, weekOffset) <- resolveRosterLeaveScope
             respondHtmlProfiled $
                 mconcat
-                    [ renderRosterStaffSelfServiceLeaveFormFragment leaveRequest
+                    [ renderRosterStaffSelfServiceLeaveFormFragmentForRoster rosterGroupId weekOffset leaveRequest
                     , renderToastOob ToastBottomCenter (errorToast errorMessage)
                     ]
         LeaveStaffResponseContext -> do

@@ -301,7 +301,7 @@ fetchVisibleRosterReadModelDirect rosterGroupId weekOffset = do
             venueConfig <- fetchVenueConfig
             let showWageEstimates = shouldShowRosterWageEstimates userShowWageEstimates
             rosterPublicHolidays <- fetchRosterPublicHolidayMap venueConfig weekStartDate
-            staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig)
+            staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig rosterGroupId weekOffset)
             let renderIndexes = buildRosterRenderIndexes rosterDays (filterVisibleRosterSlots rosterDays maskedSlots) [] []
             pure $
                 Just
@@ -347,7 +347,7 @@ fetchRosterRenderDataDirect rosterGroupId weekOffset = do
         Nothing -> pure Nothing
         Just RosterBaseFacts { baseRosterWeek = rosterWeek, baseRosterDays = rosterDays, baseAllSlots = allSlots, baseVisibleSlots = visibleSlots, baseOrderedSlotDefinitions = orderedSlotNames, baseShiftTypes = shiftTypes, baseEligibleStaff = eligibleStaffMembers, baseStaffMembers = staffMembers } -> do
             panelStaff <- profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntries eligibleStaffMembers visibleSlots)
-            staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig)
+            staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig rosterGroupId weekOffset)
             slotConflicts <-
                 if rosterWeek.isLive
                     then pure []
@@ -397,7 +397,7 @@ fetchRosterRenderData rosterGroupId weekOffset = do
             let staffMembers = nubBy (\left right -> left.id == right.id) (eligibleStaffMembers <> assignedStaffMembers)
             shiftTypes <- profileActionSpan "roster.fetch_shift_types" fetchCurrentVenueRosterShiftTypes
             panelStaff <- profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntries eligibleStaffMembers visibleSlots)
-            staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig)
+            staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig rosterGroupId weekOffset)
             orderedSlotNames <- profileActionSpan "roster.fetch_ordered_slot_names" (fetchRosterWeekOrderedSlotNames rosterWeek)
             slotConflicts <-
                 if rosterWeek.isLive
@@ -410,8 +410,8 @@ fetchRosterRenderData rosterGroupId weekOffset = do
                     else pure Nothing
             pure (Just RosterRenderData { rosterWeek, rosterGroups, currentRosterGroup, rosterDays, weekStartDate, assignmentFilters, staffMembers, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled = venueConfig.rosterEndTimesEnabled, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays })
 
-fetchRosterStaffSelfServicePanel :: (?context :: ControllerContext, ?modelContext :: ModelContext) => VenueConfig -> IO (Maybe RosterStaffSelfServicePanel)
-fetchRosterStaffSelfServicePanel venueConfig
+fetchRosterStaffSelfServicePanel :: (?context :: ControllerContext, ?modelContext :: ModelContext) => VenueConfig -> Id RosterGroup -> Int -> IO (Maybe RosterStaffSelfServicePanel)
+fetchRosterStaffSelfServicePanel venueConfig rosterGroupId weekOffset
     | hasRole ManagerRole' = pure Nothing
     | currentUserIsSuperAdmin = pure Nothing
     | otherwise = do
@@ -440,6 +440,8 @@ fetchRosterStaffSelfServicePanel venueConfig
                         RosterStaffSelfServicePanel
                             { quickToolsLeaveRequest
                             , quickToolsVenueId = currentVenueId
+                            , quickToolsRosterGroupId = rosterGroupId
+                            , quickToolsRosterWeekOffset = weekOffset
                             , quickToolsTimesheetEntries
                             , quickToolsStaffMembers = [staff]
                             , quickToolsShiftTypes
@@ -463,7 +465,7 @@ fetchVisibleRosterRenderData rosterGroupId weekOffset = do
             venueConfig <- fetchVenueConfig
             let showWageEstimates = shouldShowRosterWageEstimates userShowWageEstimates
             rosterPublicHolidays <- fetchRosterPublicHolidayMap venueConfig weekStartDate
-            staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig)
+            staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig rosterGroupId weekOffset)
             let renderIndexes = buildRosterRenderIndexes rosterDays (filterVisibleRosterSlots rosterDays maskedSlots) [] []
             pure $
                 Just

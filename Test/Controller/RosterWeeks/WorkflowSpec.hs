@@ -687,7 +687,7 @@ tests = beforeAll testContext do
                 user <- createUserRecord "roster-staff-live@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user "worker"
                 slotName <- fetchSlotNameRecord venue "Early"
-                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                staffMember <- createStaffRecord venue (Just user) "Alpha" "Crew"
                 rosterWeek <- createRosterWeekRecord venue 0 True
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 _ <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
@@ -697,6 +697,9 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` ">Alpha<"
+                response `responseBodyShouldContain` "name=\"responseContext\" value=\"roster\""
+                response `responseBodyShouldContain` "name=\"rosterGroupId\""
+                response `responseBodyShouldContain` "name=\"weekOffset\" value=\"0\""
                 response `responseBodyShouldNotContain` "No roster exists for this week yet."
 
         it "hides roster warning controls and highlights from staff" $ withContext do

@@ -1,6 +1,7 @@
 module Web.View.RosterWeeks.StaffSelfServicePanel
     ( renderRosterStaffSelfServicePanelFragment
     , renderRosterStaffSelfServiceLeaveFormFragment
+    , renderRosterStaffSelfServiceLeaveFormFragmentForRoster
     , renderRosterStaffSelfServiceLeaveFormFragmentWithSwap
     , rosterStaffSelfServiceLeaveFormFragmentId
     , rosterStaffSelfServicePanelFragmentId
@@ -59,7 +60,7 @@ renderRosterStaffSelfServicePanelFragment (Just panel)
                                 <div class="roster-staff-panel-summary">Add unavailable time</div>
                             </div>
                         </div>
-                        {renderRosterStaffSelfServiceLeaveFormFragment panel.quickToolsLeaveRequest}
+                        {renderRosterStaffSelfServiceLeaveFormFragmentForRoster panel.quickToolsRosterGroupId panel.quickToolsRosterWeekOffset panel.quickToolsLeaveRequest}
                     </div>
                 </div>
             </div>
@@ -68,10 +69,14 @@ renderRosterStaffSelfServicePanelFragment (Just panel)
 
 renderRosterStaffSelfServiceLeaveFormFragment :: (?context :: ControllerContext) => LeaveRequest -> Html
 renderRosterStaffSelfServiceLeaveFormFragment =
-    renderRosterStaffSelfServiceLeaveFormFragmentWithSwap Nothing
+    renderRosterStaffSelfServiceLeaveFormFragmentWithSwap Nothing Nothing
 
-renderRosterStaffSelfServiceLeaveFormFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> LeaveRequest -> Html
-renderRosterStaffSelfServiceLeaveFormFragmentWithSwap maybeSwapOob leaveRequest = [hsx|
+renderRosterStaffSelfServiceLeaveFormFragmentForRoster :: (?context :: ControllerContext) => Id RosterGroup -> Int -> LeaveRequest -> Html
+renderRosterStaffSelfServiceLeaveFormFragmentForRoster rosterGroupId weekOffset =
+    renderRosterStaffSelfServiceLeaveFormFragmentWithSwap Nothing (Just (rosterGroupId, weekOffset))
+
+renderRosterStaffSelfServiceLeaveFormFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Maybe (Id RosterGroup, Int) -> LeaveRequest -> Html
+renderRosterStaffSelfServiceLeaveFormFragmentWithSwap maybeSwapOob maybeRosterScope leaveRequest = [hsx|
     <div id={rosterStaffSelfServiceLeaveFormFragmentId} hx-swap-oob={maybeSwapOob}>
         <form id="roster-staff-self-service-leave-form"
               method="POST"
@@ -82,12 +87,20 @@ renderRosterStaffSelfServiceLeaveFormFragmentWithSwap maybeSwapOob leaveRequest 
               hx-swap="outerHTML"
               hx-push-url="false">
             <input type="hidden" name="responseContext" value="roster"/>
+            {renderRosterScopeFields maybeRosterScope}
             {renderLeaveRequestFormFields leaveRequest}
             <div class="d-grid mt-4 app-form-width">
                 <button type="submit" class="btn btn-primary">Add unavailable time</button>
             </div>
         </form>
     </div>
+|]
+
+renderRosterScopeFields :: Maybe (Id RosterGroup, Int) -> Html
+renderRosterScopeFields Nothing = mempty
+renderRosterScopeFields (Just (rosterGroupId, weekOffset)) = [hsx|
+    <input type="hidden" name="rosterGroupId" value={tshow rosterGroupId}/>
+    <input type="hidden" name="weekOffset" value={tshow weekOffset}/>
 |]
 
 rosterCreateLeaveRequestPath :: Text

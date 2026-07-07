@@ -471,9 +471,10 @@ tests = beforeAll testContext do
                 versionAfter <- currentLiveUpdateVersion (leaveRequestsLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` versionBefore
 
-        it "creating leave from roster self-service refreshes the declared form fragment" $ withContext do
+        it "creating leave from roster self-service actor-invalidates roster content without form OOB" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Roster Leave Venue"
+                rosterGroup <- ensureVenueDefaultRosterGroup venue
                 user <- createUserRecord "leave-roster-create@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user "worker"
                 _ <- createStaffRecord venue (Just user) "Rae" "Roster"
@@ -485,16 +486,23 @@ tests = beforeAll testContext do
                             , ("endDate", "2025-01-14")
                             , ("notes", "Roster quick tool")
                             , ("responseContext", "roster")
+                            , ("rosterGroupId", cs (tshow rosterGroup.id))
+                            , ("weekOffset", "2")
                             ]
 
                 response `responseStatusShouldBe` status200
                 lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
                 body <- responseBody response
                 let bodyText = cs (LByteString.unpack body)
-                bodyText `shouldContain` "id=\"roster-staff-self-service-leave-form-fragment\" hx-swap-oob=\"outerHTML\""
                 bodyText `shouldContain` "Unavailable period submitted"
+                bodyText `shouldNotContain` "id=\"roster-staff-self-service-leave-form-fragment\" hx-swap-oob=\"outerHTML\""
+                bodyText `shouldNotContain` "id=\"roster-content\""
                 bodyText `shouldNotContain` "id=\"profile-leave-requests-content\""
                 bodyText `shouldNotContain` "id=\"leave-requests-content\""
+                let rosterLeaveTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                rosterLeaveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
+                rosterLeaveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "roster-content")
+                rosterLeaveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "weekOffset")
 
         it "returns the profile leave fragment instead of redirecting when no staff record exists on profile leave submit" $ withContext do
             withCleanDb do
