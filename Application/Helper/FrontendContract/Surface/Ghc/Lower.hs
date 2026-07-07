@@ -303,7 +303,35 @@ lowerOption option
         (Just "Contains", marker : _) -> IR.ContainsOption <$> (protocol Naming.DomTokenName <$> rawMarkerName marker)
         (Just "ContainsSurface", marker : _) -> IR.ContainsSurfaceOption <$> (protocol Naming.SurfaceName <$> rawMarkerName marker)
         (Just "UsesDto", marker : _) -> IR.UsesDtoOption <$> (protocol Naming.ScopeName <$> rawMarkerName marker)
+        (Just "HtmxMethod", method : _) -> IR.HtmxMethodOption <$> lowerHtmxMethod method
+        (Just "HtmxTrigger", marker : _) -> IR.HtmxTriggerOption <$> (protocol Naming.DomTokenName <$> rawMarkerName marker)
+        (Just "HtmxInclude", marker : _) -> IR.HtmxIncludeOption <$> (protocol Naming.DomTokenName <$> rawMarkerName marker)
+        (Just "HtmxSync", marker : _) -> IR.HtmxSyncOption <$> (protocol Naming.DomTokenName <$> rawMarkerName marker)
+        (Just "HtmxIndicator", marker : _) -> IR.HtmxIndicatorOption <$> (protocol Naming.DomTokenName <$> rawMarkerName marker)
+        (Just "HtmxConfirm", marker : _) -> IR.HtmxConfirmOption <$> (protocol Naming.DomTokenName <$> rawMarkerName marker)
+        (Just "HtmxSelect", marker : _) -> IR.HtmxSelectOption <$> (protocol Naming.DomTokenName <$> rawMarkerName marker)
+        (Just "HtmxTarget", marker : _) -> IR.HtmxTargetOption <$> (protocol Naming.DomTokenName <$> rawMarkerName marker)
+        (Just "HtmxSwap", marker : _) -> IR.HtmxSwapOption <$> (protocol Naming.DomTokenName <$> rawMarkerName marker)
+        (Just "HtmxPushUrl", value : _) -> IR.HtmxPushUrlOption <$> lowerHtmxPushUrl value
+        (Just "CustomHtmx", marker : reason : _) -> IR.CustomHtmxOption <$> (protocol Naming.DomTokenName <$> rawMarkerName marker) <*> rawSymbolLiteral reason
         _ -> Left ["unsupported option " <> option.rawTypePretty]
+
+lowerHtmxMethod :: RawType -> Either [String] IR.HtmxMethodIR
+lowerHtmxMethod method =
+    case method.rawTypeName of
+        Just "HtmxGet" -> Right IR.HtmxGetIR
+        Just "HtmxPost" -> Right IR.HtmxPostIR
+        Just "HtmxPut" -> Right IR.HtmxPutIR
+        Just "HtmxPatch" -> Right IR.HtmxPatchIR
+        Just "HtmxDelete" -> Right IR.HtmxDeleteIR
+        _ -> Left ["unsupported HTMX method " <> method.rawTypePretty]
+
+lowerHtmxPushUrl :: RawType -> Either [String] IR.HtmxPushUrlIR
+lowerHtmxPushUrl value =
+    case value.rawTypeName of
+        Just "HtmxPushUrlTrue" -> Right IR.HtmxPushUrlTrueIR
+        Just "HtmxPushUrlFalse" -> Right IR.HtmxPushUrlFalseIR
+        _ -> Left ["unsupported HTMX push-url value " <> value.rawTypePretty]
 
 lowerResource :: RawType -> Either [String] IR.ResourceIR
 lowerResource resource
@@ -382,6 +410,18 @@ rawMarkerName rawType =
     case rawType.rawTypeName of
         Just name -> Right name
         Nothing -> Left ["expected marker type, got " <> rawType.rawTypePretty]
+
+rawSymbolLiteral :: RawType -> Either [String] Text
+rawSymbolLiteral rawType =
+    case (rawType.rawTypeNode, rawType.rawTypeName) of
+        ("LitTy", Just value) -> Right (text (stripSymbolQuotes value))
+        _ -> Left ["expected type-level string literal, got " <> rawType.rawTypePretty]
+
+stripSymbolQuotes :: String -> String
+stripSymbolQuotes value =
+    case value of
+        '"' : rest | not (null rest) && List.last rest == '"' -> List.init rest
+        _                                                     -> value
 
 brandName :: String -> Maybe String
 brandName marker

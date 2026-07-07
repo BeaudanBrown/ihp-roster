@@ -13,6 +13,8 @@ module Application.Helper.FrontendContract.Surface.ContractIR
     , FragmentIR (..)
     , FragmentSelectorIR (..)
     , HtmxActionIR (..)
+    , HtmxMethodIR (..)
+    , HtmxPushUrlIR (..)
     , InteractionActivationRefIR (..)
     , InteractionDropzoneRefIR (..)
     , InteractionSourceRefIR (..)
@@ -181,6 +183,19 @@ data WireIR
     | WireRefIR !Text
     deriving (Eq, Show)
 
+data HtmxMethodIR
+    = HtmxGetIR
+    | HtmxPostIR
+    | HtmxPutIR
+    | HtmxPatchIR
+    | HtmxDeleteIR
+    deriving (Eq, Show)
+
+data HtmxPushUrlIR
+    = HtmxPushUrlTrueIR
+    | HtmxPushUrlFalseIR
+    deriving (Eq, Show)
+
 data OptionIR
     = EagerOption
     | LazyOption ![OptionIR]
@@ -203,6 +218,17 @@ data OptionIR
     | ContainsOption !Text
     | ContainsSurfaceOption !Text
     | UsesDtoOption !Text
+    | HtmxMethodOption !HtmxMethodIR
+    | HtmxTriggerOption !Text
+    | HtmxIncludeOption !Text
+    | HtmxSyncOption !Text
+    | HtmxIndicatorOption !Text
+    | HtmxConfirmOption !Text
+    | HtmxSelectOption !Text
+    | HtmxTargetOption !Text
+    | HtmxSwapOption !Text
+    | HtmxPushUrlOption !HtmxPushUrlIR
+    | CustomHtmxOption !Text !Text
     deriving (Eq, Show)
 
 data SessionSelectorIR
@@ -237,6 +263,7 @@ data PrimitiveRefKind
     | RefSession
     | RefClientEvent
     | RefDto
+    | RefDomToken
     deriving (Eq, Show)
 
 data ContractDiagnostic = ContractDiagnostic
@@ -286,6 +313,7 @@ validateSurface surface =
         <> validateLiveFragmentInvalidation surface
         <> validateResourceDependencies surface
         <> validateCrossReferences surface
+        <> validateActionRequestOptions surface
 
 validateSingleScope :: SurfaceIR -> [ContractDiagnostic]
 validateSingleScope surface =
@@ -389,6 +417,41 @@ validateUnique surfaceName kind names =
     duplicateNames names
         |> map (\name -> diagnostic ("duplicate-" <> Text.replace " " "-" kind) ("surface " <> surfaceName <> " has duplicate " <> kind <> " " <> name))
 
+validateActionRequestOptions :: SurfaceIR -> [ContractDiagnostic]
+validateActionRequestOptions surface =
+    concatMap validateAction surface.surfaceHtmxActions
+    where
+        validateAction action =
+            validateAtMostOne "htmx-method" "method" isHtmxMethod action
+                <> validateAtMostOne "htmx-push-url" "push-url" isHtmxPushUrl action
+                <> validateAtMostOne "htmx-target" "target" isHtmxTarget action
+                <> concatMap validateCustomHtmx action.htmxActionOptions
+
+        validateAtMostOne code label predicate action =
+            let matches = filter predicate action.htmxActionOptions
+             in if length matches <= 1
+                    then []
+                    else [diagnostic ("duplicate-" <> code) ("surface " <> surface.surfaceName <> " htmx action " <> action.htmxActionName <> " declares " <> label <> " more than once")]
+
+        validateCustomHtmx = \case
+            CustomHtmxOption marker reason
+                | Text.strip marker == "" -> [diagnostic "invalid-custom-htmx" ("surface " <> surface.surfaceName <> " declares custom HTMX with an empty marker")]
+                | Text.strip reason == "" -> [diagnostic "invalid-custom-htmx" ("surface " <> surface.surfaceName <> " custom HTMX " <> marker <> " must include a non-empty reason")]
+                | otherwise -> []
+            LazyOption options -> concatMap validateCustomHtmx options
+            EffectOption _ options -> concatMap validateCustomHtmx options
+            _ -> []
+
+        isHtmxMethod = \case
+            HtmxMethodOption _ -> True
+            _ -> False
+        isHtmxPushUrl = \case
+            HtmxPushUrlOption _ -> True
+            _ -> False
+        isHtmxTarget = \case
+            HtmxTargetOption _ -> True
+            _ -> False
+
 validateWireReferences :: SurfaceIR -> [ContractDiagnostic]
 validateWireReferences surface =
     concatMap validateFieldWire allFields
@@ -454,6 +517,7 @@ validateCrossReferences surface =
         sessionNames = surface.surfaceSessions
         eventNames = map fst surface.surfaceClientEvents
         dtoNames = map fst surface.surfaceDtos
+        domTokenNames = surface.surfaceDomTokens
         intentFields = [(intent.intentName, map (.fieldName) intent.intentFields) | intent <- surface.surfaceIntents]
 
         validateFragmentOption fragment = concatMap (validateOptionRef ("fragment " <> fragment.fragmentName)) fragment.fragmentOptions
@@ -474,6 +538,11 @@ validateCrossReferences surface =
             ValueFieldOption name -> requireAnyIntentField owner name
             EmitsOption name -> requireRef owner RefClientEvent eventNames name
             UsesDtoOption name -> requireRef owner RefDto dtoNames name
+            HtmxTargetOption name -> requireRef owner RefDomToken domTokenNames name
+            HtmxIncludeOption name -> requireRef owner RefDomToken domTokenNames name
+            HtmxIndicatorOption name -> requireRef owner RefDomToken domTokenNames name
+            HtmxSyncOption name -> requireRef owner RefDomToken domTokenNames name
+            HtmxSelectOption name -> requireRef owner RefDomToken domTokenNames name
             _ -> []
 
         validateInteractionRefs =
@@ -618,6 +687,7 @@ refKindLabel = \case
     RefSession     -> "session"
     RefClientEvent -> "client event"
     RefDto         -> "dto"
+    RefDomToken    -> "dom token"
 
 diagnostic :: Text -> Text -> ContractDiagnostic
 diagnostic diagnosticCode diagnosticMessage =

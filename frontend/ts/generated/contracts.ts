@@ -1766,8 +1766,8 @@ export type RefreshPanelActionFields = SurfaceLabRefreshPanelActionFields;
 export type MoveLabCardIntentFields = SurfaceLabMoveLabCardIntentFields;
 export type SurfaceLabSessionName = "drag";
 export type SurfaceLabDisposableLayerName = "drag-preview";
-export type SurfaceLabDomToken = "lab-root" | "lab-dropzone";
-export const surfaceLabSurfaceManifest = {"surface":"surface-lab","scopes":["lab"],"fragments":["lab-shell","lab-panel"],"liveFragments":[],"htmxActions":["refresh-panel"],"intents":["move-lab-card"],"sessions":["drag"],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":["drag-preview"],"domTokens":["lab-root","lab-dropzone"],"overlayLanes":[],"containedSurfaces":{}} as const;
+export type SurfaceLabDomToken = "lab-root" | "lab-dropzone" | "lab-panel-target" | "lab-panel-include";
+export const surfaceLabSurfaceManifest = {"surface":"surface-lab","scopes":["lab"],"fragments":["lab-shell","lab-panel"],"liveFragments":[],"htmxActions":["refresh-panel"],"intents":["move-lab-card"],"sessions":["drag"],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":["drag-preview"],"domTokens":["lab-root","lab-dropzone","lab-panel-target","lab-panel-include"],"overlayLanes":[],"containedSurfaces":{}} as const;
 
 export type TimesheetsSurfaceName = "timesheets";
 export type TimesheetsFragmentKey = TimesheetsSurfaceFragmentKey;

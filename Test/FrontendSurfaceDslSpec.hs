@@ -167,12 +167,24 @@ tests = describe "FrontendSurface DSL foundation" do
         map (.intentName) surface.surfaceIntents `shouldBe` ["move-lab-card"]
         surface.surfaceSessions `shouldBe` ["drag"]
         surface.surfaceLayers `shouldBe` ["drag-preview"]
-        surface.surfaceDomTokens `shouldBe` ["lab-root", "lab-dropzone"]
+        surface.surfaceDomTokens `shouldBe` ["lab-root", "lab-dropzone", "lab-panel-target", "lab-panel-include"]
         map fst surface.surfaceDtos `shouldBe` ["lab-payload", "lab-related-payload"]
         surface.surfaceFragments
             |> find (\fragment -> fragment.fragmentName == "lab-panel")
             |> fmap (.fragmentOptions)
             `shouldBe` Just [LazyOption [TriggerOption "load", PlaceholderOption "panel"]]
+        surface.surfaceHtmxActions
+            |> find (\action -> action.htmxActionName == "refresh-panel")
+            |> fmap (.htmxActionOptions)
+            `shouldBe` Just
+                [ TargetOption "lab-panel"
+                , HtmxMethodOption HtmxPostIR
+                , HtmxTargetOption "lab-panel-target"
+                , HtmxSwapOption "outer-html"
+                , HtmxIncludeOption "lab-panel-include"
+                , HtmxPushUrlOption HtmxPushUrlFalseIR
+                , CustomHtmxOption "lab-panel-custom-htmx" "lab fixture covers auditable custom HTMX metadata"
+                ]
 
     it "extracts the registered timesheets surface into checked contract IR" do
         let surface = expectSurface "timesheets" registeredFrontendSurfaceContractIR
@@ -271,6 +283,9 @@ tests = describe "FrontendSurface DSL foundation" do
         let duplicateResourceSource = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[DuplicateResourceSourceSurface]))
         let conflictingResources = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[DuplicateResourceSurfaceA, DuplicateResourceSurfaceB]))
         let invalidInteractionRef = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[InvalidInteractionRefSurface]))
+        let invalidHtmxTargetRef = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[InvalidHtmxTargetRefSurface]))
+        let duplicateHtmxMethod = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[DuplicateHtmxMethodSurface]))
+        let emptyCustomHtmxReason = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[EmptyCustomHtmxReasonSurface]))
 
         diagnosticMessages duplicateFields `shouldContain` ["surface duplicate has duplicate scope field panelId"]
         diagnosticMessages missingReference `shouldContain` ["htmx action bad references missing fragment missing on surface missing-reference"]
@@ -286,6 +301,9 @@ tests = describe "FrontendSurface DSL foundation" do
         diagnosticMessages conflictingResources `shouldContain` ["conflicting shared declaration: resource test-resource"]
         diagnosticMessages invalidInteractionRef `shouldContain` ["source ref bad references missing session missing-fragment on surface invalid-interaction-ref"]
         diagnosticMessages invalidInteractionRef `shouldContain` ["source ref bad references missing intent field missingPayload for intent bad on surface invalid-interaction-ref"]
+        diagnosticMessages invalidHtmxTargetRef `shouldContain` ["htmx action bad references missing dom token missing-fragment on surface invalid-htmx-target-ref"]
+        diagnosticMessages duplicateHtmxMethod `shouldContain` ["surface duplicate-htmx-method htmx action bad declares method more than once"]
+        diagnosticMessages emptyCustomHtmxReason `shouldContain` ["surface empty-custom-htmx-reason custom HTMX missing-fragment must include a non-empty reason"]
 
     it "constructs generated FrontendSurface resource values" do
         let venueId = fromMaybe (error "invalid UUID") (UUID.fromString "11111111-1111-1111-1111-111111111111")
@@ -358,6 +376,9 @@ data DuplicateResourceSource
 data DuplicateResourceA
 data DuplicateResourceB
 data InvalidInteractionRef
+data InvalidHtmxTargetRef
+data DuplicateHtmxMethod
+data EmptyCustomHtmxReason
 data MissingPayload
 data PanelId
 data StaffFilterId
@@ -478,6 +499,24 @@ type InvalidInteractionRefSurface =
         '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
          , Intent Bad '[ Field PanelId 'WireUUID ] '[]
          , SourceRef Bad '[ 'SessionOption MissingFragment, 'Submits Bad, 'SourceField MissingPayload ]
+         ]
+
+type InvalidHtmxTargetRefSurface =
+    Surface InvalidHtmxTargetRef
+        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+         , Action Bad '[] '[ 'HtmxTarget MissingFragment ]
+         ]
+
+type DuplicateHtmxMethodSurface =
+    Surface DuplicateHtmxMethod
+        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+         , Action Bad '[] '[ 'HtmxMethod 'HtmxPost, 'HtmxMethod 'HtmxDelete ]
+         ]
+
+type EmptyCustomHtmxReasonSurface =
+    Surface EmptyCustomHtmxReason
+        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+         , Action Bad '[] '[ 'CustomHtmx MissingFragment "" ]
          ]
 
 type SharedScopeA =

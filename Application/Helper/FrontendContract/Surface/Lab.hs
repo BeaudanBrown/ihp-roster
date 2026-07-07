@@ -44,6 +44,10 @@ data Dialog
 data LabCommitted
 data LabRoot
 data LabDropzone
+data LabPanelTarget
+data LabPanelInclude
+data LabPanelCustomHtmx
+data OuterHtml
 data LabPayload
 data LabRelatedPayload
 data Label
@@ -77,7 +81,14 @@ type LabFragmentBundle =
         '[ 'Lazy '[ 'Trigger Load, 'Placeholder Panel ] ]
      , Action RefreshPanel
         '[ Field PanelId 'WireUUID ]
-        '[ 'Target LabPanel ]
+        '[ 'Target LabPanel
+         , 'HtmxMethod 'HtmxPost
+         , 'HtmxTarget LabPanelTarget
+         , 'HtmxSwap OuterHtml
+         , 'HtmxInclude LabPanelInclude
+         , 'HtmxPushUrl 'HtmxPushUrlFalse
+         , 'CustomHtmx LabPanelCustomHtmx "lab fixture covers auditable custom HTMX metadata"
+         ]
      ]
 
 type LabInteractionBundle =
@@ -94,6 +105,8 @@ type LabSharedBundle =
     '[ Event LabCommitted '[ Field PanelId 'WireUUID ]
      , DomToken LabRoot
      , DomToken LabDropzone
+     , DomToken LabPanelTarget
+     , DomToken LabPanelInclude
      , Dto LabPayload
         '[ Field Label 'WireText
          , OptionalField Count 'WireInt

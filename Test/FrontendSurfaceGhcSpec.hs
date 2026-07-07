@@ -163,7 +163,15 @@ labRawRegistry = registryWithPrimitives
     , raw "Action"
         [ marker "RefreshPanel"
         , promotedList [field "PanelId" "WireUUID"]
-        , promotedList [raw "Target" [marker "LabPanel"]]
+        , promotedList
+            [ raw "Target" [marker "LabPanel"]
+            , raw "HtmxMethod" [raw "HtmxPost" []]
+            , raw "HtmxTarget" [marker "LabPanelTarget"]
+            , raw "HtmxSwap" [marker "OuterHtml"]
+            , raw "HtmxInclude" [marker "LabPanelInclude"]
+            , raw "HtmxPushUrl" [raw "HtmxPushUrlFalse" []]
+            , raw "CustomHtmx" [marker "LabPanelCustomHtmx", symbol "lab fixture covers auditable custom HTMX metadata"]
+            ]
         ]
     , raw "Intent"
         [ marker "MoveLabCard"
@@ -175,6 +183,8 @@ labRawRegistry = registryWithPrimitives
     , raw "Event" [marker "LabCommitted", promotedList [field "PanelId" "WireUUID"]]
     , raw "DomToken" [marker "LabRoot"]
     , raw "DomToken" [marker "LabDropzone"]
+    , raw "DomToken" [marker "LabPanelTarget"]
+    , raw "DomToken" [marker "LabPanelInclude"]
     , raw "Dto"
         [ marker "LabPayload"
         , promotedList
@@ -385,6 +395,15 @@ raw name args = RawType
     , rawTypeName = Just name
     , rawTypeSource = Nothing
     , rawTypeArgs = args
+    }
+
+symbol :: String -> RawType
+symbol value = RawType
+    { rawTypeNode = "LitTy"
+    , rawTypePretty = "\"" <> value <> "\""
+    , rawTypeName = Just value
+    , rawTypeSource = Nothing
+    , rawTypeArgs = []
     }
 
 dependsOn :: String -> [RawType] -> [RawType] -> RawType

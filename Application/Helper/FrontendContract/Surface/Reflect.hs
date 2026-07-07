@@ -22,6 +22,7 @@ import Data.Kind (Type)
 import qualified Data.List as List
 import qualified Data.Text as Text
 import Data.Typeable (Proxy (..), Typeable, tyConName, typeRep, typeRepTyCon)
+import GHC.TypeLits (KnownSymbol, symbolVal)
 import IHP.Prelude
 
 reflectRegisteredFrontendSurfaces :: SurfaceContractIR
@@ -308,6 +309,33 @@ instance Typeable marker => ReflectOption ('Emits marker) where reflectOption = 
 instance Typeable marker => ReflectOption ('Contains marker) where reflectOption = ContainsOption (protocolName @marker DomTokenName)
 instance Typeable marker => ReflectOption ('ContainsSurface marker) where reflectOption = ContainsSurfaceOption (protocolName @marker SurfaceName)
 instance Typeable marker => ReflectOption ('UsesDto marker) where reflectOption = UsesDtoOption (protocolName @marker ScopeName)
+instance ReflectHtmxMethod method => ReflectOption ('HtmxMethod method) where reflectOption = HtmxMethodOption (reflectHtmxMethod @method)
+instance Typeable marker => ReflectOption ('HtmxTrigger marker) where reflectOption = HtmxTriggerOption (protocolName @marker DomTokenName)
+instance Typeable marker => ReflectOption ('HtmxInclude marker) where reflectOption = HtmxIncludeOption (protocolName @marker DomTokenName)
+instance Typeable marker => ReflectOption ('HtmxSync marker) where reflectOption = HtmxSyncOption (protocolName @marker DomTokenName)
+instance Typeable marker => ReflectOption ('HtmxIndicator marker) where reflectOption = HtmxIndicatorOption (protocolName @marker DomTokenName)
+instance Typeable marker => ReflectOption ('HtmxConfirm marker) where reflectOption = HtmxConfirmOption (protocolName @marker DomTokenName)
+instance Typeable marker => ReflectOption ('HtmxSelect marker) where reflectOption = HtmxSelectOption (protocolName @marker DomTokenName)
+instance Typeable marker => ReflectOption ('HtmxTarget marker) where reflectOption = HtmxTargetOption (protocolName @marker DomTokenName)
+instance Typeable marker => ReflectOption ('HtmxSwap marker) where reflectOption = HtmxSwapOption (protocolName @marker DomTokenName)
+instance ReflectHtmxPushUrl value => ReflectOption ('HtmxPushUrl value) where reflectOption = HtmxPushUrlOption (reflectHtmxPushUrl @value)
+instance (Typeable marker, KnownSymbol reason) => ReflectOption ('CustomHtmx marker reason) where
+    reflectOption = CustomHtmxOption (protocolName @marker DomTokenName) (cs (symbolVal (Proxy @reason)))
+
+class ReflectHtmxMethod (method :: HtmxMethod) where
+    reflectHtmxMethod :: HtmxMethodIR
+
+instance ReflectHtmxMethod 'HtmxGet where reflectHtmxMethod = HtmxGetIR
+instance ReflectHtmxMethod 'HtmxPost where reflectHtmxMethod = HtmxPostIR
+instance ReflectHtmxMethod 'HtmxPut where reflectHtmxMethod = HtmxPutIR
+instance ReflectHtmxMethod 'HtmxPatch where reflectHtmxMethod = HtmxPatchIR
+instance ReflectHtmxMethod 'HtmxDelete where reflectHtmxMethod = HtmxDeleteIR
+
+class ReflectHtmxPushUrl (value :: HtmxPushUrl) where
+    reflectHtmxPushUrl :: HtmxPushUrlIR
+
+instance ReflectHtmxPushUrl 'HtmxPushUrlTrue where reflectHtmxPushUrl = HtmxPushUrlTrueIR
+instance ReflectHtmxPushUrl 'HtmxPushUrlFalse where reflectHtmxPushUrl = HtmxPushUrlFalseIR
 
 requiredOption :: Text -> Text -> Text -> [Text] -> Text
 requiredOption kind marker optionName values =

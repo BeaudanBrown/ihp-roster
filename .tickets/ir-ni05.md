@@ -1,6 +1,6 @@
 ---
 id: ir-ni05
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-07-07T03:24:11Z

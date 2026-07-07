@@ -14,6 +14,8 @@ module Application.Helper.FrontendContract.Surface.DSL
     , AuthPolicy (..)
     , WireType (..)
     , PrimitiveOption (..)
+    , HtmxMethod (..)
+    , HtmxPushUrl (..)
     , ConflictResolution (..)
     , FragmentSelector (..)
     , SessionSelector (..)
@@ -43,6 +45,7 @@ module Application.Helper.FrontendContract.Surface.DSL
     ) where
 
 import Data.Kind (Type)
+import GHC.TypeLits (Symbol)
 
 data WireType
     = WireText
@@ -62,6 +65,17 @@ data FieldSpec
 
 data ResourceSpec
     = Resource Type [FieldSpec]
+
+data HtmxMethod
+    = HtmxGet
+    | HtmxPost
+    | HtmxPut
+    | HtmxPatch
+    | HtmxDelete
+
+data HtmxPushUrl
+    = HtmxPushUrlTrue
+    | HtmxPushUrlFalse
 
 data DependencySource
     = FromScope Type
@@ -104,6 +118,17 @@ data PrimitiveOption
     | Contains Type
     | ContainsSurface Type
     | UsesDto Type
+    | HtmxMethod HtmxMethod
+    | HtmxTrigger Type
+    | HtmxInclude Type
+    | HtmxSync Type
+    | HtmxIndicator Type
+    | HtmxConfirm Type
+    | HtmxSelect Type
+    | HtmxTarget Type
+    | HtmxSwap Type
+    | HtmxPushUrl HtmxPushUrl
+    | CustomHtmx Type Symbol
 
 data SessionSelector
     = AnySession
