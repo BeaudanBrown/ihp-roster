@@ -57,6 +57,7 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
 
 ## Overlay Pattern
 - Dialog-style modals must go through `Application.Helper.View.Overlay` helpers (`renderDialogOverlay`, `renderDialogOverlayBodyOnly`, or the approved page-dialog helper) and should target `#dialog-overlay-mount` for HTMX workflows.
+- For migrated app-owned dialog/overlay request initiators that are not owned by a mounted `FrontendSurface`, declare an `OverlayAction` in `Application.Helper.FrontendContract.Overlay` and render/apply attrs with `Application.Helper.FrontendContract.Overlay.Runtime`. Keep `SurfaceAction` for mounted surface request initiators; do not classify global dialog workflow controls as surface actions just because they are launched from a surface.
 - Do not render hidden modal templates or raw `.modal`/`.modal-backdrop` markup inside accordions, panels, tables, or live fragments. Put only the trigger in page content, then load the dialog into the shared mount.
 - The picker and toast lanes stay separate: picker overlays are globally mounted helpers such as `renderQuarterHourTimePickerModal`, and toasts use the toast overlay helpers.
 - When migrating a bespoke modal, remove obsolete modal-specific JS, CSS selectors, data attributes, exports, and tests in the same change.
@@ -172,6 +173,7 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
   - toast rendering in `View/Toast.hs`
   - dense time-input or form-specific helpers in their own dedicated modules rather than extending the wrapper module
 - Dialog launch contract:
+  - generated `OverlayAction` helpers are preferred for migrated launchers
   - trigger uses `hx-get`
   - target is the shared dialog mount
   - swap is `innerHTML`

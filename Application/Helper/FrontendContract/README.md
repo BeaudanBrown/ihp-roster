@@ -8,10 +8,20 @@ contracts. Contracts are declared in the project DSL, collected by
 Roots are split by meaning:
 
 - **Global**: app-wide browser/runtime vocabulary such as DOM ids, event names,
-  closed enums, UI-region data, interaction vocabulary, and live-update wire
-  schemas.
+  closed enums, UI-region data, interaction vocabulary, live-update wire
+  schemas, and narrow overlay/dialog request contracts.
 - **Surface**: mounted feature UI semantics: scopes, fragments, actions,
   intents, mount state, resources, and interaction metadata.
+
+`OverlayAction` is the generated lane for app-owned dialog/overlay request
+initiators that are not owned by a mounted `FrontendSurface`. Use it when the
+control targets the shared dialog overlay mount (initially
+`#dialog-overlay-mount`) and the response lifecycle is overlay-scoped. The DSL
+owns browser-visible HTMX metadata and submitted fields; Haskell still owns IHP
+route/path construction through `Application.Helper.FrontendContract.Overlay.Runtime`.
+Successful final workflow mutations should close/clear overlays and refresh
+business surfaces through actor-local/passive invalidation rather than returning
+authoritative business fragments OOB.
 
 Haskell wire code must not re-declare browser shapes. Typed carrier modules may
 exist for ergonomic runtime APIs, but JSON validation/parsing/rendering delegates
