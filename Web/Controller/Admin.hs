@@ -1,6 +1,8 @@
 module Web.Controller.Admin where
 
 import Application.Helper.Export
+import Application.Helper.LiveUpdate (adminShiftTypesLiveScope,
+                                      setActorLiveFragmentsRefresh)
 import Application.Helper.PasskeySetupTokens
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
@@ -17,6 +19,7 @@ import qualified Data.List as List
 import qualified Data.Text as Text
 import Data.Time.Clock (utctDay)
 import Data.UUID (UUID)
+import qualified Web.Admin.FrontendSurface as AdminSurface
 import Web.Admin.Mutations
 import Web.Controller.Admin.Support
 import Web.Controller.Admin.Xero
@@ -79,20 +82,12 @@ respondToShiftTypesSectionMutationWithXeroRefresh ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Bool ->
     IO ()
-respondToShiftTypesSectionMutationWithXeroRefresh shouldRefreshXero =
+respondToShiftTypesSectionMutationWithXeroRefresh _shouldRefreshXero =
     if isHtmxRequest
         then do
-            shiftTypes <- fetchCurrentVenueShiftTypes
-            awardLevels <- fetchActiveAwardLevels
-            awardLevelBaseRates <- fetchCurrentAwardLevelBaseRates
-            importedPayItems <- fetchActiveImportedXeroPayItems
-            let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
-            xeroFragment <- if shouldRefreshXero && currentUserCanManageXeroIntegration then renderCurrentVenueXeroSectionFragmentOob else pure mempty
-            respondHtml $
-                mconcat
-                    [ renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates importedPayItems
-                    , xeroFragment
-                    ]
+            setHeader ("HX-Reswap", "none")
+            setActorLiveFragmentsRefresh (adminShiftTypesLiveScope (unpackId currentVenueId)) (AdminSurface.adminSurfaceWireFragments [AdminSurface.adminShiftTypesFragment])
+            respondHtml mempty
         else redirectToAdminFor (paramOrNothing "rosterGroupId")
 
 sendStaffPasskeySetupLink ::

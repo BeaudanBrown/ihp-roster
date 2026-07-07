@@ -398,12 +398,15 @@ tests = beforeAll testContext do
                             , ("showInactiveShiftTypes", "true")
                             ]
                 createShiftResponse `responseStatusShouldBe` status200
-                createShiftResponse `responseBodyShouldContain` "id=\"admin-shift-types-fragment\""
-                createShiftResponse `responseBodyShouldContain` "Fragment Shift"
-                createShiftResponse `responseBodyShouldContain` "checked=\"checked\""
+                lookup "HX-Reswap" (responseHeaders createShiftResponse) `shouldBe` Just "none"
+                createShiftResponse `responseBodyShouldNotContain` "id=\"admin-shift-types-fragment\""
+                createShiftResponse `responseBodyShouldNotContain` "Fragment Shift"
                 createShiftResponse `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
                 createShiftResponse `responseBodyShouldNotContain` "hx-swap-oob=\"outerHTML\""
                 createShiftResponse `responseBodyShouldNotContain` "id=\"app\""
+                let createShiftTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders createShiftResponse)
+                createShiftTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
+                createShiftTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-shift-types-fragment")
                 shiftTypesVersionAfter <- currentLiveUpdateVersion (adminShiftTypesLiveScope (unpackId venue.id))
                 shiftTypesVersionAfter `shouldBe` shiftTypesVersionBefore
                 xeroVersionAfterCreateShift <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
@@ -414,9 +417,12 @@ tests = beforeAll testContext do
                         callActionWithParams (MoveShiftTypeDownAction shiftType.id)
                             [("showInactiveShiftTypes", "true")]
                 moveShiftResponse `responseStatusShouldBe` status200
-                moveShiftResponse `responseBodyShouldContain` "id=\"admin-shift-types-fragment\""
-                moveShiftResponse `responseBodyShouldContain` "Fragment Shift"
+                lookup "HX-Reswap" (responseHeaders moveShiftResponse) `shouldBe` Just "none"
+                moveShiftResponse `responseBodyShouldNotContain` "id=\"admin-shift-types-fragment\""
+                moveShiftResponse `responseBodyShouldNotContain` "Fragment Shift"
                 moveShiftResponse `responseBodyShouldNotContain` "id=\"app\""
+                let moveShiftTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders moveShiftResponse)
+                moveShiftTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-shift-types-fragment")
                 shiftTypesVersionAfterMove <- currentLiveUpdateVersion (adminShiftTypesLiveScope (unpackId venue.id))
                 shiftTypesVersionAfterMove `shouldBe` shiftTypesVersionAfter
 
@@ -429,10 +435,13 @@ tests = beforeAll testContext do
                             , ("showInactiveShiftTypes", "true")
                             ]
                 updateShiftResponse `responseStatusShouldBe` status200
-                updateShiftResponse `responseBodyShouldContain` "Updated Fragment Shift"
-                updateShiftResponse `responseBodyShouldContain` "inactive"
+                lookup "HX-Reswap" (responseHeaders updateShiftResponse) `shouldBe` Just "none"
+                updateShiftResponse `responseBodyShouldNotContain` "Updated Fragment Shift"
+                updateShiftResponse `responseBodyShouldNotContain` "inactive"
                 updateShiftResponse `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
                 updateShiftResponse `responseBodyShouldNotContain` "hx-swap-oob=\"outerHTML\""
+                let updateShiftTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders updateShiftResponse)
+                updateShiftTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-shift-types-fragment")
                 xeroVersionAfterUpdateShift <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
                 xeroVersionAfterUpdateShift `shouldBe` xeroVersionAfterCreateShift
 
