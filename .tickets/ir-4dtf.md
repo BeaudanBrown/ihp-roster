@@ -1,6 +1,6 @@
 ---
 id: ir-4dtf
-status: open
+status: closed
 deps: [ir-uu3x]
 links: []
 created: 2026-05-29T03:16:10Z
@@ -21,3 +21,9 @@ Content/staff-panel mutation successes should emit actor-local semantic invalida
 ## Acceptance Criteria
 
 Roster content/staff-panel mutation success responses contain no authoritative business OOB. Pure navigation/refetch GET behavior is explicitly classified and remains correct. URL push, surface metadata, and scroll behavior are covered if changed.
+
+## Notes
+
+**2026-07-07T05:15:25Z**
+
+Migrated roster content/navigation/preference success helpers to semantic actor-local invalidation. respondWithRosterFragments now delegates to a shared actor invalidation helper, and respondWithRosterContentUpdate invalidates RosterProjectionContent plus toast instead of rendering content business HTML. Layout/warning/wage preference successes now emit semantic roster grid fragment invalidations through respondWithRosterFragmentsUpdate. Fragment GETs remain plain target-node HTML and tests fetch those GET endpoints to verify rendered layout/wage content after actor responses. Verification: hspec-test --match 'RosterWeeksController'.

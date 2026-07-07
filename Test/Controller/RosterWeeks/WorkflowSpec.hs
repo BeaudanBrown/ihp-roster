@@ -188,8 +188,11 @@ tests = beforeAll testContext do
                         callAction (CreateRosterWeekAction 0)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` cs rosterContentFragmentId
+                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
+                response `responseBodyShouldNotContain` cs rosterContentFragmentId
                 response `responseBodyShouldContain` "Roster week created successfully"
+                let createWeekTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                createWeekTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterContentFragmentId))
 
         it "manager can add a row to an auto-created draft week" $ withContext do
             withCleanDb do
@@ -514,15 +517,21 @@ tests = beforeAll testContext do
                             [("isLive", "on")]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` cs rosterContentFragmentId
+                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
+                response `responseBodyShouldNotContain` cs rosterContentFragmentId
                 response `responseBodyShouldContain` "Roster week is now live."
-                response `responseBodyShouldContain` ">Alpha<"
-                response `responseBodyShouldContain` "9:00 AM"
-                response `responseBodyShouldContain` ">Floor<"
-                response `responseBodyShouldNotContain` "data-roster-day-add=\"true\""
-                response `responseBodyShouldNotContain` "data-roster-day-remove=\"true\""
-                response `responseBodyShouldNotContain` "name=\"staffId\""
-                response `responseBodyShouldNotContain` "js-time-picker-trigger"
+                let publishTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                publishTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterContentFragmentId))
+
+                contentResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekContentFragmentAction 0)
+                contentResponse `responseBodyShouldContain` ">Alpha<"
+                contentResponse `responseBodyShouldContain` "9:00 AM"
+                contentResponse `responseBodyShouldContain` ">Floor<"
+                contentResponse `responseBodyShouldNotContain` "data-roster-day-add=\"true\""
+                contentResponse `responseBodyShouldNotContain` "data-roster-day-remove=\"true\""
+                contentResponse `responseBodyShouldNotContain` "name=\"staffId\""
+                contentResponse `responseBodyShouldNotContain` "js-time-picker-trigger"
 
         it "rejects invalid roster slot timing on create and update" $ withContext do
             withCleanDb do
@@ -645,7 +654,9 @@ tests = beforeAll testContext do
                             [("isLive", "on")]
 
                 response `responseStatusShouldBe` status200
+                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
                 response `responseBodyShouldContain` "Roster week is now live."
+                response `responseBodyShouldNotContain` cs rosterContentFragmentId
                 updatedWeek <- fetch rosterWeek.id
                 updatedWeek.isLive `shouldBe` True
 
@@ -810,13 +821,20 @@ tests = beforeAll testContext do
                             [("rosterLayoutMode", "day_columns")]
 
                 dayColumnsResponse `responseStatusShouldBe` status200
-                dayColumnsResponse `responseBodyShouldContain` "data-roster-layout=\"day_columns\""
-                dayColumnsResponse `responseBodyShouldContain` "Wages:"
-                dayColumnsResponse `responseBodyShouldContain` "roster-wage-summary-total"
-                dayColumnsResponse `responseBodyShouldContain` "roster-day-wage-total-labeled"
-                dayColumnsResponse `responseBodyShouldContain` "Wages"
-                dayColumnsResponse `responseBodyShouldContain` "aria-label=\"Wages for day\""
-                dayColumnsResponse `responseBodyShouldNotContain` "roster-wage-prediction"
+                lookup "HX-Reswap" (responseHeaders dayColumnsResponse) `shouldBe` Just "none"
+                dayColumnsResponse `responseBodyShouldNotContain` "data-roster-layout=\"day_columns\""
+                let dayColumnsTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders dayColumnsResponse)
+                dayColumnsTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterGridFrameFragmentId))
+
+                dayColumnsFrameResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction (ShowRosterWeekContentFragmentAction 0)
+                dayColumnsFrameResponse `responseBodyShouldContain` "data-roster-layout=\"day_columns\""
+                dayColumnsFrameResponse `responseBodyShouldContain` "Wages:"
+                dayColumnsFrameResponse `responseBodyShouldContain` "roster-wage-summary-total"
+                dayColumnsFrameResponse `responseBodyShouldContain` "roster-day-wage-total-labeled"
+                dayColumnsFrameResponse `responseBodyShouldContain` "Wages"
+                dayColumnsFrameResponse `responseBodyShouldContain` "aria-label=\"Wages for day\""
+                dayColumnsFrameResponse `responseBodyShouldNotContain` "roster-wage-prediction"
 
                 hiddenWagesResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -825,11 +843,18 @@ tests = beforeAll testContext do
                             []
 
                 hiddenWagesResponse `responseStatusShouldBe` status200
-                hiddenWagesResponse `responseBodyShouldContain` "data-roster-wages=\"hidden\""
-                hiddenWagesResponse `responseBodyShouldContain` "Wages disabled"
-                hiddenWagesResponse `responseBodyShouldNotContain` "Wages:"
-                hiddenWagesResponse `responseBodyShouldNotContain` "roster-wage-summary"
-                hiddenWagesResponse `responseBodyShouldNotContain` "roster-day-wage-total"
+                lookup "HX-Reswap" (responseHeaders hiddenWagesResponse) `shouldBe` Just "none"
+                hiddenWagesResponse `responseBodyShouldNotContain` "data-roster-wages=\"hidden\""
+                let hiddenWagesTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders hiddenWagesResponse)
+                hiddenWagesTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterGridFrameFragmentId))
+
+                hiddenWagesFrameResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction (ShowRosterWeekContentFragmentAction 0)
+                hiddenWagesFrameResponse `responseBodyShouldContain` "data-roster-wages=\"hidden\""
+                hiddenWagesFrameResponse `responseBodyShouldContain` "Wages disabled"
+                hiddenWagesFrameResponse `responseBodyShouldNotContain` "Wages:"
+                hiddenWagesFrameResponse `responseBodyShouldNotContain` "roster-wage-summary"
+                hiddenWagesFrameResponse `responseBodyShouldNotContain` "roster-day-wage-total"
                 hiddenPreferences <- query @UserPreference
                     |> filterWhere (#userId, unpackId admin.id)
                     |> fetchOne
@@ -889,13 +914,20 @@ tests = beforeAll testContext do
                             [("showWageEstimates", "true")]
 
                 toggleResponse `responseStatusShouldBe` status200
-                toggleResponse `responseBodyShouldContain` "data-roster-end-times=\"false\""
-                toggleResponse `responseBodyShouldContain` "Wages enabled"
-                toggleResponse `responseBodyShouldContain` "Wages:"
-                toggleResponse `responseBodyShouldContain` "$150.00"
-                toggleResponse `responseBodyShouldContain` "roster-wage-summary"
-                toggleResponse `responseBodyShouldContain` "roster-day-wage-total"
-                toggleResponse `responseBodyShouldNotContain` ">5:00 PM<"
+                lookup "HX-Reswap" (responseHeaders toggleResponse) `shouldBe` Just "none"
+                toggleResponse `responseBodyShouldNotContain` "data-roster-end-times=\"false\""
+                let shownWagesTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders toggleResponse)
+                shownWagesTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterGridFrameFragmentId))
+
+                shownWagesFrameResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction (ShowRosterWeekContentFragmentAction 0)
+                shownWagesFrameResponse `responseBodyShouldContain` "data-roster-end-times=\"false\""
+                shownWagesFrameResponse `responseBodyShouldContain` "Wages enabled"
+                shownWagesFrameResponse `responseBodyShouldContain` "Wages:"
+                shownWagesFrameResponse `responseBodyShouldContain` "$150.00"
+                shownWagesFrameResponse `responseBodyShouldContain` "roster-wage-summary"
+                shownWagesFrameResponse `responseBodyShouldContain` "roster-day-wage-total"
+                shownWagesFrameResponse `responseBodyShouldNotContain` ">5:00 PM<"
                 shownPreferences <- query @UserPreference
                     |> filterWhere (#userId, unpackId admin.id)
                     |> fetchOne
@@ -1382,9 +1414,11 @@ tests = beforeAll testContext do
                             [("rosterLayoutMode", "day_columns")]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-roster-layout=\"day_columns\""
-                response `responseBodyShouldContain` "hx-swap=\"none\""
-                response `responseBodyShouldContain` "roster-day-columns"
+                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
+                response `responseBodyShouldNotContain` "data-roster-layout=\"day_columns\""
+                response `responseBodyShouldNotContain` "roster-day-columns"
+                let layoutTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                layoutTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterGridFrameFragmentId))
 
                 preferences <- query @UserPreference
                     |> filterWhere (#userId, unpackId manager.id)

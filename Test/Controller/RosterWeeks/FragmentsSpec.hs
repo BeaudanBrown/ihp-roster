@@ -407,7 +407,12 @@ tests = beforeAll testContext do
                         callActionWithParams (UpdateRosterLayoutPreferenceAction 0) [("rosterLayoutMode", "day_columns")]
 
                 response `responseStatusShouldBe` status200
-                body <- responseBody response
+                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
+                response `responseBodyShouldNotContain` "roster-shift-card-empty roster-shift-card-create roster-shift-launcher roster-shift-create-plus-card"
+
+                fragmentResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekDayColumnsFragmentAction 0)
+                body <- responseBody fragmentResponse
                 let bodyText = cs body :: String
                 bodyText `shouldContain` "roster-shift-card-empty roster-shift-card-create roster-shift-launcher roster-shift-create-plus-card"
                 bodyText `shouldContain` "<span class=\"roster-shift-create-plus\" aria-hidden=\"true\">+</span>"
@@ -433,7 +438,12 @@ tests = beforeAll testContext do
                         callActionWithParams (UpdateRosterLayoutPreferenceAction 0) [("rosterLayoutMode", "day_columns")]
 
                 response `responseStatusShouldBe` status200
-                body <- responseBody response
+                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
+                response `responseBodyShouldNotContain` "roster-day-columns"
+
+                fragmentResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekDayColumnsFragmentAction 0)
+                body <- responseBody fragmentResponse
                 let bodyText = cs body :: String
                 let sourceGroupKey = "existing:" <> tshow sourceSlot.id
                 let targetGroupKey = "new:" <> tshow rosterDay.id <> ":" <> tshow sourceSlot.rosterWeekSlotDefinitionId <> ":1"

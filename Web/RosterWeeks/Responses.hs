@@ -9,6 +9,7 @@ module Web.RosterWeeks.Responses
     ) where
 
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
+import Application.Helper.LiveUpdate (setActorLiveFragmentsRefresh)
 import Application.Helper.Profiling (respondHtmlProfiled)
 import Application.Helper.RosterGroups (fetchCurrentVenueRosterGroupOrDefault,
                                         fetchCurrentVenueRosterGroups)
@@ -20,6 +21,10 @@ import qualified Data.Text.IO as TextIO
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
+import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
+                                        rosterMountedFragmentForProjection,
+                                        rosterSurfaceScope,
+                                        rosterSurfaceWireFragments)
 import Web.RosterWeeks.RenderData (fetchVisibleRosterReadModel,
                                    renderRosterProjectionFragmentWithMode,
                                    renderVisibleRosterReadModelFragment)
@@ -41,10 +46,19 @@ respondWithRosterFragmentsUpdate rosterGroupId weekOffset fragments toast =
     respondWithRosterFragments rosterGroupId weekOffset fragments (renderToastOob ToastBottomCenter toast)
 
 respondWithRosterFragments :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
-respondWithRosterFragments rosterGroupId weekOffset fragments extraHtml = do
-    rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
-    respondHtmlProfiled $
-        mconcat (mapMaybe (renderRosterProjectionFragmentWithMode (FragmentOob outerHtmlOobSwap) rosterData) (nub fragments)) <> extraHtml
+respondWithRosterFragments rosterGroupId weekOffset fragments extraHtml =
+    respondWithRosterActorInvalidation rosterGroupId weekOffset fragments extraHtml
+
+respondWithRosterActorInvalidation :: (?context :: ControllerContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
+respondWithRosterActorInvalidation rosterGroupId weekOffset fragments extraHtml = do
+    let scope = RosterWeekScopeValue
+            { rosterWeekVenueId = unpackId currentVenueId
+            , rosterWeekGroupId = rosterGroupId
+            , rosterWeekWeekOffset = weekOffset
+            }
+    setHeader ("HX-Reswap", "none")
+    setActorLiveFragmentsRefresh (rosterSurfaceScope scope) (rosterSurfaceWireFragments (map (rosterMountedFragmentForProjection scope) (nub fragments)))
+    respondHtmlProfiled extraHtml
 
 respondWithRosterContentOob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO ()
 respondWithRosterContentOob rosterGroupId weekOffset = do
@@ -87,7 +101,7 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
 
 respondWithRosterContentUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO ()
 respondWithRosterContentUpdate rosterGroupId weekOffset successMessage = do
-    respondWithRosterContentToast rosterGroupId weekOffset False (successToast successMessage)
+    respondWithRosterActorInvalidation rosterGroupId weekOffset [RosterProjectionContent] (renderToastOob ToastBottomCenter (successToast successMessage))
 
 respondWithRosterContentError :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO ()
 respondWithRosterContentError rosterGroupId weekOffset errorMessage = do
