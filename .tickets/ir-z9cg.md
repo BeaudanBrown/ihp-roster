@@ -1,6 +1,6 @@
 ---
 id: ir-z9cg
-status: open
+status: in_progress
 deps: []
 links: [ir-cpkv]
 created: 2026-07-07T07:24:38Z
@@ -21,3 +21,9 @@ Use the generated SurfaceAction pattern only for surface-owned request initiator
 
 Callsites in scope are classified; migrated surface-owned controls render through generated helpers; any CustomHtmx use is declared with a reason; focused typecheck/tests pass for the subsystem.
 
+
+## Notes
+
+**2026-07-07T08:30:04Z**
+
+Migrated Admin Shift Types create/update forms, move buttons, and inactive toggle to generated FrontendSurface action contracts. Autosave attrs on embedded input/select/toggle controls remain handwritten pending a generic arbitrary-control/action-attrs helper or shared AppToggle integration decision.

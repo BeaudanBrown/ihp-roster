@@ -22,6 +22,7 @@ module Web.Admin.FrontendSurface
     , adminXeroStaffMappingsFragment
     , adminXeroPayItemsFragment
     , adminXeroTimesheetsFragment
+    , adminShiftTypesAction
     , adminRosterGroupsAction
     ) where
 
@@ -94,7 +95,7 @@ adminExportsSurfaceImpl scope =
 adminShiftTypesSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminShiftTypesSurface
 adminShiftTypesSurfaceImpl scope =
     let config = mountConfig "admin-shift-types" scope [adminShiftTypesFragment]
-        impl = mkSurfaceImpl "admin-shift-types" config (unitHandlers scope adminShiftTypesFragment)
+        impl = mkSurfaceImpl "admin-shift-types" config (shiftTypesHandlers scope adminShiftTypesFragment)
      in impl
 
 adminRosterGroupsSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminRosterGroupsSurface
@@ -168,6 +169,26 @@ unitHandlers scope fragment =
         , surfaceIntentHandlers = HandlerNil
         }
 
+shiftTypesHandlers :: AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImplHandlers Surface.AdminShiftTypesSurface
+shiftTypesHandlers scope fragment =
+    SurfaceImplHandlers
+        { surfaceScopeHandlers = scopeHandler scope `HandlerCons` HandlerNil
+        , surfaceMountStateHandlers = HandlerNil
+        , surfaceFragmentHandlers = FrontendSurfaceFragmentHandler
+            { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
+            , fragmentHandlerMountedFragment = const fragment
+            , fragmentHandlerRender = const mempty
+            } `HandlerCons` HandlerNil
+        , surfaceActionHandlers =
+            adminActionHandler "create-shift-type" (pathTo CreateShiftTypeAction) `HandlerCons`
+            adminActionHandler "update-shift-type" (pathTo (UpdateShiftTypeAction (Id UUID.nil))) `HandlerCons`
+            adminActionHandler "move-shift-type-up" (pathTo (MoveShiftTypeUpAction (Id UUID.nil))) `HandlerCons`
+            adminActionHandler "move-shift-type-down" (pathTo (MoveShiftTypeDownAction (Id UUID.nil))) `HandlerCons`
+            adminActionHandler "toggle-inactive-shift-types" (pathTo ShowadminShiftTypesLiveFragmentAction) `HandlerCons`
+            HandlerNil
+        , surfaceIntentHandlers = HandlerNil
+        }
+
 rosterGroupsHandlers :: AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImplHandlers Surface.AdminRosterGroupsSurface
 rosterGroupsHandlers scope fragment =
     SurfaceImplHandlers
@@ -179,17 +200,17 @@ rosterGroupsHandlers scope fragment =
             , fragmentHandlerRender = const mempty
             } `HandlerCons` HandlerNil
         , surfaceActionHandlers =
-            rosterGroupsActionHandler "create-roster-group" (pathTo CreateRosterGroupAction) `HandlerCons`
-            rosterGroupsActionHandler "update-roster-group" (pathTo (UpdateRosterGroupAction (Id UUID.nil))) `HandlerCons`
-            rosterGroupsActionHandler "move-roster-group-up" (pathTo (MoveRosterGroupUpAction (Id UUID.nil))) `HandlerCons`
-            rosterGroupsActionHandler "move-roster-group-down" (pathTo (MoveRosterGroupDownAction (Id UUID.nil))) `HandlerCons`
-            rosterGroupsActionHandler "toggle-inactive-roster-groups" (pathTo ShowadminRosterGroupsLiveFragmentAction) `HandlerCons`
+            adminActionHandler "create-roster-group" (pathTo CreateRosterGroupAction) `HandlerCons`
+            adminActionHandler "update-roster-group" (pathTo (UpdateRosterGroupAction (Id UUID.nil))) `HandlerCons`
+            adminActionHandler "move-roster-group-up" (pathTo (MoveRosterGroupUpAction (Id UUID.nil))) `HandlerCons`
+            adminActionHandler "move-roster-group-down" (pathTo (MoveRosterGroupDownAction (Id UUID.nil))) `HandlerCons`
+            adminActionHandler "toggle-inactive-roster-groups" (pathTo ShowadminRosterGroupsLiveFragmentAction) `HandlerCons`
             HandlerNil
         , surfaceIntentHandlers = HandlerNil
         }
 
-rosterGroupsActionHandler :: Text -> Text -> FrontendSurfaceActionHandler ('Action marker fields options)
-rosterGroupsActionHandler actionName actionUrl = FrontendSurfaceActionHandler
+adminActionHandler :: Text -> Text -> FrontendSurfaceActionHandler ('Action marker fields options)
+adminActionHandler actionName actionUrl = FrontendSurfaceActionHandler
     { actionHandlerDefaultFields = frontendSurfaceFieldValues Aeson.Null
     , actionHandlerRequest = const FrontendSurfaceHtmxRequest
         { htmxRequestName = actionName
@@ -279,11 +300,17 @@ adminInvitesFragment :: Maybe UUID.UUID -> FrontendSurfaceMountedFragment
 adminInvitesFragment maybeRosterGroupId =
     fragment "admin-invites" "admin-invites-fragment" (appendQueryParams (pathTo ShowadminInvitesLiveFragmentAction) (maybe [] (\rg -> [("rosterGroupId", tshow rg)]) maybeRosterGroupId)) FrontendSurfaceReplace
 
+adminShiftTypesAction :: Text -> SurfaceIR.HtmxActionIR
+adminShiftTypesAction = adminSurfaceAction "admin-shift-types"
+
 adminRosterGroupsAction :: Text -> SurfaceIR.HtmxActionIR
-adminRosterGroupsAction actionName =
-    case [action | surface <- registeredFrontendSurfaceContractIR.contractSurfaces, surface.surfaceName == "admin-roster-groups", action <- surface.surfaceHtmxActions, action.htmxActionName == actionName] of
+adminRosterGroupsAction = adminSurfaceAction "admin-roster-groups"
+
+adminSurfaceAction :: Text -> Text -> SurfaceIR.HtmxActionIR
+adminSurfaceAction surfaceName actionName =
+    case [action | surface <- registeredFrontendSurfaceContractIR.contractSurfaces, surface.surfaceName == surfaceName, action <- surface.surfaceHtmxActions, action.htmxActionName == actionName] of
         action : _ -> action
-        [] -> error ("missing admin roster groups action contract: " <> cs actionName)
+        [] -> error ("missing " <> cs surfaceName <> " action contract: " <> cs actionName)
 
 fragment :: Text -> Text -> Text -> FrontendSurfaceProtection -> FrontendSurfaceMountedFragment
 fragment kind targetId url prot = FrontendSurfaceMountedFragment

@@ -36,8 +36,16 @@ module Application.Helper.FrontendContract.Surface.Admin
     , MoveRosterGroupUp
     , MoveRosterGroupDown
     , ToggleInactiveRosterGroups
+    , CreateShiftType
+    , UpdateShiftType
+    , MoveShiftTypeUp
+    , MoveShiftTypeDown
+    , ToggleInactiveShiftTypes
     , ShowInactiveRosterGroups
+    , ShowInactiveShiftTypes
     , Name
+    , PayRateSelection
+    , ColourKey
     , IsActive
     ) where
 
@@ -80,8 +88,16 @@ data UpdateRosterGroup
 data MoveRosterGroupUp
 data MoveRosterGroupDown
 data ToggleInactiveRosterGroups
+data CreateShiftType
+data UpdateShiftType
+data MoveShiftTypeUp
+data MoveShiftTypeDown
+data ToggleInactiveShiftTypes
 data ShowInactiveRosterGroups
+data ShowInactiveShiftTypes
 data Name
+data PayRateSelection
+data ColourKey
 data IsActive
 data None
 data OuterHTML
@@ -152,6 +168,53 @@ type AdminShiftTypesSurface =
     Surface AdminShiftTypes
         '[ Scope AdminShiftTypesScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
          , Fragment AdminShiftTypesFragment '[] '[ 'Eager, 'Live, 'DependsOn AdminShiftTypesResource '[ 'FromScope VenueId ] ]
+         , Action CreateShiftType
+            '[ Field ShowInactiveShiftTypes 'WireBool
+             , Field Name 'WireText
+             , Field PayRateSelection 'WireText
+             , Field ColourKey 'WireText
+             , Field IsActive 'WireBool
+             ]
+            '[ 'HtmxMethod 'HtmxPost
+             , 'HtmxTarget AdminShiftTypesFragment
+             , 'HtmxSwap OuterHTML
+             ]
+         , Action UpdateShiftType
+            '[ Field ShowInactiveShiftTypes 'WireBool
+             , Field Name 'WireText
+             , Field PayRateSelection 'WireText
+             , Field ColourKey 'WireText
+             , Field IsActive 'WireBool
+             ]
+            '[ 'HtmxMethod 'HtmxPost
+             , 'HtmxTarget AdminShiftTypesFragment
+             , 'HtmxSwap OuterHTML
+             ]
+         , Action MoveShiftTypeUp
+            '[ Field ShowInactiveShiftTypes 'WireBool ]
+            '[ 'HtmxMethod 'HtmxPost
+             , 'HtmxTrigger Click
+             , 'HtmxTarget AdminShiftTypesFragment
+             , 'HtmxSwap OuterHTML
+             , 'HtmxPushUrl 'HtmxPushUrlFalse
+             , 'CustomHtmx ClosestFormCustomHtmx "move buttons submit the containing row form via hx-include=closest form"
+             ]
+         , Action MoveShiftTypeDown
+            '[ Field ShowInactiveShiftTypes 'WireBool ]
+            '[ 'HtmxMethod 'HtmxPost
+             , 'HtmxTrigger Click
+             , 'HtmxTarget AdminShiftTypesFragment
+             , 'HtmxSwap OuterHTML
+             , 'HtmxPushUrl 'HtmxPushUrlFalse
+             , 'CustomHtmx ClosestFormCustomHtmx "move buttons submit the containing row form via hx-include=closest form"
+             ]
+         , Action ToggleInactiveShiftTypes
+            '[ Field ShowInactiveShiftTypes 'WireBool ]
+            '[ 'HtmxMethod 'HtmxGet
+             , 'HtmxTarget AdminShiftTypesFragment
+             , 'HtmxSwap OuterHTML
+             ]
+         , DomToken AdminShiftTypesFragment
          ]
 
 type AdminRosterGroupsSurface =

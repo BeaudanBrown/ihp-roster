@@ -1682,6 +1682,56 @@ export function parseAdminShiftTypesAdminShiftTypesFragmentFragmentParams(value:
 }
 export function encodeAdminShiftTypesAdminShiftTypesFragmentFragmentParams(value: AdminShiftTypesAdminShiftTypesFragmentFragmentParams): AdminShiftTypesAdminShiftTypesFragmentFragmentParams { return value; }
 
+export type AdminShiftTypesCreateShiftTypeActionFields = { showInactiveShiftTypes: boolean; name: string; payRateSelection: string; colourKey: string; isActive: boolean };
+export function isAdminShiftTypesCreateShiftTypeActionFields(value: unknown): value is AdminShiftTypesCreateShiftTypeActionFields {
+    return isRecord(value) && (typeof value["showInactiveShiftTypes"] === "boolean") && (typeof value["name"] === "string") && (typeof value["payRateSelection"] === "string") && (typeof value["colourKey"] === "string") && (typeof value["isActive"] === "boolean");
+}
+export function parseAdminShiftTypesCreateShiftTypeActionFields(value: unknown): AdminShiftTypesCreateShiftTypeActionFields {
+    if (isAdminShiftTypesCreateShiftTypeActionFields(value)) return value;
+    throw new Error("Invalid AdminShiftTypesCreateShiftTypeActionFields");
+}
+export function encodeAdminShiftTypesCreateShiftTypeActionFields(value: AdminShiftTypesCreateShiftTypeActionFields): AdminShiftTypesCreateShiftTypeActionFields { return value; }
+
+export type AdminShiftTypesUpdateShiftTypeActionFields = { showInactiveShiftTypes: boolean; name: string; payRateSelection: string; colourKey: string; isActive: boolean };
+export function isAdminShiftTypesUpdateShiftTypeActionFields(value: unknown): value is AdminShiftTypesUpdateShiftTypeActionFields {
+    return isRecord(value) && (typeof value["showInactiveShiftTypes"] === "boolean") && (typeof value["name"] === "string") && (typeof value["payRateSelection"] === "string") && (typeof value["colourKey"] === "string") && (typeof value["isActive"] === "boolean");
+}
+export function parseAdminShiftTypesUpdateShiftTypeActionFields(value: unknown): AdminShiftTypesUpdateShiftTypeActionFields {
+    if (isAdminShiftTypesUpdateShiftTypeActionFields(value)) return value;
+    throw new Error("Invalid AdminShiftTypesUpdateShiftTypeActionFields");
+}
+export function encodeAdminShiftTypesUpdateShiftTypeActionFields(value: AdminShiftTypesUpdateShiftTypeActionFields): AdminShiftTypesUpdateShiftTypeActionFields { return value; }
+
+export type AdminShiftTypesMoveShiftTypeUpActionFields = { showInactiveShiftTypes: boolean };
+export function isAdminShiftTypesMoveShiftTypeUpActionFields(value: unknown): value is AdminShiftTypesMoveShiftTypeUpActionFields {
+    return isRecord(value) && (typeof value["showInactiveShiftTypes"] === "boolean");
+}
+export function parseAdminShiftTypesMoveShiftTypeUpActionFields(value: unknown): AdminShiftTypesMoveShiftTypeUpActionFields {
+    if (isAdminShiftTypesMoveShiftTypeUpActionFields(value)) return value;
+    throw new Error("Invalid AdminShiftTypesMoveShiftTypeUpActionFields");
+}
+export function encodeAdminShiftTypesMoveShiftTypeUpActionFields(value: AdminShiftTypesMoveShiftTypeUpActionFields): AdminShiftTypesMoveShiftTypeUpActionFields { return value; }
+
+export type AdminShiftTypesMoveShiftTypeDownActionFields = { showInactiveShiftTypes: boolean };
+export function isAdminShiftTypesMoveShiftTypeDownActionFields(value: unknown): value is AdminShiftTypesMoveShiftTypeDownActionFields {
+    return isRecord(value) && (typeof value["showInactiveShiftTypes"] === "boolean");
+}
+export function parseAdminShiftTypesMoveShiftTypeDownActionFields(value: unknown): AdminShiftTypesMoveShiftTypeDownActionFields {
+    if (isAdminShiftTypesMoveShiftTypeDownActionFields(value)) return value;
+    throw new Error("Invalid AdminShiftTypesMoveShiftTypeDownActionFields");
+}
+export function encodeAdminShiftTypesMoveShiftTypeDownActionFields(value: AdminShiftTypesMoveShiftTypeDownActionFields): AdminShiftTypesMoveShiftTypeDownActionFields { return value; }
+
+export type AdminShiftTypesToggleInactiveShiftTypesActionFields = { showInactiveShiftTypes: boolean };
+export function isAdminShiftTypesToggleInactiveShiftTypesActionFields(value: unknown): value is AdminShiftTypesToggleInactiveShiftTypesActionFields {
+    return isRecord(value) && (typeof value["showInactiveShiftTypes"] === "boolean");
+}
+export function parseAdminShiftTypesToggleInactiveShiftTypesActionFields(value: unknown): AdminShiftTypesToggleInactiveShiftTypesActionFields {
+    if (isAdminShiftTypesToggleInactiveShiftTypesActionFields(value)) return value;
+    throw new Error("Invalid AdminShiftTypesToggleInactiveShiftTypesActionFields");
+}
+export function encodeAdminShiftTypesToggleInactiveShiftTypesActionFields(value: AdminShiftTypesToggleInactiveShiftTypesActionFields): AdminShiftTypesToggleInactiveShiftTypesActionFields { return value; }
+
 export type AdminRosterGroupsAdminRosterGroupsScopeScope = { venueId: FrontendContractUuid };
 export function isAdminRosterGroupsAdminRosterGroupsScopeScope(value: unknown): value is AdminRosterGroupsAdminRosterGroupsScopeScope {
     return isRecord(value) && (typeof value["venueId"] === "string");
@@ -1876,7 +1926,13 @@ export const adminExportsSurfaceManifest = {"surface":"admin-exports","scopes":[
 
 export type AdminShiftTypesSurfaceName = "admin-shift-types";
 export type AdminShiftTypesFragmentKey = AdminShiftTypesSurfaceFragmentKey;
-export const adminShiftTypesSurfaceManifest = {"surface":"admin-shift-types","scopes":["admin-shift-types"],"fragments":["admin-shift-types"],"liveFragments":["admin-shift-types"],"htmxActions":[],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":[],"overlayLanes":[],"containedSurfaces":{}} as const;
+export type CreateShiftTypeActionFields = AdminShiftTypesCreateShiftTypeActionFields;
+export type UpdateShiftTypeActionFields = AdminShiftTypesUpdateShiftTypeActionFields;
+export type MoveShiftTypeUpActionFields = AdminShiftTypesMoveShiftTypeUpActionFields;
+export type MoveShiftTypeDownActionFields = AdminShiftTypesMoveShiftTypeDownActionFields;
+export type ToggleInactiveShiftTypesActionFields = AdminShiftTypesToggleInactiveShiftTypesActionFields;
+export type AdminShiftTypesDomToken = "admin-shift-types-fragment";
+export const adminShiftTypesSurfaceManifest = {"surface":"admin-shift-types","scopes":["admin-shift-types"],"fragments":["admin-shift-types"],"liveFragments":["admin-shift-types"],"htmxActions":[{"name":"create-shift-type","fields":["showInactiveShiftTypes","name","payRateSelection","colourKey","isActive"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"admin-shift-types-fragment","swap":"outer-html","pushUrl":null,"custom":[]}},{"name":"update-shift-type","fields":["showInactiveShiftTypes","name","payRateSelection","colourKey","isActive"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"admin-shift-types-fragment","swap":"outer-html","pushUrl":null,"custom":[]}},{"name":"move-shift-type-up","fields":["showInactiveShiftTypes"],"htmx":{"method":"post","trigger":"click","include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"admin-shift-types-fragment","swap":"outer-html","pushUrl":false,"custom":[{"name":"closest-form-custom-htmx","reason":"move buttons submit the containing row form via hx-include=closest form"}]}},{"name":"move-shift-type-down","fields":["showInactiveShiftTypes"],"htmx":{"method":"post","trigger":"click","include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"admin-shift-types-fragment","swap":"outer-html","pushUrl":false,"custom":[{"name":"closest-form-custom-htmx","reason":"move buttons submit the containing row form via hx-include=closest form"}]}},{"name":"toggle-inactive-shift-types","fields":["showInactiveShiftTypes"],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"admin-shift-types-fragment","swap":"outer-html","pushUrl":null,"custom":[]}}],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":["admin-shift-types-fragment"],"overlayLanes":[],"containedSurfaces":{}} as const;
 
 export type AdminRosterGroupsSurfaceName = "admin-roster-groups";
 export type AdminRosterGroupsFragmentKey = AdminRosterGroupsSurfaceFragmentKey;
