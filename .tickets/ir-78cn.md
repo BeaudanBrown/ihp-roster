@@ -1,6 +1,6 @@
 ---
 id: ir-78cn
-status: open
+status: closed
 deps: [ir-kuyy, ir-7j0h, ir-5v0t]
 links: []
 created: 2026-05-29T03:16:11Z
@@ -21,3 +21,9 @@ This closeout phase inventories remaining OOB/direct hx-target paths, confirms i
 ## Acceptance Criteria
 
 No migrated `FrontendSurface` successful actor response emits authoritative business `hx-swap-oob` HTML. Remaining direct/OOB paths are classified as validation-local, extras-only, pure fragment GET/refetch, non-FrontendSurface, or separately ticketed legacy exceptions. Guardrails catch regressions. Canonical verification passes or unrelated failures are documented. The epic closeout note confirms duplicate-mount actor-local refresh and passive websocket invalidation coverage.
+
+## Notes
+
+**2026-07-07T05:25:57Z**
+
+Final app-wide pattern complete. Cleanup inventory, obsolete helper removal, guardrail tests, and final verification are closed. Migrated FrontendSurface success responses now consistently use actor-local semantic invalidation plus non-authoritative extras; authoritative business HTML is served by fragment GET/refetch endpoints.

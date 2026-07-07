@@ -1,6 +1,6 @@
 ---
 id: ir-cfcr
-status: open
+status: closed
 deps: []
 links: [ir-osr3, ir-jsyd, ir-21jr, ir-f2p4, ir-jooi, ir-zqp3, ir-p008, ir-62zx]
 created: 2026-05-29T03:16:06Z
@@ -32,3 +32,7 @@ Planning context: timesheets was already refactored in commits 6acdd86, f783b51,
 **2026-07-07T00:00:00Z**
 
 Architecture pivot: successful actor business OOB is superseded for migrated `FrontendSurface` surfaces. The target is actor-local semantic invalidation plus extras-only responses, with duplicate mounts resolved by the browser through current mount metadata.
+
+**2026-07-07T05:26:04Z**
+
+Epic complete. Retargeted architecture is implemented app-wide for migrated FrontendSurface surfaces: successful actor mutations commit resources, broadcast/passively invalidate through resource planning, and return actor-local semantic invalidation plus extras only. Migrated surfaces include Admin Xero, admin single-fragment sections, Timesheets, Profile, Leave Requests simple paths, and Roster. Fragment GET/refetch endpoints remain authoritative business HTML; validation-local/dialog/confirmation responses and extras-only OOB remain allowed. Duplicate mounted actor refresh and same-client websocket echo suppression are covered by frontend runtime tests; final frontend-check and full hspec-test passed. Intentional non-migrated exceptions are documented in ir-zmfc/ir-63jv.
