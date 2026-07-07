@@ -35,3 +35,7 @@ Added reusable applyFrontendSurfaceActionAttrs helper for generated action attrs
 **2026-07-07T09:08:06Z**
 
 Migrated Admin Venue Settings, Invites, and Exports request initiators to generated FrontendSurface actions. Fixed the venue settings fragment marker/target mismatch by using AdminVenueSettingsFragment so generated hx-target matches the mounted DOM id.
+
+**2026-07-07T09:08:45Z**
+
+Next decision point: Admin Xero still has substantial HTMX. Some controls are in-surface AdminXero mutations (reference sync, calendar/account-code selections, pay item creation/archive, staff mappings/suggestions) and can migrate. The Xero timesheet preparation and pay-item import modal flows target the global dialog overlay and look like workflow/dialog controls rather than AdminXero surface actions; need decide whether to model them as AdminXero actions, a separate dialog workflow surface, or the global HTMX helper lane.
