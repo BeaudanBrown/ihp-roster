@@ -4,6 +4,8 @@
 
 module Test.LiveUpdateSpec where
 
+import Application.Helper.FrontendContract.AppValues (AppEvents (..),
+                                                      canonicalAppEvents)
 import Application.Helper.FrontendContract.Surface.Authorization (frontendSurfaceScopeAuthorizationRequirement,
                                                                   validateFrontendSurfaceLiveSubscription)
 import Application.Helper.FrontendContract.Surface.AuthorizationRequirement (SurfaceScopeAuthorizationRequirement (..))
@@ -11,6 +13,7 @@ import Application.Helper.FrontendContract.Wire.Json (validateContractValue,
                                                       validateSurfaceFragmentKeyValue,
                                                       validateSurfaceScopeValue)
 import qualified Application.Helper.FrontendContract.Wire.LiveUpdate as Wire
+import Application.Helper.LiveUpdate (actorLiveFragmentsRefreshTriggerPayload)
 import Application.Helper.LiveUpdate.Runtime
 import Application.Support.LiveUpdates
 import qualified Data.Aeson as Aeson
@@ -52,6 +55,23 @@ tests = describe "LiveUpdate runtime types" do
             `shouldBe`
                 Aeson.toJSON
                     (Wire.Invalidate (surfaceScopeToWire scope) (surfaceScopeKey scope) 6 [surfaceWireFragmentToWire fragment] (Just "client-1"))
+
+    it "encodes actor-local refresh instructions in the shared HTMX trigger payload" do
+        let fragment =
+                SurfaceWireFragment
+                    { fragmentKey = adminXeroStaffMappingsLiveFragment
+                    , targetId = "xero-staff-mappings-data"
+                    , url = "/ShowadminXeroStaffMappingsLiveFragment"
+                    , deferUntilBlur = False
+                    , protectionPolicy = NoProtection
+                    }
+        actorLiveFragmentsRefreshTriggerPayload [fragment, fragment]
+            `shouldBe`
+                Aeson.object
+                    [ AesonKey.fromText canonicalAppEvents.appLiveFragmentsRefreshEventName Aeson..= Aeson.object
+                        [ "fragments" Aeson..= [fragment]
+                        ]
+                    ]
 
     it "round-trips roster, admin, leave, timesheet, and support scopes through JSON" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"

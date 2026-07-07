@@ -18,15 +18,12 @@ module Web.Admin.FrontendSurface
     , adminShiftTypesFragment
     , adminRosterGroupsFragment
     , adminSurfaceWireFragments
-    , setAdminXeroActorRefresh
     , adminXeroShellFragment
     , adminXeroStaffMappingsFragment
     , adminXeroPayItemsFragment
     , adminXeroTimesheetsFragment
     ) where
 
-import Application.Helper.FrontendContract.AppValues (AppEvents (..),
-                                                      canonicalAppEvents)
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import Application.Helper.FrontendContract.Surface.DSL
 import Application.Helper.FrontendContract.Surface.Runtime
@@ -34,8 +31,6 @@ import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
 import Application.Helper.Url (appendQueryParams)
 import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Key as AesonKey
-import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
@@ -217,21 +212,6 @@ invitesScopeHandler scope = FrontendSurfaceScopeHandler
     { scopeHandlerDefaultValue = frontendSurfaceFieldValues (Aeson.object ["venueId" Aeson..= tshow scope.adminVenueId])
     , scopeHandlerKey = \fields -> fromMaybe (tshow scope.adminVenueId) (getSurfaceField @Surface.VenueId fields)
     }
-
-setAdminXeroActorRefresh :: (?context :: ControllerContext, ?request :: Request) => [FrontendSurfaceMountedFragment] -> IO ()
-setAdminXeroActorRefresh fragments =
-    setHeader
-        ( "HX-Trigger"
-        , cs (Aeson.encode (adminRefreshTriggerPayload (adminSurfaceWireFragments fragments)))
-        )
-
-adminRefreshTriggerPayload :: [SurfaceWireFragment] -> Aeson.Value
-adminRefreshTriggerPayload fragments =
-    Aeson.object
-        [ AesonKey.fromText canonicalAppEvents.appLiveFragmentsRefreshEventName Aeson..= Aeson.object
-            [ "fragments" Aeson..= coalesceSurfaceWireFragments fragments
-            ]
-        ]
 
 adminSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [SurfaceWireFragment]
 adminSurfaceWireFragments fragments =

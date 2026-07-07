@@ -1,6 +1,6 @@
 ---
 id: ir-bt0z
-status: open
+status: closed
 deps: [ir-u03s]
 links: []
 created: 2026-07-07T04:09:19Z
@@ -22,3 +22,9 @@ Replace feature-specific ad hoc HX-Trigger JSON such as setAdminXeroActorRefresh
 
 Controllers can emit actor-local FrontendSurface invalidations through one shared helper. Header JSON shape is covered by tests. Existing Admin Xero refresh call sites can be moved to the helper. Feature modules do not hand-build live-fragments-refresh payload JSON.
 
+
+## Notes
+
+**2026-07-07T04:21:24Z**
+
+Added shared Application.Helper.LiveUpdate.setActorLiveFragmentsRefresh and pure actorLiveFragmentsRefreshTriggerPayload. Existing Admin Xero actor refresh call sites now use shared helper with AdminSurface.adminSurfaceWireFragments; feature-specific JSON construction was removed. Header payload shape/coalescing covered in Test.LiveUpdateSpec. Verification: bash ./bin/in-env hspec-test --match 'LiveUpdate runtime types' passed (16 examples); bash ./bin/in-env hspec-test --match 'Admin Xero' ran 0 examples because no spec names match that string.

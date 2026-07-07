@@ -1,5 +1,6 @@
 module Application.Helper.LiveUpdate
     ( SurfaceFragmentKey (..)
+    , SurfaceWireFragment (..)
     , SurfaceFragmentProtection (..)
     , FocusedFieldProtectionConfig (..)
     , SurfaceScope (..)
@@ -51,10 +52,32 @@ module Application.Helper.LiveUpdate
     , timesheetToolbarLiveFragment
     , timesheetWeekLiveScope
     , activeRosterWeekScopes
+    , actorLiveFragmentsRefreshTriggerPayload
     , currentLiveUpdateVersion
     , surfaceScopeFieldUuid
     , surfaceScopeKey
     , surfaceScopeKind
+    , setActorLiveFragmentsRefresh
     ) where
 
+import Application.Helper.FrontendContract.AppValues (AppEvents (..),
+                                                      canonicalAppEvents)
 import Application.Helper.LiveUpdate.Internal
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Key as AesonKey
+import IHP.ControllerPrelude
+
+setActorLiveFragmentsRefresh :: (?context :: ControllerContext, ?request :: Request) => [SurfaceWireFragment] -> IO ()
+setActorLiveFragmentsRefresh fragments =
+    setHeader
+        ( "HX-Trigger"
+        , cs (Aeson.encode (actorLiveFragmentsRefreshTriggerPayload fragments))
+        )
+
+actorLiveFragmentsRefreshTriggerPayload :: [SurfaceWireFragment] -> Aeson.Value
+actorLiveFragmentsRefreshTriggerPayload fragments =
+    Aeson.object
+        [ AesonKey.fromText canonicalAppEvents.appLiveFragmentsRefreshEventName Aeson..= Aeson.object
+            [ "fragments" Aeson..= coalesceSurfaceWireFragments fragments
+            ]
+        ]
