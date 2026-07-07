@@ -22,7 +22,7 @@ module Application.Helper.FrontendContract.Surface.Admin
     , RosterGroupId
     , AdminPageContentFragment
     , AdminXeroPageContentFragment
-    , AdminVenueConfigFragment
+    , AdminVenueSettingsFragment
     , AdminInvitesFragment
     , AdminExportsFragment
     , AdminShiftTypesFragment
@@ -36,6 +36,10 @@ module Application.Helper.FrontendContract.Surface.Admin
     , MoveRosterGroupUp
     , MoveRosterGroupDown
     , ToggleInactiveRosterGroups
+    , UpdateVenueConfig
+    , CreateVenueInvitation
+    , RevokeVenueInvitation
+    , CreateExportJob
     , CreateShiftType
     , UpdateShiftType
     , MoveShiftTypeUp
@@ -43,6 +47,13 @@ module Application.Helper.FrontendContract.Surface.Admin
     , AutosaveShiftTypeName
     , AutosaveShiftTypeSelection
     , ToggleInactiveShiftTypes
+    , ConfigFieldField
+    , RosterEndTimesEnabled
+    , AutoTimesheetCreationEnabled
+    , Email
+    , RangeStart
+    , RangeEnd
+    , ExportType
     , ShowInactiveRosterGroups
     , ShowInactiveShiftTypes
     , Name
@@ -75,7 +86,7 @@ data AdminXero
 
 data AdminPageContentFragment
 data AdminXeroPageContentFragment
-data AdminVenueConfigFragment
+data AdminVenueSettingsFragment
 data AdminInvitesFragment
 data AdminExportsFragment
 data AdminShiftTypesFragment
@@ -90,6 +101,10 @@ data UpdateRosterGroup
 data MoveRosterGroupUp
 data MoveRosterGroupDown
 data ToggleInactiveRosterGroups
+data UpdateVenueConfig
+data CreateVenueInvitation
+data RevokeVenueInvitation
+data CreateExportJob
 data CreateShiftType
 data UpdateShiftType
 data MoveShiftTypeUp
@@ -97,6 +112,13 @@ data MoveShiftTypeDown
 data AutosaveShiftTypeName
 data AutosaveShiftTypeSelection
 data ToggleInactiveShiftTypes
+data ConfigFieldField
+data RosterEndTimesEnabled
+data AutoTimesheetCreationEnabled
+data Email
+data RangeStart
+data RangeEnd
+data ExportType
 data ShowInactiveRosterGroups
 data ShowInactiveShiftTypes
 data Name
@@ -155,19 +177,55 @@ type AdminXeroPageSurface =
 type AdminVenueSettingsSurface =
     Surface AdminVenueConfig
         '[ Scope AdminVenueConfigScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
-         , Fragment AdminVenueConfigFragment '[] '[ 'Eager, 'Live, 'DependsOn AdminVenueSettingsResource '[ 'FromScope VenueId ] ]
+         , Fragment AdminVenueSettingsFragment '[] '[ 'Eager, 'Live, 'DependsOn AdminVenueSettingsResource '[ 'FromScope VenueId ] ]
+         , Action UpdateVenueConfig
+            '[ Field ConfigFieldField 'WireText
+             , OptionalField RosterEndTimesEnabled 'WireBool
+             , OptionalField AutoTimesheetCreationEnabled 'WireBool
+             ]
+            '[ 'HtmxMethod 'HtmxPost
+             , 'HtmxTarget AdminVenueSettingsFragment
+             , 'HtmxSwap None
+             , 'HtmxPushUrl 'HtmxPushUrlFalse
+             , 'CustomHtmx ChangeAutosaveCustomHtmx "venue setting toggles submit the containing form on change"
+             ]
+         , DomToken AdminVenueSettingsFragment
          ]
 
 type AdminInvitesSurface =
     Surface AdminInvites
         '[ Scope AdminInvitesScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
          , Fragment AdminInvitesFragment '[] '[ 'Eager, 'Live, 'DependsOn AdminInvitesResource '[ 'FromScope VenueId ] ]
+         , Action CreateVenueInvitation
+            '[ Field Email 'WireText ]
+            '[ 'HtmxMethod 'HtmxPost
+             , 'HtmxTarget AdminInvitesFragment
+             , 'HtmxSwap None
+             ]
+         , Action RevokeVenueInvitation
+            '[]
+            '[ 'HtmxMethod 'HtmxPost
+             , 'HtmxTarget AdminInvitesFragment
+             , 'HtmxSwap None
+             ]
+         , DomToken AdminInvitesFragment
          ]
 
 type AdminExportsSurface =
     Surface AdminExports
         '[ Scope AdminExportsScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
          , Fragment AdminExportsFragment '[] '[ 'Eager, 'Live, 'DependsOn AdminExportsResource '[ 'FromScope VenueId ] ]
+         , Action CreateExportJob
+            '[ Field RangeStart 'WireDay
+             , Field RangeEnd 'WireDay
+             , Field ExportType 'WireText
+             ]
+            '[ 'HtmxMethod 'HtmxPost
+             , 'HtmxTarget AdminExportsFragment
+             , 'HtmxSwap None
+             , 'HtmxPushUrl 'HtmxPushUrlFalse
+             ]
+         , DomToken AdminExportsFragment
          ]
 
 type AdminShiftTypesSurface =

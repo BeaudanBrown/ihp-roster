@@ -12,6 +12,9 @@ module Web.Admin.FrontendSurface
     , adminShiftTypesSurfaceImpl
     , adminRosterGroupsSurfaceImpl
     , adminXeroSurfaceImpl
+    , adminVenueSettingsAction
+    , adminInvitesAction
+    , adminExportsAction
     , adminVenueSettingsFragment
     , adminInvitesFragment
     , adminExportsFragment
@@ -76,7 +79,7 @@ adminXeroPageSurfaceImpl scope =
 adminVenueSettingsSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminVenueSettingsSurface
 adminVenueSettingsSurfaceImpl scope =
     let config = mountConfig "admin-venue-config" scope [adminVenueSettingsFragment]
-        impl = mkSurfaceImpl "admin-venue-config" config (unitHandlers scope adminVenueSettingsFragment)
+        impl = mkSurfaceImpl "admin-venue-config" config (venueSettingsHandlers scope adminVenueSettingsFragment)
      in impl
 
 adminInvitesSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminInvitesSurface
@@ -89,7 +92,7 @@ adminInvitesSurfaceImpl scope =
 adminExportsSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminExportsSurface
 adminExportsSurfaceImpl scope =
     let config = mountConfig "admin-exports" scope [adminExportsFragment]
-        impl = mkSurfaceImpl "admin-exports" config (unitHandlers scope adminExportsFragment)
+        impl = mkSurfaceImpl "admin-exports" config (exportsHandlers scope adminExportsFragment)
      in impl
 
 adminShiftTypesSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminShiftTypesSurface
@@ -169,6 +172,34 @@ unitHandlers scope fragment =
         , surfaceIntentHandlers = HandlerNil
         }
 
+venueSettingsHandlers :: AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImplHandlers Surface.AdminVenueSettingsSurface
+venueSettingsHandlers scope fragment =
+    SurfaceImplHandlers
+        { surfaceScopeHandlers = scopeHandler scope `HandlerCons` HandlerNil
+        , surfaceMountStateHandlers = HandlerNil
+        , surfaceFragmentHandlers = FrontendSurfaceFragmentHandler
+            { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
+            , fragmentHandlerMountedFragment = const fragment
+            , fragmentHandlerRender = const mempty
+            } `HandlerCons` HandlerNil
+        , surfaceActionHandlers = adminActionHandler "update-venue-config" (pathTo UpdateVenueConfigAction) `HandlerCons` HandlerNil
+        , surfaceIntentHandlers = HandlerNil
+        }
+
+exportsHandlers :: AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImplHandlers Surface.AdminExportsSurface
+exportsHandlers scope fragment =
+    SurfaceImplHandlers
+        { surfaceScopeHandlers = scopeHandler scope `HandlerCons` HandlerNil
+        , surfaceMountStateHandlers = HandlerNil
+        , surfaceFragmentHandlers = FrontendSurfaceFragmentHandler
+            { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
+            , fragmentHandlerMountedFragment = const fragment
+            , fragmentHandlerRender = const mempty
+            } `HandlerCons` HandlerNil
+        , surfaceActionHandlers = adminActionHandler "create-export-job" (pathTo CreateExportJobAction) `HandlerCons` HandlerNil
+        , surfaceIntentHandlers = HandlerNil
+        }
+
 shiftTypesHandlers :: AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImplHandlers Surface.AdminShiftTypesSurface
 shiftTypesHandlers scope fragment =
     SurfaceImplHandlers
@@ -234,7 +265,10 @@ invitesHandlers scope fragment =
             , fragmentHandlerMountedFragment = const fragment
             , fragmentHandlerRender = const mempty
             } `HandlerCons` HandlerNil
-        , surfaceActionHandlers = HandlerNil
+        , surfaceActionHandlers =
+            adminActionHandler "create-venue-invitation" (pathTo CreateVenueInvitationAction) `HandlerCons`
+            adminActionHandler "revoke-venue-invitation" (pathTo (RevokeVenueInvitationAction (Id UUID.nil))) `HandlerCons`
+            HandlerNil
         , surfaceIntentHandlers = HandlerNil
         }
 
@@ -301,6 +335,15 @@ adminXeroTimesheetsFragment = fragment "admin-xero-timesheets" "xero-timesheets-
 adminInvitesFragment :: Maybe UUID.UUID -> FrontendSurfaceMountedFragment
 adminInvitesFragment maybeRosterGroupId =
     fragment "admin-invites" "admin-invites-fragment" (appendQueryParams (pathTo ShowadminInvitesLiveFragmentAction) (maybe [] (\rg -> [("rosterGroupId", tshow rg)]) maybeRosterGroupId)) FrontendSurfaceReplace
+
+adminVenueSettingsAction :: Text -> SurfaceIR.HtmxActionIR
+adminVenueSettingsAction = adminSurfaceAction "admin-venue-config"
+
+adminInvitesAction :: Text -> SurfaceIR.HtmxActionIR
+adminInvitesAction = adminSurfaceAction "admin-invites"
+
+adminExportsAction :: Text -> SurfaceIR.HtmxActionIR
+adminExportsAction = adminSurfaceAction "admin-exports"
 
 adminShiftTypesAction :: Text -> SurfaceIR.HtmxActionIR
 adminShiftTypesAction = adminSurfaceAction "admin-shift-types"

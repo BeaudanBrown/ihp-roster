@@ -294,9 +294,9 @@ export function parseAdminXeroPageSurfaceFragmentKey(value: unknown): AdminXeroP
 export function encodeAdminXeroPageSurfaceFragmentKey(value: AdminXeroPageSurfaceFragmentKey): AdminXeroPageSurfaceFragmentKey { return value; }
 
 export type AdminVenueConfigSurfaceFragmentKey =
-    { kind: "admin-venue-config"; params: AdminVenueConfigAdminVenueConfigFragmentFragmentParams | null };
+    { kind: "admin-venue-settings"; params: AdminVenueConfigAdminVenueSettingsFragmentFragmentParams | null };
 export function isAdminVenueConfigSurfaceFragmentKey(value: unknown): value is AdminVenueConfigSurfaceFragmentKey {
-    return ((isRecord(value) && value.kind === "admin-venue-config" && (value["params"] === null || isRecord(value["params"]))));
+    return ((isRecord(value) && value.kind === "admin-venue-settings" && (value["params"] === null || isRecord(value["params"]))));
 }
 export function parseAdminVenueConfigSurfaceFragmentKey(value: unknown): AdminVenueConfigSurfaceFragmentKey {
     if (isAdminVenueConfigSurfaceFragmentKey(value)) return value;
@@ -1612,15 +1612,25 @@ export function parseAdminVenueConfigAdminVenueConfigScopeScope(value: unknown):
 }
 export function encodeAdminVenueConfigAdminVenueConfigScopeScope(value: AdminVenueConfigAdminVenueConfigScopeScope): AdminVenueConfigAdminVenueConfigScopeScope { return value; }
 
-export type AdminVenueConfigAdminVenueConfigFragmentFragmentParams = {  };
-export function isAdminVenueConfigAdminVenueConfigFragmentFragmentParams(value: unknown): value is AdminVenueConfigAdminVenueConfigFragmentFragmentParams {
+export type AdminVenueConfigAdminVenueSettingsFragmentFragmentParams = {  };
+export function isAdminVenueConfigAdminVenueSettingsFragmentFragmentParams(value: unknown): value is AdminVenueConfigAdminVenueSettingsFragmentFragmentParams {
     return isRecord(value);
 }
-export function parseAdminVenueConfigAdminVenueConfigFragmentFragmentParams(value: unknown): AdminVenueConfigAdminVenueConfigFragmentFragmentParams {
-    if (isAdminVenueConfigAdminVenueConfigFragmentFragmentParams(value)) return value;
-    throw new Error("Invalid AdminVenueConfigAdminVenueConfigFragmentFragmentParams");
+export function parseAdminVenueConfigAdminVenueSettingsFragmentFragmentParams(value: unknown): AdminVenueConfigAdminVenueSettingsFragmentFragmentParams {
+    if (isAdminVenueConfigAdminVenueSettingsFragmentFragmentParams(value)) return value;
+    throw new Error("Invalid AdminVenueConfigAdminVenueSettingsFragmentFragmentParams");
 }
-export function encodeAdminVenueConfigAdminVenueConfigFragmentFragmentParams(value: AdminVenueConfigAdminVenueConfigFragmentFragmentParams): AdminVenueConfigAdminVenueConfigFragmentFragmentParams { return value; }
+export function encodeAdminVenueConfigAdminVenueSettingsFragmentFragmentParams(value: AdminVenueConfigAdminVenueSettingsFragmentFragmentParams): AdminVenueConfigAdminVenueSettingsFragmentFragmentParams { return value; }
+
+export type AdminVenueConfigUpdateVenueConfigActionFields = { configField: string; rosterEndTimesEnabled?: boolean; autoTimesheetCreationEnabled?: boolean };
+export function isAdminVenueConfigUpdateVenueConfigActionFields(value: unknown): value is AdminVenueConfigUpdateVenueConfigActionFields {
+    return isRecord(value) && (typeof value["configField"] === "string") && (!("rosterEndTimesEnabled" in value) || (typeof value["rosterEndTimesEnabled"] === "boolean")) && (!("autoTimesheetCreationEnabled" in value) || (typeof value["autoTimesheetCreationEnabled"] === "boolean"));
+}
+export function parseAdminVenueConfigUpdateVenueConfigActionFields(value: unknown): AdminVenueConfigUpdateVenueConfigActionFields {
+    if (isAdminVenueConfigUpdateVenueConfigActionFields(value)) return value;
+    throw new Error("Invalid AdminVenueConfigUpdateVenueConfigActionFields");
+}
+export function encodeAdminVenueConfigUpdateVenueConfigActionFields(value: AdminVenueConfigUpdateVenueConfigActionFields): AdminVenueConfigUpdateVenueConfigActionFields { return value; }
 
 export type AdminInvitesAdminInvitesScopeScope = { venueId: FrontendContractUuid };
 export function isAdminInvitesAdminInvitesScopeScope(value: unknown): value is AdminInvitesAdminInvitesScopeScope {
@@ -1642,6 +1652,26 @@ export function parseAdminInvitesAdminInvitesFragmentFragmentParams(value: unkno
 }
 export function encodeAdminInvitesAdminInvitesFragmentFragmentParams(value: AdminInvitesAdminInvitesFragmentFragmentParams): AdminInvitesAdminInvitesFragmentFragmentParams { return value; }
 
+export type AdminInvitesCreateVenueInvitationActionFields = { email: string };
+export function isAdminInvitesCreateVenueInvitationActionFields(value: unknown): value is AdminInvitesCreateVenueInvitationActionFields {
+    return isRecord(value) && (typeof value["email"] === "string");
+}
+export function parseAdminInvitesCreateVenueInvitationActionFields(value: unknown): AdminInvitesCreateVenueInvitationActionFields {
+    if (isAdminInvitesCreateVenueInvitationActionFields(value)) return value;
+    throw new Error("Invalid AdminInvitesCreateVenueInvitationActionFields");
+}
+export function encodeAdminInvitesCreateVenueInvitationActionFields(value: AdminInvitesCreateVenueInvitationActionFields): AdminInvitesCreateVenueInvitationActionFields { return value; }
+
+export type AdminInvitesRevokeVenueInvitationActionFields = {  };
+export function isAdminInvitesRevokeVenueInvitationActionFields(value: unknown): value is AdminInvitesRevokeVenueInvitationActionFields {
+    return isRecord(value);
+}
+export function parseAdminInvitesRevokeVenueInvitationActionFields(value: unknown): AdminInvitesRevokeVenueInvitationActionFields {
+    if (isAdminInvitesRevokeVenueInvitationActionFields(value)) return value;
+    throw new Error("Invalid AdminInvitesRevokeVenueInvitationActionFields");
+}
+export function encodeAdminInvitesRevokeVenueInvitationActionFields(value: AdminInvitesRevokeVenueInvitationActionFields): AdminInvitesRevokeVenueInvitationActionFields { return value; }
+
 export type AdminExportsAdminExportsScopeScope = { venueId: FrontendContractUuid };
 export function isAdminExportsAdminExportsScopeScope(value: unknown): value is AdminExportsAdminExportsScopeScope {
     return isRecord(value) && (typeof value["venueId"] === "string");
@@ -1661,6 +1691,16 @@ export function parseAdminExportsAdminExportsFragmentFragmentParams(value: unkno
     throw new Error("Invalid AdminExportsAdminExportsFragmentFragmentParams");
 }
 export function encodeAdminExportsAdminExportsFragmentFragmentParams(value: AdminExportsAdminExportsFragmentFragmentParams): AdminExportsAdminExportsFragmentFragmentParams { return value; }
+
+export type AdminExportsCreateExportJobActionFields = { rangeStart: FrontendContractDay; rangeEnd: FrontendContractDay; exportType: string };
+export function isAdminExportsCreateExportJobActionFields(value: unknown): value is AdminExportsCreateExportJobActionFields {
+    return isRecord(value) && (typeof value["rangeStart"] === "string") && (typeof value["rangeEnd"] === "string") && (typeof value["exportType"] === "string");
+}
+export function parseAdminExportsCreateExportJobActionFields(value: unknown): AdminExportsCreateExportJobActionFields {
+    if (isAdminExportsCreateExportJobActionFields(value)) return value;
+    throw new Error("Invalid AdminExportsCreateExportJobActionFields");
+}
+export function encodeAdminExportsCreateExportJobActionFields(value: AdminExportsCreateExportJobActionFields): AdminExportsCreateExportJobActionFields { return value; }
 
 export type AdminShiftTypesAdminShiftTypesScopeScope = { venueId: FrontendContractUuid };
 export function isAdminShiftTypesAdminShiftTypesScopeScope(value: unknown): value is AdminShiftTypesAdminShiftTypesScopeScope {
@@ -1934,15 +1974,22 @@ export const adminXeroPageSurfaceManifest = {"surface":"admin-xero-page","scopes
 
 export type AdminVenueConfigSurfaceName = "admin-venue-config";
 export type AdminVenueConfigFragmentKey = AdminVenueConfigSurfaceFragmentKey;
-export const adminVenueConfigSurfaceManifest = {"surface":"admin-venue-config","scopes":["admin-venue-config"],"fragments":["admin-venue-config"],"liveFragments":["admin-venue-config"],"htmxActions":[],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":[],"overlayLanes":[],"containedSurfaces":{}} as const;
+export type UpdateVenueConfigActionFields = AdminVenueConfigUpdateVenueConfigActionFields;
+export type AdminVenueConfigDomToken = "admin-venue-settings-fragment";
+export const adminVenueConfigSurfaceManifest = {"surface":"admin-venue-config","scopes":["admin-venue-config"],"fragments":["admin-venue-settings"],"liveFragments":["admin-venue-settings"],"htmxActions":[{"name":"update-venue-config","fields":["configField","rosterEndTimesEnabled","autoTimesheetCreationEnabled"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"admin-venue-settings-fragment","swap":"none","pushUrl":false,"custom":[{"name":"change-autosave-custom-htmx","reason":"venue setting toggles submit the containing form on change"}]}}],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":["admin-venue-settings-fragment"],"overlayLanes":[],"containedSurfaces":{}} as const;
 
 export type AdminInvitesSurfaceName = "admin-invites";
 export type AdminInvitesFragmentKey = AdminInvitesSurfaceFragmentKey;
-export const adminInvitesSurfaceManifest = {"surface":"admin-invites","scopes":["admin-invites"],"fragments":["admin-invites"],"liveFragments":["admin-invites"],"htmxActions":[],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":[],"overlayLanes":[],"containedSurfaces":{}} as const;
+export type CreateVenueInvitationActionFields = AdminInvitesCreateVenueInvitationActionFields;
+export type RevokeVenueInvitationActionFields = AdminInvitesRevokeVenueInvitationActionFields;
+export type AdminInvitesDomToken = "admin-invites-fragment";
+export const adminInvitesSurfaceManifest = {"surface":"admin-invites","scopes":["admin-invites"],"fragments":["admin-invites"],"liveFragments":["admin-invites"],"htmxActions":[{"name":"create-venue-invitation","fields":["email"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"admin-invites-fragment","swap":"none","pushUrl":null,"custom":[]}},{"name":"revoke-venue-invitation","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"admin-invites-fragment","swap":"none","pushUrl":null,"custom":[]}}],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":["admin-invites-fragment"],"overlayLanes":[],"containedSurfaces":{}} as const;
 
 export type AdminExportsSurfaceName = "admin-exports";
 export type AdminExportsFragmentKey = AdminExportsSurfaceFragmentKey;
-export const adminExportsSurfaceManifest = {"surface":"admin-exports","scopes":["admin-exports"],"fragments":["admin-exports"],"liveFragments":["admin-exports"],"htmxActions":[],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":[],"overlayLanes":[],"containedSurfaces":{}} as const;
+export type CreateExportJobActionFields = AdminExportsCreateExportJobActionFields;
+export type AdminExportsDomToken = "admin-exports-fragment";
+export const adminExportsSurfaceManifest = {"surface":"admin-exports","scopes":["admin-exports"],"fragments":["admin-exports"],"liveFragments":["admin-exports"],"htmxActions":[{"name":"create-export-job","fields":["rangeStart","rangeEnd","exportType"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"admin-exports-fragment","swap":"none","pushUrl":false,"custom":[]}}],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":["admin-exports-fragment"],"overlayLanes":[],"containedSurfaces":{}} as const;
 
 export type AdminShiftTypesSurfaceName = "admin-shift-types";
 export type AdminShiftTypesFragmentKey = AdminShiftTypesSurfaceFragmentKey;

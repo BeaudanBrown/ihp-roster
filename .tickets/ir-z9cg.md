@@ -31,3 +31,7 @@ Migrated Admin Shift Types create/update forms, move buttons, and inactive toggl
 **2026-07-07T08:59:37Z**
 
 Added reusable applyFrontendSurfaceActionAttrs helper for generated action attrs on arbitrary controls. Migrated Shift Type name/pay-rate/colour autosave controls to generated actions with explicit CustomHtmx for HTMX extended trigger/include strings; active toggle still needs shared AppToggle integration.
+
+**2026-07-07T09:08:06Z**
+
+Migrated Admin Venue Settings, Invites, and Exports request initiators to generated FrontendSurface actions. Fixed the venue settings fragment marker/target mismatch by using AdminVenueSettingsFragment so generated hx-target matches the mounted DOM id.

@@ -7,8 +7,12 @@ module Web.View.Admin.VenueSettings
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
-import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            FrontendSurfaceCustomHtmxAttrs (..),
+                                                            renderFrontendSurfaceActionForm,
+                                                            renderFrontendSurfaceMount)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
+                                  adminVenueSettingsAction,
                                   adminVenueSettingsSurfaceImpl)
 import Web.View.Admin.Common
 import Web.View.Prelude
@@ -49,15 +53,8 @@ renderVenueSettingsSection venueConfig =
         |]
 
 renderRosterEndTimesForm :: VenueConfig -> Html
-renderRosterEndTimesForm venueConfig = [hsx|
-    <form method="POST"
-          action={UpdateVenueConfigAction}
-          class="admin-setting-row"
-          data-disable-javascript-submission="true"
-          hx-post={UpdateVenueConfigAction}
-          hx-target={"#" <> adminVenueSettingsFragmentId}
-          hx-swap="none"
-          hx-push-url="false">
+renderRosterEndTimesForm venueConfig =
+    renderFrontendSurfaceActionForm (adminVenueSettingsAction "update-venue-config") venueSettingRoute [hsx|
         <input type="hidden" name="configField" value="rosterEndTimesEnabled" />
         <div class="admin-setting-row-copy">
             <div class="fw-semibold">Show shift end times in roster</div>
@@ -66,19 +63,11 @@ renderRosterEndTimesForm venueConfig = [hsx|
         <div class="admin-setting-row-control">
             {renderVenueSettingToggle "venue-roster-end-times-enabled" "rosterEndTimesEnabled" venueConfig.rosterEndTimesEnabled}
         </div>
-    </form>
-|]
+    |]
 
 renderAutoTimesheetCreationForm :: VenueConfig -> Html
-renderAutoTimesheetCreationForm venueConfig = [hsx|
-    <form method="POST"
-          action={UpdateVenueConfigAction}
-          class="admin-setting-row"
-          data-disable-javascript-submission="true"
-          hx-post={UpdateVenueConfigAction}
-          hx-target={"#" <> adminVenueSettingsFragmentId}
-          hx-swap="none"
-          hx-push-url="false">
+renderAutoTimesheetCreationForm venueConfig =
+    renderFrontendSurfaceActionForm (adminVenueSettingsAction "update-venue-config") venueSettingRoute [hsx|
         <input type="hidden" name="configField" value="autoTimesheetCreationEnabled" />
         <div class="admin-setting-row-copy">
             <div class="fw-semibold">Auto-create pending timesheets</div>
@@ -87,8 +76,7 @@ renderAutoTimesheetCreationForm venueConfig = [hsx|
         <div class="admin-setting-row-control">
             {renderVenueSettingToggle "venue-auto-timesheet-creation-enabled" "autoTimesheetCreationEnabled" venueConfig.autoTimesheetCreationEnabled}
         </div>
-    </form>
-|]
+    |]
 
 renderVenueSettingToggle :: Text -> Text -> Bool -> Html
 renderVenueSettingToggle inputId fieldName isEnabled =
@@ -98,11 +86,14 @@ renderVenueSettingToggle inputId fieldName isEnabled =
         , appToggleButtonClass = "btn-sm"
         , appToggleRoleSwitch = True
         , appToggleOnChange = Just "if (!window.htmx) this.form.requestSubmit()"
-        , appToggleHxPost = Just (pathTo UpdateVenueConfigAction)
-        , appToggleHxTrigger = Just "change"
-        , appToggleHxInclude = Just "closest form"
-        , appToggleHxTarget = Just ("#" <> adminVenueSettingsFragmentId)
-        , appToggleHxSwap = Just "none"
-        , appToggleHxPushUrl = Just "false"
         }
+
+venueSettingRoute :: FrontendSurfaceActionRoute
+venueSettingRoute = FrontendSurfaceActionRoute
+    { actionRouteUrl = pathTo UpdateVenueConfigAction
+    , actionRouteFields = []
+    , actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "change-autosave-custom-htmx" [("hx-trigger", "change")]]
+    , actionRouteStandardUrl = Just (pathTo UpdateVenueConfigAction)
+    , actionRouteExtraAttrs = [("class", "admin-setting-row"), ("data-disable-javascript-submission", "true")]
+    }
 

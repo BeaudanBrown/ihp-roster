@@ -6,12 +6,14 @@ module Web.View.Admin.Invites
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
-import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            renderFrontendSurfaceActionForm,
+                                                            renderFrontendSurfaceMount)
 import Application.Helper.UiRegion (UiRegionTransitionProfile (..))
 import qualified Text.Blaze.Html as Blaze
 import Text.Blaze.Html ((!))
 import qualified Text.Blaze.Html5 as Html5
-import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
+import Web.Admin.FrontendSurface (AdminVenueScopeValue (..), adminInvitesAction,
                                   adminInvitesSurfaceImpl)
 import Web.View.Admin.Common
 import Web.View.Prelude
@@ -27,16 +29,8 @@ renderInvitesSection invitations rosterGroupId =
         |]
 
 renderInviteCreateForm :: Id RosterGroup -> Html
-renderInviteCreateForm rosterGroupId = [hsx|
-    <form
-        method="POST"
-        action={appendQueryParams (pathTo CreateVenueInvitationAction) [("rosterGroupId", tshow rosterGroupId)]}
-        class={appSurfaceClasses "p-3"}
-        data-disable-javascript-submission="true"
-        hx-post={appendQueryParams (pathTo CreateVenueInvitationAction) [("rosterGroupId", tshow rosterGroupId)]}
-        hx-target="#admin-invites-fragment"
-        hx-swap="none"
-    >
+renderInviteCreateForm rosterGroupId =
+    renderFrontendSurfaceActionForm (adminInvitesAction "create-venue-invitation") (inviteCreateRoute rosterGroupId) [hsx|
         <div class="row g-2 align-items-end">
             <div class="col-12 col-md-9">
                 <label class="form-label" for="new-invite-email">Email</label>
@@ -46,8 +40,16 @@ renderInviteCreateForm rosterGroupId = [hsx|
                 <button class="btn btn-outline-primary w-100" type="submit">Send</button>
             </div>
         </div>
-    </form>
-|]
+    |]
+
+inviteCreateRoute :: Id RosterGroup -> FrontendSurfaceActionRoute
+inviteCreateRoute rosterGroupId = FrontendSurfaceActionRoute
+    { actionRouteUrl = appendQueryParams (pathTo CreateVenueInvitationAction) [("rosterGroupId", tshow rosterGroupId)]
+    , actionRouteFields = []
+    , actionRouteCustomHtmx = []
+    , actionRouteStandardUrl = Just (appendQueryParams (pathTo CreateVenueInvitationAction) [("rosterGroupId", tshow rosterGroupId)])
+    , actionRouteExtraAttrs = [("class", appSurfaceClasses "p-3"), ("data-disable-javascript-submission", "true")]
+    }
 
 renderInvitesSectionFragment :: [VenueInvitation] -> Id RosterGroup -> Html
 renderInvitesSectionFragment =
@@ -115,16 +117,16 @@ renderInvitationStatusBadge invitation =
 renderInviteRowActions :: Id RosterGroup -> VenueInvitation -> Html
 renderInviteRowActions rosterGroupId invitation
     | inputValue invitation.status /= "pending" = mempty
-    | otherwise = [hsx|
-        <form
-            method="POST"
-            action={appendQueryParams (pathTo (RevokeVenueInvitationAction invitation.id)) [("rosterGroupId", tshow rosterGroupId)]}
-            class="d-inline"
-            data-disable-javascript-submission="true"
-            hx-post={appendQueryParams (pathTo (RevokeVenueInvitationAction invitation.id)) [("rosterGroupId", tshow rosterGroupId)]}
-            hx-target="#admin-invites-fragment"
-            hx-swap="none"
-        >
+    | otherwise =
+        renderFrontendSurfaceActionForm (adminInvitesAction "revoke-venue-invitation") revokeRoute [hsx|
             <button class="btn btn-sm btn-outline-danger" type="submit">Revoke</button>
-        </form>
-    |]
+        |]
+    where
+        revokeUrl = appendQueryParams (pathTo (RevokeVenueInvitationAction invitation.id)) [("rosterGroupId", tshow rosterGroupId)]
+        revokeRoute = FrontendSurfaceActionRoute
+            { actionRouteUrl = revokeUrl
+            , actionRouteFields = []
+            , actionRouteCustomHtmx = []
+            , actionRouteStandardUrl = Just revokeUrl
+            , actionRouteExtraAttrs = [("class", "d-inline"), ("data-disable-javascript-submission", "true")]
+            }

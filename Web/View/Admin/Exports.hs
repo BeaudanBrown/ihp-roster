@@ -8,8 +8,10 @@ module Web.View.Admin.Exports
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.Export
-import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
-import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            renderFrontendSurfaceActionForm,
+                                                            renderFrontendSurfaceMount)
+import Web.Admin.FrontendSurface (AdminVenueScopeValue (..), adminExportsAction,
                                   adminExportsSurfaceImpl)
 import Web.View.Admin.Common
 import Web.View.Prelude
@@ -43,36 +45,41 @@ renderExportsSection _reportWeekSelection defaultRangeStart defaultRangeEnd expo
         (renderExportSummary exportJobs)
         mempty
         [hsx|
-            <form id="admin-export-generation-form"
-                  method="POST"
-                  action={CreateExportJobAction}
-                  class={appSurfaceClasses "p-3"}
-                  data-disable-javascript-submission="true"
-                  hx-post={CreateExportJobAction}
-                  hx-target={"#" <> adminExportsFragmentId}
-                  hx-swap="none"
-                  hx-push-url="false">
-                <div class="row g-3 align-items-end">
-                    <div class="col-12 col-md-4 col-lg-3">
-                        <label class="form-label" for="admin-export-range-start">From</label>
-                        <input id="admin-export-range-start" class="form-control" type="date" name="rangeStart" value={tshow defaultRangeStart} required={True} />
-                    </div>
-                    <div class="col-12 col-md-4 col-lg-3">
-                        <label class="form-label" for="admin-export-range-end">To</label>
-                        <input id="admin-export-range-end" class="form-control" type="date" name="rangeEnd" value={tshow defaultRangeEnd} required={True} />
-                    </div>
-                    <div class="col-12">
-                        <div class="row g-2">
-                            {forEach fixedExportDefinitions renderFixedExportAction}
-                        </div>
-                    </div>
-                </div>
-            </form>
+            {renderExportGenerationForm defaultRangeStart defaultRangeEnd}
             <div class="mt-4">
                 <div class="fw-semibold mb-2">Recent Exports</div>
                 {if null exportJobs then renderEmptyState "No export jobs yet." else renderExportTable exportJobs}
             </div>
         |]
+
+renderExportGenerationForm :: Day -> Day -> Html
+renderExportGenerationForm defaultRangeStart defaultRangeEnd =
+    renderFrontendSurfaceActionForm (adminExportsAction "create-export-job") createExportRoute [hsx|
+        <div class="row g-3 align-items-end">
+            <div class="col-12 col-md-4 col-lg-3">
+                <label class="form-label" for="admin-export-range-start">From</label>
+                <input id="admin-export-range-start" class="form-control" type="date" name="rangeStart" value={tshow defaultRangeStart} required={True} />
+            </div>
+            <div class="col-12 col-md-4 col-lg-3">
+                <label class="form-label" for="admin-export-range-end">To</label>
+                <input id="admin-export-range-end" class="form-control" type="date" name="rangeEnd" value={tshow defaultRangeEnd} required={True} />
+            </div>
+            <div class="col-12">
+                <div class="row g-2">
+                    {forEach fixedExportDefinitions renderFixedExportAction}
+                </div>
+            </div>
+        </div>
+    |]
+
+createExportRoute :: FrontendSurfaceActionRoute
+createExportRoute = FrontendSurfaceActionRoute
+    { actionRouteUrl = pathTo CreateExportJobAction
+    , actionRouteFields = []
+    , actionRouteCustomHtmx = []
+    , actionRouteStandardUrl = Just (pathTo CreateExportJobAction)
+    , actionRouteExtraAttrs = [("id", "admin-export-generation-form"), ("class", appSurfaceClasses "p-3"), ("data-disable-javascript-submission", "true")]
+    }
 
 renderExportSummary :: [ExportJob] -> Html
 renderExportSummary exportJobs = [hsx|
