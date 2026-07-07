@@ -1,5 +1,6 @@
 module Web.Controller.Profiles where
 
+import Application.Helper.LiveUpdate (setActorLiveFragmentsRefresh)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchCurrentUserLeaveRequests)
 import Application.Helper.Profiling (profileActionSpan)
@@ -20,6 +21,10 @@ import Web.Controller.Staff (buildStaff, emptyStaffPayRateSelection,
                              fetchAwardLevelsForStaffForm,
                              parseRosterGroupIdText, parseStaffRosterGroupIds)
 import Web.Controller.StaffProfileValidation (buildRequiredPersonalProfileStaff)
+import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
+                                     profileSectionFragmentForSection,
+                                     profileSurfaceScope,
+                                     profileSurfaceWireFragments)
 import Web.Profiles.LeaveFragments
 import Web.Profiles.LiveUpdates
 import Web.Profiles.Mutations
@@ -134,14 +139,8 @@ instance Controller ProfilesController where
                                     (Just originalStaff, Just selectedRosterGroupIds, Just _, Just _) -> do
                                         mutationResult <- updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections Nothing Nothing
                                         let updatedStaff = mutationResult.liveMutationValue
-                                        updatedManagementFields <- fetchProfileStaffManagementFields (Just updatedStaff) (Just selectedRosterGroupIds)
                                         if isHtmxRequest
-                                            then
-                                                respondHtml $
-                                                    mconcat
-                                                        [ renderProfileSectionFragmentWithManagement updatedStaff currentUserEmail preferenceWeekdays submittedSelections passkeys leaveRequests leaveRequestForm staffRsaDocument updatedManagementFields today now openSection
-                                                        , renderToastOob ToastBottomCenter (successToast "Profile updated")
-                                                        ]
+                                            then respondWithProfileActorInvalidation updatedStaff openSection "Profile updated"
                                             else do
                                                 setSuccessMessage "Profile updated"
                                                 redirectTo EditProfileAction
@@ -163,15 +162,17 @@ instance Controller ProfilesController where
                                         if not preferencesWereSubmitted && not profileUpdate.profileWasCompletedBefore && profileUpdate.profileIsCompletedNow
                                             then redirectTo RosterWeeksAction
                                             else if isHtmxRequest
-                                                then
-                                                    respondHtml $
-                                                        mconcat
-                                                            [ renderProfileSectionFragmentWithManagement updatedStaff currentUserEmail preferenceWeekdays submittedSelections passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now openSection
-                                                            , renderToastOob ToastBottomCenter (successToast successMessage)
-                                                            ]
+                                                then respondWithProfileActorInvalidation updatedStaff openSection successMessage
                                                 else do
                                                     setSuccessMessage successMessage
                                                     redirectTo EditProfileAction
+
+respondWithProfileActorInvalidation :: (?context :: ControllerContext, ?request :: Request) => Staff -> Text -> Text -> IO ()
+respondWithProfileActorInvalidation staff openSection successMessage = do
+    let scope = ProfileScopeValue (unpackId currentVenueId) (unpackId staff.id)
+    setHeader ("HX-Reswap", "none")
+    setActorLiveFragmentsRefresh (profileSurfaceScope scope) (profileSurfaceWireFragments [profileSectionFragmentForSection openSection])
+    respondHtml (renderToastOob ToastBottomCenter (successToast successMessage))
 
 buildNewCurrentUserStaff :: (?context :: ControllerContext) => User -> Staff
 buildNewCurrentUserStaff user =

@@ -388,7 +388,7 @@ tests = beforeAll testContext do
                 staffExists <- query @Staff |> filterWhere (#venueId, unpackId venue.id) |> fetchExists
                 staffExists `shouldBe` False
 
-        it "returns an HTMX profile fragment update instead of redirecting" $ withContext do
+        it "returns an HTMX profile actor invalidation instead of redirecting" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Profile Venue"
                 user <- createUserRecord "profile-htmx@example.com" "staff" True
@@ -409,9 +409,14 @@ tests = beforeAll testContext do
                             ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "id=\"profile-details\""
+                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
+                response `responseBodyShouldNotContain` "id=\"profile-details\""
                 response `responseBodyShouldContain` "Profile updated"
                 response `responseBodyShouldContain` "hx-swap-oob=\"innerHTML\""
+                let profileTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                profileTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
+                profileTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "profile-details-section")
+                profileTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "profile-details")
                 profileVersionAfter <- currentLiveUpdateVersion (profileLiveScope (unpackId venue.id) (unpackId staff.id))
                 profileVersionAfter `shouldBe` profileVersionBefore
 
