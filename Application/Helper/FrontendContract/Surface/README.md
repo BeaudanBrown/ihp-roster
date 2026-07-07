@@ -176,10 +176,13 @@ HTMX attributes and hidden fields stay Haskell-owned.
 
 Controllers remain normal IHP mutation entrypoints in this epic. They parse and
 authorize params, call feature mutation/read-model code, and render validation
-failures or successful actor extras. Successful mutations should report typed
-`SurfaceResourceValue` touches using the generated smart constructors exported from
-`Application.Helper.SurfaceResource` so actor duplicate mounts and passive viewers
-refresh through the unified live invalidation/refetch path.
+failures or successful actor extras. Successful migrated `FrontendSurface`
+mutations should report typed `SurfaceResourceValue` touches using the generated
+smart constructors exported from `Application.Helper.SurfaceResource`, then return
+actor-local semantic invalidation instructions plus extras. The actor tab and
+passive viewers both refresh by resolving semantic surface/scope/fragment refs
+through mounted surface metadata and each mount's plain fragment GET URL, so
+successful actor responses must not carry authoritative business OOB HTML.
 
 ## Live Authorization, Resources, And Fragment Rendering
 
@@ -275,8 +278,8 @@ For a new surface or migration:
    `SurfaceProjection` cache.
 6. Generate contracts and update TypeScript to consume generated surface data.
 7. Add/adjust Hspec, frontend, and E2E coverage for mount discovery, duplicate
-   mounts, actor refresh, passive invalidation, lazy fragments, and interaction
-   behavior as applicable.
+   mounts, actor-local invalidation, passive invalidation, lazy fragments, and
+   interaction behavior as applicable.
 8. Add guardrails if the migration removes a legacy path that should not return.
 
 ## Verification

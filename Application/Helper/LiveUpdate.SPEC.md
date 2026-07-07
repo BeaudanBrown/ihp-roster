@@ -7,12 +7,15 @@ websocket controllers, and `static/app-live-updates.js`.
 ## Current Contract
 
 - Server-rendered HTML remains the source of truth.
-- Actor-local mutations return HTMX fragments or OOB swaps.
+- Migrated `FrontendSurface` successful mutations return actor-local semantic
+  invalidation instructions plus extras, not authoritative business HTML/OOB.
 - Passive viewers receive websocket invalidation messages and refetch
   authorized fragments over HTTP.
 - Server-mutating UI that can leave another mounted copy stale should use this
-  live-fragment path by default: keep the actor response immediate with HTMX,
-  then broadcast structural invalidations for other tabs/viewers.
+  live-fragment path by default: commit data, report touched resources, broadcast
+  structural invalidations with the actor `sourceClientId`, then return an
+  actor-local semantic invalidation for the requester. The browser resolves both
+  actor-local and websocket invalidations through mounted surface metadata.
 - A browser tab should use one websocket connection with many scope
   subscriptions.
 - A scope is an authorized logical data slice, not a page.
@@ -119,27 +122,31 @@ surface-to-wire boundary through `SurfaceImpl`/`renderFrontendSurfaceMount` and
 mount-local fragment/action/intent handlers. The runtime no longer keeps
 feature-facing broadcast, typed-live compatibility, or typed mutation helpers.
 
-Actor responses and passive live updates should use one fragment model with
-multiple triggers. A feature-local fragment enum and `SurfaceImpl` name the fragments once;
-successful actor HTMX responses render selected fragments immediately as OOB
-swaps, while passive viewers receive structural invalidations and refetch the
-same fragments through their GET endpoints. Actor responses may append extras
-such as toasts or dialog clears after the normalized OOB fragments.
+Actor responses and passive live updates should use one semantic fragment model
+with multiple delivery triggers. A feature-local fragment enum and `SurfaceImpl`
+name the fragments once. For migrated `FrontendSurface` successful mutations,
+the actor response emits selected semantic fragment refs as an actor-local
+invalidation instruction; the browser resolves those refs against every matching
+mounted surface instance in the current tab and refetches each mount's own plain
+fragment GET URL. Passive viewers receive the same structural invalidations over
+websocket and refetch through their mounted GET endpoints. Actor responses may
+append extras such as toasts or dialog clears, but successful actor responses
+must not include authoritative business OOB HTML for the refreshed fragments.
 
 Prefer a simple, non-cached feature-local fragment model for new migrations:
-fetch the model once, normalize requested fragments with the typed surface
-helpers, render those fragments in `FragmentPlain` or `FragmentOob` mode, and
-append extras. If a future ticket intentionally opts into cache behavior, add it
+keep a single authoritative plain fragment renderer behind `SurfaceImpl` and
+fragment GET actions, then select semantic fragments for actor-local/passive
+invalidation. If a future ticket intentionally opts into cache behavior, add it
 behind the feature read-model or `SurfaceImpl` seam rather than adding a shared
 author-facing cache helper. Feature code should not recreate local
-`renderXxxOob` actor helpers when a shared typed fragment model can render the
-same fragments.
+`renderXxxOob` actor helpers for migrated success paths; OOB is reserved for
+extras and documented legacy seams.
 
 Validation failures are the main exception: return the submitted form or dialog
 fragment directly to the request target so field errors stay localized. Do not
-force validation failures through the unified actor-success helper, and do not
-turn fragment GET endpoints into OOB responses; GET endpoints return the plain
-target node and the browser/live runtime performs the swap.
+force validation failures through the actor-local success helper. Do not turn
+fragment GET endpoints into OOB responses; GET endpoints return the plain target
+node and the browser/live runtime performs the swap.
 
 Feature-facing fragment selectors should be closed ADTs. Route/query strings may
 be parsed into those constructors, but the typed surface contract should not be
@@ -236,9 +243,11 @@ Mutation modules own three things together:
 
 Controllers should parse, authorize, choose actor response shape, and inspect
 `liveMutationValue`. They should not perform passive refresh/broadcast calls
-after a migrated write path. Actor-specific HTMX responses, toasts, redirects,
-dialog updates, and OOB fragments may remain in controllers when they only serve
-the requester.
+after a migrated write path. For migrated `FrontendSurface` success paths,
+controllers may return actor-local semantic invalidation plus requester-only
+extras such as toasts and dialog updates; authoritative business OOB fragments
+must stay out of success responses. Validation-local direct fragments and
+legacy/non-FrontendSurface exceptions must be explicit.
 
 `Web.SurfaceInvalidation` is the planner/orchestration layer. It receives
 concrete generated `SurfaceResourceValue`s, applies the small set of approved
@@ -275,8 +284,8 @@ transport runtime, and actor-only response helpers:
   fragments into raw transport invalidations
 - `Application.Helper.LiveUpdate.Runtime` owns the transport bus and raw
   websocket invalidation primitives
-- controllers may call FrontendSurface actor refresh helpers that only
-  set actor refresh headers for the requester
+- controllers may call FrontendSurface actor-local invalidation helpers that
+  only set semantic refresh instructions for the requester
 - background jobs should call the touched-resource invalidation boundary, such
   as `invalidateTouchedResourcesWithoutContext`, when passive viewers need updates
 - controllers and mutation modules must not call typed broadcast/mutation

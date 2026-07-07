@@ -67,7 +67,7 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
 - Keep row/day/content fragment IDs stable (`data-roster-row="true"`, day section ids) so actor and passive live refreshes can replace the right server-rendered fragment.
 - Do not wire feature/view behavior directly to `turbolinks:load`. The shared client runtime emits `bepis:page-ready` for full-page loads and HTMX swaps, and that runtime is responsible for re-processing any fresh `hx-*` markup.
 - When a roster shell participates in live fragments, render scope metadata on the stable shell (`#roster-week-shell`) so JS can subscribe/unsubscribe as `weekOffset` changes without guessing from the URL.
-- Live fragment refetch endpoints should return plain server-rendered fragments for the target DOM node; reserve `hx-swap-oob` variants for the actor path.
+- Live fragment refetch endpoints should return plain server-rendered fragments for the target DOM node. For migrated `FrontendSurface` success paths, reserve `hx-swap-oob` for requester-only extras such as toasts/dialog clears, not authoritative business fragments.
 - For viewer-side row refetches, do not return `hx-swap-oob` row wrappers from the fragment GET action; return the plain `<tr>` fragment and let JS replace the target row directly.
 - Do not add blur deferral for roster shift launchers or committed dialog submits. Reintroduce narrow protection only if a delayed free-text control returns.
 
@@ -77,11 +77,11 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
 - Keep fragment/region enums and `SurfaceImpl` handlers feature-local. Views should consume the typed surface implementation and render helpers; avoid duplicating scope, target id, URL, action, intent, or focused-protection wiring beside the markup.
 - A parent fragment/region may contain nested child surface mounts when its type-level spec declares the contained surface topology. Child surfaces still own their own subscriptions, fragments, request decoration, and invalidations.
 - Parent fragments that refresh over child mounts are allowed, but the shared runtime must reconcile lifecycle recursively: removed child/grandchild mounts unsubscribe when no longer present, newly inserted mounts initialize, and duplicate mounts do not double-subscribe.
-- Use one fragment model with multiple triggers: plain fragment renderers serve GET/live refetches, and actor success responses return the same authoritative fragments/OOB extras through the feature's FrontendSurface response helpers. Avoid adding parallel `renderXxxOob` wrappers unless a narrow compatibility seam requires it.
+- Use one semantic fragment model with multiple triggers: plain fragment renderers serve GET/live refetches, passive websocket invalidation names semantic fragments, and migrated actor success responses emit actor-local semantic invalidation plus extras. Avoid adding parallel `renderXxxOob` business wrappers for migrated success paths; extras-only OOB such as toasts/dialog clears remain allowed.
 - Use generated `SurfaceFragmentProtection`/FrontendSurface policies for reusable browser-side protection such as focused-field deferral. Do not add feature adapters for generic websocket lifecycle, reconnect, dedupe, nested reconciliation, version tracking, request decoration, resync, refetch queueing, or swapping.
 - Shared reconnect contract: subscriptions should carry a `lastSeenVersion`, subscribe acks should report `currentVersion` plus whether a scope resync is needed, and a gap in scope versions should trigger a full scope resync using the surface's resync fragments instead of guessing which invalidations were missed.
 - When a reconnect resync falls back to a coarse content fragment, keep the same focus-protection rules as normal live invalidations; do not defer roster content just because a shift launcher is focused.
-- Do not use a live surface just because a form currently redirects. A surface is warranted when the mounted page can become stale from another actor, another tab, or an async job. For actor-only edits, prefer HTMX fragments/OOB swaps. For auth, passkey, support venue switching, and other session/security flows, prefer normal browser navigation unless the product explicitly needs in-place behavior.
+- Do not use a live surface just because a form currently redirects. A surface is warranted when the mounted page can become stale from another actor, another tab, or an async job. For actor-only edits outside migrated FrontendSurface flows, prefer ordinary HTMX fragments/OOB swaps when useful. For auth, passkey, support venue switching, and other session/security flows, prefer normal browser navigation unless the product explicitly needs in-place behavior.
 - Fan-out invalidations should not search every historical table row just to discover possible cold targets. Use the active live-scope snapshot helpers in `Application.Helper.LiveUpdate` to narrow broad mutations to currently mounted scopes, then fetch detailed fragment data for those scopes only.
 - Existing non-live candidate areas:
   - export job/recent exports/report definitions can become a live surface when job progress or cross-admin report-definition edits matter while the page is open
@@ -177,6 +177,7 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
   - include `weekOffset` or other return-context params in the URL/query
 - Dialog submit contract:
   - validation failure returns the dialog fragment again into the same mount
-  - success returns updated page fragments plus any out-of-band dialog or toast updates, instead of redirecting the full page
+  - migrated FrontendSurface success returns actor-local semantic invalidation plus any out-of-band dialog or toast extras, instead of authoritative business OOB fragments or full-page redirects
+  - non-live legacy workflows may still return updated page fragments plus overlay/toast extras until migrated
 - Prefer dialog footers built from shared overlay button config. Form helpers should usually not render their own save/cancel rows.
 - Only allow one workflow dialog at a time. Pickers may appear above a dialog, but they are a separate overlay kind with separate JS behavior.

@@ -1,6 +1,6 @@
 ---
 id: ir-2w5m
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-07-07T04:09:19Z
@@ -22,3 +22,9 @@ Mark the old successful actor business-OOB model as superseded for migrated Fron
 
 ir-cfcr and open descendant tickets no longer direct agents toward successful actor business OOB for migrated FrontendSurface surfaces. Application/Helper/LiveUpdate.SPEC.md, Application/Helper/FrontendContract/Surface/README.md, Web/Controller/AGENTS.md, and Web/View/AGENTS.md clearly state the new final semantics. No production behavior changes.
 
+
+## Notes
+
+**2026-07-07T04:17:28Z**
+
+Updated LiveUpdate, FrontendContract Surface, controller, and view guidance to make migrated FrontendSurface success responses actor-local semantic invalidation plus extras. Open ir-cfcr descendants now describe stale business-OOB patterns only as inventory targets, prohibited outcomes, or legacy exceptions rather than implementation direction.
