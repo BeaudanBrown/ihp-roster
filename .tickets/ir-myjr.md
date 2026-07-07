@@ -1,24 +1,23 @@
 ---
 id: ir-myjr
 status: open
-deps: [ir-3y9k]
+deps: []
 links: []
 created: 2026-05-29T03:16:09Z
 type: task
 priority: 1
 assignee: beaudan
 parent: ir-oxnj
-tags: [agent-loop, research, confirmation]
+tags: [agent-loop, research, confirmation, frontend-surface]
 ---
-# Confirm Xero nested fragment and auto-sync constraints
+# Confirm Xero semantic invalidation and extras constraints
 
 Research current Admin Xero fragment paths and confirm constraints before implementation.
 
 ## Design
 
-Inspect Web.View.Admin.Xero, StaffMappings, Controller/Admin/Xero/Responses, Admin controller fragment endpoints, auto-sync trigger forms, dialog OOB paths, and recently completed Xero tickets. Confirm which actor-refresh-header uses should become immediate OOB and which should remain deferred.
+Inspect `Web.View.Admin.Xero`, nested Xero view modules, `Web.Controller.Admin.Xero.Responses`, Admin controller fragment endpoints, auto-sync trigger forms, dialog OOB paths, and existing actor refresh headers. Confirm which success paths should emit shell-level versus child-level semantic invalidations, which paths are validation/dialog-local, and which response HTML is extras-only.
 
 ## Acceptance Criteria
 
-Ticket note records chosen containment paths, auto-sync handling, dialog/toast extras, and any deferred cases; no production behavior changes are made.
-
+Ticket note records selected semantic invalidation fragments, auto-sync handling, dialog/toast extras, duplicate-mount implications, and any deferred cases. No production behavior changes are made.

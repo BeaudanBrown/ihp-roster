@@ -8,17 +8,16 @@ type: task
 priority: 2
 assignee: beaudan
 parent: ir-kuyy
-tags: [agent-loop, roster, renderer]
+tags: [agent-loop, roster, renderer, frontend-surface]
 ---
-# Add roster shared fragment render mode
+# Align roster fragment renderers for plain refetch authority
 
-Create one roster fragment renderer capable of plain and OOB output for content, staff panel, day sections, and rows.
+Ensure roster fragment renderers support the semantic invalidation/refetch model without relying on actor business OOB helpers.
 
 ## Design
 
-Unify renderRosterContentFragmentOob, renderRosterDaySectionFragmentOob, renderRowOob, and staff panel OOB through FragmentRenderMode while keeping exact target nodes for GETs.
+Keep exact target-node renderers for content, staff panel, day sections, rows, toolbar, rails, and grid fragments. Remove or isolate OOB-specific renderer paths from success response flow. Any remaining OOB render helper should be legacy/internal and not used for migrated successful actor mutations.
 
 ## Acceptance Criteria
 
-Roster fragment contract tests cover all fragment targets and containment; existing fragment GET specs pass.
-
+Roster fragment contract tests cover all fragment targets and containment. Existing fragment GET specs pass. Successful actor migration tickets can select semantic fragments without rendering business OOB HTML.

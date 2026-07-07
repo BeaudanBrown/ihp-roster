@@ -1,24 +1,23 @@
 ---
 id: ir-78cn
 status: open
-deps: [ir-kuyy]
+deps: [ir-kuyy, ir-7j0h, ir-5v0t]
 links: []
 created: 2026-05-29T03:16:11Z
 type: epic
 priority: 3
 assignee: beaudan
 parent: ir-cfcr
-tags: [agent-loop, cleanup, verification, docs]
+tags: [agent-loop, cleanup, verification, docs, frontend-surface]
 ---
-# Finalize app-wide unified fragment pattern
+# Finalize app-wide FrontendSurface actor invalidation pattern
 
-Remove obsolete compatibility paths, add guardrails, and verify the unified fragment system app-wide after feature migrations.
+Remove obsolete compatibility paths, add guardrails, and verify the app-wide migrated `FrontendSurface` success response model after feature migrations.
 
 ## Design
 
-This closeout phase should inventory remaining OOB/direct hx-target paths, update docs/tests, and run broad verification.
+This closeout phase inventories remaining OOB/direct hx-target paths, confirms intentional exceptions, updates docs/tests, removes obsolete helper paths, and runs broad verification. Guardrails should distinguish allowed extras/validation-local OOB from prohibited authoritative business OOB on successful migrated `FrontendSurface` mutations.
 
 ## Acceptance Criteria
 
-No obsolete renderMainFragmentOob/page-live-fragment/direct successful actor swap paths remain in migrated surfaces; guardrails catch regressions; canonical verification passes or unrelated failures are documented.
-
+No migrated `FrontendSurface` successful actor response emits authoritative business `hx-swap-oob` HTML. Remaining direct/OOB paths are classified as validation-local, extras-only, pure fragment GET/refetch, non-FrontendSurface, or separately ticketed legacy exceptions. Guardrails catch regressions. Canonical verification passes or unrelated failures are documented. The epic closeout note confirms duplicate-mount actor-local refresh and passive websocket invalidation coverage.

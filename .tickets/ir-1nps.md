@@ -8,17 +8,16 @@ type: task
 priority: 2
 assignee: beaudan
 parent: ir-oxnj
-tags: [agent-loop, xero, shell]
+tags: [agent-loop, xero, shell, frontend-surface]
 ---
 # Migrate Xero connection and reference-sync actor responses
 
-Move broad Xero shell-changing actor responses to shared OOB fragments.
+Move broad Xero shell-changing success responses to actor-local semantic invalidation plus extras.
 
 ## Design
 
-Connection/start/disconnect/reference-sync responses that change shell-level state should return the shell fragment through the helper plus toasts/dialog clears.
+Connection/start/disconnect/reference-sync responses that change shell-level state should commit and report touched resources through existing mutation paths, return toasts/dialog extras as needed, and emit actor-local semantic invalidation for the shell or normalized affected fragments. They should not return `renderCurrentVenueXeroSectionFragmentOob` or other authoritative business OOB HTML on success.
 
 ## Acceptance Criteria
 
-Shell-level actor responses no longer use bespoke renderCurrentVenueXeroSectionFragmentOob; Xero specs pass.
-
+Shell-level successful actor responses contain no bespoke business OOB Xero section HTML. They use the shared actor-local invalidation helper. Passive Xero websocket invalidation remains intact. Focused Xero specs pass.

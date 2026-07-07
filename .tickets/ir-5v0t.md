@@ -1,24 +1,25 @@
 ---
 id: ir-5v0t
 status: open
-deps: [ir-jtmv]
+deps: [ir-jtmv, ir-rfyw]
 links: []
 created: 2026-05-29T03:16:08Z
 type: epic
 priority: 2
 assignee: beaudan
 parent: ir-cfcr
-tags: [agent-loop, admin, live-fragments]
+tags: [agent-loop, admin, live-fragments, frontend-surface]
 ---
-# Migrate admin single-fragment surfaces to unified actor OOB responses
+# Migrate admin single-fragment surfaces to actor-local invalidation
 
-Convert low-risk admin config sections with one live fragment each to the shared fragment response helper.
+Convert low-risk admin config sections with one live fragment each so successful mutations use actor-local semantic invalidation plus extras instead of authoritative business OOB fragments.
 
 ## Design
 
-Venue settings, invites, exports, roster groups, and shift types should stop using direct hx-target outerHTML for successful mutations and instead use hx-swap=none plus shared OOB fragment responses; keep focus protection for editable lists.
+Venue settings, invites, exports, roster groups, and shift types should keep their existing fragment GET renderers as the authoritative target-node HTML path. Successful HTMX mutations should commit through existing mutation helpers/touched resources, emit passive invalidation, then return only extras such as toasts/dialog clears plus the shared actor-local invalidation instruction. Shift type focused-field protection must remain runtime/refetch-policy driven and must not rely on actor business OOB.
+
+This supersedes the older design text that asked for shared actor OOB business fragments.
 
 ## Acceptance Criteria
 
-All targeted admin sections have one fragment renderer/contract used by live GETs and actor OOB responses; tests cover response shapes; focus-protection behavior remains intact.
-
+All targeted admin section successful mutation responses contain no authoritative business `hx-swap-oob` fragments. Actor-local invalidation refreshes the relevant mounted admin fragments, including duplicate mounts. Validation failures still rerender local form/section errors when appropriate. Shift-type focus protection behavior remains intact. Focused admin specs are updated to assert the new response shape.
