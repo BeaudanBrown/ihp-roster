@@ -8,6 +8,8 @@ module Web.Timesheets.Responses
     , respondWithTimesheetWeekView
     ) where
 
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment (..))
+import Application.Helper.LiveUpdate (setActorLiveFragmentsRefresh)
 import Application.Helper.Profiling
 import Application.Helper.View (ToastOverlayPosition (..), dialogOverlayMountId,
                                 renderToastOob, successToast)
@@ -18,6 +20,11 @@ import Data.Time.Calendar (Day, addDays)
 import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
+import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
+                                       TimesheetsMountStateValue (..),
+                                       timesheetsCandidateMountedFragments,
+                                       timesheetsSurfaceScope,
+                                       timesheetsSurfaceWireFragments)
 import Web.Timesheets.Paths (timesheetWeekUrl)
 import Web.Timesheets.Projection
 import Web.View.Timesheets.Index
@@ -35,6 +42,24 @@ respondWithTimesheetFragments requestKey fragments extraHtml = do
     projection <- fetchTimesheetWeekProjection requestKey
     respondHtmlProfiled $
         mconcat (mapMaybe (renderTimesheetProjectionFragmentFromProjection (TimesheetFragmentOob outerHtmlOobSwap) projection) (normalizeTimesheetFragments fragments)) <> extraHtml
+
+respondWithTimesheetActorInvalidation :: (?context :: ControllerContext, ?request :: Request) => TimesheetProjectionRequest -> [TimesheetProjectionFragment] -> Blaze.Html -> IO ()
+respondWithTimesheetActorInvalidation requestKey fragments extraHtml = do
+    let scope = TimesheetWeekScopeValue (unpackId currentVenueId) requestKey.projectionWeekOffset
+    let mountState = TimesheetsMountStateValue requestKey.projectionShowApproved requestKey.projectionShowAllStaff requestKey.projectionStaffFilterId
+    let selectedMountedFragments = selectTimesheetMountedFragments requestKey (normalizeTimesheetFragments fragments) (timesheetsCandidateMountedFragments scope mountState)
+    setActorLiveFragmentsRefresh (timesheetsSurfaceScope scope) (timesheetsSurfaceWireFragments selectedMountedFragments)
+    respondHtmlProfiled extraHtml
+
+selectTimesheetMountedFragments :: TimesheetProjectionRequest -> [TimesheetProjectionFragment] -> [FrontendSurfaceMountedFragment] -> [FrontendSurfaceMountedFragment]
+selectTimesheetMountedFragments _ fragments mountedFragments =
+    filter (\mountedFragment -> mountedFragment.mountedFragmentTargetId `elem` targetIds) mountedFragments
+    where
+        targetIds = mapMaybe fragmentTargetId fragments
+        fragmentTargetId = \case
+            TimesheetProjectionToolbar -> Just timesheetWeekToolbarId
+            TimesheetProjectionDayColumns -> Just timesheetDayColumnsId
+            TimesheetProjectionDaySection dayOffset -> Just (timesheetDaySectionDomId dayOffset)
 
 normalizeTimesheetFragments :: [TimesheetProjectionFragment] -> [TimesheetProjectionFragment]
 normalizeTimesheetFragments fragments =
@@ -59,7 +84,7 @@ respondWithTimesheetDaySectionUpdate weekOffset workedOn showApproved showAllSta
     venueConfig <- fetchVenueConfig
     let weekStartDate = venueWeekStartDate venueConfig weekOffset
     let dayOffset = timesheetDayOffset weekStartDate workedOn
-    respondWithTimesheetFragments
+    respondWithTimesheetActorInvalidation
         requestKey
         [TimesheetProjectionDaySection dayOffset]
         ( when closeDialog [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
@@ -75,7 +100,7 @@ respondWithTimesheetDateMoveUpdate weekOffset oldWorkedOn newWorkedOn showApprov
     let weekEndDate = addDays 6 weekStartDate
     let daysInVisibleWeek = filter (\day -> day >= weekStartDate && day <= weekEndDate) (nub [oldWorkedOn, newWorkedOn])
     let fragments = map (TimesheetProjectionDaySection . timesheetDayOffset weekStartDate) daysInVisibleWeek
-    respondWithTimesheetFragments
+    respondWithTimesheetActorInvalidation
         requestKey
         fragments
         ( [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]

@@ -667,11 +667,11 @@ tests = beforeAll testContext do
                             ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "id=\"timesheet-day-section-1\""
-                response `responseBodyShouldContain` "Pia Pending"
-                response `responseBodyShouldContain` "data-timesheet-entry-approved=\"false\""
-                response `responseBodyShouldNotContain` "Ada Approved"
-                response `responseBodyShouldNotContain` "data-timesheet-entry-approved=\"true\""
+                response `responseBodyShouldNotContain` "id=\"timesheet-day-section-1\""
+                response `responseBodyShouldContain` "Timesheet entry created"
+                let hiddenCreateTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                hiddenCreateTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "timesheet-day-section")
+                hiddenCreateTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "timesheet-day-section-1")
 
         it "creating timesheets via HTMX updates the actor fragment and bumps the week scope version" $ withContext do
             withCleanDb do
@@ -699,9 +699,13 @@ tests = beforeAll testContext do
                                 ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "id=\"timesheet-day-section-1\""
+                response `responseBodyShouldNotContain` "id=\"timesheet-day-section-1\""
                 response `responseBodyShouldContain` "Timesheet entry created"
-                response `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
+                response `responseBodyShouldNotContain` "hx-swap-oob=\"outerHTML\""
+                let createTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                createTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
+                createTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "timesheet-day-section")
+                createTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "timesheet-day-section-1")
 
                 versionAfter <- currentLiveUpdateVersion (timesheetWeekLiveScope (unpackId venue.id) 0)
                 versionAfter `shouldBe` versionBefore
@@ -733,10 +737,13 @@ tests = beforeAll testContext do
                                 ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "id=\"timesheet-day-section-1\""
-                response `responseBodyShouldContain` "id=\"timesheet-day-section-2\""
+                response `responseBodyShouldNotContain` "id=\"timesheet-day-section-1\""
+                response `responseBodyShouldNotContain` "id=\"timesheet-day-section-2\""
                 response `responseBodyShouldContain` "Timesheet entry updated"
-                response `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
+                response `responseBodyShouldNotContain` "hx-swap-oob=\"outerHTML\""
+                let moveTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                moveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "timesheet-day-section-1")
+                moveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "timesheet-day-section-2")
 
                 updatedEntry <- fetch entry.id
                 updatedEntry.workedOn `shouldBe` fromGregorian 2025 1 8
@@ -758,8 +765,10 @@ tests = beforeAll testContext do
                         callAction ApproveTimesheetEntryAction { timesheetEntryId = entry.id }
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "id=\"timesheet-day-section-1\""
-                response `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
+                response `responseBodyShouldNotContain` "id=\"timesheet-day-section-1\""
+                response `responseBodyShouldNotContain` "hx-swap-oob=\"outerHTML\""
+                let approveTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                approveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "timesheet-day-section-1")
                 versionAfter <- currentLiveUpdateVersion (timesheetWeekLiveScope (unpackId venue.id) 0)
                 versionAfter `shouldBe` versionBefore
 

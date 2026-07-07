@@ -1,6 +1,6 @@
 ---
 id: ir-wmdh
-status: open
+status: closed
 deps: [ir-rfyw]
 links: []
 created: 2026-07-07T04:09:19Z
@@ -22,3 +22,9 @@ Create/update/delete/approve/unapprove success paths should commit through exist
 
 Timesheets success responses contain no authoritative business hx-swap-oob fragments. Actor-local invalidation refreshes affected mounted day/toolbar/columns fragments as planned, including duplicate mounts. Dialog close/toast extras remain. Focused Timesheets Hspec/frontend checks pass.
 
+
+## Notes
+
+**2026-07-07T04:38:41Z**
+
+Migrated Timesheets mutation success responses to actor-local invalidation. Create/update/delete/approve/unapprove day-section paths now emit setActorLiveFragmentsRefresh for selected Timesheets mounted fragments plus dialog/toast extras; date moves select both visible day sections. HTMX week navigation still returns toolbar/day-columns OOB because it is pure view-state navigation, not a successful mutation. Fragment GETs remain plain target-node HTML. Verification: bash ./bin/in-env hspec-test --match 'TimesheetsController'.
