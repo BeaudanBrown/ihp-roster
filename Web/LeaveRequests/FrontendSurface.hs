@@ -94,4 +94,6 @@ leaveRequestsContentMountedFragment =
         , mountedFragmentUrl = pathTo ShowleaveRequestsContentLiveFragmentAction
         , mountedFragmentProtection = FrontendSurfaceReplace
         , mountedFragmentLoadPolicy = "eager"
+        , mountedFragmentLazyTrigger = Nothing
+        , mountedFragmentPlaceholderKind = Nothing
         }

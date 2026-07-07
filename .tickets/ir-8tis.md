@@ -1,6 +1,6 @@
 ---
 id: ir-8tis
-status: open
+status: closed
 deps: [ir-oxwq, ir-w1x3]
 links: []
 created: 2026-07-07T03:24:31Z
@@ -22,3 +22,9 @@ Add Hspec/guardrail coverage for no stale data-bepis-surface-lazy* attrs, canoni
 
 Docs describe the single lazy-fragment path. Guardrails fail on old attrs/helper reintroduction. Focused typecheck, frontend-contracts-check, frontend-test, FrontendSurface/lazy Hspec, frontend-check, surface-guardrails, and surface-compile-fail-check pass or unrelated failures are documented.
 
+
+## Notes
+
+**2026-07-07T03:36:31Z**
+
+Implemented in one cleanup pass. Summary: added canonical FrontendSurface lazy fragment config/renderer with feature-owned root classes and generated UI-region attrs; wired roster staff panel slot classes; derived lazy load policy, trigger, and placeholder defaults from existing Lazy/Trigger/Placeholder options; deleted stale Application.Helper.View.LazySurface; updated all mounted fragment constructors/call sites; added Hspec/guardrail/docs coverage. Verification: typecheck, frontend-contracts-check, frontend-test, hspec-test --match FrontendSurface, hspec-test --match lazy, frontend-surface-compile-fail-check, frontend-surface-guardrails, and frontend-check passed. Note: attempted old command name surface-compile-fail-check, but project command is frontend-surface-compile-fail-check.

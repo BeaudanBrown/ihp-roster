@@ -28,11 +28,13 @@ module Web.View.RosterWeeks.Grid
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceFragmentKey (..),
                                                             FrontendSurfaceInteractionShellConfig (..),
+                                                            FrontendSurfaceLazyFragmentConfig (..),
                                                             FrontendSurfaceMountConfig (..),
                                                             FrontendSurfaceMountedFragment (..),
                                                             SurfaceImpl (..),
+                                                            defaultFrontendSurfaceLazyFragmentConfig,
                                                             renderFrontendSurfaceInteractionShell,
-                                                            renderFrontendSurfaceLazyFragment)
+                                                            renderFrontendSurfaceLazyFragmentWithConfig)
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
 import Application.Helper.RosterWagePrediction
 import Application.Helper.ShiftTypeColours (shiftTypeColourPaletteKeys)
@@ -121,7 +123,8 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
                 then case staffPanelFragment of
                     Nothing -> mempty
                     Just fragment ->
-                        renderFrontendSurfaceLazyFragment
+                        renderFrontendSurfaceLazyFragmentWithConfig
+                            defaultFrontendSurfaceLazyFragmentConfig { lazyFragmentRootClasses = rosterStaffPanelFragmentClasses }
                             fragment
                             (renderRosterStaffPanelPlaceholder (length gridRosterGroups > 1))
                 else mempty

@@ -156,7 +156,7 @@ adminXeroPageHandlers scope fragment =
         , surfaceIntentHandlers = HandlerNil
         }
 
-unitHandlers :: AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImplHandlers ('Surface marker '[ 'Scope scopeMarker '[ 'Field Surface.VenueId 'WireUUID ] auth, 'Fragment fragment '[] policies])
+unitHandlers :: KnownFragmentOptions policies => AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImplHandlers ('Surface marker '[ 'Scope scopeMarker '[ 'Field Surface.VenueId 'WireUUID ] auth, 'Fragment fragment '[] policies])
 unitHandlers scope fragment =
     SurfaceImplHandlers
         { surfaceScopeHandlers = scopeHandler scope `HandlerCons` HandlerNil
@@ -199,7 +199,7 @@ xeroHandlers scope =
         , surfaceIntentHandlers = HandlerNil
         }
 
-fh :: FrontendSurfaceMountedFragment -> FrontendSurfaceFragmentHandler ('Fragment marker '[] policies)
+fh :: KnownFragmentOptions policies => FrontendSurfaceMountedFragment -> FrontendSurfaceFragmentHandler ('Fragment marker '[] policies)
 fh fragment = FrontendSurfaceFragmentHandler
     { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
     , fragmentHandlerMountedFragment = const fragment
@@ -270,4 +270,6 @@ fragment kind targetId url prot = FrontendSurfaceMountedFragment
     , mountedFragmentUrl = url
     , mountedFragmentProtection = prot
     , mountedFragmentLoadPolicy = "eager"
+    , mountedFragmentLazyTrigger = Nothing
+    , mountedFragmentPlaceholderKind = Nothing
     }

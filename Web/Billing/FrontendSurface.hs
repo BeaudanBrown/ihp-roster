@@ -133,6 +133,8 @@ billingStatusMountedFragment statusUrl =
         , mountedFragmentUrl = statusUrl
         , mountedFragmentProtection = FrontendSurfaceReplace
         , mountedFragmentLoadPolicy = "eager"
+        , mountedFragmentLazyTrigger = Nothing
+        , mountedFragmentPlaceholderKind = Nothing
         }
 
 currentVenueScopeId :: (?context :: ControllerContext) => UUID.UUID

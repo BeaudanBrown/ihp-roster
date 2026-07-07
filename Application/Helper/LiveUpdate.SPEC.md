@@ -76,10 +76,15 @@ the union of currently mounted surface scopes.
 
 Each live fragment declares invalidation intent in the type-level
 `FrontendSurface` spec with `DependsOn` or `ResyncOnly`. `SurfaceImpl` handlers
-materialize the mounted fragment target id, URL, protection policy, and load
-policy for the current request. Fragments are eager by default; lazy fragments
-use the mounted-fragment load policy plus the shared lazy placeholder helpers.
-Use `DependsOn` when a fragment is passively invalidated by semantic
+materialize the mounted fragment target id, URL, and protection policy for the
+current request. Fragments are eager by default; lazy fragments derive their load
+policy, trigger, and placeholder kind from the existing `Lazy`, `Trigger`, and
+`Placeholder` primitive options. Initial lazy placeholders are rendered through
+the canonical `FrontendSurface` lazy-fragment runtime helper, which emits the
+same target id and GET URL as the loaded fragment plus generated UI-region attrs
+such as `data-bepis-fragment` and `data-bepis-lazy-surface`. Feature views own
+layout slot classes via the lazy render config. Use `DependsOn` when a fragment
+is passively invalidated by semantic
 `SurfaceResourceValue` changes, and use `ResyncOnly` only for fragments that
 have no passive resource subscription and are refreshed by resync or actor
 paths.
@@ -194,8 +199,9 @@ that region only.
 - Focused-field protection is policy-driven. Do not hard-code feature selectors
   in the shared runtime.
 - Reconnect/version gaps should trigger configured resync fragments.
-- Lazy placeholders use the same target id and GET URL as the loaded fragment,
-  so live invalidations before the lazy trigger may safely replace the
+- Lazy placeholders use the same target id and GET URL as the loaded fragment
+  and carry any feature-owned root slot classes needed to match final layout
+  geometry, so live invalidations before the lazy trigger may safely replace the
   placeholder with authorized server-rendered HTML.
 
 ## LiveBus Boundary

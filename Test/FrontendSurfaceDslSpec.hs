@@ -29,6 +29,9 @@ import Test.Hspec
 import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
 import qualified Text.Blaze.Html5 as Html5
 
+data TestLoad
+data TestPanel
+
 frontendSurfaceContractsTypeScript :: Text
 frontendSurfaceContractsTypeScript =
     either error id (renderFrontendContractTypeScript (registeredFrontendContractIRForSurfaceContract registeredFrontendSurfaceContractIR))
@@ -54,6 +57,8 @@ tests = describe "FrontendSurface DSL foundation" do
                     , focusedProtectionContainerSelector = Just "form[data-lab-row]"
                     }
                 , mountedFragmentLoadPolicy = "lazy"
+                , mountedFragmentLazyTrigger = Nothing
+                , mountedFragmentPlaceholderKind = Nothing
                 }
         let config = FrontendSurfaceMountConfig
                 { mountSurfaceName = "surface-lab"
@@ -113,6 +118,33 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceMountConfigJson config `shouldContainText` "\"targetId\":\"surface-lab-panel\""
         frontendSurfaceMountConfigJson config `shouldContainText` "\"kind\":\"focused-field\""
         frontendSurfaceMountConfigJson config `shouldContainText` "\"activeSelector\":\"input[data-lab-field]:focus\""
+
+    it "renders lazy fragments with canonical UI-region attrs and feature slot classes" do
+        let fragment = FrontendSurfaceMountedFragment
+                { mountedFragmentKey = FrontendSurfaceFragmentKey "lab-panel" Aeson.Null
+                , mountedFragmentTargetId = "surface-lab-panel"
+                , mountedFragmentUrl = "/ShowFrontendSurfaceLabPanelFragment"
+                , mountedFragmentProtection = FrontendSurfaceReplace
+                , mountedFragmentLoadPolicy = "lazy"
+                , mountedFragmentLazyTrigger = Just "load"
+                , mountedFragmentPlaceholderKind = Just "panel"
+                }
+        let html = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceLazyFragmentWithConfig defaultFrontendSurfaceLazyFragmentConfig { lazyFragmentRootClasses = ["col-12", "col-xl-4", "surface-lab-side"] } fragment (Html5.toHtml ("Loading" :: Text))))
+        html `shouldContainText` "id=\"surface-lab-panel\""
+        html `shouldContainText` "class=\"col-12 col-xl-4 surface-lab-side app-lazy-surface app-lazy-surface-compact app-lazy-surface-panel\""
+        html `shouldContainText` "data-bepis-fragment=\"true\""
+        html `shouldContainText` "data-bepis-lazy-surface=\"true\""
+        html `shouldContainText` "data-bepis-lazy-fragment=\"lab-panel\""
+        html `shouldContainText` "data-bepis-lazy-retry=\"true\""
+        html `shouldContainText` "hx-get=\"/ShowFrontendSurfaceLabPanelFragment\""
+        html `shouldContainText` "hx-trigger=\"load\""
+        html `shouldNotContainText` "data-bepis-surface-lazy"
+
+    it "derives lazy render defaults from existing primitive options" do
+        let defaults = knownFragmentOptions @'[ 'Lazy '[ 'Trigger TestLoad, 'Placeholder TestPanel ]]
+        defaults.lazyFragmentDefaultLoadPolicy `shouldBe` "lazy"
+        defaults.lazyFragmentDefaultTrigger `shouldBe` Just "test-load"
+        defaults.lazyFragmentDefaultPlaceholderKind `shouldBe` Just "test-panel"
 
     it "parses typed handler field values from declared field lists" do
         let panelParams = frontendSurfaceFieldValues (Aeson.object ["panelId" Aeson..= ("panel-1" :: Text)]) :: FrontendSurfaceFieldValues '[Field PanelId 'WireUUID]

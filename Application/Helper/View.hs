@@ -4,7 +4,6 @@ module Application.Helper.View
     , module Application.Helper.View.Chrome
     , module Application.Helper.View.Format
     , module Application.Helper.View.Leave
-    , module Application.Helper.View.LazySurface
     , module Application.Helper.View.Oob
     , module Application.Helper.View.Overlay
     , module Application.Helper.View.Staff
@@ -22,7 +21,6 @@ import Application.Helper.View.Audience
 import Application.Helper.View.Awards
 import Application.Helper.View.Chrome
 import Application.Helper.View.Format
-import Application.Helper.View.LazySurface
 import Application.Helper.View.Leave
 import Application.Helper.View.Oob
 import Application.Helper.View.Overlay

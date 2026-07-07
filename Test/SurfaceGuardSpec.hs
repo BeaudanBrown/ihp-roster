@@ -36,6 +36,21 @@ tests = describe "FrontendSurface strict API guard" do
         violations <- finalFrontendSurfaceCleanupViolations
         violations `shouldBe` []
 
+    it "keeps lazy fragment rendering on the canonical UI-region path" do
+        violations <- lazyFragmentRenderingViolations
+        violations `shouldBe` []
+
+lazyFragmentRenderingViolations :: IO [Text]
+lazyFragmentRenderingViolations = do
+    runtime <- Text.readFile "Application/Helper/FrontendContract/Surface/Runtime.hs"
+    lazySurfaceExists <- doesFileExist "Application/Helper/View/LazySurface.hs"
+    pure $ concat
+        [ ["Application/Helper/View/LazySurface.hs: stale duplicate lazy helper should stay deleted" | lazySurfaceExists]
+        , ["Application/Helper/FrontendContract/Surface/Runtime.hs: stale surface-lazy attrs must not be emitted" | "data-bepis-surface-lazy" `Text.isInfixOf` runtime]
+        , ["Application/Helper/FrontendContract/Surface/Runtime.hs: lazy renderer must use canonical UiRegion attributes" | not ("canonicalUiRegionDomAttributes" `Text.isInfixOf` runtime && "uiRegionLazySurfaceAttribute" `Text.isInfixOf` runtime)]
+        , ["Application/Helper/FrontendContract/Surface/Runtime.hs: lazy renderer must support feature-owned root slot classes" | not ("lazyFragmentRootClasses" `Text.isInfixOf` runtime)]
+        ]
+
 legacyRegistryAdapterViolations :: IO [Text]
 legacyRegistryAdapterViolations = do
     registryExists <- doesFileExist "Web/LiveSurfaceRegistry.hs"
@@ -250,7 +265,6 @@ isAllowedInfrastructureFile path =
             , "Application/Helper/FrontendContract/UiRegion.hs"
             , "Application/Helper/FrontendContract/Validate.hs"
             , "Application/Helper/Interaction.hs"
-            , "Application/Helper/View/LazySurface.hs"
             , "Application/Helper/Interaction/Types.hs"
             , "Application/Helper/LiveUpdate.hs"
             , "Application/Helper/LiveUpdate/Internal.hs"

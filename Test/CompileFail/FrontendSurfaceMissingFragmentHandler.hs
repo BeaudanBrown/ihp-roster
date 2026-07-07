@@ -41,6 +41,8 @@ dummyFragment = FrontendSurfaceMountedFragment
     , mountedFragmentUrl = "/frontend-surface-lab"
     , mountedFragmentProtection = FrontendSurfaceReplace
     , mountedFragmentLoadPolicy = "eager"
+    , mountedFragmentLazyTrigger = Nothing
+    , mountedFragmentPlaceholderKind = Nothing
     }
 
 dummyRequest :: FrontendSurfaceHtmxRequest

@@ -1,6 +1,6 @@
 ---
 id: ir-u6dp
-status: open
+status: closed
 deps: [ir-pyyk]
 links: []
 created: 2026-07-07T03:24:30Z
@@ -22,3 +22,9 @@ Add runtime/type-level helpers that inspect known fragment options enough to der
 
 Lazy primitive options are reflected into lazy render defaults. Lab Trigger Load / Placeholder Panel semantics are preserved or explicitly mapped. Feature code no longer needs open-text lazy/eager decisions where the spec already knows them. Compile-failure or Hspec coverage catches missing/incorrect option reflection.
 
+
+## Notes
+
+**2026-07-07T03:36:31Z**
+
+Implemented in one cleanup pass. Summary: added canonical FrontendSurface lazy fragment config/renderer with feature-owned root classes and generated UI-region attrs; wired roster staff panel slot classes; derived lazy load policy, trigger, and placeholder defaults from existing Lazy/Trigger/Placeholder options; deleted stale Application.Helper.View.LazySurface; updated all mounted fragment constructors/call sites; added Hspec/guardrail/docs coverage. Verification: typecheck, frontend-contracts-check, frontend-test, hspec-test --match FrontendSurface, hspec-test --match lazy, frontend-surface-compile-fail-check, frontend-surface-guardrails, and frontend-check passed. Note: attempted old command name surface-compile-fail-check, but project command is frontend-surface-compile-fail-check.

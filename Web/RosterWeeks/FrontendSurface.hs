@@ -340,6 +340,8 @@ rosterContentMountedFragment scope =
         , mountedFragmentUrl = rosterWeekContentFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId
         , mountedFragmentProtection = FrontendSurfaceReplace
         , mountedFragmentLoadPolicy = "eager"
+        , mountedFragmentLazyTrigger = Nothing
+        , mountedFragmentPlaceholderKind = Nothing
         }
 
 rosterGridToolbarMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
@@ -350,6 +352,8 @@ rosterGridToolbarMountedFragment scope =
         , mountedFragmentUrl = rosterWeekGridToolbarFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId
         , mountedFragmentProtection = FrontendSurfaceReplace
         , mountedFragmentLoadPolicy = "eager"
+        , mountedFragmentLazyTrigger = Nothing
+        , mountedFragmentPlaceholderKind = Nothing
         }
 
 rosterGridFrameMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
@@ -360,6 +364,8 @@ rosterGridFrameMountedFragment scope =
         , mountedFragmentUrl = rosterWeekGridFrameFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId
         , mountedFragmentProtection = FrontendSurfaceReplace
         , mountedFragmentLoadPolicy = "eager"
+        , mountedFragmentLazyTrigger = Nothing
+        , mountedFragmentPlaceholderKind = Nothing
         }
 
 rosterDayColumnsMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
@@ -370,6 +376,8 @@ rosterDayColumnsMountedFragment scope =
         , mountedFragmentUrl = rosterWeekDayColumnsFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId
         , mountedFragmentProtection = FrontendSurfaceReplace
         , mountedFragmentLoadPolicy = "eager"
+        , mountedFragmentLazyTrigger = Nothing
+        , mountedFragmentPlaceholderKind = Nothing
         }
 
 rosterDayRailMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
@@ -380,6 +388,8 @@ rosterDayRailMountedFragment scope =
         , mountedFragmentUrl = rosterWeekDayRailFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId
         , mountedFragmentProtection = FrontendSurfaceReplace
         , mountedFragmentLoadPolicy = "eager"
+        , mountedFragmentLazyTrigger = Nothing
+        , mountedFragmentPlaceholderKind = Nothing
         }
 
 rosterWageRailMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
@@ -390,6 +400,8 @@ rosterWageRailMountedFragment scope =
         , mountedFragmentUrl = rosterWeekWageRailFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId
         , mountedFragmentProtection = FrontendSurfaceReplace
         , mountedFragmentLoadPolicy = "eager"
+        , mountedFragmentLazyTrigger = Nothing
+        , mountedFragmentPlaceholderKind = Nothing
         }
 
 rosterSlotsGridMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
@@ -400,6 +412,8 @@ rosterSlotsGridMountedFragment scope =
         , mountedFragmentUrl = rosterWeekSlotsGridFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId
         , mountedFragmentProtection = FrontendSurfaceReplace
         , mountedFragmentLoadPolicy = "eager"
+        , mountedFragmentLazyTrigger = Nothing
+        , mountedFragmentPlaceholderKind = Nothing
         }
 
 rosterStaffPanelMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
@@ -410,6 +424,8 @@ rosterStaffPanelMountedFragment scope =
         , mountedFragmentUrl = rosterWeekStaffPanelFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId
         , mountedFragmentProtection = FrontendSurfaceReplace
         , mountedFragmentLoadPolicy = "lazy"
+        , mountedFragmentLazyTrigger = Nothing
+        , mountedFragmentPlaceholderKind = Nothing
         }
 
 rosterDaySectionMountedFragment :: RosterWeekScopeValue -> Id RosterDay -> FrontendSurfaceMountedFragment
@@ -420,6 +436,8 @@ rosterDaySectionMountedFragment scope rosterDayId =
         , mountedFragmentUrl = rosterWeekDaySectionFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId rosterDayId
         , mountedFragmentProtection = FrontendSurfaceReplace
         , mountedFragmentLoadPolicy = "lazy"
+        , mountedFragmentLazyTrigger = Nothing
+        , mountedFragmentPlaceholderKind = Nothing
         }
 
 rosterRowMountedFragment :: RosterWeekScopeValue -> Id RosterDay -> Int -> FrontendSurfaceMountedFragment
@@ -430,4 +448,6 @@ rosterRowMountedFragment scope rosterDayId rowIndex =
         , mountedFragmentUrl = rosterWeekRowFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId rosterDayId rowIndex
         , mountedFragmentProtection = FrontendSurfaceReplace
         , mountedFragmentLoadPolicy = "lazy"
+        , mountedFragmentLazyTrigger = Nothing
+        , mountedFragmentPlaceholderKind = Nothing
         }

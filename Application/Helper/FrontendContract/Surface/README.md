@@ -154,7 +154,9 @@ Use `mkSurfaceImpl` with typed handler lists:
 - `FrontendContract SurfaceScopeHandler` supplies the concrete scope value and scope key;
 - `FrontendContract SurfaceMountStateHandler` supplies typed view state defaults;
 - `FrontendContract SurfaceFragmentHandler` supplies mount-local target id, GET URL,
-  protection/load policy, and server rendering for each fragment;
+  protection policy, and server rendering for each fragment. The runtime derives
+  eager/lazy load defaults plus lazy trigger/placeholder metadata from the
+  fragment's existing `Eager`, `Lazy`, `Trigger`, and `Placeholder` options;
 - `FrontendContract SurfaceActionHandler` supplies generated HTMX request metadata;
 - `FrontendContract SurfaceIntentHandler` supplies generated intent form metadata.
 
@@ -164,9 +166,13 @@ rather than becoming runtime validation gaps.
 
 Render mounts with `renderFrontendContract SurfaceMount impl body`. This emits
 `data-bepis-surface` and `data-bepis-surface-config`. Do not handwrite these
-attributes in feature views except in guardrail fixtures. Lazy fragments should
-use `renderFrontendContract SurfaceLazyFragment`; intent/action forms should use the
-runtime render helpers so HTMX attributes and hidden fields stay Haskell-owned.
+attributes in feature views except in guardrail fixtures. Lazy placeholders must
+use the `renderFrontendSurfaceLazyFragmentWithConfig` runtime helper (or its
+plain default wrapper) so canonical UI-region attrs, HTMX swap attrs, retry
+metadata, and primitive-derived lazy defaults stay Haskell-owned. Feature views
+may pass root/slot classes in the config; the shared runtime must not infer
+layout geometry. Intent/action forms should use the runtime render helpers so
+HTMX attributes and hidden fields stay Haskell-owned.
 
 Controllers remain normal IHP mutation entrypoints in this epic. They parse and
 authorize params, call feature mutation/read-model code, and render validation

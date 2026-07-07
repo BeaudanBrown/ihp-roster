@@ -18,6 +18,8 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , FrontendSurfaceFocusedFieldProtectionConfig (..)
     , FrontendSurfaceFragmentKey (..)
     , FrontendSurfaceHtmxMethod (..)
+    , FrontendSurfaceLazyFragmentConfig (..)
+    , FrontendSurfaceLazyFragmentDefaults (..)
     , FrontendSurfaceHtmxRequest (..)
     , FrontendSurfaceInteractionShellConfig (..)
     , FrontendSurfaceIntentForm (..)
@@ -30,12 +32,14 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , FrontendSurfaceMountStateHandler (..)
     , FrontendSurfaceScopeHandler (..)
     , HandlerList (..)
+    , KnownFragmentOptions (..)
     , SurfaceImpl (..)
     , SurfaceImplHandlers (..)
     , frontendSurfaceFieldValues
     , getSurfaceField
     , frontendSurfaceHtmxMethodText
     , frontendSurfaceInteractionMountDomId
+    , defaultFrontendSurfaceLazyFragmentConfig
     , frontendSurfaceMountConfigJson
     , frontendSurfaceMountedFragmentToWire
     , frontendSurfaceMountedFragmentsToWire
@@ -43,6 +47,7 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , renderFrontendSurfaceInteractionShell
     , renderFrontendSurfaceIntentForm
     , renderFrontendSurfaceLazyFragment
+    , renderFrontendSurfaceLazyFragmentWithConfig
     , requireSurfaceField
     , mkSurfaceImpl
     , renderFrontendSurfaceMount
@@ -53,6 +58,9 @@ import qualified Application.Helper.FrontendContract.Surface.ContractIR as Surfa
 import Application.Helper.FrontendContract.Surface.DSL
 import qualified Application.Helper.FrontendContract.Surface.Naming as Naming
 import qualified Application.Helper.LiveUpdate.Runtime as LiveUpdate
+import Application.Helper.UiRegion (UiRegionDomAttributes (..),
+                                    canonicalUiRegionDomAttributes,
+                                    uiRegionFragmentEnabledValue)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Aeson.Key
 import qualified Data.Aeson.KeyMap as Aeson.KeyMap
@@ -237,10 +245,55 @@ data FrontendSurfaceMountStateHandler (requirement :: SurfacePrimitive) where
 
 data FrontendSurfaceFragmentHandler (requirement :: SurfacePrimitive) where
     FrontendSurfaceFragmentHandler ::
+        KnownFragmentOptions options =>
         { fragmentHandlerDefaultParams  :: !(FrontendSurfaceFieldValues fields)
         , fragmentHandlerMountedFragment :: !(FrontendSurfaceFieldValues fields -> FrontendSurfaceMountedFragment)
         , fragmentHandlerRender          :: !(FrontendSurfaceFieldValues fields -> Blaze.Html)
         } -> FrontendSurfaceFragmentHandler ('Fragment marker fields options)
+
+data FrontendSurfaceLazyFragmentDefaults = FrontendSurfaceLazyFragmentDefaults
+    { lazyFragmentDefaultLoadPolicy      :: !Text
+    , lazyFragmentDefaultTrigger         :: !(Maybe Text)
+    , lazyFragmentDefaultPlaceholderKind :: !(Maybe Text)
+    }
+    deriving (Eq, Show)
+
+class KnownFragmentOptions (options :: [PrimitiveOption]) where
+    knownFragmentOptions :: FrontendSurfaceLazyFragmentDefaults
+
+instance KnownFragmentOptions '[] where
+    knownFragmentOptions = FrontendSurfaceLazyFragmentDefaults "eager" Nothing Nothing
+
+instance KnownFragmentOptions rest => KnownFragmentOptions ('Eager ': rest) where
+    knownFragmentOptions = (knownFragmentOptions @rest) { lazyFragmentDefaultLoadPolicy = "eager" }
+
+instance (KnownLazyOptions nested, KnownFragmentOptions rest) => KnownFragmentOptions ('Lazy nested ': rest) where
+    knownFragmentOptions =
+        let restDefaults = knownFragmentOptions @rest
+            lazyDefaults = knownLazyOptions @nested
+         in restDefaults
+                { lazyFragmentDefaultLoadPolicy = "lazy"
+                , lazyFragmentDefaultTrigger = lazyFragmentDefaultTrigger lazyDefaults <|> lazyFragmentDefaultTrigger restDefaults
+                , lazyFragmentDefaultPlaceholderKind = lazyFragmentDefaultPlaceholderKind lazyDefaults <|> lazyFragmentDefaultPlaceholderKind restDefaults
+                }
+
+instance {-# OVERLAPPABLE #-} KnownFragmentOptions rest => KnownFragmentOptions (option ': rest) where
+    knownFragmentOptions = knownFragmentOptions @rest
+
+class KnownLazyOptions (options :: [PrimitiveOption]) where
+    knownLazyOptions :: FrontendSurfaceLazyFragmentDefaults
+
+instance KnownLazyOptions '[] where
+    knownLazyOptions = FrontendSurfaceLazyFragmentDefaults "lazy" Nothing Nothing
+
+instance (Typeable marker, KnownLazyOptions rest) => KnownLazyOptions ('Trigger marker ': rest) where
+    knownLazyOptions = (knownLazyOptions @rest) { lazyFragmentDefaultTrigger = Just (Naming.deriveFrontendSurfaceTypeName @marker Naming.DomTokenName) }
+
+instance (Typeable marker, KnownLazyOptions rest) => KnownLazyOptions ('Placeholder marker ': rest) where
+    knownLazyOptions = (knownLazyOptions @rest) { lazyFragmentDefaultPlaceholderKind = Just (Naming.deriveFrontendSurfaceTypeName @marker Naming.DomTokenName) }
+
+instance {-# OVERLAPPABLE #-} KnownLazyOptions rest => KnownLazyOptions (option ': rest) where
+    knownLazyOptions = knownLazyOptions @rest
 
 data FrontendSurfaceActionHandler (requirement :: SurfacePrimitive) where
     FrontendSurfaceActionHandler ::
@@ -335,8 +388,16 @@ defaultMountState FrontendSurfaceMountStateHandler { mountStateHandlerDefaultVal
     mountStateHandlerDefaultValue.fieldValuesJson
 
 defaultMountedFragment :: FrontendSurfaceFragmentHandler requirement -> FrontendSurfaceMountedFragment
-defaultMountedFragment FrontendSurfaceFragmentHandler { fragmentHandlerDefaultParams, fragmentHandlerMountedFragment } =
-    fragmentHandlerMountedFragment fragmentHandlerDefaultParams
+defaultMountedFragment (FrontendSurfaceFragmentHandler @options fragmentHandlerDefaultParams fragmentHandlerMountedFragment _) =
+    applyFrontendSurfaceLazyFragmentDefaults (knownFragmentOptions @options) (fragmentHandlerMountedFragment fragmentHandlerDefaultParams)
+
+applyFrontendSurfaceLazyFragmentDefaults :: FrontendSurfaceLazyFragmentDefaults -> FrontendSurfaceMountedFragment -> FrontendSurfaceMountedFragment
+applyFrontendSurfaceLazyFragmentDefaults defaults fragment =
+    fragment
+        { mountedFragmentLoadPolicy = defaults.lazyFragmentDefaultLoadPolicy
+        , mountedFragmentLazyTrigger = defaults.lazyFragmentDefaultTrigger
+        , mountedFragmentPlaceholderKind = defaults.lazyFragmentDefaultPlaceholderKind
+        }
 
 defaultActionRequest :: FrontendSurfaceActionHandler requirement -> FrontendSurfaceHtmxRequest
 defaultActionRequest FrontendSurfaceActionHandler { actionHandlerDefaultFields, actionHandlerRequest } =
@@ -400,11 +461,13 @@ data FrontendSurfaceFragmentKey = FrontendSurfaceFragmentKey
     deriving (Eq, Show)
 
 data FrontendSurfaceMountedFragment = FrontendSurfaceMountedFragment
-    { mountedFragmentKey        :: !FrontendSurfaceFragmentKey
-    , mountedFragmentTargetId   :: !Text
-    , mountedFragmentUrl        :: !Text
-    , mountedFragmentProtection :: !FrontendSurfaceProtection
-    , mountedFragmentLoadPolicy :: !Text
+    { mountedFragmentKey             :: !FrontendSurfaceFragmentKey
+    , mountedFragmentTargetId        :: !Text
+    , mountedFragmentUrl             :: !Text
+    , mountedFragmentProtection      :: !FrontendSurfaceProtection
+    , mountedFragmentLoadPolicy      :: !Text
+    , mountedFragmentLazyTrigger     :: !(Maybe Text)
+    , mountedFragmentPlaceholderKind :: !(Maybe Text)
     }
     deriving (Eq, Show)
 
@@ -460,21 +523,58 @@ renderFrontendSurfaceMount impl body =
         ! attr "data-bepis-surface-config" (frontendSurfaceMountConfigJson impl.surfaceImplMountConfig)
         $ body
 
+data FrontendSurfaceLazyFragmentConfig = FrontendSurfaceLazyFragmentConfig
+    { lazyFragmentRootClasses        :: ![Text]
+    , lazyFragmentPlaceholderClasses :: ![Text]
+    , lazyFragmentAriaLabel          :: !(Maybe Text)
+    , lazyFragmentRetryEnabled       :: !Bool
+    , lazyFragmentTriggerOverride    :: !(Maybe Text)
+    }
+    deriving (Eq, Show)
+
+defaultFrontendSurfaceLazyFragmentConfig :: FrontendSurfaceLazyFragmentConfig
+defaultFrontendSurfaceLazyFragmentConfig =
+    FrontendSurfaceLazyFragmentConfig
+        { lazyFragmentRootClasses = []
+        , lazyFragmentPlaceholderClasses = ["app-lazy-surface", "app-lazy-surface-compact"]
+        , lazyFragmentAriaLabel = Nothing
+        , lazyFragmentRetryEnabled = True
+        , lazyFragmentTriggerOverride = Nothing
+        }
+
 renderFrontendSurfaceLazyFragment :: FrontendSurfaceMountedFragment -> Blaze.Html -> Blaze.Html
-renderFrontendSurfaceLazyFragment fragment placeholder =
+renderFrontendSurfaceLazyFragment =
+    renderFrontendSurfaceLazyFragmentWithConfig defaultFrontendSurfaceLazyFragmentConfig
+
+renderFrontendSurfaceLazyFragmentWithConfig :: FrontendSurfaceLazyFragmentConfig -> FrontendSurfaceMountedFragment -> Blaze.Html -> Blaze.Html
+renderFrontendSurfaceLazyFragmentWithConfig config fragment placeholder =
     Html5.div
         ! attr "id" fragment.mountedFragmentTargetId
-        ! attr "class" "app-lazy-surface app-lazy-surface-compact"
-        ! attr "data-bepis-surface-fragment" "true"
-        ! attr "data-bepis-surface-lazy" "true"
-        ! attr "data-bepis-surface-lazy-fragment" fragment.mountedFragmentKey.fragmentKind
-        ! attr "data-bepis-surface-lazy-retry" "true"
+        ! attr "class" (Text.unwords (config.lazyFragmentRootClasses <> config.lazyFragmentPlaceholderClasses <> placeholderKindClasses))
+        ! attr uiAttrs.uiRegionFragmentAttribute uiRegionFragmentEnabledValue
+        ! attr uiAttrs.uiRegionLazySurfaceAttribute uiRegionFragmentEnabledValue
+        ! attr uiAttrs.uiRegionLazyFragmentAttribute fragment.mountedFragmentKey.fragmentKind
+        ! attr uiAttrs.uiRegionLazyRetryAttribute (if config.lazyFragmentRetryEnabled then uiRegionFragmentEnabledValue else "false")
+        ! maybeAttr "aria-label" config.lazyFragmentAriaLabel
+        ! attr "aria-busy" "true"
         ! attr "hx-get" fragment.mountedFragmentUrl
-        ! attr "hx-trigger" "load delay:50ms"
+        ! attr "hx-trigger" lazyTrigger
         ! attr "hx-target" "this"
         ! attr "hx-swap" "outerHTML"
         ! attr "hx-push-url" "false"
         $ placeholder
+    where
+        uiAttrs :: UiRegionDomAttributes
+        uiAttrs = canonicalUiRegionDomAttributes
+
+        lazyTrigger = fromMaybe (fromMaybe "load delay:50ms" fragment.mountedFragmentLazyTrigger) config.lazyFragmentTriggerOverride
+
+        placeholderKindClasses =
+            maybe [] (\kind -> ["app-lazy-surface-" <> kind]) fragment.mountedFragmentPlaceholderKind
+
+maybeAttr :: Text -> Maybe Text -> Blaze.Attribute
+maybeAttr _ Nothing         = mempty
+maybeAttr name (Just value) = attr name value
 
 data FrontendSurfaceInteractionShellConfig = FrontendSurfaceInteractionShellConfig
     { interactionShellHtmxSync :: !(Maybe Text)

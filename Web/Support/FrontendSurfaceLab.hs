@@ -103,6 +103,8 @@ surfaceLabShellFragment =
         , mountedFragmentUrl = pathTo FrontendSurfaceLabAction
         , mountedFragmentProtection = FrontendSurfaceReplace
         , mountedFragmentLoadPolicy = "eager"
+        , mountedFragmentLazyTrigger = Nothing
+        , mountedFragmentPlaceholderKind = Nothing
         }
 
 surfaceLabPanelFragment :: (?context :: ControllerContext) => FrontendSurfaceMountedFragment
@@ -117,6 +119,8 @@ surfaceLabPanelFragmentFor panelIdValue =
         , mountedFragmentUrl = pathTo ShowFrontendSurfaceLabPanelFragmentAction { panelId = panelIdValue }
         , mountedFragmentProtection = FrontendSurfaceReplace
         , mountedFragmentLoadPolicy = "lazy"
+        , mountedFragmentLazyTrigger = Nothing
+        , mountedFragmentPlaceholderKind = Nothing
         }
 
 refreshPanelAction :: (?context :: ControllerContext) => FrontendSurfaceHtmxRequest

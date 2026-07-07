@@ -88,6 +88,8 @@ supportAwardRatesMountedFragment =
         , mountedFragmentUrl = "/ShowFwcMapdAwardRatesSection"
         , mountedFragmentProtection = FrontendSurfaceReplace
         , mountedFragmentLoadPolicy = "eager"
+        , mountedFragmentLazyTrigger = Nothing
+        , mountedFragmentPlaceholderKind = Nothing
         }
 
 supportPublicHolidaysMountedFragment :: FrontendSurfaceMountedFragment
@@ -98,4 +100,6 @@ supportPublicHolidaysMountedFragment =
         , mountedFragmentUrl = "/ShowPublicHolidaysSection"
         , mountedFragmentProtection = FrontendSurfaceReplace
         , mountedFragmentLoadPolicy = "eager"
+        , mountedFragmentLazyTrigger = Nothing
+        , mountedFragmentPlaceholderKind = Nothing
         }

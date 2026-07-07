@@ -150,4 +150,6 @@ profileSectionMountedFragment keyName targetId section =
         , mountedFragmentUrl = appendQueryParams (pathTo ShowprofileContentLiveFragmentAction) [("section", section)]
         , mountedFragmentProtection = FrontendSurfaceReplace
         , mountedFragmentLoadPolicy = "eager"
+        , mountedFragmentLazyTrigger = Nothing
+        , mountedFragmentPlaceholderKind = Nothing
         }

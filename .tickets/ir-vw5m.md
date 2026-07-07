@@ -1,6 +1,6 @@
 ---
 id: ir-vw5m
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-07-07T03:24:30Z
@@ -21,3 +21,9 @@ Use existing FrontendSurface fragment options as the source of truth for lazy/ea
 
 Roster staff panel placeholder renders in the same right-side slot as the loaded staff panel. Current lazy fragments use one canonical Haskell render helper/config path. Haskell lazy roots emit canonical UI-region attrs, not stale data-bepis-surface-lazy* attrs. Existing Lazy, Trigger, and Placeholder primitive options drive defaults where feasible. No production call sites depend on Application.Helper.View.LazySurface; stale helper is deleted. Guardrails/tests catch stale lazy attrs and old helper reintroduction. Focused frontend/Haskell checks pass or unrelated failures are documented.
 
+
+## Notes
+
+**2026-07-07T03:36:31Z**
+
+Implemented in one cleanup pass. Summary: added canonical FrontendSurface lazy fragment config/renderer with feature-owned root classes and generated UI-region attrs; wired roster staff panel slot classes; derived lazy load policy, trigger, and placeholder defaults from existing Lazy/Trigger/Placeholder options; deleted stale Application.Helper.View.LazySurface; updated all mounted fragment constructors/call sites; added Hspec/guardrail/docs coverage. Verification: typecheck, frontend-contracts-check, frontend-test, hspec-test --match FrontendSurface, hspec-test --match lazy, frontend-surface-compile-fail-check, frontend-surface-guardrails, and frontend-check passed. Note: attempted old command name surface-compile-fail-check, but project command is frontend-surface-compile-fail-check.
