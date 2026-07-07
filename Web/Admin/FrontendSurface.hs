@@ -184,6 +184,8 @@ shiftTypesHandlers scope fragment =
             adminActionHandler "update-shift-type" (pathTo (UpdateShiftTypeAction (Id UUID.nil))) `HandlerCons`
             adminActionHandler "move-shift-type-up" (pathTo (MoveShiftTypeUpAction (Id UUID.nil))) `HandlerCons`
             adminActionHandler "move-shift-type-down" (pathTo (MoveShiftTypeDownAction (Id UUID.nil))) `HandlerCons`
+            adminActionHandler "autosave-shift-type-name" (pathTo (UpdateShiftTypeAction (Id UUID.nil))) `HandlerCons`
+            adminActionHandler "autosave-shift-type-selection" (pathTo (UpdateShiftTypeAction (Id UUID.nil))) `HandlerCons`
             adminActionHandler "toggle-inactive-shift-types" (pathTo ShowadminShiftTypesLiveFragmentAction) `HandlerCons`
             HandlerNil
         , surfaceIntentHandlers = HandlerNil

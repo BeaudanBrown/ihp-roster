@@ -40,6 +40,8 @@ module Application.Helper.FrontendContract.Surface.Admin
     , UpdateShiftType
     , MoveShiftTypeUp
     , MoveShiftTypeDown
+    , AutosaveShiftTypeName
+    , AutosaveShiftTypeSelection
     , ToggleInactiveShiftTypes
     , ShowInactiveRosterGroups
     , ShowInactiveShiftTypes
@@ -92,6 +94,8 @@ data CreateShiftType
 data UpdateShiftType
 data MoveShiftTypeUp
 data MoveShiftTypeDown
+data AutosaveShiftTypeName
+data AutosaveShiftTypeSelection
 data ToggleInactiveShiftTypes
 data ShowInactiveRosterGroups
 data ShowInactiveShiftTypes
@@ -103,6 +107,8 @@ data None
 data OuterHTML
 data Click
 data ClosestFormCustomHtmx
+data InputChangedAutosaveCustomHtmx
+data ChangeAutosaveCustomHtmx
 
 data AdminVenueSettings
 data AdminInvitesResourceMarker
@@ -207,6 +213,30 @@ type AdminShiftTypesSurface =
              , 'HtmxSwap OuterHTML
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              , 'CustomHtmx ClosestFormCustomHtmx "move buttons submit the containing row form via hx-include=closest form"
+             ]
+         , Action AutosaveShiftTypeName
+            '[ Field ShowInactiveShiftTypes 'WireBool
+             , Field Name 'WireText
+             , Field PayRateSelection 'WireText
+             , Field ColourKey 'WireText
+             , Field IsActive 'WireBool
+             ]
+            '[ 'HtmxMethod 'HtmxPost
+             , 'HtmxTarget AdminShiftTypesFragment
+             , 'HtmxSwap OuterHTML
+             , 'CustomHtmx InputChangedAutosaveCustomHtmx "name input autosave uses HTMX input changed delay:600ms, blur changed trigger and hx-include=closest form"
+             ]
+         , Action AutosaveShiftTypeSelection
+            '[ Field ShowInactiveShiftTypes 'WireBool
+             , Field Name 'WireText
+             , Field PayRateSelection 'WireText
+             , Field ColourKey 'WireText
+             , Field IsActive 'WireBool
+             ]
+            '[ 'HtmxMethod 'HtmxPost
+             , 'HtmxTarget AdminShiftTypesFragment
+             , 'HtmxSwap OuterHTML
+             , 'CustomHtmx ChangeAutosaveCustomHtmx "select autosave uses HTMX change trigger and hx-include=closest form"
              ]
          , Action ToggleInactiveShiftTypes
             '[ Field ShowInactiveShiftTypes 'WireBool ]

@@ -27,3 +27,7 @@ Callsites in scope are classified; migrated surface-owned controls render throug
 **2026-07-07T08:30:04Z**
 
 Migrated Admin Shift Types create/update forms, move buttons, and inactive toggle to generated FrontendSurface action contracts. Autosave attrs on embedded input/select/toggle controls remain handwritten pending a generic arbitrary-control/action-attrs helper or shared AppToggle integration decision.
+
+**2026-07-07T08:59:37Z**
+
+Added reusable applyFrontendSurfaceActionAttrs helper for generated action attrs on arbitrary controls. Migrated Shift Type name/pay-rate/colour autosave controls to generated actions with explicit CustomHtmx for HTMX extended trigger/include strings; active toggle still needs shared AppToggle integration.

@@ -45,6 +45,7 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , frontendSurfaceMountConfigJson
     , frontendSurfaceMountedFragmentToWire
     , frontendSurfaceMountedFragmentsToWire
+    , applyFrontendSurfaceActionAttrs
     , renderFrontendSurfaceActionForm
     , renderFrontendSurfaceActionLink
     , renderFrontendSurfaceActionSubmitButton
@@ -720,6 +721,10 @@ domIdSegment value =
         normalizeChar char
             | Char.isAlphaNum char = char
             | otherwise = '-'
+
+applyFrontendSurfaceActionAttrs :: SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> Blaze.Html -> Blaze.Html
+applyFrontendSurfaceActionAttrs action route element =
+    applyAttributes element (frontendSurfaceActionHtmxAttrs action route <> routeExtraAttrs route)
 
 renderFrontendSurfaceActionForm :: SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> Blaze.Html -> Blaze.Html
 renderFrontendSurfaceActionForm action route body =

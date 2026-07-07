@@ -9,6 +9,7 @@ import qualified Application.Helper.FrontendContract.Surface.ContractIR as Surfa
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
                                                             FrontendSurfaceFieldValue (..),
+                                                            applyFrontendSurfaceActionAttrs,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionLink,
                                                             renderFrontendSurfaceActionSubmitButton,
@@ -133,22 +134,13 @@ renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates impor
         <div class="row g-2 align-items-end">
             <div class="col-12 col-lg-3">
                 <label class="form-label">Name</label>
-                <input class="form-control"
-                       type="text"
-                       name="name"
-                       value={shiftType.name}
-                       data-admin-shift-type-field-key={shiftTypeFieldKey shiftType.id "name"}
-                       hx-post={UpdateShiftTypeAction (get #id shiftType)}
-                       hx-trigger="input changed delay:600ms, blur changed"
-                       hx-include="closest form"
-                       hx-target="#admin-shift-types-fragment"
-                       hx-swap="outerHTML" />
+                {autosaveNameInput}
             </div>
             <div class="col-12 col-lg-4">
-                {renderPayRateSelect ("shift-type-pay-rate-" <> tshow shiftType.id) shiftType.overrideAwardLevelId shiftType.importedXeroPayItemId awardLevels awardLevelBaseRates importedPayItems (Just (pathTo (UpdateShiftTypeAction shiftType.id)))}
+                {renderPayRateSelect ("shift-type-pay-rate-" <> tshow shiftType.id) shiftType.overrideAwardLevelId shiftType.importedXeroPayItemId awardLevels awardLevelBaseRates importedPayItems (Just (adminShiftTypesAction "autosave-shift-type-selection", autosaveSelectionRoute shiftType))}
             </div>
             <div class="col-12 col-lg-3">
-                {renderShiftTypeColourSelect ("shift-type-colour-" <> tshow shiftType.id) shiftType.colourKey (Just (pathTo (UpdateShiftTypeAction shiftType.id)))}
+                {renderShiftTypeColourSelect ("shift-type-colour-" <> tshow shiftType.id) shiftType.colourKey (Just (adminShiftTypesAction "autosave-shift-type-selection", autosaveSelectionRoute shiftType))}
             </div>
             <div class="col-12 col-lg-2">
                 <label class="form-label" for={"shift-type-active-" <> tshow shiftType.id}>Status</label>
@@ -156,7 +148,28 @@ renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates impor
             </div>
         </div>
     |]
+        autosaveNameInput = applyFrontendSurfaceActionAttrs (adminShiftTypesAction "autosave-shift-type-name") (autosaveNameRoute shiftType) [hsx|
+            <input class="form-control"
+                   type="text"
+                   name="name"
+                   value={shiftType.name}
+                   data-admin-shift-type-field-key={shiftTypeFieldKey shiftType.id "name"} />
+        |]
         updateUrl = pathTo (UpdateShiftTypeAction (get #id shiftType))
+        autosaveNameRoute rowShiftType = FrontendSurfaceActionRoute
+            { actionRouteUrl = pathTo (UpdateShiftTypeAction rowShiftType.id)
+            , actionRouteFields = []
+            , actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "input-changed-autosave-custom-htmx" [("hx-trigger", "input changed delay:600ms, blur changed"), ("hx-include", "closest form")]]
+            , actionRouteStandardUrl = Nothing
+            , actionRouteExtraAttrs = []
+            }
+        autosaveSelectionRoute rowShiftType = FrontendSurfaceActionRoute
+            { actionRouteUrl = pathTo (UpdateShiftTypeAction rowShiftType.id)
+            , actionRouteFields = []
+            , actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "change-autosave-custom-htmx" [("hx-trigger", "change"), ("hx-include", "closest form")]]
+            , actionRouteStandardUrl = Nothing
+            , actionRouteExtraAttrs = []
+            }
         updateRoute = FrontendSurfaceActionRoute
             { actionRouteUrl = updateUrl
             , actionRouteFields = []
@@ -186,27 +199,24 @@ renderShiftTypeMoveButton isDisabled action actionUrl label =
             , actionRouteExtraAttrs = [("class", "btn btn-outline-secondary")]
             }
 
-renderPayRateSelect :: Text -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Maybe Text -> Html
-renderPayRateSelect fieldId selectedAwardLevelId selectedImportedPayItemId awardLevels awardLevelBaseRates importedPayItems maybePostPath = [hsx|
+renderPayRateSelect :: Text -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Maybe (SurfaceIR.HtmxActionIR, FrontendSurfaceActionRoute) -> Html
+renderPayRateSelect fieldId selectedAwardLevelId selectedImportedPayItemId awardLevels awardLevelBaseRates importedPayItems maybeAutosave = [hsx|
     <label class="form-label" for={fieldId}>Pay Rate</label>
-    <select id={fieldId}
-            class="form-select"
-            name="payRateSelection"
-            hx-post={maybePostPath}
-            hx-trigger={autosaveTrigger}
-            hx-include={autosaveInclude}
-            hx-target={autosaveTarget}
-            hx-swap={autosaveSwap}>
-        <option value="" selected={isNothing selectedAwardLevelId && isNothing selectedImportedPayItemId}>Use staff default pay rate</option>
-        {renderAwardLevelOptionsGroup awardLevels awardLevelBaseRates selectedAwardLevelId selectedImportedPayItemId}
-        {renderImportedPayItemOptionsGroup selectedImportedPayItemId importedPayItems}
-    </select>
+    {renderSelect selectBody}
 |]
     where
-        autosaveTrigger = if isJust maybePostPath then Just ("change" :: Text) else Nothing
-        autosaveInclude = if isJust maybePostPath then Just ("closest form" :: Text) else Nothing
-        autosaveTarget = if isJust maybePostPath then Just ("#admin-shift-types-fragment" :: Text) else Nothing
-        autosaveSwap = if isJust maybePostPath then Just ("outerHTML" :: Text) else Nothing
+        selectBody = [hsx|
+            <select id={fieldId}
+                    class="form-select"
+                    name="payRateSelection">
+                <option value="" selected={isNothing selectedAwardLevelId && isNothing selectedImportedPayItemId}>Use staff default pay rate</option>
+                {renderAwardLevelOptionsGroup awardLevels awardLevelBaseRates selectedAwardLevelId selectedImportedPayItemId}
+                {renderImportedPayItemOptionsGroup selectedImportedPayItemId importedPayItems}
+            </select>
+        |]
+        renderSelect selectHtml = case maybeAutosave of
+            Just (action, route) -> applyFrontendSurfaceActionAttrs action route selectHtml
+            Nothing -> selectHtml
 
 renderImportedPayItemOptionsGroup :: Maybe (Id XeroImportedPayItem) -> [XeroImportedPayItem] -> Html
 renderImportedPayItemOptionsGroup _ [] = mempty
@@ -223,28 +233,25 @@ renderImportedPayItemOption selectedImportedPayItemId importedPayItem = [hsx|
     </option>
 |]
 
-renderShiftTypeColourSelect :: Text -> Text -> Maybe Text -> Html
-renderShiftTypeColourSelect fieldId selectedColourKey maybePostPath = [hsx|
+renderShiftTypeColourSelect :: Text -> Text -> Maybe (SurfaceIR.HtmxActionIR, FrontendSurfaceActionRoute) -> Html
+renderShiftTypeColourSelect fieldId selectedColourKey maybeAutosave = [hsx|
     <label class="form-label" for={fieldId}>Optional Colour</label>
-    <select id={fieldId}
-            class="form-select admin-shift-colour-select"
-            name="colourKey"
-            data-roster-shift-colour={effectiveSelectedColourKey}
-            hx-post={maybePostPath}
-            hx-trigger={autosaveTrigger}
-            hx-include={autosaveInclude}
-            hx-target={autosaveTarget}
-            hx-swap={autosaveSwap}>
-        {renderBlankShiftTypeColourOption effectiveSelectedColourKey}
-        {forEach shiftTypeColourPaletteKeys (renderShiftTypeColourOption effectiveSelectedColourKey)}
-    </select>
+    {renderSelect selectBody}
 |]
     where
         effectiveSelectedColourKey = normalizeRenderableColourKey selectedColourKey
-        autosaveTrigger = if isJust maybePostPath then Just ("change" :: Text) else Nothing
-        autosaveInclude = if isJust maybePostPath then Just ("closest form" :: Text) else Nothing
-        autosaveTarget = if isJust maybePostPath then Just ("#admin-shift-types-fragment" :: Text) else Nothing
-        autosaveSwap = if isJust maybePostPath then Just ("outerHTML" :: Text) else Nothing
+        selectBody = [hsx|
+            <select id={fieldId}
+                    class="form-select admin-shift-colour-select"
+                    name="colourKey"
+                    data-roster-shift-colour={effectiveSelectedColourKey}>
+                {renderBlankShiftTypeColourOption effectiveSelectedColourKey}
+                {forEach shiftTypeColourPaletteKeys (renderShiftTypeColourOption effectiveSelectedColourKey)}
+            </select>
+        |]
+        renderSelect selectHtml = case maybeAutosave of
+            Just (action, route) -> applyFrontendSurfaceActionAttrs action route selectHtml
+            Nothing -> selectHtml
 
 renderBlankShiftTypeColourOption :: Text -> Html
 renderBlankShiftTypeColourOption selectedColourKey = [hsx|
