@@ -12,7 +12,9 @@ import Web.Admin.Xero.Mutations (completeXeroReferenceSyncMutation,
                                  startXeroReferenceSyncMutation)
 import Web.Controller.Admin.Xero.Connection (redirectToXeroAuthorizationForReferenceSync)
 import Web.Controller.Admin.Xero.Responses (currentUserCanManageXeroIntegration,
-                                            respondWithXeroSectionFragment)
+                                            respondWithXeroSectionActorInvalidationAndToast,
+                                            respondWithXeroSectionFragment,
+                                            xeroErrorToast, xeroSuccessToast)
 import Web.Controller.Prelude
 
 syncXeroPayrollReferenceDataAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
@@ -20,9 +22,10 @@ syncXeroPayrollReferenceDataAction = do
     maybeConnection <- fetchActiveCurrentVenueXeroConnection
     case maybeConnection of
         Nothing -> do
-            setErrorMessage "Connect Xero before syncing payroll reference data."
+            let message = "Connect Xero before syncing payroll reference data."
+            setErrorMessage message
             if isHtmxRequest
-                then respondWithXeroSectionFragment
+                then respondWithXeroSectionActorInvalidationAndToast (Just (xeroErrorToast message))
                 else redirectTo XeroAction
         Just connection -> syncXeroPayrollReferenceData connection
 
@@ -72,9 +75,10 @@ completeXeroReferenceSync ::
     IO ()
 completeXeroReferenceSync syncRun connection employees earningsRates payrollCalendars accounts payrollSettingsAccounts = do
     _ <- completeXeroReferenceSyncMutation syncRun connection employees earningsRates payrollCalendars accounts payrollSettingsAccounts
-    setSuccessMessage ("Synced Xero payroll reference data: " <> tshow (length employees) <> " employees, " <> tshow (length earningsRates) <> " earnings rates, " <> tshow (length payrollCalendars) <> " payroll calendars, " <> tshow (length accounts) <> " accounts.")
+    let message = "Synced Xero payroll reference data: " <> tshow (length employees) <> " employees, " <> tshow (length earningsRates) <> " earnings rates, " <> tshow (length payrollCalendars) <> " payroll calendars, " <> tshow (length accounts) <> " accounts."
+    setSuccessMessage message
     if isHtmxRequest
-        then respondWithXeroSectionFragment
+        then respondWithXeroSectionActorInvalidationAndToast (Just (xeroSuccessToast message))
         else redirectTo XeroAction
 
 failXeroReferenceSync ::
@@ -87,7 +91,7 @@ failXeroReferenceSync syncRun connection message = do
     _ <- failXeroReferenceSyncMutation syncRun connection message
     setErrorMessage message
     if isHtmxRequest
-        then respondWithXeroSectionFragment
+        then respondWithXeroSectionActorInvalidationAndToast (Just (xeroErrorToast message))
         else redirectTo XeroAction
 
 failXeroReferenceSyncOrReconnect ::

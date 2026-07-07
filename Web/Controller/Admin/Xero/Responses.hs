@@ -10,6 +10,7 @@ module Web.Controller.Admin.Xero.Responses
     , respondWithXeroPayItemsFragment
     , respondWithXeroPayItemsFragmentAndToast
     , respondWithXeroPayItemsFragmentAndToastAndCloseDialog
+    , respondWithXeroSectionActorInvalidationAndToast
     , respondWithXeroSectionFragment
     , respondWithXeroSectionFragmentAndToast
     , respondWithXeroStaffMappingControlsAndToast
@@ -72,6 +73,15 @@ renderCurrentVenueXeroSectionFragmentOob = do
     xeroSectionData <- fetchCurrentVenueXeroAdminSectionData
     profileActionSpan "admin.xero.fragment.render_oob" do
         pure (renderXeroSectionFragmentOob xeroSectionData)
+
+respondWithXeroSectionActorInvalidationAndToast ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    Maybe ToastOverlayConfig ->
+    IO ()
+respondWithXeroSectionActorInvalidationAndToast maybeToast = do
+    setActorLiveFragmentsRefresh (adminXeroLiveScope (unpackId currentVenueId)) (AdminSurface.adminSurfaceWireFragments [AdminSurface.adminXeroShellFragment])
+    respondHtmlProfiled $
+        maybe mempty (\toast -> renderToastOverlayHostOob ToastBottomCenter [toast]) maybeToast
 
 respondWithXeroStaffMappingsFragment ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

@@ -1,6 +1,6 @@
 ---
 id: ir-1nps
-status: open
+status: closed
 deps: [ir-9t94]
 links: []
 created: 2026-05-29T03:16:10Z
@@ -21,3 +21,9 @@ Connection/start/disconnect/reference-sync responses that change shell-level sta
 ## Acceptance Criteria
 
 Shell-level successful actor responses contain no bespoke business OOB Xero section HTML. They use the shared actor-local invalidation helper. Passive Xero websocket invalidation remains intact. Focused Xero specs pass.
+
+## Notes
+
+**2026-07-07T04:30:48Z**
+
+Migrated HTMX reference-sync shell responses to actor-local semantic invalidation. Added respondWithXeroSectionActorInvalidationAndToast, which emits adminXeroLiveScope/adminXeroShellFragment through setActorLiveFragmentsRefresh and returns only toast extras. Sync success, sync failure, and no-connection HTMX paths no longer render admin-xero-fragment business HTML. Start connection remains HX-Redirect to Xero; OAuth callback and disconnect remain full-page redirect/flash flows, so no actor business OOB response is involved. Passive touched-resource invalidation remains in Web.Admin.Xero.Mutations. Verification: bash ./bin/in-env hspec-test --match 'syncs Xero payroll reference data over HTMX'.

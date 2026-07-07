@@ -451,6 +451,31 @@ tests = beforeAll testContext do
                 updatedConnection.lastSyncAt `shouldSatisfy` isJust
                 decryptXeroToken testXeroConfig.tokenEncryptionKey updatedConnection.encryptedRefreshToken `shouldBe` Right "new-refresh-token"
 
+        it "syncs Xero payroll reference data over HTMX with actor-local shell invalidation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero HTMX Sync Venue"
+                admin <- createUserRecord "xero-htmx-sync@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_owner"
+                _connection <- createSyncableXeroConnection venue admin
+                let tokenResponse = XeroTokenResponse "htmx-access-token" "htmx-refresh-token" 1800 (Just requiredXeroScopesText)
+
+                response <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest (referenceSyncXeroClient tokenResponse [] [] []) do
+                        withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callAction SyncXeroPayrollReferenceDataAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
+                response `responseBodyShouldNotContain` "id=\"xero-pay-items-data\""
+                response `responseBodyShouldContain` "Synced Xero payroll reference data"
+                let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-xero-shell")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-xero-fragment")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "/ShowadminXeroShellLiveFragment")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf ("admin-xero:" <> tshow (unpackId venue.id)))
+
         it "preselects the Xero wages expense account but not ambiguous payroll calendars" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Multiple Defaults Venue"
