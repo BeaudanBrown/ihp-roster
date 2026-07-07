@@ -21,6 +21,8 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , FrontendSurfaceLazyFragmentConfig (..)
     , FrontendSurfaceLazyFragmentDefaults (..)
     , FrontendSurfaceHtmxRequest (..)
+    , FrontendSurfaceActionRoute (..)
+    , FrontendSurfaceCustomHtmxAttrs (..)
     , FrontendSurfaceInteractionShellConfig (..)
     , FrontendSurfaceIntentForm (..)
     , FrontendSurfaceMountConfig (..)
@@ -43,6 +45,10 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , frontendSurfaceMountConfigJson
     , frontendSurfaceMountedFragmentToWire
     , frontendSurfaceMountedFragmentsToWire
+    , renderFrontendSurfaceActionForm
+    , renderFrontendSurfaceActionLink
+    , renderFrontendSurfaceActionSubmitButton
+    , renderFrontendSurfaceActionHtmxControl
     , renderFrontendSurfaceHtmxForm
     , renderFrontendSurfaceInteractionShell
     , renderFrontendSurfaceIntentForm
@@ -488,6 +494,9 @@ data FrontendSurfaceProtection
 data FrontendSurfaceHtmxMethod
     = FrontendSurfaceGet
     | FrontendSurfacePost
+    | FrontendSurfacePut
+    | FrontendSurfacePatch
+    | FrontendSurfaceDelete
     deriving (Eq, Show)
 
 data FrontendSurfaceFieldValue = FrontendSurfaceFieldValue
@@ -503,6 +512,20 @@ data FrontendSurfaceHtmxRequest = FrontendSurfaceHtmxRequest
     , htmxRequestTarget :: !Text
     , htmxRequestSwap   :: !Text
     , htmxRequestFields :: ![FrontendSurfaceFieldValue]
+    }
+    deriving (Eq, Show)
+
+data FrontendSurfaceCustomHtmxAttrs = FrontendSurfaceCustomHtmxAttrs
+    { customHtmxAttrMarker :: !Text
+    , customHtmxAttrValues :: ![(Text, Text)]
+    }
+    deriving (Eq, Show)
+
+data FrontendSurfaceActionRoute = FrontendSurfaceActionRoute
+    { actionRouteUrl         :: !Text
+    , actionRouteFields      :: ![FrontendSurfaceFieldValue]
+    , actionRouteCustomHtmx  :: ![FrontendSurfaceCustomHtmxAttrs]
+    , actionRouteStandardUrl :: !(Maybe Text)
     }
     deriving (Eq, Show)
 
@@ -697,6 +720,174 @@ domIdSegment value =
             | Char.isAlphaNum char = char
             | otherwise = '-'
 
+renderFrontendSurfaceActionForm :: SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> Blaze.Html -> Blaze.Html
+renderFrontendSurfaceActionForm action route body =
+    applyAttributes
+        (Html5.form $ do
+            forM_ route.actionRouteFields renderHiddenField
+            body)
+        ( standardFormAttrs method url
+            <> frontendSurfaceActionHtmxAttrs action route
+        )
+    where
+        method = frontendSurfaceActionMethod action
+        url = fromMaybe route.actionRouteUrl route.actionRouteStandardUrl
+
+renderFrontendSurfaceActionSubmitButton :: SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> Blaze.Html -> Blaze.Html
+renderFrontendSurfaceActionSubmitButton action route body =
+    applyAttributes
+        (Html5.button ! attr "type" "submit" $ body)
+        ( standardSubmitButtonAttrs route
+            <> frontendSurfaceActionHtmxAttrs action route
+        )
+
+renderFrontendSurfaceActionLink :: SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> Blaze.Html -> Blaze.Html
+renderFrontendSurfaceActionLink action route body =
+    applyAttributes
+        (Html5.a $ body)
+        ( attr "href" (fromMaybe route.actionRouteUrl route.actionRouteStandardUrl)
+            : frontendSurfaceActionHtmxAttrs action route
+        )
+
+renderFrontendSurfaceActionHtmxControl :: SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> Blaze.Html -> Blaze.Html
+renderFrontendSurfaceActionHtmxControl action route body =
+    applyAttributes (Html5.span body) (frontendSurfaceActionHtmxAttrs action route)
+
+frontendSurfaceActionHtmxAttrs :: SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> [Blaze.Attribute]
+frontendSurfaceActionHtmxAttrs action route =
+    [ attr (frontendSurfaceHtmxMethodAttr method) route.actionRouteUrl
+    , attr "data-bepis-surface-action" action.htmxActionName
+    , attr "data-bepis-surface-action-config" (frontendSurfaceActionConfigJson action)
+    ]
+        <> optionAttrs action.htmxActionOptions
+        <> customHtmxAttrs action route
+    where
+        method = frontendSurfaceActionMethod action
+
+        optionAttrs = concatMap \case
+            SurfaceIR.HtmxTriggerOption value -> [attr "hx-trigger" value]
+            SurfaceIR.HtmxIncludeOption value -> [attr "hx-include" value]
+            SurfaceIR.HtmxSyncOption value -> [attr "hx-sync" value]
+            SurfaceIR.HtmxIndicatorOption value -> [attr "hx-indicator" value]
+            SurfaceIR.HtmxConfirmOption value -> [attr "hx-confirm" value]
+            SurfaceIR.HtmxSelectOption value -> [attr "hx-select" value]
+            SurfaceIR.HtmxTargetOption value -> [attr "hx-target" ("#" <> value)]
+            SurfaceIR.HtmxSwapOption value -> [attr "hx-swap" value]
+            SurfaceIR.HtmxPushUrlOption value -> [attr "hx-push-url" (if value == SurfaceIR.HtmxPushUrlTrueIR then "true" else "false")]
+            _ -> []
+
+frontendSurfaceActionMethod :: SurfaceIR.HtmxActionIR -> FrontendSurfaceHtmxMethod
+frontendSurfaceActionMethod action =
+    fromMaybe FrontendSurfaceGet (listToMaybe (mapMaybe methodOption action.htmxActionOptions))
+    where
+        methodOption = \case
+            SurfaceIR.HtmxMethodOption method -> Just (frontendSurfaceHtmxMethodFromIR method)
+            _ -> Nothing
+
+frontendSurfaceHtmxMethodFromIR :: SurfaceIR.HtmxMethodIR -> FrontendSurfaceHtmxMethod
+frontendSurfaceHtmxMethodFromIR = \case
+    SurfaceIR.HtmxGetIR -> FrontendSurfaceGet
+    SurfaceIR.HtmxPostIR -> FrontendSurfacePost
+    SurfaceIR.HtmxPutIR -> FrontendSurfacePut
+    SurfaceIR.HtmxPatchIR -> FrontendSurfacePatch
+    SurfaceIR.HtmxDeleteIR -> FrontendSurfaceDelete
+
+standardFormAttrs :: FrontendSurfaceHtmxMethod -> Text -> [Blaze.Attribute]
+standardFormAttrs method url =
+    [ attr "method" (frontendSurfaceStandardMethodText method)
+    , attr "action" url
+    ]
+
+standardSubmitButtonAttrs :: FrontendSurfaceActionRoute -> [Blaze.Attribute]
+standardSubmitButtonAttrs route =
+    [ attr "formaction" (fromMaybe route.actionRouteUrl route.actionRouteStandardUrl)
+    ]
+
+frontendSurfaceStandardMethodText :: FrontendSurfaceHtmxMethod -> Text
+frontendSurfaceStandardMethodText = \case
+    FrontendSurfaceGet -> "get"
+    FrontendSurfacePost -> "post"
+    FrontendSurfacePut -> "post"
+    FrontendSurfacePatch -> "post"
+    FrontendSurfaceDelete -> "post"
+
+customHtmxAttrs :: SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> [Blaze.Attribute]
+customHtmxAttrs action route =
+    concatMap renderCustom route.actionRouteCustomHtmx
+    where
+        declaredMarkers = [marker | SurfaceIR.CustomHtmxOption marker _ <- action.htmxActionOptions]
+        renderCustom custom
+            | custom.customHtmxAttrMarker `elem` declaredMarkers = fmap (uncurry attr) custom.customHtmxAttrValues
+            | otherwise = error ("undeclared custom HTMX marker " <> cs custom.customHtmxAttrMarker <> " for action " <> cs action.htmxActionName)
+
+frontendSurfaceActionConfigJson :: SurfaceIR.HtmxActionIR -> Text
+frontendSurfaceActionConfigJson action =
+    Text.Encoding.decodeUtf8 (LBS.toStrict (Aeson.encode (frontendSurfaceActionConfigToJson action)))
+
+frontendSurfaceActionConfigToJson :: SurfaceIR.HtmxActionIR -> Aeson.Value
+frontendSurfaceActionConfigToJson action =
+    Aeson.object
+        [ "name" Aeson..= action.htmxActionName
+        , "fields" Aeson..= fmap (.fieldName) action.htmxActionFields
+        , "htmx" Aeson..= Aeson.object
+            [ "method" Aeson..= frontendSurfaceHtmxMethodAttrSegment (frontendSurfaceActionMethod action)
+            , "trigger" Aeson..= firstOptionText action htmxTriggerValue
+            , "include" Aeson..= firstOptionText action htmxIncludeValue
+            , "sync" Aeson..= firstOptionText action htmxSyncValue
+            , "indicator" Aeson..= firstOptionText action htmxIndicatorValue
+            , "confirm" Aeson..= firstOptionText action htmxConfirmValue
+            , "select" Aeson..= firstOptionText action htmxSelectValue
+            , "target" Aeson..= firstOptionText action htmxTargetValue
+            , "swap" Aeson..= firstOptionText action htmxSwapValue
+            , "pushUrl" Aeson..= firstPushUrlOption action
+            , "custom" Aeson..= [Aeson.object ["marker" Aeson..= marker, "reason" Aeson..= reason] | SurfaceIR.CustomHtmxOption marker reason <- action.htmxActionOptions]
+            ]
+        ]
+
+firstOptionText :: SurfaceIR.HtmxActionIR -> (SurfaceIR.OptionIR -> Maybe Text) -> Maybe Text
+firstOptionText action matcher = listToMaybe (mapMaybe matcher action.htmxActionOptions)
+
+htmxTriggerValue, htmxIncludeValue, htmxSyncValue, htmxIndicatorValue, htmxConfirmValue, htmxSelectValue, htmxTargetValue, htmxSwapValue :: SurfaceIR.OptionIR -> Maybe Text
+htmxTriggerValue = \case
+    SurfaceIR.HtmxTriggerOption value -> Just value
+    _ -> Nothing
+htmxIncludeValue = \case
+    SurfaceIR.HtmxIncludeOption value -> Just value
+    _ -> Nothing
+htmxSyncValue = \case
+    SurfaceIR.HtmxSyncOption value -> Just value
+    _ -> Nothing
+htmxIndicatorValue = \case
+    SurfaceIR.HtmxIndicatorOption value -> Just value
+    _ -> Nothing
+htmxConfirmValue = \case
+    SurfaceIR.HtmxConfirmOption value -> Just value
+    _ -> Nothing
+htmxSelectValue = \case
+    SurfaceIR.HtmxSelectOption value -> Just value
+    _ -> Nothing
+htmxTargetValue = \case
+    SurfaceIR.HtmxTargetOption value -> Just value
+    _ -> Nothing
+htmxSwapValue = \case
+    SurfaceIR.HtmxSwapOption value -> Just value
+    _ -> Nothing
+
+firstPushUrlOption :: SurfaceIR.HtmxActionIR -> Maybe Bool
+firstPushUrlOption action =
+    listToMaybe [value == SurfaceIR.HtmxPushUrlTrueIR | SurfaceIR.HtmxPushUrlOption value <- action.htmxActionOptions]
+
+frontendSurfaceHtmxMethodAttrSegment :: FrontendSurfaceHtmxMethod -> Text
+frontendSurfaceHtmxMethodAttrSegment = \case
+    FrontendSurfaceGet -> "get"
+    FrontendSurfacePost -> "post"
+    FrontendSurfacePut -> "put"
+    FrontendSurfacePatch -> "patch"
+    FrontendSurfaceDelete -> "delete"
+
+applyAttributes :: Blaze.Html -> [Blaze.Attribute] -> Blaze.Html
+applyAttributes = foldl' (!)
+
 renderFrontendSurfaceHtmxForm :: FrontendSurfaceHtmxRequest -> Blaze.Html -> Blaze.Html
 renderFrontendSurfaceHtmxForm request body =
     Html5.form
@@ -727,14 +918,10 @@ renderHiddenField field =
         ! attr "value" field.fieldValueValue
 
 frontendSurfaceHtmxMethodAttr :: FrontendSurfaceHtmxMethod -> Text
-frontendSurfaceHtmxMethodAttr = \case
-    FrontendSurfaceGet  -> "hx-get"
-    FrontendSurfacePost -> "hx-post"
+frontendSurfaceHtmxMethodAttr method = "hx-" <> frontendSurfaceHtmxMethodAttrSegment method
 
 frontendSurfaceHtmxMethodText :: FrontendSurfaceHtmxMethod -> Text
-frontendSurfaceHtmxMethodText = \case
-    FrontendSurfaceGet  -> "GET"
-    FrontendSurfacePost -> "POST"
+frontendSurfaceHtmxMethodText = Text.toUpper . frontendSurfaceHtmxMethodAttrSegment
 
 mountConfigToJson :: FrontendSurfaceMountConfig -> Aeson.Value
 mountConfigToJson config =

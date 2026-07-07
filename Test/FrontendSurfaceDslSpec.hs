@@ -335,6 +335,34 @@ tests = describe "FrontendSurface DSL foundation" do
         activationHtml `shouldContainText` "data-bepis-activation-ref=\"roster-layout-mode-activation\""
         activationHtml `shouldNotContainText` "data-bepis-activation-intent"
 
+    it "renders generated HTMX action attrs from surface action metadata" do
+        let surface = expectSurface "surface-lab" registeredFrontendSurfaceContractIR
+        let action = fromMaybe (error "missing lab action") (listToMaybe surface.surfaceHtmxActions)
+        let route = FrontendSurfaceActionRoute
+                { actionRouteUrl = "/RefreshFrontendSurfaceLabPanel"
+                , actionRouteFields = [FrontendSurfaceFieldValue "panelId" "panel-1"]
+                , actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "lab-panel-custom-htmx" [("hx-vals", "{}")]]
+                , actionRouteStandardUrl = Nothing
+                }
+        let formHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceActionForm action route (Html5.toHtml ("refresh" :: Text))))
+        let linkHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceActionLink action route (Html5.toHtml ("refresh" :: Text))))
+        let buttonHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceActionSubmitButton action route (Html5.toHtml ("refresh" :: Text))))
+
+        formHtml `shouldContainText` "method=\"post\""
+        formHtml `shouldContainText` "action=\"/RefreshFrontendSurfaceLabPanel\""
+        formHtml `shouldContainText` "hx-post=\"/RefreshFrontendSurfaceLabPanel\""
+        formHtml `shouldContainText` "hx-target=\"#lab-panel-target\""
+        formHtml `shouldContainText` "hx-swap=\"outer-html\""
+        formHtml `shouldContainText` "hx-include=\"lab-panel-include\""
+        formHtml `shouldContainText` "hx-push-url=\"false\""
+        formHtml `shouldContainText` "hx-vals=\"{}\""
+        formHtml `shouldContainText` "data-bepis-surface-action=\"refresh-panel\""
+        formHtml `shouldContainText` "data-bepis-surface-action-config="
+        linkHtml `shouldContainText` "href=\"/RefreshFrontendSurfaceLabPanel\""
+        linkHtml `shouldContainText` "hx-post=\"/RefreshFrontendSurfaceLabPanel\""
+        buttonHtml `shouldContainText` "formaction=\"/RefreshFrontendSurfaceLabPanel\""
+        buttonHtml `shouldContainText` "hx-post=\"/RefreshFrontendSurfaceLabPanel\""
+
     it "renders minimal HTMX action and intent forms from SurfaceImpl metadata" do
         let request = FrontendSurfaceHtmxRequest
                 { htmxRequestName = "refresh-panel"

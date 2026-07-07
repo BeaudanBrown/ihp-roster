@@ -1,6 +1,6 @@
 ---
 id: ir-j2ft
-status: open
+status: closed
 deps: [ir-ni05]
 links: []
 created: 2026-07-07T03:24:11Z
