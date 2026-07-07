@@ -1,6 +1,6 @@
 ---
 id: ir-ez90
-status: open
+status: closed
 deps: [ir-zmfc]
 links: []
 created: 2026-05-29T03:16:11Z
@@ -21,3 +21,9 @@ Remove leftover success-response business OOB helpers, page/shell live fragment 
 ## Acceptance Criteria
 
 Code search shows no obsolete successful actor business-OOB helpers in migrated surfaces. Feature-specific actor refresh helpers are removed or reduced to thin wrappers around the shared helper. Typecheck passes.
+
+## Notes
+
+**2026-07-07T05:19:29Z**
+
+Removed obsolete migrated actor business-OOB helpers that no longer had callers: Web.Profiles.LeaveFragments.respondWithProfileLeaveFragments and Web.Controller.Admin.Xero.Responses.renderCurrentVenueXeroSectionFragmentOob. Also verified earlier stale roster patch helpers are gone. Remaining OOB helpers are retained for extras, validation/local responses, plain fragment GET/refetch compatibility, or explicitly non-migrated legacy contexts. Verification: rg for removed helper names returned no matches; bash ./bin/in-env typecheck passed.

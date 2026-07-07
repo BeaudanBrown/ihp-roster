@@ -5,13 +5,10 @@ module Web.Profiles.LeaveFragments
     , ProfileLeaveFragmentModel (..)
     , fetchProfileLeaveFragmentModel
     , renderProfileLeaveFragment
-    , respondWithProfileLeaveFragments
     ) where
 
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchStaffLeaveRequests)
-import Application.Helper.Profiling (respondHtmlProfiled)
-import Application.Helper.View.Oob (outerHtmlOobSwap)
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.Profiles.LiveUpdates
@@ -49,11 +46,3 @@ renderProfileLeaveFragment renderMode model ProfileLeaveRequestsLiveFragment =
         maybeSwap = case renderMode of
             FragmentPlain        -> Nothing
             FragmentOob swapAttr -> swapAttr
-
-respondWithProfileLeaveFragments :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> [ProfileLeaveFragment] -> Blaze.Html -> IO ()
-respondWithProfileLeaveFragments staff fragments extraHtml = do
-    model <- fetchProfileLeaveFragmentModel staff
-    let normalizedFragments = nub fragments
-    respondHtmlProfiled $
-        mconcat (map (renderProfileLeaveFragment (FragmentOob outerHtmlOobSwap) model) normalizedFragments)
-            <> extraHtml

@@ -1,7 +1,6 @@
 module Web.Controller.Admin.Xero.Responses
     ( currentUserCanManageXeroIntegration
     , fetchCurrentVenueXeroAdminSectionData
-    , renderCurrentVenueXeroSectionFragmentOob
     , requireCurrentVenueOwnerForXero
     , respondToXeroMappingMutationSuccess
     , respondToXeroPayItemsMutationSuccess
@@ -36,7 +35,6 @@ import Application.Helper.XeroAdminTypes
 import Application.Xero.Admin.ReadModel hiding
                                         (fetchCurrentVenueXeroAdminSectionData)
 import qualified Application.Xero.Admin.ReadModel as XeroReadModel
-import qualified Text.Blaze.Html as Blaze
 import qualified Web.Admin.FrontendSurface as AdminSurface
 import Web.Controller.Prelude
 import Web.View.Admin.Xero
@@ -67,14 +65,6 @@ fetchCurrentVenueXeroAdminSectionData ::
     IO XeroAdminSectionData
 fetchCurrentVenueXeroAdminSectionData =
     XeroReadModel.fetchCurrentVenueXeroAdminSectionData currentUserCanManageXeroIntegration
-
-renderCurrentVenueXeroSectionFragmentOob ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    IO Blaze.Html
-renderCurrentVenueXeroSectionFragmentOob = do
-    xeroSectionData <- fetchCurrentVenueXeroAdminSectionData
-    profileActionSpan "admin.xero.fragment.render_oob" do
-        pure (renderXeroSectionFragmentOob xeroSectionData)
 
 respondWithXeroSectionActorInvalidationAndToast ::
     (?context :: ControllerContext, ?request :: Request) =>
