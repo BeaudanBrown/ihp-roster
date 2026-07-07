@@ -1,8 +1,8 @@
 ---
 id: ir-tjqq
-status: open
+status: closed
 deps: [ir-4mse]
-links: []
+links: [ir-cpkv]
 created: 2026-07-07T06:51:13Z
 type: task
 priority: 3
@@ -22,3 +22,9 @@ Search current HTMX usage and classify each callsite as surface request action, 
 
 A checked-in tk rollout backlog exists for remaining surface request-action migrations; each remaining hx-* class is categorized; declared CustomHtmx candidates are documented with reasons; no migration ticket requires replacing live-invalidation actor refresh with business response HTML.
 
+
+## Notes
+
+**2026-07-07T07:24:45Z**
+
+Inventory outcome: remaining HTMX callsites are grouped into (1) surface request actions for admin config, timesheets, roster, leave/profile/staff; (2) global/dialog controls such as feedback, passkeys, overlay helpers, and app partial navigation; (3) shell/container behavior such as hx-history-elt and partial navigation hx-select/sync; (4) lazy fragment loads owned by Surface runtime/UI-region helpers; and (5) response extras/OOB for dialogs, toasts, and cleanup. Created linked follow-up rollout epic ir-cpkv with category tickets; none require replacing actor-local invalidation with business OOB HTML.
