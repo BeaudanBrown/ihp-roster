@@ -12,6 +12,7 @@ module Application.Helper.FrontendContract.IR
     , GlobalPrimitiveIR (..)
     , SchemaIR (..)
     , SurfaceIR (..)
+    , SurfaceActionOptionIR (..)
     , SurfaceInteractionPolicyIR (..)
     , SurfacePrimitiveIR (..)
     , UnionCaseIR (..)
@@ -72,11 +73,25 @@ data GlobalPrimitiveIR
     | GlobalDomTokenIR !Text !Text
     deriving (Eq, Show)
 
+data SurfaceActionOptionIR
+    = SurfaceActionMethodIR !Text
+    | SurfaceActionTriggerIR !Text
+    | SurfaceActionIncludeIR !Text
+    | SurfaceActionSyncIR !Text
+    | SurfaceActionIndicatorIR !Text
+    | SurfaceActionConfirmIR !Text
+    | SurfaceActionSelectIR !Text
+    | SurfaceActionTargetIR !Text
+    | SurfaceActionSwapIR !Text
+    | SurfaceActionPushUrlIR !Bool
+    | SurfaceActionCustomHtmxIR !Text !Text
+    deriving (Eq, Show)
+
 data SurfacePrimitiveIR
     = SurfaceSchemaIR !SchemaIR
     | SurfaceScopeIR !Text !Text ![FieldIR]
     | SurfaceFragmentIR !Text !Text ![FieldIR]
-    | SurfaceActionIR !Text !Text ![FieldIR]
+    | SurfaceActionIR !Text !Text ![FieldIR] ![SurfaceActionOptionIR]
     | SurfaceIntentIR !Text !Text ![FieldIR]
     | SurfaceMountStateIR !Text !Text ![FieldIR]
     | SurfaceDtoIR !Text !Text ![FieldIR]
@@ -177,7 +192,7 @@ validateSurfacePrimitive = \case
     SurfaceSchemaIR schema -> validateSchema schema
     SurfaceScopeIR _ _ fields -> validateFieldNames fields
     SurfaceFragmentIR _ _ fields -> validateFieldNames fields
-    SurfaceActionIR _ _ fields -> validateFieldNames fields
+    SurfaceActionIR _ _ fields _ -> validateFieldNames fields
     SurfaceIntentIR _ _ fields -> validateFieldNames fields
     SurfaceMountStateIR _ _ fields -> validateFieldNames fields
     SurfaceDtoIR _ _ fields -> validateFieldNames fields
@@ -262,7 +277,7 @@ surfacePrimitiveNames surface =
         SurfaceSchemaIR _                 -> []
         SurfaceScopeIR marker name _      -> [("scope", marker, name)]
         SurfaceFragmentIR marker name _   -> [("fragment", marker, name)]
-        SurfaceActionIR marker name _     -> [("action", marker, name)]
+        SurfaceActionIR marker name _ _   -> [("action", marker, name)]
         SurfaceIntentIR marker name _     -> [("intent", marker, name)]
         SurfaceMountStateIR marker name _ -> [("mount-state", marker, name)]
         SurfaceDtoIR marker name _        -> [("dto", marker, name)]
@@ -289,7 +304,7 @@ surfacePrimitiveRefs = \case
     SurfaceSchemaIR schema -> schemaRefs schema
     SurfaceScopeIR _ _ fields -> fieldRefs fields
     SurfaceFragmentIR _ _ fields -> fieldRefs fields
-    SurfaceActionIR _ _ fields -> fieldRefs fields
+    SurfaceActionIR _ _ fields _ -> fieldRefs fields
     SurfaceIntentIR _ _ fields -> fieldRefs fields
     SurfaceMountStateIR _ _ fields -> fieldRefs fields
     SurfaceDtoIR _ _ fields -> fieldRefs fields

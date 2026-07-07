@@ -2,8 +2,10 @@ import {
     FrontendSurfaceContainmentTopology,
     FrontendSurfaceRegistry,
     adminPageSurfaceManifest,
+    isFrontendSurfaceActionManifest,
     isFrontendSurfaceContainmentEdge,
     isFrontendSurfaceName,
+    parseFrontendSurfaceActionManifest,
     parseFrontendSurfaceName,
     surfaceLabSurfaceManifest,
     timesheetsSurfaceManifest,
@@ -30,11 +32,27 @@ test("generated FrontendSurface registry exposes lab surface primitives", () => 
     assertDeepEqual(FrontendSurfaceRegistry["surface-lab"], surfaceLabSurfaceManifest);
     assertDeepEqual(FrontendSurfaceRegistry.timesheets, timesheetsSurfaceManifest);
     assertDeepEqual(surfaceLabSurfaceManifest.fragments, ["lab-shell", "lab-panel"]);
-    assertDeepEqual(surfaceLabSurfaceManifest.htmxActions, ["refresh-panel"]);
+    assertEqual(surfaceLabSurfaceManifest.htmxActions[0].name, "refresh-panel");
+    assertDeepEqual(surfaceLabSurfaceManifest.htmxActions[0].fields, ["panelId"]);
+    assertDeepEqual(surfaceLabSurfaceManifest.htmxActions[0].htmx, {
+        method: "post",
+        trigger: null,
+        include: "lab-panel-include",
+        sync: null,
+        indicator: null,
+        confirm: null,
+        select: null,
+        target: "lab-panel-target",
+        swap: "outer-html",
+        pushUrl: false,
+        custom: [{ marker: "lab-panel-custom-htmx", reason: "lab fixture covers auditable custom HTMX metadata" }],
+    });
+    assertEqual(isFrontendSurfaceActionManifest(surfaceLabSurfaceManifest.htmxActions[0]), true);
+    assertEqual(parseFrontendSurfaceActionManifest(surfaceLabSurfaceManifest.htmxActions[0]).name, "refresh-panel");
     assertDeepEqual(surfaceLabSurfaceManifest.intents, ["move-lab-card"]);
     assertDeepEqual(surfaceLabSurfaceManifest.sessions, ["drag"]);
     assertDeepEqual(surfaceLabSurfaceManifest.layers, ["drag-preview"]);
-    assertDeepEqual(surfaceLabSurfaceManifest.domTokens, ["lab-root", "lab-dropzone"]);
+    assertDeepEqual(surfaceLabSurfaceManifest.domTokens, ["lab-root", "lab-dropzone", "lab-panel-target", "lab-panel-include"]);
 });
 
 test("generated FrontendSurface registry exposes Admin page containment topology", () => {

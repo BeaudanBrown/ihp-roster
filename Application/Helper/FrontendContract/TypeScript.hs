@@ -322,7 +322,7 @@ surfacePrimitiveFields = \case
     SurfaceSchemaIR _ -> []
     SurfaceScopeIR _ _ fields -> fields
     SurfaceFragmentIR _ _ fields -> fields
-    SurfaceActionIR _ _ fields -> fields
+    SurfaceActionIR _ _ fields _ -> fields
     SurfaceIntentIR _ _ fields -> fields
     SurfaceMountStateIR _ _ fields -> fields
     SurfaceDtoIR _ _ fields -> fields
@@ -361,7 +361,7 @@ renderFrontendSurfaceAliases surface =
             SurfaceMountStateIR marker name _ -> ["export type " <> mountStateAliasName name <> " = " <> surfaceTypePrefix surface <> typeNameFromMarker marker <> "MountState;"]
             _ -> []
         renderActionAlias = \case
-            SurfaceActionIR marker name _ -> ["export type " <> typeNameFromMarker name <> "ActionFields = " <> surfaceTypePrefix surface <> typeNameFromMarker marker <> "ActionFields;"]
+            SurfaceActionIR marker name _ _ -> ["export type " <> typeNameFromMarker name <> "ActionFields = " <> surfaceTypePrefix surface <> typeNameFromMarker marker <> "ActionFields;"]
             _ -> []
         renderIntentAlias = \case
             SurfaceIntentIR marker name _ -> ["export type " <> typeNameFromMarker name <> "IntentFields = " <> surfaceTypePrefix surface <> typeNameFromMarker marker <> "IntentFields;"]
@@ -387,7 +387,7 @@ renderFrontendSurfaceManifest surface =
         , ("scopes", arrayLiteral (fmap quote [name | SurfaceScopeIR _ name _ <- surface.surfacePrimitives]))
         , ("fragments", arrayLiteral (fmap quote [name | SurfaceFragmentIR _ name _ <- surface.surfacePrimitives]))
         , ("liveFragments", arrayLiteral (fmap quote surface.surfaceLiveFragments))
-        , ("htmxActions", arrayLiteral (fmap quote [name | SurfaceActionIR _ name _ <- surface.surfacePrimitives]))
+        , ("htmxActions", arrayLiteral (fmap renderSurfaceActionManifest [action | action@SurfaceActionIR {} <- surface.surfacePrimitives]))
         , ("intents", arrayLiteral (fmap quote [name | SurfaceIntentIR _ name _ <- surface.surfacePrimitives]))
         , ("sessions", arrayLiteral (fmap quote surface.surfaceInteractionSessions))
         , ("interaction", renderFrontendSurfaceInteractionManifest surface)
@@ -396,6 +396,34 @@ renderFrontendSurfaceManifest surface =
         , ("overlayLanes", arrayLiteral (fmap quote surface.surfaceOverlayLanes))
         , ("containedSurfaces", renderContainedSurfaceMap surface)
         ]
+
+renderSurfaceActionManifest :: SurfacePrimitiveIR -> Text
+renderSurfaceActionManifest = \case
+    SurfaceActionIR _ name fields options -> objectLiteral
+        [ ("name", quote name)
+        , ("fields", arrayLiteral (fmap (quote . (.fieldName)) fields))
+        , ("htmx", renderSurfaceActionHtmxOptions options)
+        ]
+    _ -> objectLiteral []
+
+renderSurfaceActionHtmxOptions :: [SurfaceActionOptionIR] -> Text
+renderSurfaceActionHtmxOptions options = objectLiteral
+    [ ("method", maybe "null" quote (listToMaybe [value | SurfaceActionMethodIR value <- options]))
+    , ("trigger", maybe "null" quote (listToMaybe [value | SurfaceActionTriggerIR value <- options]))
+    , ("include", maybe "null" quote (listToMaybe [value | SurfaceActionIncludeIR value <- options]))
+    , ("sync", maybe "null" quote (listToMaybe [value | SurfaceActionSyncIR value <- options]))
+    , ("indicator", maybe "null" quote (listToMaybe [value | SurfaceActionIndicatorIR value <- options]))
+    , ("confirm", maybe "null" quote (listToMaybe [value | SurfaceActionConfirmIR value <- options]))
+    , ("select", maybe "null" quote (listToMaybe [value | SurfaceActionSelectIR value <- options]))
+    , ("target", maybe "null" quote (listToMaybe [value | SurfaceActionTargetIR value <- options]))
+    , ("swap", maybe "null" quote (listToMaybe [value | SurfaceActionSwapIR value <- options]))
+    , ("pushUrl", maybe "null" boolLiteral (listToMaybe [value | SurfaceActionPushUrlIR value <- options]))
+    , ("custom", arrayLiteral [objectLiteral [("marker", quote marker), ("reason", quote reason)] | SurfaceActionCustomHtmxIR marker reason <- options])
+    ]
+
+boolLiteral :: Bool -> Text
+boolLiteral True  = "true"
+boolLiteral False = "false"
 
 renderFrontendSurfaceInteractionManifest :: SurfaceIR -> Text
 renderFrontendSurfaceInteractionManifest surface = objectLiteral
@@ -477,7 +505,29 @@ renderFrontendSurfaceLiveFragmentCases surfaces = zipWith render surfaces [0 :: 
 
 renderFrontendSurfaceMountConfigTypes :: [Text]
 renderFrontendSurfaceMountConfigTypes =
-    [ "// FrontendSurfaceMountConfig is the HTML data attribute shape emitted by Haskell views."
+    [ "export type FrontendSurfaceHtmxMethod = \"get\" | \"post\" | \"put\" | \"patch\" | \"delete\";"
+    , "export type FrontendSurfaceActionHtmxOptions = { method: FrontendSurfaceHtmxMethod | null; trigger: string | null; include: string | null; sync: string | null; indicator: string | null; confirm: string | null; select: string | null; target: string | null; swap: string | null; pushUrl: boolean | null; custom: ReadonlyArray<{ marker: string; reason: string }> };"
+    , "export type FrontendSurfaceActionManifest = { name: string; fields: readonly string[]; htmx: FrontendSurfaceActionHtmxOptions };"
+    , "export function isFrontendSurfaceHtmxMethod(value: unknown): value is FrontendSurfaceHtmxMethod {"
+    , "    return value === \"get\" || value === \"post\" || value === \"put\" || value === \"patch\" || value === \"delete\";"
+    , "}"
+    , "export function isFrontendSurfaceActionHtmxOptions(value: unknown): value is FrontendSurfaceActionHtmxOptions {"
+    , "    if (!isRecord(value)) return false;"
+    , "    const nullableString = (candidate: unknown) => candidate === null || typeof candidate === \"string\";"
+    , "    const methodOk = value.method === null || isFrontendSurfaceHtmxMethod(value.method);"
+    , "    const pushUrlOk = value.pushUrl === null || typeof value.pushUrl === \"boolean\";"
+    , "    const customOk = Array.isArray(value.custom) && value.custom.every((entry) => isRecord(entry) && typeof entry.marker === \"string\" && entry.marker.length > 0 && typeof entry.reason === \"string\" && entry.reason.length > 0);"
+    , "    return methodOk && nullableString(value.trigger) && nullableString(value.include) && nullableString(value.sync) && nullableString(value.indicator) && nullableString(value.confirm) && nullableString(value.select) && nullableString(value.target) && nullableString(value.swap) && pushUrlOk && customOk;"
+    , "}"
+    , "export function isFrontendSurfaceActionManifest(value: unknown): value is FrontendSurfaceActionManifest {"
+    , "    return isRecord(value) && typeof value.name === \"string\" && Array.isArray(value.fields) && value.fields.every((field) => typeof field === \"string\") && isFrontendSurfaceActionHtmxOptions(value.htmx);"
+    , "}"
+    , "export function parseFrontendSurfaceActionManifest(value: unknown): FrontendSurfaceActionManifest {"
+    , "    if (isFrontendSurfaceActionManifest(value)) return value;"
+    , "    throw new Error(\"Invalid FrontendSurfaceActionManifest\");"
+    , "}"
+    , ""
+    , "// FrontendSurfaceMountConfig is the HTML data attribute shape emitted by Haskell views."
     , "// parseFrontendSurfaceMountConfig normalizes it before live-update code builds canonical SurfaceSubscription commands."
     , "export type FrontendSurfaceMountedFragmentConfig = { key: { kind: string; params: unknown }; targetId: string; url: string; protection: Record<string, unknown> | null; loadPolicy: string | null };"
     , "export type FrontendSurfaceMountConfig = { surface: FrontendSurfaceName; scopeKey: string; mountKey: string; mountState: unknown; fragments: FrontendSurfaceMountedFragmentConfig[]; subscription: FrontendSurfaceLiveSubscription | null };"
@@ -570,7 +620,7 @@ renderSurfacePrimitive surface = \case
     SurfaceSchemaIR schema -> renderSchema schema
     SurfaceScopeIR marker _ fields -> renderRecordAlias (surfaceTypePrefix surface <> typeNameFromMarker marker <> "Scope") fields
     SurfaceFragmentIR marker _ fields -> renderRecordAlias (surfaceTypePrefix surface <> typeNameFromMarker marker <> "FragmentParams") fields
-    SurfaceActionIR marker _ fields -> renderRecordAlias (surfaceTypePrefix surface <> typeNameFromMarker marker <> "ActionFields") fields
+    SurfaceActionIR marker _ fields _ -> renderRecordAlias (surfaceTypePrefix surface <> typeNameFromMarker marker <> "ActionFields") fields
     SurfaceIntentIR marker _ fields -> renderRecordAlias (surfaceTypePrefix surface <> typeNameFromMarker marker <> "IntentFields") fields
     SurfaceMountStateIR marker _ fields -> renderRecordAlias (surfaceTypePrefix surface <> typeNameFromMarker marker <> "MountState") fields
     SurfaceDtoIR marker _ fields -> renderRecordAlias (typeNameFromMarker marker) fields

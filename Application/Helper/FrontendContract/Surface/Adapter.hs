@@ -55,7 +55,35 @@ convertFragment :: Surface.FragmentIR -> SurfacePrimitiveIR
 convertFragment fragment = SurfaceFragmentIR fragment.fragmentMarker fragment.fragmentName (fmap convertField fragment.fragmentParams)
 
 convertAction :: Surface.HtmxActionIR -> SurfacePrimitiveIR
-convertAction action = SurfaceActionIR action.htmxActionMarker action.htmxActionName (fmap convertField action.htmxActionFields)
+convertAction action = SurfaceActionIR action.htmxActionMarker action.htmxActionName (fmap convertField action.htmxActionFields) (mapMaybe convertActionOption action.htmxActionOptions)
+
+convertActionOption :: Surface.OptionIR -> Maybe SurfaceActionOptionIR
+convertActionOption = \case
+    Surface.HtmxMethodOption method -> Just (SurfaceActionMethodIR (convertHtmxMethod method))
+    Surface.HtmxTriggerOption value -> Just (SurfaceActionTriggerIR value)
+    Surface.HtmxIncludeOption value -> Just (SurfaceActionIncludeIR value)
+    Surface.HtmxSyncOption value -> Just (SurfaceActionSyncIR value)
+    Surface.HtmxIndicatorOption value -> Just (SurfaceActionIndicatorIR value)
+    Surface.HtmxConfirmOption value -> Just (SurfaceActionConfirmIR value)
+    Surface.HtmxSelectOption value -> Just (SurfaceActionSelectIR value)
+    Surface.HtmxTargetOption value -> Just (SurfaceActionTargetIR value)
+    Surface.HtmxSwapOption value -> Just (SurfaceActionSwapIR value)
+    Surface.HtmxPushUrlOption value -> Just (SurfaceActionPushUrlIR (convertHtmxPushUrl value))
+    Surface.CustomHtmxOption marker reason -> Just (SurfaceActionCustomHtmxIR marker reason)
+    _ -> Nothing
+
+convertHtmxMethod :: Surface.HtmxMethodIR -> Text
+convertHtmxMethod = \case
+    Surface.HtmxGetIR -> "get"
+    Surface.HtmxPostIR -> "post"
+    Surface.HtmxPutIR -> "put"
+    Surface.HtmxPatchIR -> "patch"
+    Surface.HtmxDeleteIR -> "delete"
+
+convertHtmxPushUrl :: Surface.HtmxPushUrlIR -> Bool
+convertHtmxPushUrl = \case
+    Surface.HtmxPushUrlTrueIR -> True
+    Surface.HtmxPushUrlFalseIR -> False
 
 convertIntent :: Surface.IntentIR -> SurfacePrimitiveIR
 convertIntent intent = SurfaceIntentIR intent.intentMarker intent.intentName (fmap convertField intent.intentFields)

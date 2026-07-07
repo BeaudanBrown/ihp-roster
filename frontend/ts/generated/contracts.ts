@@ -1767,7 +1767,7 @@ export type MoveLabCardIntentFields = SurfaceLabMoveLabCardIntentFields;
 export type SurfaceLabSessionName = "drag";
 export type SurfaceLabDisposableLayerName = "drag-preview";
 export type SurfaceLabDomToken = "lab-root" | "lab-dropzone" | "lab-panel-target" | "lab-panel-include";
-export const surfaceLabSurfaceManifest = {"surface":"surface-lab","scopes":["lab"],"fragments":["lab-shell","lab-panel"],"liveFragments":[],"htmxActions":["refresh-panel"],"intents":["move-lab-card"],"sessions":["drag"],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":["drag-preview"],"domTokens":["lab-root","lab-dropzone","lab-panel-target","lab-panel-include"],"overlayLanes":[],"containedSurfaces":{}} as const;
+export const surfaceLabSurfaceManifest = {"surface":"surface-lab","scopes":["lab"],"fragments":["lab-shell","lab-panel"],"liveFragments":[],"htmxActions":[{"name":"refresh-panel","fields":["panelId"],"htmx":{"method":"post","trigger":null,"include":"lab-panel-include","sync":null,"indicator":null,"confirm":null,"select":null,"target":"lab-panel-target","swap":"outer-html","pushUrl":false,"custom":[{"marker":"lab-panel-custom-htmx","reason":"lab fixture covers auditable custom HTMX metadata"}]}}],"intents":["move-lab-card"],"sessions":["drag"],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":["drag-preview"],"domTokens":["lab-root","lab-dropzone","lab-panel-target","lab-panel-include"],"overlayLanes":[],"containedSurfaces":{}} as const;
 
 export type TimesheetsSurfaceName = "timesheets";
 export type TimesheetsFragmentKey = TimesheetsSurfaceFragmentKey;
@@ -1785,7 +1785,7 @@ export type RosterSourceRef = "drag-source";
 export type RosterDropzoneRef = "drag-dropzone";
 export type RosterActivationRef = "roster-layout-mode-activation";
 export type RosterDisposableLayerName = "drag-preview";
-export const rosterSurfaceManifest = {"surface":"roster","scopes":["roster-week"],"fragments":["roster-content","roster-grid-toolbar","roster-grid-frame","roster-day-columns","roster-day-rail","roster-wage-rail","roster-slots-grid","roster-staff-panel","roster-day-section","roster-row"],"liveFragments":["roster-content","roster-grid-toolbar","roster-grid-frame","roster-day-columns","roster-day-rail","roster-wage-rail","roster-slots-grid","roster-staff-panel","roster-day-section","roster-row"],"htmxActions":["set-roster-layout-mode","move-roster-shift-to-slot"],"intents":["set-roster-layout-mode","move-roster-shift-to-slot"],"sessions":["drag"],"interaction":{"sourceRefs":[{"ref":"drag-source","session":"drag","intent":"move-roster-shift-to-slot","sourceField":"sourceItemKey"}],"dropzoneRefs":[{"ref":"drag-dropzone","session":"drag","targetField":"targetDropzoneKey"}],"activationRefs":[{"ref":"roster-layout-mode-activation","intent":"set-roster-layout-mode","valueField":"rosterLayoutMode","trigger":"click"}]},"layers":["drag-preview"],"domTokens":[],"overlayLanes":[],"containedSurfaces":{}} as const;
+export const rosterSurfaceManifest = {"surface":"roster","scopes":["roster-week"],"fragments":["roster-content","roster-grid-toolbar","roster-grid-frame","roster-day-columns","roster-day-rail","roster-wage-rail","roster-slots-grid","roster-staff-panel","roster-day-section","roster-row"],"liveFragments":["roster-content","roster-grid-toolbar","roster-grid-frame","roster-day-columns","roster-day-rail","roster-wage-rail","roster-slots-grid","roster-staff-panel","roster-day-section","roster-row"],"htmxActions":[{"name":"set-roster-layout-mode","fields":["rosterLayoutMode"],"htmx":{"method":null,"trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":null,"swap":null,"pushUrl":null,"custom":[]}},{"name":"move-roster-shift-to-slot","fields":["sourceItemKey","targetDropzoneKey","sessionKind","pointerId","pointerType","startClientX","startClientY","currentClientX","currentClientY","deltaX","deltaY"],"htmx":{"method":null,"trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":null,"swap":null,"pushUrl":null,"custom":[]}}],"intents":["set-roster-layout-mode","move-roster-shift-to-slot"],"sessions":["drag"],"interaction":{"sourceRefs":[{"ref":"drag-source","session":"drag","intent":"move-roster-shift-to-slot","sourceField":"sourceItemKey"}],"dropzoneRefs":[{"ref":"drag-dropzone","session":"drag","targetField":"targetDropzoneKey"}],"activationRefs":[{"ref":"roster-layout-mode-activation","intent":"set-roster-layout-mode","valueField":"rosterLayoutMode","trigger":"click"}]},"layers":["drag-preview"],"domTokens":[],"overlayLanes":[],"containedSurfaces":{}} as const;
 
 export type LeaveRequestsSurfaceName = "leave-requests";
 export type LeaveRequestsFragmentKey = LeaveRequestsSurfaceFragmentKey;
@@ -1887,6 +1887,28 @@ export function isFrontendSurfaceLiveFragment(value: unknown): value is Frontend
 export function parseFrontendSurfaceLiveFragment(value: unknown): FrontendSurfaceLiveFragment {
     if (isFrontendSurfaceLiveFragment(value)) return value;
     throw new Error("Invalid FrontendSurfaceLiveFragment");
+}
+
+export type FrontendSurfaceHtmxMethod = "get" | "post" | "put" | "patch" | "delete";
+export type FrontendSurfaceActionHtmxOptions = { method: FrontendSurfaceHtmxMethod | null; trigger: string | null; include: string | null; sync: string | null; indicator: string | null; confirm: string | null; select: string | null; target: string | null; swap: string | null; pushUrl: boolean | null; custom: ReadonlyArray<{ marker: string; reason: string }> };
+export type FrontendSurfaceActionManifest = { name: string; fields: readonly string[]; htmx: FrontendSurfaceActionHtmxOptions };
+export function isFrontendSurfaceHtmxMethod(value: unknown): value is FrontendSurfaceHtmxMethod {
+    return value === "get" || value === "post" || value === "put" || value === "patch" || value === "delete";
+}
+export function isFrontendSurfaceActionHtmxOptions(value: unknown): value is FrontendSurfaceActionHtmxOptions {
+    if (!isRecord(value)) return false;
+    const nullableString = (candidate: unknown) => candidate === null || typeof candidate === "string";
+    const methodOk = value.method === null || isFrontendSurfaceHtmxMethod(value.method);
+    const pushUrlOk = value.pushUrl === null || typeof value.pushUrl === "boolean";
+    const customOk = Array.isArray(value.custom) && value.custom.every((entry) => isRecord(entry) && typeof entry.marker === "string" && entry.marker.length > 0 && typeof entry.reason === "string" && entry.reason.length > 0);
+    return methodOk && nullableString(value.trigger) && nullableString(value.include) && nullableString(value.sync) && nullableString(value.indicator) && nullableString(value.confirm) && nullableString(value.select) && nullableString(value.target) && nullableString(value.swap) && pushUrlOk && customOk;
+}
+export function isFrontendSurfaceActionManifest(value: unknown): value is FrontendSurfaceActionManifest {
+    return isRecord(value) && typeof value.name === "string" && Array.isArray(value.fields) && value.fields.every((field) => typeof field === "string") && isFrontendSurfaceActionHtmxOptions(value.htmx);
+}
+export function parseFrontendSurfaceActionManifest(value: unknown): FrontendSurfaceActionManifest {
+    if (isFrontendSurfaceActionManifest(value)) return value;
+    throw new Error("Invalid FrontendSurfaceActionManifest");
 }
 
 // FrontendSurfaceMountConfig is the HTML data attribute shape emitted by Haskell views.

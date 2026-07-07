@@ -138,7 +138,7 @@ instance (Typeable marker, ReflectFieldList fields) => ReflectSurfacePrimitive (
     reflectSurfacePrimitive = SurfaceFragmentIR (typeMarker @marker) (protocolName @marker Naming.FragmentName) (reflectFieldList @fields)
 
 instance (Typeable marker, ReflectFieldList fields) => ReflectSurfacePrimitive ('Action marker fields) where
-    reflectSurfacePrimitive = SurfaceActionIR (typeMarker @marker) (protocolName @marker Naming.ActionName) (reflectFieldList @fields)
+    reflectSurfacePrimitive = SurfaceActionIR (typeMarker @marker) (protocolName @marker Naming.ActionName) (reflectFieldList @fields) []
 
 instance (Typeable marker, ReflectFieldList fields) => ReflectSurfacePrimitive ('Intent marker fields) where
     reflectSurfacePrimitive = SurfaceIntentIR (typeMarker @marker) (protocolName @marker Naming.IntentName) (reflectFieldList @fields)
