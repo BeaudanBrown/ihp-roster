@@ -19,6 +19,7 @@ import Application.Helper.FrontendContract.Contracts (TypeScriptDeclaration (..)
                                                       frontendContractDeclarations,
                                                       frontendContractsTypeScript)
 import qualified Application.Helper.FrontendContract.IR as Contract
+import Application.Helper.FrontendContract.Registry (registeredFrontendContractIR)
 import qualified Application.Helper.FrontendContract.Roster as Roster
 import Application.Helper.FrontendContract.RosterValues (RosterStaffSortKey (..),
                                                          rosterStaffSortKeyAttribute,
@@ -68,6 +69,27 @@ tests = describe "Frontend contract generator foundation" do
         source `shouldNotSatisfy` Text.isInfixOf "export type SurfaceScope"
         source `shouldNotSatisfy` Text.isInfixOf "export const InteractionDom"
         source `shouldNotSatisfy` Text.isInfixOf "export type UiRegionTransitionProfile"
+
+    it "reflects generated overlay action manifests" do
+        let overlayActions =
+                [ action
+                | global <- registeredFrontendContractIR.contractGlobals
+                , Contract.GlobalOverlayActionIR action <- global.globalPrimitives
+                ]
+        let feedbackAction = find ((== "open-feedback-dialog") . (.overlayActionName)) overlayActions
+        fmap (.overlayActionFields) feedbackAction `shouldBe` Just []
+        fmap (.overlayActionOptions) feedbackAction
+            `shouldBe` Just
+                [ Contract.SurfaceActionMethodIR "get"
+                , Contract.SurfaceActionTargetIR "dialog-overlay-mount"
+                , Contract.SurfaceActionSwapIR "innerHTML"
+                , Contract.SurfaceActionPushUrlIR False
+                ]
+
+    it "keeps migrated feedback overlay openers on generated OverlayAction helpers" do
+        source <- Text.readFile "Web/View/Layout.hs"
+        source `shouldSatisfy` Text.isInfixOf "overlayActionByName \"open-feedback-dialog\""
+        source `shouldNotSatisfy` Text.isInfixOf "hx-get={NewFeedbackAction}"
 
     it "resolves canonical Haskell value accessors from registered FrontendContract IR" do
         lookupDomIdValue @App.DialogOverlayMount `shouldBe` Right sharedDialogOverlayMountId

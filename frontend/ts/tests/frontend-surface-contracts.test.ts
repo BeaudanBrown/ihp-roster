@@ -2,6 +2,8 @@ import {
     FrontendSurfaceContainmentTopology,
     FrontendSurfaceRegistry,
     adminPageSurfaceManifest,
+    isOverlayActionManifest,
+    openFeedbackDialogOverlayActionManifest,
     isFrontendSurfaceActionManifest,
     isFrontendSurfaceContainmentEdge,
     isFrontendSurfaceName,
@@ -21,6 +23,27 @@ import {
     type TimesheetsMountState,
 } from "../generated/contracts";
 import { assertDeepEqual, assertEqual, assertThrows, test } from "./harness";
+
+test("generated overlay action manifests expose dialog request contracts", () => {
+    assertEqual(isOverlayActionManifest(openFeedbackDialogOverlayActionManifest), true);
+    assertDeepEqual(openFeedbackDialogOverlayActionManifest, {
+        name: "open-feedback-dialog",
+        fields: [],
+        htmx: {
+            method: "get",
+            trigger: null,
+            include: null,
+            sync: null,
+            indicator: null,
+            confirm: null,
+            select: null,
+            target: "dialog-overlay-mount",
+            swap: "innerHTML",
+            pushUrl: false,
+            custom: [],
+        },
+    });
+});
 
 test("generated FrontendSurface registry exposes lab surface primitives", () => {
     assertEqual(isFrontendSurfaceName("surface-lab"), true);

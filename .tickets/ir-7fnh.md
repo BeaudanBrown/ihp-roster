@@ -1,6 +1,6 @@
 ---
 id: ir-7fnh
-status: open
+status: closed
 deps: [ir-py6n]
 links: []
 created: 2026-07-07T10:26:11Z
