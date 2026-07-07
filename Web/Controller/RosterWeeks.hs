@@ -60,8 +60,7 @@ import Web.RosterWeeks.Types
 import Web.View.RosterWeeks.Overview (renderWeekOverviewPanelFragment)
 import Web.View.RosterWeeks.ShiftDialog
 import Web.View.RosterWeeks.Show (renderRosterWeekShell)
-import Web.View.RosterWeeks.StaffPanel (renderrosterStaffPanelLiveFragment,
-                                        renderrosterStaffPanelLiveFragmentOob)
+import Web.View.RosterWeeks.StaffPanel (renderrosterStaffPanelLiveFragment)
 
 instance Controller RosterWeeksController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
@@ -975,10 +974,6 @@ respondWithRemoveRosterRowConfirmation rosterDay preview =
                 , dialogOverlayDialogClass = ""
                 }
 
-respondWithRosterRows :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> IO ()
-respondWithRosterRows rosterGroupId weekOffset requestedRowKeys =
-    respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys False
-
 rosterActorFragmentsForTouchedResources :: (?context :: ControllerContext) => Id RosterGroup -> Int -> Set.Set SurfaceResourceValue -> [RosterProjectionFragment] -> [RosterProjectionFragment]
 rosterActorFragmentsForTouchedResources rosterGroupId weekOffset touchedResources candidates =
     map fst affectedPairs
@@ -1031,18 +1026,6 @@ clearDialogOverlayOob = [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHT
 respondWithActorRosterFragmentRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> IO ()
 respondWithActorRosterFragmentRefresh rosterGroupId weekOffset fragments =
     respondWithRosterActorFragments rosterGroupId weekOffset fragments mempty
-
-respondWithRosterPatches :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> Bool -> IO ()
-respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys shouldRefreshStaffPanel = do
-    rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
-    case rosterData of
-        Nothing -> respondHtmlProfiled [hsx||]
-        Just RosterRenderData { rosterDays, weekStartDate, assignmentFilters, staffMembers, panelStaff, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled } -> do
-            let uniqueRowKeys = nub requestedRowKeys
-            let renderedRows = mapMaybe (renderRequestedRow weekStartDate orderedSlotNames assignmentFilters staffMembers shiftTypes renderIndexes rosterLayoutMode rosterEndTimesEnabled) uniqueRowKeys
-            rosterGroups <- fetchCurrentVenueRosterGroups
-            let renderedStaffPanel = [renderrosterStaffPanelLiveFragmentOob weekOffset rosterGroupId (length rosterGroups > 1) RosterStaffPanelCurrentGroup panelStaff | shouldRefreshStaffPanel]
-            respondHtmlProfiled (mconcat (renderedRows <> renderedStaffPanel))
 
 renderRosterWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Int -> Id RosterGroup -> IO ()
 renderRosterWeekPage weekOffset requestedRosterGroupId =

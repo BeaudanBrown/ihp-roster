@@ -1,6 +1,6 @@
 ---
 id: ir-kuyy
-status: open
+status: closed
 deps: [ir-oxnj, ir-wmdh]
 links: []
 created: 2026-05-29T03:16:10Z
@@ -23,3 +23,9 @@ Validation failures and confirmation dialogs may still return local dialog fragm
 ## Acceptance Criteria
 
 No successful roster mutation returns authoritative business `hx-swap-oob` HTML. Row/day/content/staff-panel precision is preserved through invalidation planning and mount-local refetch. Duplicate mounts refresh in the actor tab. Passive live invalidations and resyncs still work. Scroll/focus/interaction conflict behavior is not regressed. Focused roster Hspec/E2E checks pass.
+
+## Notes
+
+**2026-07-07T05:17:42Z**
+
+Closeout: roster week actor response migration complete. Strategy, fragment contract coverage, row/day actor patch migration, content/navigation/preference response migration, stale helper cleanup, and full RosterWeeksController verification are complete. Successful migrated roster actor responses now use semantic actor-local invalidation plus extras; fragment GET/refetch endpoints remain authoritative target-node HTML.
