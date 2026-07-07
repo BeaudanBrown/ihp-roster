@@ -526,6 +526,7 @@ data FrontendSurfaceActionRoute = FrontendSurfaceActionRoute
     , actionRouteFields      :: ![FrontendSurfaceFieldValue]
     , actionRouteCustomHtmx  :: ![FrontendSurfaceCustomHtmxAttrs]
     , actionRouteStandardUrl :: !(Maybe Text)
+    , actionRouteExtraAttrs  :: ![(Text, Text)]
     }
     deriving (Eq, Show)
 
@@ -728,6 +729,7 @@ renderFrontendSurfaceActionForm action route body =
             body)
         ( standardFormAttrs method url
             <> frontendSurfaceActionHtmxAttrs action route
+            <> routeExtraAttrs route
         )
     where
         method = frontendSurfaceActionMethod action
@@ -739,6 +741,7 @@ renderFrontendSurfaceActionSubmitButton action route body =
         (Html5.button ! attr "type" "submit" $ body)
         ( standardSubmitButtonAttrs route
             <> frontendSurfaceActionHtmxAttrs action route
+            <> routeExtraAttrs route
         )
 
 renderFrontendSurfaceActionLink :: SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> Blaze.Html -> Blaze.Html
@@ -746,12 +749,15 @@ renderFrontendSurfaceActionLink action route body =
     applyAttributes
         (Html5.a $ body)
         ( attr "href" (fromMaybe route.actionRouteUrl route.actionRouteStandardUrl)
-            : frontendSurfaceActionHtmxAttrs action route
+            : (frontendSurfaceActionHtmxAttrs action route <> routeExtraAttrs route)
         )
 
 renderFrontendSurfaceActionHtmxControl :: SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> Blaze.Html -> Blaze.Html
 renderFrontendSurfaceActionHtmxControl action route body =
-    applyAttributes (Html5.span body) (frontendSurfaceActionHtmxAttrs action route)
+    applyAttributes (Html5.span body) (frontendSurfaceActionHtmxAttrs action route <> routeExtraAttrs route)
+
+routeExtraAttrs :: FrontendSurfaceActionRoute -> [Blaze.Attribute]
+routeExtraAttrs route = fmap (uncurry attr) route.actionRouteExtraAttrs
 
 frontendSurfaceActionHtmxAttrs :: SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> [Blaze.Attribute]
 frontendSurfaceActionHtmxAttrs action route =

@@ -22,9 +22,12 @@ module Web.Admin.FrontendSurface
     , adminXeroStaffMappingsFragment
     , adminXeroPayItemsFragment
     , adminXeroTimesheetsFragment
+    , adminRosterGroupsAction
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
+import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
+import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import Application.Helper.FrontendContract.Surface.DSL
 import Application.Helper.FrontendContract.Surface.Runtime
 import Application.Helper.LiveUpdate.Runtime
@@ -97,7 +100,7 @@ adminShiftTypesSurfaceImpl scope =
 adminRosterGroupsSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminRosterGroupsSurface
 adminRosterGroupsSurfaceImpl scope =
     let config = mountConfig "admin-roster-groups" scope [adminRosterGroupsFragment]
-        impl = mkSurfaceImpl "admin-roster-groups" config (unitHandlers scope adminRosterGroupsFragment)
+        impl = mkSurfaceImpl "admin-roster-groups" config (rosterGroupsHandlers scope adminRosterGroupsFragment)
      in impl
 
 adminXeroSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminXeroSurface
@@ -164,6 +167,39 @@ unitHandlers scope fragment =
         , surfaceActionHandlers = HandlerNil
         , surfaceIntentHandlers = HandlerNil
         }
+
+rosterGroupsHandlers :: AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImplHandlers Surface.AdminRosterGroupsSurface
+rosterGroupsHandlers scope fragment =
+    SurfaceImplHandlers
+        { surfaceScopeHandlers = scopeHandler scope `HandlerCons` HandlerNil
+        , surfaceMountStateHandlers = HandlerNil
+        , surfaceFragmentHandlers = FrontendSurfaceFragmentHandler
+            { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
+            , fragmentHandlerMountedFragment = const fragment
+            , fragmentHandlerRender = const mempty
+            } `HandlerCons` HandlerNil
+        , surfaceActionHandlers =
+            rosterGroupsActionHandler "create-roster-group" (pathTo CreateRosterGroupAction) `HandlerCons`
+            rosterGroupsActionHandler "update-roster-group" (pathTo (UpdateRosterGroupAction (Id UUID.nil))) `HandlerCons`
+            rosterGroupsActionHandler "move-roster-group-up" (pathTo (MoveRosterGroupUpAction (Id UUID.nil))) `HandlerCons`
+            rosterGroupsActionHandler "move-roster-group-down" (pathTo (MoveRosterGroupDownAction (Id UUID.nil))) `HandlerCons`
+            rosterGroupsActionHandler "toggle-inactive-roster-groups" (pathTo ShowadminRosterGroupsLiveFragmentAction) `HandlerCons`
+            HandlerNil
+        , surfaceIntentHandlers = HandlerNil
+        }
+
+rosterGroupsActionHandler :: Text -> Text -> FrontendSurfaceActionHandler ('Action marker fields options)
+rosterGroupsActionHandler actionName actionUrl = FrontendSurfaceActionHandler
+    { actionHandlerDefaultFields = frontendSurfaceFieldValues Aeson.Null
+    , actionHandlerRequest = const FrontendSurfaceHtmxRequest
+        { htmxRequestName = actionName
+        , htmxRequestMethod = FrontendSurfacePost
+        , htmxRequestUrl = actionUrl
+        , htmxRequestTarget = "#admin-roster-groups-fragment"
+        , htmxRequestSwap = "none"
+        , htmxRequestFields = []
+        }
+    }
 
 invitesHandlers :: AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImplHandlers Surface.AdminInvitesSurface
 invitesHandlers scope fragment =
@@ -242,6 +278,12 @@ adminXeroTimesheetsFragment = fragment "admin-xero-timesheets" "xero-timesheets-
 adminInvitesFragment :: Maybe UUID.UUID -> FrontendSurfaceMountedFragment
 adminInvitesFragment maybeRosterGroupId =
     fragment "admin-invites" "admin-invites-fragment" (appendQueryParams (pathTo ShowadminInvitesLiveFragmentAction) (maybe [] (\rg -> [("rosterGroupId", tshow rg)]) maybeRosterGroupId)) FrontendSurfaceReplace
+
+adminRosterGroupsAction :: Text -> SurfaceIR.HtmxActionIR
+adminRosterGroupsAction actionName =
+    case [action | surface <- registeredFrontendSurfaceContractIR.contractSurfaces, surface.surfaceName == "admin-roster-groups", action <- surface.surfaceHtmxActions, action.htmxActionName == actionName] of
+        action : _ -> action
+        [] -> error ("missing admin roster groups action contract: " <> cs actionName)
 
 fragment :: Text -> Text -> Text -> FrontendSurfaceProtection -> FrontendSurfaceMountedFragment
 fragment kind targetId url prot = FrontendSurfaceMountedFragment

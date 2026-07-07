@@ -455,11 +455,14 @@ tests = beforeAll testContext do
                             ]
                 createRosterGroupResponse `responseStatusShouldBe` status200
                 lookup "HX-Reswap" (responseHeaders createRosterGroupResponse) `shouldBe` Just "none"
-                createRosterGroupResponse `responseBodyShouldContain` "id=\"admin-roster-groups-fragment\" hx-swap-oob=\"outerHTML\""
-                createRosterGroupResponse `responseBodyShouldContain` "Fragment Group"
-                createRosterGroupResponse `responseBodyShouldContain` "Archived Group"
-                createRosterGroupResponse `responseBodyShouldContain` "checked=\"checked\""
+                createRosterGroupResponse `responseBodyShouldNotContain` "id=\"admin-roster-groups-fragment\""
+                createRosterGroupResponse `responseBodyShouldNotContain` "Fragment Group"
+                createRosterGroupResponse `responseBodyShouldNotContain` "Archived Group"
+                createRosterGroupResponse `responseBodyShouldNotContain` "hx-swap-oob=\"outerHTML\""
                 createRosterGroupResponse `responseBodyShouldNotContain` "id=\"app\""
+                let createRosterGroupTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders createRosterGroupResponse)
+                createRosterGroupTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
+                createRosterGroupTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-roster-groups-fragment")
                 rosterGroupsVersionAfter <- currentLiveUpdateVersion (adminRosterGroupsLiveScope (unpackId venue.id))
                 rosterGroupsVersionAfter `shouldBe` rosterGroupsVersionBefore
 
@@ -469,9 +472,11 @@ tests = beforeAll testContext do
                             [("showInactiveRosterGroups", "true")]
                 moveRosterGroupResponse `responseStatusShouldBe` status200
                 lookup "HX-Reswap" (responseHeaders moveRosterGroupResponse) `shouldBe` Just "none"
-                moveRosterGroupResponse `responseBodyShouldContain` "id=\"admin-roster-groups-fragment\" hx-swap-oob=\"outerHTML\""
-                moveRosterGroupResponse `responseBodyShouldContain` "Fragment Group"
+                moveRosterGroupResponse `responseBodyShouldNotContain` "id=\"admin-roster-groups-fragment\""
+                moveRosterGroupResponse `responseBodyShouldNotContain` "Fragment Group"
                 moveRosterGroupResponse `responseBodyShouldNotContain` "id=\"app\""
+                let moveRosterGroupTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders moveRosterGroupResponse)
+                moveRosterGroupTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-roster-groups-fragment")
                 rosterGroupsVersionAfterMove <- currentLiveUpdateVersion (adminRosterGroupsLiveScope (unpackId venue.id))
                 rosterGroupsVersionAfterMove `shouldBe` rosterGroupsVersionAfter
 
@@ -483,8 +488,11 @@ tests = beforeAll testContext do
                             , ("showInactiveRosterGroups", "true")
                             ]
                 updateRosterGroupResponse `responseStatusShouldBe` status200
-                updateRosterGroupResponse `responseBodyShouldContain` "Updated Fragment Group"
-                updateRosterGroupResponse `responseBodyShouldContain` tshow inactiveRosterGroup.id
+                lookup "HX-Reswap" (responseHeaders updateRosterGroupResponse) `shouldBe` Just "none"
+                updateRosterGroupResponse `responseBodyShouldNotContain` "Updated Fragment Group"
+                updateRosterGroupResponse `responseBodyShouldNotContain` tshow inactiveRosterGroup.id
+                let updateRosterGroupTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders updateRosterGroupResponse)
+                updateRosterGroupTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-roster-groups-fragment")
 
         it "creates venue-scoped non-pay config rows from the admin page" $ withContext do
             withCleanDb do
@@ -708,7 +716,9 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
-                response `responseBodyShouldContain` "id=\"admin-roster-groups-fragment\" hx-swap-oob=\"outerHTML\""
+                response `responseBodyShouldNotContain` "id=\"admin-roster-groups-fragment\""
+                let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-roster-groups-fragment")
                 unchangedRosterGroup <- fetch rosterGroup.id
                 unchangedRosterGroup.isActive `shouldBe` True
                 versionAfter <- currentLiveUpdateVersion (adminRosterGroupsLiveScope (unpackId venue.id))

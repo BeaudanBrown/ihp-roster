@@ -31,6 +31,14 @@ module Application.Helper.FrontendContract.Surface.Admin
     , AdminXeroStaffMappingsFragment
     , AdminXeroPayItemsFragment
     , AdminXeroTimesheetsFragment
+    , CreateRosterGroup
+    , UpdateRosterGroup
+    , MoveRosterGroupUp
+    , MoveRosterGroupDown
+    , ToggleInactiveRosterGroups
+    , ShowInactiveRosterGroups
+    , Name
+    , IsActive
     ) where
 
 import Application.Helper.FrontendContract.Surface.DSL
@@ -66,6 +74,19 @@ data AdminXeroShellFragment
 data AdminXeroStaffMappingsFragment
 data AdminXeroPayItemsFragment
 data AdminXeroTimesheetsFragment
+
+data CreateRosterGroup
+data UpdateRosterGroup
+data MoveRosterGroupUp
+data MoveRosterGroupDown
+data ToggleInactiveRosterGroups
+data ShowInactiveRosterGroups
+data Name
+data IsActive
+data None
+data OuterHTML
+data Click
+data ClosestFormCustomHtmx
 
 data AdminVenueSettings
 data AdminInvitesResourceMarker
@@ -137,6 +158,52 @@ type AdminRosterGroupsSurface =
     Surface AdminRosterGroups
         '[ Scope AdminRosterGroupsScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueAdmin '[ VenueId ] ]
          , Fragment AdminRosterGroupsFragment '[] '[ 'Eager, 'Live, 'DependsOn AdminRosterGroupsResource '[ 'FromScope VenueId ] ]
+         , Action CreateRosterGroup
+            '[ Field ShowInactiveRosterGroups 'WireBool
+             , Field Name 'WireText
+             , Field IsActive 'WireBool
+             ]
+            '[ 'HtmxMethod 'HtmxPost
+             , 'HtmxTarget AdminRosterGroupsFragment
+             , 'HtmxSwap None
+             , 'HtmxPushUrl 'HtmxPushUrlFalse
+             ]
+         , Action UpdateRosterGroup
+            '[ Field ShowInactiveRosterGroups 'WireBool
+             , Field Name 'WireText
+             , Field IsActive 'WireBool
+             ]
+            '[ 'HtmxMethod 'HtmxPost
+             , 'HtmxTarget AdminRosterGroupsFragment
+             , 'HtmxSwap None
+             , 'HtmxPushUrl 'HtmxPushUrlFalse
+             ]
+         , Action MoveRosterGroupUp
+            '[ Field ShowInactiveRosterGroups 'WireBool ]
+            '[ 'HtmxMethod 'HtmxPost
+             , 'HtmxTrigger Click
+             , 'HtmxTarget AdminRosterGroupsFragment
+             , 'HtmxSwap None
+             , 'HtmxPushUrl 'HtmxPushUrlFalse
+             , 'CustomHtmx ClosestFormCustomHtmx "move buttons submit the containing row form via hx-include=closest form"
+             ]
+         , Action MoveRosterGroupDown
+            '[ Field ShowInactiveRosterGroups 'WireBool ]
+            '[ 'HtmxMethod 'HtmxPost
+             , 'HtmxTrigger Click
+             , 'HtmxTarget AdminRosterGroupsFragment
+             , 'HtmxSwap None
+             , 'HtmxPushUrl 'HtmxPushUrlFalse
+             , 'CustomHtmx ClosestFormCustomHtmx "move buttons submit the containing row form via hx-include=closest form"
+             ]
+         , Action ToggleInactiveRosterGroups
+            '[ Field ShowInactiveRosterGroups 'WireBool ]
+            '[ 'HtmxMethod 'HtmxGet
+             , 'HtmxTarget AdminRosterGroupsFragment
+             , 'HtmxSwap OuterHTML
+             , 'HtmxPushUrl 'HtmxPushUrlFalse
+             ]
+         , DomToken AdminRosterGroupsFragment
          ]
 
 type AdminXeroSurface =

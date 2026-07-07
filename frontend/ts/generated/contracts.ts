@@ -1702,6 +1702,56 @@ export function parseAdminRosterGroupsAdminRosterGroupsFragmentFragmentParams(va
 }
 export function encodeAdminRosterGroupsAdminRosterGroupsFragmentFragmentParams(value: AdminRosterGroupsAdminRosterGroupsFragmentFragmentParams): AdminRosterGroupsAdminRosterGroupsFragmentFragmentParams { return value; }
 
+export type AdminRosterGroupsCreateRosterGroupActionFields = { showInactiveRosterGroups: boolean; name: string; isActive: boolean };
+export function isAdminRosterGroupsCreateRosterGroupActionFields(value: unknown): value is AdminRosterGroupsCreateRosterGroupActionFields {
+    return isRecord(value) && (typeof value["showInactiveRosterGroups"] === "boolean") && (typeof value["name"] === "string") && (typeof value["isActive"] === "boolean");
+}
+export function parseAdminRosterGroupsCreateRosterGroupActionFields(value: unknown): AdminRosterGroupsCreateRosterGroupActionFields {
+    if (isAdminRosterGroupsCreateRosterGroupActionFields(value)) return value;
+    throw new Error("Invalid AdminRosterGroupsCreateRosterGroupActionFields");
+}
+export function encodeAdminRosterGroupsCreateRosterGroupActionFields(value: AdminRosterGroupsCreateRosterGroupActionFields): AdminRosterGroupsCreateRosterGroupActionFields { return value; }
+
+export type AdminRosterGroupsUpdateRosterGroupActionFields = { showInactiveRosterGroups: boolean; name: string; isActive: boolean };
+export function isAdminRosterGroupsUpdateRosterGroupActionFields(value: unknown): value is AdminRosterGroupsUpdateRosterGroupActionFields {
+    return isRecord(value) && (typeof value["showInactiveRosterGroups"] === "boolean") && (typeof value["name"] === "string") && (typeof value["isActive"] === "boolean");
+}
+export function parseAdminRosterGroupsUpdateRosterGroupActionFields(value: unknown): AdminRosterGroupsUpdateRosterGroupActionFields {
+    if (isAdminRosterGroupsUpdateRosterGroupActionFields(value)) return value;
+    throw new Error("Invalid AdminRosterGroupsUpdateRosterGroupActionFields");
+}
+export function encodeAdminRosterGroupsUpdateRosterGroupActionFields(value: AdminRosterGroupsUpdateRosterGroupActionFields): AdminRosterGroupsUpdateRosterGroupActionFields { return value; }
+
+export type AdminRosterGroupsMoveRosterGroupUpActionFields = { showInactiveRosterGroups: boolean };
+export function isAdminRosterGroupsMoveRosterGroupUpActionFields(value: unknown): value is AdminRosterGroupsMoveRosterGroupUpActionFields {
+    return isRecord(value) && (typeof value["showInactiveRosterGroups"] === "boolean");
+}
+export function parseAdminRosterGroupsMoveRosterGroupUpActionFields(value: unknown): AdminRosterGroupsMoveRosterGroupUpActionFields {
+    if (isAdminRosterGroupsMoveRosterGroupUpActionFields(value)) return value;
+    throw new Error("Invalid AdminRosterGroupsMoveRosterGroupUpActionFields");
+}
+export function encodeAdminRosterGroupsMoveRosterGroupUpActionFields(value: AdminRosterGroupsMoveRosterGroupUpActionFields): AdminRosterGroupsMoveRosterGroupUpActionFields { return value; }
+
+export type AdminRosterGroupsMoveRosterGroupDownActionFields = { showInactiveRosterGroups: boolean };
+export function isAdminRosterGroupsMoveRosterGroupDownActionFields(value: unknown): value is AdminRosterGroupsMoveRosterGroupDownActionFields {
+    return isRecord(value) && (typeof value["showInactiveRosterGroups"] === "boolean");
+}
+export function parseAdminRosterGroupsMoveRosterGroupDownActionFields(value: unknown): AdminRosterGroupsMoveRosterGroupDownActionFields {
+    if (isAdminRosterGroupsMoveRosterGroupDownActionFields(value)) return value;
+    throw new Error("Invalid AdminRosterGroupsMoveRosterGroupDownActionFields");
+}
+export function encodeAdminRosterGroupsMoveRosterGroupDownActionFields(value: AdminRosterGroupsMoveRosterGroupDownActionFields): AdminRosterGroupsMoveRosterGroupDownActionFields { return value; }
+
+export type AdminRosterGroupsToggleInactiveRosterGroupsActionFields = { showInactiveRosterGroups: boolean };
+export function isAdminRosterGroupsToggleInactiveRosterGroupsActionFields(value: unknown): value is AdminRosterGroupsToggleInactiveRosterGroupsActionFields {
+    return isRecord(value) && (typeof value["showInactiveRosterGroups"] === "boolean");
+}
+export function parseAdminRosterGroupsToggleInactiveRosterGroupsActionFields(value: unknown): AdminRosterGroupsToggleInactiveRosterGroupsActionFields {
+    if (isAdminRosterGroupsToggleInactiveRosterGroupsActionFields(value)) return value;
+    throw new Error("Invalid AdminRosterGroupsToggleInactiveRosterGroupsActionFields");
+}
+export function encodeAdminRosterGroupsToggleInactiveRosterGroupsActionFields(value: AdminRosterGroupsToggleInactiveRosterGroupsActionFields): AdminRosterGroupsToggleInactiveRosterGroupsActionFields { return value; }
+
 export type AdminXeroAdminXeroScopeScope = { venueId: FrontendContractUuid };
 export function isAdminXeroAdminXeroScopeScope(value: unknown): value is AdminXeroAdminXeroScopeScope {
     return isRecord(value) && (typeof value["venueId"] === "string");
@@ -1830,7 +1880,13 @@ export const adminShiftTypesSurfaceManifest = {"surface":"admin-shift-types","sc
 
 export type AdminRosterGroupsSurfaceName = "admin-roster-groups";
 export type AdminRosterGroupsFragmentKey = AdminRosterGroupsSurfaceFragmentKey;
-export const adminRosterGroupsSurfaceManifest = {"surface":"admin-roster-groups","scopes":["admin-roster-groups"],"fragments":["admin-roster-groups"],"liveFragments":["admin-roster-groups"],"htmxActions":[],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":[],"overlayLanes":[],"containedSurfaces":{}} as const;
+export type CreateRosterGroupActionFields = AdminRosterGroupsCreateRosterGroupActionFields;
+export type UpdateRosterGroupActionFields = AdminRosterGroupsUpdateRosterGroupActionFields;
+export type MoveRosterGroupUpActionFields = AdminRosterGroupsMoveRosterGroupUpActionFields;
+export type MoveRosterGroupDownActionFields = AdminRosterGroupsMoveRosterGroupDownActionFields;
+export type ToggleInactiveRosterGroupsActionFields = AdminRosterGroupsToggleInactiveRosterGroupsActionFields;
+export type AdminRosterGroupsDomToken = "admin-roster-groups-fragment";
+export const adminRosterGroupsSurfaceManifest = {"surface":"admin-roster-groups","scopes":["admin-roster-groups"],"fragments":["admin-roster-groups"],"liveFragments":["admin-roster-groups"],"htmxActions":[{"name":"create-roster-group","fields":["showInactiveRosterGroups","name","isActive"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"admin-roster-groups-fragment","swap":"none","pushUrl":false,"custom":[]}},{"name":"update-roster-group","fields":["showInactiveRosterGroups","name","isActive"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"admin-roster-groups-fragment","swap":"none","pushUrl":false,"custom":[]}},{"name":"move-roster-group-up","fields":["showInactiveRosterGroups"],"htmx":{"method":"post","trigger":"click","include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"admin-roster-groups-fragment","swap":"none","pushUrl":false,"custom":[{"marker":"closest-form-custom-htmx","reason":"move buttons submit the containing row form via hx-include=closest form"}]}},{"name":"move-roster-group-down","fields":["showInactiveRosterGroups"],"htmx":{"method":"post","trigger":"click","include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"admin-roster-groups-fragment","swap":"none","pushUrl":false,"custom":[{"marker":"closest-form-custom-htmx","reason":"move buttons submit the containing row form via hx-include=closest form"}]}},{"name":"toggle-inactive-roster-groups","fields":["showInactiveRosterGroups"],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"admin-roster-groups-fragment","swap":"outer-html","pushUrl":false,"custom":[]}}],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":["admin-roster-groups-fragment"],"overlayLanes":[],"containedSurfaces":{}} as const;
 
 export type AdminXeroSurfaceName = "admin-xero";
 export type AdminXeroFragmentKey = AdminXeroSurfaceFragmentKey;

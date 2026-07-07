@@ -1,6 +1,6 @@
 ---
 id: ir-52yn
-status: open
+status: closed
 deps: [ir-yfat, ir-j2ft]
 links: []
 created: 2026-07-07T03:24:11Z

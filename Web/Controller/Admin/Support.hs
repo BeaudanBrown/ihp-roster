@@ -1,6 +1,8 @@
 module Web.Controller.Admin.Support where
 
 import Application.Helper.Export
+import Application.Helper.LiveUpdate (adminRosterGroupsLiveScope,
+                                      setActorLiveFragmentsRefresh)
 import Application.Helper.Pay
 import Application.Helper.RosterGroups
 import Application.Helper.VenueInvitation
@@ -14,9 +16,9 @@ import qualified Data.List as List
 import qualified Data.Text as Text
 import Data.Time.Clock (NominalDiffTime, UTCTime, addUTCTime, getCurrentTime)
 import qualified Text.Blaze.Html as Blaze
+import qualified Web.Admin.FrontendSurface as AdminSurface
 import Web.Controller.Prelude
 import Web.View.Admin.Invites
-import Web.View.Admin.RosterGroups
 import Web.View.Admin.ShiftTypes
 
 fetchCurrentVenueShiftTypes :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [ShiftType]
@@ -132,9 +134,8 @@ respondToRosterGroupsSectionMutation maybeRosterGroupId =
         , adminSectionRedirectGroup = maybeRosterGroupId
         , adminSectionRenderFragment = do
             setHeader ("HX-Reswap", "none")
-            rosterGroups <- fetchCurrentVenueRosterGroups
-            let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
-            pure (renderRosterGroupsSectionFragmentWithSwap (Just "outerHTML") rosterGroups showInactiveRosterGroups)
+            setActorLiveFragmentsRefresh (adminRosterGroupsLiveScope (unpackId currentVenueId)) (AdminSurface.adminSurfaceWireFragments [AdminSurface.adminRosterGroupsFragment])
+            pure mempty
         }
 
 nonEmptySuccessMessage :: Text -> Maybe Text

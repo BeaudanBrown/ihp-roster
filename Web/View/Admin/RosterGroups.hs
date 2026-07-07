@@ -6,8 +6,16 @@ module Web.View.Admin.RosterGroups
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
-import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
+import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            FrontendSurfaceCustomHtmxAttrs (..),
+                                                            FrontendSurfaceFieldValue (..),
+                                                            renderFrontendSurfaceActionForm,
+                                                            renderFrontendSurfaceActionLink,
+                                                            renderFrontendSurfaceActionSubmitButton,
+                                                            renderFrontendSurfaceMount)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
+                                  adminRosterGroupsAction,
                                   adminRosterGroupsSurfaceImpl)
 import Web.View.Admin.Common
 import Web.View.Prelude
@@ -16,7 +24,7 @@ renderRosterGroupsSection :: [RosterGroup] -> Bool -> Html
 renderRosterGroupsSection rosterGroups showInactive =
     renderConfigSection
         "admin-roster-groups-section"
-        (renderInactiveToggleSummary "showInactiveRosterGroups" (pathTo ShowadminRosterGroupsLiveFragmentAction) "admin-roster-groups-fragment" rosterGroups showInactive)
+        (renderRosterGroupsInactiveSummary rosterGroups showInactive)
         [hsx|
             {renderRosterGroupCreateForm showInactive}
         |]
@@ -41,15 +49,33 @@ currentVenueScopeId =
         Just venue -> unpackId venue.id
         Nothing -> error "Admin roster groups live surface requires a current venue"
 
+renderRosterGroupsInactiveSummary :: [RosterGroup] -> Bool -> Html
+renderRosterGroupsInactiveSummary rosterGroups showInactive = [hsx|
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <p class="small app-muted mb-0">
+            {tshow (length rosterGroups)} rows total, {tshow activeCount} active, {tshow inactiveCount} inactive.
+        </p>
+        <div>
+            {renderFrontendSurfaceActionLink (adminRosterGroupsAction "toggle-inactive-roster-groups") toggleRoute toggleLabel}
+        </div>
+    </div>
+|]
+    where
+        activeCount = countActiveRows rosterGroups
+        inactiveCount = length rosterGroups - activeCount
+        toggleLabel = [hsx|<span class="small">Show disabled</span>|]
+        toggleHref = appendQueryParams (pathTo ShowadminRosterGroupsLiveFragmentAction) [("showInactiveRosterGroups", if showInactive then "false" else "true")]
+        toggleRoute = FrontendSurfaceActionRoute
+            { actionRouteUrl = toggleHref
+            , actionRouteFields = [FrontendSurfaceFieldValue "showInactiveRosterGroups" (if showInactive then "false" else "true")]
+            , actionRouteCustomHtmx = []
+            , actionRouteStandardUrl = Just toggleHref
+            , actionRouteExtraAttrs = [("class", "btn btn-sm btn-outline-secondary"), ("role", "switch"), ("aria-checked", if showInactive then "true" else "false")]
+            }
+
 renderRosterGroupCreateForm :: Bool -> Html
-renderRosterGroupCreateForm showInactive = [hsx|
-    <form method="POST"
-          action={CreateRosterGroupAction}
-          class={appSurfaceClasses "p-3"}
-          data-disable-javascript-submission="true"
-          hx-post={CreateRosterGroupAction}
-          hx-target="#admin-roster-groups-fragment"
-          hx-swap="none">
+renderRosterGroupCreateForm showInactive =
+    renderFrontendSurfaceActionForm (adminRosterGroupsAction "create-roster-group") route [hsx|
         <input type="hidden" name="showInactiveRosterGroups" value={boolParam showInactive} />
         <div class="row g-2 align-items-end">
             <div class="col-12 col-md-8">
@@ -64,8 +90,15 @@ renderRosterGroupCreateForm showInactive = [hsx|
                 <button class="btn btn-outline-primary w-100" type="submit">Add Group</button>
             </div>
         </div>
-    </form>
-|]
+    |]
+    where
+        route = FrontendSurfaceActionRoute
+            { actionRouteUrl = pathTo CreateRosterGroupAction
+            , actionRouteFields = []
+            , actionRouteCustomHtmx = []
+            , actionRouteStandardUrl = Just (pathTo CreateRosterGroupAction)
+            , actionRouteExtraAttrs = [("class", appSurfaceClasses "p-3"), ("data-disable-javascript-submission", "true")]
+            }
 
 renderRosterGroupRows :: [RosterGroup] -> Bool -> Html
 renderRosterGroupRows rosterGroups showInactive
@@ -83,12 +116,19 @@ renderRosterGroupRows rosterGroups showInactive
 renderRosterGroupRow :: Bool -> Int -> (Int, RosterGroup) -> Html
 renderRosterGroupRow showInactive activeCount (rosterGroupIndex, rosterGroup) = [hsx|
     <div class={appSurfaceClasses "p-3 mb-2"}>
-        <form method="POST"
-              action={appendQueryParams (pathTo (UpdateRosterGroupAction (get #id rosterGroup))) [("rosterGroupId", tshow rosterGroup.id)]}
-              data-disable-javascript-submission="true"
-              hx-post={appendQueryParams (pathTo (UpdateRosterGroupAction (get #id rosterGroup))) [("rosterGroupId", tshow rosterGroup.id)]}
-              hx-target="#admin-roster-groups-fragment"
-              hx-swap="none">
+        {renderFrontendSurfaceActionForm (adminRosterGroupsAction "update-roster-group") updateRoute rowFormBody}
+    </div>
+|]
+    where
+        updateUrl = appendQueryParams (pathTo (UpdateRosterGroupAction (get #id rosterGroup))) [("rosterGroupId", tshow rosterGroup.id)]
+        updateRoute = FrontendSurfaceActionRoute
+            { actionRouteUrl = updateUrl
+            , actionRouteFields = []
+            , actionRouteCustomHtmx = []
+            , actionRouteStandardUrl = Just updateUrl
+            , actionRouteExtraAttrs = [("data-disable-javascript-submission", "true")]
+            }
+        rowFormBody = [hsx|
             <input type="hidden" name="showInactiveRosterGroups" value={boolParam showInactive} />
             <div class="d-flex justify-content-between align-items-center mb-2 gap-2 flex-wrap">
                 <div class="d-flex align-items-center gap-2">
@@ -96,8 +136,8 @@ renderRosterGroupRow showInactive activeCount (rosterGroupIndex, rosterGroup) = 
                     {renderActiveBadge rosterGroup.isActive}
                 </div>
                 <div class="btn-group btn-group-sm" role="group" aria-label="Reorder roster group">
-                    {renderMoveButton (not rosterGroup.isActive || rosterGroupIndex == 0) (MoveRosterGroupUpAction rosterGroup.id) "admin-roster-groups-fragment" "Up"}
-                    {renderMoveButton (not rosterGroup.isActive || rosterGroupIndex == activeCount - 1) (MoveRosterGroupDownAction rosterGroup.id) "admin-roster-groups-fragment" "Down"}
+                    {renderRosterGroupMoveButton (not rosterGroup.isActive || rosterGroupIndex == 0) (adminRosterGroupsAction "move-roster-group-up") (pathTo (MoveRosterGroupUpAction rosterGroup.id)) "Up"}
+                    {renderRosterGroupMoveButton (not rosterGroup.isActive || rosterGroupIndex == activeCount - 1) (adminRosterGroupsAction "move-roster-group-down") (pathTo (MoveRosterGroupDownAction rosterGroup.id)) "Down"}
                 </div>
             </div>
             <div class="row g-2 align-items-end">
@@ -113,6 +153,20 @@ renderRosterGroupRow showInactive activeCount (rosterGroupIndex, rosterGroup) = 
                     <button class="btn btn-outline-secondary w-100" type="submit">Update</button>
                 </div>
             </div>
-        </form>
-    </div>
-|]
+        |]
+
+renderRosterGroupMoveButton :: Bool -> SurfaceIR.HtmxActionIR -> Text -> Text -> Html
+renderRosterGroupMoveButton isDisabled action actionUrl label =
+    if isDisabled
+        then [hsx|
+            <button class="btn btn-outline-secondary" type="button" disabled={True}>{label}</button>
+        |]
+        else renderFrontendSurfaceActionSubmitButton action route [hsx|{label}|]
+    where
+        route = FrontendSurfaceActionRoute
+            { actionRouteUrl = actionUrl
+            , actionRouteFields = []
+            , actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "closest-form-custom-htmx" [("hx-include", "closest form")]]
+            , actionRouteStandardUrl = Just actionUrl
+            , actionRouteExtraAttrs = [("class", "btn btn-outline-secondary")]
+            }

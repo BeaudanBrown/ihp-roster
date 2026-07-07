@@ -343,6 +343,7 @@ tests = describe "FrontendSurface DSL foundation" do
                 , actionRouteFields = [FrontendSurfaceFieldValue "panelId" "panel-1"]
                 , actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "lab-panel-custom-htmx" [("hx-vals", "{}")]]
                 , actionRouteStandardUrl = Nothing
+                , actionRouteExtraAttrs = [("class", "surface-action-test")]
                 }
         let formHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceActionForm action route (Html5.toHtml ("refresh" :: Text))))
         let linkHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceActionLink action route (Html5.toHtml ("refresh" :: Text))))
