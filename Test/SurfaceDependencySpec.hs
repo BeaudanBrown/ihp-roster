@@ -8,7 +8,9 @@ import Application.Support.LiveUpdates (supportCandidateMountedFragments,
                                         supportSurfaceScope)
 import qualified Data.Set as Set
 import Data.UUID (fromWords)
+import Generated.Types (RosterDay, RosterGroup)
 import IHP.ControllerPrelude (pathTo)
+import IHP.ModelSupport.Types (Id' (..))
 import IHP.Prelude
 import Test.Hspec
 import qualified Web.Admin.FrontendSurface as AdminSurface
@@ -19,6 +21,12 @@ import Web.Billing.FrontendSurface (BillingCheckoutReturnState (..),
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
                                      profileCandidateMountedFragments,
                                      profileSurfaceScope)
+import Web.RosterWeeks.FrontendSurface (RosterMountedFragmentPlan (..),
+                                        RosterWeekScopeValue (..),
+                                        rosterCandidateMountedFragments,
+                                        rosterMountedFragmentForProjection,
+                                        rosterSurfaceWireFragments)
+import Web.RosterWeeks.Types (RosterProjectionFragment (..))
 import Web.Routes ()
 import Web.SurfaceInvalidation (SurfaceInvalidationTarget (..),
                                 planSurfaceInvalidationsWithoutContext)
@@ -118,6 +126,34 @@ tests = do
             plannedFor xeroMappingsResource `shouldBe` [[adminXeroStaffMappingsLiveFragment]]
             plannedFor xeroPayItemsResource `shouldBe` [[adminXeroPayItemsLiveFragment]]
             plannedFor xeroTimesheetsResource `shouldBe` [[adminXeroTimesheetsLiveFragment]]
+
+        it "declares exact roster projection fragment targets for mounted refetches" do
+            let venueId = fromWords 7 0 0 0
+            let rosterGroupId = Id (fromWords 8 0 0 0) :: Id RosterGroup
+            let rosterDayId = Id (fromWords 9 0 0 0) :: Id RosterDay
+            let scope = RosterWeekScopeValue venueId rosterGroupId 3
+            let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 2)] }
+            let candidates = rosterCandidateMountedFragments scope plan
+            map (.mountedFragmentTargetId) candidates
+                `shouldBe`
+                    [ "roster-content"
+                    , "roster-grid-toolbar"
+                    , "roster-grid-frame"
+                    , "roster-day-columns"
+                    , "roster-day-rail"
+                    , "roster-wage-rail"
+                    , "roster-slots-grid"
+                    , "roster-staff-panel-fragment"
+                    , "roster-day-section-" <> tshow rosterDayId
+                    , "roster-row-" <> tshow rosterDayId <> "-2"
+                    ]
+            let selectedWireFragments = rosterSurfaceWireFragments (map (rosterMountedFragmentForProjection scope) [RosterProjectionGridToolbar, RosterProjectionDaySection (fromWords 9 0 0 0), RosterProjectionRow (fromWords 9 0 0 0) 2])
+            map targetId selectedWireFragments
+                `shouldBe`
+                    [ "roster-grid-toolbar"
+                    , "roster-day-section-" <> tshow rosterDayId
+                    , "roster-row-" <> tshow rosterDayId <> "-2"
+                    ]
 
         it "selects support fragments through generated dependencies" do
             let awardRatesFragments = planFrontendSurfaceInvalidation (Set.fromList [supportAwardRatesResource]) supportSurfaceScope supportCandidateMountedFragments
