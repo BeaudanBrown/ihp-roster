@@ -20,7 +20,7 @@ Add Hspec/guardrail coverage for no stale data-bepis-surface-lazy* attrs, canoni
 
 ## Acceptance Criteria
 
-Docs describe the single lazy-fragment path. Guardrails fail on old attrs/helper reintroduction. Focused typecheck, frontend-contracts-check, frontend-test, FrontendSurface/lazy Hspec, frontend-check, surface-guardrails, and surface-compile-fail-check pass or unrelated failures are documented.
+Docs describe the single lazy-fragment path. Guardrails fail on old attrs/helper reintroduction. Focused typecheck, frontend-contracts-check, frontend-test, FrontendSurface/lazy Hspec, frontend-check, frontend-surface-guardrails, and frontend-surface-compile-fail-check pass or unrelated failures are documented.
 
 
 ## Notes

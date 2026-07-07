@@ -286,8 +286,8 @@ Use focused checks while developing and the broader frontend gate before commit:
 ```bash
 bash ./bin/in-env frontend-contracts
 bash ./bin/in-env frontend-contracts-check
-bash ./bin/in-env surface-compile-fail-check
-bash ./bin/in-env surface-guardrails
+bash ./bin/in-env frontend-surface-compile-fail-check
+bash ./bin/in-env frontend-surface-guardrails
 bash ./bin/in-env typecheck
 bash ./bin/in-env frontend-check
 bash ./bin/in-env hspec-test --match "FrontendContract Surface"
