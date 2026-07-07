@@ -2,7 +2,6 @@
 
 module Web.View.Admin.RosterGroups
     ( renderRosterGroupsSectionFragment
-    , renderRosterGroupsSectionFragmentWithSwap
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
@@ -31,14 +30,9 @@ renderRosterGroupsSection rosterGroups showInactive =
         (renderRosterGroupRows rosterGroups showInactive)
 
 renderRosterGroupsSectionFragment :: [RosterGroup] -> Bool -> Html
-renderRosterGroupsSectionFragment =
-    renderRosterGroupsSectionFragmentWithSwap Nothing
-
-renderRosterGroupsSectionFragmentWithSwap :: Maybe Text -> [RosterGroup] -> Bool -> Html
-renderRosterGroupsSectionFragmentWithSwap maybeSwapOob rosterGroups showInactive =
+renderRosterGroupsSectionFragment rosterGroups showInactive =
     renderFrontendSurfaceMount (adminRosterGroupsSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
-        <div id="admin-roster-groups-fragment"
-             hx-swap-oob={maybeSwapOob}>
+        <div id="admin-roster-groups-fragment">
             {renderRosterGroupsSection rosterGroups showInactive}
         </div>
     |]

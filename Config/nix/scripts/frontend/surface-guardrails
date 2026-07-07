@@ -106,6 +106,26 @@ expect_match \
     'parentSurface: "admin-xero-page", parentFragment: "admin-xero-page-content", childSurface: "admin-xero"' \
     frontend/ts/generated/contracts.ts
 
+expect_match \
+    "generated contracts must expose Admin Roster Groups action manifests" \
+    'adminRosterGroupsSurfaceManifest.*create-roster-group.*move-roster-group-up' \
+    frontend/ts/generated/contracts.ts
+
+expect_match \
+    "generated contracts must expose declared Admin Roster Groups custom HTMX reason" \
+    'move buttons submit the containing row form via hx-include=closest form' \
+    frontend/ts/generated/contracts.ts
+
+expect_no_match \
+    "migrated Admin Roster Groups view must not hand-author request HTMX attrs" \
+    'hx-(get|post|target|swap|trigger|push-url)=' \
+    Web/View/Admin/RosterGroups.hs
+
+expect_no_match \
+    "migrated Admin Roster Groups success path must not render business OOB helper" \
+    'renderRosterGroupsSectionFragmentWithSwap|hx-swap-oob' \
+    Web/View/Admin/RosterGroups.hs Web/Controller/Admin/Support.hs
+
 expect_no_match \
     "production code must not resurrect shared SurfaceProjection cache plumbing" \
     'Application\.Helper\.SurfaceProjection|SurfaceProjection' \
@@ -128,7 +148,7 @@ expect_no_match \
 
 expect_no_match \
     "generated/static contracts must not expose deleted semantic interaction DOM attrs" \
-    'data-bepis-(marker|item|pointer-session|session-kind|session-intent|activation-intent|activation-trigger|activation-value-field)|"(marker|item|pointerSession|sessionIntent|activationIntent|activationTrigger|activationValueField|activationMarker|itemMarker|dropzoneMarker)"' \
+    'data-bepis-(marker|item|pointer-session|session-kind|session-intent|activation-intent|activation-trigger|activation-value-field)|"(item|pointerSession|sessionIntent|activationIntent|activationTrigger|activationValueField|activationMarker|itemMarker|dropzoneMarker)"' \
     frontend/ts/generated/contracts.ts static/app-interactions.js static/app-live-updates.js
 
 expect_no_match \

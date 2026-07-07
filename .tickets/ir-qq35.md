@@ -1,6 +1,6 @@
 ---
 id: ir-qq35
-status: open
+status: closed
 deps: [ir-52yn]
 links: []
 created: 2026-07-07T03:24:11Z

@@ -44,6 +44,10 @@ tests = describe "FrontendSurface strict API guard" do
         violations <- lazyFragmentRenderingViolations
         violations `shouldBe` []
 
+    it "keeps migrated Admin Roster Groups actions generated" do
+        violations <- adminRosterGroupsActionContractViolations
+        violations `shouldBe` []
+
 actorBusinessOobCompatibilityViolations :: IO [Text]
 actorBusinessOobCompatibilityViolations = do
     files <- sourceFilesUnder "Web"
@@ -65,6 +69,20 @@ obsoleteActorBusinessOobHelpers =
     , "liveFragmentsRefreshTriggerPayload"
     , "liveUpdateWireRefreshTriggerPayload"
     ]
+
+adminRosterGroupsActionContractViolations :: IO [Text]
+adminRosterGroupsActionContractViolations = do
+    view <- Text.readFile "Web/View/Admin/RosterGroups.hs"
+    support <- Text.readFile "Web/Controller/Admin/Support.hs"
+    contracts <- Text.readFile "frontend/ts/generated/contracts.ts"
+    let requestAttrs = ["hx-get=", "hx-post=", "hx-target=", "hx-swap=", "hx-trigger=", "hx-push-url="]
+    pure $ concat
+        [ ["Web/View/Admin/RosterGroups.hs: migrated request HTMX attr should be rendered by generated helpers: " <> attr | attr <- requestAttrs, attr `Text.isInfixOf` view]
+        , ["Web/View/Admin/RosterGroups.hs: stale business OOB helper should stay deleted" | "renderRosterGroupsSectionFragmentWithSwap" `Text.isInfixOf` view || "hx-swap-oob" `Text.isInfixOf` view]
+        , ["Web/Controller/Admin/Support.hs: roster groups actor success must not render business OOB" | "renderRosterGroupsSectionFragmentWithSwap" `Text.isInfixOf` support || "hx-swap-oob" `Text.isInfixOf` support]
+        , ["frontend/ts/generated/contracts.ts: missing Admin Roster Groups action manifest" | not ("adminRosterGroupsSurfaceManifest" `Text.isInfixOf` contracts && "create-roster-group" `Text.isInfixOf` contracts && "move-roster-group-up" `Text.isInfixOf` contracts)]
+        , ["frontend/ts/generated/contracts.ts: missing declared custom HTMX reason" | not ("move buttons submit the containing row form via hx-include=closest form" `Text.isInfixOf` contracts)]
+        ]
 
 lazyFragmentRenderingViolations :: IO [Text]
 lazyFragmentRenderingViolations = do
