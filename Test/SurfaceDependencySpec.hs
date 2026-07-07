@@ -8,8 +8,10 @@ import Application.Support.LiveUpdates (supportCandidateMountedFragments,
                                         supportSurfaceScope)
 import qualified Data.Set as Set
 import Data.UUID (fromWords)
+import IHP.ControllerPrelude (pathTo)
 import IHP.Prelude
 import Test.Hspec
+import qualified Web.Admin.FrontendSurface as AdminSurface
 import Web.Billing.FrontendSurface (BillingCheckoutReturnState (..),
                                     BillingScopeValue (..),
                                     billingCandidateMountedFragments,
@@ -17,12 +19,14 @@ import Web.Billing.FrontendSurface (BillingCheckoutReturnState (..),
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
                                      profileCandidateMountedFragments,
                                      profileSurfaceScope)
+import Web.Routes ()
 import Web.SurfaceInvalidation (SurfaceInvalidationTarget (..),
                                 planSurfaceInvalidationsWithoutContext)
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
                                        TimesheetsMountStateValue (..),
                                        timesheetsCandidateMountedFragments,
                                        timesheetsSurfaceScope)
+import Web.Types
 
 tests :: Spec
 tests = do
@@ -65,6 +69,55 @@ tests = do
             let targets = planSurfaceInvalidationsWithoutContext (Set.fromList [xeroPayItemsResource venueId]) subscriptions
 
             map (map fragmentKey . targetFragments) targets `shouldBe` [[adminXeroPayItemsLiveFragment]]
+
+        it "declares exact Admin Xero fragment targets for mounted refetches" do
+            let fragments =
+                    AdminSurface.adminSurfaceWireFragments
+                        [ AdminSurface.adminXeroShellFragment
+                        , AdminSurface.adminXeroStaffMappingsFragment
+                        , AdminSurface.adminXeroPayItemsFragment
+                        , AdminSurface.adminXeroTimesheetsFragment
+                        ]
+
+            map fragmentKey fragments
+                `shouldBe`
+                    [ adminXeroShellLiveFragment
+                    , adminXeroStaffMappingsLiveFragment
+                    , adminXeroPayItemsLiveFragment
+                    , adminXeroTimesheetsLiveFragment
+                    ]
+            map targetId fragments
+                `shouldBe`
+                    [ "admin-xero-fragment"
+                    , "xero-staff-mappings-data"
+                    , "xero-pay-items-data"
+                    , "xero-timesheets-data"
+                    ]
+            map url fragments
+                `shouldBe`
+                    [ pathTo ShowadminXeroShellLiveFragmentAction
+                    , pathTo ShowadminXeroStaffMappingsLiveFragmentAction
+                    , pathTo ShowadminXeroPayItemsLiveFragmentAction
+                    , pathTo ShowadminXeroTimesheetsLiveFragmentAction
+                    ]
+
+        it "maps each Admin Xero resource to the selected semantic fragment without shell-child duplication" do
+            let venueId = fromWords 3 0 0 0
+            let scope = adminXeroLiveScope venueId
+            let fragments =
+                    AdminSurface.adminSurfaceWireFragments
+                        [ AdminSurface.adminXeroShellFragment
+                        , AdminSurface.adminXeroStaffMappingsFragment
+                        , AdminSurface.adminXeroPayItemsFragment
+                        , AdminSurface.adminXeroTimesheetsFragment
+                        ]
+            let subscription = liveTestSubscription scope fragments
+            let plannedFor resource = map (map fragmentKey . targetFragments) (planSurfaceInvalidationsWithoutContext (Set.fromList [resource venueId]) [subscription])
+
+            plannedFor xeroConnectionResource `shouldBe` [[adminXeroShellLiveFragment]]
+            plannedFor xeroMappingsResource `shouldBe` [[adminXeroStaffMappingsLiveFragment]]
+            plannedFor xeroPayItemsResource `shouldBe` [[adminXeroPayItemsLiveFragment]]
+            plannedFor xeroTimesheetsResource `shouldBe` [[adminXeroTimesheetsLiveFragment]]
 
         it "selects support fragments through generated dependencies" do
             let awardRatesFragments = planFrontendSurfaceInvalidation (Set.fromList [supportAwardRatesResource]) supportSurfaceScope supportCandidateMountedFragments
