@@ -81,6 +81,7 @@ completeXeroPayItemSync ::
     IO ()
 completeXeroPayItemSync syncRun verifiedCount message = do
     _ <- completeXeroPayItemSyncMutation syncRun verifiedCount
+    refreshXeroPayItemRequirementsForSyncRun syncRun
     respondToXeroPayItemsMutationSuccess message
 
 failXeroPayItemSync ::
@@ -99,4 +100,14 @@ failXeroPayItemSyncWithVerifiedCount ::
     IO ()
 failXeroPayItemSyncWithVerifiedCount syncRun verifiedCount message = do
     _ <- failXeroPayItemSyncMutation syncRun verifiedCount message
+    refreshXeroPayItemRequirementsForSyncRun syncRun
     respondWithXeroPayItemsMutationError message
+
+refreshXeroPayItemRequirementsForSyncRun ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroSyncRun ->
+    IO ()
+refreshXeroPayItemRequirementsForSyncRun syncRun = do
+    connection <- fetch (Id syncRun.xeroConnectionId :: Id XeroConnection)
+    xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
+    void (fetchCurrentVenueXeroPayItemRequirements (Just connection) xeroEarningsRates)

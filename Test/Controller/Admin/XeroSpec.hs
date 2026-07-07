@@ -834,6 +834,9 @@ tests = beforeAll testContext do
 
                 accountCodeResponse `responseStatusShouldBe` status200
                 accountCodeResponse `responseBodyShouldContain` "Saved Xero pay item account code 477."
+                accountCodeResponse `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
+                let accountCodeTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders accountCodeResponse)
+                accountCodeTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-xero-shell")
                 versionAfterAccountCode <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
                 versionAfterAccountCode `shouldBe` versionBefore
                 accountCodeSelection <- query @XeroPayItemAccountCodeSelection |> fetchOne
@@ -847,6 +850,9 @@ tests = beforeAll testContext do
 
                 calendarResponse `responseStatusShouldBe` status200
                 calendarResponse `responseBodyShouldContain` "Saved Xero payroll calendar selection."
+                calendarResponse `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
+                let calendarTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders calendarResponse)
+                calendarTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-xero-shell")
                 versionAfterCalendar <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
                 versionAfterCalendar `shouldBe` versionAfterAccountCode
                 selection <- query @XeroPayrollCalendarSelection |> fetchOne
@@ -878,10 +884,13 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Verified 7 required Xero pay items."
-                response `responseBodyShouldContain` "id=\"xero-pay-items-data\""
-                response `responseBodyShouldContain` "Imported Xero pay items"
+                response `responseBodyShouldNotContain` "id=\"xero-pay-items-data\""
+                response `responseBodyShouldNotContain` "Imported Xero pay items"
                 response `responseBodyShouldNotContain` "id=\"xero-pay-items-sync-indicator\""
                 response `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
+                let payItemTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                payItemTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-xero-pay-items")
+                payItemTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "xero-pay-items-data")
                 requests <- IORef.readIORef requestsRef
                 length requests `shouldBe` 7
                 map fst requests `shouldSatisfy` all (Text.isPrefixOf "bepis-pay-item-")
@@ -934,8 +943,10 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Submitted 8 Xero pay item creates and verified 1 after pulling Xero pay items."
-                response `responseBodyShouldContain` "id=\"xero-pay-items-data\""
+                response `responseBodyShouldNotContain` "id=\"xero-pay-items-data\""
                 response `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
+                let partialPayItemTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                partialPayItemTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-xero-pay-items")
                 requests <- IORef.readIORef requestsRef
                 length requests `shouldBe` 8
                 createdRequirements <- query @XeroPayItemRequirementRecord

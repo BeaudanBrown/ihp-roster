@@ -13,8 +13,8 @@ import Application.Xero.Admin.ImportedPayItems
 import Application.Xero.Admin.ReadModel (fetchActiveCurrentVenueXeroConnection)
 import Application.Xero.Connection
 import Web.Admin.Xero.Mutations
-import Web.Controller.Admin.Xero.Responses (respondWithXeroPayItemsFragmentAndToast,
-                                            respondWithXeroPayItemsFragmentAndToastAndCloseDialog,
+import Web.Controller.Admin.Xero.Responses (respondWithXeroPayItemsActorInvalidationAndToast,
+                                            respondWithXeroPayItemsActorInvalidationAndToastAndCloseDialog,
                                             xeroErrorToast, xeroSuccessToast)
 import Web.Controller.Prelude
 import Web.View.Admin.Xero.PayItems (renderXeroImportedPayItemImportDialog,
@@ -79,7 +79,7 @@ withFetchedXeroEarningsRates actionLabel respondError action = do
 respondImportedPayItemMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Maybe ToastOverlayConfig -> IO ()
 respondImportedPayItemMutation maybeToast =
     if isHtmxRequest
-        then respondWithXeroPayItemsFragmentAndToast maybeToast
+        then respondWithXeroPayItemsActorInvalidationAndToast maybeToast
         else do
             setSuccessMessage "Updated imported Xero pay items."
             redirectTo XeroAction
@@ -87,7 +87,7 @@ respondImportedPayItemMutation maybeToast =
 respondImportedPayItemImportSuccess :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Maybe ToastOverlayConfig -> IO ()
 respondImportedPayItemImportSuccess maybeToast =
     if isHtmxRequest
-        then respondWithXeroPayItemsFragmentAndToastAndCloseDialog maybeToast
+        then respondWithXeroPayItemsActorInvalidationAndToastAndCloseDialog maybeToast
         else do
             setSuccessMessage "Updated imported Xero pay items."
             redirectTo XeroAction

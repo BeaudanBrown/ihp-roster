@@ -7,6 +7,8 @@ module Web.Controller.Admin.Xero.Responses
     , respondToXeroPayItemsMutationSuccess
     , respondWithXeroMappingMutationError
     , respondWithXeroPayItemsMutationError
+    , respondWithXeroPayItemsActorInvalidationAndToast
+    , respondWithXeroPayItemsActorInvalidationAndToastAndCloseDialog
     , respondWithXeroPayItemsFragment
     , respondWithXeroPayItemsFragmentAndToast
     , respondWithXeroPayItemsFragmentAndToastAndCloseDialog
@@ -113,17 +115,30 @@ respondWithXeroPayItemsFragmentAndToast maybeToast = do
             ]
 
 respondWithXeroPayItemsFragmentAndToastAndCloseDialog ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    (?context :: ControllerContext, ?request :: Request) =>
     Maybe ToastOverlayConfig ->
     IO ()
-respondWithXeroPayItemsFragmentAndToastAndCloseDialog maybeToast = do
-    xeroSectionData <- fetchCurrentVenueXeroAdminSectionData
-    fragmentHtml <- profileActionSpan "admin.xero.pay_items.fragment.render_oob" do
-        pure (renderXeroPayItemsFragmentOob xeroSectionData.xeroPayItemAccountCodeOptions xeroSectionData.xeroPayItemRequirements xeroSectionData.xeroImportedPayItems xeroSectionData.xeroPayItemAccountCodeSelection xeroSectionData.xeroLatestPayItemSyncRun xeroSectionData.xeroConnectionActionsAllowed)
+respondWithXeroPayItemsFragmentAndToastAndCloseDialog =
+    respondWithXeroPayItemsActorInvalidationAndToastAndCloseDialog
+
+respondWithXeroPayItemsActorInvalidationAndToast ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    Maybe ToastOverlayConfig ->
+    IO ()
+respondWithXeroPayItemsActorInvalidationAndToast maybeToast = do
+    setActorLiveFragmentsRefresh (adminXeroLiveScope (unpackId currentVenueId)) (AdminSurface.adminSurfaceWireFragments [AdminSurface.adminXeroPayItemsFragment])
+    respondHtmlProfiled $
+        maybe mempty (\toast -> renderToastOverlayHostOob ToastBottomCenter [toast]) maybeToast
+
+respondWithXeroPayItemsActorInvalidationAndToastAndCloseDialog ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    Maybe ToastOverlayConfig ->
+    IO ()
+respondWithXeroPayItemsActorInvalidationAndToastAndCloseDialog maybeToast = do
+    setActorLiveFragmentsRefresh (adminXeroLiveScope (unpackId currentVenueId)) (AdminSurface.adminSurfaceWireFragments [AdminSurface.adminXeroPayItemsFragment])
     respondHtmlProfiled $
         mconcat
             [ [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
-            , fragmentHtml
             , maybe mempty (\toast -> renderToastOverlayHostOob ToastBottomCenter [toast]) maybeToast
             ]
 
@@ -198,7 +213,7 @@ respondToXeroMappingMutationSuccess ::
     IO ()
 respondToXeroMappingMutationSuccess message =
     if isHtmxRequest
-        then respondWithXeroSectionFragmentAndToast (Just (xeroSuccessToast message))
+        then respondWithXeroSectionActorInvalidationAndToast (Just (xeroSuccessToast message))
         else do
             setSuccessMessage message
             redirectTo XeroAction
@@ -209,7 +224,7 @@ respondToXeroPayItemsMutationSuccess ::
     IO ()
 respondToXeroPayItemsMutationSuccess message =
     if isHtmxRequest
-        then respondWithXeroPayItemsFragmentAndToast (Just (xeroSuccessToast message))
+        then respondWithXeroPayItemsActorInvalidationAndToast (Just (xeroSuccessToast message))
         else do
             setSuccessMessage message
             redirectTo XeroAction
@@ -220,7 +235,7 @@ respondWithXeroMappingMutationError ::
     IO ()
 respondWithXeroMappingMutationError message =
     if isHtmxRequest
-        then respondWithXeroSectionFragmentAndToast (Just (xeroErrorToast message))
+        then respondWithXeroSectionActorInvalidationAndToast (Just (xeroErrorToast message))
         else do
             setErrorMessage message
             redirectTo XeroAction
@@ -231,7 +246,7 @@ respondWithXeroPayItemsMutationError ::
     IO ()
 respondWithXeroPayItemsMutationError message =
     if isHtmxRequest
-        then respondWithXeroPayItemsFragmentAndToast (Just (xeroErrorToast message))
+        then respondWithXeroPayItemsActorInvalidationAndToast (Just (xeroErrorToast message))
         else do
             setErrorMessage message
             redirectTo XeroAction
