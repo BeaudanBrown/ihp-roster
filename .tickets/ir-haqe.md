@@ -1,6 +1,6 @@
 ---
 id: ir-haqe
-status: open
+status: closed
 deps: [ir-qaj0]
 links: []
 created: 2026-07-07T10:26:11Z

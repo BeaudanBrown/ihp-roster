@@ -2,6 +2,9 @@ module Web.View.Layout (defaultLayout, Html) where
 
 import Application.Helper.Controller (currentSupportVenueOptions,
                                       currentVenueOrNothing)
+import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
+                                                            applyOverlayActionAttrs,
+                                                            overlayActionByName)
 import Application.Helper.View
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
@@ -9,6 +12,7 @@ import Generated.Types
 import IHP.ControllerSupport (getRequestPathAndQuery)
 import IHP.Environment
 import IHP.ViewPrelude
+import qualified Text.Blaze.Html5 as Html5
 import Web.Routes
 import Web.Types
 
@@ -80,30 +84,36 @@ renderAppHeader =
         Nothing -> mempty
 
 renderDesktopFeedbackButton :: Html
-renderDesktopFeedbackButton = [hsx|
-    <button class="btn btn-outline-info btn-sm app-header-nav-item"
-            type="button"
-            hx-get={NewFeedbackAction}
-            hx-target={"#" <> dialogOverlayMountId}
-            hx-swap="innerHTML"
-            hx-push-url="false">
-        <i class="bi bi-chat-dots" aria-hidden="true"></i>
-        <span>feedback</span>
-    </button>
-|]
+renderDesktopFeedbackButton =
+    renderFeedbackOverlayButton
+        "btn btn-outline-info btn-sm app-header-nav-item"
+        "bi bi-chat-dots"
+        "feedback"
 
 renderMobileFeedbackButton :: Html
-renderMobileFeedbackButton = [hsx|
-    <button class="app-mobile-nav-link"
-            type="button"
-            hx-get={NewFeedbackAction}
-            hx-target={"#" <> dialogOverlayMountId}
-            hx-swap="innerHTML"
-            hx-push-url="false">
-        <i class="bi bi-chat-dots app-mobile-nav-icon" aria-hidden="true"></i>
-        <span>Feedback</span>
-    </button>
-|]
+renderMobileFeedbackButton =
+    renderFeedbackOverlayButton
+        "app-mobile-nav-link"
+        "bi bi-chat-dots app-mobile-nav-icon"
+        "Feedback"
+
+renderFeedbackOverlayButton :: Text -> Text -> Text -> Html
+renderFeedbackOverlayButton buttonClasses iconClasses label =
+    applyOverlayActionAttrs
+        (overlayActionByName "open-feedback-dialog")
+        OverlayActionRoute
+            { overlayActionRouteUrl = pathTo NewFeedbackAction
+            , overlayActionRouteFields = []
+            , overlayActionRouteCustomHtmx = []
+            , overlayActionRouteStandardUrl = Nothing
+            , overlayActionRouteExtraAttrs =
+                [ ("class", buttonClasses)
+                , ("type", "button")
+                ]
+            }
+        (Html5.button $ do
+            [hsx|<i class={iconClasses} aria-hidden="true"></i>|]
+            [hsx|<span>{label}</span>|])
 
 renderDesktopNavLinks :: (?context :: ControllerContext, ?request :: Request) => Html
 renderDesktopNavLinks = [hsx|
