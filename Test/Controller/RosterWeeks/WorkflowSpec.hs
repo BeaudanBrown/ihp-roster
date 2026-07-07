@@ -18,6 +18,7 @@ import Data.Coerce (coerce)
 import Data.List (sortOn)
 import Data.Maybe (fromJust)
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import Data.Time.Calendar (addDays)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
@@ -141,11 +142,15 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 body <- responseBody response
                 let bodyText = cs body :: String
+                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
                 bodyText `shouldContain` "id=\"dialog-overlay-mount\""
-                bodyText `shouldContain` ("id=\"" <> cs rosterDayColumnsFragmentId <> "\"" :: String)
+                bodyText `shouldNotContain` ("id=\"" <> cs rosterDayColumnsFragmentId <> "\"" :: String)
                 bodyText `shouldNotContain` ("id=\"" <> cs rosterGridFrameFragmentId <> "\"" :: String)
-                bodyText `shouldContain` ("id=\"" <> cs rosterStaffPanelFragmentId <> "\"" :: String)
-                bodyText `shouldContain` "hx-swap-oob=\"outerHTML\""
+                bodyText `shouldNotContain` ("id=\"" <> cs rosterStaffPanelFragmentId <> "\"" :: String)
+                bodyText `shouldNotContain` "hx-swap-oob=\"outerHTML\""
+                let rosterActorTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                rosterActorTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterDayColumnsFragmentId))
+                rosterActorTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterStaffPanelFragmentId))
 
                 updatedDay <- fetch rosterDay.id
                 updatedDay.isClosed `shouldBe` True
@@ -215,11 +220,15 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 body <- responseBody response
                 let bodyText = cs body :: String
+                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
                 bodyText `shouldContain` "id=\"dialog-overlay-mount\""
-                bodyText `shouldContain` ("id=\"" <> cs rosterDayColumnsFragmentId <> "\"" :: String)
+                bodyText `shouldNotContain` ("id=\"" <> cs rosterDayColumnsFragmentId <> "\"" :: String)
                 bodyText `shouldNotContain` ("id=\"" <> cs rosterGridFrameFragmentId <> "\"" :: String)
-                bodyText `shouldContain` ("id=\"" <> cs rosterStaffPanelFragmentId <> "\"" :: String)
-                bodyText `shouldContain` "hx-swap-oob=\"outerHTML\""
+                bodyText `shouldNotContain` ("id=\"" <> cs rosterStaffPanelFragmentId <> "\"" :: String)
+                bodyText `shouldNotContain` "hx-swap-oob=\"outerHTML\""
+                let rosterActorTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                rosterActorTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterDayColumnsFragmentId))
+                rosterActorTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterStaffPanelFragmentId))
 
                 slotsForDay <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId rosterDay.id)
@@ -246,11 +255,15 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 body <- responseBody response
                 let bodyText = cs body :: String
+                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
                 bodyText `shouldContain` "id=\"dialog-overlay-mount\""
-                bodyText `shouldContain` ("id=\"" <> cs rosterDayColumnsFragmentId <> "\"" :: String)
+                bodyText `shouldNotContain` ("id=\"" <> cs rosterDayColumnsFragmentId <> "\"" :: String)
                 bodyText `shouldNotContain` ("id=\"" <> cs rosterGridFrameFragmentId <> "\"" :: String)
-                bodyText `shouldContain` ("id=\"" <> cs rosterStaffPanelFragmentId <> "\"" :: String)
-                bodyText `shouldContain` "hx-swap-oob=\"outerHTML\""
+                bodyText `shouldNotContain` ("id=\"" <> cs rosterStaffPanelFragmentId <> "\"" :: String)
+                bodyText `shouldNotContain` "hx-swap-oob=\"outerHTML\""
+                let rosterActorTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                rosterActorTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterDayColumnsFragmentId))
+                rosterActorTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterStaffPanelFragmentId))
 
                 slotsForDay <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId rosterDayWithRows.id)

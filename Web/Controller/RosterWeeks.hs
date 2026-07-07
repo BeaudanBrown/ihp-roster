@@ -41,7 +41,8 @@ import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
                                         rosterMountedFragmentForProjection,
-                                        rosterSurfaceScope)
+                                        rosterSurfaceScope,
+                                        rosterSurfaceWireFragments)
 import Web.RosterWeeks.Mutations
 import Web.RosterWeeks.Overview
 import Web.RosterWeeks.Paths (rosterWeekUrl)
@@ -50,7 +51,6 @@ import Web.RosterWeeks.RenderData
 import Web.RosterWeeks.Responses (respondWithRosterContent,
                                   respondWithRosterContentError,
                                   respondWithRosterContentUpdate,
-                                  respondWithRosterFragments,
                                   respondWithRosterFragmentsUpdate,
                                   respondWithRosterToast)
 import Web.RosterWeeks.Rows
@@ -1015,8 +1015,15 @@ respondWithRosterActorRefreshWithSuccess rosterGroupId weekOffset fragments succ
         (clearDialogOverlayOob <> renderToastOob ToastBottomCenter (successToast successMessage))
 
 respondWithRosterActorFragments :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
-respondWithRosterActorFragments rosterGroupId weekOffset fragments extraHtml =
-    respondWithRosterFragments rosterGroupId weekOffset fragments extraHtml
+respondWithRosterActorFragments rosterGroupId weekOffset fragments extraHtml = do
+    let scope = RosterWeekScopeValue
+            { rosterWeekVenueId = unpackId currentVenueId
+            , rosterWeekGroupId = rosterGroupId
+            , rosterWeekWeekOffset = weekOffset
+            }
+    setHeader ("HX-Reswap", "none")
+    setActorLiveFragmentsRefresh (rosterSurfaceScope scope) (rosterSurfaceWireFragments (map (rosterMountedFragmentForProjection scope) (nub fragments)))
+    respondHtmlProfiled extraHtml
 
 clearDialogOverlayOob :: Blaze.Html
 clearDialogOverlayOob = [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]

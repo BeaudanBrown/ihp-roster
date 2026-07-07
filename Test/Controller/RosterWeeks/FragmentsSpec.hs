@@ -80,14 +80,18 @@ tests = beforeAll testContext do
 
                 body <- responseBody response
                 let bodyText = cs body :: String
+                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
                 bodyText `shouldContain` "id=\"dialog-overlay-mount\""
 
-                let dayColumnsTarget = cs rosterDayColumnsFragmentId :: String
-                let staffPanelTarget = cs rosterStaffPanelFragmentId :: String
-                bodyText `shouldContain` ("id=\"" <> dayColumnsTarget <> "\"")
+                let dayColumnsTarget = cs rosterDayColumnsFragmentId :: Text
+                let staffPanelTarget = cs rosterStaffPanelFragmentId :: Text
+                bodyText `shouldNotContain` ("id=\"" <> cs dayColumnsTarget <> "\"")
                 bodyText `shouldNotContain` ("id=\"" <> (cs rosterGridFrameFragmentId :: String) <> "\"")
-                bodyText `shouldContain` ("id=\"" <> staffPanelTarget <> "\"")
-                bodyText `shouldContain` "hx-swap-oob=\"outerHTML\""
+                bodyText `shouldNotContain` ("id=\"" <> cs staffPanelTarget <> "\"")
+                bodyText `shouldNotContain` "hx-swap-oob=\"outerHTML\""
+                let rosterAssignmentTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                rosterAssignmentTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf dayColumnsTarget)
+                rosterAssignmentTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf staffPanelTarget)
 
         it "plans non-overlapping passive roster content and staff panel fragments" $ withContext do
             withCleanDb do
@@ -203,9 +207,13 @@ tests = beforeAll testContext do
                 body <- responseBody response
                 let bodyText = cs body :: String
                 let otherWeekRowTarget = cs (rosterRowDomIdText otherDay.id 2) :: String
-                bodyText `shouldContain` (cs rosterDayColumnsFragmentId :: String)
+                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
+                bodyText `shouldNotContain` (cs rosterDayColumnsFragmentId :: String)
                 bodyText `shouldNotContain` (cs rosterGridFrameFragmentId :: String)
                 bodyText `shouldNotContain` ("id=\"" <> otherWeekRowTarget <> "\"")
+                let currentWeekTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                currentWeekTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf rosterDayColumnsFragmentId)
+                currentWeekTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf (cs otherWeekRowTarget))
 
         it "keeps selected staff labels plain when ideal-shift filters hide them" $ withContext do
             withCleanDb do
