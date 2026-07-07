@@ -36,9 +36,35 @@ tests = describe "FrontendSurface strict API guard" do
         violations <- finalFrontendSurfaceCleanupViolations
         violations `shouldBe` []
 
+    it "keeps migrated actor success paths off business OOB compatibility helpers" do
+        violations <- actorBusinessOobCompatibilityViolations
+        violations `shouldBe` []
+
     it "keeps lazy fragment rendering on the canonical UI-region path" do
         violations <- lazyFragmentRenderingViolations
         violations `shouldBe` []
+
+actorBusinessOobCompatibilityViolations :: IO [Text]
+actorBusinessOobCompatibilityViolations = do
+    files <- sourceFilesUnder "Web"
+    fmap concat $ forM files \path -> do
+        source <- Text.readFile path
+        pure
+            [ cs path <> ": obsolete migrated actor business-OOB helper should stay deleted: " <> helper
+            | helper <- obsoleteActorBusinessOobHelpers
+            , helper `Text.isInfixOf` source
+            ]
+
+obsoleteActorBusinessOobHelpers :: [Text]
+obsoleteActorBusinessOobHelpers =
+    [ "respondWithProfileLeaveFragments"
+    , "renderCurrentVenueXeroSectionFragmentOob"
+    , "respondWithRosterPatches"
+    , "respondWithRosterRows"
+    , "performTypedLiveSurfaceMutationAndSetActorRefresh"
+    , "liveFragmentsRefreshTriggerPayload"
+    , "liveUpdateWireRefreshTriggerPayload"
+    ]
 
 lazyFragmentRenderingViolations :: IO [Text]
 lazyFragmentRenderingViolations = do
