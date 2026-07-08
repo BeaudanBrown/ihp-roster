@@ -44,6 +44,8 @@ module Application.Helper.FrontendContract.Overlay
     , LoadXeroPayItemImportOverlay
     , ImportXeroPayItemsOverlay
     , OpenRosterShiftDialog
+    , OpenRosterStaffCreateDialog
+    , OpenRosterStaffEditDialog
     , CreateRosterShiftOverlay
     , UpdateRosterShiftOverlay
     , DeleteRosterSlotOverlay
@@ -126,6 +128,8 @@ data OpenXeroPayItemImportOverlay
 data LoadXeroPayItemImportOverlay
 data ImportXeroPayItemsOverlay
 data OpenRosterShiftDialog
+data OpenRosterStaffCreateDialog
+data OpenRosterStaffEditDialog
 data CreateRosterShiftOverlay
 data UpdateRosterShiftOverlay
 data DeleteRosterSlotOverlay
@@ -276,6 +280,8 @@ type OverlayContract =
              ]
             DialogSubmitOptions
          , OverlayAction OpenRosterShiftDialog DialogLauncherFields DialogLauncherOptions
+         , OverlayAction OpenRosterStaffCreateDialog DialogLauncherFields DialogLauncherOptions
+         , OverlayAction OpenRosterStaffEditDialog DialogLauncherFields DialogLauncherOptions
          , OverlayAction CreateRosterShiftOverlay RosterShiftFields DialogSubmitOptions
          , OverlayAction UpdateRosterShiftOverlay RosterShiftFields DialogSubmitOptions
          , OverlayAction DeleteRosterSlotOverlay

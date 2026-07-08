@@ -5,6 +5,12 @@ module Web.View.RosterWeeks.StaffPanel
     , renderRosterStaffPanelPlaceholder
     ) where
 
+import Application.Helper.FrontendContract.Overlay (OpenRosterStaffCreateDialog,
+                                                    OpenRosterStaffEditDialog)
+import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
+                                                            applyOverlayActionAttrs,
+                                                            overlayActionByMarker,
+                                                            renderOverlayActionHtmxControl)
 import Application.Helper.FrontendContract.RosterValues (RosterStaffSortKey (..),
                                                          rosterStaffSortKeyAttribute)
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
@@ -72,18 +78,28 @@ renderRosterStaffPanelHeader weekOffset currentRosterGroupId hasMultipleRosterGr
             <h2 class="h5 mb-0">Staff</h2>
         </div>
         <div class="d-flex flex-column align-items-end gap-2">
-            <button type="button"
-                    class="btn btn-sm btn-outline-primary"
-                    hx-get={appendQueryParams (pathTo NewStaffAction) [("weekOffset", tshow weekOffset), ("rosterGroupId", tshow currentRosterGroupId)]}
-                    hx-target={"#" <> htmxModalMountId}
-                    hx-swap="innerHTML"
-                    hx-push-url="false">
-                Add trial staff
-            </button>
+            {renderOpenRosterStaffCreateDialogButton weekOffset currentRosterGroupId}
             {when hasMultipleRosterGroups (renderStaffScopeToggle weekOffset currentRosterGroupId panelScope)}
         </div>
     </div>
 |]
+
+rosterStaffOverlayRoute :: Text -> OverlayActionRoute
+rosterStaffOverlayRoute actionUrl =
+    OverlayActionRoute
+        { overlayActionRouteUrl = actionUrl
+        , overlayActionRouteFields = []
+        , overlayActionRouteCustomHtmx = []
+        , overlayActionRouteStandardUrl = Nothing
+        , overlayActionRouteExtraAttrs = []
+        }
+
+renderOpenRosterStaffCreateDialogButton :: Int -> Id RosterGroup -> Html
+renderOpenRosterStaffCreateDialogButton weekOffset currentRosterGroupId =
+    renderOverlayActionHtmxControl
+        (overlayActionByMarker @OpenRosterStaffCreateDialog)
+        (rosterStaffOverlayRoute (appendQueryParams (pathTo NewStaffAction) [("weekOffset", tshow weekOffset), ("rosterGroupId", tshow currentRosterGroupId)]))
+        [hsx|<button type="button" class="btn btn-sm btn-outline-primary">Add trial staff</button>|]
 
 renderRosterStaffPanelPlaceholderHeader :: Bool -> Html
 renderRosterStaffPanelPlaceholderHeader hasMultipleRosterGroups = [hsx|
@@ -263,20 +279,24 @@ renderRosterStaffPanelEntry panelStaffMembers weekOffset currentRosterGroupId en
     let
         staffDisplayLabel = staffDisplayName panelStaffMembers entry.staff
         staffRoleLabel = humanizeStaffRole entry.userRole
-     in
-        [hsx|
+     in [hsx|
         {profileRenderCounter "render.roster.staff_panel_entry_render" 1}
-        <tr class="roster-staff-panel-entry"
+        {renderRosterStaffPanelEntryRow weekOffset currentRosterGroupId staffDisplayLabel staffRoleLabel entry}
+    |]
+
+renderRosterStaffPanelEntryRow :: Int -> Id RosterGroup -> Text -> Text -> RosterStaffPanelEntry -> Html
+renderRosterStaffPanelEntryRow weekOffset currentRosterGroupId staffDisplayLabel staffRoleLabel entry =
+    applyOverlayActionAttrs
+        (overlayActionByMarker @OpenRosterStaffEditDialog)
+        (rosterStaffOverlayRoute (appendQueryParams (pathTo (EditStaffAction entry.staff.id)) [("weekOffset", tshow weekOffset), ("rosterGroupId", tshow currentRosterGroupId)]))
+        [hsx|
+            <tr class="roster-staff-panel-entry"
                 data-roster-staff-id={tshow entry.staff.id}
                 data-roster-staff-name={staffDisplayLabel}
                 data-roster-staff-role={staffRoleLabel}
                 data-roster-staff-assigned={tshow entry.assignedShiftCount}
                 data-roster-staff-ideal={tshow entry.staff.idealShiftsPerWeek}
                 role="button"
-                hx-get={appendQueryParams (pathTo (EditStaffAction entry.staff.id)) [("weekOffset", tshow weekOffset), ("rosterGroupId", tshow currentRosterGroupId)]}
-                hx-target={"#" <> htmxModalMountId}
-                hx-swap="innerHTML"
-                hx-push-url="false"
                 tabindex="0">
                 {forEach rosterStaffPanelColumns (renderRosterStaffPanelEntryCell staffDisplayLabel staffRoleLabel entry)}
             </tr>

@@ -1430,6 +1430,30 @@ export function encodeOpenRosterShiftDialogOverlayActionFields(value: OpenRoster
 
 export const openRosterShiftDialogOverlayActionManifest = {"name":"open-roster-shift-dialog","fields":[],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
 
+export type OpenRosterStaffCreateDialogOverlayActionFields = {  };
+export function isOpenRosterStaffCreateDialogOverlayActionFields(value: unknown): value is OpenRosterStaffCreateDialogOverlayActionFields {
+    return isRecord(value);
+}
+export function parseOpenRosterStaffCreateDialogOverlayActionFields(value: unknown): OpenRosterStaffCreateDialogOverlayActionFields {
+    if (isOpenRosterStaffCreateDialogOverlayActionFields(value)) return value;
+    throw new Error("Invalid OpenRosterStaffCreateDialogOverlayActionFields");
+}
+export function encodeOpenRosterStaffCreateDialogOverlayActionFields(value: OpenRosterStaffCreateDialogOverlayActionFields): OpenRosterStaffCreateDialogOverlayActionFields { return value; }
+
+export const openRosterStaffCreateDialogOverlayActionManifest = {"name":"open-roster-staff-create-dialog","fields":[],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type OpenRosterStaffEditDialogOverlayActionFields = {  };
+export function isOpenRosterStaffEditDialogOverlayActionFields(value: unknown): value is OpenRosterStaffEditDialogOverlayActionFields {
+    return isRecord(value);
+}
+export function parseOpenRosterStaffEditDialogOverlayActionFields(value: unknown): OpenRosterStaffEditDialogOverlayActionFields {
+    if (isOpenRosterStaffEditDialogOverlayActionFields(value)) return value;
+    throw new Error("Invalid OpenRosterStaffEditDialogOverlayActionFields");
+}
+export function encodeOpenRosterStaffEditDialogOverlayActionFields(value: OpenRosterStaffEditDialogOverlayActionFields): OpenRosterStaffEditDialogOverlayActionFields { return value; }
+
+export const openRosterStaffEditDialogOverlayActionManifest = {"name":"open-roster-staff-edit-dialog","fields":[],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
 export type CreateRosterShiftOverlayOverlayActionFields = { staffId: string; shiftTypeId: string; startTime: string; endTime: string };
 export function isCreateRosterShiftOverlayOverlayActionFields(value: unknown): value is CreateRosterShiftOverlayOverlayActionFields {
     return isRecord(value) && (typeof value["staffId"] === "string") && (typeof value["shiftTypeId"] === "string") && (typeof value["startTime"] === "string") && (typeof value["endTime"] === "string");
