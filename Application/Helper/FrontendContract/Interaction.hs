@@ -31,22 +31,6 @@ data Cancel
 data InteractionEffectSource
 data PointerMarker
 
-data InteractionSurfaceFamily
-data Roster
-
-data InteractionDisposableLayerName
-data DragPreview
-
-data InteractionSessionKindName
-data Drag
-
-data InteractionIntentName
-data SetRosterLayoutMode
-data MoveRosterShiftToSlot
-
-data InteractionIntentFieldName
-data RosterLayoutMode
-
 data InteractionSessionEffect
 data CloneShadow
 data DropzoneHighlight
@@ -162,27 +146,9 @@ type InteractionContract =
          , GlobalSchema (Enum InteractionFieldPresence '[Required, Optional])
          , GlobalSchema (Enum InteractionConflictResolution '[Apply, Defer, Cancel])
          , GlobalSchema (Enum InteractionEffectSource '[PointerMarker])
-         , GlobalSchema (Enum InteractionSurfaceFamily '[Roster])
-         , GlobalSchema (Enum InteractionDisposableLayerName '[DragPreview])
-         , GlobalSchema (Enum InteractionSessionKindName '[Drag])
-         , GlobalSchema (Enum InteractionIntentName '[SetRosterLayoutMode, MoveRosterShiftToSlot])
-         , GlobalSchema (LiteralEnum InteractionIntentFieldName
-            '[ Literal RosterLayoutMode "rosterLayoutMode"
-             , Literal SourceItemKey "sourceItemKey"
-             , Literal TargetDropzoneKey "targetDropzoneKey"
-             , Literal SessionKind "sessionKind"
-             , Literal PointerId "pointerId"
-             , Literal PointerType "pointerType"
-             , Literal StartClientX "startClientX"
-             , Literal StartClientY "startClientY"
-             , Literal CurrentClientX "currentClientX"
-             , Literal CurrentClientY "currentClientY"
-             , Literal DeltaX "deltaX"
-             , Literal DeltaY "deltaY"
-             ])
          , GlobalSchema (TaggedUnionWithTag InteractionSessionEffect "kind"
             '[ Case CloneShadow
-                '[ Field Layer ('WireRef InteractionDisposableLayerName)
+                '[ Field Layer 'WireText
                  , Field Source ('WireRef InteractionEffectSource)
                  , Field ClassName 'WireText
                  , Field PreserveGrabOffset 'WireBool
@@ -198,7 +164,7 @@ type InteractionContract =
          , GlobalSchema (TaggedUnionWithTag InteractionSessionSelector "kind"
             '[ Case Any '[]
              , Case Session
-                '[ Field Session ('WireRef InteractionSessionKindName)
+                '[ Field Session 'WireText
                  ]
              ])
          , GlobalSchema (TaggedUnionWithTag InteractionFragmentSelector "kind"
@@ -208,7 +174,7 @@ type InteractionContract =
                  ]
              ])
          , GlobalSchema (Record InteractionMountMetadata
-            '[ Field SurfaceFamily ('WireRef InteractionSurfaceFamily)
+            '[ Field SurfaceFamily 'WireText
              , Field ScopeKey 'WireText
              , Field MountKey 'WireText
              , Field MountId 'WireText
@@ -218,16 +184,16 @@ type InteractionContract =
              , Field DomId 'WireText
              ])
          , GlobalSchema (Record DisposableLayerContract
-            '[ Field Kind ('WireRef InteractionDisposableLayerName)
+            '[ Field Kind 'WireText
              , Field Name 'WireText
              , Field DomId 'WireText
              ])
          , GlobalSchema (Record SessionKindContract
-            '[ Field Kind ('WireRef InteractionSessionKindName)
+            '[ Field Kind 'WireText
              , Field Description 'WireText
              ])
          , GlobalSchema (Record IntentFieldSchema
-            '[ Field Name ('WireRef InteractionIntentFieldName)
+            '[ Field Name 'WireText
              , Field Presence ('WireRef InteractionFieldPresence)
              , OptionalField DefaultValue ('WireNullable 'WireText)
              ])
@@ -244,8 +210,8 @@ type InteractionContract =
                  ]
              ])
          , GlobalSchema (Record IntentFormContract
-            '[ Field Intent ('WireRef InteractionIntentName)
-             , Field Name ('WireRef InteractionIntentName)
+            '[ Field Intent 'WireText
+             , Field Name 'WireText
              , Field Action 'WireText
              , Field Method ('WireRef App.HtmxActionMethod)
              , Field Trigger 'WireText
@@ -275,16 +241,16 @@ type InteractionContract =
              , Field DomIdSuffix 'WireText
              ])
          , GlobalSchema (Record InteractionStaticDisposableLayer
-            '[ Field Name ('WireRef InteractionDisposableLayerName)
+            '[ Field Name 'WireText
              , Field DomIdSuffix 'WireText
              ])
          , GlobalSchema (Record InteractionStaticSessionKind
-            '[ Field Kind ('WireRef InteractionSessionKindName)
+            '[ Field Kind 'WireText
              , Field Description 'WireText
              , Field Effects ('WireRef InteractionSessionEffects)
              ])
          , GlobalSchema (Record InteractionStaticIntent
-            '[ Field Name ('WireRef InteractionIntentName)
+            '[ Field Name 'WireText
              , Field Fields ('WireList ('WireRef IntentFieldSchema))
              ])
          , GlobalSchema (Record InteractionStaticSchema

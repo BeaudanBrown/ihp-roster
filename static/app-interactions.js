@@ -2,15 +2,15 @@
 (() => {
   // frontend/ts/generated/contracts.ts
   var FrontendSurfaceInteractionDom = { sourceRef: "data-bepis-source-ref", sourceKey: "data-bepis-source-key", dropzoneRef: "data-bepis-dropzone-ref", dropzoneKey: "data-bepis-dropzone-key", activationRef: "data-bepis-activation-ref" };
+  function isFrontendSurfaceInteractionSurfaceName(value) {
+    return typeof value === "string" && ["roster"].includes(value);
+  }
   var interactionIntentEvent = "bepis:interaction-intent";
   var interactionSessionStartEvent = "bepis:interaction-session-start";
   var interactionSessionEndEvent = "bepis:interaction-session-end";
   var interactionSessionCancelRequestEvent = "bepis:interaction-session-cancel-request";
   function isInteractionFieldPresence(value) {
     return typeof value === "string" && ["required", "optional"].includes(value);
-  }
-  function isInteractionSurfaceFamily(value) {
-    return typeof value === "string" && ["roster"].includes(value);
   }
   var surfaceDomAttr = "data-bepis-surface";
   var surfaceFamilyDomAttr = "data-bepis-surface-family";
@@ -609,7 +609,7 @@
   }
   function interactionSessionDefinitionFor(session) {
     const family = session.mount.getAttribute(attrs4.surfaceFamily);
-    if (!isInteractionSurfaceFamily(family)) return null;
+    if (!isFrontendSurfaceInteractionSurfaceName(family)) return null;
     return InteractionStaticSchemas[family].sessionKinds.find((candidate) => candidate.kind === session.sessionKind) ?? null;
   }
   function createGlobalEffectHandler(effect) {

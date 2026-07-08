@@ -1,4 +1,4 @@
-import { FrontendSurfaceInteractionDom, FrontendSurfaceRegistry, InteractionDom, InteractionStaticSchemas, isFrontendSurfaceName, isInteractionSurfaceFamily, type InteractionEffectSource, type InteractionSessionEffect } from "../generated/contracts";
+import { FrontendSurfaceInteractionDom, FrontendSurfaceRegistry, InteractionDom, InteractionStaticSchemas, isFrontendSurfaceInteractionSurfaceName, isFrontendSurfaceName, type InteractionEffectSource, type InteractionSessionEffect } from "../generated/contracts";
 import { assertNever } from "../shared/exhaustive";
 import type { InteractionIntentPayload } from "./intent-bus";
 import { defaultInteractionRuntime } from "./runtime";
@@ -371,7 +371,7 @@ export function hitTestClosest(root: Document | Element, clientX: number, client
 
 function interactionSessionDefinitionFor(session: ActivePointerSession) {
     const family = session.mount.getAttribute(attrs.surfaceFamily);
-    if (!isInteractionSurfaceFamily(family)) return null;
+    if (!isFrontendSurfaceInteractionSurfaceName(family)) return null;
     return InteractionStaticSchemas[family].sessionKinds.find((candidate) => candidate.kind === session.sessionKind) ?? null;
 }
 

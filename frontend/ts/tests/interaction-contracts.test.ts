@@ -1,4 +1,4 @@
-import { FrontendSurfaceInteractionDom, FrontendSurfaceRegistry, InteractionDom, InteractionStaticSchemas, isInteractionSessionEffect, parseInteractionSessionEffect, encodeInteractionSessionEffect, type InteractionCapabilityContract, type IntentFormContract, intentSubmitEvent } from "../generated/contracts";
+import { FrontendSurfaceInteractionDom, FrontendSurfaceRegistry, InteractionDom, InteractionStaticSchemas, isFrontendSurfaceInteractionDisposableLayerName, isFrontendSurfaceInteractionIntentFieldName, isFrontendSurfaceInteractionIntentName, isFrontendSurfaceInteractionSessionKindName, isFrontendSurfaceInteractionSurfaceName, isInteractionSessionEffect, parseInteractionSessionEffect, encodeInteractionSessionEffect, type InteractionCapabilityContract, type IntentFormContract, intentSubmitEvent } from "../generated/contracts";
 import { assertDeepEqual, assertEqual, test } from "./harness";
 
 test("generated interaction contracts describe mount-local intent forms", () => {
@@ -50,7 +50,12 @@ test("generated FrontendSurface registry exposes registered surface schemas with
     assertEqual(JSON.stringify(FrontendSurfaceRegistry).includes("/ShowRosterWeek"), false);
 });
 
-test("generated interaction static schemas expose roster intents and fields", () => {
+test("generated interaction static schemas expose surface-derived roster intents and fields", () => {
+    assertEqual(isFrontendSurfaceInteractionSurfaceName("roster"), true);
+    assertEqual(isFrontendSurfaceInteractionSessionKindName("drag"), true);
+    assertEqual(isFrontendSurfaceInteractionDisposableLayerName("drag-preview"), true);
+    assertEqual(isFrontendSurfaceInteractionIntentName("move-roster-shift-to-slot"), true);
+    assertEqual(isFrontendSurfaceInteractionIntentFieldName("sourceItemKey"), true);
     assertEqual(InteractionStaticSchemas.roster.sessionKinds[0]?.kind, "drag");
     assertEqual(InteractionStaticSchemas.roster.disposableLayers[0]?.name, "drag-preview");
     assertDeepEqual(InteractionStaticSchemas.roster.sessionKinds[0]?.effects.global, [

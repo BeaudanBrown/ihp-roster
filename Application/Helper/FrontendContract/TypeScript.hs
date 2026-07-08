@@ -41,6 +41,7 @@ renderDerivedSurfaceWireTypes surfaces =
         <> concatMap renderSurfaceFragmentKeyUnion surfaces
         <> renderTopLevelSurfaceScopeUnion surfaces
         <> renderTopLevelSurfaceFragmentKeyUnion surfaces
+        <> renderTopLevelInteractionSurfaceVocabulary surfaces
 
 renderSurfaceScopeUnion :: SurfaceIR -> [Text]
 renderSurfaceScopeUnion surface =
@@ -69,6 +70,27 @@ renderTopLevelSurfaceFragmentKeyUnion surfaces =
     [ "export type SurfaceFragmentKey =" ]
         <> renderTopLevelFragmentKeyCases surfaces
         <> renderCodec "SurfaceFragmentKey" (orExpression (fmap surfaceFragmentKeyCaseGuard surfaces))
+
+renderTopLevelInteractionSurfaceVocabulary :: [SurfaceIR] -> [Text]
+renderTopLevelInteractionSurfaceVocabulary surfaces =
+    renderTopLevelStringUnion "FrontendSurfaceInteractionSurfaceName" (fmap (.surfaceName) interactionSurfaces)
+        <> renderTopLevelStringUnion "FrontendSurfaceInteractionSessionKindName" (concatMap (.surfaceInteractionSessions) interactionSurfaces)
+        <> renderTopLevelStringUnion "FrontendSurfaceInteractionDisposableLayerName" (concatMap (.surfaceInteractionLayers) interactionSurfaces)
+        <> renderTopLevelStringUnion "FrontendSurfaceInteractionIntentName" [name | surface <- interactionSurfaces, SurfaceIntentIR _ name _ <- surface.surfacePrimitives]
+        <> renderTopLevelStringUnion "FrontendSurfaceInteractionIntentFieldName" [field.fieldName | surface <- interactionSurfaces, SurfaceIntentIR _ _ fields <- surface.surfacePrimitives, field <- fields]
+    where
+        interactionSurfaces = filter (\surface -> surface.surfaceName /= "surface-lab" && surfaceHasInteractionSchema surface) surfaces
+
+renderTopLevelStringUnion :: Text -> [Text] -> [Text]
+renderTopLevelStringUnion typeName rawValues =
+    [ "export type " <> typeName <> " = " <> renderStringUnion values <> ";"
+    , "export function is" <> typeName <> "(value: unknown): value is " <> typeName <> " {"
+    , "    return typeof value === \"string\" && [" <> Text.intercalate ", " (fmap quote values) <> "].includes(value);"
+    , "}"
+    , ""
+    ]
+    where
+        values = List.nub rawValues
 
 renderNamedUnion :: [Text] -> [Text]
 renderNamedUnion names =
@@ -174,10 +196,10 @@ renderGlobalConvenienceGroups surfaces global
 
 renderInteractionStaticSchemas :: [SurfaceIR] -> [Text]
 renderInteractionStaticSchemas surfaces =
-    [ "export type InteractionStaticSchemaRegistry = Record<InteractionSurfaceFamily, InteractionStaticSchema>;"
+    [ "export type InteractionStaticSchemaRegistry = Record<FrontendSurfaceInteractionSurfaceName, InteractionStaticSchema>;"
     , "export function isInteractionStaticSchemaRegistry(value: unknown): value is InteractionStaticSchemaRegistry {"
     , "    if (!isRecord(value)) return false;"
-    , "    return Object.entries(value).every(([key, entry]) => isInteractionSurfaceFamily(key) && isInteractionStaticSchema(entry));"
+    , "    return Object.entries(value).every(([key, entry]) => isFrontendSurfaceInteractionSurfaceName(key) && isInteractionStaticSchema(entry));"
     , "}"
     , "export function parseInteractionStaticSchemaRegistry(value: unknown): InteractionStaticSchemaRegistry {"
     , "    if (isInteractionStaticSchemaRegistry(value)) return value;"

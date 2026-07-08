@@ -438,6 +438,31 @@ export function parseSurfaceFragmentKey(value: unknown): SurfaceFragmentKey {
 }
 export function encodeSurfaceFragmentKey(value: SurfaceFragmentKey): SurfaceFragmentKey { return value; }
 
+export type FrontendSurfaceInteractionSurfaceName = "roster";
+export function isFrontendSurfaceInteractionSurfaceName(value: unknown): value is FrontendSurfaceInteractionSurfaceName {
+    return typeof value === "string" && ["roster"].includes(value);
+}
+
+export type FrontendSurfaceInteractionSessionKindName = "drag";
+export function isFrontendSurfaceInteractionSessionKindName(value: unknown): value is FrontendSurfaceInteractionSessionKindName {
+    return typeof value === "string" && ["drag"].includes(value);
+}
+
+export type FrontendSurfaceInteractionDisposableLayerName = "drag-preview";
+export function isFrontendSurfaceInteractionDisposableLayerName(value: unknown): value is FrontendSurfaceInteractionDisposableLayerName {
+    return typeof value === "string" && ["drag-preview"].includes(value);
+}
+
+export type FrontendSurfaceInteractionIntentName = "set-roster-layout-mode" | "move-roster-shift-to-slot";
+export function isFrontendSurfaceInteractionIntentName(value: unknown): value is FrontendSurfaceInteractionIntentName {
+    return typeof value === "string" && ["set-roster-layout-mode", "move-roster-shift-to-slot"].includes(value);
+}
+
+export type FrontendSurfaceInteractionIntentFieldName = "rosterLayoutMode" | "sourceItemKey" | "targetDropzoneKey" | "sessionKind" | "pointerId" | "pointerType" | "startClientX" | "startClientY" | "currentClientX" | "currentClientY" | "deltaX" | "deltaY";
+export function isFrontendSurfaceInteractionIntentFieldName(value: unknown): value is FrontendSurfaceInteractionIntentFieldName {
+    return typeof value === "string" && ["rosterLayoutMode", "sourceItemKey", "targetDropzoneKey", "sessionKind", "pointerId", "pointerType", "startClientX", "startClientY", "currentClientX", "currentClientY", "deltaX", "deltaY"].includes(value);
+}
+
 export type OverlayLane =
     "dialog"
   | "picker"
@@ -1154,78 +1179,11 @@ export function parseInteractionEffectSource(value: unknown): InteractionEffectS
 }
 export function encodeInteractionEffectSource(value: InteractionEffectSource): InteractionEffectSource { return value; }
 
-export type InteractionSurfaceFamily =
-    "roster";
-export function isInteractionSurfaceFamily(value: unknown): value is InteractionSurfaceFamily {
-    return typeof value === "string" && ["roster"].includes(value);
-}
-export function parseInteractionSurfaceFamily(value: unknown): InteractionSurfaceFamily {
-    if (isInteractionSurfaceFamily(value)) return value;
-    throw new Error("Invalid InteractionSurfaceFamily");
-}
-export function encodeInteractionSurfaceFamily(value: InteractionSurfaceFamily): InteractionSurfaceFamily { return value; }
-
-export type InteractionDisposableLayerName =
-    "drag-preview";
-export function isInteractionDisposableLayerName(value: unknown): value is InteractionDisposableLayerName {
-    return typeof value === "string" && ["drag-preview"].includes(value);
-}
-export function parseInteractionDisposableLayerName(value: unknown): InteractionDisposableLayerName {
-    if (isInteractionDisposableLayerName(value)) return value;
-    throw new Error("Invalid InteractionDisposableLayerName");
-}
-export function encodeInteractionDisposableLayerName(value: InteractionDisposableLayerName): InteractionDisposableLayerName { return value; }
-
-export type InteractionSessionKindName =
-    "drag";
-export function isInteractionSessionKindName(value: unknown): value is InteractionSessionKindName {
-    return typeof value === "string" && ["drag"].includes(value);
-}
-export function parseInteractionSessionKindName(value: unknown): InteractionSessionKindName {
-    if (isInteractionSessionKindName(value)) return value;
-    throw new Error("Invalid InteractionSessionKindName");
-}
-export function encodeInteractionSessionKindName(value: InteractionSessionKindName): InteractionSessionKindName { return value; }
-
-export type InteractionIntentName =
-    "set-roster-layout-mode"
-  | "move-roster-shift-to-slot";
-export function isInteractionIntentName(value: unknown): value is InteractionIntentName {
-    return typeof value === "string" && ["set-roster-layout-mode", "move-roster-shift-to-slot"].includes(value);
-}
-export function parseInteractionIntentName(value: unknown): InteractionIntentName {
-    if (isInteractionIntentName(value)) return value;
-    throw new Error("Invalid InteractionIntentName");
-}
-export function encodeInteractionIntentName(value: InteractionIntentName): InteractionIntentName { return value; }
-
-export type InteractionIntentFieldName =
-    "rosterLayoutMode"
-  | "sourceItemKey"
-  | "targetDropzoneKey"
-  | "sessionKind"
-  | "pointerId"
-  | "pointerType"
-  | "startClientX"
-  | "startClientY"
-  | "currentClientX"
-  | "currentClientY"
-  | "deltaX"
-  | "deltaY";
-export function isInteractionIntentFieldName(value: unknown): value is InteractionIntentFieldName {
-    return typeof value === "string" && ["rosterLayoutMode", "sourceItemKey", "targetDropzoneKey", "sessionKind", "pointerId", "pointerType", "startClientX", "startClientY", "currentClientX", "currentClientY", "deltaX", "deltaY"].includes(value);
-}
-export function parseInteractionIntentFieldName(value: unknown): InteractionIntentFieldName {
-    if (isInteractionIntentFieldName(value)) return value;
-    throw new Error("Invalid InteractionIntentFieldName");
-}
-export function encodeInteractionIntentFieldName(value: InteractionIntentFieldName): InteractionIntentFieldName { return value; }
-
 export type InteractionSessionEffect =
-    { kind: "clone-shadow"; layer: InteractionDisposableLayerName; source: InteractionEffectSource; className: string; preserveGrabOffset: boolean }
+    { kind: "clone-shadow"; layer: string; source: InteractionEffectSource; className: string; preserveGrabOffset: boolean }
   | { kind: "dropzone-highlight"; className: string };
 export function isInteractionSessionEffect(value: unknown): value is InteractionSessionEffect {
-    return ((isRecord(value) && value["kind"] === "clone-shadow" && (isInteractionDisposableLayerName(value["layer"])) && (isInteractionEffectSource(value["source"])) && (typeof value["className"] === "string") && (typeof value["preserveGrabOffset"] === "boolean")) || (isRecord(value) && value["kind"] === "dropzone-highlight" && (typeof value["className"] === "string")));
+    return ((isRecord(value) && value["kind"] === "clone-shadow" && (typeof value["layer"] === "string") && (isInteractionEffectSource(value["source"])) && (typeof value["className"] === "string") && (typeof value["preserveGrabOffset"] === "boolean")) || (isRecord(value) && value["kind"] === "dropzone-highlight" && (typeof value["className"] === "string")));
 }
 export function parseInteractionSessionEffect(value: unknown): InteractionSessionEffect {
     if (isInteractionSessionEffect(value)) return value;
@@ -1245,9 +1203,9 @@ export function encodeInteractionSessionEffects(value: InteractionSessionEffects
 
 export type InteractionSessionSelector =
     { kind: "any" }
-  | { kind: "session"; session: InteractionSessionKindName };
+  | { kind: "session"; session: string };
 export function isInteractionSessionSelector(value: unknown): value is InteractionSessionSelector {
-    return ((isRecord(value) && value["kind"] === "any") || (isRecord(value) && value["kind"] === "session" && (isInteractionSessionKindName(value["session"]))));
+    return ((isRecord(value) && value["kind"] === "any") || (isRecord(value) && value["kind"] === "session" && (typeof value["session"] === "string")));
 }
 export function parseInteractionSessionSelector(value: unknown): InteractionSessionSelector {
     if (isInteractionSessionSelector(value)) return value;
@@ -1267,9 +1225,9 @@ export function parseInteractionFragmentSelector(value: unknown): InteractionFra
 }
 export function encodeInteractionFragmentSelector(value: InteractionFragmentSelector): InteractionFragmentSelector { return value; }
 
-export type InteractionMountMetadata = { surfaceFamily: InteractionSurfaceFamily; scopeKey: string; mountKey: string; mountId: string };
+export type InteractionMountMetadata = { surfaceFamily: string; scopeKey: string; mountKey: string; mountId: string };
 export function isInteractionMountMetadata(value: unknown): value is InteractionMountMetadata {
-    return isRecord(value) && (isInteractionSurfaceFamily(value["surfaceFamily"])) && (typeof value["scopeKey"] === "string") && (typeof value["mountKey"] === "string") && (typeof value["mountId"] === "string");
+    return isRecord(value) && (typeof value["surfaceFamily"] === "string") && (typeof value["scopeKey"] === "string") && (typeof value["mountKey"] === "string") && (typeof value["mountId"] === "string");
 }
 export function parseInteractionMountMetadata(value: unknown): InteractionMountMetadata {
     if (isInteractionMountMetadata(value)) return value;
@@ -1287,9 +1245,9 @@ export function parseServerLayerContract(value: unknown): ServerLayerContract {
 }
 export function encodeServerLayerContract(value: ServerLayerContract): ServerLayerContract { return value; }
 
-export type DisposableLayerContract = { kind: InteractionDisposableLayerName; name: string; domId: string };
+export type DisposableLayerContract = { kind: string; name: string; domId: string };
 export function isDisposableLayerContract(value: unknown): value is DisposableLayerContract {
-    return isRecord(value) && (isInteractionDisposableLayerName(value["kind"])) && (typeof value["name"] === "string") && (typeof value["domId"] === "string");
+    return isRecord(value) && (typeof value["kind"] === "string") && (typeof value["name"] === "string") && (typeof value["domId"] === "string");
 }
 export function parseDisposableLayerContract(value: unknown): DisposableLayerContract {
     if (isDisposableLayerContract(value)) return value;
@@ -1297,9 +1255,9 @@ export function parseDisposableLayerContract(value: unknown): DisposableLayerCon
 }
 export function encodeDisposableLayerContract(value: DisposableLayerContract): DisposableLayerContract { return value; }
 
-export type SessionKindContract = { kind: InteractionSessionKindName; description: string };
+export type SessionKindContract = { kind: string; description: string };
 export function isSessionKindContract(value: unknown): value is SessionKindContract {
-    return isRecord(value) && (isInteractionSessionKindName(value["kind"])) && (typeof value["description"] === "string");
+    return isRecord(value) && (typeof value["kind"] === "string") && (typeof value["description"] === "string");
 }
 export function parseSessionKindContract(value: unknown): SessionKindContract {
     if (isSessionKindContract(value)) return value;
@@ -1307,9 +1265,9 @@ export function parseSessionKindContract(value: unknown): SessionKindContract {
 }
 export function encodeSessionKindContract(value: SessionKindContract): SessionKindContract { return value; }
 
-export type IntentFieldSchema = { name: InteractionIntentFieldName; presence: InteractionFieldPresence; defaultValue?: string | null };
+export type IntentFieldSchema = { name: string; presence: InteractionFieldPresence; defaultValue?: string | null };
 export function isIntentFieldSchema(value: unknown): value is IntentFieldSchema {
-    return isRecord(value) && (isInteractionIntentFieldName(value["name"])) && (isInteractionFieldPresence(value["presence"])) && (!("defaultValue" in value) || (value["defaultValue"] === null || typeof value["defaultValue"] === "string"));
+    return isRecord(value) && (typeof value["name"] === "string") && (isInteractionFieldPresence(value["presence"])) && (!("defaultValue" in value) || (value["defaultValue"] === null || typeof value["defaultValue"] === "string"));
 }
 export function parseIntentFieldSchema(value: unknown): IntentFieldSchema {
     if (isIntentFieldSchema(value)) return value;
@@ -1339,9 +1297,9 @@ export function parseInteractionIntentTarget(value: unknown): InteractionIntentT
 }
 export function encodeInteractionIntentTarget(value: InteractionIntentTarget): InteractionIntentTarget { return value; }
 
-export type IntentFormContract = { intent: InteractionIntentName; name: InteractionIntentName; action: string; method: HtmxActionMethod; trigger: string; target: InteractionIntentTarget; swap: HtmxActionSwap; fields: ReadonlyArray<IntentFieldSchema>; hiddenFields: ReadonlyArray<IntentHiddenField>; sync?: string | null; disabledElement?: string | null };
+export type IntentFormContract = { intent: string; name: string; action: string; method: HtmxActionMethod; trigger: string; target: InteractionIntentTarget; swap: HtmxActionSwap; fields: ReadonlyArray<IntentFieldSchema>; hiddenFields: ReadonlyArray<IntentHiddenField>; sync?: string | null; disabledElement?: string | null };
 export function isIntentFormContract(value: unknown): value is IntentFormContract {
-    return isRecord(value) && (isInteractionIntentName(value["intent"])) && (isInteractionIntentName(value["name"])) && (typeof value["action"] === "string") && (isHtmxActionMethod(value["method"])) && (typeof value["trigger"] === "string") && (isInteractionIntentTarget(value["target"])) && (isHtmxActionSwap(value["swap"])) && (Array.isArray(value["fields"]) && value["fields"].every((item) => isIntentFieldSchema(item))) && (Array.isArray(value["hiddenFields"]) && value["hiddenFields"].every((item) => isIntentHiddenField(item))) && (!("sync" in value) || (value["sync"] === null || typeof value["sync"] === "string")) && (!("disabledElement" in value) || (value["disabledElement"] === null || typeof value["disabledElement"] === "string"));
+    return isRecord(value) && (typeof value["intent"] === "string") && (typeof value["name"] === "string") && (typeof value["action"] === "string") && (isHtmxActionMethod(value["method"])) && (typeof value["trigger"] === "string") && (isInteractionIntentTarget(value["target"])) && (isHtmxActionSwap(value["swap"])) && (Array.isArray(value["fields"]) && value["fields"].every((item) => isIntentFieldSchema(item))) && (Array.isArray(value["hiddenFields"]) && value["hiddenFields"].every((item) => isIntentHiddenField(item))) && (!("sync" in value) || (value["sync"] === null || typeof value["sync"] === "string")) && (!("disabledElement" in value) || (value["disabledElement"] === null || typeof value["disabledElement"] === "string"));
 }
 export function parseIntentFormContract(value: unknown): IntentFormContract {
     if (isIntentFormContract(value)) return value;
@@ -1379,9 +1337,9 @@ export function parseInteractionStaticServerLayer(value: unknown): InteractionSt
 }
 export function encodeInteractionStaticServerLayer(value: InteractionStaticServerLayer): InteractionStaticServerLayer { return value; }
 
-export type InteractionStaticDisposableLayer = { name: InteractionDisposableLayerName; domIdSuffix: string };
+export type InteractionStaticDisposableLayer = { name: string; domIdSuffix: string };
 export function isInteractionStaticDisposableLayer(value: unknown): value is InteractionStaticDisposableLayer {
-    return isRecord(value) && (isInteractionDisposableLayerName(value["name"])) && (typeof value["domIdSuffix"] === "string");
+    return isRecord(value) && (typeof value["name"] === "string") && (typeof value["domIdSuffix"] === "string");
 }
 export function parseInteractionStaticDisposableLayer(value: unknown): InteractionStaticDisposableLayer {
     if (isInteractionStaticDisposableLayer(value)) return value;
@@ -1389,9 +1347,9 @@ export function parseInteractionStaticDisposableLayer(value: unknown): Interacti
 }
 export function encodeInteractionStaticDisposableLayer(value: InteractionStaticDisposableLayer): InteractionStaticDisposableLayer { return value; }
 
-export type InteractionStaticSessionKind = { kind: InteractionSessionKindName; description: string; effects: InteractionSessionEffects };
+export type InteractionStaticSessionKind = { kind: string; description: string; effects: InteractionSessionEffects };
 export function isInteractionStaticSessionKind(value: unknown): value is InteractionStaticSessionKind {
-    return isRecord(value) && (isInteractionSessionKindName(value["kind"])) && (typeof value["description"] === "string") && (isInteractionSessionEffects(value["effects"]));
+    return isRecord(value) && (typeof value["kind"] === "string") && (typeof value["description"] === "string") && (isInteractionSessionEffects(value["effects"]));
 }
 export function parseInteractionStaticSessionKind(value: unknown): InteractionStaticSessionKind {
     if (isInteractionStaticSessionKind(value)) return value;
@@ -1399,9 +1357,9 @@ export function parseInteractionStaticSessionKind(value: unknown): InteractionSt
 }
 export function encodeInteractionStaticSessionKind(value: InteractionStaticSessionKind): InteractionStaticSessionKind { return value; }
 
-export type InteractionStaticIntent = { name: InteractionIntentName; fields: ReadonlyArray<IntentFieldSchema> };
+export type InteractionStaticIntent = { name: string; fields: ReadonlyArray<IntentFieldSchema> };
 export function isInteractionStaticIntent(value: unknown): value is InteractionStaticIntent {
-    return isRecord(value) && (isInteractionIntentName(value["name"])) && (Array.isArray(value["fields"]) && value["fields"].every((item) => isIntentFieldSchema(item)));
+    return isRecord(value) && (typeof value["name"] === "string") && (Array.isArray(value["fields"]) && value["fields"].every((item) => isIntentFieldSchema(item)));
 }
 export function parseInteractionStaticIntent(value: unknown): InteractionStaticIntent {
     if (isInteractionStaticIntent(value)) return value;
@@ -1522,10 +1480,10 @@ export const InteractionDom: InteractionDom = {
     pointerFields: { sessionKind: sessionKindFieldName, pointerId: pointerIdFieldName, pointerType: pointerTypeFieldName, startClientX: startClientXFieldName, startClientY: startClientYFieldName, currentClientX: currentClientXFieldName, currentClientY: currentClientYFieldName, deltaX: deltaXFieldName, deltaY: deltaYFieldName, sourceItemKey: sourceItemKeyFieldName, targetDropzoneKey: targetDropzoneKeyFieldName },
 };
 
-export type InteractionStaticSchemaRegistry = Record<InteractionSurfaceFamily, InteractionStaticSchema>;
+export type InteractionStaticSchemaRegistry = Record<FrontendSurfaceInteractionSurfaceName, InteractionStaticSchema>;
 export function isInteractionStaticSchemaRegistry(value: unknown): value is InteractionStaticSchemaRegistry {
     if (!isRecord(value)) return false;
-    return Object.entries(value).every(([key, entry]) => isInteractionSurfaceFamily(key) && isInteractionStaticSchema(entry));
+    return Object.entries(value).every(([key, entry]) => isFrontendSurfaceInteractionSurfaceName(key) && isInteractionStaticSchema(entry));
 }
 export function parseInteractionStaticSchemaRegistry(value: unknown): InteractionStaticSchemaRegistry {
     if (isInteractionStaticSchemaRegistry(value)) return value;
