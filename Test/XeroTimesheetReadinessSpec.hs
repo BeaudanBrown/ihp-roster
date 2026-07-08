@@ -5,6 +5,7 @@ import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
 import Application.Helper.XeroTimesheetReadiness
 import qualified Data.Aeson as Aeson
+import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
 import Generated.Types hiding (xeroTimesheetId)
 import IHP.ControllerPrelude
@@ -84,6 +85,44 @@ tests = do
                 map (.xeroBlockerCode) readiness.xeroReadinessWarnings `shouldSatisfy` elem "staff_mapping_not_verified"
                 readinessBlockerCodes readiness `shouldNotSatisfy` elem "earnings_mapping_not_verified"
                 readinessBlockerCodes readiness `shouldSatisfy` elem "managed_pay_item_not_ready"
+
+        it "uses venue-effective dates in local award pay item bucket keys" $ withContext do
+            withCleanDb do
+                fixture <- createReadinessFixture "weekly" (fromGregorian 2026 7 6) (fromGregorian 2026 7 12)
+                awardLevel <- query @AwardLevel |> filterWhere (#classification, "Level 2" :: Text) |> fetchOne
+                oldBaseRate <- query @AwardLevelBaseRate
+                    |> filterWhere (#awardLevelId, unpackId awardLevel.id)
+                    |> filterWhere (#employmentBasis, Permanent)
+                    |> fetchOne
+                _ <- oldBaseRate
+                    |> set #operativeFrom (Just (fromGregorian 2025 7 1))
+                    |> set #operativeTo (Just (fromGregorian 2026 6 30))
+                    |> updateRecord
+                newerPayRate <-
+                    newRecord @FwcMapdPayRate
+                        |> set #awardFixedId awardLevel.awardFixedId
+                        |> set #classificationFixedId (Just awardLevel.classificationFixedId)
+                        |> set #classification awardLevel.classification
+                        |> set #employeeRateTypeCode (Just "AD")
+                        |> set #calculatedRate (Just 30)
+                        |> set #calculatedRateType (Just "Hourly")
+                        |> createRecord
+                _ <-
+                    newRecord @AwardLevelBaseRate
+                        |> set #awardLevelId (unpackId awardLevel.id)
+                        |> set #employmentBasis Permanent
+                        |> set #fwcMapdPayRateId (unpackId newerPayRate.id)
+                        |> set #hourlyRate 30
+                        |> set #rateLabel ("Hourly" :: Text)
+                        |> set #operativeFrom (Just (fromGregorian 2026 7 1))
+                        |> createRecord
+
+                beforeRolloverBuckets <- currentVenueBuckets fixture.venue (fromGregorian 2026 7 3)
+                afterRolloverBuckets <- currentVenueBuckets fixture.venue (fromGregorian 2026 7 6)
+
+                map (.localBucketKey) beforeRolloverBuckets `shouldSatisfy` any (Text.isInfixOf ":effective:2025-07-07:")
+                map (.localBucketKey) beforeRolloverBuckets `shouldNotSatisfy` any (Text.isInfixOf ":effective:2026-07-06:")
+                map (.localBucketKey) afterRolloverBuckets `shouldSatisfy` any (Text.isInfixOf ":effective:2026-07-06:")
 
         it "blocks missing earnings mapping when no managed requirement covers the bucket" $ withContext do
             withCleanDb do

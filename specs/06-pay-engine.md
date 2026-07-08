@@ -34,6 +34,23 @@ For each calculable segment:
 2. Otherwise fall back to `staff.default_award_level_id`.
 3. Resolve monetary values from `award_level_base_rates` and `award_level_penalty_rates` for the effective award level and staff employment basis.
 
+## FWC/MAPD rate rollover
+
+Raw FWC/MAPD `operative_from` dates are preserved as imported facts, but Bepis
+applies refreshed award rates from the first venue operational week that starts
+on or after the raw operative date. For the current implementation,
+`venue_config.roster_week_starts_on` is the pay-period proxy. For example, if a
+venue week starts Monday and FWC publishes a Wednesday operative date, unapproved
+calculations, current dropdown labels, roster wage predictions, exports, and
+Xero managed pay-item keys use the new rate from the following Monday.
+
+Approved entries are not automatically re-rated. They continue to use their
+stored staff/shift pay-version context and only consider award-rate rows that
+existed at approval time; if a later import closes an old row, approved
+calculation remains anchored to the pre-import rate rather than mutating history.
+A provider-neutral payroll calendar/frequency model and support bulk re-rate
+workflow are future work.
+
 The SQL payloads and helper names still use "pay level" in some places for
 legacy compatibility, but the current schema-backed concept is an award level.
 There is no current `pay_level_day_rules` table; day-specific award-level

@@ -33,6 +33,9 @@ This file describes implemented export behavior and shared rendering rules.
   the first-class current requirement.
 - Payroll exports must use approved timesheet facts and pay-version context as
   the pay-config-versioning workstream lands.
+- Award-rate amounts in exports come from the canonical pay calculation, which
+  applies raw FWC/MAPD operative dates through the venue week-start rollover
+  rule and does not automatically re-rate already-approved entries.
 
 ## Extension Rules
 

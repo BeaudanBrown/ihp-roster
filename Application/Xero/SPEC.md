@@ -14,6 +14,9 @@ lands.
   ticket requires in-place behavior.
 - Xero reference-data and pay-item operations are venue-scoped.
 - Managed Xero earnings-rate names put human payroll details first, e.g. `Saturday Penalty - Level 1 - CAS - Bepis - 1-July-2025`; legacy `Bepis - HIGA - ...` managed names remain matchable to avoid duplicate pay items.
+- Managed award pay-item effective-date keys/names use the Bepis venue-effective
+  rate date from the pay engine, not necessarily the raw FWC/MAPD operative
+  date.
 - Xero remains payroll, tax, and STP authority. Bepis does not calculate tax.
 
 ## Boundaries

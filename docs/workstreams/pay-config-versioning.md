@@ -47,6 +47,9 @@ instead of the archived plan.
 - Exports and Xero submissions record the approved entries and version context
   they include.
 - Draft and unapproved records may resolve current active config.
+- FWC/MAPD award-rate rows keep their raw operative dates, while current
+  calculations resolve those dates through the venue week-start rollover rule
+  documented in `specs/06-pay-engine.md`.
 - Pay-relevant admin edits append new version rows instead of mutating facts
   used by locked historical rows.
 - The JSON snapshot system should be removed after relational versioning fully

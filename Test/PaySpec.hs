@@ -2,12 +2,14 @@ module Test.PaySpec where
 
 import Application.Helper.Pay
 import Application.Helper.RosterWagePrediction
+import Application.Helper.View.Awards (awardLevelOptionLabel)
 import Config
 import Control.Monad (void)
 import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, fromGregorian)
+import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
@@ -71,6 +73,11 @@ tests = do
             summary.hasStackedMultiplier `shouldBe` True
             summary.totalAmount `shouldBe` 0
 
+        it "derives venue-effective award dates from the next venue week boundary" do
+            venueEffectiveRateDate 1 (fromGregorian 2026 7 1) `shouldBe` fromGregorian 2026 7 6
+            venueEffectiveRateDate 1 (fromGregorian 2026 7 6) `shouldBe` fromGregorian 2026 7 6
+            venueEffectiveRateEndDate 1 (Just (fromGregorian 2026 6 30)) `shouldBe` Just (fromGregorian 2026 7 5)
+
         it "decodes range payload arrays and indexes summaries by entry id" do
             let payload = "[{\"entryId\":\"a\",\"segments\":[{\"segment\":\"ordinary\",\"minutes\":60,\"dayRuleMultiplier\":1.0,\"weekendMultiplier\":1.0,\"multiplier\":1.0,\"baseRate\":0,\"amount\":0}],\"totals\":{\"paidMinutes\":60,\"totalAmount\":0}},{\"entryId\":\"b\",\"segments\":[{\"segment\":\"evening\",\"minutes\":30,\"dayRuleMultiplier\":1.0,\"weekendMultiplier\":1.5,\"multiplier\":1.5,\"baseRate\":0,\"amount\":0}],\"totals\":{\"paidMinutes\":30,\"totalAmount\":0}}]"
             case decodeTimesheetPayResults payload of
@@ -97,6 +104,113 @@ tests = do
                     fmap (.baseRate) result.segments `shouldBe` [30]
                     fmap (.amount) result.segments `shouldBe` [180]
                     result.payLevelId `shouldBe` Just (unpackId level.id)
+
+            it "rolls a mid-week FWC base rate increase to the next venue week boundary" $ withContext do
+                withCleanDb do
+                    (venue, staff, shiftType, level) <- createPayFixture "Rollover Bar"
+                    _ <- query @VenueConfig
+                        |> filterWhere (#venueId, unpackId venue.id)
+                        |> fetchOne
+                        >>= updateRecord
+                            . set #rosterWeekStartsOn 1
+                            . set #weekOffsetEpoch (fromGregorian 2026 6 29)
+                    oldBaseRate <- query @AwardLevelBaseRate
+                        |> filterWhere (#awardLevelId, unpackId level.id)
+                        |> filterWhere (#employmentBasis, Permanent)
+                        |> fetchOne
+                        >>= updateRecord
+                            . set #operativeFrom (Just (fromGregorian 2025 7 1))
+                            . set #operativeTo (Just (fromGregorian 2026 6 30))
+                    newerPayRate <-
+                        newRecord @FwcMapdPayRate
+                            |> set #awardFixedId level.awardFixedId
+                            |> set #classificationFixedId (Just level.classificationFixedId)
+                            |> set #classification level.classification
+                            |> set #employeeRateTypeCode (Just "AD")
+                            |> set #calculatedRate (Just 40)
+                            |> set #calculatedRateType (Just "Hourly")
+                            |> createRecord
+                    _ <-
+                        newRecord @AwardLevelBaseRate
+                            |> set #awardLevelId (unpackId level.id)
+                            |> set #employmentBasis Permanent
+                            |> set #fwcMapdPayRateId (unpackId newerPayRate.id)
+                            |> set #hourlyRate 40
+                            |> set #rateLabel ("Hourly" :: Text)
+                            |> set #operativeFrom (Just (fromGregorian 2026 7 1))
+                            |> createRecord
+
+                    beforeRolloverEntry <- createEntry venue staff shiftType (fromGregorian 2026 7 3) (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)
+                    afterRolloverEntry <- createEntry venue staff shiftType (fromGregorian 2026 7 6) (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)
+
+                    beforeRollover <- expectPayResult beforeRolloverEntry
+                    afterRollover <- expectPayResult afterRolloverEntry
+                    allBaseRates <- query @AwardLevelBaseRate |> fetch
+                    let beforeLabel = awardLevelOptionLabel (filter (rateEffectiveOn 1 (fromGregorian 2026 7 3)) allBaseRates) level
+                    let afterLabel = awardLevelOptionLabel (filter (rateEffectiveOn 1 (fromGregorian 2026 7 6)) allBaseRates) level
+
+                    beforeLabel `shouldSatisfy` Text.isInfixOf "$30/hr"
+                    beforeLabel `shouldNotSatisfy` Text.isInfixOf "$40/hr"
+                    afterLabel `shouldSatisfy` Text.isInfixOf "$40/hr"
+                    fmap (.baseRate) beforeRollover.segments `shouldBe` [oldBaseRate.hourlyRate]
+                    beforeRollover.totals.totalAmount `shouldBe` 120
+                    fmap (.baseRate) afterRollover.segments `shouldBe` [40]
+                    afterRollover.totals.totalAmount `shouldBe` 160
+
+            it "does not re-rate an approved entry when a newer FWC row is imported later" $ withContext do
+                withCleanDb do
+                    (venue, staff, shiftType, level) <- createPayFixture "Approved Rollover Bar"
+                    owner <- createUserRecord "approved-rollover-owner@example.com" "admin" True
+                    _ <- createVenueMembershipRecord venue owner "venue_owner"
+                    _ <- query @VenueConfig
+                        |> filterWhere (#venueId, unpackId venue.id)
+                        |> fetchOne
+                        >>= updateRecord
+                            . set #rosterWeekStartsOn 1
+                            . set #weekOffsetEpoch (fromGregorian 2026 6 29)
+                    let approvedAt = UTCTime (fromGregorian 2026 7 4) (secondsToDiffTime 0)
+                    oldBaseRate <- query @AwardLevelBaseRate
+                        |> filterWhere (#awardLevelId, unpackId level.id)
+                        |> filterWhere (#employmentBasis, Permanent)
+                        |> fetchOne
+                        >>= updateRecord
+                            . set #operativeFrom (Just (fromGregorian 2025 7 1))
+                            . set #operativeTo (Just (fromGregorian 2026 6 30))
+                            . set #createdAt (UTCTime (fromGregorian 2025 7 1) (secondsToDiffTime 0))
+                    entry <- createEntry venue staff shiftType (fromGregorian 2026 7 6) (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)
+                    (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval owner.id entry
+                    lockPayVersionsForApproval owner.id approvedAt staffPayVersion shiftTypePayVersion
+                    approvedEntry <- entry
+                        |> set #isApproved True
+                        |> set #staffPayVersionId (Just (unpackId staffPayVersion.id))
+                        |> set #shiftTypePayVersionId (Just (unpackId shiftTypePayVersion.id))
+                        |> set #approvedAt (Just approvedAt)
+                        |> set #approvedByUserId (Just (unpackId owner.id))
+                        |> updateRecord
+                    newerPayRate <-
+                        newRecord @FwcMapdPayRate
+                            |> set #awardFixedId level.awardFixedId
+                            |> set #classificationFixedId (Just level.classificationFixedId)
+                            |> set #classification level.classification
+                            |> set #employeeRateTypeCode (Just "AD")
+                            |> set #calculatedRate (Just 40)
+                            |> set #calculatedRateType (Just "Hourly")
+                            |> createRecord
+                    _ <-
+                        newRecord @AwardLevelBaseRate
+                            |> set #awardLevelId (unpackId level.id)
+                            |> set #employmentBasis Permanent
+                            |> set #fwcMapdPayRateId (unpackId newerPayRate.id)
+                            |> set #hourlyRate 40
+                            |> set #rateLabel ("Hourly" :: Text)
+                            |> set #operativeFrom (Just (fromGregorian 2026 7 1))
+                            |> set #createdAt (UTCTime (fromGregorian 2026 7 8) (secondsToDiffTime 0))
+                            |> createRecord
+
+                    result <- expectPayResult approvedEntry
+
+                    fmap (.baseRate) result.segments `shouldBe` [oldBaseRate.hourlyRate]
+                    result.totals.totalAmount `shouldBe` 120
 
             it "splits evening and after-midnight weekday penalties" $ withContext do
                 withCleanDb do

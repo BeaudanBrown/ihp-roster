@@ -7,7 +7,7 @@ AS $$
         WHEN p_operative_from IS NULL THEN NULL
         ELSE p_operative_from + (((p_week_starts_on - EXTRACT(DOW FROM p_operative_from)::INT + 7) % 7)::INT)
     END;
-$$ LANGUAGE SQL IMMUTABLE;
+$$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION venue_effective_award_rate_to(p_week_starts_on INT, p_operative_to DATE)
 RETURNS DATE
@@ -16,7 +16,7 @@ AS $$
         WHEN p_operative_to IS NULL THEN NULL
         ELSE venue_effective_award_rate_from(p_week_starts_on, p_operative_to + 1) - 1
     END;
-$$ LANGUAGE SQL IMMUTABLE;
+$$ LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION calculate_timesheet_pay(p_entry_id UUID)
 RETURNS JSONB
@@ -189,7 +189,7 @@ AS $$
                     WHERE albr.award_level_id = r.pay_level_id
                         AND albr.employment_basis = r.employment_basis
                         AND (venue_effective_award_rate_from(r.venue_week_starts_on, albr.operative_from) IS NULL OR venue_effective_award_rate_from(r.venue_week_starts_on, albr.operative_from) <= r.worked_on)
-                        AND (venue_effective_award_rate_to(r.venue_week_starts_on, albr.operative_to) IS NULL OR venue_effective_award_rate_to(r.venue_week_starts_on, albr.operative_to) >= r.worked_on)
+                        AND (r.approved_at IS NOT NULL OR venue_effective_award_rate_to(r.venue_week_starts_on, albr.operative_to) IS NULL OR venue_effective_award_rate_to(r.venue_week_starts_on, albr.operative_to) >= r.worked_on)
                         AND (r.approved_at IS NULL OR albr.created_at <= r.approved_at)
                     ORDER BY venue_effective_award_rate_from(r.venue_week_starts_on, albr.operative_from) DESC NULLS LAST, albr.created_at DESC
                     LIMIT 1
@@ -209,7 +209,7 @@ AS $$
                     WHERE albr.award_level_id = r.pay_level_id
                         AND albr.employment_basis = 'permanent'
                         AND (venue_effective_award_rate_from(r.venue_week_starts_on, albr.operative_from) IS NULL OR venue_effective_award_rate_from(r.venue_week_starts_on, albr.operative_from) <= r.worked_on)
-                        AND (venue_effective_award_rate_to(r.venue_week_starts_on, albr.operative_to) IS NULL OR venue_effective_award_rate_to(r.venue_week_starts_on, albr.operative_to) >= r.worked_on)
+                        AND (r.approved_at IS NOT NULL OR venue_effective_award_rate_to(r.venue_week_starts_on, albr.operative_to) IS NULL OR venue_effective_award_rate_to(r.venue_week_starts_on, albr.operative_to) >= r.worked_on)
                         AND (r.approved_at IS NULL OR albr.created_at <= r.approved_at)
                     ORDER BY venue_effective_award_rate_from(r.venue_week_starts_on, albr.operative_from) DESC NULLS LAST, albr.created_at DESC
                     LIMIT 1
@@ -220,7 +220,7 @@ AS $$
                     WHERE albr.award_level_id = r.pay_level_id
                         AND albr.employment_basis = r.employment_basis
                         AND (venue_effective_award_rate_from(r.venue_week_starts_on, albr.operative_from) IS NULL OR venue_effective_award_rate_from(r.venue_week_starts_on, albr.operative_from) <= r.worked_on)
-                        AND (venue_effective_award_rate_to(r.venue_week_starts_on, albr.operative_to) IS NULL OR venue_effective_award_rate_to(r.venue_week_starts_on, albr.operative_to) >= r.worked_on)
+                        AND (r.approved_at IS NOT NULL OR venue_effective_award_rate_to(r.venue_week_starts_on, albr.operative_to) IS NULL OR venue_effective_award_rate_to(r.venue_week_starts_on, albr.operative_to) >= r.worked_on)
                         AND (r.approved_at IS NULL OR albr.created_at <= r.approved_at)
                     ORDER BY venue_effective_award_rate_from(r.venue_week_starts_on, albr.operative_from) DESC NULLS LAST, albr.created_at DESC
                     LIMIT 1
@@ -316,7 +316,7 @@ AS $$
                                                     ELSE NULL::award_penalty_kind_enum
                                                 END
                                             AND (venue_effective_award_rate_from(scoped.venue_week_starts_on, alpr.operative_from) IS NULL OR venue_effective_award_rate_from(scoped.venue_week_starts_on, alpr.operative_from) <= scoped.segment_date)
-                                            AND (venue_effective_award_rate_to(scoped.venue_week_starts_on, alpr.operative_to) IS NULL OR venue_effective_award_rate_to(scoped.venue_week_starts_on, alpr.operative_to) >= scoped.segment_date)
+                                            AND (scoped.approved_at IS NOT NULL OR venue_effective_award_rate_to(scoped.venue_week_starts_on, alpr.operative_to) IS NULL OR venue_effective_award_rate_to(scoped.venue_week_starts_on, alpr.operative_to) >= scoped.segment_date)
                                             AND (scoped.approved_at IS NULL OR alpr.created_at <= scoped.approved_at)
                                         ORDER BY venue_effective_award_rate_from(scoped.venue_week_starts_on, alpr.operative_from) DESC NULLS LAST, alpr.created_at DESC
                                         LIMIT 1
@@ -335,7 +335,7 @@ AS $$
                                 AND alpr.employment_basis = scoped.employment_basis
                                 AND alpr.penalty_kind = scoped.penalty_kind
                                 AND (venue_effective_award_rate_from(scoped.venue_week_starts_on, alpr.operative_from) IS NULL OR venue_effective_award_rate_from(scoped.venue_week_starts_on, alpr.operative_from) <= scoped.segment_date)
-                                AND (venue_effective_award_rate_to(scoped.venue_week_starts_on, alpr.operative_to) IS NULL OR venue_effective_award_rate_to(scoped.venue_week_starts_on, alpr.operative_to) >= scoped.segment_date)
+                                AND (scoped.approved_at IS NOT NULL OR venue_effective_award_rate_to(scoped.venue_week_starts_on, alpr.operative_to) IS NULL OR venue_effective_award_rate_to(scoped.venue_week_starts_on, alpr.operative_to) >= scoped.segment_date)
                                 AND (scoped.approved_at IS NULL OR alpr.created_at <= scoped.approved_at)
                             ORDER BY venue_effective_award_rate_from(scoped.venue_week_starts_on, alpr.operative_from) DESC NULLS LAST, alpr.created_at DESC
                             LIMIT 1
@@ -350,7 +350,7 @@ AS $$
                             WHERE atpa.award_fixed_id = scoped.award_fixed_id
                                 AND atpa.penalty_kind = scoped.penalty_kind
                                 AND (venue_effective_award_rate_from(scoped.venue_week_starts_on, atpa.operative_from) IS NULL OR venue_effective_award_rate_from(scoped.venue_week_starts_on, atpa.operative_from) <= scoped.segment_date)
-                                AND (venue_effective_award_rate_to(scoped.venue_week_starts_on, atpa.operative_to) IS NULL OR venue_effective_award_rate_to(scoped.venue_week_starts_on, atpa.operative_to) >= scoped.segment_date)
+                                AND (scoped.approved_at IS NOT NULL OR venue_effective_award_rate_to(scoped.venue_week_starts_on, atpa.operative_to) IS NULL OR venue_effective_award_rate_to(scoped.venue_week_starts_on, atpa.operative_to) >= scoped.segment_date)
                                 AND (scoped.approved_at IS NULL OR atpa.created_at <= scoped.approved_at)
                             ORDER BY venue_effective_award_rate_from(scoped.venue_week_starts_on, atpa.operative_from) DESC NULLS LAST, atpa.created_at DESC
                             LIMIT 1
@@ -362,7 +362,7 @@ AS $$
                                 AND alpr.employment_basis = scoped.employment_basis
                                 AND alpr.penalty_kind = scoped.penalty_kind
                                 AND (venue_effective_award_rate_from(scoped.venue_week_starts_on, alpr.operative_from) IS NULL OR venue_effective_award_rate_from(scoped.venue_week_starts_on, alpr.operative_from) <= scoped.segment_date)
-                                AND (venue_effective_award_rate_to(scoped.venue_week_starts_on, alpr.operative_to) IS NULL OR venue_effective_award_rate_to(scoped.venue_week_starts_on, alpr.operative_to) >= scoped.segment_date)
+                                AND (scoped.approved_at IS NOT NULL OR venue_effective_award_rate_to(scoped.venue_week_starts_on, alpr.operative_to) IS NULL OR venue_effective_award_rate_to(scoped.venue_week_starts_on, alpr.operative_to) >= scoped.segment_date)
                                 AND (scoped.approved_at IS NULL OR alpr.created_at <= scoped.approved_at)
                             ORDER BY venue_effective_award_rate_from(scoped.venue_week_starts_on, alpr.operative_from) DESC NULLS LAST, alpr.created_at DESC
                             LIMIT 1
