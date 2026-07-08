@@ -1,10 +1,10 @@
 "use strict";
 (() => {
   // frontend/ts/generated/contracts.ts
-  var pageReadyEvent = "bepis:page-ready";
   function isRosterStaffSortKey(value) {
     return typeof value === "string" && ["name", "role", "shifts"].includes(value);
   }
+  var pageReadyEvent = "bepis:page-ready";
 
   // frontend/ts/shared/lifecycle.ts
   function onAppPageReady(handler) {

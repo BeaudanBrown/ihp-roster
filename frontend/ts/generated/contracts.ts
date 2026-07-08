@@ -425,6 +425,19 @@ export function parseOverlayLane(value: unknown): OverlayLane {
 }
 export function encodeOverlayLane(value: OverlayLane): OverlayLane { return value; }
 
+export type RosterStaffSortKey =
+    "name"
+  | "role"
+  | "shifts";
+export function isRosterStaffSortKey(value: unknown): value is RosterStaffSortKey {
+    return typeof value === "string" && ["name", "role", "shifts"].includes(value);
+}
+export function parseRosterStaffSortKey(value: unknown): RosterStaffSortKey {
+    if (isRosterStaffSortKey(value)) return value;
+    throw new Error("Invalid RosterStaffSortKey");
+}
+export function encodeRosterStaffSortKey(value: RosterStaffSortKey): RosterStaffSortKey { return value; }
+
 export type PageReadyEventDetail = {  };
 export function isPageReadyEventDetail(value: unknown): value is PageReadyEventDetail {
     return isRecord(value);
@@ -1033,19 +1046,6 @@ export const lazyFragmentDomAttr = "data-bepis-lazy-fragment" as const;
 export const lazyRetryDomAttr = "data-bepis-lazy-retry" as const;
 
 export const regionTransitionDomAttr = "data-bepis-region-transition" as const;
-
-export type RosterStaffSortKey =
-    "name"
-  | "role"
-  | "shifts";
-export function isRosterStaffSortKey(value: unknown): value is RosterStaffSortKey {
-    return typeof value === "string" && ["name", "role", "shifts"].includes(value);
-}
-export function parseRosterStaffSortKey(value: unknown): RosterStaffSortKey {
-    if (isRosterStaffSortKey(value)) return value;
-    throw new Error("Invalid RosterStaffSortKey");
-}
-export function encodeRosterStaffSortKey(value: RosterStaffSortKey): RosterStaffSortKey { return value; }
 
 export type InteractionActivationTrigger =
     "click"

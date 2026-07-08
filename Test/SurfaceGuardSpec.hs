@@ -292,7 +292,6 @@ isAllowedInfrastructureFile path =
             , "Application/Helper/FrontendContract/LiveUpdate.hs"
             , "Application/Helper/FrontendContract/Reflect.hs"
             , "Application/Helper/FrontendContract/Registry.hs"
-            , "Application/Helper/FrontendContract/Roster.hs"
             , "Application/Helper/FrontendContract/Surface/ContractIR.hs"
             , "Application/Helper/FrontendContract/Surface/Ghc/Extract.hs"
             , "Application/Helper/FrontendContract/Surface/Ghc/Lower.hs"

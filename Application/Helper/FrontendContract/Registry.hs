@@ -14,7 +14,6 @@ import Application.Helper.FrontendContract.Interaction
 import Application.Helper.FrontendContract.IR
 import Application.Helper.FrontendContract.LiveUpdate
 import Application.Helper.FrontendContract.Reflect
-import Application.Helper.FrontendContract.Roster
 import Application.Helper.FrontendContract.Surface.Adapter
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as Surface
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
@@ -27,7 +26,6 @@ type RegisteredFrontendContracts =
     '[ AppContract
      , AppShellContract
      , UiRegionContract
-     , RosterGlobalContract
      , InteractionContract
      , LiveUpdateContract
      ] :: [FrontendContractSpec]

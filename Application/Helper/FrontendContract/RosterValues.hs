@@ -6,7 +6,7 @@ module Application.Helper.FrontendContract.RosterValues
     , rosterStaffSortKeyValues
     ) where
 
-import qualified Application.Helper.FrontendContract.Roster as Roster
+import qualified Application.Helper.FrontendContract.App as App
 import Application.Helper.FrontendContract.Values
 import GHC.Generics (Generic)
 import IHP.Prelude
@@ -19,9 +19,9 @@ data RosterStaffSortKey
 
 rosterStaffSortKeyValues :: [(RosterStaffSortKey, Text)]
 rosterStaffSortKeyValues =
-    [ (RosterStaffSortByName, enumLiteralValue @Roster.RosterStaffSortKey @Roster.Name)
-    , (RosterStaffSortByRole, enumLiteralValue @Roster.RosterStaffSortKey @Roster.Role)
-    , (RosterStaffSortByShifts, enumLiteralValue @Roster.RosterStaffSortKey @Roster.Shifts)
+    [ (RosterStaffSortByName, enumLiteralValue @App.RosterStaffSortKey @App.Name)
+    , (RosterStaffSortByRole, enumLiteralValue @App.RosterStaffSortKey @App.Role)
+    , (RosterStaffSortByShifts, enumLiteralValue @App.RosterStaffSortKey @App.Shifts)
     ]
 
 rosterStaffSortKeyAttribute :: RosterStaffSortKey -> Text

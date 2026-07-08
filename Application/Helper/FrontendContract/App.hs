@@ -8,6 +8,10 @@ module Application.Helper.FrontendContract.App
     , Dialog
     , Picker
     , Toast
+    , RosterStaffSortKey
+    , Name
+    , Role
+    , Shifts
     , PageReady
     , LiveFragmentsRefresh
     , InteractionIntent
@@ -29,6 +33,11 @@ data Dialog
 data Picker
 data Toast
 
+data RosterStaffSortKey
+data Name
+data Role
+data Shifts
+
 data PageReady
 data LiveFragmentsRefresh
 data InteractionIntent
@@ -44,6 +53,7 @@ data ToastOverlayMount
 type AppContract =
     Global App
         '[ GlobalSchema (Enum OverlayLane '[Dialog, Picker, Toast])
+         , GlobalSchema (Enum RosterStaffSortKey '[Name, Role, Shifts])
          , Event PageReady '[]
          , Event LiveFragmentsRefresh '[]
          , Event InteractionIntent '[]

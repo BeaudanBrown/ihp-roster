@@ -25,7 +25,6 @@ import Application.Helper.FrontendContract.Contracts (TypeScriptDeclaration (..)
 import qualified Application.Helper.FrontendContract.Htmx as Htmx
 import qualified Application.Helper.FrontendContract.IR as Contract
 import Application.Helper.FrontendContract.Registry (registeredFrontendContractIR)
-import qualified Application.Helper.FrontendContract.Roster as Roster
 import Application.Helper.FrontendContract.RosterValues (RosterStaffSortKey (..),
                                                          rosterStaffSortKeyAttribute,
                                                          rosterStaffSortKeyValues)
@@ -185,10 +184,10 @@ tests = describe "Frontend contract generator foundation" do
         lookupDomIdValue @App.DialogOverlayMount `shouldBe` Right sharedDialogOverlayMountId
         lookupDomIdValue @App.ToastOverlayMount `shouldBe` Right sharedToastOverlayMountId
         lookupEventNameValue @App.IntentSubmit `shouldBe` Right interactionIntentSubmitHtmxTrigger
-        lookupEnumLiteralValue @Roster.RosterStaffSortKey @Roster.Name `shouldBe` Right "name"
+        lookupEnumLiteralValue @App.RosterStaffSortKey @App.Name `shouldBe` Right "name"
         domIdValue @App.DialogOverlayMount `shouldBe` canonicalAppOverlayDom.appDialogOverlayMountId
         eventNameValue @App.IntentSubmit `shouldBe` canonicalAppEvents.appInteractionIntentSubmitEventName
-        enumLiteralValue @Roster.RosterStaffSortKey @Roster.Name `shouldBe` rosterStaffSortKeyAttribute RosterStaffSortByName
+        enumLiteralValue @App.RosterStaffSortKey @App.Name `shouldBe` rosterStaffSortKeyAttribute RosterStaffSortByName
         rosterStaffSortKeyValues
             `shouldBe` [ (RosterStaffSortByName, "name")
                        , (RosterStaffSortByRole, "role")
