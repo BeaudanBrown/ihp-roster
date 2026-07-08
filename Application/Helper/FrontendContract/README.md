@@ -8,8 +8,8 @@ contracts. Contracts are declared in the project DSL, collected by
 Roots are split by meaning:
 
 - **Global**: app-wide browser/runtime vocabulary such as DOM ids, event names,
-  closed enums, UI-region data, interaction vocabulary, live-update wire
-  schemas, and app-shell/dialog request contracts.
+  closed enums, UI-region data, generic interaction runtime shapes,
+  live-update wire schemas, and app-shell/dialog request contracts.
 - **Surface**: mounted feature UI semantics: scopes, fragments, actions,
   intents, mount state, resources, and interaction metadata.
 

@@ -12,10 +12,23 @@ The root registry is the type-level list in
 `Application.Helper.FrontendContract.Surface.Registry`:
 
 ```haskell
-type RegisteredFrontendContract Surfaces =
+type RegisteredFrontendSurfaces =
     '[ SurfaceLabSurface
      , TimesheetsSurface
      , RosterSurface
+     , LeaveRequestsSurface
+     , BillingSurface
+     , SupportSurface
+     , ProfileSurface
+     , StaffSurface
+     , AdminPageSurface
+     , AdminXeroPageSurface
+     , AdminVenueSettingsSurface
+     , AdminInvitesSurface
+     , AdminExportsSurface
+     , AdminShiftTypesSurface
+     , AdminRosterGroupsSurface
+     , AdminXeroSurface
      ]
 ```
 
@@ -106,13 +119,15 @@ checks after adding markers.
 
 ## Generated Interaction Manifest
 
-`FrontendContract Surface` is also the source of truth for generic browser interaction
-semantics. The generator emits a static interaction manifest for each surface:
-source refs, dropzone refs, activation refs, sessions, intents, intent fields,
-compatible source/dropzone/session/intent mappings, effects, disposable layers,
-and conflict policies. TypeScript consumes that manifest to interpret mounted
-surface instances; it must not invent feature-local interaction names or infer
-business behavior from ad-hoc DOM strings.
+`FrontendContract Surface` is also the source of truth for feature-specific
+browser interaction names. `InteractionContract` keeps only generic runtime
+shapes and DOM attrs; surface names, sessions, intents, intent fields,
+disposable layers, effects, and conflict policies are derived from registered
+surfaces and emitted as `FrontendSurfaceInteraction*` unions plus static schema
+manifests. TypeScript consumes those generated manifests to interpret mounted
+surface instances; it must not invent feature-local interaction names, depend on
+old global `Interaction*` roster enums, or infer business behavior from ad-hoc
+DOM strings.
 
 Feature views still own ordinary HTML layout. They attach minimal role-specific
 refs through generated Haskell helpers:
