@@ -25,7 +25,7 @@ data OverlayButtonAction
     = OverlayCloseAction
     | OverlaySubmitFormAction !Text
     | OverlayNavigateAction !Text
-    | DialogFormAction !Text !Text ![(Text, Text)] !Text !(Maybe Text)
+    | DialogFormAction !Text !Text ![(Text, Text)] !(Maybe Text)
     | GeneratedDialogFormAction !AppShellActionIR !AppShellActionRoute ![(Text, Text)] !(Maybe Text)
 
 data OverlayButton = OverlayButton
@@ -133,16 +133,12 @@ renderDialogOverlayButton button =
                 {button.overlayButtonLabel}
             </a>
         |]
-        DialogFormAction method targetUrl fields hxTarget maybeConfirm -> [hsx|
+        DialogFormAction method targetUrl fields maybeConfirm -> [hsx|
             <form method="POST"
                   action={targetUrl}
                   class="app-modal-footer-form"
                   data-disable-javascript-submission="true"
-                  hx-delete={targetUrl}
-                  hx-target={hxTarget}
-                  hx-swap="innerHTML"
-                  hx-push-url="false"
-                  hx-confirm={maybeConfirm}>
+                  onsubmit={confirmSubmitAttribute maybeConfirm}>
                 <input type="hidden" name="_method" value={method} />
                 {forEach fields renderOverlayFormHiddenField}
                 <button type="submit" class={button.overlayButtonClass}>
@@ -242,7 +238,7 @@ renderPageDialogButton closeUrl button =
                 {button.overlayButtonLabel}
             </a>
         |]
-        DialogFormAction method targetUrl fields _hxTarget maybeConfirm -> [hsx|
+        DialogFormAction method targetUrl fields maybeConfirm -> [hsx|
             <form method="POST"
                   action={targetUrl}
                   class="app-modal-footer-form"

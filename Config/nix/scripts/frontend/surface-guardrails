@@ -291,6 +291,16 @@ expect_match \
     'planFrontendSurfaceWireInvalidation resources subscription\.subscriptionScope subscription\.subscriptionMountedFragments' \
     Web/SurfaceInvalidation.hs
 
+expect_no_match \
+    "app views/helpers must not hand-author request-side HTMX attrs" \
+    'hx-(get|post|put|patch|delete|target|swap|push-url|sync|trigger|include|select|confirm)=' \
+    Application/Helper/View Web/View
+
+expect_no_match \
+    "toggle helper must not expose raw request-side HTMX fields" \
+    'appToggleHx(Get|Post|Trigger|Include|Target|Swap|PushUrl|Sync)' \
+    Application Web Test
+
 if [ "$failures" -ne 0 ]; then
     exit 1
 fi

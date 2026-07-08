@@ -21,14 +21,6 @@ data AppToggleButtonConfig = AppToggleButtonConfig
     , appToggleInputClass                :: !Text
     , appToggleRoleSwitch                :: !Bool
     , appToggleOnChange                  :: !(Maybe Text)
-    , appToggleHxGet                     :: !(Maybe Text)
-    , appToggleHxPost                    :: !(Maybe Text)
-    , appToggleHxTrigger                 :: !(Maybe Text)
-    , appToggleHxInclude                 :: !(Maybe Text)
-    , appToggleHxTarget                  :: !(Maybe Text)
-    , appToggleHxSwap                    :: !(Maybe Text)
-    , appToggleHxPushUrl                 :: !(Maybe Text)
-    , appToggleHxSync                    :: !(Maybe Text)
     , appToggleHiddenInputId             :: !(Maybe Text)
     , appToggleHiddenInputCheckedValue   :: !(Maybe Text)
     , appToggleHiddenInputUncheckedValue :: !(Maybe Text)
@@ -48,14 +40,6 @@ defaultAppToggleButtonConfig inputId checked label = AppToggleButtonConfig
     , appToggleInputClass = ""
     , appToggleRoleSwitch = False
     , appToggleOnChange = Nothing
-    , appToggleHxGet = Nothing
-    , appToggleHxPost = Nothing
-    , appToggleHxTrigger = Nothing
-    , appToggleHxInclude = Nothing
-    , appToggleHxTarget = Nothing
-    , appToggleHxSwap = Nothing
-    , appToggleHxPushUrl = Nothing
-    , appToggleHxSync = Nothing
     , appToggleHiddenInputId = Nothing
     , appToggleHiddenInputCheckedValue = Nothing
     , appToggleHiddenInputUncheckedValue = Nothing
@@ -88,14 +72,6 @@ renderAppToggleInput config@AppToggleButtonConfig { .. } =
           , attr "value" appToggleInputValue
           , checkedAttr appToggleChecked
           , maybeAttr "onchange" appToggleOnChange
-          , maybeAttr "hx-get" appToggleHxGet
-          , maybeAttr "hx-post" appToggleHxPost
-          , maybeAttr "hx-trigger" appToggleHxTrigger
-          , maybeAttr "hx-include" appToggleHxInclude
-          , maybeAttr "hx-target" appToggleHxTarget
-          , maybeAttr "hx-swap" appToggleHxSwap
-          , maybeAttr "hx-push-url" appToggleHxPushUrl
-          , maybeAttr "hx-sync" appToggleHxSync
           , attr "data-app-toggle-button-input" "true"
           , maybeAttr "data-app-toggle-hidden-input-id" appToggleHiddenInputId
           , maybeAttr "data-app-toggle-hidden-checked-value" appToggleHiddenInputCheckedValue

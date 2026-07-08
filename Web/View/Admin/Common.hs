@@ -55,14 +55,17 @@ renderInactiveToggleSummary paramName fragmentPath targetId rows showInactive = 
         toggleHref = appendQueryParams fragmentPath [(paramName, if showInactive then "false" else "true")]
 
 renderShowInactiveToggle :: Text -> Text -> Text -> Bool -> Html
-renderShowInactiveToggle inputId targetId toggleHref showInactive =
-    renderAppToggleButton $ (defaultAppToggleButtonConfig inputId showInactive [hsx|<span class="small">Show disabled</span>|])
-        { appToggleButtonClass = "btn-sm"
-        , appToggleRoleSwitch = True
-        , appToggleHxGet = Just toggleHref
-        , appToggleHxTarget = Just ("#" <> targetId)
-        , appToggleHxSwap = Just "outerHTML"
-        }
+renderShowInactiveToggle inputId _targetId toggleHref showInactive = [hsx|
+    <a href={toggleHref} class={toggleClass} role="switch" aria-checked={if showInactive then ("true" :: Text) else "false"}>
+        <span class="small">Show disabled</span>
+    </a>
+|]
+    where
+        toggleClass = classes
+            [ ("btn app-toggle-button btn-sm", True)
+            , ("btn-success", showInactive)
+            , ("btn-outline-success", not showInactive)
+            ]
 
 renderRosterGroupDefaultBadge :: RosterGroup -> Html
 renderRosterGroupDefaultBadge rosterGroup
