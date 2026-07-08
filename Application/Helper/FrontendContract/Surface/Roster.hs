@@ -90,8 +90,10 @@ data OuterHTML
 data ShowRosterWarnings
 data IsLive
 data ShowWageEstimates
-data ShowUnavailableStaff
-data ShowIdealShiftMatches
+data HideStaffAtIdealShifts
+data HideStaffUnavailable
+data HideStaffOnApprovedLeave
+data HideStaffAlreadyAssignedToday
 data StaffScope
 data RosterWeekShellSyncCustomHtmx
 data CopyRosterWeekCustomHtmx
@@ -218,8 +220,10 @@ type RosterActionBundle =
          , 'CustomHtmx RosterWeekShellSyncCustomHtmx "live toggle serializes through the stable roster week shell"
          ]
      , Action ToggleRosterAssignmentFilters
-        '[ Field ShowUnavailableStaff 'WireBool
-         , Field ShowIdealShiftMatches 'WireBool
+        '[ Field HideStaffAtIdealShifts 'WireBool
+         , Field HideStaffUnavailable 'WireBool
+         , Field HideStaffOnApprovedLeave 'WireBool
+         , Field HideStaffAlreadyAssignedToday 'WireBool
          ]
         '[ 'HtmxMethod 'HtmxPost
          , 'HtmxSwap None

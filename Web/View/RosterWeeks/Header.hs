@@ -239,8 +239,7 @@ renderRosterWarningPreferenceForm weekOffset rosterGroupId showRosterWarnings =
     renderFrontendSurfaceActionForm
         (rosterSurfaceAction "toggle-roster-warnings")
         (rosterWeekShellSyncRoute (rosterWarningPreferenceUrl weekOffset rosterGroupId))
-            { actionRouteFields = [FrontendSurfaceFieldValue "showRosterWarnings" (boolParam showRosterWarnings)]
-            , actionRouteStandardUrl = Just (rosterWarningPreferenceUrl weekOffset rosterGroupId)
+            { actionRouteStandardUrl = Just (rosterWarningPreferenceUrl weekOffset rosterGroupId)
             , actionRouteExtraAttrs = [("class", "col-6 mb-0"), ("data-disable-javascript-submission", "true")]
             }
         [hsx|
@@ -256,8 +255,7 @@ renderRosterWageEstimatePreferenceForm weekOffset rosterGroupId viewCapabilities
         renderFrontendSurfaceActionForm
             (rosterSurfaceAction "toggle-roster-wage-estimates")
             (rosterWeekShellSyncRoute (rosterWageEstimatePreferenceUrl weekOffset rosterGroupId))
-                { actionRouteFields = [FrontendSurfaceFieldValue "showWageEstimates" (boolParam showWageEstimates)]
-                , actionRouteStandardUrl = Just (rosterWageEstimatePreferenceUrl weekOffset rosterGroupId)
+                { actionRouteStandardUrl = Just (rosterWageEstimatePreferenceUrl weekOffset rosterGroupId)
                 , actionRouteExtraAttrs = [("class", "col-6 mb-0"), ("data-disable-javascript-submission", "true")]
                 }
             [hsx|
@@ -338,11 +336,7 @@ renderRosterAssignmentFiltersMenuSection weekOffset rosterGroupId menuTriggerId 
         then renderFrontendSurfaceActionForm
             (rosterSurfaceAction "toggle-roster-assignment-filters")
             (rosterWeekShellSyncRoute (rosterAssignmentFiltersUrl weekOffset rosterGroupId))
-                { actionRouteFields =
-                    [ FrontendSurfaceFieldValue "showUnavailableStaff" (boolParam filters.hideStaffUnavailable)
-                    , FrontendSurfaceFieldValue "showIdealShiftMatches" (boolParam filters.hideStaffAtIdealShifts)
-                    ]
-                , actionRouteStandardUrl = Just (rosterAssignmentFiltersUrl weekOffset rosterGroupId)
+                { actionRouteStandardUrl = Just (rosterAssignmentFiltersUrl weekOffset rosterGroupId)
                 , actionRouteExtraAttrs =
                     [ ("class", "px-1 py-1")
                     , ("data-roster-filter-form", "true")

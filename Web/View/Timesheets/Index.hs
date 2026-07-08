@@ -216,8 +216,7 @@ renderTimesheetFilterForm updateUrl weekOffset showApproved showAllStaff selecte
     renderFrontendSurfaceActionForm
         (timesheetsAction "update-timesheet-filters")
         (timesheetsActionRoute updateUrl)
-            { actionRouteFields = timesheetStateFields weekOffset showApproved showAllStaff selectedStaffFilterId
-            , actionRouteCustomHtmx = [timesheetsWeekShellSync]
+            { actionRouteCustomHtmx = [timesheetsWeekShellSync]
             , actionRouteStandardUrl = Just updateUrl
             , actionRouteExtraAttrs = [("class", "px-1 py-1"), ("data-disable-javascript-submission", "true")]
             }
@@ -457,10 +456,6 @@ renderTimesheetApprovalForm actionName actionUrl weekOffset showApproved showAll
             , actionRouteExtraAttrs = [("class", "timesheet-entry-action-form"), ("data-disable-javascript-submission", "true")]
             }
         [hsx|
-            <input type="hidden" name="weekOffset" value={tshow weekOffset} />
-            <input type="hidden" name="showApproved" value={boolParam showApproved} />
-            <input type="hidden" name="showAllStaff" value={boolParam showAllStaff} />
-            <input type="hidden" name="staffFilterId" value={maybe "" tshow staffFilterId} />
             {button}
         |]
 
