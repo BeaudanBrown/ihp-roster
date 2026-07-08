@@ -110,20 +110,22 @@ profileSurfaceHandlers scope =
                     }
                 `HandlerCons` HandlerNil
         , surfaceActionHandlers =
-            profileActionHandler "create-profile-leave-request" (appendQueryParams (pathTo CreateLeaveRequestAction) [("responseContext", "profile"), ("section", "leave")]) `HandlerCons`
+            profileActionHandler "update-profile-details" (pathTo UpdateProfileAction) "#profile-details" "outerHTML show:none" `HandlerCons`
+            profileActionHandler "update-profile-shift-preferences" (pathTo UpdateProfileAction) "#profile-preferences" "outerHTML show:none" `HandlerCons`
+            profileActionHandler "create-profile-leave-request" (appendQueryParams (pathTo CreateLeaveRequestAction) [("responseContext", "profile"), ("section", "leave")]) "#profile-leave-request-form-fragment" "outerHTML" `HandlerCons`
             HandlerNil
         , surfaceIntentHandlers = HandlerNil
         }
 
-profileActionHandler :: Text -> Text -> FrontendSurfaceActionHandler ('Action marker fields options)
-profileActionHandler actionName actionUrl = FrontendSurfaceActionHandler
+profileActionHandler :: Text -> Text -> Text -> Text -> FrontendSurfaceActionHandler ('Action marker fields options)
+profileActionHandler actionName actionUrl target swap = FrontendSurfaceActionHandler
     { actionHandlerDefaultFields = frontendSurfaceFieldValues Aeson.Null
     , actionHandlerRequest = const FrontendSurfaceHtmxRequest
         { htmxRequestName = actionName
         , htmxRequestMethod = FrontendSurfacePost
         , htmxRequestUrl = actionUrl
-        , htmxRequestTarget = "#profile-leave-request-form-fragment"
-        , htmxRequestSwap = "outerHTML"
+        , htmxRequestTarget = target
+        , htmxRequestSwap = swap
         , htmxRequestFields = []
         }
     }

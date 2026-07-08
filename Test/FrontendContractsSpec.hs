@@ -174,6 +174,26 @@ tests = describe "Frontend contract generator foundation" do
                 , Contract.HtmxActionPushUrlIR False
                 ]
 
+    it "exposes consistent Profile and Staff surface profile action field sets" do
+        let surfaceActions surfaceName actionName =
+                [ action
+                | surface <- registeredFrontendContractIR.contractSurfaces
+                , surface.surfaceName == surfaceName
+                , Contract.SurfaceActionIR _ action _ _ <- surface.surfacePrimitives
+                , action == actionName
+                ]
+        let actionFields surfaceName actionName =
+                [ fields
+                | surface <- registeredFrontendContractIR.contractSurfaces
+                , surface.surfaceName == surfaceName
+                , Contract.SurfaceActionIR _ action fields _ <- surface.surfacePrimitives
+                , action == actionName
+                ]
+        surfaceActions "staff" "update-staff-profile" `shouldBe` ["update-staff-profile"]
+        actionFields "profile" "update-profile-details" `shouldBe` actionFields "staff" "update-staff-profile"
+        actionFields "profile" "update-profile-shift-preferences" `shouldBe` actionFields "staff" "update-staff-shift-preferences"
+        frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const staffSurfaceManifest"
+
     it "keeps migrated feedback overlay openers on generated AppShellAction helpers" do
         source <- Text.readFile "Web/View/Layout.hs"
         source `shouldSatisfy` Text.isInfixOf "appShellActionByMarker @OpenFeedbackDialog"

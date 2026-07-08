@@ -176,6 +176,11 @@ expect_no_match \
     'hx-(get|post|target|swap|select|push-url|sync)=' \
     Application/Helper/View/Chrome.hs
 
+expect_no_match \
+    "shared staff/profile forms must not hand-author request HTMX attrs" \
+    'hx-(get|post|target|swap|select|push-url|sync)=' \
+    Web/View/StaffProfileSections.hs
+
 expect_match \
     "migrated chrome partial navigation uses typed AppShellAction marker lookup" \
     'appShellActionByMarker @PartialNavigate' \

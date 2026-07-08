@@ -89,6 +89,17 @@ export function parseProfileSurfaceScope(value: unknown): ProfileSurfaceScope {
 }
 export function encodeProfileSurfaceScope(value: ProfileSurfaceScope): ProfileSurfaceScope { return value; }
 
+export type StaffSurfaceScope =
+    StaffStaffScopeScope;
+export function isStaffSurfaceScope(value: unknown): value is StaffSurfaceScope {
+    return (isStaffStaffScopeScope(value));
+}
+export function parseStaffSurfaceScope(value: unknown): StaffSurfaceScope {
+    if (isStaffSurfaceScope(value)) return value;
+    throw new Error("Invalid StaffSurfaceScope");
+}
+export function encodeStaffSurfaceScope(value: StaffSurfaceScope): StaffSurfaceScope { return value; }
+
 export type AdminPageSurfaceScope =
     AdminPageAdminPageScopeScope;
 export function isAdminPageSurfaceScope(value: unknown): value is AdminPageSurfaceScope {
@@ -271,6 +282,18 @@ export function parseProfileSurfaceFragmentKey(value: unknown): ProfileSurfaceFr
 }
 export function encodeProfileSurfaceFragmentKey(value: ProfileSurfaceFragmentKey): ProfileSurfaceFragmentKey { return value; }
 
+export type StaffSurfaceFragmentKey =
+    { kind: "staff-details-section"; params: StaffStaffDetailsSectionFragmentParams | null }
+  | { kind: "staff-preferences-section"; params: StaffStaffPreferencesSectionFragmentParams | null };
+export function isStaffSurfaceFragmentKey(value: unknown): value is StaffSurfaceFragmentKey {
+    return ((isRecord(value) && value.kind === "staff-details-section" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "staff-preferences-section" && (value["params"] === null || isRecord(value["params"]))));
+}
+export function parseStaffSurfaceFragmentKey(value: unknown): StaffSurfaceFragmentKey {
+    if (isStaffSurfaceFragmentKey(value)) return value;
+    throw new Error("Invalid StaffSurfaceFragmentKey");
+}
+export function encodeStaffSurfaceFragmentKey(value: StaffSurfaceFragmentKey): StaffSurfaceFragmentKey { return value; }
+
 export type AdminPageSurfaceFragmentKey =
     { kind: "admin-page-content"; params: AdminPageAdminPageContentFragmentFragmentParams | null };
 export function isAdminPageSurfaceFragmentKey(value: unknown): value is AdminPageSurfaceFragmentKey {
@@ -370,6 +393,7 @@ export type SurfaceScope =
   | { surface: "billing"; scope: BillingSurfaceScope }
   | { surface: "support"; scope: SupportSurfaceScope }
   | { surface: "profile"; scope: ProfileSurfaceScope }
+  | { surface: "staff"; scope: StaffSurfaceScope }
   | { surface: "admin-page"; scope: AdminPageSurfaceScope }
   | { surface: "admin-xero-page"; scope: AdminXeroPageSurfaceScope }
   | { surface: "admin-venue-config"; scope: AdminVenueConfigSurfaceScope }
@@ -379,7 +403,7 @@ export type SurfaceScope =
   | { surface: "admin-roster-groups"; scope: AdminRosterGroupsSurfaceScope }
   | { surface: "admin-xero"; scope: AdminXeroSurfaceScope };
 export function isSurfaceScope(value: unknown): value is SurfaceScope {
-    return ((isRecord(value) && value.surface === "surface-lab" && isSurfaceLabSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "timesheets" && isTimesheetsSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "roster" && isRosterSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "leave-requests" && isLeaveRequestsSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "billing" && isBillingSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "support" && isSupportSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "profile" && isProfileSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-page" && isAdminPageSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-xero-page" && isAdminXeroPageSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-venue-config" && isAdminVenueConfigSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-invites" && isAdminInvitesSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-exports" && isAdminExportsSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-shift-types" && isAdminShiftTypesSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-roster-groups" && isAdminRosterGroupsSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-xero" && isAdminXeroSurfaceScope(value.scope)));
+    return ((isRecord(value) && value.surface === "surface-lab" && isSurfaceLabSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "timesheets" && isTimesheetsSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "roster" && isRosterSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "leave-requests" && isLeaveRequestsSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "billing" && isBillingSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "support" && isSupportSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "profile" && isProfileSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "staff" && isStaffSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-page" && isAdminPageSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-xero-page" && isAdminXeroPageSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-venue-config" && isAdminVenueConfigSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-invites" && isAdminInvitesSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-exports" && isAdminExportsSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-shift-types" && isAdminShiftTypesSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-roster-groups" && isAdminRosterGroupsSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-xero" && isAdminXeroSurfaceScope(value.scope)));
 }
 export function parseSurfaceScope(value: unknown): SurfaceScope {
     if (isSurfaceScope(value)) return value;
@@ -395,6 +419,7 @@ export type SurfaceFragmentKey =
   | ({ surface: "billing" } & BillingSurfaceFragmentKey)
   | ({ surface: "support" } & SupportSurfaceFragmentKey)
   | ({ surface: "profile" } & ProfileSurfaceFragmentKey)
+  | ({ surface: "staff" } & StaffSurfaceFragmentKey)
   | ({ surface: "admin-page" } & AdminPageSurfaceFragmentKey)
   | ({ surface: "admin-xero-page" } & AdminXeroPageSurfaceFragmentKey)
   | ({ surface: "admin-venue-config" } & AdminVenueConfigSurfaceFragmentKey)
@@ -404,7 +429,7 @@ export type SurfaceFragmentKey =
   | ({ surface: "admin-roster-groups" } & AdminRosterGroupsSurfaceFragmentKey)
   | ({ surface: "admin-xero" } & AdminXeroSurfaceFragmentKey);
 export function isSurfaceFragmentKey(value: unknown): value is SurfaceFragmentKey {
-    return ((isRecord(value) && value.surface === "surface-lab" && isSurfaceLabSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "timesheets" && isTimesheetsSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "roster" && isRosterSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "leave-requests" && isLeaveRequestsSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "billing" && isBillingSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "support" && isSupportSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "profile" && isProfileSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-page" && isAdminPageSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-xero-page" && isAdminXeroPageSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-venue-config" && isAdminVenueConfigSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-invites" && isAdminInvitesSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-exports" && isAdminExportsSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-shift-types" && isAdminShiftTypesSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-roster-groups" && isAdminRosterGroupsSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-xero" && isAdminXeroSurfaceFragmentKey(value)));
+    return ((isRecord(value) && value.surface === "surface-lab" && isSurfaceLabSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "timesheets" && isTimesheetsSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "roster" && isRosterSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "leave-requests" && isLeaveRequestsSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "billing" && isBillingSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "support" && isSupportSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "profile" && isProfileSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "staff" && isStaffSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-page" && isAdminPageSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-xero-page" && isAdminXeroPageSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-venue-config" && isAdminVenueConfigSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-invites" && isAdminInvitesSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-exports" && isAdminExportsSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-shift-types" && isAdminShiftTypesSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-roster-groups" && isAdminRosterGroupsSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-xero" && isAdminXeroSurfaceFragmentKey(value)));
 }
 export function parseSurfaceFragmentKey(value: unknown): SurfaceFragmentKey {
     if (isSurfaceFragmentKey(value)) return value;
@@ -2204,6 +2229,26 @@ export function parseProfileProfileRsaSectionFragmentParams(value: unknown): Pro
 }
 export function encodeProfileProfileRsaSectionFragmentParams(value: ProfileProfileRsaSectionFragmentParams): ProfileProfileRsaSectionFragmentParams { return value; }
 
+export type ProfileUpdateProfileDetailsActionFields = { firstName: string; lastName: string; preferredName: string; phone: string; idealShiftsPerWeek: string; emergencyContactName: string; emergencyContactPhone: string; section: string; weekOffset: string; rosterGroupId: string; venueRole: string; employmentBasis: string; payRateSelection: string; isActive: string; rosterGroupIds: string };
+export function isProfileUpdateProfileDetailsActionFields(value: unknown): value is ProfileUpdateProfileDetailsActionFields {
+    return isRecord(value) && (typeof value["firstName"] === "string") && (typeof value["lastName"] === "string") && (typeof value["preferredName"] === "string") && (typeof value["phone"] === "string") && (typeof value["idealShiftsPerWeek"] === "string") && (typeof value["emergencyContactName"] === "string") && (typeof value["emergencyContactPhone"] === "string") && (typeof value["section"] === "string") && (typeof value["weekOffset"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["venueRole"] === "string") && (typeof value["employmentBasis"] === "string") && (typeof value["payRateSelection"] === "string") && (typeof value["isActive"] === "string") && (typeof value["rosterGroupIds"] === "string");
+}
+export function parseProfileUpdateProfileDetailsActionFields(value: unknown): ProfileUpdateProfileDetailsActionFields {
+    if (isProfileUpdateProfileDetailsActionFields(value)) return value;
+    throw new Error("Invalid ProfileUpdateProfileDetailsActionFields");
+}
+export function encodeProfileUpdateProfileDetailsActionFields(value: ProfileUpdateProfileDetailsActionFields): ProfileUpdateProfileDetailsActionFields { return value; }
+
+export type ProfileUpdateProfileShiftPreferencesActionFields = { section: string; weekOffset: string; rosterGroupId: string; shiftPreferenceKeys: string };
+export function isProfileUpdateProfileShiftPreferencesActionFields(value: unknown): value is ProfileUpdateProfileShiftPreferencesActionFields {
+    return isRecord(value) && (typeof value["section"] === "string") && (typeof value["weekOffset"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["shiftPreferenceKeys"] === "string");
+}
+export function parseProfileUpdateProfileShiftPreferencesActionFields(value: unknown): ProfileUpdateProfileShiftPreferencesActionFields {
+    if (isProfileUpdateProfileShiftPreferencesActionFields(value)) return value;
+    throw new Error("Invalid ProfileUpdateProfileShiftPreferencesActionFields");
+}
+export function encodeProfileUpdateProfileShiftPreferencesActionFields(value: ProfileUpdateProfileShiftPreferencesActionFields): ProfileUpdateProfileShiftPreferencesActionFields { return value; }
+
 export type ProfileCreateProfileLeaveRequestActionFields = { startDate: FrontendContractDay; endDate: FrontendContractDay; reason: string };
 export function isProfileCreateProfileLeaveRequestActionFields(value: unknown): value is ProfileCreateProfileLeaveRequestActionFields {
     return isRecord(value) && (typeof value["startDate"] === "string") && (typeof value["endDate"] === "string") && (typeof value["reason"] === "string");
@@ -2213,6 +2258,56 @@ export function parseProfileCreateProfileLeaveRequestActionFields(value: unknown
     throw new Error("Invalid ProfileCreateProfileLeaveRequestActionFields");
 }
 export function encodeProfileCreateProfileLeaveRequestActionFields(value: ProfileCreateProfileLeaveRequestActionFields): ProfileCreateProfileLeaveRequestActionFields { return value; }
+
+export type StaffStaffScopeScope = { venueId: FrontendContractUuid; staffId: FrontendContractUuid };
+export function isStaffStaffScopeScope(value: unknown): value is StaffStaffScopeScope {
+    return isRecord(value) && (typeof value["venueId"] === "string") && (typeof value["staffId"] === "string");
+}
+export function parseStaffStaffScopeScope(value: unknown): StaffStaffScopeScope {
+    if (isStaffStaffScopeScope(value)) return value;
+    throw new Error("Invalid StaffStaffScopeScope");
+}
+export function encodeStaffStaffScopeScope(value: StaffStaffScopeScope): StaffStaffScopeScope { return value; }
+
+export type StaffStaffDetailsSectionFragmentParams = {  };
+export function isStaffStaffDetailsSectionFragmentParams(value: unknown): value is StaffStaffDetailsSectionFragmentParams {
+    return isRecord(value);
+}
+export function parseStaffStaffDetailsSectionFragmentParams(value: unknown): StaffStaffDetailsSectionFragmentParams {
+    if (isStaffStaffDetailsSectionFragmentParams(value)) return value;
+    throw new Error("Invalid StaffStaffDetailsSectionFragmentParams");
+}
+export function encodeStaffStaffDetailsSectionFragmentParams(value: StaffStaffDetailsSectionFragmentParams): StaffStaffDetailsSectionFragmentParams { return value; }
+
+export type StaffStaffPreferencesSectionFragmentParams = {  };
+export function isStaffStaffPreferencesSectionFragmentParams(value: unknown): value is StaffStaffPreferencesSectionFragmentParams {
+    return isRecord(value);
+}
+export function parseStaffStaffPreferencesSectionFragmentParams(value: unknown): StaffStaffPreferencesSectionFragmentParams {
+    if (isStaffStaffPreferencesSectionFragmentParams(value)) return value;
+    throw new Error("Invalid StaffStaffPreferencesSectionFragmentParams");
+}
+export function encodeStaffStaffPreferencesSectionFragmentParams(value: StaffStaffPreferencesSectionFragmentParams): StaffStaffPreferencesSectionFragmentParams { return value; }
+
+export type StaffUpdateStaffProfileActionFields = { firstName: string; lastName: string; preferredName: string; phone: string; idealShiftsPerWeek: string; emergencyContactName: string; emergencyContactPhone: string; section: string; weekOffset: string; rosterGroupId: string; venueRole: string; employmentBasis: string; payRateSelection: string; isActive: string; rosterGroupIds: string };
+export function isStaffUpdateStaffProfileActionFields(value: unknown): value is StaffUpdateStaffProfileActionFields {
+    return isRecord(value) && (typeof value["firstName"] === "string") && (typeof value["lastName"] === "string") && (typeof value["preferredName"] === "string") && (typeof value["phone"] === "string") && (typeof value["idealShiftsPerWeek"] === "string") && (typeof value["emergencyContactName"] === "string") && (typeof value["emergencyContactPhone"] === "string") && (typeof value["section"] === "string") && (typeof value["weekOffset"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["venueRole"] === "string") && (typeof value["employmentBasis"] === "string") && (typeof value["payRateSelection"] === "string") && (typeof value["isActive"] === "string") && (typeof value["rosterGroupIds"] === "string");
+}
+export function parseStaffUpdateStaffProfileActionFields(value: unknown): StaffUpdateStaffProfileActionFields {
+    if (isStaffUpdateStaffProfileActionFields(value)) return value;
+    throw new Error("Invalid StaffUpdateStaffProfileActionFields");
+}
+export function encodeStaffUpdateStaffProfileActionFields(value: StaffUpdateStaffProfileActionFields): StaffUpdateStaffProfileActionFields { return value; }
+
+export type StaffUpdateStaffShiftPreferencesActionFields = { section: string; weekOffset: string; rosterGroupId: string; shiftPreferenceKeys: string };
+export function isStaffUpdateStaffShiftPreferencesActionFields(value: unknown): value is StaffUpdateStaffShiftPreferencesActionFields {
+    return isRecord(value) && (typeof value["section"] === "string") && (typeof value["weekOffset"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["shiftPreferenceKeys"] === "string");
+}
+export function parseStaffUpdateStaffShiftPreferencesActionFields(value: unknown): StaffUpdateStaffShiftPreferencesActionFields {
+    if (isStaffUpdateStaffShiftPreferencesActionFields(value)) return value;
+    throw new Error("Invalid StaffUpdateStaffShiftPreferencesActionFields");
+}
+export function encodeStaffUpdateStaffShiftPreferencesActionFields(value: StaffUpdateStaffShiftPreferencesActionFields): StaffUpdateStaffShiftPreferencesActionFields { return value; }
 
 export type AdminPageAdminPageScopeScope = { venueId: FrontendContractUuid };
 export function isAdminPageAdminPageScopeScope(value: unknown): value is AdminPageAdminPageScopeScope {
@@ -2709,9 +2804,18 @@ export const supportSurfaceManifest = {"surface":"support","scopes":["support-pl
 
 export type ProfileSurfaceName = "profile";
 export type ProfileFragmentKey = ProfileSurfaceFragmentKey;
+export type UpdateProfileDetailsActionFields = ProfileUpdateProfileDetailsActionFields;
+export type UpdateProfileShiftPreferencesActionFields = ProfileUpdateProfileShiftPreferencesActionFields;
 export type CreateProfileLeaveRequestActionFields = ProfileCreateProfileLeaveRequestActionFields;
-export type ProfileDomToken = "profile-leave-request-form-fragment";
-export const profileSurfaceManifest = {"surface":"profile","scopes":["profile"],"fragments":["profile-details-section","profile-preferences-section","profile-security-section","profile-leave-section","profile-rsa-section"],"liveFragments":["profile-details-section","profile-preferences-section","profile-security-section","profile-leave-section","profile-rsa-section"],"htmxActions":[{"name":"create-profile-leave-request","fields":["startDate","endDate","reason"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"profile-leave-request-form-fragment","swap":"outer-html","pushUrl":false,"custom":[]}}],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":["profile-leave-request-form-fragment"],"overlayLanes":[],"containedSurfaces":{}} as const;
+export type ProfileDomToken = "profile-details" | "profile-preferences" | "profile-leave-request-form-fragment";
+export const profileSurfaceManifest = {"surface":"profile","scopes":["profile"],"fragments":["profile-details-section","profile-preferences-section","profile-security-section","profile-leave-section","profile-rsa-section"],"liveFragments":["profile-details-section","profile-preferences-section","profile-security-section","profile-leave-section","profile-rsa-section"],"htmxActions":[{"name":"update-profile-details","fields":["firstName","lastName","preferredName","phone","idealShiftsPerWeek","emergencyContactName","emergencyContactPhone","section","weekOffset","rosterGroupId","venueRole","employmentBasis","payRateSelection","isActive","rosterGroupIds"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":null,"swap":null,"pushUrl":false,"custom":[{"name":"staff-profile-section-htmx-attrs","reason":"profile and staff forms provide their concrete section target and swap modifier at the route boundary"}]}},{"name":"update-profile-shift-preferences","fields":["section","weekOffset","rosterGroupId","shiftPreferenceKeys"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":null,"swap":null,"pushUrl":false,"custom":[{"name":"staff-profile-section-htmx-attrs","reason":"profile and staff forms provide their concrete section target and swap modifier at the route boundary"}]}},{"name":"create-profile-leave-request","fields":["startDate","endDate","reason"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"profile-leave-request-form-fragment","swap":"outer-html","pushUrl":false,"custom":[]}}],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":["profile-details","profile-preferences","profile-leave-request-form-fragment"],"overlayLanes":[],"containedSurfaces":{}} as const;
+
+export type StaffSurfaceName = "staff";
+export type StaffFragmentKey = StaffSurfaceFragmentKey;
+export type UpdateStaffProfileActionFields = StaffUpdateStaffProfileActionFields;
+export type UpdateStaffShiftPreferencesActionFields = StaffUpdateStaffShiftPreferencesActionFields;
+export type StaffDomToken = "staff-details-target" | "staff-preferences-target";
+export const staffSurfaceManifest = {"surface":"staff","scopes":["staff"],"fragments":["staff-details-section","staff-preferences-section"],"liveFragments":["staff-details-section","staff-preferences-section"],"htmxActions":[{"name":"update-staff-profile","fields":["firstName","lastName","preferredName","phone","idealShiftsPerWeek","emergencyContactName","emergencyContactPhone","section","weekOffset","rosterGroupId","venueRole","employmentBasis","payRateSelection","isActive","rosterGroupIds"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":null,"swap":null,"pushUrl":false,"custom":[{"name":"staff-profile-section-htmx-attrs","reason":"profile and staff forms provide their concrete section target and swap modifier at the route boundary"}]}},{"name":"update-staff-shift-preferences","fields":["section","weekOffset","rosterGroupId","shiftPreferenceKeys"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":null,"swap":null,"pushUrl":false,"custom":[{"name":"staff-profile-section-htmx-attrs","reason":"profile and staff forms provide their concrete section target and swap modifier at the route boundary"}]}}],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":["staff-details-target","staff-preferences-target"],"overlayLanes":[],"containedSurfaces":{}} as const;
 
 export type AdminPageSurfaceName = "admin-page";
 export type AdminPageFragmentKey = AdminPageSurfaceFragmentKey;
@@ -2783,6 +2887,7 @@ export type FrontendSurfaceScope =
   | { surface: "billing"; scope: BillingBillingVenueScope }
   | { surface: "support"; scope: SupportSupportPlatformScope }
   | { surface: "profile"; scope: ProfileProfileScopeScope }
+  | { surface: "staff"; scope: StaffStaffScopeScope }
   | { surface: "admin-venue-config"; scope: AdminVenueConfigAdminVenueConfigScopeScope }
   | { surface: "admin-invites"; scope: AdminInvitesAdminInvitesScopeScope }
   | { surface: "admin-exports"; scope: AdminExportsAdminExportsScopeScope }
@@ -2796,6 +2901,7 @@ export type FrontendSurfaceLiveFragment =
   | { surface: "billing"; fragment: BillingSurfaceFragmentKey }
   | { surface: "support"; fragment: SupportSurfaceFragmentKey }
   | { surface: "profile"; fragment: ProfileSurfaceFragmentKey }
+  | { surface: "staff"; fragment: StaffSurfaceFragmentKey }
   | { surface: "admin-venue-config"; fragment: AdminVenueConfigSurfaceFragmentKey }
   | { surface: "admin-invites"; fragment: AdminInvitesSurfaceFragmentKey }
   | { surface: "admin-exports"; fragment: AdminExportsSurfaceFragmentKey }
@@ -2901,7 +3007,7 @@ export function parseFrontendSurfaceMountConfig(value: unknown): FrontendSurface
     throw new Error("Invalid FrontendSurfaceMountConfig");
 }
 
-export type FrontendSurfaceName = "surface-lab" | "timesheets" | "roster" | "leave-requests" | "billing" | "support" | "profile" | "admin-page" | "admin-xero-page" | "admin-venue-config" | "admin-invites" | "admin-exports" | "admin-shift-types" | "admin-roster-groups" | "admin-xero";
+export type FrontendSurfaceName = "surface-lab" | "timesheets" | "roster" | "leave-requests" | "billing" | "support" | "profile" | "staff" | "admin-page" | "admin-xero-page" | "admin-venue-config" | "admin-invites" | "admin-exports" | "admin-shift-types" | "admin-roster-groups" | "admin-xero";
 export const FrontendSurfaceRegistry = {
     "surface-lab": surfaceLabSurfaceManifest,
     timesheets: timesheetsSurfaceManifest,
@@ -2910,6 +3016,7 @@ export const FrontendSurfaceRegistry = {
     billing: billingSurfaceManifest,
     support: supportSurfaceManifest,
     profile: profileSurfaceManifest,
+    staff: staffSurfaceManifest,
     "admin-page": adminPageSurfaceManifest,
     "admin-xero-page": adminXeroPageSurfaceManifest,
     "admin-venue-config": adminVenueConfigSurfaceManifest,

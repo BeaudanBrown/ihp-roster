@@ -5,6 +5,9 @@ module Web.View.StaffProfileSections where
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
+import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            renderFrontendSurfaceActionForm)
 import Application.Helper.StaffShiftPreferences
 import Web.View.Prelude
 import Web.View.StaffProfileForm
@@ -22,14 +25,8 @@ data StaffProfileAccordionSection = StaffProfileAccordionSection
     , staffProfileSectionBody  :: Html
     }
 
-data StaffProfileFragmentHtmxConfig = StaffProfileFragmentHtmxConfig
-    { staffProfileFormHtmxTarget  :: Text
-    , staffProfileFormHtmxSwap    :: Text
-    , staffProfileFormHtmxPushUrl :: Text
-    }
-
 data StaffProfileFormRequestMode
-    = StaffProfileFragmentHtmx StaffProfileFragmentHtmxConfig
+    = StaffProfileSurfaceAction SurfaceIR.HtmxActionIR FrontendSurfaceActionRoute
     | StaffProfileAppShellAction AppShellActionIR AppShellActionRoute
 
 data StaffProfileDetailsFormConfig = StaffProfileDetailsFormConfig
@@ -84,26 +81,25 @@ renderStaffProfileDetailsForm config staff maybeEmail =
     renderStaffProfileDetailsFormNative config staff maybeEmail
 
 renderStaffProfileDetailsFormWithRequestMode :: StaffProfileDetailsFormConfig -> StaffProfileFormRequestMode -> Staff -> Maybe Text -> Html
-renderStaffProfileDetailsFormWithRequestMode config (StaffProfileFragmentHtmx htmxConfig) staff maybeEmail =
-    renderStaffProfileDetailsFormWithFragmentHtmx config htmxConfig staff maybeEmail
+renderStaffProfileDetailsFormWithRequestMode config (StaffProfileSurfaceAction action route) staff maybeEmail =
+    renderStaffProfileDetailsFormWithSurfaceAction config action route staff maybeEmail
 renderStaffProfileDetailsFormWithRequestMode config (StaffProfileAppShellAction action route) staff maybeEmail =
     renderStaffProfileDetailsFormWithAppShellAction config action route staff maybeEmail
 
-renderStaffProfileDetailsFormWithFragmentHtmx :: StaffProfileDetailsFormConfig -> StaffProfileFragmentHtmxConfig -> Staff -> Maybe Text -> Html
-renderStaffProfileDetailsFormWithFragmentHtmx config@StaffProfileDetailsFormConfig { .. } StaffProfileFragmentHtmxConfig { .. } staff maybeEmail = [hsx|
-    <form id={staffProfileDetailsFormId}
-          method="POST"
-          action={staffProfileDetailsFormAction}
-          class={staffProfileDetailsFormClass}
-          data-disable-javascript-submission="true"
-          hx-post={staffProfileDetailsFormAction}
-          hx-target={staffProfileFormHtmxTarget}
-          hx-swap={staffProfileFormHtmxSwap}
-          hx-push-url={staffProfileFormHtmxPushUrl}
-          {...staffProfileDetailsFormAttributes}>
-        {renderStaffProfileDetailsFormBody config staff maybeEmail}
-    </form>
-|]
+renderStaffProfileDetailsFormWithSurfaceAction :: StaffProfileDetailsFormConfig -> SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> Staff -> Maybe Text -> Html
+renderStaffProfileDetailsFormWithSurfaceAction config@StaffProfileDetailsFormConfig { .. } action route staff maybeEmail =
+    renderFrontendSurfaceActionForm
+        action
+        route
+            { actionRouteExtraAttrs =
+                [ ("id", staffProfileDetailsFormId)
+                , ("class", staffProfileDetailsFormClass)
+                , ("data-disable-javascript-submission", "true")
+                ]
+                    <> staffProfileDetailsFormAttributes
+                    <> route.actionRouteExtraAttrs
+            }
+        (renderStaffProfileDetailsFormBody config staff maybeEmail)
 
 renderStaffProfileDetailsFormWithAppShellAction :: StaffProfileDetailsFormConfig -> AppShellActionIR -> AppShellActionRoute -> Staff -> Maybe Text -> Html
 renderStaffProfileDetailsFormWithAppShellAction config@StaffProfileDetailsFormConfig { .. } action route staff maybeEmail =
@@ -155,25 +151,24 @@ renderStaffShiftPreferencesForm config preferenceWeekdays selectedShiftPreferenc
     renderStaffShiftPreferencesFormNative config preferenceWeekdays selectedShiftPreferences
 
 renderStaffShiftPreferencesFormWithRequestMode :: StaffShiftPreferencesFormConfig -> StaffProfileFormRequestMode -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
-renderStaffShiftPreferencesFormWithRequestMode config (StaffProfileFragmentHtmx htmxConfig) preferenceWeekdays selectedShiftPreferences =
-    renderStaffShiftPreferencesFormWithFragmentHtmx config htmxConfig preferenceWeekdays selectedShiftPreferences
+renderStaffShiftPreferencesFormWithRequestMode config (StaffProfileSurfaceAction action route) preferenceWeekdays selectedShiftPreferences =
+    renderStaffShiftPreferencesFormWithSurfaceAction config action route preferenceWeekdays selectedShiftPreferences
 renderStaffShiftPreferencesFormWithRequestMode config (StaffProfileAppShellAction action route) preferenceWeekdays selectedShiftPreferences =
     renderStaffShiftPreferencesFormWithAppShellAction config action route preferenceWeekdays selectedShiftPreferences
 
-renderStaffShiftPreferencesFormWithFragmentHtmx :: StaffShiftPreferencesFormConfig -> StaffProfileFragmentHtmxConfig -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
-renderStaffShiftPreferencesFormWithFragmentHtmx config@StaffShiftPreferencesFormConfig { .. } StaffProfileFragmentHtmxConfig { .. } preferenceWeekdays selectedShiftPreferences = [hsx|
-    <form id={staffShiftPreferencesFormId}
-          method="POST"
-          action={staffShiftPreferencesFormAction}
-          class={staffShiftPreferencesFormClass}
-          data-disable-javascript-submission="true"
-          hx-post={staffShiftPreferencesFormAction}
-          hx-target={staffProfileFormHtmxTarget}
-          hx-swap={staffProfileFormHtmxSwap}
-          hx-push-url={staffProfileFormHtmxPushUrl}>
-        {renderStaffShiftPreferencesFormBody config preferenceWeekdays selectedShiftPreferences}
-    </form>
-|]
+renderStaffShiftPreferencesFormWithSurfaceAction :: StaffShiftPreferencesFormConfig -> SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
+renderStaffShiftPreferencesFormWithSurfaceAction config@StaffShiftPreferencesFormConfig { .. } action route preferenceWeekdays selectedShiftPreferences =
+    renderFrontendSurfaceActionForm
+        action
+        route
+            { actionRouteExtraAttrs =
+                [ ("id", staffShiftPreferencesFormId)
+                , ("class", staffShiftPreferencesFormClass)
+                , ("data-disable-javascript-submission", "true")
+                ]
+                    <> route.actionRouteExtraAttrs
+            }
+        (renderStaffShiftPreferencesFormBody config preferenceWeekdays selectedShiftPreferences)
 
 renderStaffShiftPreferencesFormWithAppShellAction :: StaffShiftPreferencesFormConfig -> AppShellActionIR -> AppShellActionRoute -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
 renderStaffShiftPreferencesFormWithAppShellAction config@StaffShiftPreferencesFormConfig { .. } action route preferenceWeekdays selectedShiftPreferences =

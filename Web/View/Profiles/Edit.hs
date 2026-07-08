@@ -2,6 +2,7 @@ module Web.View.Profiles.Edit where
 
 import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            FrontendSurfaceCustomHtmxAttrs (..),
                                                             SurfaceImpl,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
@@ -75,6 +76,20 @@ profileActionRoute actionUrl =
         , actionRouteCustomHtmx = []
         , actionRouteStandardUrl = Just actionUrl
         , actionRouteExtraAttrs = []
+        }
+
+profileSectionActionRoute :: Text -> Text -> Text -> FrontendSurfaceActionRoute
+profileSectionActionRoute actionUrl target swap =
+    (profileActionRoute actionUrl)
+        { actionRouteCustomHtmx =
+            [ FrontendSurfaceCustomHtmxAttrs
+                { customHtmxAttrMarker = "staff-profile-section-htmx-attrs"
+                , customHtmxAttrValues =
+                    [ ("hx-target", "#" <> target)
+                    , ("hx-swap", swap)
+                    ]
+                }
+            ]
         }
 
 data EditView = EditView
@@ -242,11 +257,7 @@ renderProfileForm staff currentUserEmail staffManagementFields =
             , staffProfileDetailsFormAction = pathTo UpdateProfileAction
             , staffProfileDetailsFormClass = ""
             , staffProfileDetailsFormRequestMode =
-                Just (StaffProfileFragmentHtmx StaffProfileFragmentHtmxConfig
-                    { staffProfileFormHtmxTarget = "#" <> profileDetailsSectionId
-                    , staffProfileFormHtmxSwap = "outerHTML show:none"
-                    , staffProfileFormHtmxPushUrl = "false"
-                    })
+                Just (StaffProfileSurfaceAction (profileSurfaceAction "update-profile-details") (profileSectionActionRoute (pathTo UpdateProfileAction) profileDetailsSectionId "outerHTML show:none"))
             , staffProfileDetailsFormAttributes = []
             , staffProfileDetailsFormHiddenInputs = [hsx|<input type="hidden" name="section" value="profile"/>|]
             , staffProfileDetailsFormBeforeFields = mempty
@@ -268,11 +279,7 @@ renderProfileShiftPreferencesForm preferenceWeekdays selectedShiftPreferences =
             , staffShiftPreferencesFormAction = pathTo UpdateProfileAction
             , staffShiftPreferencesFormClass = ""
             , staffShiftPreferencesFormRequestMode =
-                Just (StaffProfileFragmentHtmx StaffProfileFragmentHtmxConfig
-                    { staffProfileFormHtmxTarget = "#" <> profilePreferencesSectionId
-                    , staffProfileFormHtmxSwap = "outerHTML show:none"
-                    , staffProfileFormHtmxPushUrl = "false"
-                    })
+                Just (StaffProfileSurfaceAction (profileSurfaceAction "update-profile-shift-preferences") (profileSectionActionRoute (pathTo UpdateProfileAction) profilePreferencesSectionId "outerHTML show:none"))
             , staffShiftPreferencesFormHiddenInputs = [hsx|<input type="hidden" name="section" value="preferences"/>|]
             , staffShiftPreferencesFormSubmitLabel = "Save shift preferences"
             }
