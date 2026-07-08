@@ -1,13 +1,17 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE NoImplicitPrelude   #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications    #-}
 
 module Application.Helper.FrontendContract.Overlay.Runtime
     ( OverlayActionRoute (..)
     , OverlayCustomHtmxAttrs (..)
     , OverlayFieldValue (..)
     , applyOverlayActionAttrs
+    , overlayActionByMarker
     , overlayActionByName
     , renderOverlayActionForm
     , renderOverlayActionHtmxControl
@@ -17,10 +21,13 @@ module Application.Helper.FrontendContract.Overlay.Runtime
 
 import Application.Helper.FrontendContract.IR
 import Application.Helper.FrontendContract.Registry (registeredFrontendContractIR)
+import Application.Helper.FrontendContract.Surface.Naming (FrontendSurfaceNameContext (ActionName),
+                                                           deriveFrontendSurfaceTypeName)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.Encoding
+import Data.Typeable (Typeable)
 import IHP.ViewPrelude
 import Text.Blaze (toValue)
 import qualified Text.Blaze.Html as Blaze
@@ -47,6 +54,9 @@ data OverlayActionRoute = OverlayActionRoute
     , overlayActionRouteExtraAttrs  :: ![(Text, Text)]
     }
     deriving (Eq, Show)
+
+overlayActionByMarker :: forall marker. Typeable marker => OverlayActionIR
+overlayActionByMarker = overlayActionByName (deriveFrontendSurfaceTypeName @marker ActionName)
 
 overlayActionByName :: Text -> OverlayActionIR
 overlayActionByName name =

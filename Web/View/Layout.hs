@@ -1,10 +1,13 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Web.View.Layout (defaultLayout, Html) where
 
 import Application.Helper.Controller (currentSupportVenueOptions,
                                       currentVenueOrNothing)
+import Application.Helper.FrontendContract.Overlay (OpenFeedbackDialog)
 import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
                                                             applyOverlayActionAttrs,
-                                                            overlayActionByName)
+                                                            overlayActionByMarker)
 import Application.Helper.View
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
@@ -100,7 +103,7 @@ renderMobileFeedbackButton =
 renderFeedbackOverlayButton :: Text -> Text -> Text -> Html
 renderFeedbackOverlayButton buttonClasses iconClasses label =
     applyOverlayActionAttrs
-        (overlayActionByName "open-feedback-dialog")
+        (overlayActionByMarker @OpenFeedbackDialog)
         OverlayActionRoute
             { overlayActionRouteUrl = pathTo NewFeedbackAction
             , overlayActionRouteFields = []

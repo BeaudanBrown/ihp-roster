@@ -80,15 +80,16 @@ tests = describe "Frontend contract generator foundation" do
         fmap (.overlayActionFields) feedbackAction `shouldBe` Just []
         fmap (.overlayActionOptions) feedbackAction
             `shouldBe` Just
-                [ Contract.SurfaceActionMethodIR "get"
-                , Contract.SurfaceActionTargetIR "dialog-overlay-mount"
-                , Contract.SurfaceActionSwapIR "innerHTML"
-                , Contract.SurfaceActionPushUrlIR False
+                [ Contract.HtmxActionMethodIR "get"
+                , Contract.HtmxActionTargetIR "dialog-overlay-mount"
+                , Contract.HtmxActionSwapIR "innerHTML"
+                , Contract.HtmxActionPushUrlIR False
                 ]
 
     it "keeps migrated feedback overlay openers on generated OverlayAction helpers" do
         source <- Text.readFile "Web/View/Layout.hs"
-        source `shouldSatisfy` Text.isInfixOf "overlayActionByName \"open-feedback-dialog\""
+        source `shouldSatisfy` Text.isInfixOf "overlayActionByMarker @OpenFeedbackDialog"
+        source `shouldNotSatisfy` Text.isInfixOf "overlayActionByName \"open-feedback-dialog\""
         source `shouldNotSatisfy` Text.isInfixOf "hx-get={NewFeedbackAction}"
 
     it "resolves canonical Haskell value accessors from registered FrontendContract IR" do

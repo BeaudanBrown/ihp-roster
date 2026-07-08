@@ -1,6 +1,6 @@
 ---
 id: ir-igqx
-status: open
+status: closed
 deps: [ir-6oq4]
 links: []
 created: 2026-07-08T00:02:52Z
