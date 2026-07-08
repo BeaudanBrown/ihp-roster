@@ -21,6 +21,8 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              appShellActionByMarker,
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            renderFrontendSurfaceActionForm)
 import Application.Helper.View.Overlay
 import Application.Helper.XeroAdminTypes
 import Application.Xero.Admin.ReadModel (xeroEmployeeAvailableForStaff)
@@ -28,6 +30,7 @@ import Control.Monad (guard)
 import Data.Scientific (FPFormat (Fixed), Scientific, formatScientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, diffDays)
+import Web.Admin.FrontendSurface (adminXeroAction)
 import Web.View.Prelude
 
 xeroPreparationAppShellActionRoute :: Text -> AppShellActionRoute
@@ -546,17 +549,26 @@ renderStaffEmployeeReadOnly view row = [hsx|
             <div class="fw-semibold small">{staffEmployeeDisplay row}</div>
             <div class="small app-muted">{staffEmployeeStatusLabel row}</div>
         </div>
-        <form method="GET"
-              action={ShowXeroTimesheetPreparationStaffMappingsFragmentAction view.preparationRun.id}
-              hx-get={pathTo (ShowXeroTimesheetPreparationStaffMappingsFragmentAction view.preparationRun.id)}
-              hx-target="#xero-preparation-staff-mappings"
-              hx-swap="outerHTML">
+        {renderStaffEmployeeEditForm view row}
+    </div>
+|]
+
+renderStaffEmployeeEditForm :: XeroTimesheetPreparationView -> XeroPreparationStaffRow -> Html
+renderStaffEmployeeEditForm view row =
+    renderFrontendSurfaceActionForm
+        (adminXeroAction "show-xero-timesheet-preparation-staff-mappings")
+        FrontendSurfaceActionRoute
+            { actionRouteUrl = pathTo (ShowXeroTimesheetPreparationStaffMappingsFragmentAction view.preparationRun.id)
+            , actionRouteFields = []
+            , actionRouteCustomHtmx = []
+            , actionRouteStandardUrl = Just (pathTo (ShowXeroTimesheetPreparationStaffMappingsFragmentAction view.preparationRun.id))
+            , actionRouteExtraAttrs = []
+            }
+        [hsx|
             <input type="hidden" name="showMatched" value="true" />
             <input type="hidden" name="editStaffId" value={tshow row.preparationStaffMappingRow.mappingRowStaff.id} />
             <button type="submit" class="btn btn-sm btn-outline-secondary">Edit</button>
-        </form>
-    </div>
-|]
+        |]
 
 staffEmployeeDisplay :: XeroPreparationStaffRow -> Text
 staffEmployeeDisplay row

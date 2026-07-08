@@ -22,6 +22,7 @@ module Application.Helper.FrontendContract.Surface.Profile
     , UpdateProfileShiftPreferences
     , UpdateStaffProfile
     , UpdateStaffShiftPreferences
+    , CreateStaffLeaveRequest
     , StaffId
     , VenueId
     ) where
@@ -58,6 +59,7 @@ data UpdateProfileDetails
 data UpdateProfileShiftPreferences
 data UpdateStaffProfile
 data UpdateStaffShiftPreferences
+data CreateStaffLeaveRequest
 
 data FirstNameField
 data LastNameField
@@ -77,6 +79,7 @@ data RosterGroupIdsField
 data ShiftPreferenceKeysField
 data StaffProfileSectionHtmxAttrs
 
+data StaffLeaveRequestFormFragment
 data StartDate
 data EndDate
 data Reason
@@ -171,6 +174,17 @@ type StaffSurface =
          , Fragment StaffPreferencesSection '[] '[ 'Eager, 'Live, 'DependsOn StaffPreferencesResource '[ 'FromScope StaffId ] ]
          , Action UpdateStaffProfile StaffProfileFields StaffProfileSubmitOptions
          , Action UpdateStaffShiftPreferences StaffShiftPreferenceFields StaffProfileSubmitOptions
+         , Action CreateStaffLeaveRequest
+            '[ Field StartDate 'WireDay
+             , Field EndDate 'WireDay
+             , Field Reason 'WireText
+             ]
+            '[ 'HtmxMethod 'HtmxPost
+             , 'HtmxTarget StaffLeaveRequestFormFragment
+             , 'HtmxSwap OuterHTML
+             , 'HtmxPushUrl 'HtmxPushUrlFalse
+             ]
          , DomToken StaffDetailsTarget
          , DomToken StaffPreferencesTarget
+         , DomToken StaffLeaveRequestFormFragment
          ]

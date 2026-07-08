@@ -1,6 +1,6 @@
 ---
 id: ir-hreg
-status: open
+status: closed
 deps: [ir-dvoi]
 links: []
 created: 2026-07-08T04:59:57Z
@@ -22,3 +22,9 @@ Move Web/View/Staff/Edit.hs leave form to StaffSurface, Web/View/RosterWeeks/Sta
 
 Listed raw HTMX callsites removed; ownership decision documented in ticket notes; focused Staff/Roster/Admin Xero tests pass.
 
+
+## Notes
+
+**2026-07-08T06:03:57Z**
+
+Migrated remaining listed local feature request initiators: Staff edit leave form now uses StaffSurface create-staff-leave-request; roster self-service leave form now uses RosterSurface create-roster-self-service-leave-request; roster week overview lazy loading now uses the generated FrontendSurface lazy fragment helper with a RosterSurface roster-week-overview fragment; Xero preparation staff-mapping edit reload is classified as AdminXeroSurface ownership and uses show-xero-timesheet-preparation-staff-mappings. Added guardrails for the migrated files. Verified with: bash ./bin/in-env typecheck; bash ./bin/in-env frontend-check; bash ./bin/in-env hspec-test --match "StaffController" --match "RosterWeeksController" --match "AdminController" --match "Xero" --match "Frontend contract" --match "SurfaceGuard".

@@ -292,6 +292,7 @@ xeroHandlers scope =
             adminActionHandler "archive-xero-imported-pay-item" (pathTo (ArchiveXeroImportedPayItemAction (Id UUID.nil))) `HandlerCons`
             adminActionHandler "save-xero-staff-mapping" (pathTo SaveXeroStaffMappingAction) `HandlerCons`
             adminActionHandler "suggest-xero-staff-mapping" (pathTo (SuggestXeroStaffMappingAction (Id UUID.nil))) `HandlerCons`
+            adminActionHandler "show-xero-timesheet-preparation-staff-mappings" (pathTo (ShowXeroTimesheetPreparationStaffMappingsFragmentAction (Id UUID.nil))) `HandlerCons`
             HandlerNil
         , surfaceIntentHandlers = HandlerNil
         }

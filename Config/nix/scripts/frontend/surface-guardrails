@@ -181,6 +181,14 @@ expect_no_match \
     'hx-(get|post|target|swap|select|push-url|sync)=' \
     Web/View/StaffProfileSections.hs
 
+expect_no_match \
+    "migrated local feature initiators must not hand-author request HTMX attrs" \
+    'hx-(get|post|target|swap|select|push-url|sync|trigger)=' \
+    Web/View/Staff/Edit.hs \
+    Web/View/RosterWeeks/StaffSelfServicePanel.hs \
+    Web/View/RosterWeeks/Overview.hs \
+    Web/View/Admin/Xero/TimesheetPreparation.hs
+
 expect_match \
     "migrated chrome partial navigation uses typed AppShellAction marker lookup" \
     'appShellActionByMarker @PartialNavigate' \

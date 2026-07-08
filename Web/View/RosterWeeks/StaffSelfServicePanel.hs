@@ -8,13 +8,16 @@ module Web.View.RosterWeeks.StaffSelfServicePanel
     , rosterStaffSelfServiceTimesheetSurfaceId
     ) where
 
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountConfig (..),
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            FrontendSurfaceMountConfig (..),
                                                             FrontendSurfaceMountedFragment (..),
                                                             SurfaceImpl (..),
+                                                            renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
 import Application.Helper.Url (appendQueryParams)
 import Data.Time.Calendar (diffDays)
+import Web.RosterWeeks.FrontendSurface (rosterSurfaceAction)
 import Web.RosterWeeks.Types (RosterStaffSelfServicePanel (..))
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
                                        TimesheetsMountStateValue (..),
@@ -78,23 +81,32 @@ renderRosterStaffSelfServiceLeaveFormFragmentForRoster rosterGroupId weekOffset 
 renderRosterStaffSelfServiceLeaveFormFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Maybe (Id RosterGroup, Int) -> LeaveRequest -> Html
 renderRosterStaffSelfServiceLeaveFormFragmentWithSwap maybeSwapOob maybeRosterScope leaveRequest = [hsx|
     <div id={rosterStaffSelfServiceLeaveFormFragmentId} hx-swap-oob={maybeSwapOob}>
-        <form id="roster-staff-self-service-leave-form"
-              method="POST"
-              action={rosterCreateLeaveRequestPath}
-              data-disable-javascript-submission="true"
-              hx-post={rosterCreateLeaveRequestPath}
-              hx-target={"#" <> rosterStaffSelfServiceLeaveFormFragmentId}
-              hx-swap="outerHTML"
-              hx-push-url="false">
+        {renderRosterStaffSelfServiceLeaveForm maybeRosterScope leaveRequest}
+    </div>
+|]
+
+renderRosterStaffSelfServiceLeaveForm :: (?context :: ControllerContext) => Maybe (Id RosterGroup, Int) -> LeaveRequest -> Html
+renderRosterStaffSelfServiceLeaveForm maybeRosterScope leaveRequest =
+    renderFrontendSurfaceActionForm
+        (rosterSurfaceAction "create-roster-self-service-leave-request")
+        FrontendSurfaceActionRoute
+            { actionRouteUrl = rosterCreateLeaveRequestPath
+            , actionRouteFields = []
+            , actionRouteCustomHtmx = []
+            , actionRouteStandardUrl = Just rosterCreateLeaveRequestPath
+            , actionRouteExtraAttrs =
+                [ ("id", "roster-staff-self-service-leave-form")
+                , ("data-disable-javascript-submission", "true")
+                ]
+            }
+        [hsx|
             <input type="hidden" name="responseContext" value="roster"/>
             {renderRosterScopeFields maybeRosterScope}
             {renderLeaveRequestFormFields leaveRequest}
             <div class="d-grid mt-4 app-form-width">
                 <button type="submit" class="btn btn-primary">Add unavailable time</button>
             </div>
-        </form>
-    </div>
-|]
+        |]
 
 renderRosterScopeFields :: Maybe (Id RosterGroup, Int) -> Html
 renderRosterScopeFields Nothing = mempty

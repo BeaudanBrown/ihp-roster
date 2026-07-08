@@ -12,7 +12,10 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              appShellActionByMarker,
                                                              applyAppShellActionAttrs)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            renderFrontendSurfaceActionForm)
 import Application.Helper.StaffShiftPreferences
+import Web.Profiles.FrontendSurface (staffSurfaceAction)
 import Web.View.LeaveRequests.New (renderLeaveRequestFormFields)
 import Web.View.Prelude
 import Web.View.Profiles.Edit (renderProfileLeaveRequestsList)
@@ -219,23 +222,32 @@ renderStaffleaveRequestsContentLiveFragment staff leaveRequest leaveRequests = [
 renderStaffLeaveRequestFormFragment :: Id Staff -> LeaveRequest -> Html
 renderStaffLeaveRequestFormFragment staffId leaveRequest = [hsx|
     <div id={staffLeaveRequestFormFragmentId}>
-        <form id="staff-leave-request-form"
-              method="POST"
-              action={CreateLeaveRequestAction}
-              data-disable-javascript-submission="true"
-              hx-post={CreateLeaveRequestAction}
-              hx-target={"#" <> staffLeaveRequestFormFragmentId}
-              hx-swap="outerHTML"
-              hx-push-url="false">
+        {renderStaffLeaveRequestForm staffId leaveRequest}
+    </div>
+|]
+
+renderStaffLeaveRequestForm :: Id Staff -> LeaveRequest -> Html
+renderStaffLeaveRequestForm staffId leaveRequest =
+    renderFrontendSurfaceActionForm
+        (staffSurfaceAction "create-staff-leave-request")
+        FrontendSurfaceActionRoute
+            { actionRouteUrl = pathTo CreateLeaveRequestAction
+            , actionRouteFields = []
+            , actionRouteCustomHtmx = []
+            , actionRouteStandardUrl = Just (pathTo CreateLeaveRequestAction)
+            , actionRouteExtraAttrs =
+                [ ("id", "staff-leave-request-form")
+                , ("data-disable-javascript-submission", "true")
+                ]
+            }
+        [hsx|
             <input type="hidden" name="responseContext" value="staff"/>
             <input type="hidden" name="staffId" value={tshow staffId}/>
             {renderLeaveRequestFormFields leaveRequest}
             <div class="d-grid mt-4 app-form-width app-modal-sticky-actions">
                 <button type="submit" class="btn btn-primary">Add unavailable time</button>
             </div>
-        </form>
-    </div>
-|]
+        |]
 
 renderStaffLeaveRequestsListFragment :: [LeaveRequest] -> Html
 renderStaffLeaveRequestsListFragment leaveRequests = [hsx|

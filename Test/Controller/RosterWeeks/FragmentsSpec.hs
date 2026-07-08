@@ -142,6 +142,7 @@ tests = beforeAll testContext do
                                , "toggle-roster-week-live-status"
                                , "toggle-roster-assignment-filters"
                                , "copy-roster-week"
+                               , "create-roster-self-service-leave-request"
                                , "create-roster-week-slot-definition"
                                , "delete-roster-week-slot-definition"
                                , "toggle-roster-day-closed"

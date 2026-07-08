@@ -54,6 +54,7 @@ module Application.Helper.FrontendContract.Surface.Admin
     , ArchiveXeroImportedPayItem
     , SaveXeroStaffMapping
     , SuggestXeroStaffMapping
+    , ShowXeroTimesheetPreparationStaffMappings
     , ConfigFieldField
     , RosterEndTimesEnabled
     , AutoTimesheetCreationEnabled
@@ -70,6 +71,8 @@ module Application.Helper.FrontendContract.Surface.Admin
     , XeroPayrollCalendarSelection
     , XeroPayItemAccountCodeSelection
     , StaffId
+    , EditStaffId
+    , ShowMatched
     , XeroEmployeeSelection
     ) where
 
@@ -130,6 +133,7 @@ data CreateMissingXeroPayItems
 data ArchiveXeroImportedPayItem
 data SaveXeroStaffMapping
 data SuggestXeroStaffMapping
+data ShowXeroTimesheetPreparationStaffMappings
 data ConfigFieldField
 data RosterEndTimesEnabled
 data AutoTimesheetCreationEnabled
@@ -146,6 +150,10 @@ data IsActive
 data XeroPayrollCalendarSelection
 data XeroPayItemAccountCodeSelection
 data StaffId
+data EditStaffId
+data ShowMatched
+data XeroPreparationStaffMappings
+
 data XeroEmployeeSelection
 data None
 data OuterHTML
@@ -439,7 +447,16 @@ type AdminXeroSurface =
              , 'HtmxTarget AdminXeroFragment
              , 'HtmxSwap None
              ]
+         , Action ShowXeroTimesheetPreparationStaffMappings
+            '[ Field ShowMatched 'WireText
+             , Field EditStaffId 'WireText
+             ]
+            '[ 'HtmxMethod 'HtmxGet
+             , 'HtmxTarget XeroPreparationStaffMappings
+             , 'HtmxSwap OuterHTML
+             ]
          , DomToken AdminXeroFragment
          , DomToken XeroPayItemsData
          , DomToken XeroPayItemsSyncIndicator
+         , DomToken XeroPreparationStaffMappings
          ]

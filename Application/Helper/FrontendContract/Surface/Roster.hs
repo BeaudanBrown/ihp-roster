@@ -18,6 +18,8 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterWageRail
     , RosterWeek
     , RosterWeekBoundaryConfig
+    , RosterWeekOverview
+    , RosterStaffSelfServiceLeaveFormFragment
     , MoveRosterShiftToSlot
     , NavigateRosterWeek
     , ToggleRosterWarnings
@@ -26,6 +28,7 @@ module Application.Helper.FrontendContract.Surface.Roster
     , ToggleRosterWeekLiveStatus
     , ToggleRosterAssignmentFilters
     , CopyRosterWeek
+    , CreateRosterSelfServiceLeaveRequest
     , CreateRosterWeekSlotDefinition
     , DeleteRosterWeekSlotDefinition
     , ToggleRosterDayClosed
@@ -69,6 +72,7 @@ data SortRosterWeek
 data ToggleRosterWeekLiveStatus
 data ToggleRosterAssignmentFilters
 data CopyRosterWeek
+data CreateRosterSelfServiceLeaveRequest
 data CreateRosterWeekSlotDefinition
 data DeleteRosterWeekSlotDefinition
 data ToggleRosterDayClosed
@@ -91,8 +95,13 @@ data RosterWeekShellSyncCustomHtmx
 data CopyRosterWeekCustomHtmx
 
 data RosterDay
+data RosterWeekOverview
 data RosterEndTimesConfig
 data RosterWeekBoundaryConfig
+data RosterStaffSelfServiceLeaveFormFragment
+data StartDate
+data EndDate
+data Reason
 
 type RosterWeekResource = Resource RosterWeek '[ Field RosterGroupId 'WireUUID, Field WeekOffset 'WireInt ]
 type RosterDayResource = Resource RosterDay '[ Field RosterDayId 'WireUUID ]
@@ -145,6 +154,7 @@ type RosterFragmentBundle =
      , Fragment RosterWageRail '[] '[ 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
      , Fragment RosterSlotsGrid '[] '[ 'Eager, 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ], 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ], 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ] ]
      , Fragment RosterStaffPanel '[] '[ 'Lazy '[ 'DependsOnFragment RosterContent ], 'Live, 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ] ]
+     , Fragment RosterWeekOverview '[] '[ 'Lazy '[ 'DependsOnFragment RosterContent ], 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ] ]
      , Fragment RosterDaySection
         '[ Field RosterDayId 'WireUUID ]
         '[ 'Lazy '[ 'DependsOnFragment RosterGridFrame, 'Contains RosterRow ]
@@ -224,6 +234,16 @@ type RosterActionBundle =
          , 'CustomHtmx RosterWeekShellSyncCustomHtmx "copy mutations serialize through the stable roster week shell"
          , 'CustomHtmx CopyRosterWeekCustomHtmx "copy previous week requires a destructive overwrite confirmation"
          ]
+     , Action CreateRosterSelfServiceLeaveRequest
+        '[ Field StartDate 'WireDay
+         , Field EndDate 'WireDay
+         , Field Reason 'WireText
+         ]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxTarget RosterStaffSelfServiceLeaveFormFragment
+         , 'HtmxSwap OuterHTML
+         , 'HtmxPushUrl 'HtmxPushUrlFalse
+         ]
      , Action CreateRosterWeekSlotDefinition
         '[]
         '[ 'HtmxMethod 'HtmxPost
@@ -274,6 +294,7 @@ type RosterActionBundle =
      , DomToken RosterContent
      , DomToken RosterDaySection
      , DomToken RosterStaffPanel
+     , DomToken RosterStaffSelfServiceLeaveFormFragment
      ]
 
 type RosterInteractionBundle =

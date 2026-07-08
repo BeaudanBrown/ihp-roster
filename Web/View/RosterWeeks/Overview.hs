@@ -4,8 +4,15 @@ module Web.View.RosterWeeks.Overview
     , renderWeekOverviewPanelFragment
     ) where
 
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceFragmentKey (..),
+                                                            FrontendSurfaceLazyFragmentConfig (..),
+                                                            FrontendSurfaceMountedFragment (..),
+                                                            FrontendSurfaceProtection (..),
+                                                            defaultFrontendSurfaceLazyFragmentConfig,
+                                                            renderFrontendSurfaceLazyFragmentWithConfig)
 import Application.Helper.WeekBoundaries (orderedWeekdayIndexes, startOfWeekFor,
                                           weekdayIndexForDay)
+import qualified Data.Aeson as Aeson
 import Data.List (find, findIndex)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
@@ -41,16 +48,31 @@ renderWeekOverviewDropdown weekOffset rosterGroupId weekStartDate =
                     <span>{renderRosterWeekLabel weekStartDate}</span>
                 </button>
                 <div class="dropdown-menu dropdown-menu-end roster-week-overview-menu" aria-labelledby={triggerId}>
-                    <div id={mountId}
-                         data-week-overview-fragment-mount="true"
-                         hx-get={fragmentUrl}
-                         hx-trigger="load"
-                         hx-swap="innerHTML">
-                        {renderWeekOverviewDropdownLoading}
-                    </div>
+                    {renderWeekOverviewLazyMount mountId fragmentUrl}
                 </div>
             </div>
         |]
+
+renderWeekOverviewLazyMount :: Text -> Text -> Html
+renderWeekOverviewLazyMount mountId fragmentUrl =
+    renderFrontendSurfaceLazyFragmentWithConfig
+        defaultFrontendSurfaceLazyFragmentConfig
+            { lazyFragmentRootClasses = []
+            , lazyFragmentPlaceholderClasses = []
+            , lazyFragmentAriaLabel = Just "Loading roster week overview"
+            , lazyFragmentRetryEnabled = True
+            , lazyFragmentTriggerOverride = Just "load"
+            }
+        FrontendSurfaceMountedFragment
+            { mountedFragmentKey = FrontendSurfaceFragmentKey "roster-week-overview" Aeson.Null
+            , mountedFragmentTargetId = mountId
+            , mountedFragmentUrl = fragmentUrl
+            , mountedFragmentProtection = FrontendSurfaceReplace
+            , mountedFragmentLoadPolicy = "lazy"
+            , mountedFragmentLazyTrigger = Just "load"
+            , mountedFragmentPlaceholderKind = Nothing
+            }
+        renderWeekOverviewDropdownLoading
 
 renderWeekOverviewDropdownLoading :: Html
 renderWeekOverviewDropdownLoading = [hsx|

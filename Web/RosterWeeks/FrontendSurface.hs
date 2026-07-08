@@ -43,6 +43,7 @@ import Generated.Types
 import Web.Controller.Prelude
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Paths (rosterLayoutPreferenceUrl, rosterMoveShiftUrl,
+                              rosterOverviewFragmentUrl,
                               rosterWeekContentFragmentUrl,
                               rosterWeekDayColumnsFragmentUrl,
                               rosterWeekDayRailFragmentUrl,
@@ -230,6 +231,11 @@ rosterSurfaceHandlers scope _plan =
                     , fragmentHandlerRender = const mempty
                     }
                 `HandlerCons` FrontendSurfaceFragmentHandler
+                    { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
+                    , fragmentHandlerMountedFragment = const (rosterWeekOverviewMountedFragment scope)
+                    , fragmentHandlerRender = const mempty
+                    }
+                `HandlerCons` FrontendSurfaceFragmentHandler
                     { fragmentHandlerDefaultParams = frontendSurfaceFieldValues (Aeson.object ["rosterDayId" Aeson..= tshow placeholderRosterDayId])
                     , fragmentHandlerMountedFragment = \fields ->
                         let rosterDayId = maybe (coerce placeholderRosterDayId) coerce (getSurfaceField @Surface.RosterDayId fields >>= UUID.fromString . cs)
@@ -253,6 +259,7 @@ rosterSurfaceHandlers scope _plan =
             rosterActionHandler "toggle-roster-week-live-status" (pathTo (ToggleRosterWeekLiveStatusAction (Id placeholderRosterDayId))) `HandlerCons`
             rosterActionHandler "toggle-roster-assignment-filters" (rosterLayoutPreferenceUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId) `HandlerCons`
             rosterActionHandler "copy-roster-week" (pathTo (CopyRosterWeekAction 0 scope.rosterWeekWeekOffset)) `HandlerCons`
+            rosterActionHandler "create-roster-self-service-leave-request" (pathTo CreateLeaveRequestAction) `HandlerCons`
             rosterActionHandler "create-roster-week-slot-definition" (pathTo (CreateRosterWeekSlotDefinitionAction (Id placeholderRosterDayId))) `HandlerCons`
             rosterActionHandler "delete-roster-week-slot-definition" (pathTo (DeleteRosterWeekSlotDefinitionAction (Id placeholderRosterDayId))) `HandlerCons`
             rosterActionHandler "toggle-roster-day-closed" (pathTo (ToggleRosterDayClosedAction (Id placeholderRosterDayId))) `HandlerCons`
@@ -458,6 +465,18 @@ rosterStaffPanelMountedFragment scope =
         , mountedFragmentProtection = FrontendSurfaceReplace
         , mountedFragmentLoadPolicy = "lazy"
         , mountedFragmentLazyTrigger = Nothing
+        , mountedFragmentPlaceholderKind = Nothing
+        }
+
+rosterWeekOverviewMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
+rosterWeekOverviewMountedFragment scope =
+    FrontendSurfaceMountedFragment
+        { mountedFragmentKey = FrontendSurfaceFragmentKey "roster-week-overview" Aeson.Null
+        , mountedFragmentTargetId = "roster-week-overview-mount-" <> tshow scope.rosterWeekGroupId <> "-" <> tshow scope.rosterWeekWeekOffset
+        , mountedFragmentUrl = rosterOverviewFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId
+        , mountedFragmentProtection = FrontendSurfaceReplace
+        , mountedFragmentLoadPolicy = "lazy"
+        , mountedFragmentLazyTrigger = Just "load"
         , mountedFragmentPlaceholderKind = Nothing
         }
 

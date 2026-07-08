@@ -9,6 +9,7 @@ module Web.Profiles.FrontendSurface
     , profileSectionFragmentForSection
     , profileSurfaceImpl
     , profileSurfaceAction
+    , staffSurfaceAction
     , profileSurfaceMountConfig
     , profileSurfaceScopeKey
     , profileSurfaceWireFragments
@@ -131,10 +132,16 @@ profileActionHandler actionName actionUrl target swap = FrontendSurfaceActionHan
     }
 
 profileSurfaceAction :: Text -> SurfaceIR.HtmxActionIR
-profileSurfaceAction actionName =
-    case [action | surface <- registeredFrontendSurfaceContractIR.contractSurfaces, surface.surfaceName == "profile", action <- surface.surfaceHtmxActions, action.htmxActionName == actionName] of
+profileSurfaceAction = surfaceAction "profile"
+
+staffSurfaceAction :: Text -> SurfaceIR.HtmxActionIR
+staffSurfaceAction = surfaceAction "staff"
+
+surfaceAction :: Text -> Text -> SurfaceIR.HtmxActionIR
+surfaceAction surfaceName actionName =
+    case [action | surface <- registeredFrontendSurfaceContractIR.contractSurfaces, surface.surfaceName == surfaceName, action <- surface.surfaceHtmxActions, action.htmxActionName == actionName] of
         action : _ -> action
-        [] -> error ("missing profile surface action: " <> cs actionName)
+        [] -> error ("missing " <> cs surfaceName <> " surface action: " <> cs actionName)
 
 profileScopeFields :: ProfileScopeValue -> FrontendSurfaceFieldValues '[ 'Field Surface.VenueId 'WireUUID, 'Field Surface.StaffId 'WireUUID]
 profileScopeFields scope =
