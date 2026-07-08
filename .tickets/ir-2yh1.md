@@ -28,3 +28,7 @@ Source-tree compiled artifacts are gone. Git status shows only intended source/i
 **2026-07-08T08:46:31Z**
 
 Removed ignored source-tree build artifacts under Application/Helper/FrontendContract (*.hi/*.o). The files were not tracked by git. Existing root .gitignore already contains *.hi and *.o, so no new ignore rule was needed.
+
+**2026-07-08T09:14:52Z**
+
+Final cleanup note: the Haskell/frontend verification commands can regenerate ignored .hi/.o files under Application/Helper/FrontendContract/Surface. They remain ignored by the existing *.hi/*.o rules and were removed again after final verification so the worktree is clean.
