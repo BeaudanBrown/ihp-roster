@@ -19,14 +19,12 @@ module Application.Helper.FrontendContract.Overlay.Runtime
     , renderOverlayActionSubmitButton
     ) where
 
+import Application.Helper.FrontendContract.Htmx as Htmx
 import Application.Helper.FrontendContract.IR
 import Application.Helper.FrontendContract.Registry (registeredFrontendContractIR)
 import Application.Helper.FrontendContract.Surface.Naming (FrontendSurfaceNameContext (ActionName),
                                                            deriveFrontendSurfaceTypeName)
-import qualified Data.Aeson as Aeson
-import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text.Encoding
 import Data.Typeable (Typeable)
 import IHP.ViewPrelude
 import Text.Blaze (toValue)
@@ -105,33 +103,25 @@ renderOverlayActionHtmxControl action route body =
 
 overlayActionHtmxAttrs :: OverlayActionIR -> OverlayActionRoute -> [Blaze.Attribute]
 overlayActionHtmxAttrs action route =
-    [ attr (htmxMethodAttr method) route.overlayActionRouteUrl
+    [ attr (Htmx.htmxMethodAttr method) route.overlayActionRouteUrl
     , attr "data-bepis-overlay-action" action.overlayActionName
     , attr "data-bepis-overlay-action-config" (overlayActionConfigJson action)
     ]
-        <> optionAttrs action.overlayActionOptions
-        <> customHtmxAttrs action route
+        <> fmap (uncurry attr) (Htmx.htmxActionOptionAttrPairs metadata)
+        <> customHtmxAttrs action metadata route
     where
+        metadata = Htmx.htmxActionMetadataFromOptions action.overlayActionOptions
         method = overlayActionMethod action
-        optionAttrs = concatMap \case
-            HtmxActionTriggerIR value -> [attr "hx-trigger" value]
-            HtmxActionIncludeIR value -> [attr "hx-include" value]
-            HtmxActionSyncIR value -> [attr "hx-sync" value]
-            HtmxActionIndicatorIR value -> [attr "hx-indicator" value]
-            HtmxActionConfirmIR value -> [attr "hx-confirm" value]
-            HtmxActionSelectIR value -> [attr "hx-select" value]
-            HtmxActionTargetIR value -> [attr "hx-target" ("#" <> value)]
-            HtmxActionSwapIR value -> [attr "hx-swap" value]
-            HtmxActionPushUrlIR value -> [attr "hx-push-url" (if value then "true" else "false")]
-            _ -> []
 
-overlayActionMethod :: OverlayActionIR -> Text
+overlayActionMethod :: OverlayActionIR -> Htmx.HtmxMethod
 overlayActionMethod action =
-    fromMaybe "get" (listToMaybe [value | HtmxActionMethodIR value <- action.overlayActionOptions])
+    fromMaybe Htmx.HtmxGet (metadata.htmxMethod)
+    where
+        metadata = Htmx.htmxActionMetadataFromOptions action.overlayActionOptions
 
-standardFormAttrs :: Text -> Text -> [Blaze.Attribute]
+standardFormAttrs :: Htmx.HtmxMethod -> Text -> [Blaze.Attribute]
 standardFormAttrs method url =
-    [ attr "method" (standardMethodText method)
+    [ attr "method" (Htmx.htmxStandardMethodText method)
     , attr "action" url
     ]
 
@@ -140,66 +130,22 @@ standardSubmitButtonAttrs route =
     [ attr "formaction" (fromMaybe route.overlayActionRouteUrl route.overlayActionRouteStandardUrl)
     ]
 
-standardMethodText :: Text -> Text
-standardMethodText = \case
-    "get" -> "get"
-    "post" -> "post"
-    "put" -> "post"
-    "patch" -> "post"
-    "delete" -> "post"
-    _ -> "get"
-
-htmxMethodAttr :: Text -> Text
-htmxMethodAttr method = "hx-" <> method
-
 routeExtraAttrs :: OverlayActionRoute -> [Blaze.Attribute]
 routeExtraAttrs route = fmap (uncurry attr) route.overlayActionRouteExtraAttrs
 
-customHtmxAttrs :: OverlayActionIR -> OverlayActionRoute -> [Blaze.Attribute]
-customHtmxAttrs action route =
+customHtmxAttrs :: OverlayActionIR -> Htmx.HtmxActionMetadata -> OverlayActionRoute -> [Blaze.Attribute]
+customHtmxAttrs action metadata route =
     concatMap renderCustom route.overlayActionRouteCustomHtmx
     where
-        declaredMarkers = [marker | HtmxActionCustomHtmxIR marker _ <- action.overlayActionOptions]
-        renderCustom custom
-            | custom.overlayCustomHtmxAttrMarker `elem` declaredMarkers = fmap (uncurry attr) custom.overlayCustomHtmxAttrValues
-            | otherwise = error ("undeclared custom HTMX marker " <> cs custom.overlayCustomHtmxAttrMarker <> " for overlay action " <> cs action.overlayActionName)
+        renderCustom custom = fmap (uncurry attr) (Htmx.htmxCustomAttrPairs metadata action.overlayActionName custom.overlayCustomHtmxAttrMarker custom.overlayCustomHtmxAttrValues)
 
 overlayActionConfigJson :: OverlayActionIR -> Text
 overlayActionConfigJson action =
-    Text.Encoding.decodeUtf8 (LBS.toStrict (Aeson.encode (overlayActionConfigToJson action)))
-
-overlayActionConfigToJson :: OverlayActionIR -> Aeson.Value
-overlayActionConfigToJson action =
-    Aeson.object
-        [ "name" Aeson..= action.overlayActionName
-        , "fields" Aeson..= fmap (.fieldName) action.overlayActionFields
-        , "htmx" Aeson..= Aeson.object
-            [ "method" Aeson..= overlayActionMethod action
-            , "trigger" Aeson..= firstOptionText action triggerValue
-            , "include" Aeson..= firstOptionText action includeValue
-            , "sync" Aeson..= firstOptionText action syncValue
-            , "indicator" Aeson..= firstOptionText action indicatorValue
-            , "confirm" Aeson..= firstOptionText action confirmValue
-            , "select" Aeson..= firstOptionText action selectOptionValue
-            , "target" Aeson..= firstOptionText action targetValue
-            , "swap" Aeson..= firstOptionText action swapValue
-            , "pushUrl" Aeson..= listToMaybe [value | HtmxActionPushUrlIR value <- action.overlayActionOptions]
-            , "custom" Aeson..= [Aeson.object ["name" Aeson..= marker, "reason" Aeson..= reason] | HtmxActionCustomHtmxIR marker reason <- action.overlayActionOptions]
-            ]
-        ]
-
-firstOptionText :: OverlayActionIR -> (HtmxActionOptionIR -> Maybe Text) -> Maybe Text
-firstOptionText action matcher = listToMaybe (mapMaybe matcher action.overlayActionOptions)
-
-triggerValue, includeValue, syncValue, indicatorValue, confirmValue, selectOptionValue, targetValue, swapValue :: HtmxActionOptionIR -> Maybe Text
-triggerValue = \case HtmxActionTriggerIR value -> Just value; _ -> Nothing
-includeValue = \case HtmxActionIncludeIR value -> Just value; _ -> Nothing
-syncValue = \case HtmxActionSyncIR value -> Just value; _ -> Nothing
-indicatorValue = \case HtmxActionIndicatorIR value -> Just value; _ -> Nothing
-confirmValue = \case HtmxActionConfirmIR value -> Just value; _ -> Nothing
-selectOptionValue = \case HtmxActionSelectIR value -> Just value; _ -> Nothing
-targetValue = \case HtmxActionTargetIR value -> Just value; _ -> Nothing
-swapValue = \case HtmxActionSwapIR value -> Just value; _ -> Nothing
+    Htmx.htmxActionConfigJson action.overlayActionName (fmap (.fieldName) action.overlayActionFields) metadataWithDefaultMethod
+    where
+        metadataWithDefaultMethod = (Htmx.htmxActionMetadataFromOptions action.overlayActionOptions)
+            { Htmx.htmxMethod = Just (overlayActionMethod action)
+            }
 
 renderHiddenField :: OverlayFieldValue -> Blaze.Html
 renderHiddenField (OverlayFieldValue (fieldName, fieldValue)) =

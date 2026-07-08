@@ -1,6 +1,6 @@
 ---
 id: ir-e0g8
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-07-08T04:59:57Z
@@ -22,3 +22,9 @@ Add a shared HTMX request metadata IR/value model and shared Haskell rendering h
 
 Surface action rendering still passes; shared model covers method, target, swap, trigger, include, sync, confirm, push-url, and custom HTMX; tests cover Surface parity before/after deduplication.
 
+
+## Notes
+
+**2026-07-08T05:07:58Z**
+
+Implemented shared Application.Helper.FrontendContract.Htmx metadata/rendering model. Surface and legacy overlay runtimes now lower request metadata through the shared model for method, target, swap, trigger, include, sync, indicator, confirm, select, push-url, custom HTMX, and config JSON. Added parity test covering generic IR and Surface option lowering. Verified with: bash ./bin/in-env typecheck; bash ./bin/in-env hspec-test --match "shared HTMX metadata".

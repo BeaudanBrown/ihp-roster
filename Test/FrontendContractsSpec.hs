@@ -18,12 +18,14 @@ import Application.Helper.FrontendContract.Contracts (TypeScriptDeclaration (..)
                                                       TypeScriptDeclarationOrigin (..),
                                                       frontendContractDeclarations,
                                                       frontendContractsTypeScript)
+import qualified Application.Helper.FrontendContract.Htmx as Htmx
 import qualified Application.Helper.FrontendContract.IR as Contract
 import Application.Helper.FrontendContract.Registry (registeredFrontendContractIR)
 import qualified Application.Helper.FrontendContract.Roster as Roster
 import Application.Helper.FrontendContract.RosterValues (RosterStaffSortKey (..),
                                                          rosterStaffSortKeyAttribute,
                                                          rosterStaffSortKeyValues)
+import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Values (domIdValue, enumLiteralValue,
                                                    eventNameValue,
                                                    lookupDomIdValue,
@@ -69,6 +71,49 @@ tests = describe "Frontend contract generator foundation" do
         source `shouldNotSatisfy` Text.isInfixOf "export type SurfaceScope"
         source `shouldNotSatisfy` Text.isInfixOf "export const InteractionDom"
         source `shouldNotSatisfy` Text.isInfixOf "export type UiRegionTransitionProfile"
+
+    it "uses one shared HTMX metadata model for generated request primitives" do
+        let genericOptions =
+                [ Contract.HtmxActionMethodIR "post"
+                , Contract.HtmxActionTriggerIR "change"
+                , Contract.HtmxActionIncludeIR "#filters"
+                , Contract.HtmxActionSyncIR "closest form:queue"
+                , Contract.HtmxActionIndicatorIR "#spinner"
+                , Contract.HtmxActionConfirmIR "Continue?"
+                , Contract.HtmxActionSelectIR "#fragment"
+                , Contract.HtmxActionTargetIR "target"
+                , Contract.HtmxActionSwapIR "outerHTML"
+                , Contract.HtmxActionPushUrlIR False
+                , Contract.HtmxActionCustomHtmxIR "custom-marker" "fixture escape hatch"
+                ]
+        let surfaceOptions =
+                [ SurfaceIR.HtmxMethodOption SurfaceIR.HtmxPostIR
+                , SurfaceIR.HtmxTriggerOption "change"
+                , SurfaceIR.HtmxIncludeOption "#filters"
+                , SurfaceIR.HtmxSyncOption "closest form:queue"
+                , SurfaceIR.HtmxIndicatorOption "#spinner"
+                , SurfaceIR.HtmxConfirmOption "Continue?"
+                , SurfaceIR.HtmxSelectOption "#fragment"
+                , SurfaceIR.HtmxTargetOption "target"
+                , SurfaceIR.HtmxSwapOption "outerHTML"
+                , SurfaceIR.HtmxPushUrlOption SurfaceIR.HtmxPushUrlFalseIR
+                , SurfaceIR.CustomHtmxOption "custom-marker" "fixture escape hatch"
+                ]
+        let metadata = Htmx.htmxActionMetadataFromOptions genericOptions
+        metadata `shouldBe` Htmx.htmxActionMetadataFromSurfaceOptions surfaceOptions
+        Htmx.htmxActionOptionAttrPairs metadata
+            `shouldBe` [ ("hx-trigger", "change")
+                       , ("hx-include", "#filters")
+                       , ("hx-sync", "closest form:queue")
+                       , ("hx-indicator", "#spinner")
+                       , ("hx-confirm", "Continue?")
+                       , ("hx-select", "#fragment")
+                       , ("hx-target", "#target")
+                       , ("hx-swap", "outerHTML")
+                       , ("hx-push-url", "false")
+                       ]
+        Htmx.htmxActionConfigJson "fixture-action" ["fieldOne"] metadata
+            `shouldSatisfy` Text.isInfixOf "\"method\":\"post\""
 
     it "reflects generated overlay action manifests" do
         let overlayActions =
