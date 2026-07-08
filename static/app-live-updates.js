@@ -697,6 +697,72 @@
     return depth;
   }
 
+  // frontend/ts/live-updates/diagnostics.ts
+  function createLiveUpdateDiagnostics(targetWindow, targetDocument) {
+    let nextPerfToken = 0;
+    function supportsPerformanceTimeline() {
+      return Boolean(targetWindow.performance && typeof targetWindow.performance.mark === "function" && typeof targetWindow.performance.measure === "function");
+    }
+    function perfToken(prefix) {
+      nextPerfToken += 1;
+      return `${prefix}-${Date.now()}-${nextPerfToken}`;
+    }
+    function beginPerfSpan(name, detail) {
+      if (!supportsPerformanceTimeline()) return null;
+      const token = perfToken(name);
+      const startMark = `${token}:start`;
+      targetWindow.performance.mark(startMark, detail ? { detail } : void 0);
+      return {
+        token,
+        name,
+        startMark,
+        detail: detail || null
+      };
+    }
+    function endPerfSpan(span, extraDetail) {
+      if (!span || !supportsPerformanceTimeline()) return null;
+      const endMark = `${span.token}:end`;
+      const detail = extraDetail ? { ...span.detail, ...extraDetail } : span.detail;
+      targetWindow.performance.mark(endMark, detail ? { detail } : void 0);
+      let duration = null;
+      try {
+        targetWindow.performance.measure(span.name, {
+          start: span.startMark,
+          end: endMark,
+          detail: detail || void 0
+        });
+        const entries = targetWindow.performance.getEntriesByName(span.name, "measure");
+        const entry = entries[entries.length - 1];
+        duration = entry ? entry.duration : null;
+      } catch (_error) {
+        duration = null;
+      }
+      targetWindow.performance.clearMarks(span.startMark);
+      targetWindow.performance.clearMarks(endMark);
+      targetDocument.dispatchEvent(new CustomEvent("app:live-update-performance", {
+        detail: {
+          name: span.name,
+          duration,
+          ...detail
+        }
+      }));
+      return duration;
+    }
+    function emitDebugEvent(name, detail) {
+      targetDocument.dispatchEvent(new CustomEvent("app:live-update-debug", {
+        detail: {
+          name,
+          ...detail || {}
+        }
+      }));
+    }
+    return {
+      beginPerfSpan,
+      endPerfSpan,
+      emitDebugEvent
+    };
+  }
+
   // frontend/ts/live-updates/lazy-surface.ts
   var lazySurfaceSelector = `[${lazySurfaceDomAttr}="true"]`;
   var lazySurfaceRetrySelector = `[${lazySurfaceDomAttr}="true"][${lazyRetryDomAttr}="true"]`;
@@ -861,63 +927,7 @@
     let reconnectTimer = null;
     let reconnectAttempt = 0;
     let activeClientId = null;
-    let nextPerfToken = 0;
-    function supportsPerformanceTimeline() {
-      return Boolean(window.performance && typeof window.performance.mark === "function" && typeof window.performance.measure === "function");
-    }
-    function perfToken(prefix) {
-      nextPerfToken += 1;
-      return `${prefix}-${Date.now()}-${nextPerfToken}`;
-    }
-    function beginPerfSpan(name, detail) {
-      if (!supportsPerformanceTimeline()) return null;
-      const token = perfToken(name);
-      const startMark = `${token}:start`;
-      window.performance.mark(startMark, detail ? { detail } : void 0);
-      return {
-        token,
-        name,
-        startMark,
-        detail: detail || null
-      };
-    }
-    function endPerfSpan(span, extraDetail) {
-      if (!span || !supportsPerformanceTimeline()) return null;
-      const endMark = `${span.token}:end`;
-      const detail = extraDetail ? { ...span.detail, ...extraDetail } : span.detail;
-      window.performance.mark(endMark, detail ? { detail } : void 0);
-      let duration = null;
-      try {
-        window.performance.measure(span.name, {
-          start: span.startMark,
-          end: endMark,
-          detail: detail || void 0
-        });
-        const entries = window.performance.getEntriesByName(span.name, "measure");
-        const entry = entries[entries.length - 1];
-        duration = entry ? entry.duration : null;
-      } catch (_error) {
-        duration = null;
-      }
-      window.performance.clearMarks(span.startMark);
-      window.performance.clearMarks(endMark);
-      document.dispatchEvent(new CustomEvent("app:live-update-performance", {
-        detail: {
-          name: span.name,
-          duration,
-          ...detail
-        }
-      }));
-      return duration;
-    }
-    function emitDebugEvent(name, detail) {
-      document.dispatchEvent(new CustomEvent("app:live-update-debug", {
-        detail: {
-          name,
-          ...detail || {}
-        }
-      }));
-    }
+    const { beginPerfSpan, endPerfSpan, emitDebugEvent } = createLiveUpdateDiagnostics(window, document);
     function findPreservedField(root, preserveField) {
       if (!(root instanceof HTMLElement) || !preserveField) return null;
       const fieldKey = preserveField.fieldKey;

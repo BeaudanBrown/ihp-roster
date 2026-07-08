@@ -1,4 +1,4 @@
-import type { LiveUpdateCommand, LiveUpdateMessage, SurfaceScope, SurfaceWireFragment } from "./generated/contracts";
+import type { LiveUpdateCommand, LiveUpdateMessage, SurfaceWireFragment } from "./generated/contracts";
 import { parseLiveUpdateMessage, pageReadyEvent, liveFragmentsRefreshEvent, interactionSessionEndEvent } from "./generated/contracts";
 import { enableHtmxUiRegionEventAdapter } from "./fragments/htmx-adapter";
 import { enableUiRegionTransitions } from "./fragments/transitions";
@@ -11,6 +11,7 @@ import {
     parseFrontendSurfaceMountConfig,
     parseFrontendSurfaceSubscriptionConfig,
 } from "./live-updates/frontend-surface";
+import { createLiveUpdateDiagnostics } from "./live-updates/diagnostics";
 import { enableLazySurfaceErrorHandling } from "./live-updates/lazy-surface";
 import {
     buildLiveUpdateSubscribeCommand,
@@ -23,67 +24,24 @@ import {
     resolveMountedFragmentsForInvalidation,
 } from "./live-updates/protocol";
 import { assertNever } from "./shared/exhaustive";
+import type {
+    FocusedFieldProtectionPolicy,
+    FragmentProtectionAdapter,
+    HtmxConfigRequestEvent,
+    InFlightFragmentState,
+    LiveUpdateDebugDetail,
+    LiveUpdateFragmentWithState,
+    LiveUpdateInvalidateMessage,
+    LiveUpdatePreservedField,
+    LiveUpdateSubscribedMessage,
+    LiveUpdateSurfaceConfig,
+    SurfaceSubscription,
+} from "./live-updates/runtime-types";
 
 
 enableHtmxUiRegionEventAdapter();
 enableUiRegionTransitions();
 enableLazySurfaceErrorHandling();
-
-export type LiveUpdateSurfaceConfig = {
-    feature?: string | null;
-    scope: SurfaceScope;
-    scopeKey: string;
-    socketPath?: string | null;
-    resyncFragments?: SurfaceWireFragment[];
-    decorateRequestsWithin?: string[];
-};
-
-type LiveUpdateDebugDetail = Record<string, unknown>;
-type LiveUpdatePerfSpan = {
-    token: string;
-    name: string;
-    startMark: string;
-    detail: LiveUpdateDebugDetail | null;
-};
-type LiveUpdatePreservedField = {
-    rowId?: string | null;
-    fieldKey?: string | null;
-    fieldKeyAttr?: string | null;
-    name?: string | null;
-    value?: string;
-};
-type LiveUpdateFragmentWithState = SurfaceWireFragment & {
-    preserveField?: LiveUpdatePreservedField;
-};
-type SurfaceSubscription = {
-    feature: string | null;
-    scope: SurfaceScope;
-    scopeKey: string;
-    path: string;
-    resyncFragments: LiveUpdateFragmentWithState[];
-    decorateRequestsWithin: string[];
-    ownerEl?: HTMLElement;
-    ownerEls?: HTMLElement[];
-    resync: (subscription: SurfaceSubscription) => void;
-};
-type InFlightFragmentState = {
-    next: LiveUpdateFragmentWithState | null;
-};
-type FragmentProtectionAdapter = {
-    matches: (fragment: LiveUpdateFragmentWithState, target: HTMLElement) => boolean;
-    hasActiveInput: (target: HTMLElement) => boolean;
-    captureState: (target: HTMLElement, fragment: LiveUpdateFragmentWithState) => LiveUpdateFragmentWithState;
-    restoreState: (target: HTMLElement, fragment: LiveUpdateFragmentWithState) => void;
-};
-type FocusedFieldProtectionPolicy = Extract<SurfaceWireFragment["protectionPolicy"], { kind: "focused-field" }>;
-type LiveUpdateSubscribedMessage = Extract<LiveUpdateMessage, { type: "subscribed" }>;
-type LiveUpdateInvalidateMessage = Extract<LiveUpdateMessage, { type: "invalidate" }>;
-type HtmxConfigRequestEvent = Event & {
-    detail?: {
-        elt?: unknown;
-        headers?: Record<string, string>;
-    };
-};
 
 // Shared live-update runtime: one websocket per tab with many scope subscriptions.
 (function enableLiveUpdates() {
@@ -103,75 +61,7 @@ type HtmxConfigRequestEvent = Event & {
     let reconnectTimer: ReturnType<typeof window.setTimeout> | null = null;
     let reconnectAttempt = 0;
     let activeClientId: string | null = null;
-    let nextPerfToken = 0;
-
-    // Diagnostics and instrumentation.
-    function supportsPerformanceTimeline(): boolean {
-        return Boolean(window.performance && typeof window.performance.mark === 'function' && typeof window.performance.measure === 'function');
-    }
-
-    function perfToken(prefix: string): string {
-        nextPerfToken += 1;
-        return `${prefix}-${Date.now()}-${nextPerfToken}`;
-    }
-
-    function beginPerfSpan(name: string, detail?: LiveUpdateDebugDetail): LiveUpdatePerfSpan | null {
-        if (!supportsPerformanceTimeline()) return null;
-
-        const token = perfToken(name);
-        const startMark = `${token}:start`;
-        window.performance.mark(startMark, detail ? { detail } : undefined);
-        return {
-            token,
-            name,
-            startMark,
-            detail: detail || null,
-        };
-    }
-
-    function endPerfSpan(span: LiveUpdatePerfSpan | null, extraDetail?: LiveUpdateDebugDetail): number | null {
-        if (!span || !supportsPerformanceTimeline()) return null;
-
-        const endMark = `${span.token}:end`;
-        const detail = extraDetail ? { ...span.detail, ...extraDetail } : span.detail;
-        window.performance.mark(endMark, detail ? { detail } : undefined);
-
-        let duration = null;
-        try {
-            window.performance.measure(span.name, {
-                start: span.startMark,
-                end: endMark,
-                detail: detail || undefined,
-            });
-            const entries = window.performance.getEntriesByName(span.name, 'measure');
-            const entry = entries[entries.length - 1];
-            duration = entry ? entry.duration : null;
-        } catch (_error) {
-            duration = null;
-        }
-
-        window.performance.clearMarks(span.startMark);
-        window.performance.clearMarks(endMark);
-
-        document.dispatchEvent(new CustomEvent('app:live-update-performance', {
-            detail: {
-                name: span.name,
-                duration,
-                ...detail,
-            },
-        }));
-
-        return duration;
-    }
-
-    function emitDebugEvent(name: string, detail?: LiveUpdateDebugDetail): void {
-        document.dispatchEvent(new CustomEvent('app:live-update-debug', {
-            detail: {
-                name,
-                ...(detail || {}),
-            },
-        }));
-    }
+    const { beginPerfSpan, endPerfSpan, emitDebugEvent } = createLiveUpdateDiagnostics(window, document);
 
     // Focus protection and deferred refresh state.
     function findPreservedField(root: HTMLElement | null, preserveField: LiveUpdatePreservedField | undefined): HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null {

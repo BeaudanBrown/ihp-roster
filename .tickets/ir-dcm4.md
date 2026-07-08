@@ -1,6 +1,6 @@
 ---
 id: ir-dcm4
-status: open
+status: closed
 deps: [ir-81q7]
 links: []
 created: 2026-07-08T08:24:31Z
@@ -22,3 +22,9 @@ Split frontend/ts/app-live-updates.ts into connection, subscription reconciliati
 
 Runtime responsibilities are in focused modules. Generated contracts remain backend-owned and are not hand-edited. bash ./bin/in-env frontend-check or focused frontend checks pass for TS changes. bash ./bin/in-env typecheck passes for Haskell changes.
 
+
+## Notes
+
+**2026-07-08T09:02:43Z**
+
+Split the live-update TypeScript runtime boundary without changing the websocket/HTMX contract. Extracted reusable runtime type aliases into frontend/ts/live-updates/runtime-types.ts and diagnostics/performance/debug event helpers into frontend/ts/live-updates/diagnostics.ts. app-live-updates.ts now owns orchestration and state wiring while importing these focused runtime pieces. Generated contracts/static outputs were not hand-edited. Verification: bash ./bin/in-env frontend-check passed (71 frontend tests).
