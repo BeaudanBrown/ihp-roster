@@ -10,6 +10,7 @@ module Application.Helper.FrontendContract.IR
     , FrontendContractIR (..)
     , GlobalIR (..)
     , GlobalPrimitiveIR (..)
+    , AppShellActionIR (..)
     , OverlayActionIR (..)
     , SchemaIR (..)
     , SurfaceIR (..)
@@ -72,7 +73,16 @@ data GlobalPrimitiveIR
     | GlobalDomValueIR !Text !Text
     | GlobalFieldNameIR !Text !Text
     | GlobalDomTokenIR !Text !Text
+    | GlobalAppShellActionIR !AppShellActionIR
     | GlobalOverlayActionIR !OverlayActionIR
+    deriving (Eq, Show)
+
+data AppShellActionIR = AppShellActionIR
+    { appShellActionMarker  :: !Text
+    , appShellActionName    :: !Text
+    , appShellActionFields  :: ![FieldIR]
+    , appShellActionOptions :: ![HtmxActionOptionIR]
+    }
     deriving (Eq, Show)
 
 data OverlayActionIR = OverlayActionIR
@@ -196,6 +206,7 @@ validateGlobalPrimitive = \case
     GlobalDomValueIR _ _ -> []
     GlobalFieldNameIR _ _ -> []
     GlobalDomTokenIR _ _ -> []
+    GlobalAppShellActionIR action -> validateFieldNames action.appShellActionFields
     GlobalOverlayActionIR action -> validateFieldNames action.overlayActionFields
 
 validateSurfacePrimitive :: SurfacePrimitiveIR -> [ContractDiagnostic]
@@ -278,6 +289,7 @@ globalNamedPrimitives global =
         GlobalDomValueIR marker name  -> [(marker, name)]
         GlobalFieldNameIR marker name -> [(marker, name)]
         GlobalDomTokenIR marker name  -> [(marker, name)]
+        GlobalAppShellActionIR action -> [(action.appShellActionMarker, "app-shell-action:" <> action.appShellActionName)]
         GlobalOverlayActionIR action  -> [(action.overlayActionMarker, "overlay-action:" <> action.overlayActionName)]
     ]
 
@@ -310,6 +322,7 @@ globalPrimitiveRefs = \case
     GlobalDomValueIR _ _ -> []
     GlobalFieldNameIR _ _ -> []
     GlobalDomTokenIR _ _ -> []
+    GlobalAppShellActionIR action -> fieldRefs action.appShellActionFields
     GlobalOverlayActionIR action -> fieldRefs action.overlayActionFields
 
 surfacePrimitiveRefs :: SurfacePrimitiveIR -> [Text]

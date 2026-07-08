@@ -1,6 +1,6 @@
 ---
 id: ir-83ct
-status: open
+status: closed
 deps: [ir-e0g8]
 links: []
 created: 2026-07-08T04:59:57Z
@@ -22,3 +22,9 @@ Add AppShellContract, AppShellAction DSL/IR/reflection/generation, generated Typ
 
 Generated TypeScript exposes AppShell action manifests; Haskell helpers render generated attrs; tests cover action declaration, generation, marker lookup, and rendering.
 
+
+## Notes
+
+**2026-07-08T05:13:49Z**
+
+Implemented AppShellContract/AppShellAction primitive with DSL, IR, reflection, TypeScript manifest generation, registry registration, and Haskell runtime helpers for lookup/rendering/attr pairs. Added initial PartialNavigate AppShell action targeting AppContract AppContentMount. Verified with: bash ./bin/in-env typecheck; bash ./bin/in-env hspec-test --match "AppShell action"; bash ./bin/in-env frontend-check.

@@ -15,6 +15,7 @@ module Application.Helper.FrontendContract.App
     , InteractionSessionStart
     , InteractionSessionEnd
     , InteractionSessionCancelRequest
+    , AppContentMount
     , DialogOverlayMount
     , ToastOverlayMount
     ) where
@@ -36,6 +37,7 @@ data InteractionSessionStart
 data InteractionSessionEnd
 data InteractionSessionCancelRequest
 
+data AppContentMount
 data DialogOverlayMount
 data ToastOverlayMount
 
@@ -49,6 +51,7 @@ type AppContract =
          , Event InteractionSessionStart '[]
          , Event InteractionSessionEnd '[]
          , Event InteractionSessionCancelRequest '[]
+         , DomId AppContentMount
          , DomId DialogOverlayMount
          , DomId ToastOverlayMount
          ]

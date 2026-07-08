@@ -7,6 +7,10 @@ module Test.FrontendContractsSpec
     ) where
 
 import qualified Application.Helper.FrontendContract.App as App
+import qualified Application.Helper.FrontendContract.AppShell as AppShell
+import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             appShellActionByMarker,
+                                                             appShellActionHtmxAttrPairs)
 import Application.Helper.FrontendContract.AppValues (AppEvents (..),
                                                       AppOverlayDom (..),
                                                       canonicalAppEvents,
@@ -114,6 +118,31 @@ tests = describe "Frontend contract generator foundation" do
                        ]
         Htmx.htmxActionConfigJson "fixture-action" ["fieldOne"] metadata
             `shouldSatisfy` Text.isInfixOf "\"method\":\"post\""
+
+    it "reflects generated AppShell action manifests and runtime attrs" do
+        let appShellActions =
+                [ action
+                | global <- registeredFrontendContractIR.contractGlobals
+                , Contract.GlobalAppShellActionIR action <- global.globalPrimitives
+                ]
+        let partialNavigateAction = appShellActionByMarker @AppShell.PartialNavigate
+        fmap (.appShellActionName) (find ((== "partial-navigate") . (.appShellActionName)) appShellActions) `shouldBe` Just "partial-navigate"
+        partialNavigateAction.appShellActionOptions
+            `shouldBe` [ Contract.HtmxActionMethodIR "get"
+                       , Contract.HtmxActionTargetIR "app-content-mount"
+                       , Contract.HtmxActionSwapIR "innerHTML"
+                       , Contract.HtmxActionPushUrlIR True
+                       ]
+        appShellActionHtmxAttrPairs partialNavigateAction AppShellActionRoute
+            { appShellActionRouteUrl = "/next"
+            , appShellActionRouteFields = []
+            , appShellActionRouteCustomHtmx = []
+            , appShellActionRouteStandardUrl = Nothing
+            , appShellActionRouteExtraAttrs = []
+            }
+            `shouldContain` [("data-bepis-app-shell-action", "partial-navigate")]
+        frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export type AppShellActionManifest"
+        frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const partialNavigateAppShellActionManifest"
 
     it "reflects generated overlay action manifests" do
         let overlayActions =

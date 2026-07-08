@@ -8,6 +8,9 @@ module Application.Helper.FrontendContract.DSL
     ( FrontendContract (..)
     , GlobalPrimitive (..)
     , SurfacePrimitive (..)
+    , AppShellActionOption (..)
+    , AppShellRequestMethod (..)
+    , AppShellPushUrlValue (..)
     , OverlayActionOption (..)
     , OverlayRequestMethod (..)
     , OverlayPushUrlValue (..)
@@ -37,6 +40,18 @@ module Application.Helper.FrontendContract.DSL
     , DomValue
     , FieldName
     , DomToken
+    , AppShellAction
+    , AppShellHtmxMethod
+    , AppShellHtmxTrigger
+    , AppShellHtmxInclude
+    , AppShellHtmxSync
+    , AppShellHtmxIndicator
+    , AppShellHtmxConfirm
+    , AppShellHtmxSelect
+    , AppShellHtmxTarget
+    , AppShellHtmxSwap
+    , AppShellHtmxPushUrl
+    , AppShellCustomHtmx
     , OverlayAction
     , OverlayHtmxMethod
     , OverlayHtmxTrigger
@@ -82,6 +97,31 @@ data FieldSpec
     = Field Type WireType
     | OptionalField Type WireType
     | NullableField Type WireType
+
+data AppShellRequestMethod
+    = AppShellGet
+    | AppShellPost
+    | AppShellPut
+    | AppShellPatch
+    | AppShellDelete
+
+data AppShellPushUrlValue
+    = AppShellPushUrlTrue
+    | AppShellPushUrlFalse
+
+-- | Browser-visible HTMX metadata for app-shell/global request initiators.
+data AppShellActionOption
+    = AppShellHtmxMethod AppShellRequestMethod
+    | AppShellHtmxTrigger Symbol
+    | AppShellHtmxInclude Symbol
+    | AppShellHtmxSync Symbol
+    | AppShellHtmxIndicator Symbol
+    | AppShellHtmxConfirm Symbol
+    | AppShellHtmxSelect Symbol
+    | AppShellHtmxTarget Type
+    | AppShellHtmxSwap Symbol
+    | AppShellHtmxPushUrl AppShellPushUrlValue
+    | AppShellCustomHtmx Type Symbol
 
 data OverlayRequestMethod
     = OverlayGet
@@ -131,6 +171,7 @@ data GlobalPrimitive
     | DomValue Type Symbol
     | FieldName Type
     | DomToken Type
+    | AppShellAction Type [FieldSpec] [AppShellActionOption]
     | OverlayAction Type [FieldSpec] [OverlayActionOption]
 
 -- | Mounted feature UI semantics. This starts intentionally small; later tickets
@@ -171,6 +212,18 @@ type DomAttr name = 'DomAttr name
 type DomValue name value = 'DomValue name value
 type FieldName name = 'FieldName name
 type DomToken name = 'DomToken name
+type AppShellAction name fields options = 'AppShellAction name fields options
+type AppShellHtmxMethod method = 'AppShellHtmxMethod method
+type AppShellHtmxTrigger value = 'AppShellHtmxTrigger value
+type AppShellHtmxInclude value = 'AppShellHtmxInclude value
+type AppShellHtmxSync value = 'AppShellHtmxSync value
+type AppShellHtmxIndicator value = 'AppShellHtmxIndicator value
+type AppShellHtmxConfirm value = 'AppShellHtmxConfirm value
+type AppShellHtmxSelect value = 'AppShellHtmxSelect value
+type AppShellHtmxTarget target = 'AppShellHtmxTarget target
+type AppShellHtmxSwap value = 'AppShellHtmxSwap value
+type AppShellHtmxPushUrl value = 'AppShellHtmxPushUrl value
+type AppShellCustomHtmx marker reason = 'AppShellCustomHtmx marker reason
 type OverlayAction name fields options = 'OverlayAction name fields options
 type OverlayHtmxMethod method = 'OverlayHtmxMethod method
 type OverlayHtmxTrigger value = 'OverlayHtmxTrigger value

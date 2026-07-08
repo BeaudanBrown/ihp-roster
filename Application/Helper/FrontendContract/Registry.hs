@@ -8,6 +8,7 @@ module Application.Helper.FrontendContract.Registry
     ) where
 
 import Application.Helper.FrontendContract.App
+import Application.Helper.FrontendContract.AppShell
 import Application.Helper.FrontendContract.DSL
 import Application.Helper.FrontendContract.Interaction
 import Application.Helper.FrontendContract.IR
@@ -25,6 +26,7 @@ import IHP.Prelude
 -- roots are appended from the registered surface contract registry.
 type RegisteredFrontendContracts =
     '[ AppContract
+     , AppShellContract
      , UiRegionContract
      , RosterGlobalContract
      , InteractionContract

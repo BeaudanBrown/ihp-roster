@@ -125,6 +125,14 @@ instance Typeable marker => ReflectGlobalPrimitive ('FieldName marker) where
 instance Typeable marker => ReflectGlobalPrimitive ('DomToken marker) where
     reflectGlobalPrimitive = GlobalDomTokenIR (typeMarker @marker) (nameToKebab (typeMarker @marker))
 
+instance (Typeable marker, ReflectFieldList fields, ReflectAppShellActionOptionList options) => ReflectGlobalPrimitive ('AppShellAction marker fields options) where
+    reflectGlobalPrimitive = GlobalAppShellActionIR AppShellActionIR
+        { appShellActionMarker = typeMarker @marker
+        , appShellActionName = protocolName @marker Naming.ActionName
+        , appShellActionFields = reflectFieldList @fields
+        , appShellActionOptions = reflectAppShellActionOptionList @options
+        }
+
 instance (Typeable marker, ReflectFieldList fields, ReflectOverlayActionOptionList options) => ReflectGlobalPrimitive ('OverlayAction marker fields options) where
     reflectGlobalPrimitive = GlobalOverlayActionIR OverlayActionIR
         { overlayActionMarker = typeMarker @marker
@@ -132,6 +140,66 @@ instance (Typeable marker, ReflectFieldList fields, ReflectOverlayActionOptionLi
         , overlayActionFields = reflectFieldList @fields
         , overlayActionOptions = reflectOverlayActionOptionList @options
         }
+
+class ReflectAppShellActionOptionList (options :: [AppShellActionOption]) where
+    reflectAppShellActionOptionList :: [HtmxActionOptionIR]
+
+instance ReflectAppShellActionOptionList '[] where
+    reflectAppShellActionOptionList = []
+
+instance (ReflectAppShellActionOption option, ReflectAppShellActionOptionList rest) => ReflectAppShellActionOptionList (option ': rest) where
+    reflectAppShellActionOptionList = reflectAppShellActionOption @option : reflectAppShellActionOptionList @rest
+
+class ReflectAppShellActionOption (option :: AppShellActionOption) where
+    reflectAppShellActionOption :: HtmxActionOptionIR
+
+instance ReflectAppShellHtmxMethod method => ReflectAppShellActionOption ('AppShellHtmxMethod method) where
+    reflectAppShellActionOption = HtmxActionMethodIR (reflectAppShellHtmxMethod @method)
+
+instance KnownSymbol value => ReflectAppShellActionOption ('AppShellHtmxTrigger value) where
+    reflectAppShellActionOption = HtmxActionTriggerIR (cs (symbolVal (Proxy @value)))
+
+instance KnownSymbol value => ReflectAppShellActionOption ('AppShellHtmxInclude value) where
+    reflectAppShellActionOption = HtmxActionIncludeIR (cs (symbolVal (Proxy @value)))
+
+instance KnownSymbol value => ReflectAppShellActionOption ('AppShellHtmxSync value) where
+    reflectAppShellActionOption = HtmxActionSyncIR (cs (symbolVal (Proxy @value)))
+
+instance KnownSymbol value => ReflectAppShellActionOption ('AppShellHtmxIndicator value) where
+    reflectAppShellActionOption = HtmxActionIndicatorIR (cs (symbolVal (Proxy @value)))
+
+instance KnownSymbol value => ReflectAppShellActionOption ('AppShellHtmxConfirm value) where
+    reflectAppShellActionOption = HtmxActionConfirmIR (cs (symbolVal (Proxy @value)))
+
+instance KnownSymbol value => ReflectAppShellActionOption ('AppShellHtmxSelect value) where
+    reflectAppShellActionOption = HtmxActionSelectIR (cs (symbolVal (Proxy @value)))
+
+instance Typeable marker => ReflectAppShellActionOption ('AppShellHtmxTarget marker) where
+    reflectAppShellActionOption = HtmxActionTargetIR (nameToKebab (typeMarker @marker))
+
+instance KnownSymbol value => ReflectAppShellActionOption ('AppShellHtmxSwap value) where
+    reflectAppShellActionOption = HtmxActionSwapIR (cs (symbolVal (Proxy @value)))
+
+instance ReflectAppShellHtmxPushUrl value => ReflectAppShellActionOption ('AppShellHtmxPushUrl value) where
+    reflectAppShellActionOption = HtmxActionPushUrlIR (reflectAppShellHtmxPushUrl @value)
+
+instance (Typeable marker, KnownSymbol reason) => ReflectAppShellActionOption ('AppShellCustomHtmx marker reason) where
+    reflectAppShellActionOption = HtmxActionCustomHtmxIR (nameToKebab (typeMarker @marker)) (cs (symbolVal (Proxy @reason)))
+
+class ReflectAppShellHtmxMethod (method :: AppShellRequestMethod) where
+    reflectAppShellHtmxMethod :: Text
+
+instance ReflectAppShellHtmxMethod 'AppShellGet where reflectAppShellHtmxMethod = "get"
+instance ReflectAppShellHtmxMethod 'AppShellPost where reflectAppShellHtmxMethod = "post"
+instance ReflectAppShellHtmxMethod 'AppShellPut where reflectAppShellHtmxMethod = "put"
+instance ReflectAppShellHtmxMethod 'AppShellPatch where reflectAppShellHtmxMethod = "patch"
+instance ReflectAppShellHtmxMethod 'AppShellDelete where reflectAppShellHtmxMethod = "delete"
+
+class ReflectAppShellHtmxPushUrl (value :: AppShellPushUrlValue) where
+    reflectAppShellHtmxPushUrl :: Bool
+
+instance ReflectAppShellHtmxPushUrl 'AppShellPushUrlTrue where reflectAppShellHtmxPushUrl = True
+instance ReflectAppShellHtmxPushUrl 'AppShellPushUrlFalse where reflectAppShellHtmxPushUrl = False
 
 class ReflectOverlayActionOptionList (options :: [OverlayActionOption]) where
     reflectOverlayActionOptionList :: [HtmxActionOptionIR]

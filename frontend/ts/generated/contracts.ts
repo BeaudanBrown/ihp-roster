@@ -509,9 +509,23 @@ export function encodeInteractionSessionCancelRequestEventDetail(value: Interact
 
 export const interactionSessionCancelRequestEvent = "bepis:interaction-session-cancel-request" as const;
 
+export const appContentMountDomId = "app-content-mount" as const;
+
 export const dialogOverlayMountDomId = "dialog-overlay-mount" as const;
 
 export const toastOverlayMountDomId = "toast-overlay-mount" as const;
+
+export type PartialNavigateAppShellActionFields = {  };
+export function isPartialNavigateAppShellActionFields(value: unknown): value is PartialNavigateAppShellActionFields {
+    return isRecord(value);
+}
+export function parsePartialNavigateAppShellActionFields(value: unknown): PartialNavigateAppShellActionFields {
+    if (isPartialNavigateAppShellActionFields(value)) return value;
+    throw new Error("Invalid PartialNavigateAppShellActionFields");
+}
+export function encodePartialNavigateAppShellActionFields(value: PartialNavigateAppShellActionFields): PartialNavigateAppShellActionFields { return value; }
+
+export const partialNavigateAppShellActionManifest = {"name":"partial-navigate","fields":[],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"app-content-mount","swap":"innerHTML","pushUrl":true,"custom":[]}} as const;
 
 export type UiRegionTransitionProfile =
     "none"
@@ -2816,6 +2830,7 @@ export function parseFrontendSurfaceLiveFragment(value: unknown): FrontendSurfac
 export type HtmxActionMethod = "get" | "post" | "put" | "patch" | "delete";
 export type HtmxActionOptions = { method: HtmxActionMethod | null; trigger: string | null; include: string | null; sync: string | null; indicator: string | null; confirm: string | null; select: string | null; target: string | null; swap: string | null; pushUrl: boolean | null; custom: ReadonlyArray<{ name: string; reason: string }> };
 export type FrontendSurfaceActionManifest = { name: string; fields: readonly string[]; htmx: HtmxActionOptions };
+export type AppShellActionManifest = { name: string; fields: readonly string[]; htmx: HtmxActionOptions };
 export type OverlayActionManifest = { name: string; fields: readonly string[]; htmx: HtmxActionOptions };
 export function isHtmxActionMethod(value: unknown): value is HtmxActionMethod {
     return value === "get" || value === "post" || value === "put" || value === "patch" || value === "delete";
@@ -2834,6 +2849,13 @@ export function isFrontendSurfaceActionManifest(value: unknown): value is Fronte
 export function parseFrontendSurfaceActionManifest(value: unknown): FrontendSurfaceActionManifest {
     if (isFrontendSurfaceActionManifest(value)) return value;
     throw new Error("Invalid FrontendSurfaceActionManifest");
+}
+export function isAppShellActionManifest(value: unknown): value is AppShellActionManifest {
+    return isRecord(value) && typeof value.name === "string" && Array.isArray(value.fields) && value.fields.every((field) => typeof field === "string") && isHtmxActionOptions(value.htmx);
+}
+export function parseAppShellActionManifest(value: unknown): AppShellActionManifest {
+    if (isAppShellActionManifest(value)) return value;
+    throw new Error("Invalid AppShellActionManifest");
 }
 export function isOverlayActionManifest(value: unknown): value is OverlayActionManifest {
     return isRecord(value) && typeof value.name === "string" && Array.isArray(value.fields) && value.fields.every((field) => typeof field === "string") && isHtmxActionOptions(value.htmx);
