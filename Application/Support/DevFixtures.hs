@@ -12,6 +12,7 @@ import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..))
 import Application.Helper.VenueBootstrap (provisionVenueUser)
 import Application.Support
+import Application.Support.Seed.Calendar (weekOffsetForDay)
 import Application.Support.Seed.Scenario
 import Control.Monad (replicateM, void)
 import qualified Data.Aeson as Aeson
@@ -1187,4 +1188,4 @@ dayAtOffset :: Day -> Integer -> Day
 dayAtOffset weekStart offset = addDays offset weekStart
 
 weekOffsetFor :: Day -> Int
-weekOffsetFor day = fromInteger (diffDays day defaultWeekEpoch `div` 7)
+weekOffsetFor = weekOffsetForDay

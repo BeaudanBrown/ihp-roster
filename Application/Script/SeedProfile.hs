@@ -1,10 +1,12 @@
 module Application.Script.SeedProfile where
 
+import Application.Support.Seed.Calendar (currentWeekOffsetForDay,
+                                          weekStartForOffset)
 import Control.Monad (foldM)
 import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
-import Data.Time.Calendar (Day, addDays, diffDays, fromGregorian)
+import Data.Time.Calendar (Day, addDays)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import IHP.Prelude
 import System.Directory (createDirectoryIfMissing)
@@ -772,16 +774,6 @@ weekOffsets :: ProfileSeedPlan -> [Int]
 weekOffsets plan =
     [currentWeekOffset plan - weeksHistory plan.options + 1 .. currentWeekOffset plan + weeksFuture plan.options]
 
-weekStartForOffset :: Int -> Day
-weekStartForOffset weekOffset =
-    addDays (toInteger (weekOffset * 7)) defaultWeekEpoch
-
-currentWeekOffsetForDay :: Day -> Int
-currentWeekOffsetForDay today =
-    fromInteger (diffDays today defaultWeekEpoch `div` 7)
-
-defaultWeekEpoch :: Day
-defaultWeekEpoch = fromGregorian 2025 1 6
 
 dateText :: Day -> Text
 dateText = tshow

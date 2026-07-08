@@ -3,14 +3,15 @@ module Application.Script.SeedDev where
 import Application.Helper.Controller (unsafeEnumFromText)
 import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey)
 import Application.Script.Prelude
-import Application.Support (defaultWeekEpoch)
 import Application.Support.DevFixtures (DevSeedFixture (..),
                                         seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth)
+import Application.Support.Seed.Calendar (currentWeekOffsetForDay,
+                                          weekStartForOffset)
 import Application.Support.Seed.Scenario
 import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
-import Data.Time.Calendar (Day, addDays, diffDays)
+import Data.Time.Calendar (Day)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified System.Environment as Environment
 import System.Exit (exitSuccess)
@@ -187,8 +188,4 @@ printSeedDevUsage = do
     TextIO.putStrLn "  --roster-fill=<0-100>"
 
 currentFixtureWeekStart :: Day -> Day
-currentFixtureWeekStart today =
-    addDays (toInteger (currentWeekOffsetForDay today * 7)) defaultWeekEpoch
-
-currentWeekOffsetForDay :: Day -> Int
-currentWeekOffsetForDay today = fromInteger (diffDays today defaultWeekEpoch `div` 7)
+currentFixtureWeekStart = weekStartForOffset . currentWeekOffsetForDay

@@ -1,6 +1,6 @@
 ---
 id: ir-kq7a
-status: open
+status: closed
 deps: [ir-8p1e]
 links: []
 created: 2026-07-08T08:24:31Z
@@ -22,3 +22,9 @@ Extract shared deterministic date, id, staff, venue, roster, timesheet, and Xero
 
 Repeated constants such as week epoch/id/time helpers have one clear owner. Seed/profile/test fixture code is easier to scan. Existing dev seed/profile/e2e fixture checks pass or output drift is explicitly reviewed.
 
+
+## Notes
+
+**2026-07-08T09:12:49Z**
+
+Consolidated deterministic seed week calendar helpers. Added Application.Support.Seed.Calendar as the shared owner for weekStartForOffset/currentWeekOffsetForDay/weekOffsetForDay and routed dev fixture, profile seed, dev seed, and payroll fixture scripts through it instead of duplicating defaultWeekEpoch arithmetic. Seed output semantics are intended to remain unchanged. Verification: bash ./bin/in-env typecheck passed; bash ./bin/in-env hspec-test --match "Dev seed" passed (10 examples, 0 failures).

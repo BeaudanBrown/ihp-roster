@@ -1,12 +1,13 @@
 module Application.Script.SeedPayrollFixture where
 
 import Application.Script.Prelude
-import Application.Support (defaultWeekEpoch)
 import Application.Support.PayrollFixtures (ExplorationPayrollFixture (..),
                                             seedExplorationPayrollFixtureForWeek)
+import Application.Support.Seed.Calendar (currentWeekOffsetForDay,
+                                          weekStartForOffset)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
-import Data.Time.Calendar (Day, addDays, diffDays)
+import Data.Time.Calendar (Day)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import System.Exit (exitFailure)
 
@@ -41,8 +42,4 @@ run = do
     fixtureVenueName = "Payroll Parity Venue"
 
 currentFixtureWeekStart :: Day -> Day
-currentFixtureWeekStart today =
-    addDays (toInteger (currentWeekOffset today * 7)) defaultWeekEpoch
-
-currentWeekOffset :: Day -> Int
-currentWeekOffset today = fromInteger (diffDays today defaultWeekEpoch `div` 7)
+currentFixtureWeekStart = weekStartForOffset . currentWeekOffsetForDay
