@@ -1,6 +1,6 @@
 ---
 id: ir-x6pe
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-07-08T00:02:52Z
