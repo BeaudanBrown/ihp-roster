@@ -30,6 +30,11 @@ module Application.Helper.FrontendContract.Overlay
     , OpenPasskeySetupDialog
     , OpenPasskeyRecoveryCodeDialog
     , CreateLeaveRequestOverlay
+    , OpenRosterShiftDialog
+    , CreateRosterShiftOverlay
+    , UpdateRosterShiftOverlay
+    , DeleteRosterSlotOverlay
+    , ConfirmRemoveRosterRowOverlay
     , CreateTrialStaffOverlay
     , UpdateStaffProfileOverlay
     , UpdateStaffShiftPreferencesOverlay
@@ -52,6 +57,7 @@ module Application.Helper.FrontendContract.Overlay
     , RosterGroupIdsField
     , RosterGroupIdField
     , ShiftPreferenceKeysField
+    , ConfirmDeletePopulatedRowField
     , InvitationEmailField
     ) where
 
@@ -88,6 +94,11 @@ data ManagerNoteField
 data OpenPasskeySetupDialog
 data OpenPasskeyRecoveryCodeDialog
 data CreateLeaveRequestOverlay
+data OpenRosterShiftDialog
+data CreateRosterShiftOverlay
+data UpdateRosterShiftOverlay
+data DeleteRosterSlotOverlay
+data ConfirmRemoveRosterRowOverlay
 data CreateTrialStaffOverlay
 data UpdateStaffProfileOverlay
 data UpdateStaffShiftPreferencesOverlay
@@ -110,6 +121,7 @@ data IsActiveField
 data RosterGroupIdsField
 data RosterGroupIdField
 data ShiftPreferenceKeysField
+data ConfirmDeletePopulatedRowField
 data InvitationEmailField
 
 type OverlayContract =
@@ -166,6 +178,26 @@ type OverlayContract =
              , Field ReasonField 'WireText
              ]
             DialogSubmitOptions
+         , OverlayAction OpenRosterShiftDialog DialogLauncherFields DialogLauncherOptions
+         , OverlayAction CreateRosterShiftOverlay RosterShiftFields DialogSubmitOptions
+         , OverlayAction UpdateRosterShiftOverlay RosterShiftFields DialogSubmitOptions
+         , OverlayAction DeleteRosterSlotOverlay
+            '[]
+            '[ OverlayHtmxMethod 'OverlayDelete
+             , OverlayHtmxTarget DialogOverlayMount
+             , OverlayHtmxSwap "innerHTML"
+             , OverlayHtmxPushUrl 'OverlayPushUrlFalse
+             , OverlayHtmxConfirm "Delete this shift?"
+             ]
+         , OverlayAction ConfirmRemoveRosterRowOverlay
+            '[ Field ConfirmDeletePopulatedRowField 'WireText
+             ]
+            '[ OverlayHtmxMethod 'OverlayPost
+             , OverlayHtmxTarget DialogOverlayMount
+             , OverlayHtmxSwap "innerHTML"
+             , OverlayHtmxPushUrl 'OverlayPushUrlFalse
+             , OverlayHtmxSync "#roster-week-shell:replace"
+             ]
          , OverlayAction CreateTrialStaffOverlay StaffProfileFields DialogSubmitOptions
          , OverlayAction UpdateStaffProfileOverlay StaffProfileFields DialogSubmitOptions
          , OverlayAction UpdateStaffShiftPreferencesOverlay StaffShiftPreferenceFields DialogSubmitOptions
@@ -189,6 +221,13 @@ type DialogSubmitOptions =
      , OverlayHtmxTarget DialogOverlayMount
      , OverlayHtmxSwap "innerHTML"
      , OverlayHtmxPushUrl 'OverlayPushUrlFalse
+     ]
+
+type RosterShiftFields =
+    '[ Field StaffIdField 'WireText
+     , Field ShiftTypeIdField 'WireText
+     , Field StartTimeField 'WireText
+     , Field EndTimeField 'WireText
      ]
 
 type StaffProfileFields =

@@ -1262,6 +1262,66 @@ export function encodeCreateLeaveRequestOverlayOverlayActionFields(value: Create
 
 export const createLeaveRequestOverlayOverlayActionManifest = {"name":"create-leave-request-overlay","fields":["startDate","endDate","reason"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
 
+export type OpenRosterShiftDialogOverlayActionFields = {  };
+export function isOpenRosterShiftDialogOverlayActionFields(value: unknown): value is OpenRosterShiftDialogOverlayActionFields {
+    return isRecord(value);
+}
+export function parseOpenRosterShiftDialogOverlayActionFields(value: unknown): OpenRosterShiftDialogOverlayActionFields {
+    if (isOpenRosterShiftDialogOverlayActionFields(value)) return value;
+    throw new Error("Invalid OpenRosterShiftDialogOverlayActionFields");
+}
+export function encodeOpenRosterShiftDialogOverlayActionFields(value: OpenRosterShiftDialogOverlayActionFields): OpenRosterShiftDialogOverlayActionFields { return value; }
+
+export const openRosterShiftDialogOverlayActionManifest = {"name":"open-roster-shift-dialog","fields":[],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type CreateRosterShiftOverlayOverlayActionFields = { staffId: string; shiftTypeId: string; startTime: string; endTime: string };
+export function isCreateRosterShiftOverlayOverlayActionFields(value: unknown): value is CreateRosterShiftOverlayOverlayActionFields {
+    return isRecord(value) && (typeof value["staffId"] === "string") && (typeof value["shiftTypeId"] === "string") && (typeof value["startTime"] === "string") && (typeof value["endTime"] === "string");
+}
+export function parseCreateRosterShiftOverlayOverlayActionFields(value: unknown): CreateRosterShiftOverlayOverlayActionFields {
+    if (isCreateRosterShiftOverlayOverlayActionFields(value)) return value;
+    throw new Error("Invalid CreateRosterShiftOverlayOverlayActionFields");
+}
+export function encodeCreateRosterShiftOverlayOverlayActionFields(value: CreateRosterShiftOverlayOverlayActionFields): CreateRosterShiftOverlayOverlayActionFields { return value; }
+
+export const createRosterShiftOverlayOverlayActionManifest = {"name":"create-roster-shift-overlay","fields":["staffId","shiftTypeId","startTime","endTime"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type UpdateRosterShiftOverlayOverlayActionFields = { staffId: string; shiftTypeId: string; startTime: string; endTime: string };
+export function isUpdateRosterShiftOverlayOverlayActionFields(value: unknown): value is UpdateRosterShiftOverlayOverlayActionFields {
+    return isRecord(value) && (typeof value["staffId"] === "string") && (typeof value["shiftTypeId"] === "string") && (typeof value["startTime"] === "string") && (typeof value["endTime"] === "string");
+}
+export function parseUpdateRosterShiftOverlayOverlayActionFields(value: unknown): UpdateRosterShiftOverlayOverlayActionFields {
+    if (isUpdateRosterShiftOverlayOverlayActionFields(value)) return value;
+    throw new Error("Invalid UpdateRosterShiftOverlayOverlayActionFields");
+}
+export function encodeUpdateRosterShiftOverlayOverlayActionFields(value: UpdateRosterShiftOverlayOverlayActionFields): UpdateRosterShiftOverlayOverlayActionFields { return value; }
+
+export const updateRosterShiftOverlayOverlayActionManifest = {"name":"update-roster-shift-overlay","fields":["staffId","shiftTypeId","startTime","endTime"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type DeleteRosterSlotOverlayOverlayActionFields = {  };
+export function isDeleteRosterSlotOverlayOverlayActionFields(value: unknown): value is DeleteRosterSlotOverlayOverlayActionFields {
+    return isRecord(value);
+}
+export function parseDeleteRosterSlotOverlayOverlayActionFields(value: unknown): DeleteRosterSlotOverlayOverlayActionFields {
+    if (isDeleteRosterSlotOverlayOverlayActionFields(value)) return value;
+    throw new Error("Invalid DeleteRosterSlotOverlayOverlayActionFields");
+}
+export function encodeDeleteRosterSlotOverlayOverlayActionFields(value: DeleteRosterSlotOverlayOverlayActionFields): DeleteRosterSlotOverlayOverlayActionFields { return value; }
+
+export const deleteRosterSlotOverlayOverlayActionManifest = {"name":"delete-roster-slot-overlay","fields":[],"htmx":{"method":"delete","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":"Delete this shift?","select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type ConfirmRemoveRosterRowOverlayOverlayActionFields = { confirmDeletePopulatedRow: string };
+export function isConfirmRemoveRosterRowOverlayOverlayActionFields(value: unknown): value is ConfirmRemoveRosterRowOverlayOverlayActionFields {
+    return isRecord(value) && (typeof value["confirmDeletePopulatedRow"] === "string");
+}
+export function parseConfirmRemoveRosterRowOverlayOverlayActionFields(value: unknown): ConfirmRemoveRosterRowOverlayOverlayActionFields {
+    if (isConfirmRemoveRosterRowOverlayOverlayActionFields(value)) return value;
+    throw new Error("Invalid ConfirmRemoveRosterRowOverlayOverlayActionFields");
+}
+export function encodeConfirmRemoveRosterRowOverlayOverlayActionFields(value: ConfirmRemoveRosterRowOverlayOverlayActionFields): ConfirmRemoveRosterRowOverlayOverlayActionFields { return value; }
+
+export const confirmRemoveRosterRowOverlayOverlayActionManifest = {"name":"confirm-remove-roster-row-overlay","fields":["confirmDeletePopulatedRow"],"htmx":{"method":"post","trigger":null,"include":null,"sync":"#roster-week-shell:replace","indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
 export type CreateTrialStaffOverlayOverlayActionFields = { firstName: string; lastName: string; preferredName: string; phone: string; idealShiftsPerWeek: string; emergencyContactName: string; emergencyContactPhone: string; section: string; weekOffset: string; rosterGroupId: string; venueRole: string; employmentBasis: string; payRateSelection: string; isActive: string; rosterGroupIds: string };
 export function isCreateTrialStaffOverlayOverlayActionFields(value: unknown): value is CreateTrialStaffOverlayOverlayActionFields {
     return isRecord(value) && (typeof value["firstName"] === "string") && (typeof value["lastName"] === "string") && (typeof value["preferredName"] === "string") && (typeof value["phone"] === "string") && (typeof value["idealShiftsPerWeek"] === "string") && (typeof value["emergencyContactName"] === "string") && (typeof value["emergencyContactPhone"] === "string") && (typeof value["section"] === "string") && (typeof value["weekOffset"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["venueRole"] === "string") && (typeof value["employmentBasis"] === "string") && (typeof value["payRateSelection"] === "string") && (typeof value["isActive"] === "string") && (typeof value["rosterGroupIds"] === "string");

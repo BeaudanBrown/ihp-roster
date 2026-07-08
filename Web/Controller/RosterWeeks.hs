@@ -7,6 +7,10 @@
 module Web.Controller.RosterWeeks where
 
 import Application.Helper.Controller
+import Application.Helper.FrontendContract.Overlay (ConfirmRemoveRosterRowOverlay)
+import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
+                                                            overlayActionByMarker,
+                                                            renderOverlayActionForm)
 import Application.Helper.FrontendContract.Surface.DependencyPlanner (planFrontendSurfaceInvalidation)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment (..))
 import Application.Helper.LiveUpdate
@@ -924,17 +928,7 @@ respondWithRemoveRosterRowConfirmation rosterDay preview =
         then respondHtmlProfiled [hsx|
             <div id={dialogOverlayMountId} hx-swap-oob="innerHTML">
                 {confirmationDialog}
-                <form id={confirmFormId}
-                      method="POST"
-                      action={RemoveRosterRowAction rosterDay.id}
-                      data-disable-javascript-submission="true"
-                      hx-post={RemoveRosterRowAction rosterDay.id}
-                      hx-target={"#" <> dialogOverlayMountId}
-                      hx-swap="innerHTML"
-                      hx-push-url="false"
-                      hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
-                    <input type="hidden" name="confirmDeletePopulatedRow" value="true" />
-                </form>
+                {confirmForm}
             </div>
         |]
         else do
@@ -947,6 +941,20 @@ respondWithRemoveRosterRowConfirmation rosterDay preview =
             if overflowCount == 1
                 then "1 shift"
                 else tshow overflowCount <> " shifts"
+        confirmForm =
+            renderOverlayActionForm
+                (overlayActionByMarker @ConfirmRemoveRosterRowOverlay)
+                OverlayActionRoute
+                    { overlayActionRouteUrl = pathTo (RemoveRosterRowAction rosterDay.id)
+                    , overlayActionRouteFields = []
+                    , overlayActionRouteCustomHtmx = []
+                    , overlayActionRouteStandardUrl = Nothing
+                    , overlayActionRouteExtraAttrs =
+                        [ ("id", confirmFormId)
+                        , ("data-disable-javascript-submission", "true")
+                        ]
+                    }
+                [hsx|<input type="hidden" name="confirmDeletePopulatedRow" value="true" />|]
         confirmationDialog =
             renderDialogOverlay DialogOverlayConfig
                 { dialogOverlayTitle = "Delete roster row?"

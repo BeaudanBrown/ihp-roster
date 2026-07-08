@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE TypeApplications    #-}
 
 module Web.View.RosterWeeks.ShiftDialog
     ( RosterShiftDialogMode (..)
@@ -9,12 +10,18 @@ module Web.View.RosterWeeks.ShiftDialog
     , renderRosterShiftDialog
     ) where
 
+import Application.Helper.FrontendContract.IR (OverlayActionIR)
+import Application.Helper.FrontendContract.Overlay (CreateRosterShiftOverlay,
+                                                    DeleteRosterSlotOverlay,
+                                                    UpdateRosterShiftOverlay)
+import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
+                                                            overlayActionByMarker,
+                                                            renderOverlayActionForm)
 import Application.Helper.TimeRules (rosterOperationalFinalSelectableTimeText,
                                      rosterOperationalStartTimeText)
 import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 OverlayButtonAction (..), defaultOverlayButtons,
-                                dialogOverlayMountId, renderDialogOverlay,
-                                staffDisplayName)
+                                renderDialogOverlay, staffDisplayName)
 import Application.Helper.View.TimePicker (defaultTimePickerConfig,
                                            optionalTimeOfDayToStorageValue,
                                            renderTimePickerField)
@@ -100,26 +107,40 @@ deleteButton (EditRosterShiftDialog rosterSlotId) =
     [ OverlayButton
         { overlayButtonLabel = "Delete shift"
         , overlayButtonClass = "btn btn-outline-danger"
-        , overlayButtonAction = OverlayFormAction "DELETE" (pathTo (DeleteRosterSlotAction rosterSlotId)) [] ("#" <> dialogOverlayMountId) (Just "Delete this shift?")
+        , overlayButtonAction = OverlayGeneratedFormAction (overlayActionByMarker @DeleteRosterSlotOverlay) (rosterOverlayActionRoute (pathTo (DeleteRosterSlotAction rosterSlotId))) [] (Just "Delete this shift?")
         }
     ]
 
+rosterShiftSubmitOverlayAction :: RosterShiftDialogMode -> OverlayActionIR
+rosterShiftSubmitOverlayAction NewRosterShiftDialog {} = overlayActionByMarker @CreateRosterShiftOverlay
+rosterShiftSubmitOverlayAction EditRosterShiftDialog {} = overlayActionByMarker @UpdateRosterShiftOverlay
+
+rosterOverlayActionRoute :: Text -> OverlayActionRoute
+rosterOverlayActionRoute actionUrl =
+    OverlayActionRoute
+        { overlayActionRouteUrl = actionUrl
+        , overlayActionRouteFields = []
+        , overlayActionRouteCustomHtmx = []
+        , overlayActionRouteStandardUrl = Nothing
+        , overlayActionRouteExtraAttrs = []
+        }
+
 
 renderRosterShiftForm :: (?context :: ControllerContext) => RosterShiftDialogData -> Html
-renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogStaff, rosterShiftDialogStaffOptionStates, rosterShiftDialogShiftTypes, rosterShiftDialogValues } = [hsx|
-    <form id={rosterShiftFormId rosterShiftDialogMode}
-          method="POST"
-          action={rosterShiftFormAction rosterShiftDialogMode}
-          data-disable-javascript-submission="true"
-          hx-post={rosterShiftFormAction rosterShiftDialogMode}
-          hx-target={"#" <> dialogOverlayMountId}
-          hx-swap="innerHTML"
-          hx-push-url="false">
-        {renderMaybeFormError rosterShiftDialogValues.rosterShiftFormError}
-        {renderDialogAssignmentFields}
-        {renderDialogTimeFields}
-    </form>
-|]
+renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogStaff, rosterShiftDialogStaffOptionStates, rosterShiftDialogShiftTypes, rosterShiftDialogValues } =
+    renderOverlayActionForm
+        (rosterShiftSubmitOverlayAction rosterShiftDialogMode)
+        (rosterOverlayActionRoute (pathTo (rosterShiftFormAction rosterShiftDialogMode)))
+            { overlayActionRouteExtraAttrs =
+                [ ("id", rosterShiftFormId rosterShiftDialogMode)
+                , ("data-disable-javascript-submission", "true")
+                ]
+            }
+        [hsx|
+            {renderMaybeFormError rosterShiftDialogValues.rosterShiftFormError}
+            {renderDialogAssignmentFields}
+            {renderDialogTimeFields}
+        |]
   where
     renderDialogAssignmentFields = [hsx|
         <div class="row g-3 mb-3">

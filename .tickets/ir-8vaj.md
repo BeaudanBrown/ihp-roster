@@ -1,6 +1,6 @@
 ---
 id: ir-8vaj
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-07-08T00:22:15Z
@@ -22,3 +22,9 @@ Use existing OverlayAction runtime helpers and typed marker lookup. Preserve cur
 
 Migrated callsites use generated OverlayAction helpers, generated TS is refreshed, and focused checks pass.
 
+
+## Notes
+
+**2026-07-08T00:58:22Z**
+
+Migrated roster shift dialog launchers, create/update shift forms, delete shift footer action, and remove-row confirmation form to generated OverlayAction contracts. Focused typecheck, frontend-check, and RosterWeeks/RosterGrid/Roster hspec checks pass.
