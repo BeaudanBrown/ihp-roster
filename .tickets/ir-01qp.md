@@ -1,6 +1,6 @@
 ---
 id: ir-01qp
-status: open
+status: in_progress
 deps: [ir-2yh1]
 links: []
 created: 2026-07-08T08:24:31Z
@@ -22,3 +22,9 @@ Split Application/Helper/Xero.hs into focused client/config/crypto/request/respo
 
 Main Xero helper/preparation files are materially shorter and more focused. Existing imports can still use compatibility exports where useful. bash ./bin/in-env typecheck passes. bash ./bin/in-env hspec-test --match "Xero" or a documented focused equivalent passes.
 
+
+## Notes
+
+**2026-07-08T08:48:58Z**
+
+First behavior-preserving split: moved Xero request/reference/client data types, JSON response wrappers, and Xero reference parsing helpers from Application.Helper.Xero into Application.Helper.Xero.Types. Application.Helper.Xero remains the facade export used by existing callers. Verification: bash ./bin/in-env typecheck passed; bash ./bin/in-env hspec-test --match "Xero" passed (135 examples, 0 failures).

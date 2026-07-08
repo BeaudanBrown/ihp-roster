@@ -1,6 +1,6 @@
 ---
 id: ir-2yh1
-status: open
+status: closed
 deps: [ir-wwyg]
 links: []
 created: 2026-07-08T08:24:31Z
@@ -22,3 +22,9 @@ Delete stray .hi/.o artifacts under Application/Helper/FrontendContract and rela
 
 Source-tree compiled artifacts are gone. Git status shows only intended source/ignore/ticket changes. A focused lightweight check or typecheck confirms no source dependency on the artifacts.
 
+
+## Notes
+
+**2026-07-08T08:46:31Z**
+
+Removed ignored source-tree build artifacts under Application/Helper/FrontendContract (*.hi/*.o). The files were not tracked by git. Existing root .gitignore already contains *.hi and *.o, so no new ignore rule was needed.
