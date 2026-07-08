@@ -2082,29 +2082,34 @@ export function parseFrontendSurfaceLiveFragment(value: unknown): FrontendSurfac
     throw new Error("Invalid FrontendSurfaceLiveFragment");
 }
 
-export type FrontendSurfaceHtmxMethod = "get" | "post" | "put" | "patch" | "delete";
-export type FrontendSurfaceActionHtmxOptions = { method: FrontendSurfaceHtmxMethod | null; trigger: string | null; include: string | null; sync: string | null; indicator: string | null; confirm: string | null; select: string | null; target: string | null; swap: string | null; pushUrl: boolean | null; custom: ReadonlyArray<{ name: string; reason: string }> };
-export type FrontendSurfaceActionManifest = { name: string; fields: readonly string[]; htmx: FrontendSurfaceActionHtmxOptions };
-export type OverlayActionManifest = FrontendSurfaceActionManifest;
-export function isOverlayActionManifest(value: unknown): value is OverlayActionManifest { return isFrontendSurfaceActionManifest(value); }
-export function parseOverlayActionManifest(value: unknown): OverlayActionManifest { if (isOverlayActionManifest(value)) return value; throw new Error("Invalid OverlayActionManifest"); }
-export function isFrontendSurfaceHtmxMethod(value: unknown): value is FrontendSurfaceHtmxMethod {
+export type HtmxActionMethod = "get" | "post" | "put" | "patch" | "delete";
+export type HtmxActionOptions = { method: HtmxActionMethod | null; trigger: string | null; include: string | null; sync: string | null; indicator: string | null; confirm: string | null; select: string | null; target: string | null; swap: string | null; pushUrl: boolean | null; custom: ReadonlyArray<{ name: string; reason: string }> };
+export type FrontendSurfaceActionManifest = { name: string; fields: readonly string[]; htmx: HtmxActionOptions };
+export type OverlayActionManifest = { name: string; fields: readonly string[]; htmx: HtmxActionOptions };
+export function isHtmxActionMethod(value: unknown): value is HtmxActionMethod {
     return value === "get" || value === "post" || value === "put" || value === "patch" || value === "delete";
 }
-export function isFrontendSurfaceActionHtmxOptions(value: unknown): value is FrontendSurfaceActionHtmxOptions {
+export function isHtmxActionOptions(value: unknown): value is HtmxActionOptions {
     if (!isRecord(value)) return false;
     const nullableString = (candidate: unknown) => candidate === null || typeof candidate === "string";
-    const methodOk = value.method === null || isFrontendSurfaceHtmxMethod(value.method);
+    const methodOk = value.method === null || isHtmxActionMethod(value.method);
     const pushUrlOk = value.pushUrl === null || typeof value.pushUrl === "boolean";
     const customOk = Array.isArray(value.custom) && value.custom.every((entry) => isRecord(entry) && typeof entry.name === "string" && entry.name.length > 0 && typeof entry.reason === "string" && entry.reason.length > 0);
     return methodOk && nullableString(value.trigger) && nullableString(value.include) && nullableString(value.sync) && nullableString(value.indicator) && nullableString(value.confirm) && nullableString(value.select) && nullableString(value.target) && nullableString(value.swap) && pushUrlOk && customOk;
 }
 export function isFrontendSurfaceActionManifest(value: unknown): value is FrontendSurfaceActionManifest {
-    return isRecord(value) && typeof value.name === "string" && Array.isArray(value.fields) && value.fields.every((field) => typeof field === "string") && isFrontendSurfaceActionHtmxOptions(value.htmx);
+    return isRecord(value) && typeof value.name === "string" && Array.isArray(value.fields) && value.fields.every((field) => typeof field === "string") && isHtmxActionOptions(value.htmx);
 }
 export function parseFrontendSurfaceActionManifest(value: unknown): FrontendSurfaceActionManifest {
     if (isFrontendSurfaceActionManifest(value)) return value;
     throw new Error("Invalid FrontendSurfaceActionManifest");
+}
+export function isOverlayActionManifest(value: unknown): value is OverlayActionManifest {
+    return isRecord(value) && typeof value.name === "string" && Array.isArray(value.fields) && value.fields.every((field) => typeof field === "string") && isHtmxActionOptions(value.htmx);
+}
+export function parseOverlayActionManifest(value: unknown): OverlayActionManifest {
+    if (isOverlayActionManifest(value)) return value;
+    throw new Error("Invalid OverlayActionManifest");
 }
 
 // FrontendSurfaceMountConfig is the HTML data attribute shape emitted by Haskell views.

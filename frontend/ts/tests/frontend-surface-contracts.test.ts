@@ -9,6 +9,7 @@ import {
     isFrontendSurfaceName,
     parseFrontendSurfaceActionManifest,
     parseFrontendSurfaceName,
+    parseOverlayActionManifest,
     surfaceLabSurfaceManifest,
     timesheetsSurfaceManifest,
     type FrontendSurfaceContainmentEdge,
@@ -26,6 +27,7 @@ import { assertDeepEqual, assertEqual, assertThrows, test } from "./harness";
 
 test("generated overlay action manifests expose dialog request contracts", () => {
     assertEqual(isOverlayActionManifest(openFeedbackDialogOverlayActionManifest), true);
+    assertEqual(parseOverlayActionManifest(openFeedbackDialogOverlayActionManifest).name, "open-feedback-dialog");
     assertDeepEqual(openFeedbackDialogOverlayActionManifest, {
         name: "open-feedback-dialog",
         fields: [],
