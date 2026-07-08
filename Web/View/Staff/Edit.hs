@@ -4,14 +4,14 @@ module Web.View.Staff.Edit where
 
 import Application.Helper.Controller (VenueRole (VenueOwnerRole),
                                       currentUserIsSuperAdmin, hasRole)
-import Application.Helper.FrontendContract.IR (OverlayActionIR)
-import Application.Helper.FrontendContract.Overlay (CreateTrialStaffInvitationOverlay,
-                                                    CreateTrialStaffOverlay,
-                                                    UpdateStaffProfileOverlay,
-                                                    UpdateStaffShiftPreferencesOverlay)
-import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
-                                                            applyOverlayActionAttrs,
-                                                            overlayActionByMarker)
+import Application.Helper.FrontendContract.AppShell (CreateTrialStaffInvitationOverlay,
+                                                     CreateTrialStaffOverlay,
+                                                     UpdateStaffProfileOverlay,
+                                                     UpdateStaffShiftPreferencesOverlay)
+import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             appShellActionByMarker,
+                                                             applyAppShellActionAttrs)
+import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import Application.Helper.StaffShiftPreferences
 import Web.View.LeaveRequests.New (renderLeaveRequestFormFields)
 import Web.View.Prelude
@@ -379,14 +379,14 @@ renderTrialStaffEmailField PageOverlayForm staff Nothing = [hsx|
 
 renderTrialStaffInviteOverlayButton :: Staff -> Html
 renderTrialStaffInviteOverlayButton staff =
-    applyOverlayActionAttrs
-        (overlayActionByMarker @CreateTrialStaffInvitationOverlay)
-        OverlayActionRoute
-            { overlayActionRouteUrl = pathTo (CreateTrialStaffInvitationAction staff.id)
-            , overlayActionRouteFields = []
-            , overlayActionRouteCustomHtmx = []
-            , overlayActionRouteStandardUrl = Nothing
-            , overlayActionRouteExtraAttrs =
+    applyAppShellActionAttrs
+        (appShellActionByMarker @CreateTrialStaffInvitationOverlay)
+        AppShellActionRoute
+            { appShellActionRouteUrl = pathTo (CreateTrialStaffInvitationAction staff.id)
+            , appShellActionRouteFields = []
+            , appShellActionRouteCustomHtmx = []
+            , appShellActionRouteStandardUrl = Nothing
+            , appShellActionRouteExtraAttrs =
                 [ ("type", "submit")
                 , ("class", "btn btn-outline-primary")
                 , ("formaction", pathTo (CreateTrialStaffInvitationAction staff.id))
@@ -419,25 +419,25 @@ data StaffDetailsOverlayMarker
 
 staffDetailsFormRequestMode :: OverlayFormMode -> Text -> StaffDetailsOverlayMarker -> Maybe StaffProfileFormRequestMode
 staffDetailsFormRequestMode HtmxOverlayForm actionUrl marker =
-    Just (StaffProfileOverlayAction (staffDetailsOverlayAction marker) (staffOverlayActionRoute actionUrl))
+    Just (StaffProfileAppShellAction (staffDetailsAppShellAction marker) (staffAppShellActionRoute actionUrl))
 staffDetailsFormRequestMode PageOverlayForm _ _ = Nothing
 
-staffDetailsOverlayAction :: StaffDetailsOverlayMarker -> OverlayActionIR
-staffDetailsOverlayAction CreateTrialStaffOverlayMarker = overlayActionByMarker @CreateTrialStaffOverlay
-staffDetailsOverlayAction UpdateStaffProfileOverlayMarker = overlayActionByMarker @UpdateStaffProfileOverlay
+staffDetailsAppShellAction :: StaffDetailsOverlayMarker -> AppShellActionIR
+staffDetailsAppShellAction CreateTrialStaffOverlayMarker = appShellActionByMarker @CreateTrialStaffOverlay
+staffDetailsAppShellAction UpdateStaffProfileOverlayMarker = appShellActionByMarker @UpdateStaffProfileOverlay
 
 staffShiftPreferencesOverlayRequestMode :: OverlayFormMode -> Text -> Maybe StaffProfileFormRequestMode
 staffShiftPreferencesOverlayRequestMode HtmxOverlayForm actionUrl =
-    Just (StaffProfileOverlayAction (overlayActionByMarker @UpdateStaffShiftPreferencesOverlay) (staffOverlayActionRoute actionUrl))
+    Just (StaffProfileAppShellAction (appShellActionByMarker @UpdateStaffShiftPreferencesOverlay) (staffAppShellActionRoute actionUrl))
 staffShiftPreferencesOverlayRequestMode PageOverlayForm _ = Nothing
 
-staffOverlayActionRoute :: Text -> OverlayActionRoute
-staffOverlayActionRoute actionUrl =
-    OverlayActionRoute
-        { overlayActionRouteUrl = actionUrl
-        , overlayActionRouteFields = []
-        , overlayActionRouteCustomHtmx = []
-        , overlayActionRouteStandardUrl = Nothing
-        , overlayActionRouteExtraAttrs = []
+staffAppShellActionRoute :: Text -> AppShellActionRoute
+staffAppShellActionRoute actionUrl =
+    AppShellActionRoute
+        { appShellActionRouteUrl = actionUrl
+        , appShellActionRouteFields = []
+        , appShellActionRouteCustomHtmx = []
+        , appShellActionRouteStandardUrl = Nothing
+        , appShellActionRouteExtraAttrs = []
         }
 

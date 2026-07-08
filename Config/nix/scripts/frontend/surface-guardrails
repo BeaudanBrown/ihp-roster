@@ -157,18 +157,18 @@ expect_no_match \
     Web/View/Feedback/New.hs
 
 expect_no_match \
-    "migrated overlay views must not use raw OverlayAction name lookup" \
-    'overlayActionByName' \
+    "migrated overlay views must not use raw AppShellAction name lookup" \
+    'appShellActionByName' \
     "${migrated_overlay_paths[@]}"
 
 expect_match \
-    "migrated feedback overlay opener uses typed OverlayAction marker lookup" \
-    'overlayActionByMarker @OpenFeedbackDialog' \
+    "migrated feedback overlay opener uses typed AppShellAction marker lookup" \
+    'appShellActionByMarker @OpenFeedbackDialog' \
     Web/View/Layout.hs
 
 expect_match \
-    "migrated feedback overlay submit uses typed OverlayAction marker lookup" \
-    'overlayActionByMarker @SubmitFeedback' \
+    "migrated feedback overlay submit uses typed AppShellAction marker lookup" \
+    'appShellActionByMarker @SubmitFeedback' \
     Web/View/Feedback/New.hs
 
 expect_no_match \

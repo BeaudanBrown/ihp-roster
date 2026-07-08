@@ -2,10 +2,10 @@
 
 module Web.View.Passkeys.StepUp where
 
-import Application.Helper.FrontendContract.Overlay (OpenPasskeyRecoveryCodeDialog)
-import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
-                                                            overlayActionByMarker,
-                                                            renderOverlayActionLink)
+import Application.Helper.FrontendContract.AppShell (OpenPasskeyRecoveryCodeDialog)
+import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             appShellActionByMarker,
+                                                             renderAppShellActionLink)
 import Web.View.Prelude
 
 data StepUpView = StepUpView
@@ -47,14 +47,14 @@ renderStepUpControl redirectTo = [hsx|
 
 renderRecoveryCodeDialogLink :: (?context :: ControllerContext) => Html
 renderRecoveryCodeDialogLink =
-    renderOverlayActionLink
-        (overlayActionByMarker @OpenPasskeyRecoveryCodeDialog)
-        OverlayActionRoute
-            { overlayActionRouteUrl = pathTo ShowPasskeyRecoveryCodeDialogAction
-            , overlayActionRouteFields = []
-            , overlayActionRouteCustomHtmx = []
-            , overlayActionRouteStandardUrl = Nothing
-            , overlayActionRouteExtraAttrs = [("class", "small")]
+    renderAppShellActionLink
+        (appShellActionByMarker @OpenPasskeyRecoveryCodeDialog)
+        AppShellActionRoute
+            { appShellActionRouteUrl = pathTo ShowPasskeyRecoveryCodeDialogAction
+            , appShellActionRouteFields = []
+            , appShellActionRouteCustomHtmx = []
+            , appShellActionRouteStandardUrl = Nothing
+            , appShellActionRouteExtraAttrs = [("class", "small")]
             }
         [hsx|Can't access your passkey?|]
 

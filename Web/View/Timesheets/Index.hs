@@ -3,11 +3,11 @@
 module Web.View.Timesheets.Index where
 
 import Application.Helper.Controller (isWithinEditWindow, shiftDurationMinutes)
-import Application.Helper.FrontendContract.Overlay (EditTimesheetEntryDialog,
-                                                    OpenTimesheetEntryDialog)
-import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
-                                                            overlayActionByMarker,
-                                                            renderOverlayActionLink)
+import Application.Helper.FrontendContract.AppShell (EditTimesheetEntryDialog,
+                                                     OpenTimesheetEntryDialog)
+import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             appShellActionByMarker,
+                                                             renderAppShellActionLink)
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
@@ -328,14 +328,14 @@ renderDaySectionWithSwap maybeSwapOob model@TimesheetDayRenderModel { dayEntries
 
 renderNewEntryOverlayLink :: Text -> Text -> Text -> Day -> Html
 renderNewEntryOverlayLink newEntryUrl weekdayLabel weekdayShortLabel dayDate =
-    renderOverlayActionLink
-        (overlayActionByMarker @OpenTimesheetEntryDialog)
-        OverlayActionRoute
-            { overlayActionRouteUrl = newEntryUrl
-            , overlayActionRouteFields = []
-            , overlayActionRouteCustomHtmx = []
-            , overlayActionRouteStandardUrl = Nothing
-            , overlayActionRouteExtraAttrs =
+    renderAppShellActionLink
+        (appShellActionByMarker @OpenTimesheetEntryDialog)
+        AppShellActionRoute
+            { appShellActionRouteUrl = newEntryUrl
+            , appShellActionRouteFields = []
+            , appShellActionRouteCustomHtmx = []
+            , appShellActionRouteStandardUrl = Nothing
+            , appShellActionRouteExtraAttrs =
                 [ ("class", "timesheet-day-add-bar")
                 , ("data-timesheet-day-add", "true")
                 , ("aria-label", "Add timesheet entry for " <> weekdayLabel <> " " <> formatDateCompact dayDate)
@@ -398,14 +398,14 @@ renderEntryCard TimesheetDayRenderModel { dayStaffMembers, dayShiftTypes, dayTod
 renderEntryCardOverlayLink :: TimesheetEntry -> Bool -> Text -> Html
 renderEntryCardOverlayLink entry canEdit editUrl
     | canEdit =
-        renderOverlayActionLink
-            (overlayActionByMarker @EditTimesheetEntryDialog)
-            OverlayActionRoute
-                { overlayActionRouteUrl = editUrl
-                , overlayActionRouteFields = []
-                , overlayActionRouteCustomHtmx = []
-                , overlayActionRouteStandardUrl = Nothing
-                , overlayActionRouteExtraAttrs =
+        renderAppShellActionLink
+            (appShellActionByMarker @EditTimesheetEntryDialog)
+            AppShellActionRoute
+                { appShellActionRouteUrl = editUrl
+                , appShellActionRouteFields = []
+                , appShellActionRouteCustomHtmx = []
+                , appShellActionRouteStandardUrl = Nothing
+                , appShellActionRouteExtraAttrs =
                     [ ("class", "timesheet-entry-card-link")
                     , ("aria-label", "Edit timesheet entry for " <> tshow entry.workedOn)
                     ]

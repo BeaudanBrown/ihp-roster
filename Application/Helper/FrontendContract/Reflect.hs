@@ -133,14 +133,6 @@ instance (Typeable marker, ReflectFieldList fields, ReflectAppShellActionOptionL
         , appShellActionOptions = reflectAppShellActionOptionList @options
         }
 
-instance (Typeable marker, ReflectFieldList fields, ReflectOverlayActionOptionList options) => ReflectGlobalPrimitive ('OverlayAction marker fields options) where
-    reflectGlobalPrimitive = GlobalOverlayActionIR OverlayActionIR
-        { overlayActionMarker = typeMarker @marker
-        , overlayActionName = protocolName @marker Naming.ActionName
-        , overlayActionFields = reflectFieldList @fields
-        , overlayActionOptions = reflectOverlayActionOptionList @options
-        }
-
 class ReflectAppShellActionOptionList (options :: [AppShellActionOption]) where
     reflectAppShellActionOptionList :: [HtmxActionOptionIR]
 
@@ -200,66 +192,6 @@ class ReflectAppShellHtmxPushUrl (value :: AppShellPushUrlValue) where
 
 instance ReflectAppShellHtmxPushUrl 'AppShellPushUrlTrue where reflectAppShellHtmxPushUrl = True
 instance ReflectAppShellHtmxPushUrl 'AppShellPushUrlFalse where reflectAppShellHtmxPushUrl = False
-
-class ReflectOverlayActionOptionList (options :: [OverlayActionOption]) where
-    reflectOverlayActionOptionList :: [HtmxActionOptionIR]
-
-instance ReflectOverlayActionOptionList '[] where
-    reflectOverlayActionOptionList = []
-
-instance (ReflectOverlayActionOption option, ReflectOverlayActionOptionList rest) => ReflectOverlayActionOptionList (option ': rest) where
-    reflectOverlayActionOptionList = reflectOverlayActionOption @option : reflectOverlayActionOptionList @rest
-
-class ReflectOverlayActionOption (option :: OverlayActionOption) where
-    reflectOverlayActionOption :: HtmxActionOptionIR
-
-instance ReflectHtmxMethod method => ReflectOverlayActionOption ('OverlayHtmxMethod method) where
-    reflectOverlayActionOption = HtmxActionMethodIR (reflectHtmxMethod @method)
-
-instance KnownSymbol value => ReflectOverlayActionOption ('OverlayHtmxTrigger value) where
-    reflectOverlayActionOption = HtmxActionTriggerIR (cs (symbolVal (Proxy @value)))
-
-instance KnownSymbol value => ReflectOverlayActionOption ('OverlayHtmxInclude value) where
-    reflectOverlayActionOption = HtmxActionIncludeIR (cs (symbolVal (Proxy @value)))
-
-instance KnownSymbol value => ReflectOverlayActionOption ('OverlayHtmxSync value) where
-    reflectOverlayActionOption = HtmxActionSyncIR (cs (symbolVal (Proxy @value)))
-
-instance KnownSymbol value => ReflectOverlayActionOption ('OverlayHtmxIndicator value) where
-    reflectOverlayActionOption = HtmxActionIndicatorIR (cs (symbolVal (Proxy @value)))
-
-instance KnownSymbol value => ReflectOverlayActionOption ('OverlayHtmxConfirm value) where
-    reflectOverlayActionOption = HtmxActionConfirmIR (cs (symbolVal (Proxy @value)))
-
-instance KnownSymbol value => ReflectOverlayActionOption ('OverlayHtmxSelect value) where
-    reflectOverlayActionOption = HtmxActionSelectIR (cs (symbolVal (Proxy @value)))
-
-instance Typeable marker => ReflectOverlayActionOption ('OverlayHtmxTarget marker) where
-    reflectOverlayActionOption = HtmxActionTargetIR (nameToKebab (typeMarker @marker))
-
-instance KnownSymbol value => ReflectOverlayActionOption ('OverlayHtmxSwap value) where
-    reflectOverlayActionOption = HtmxActionSwapIR (cs (symbolVal (Proxy @value)))
-
-instance ReflectHtmxPushUrl value => ReflectOverlayActionOption ('OverlayHtmxPushUrl value) where
-    reflectOverlayActionOption = HtmxActionPushUrlIR (reflectHtmxPushUrl @value)
-
-instance (Typeable marker, KnownSymbol reason) => ReflectOverlayActionOption ('OverlayCustomHtmx marker reason) where
-    reflectOverlayActionOption = HtmxActionCustomHtmxIR (nameToKebab (typeMarker @marker)) (cs (symbolVal (Proxy @reason)))
-
-class ReflectHtmxMethod (method :: OverlayRequestMethod) where
-    reflectHtmxMethod :: Text
-
-instance ReflectHtmxMethod 'OverlayGet where reflectHtmxMethod = "get"
-instance ReflectHtmxMethod 'OverlayPost where reflectHtmxMethod = "post"
-instance ReflectHtmxMethod 'OverlayPut where reflectHtmxMethod = "put"
-instance ReflectHtmxMethod 'OverlayPatch where reflectHtmxMethod = "patch"
-instance ReflectHtmxMethod 'OverlayDelete where reflectHtmxMethod = "delete"
-
-class ReflectHtmxPushUrl (value :: OverlayPushUrlValue) where
-    reflectHtmxPushUrl :: Bool
-
-instance ReflectHtmxPushUrl 'OverlayPushUrlTrue where reflectHtmxPushUrl = True
-instance ReflectHtmxPushUrl 'OverlayPushUrlFalse where reflectHtmxPushUrl = False
 
 class ReflectSurfacePrimitive (primitive :: SurfacePrimitive) where
     reflectSurfacePrimitive :: SurfacePrimitiveIR

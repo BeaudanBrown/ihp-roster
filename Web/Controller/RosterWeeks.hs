@@ -7,10 +7,10 @@
 module Web.Controller.RosterWeeks where
 
 import Application.Helper.Controller
-import Application.Helper.FrontendContract.Overlay (ConfirmRemoveRosterRowOverlay)
-import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
-                                                            overlayActionByMarker,
-                                                            renderOverlayActionForm)
+import Application.Helper.FrontendContract.AppShell (ConfirmRemoveRosterRowOverlay)
+import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             appShellActionByMarker,
+                                                             renderAppShellActionForm)
 import Application.Helper.FrontendContract.Surface.DependencyPlanner (planFrontendSurfaceInvalidation)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment (..))
 import Application.Helper.LiveUpdate
@@ -942,14 +942,14 @@ respondWithRemoveRosterRowConfirmation rosterDay preview =
                 then "1 shift"
                 else tshow overflowCount <> " shifts"
         confirmForm =
-            renderOverlayActionForm
-                (overlayActionByMarker @ConfirmRemoveRosterRowOverlay)
-                OverlayActionRoute
-                    { overlayActionRouteUrl = pathTo (RemoveRosterRowAction rosterDay.id)
-                    , overlayActionRouteFields = []
-                    , overlayActionRouteCustomHtmx = []
-                    , overlayActionRouteStandardUrl = Nothing
-                    , overlayActionRouteExtraAttrs =
+            renderAppShellActionForm
+                (appShellActionByMarker @ConfirmRemoveRosterRowOverlay)
+                AppShellActionRoute
+                    { appShellActionRouteUrl = pathTo (RemoveRosterRowAction rosterDay.id)
+                    , appShellActionRouteFields = []
+                    , appShellActionRouteCustomHtmx = []
+                    , appShellActionRouteStandardUrl = Nothing
+                    , appShellActionRouteExtraAttrs =
                         [ ("id", confirmFormId)
                         , ("data-disable-javascript-submission", "true")
                         ]

@@ -11,7 +11,6 @@ module Application.Helper.FrontendContract.IR
     , GlobalIR (..)
     , GlobalPrimitiveIR (..)
     , AppShellActionIR (..)
-    , OverlayActionIR (..)
     , SchemaIR (..)
     , SurfaceIR (..)
     , HtmxActionOptionIR (..)
@@ -74,7 +73,6 @@ data GlobalPrimitiveIR
     | GlobalFieldNameIR !Text !Text
     | GlobalDomTokenIR !Text !Text
     | GlobalAppShellActionIR !AppShellActionIR
-    | GlobalOverlayActionIR !OverlayActionIR
     deriving (Eq, Show)
 
 data AppShellActionIR = AppShellActionIR
@@ -82,14 +80,6 @@ data AppShellActionIR = AppShellActionIR
     , appShellActionName    :: !Text
     , appShellActionFields  :: ![FieldIR]
     , appShellActionOptions :: ![HtmxActionOptionIR]
-    }
-    deriving (Eq, Show)
-
-data OverlayActionIR = OverlayActionIR
-    { overlayActionMarker  :: !Text
-    , overlayActionName    :: !Text
-    , overlayActionFields  :: ![FieldIR]
-    , overlayActionOptions :: ![HtmxActionOptionIR]
     }
     deriving (Eq, Show)
 
@@ -207,7 +197,6 @@ validateGlobalPrimitive = \case
     GlobalFieldNameIR _ _ -> []
     GlobalDomTokenIR _ _ -> []
     GlobalAppShellActionIR action -> validateFieldNames action.appShellActionFields
-    GlobalOverlayActionIR action -> validateFieldNames action.overlayActionFields
 
 validateSurfacePrimitive :: SurfacePrimitiveIR -> [ContractDiagnostic]
 validateSurfacePrimitive = \case
@@ -290,7 +279,6 @@ globalNamedPrimitives global =
         GlobalFieldNameIR marker name -> [(marker, name)]
         GlobalDomTokenIR marker name  -> [(marker, name)]
         GlobalAppShellActionIR action -> [(action.appShellActionMarker, "app-shell-action:" <> action.appShellActionName)]
-        GlobalOverlayActionIR action  -> [(action.overlayActionMarker, "overlay-action:" <> action.overlayActionName)]
     ]
 
 surfacePrimitiveNames :: SurfaceIR -> [(Text, Text)]
@@ -323,7 +311,6 @@ globalPrimitiveRefs = \case
     GlobalFieldNameIR _ _ -> []
     GlobalDomTokenIR _ _ -> []
     GlobalAppShellActionIR action -> fieldRefs action.appShellActionFields
-    GlobalOverlayActionIR action -> fieldRefs action.overlayActionFields
 
 surfacePrimitiveRefs :: SurfacePrimitiveIR -> [Text]
 surfacePrimitiveRefs = \case

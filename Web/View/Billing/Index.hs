@@ -129,7 +129,7 @@ billingCheckoutDialogButtons (BillingCheckoutFailed _) =
     , OverlayButton
         { overlayButtonLabel = "Try Checkout Again"
         , overlayButtonClass = "btn btn-primary"
-        , overlayButtonAction = OverlayFormAction "POST" (pathTo CreateBillingCheckoutSessionAction) [] "" Nothing
+        , overlayButtonAction = DialogFormAction "POST" (pathTo CreateBillingCheckoutSessionAction) [] "" Nothing
         }
     ]
 

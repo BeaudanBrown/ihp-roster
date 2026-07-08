@@ -155,7 +155,6 @@ renderGlobalPrimitive = \case
     GlobalFieldNameIR marker name -> ["export const " <> constName marker <> "FieldName = " <> quote name <> " as const;", ""]
     GlobalDomTokenIR marker token -> ["export const " <> constName marker <> "DomToken = " <> quote token <> " as const;", ""]
     GlobalAppShellActionIR action -> renderAppShellActionAlias action <> ["export const " <> constName action.appShellActionMarker <> "AppShellActionManifest = " <> renderAppShellActionManifest action <> " as const;", ""]
-    GlobalOverlayActionIR action -> renderOverlayActionAlias action <> ["export const " <> constName action.overlayActionMarker <> "OverlayActionManifest = " <> renderOverlayActionManifest action <> " as const;", ""]
 
 renderAppShellActionAlias :: AppShellActionIR -> [Text]
 renderAppShellActionAlias action =
@@ -166,17 +165,6 @@ renderAppShellActionManifest action = objectLiteral
     [ ("name", quote action.appShellActionName)
     , ("fields", arrayLiteral (fmap (quote . (.fieldName)) action.appShellActionFields))
     , ("htmx", renderSurfaceActionHtmxOptions action.appShellActionOptions)
-    ]
-
-renderOverlayActionAlias :: OverlayActionIR -> [Text]
-renderOverlayActionAlias action =
-    renderRecordAlias (typeNameFromMarker action.overlayActionMarker <> "OverlayActionFields") action.overlayActionFields
-
-renderOverlayActionManifest :: OverlayActionIR -> Text
-renderOverlayActionManifest action = objectLiteral
-    [ ("name", quote action.overlayActionName)
-    , ("fields", arrayLiteral (fmap (quote . (.fieldName)) action.overlayActionFields))
-    , ("htmx", renderSurfaceActionHtmxOptions action.overlayActionOptions)
     ]
 
 renderGlobalConvenienceGroups :: [SurfaceIR] -> GlobalIR -> [Text]
@@ -533,7 +521,6 @@ renderFrontendSurfaceMountConfigTypes =
     , "export type HtmxActionOptions = { method: HtmxActionMethod | null; trigger: string | null; include: string | null; sync: string | null; indicator: string | null; confirm: string | null; select: string | null; target: string | null; swap: string | null; pushUrl: boolean | null; custom: ReadonlyArray<{ name: string; reason: string }> };"
     , "export type FrontendSurfaceActionManifest = { name: string; fields: readonly string[]; htmx: HtmxActionOptions };"
     , "export type AppShellActionManifest = { name: string; fields: readonly string[]; htmx: HtmxActionOptions };"
-    , "export type OverlayActionManifest = { name: string; fields: readonly string[]; htmx: HtmxActionOptions };"
     , "export function isHtmxActionMethod(value: unknown): value is HtmxActionMethod {"
     , "    return value === \"get\" || value === \"post\" || value === \"put\" || value === \"patch\" || value === \"delete\";"
     , "}"
@@ -558,13 +545,6 @@ renderFrontendSurfaceMountConfigTypes =
     , "export function parseAppShellActionManifest(value: unknown): AppShellActionManifest {"
     , "    if (isAppShellActionManifest(value)) return value;"
     , "    throw new Error(\"Invalid AppShellActionManifest\");"
-    , "}"
-    , "export function isOverlayActionManifest(value: unknown): value is OverlayActionManifest {"
-    , "    return isRecord(value) && typeof value.name === \"string\" && Array.isArray(value.fields) && value.fields.every((field) => typeof field === \"string\") && isHtmxActionOptions(value.htmx);"
-    , "}"
-    , "export function parseOverlayActionManifest(value: unknown): OverlayActionManifest {"
-    , "    if (isOverlayActionManifest(value)) return value;"
-    , "    throw new Error(\"Invalid OverlayActionManifest\");"
     , "}"
     , ""
     , "// FrontendSurfaceMountConfig is the HTML data attribute shape emitted by Haskell views."

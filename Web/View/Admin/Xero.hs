@@ -16,11 +16,11 @@ module Web.View.Admin.Xero
 {-# LANGUAGE TypeApplications #-}
 
 import Application.Helper.Controller (currentVenueOrNothing)
-import Application.Helper.FrontendContract.Overlay (OpenXeroPayItemImportOverlay,
-                                                    OpenXeroTimesheetPreparationOverlay)
-import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
-                                                            overlayActionByMarker,
-                                                            renderOverlayActionForm)
+import Application.Helper.FrontendContract.AppShell (OpenXeroPayItemImportOverlay,
+                                                     OpenXeroTimesheetPreparationOverlay)
+import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             appShellActionByMarker,
+                                                             renderAppShellActionForm)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
                                                             renderFrontendSurfaceActionForm,
@@ -150,14 +150,14 @@ renderXeroConnectionBody (Just connection) _maybeConnectedByUser _maybeSyncRun _
     </div>
 |]
 
-xeroOverlayActionRoute :: Text -> OverlayActionRoute
-xeroOverlayActionRoute actionUrl =
-    OverlayActionRoute
-        { overlayActionRouteUrl = actionUrl
-        , overlayActionRouteFields = []
-        , overlayActionRouteCustomHtmx = []
-        , overlayActionRouteStandardUrl = Nothing
-        , overlayActionRouteExtraAttrs = []
+xeroAppShellActionRoute :: Text -> AppShellActionRoute
+xeroAppShellActionRoute actionUrl =
+    AppShellActionRoute
+        { appShellActionRouteUrl = actionUrl
+        , appShellActionRouteFields = []
+        , appShellActionRouteCustomHtmx = []
+        , appShellActionRouteStandardUrl = Nothing
+        , appShellActionRouteExtraAttrs = []
         }
 
 renderXeroActionControls :: XeroTimesheetPanelData -> Bool -> Html
@@ -173,10 +173,10 @@ renderXeroActionControls timesheetPanel connectionActionsAllowed = [hsx|
 
 renderOpenXeroTimesheetPreparationForm :: XeroTimesheetPanelData -> Bool -> Html
 renderOpenXeroTimesheetPreparationForm timesheetPanel connectionActionsAllowed =
-    renderOverlayActionForm
-        (overlayActionByMarker @OpenXeroTimesheetPreparationOverlay)
-        (xeroOverlayActionRoute (pathTo OpenXeroTimesheetPreparationAction))
-            { overlayActionRouteExtraAttrs = [("data-xero-timesheet-preparation-form", "true")]
+    renderAppShellActionForm
+        (appShellActionByMarker @OpenXeroTimesheetPreparationOverlay)
+        (xeroAppShellActionRoute (pathTo OpenXeroTimesheetPreparationAction))
+            { appShellActionRouteExtraAttrs = [("data-xero-timesheet-preparation-form", "true")]
             }
         [hsx|
             <button type="submit"
@@ -188,9 +188,9 @@ renderOpenXeroTimesheetPreparationForm timesheetPanel connectionActionsAllowed =
 
 renderOpenXeroPayItemImportForm :: Bool -> Html
 renderOpenXeroPayItemImportForm connectionActionsAllowed =
-    renderOverlayActionForm
-        (overlayActionByMarker @OpenXeroPayItemImportOverlay)
-        (xeroOverlayActionRoute (pathTo OpenXeroPayItemImportAction))
+    renderAppShellActionForm
+        (appShellActionByMarker @OpenXeroPayItemImportOverlay)
+        (xeroAppShellActionRoute (pathTo OpenXeroPayItemImportAction))
         [hsx|<button type="submit" class="btn btn-outline-primary" disabled={not connectionActionsAllowed}>Import pay items</button>|]
 
 renderXeroOperationalPanels :: XeroConnection -> XeroTimesheetPanelData -> [XeroPayItemRequirement] -> [XeroImportedPayItem] -> [XeroPayItemAccountCodeOption] -> Maybe XeroSyncRun -> Maybe XeroPayItemAccountCodeSelection -> Bool -> Html

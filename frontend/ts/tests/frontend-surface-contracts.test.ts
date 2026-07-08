@@ -2,15 +2,15 @@ import {
     FrontendSurfaceContainmentTopology,
     FrontendSurfaceRegistry,
     adminPageSurfaceManifest,
-    isOverlayActionManifest,
-    openFeedbackDialogOverlayActionManifest,
-    submitFeedbackOverlayActionManifest,
+    isAppShellActionManifest,
+    openFeedbackDialogAppShellActionManifest,
+    submitFeedbackAppShellActionManifest,
     isFrontendSurfaceActionManifest,
     isFrontendSurfaceContainmentEdge,
     isFrontendSurfaceName,
     parseFrontendSurfaceActionManifest,
     parseFrontendSurfaceName,
-    parseOverlayActionManifest,
+    parseAppShellActionManifest,
     surfaceLabSurfaceManifest,
     timesheetsSurfaceManifest,
     type FrontendSurfaceContainmentEdge,
@@ -26,10 +26,10 @@ import {
 } from "../generated/contracts";
 import { assertDeepEqual, assertEqual, assertThrows, test } from "./harness";
 
-test("generated overlay action manifests expose dialog request contracts", () => {
-    assertEqual(isOverlayActionManifest(openFeedbackDialogOverlayActionManifest), true);
-    assertEqual(parseOverlayActionManifest(openFeedbackDialogOverlayActionManifest).name, "open-feedback-dialog");
-    assertDeepEqual(openFeedbackDialogOverlayActionManifest, {
+test("generated AppShell action manifests expose dialog request contracts", () => {
+    assertEqual(isAppShellActionManifest(openFeedbackDialogAppShellActionManifest), true);
+    assertEqual(parseAppShellActionManifest(openFeedbackDialogAppShellActionManifest).name, "open-feedback-dialog");
+    assertDeepEqual(openFeedbackDialogAppShellActionManifest, {
         name: "open-feedback-dialog",
         fields: [],
         htmx: {
@@ -46,10 +46,10 @@ test("generated overlay action manifests expose dialog request contracts", () =>
             custom: [],
         },
     });
-    assertEqual(isOverlayActionManifest(submitFeedbackOverlayActionManifest), true);
-    assertEqual(parseOverlayActionManifest(submitFeedbackOverlayActionManifest).name, "submit-feedback");
-    assertDeepEqual(submitFeedbackOverlayActionManifest.fields, ["feedbackType", "content"]);
-    assertEqual(submitFeedbackOverlayActionManifest.htmx.method, "post");
+    assertEqual(isAppShellActionManifest(submitFeedbackAppShellActionManifest), true);
+    assertEqual(parseAppShellActionManifest(submitFeedbackAppShellActionManifest).name, "submit-feedback");
+    assertDeepEqual(submitFeedbackAppShellActionManifest.fields, ["feedbackType", "content"]);
+    assertEqual(submitFeedbackAppShellActionManifest.htmx.method, "post");
 });
 
 test("generated FrontendSurface registry exposes lab surface primitives", () => {

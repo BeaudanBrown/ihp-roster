@@ -27,10 +27,10 @@ module Web.View.RosterWeeks.Grid
     , rowsForDay
     ) where
 
-import Application.Helper.FrontendContract.Overlay (OpenRosterShiftDialog)
-import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
-                                                            applyOverlayActionAttrs,
-                                                            overlayActionByMarker)
+import Application.Helper.FrontendContract.AppShell (OpenRosterShiftDialog)
+import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             appShellActionByMarker,
+                                                             applyAppShellActionAttrs)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
@@ -1183,14 +1183,14 @@ targetHasExistingSlot NewRosterSlotTarget {}      = False
 
 applyRosterShiftDialogLauncherAttrs :: Text -> Html -> Html
 applyRosterShiftDialogLauncherAttrs actionUrl =
-    applyOverlayActionAttrs
-        (overlayActionByMarker @OpenRosterShiftDialog)
-        OverlayActionRoute
-            { overlayActionRouteUrl = actionUrl
-            , overlayActionRouteFields = []
-            , overlayActionRouteCustomHtmx = []
-            , overlayActionRouteStandardUrl = Nothing
-            , overlayActionRouteExtraAttrs = []
+    applyAppShellActionAttrs
+        (appShellActionByMarker @OpenRosterShiftDialog)
+        AppShellActionRoute
+            { appShellActionRouteUrl = actionUrl
+            , appShellActionRouteFields = []
+            , appShellActionRouteCustomHtmx = []
+            , appShellActionRouteStandardUrl = Nothing
+            , appShellActionRouteExtraAttrs = []
             }
 
 renderEmptyBlockCells :: (?context :: ControllerContext) => Bool -> Int -> Html

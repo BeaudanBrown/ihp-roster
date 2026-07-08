@@ -2,10 +2,10 @@
 
 module Web.View.Feedback.New where
 
-import Application.Helper.FrontendContract.Overlay (SubmitFeedback)
-import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
-                                                            overlayActionByMarker,
-                                                            renderOverlayActionForm)
+import Application.Helper.FrontendContract.AppShell (SubmitFeedback)
+import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             appShellActionByMarker,
+                                                             renderAppShellActionForm)
 import qualified Data.Text as Text
 import Web.View.Prelude
 
@@ -40,14 +40,14 @@ renderFeedbackForm :: OverlayFormMode -> UserFeedbackItem -> Html
 renderFeedbackForm formMode feedbackItem =
     case formMode of
         HtmxOverlayForm ->
-            renderOverlayActionForm
-                (overlayActionByMarker @SubmitFeedback)
-                OverlayActionRoute
-                    { overlayActionRouteUrl = pathTo CreateFeedbackAction
-                    , overlayActionRouteFields = []
-                    , overlayActionRouteCustomHtmx = []
-                    , overlayActionRouteStandardUrl = Nothing
-                    , overlayActionRouteExtraAttrs =
+            renderAppShellActionForm
+                (appShellActionByMarker @SubmitFeedback)
+                AppShellActionRoute
+                    { appShellActionRouteUrl = pathTo CreateFeedbackAction
+                    , appShellActionRouteFields = []
+                    , appShellActionRouteCustomHtmx = []
+                    , appShellActionRouteStandardUrl = Nothing
+                    , appShellActionRouteExtraAttrs =
                         [ ("id", feedbackFormId)
                         , ("data-disable-javascript-submission", "true")
                         ]

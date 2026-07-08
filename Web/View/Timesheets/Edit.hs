@@ -2,10 +2,10 @@
 
 module Web.View.Timesheets.Edit where
 
-import Application.Helper.FrontendContract.Overlay (DeleteTimesheetEntryOverlay,
-                                                    UpdateTimesheetEntryOverlay)
-import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
-                                                            overlayActionByMarker)
+import Application.Helper.FrontendContract.AppShell (DeleteTimesheetEntryOverlay,
+                                                     UpdateTimesheetEntryOverlay)
+import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             appShellActionByMarker)
 import Web.Timesheets.Paths (timesheetWeekUrl)
 import Web.View.Prelude
 
@@ -26,7 +26,7 @@ instance View EditView where
             (timesheetModalTitle timesheetEntry.workedOn)
             (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
             editTimesheetFormId
-            (renderTimesheetForm (overlayActionByMarker @UpdateTimesheetEntryOverlay) timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId (pathTo (UpdateTimesheetEntryAction (get #id timesheetEntry))) editTimesheetFormId PageOverlayForm)
+            (renderTimesheetForm (appShellActionByMarker @UpdateTimesheetEntryOverlay) timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId (pathTo (UpdateTimesheetEntryAction (get #id timesheetEntry))) editTimesheetFormId PageOverlayForm)
             (deleteButtonsFor timesheetEntry weekOffset showApproved showAllStaff selectedStaffFilterId)
 
 editTimesheetFormId :: Text
@@ -37,7 +37,7 @@ renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset show
     renderTimesheetEntryDialogWithStartButtons
         (timesheetModalTitle timesheetEntry.workedOn)
         editTimesheetFormId
-        (renderTimesheetForm (overlayActionByMarker @UpdateTimesheetEntryOverlay) timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId (pathTo (UpdateTimesheetEntryAction (get #id timesheetEntry))) editTimesheetFormId HtmxOverlayForm)
+        (renderTimesheetForm (appShellActionByMarker @UpdateTimesheetEntryOverlay) timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId (pathTo (UpdateTimesheetEntryAction (get #id timesheetEntry))) editTimesheetFormId HtmxOverlayForm)
         (deleteButtonsFor timesheetEntry weekOffset showApproved showAllStaff selectedStaffFilterId)
 
 deleteButtonsFor :: TimesheetEntry -> Int -> Bool -> Bool -> Maybe UUID -> [OverlayButton]
@@ -46,14 +46,14 @@ deleteButtonsFor timesheetEntry weekOffset showApproved showAllStaff selectedSta
         { overlayButtonLabel = "Delete"
         , overlayButtonClass = "btn btn-outline-danger"
         , overlayButtonAction =
-            OverlayGeneratedFormAction
-                (overlayActionByMarker @DeleteTimesheetEntryOverlay)
-                OverlayActionRoute
-                    { overlayActionRouteUrl = deleteUrl
-                    , overlayActionRouteFields = []
-                    , overlayActionRouteCustomHtmx = []
-                    , overlayActionRouteStandardUrl = Nothing
-                    , overlayActionRouteExtraAttrs = []
+            GeneratedDialogFormAction
+                (appShellActionByMarker @DeleteTimesheetEntryOverlay)
+                AppShellActionRoute
+                    { appShellActionRouteUrl = deleteUrl
+                    , appShellActionRouteFields = []
+                    , appShellActionRouteCustomHtmx = []
+                    , appShellActionRouteStandardUrl = Nothing
+                    , appShellActionRouteExtraAttrs = []
                     }
                 [ ("_method", "DELETE")
                 , ("weekOffset", tshow weekOffset)

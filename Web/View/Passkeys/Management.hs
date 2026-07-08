@@ -7,10 +7,10 @@ module Web.View.Passkeys.Management
     )
 where
 
-import Application.Helper.FrontendContract.Overlay (OpenPasskeySetupDialog)
-import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
-                                                            overlayActionByMarker,
-                                                            renderOverlayActionLink)
+import Application.Helper.FrontendContract.AppShell (OpenPasskeySetupDialog)
+import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             appShellActionByMarker,
+                                                             renderAppShellActionLink)
 import Data.Time.Clock (diffUTCTime)
 import Web.View.Prelude
 
@@ -43,14 +43,14 @@ renderPasskeyRegistrationAction True successRedirect =
 
 renderPasskeySetupDialogLink :: Text -> Html
 renderPasskeySetupDialogLink dialogUrl =
-    renderOverlayActionLink
-        (overlayActionByMarker @OpenPasskeySetupDialog)
-        OverlayActionRoute
-            { overlayActionRouteUrl = dialogUrl
-            , overlayActionRouteFields = []
-            , overlayActionRouteCustomHtmx = []
-            , overlayActionRouteStandardUrl = Nothing
-            , overlayActionRouteExtraAttrs = [("class", "btn btn-primary")]
+    renderAppShellActionLink
+        (appShellActionByMarker @OpenPasskeySetupDialog)
+        AppShellActionRoute
+            { appShellActionRouteUrl = dialogUrl
+            , appShellActionRouteFields = []
+            , appShellActionRouteCustomHtmx = []
+            , appShellActionRouteStandardUrl = Nothing
+            , appShellActionRouteExtraAttrs = [("class", "btn btn-primary")]
             }
         "Create passkey"
 

@@ -2,8 +2,8 @@
 
 module Web.View.Timesheets.New where
 
-import Application.Helper.FrontendContract.Overlay (CreateTimesheetEntryOverlay)
-import Application.Helper.FrontendContract.Overlay.Runtime (overlayActionByMarker)
+import Application.Helper.FrontendContract.AppShell (CreateTimesheetEntryOverlay)
+import Application.Helper.FrontendContract.AppShell.Runtime (appShellActionByMarker)
 import Web.Timesheets.Paths (timesheetWeekUrl)
 import Web.View.Prelude
 
@@ -24,7 +24,7 @@ instance View NewView where
             (timesheetModalTitle timesheetEntry.workedOn)
             (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
             newTimesheetFormId
-            (renderTimesheetForm (overlayActionByMarker @CreateTimesheetEntryOverlay) timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId (pathTo CreateTimesheetEntryAction) newTimesheetFormId PageOverlayForm)
+            (renderTimesheetForm (appShellActionByMarker @CreateTimesheetEntryOverlay) timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId (pathTo CreateTimesheetEntryAction) newTimesheetFormId PageOverlayForm)
 
 newTimesheetFormId :: Text
 newTimesheetFormId = "timesheet-entry-create-form"
@@ -34,4 +34,4 @@ renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showA
     renderTimesheetEntryDialog
         (timesheetModalTitle timesheetEntry.workedOn)
         newTimesheetFormId
-        (renderTimesheetForm (overlayActionByMarker @CreateTimesheetEntryOverlay) timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId (pathTo CreateTimesheetEntryAction) newTimesheetFormId HtmxOverlayForm)
+        (renderTimesheetForm (appShellActionByMarker @CreateTimesheetEntryOverlay) timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId (pathTo CreateTimesheetEntryAction) newTimesheetFormId HtmxOverlayForm)

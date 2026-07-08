@@ -5,12 +5,12 @@ module Web.View.RosterWeeks.StaffPanel
     , renderRosterStaffPanelPlaceholder
     ) where
 
-import Application.Helper.FrontendContract.Overlay (OpenRosterStaffCreateDialog,
-                                                    OpenRosterStaffEditDialog)
-import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
-                                                            applyOverlayActionAttrs,
-                                                            overlayActionByMarker,
-                                                            renderOverlayActionHtmxControl)
+import Application.Helper.FrontendContract.AppShell (OpenRosterStaffCreateDialog,
+                                                     OpenRosterStaffEditDialog)
+import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             appShellActionByMarker,
+                                                             applyAppShellActionAttrs,
+                                                             renderAppShellActionHtmxControl)
 import Application.Helper.FrontendContract.RosterValues (RosterStaffSortKey (..),
                                                          rosterStaffSortKeyAttribute)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
@@ -88,20 +88,20 @@ renderRosterStaffPanelHeader weekOffset currentRosterGroupId hasMultipleRosterGr
     </div>
 |]
 
-rosterStaffOverlayRoute :: Text -> OverlayActionRoute
+rosterStaffOverlayRoute :: Text -> AppShellActionRoute
 rosterStaffOverlayRoute actionUrl =
-    OverlayActionRoute
-        { overlayActionRouteUrl = actionUrl
-        , overlayActionRouteFields = []
-        , overlayActionRouteCustomHtmx = []
-        , overlayActionRouteStandardUrl = Nothing
-        , overlayActionRouteExtraAttrs = []
+    AppShellActionRoute
+        { appShellActionRouteUrl = actionUrl
+        , appShellActionRouteFields = []
+        , appShellActionRouteCustomHtmx = []
+        , appShellActionRouteStandardUrl = Nothing
+        , appShellActionRouteExtraAttrs = []
         }
 
 renderOpenRosterStaffCreateDialogButton :: Int -> Id RosterGroup -> Html
 renderOpenRosterStaffCreateDialogButton weekOffset currentRosterGroupId =
-    renderOverlayActionHtmxControl
-        (overlayActionByMarker @OpenRosterStaffCreateDialog)
+    renderAppShellActionHtmxControl
+        (appShellActionByMarker @OpenRosterStaffCreateDialog)
         (rosterStaffOverlayRoute (appendQueryParams (pathTo NewStaffAction) [("weekOffset", tshow weekOffset), ("rosterGroupId", tshow currentRosterGroupId)]))
         [hsx|<button type="button" class="btn btn-sm btn-outline-primary">Add trial staff</button>|]
 
@@ -295,8 +295,8 @@ renderRosterStaffPanelEntry panelStaffMembers weekOffset currentRosterGroupId en
 
 renderRosterStaffPanelEntryRow :: Int -> Id RosterGroup -> Text -> Text -> RosterStaffPanelEntry -> Html
 renderRosterStaffPanelEntryRow weekOffset currentRosterGroupId staffDisplayLabel staffRoleLabel entry =
-    applyOverlayActionAttrs
-        (overlayActionByMarker @OpenRosterStaffEditDialog)
+    applyAppShellActionAttrs
+        (appShellActionByMarker @OpenRosterStaffEditDialog)
         (rosterStaffOverlayRoute (appendQueryParams (pathTo (EditStaffAction entry.staff.id)) [("weekOffset", tshow weekOffset), ("rosterGroupId", tshow currentRosterGroupId)]))
         [hsx|
             <tr class="roster-staff-panel-entry"

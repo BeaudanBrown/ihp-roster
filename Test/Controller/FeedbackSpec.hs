@@ -14,7 +14,7 @@ import Web.Types
 tests :: Spec
 tests = beforeAll testContext do
     describe "FeedbackController" do
-        it "renders HTMX feedback dialog forms through generated OverlayAction metadata" $ withContext do
+        it "renders HTMX feedback dialog forms through generated AppShellAction metadata" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Feedback Dialog Venue"
                 user <- createUserRecord "feedback-dialog@example.com" "staff" True
@@ -25,7 +25,7 @@ tests = beforeAll testContext do
                         callAction NewFeedbackAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-bepis-overlay-action=\"submit-feedback\""
+                response `responseBodyShouldContain` "data-bepis-app-shell-action=\"submit-feedback\""
                 response `responseBodyShouldContain` "hx-post=\"/CreateFeedback\""
                 response `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
 

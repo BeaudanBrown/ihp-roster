@@ -1,10 +1,10 @@
 module Application.Helper.View.Overlay where
 
+import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             AppShellFieldValue (..),
+                                                             renderAppShellActionForm)
 import Application.Helper.FrontendContract.AppValues (sharedDialogOverlayMountId)
-import Application.Helper.FrontendContract.IR (OverlayActionIR)
-import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
-                                                            OverlayFieldValue (..),
-                                                            renderOverlayActionForm)
+import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ViewPrelude
@@ -25,8 +25,8 @@ data OverlayButtonAction
     = OverlayCloseAction
     | OverlaySubmitFormAction !Text
     | OverlayNavigateAction !Text
-    | OverlayFormAction !Text !Text ![(Text, Text)] !Text !(Maybe Text)
-    | OverlayGeneratedFormAction !OverlayActionIR !OverlayActionRoute ![(Text, Text)] !(Maybe Text)
+    | DialogFormAction !Text !Text ![(Text, Text)] !Text !(Maybe Text)
+    | GeneratedDialogFormAction !AppShellActionIR !AppShellActionRoute ![(Text, Text)] !(Maybe Text)
 
 data OverlayButton = OverlayButton
     { overlayButtonLabel  :: !Text
@@ -133,7 +133,7 @@ renderDialogOverlayButton button =
                 {button.overlayButtonLabel}
             </a>
         |]
-        OverlayFormAction method targetUrl fields hxTarget maybeConfirm -> [hsx|
+        DialogFormAction method targetUrl fields hxTarget maybeConfirm -> [hsx|
             <form method="POST"
                   action={targetUrl}
                   class="app-modal-footer-form"
@@ -150,13 +150,13 @@ renderDialogOverlayButton button =
                 </button>
             </form>
         |]
-        OverlayGeneratedFormAction overlayAction route hiddenFields _maybeConfirm ->
-            renderOverlayActionForm
-                overlayAction
+        GeneratedDialogFormAction appShellAction route hiddenFields _maybeConfirm ->
+            renderAppShellActionForm
+                appShellAction
                 route
-                    { overlayActionRouteFields = route.overlayActionRouteFields <> fmap OverlayFieldValue hiddenFields
-                    , overlayActionRouteExtraAttrs =
-                        route.overlayActionRouteExtraAttrs
+                    { appShellActionRouteFields = route.appShellActionRouteFields <> fmap AppShellFieldValue hiddenFields
+                    , appShellActionRouteExtraAttrs =
+                        route.appShellActionRouteExtraAttrs
                             <> [ ("class", "app-modal-footer-form")
                                , ("data-disable-javascript-submission", "true")
                                ]
@@ -172,8 +172,8 @@ renderOverlayFormHiddenField (fieldName, fieldValue) = [hsx|
     <input type="hidden" name={fieldName} value={fieldValue} />
 |]
 
-renderGeneratedOverlayFormHiddenField :: OverlayFieldValue -> Html
-renderGeneratedOverlayFormHiddenField (OverlayFieldValue (fieldName, fieldValue)) = [hsx|
+renderGeneratedOverlayFormHiddenField :: AppShellFieldValue -> Html
+renderGeneratedOverlayFormHiddenField (AppShellFieldValue (fieldName, fieldValue)) = [hsx|
     <input type="hidden" name={fieldName} value={fieldValue} />
 |]
 
@@ -242,7 +242,7 @@ renderPageDialogButton closeUrl button =
                 {button.overlayButtonLabel}
             </a>
         |]
-        OverlayFormAction method targetUrl fields _hxTarget maybeConfirm -> [hsx|
+        DialogFormAction method targetUrl fields _hxTarget maybeConfirm -> [hsx|
             <form method="POST"
                   action={targetUrl}
                   class="app-modal-footer-form"
@@ -254,12 +254,12 @@ renderPageDialogButton closeUrl button =
                 </button>
             </form>
         |]
-        OverlayGeneratedFormAction _overlayAction route hiddenFields maybeConfirm -> [hsx|
+        GeneratedDialogFormAction _appShellAction route hiddenFields maybeConfirm -> [hsx|
             <form method="POST"
-                  action={fromMaybe route.overlayActionRouteUrl route.overlayActionRouteStandardUrl}
+                  action={fromMaybe route.appShellActionRouteUrl route.appShellActionRouteStandardUrl}
                   class="app-modal-footer-form"
                   onsubmit={confirmSubmitAttribute maybeConfirm}>
-                {forEach (route.overlayActionRouteFields <> fmap OverlayFieldValue hiddenFields) renderGeneratedOverlayFormHiddenField}
+                {forEach (route.appShellActionRouteFields <> fmap AppShellFieldValue hiddenFields) renderGeneratedOverlayFormHiddenField}
                 <button type="submit" class={button.overlayButtonClass}>
                     {button.overlayButtonLabel}
                 </button>

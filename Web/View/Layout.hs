@@ -4,10 +4,10 @@ module Web.View.Layout (defaultLayout, Html) where
 
 import Application.Helper.Controller (currentSupportVenueOptions,
                                       currentVenueOrNothing)
-import Application.Helper.FrontendContract.Overlay (OpenFeedbackDialog)
-import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
-                                                            applyOverlayActionAttrs,
-                                                            overlayActionByMarker)
+import Application.Helper.FrontendContract.AppShell (OpenFeedbackDialog)
+import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             appShellActionByMarker,
+                                                             applyAppShellActionAttrs)
 import Application.Helper.View
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
@@ -102,14 +102,14 @@ renderMobileFeedbackButton =
 
 renderFeedbackOverlayButton :: Text -> Text -> Text -> Html
 renderFeedbackOverlayButton buttonClasses iconClasses label =
-    applyOverlayActionAttrs
-        (overlayActionByMarker @OpenFeedbackDialog)
-        OverlayActionRoute
-            { overlayActionRouteUrl = pathTo NewFeedbackAction
-            , overlayActionRouteFields = []
-            , overlayActionRouteCustomHtmx = []
-            , overlayActionRouteStandardUrl = Nothing
-            , overlayActionRouteExtraAttrs =
+    applyAppShellActionAttrs
+        (appShellActionByMarker @OpenFeedbackDialog)
+        AppShellActionRoute
+            { appShellActionRouteUrl = pathTo NewFeedbackAction
+            , appShellActionRouteFields = []
+            , appShellActionRouteCustomHtmx = []
+            , appShellActionRouteStandardUrl = Nothing
+            , appShellActionRouteExtraAttrs =
                 [ ("class", buttonClasses)
                 , ("type", "button")
                 ]

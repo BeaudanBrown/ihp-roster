@@ -18,9 +18,9 @@ module Application.Helper.View.Timesheets
     , timesheetModalTitle
     ) where
 
-import Application.Helper.FrontendContract.IR (OverlayActionIR)
-import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
-                                                            renderOverlayActionForm)
+import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             renderAppShellActionForm)
+import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import Application.Helper.View.Audience
 import Application.Helper.View.Format
 import Application.Helper.View.Overlay
@@ -41,18 +41,18 @@ timesheetModalTitle day =
         <> formatDayMonthDisplay day
 
 -- | Shared timesheet entry form used by New and Edit views.
-renderTimesheetForm :: (?context :: ControllerContext) => OverlayActionIR -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Maybe UUID -> Maybe UUID -> Text -> Text -> OverlayFormMode -> Html
-renderTimesheetForm overlayAction entry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId actionUrl formId formMode =
+renderTimesheetForm :: (?context :: ControllerContext) => AppShellActionIR -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Maybe UUID -> Maybe UUID -> Text -> Text -> OverlayFormMode -> Html
+renderTimesheetForm appShellAction entry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId actionUrl formId formMode =
     case formMode of
         HtmxOverlayForm ->
-            renderOverlayActionForm
-                overlayAction
-                OverlayActionRoute
-                    { overlayActionRouteUrl = actionUrl
-                    , overlayActionRouteFields = []
-                    , overlayActionRouteCustomHtmx = []
-                    , overlayActionRouteStandardUrl = Nothing
-                    , overlayActionRouteExtraAttrs =
+            renderAppShellActionForm
+                appShellAction
+                AppShellActionRoute
+                    { appShellActionRouteUrl = actionUrl
+                    , appShellActionRouteFields = []
+                    , appShellActionRouteCustomHtmx = []
+                    , appShellActionRouteStandardUrl = Nothing
+                    , appShellActionRouteExtraAttrs =
                         [ ("id", formId)
                         , ("class", "mt-3")
                         , ("data-disable-javascript-submission", "true")

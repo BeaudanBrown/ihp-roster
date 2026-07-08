@@ -24,7 +24,6 @@ import Application.Helper.FrontendContract.Contracts (TypeScriptDeclaration (..)
                                                       frontendContractsTypeScript)
 import qualified Application.Helper.FrontendContract.Htmx as Htmx
 import qualified Application.Helper.FrontendContract.IR as Contract
-import qualified Application.Helper.FrontendContract.Overlay as Overlay
 import Application.Helper.FrontendContract.Registry (registeredFrontendContractIR)
 import qualified Application.Helper.FrontendContract.Roster as Roster
 import Application.Helper.FrontendContract.RosterValues (RosterStaffSortKey (..),
@@ -127,7 +126,7 @@ tests = describe "Frontend contract generator foundation" do
                 , Contract.GlobalAppShellActionIR action <- global.globalPrimitives
                 ]
         let partialNavigateAction = appShellActionByMarker @AppShell.PartialNavigate
-        let openFeedbackDialogAction = appShellActionByMarker @Overlay.OpenFeedbackDialog
+        let openFeedbackDialogAction = appShellActionByMarker @AppShell.OpenFeedbackDialog
         fmap (.appShellActionName) (find ((== "partial-navigate") . (.appShellActionName)) appShellActions) `shouldBe` Just "partial-navigate"
         partialNavigateAction.appShellActionOptions
             `shouldBe` [ Contract.HtmxActionMethodIR "get"
@@ -153,24 +152,24 @@ tests = describe "Frontend contract generator foundation" do
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const partialNavigateAppShellActionManifest"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const openFeedbackDialogAppShellActionManifest"
 
-    it "reflects generated overlay action manifests" do
-        let overlayActions =
+    it "reflects generated app shell action manifests" do
+        let appShellActions =
                 [ action
                 | global <- registeredFrontendContractIR.contractGlobals
-                , Contract.GlobalOverlayActionIR action <- global.globalPrimitives
+                , Contract.GlobalAppShellActionIR action <- global.globalPrimitives
                 ]
-        let openFeedbackAction = find ((== "open-feedback-dialog") . (.overlayActionName)) overlayActions
-        fmap (.overlayActionFields) openFeedbackAction `shouldBe` Just []
-        fmap (.overlayActionOptions) openFeedbackAction
+        let openFeedbackAction = find ((== "open-feedback-dialog") . (.appShellActionName)) appShellActions
+        fmap (.appShellActionFields) openFeedbackAction `shouldBe` Just []
+        fmap (.appShellActionOptions) openFeedbackAction
             `shouldBe` Just
                 [ Contract.HtmxActionMethodIR "get"
                 , Contract.HtmxActionTargetIR "dialog-overlay-mount"
                 , Contract.HtmxActionSwapIR "innerHTML"
                 , Contract.HtmxActionPushUrlIR False
                 ]
-        let submitFeedbackAction = find ((== "submit-feedback") . (.overlayActionName)) overlayActions
-        fmap (fmap (.fieldName) . (.overlayActionFields)) submitFeedbackAction `shouldBe` Just ["feedbackType", "content"]
-        fmap (.overlayActionOptions) submitFeedbackAction
+        let submitFeedbackAction = find ((== "submit-feedback") . (.appShellActionName)) appShellActions
+        fmap (fmap (.fieldName) . (.appShellActionFields)) submitFeedbackAction `shouldBe` Just ["feedbackType", "content"]
+        fmap (.appShellActionOptions) submitFeedbackAction
             `shouldBe` Just
                 [ Contract.HtmxActionMethodIR "post"
                 , Contract.HtmxActionTargetIR "dialog-overlay-mount"
@@ -178,10 +177,10 @@ tests = describe "Frontend contract generator foundation" do
                 , Contract.HtmxActionPushUrlIR False
                 ]
 
-    it "keeps migrated feedback overlay openers on generated OverlayAction helpers" do
+    it "keeps migrated feedback overlay openers on generated AppShellAction helpers" do
         source <- Text.readFile "Web/View/Layout.hs"
-        source `shouldSatisfy` Text.isInfixOf "overlayActionByMarker @OpenFeedbackDialog"
-        source `shouldNotSatisfy` Text.isInfixOf "overlayActionByName \"open-feedback-dialog\""
+        source `shouldSatisfy` Text.isInfixOf "appShellActionByMarker @OpenFeedbackDialog"
+        source `shouldNotSatisfy` Text.isInfixOf "appShellActionByName \"open-feedback-dialog\""
         source `shouldNotSatisfy` Text.isInfixOf "hx-get={NewFeedbackAction}"
 
     it "resolves canonical Haskell value accessors from registered FrontendContract IR" do

@@ -8,19 +8,19 @@ module Web.View.Admin.Xero.TimesheetPreparation
     , renderXeroTimesheetPreparationSubmittingDialog
     ) where
 
-import Application.Helper.FrontendContract.IR (OverlayActionIR)
-import Application.Helper.FrontendContract.Overlay (ApplyXeroTimesheetPreparationStaffDecisionOverlay,
-                                                    ApproveXeroTimesheetPreparationPayItemsOverlay,
-                                                    ConfirmXeroTimesheetPreparationSubmissionOverlay,
-                                                    ContinueXeroTimesheetPreparationStaffOverlay,
-                                                    RefreshXeroTimesheetPreparationOverlay,
-                                                    RunXeroTimesheetPreparationOverlay,
-                                                    RunXeroTimesheetPreparationSubmissionOverlay,
-                                                    SelectXeroTimesheetPreparationPeriodOverlay,
-                                                    SubmitXeroTimesheetPreparationOverlay)
-import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
-                                                            overlayActionByMarker,
-                                                            renderOverlayActionForm)
+import Application.Helper.FrontendContract.AppShell (ApplyXeroTimesheetPreparationStaffDecisionOverlay,
+                                                     ApproveXeroTimesheetPreparationPayItemsOverlay,
+                                                     ConfirmXeroTimesheetPreparationSubmissionOverlay,
+                                                     ContinueXeroTimesheetPreparationStaffOverlay,
+                                                     RefreshXeroTimesheetPreparationOverlay,
+                                                     RunXeroTimesheetPreparationOverlay,
+                                                     RunXeroTimesheetPreparationSubmissionOverlay,
+                                                     SelectXeroTimesheetPreparationPeriodOverlay,
+                                                     SubmitXeroTimesheetPreparationOverlay)
+import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             appShellActionByMarker,
+                                                             renderAppShellActionForm)
+import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import Application.Helper.View.Overlay
 import Application.Helper.XeroAdminTypes
 import Application.Xero.Admin.ReadModel (xeroEmployeeAvailableForStaff)
@@ -30,22 +30,22 @@ import qualified Data.Text as Text
 import Data.Time.Calendar (Day, diffDays)
 import Web.View.Prelude
 
-xeroPreparationOverlayActionRoute :: Text -> OverlayActionRoute
-xeroPreparationOverlayActionRoute actionUrl =
-    OverlayActionRoute
-        { overlayActionRouteUrl = actionUrl
-        , overlayActionRouteFields = []
-        , overlayActionRouteCustomHtmx = []
-        , overlayActionRouteStandardUrl = Nothing
-        , overlayActionRouteExtraAttrs = []
+xeroPreparationAppShellActionRoute :: Text -> AppShellActionRoute
+xeroPreparationAppShellActionRoute actionUrl =
+    AppShellActionRoute
+        { appShellActionRouteUrl = actionUrl
+        , appShellActionRouteFields = []
+        , appShellActionRouteCustomHtmx = []
+        , appShellActionRouteStandardUrl = Nothing
+        , appShellActionRouteExtraAttrs = []
         }
 
-renderXeroPreparationOverlayForm :: OverlayActionIR -> Text -> [(Text, Text)] -> Html -> Html
+renderXeroPreparationOverlayForm :: AppShellActionIR -> Text -> [(Text, Text)] -> Html -> Html
 renderXeroPreparationOverlayForm action actionUrl attrs =
-    renderOverlayActionForm
+    renderAppShellActionForm
         action
-        (xeroPreparationOverlayActionRoute actionUrl)
-            { overlayActionRouteExtraAttrs = attrs
+        (xeroPreparationAppShellActionRoute actionUrl)
+            { appShellActionRouteExtraAttrs = attrs
             }
 
 renderXeroTimesheetPreparationDialog :: XeroTimesheetPreparationView -> Html
@@ -81,7 +81,7 @@ renderXeroTimesheetPreparationLoadingDialog =
             <div>
                 <div class="fw-semibold">Prepare Xero draft timesheets</div>
             </div>
-            {renderXeroPreparationOverlayForm (overlayActionByMarker @RunXeroTimesheetPreparationOverlay) (pathTo RunXeroTimesheetPreparationAction) [] mempty}
+            {renderXeroPreparationOverlayForm (appShellActionByMarker @RunXeroTimesheetPreparationOverlay) (pathTo RunXeroTimesheetPreparationAction) [] mempty}
         </div>
     |]
 
@@ -94,7 +94,7 @@ renderXeroTimesheetPreparationStaffStep view =
                 {renderStepNotice "Step 1 of 3" "Confirm proposed staff matches or choose the right Xero employee before continuing."}
                 {renderConnectionNotice view}
                 {renderStaffMappings view}
-                {renderXeroPreparationOverlayForm (overlayActionByMarker @ContinueXeroTimesheetPreparationStaffOverlay) (pathTo (ContinueXeroTimesheetPreparationStaffStepAction view.preparationRun.id)) [("id", "xero-preparation-staff-continue-form")] mempty}
+                {renderXeroPreparationOverlayForm (appShellActionByMarker @ContinueXeroTimesheetPreparationStaffOverlay) (pathTo (ContinueXeroTimesheetPreparationStaffStepAction view.preparationRun.id)) [("id", "xero-preparation-staff-continue-form")] mempty}
             </div>
         |]
         , dialogOverlayStartButtons = []
@@ -121,7 +121,7 @@ renderXeroTimesheetPreparationPeriodStep view =
 renderXeroPreparationPeriodForm :: XeroTimesheetPreparationView -> Html
 renderXeroPreparationPeriodForm view =
     renderXeroPreparationOverlayForm
-        (overlayActionByMarker @SelectXeroTimesheetPreparationPeriodOverlay)
+        (appShellActionByMarker @SelectXeroTimesheetPreparationPeriodOverlay)
         (pathTo (SelectXeroTimesheetPreparationPeriodAction view.preparationRun.id))
         [("id", "xero-preparation-period-form")]
         [hsx|
@@ -143,7 +143,7 @@ renderXeroTimesheetPreparationPayItemsStep view =
             <div class="d-flex flex-column gap-3" data-xero-timesheet-preparation-dialog="true">
                 {renderStepNotice "Step 2 of 3" "Review the managed pay items Bepis will create during final submission, and choose the Xero account code to use."}
                 {renderPayItemDecisions view}
-                {renderXeroPreparationOverlayForm (overlayActionByMarker @ApproveXeroTimesheetPreparationPayItemsOverlay) (pathTo (ApproveXeroTimesheetPreparationPayItemsAction view.preparationRun.id)) [("id", "xero-preparation-pay-items-form")] mempty}
+                {renderXeroPreparationOverlayForm (appShellActionByMarker @ApproveXeroTimesheetPreparationPayItemsOverlay) (pathTo (ApproveXeroTimesheetPreparationPayItemsAction view.preparationRun.id)) [("id", "xero-preparation-pay-items-form")] mempty}
             </div>
         |]
         , dialogOverlayStartButtons = []
@@ -162,7 +162,7 @@ renderXeroTimesheetPreparationSummaryStep view =
                 {renderReviewReadiness view}
                 {renderReviewSummary view}
                 {renderFinalSubmissionCopy}
-                {renderXeroPreparationOverlayForm (overlayActionByMarker @ConfirmXeroTimesheetPreparationSubmissionOverlay) (pathTo (ConfirmXeroTimesheetPreparationSubmissionAction view.preparationRun.id)) [("id", "xero-preparation-confirm-submit-form")] mempty}
+                {renderXeroPreparationOverlayForm (appShellActionByMarker @ConfirmXeroTimesheetPreparationSubmissionOverlay) (pathTo (ConfirmXeroTimesheetPreparationSubmissionAction view.preparationRun.id)) [("id", "xero-preparation-confirm-submit-form")] mempty}
             </div>
         |]
         , dialogOverlayStartButtons = []
@@ -181,7 +181,7 @@ renderXeroTimesheetPreparationSubmittingDialog view =
                     <div class="fw-semibold">Submitting Xero draft timesheets...</div>
                     <div class="small app-muted">Bepis is creating new drafts or updating existing Xero drafts for each employee. This can take a moment.</div>
                 </div>
-                {renderXeroPreparationOverlayForm (overlayActionByMarker @RunXeroTimesheetPreparationSubmissionOverlay) (pathTo (RunXeroTimesheetPreparationSubmissionAction view.preparationRun.id)) [] mempty}
+                {renderXeroPreparationOverlayForm (appShellActionByMarker @RunXeroTimesheetPreparationSubmissionOverlay) (pathTo (RunXeroTimesheetPreparationSubmissionAction view.preparationRun.id)) [] mempty}
             </div>
         |]
         , dialogOverlayStartButtons = []
@@ -577,7 +577,7 @@ staffEmployeeStatusLabel row
 renderStaffEmployeeSelectionForm :: XeroTimesheetPreparationView -> XeroPreparationStaffRow -> Html
 renderStaffEmployeeSelectionForm view row =
     renderXeroPreparationOverlayForm
-        (overlayActionByMarker @ApplyXeroTimesheetPreparationStaffDecisionOverlay)
+        (appShellActionByMarker @ApplyXeroTimesheetPreparationStaffDecisionOverlay)
         (pathTo (ApplyXeroTimesheetPreparationStaffDecisionAction view.preparationRun.id))
         [ ("class", "d-inline-flex gap-2")
         , ("data-disable-javascript-submission", "true")
@@ -911,7 +911,7 @@ renderFooterActions view = [hsx|
 renderRefreshForm :: XeroTimesheetPreparationView -> Html
 renderRefreshForm view =
     renderXeroPreparationOverlayForm
-        (overlayActionByMarker @RefreshXeroTimesheetPreparationOverlay)
+        (appShellActionByMarker @RefreshXeroTimesheetPreparationOverlay)
         (pathTo (RefreshXeroTimesheetPreparationAction view.preparationRun.id))
         []
         [hsx|<button type="submit" class="btn btn-outline-secondary">Refresh checks</button>|]
@@ -919,7 +919,7 @@ renderRefreshForm view =
 renderSubmitForm :: XeroTimesheetPreparationView -> Html
 renderSubmitForm view =
     renderXeroPreparationOverlayForm
-        (overlayActionByMarker @SubmitXeroTimesheetPreparationOverlay)
+        (appShellActionByMarker @SubmitXeroTimesheetPreparationOverlay)
         (pathTo (SubmitXeroTimesheetPreparationAction view.preparationRun.id))
         [("id", "xero-preparation-submit-form")]
         [hsx|

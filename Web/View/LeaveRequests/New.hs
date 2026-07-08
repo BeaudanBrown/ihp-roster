@@ -2,10 +2,10 @@
 
 module Web.View.LeaveRequests.New where
 
-import Application.Helper.FrontendContract.Overlay (CreateLeaveRequestOverlay)
-import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
-                                                            overlayActionByMarker,
-                                                            renderOverlayActionForm)
+import Application.Helper.FrontendContract.AppShell (CreateLeaveRequestOverlay)
+import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             appShellActionByMarker,
+                                                             renderAppShellActionForm)
 import Web.View.Prelude
 
 newtype NewView = NewView
@@ -41,14 +41,14 @@ renderLeaveRequestForm :: OverlayFormMode -> LeaveRequest -> Html
 renderLeaveRequestForm formMode leaveRequest =
     case formMode of
         HtmxOverlayForm ->
-            renderOverlayActionForm
-                (overlayActionByMarker @CreateLeaveRequestOverlay)
-                OverlayActionRoute
-                    { overlayActionRouteUrl = pathTo CreateLeaveRequestAction
-                    , overlayActionRouteFields = []
-                    , overlayActionRouteCustomHtmx = []
-                    , overlayActionRouteStandardUrl = Nothing
-                    , overlayActionRouteExtraAttrs =
+            renderAppShellActionForm
+                (appShellActionByMarker @CreateLeaveRequestOverlay)
+                AppShellActionRoute
+                    { appShellActionRouteUrl = pathTo CreateLeaveRequestAction
+                    , appShellActionRouteFields = []
+                    , appShellActionRouteCustomHtmx = []
+                    , appShellActionRouteStandardUrl = Nothing
+                    , appShellActionRouteExtraAttrs =
                         [ ("id", leaveRequestFormId)
                         , ("class", "mt-3")
                         , ("data-disable-javascript-submission", "true")

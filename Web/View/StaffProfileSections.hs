@@ -2,9 +2,9 @@
 
 module Web.View.StaffProfileSections where
 
-import Application.Helper.FrontendContract.IR (OverlayActionIR)
-import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
-                                                            renderOverlayActionForm)
+import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             renderAppShellActionForm)
+import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import Application.Helper.StaffShiftPreferences
 import Web.View.Prelude
 import Web.View.StaffProfileForm
@@ -30,7 +30,7 @@ data StaffProfileFragmentHtmxConfig = StaffProfileFragmentHtmxConfig
 
 data StaffProfileFormRequestMode
     = StaffProfileFragmentHtmx StaffProfileFragmentHtmxConfig
-    | StaffProfileOverlayAction OverlayActionIR OverlayActionRoute
+    | StaffProfileAppShellAction AppShellActionIR AppShellActionRoute
 
 data StaffProfileDetailsFormConfig = StaffProfileDetailsFormConfig
     { staffProfileDetailsFormId             :: Text
@@ -86,8 +86,8 @@ renderStaffProfileDetailsForm config staff maybeEmail =
 renderStaffProfileDetailsFormWithRequestMode :: StaffProfileDetailsFormConfig -> StaffProfileFormRequestMode -> Staff -> Maybe Text -> Html
 renderStaffProfileDetailsFormWithRequestMode config (StaffProfileFragmentHtmx htmxConfig) staff maybeEmail =
     renderStaffProfileDetailsFormWithFragmentHtmx config htmxConfig staff maybeEmail
-renderStaffProfileDetailsFormWithRequestMode config (StaffProfileOverlayAction action route) staff maybeEmail =
-    renderStaffProfileDetailsFormWithOverlayAction config action route staff maybeEmail
+renderStaffProfileDetailsFormWithRequestMode config (StaffProfileAppShellAction action route) staff maybeEmail =
+    renderStaffProfileDetailsFormWithAppShellAction config action route staff maybeEmail
 
 renderStaffProfileDetailsFormWithFragmentHtmx :: StaffProfileDetailsFormConfig -> StaffProfileFragmentHtmxConfig -> Staff -> Maybe Text -> Html
 renderStaffProfileDetailsFormWithFragmentHtmx config@StaffProfileDetailsFormConfig { .. } StaffProfileFragmentHtmxConfig { .. } staff maybeEmail = [hsx|
@@ -105,18 +105,18 @@ renderStaffProfileDetailsFormWithFragmentHtmx config@StaffProfileDetailsFormConf
     </form>
 |]
 
-renderStaffProfileDetailsFormWithOverlayAction :: StaffProfileDetailsFormConfig -> OverlayActionIR -> OverlayActionRoute -> Staff -> Maybe Text -> Html
-renderStaffProfileDetailsFormWithOverlayAction config@StaffProfileDetailsFormConfig { .. } action route staff maybeEmail =
-    renderOverlayActionForm
+renderStaffProfileDetailsFormWithAppShellAction :: StaffProfileDetailsFormConfig -> AppShellActionIR -> AppShellActionRoute -> Staff -> Maybe Text -> Html
+renderStaffProfileDetailsFormWithAppShellAction config@StaffProfileDetailsFormConfig { .. } action route staff maybeEmail =
+    renderAppShellActionForm
         action
         route
-            { overlayActionRouteExtraAttrs =
+            { appShellActionRouteExtraAttrs =
                 [ ("id", staffProfileDetailsFormId)
                 , ("class", staffProfileDetailsFormClass)
                 , ("data-disable-javascript-submission", "true")
                 ]
                     <> staffProfileDetailsFormAttributes
-                    <> route.overlayActionRouteExtraAttrs
+                    <> route.appShellActionRouteExtraAttrs
             }
         (renderStaffProfileDetailsFormBody config staff maybeEmail)
 
@@ -157,8 +157,8 @@ renderStaffShiftPreferencesForm config preferenceWeekdays selectedShiftPreferenc
 renderStaffShiftPreferencesFormWithRequestMode :: StaffShiftPreferencesFormConfig -> StaffProfileFormRequestMode -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
 renderStaffShiftPreferencesFormWithRequestMode config (StaffProfileFragmentHtmx htmxConfig) preferenceWeekdays selectedShiftPreferences =
     renderStaffShiftPreferencesFormWithFragmentHtmx config htmxConfig preferenceWeekdays selectedShiftPreferences
-renderStaffShiftPreferencesFormWithRequestMode config (StaffProfileOverlayAction action route) preferenceWeekdays selectedShiftPreferences =
-    renderStaffShiftPreferencesFormWithOverlayAction config action route preferenceWeekdays selectedShiftPreferences
+renderStaffShiftPreferencesFormWithRequestMode config (StaffProfileAppShellAction action route) preferenceWeekdays selectedShiftPreferences =
+    renderStaffShiftPreferencesFormWithAppShellAction config action route preferenceWeekdays selectedShiftPreferences
 
 renderStaffShiftPreferencesFormWithFragmentHtmx :: StaffShiftPreferencesFormConfig -> StaffProfileFragmentHtmxConfig -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
 renderStaffShiftPreferencesFormWithFragmentHtmx config@StaffShiftPreferencesFormConfig { .. } StaffProfileFragmentHtmxConfig { .. } preferenceWeekdays selectedShiftPreferences = [hsx|
@@ -175,17 +175,17 @@ renderStaffShiftPreferencesFormWithFragmentHtmx config@StaffShiftPreferencesForm
     </form>
 |]
 
-renderStaffShiftPreferencesFormWithOverlayAction :: StaffShiftPreferencesFormConfig -> OverlayActionIR -> OverlayActionRoute -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
-renderStaffShiftPreferencesFormWithOverlayAction config@StaffShiftPreferencesFormConfig { .. } action route preferenceWeekdays selectedShiftPreferences =
-    renderOverlayActionForm
+renderStaffShiftPreferencesFormWithAppShellAction :: StaffShiftPreferencesFormConfig -> AppShellActionIR -> AppShellActionRoute -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
+renderStaffShiftPreferencesFormWithAppShellAction config@StaffShiftPreferencesFormConfig { .. } action route preferenceWeekdays selectedShiftPreferences =
+    renderAppShellActionForm
         action
         route
-            { overlayActionRouteExtraAttrs =
+            { appShellActionRouteExtraAttrs =
                 [ ("id", staffShiftPreferencesFormId)
                 , ("class", staffShiftPreferencesFormClass)
                 , ("data-disable-javascript-submission", "true")
                 ]
-                    <> route.overlayActionRouteExtraAttrs
+                    <> route.appShellActionRouteExtraAttrs
             }
         (renderStaffShiftPreferencesFormBody config preferenceWeekdays selectedShiftPreferences)
 

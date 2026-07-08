@@ -10,13 +10,13 @@ module Web.View.RosterWeeks.ShiftDialog
     , renderRosterShiftDialog
     ) where
 
-import Application.Helper.FrontendContract.IR (OverlayActionIR)
-import Application.Helper.FrontendContract.Overlay (CreateRosterShiftOverlay,
-                                                    DeleteRosterSlotOverlay,
-                                                    UpdateRosterShiftOverlay)
-import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
-                                                            overlayActionByMarker,
-                                                            renderOverlayActionForm)
+import Application.Helper.FrontendContract.AppShell (CreateRosterShiftOverlay,
+                                                     DeleteRosterSlotOverlay,
+                                                     UpdateRosterShiftOverlay)
+import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             appShellActionByMarker,
+                                                             renderAppShellActionForm)
+import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import Application.Helper.TimeRules (rosterOperationalFinalSelectableTimeText,
                                      rosterOperationalStartTimeText)
 import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
@@ -107,31 +107,31 @@ deleteButton (EditRosterShiftDialog rosterSlotId) =
     [ OverlayButton
         { overlayButtonLabel = "Delete shift"
         , overlayButtonClass = "btn btn-outline-danger"
-        , overlayButtonAction = OverlayGeneratedFormAction (overlayActionByMarker @DeleteRosterSlotOverlay) (rosterOverlayActionRoute (pathTo (DeleteRosterSlotAction rosterSlotId))) [] (Just "Delete this shift?")
+        , overlayButtonAction = GeneratedDialogFormAction (appShellActionByMarker @DeleteRosterSlotOverlay) (rosterAppShellActionRoute (pathTo (DeleteRosterSlotAction rosterSlotId))) [] (Just "Delete this shift?")
         }
     ]
 
-rosterShiftSubmitOverlayAction :: RosterShiftDialogMode -> OverlayActionIR
-rosterShiftSubmitOverlayAction NewRosterShiftDialog {} = overlayActionByMarker @CreateRosterShiftOverlay
-rosterShiftSubmitOverlayAction EditRosterShiftDialog {} = overlayActionByMarker @UpdateRosterShiftOverlay
+rosterShiftSubmitAppShellAction :: RosterShiftDialogMode -> AppShellActionIR
+rosterShiftSubmitAppShellAction NewRosterShiftDialog {} = appShellActionByMarker @CreateRosterShiftOverlay
+rosterShiftSubmitAppShellAction EditRosterShiftDialog {} = appShellActionByMarker @UpdateRosterShiftOverlay
 
-rosterOverlayActionRoute :: Text -> OverlayActionRoute
-rosterOverlayActionRoute actionUrl =
-    OverlayActionRoute
-        { overlayActionRouteUrl = actionUrl
-        , overlayActionRouteFields = []
-        , overlayActionRouteCustomHtmx = []
-        , overlayActionRouteStandardUrl = Nothing
-        , overlayActionRouteExtraAttrs = []
+rosterAppShellActionRoute :: Text -> AppShellActionRoute
+rosterAppShellActionRoute actionUrl =
+    AppShellActionRoute
+        { appShellActionRouteUrl = actionUrl
+        , appShellActionRouteFields = []
+        , appShellActionRouteCustomHtmx = []
+        , appShellActionRouteStandardUrl = Nothing
+        , appShellActionRouteExtraAttrs = []
         }
 
 
 renderRosterShiftForm :: (?context :: ControllerContext) => RosterShiftDialogData -> Html
 renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogStaff, rosterShiftDialogStaffOptionStates, rosterShiftDialogShiftTypes, rosterShiftDialogValues } =
-    renderOverlayActionForm
-        (rosterShiftSubmitOverlayAction rosterShiftDialogMode)
-        (rosterOverlayActionRoute (pathTo (rosterShiftFormAction rosterShiftDialogMode)))
-            { overlayActionRouteExtraAttrs =
+    renderAppShellActionForm
+        (rosterShiftSubmitAppShellAction rosterShiftDialogMode)
+        (rosterAppShellActionRoute (pathTo (rosterShiftFormAction rosterShiftDialogMode)))
+            { appShellActionRouteExtraAttrs =
                 [ ("id", rosterShiftFormId rosterShiftDialogMode)
                 , ("data-disable-javascript-submission", "true")
                 ]

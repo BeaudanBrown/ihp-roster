@@ -11,9 +11,6 @@ module Application.Helper.FrontendContract.DSL
     , AppShellActionOption (..)
     , AppShellRequestMethod (..)
     , AppShellPushUrlValue (..)
-    , OverlayActionOption (..)
-    , OverlayRequestMethod (..)
-    , OverlayPushUrlValue (..)
     , SchemaPrimitive (..)
     , UnionCaseSpec (..)
     , LiteralCaseSpec (..)
@@ -52,18 +49,6 @@ module Application.Helper.FrontendContract.DSL
     , AppShellHtmxSwap
     , AppShellHtmxPushUrl
     , AppShellCustomHtmx
-    , OverlayAction
-    , OverlayHtmxMethod
-    , OverlayHtmxTrigger
-    , OverlayHtmxInclude
-    , OverlayHtmxSync
-    , OverlayHtmxIndicator
-    , OverlayHtmxConfirm
-    , OverlayHtmxSelect
-    , OverlayHtmxTarget
-    , OverlayHtmxSwap
-    , OverlayHtmxPushUrl
-    , OverlayCustomHtmx
     , Scope
     , Fragment
     , Action
@@ -123,31 +108,6 @@ data AppShellActionOption
     | AppShellHtmxPushUrl AppShellPushUrlValue
     | AppShellCustomHtmx Type Symbol
 
-data OverlayRequestMethod
-    = OverlayGet
-    | OverlayPost
-    | OverlayPut
-    | OverlayPatch
-    | OverlayDelete
-
-data OverlayPushUrlValue
-    = OverlayPushUrlTrue
-    | OverlayPushUrlFalse
-
--- | Browser-visible HTMX metadata for app-owned overlay/dialog request initiators.
-data OverlayActionOption
-    = OverlayHtmxMethod OverlayRequestMethod
-    | OverlayHtmxTrigger Symbol
-    | OverlayHtmxInclude Symbol
-    | OverlayHtmxSync Symbol
-    | OverlayHtmxIndicator Symbol
-    | OverlayHtmxConfirm Symbol
-    | OverlayHtmxSelect Symbol
-    | OverlayHtmxTarget Type
-    | OverlayHtmxSwap Symbol
-    | OverlayHtmxPushUrl OverlayPushUrlValue
-    | OverlayCustomHtmx Type Symbol
-
 -- | Shared schema declarations available under Global and Surface roots.
 data SchemaPrimitive
     = Record Type [FieldSpec]
@@ -172,7 +132,6 @@ data GlobalPrimitive
     | FieldName Type
     | DomToken Type
     | AppShellAction Type [FieldSpec] [AppShellActionOption]
-    | OverlayAction Type [FieldSpec] [OverlayActionOption]
 
 -- | Mounted feature UI semantics. This starts intentionally small; later tickets
 -- port the full FrontendSurface primitive family here.
@@ -224,18 +183,6 @@ type AppShellHtmxTarget target = 'AppShellHtmxTarget target
 type AppShellHtmxSwap value = 'AppShellHtmxSwap value
 type AppShellHtmxPushUrl value = 'AppShellHtmxPushUrl value
 type AppShellCustomHtmx marker reason = 'AppShellCustomHtmx marker reason
-type OverlayAction name fields options = 'OverlayAction name fields options
-type OverlayHtmxMethod method = 'OverlayHtmxMethod method
-type OverlayHtmxTrigger value = 'OverlayHtmxTrigger value
-type OverlayHtmxInclude value = 'OverlayHtmxInclude value
-type OverlayHtmxSync value = 'OverlayHtmxSync value
-type OverlayHtmxIndicator value = 'OverlayHtmxIndicator value
-type OverlayHtmxConfirm value = 'OverlayHtmxConfirm value
-type OverlayHtmxSelect value = 'OverlayHtmxSelect value
-type OverlayHtmxTarget target = 'OverlayHtmxTarget target
-type OverlayHtmxSwap value = 'OverlayHtmxSwap value
-type OverlayHtmxPushUrl value = 'OverlayHtmxPushUrl value
-type OverlayCustomHtmx marker reason = 'OverlayCustomHtmx marker reason
 type Scope name fields = 'Scope name fields
 type Fragment name fields = 'Fragment name fields
 type Action name fields = 'Action name fields
