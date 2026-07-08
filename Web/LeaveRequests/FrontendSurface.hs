@@ -6,12 +6,15 @@ module Web.LeaveRequests.FrontendSurface
     ( LeaveRequestsScopeValue (..)
     , leaveRequestsCandidateMountedFragments
     , leaveRequestsSurfaceScope
+    , leaveRequestsSurfaceAction
     , leaveRequestsSurfaceImpl
     , leaveRequestsSurfaceMountConfig
     , leaveRequestsSurfaceScopeKey
     , leaveRequestsSurfaceWireFragments
     ) where
 
+import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
+import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import Application.Helper.FrontendContract.Surface.DSL
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
 import Application.Helper.FrontendContract.Surface.Runtime
@@ -78,9 +81,32 @@ leaveRequestsSurfaceHandlers scope =
                 , fragmentHandlerRender = const mempty
                 }
                 `HandlerCons` HandlerNil
-        , surfaceActionHandlers = HandlerNil
+        , surfaceActionHandlers =
+            leaveRequestsActionHandler "archive-leave-requests-page" (pathTo ShowleaveRequestsContentLiveFragmentAction) `HandlerCons`
+            leaveRequestsActionHandler "approve-leave-request" (pathTo (ApproveLeaveRequestAction (Id UUID.nil))) `HandlerCons`
+            leaveRequestsActionHandler "deny-leave-request" (pathTo (DenyLeaveRequestAction (Id UUID.nil))) `HandlerCons`
+            HandlerNil
         , surfaceIntentHandlers = HandlerNil
         }
+
+leaveRequestsActionHandler :: Text -> Text -> FrontendSurfaceActionHandler ('Action marker fields options)
+leaveRequestsActionHandler actionName actionUrl = FrontendSurfaceActionHandler
+    { actionHandlerDefaultFields = frontendSurfaceFieldValues Aeson.Null
+    , actionHandlerRequest = const FrontendSurfaceHtmxRequest
+        { htmxRequestName = actionName
+        , htmxRequestMethod = FrontendSurfacePost
+        , htmxRequestUrl = actionUrl
+        , htmxRequestTarget = "#" <> leaveRequestsContentFragmentId
+        , htmxRequestSwap = "none"
+        , htmxRequestFields = []
+        }
+    }
+
+leaveRequestsSurfaceAction :: Text -> SurfaceIR.HtmxActionIR
+leaveRequestsSurfaceAction actionName =
+    case [action | surface <- registeredFrontendSurfaceContractIR.contractSurfaces, surface.surfaceName == "leave-requests", action <- surface.surfaceHtmxActions, action.htmxActionName == actionName] of
+        action : _ -> action
+        [] -> error ("missing leave requests surface action: " <> cs actionName)
 
 leaveRequestsScopeFields :: LeaveRequestsScopeValue -> FrontendSurfaceFieldValues '[ 'Field Surface.VenueId 'WireUUID]
 leaveRequestsScopeFields scope =

@@ -8,11 +8,14 @@ module Web.Profiles.FrontendSurface
     , profileSurfaceScope
     , profileSectionFragmentForSection
     , profileSurfaceImpl
+    , profileSurfaceAction
     , profileSurfaceMountConfig
     , profileSurfaceScopeKey
     , profileSurfaceWireFragments
     ) where
 
+import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
+import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import Application.Helper.FrontendContract.Surface.DSL
 import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
 import Application.Helper.FrontendContract.Surface.Runtime
@@ -106,9 +109,30 @@ profileSurfaceHandlers scope =
                     , fragmentHandlerRender = const mempty
                     }
                 `HandlerCons` HandlerNil
-        , surfaceActionHandlers = HandlerNil
+        , surfaceActionHandlers =
+            profileActionHandler "create-profile-leave-request" (appendQueryParams (pathTo CreateLeaveRequestAction) [("responseContext", "profile"), ("section", "leave")]) `HandlerCons`
+            HandlerNil
         , surfaceIntentHandlers = HandlerNil
         }
+
+profileActionHandler :: Text -> Text -> FrontendSurfaceActionHandler ('Action marker fields options)
+profileActionHandler actionName actionUrl = FrontendSurfaceActionHandler
+    { actionHandlerDefaultFields = frontendSurfaceFieldValues Aeson.Null
+    , actionHandlerRequest = const FrontendSurfaceHtmxRequest
+        { htmxRequestName = actionName
+        , htmxRequestMethod = FrontendSurfacePost
+        , htmxRequestUrl = actionUrl
+        , htmxRequestTarget = "#profile-leave-request-form-fragment"
+        , htmxRequestSwap = "outerHTML"
+        , htmxRequestFields = []
+        }
+    }
+
+profileSurfaceAction :: Text -> SurfaceIR.HtmxActionIR
+profileSurfaceAction actionName =
+    case [action | surface <- registeredFrontendSurfaceContractIR.contractSurfaces, surface.surfaceName == "profile", action <- surface.surfaceHtmxActions, action.htmxActionName == actionName] of
+        action : _ -> action
+        [] -> error ("missing profile surface action: " <> cs actionName)
 
 profileScopeFields :: ProfileScopeValue -> FrontendSurfaceFieldValues '[ 'Field Surface.VenueId 'WireUUID, 'Field Surface.StaffId 'WireUUID]
 profileScopeFields scope =

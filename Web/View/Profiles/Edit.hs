@@ -1,7 +1,9 @@
 module Web.View.Profiles.Edit where
 
 import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
-import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl,
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            SurfaceImpl,
+                                                            renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
 import Application.Helper.StaffShiftPreferences
 import Data.List (sortOn)
@@ -64,6 +66,16 @@ profileLeaveQueryParams =
 profileCreateLeaveRequestPath :: Text
 profileCreateLeaveRequestPath =
     appendQueryParams (pathTo CreateLeaveRequestAction) profileLeaveQueryParams
+
+profileActionRoute :: Text -> FrontendSurfaceActionRoute
+profileActionRoute actionUrl =
+    FrontendSurfaceActionRoute
+        { actionRouteUrl = actionUrl
+        , actionRouteFields = []
+        , actionRouteCustomHtmx = []
+        , actionRouteStandardUrl = Just actionUrl
+        , actionRouteExtraAttrs = []
+        }
 
 data EditView = EditView
     { staff                    :: Staff
@@ -326,23 +338,25 @@ renderProfileleaveRequestsContentLiveFragmentWithSwap maybeSwapOob staff leaveRe
 renderProfileLeaveRequestFormFragment :: LeaveRequest -> Html
 renderProfileLeaveRequestFormFragment leaveRequest = [hsx|
     <div id={profileLeaveRequestFormFragmentId}>
-        <form id="profile-leave-request-form"
-              method="POST"
-              action={profileCreateLeaveRequestPath}
-              data-disable-javascript-submission="true"
-              hx-post={profileCreateLeaveRequestPath}
-              hx-target={"#" <> profileLeaveRequestFormFragmentId}
-              hx-swap="outerHTML"
-              hx-push-url="false">
+        {renderProfileLeaveRequestActionForm leaveRequest}
+    </div>
+|]
+
+renderProfileLeaveRequestActionForm :: LeaveRequest -> Html
+renderProfileLeaveRequestActionForm leaveRequest =
+    renderFrontendSurfaceActionForm
+        (profileSurfaceAction "create-profile-leave-request")
+        (profileActionRoute profileCreateLeaveRequestPath)
+            { actionRouteExtraAttrs = [("id", "profile-leave-request-form"), ("data-disable-javascript-submission", "true")]
+            }
+        [hsx|
             <input type="hidden" name="responseContext" value="profile"/>
             <input type="hidden" name="section" value="leave"/>
             {renderLeaveRequestFormFields leaveRequest}
             <div class="d-grid mt-4 app-form-width">
                 <button type="submit" class="btn btn-primary">Add unavailable time</button>
             </div>
-        </form>
-    </div>
-|]
+        |]
 
 renderProfileLeaveRequestsListFragment :: [LeaveRequest] -> Html
 renderProfileLeaveRequestsListFragment leaveRequests = [hsx|

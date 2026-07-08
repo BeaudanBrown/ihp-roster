@@ -2020,6 +2020,36 @@ export function parseLeaveRequestsLeaveRequestsContentFragmentParams(value: unkn
 }
 export function encodeLeaveRequestsLeaveRequestsContentFragmentParams(value: LeaveRequestsLeaveRequestsContentFragmentParams): LeaveRequestsLeaveRequestsContentFragmentParams { return value; }
 
+export type LeaveRequestsArchiveLeaveRequestsPageActionFields = { archivePage: number };
+export function isLeaveRequestsArchiveLeaveRequestsPageActionFields(value: unknown): value is LeaveRequestsArchiveLeaveRequestsPageActionFields {
+    return isRecord(value) && (typeof value["archivePage"] === "number" && Number.isInteger(value["archivePage"]));
+}
+export function parseLeaveRequestsArchiveLeaveRequestsPageActionFields(value: unknown): LeaveRequestsArchiveLeaveRequestsPageActionFields {
+    if (isLeaveRequestsArchiveLeaveRequestsPageActionFields(value)) return value;
+    throw new Error("Invalid LeaveRequestsArchiveLeaveRequestsPageActionFields");
+}
+export function encodeLeaveRequestsArchiveLeaveRequestsPageActionFields(value: LeaveRequestsArchiveLeaveRequestsPageActionFields): LeaveRequestsArchiveLeaveRequestsPageActionFields { return value; }
+
+export type LeaveRequestsApproveLeaveRequestActionFields = {  };
+export function isLeaveRequestsApproveLeaveRequestActionFields(value: unknown): value is LeaveRequestsApproveLeaveRequestActionFields {
+    return isRecord(value);
+}
+export function parseLeaveRequestsApproveLeaveRequestActionFields(value: unknown): LeaveRequestsApproveLeaveRequestActionFields {
+    if (isLeaveRequestsApproveLeaveRequestActionFields(value)) return value;
+    throw new Error("Invalid LeaveRequestsApproveLeaveRequestActionFields");
+}
+export function encodeLeaveRequestsApproveLeaveRequestActionFields(value: LeaveRequestsApproveLeaveRequestActionFields): LeaveRequestsApproveLeaveRequestActionFields { return value; }
+
+export type LeaveRequestsDenyLeaveRequestActionFields = {  };
+export function isLeaveRequestsDenyLeaveRequestActionFields(value: unknown): value is LeaveRequestsDenyLeaveRequestActionFields {
+    return isRecord(value);
+}
+export function parseLeaveRequestsDenyLeaveRequestActionFields(value: unknown): LeaveRequestsDenyLeaveRequestActionFields {
+    if (isLeaveRequestsDenyLeaveRequestActionFields(value)) return value;
+    throw new Error("Invalid LeaveRequestsDenyLeaveRequestActionFields");
+}
+export function encodeLeaveRequestsDenyLeaveRequestActionFields(value: LeaveRequestsDenyLeaveRequestActionFields): LeaveRequestsDenyLeaveRequestActionFields { return value; }
+
 export type BillingBillingVenueScope = { venueId: FrontendContractUuid };
 export function isBillingBillingVenueScope(value: unknown): value is BillingBillingVenueScope {
     return isRecord(value) && (typeof value["venueId"] === "string");
@@ -2139,6 +2169,16 @@ export function parseProfileProfileRsaSectionFragmentParams(value: unknown): Pro
     throw new Error("Invalid ProfileProfileRsaSectionFragmentParams");
 }
 export function encodeProfileProfileRsaSectionFragmentParams(value: ProfileProfileRsaSectionFragmentParams): ProfileProfileRsaSectionFragmentParams { return value; }
+
+export type ProfileCreateProfileLeaveRequestActionFields = { startDate: FrontendContractDay; endDate: FrontendContractDay; reason: string };
+export function isProfileCreateProfileLeaveRequestActionFields(value: unknown): value is ProfileCreateProfileLeaveRequestActionFields {
+    return isRecord(value) && (typeof value["startDate"] === "string") && (typeof value["endDate"] === "string") && (typeof value["reason"] === "string");
+}
+export function parseProfileCreateProfileLeaveRequestActionFields(value: unknown): ProfileCreateProfileLeaveRequestActionFields {
+    if (isProfileCreateProfileLeaveRequestActionFields(value)) return value;
+    throw new Error("Invalid ProfileCreateProfileLeaveRequestActionFields");
+}
+export function encodeProfileCreateProfileLeaveRequestActionFields(value: ProfileCreateProfileLeaveRequestActionFields): ProfileCreateProfileLeaveRequestActionFields { return value; }
 
 export type AdminPageAdminPageScopeScope = { venueId: FrontendContractUuid };
 export function isAdminPageAdminPageScopeScope(value: unknown): value is AdminPageAdminPageScopeScope {
@@ -2615,7 +2655,11 @@ export const rosterSurfaceManifest = {"surface":"roster","scopes":["roster-week"
 
 export type LeaveRequestsSurfaceName = "leave-requests";
 export type LeaveRequestsFragmentKey = LeaveRequestsSurfaceFragmentKey;
-export const leaveRequestsSurfaceManifest = {"surface":"leave-requests","scopes":["leave-requests"],"fragments":["leave-requests-content"],"liveFragments":["leave-requests-content"],"htmxActions":[],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":[],"overlayLanes":[],"containedSurfaces":{}} as const;
+export type ArchiveLeaveRequestsPageActionFields = LeaveRequestsArchiveLeaveRequestsPageActionFields;
+export type ApproveLeaveRequestActionFields = LeaveRequestsApproveLeaveRequestActionFields;
+export type DenyLeaveRequestActionFields = LeaveRequestsDenyLeaveRequestActionFields;
+export type LeaveRequestsDomToken = "leave-requests-content" | "leave-archive-page-content";
+export const leaveRequestsSurfaceManifest = {"surface":"leave-requests","scopes":["leave-requests"],"fragments":["leave-requests-content"],"liveFragments":["leave-requests-content"],"htmxActions":[{"name":"archive-leave-requests-page","fields":["archivePage"],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"leave-archive-page-content","swap":"none","pushUrl":true,"custom":[]}},{"name":"approve-leave-request","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"leave-requests-content","swap":"none","pushUrl":false,"custom":[]}},{"name":"deny-leave-request","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"leave-requests-content","swap":"none","pushUrl":false,"custom":[]}}],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":["leave-requests-content","leave-archive-page-content"],"overlayLanes":[],"containedSurfaces":{}} as const;
 
 export type BillingSurfaceName = "billing";
 export type BillingFragmentKey = BillingSurfaceFragmentKey;
@@ -2628,7 +2672,9 @@ export const supportSurfaceManifest = {"surface":"support","scopes":["support-pl
 
 export type ProfileSurfaceName = "profile";
 export type ProfileFragmentKey = ProfileSurfaceFragmentKey;
-export const profileSurfaceManifest = {"surface":"profile","scopes":["profile"],"fragments":["profile-details-section","profile-preferences-section","profile-security-section","profile-leave-section","profile-rsa-section"],"liveFragments":["profile-details-section","profile-preferences-section","profile-security-section","profile-leave-section","profile-rsa-section"],"htmxActions":[],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":[],"overlayLanes":[],"containedSurfaces":{}} as const;
+export type CreateProfileLeaveRequestActionFields = ProfileCreateProfileLeaveRequestActionFields;
+export type ProfileDomToken = "profile-leave-request-form-fragment";
+export const profileSurfaceManifest = {"surface":"profile","scopes":["profile"],"fragments":["profile-details-section","profile-preferences-section","profile-security-section","profile-leave-section","profile-rsa-section"],"liveFragments":["profile-details-section","profile-preferences-section","profile-security-section","profile-leave-section","profile-rsa-section"],"htmxActions":[{"name":"create-profile-leave-request","fields":["startDate","endDate","reason"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"profile-leave-request-form-fragment","swap":"outer-html","pushUrl":false,"custom":[]}}],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":["profile-leave-request-form-fragment"],"overlayLanes":[],"containedSurfaces":{}} as const;
 
 export type AdminPageSurfaceName = "admin-page";
 export type AdminPageFragmentKey = AdminPageSurfaceFragmentKey;

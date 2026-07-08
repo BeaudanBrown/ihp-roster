@@ -2,13 +2,35 @@ module Web.View.LeaveRequests.Index where
 
 import Application.Helper.Controller (LeaveRequestStatus (..),
                                       parseLeaveRequestStatus)
+import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
+import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
-import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl,
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            FrontendSurfaceFieldValue (..),
+                                                            SurfaceImpl,
+                                                            renderFrontendSurfaceActionForm,
+                                                            renderFrontendSurfaceActionLink,
                                                             renderFrontendSurfaceMount)
 import Data.Coerce (coerce)
 import Data.List (sortOn)
 import Data.Ord (Down (..))
 import Web.View.Prelude
+
+leaveRequestsSurfaceAction :: Text -> SurfaceIR.HtmxActionIR
+leaveRequestsSurfaceAction actionName =
+    case [action | surface <- registeredFrontendSurfaceContractIR.contractSurfaces, surface.surfaceName == "leave-requests", action <- surface.surfaceHtmxActions, action.htmxActionName == actionName] of
+        action : _ -> action
+        [] -> error ("missing leave requests surface action: " <> cs actionName)
+
+leaveRequestsActionRoute :: Text -> FrontendSurfaceActionRoute
+leaveRequestsActionRoute actionUrl =
+    FrontendSurfaceActionRoute
+        { actionRouteUrl = actionUrl
+        , actionRouteFields = []
+        , actionRouteCustomHtmx = []
+        , actionRouteStandardUrl = Nothing
+        , actionRouteExtraAttrs = []
+        }
 
 data IndexView = IndexView
     { leaveRequests        :: [LeaveRequest]
@@ -267,18 +289,20 @@ renderArchivePageNumber pagination@ArchivePagination { archivePaginationCurrentP
     | otherwise = renderArchivePageLink pagination pageNumber (tshow pageNumber) False ("Archive page " <> tshow pageNumber)
 
 renderArchivePageLink :: (?context :: ControllerContext) => ArchivePagination -> Int -> Text -> Bool -> Text -> Html
-renderArchivePageLink ArchivePagination { archivePaginationCurrentPage, archivePaginationTotalPages } requestedPage label isDisabled ariaLabel = [hsx|
-    <a href={href}
-       class={classes [("btn btn-sm btn-outline-secondary leave-request-archive-page-button", True), ("disabled", isDisabled)]}
-       aria-label={ariaLabel}
-       aria-disabled={if isDisabled then ("true" :: Text) else ("false" :: Text)}
-       hx-get={fragmentHref}
-       hx-target="#leave-archive-page-content"
-       hx-swap="none"
-       hx-push-url={href}>
-        {label}
-    </a>
-|]
+renderArchivePageLink ArchivePagination { archivePaginationCurrentPage, archivePaginationTotalPages } requestedPage label isDisabled ariaLabel =
+    renderFrontendSurfaceActionLink
+        (leaveRequestsSurfaceAction "archive-leave-requests-page")
+        (leaveRequestsActionRoute fragmentHref)
+            { actionRouteFields = [FrontendSurfaceFieldValue "archivePage" (tshow effectivePage)]
+            , actionRouteStandardUrl = Just href
+            , actionRouteExtraAttrs =
+                [ ("class", classes [("btn btn-sm btn-outline-secondary leave-request-archive-page-button", True), ("disabled", isDisabled)])
+                , ("aria-label", ariaLabel)
+                , ("aria-disabled", if isDisabled then "true" else "false")
+                , ("hx-push-url", href)
+                ]
+            }
+        [hsx|{label}|]
     where
         targetPage = min archivePaginationTotalPages (max 1 requestedPage)
         effectivePage = if isDisabled then archivePaginationCurrentPage else targetPage
@@ -383,16 +407,18 @@ renderReviewActions leaveRequest
                     <> renderReviewActionForm (DenyLeaveRequestAction leaveRequest.id) "btn btn-sm btn-outline-danger me-1" "Deny"
 
 renderReviewActionForm :: (?context :: ControllerContext) => LeaveRequestsController -> Text -> Text -> Html
-renderReviewActionForm action buttonClass label = [hsx|
-    <form method="POST"
-          action={action}
-          class="d-inline"
-          data-disable-javascript-submission="true"
-          hx-post={action}
-          hx-target={"#" <> leaveRequestsContentFragmentId}
-          hx-swap="none"
-          hx-push-url="false">
-        <button type="submit" class={buttonClass}>{label}</button>
-    </form>
-|]
+renderReviewActionForm action buttonClass label =
+    renderFrontendSurfaceActionForm
+        (leaveRequestsSurfaceAction actionName)
+        (leaveRequestsActionRoute (pathTo action))
+            { actionRouteStandardUrl = Just (pathTo action)
+            , actionRouteExtraAttrs = [("class", "d-inline"), ("data-disable-javascript-submission", "true")]
+            }
+        [hsx|<button type="submit" class={buttonClass}>{label}</button>|]
+    where
+        actionName =
+            case action of
+                ApproveLeaveRequestAction {} -> "approve-leave-request"
+                DenyLeaveRequestAction {}    -> "deny-leave-request"
+                _                            -> error "unsupported leave request review action"
 
