@@ -140,6 +140,9 @@ tests = describe "FrontendSurface DSL foundation" do
         html `shouldContainText` "hx-trigger=\"load\""
         html `shouldNotContainText` "data-bepis-surface-lazy"
 
+        let customPlaceholderHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceLazyFragmentWithConfig customPlaceholderFrontendSurfaceLazyFragmentConfig { lazyFragmentRootClasses = ["col-12", "col-xl-4", "surface-lab-side"] } fragment (Html5.toHtml ("Loading" :: Text))))
+        customPlaceholderHtml `shouldContainText` "class=\"col-12 col-xl-4 surface-lab-side app-lazy-surface app-lazy-surface-custom app-lazy-surface-panel\""
+
     it "derives lazy render defaults from existing primitive options" do
         let defaults = knownFragmentOptions @'[ 'Lazy '[ 'Trigger TestLoad, 'Placeholder TestPanel ]]
         defaults.lazyFragmentDefaultLoadPolicy `shouldBe` "lazy"

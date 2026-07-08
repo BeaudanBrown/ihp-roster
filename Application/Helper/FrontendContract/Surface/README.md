@@ -221,7 +221,10 @@ Render mounts with `renderFrontendContract SurfaceMount impl body`. This emits
 attributes in feature views except in guardrail fixtures. Lazy placeholders must
 use the `renderFrontendSurfaceLazyFragmentWithConfig` runtime helper (or its
 plain default wrapper) so canonical UI-region attrs, HTMX swap attrs, retry
-metadata, and primitive-derived lazy defaults stay Haskell-owned. Feature views
+metadata, and primitive-derived lazy defaults stay Haskell-owned. Use
+`customPlaceholderFrontendSurfaceLazyFragmentConfig` when the placeholder markup
+already renders its own panel/card chrome, so the outer lazy region stays a
+transparent HTMX/region shell instead of visually nesting surfaces. Feature views
 may pass root/slot classes in the config; the shared runtime must not infer
 layout geometry. Intent/action forms should use the runtime render helpers so
 HTMX attributes and hidden fields stay Haskell-owned.

@@ -42,6 +42,7 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , frontendSurfaceHtmxMethodText
     , frontendSurfaceInteractionMountDomId
     , defaultFrontendSurfaceLazyFragmentConfig
+    , customPlaceholderFrontendSurfaceLazyFragmentConfig
     , frontendSurfaceMountConfigJson
     , frontendSurfaceMountedFragmentToWire
     , frontendSurfaceMountedFragmentsToWire
@@ -567,6 +568,12 @@ defaultFrontendSurfaceLazyFragmentConfig =
         , lazyFragmentAriaLabel = Nothing
         , lazyFragmentRetryEnabled = True
         , lazyFragmentTriggerOverride = Nothing
+        }
+
+customPlaceholderFrontendSurfaceLazyFragmentConfig :: FrontendSurfaceLazyFragmentConfig
+customPlaceholderFrontendSurfaceLazyFragmentConfig =
+    defaultFrontendSurfaceLazyFragmentConfig
+        { lazyFragmentPlaceholderClasses = ["app-lazy-surface", "app-lazy-surface-custom"]
         }
 
 renderFrontendSurfaceLazyFragment :: FrontendSurfaceMountedFragment -> Blaze.Html -> Blaze.Html

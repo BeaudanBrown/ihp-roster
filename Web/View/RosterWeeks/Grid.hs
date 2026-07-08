@@ -40,7 +40,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             FrontendSurfaceMountConfig (..),
                                                             FrontendSurfaceMountedFragment (..),
                                                             SurfaceImpl (..),
-                                                            defaultFrontendSurfaceLazyFragmentConfig,
+                                                            customPlaceholderFrontendSurfaceLazyFragmentConfig,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceInteractionShell,
                                                             renderFrontendSurfaceLazyFragmentWithConfig)
@@ -150,7 +150,7 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
                     Nothing -> mempty
                     Just fragment ->
                         renderFrontendSurfaceLazyFragmentWithConfig
-                            defaultFrontendSurfaceLazyFragmentConfig { lazyFragmentRootClasses = rosterStaffPanelFragmentClasses }
+                            customPlaceholderFrontendSurfaceLazyFragmentConfig { lazyFragmentRootClasses = rosterStaffPanelFragmentClasses }
                             fragment
                             (renderRosterStaffPanelPlaceholder (length gridRosterGroups > 1))
                 else mempty

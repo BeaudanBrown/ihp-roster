@@ -108,7 +108,11 @@ renderOpenRosterStaffCreateDialogButton weekOffset currentRosterGroupId =
 renderRosterStaffPanelPlaceholderHeader :: Bool -> Html
 renderRosterStaffPanelPlaceholderHeader hasMultipleRosterGroups = [hsx|
     <div class="roster-staff-panel-header" aria-hidden="true">
-        <div class="app-lazy-surface-bar app-lazy-surface-bar-title"></div>
+        <div>
+            <h2 class="h5 mb-0 roster-staff-panel-placeholder-title">
+                <span class="app-lazy-surface-bar app-lazy-surface-bar-title roster-staff-panel-placeholder-title-bar"></span>
+            </h2>
+        </div>
         <div class="d-flex flex-column align-items-end gap-2">
             <div class="app-lazy-surface-button-placeholder"></div>
             {when hasMultipleRosterGroups renderRosterStaffPanelTogglePlaceholder}
@@ -229,7 +233,7 @@ renderRosterStaffPanelSkeletonCell rowIndex column =
         |]
         RosterStaffActionColumn -> [hsx|
             <td class="roster-staff-cell roster-staff-action">
-                <div class="app-lazy-surface-icon-placeholder"></div>
+                <div class="app-lazy-surface-icon-placeholder roster-staff-locate-button-placeholder"></div>
             </td>
         |]
 
