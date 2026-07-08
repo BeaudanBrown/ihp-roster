@@ -223,19 +223,10 @@ renderGlobalConvenienceGroups surfaces global
 
 renderInteractionStaticSchemas :: [SurfaceIR] -> [Text]
 renderInteractionStaticSchemas surfaces =
-    [ "export type InteractionStaticSchemaRegistry = Record<FrontendSurfaceInteractionSurfaceName, InteractionStaticSchema>;"
-    , "export function isInteractionStaticSchemaRegistry(value: unknown): value is InteractionStaticSchemaRegistry {"
-    , "    if (!isRecord(value)) return false;"
-    , "    return Object.entries(value).every(([key, entry]) => isFrontendSurfaceInteractionSurfaceName(key) && isInteractionStaticSchema(entry));"
-    , "}"
-    , "export function parseInteractionStaticSchemaRegistry(value: unknown): InteractionStaticSchemaRegistry {"
-    , "    if (isInteractionStaticSchemaRegistry(value)) return value;"
-    , "    throw new Error(\"Invalid InteractionStaticSchemaRegistry\");"
-    , "}"
-    , "export function encodeInteractionStaticSchemaRegistry(value: InteractionStaticSchemaRegistry): InteractionStaticSchemaRegistry { return value; }"
-    , "export const InteractionStaticSchemas: InteractionStaticSchemaRegistry = " <> objectLiteral surfaceEntries <> ";"
-    , ""
-    ]
+    renderWireAlias "InteractionStaticSchemaRegistry" (WireMapIR (WireRefIR "FrontendSurfaceInteractionSurfaceName") (WireRefIR "InteractionStaticSchema"))
+        <> [ "export const InteractionStaticSchemas: InteractionStaticSchemaRegistry = " <> objectLiteral surfaceEntries <> ";"
+           , ""
+           ]
     where
         interactionSurfaces = filter (\surface -> surface.surfaceName /= "surface-lab" && surfaceHasInteractionSchema surface) surfaces
         surfaceEntries = [(constName surface.surfaceName, renderStaticSchema surface) | surface <- interactionSurfaces]
@@ -530,12 +521,7 @@ renderFrontendSurfaceLiveTransport surfaces =
         <> renderFrontendSurfaceScopeCases liveSurfaces
         <> [ "export type FrontendSurfaceLiveFragment =" ]
         <> renderFrontendSurfaceLiveFragmentCases liveSurfaces
-        <> [ "export type FrontendSurfaceSurfaceFragmentProtection ="
-           , "    | { kind: \"none\" }"
-           , "    | { kind: \"focused-field\"; activeSelector: string; fieldKeyAttr: string; fieldNameFallback: boolean; containerSelector: string | null };"
-           , "export type FrontendSurfaceLiveWireFragment = { fragment: FrontendSurfaceLiveFragment; targetId: string; url: string; deferUntilBlur: boolean; protectionPolicy: FrontendSurfaceSurfaceFragmentProtection };"
-           , "export type FrontendSurfaceLiveSubscription = { scope: FrontendSurfaceScope; scopeKey: string; resyncFragments: FrontendSurfaceLiveWireFragment[] };"
-           , "export function isFrontendSurfaceScope(value: unknown): value is FrontendSurfaceScope {"
+        <> [ "export function isFrontendSurfaceScope(value: unknown): value is FrontendSurfaceScope {"
            , "    if (!isRecord(value)) return false;"
            , "    if (!isFrontendSurfaceName(value.surface)) return false;"
            , "    return isRecord(value.scope);"
@@ -574,77 +560,99 @@ renderFrontendSurfaceLiveFragmentCases surfaces = zipWith render surfaces [0 :: 
     where
         render surface index = (if index == 0 then "    " else "  | ") <> "{ surface: " <> quote surface.surfaceName <> "; fragment: " <> surfaceFragmentKeyUnionName surface <> " }" <> if index == length surfaces - 1 then ";" else ""
 
+renderFrontendSurfaceSupportSchemas :: [Text]
+renderFrontendSurfaceSupportSchemas =
+    concatMap renderSchema generatedSchemas
+        <> concatMap renderSchemaTypeOnly adapterTypeOnlySchemas
+    where
+        generatedSchemas =
+            [ RecordIR "HtmxCustomHtmxAttribute" "HtmxCustomHtmxAttribute"
+                [ required "Name" "name" WireTextIR
+                , required "Reason" "reason" WireTextIR
+                ]
+            , RecordIR "HtmxActionOptions" "HtmxActionOptions"
+                [ nullable "Method" "method" (WireRefIR "HtmxActionMethod")
+                , nullable "Trigger" "trigger" WireTextIR
+                , nullable "Include" "include" WireTextIR
+                , nullable "Sync" "sync" WireTextIR
+                , nullable "Indicator" "indicator" WireTextIR
+                , nullable "Confirm" "confirm" WireTextIR
+                , nullable "Select" "select" WireTextIR
+                , nullable "Target" "target" WireTextIR
+                , nullable "Swap" "swap" (WireRefIR "HtmxActionSwap")
+                , nullable "PushUrl" "pushUrl" WireBoolIR
+                , required "Custom" "custom" (WireListIR (WireRefIR "HtmxCustomHtmxAttribute"))
+                ]
+            , RecordIR "FrontendSurfaceActionManifest" "FrontendSurfaceActionManifest"
+                [ required "Name" "name" WireTextIR
+                , required "Fields" "fields" (WireListIR WireTextIR)
+                , required "Htmx" "htmx" (WireRefIR "HtmxActionOptions")
+                ]
+            , RecordIR "AppShellActionManifest" "AppShellActionManifest"
+                [ required "Name" "name" WireTextIR
+                , required "Fields" "fields" (WireListIR WireTextIR)
+                , required "Htmx" "htmx" (WireRefIR "HtmxActionOptions")
+                ]
+            , TaggedUnionIR "FrontendSurfaceSurfaceFragmentProtection" "FrontendSurfaceSurfaceFragmentProtection" "kind"
+                [ UnionCaseIR "None" "none" []
+                , UnionCaseIR "FocusedField" "focused-field"
+                    [ required "ActiveSelector" "activeSelector" WireTextIR
+                    , required "FieldKeyAttr" "fieldKeyAttr" WireTextIR
+                    , required "FieldNameFallback" "fieldNameFallback" WireBoolIR
+                    , nullable "ContainerSelector" "containerSelector" WireTextIR
+                    ]
+                ]
+            , RecordIR "FrontendSurfaceLiveWireFragment" "FrontendSurfaceLiveWireFragment"
+                [ required "Fragment" "fragment" (WireRefIR "FrontendSurfaceLiveFragment")
+                , required "TargetId" "targetId" WireTextIR
+                , required "Url" "url" WireTextIR
+                , required "DeferUntilBlur" "deferUntilBlur" WireBoolIR
+                , required "ProtectionPolicy" "protectionPolicy" (WireRefIR "FrontendSurfaceSurfaceFragmentProtection")
+                ]
+            , RecordIR "FrontendSurfaceLiveSubscription" "FrontendSurfaceLiveSubscription"
+                [ required "Scope" "scope" (WireRefIR "FrontendSurfaceScope")
+                , required "ScopeKey" "scopeKey" WireTextIR
+                , required "ResyncFragments" "resyncFragments" (WireListIR (WireRefIR "FrontendSurfaceLiveWireFragment"))
+                ]
+            ]
+        adapterTypeOnlySchemas =
+            [ RecordIR "FrontendSurfaceMountedFragmentKeyConfig" "FrontendSurfaceMountedFragmentKeyConfig"
+                [ required "Kind" "kind" WireTextIR
+                , required "Params" "params" WireUnknownIR
+                ]
+            , RecordIR "FrontendSurfaceMountedFragmentConfig" "FrontendSurfaceMountedFragmentConfig"
+                [ required "Key" "key" (WireRefIR "FrontendSurfaceMountedFragmentKeyConfig")
+                , required "TargetId" "targetId" WireTextIR
+                , required "Url" "url" WireTextIR
+                , nullable "Protection" "protection" WireUnknownIR
+                , nullable "LoadPolicy" "loadPolicy" WireTextIR
+                ]
+            , RecordIR "FrontendSurfaceMountConfig" "FrontendSurfaceMountConfig"
+                [ required "Surface" "surface" (WireRefIR "FrontendSurfaceName")
+                , required "ScopeKey" "scopeKey" WireTextIR
+                , required "MountKey" "mountKey" WireTextIR
+                , required "MountState" "mountState" WireUnknownIR
+                , required "Fragments" "fragments" (WireListIR (WireRefIR "FrontendSurfaceMountedFragmentConfig"))
+                , nullable "Subscription" "subscription" (WireRefIR "FrontendSurfaceLiveSubscription")
+                ]
+            ]
+        required marker name wire = FieldIR marker name wire RequiredField
+        nullable marker name wire = FieldIR marker name wire NullableFieldPresence
+
+renderSchemaTypeOnly :: SchemaIR -> [Text]
+renderSchemaTypeOnly = \case
+    RecordIR _ name fields -> ["export type " <> name <> " = " <> recordType fields <> ";"]
+    EnumIR _ name values -> ["export type " <> name <> " ="] <> renderUnionValues values
+    LiteralEnumIR _ name values -> ["export type " <> name <> " ="] <> renderUnionValues (fmap snd values)
+    TaggedUnionIR _ name discriminator cases -> ["export type " <> name <> " ="] <> renderUnionCases discriminator cases
+
 renderFrontendSurfaceMountConfigTypes :: [Text]
 renderFrontendSurfaceMountConfigTypes =
-    [ "export type HtmxActionOptions = { method: HtmxActionMethod | null; trigger: string | null; include: string | null; sync: string | null; indicator: string | null; confirm: string | null; select: string | null; target: string | null; swap: HtmxActionSwap | null; pushUrl: boolean | null; custom: ReadonlyArray<{ name: string; reason: string }> };"
-    , "export type FrontendSurfaceActionManifest = { name: string; fields: readonly string[]; htmx: HtmxActionOptions };"
-    , "export type AppShellActionManifest = { name: string; fields: readonly string[]; htmx: HtmxActionOptions };"
-    , "export function isHtmxActionOptions(value: unknown): value is HtmxActionOptions {"
-    , "    if (!isRecord(value)) return false;"
-    , "    const nullableString = (candidate: unknown) => candidate === null || typeof candidate === \"string\";"
-    , "    const methodOk = value.method === null || isHtmxActionMethod(value.method);"
-    , "    const swapOk = value.swap === null || isHtmxActionSwap(value.swap);"
-    , "    const pushUrlOk = value.pushUrl === null || typeof value.pushUrl === \"boolean\";"
-    , "    const customOk = Array.isArray(value.custom) && value.custom.every((entry) => isRecord(entry) && typeof entry.name === \"string\" && entry.name.length > 0 && typeof entry.reason === \"string\" && entry.reason.length > 0);"
-    , "    return methodOk && nullableString(value.trigger) && nullableString(value.include) && nullableString(value.sync) && nullableString(value.indicator) && nullableString(value.confirm) && nullableString(value.select) && nullableString(value.target) && swapOk && pushUrlOk && customOk;"
-    , "}"
-    , "export function isFrontendSurfaceActionManifest(value: unknown): value is FrontendSurfaceActionManifest {"
-    , "    return isRecord(value) && typeof value.name === \"string\" && Array.isArray(value.fields) && value.fields.every((field) => typeof field === \"string\") && isHtmxActionOptions(value.htmx);"
-    , "}"
-    , "export function parseFrontendSurfaceActionManifest(value: unknown): FrontendSurfaceActionManifest {"
-    , "    if (isFrontendSurfaceActionManifest(value)) return value;"
-    , "    throw new Error(\"Invalid FrontendSurfaceActionManifest\");"
-    , "}"
-    , "export function isAppShellActionManifest(value: unknown): value is AppShellActionManifest {"
-    , "    return isRecord(value) && typeof value.name === \"string\" && Array.isArray(value.fields) && value.fields.every((field) => typeof field === \"string\") && isHtmxActionOptions(value.htmx);"
-    , "}"
-    , "export function parseAppShellActionManifest(value: unknown): AppShellActionManifest {"
-    , "    if (isAppShellActionManifest(value)) return value;"
-    , "    throw new Error(\"Invalid AppShellActionManifest\");"
-    , "}"
-    , ""
-    , "// FrontendSurfaceMountConfig is the HTML data attribute shape emitted by Haskell views."
-    , "// parseFrontendSurfaceMountConfig normalizes it before live-update code builds canonical SurfaceSubscription commands."
-    , "export type FrontendSurfaceMountedFragmentConfig = { key: { kind: string; params: unknown }; targetId: string; url: string; protection: Record<string, unknown> | null; loadPolicy: string | null };"
-    , "export type FrontendSurfaceMountConfig = { surface: FrontendSurfaceName; scopeKey: string; mountKey: string; mountState: unknown; fragments: FrontendSurfaceMountedFragmentConfig[]; subscription: FrontendSurfaceLiveSubscription | null };"
-    , "function __surfaceHasFragment(surface: FrontendSurfaceName, fragment: string): boolean {"
+    renderFrontendSurfaceSupportSchemas
+        <> [ "// FrontendSurfaceMountConfig is the HTML data attribute shape emitted by Haskell views."
+           , "// Runtime parsing/normalization lives in frontend/ts/live-updates/frontend-surface.ts."
+           , "function __surfaceHasFragment(surface: FrontendSurfaceName, fragment: string): boolean {"
     , "    return (FrontendSurfaceRegistry[surface].fragments as readonly string[]).includes(fragment);"
-    , "}"
-    , "export function isFrontendSurfaceSurfaceFragmentProtection(value: unknown): value is FrontendSurfaceSurfaceFragmentProtection {"
-    , "    if (!isRecord(value)) return false;"
-    , "    if (value.kind === \"none\") return true;"
-    , "    return value.kind === \"focused-field\" && typeof value.activeSelector === \"string\" && typeof value.fieldKeyAttr === \"string\" && typeof value.fieldNameFallback === \"boolean\" && (value.containerSelector === null || typeof value.containerSelector === \"string\");"
-    , "}"
-    , "export function isFrontendSurfaceLiveWireFragment(value: unknown): value is FrontendSurfaceLiveWireFragment {"
-    , "    if (!isRecord(value)) return false;"
-    , "    return isFrontendSurfaceLiveFragment(value.fragment) && typeof value.targetId === \"string\" && typeof value.url === \"string\" && typeof value.deferUntilBlur === \"boolean\" && isFrontendSurfaceSurfaceFragmentProtection(value.protectionPolicy);"
-    , "}"
-    , "export function isFrontendSurfaceLiveSubscription(value: unknown): value is FrontendSurfaceLiveSubscription {"
-    , "    if (!isRecord(value)) return false;"
-    , "    return isFrontendSurfaceScope(value.scope) && typeof value.scopeKey === \"string\" && Array.isArray(value.resyncFragments) && value.resyncFragments.every(isFrontendSurfaceLiveWireFragment);"
-    , "}"
-    , "export function isFrontendSurfaceMountedFragmentConfigForSurface(surface: FrontendSurfaceName, value: unknown): value is FrontendSurfaceMountedFragmentConfig {"
-    , "    if (!isRecord(value)) return false;"
-    , "    if (!isRecord(value.key)) return false;"
-    , "    if (typeof value.key.kind !== \"string\" || !__surfaceHasFragment(surface, value.key.kind)) return false;"
-    , "    if (typeof value.targetId !== \"string\" || typeof value.url !== \"string\") return false;"
-    , "    if (value.protection !== null && value.protection !== undefined && !isRecord(value.protection)) return false;"
-    , "    if (value.loadPolicy !== null && value.loadPolicy !== undefined && typeof value.loadPolicy !== \"string\") return false;"
-    , "    return true;"
-    , "}"
-    , "export function isFrontendSurfaceMountConfig(value: unknown): value is FrontendSurfaceMountConfig {"
-    , "    if (!isRecord(value)) return false;"
-    , "    if (!isFrontendSurfaceName(value.surface)) return false;"
-    , "    if (typeof value.scopeKey !== \"string\" || typeof value.mountKey !== \"string\") return false;"
-    , "    if (!Array.isArray(value.fragments) || !value.fragments.every((fragment) => isFrontendSurfaceMountedFragmentConfigForSurface(value.surface as FrontendSurfaceName, fragment))) return false;"
-    , "    if (value.subscription !== null && value.subscription !== undefined && !isFrontendSurfaceLiveSubscription(value.subscription)) return false;"
-    , "    return true;"
-    , "}"
-    , "export function parseFrontendSurfaceMountConfig(value: unknown): FrontendSurfaceMountConfig {"
-    , "    if (isFrontendSurfaceMountConfig(value)) {"
-    , "        return { ...value, subscription: value.subscription ?? null, fragments: value.fragments.map((fragment) => ({ ...fragment, protection: fragment.protection ?? null, loadPolicy: fragment.loadPolicy ?? null })) };"
-    , "    }"
-    , "    throw new Error(\"Invalid FrontendSurfaceMountConfig\");"
     , "}"
     , ""
     ]
@@ -723,6 +731,11 @@ renderRecordAlias name fields =
     ["export type " <> name <> " = " <> recordType fields <> ";"]
         <> renderCodec name (recordGuardExpression fields)
 
+renderWireAlias :: Text -> WireIR -> [Text]
+renderWireAlias name wire =
+    ["export type " <> name <> " = " <> wireType wire <> ";"]
+        <> renderCodec name (valueGuard "value" wire)
+
 renderCodec :: Text -> Text -> [Text]
 renderCodec name guardExpression =
     [ "export function is" <> name <> "(value: unknown): value is " <> name <> " {"
@@ -767,7 +780,9 @@ wireType = \case
     WireBoolIR -> "boolean"
     WireUuidIR -> wirePrimitiveTypeName WireUuidIR
     WireDayIR -> wirePrimitiveTypeName WireDayIR
+    WireUnknownIR -> "unknown"
     WireListIR inner -> "ReadonlyArray<" <> wireType inner <> ">"
+    WireMapIR key value -> "Record<" <> wireType key <> ", " <> wireType value <> ">"
     WireOptionalIR inner -> wireType inner <> " | undefined"
     WireNullableIR inner -> wireType inner <> " | null"
     WireRefIR name | Text.isPrefixOf "\"" name -> name
@@ -806,7 +821,9 @@ valueGuard access = \case
     WireBoolIR -> "typeof " <> access <> " === \"boolean\""
     WireUuidIR -> primitiveValueGuard access WireUuidIR
     WireDayIR -> primitiveValueGuard access WireDayIR
+    WireUnknownIR -> "true"
     WireListIR inner -> "Array.isArray(" <> access <> ") && " <> access <> ".every((item) => " <> valueGuard "item" inner <> ")"
+    WireMapIR key value -> "isRecord(" <> access <> ") && Object.entries(" <> access <> ").every(([key, entry]) => " <> valueGuard "key" key <> " && " <> valueGuard "entry" value <> ")"
     WireOptionalIR inner -> access <> " === undefined || " <> valueGuard access inner
     WireNullableIR inner -> access <> " === null || " <> valueGuard access inner
     WireRefIR name | Text.isPrefixOf "\"" name -> access <> " === " <> name

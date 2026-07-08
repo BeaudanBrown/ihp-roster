@@ -146,9 +146,13 @@ validateWireValueWith contract fieldName wire value =
         Contract.WireBoolIR -> expectBool
         Contract.WireUuidIR -> expectString
         Contract.WireDayIR -> expectString
+        Contract.WireUnknownIR -> pure ()
         Contract.WireListIR inner -> case value of
             Aeson.Array items -> mapM_ (validateWireValueWith contract fieldName inner) items
             _ -> typeError "array"
+        Contract.WireMapIR _key valueWire -> case value of
+            Aeson.Object object -> mapM_ (validateWireValueWith contract fieldName valueWire) (KeyMap.elems object)
+            _ -> typeError "object"
         Contract.WireOptionalIR inner ->
             if value == Aeson.Null then pure () else validateWireValueWith contract fieldName inner value
         Contract.WireNullableIR inner ->

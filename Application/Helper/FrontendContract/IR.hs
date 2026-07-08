@@ -141,7 +141,9 @@ data WireIR
     | WireBoolIR
     | WireUuidIR
     | WireDayIR
+    | WireUnknownIR
     | WireListIR !WireIR
+    | WireMapIR !WireIR !WireIR
     | WireOptionalIR !WireIR
     | WireNullableIR !WireIR
     | WireRefIR !Text
@@ -336,6 +338,7 @@ wireRefs :: WireIR -> [Text]
 wireRefs = \case
     WireRefIR name -> [name]
     WireListIR inner -> wireRefs inner
+    WireMapIR key value -> wireRefs key <> wireRefs value
     WireOptionalIR inner -> wireRefs inner
     WireNullableIR inner -> wireRefs inner
     WireTextIR -> []
@@ -343,6 +346,7 @@ wireRefs = \case
     WireBoolIR -> []
     WireUuidIR -> []
     WireDayIR -> []
+    WireUnknownIR -> []
     WireSurfaceScopeIR -> []
     WireSurfaceFragmentKeyIR -> []
     WireSurfaceWireFragmentIR -> []

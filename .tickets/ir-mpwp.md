@@ -1,6 +1,6 @@
 ---
 id: ir-mpwp
-status: open
+status: closed
 deps: [ir-zi2e]
 links: []
 created: 2026-07-08T07:20:33Z
@@ -22,3 +22,9 @@ Represent manifest records and nested custom HTMX records in the DSL/IR or a gen
 
 Generated manifest type definitions and validators are derived from Haskell schema declarations; Surface/AppShell manifests keep current wire shape; frontend-check and Frontend contract specs pass.
 
+
+## Notes
+
+**2026-07-08T07:42:31Z**
+
+Promoted HTMX support and action manifest exported types/codecs into Haskell SchemaIR support schemas rendered through the generic TypeScript schema renderer: HtmxCustomHtmxAttribute, HtmxActionOptions, FrontendSurfaceActionManifest, and AppShellActionManifest.

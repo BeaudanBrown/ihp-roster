@@ -1480,14 +1480,14 @@ export const InteractionDom: InteractionDom = {
 
 export type InteractionStaticSchemaRegistry = Record<FrontendSurfaceInteractionSurfaceName, InteractionStaticSchema>;
 export function isInteractionStaticSchemaRegistry(value: unknown): value is InteractionStaticSchemaRegistry {
-    if (!isRecord(value)) return false;
-    return Object.entries(value).every(([key, entry]) => isFrontendSurfaceInteractionSurfaceName(key) && isInteractionStaticSchema(entry));
+    return isRecord(value) && Object.entries(value).every(([key, entry]) => isFrontendSurfaceInteractionSurfaceName(key) && isInteractionStaticSchema(entry));
 }
 export function parseInteractionStaticSchemaRegistry(value: unknown): InteractionStaticSchemaRegistry {
     if (isInteractionStaticSchemaRegistry(value)) return value;
     throw new Error("Invalid InteractionStaticSchemaRegistry");
 }
 export function encodeInteractionStaticSchemaRegistry(value: InteractionStaticSchemaRegistry): InteractionStaticSchemaRegistry { return value; }
+
 export const InteractionStaticSchemas: InteractionStaticSchemaRegistry = {"roster":{"serverLayers":[],"disposableLayers":[{"name":"drag-preview","domIdSuffix":"drag-preview"}],"sessionKinds":[{"kind":"drag","description":"Roster drag/drop prototype","effects":{"global":[{"className":"bepis-pointer-clone-shadow","kind":"clone-shadow","layer":"drag-preview","preserveGrabOffset":true,"source":"pointer-marker"}],"contextual":[{"className":"bepis-dropzone-highlight","kind":"dropzone-highlight"}]}}],"intents":[{"name":"set-roster-layout-mode","fields":[{"name":"rosterLayoutMode","presence":"required","defaultValue":null}]},{"name":"move-roster-shift-to-slot","fields":[{"name":"sourceItemKey","presence":"required","defaultValue":null},{"name":"targetDropzoneKey","presence":"required","defaultValue":null},{"name":"sessionKind","presence":"optional","defaultValue":null},{"name":"pointerId","presence":"optional","defaultValue":null},{"name":"pointerType","presence":"optional","defaultValue":null},{"name":"startClientX","presence":"optional","defaultValue":null},{"name":"startClientY","presence":"optional","defaultValue":null},{"name":"currentClientX","presence":"optional","defaultValue":null},{"name":"currentClientY","presence":"optional","defaultValue":null},{"name":"deltaX","presence":"optional","defaultValue":null},{"name":"deltaY","presence":"optional","defaultValue":null}]}],"conflictPolicies":[{"session":{"kind":"session","session":"drag"},"fragment":{"kind":"any"},"resolution":"defer","timeoutMs":5000}]}};
 
 export type SurfaceFragmentProtection =
@@ -2909,11 +2909,6 @@ export type FrontendSurfaceLiveFragment =
   | { surface: "admin-shift-types"; fragment: AdminShiftTypesSurfaceFragmentKey }
   | { surface: "admin-roster-groups"; fragment: AdminRosterGroupsSurfaceFragmentKey }
   | { surface: "admin-xero"; fragment: AdminXeroSurfaceFragmentKey };
-export type FrontendSurfaceSurfaceFragmentProtection =
-    | { kind: "none" }
-    | { kind: "focused-field"; activeSelector: string; fieldKeyAttr: string; fieldNameFallback: boolean; containerSelector: string | null };
-export type FrontendSurfaceLiveWireFragment = { fragment: FrontendSurfaceLiveFragment; targetId: string; url: string; deferUntilBlur: boolean; protectionPolicy: FrontendSurfaceSurfaceFragmentProtection };
-export type FrontendSurfaceLiveSubscription = { scope: FrontendSurfaceScope; scopeKey: string; resyncFragments: FrontendSurfaceLiveWireFragment[] };
 export function isFrontendSurfaceScope(value: unknown): value is FrontendSurfaceScope {
     if (!isRecord(value)) return false;
     if (!isFrontendSurfaceName(value.surface)) return false;
@@ -2934,75 +2929,85 @@ export function parseFrontendSurfaceLiveFragment(value: unknown): FrontendSurfac
     throw new Error("Invalid FrontendSurfaceLiveFragment");
 }
 
-export type HtmxActionOptions = { method: HtmxActionMethod | null; trigger: string | null; include: string | null; sync: string | null; indicator: string | null; confirm: string | null; select: string | null; target: string | null; swap: HtmxActionSwap | null; pushUrl: boolean | null; custom: ReadonlyArray<{ name: string; reason: string }> };
-export type FrontendSurfaceActionManifest = { name: string; fields: readonly string[]; htmx: HtmxActionOptions };
-export type AppShellActionManifest = { name: string; fields: readonly string[]; htmx: HtmxActionOptions };
-export function isHtmxActionOptions(value: unknown): value is HtmxActionOptions {
-    if (!isRecord(value)) return false;
-    const nullableString = (candidate: unknown) => candidate === null || typeof candidate === "string";
-    const methodOk = value.method === null || isHtmxActionMethod(value.method);
-    const swapOk = value.swap === null || isHtmxActionSwap(value.swap);
-    const pushUrlOk = value.pushUrl === null || typeof value.pushUrl === "boolean";
-    const customOk = Array.isArray(value.custom) && value.custom.every((entry) => isRecord(entry) && typeof entry.name === "string" && entry.name.length > 0 && typeof entry.reason === "string" && entry.reason.length > 0);
-    return methodOk && nullableString(value.trigger) && nullableString(value.include) && nullableString(value.sync) && nullableString(value.indicator) && nullableString(value.confirm) && nullableString(value.select) && nullableString(value.target) && swapOk && pushUrlOk && customOk;
+export type HtmxCustomHtmxAttribute = { name: string; reason: string };
+export function isHtmxCustomHtmxAttribute(value: unknown): value is HtmxCustomHtmxAttribute {
+    return isRecord(value) && (typeof value["name"] === "string") && (typeof value["reason"] === "string");
 }
+export function parseHtmxCustomHtmxAttribute(value: unknown): HtmxCustomHtmxAttribute {
+    if (isHtmxCustomHtmxAttribute(value)) return value;
+    throw new Error("Invalid HtmxCustomHtmxAttribute");
+}
+export function encodeHtmxCustomHtmxAttribute(value: HtmxCustomHtmxAttribute): HtmxCustomHtmxAttribute { return value; }
+
+export type HtmxActionOptions = { method: HtmxActionMethod | null; trigger: string | null; include: string | null; sync: string | null; indicator: string | null; confirm: string | null; select: string | null; target: string | null; swap: HtmxActionSwap | null; pushUrl: boolean | null; custom: ReadonlyArray<HtmxCustomHtmxAttribute> };
+export function isHtmxActionOptions(value: unknown): value is HtmxActionOptions {
+    return isRecord(value) && (value["method"] === null || (isHtmxActionMethod(value["method"]))) && (value["trigger"] === null || (typeof value["trigger"] === "string")) && (value["include"] === null || (typeof value["include"] === "string")) && (value["sync"] === null || (typeof value["sync"] === "string")) && (value["indicator"] === null || (typeof value["indicator"] === "string")) && (value["confirm"] === null || (typeof value["confirm"] === "string")) && (value["select"] === null || (typeof value["select"] === "string")) && (value["target"] === null || (typeof value["target"] === "string")) && (value["swap"] === null || (isHtmxActionSwap(value["swap"]))) && (value["pushUrl"] === null || (typeof value["pushUrl"] === "boolean")) && (Array.isArray(value["custom"]) && value["custom"].every((item) => isHtmxCustomHtmxAttribute(item)));
+}
+export function parseHtmxActionOptions(value: unknown): HtmxActionOptions {
+    if (isHtmxActionOptions(value)) return value;
+    throw new Error("Invalid HtmxActionOptions");
+}
+export function encodeHtmxActionOptions(value: HtmxActionOptions): HtmxActionOptions { return value; }
+
+export type FrontendSurfaceActionManifest = { name: string; fields: ReadonlyArray<string>; htmx: HtmxActionOptions };
 export function isFrontendSurfaceActionManifest(value: unknown): value is FrontendSurfaceActionManifest {
-    return isRecord(value) && typeof value.name === "string" && Array.isArray(value.fields) && value.fields.every((field) => typeof field === "string") && isHtmxActionOptions(value.htmx);
+    return isRecord(value) && (typeof value["name"] === "string") && (Array.isArray(value["fields"]) && value["fields"].every((item) => typeof item === "string")) && (isHtmxActionOptions(value["htmx"]));
 }
 export function parseFrontendSurfaceActionManifest(value: unknown): FrontendSurfaceActionManifest {
     if (isFrontendSurfaceActionManifest(value)) return value;
     throw new Error("Invalid FrontendSurfaceActionManifest");
 }
+export function encodeFrontendSurfaceActionManifest(value: FrontendSurfaceActionManifest): FrontendSurfaceActionManifest { return value; }
+
+export type AppShellActionManifest = { name: string; fields: ReadonlyArray<string>; htmx: HtmxActionOptions };
 export function isAppShellActionManifest(value: unknown): value is AppShellActionManifest {
-    return isRecord(value) && typeof value.name === "string" && Array.isArray(value.fields) && value.fields.every((field) => typeof field === "string") && isHtmxActionOptions(value.htmx);
+    return isRecord(value) && (typeof value["name"] === "string") && (Array.isArray(value["fields"]) && value["fields"].every((item) => typeof item === "string")) && (isHtmxActionOptions(value["htmx"]));
 }
 export function parseAppShellActionManifest(value: unknown): AppShellActionManifest {
     if (isAppShellActionManifest(value)) return value;
     throw new Error("Invalid AppShellActionManifest");
 }
+export function encodeAppShellActionManifest(value: AppShellActionManifest): AppShellActionManifest { return value; }
 
+export type FrontendSurfaceSurfaceFragmentProtection =
+    { kind: "none" }
+  | { kind: "focused-field"; activeSelector: string; fieldKeyAttr: string; fieldNameFallback: boolean; containerSelector: string | null };
+export function isFrontendSurfaceSurfaceFragmentProtection(value: unknown): value is FrontendSurfaceSurfaceFragmentProtection {
+    return ((isRecord(value) && value["kind"] === "none") || (isRecord(value) && value["kind"] === "focused-field" && (typeof value["activeSelector"] === "string") && (typeof value["fieldKeyAttr"] === "string") && (typeof value["fieldNameFallback"] === "boolean") && (value["containerSelector"] === null || (typeof value["containerSelector"] === "string"))));
+}
+export function parseFrontendSurfaceSurfaceFragmentProtection(value: unknown): FrontendSurfaceSurfaceFragmentProtection {
+    if (isFrontendSurfaceSurfaceFragmentProtection(value)) return value;
+    throw new Error("Invalid FrontendSurfaceSurfaceFragmentProtection");
+}
+export function encodeFrontendSurfaceSurfaceFragmentProtection(value: FrontendSurfaceSurfaceFragmentProtection): FrontendSurfaceSurfaceFragmentProtection { return value; }
+
+export type FrontendSurfaceLiveWireFragment = { fragment: FrontendSurfaceLiveFragment; targetId: string; url: string; deferUntilBlur: boolean; protectionPolicy: FrontendSurfaceSurfaceFragmentProtection };
+export function isFrontendSurfaceLiveWireFragment(value: unknown): value is FrontendSurfaceLiveWireFragment {
+    return isRecord(value) && (isFrontendSurfaceLiveFragment(value["fragment"])) && (typeof value["targetId"] === "string") && (typeof value["url"] === "string") && (typeof value["deferUntilBlur"] === "boolean") && (isFrontendSurfaceSurfaceFragmentProtection(value["protectionPolicy"]));
+}
+export function parseFrontendSurfaceLiveWireFragment(value: unknown): FrontendSurfaceLiveWireFragment {
+    if (isFrontendSurfaceLiveWireFragment(value)) return value;
+    throw new Error("Invalid FrontendSurfaceLiveWireFragment");
+}
+export function encodeFrontendSurfaceLiveWireFragment(value: FrontendSurfaceLiveWireFragment): FrontendSurfaceLiveWireFragment { return value; }
+
+export type FrontendSurfaceLiveSubscription = { scope: FrontendSurfaceScope; scopeKey: string; resyncFragments: ReadonlyArray<FrontendSurfaceLiveWireFragment> };
+export function isFrontendSurfaceLiveSubscription(value: unknown): value is FrontendSurfaceLiveSubscription {
+    return isRecord(value) && (isFrontendSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (Array.isArray(value["resyncFragments"]) && value["resyncFragments"].every((item) => isFrontendSurfaceLiveWireFragment(item)));
+}
+export function parseFrontendSurfaceLiveSubscription(value: unknown): FrontendSurfaceLiveSubscription {
+    if (isFrontendSurfaceLiveSubscription(value)) return value;
+    throw new Error("Invalid FrontendSurfaceLiveSubscription");
+}
+export function encodeFrontendSurfaceLiveSubscription(value: FrontendSurfaceLiveSubscription): FrontendSurfaceLiveSubscription { return value; }
+
+export type FrontendSurfaceMountedFragmentKeyConfig = { kind: string; params: unknown };
+export type FrontendSurfaceMountedFragmentConfig = { key: FrontendSurfaceMountedFragmentKeyConfig; targetId: string; url: string; protection: unknown | null; loadPolicy: string | null };
+export type FrontendSurfaceMountConfig = { surface: FrontendSurfaceName; scopeKey: string; mountKey: string; mountState: unknown; fragments: ReadonlyArray<FrontendSurfaceMountedFragmentConfig>; subscription: FrontendSurfaceLiveSubscription | null };
 // FrontendSurfaceMountConfig is the HTML data attribute shape emitted by Haskell views.
-// parseFrontendSurfaceMountConfig normalizes it before live-update code builds canonical SurfaceSubscription commands.
-export type FrontendSurfaceMountedFragmentConfig = { key: { kind: string; params: unknown }; targetId: string; url: string; protection: Record<string, unknown> | null; loadPolicy: string | null };
-export type FrontendSurfaceMountConfig = { surface: FrontendSurfaceName; scopeKey: string; mountKey: string; mountState: unknown; fragments: FrontendSurfaceMountedFragmentConfig[]; subscription: FrontendSurfaceLiveSubscription | null };
+// Runtime parsing/normalization lives in frontend/ts/live-updates/frontend-surface.ts.
 function __surfaceHasFragment(surface: FrontendSurfaceName, fragment: string): boolean {
     return (FrontendSurfaceRegistry[surface].fragments as readonly string[]).includes(fragment);
-}
-export function isFrontendSurfaceSurfaceFragmentProtection(value: unknown): value is FrontendSurfaceSurfaceFragmentProtection {
-    if (!isRecord(value)) return false;
-    if (value.kind === "none") return true;
-    return value.kind === "focused-field" && typeof value.activeSelector === "string" && typeof value.fieldKeyAttr === "string" && typeof value.fieldNameFallback === "boolean" && (value.containerSelector === null || typeof value.containerSelector === "string");
-}
-export function isFrontendSurfaceLiveWireFragment(value: unknown): value is FrontendSurfaceLiveWireFragment {
-    if (!isRecord(value)) return false;
-    return isFrontendSurfaceLiveFragment(value.fragment) && typeof value.targetId === "string" && typeof value.url === "string" && typeof value.deferUntilBlur === "boolean" && isFrontendSurfaceSurfaceFragmentProtection(value.protectionPolicy);
-}
-export function isFrontendSurfaceLiveSubscription(value: unknown): value is FrontendSurfaceLiveSubscription {
-    if (!isRecord(value)) return false;
-    return isFrontendSurfaceScope(value.scope) && typeof value.scopeKey === "string" && Array.isArray(value.resyncFragments) && value.resyncFragments.every(isFrontendSurfaceLiveWireFragment);
-}
-export function isFrontendSurfaceMountedFragmentConfigForSurface(surface: FrontendSurfaceName, value: unknown): value is FrontendSurfaceMountedFragmentConfig {
-    if (!isRecord(value)) return false;
-    if (!isRecord(value.key)) return false;
-    if (typeof value.key.kind !== "string" || !__surfaceHasFragment(surface, value.key.kind)) return false;
-    if (typeof value.targetId !== "string" || typeof value.url !== "string") return false;
-    if (value.protection !== null && value.protection !== undefined && !isRecord(value.protection)) return false;
-    if (value.loadPolicy !== null && value.loadPolicy !== undefined && typeof value.loadPolicy !== "string") return false;
-    return true;
-}
-export function isFrontendSurfaceMountConfig(value: unknown): value is FrontendSurfaceMountConfig {
-    if (!isRecord(value)) return false;
-    if (!isFrontendSurfaceName(value.surface)) return false;
-    if (typeof value.scopeKey !== "string" || typeof value.mountKey !== "string") return false;
-    if (!Array.isArray(value.fragments) || !value.fragments.every((fragment) => isFrontendSurfaceMountedFragmentConfigForSurface(value.surface as FrontendSurfaceName, fragment))) return false;
-    if (value.subscription !== null && value.subscription !== undefined && !isFrontendSurfaceLiveSubscription(value.subscription)) return false;
-    return true;
-}
-export function parseFrontendSurfaceMountConfig(value: unknown): FrontendSurfaceMountConfig {
-    if (isFrontendSurfaceMountConfig(value)) {
-        return { ...value, subscription: value.subscription ?? null, fragments: value.fragments.map((fragment) => ({ ...fragment, protection: fragment.protection ?? null, loadPolicy: fragment.loadPolicy ?? null })) };
-    }
-    throw new Error("Invalid FrontendSurfaceMountConfig");
 }
 
 export type FrontendSurfaceName = "surface-lab" | "timesheets" | "roster" | "leave-requests" | "billing" | "support" | "profile" | "staff" | "admin-page" | "admin-xero-page" | "admin-venue-config" | "admin-invites" | "admin-exports" | "admin-shift-types" | "admin-roster-groups" | "admin-xero";

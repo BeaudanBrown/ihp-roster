@@ -1,6 +1,6 @@
 ---
 id: ir-sc3c
-status: open
+status: closed
 deps: [ir-zi2e]
 links: []
 created: 2026-07-08T07:20:33Z
@@ -22,3 +22,9 @@ Use existing FrontendSurfaceMountConfig/FrontendSurfaceMountedFragment Haskell c
 
 Generated mount/live adapter types reflect Haskell carrier schemas; no stale manual fields can diverge from Runtime.hs/Wire.LiveUpdate; live-update frontend tests pass.
 
+
+## Notes
+
+**2026-07-08T07:42:31Z**
+
+Promoted FrontendSurface live adapter exports and mount config type aliases into Haskell support schemas rendered by the generic TypeScript renderer. Runtime mount parsing stays in frontend/ts/live-updates/frontend-surface.ts so generated output owns shapes/data while runtime code owns normalization.

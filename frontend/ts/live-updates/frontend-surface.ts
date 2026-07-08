@@ -1,7 +1,11 @@
 import {
-    parseFrontendSurfaceMountConfig as parseGeneratedFrontendSurfaceMountConfig,
+    FrontendSurfaceRegistry,
+    isFrontendSurfaceLiveSubscription,
+    isFrontendSurfaceName,
     type FrontendSurfaceLiveWireFragment,
     type FrontendSurfaceMountConfig,
+    type FrontendSurfaceMountedFragmentConfig,
+    type FrontendSurfaceName,
     type SurfaceFragmentProtection,
     type SurfaceScope,
     type SurfaceWireFragment,
@@ -55,11 +59,43 @@ export function parseFrontendSurfaceSubscriptionConfig(value: unknown): ParsedFr
 }
 
 export function parseFrontendSurfaceMountConfig(value: unknown): FrontendSurfaceMountConfig | null {
-    try {
-        return parseGeneratedFrontendSurfaceMountConfig(value);
-    } catch (_error) {
-        return null;
-    }
+    if (!isFrontendSurfaceMountConfig(value)) return null;
+    return {
+        ...value,
+        subscription: value.subscription ?? null,
+        fragments: value.fragments.map((fragment) => ({
+            ...fragment,
+            protection: fragment.protection ?? null,
+            loadPolicy: fragment.loadPolicy ?? null,
+        })),
+    };
+}
+
+function isFrontendSurfaceMountConfig(value: unknown): value is FrontendSurfaceMountConfig {
+    if (!isRecord(value)) return false;
+    if (!isFrontendSurfaceName(value.surface)) return false;
+    if (typeof value.scopeKey !== "string" || typeof value.mountKey !== "string") return false;
+    if (!Array.isArray(value.fragments) || !value.fragments.every((fragment) => isFrontendSurfaceMountedFragmentConfigForSurface(value.surface as FrontendSurfaceName, fragment))) return false;
+    if (value.subscription !== null && value.subscription !== undefined && !isFrontendSurfaceLiveSubscription(value.subscription)) return false;
+    return true;
+}
+
+function isFrontendSurfaceMountedFragmentConfigForSurface(surface: FrontendSurfaceName, value: unknown): value is FrontendSurfaceMountedFragmentConfig {
+    if (!isRecord(value)) return false;
+    if (!isRecord(value.key)) return false;
+    if (typeof value.key.kind !== "string" || !surfaceHasFragment(surface, value.key.kind)) return false;
+    if (typeof value.targetId !== "string" || typeof value.url !== "string") return false;
+    if (value.protection !== null && value.protection !== undefined && !isRecord(value.protection)) return false;
+    if (value.loadPolicy !== null && value.loadPolicy !== undefined && typeof value.loadPolicy !== "string") return false;
+    return true;
+}
+
+function surfaceHasFragment(surface: FrontendSurfaceName, fragment: string): boolean {
+    return (FrontendSurfaceRegistry[surface].fragments as readonly string[]).includes(fragment);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function surfaceLiveFragmentToWire(fragment: FrontendSurfaceLiveWireFragment): SurfaceWireFragment {

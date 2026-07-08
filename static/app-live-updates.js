@@ -255,44 +255,17 @@
     if (!isRecord(value.fragment)) return false;
     return typeof value.fragment.kind === "string" && __surfaceHasFragment(value.surface, value.fragment.kind);
   }
-  function __surfaceHasFragment(surface, fragment) {
-    return FrontendSurfaceRegistry[surface].fragments.includes(fragment);
-  }
   function isFrontendSurfaceSurfaceFragmentProtection(value) {
-    if (!isRecord(value)) return false;
-    if (value.kind === "none") return true;
-    return value.kind === "focused-field" && typeof value.activeSelector === "string" && typeof value.fieldKeyAttr === "string" && typeof value.fieldNameFallback === "boolean" && (value.containerSelector === null || typeof value.containerSelector === "string");
+    return isRecord(value) && value["kind"] === "none" || isRecord(value) && value["kind"] === "focused-field" && typeof value["activeSelector"] === "string" && typeof value["fieldKeyAttr"] === "string" && typeof value["fieldNameFallback"] === "boolean" && (value["containerSelector"] === null || typeof value["containerSelector"] === "string");
   }
   function isFrontendSurfaceLiveWireFragment(value) {
-    if (!isRecord(value)) return false;
-    return isFrontendSurfaceLiveFragment(value.fragment) && typeof value.targetId === "string" && typeof value.url === "string" && typeof value.deferUntilBlur === "boolean" && isFrontendSurfaceSurfaceFragmentProtection(value.protectionPolicy);
+    return isRecord(value) && isFrontendSurfaceLiveFragment(value["fragment"]) && typeof value["targetId"] === "string" && typeof value["url"] === "string" && typeof value["deferUntilBlur"] === "boolean" && isFrontendSurfaceSurfaceFragmentProtection(value["protectionPolicy"]);
   }
   function isFrontendSurfaceLiveSubscription(value) {
-    if (!isRecord(value)) return false;
-    return isFrontendSurfaceScope(value.scope) && typeof value.scopeKey === "string" && Array.isArray(value.resyncFragments) && value.resyncFragments.every(isFrontendSurfaceLiveWireFragment);
+    return isRecord(value) && isFrontendSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (Array.isArray(value["resyncFragments"]) && value["resyncFragments"].every((item) => isFrontendSurfaceLiveWireFragment(item)));
   }
-  function isFrontendSurfaceMountedFragmentConfigForSurface(surface, value) {
-    if (!isRecord(value)) return false;
-    if (!isRecord(value.key)) return false;
-    if (typeof value.key.kind !== "string" || !__surfaceHasFragment(surface, value.key.kind)) return false;
-    if (typeof value.targetId !== "string" || typeof value.url !== "string") return false;
-    if (value.protection !== null && value.protection !== void 0 && !isRecord(value.protection)) return false;
-    if (value.loadPolicy !== null && value.loadPolicy !== void 0 && typeof value.loadPolicy !== "string") return false;
-    return true;
-  }
-  function isFrontendSurfaceMountConfig(value) {
-    if (!isRecord(value)) return false;
-    if (!isFrontendSurfaceName(value.surface)) return false;
-    if (typeof value.scopeKey !== "string" || typeof value.mountKey !== "string") return false;
-    if (!Array.isArray(value.fragments) || !value.fragments.every((fragment) => isFrontendSurfaceMountedFragmentConfigForSurface(value.surface, fragment))) return false;
-    if (value.subscription !== null && value.subscription !== void 0 && !isFrontendSurfaceLiveSubscription(value.subscription)) return false;
-    return true;
-  }
-  function parseFrontendSurfaceMountConfig(value) {
-    if (isFrontendSurfaceMountConfig(value)) {
-      return { ...value, subscription: value.subscription ?? null, fragments: value.fragments.map((fragment) => ({ ...fragment, protection: fragment.protection ?? null, loadPolicy: fragment.loadPolicy ?? null })) };
-    }
-    throw new Error("Invalid FrontendSurfaceMountConfig");
+  function __surfaceHasFragment(surface, fragment) {
+    return FrontendSurfaceRegistry[surface].fragments.includes(fragment);
   }
   var FrontendSurfaceRegistry = {
     "surface-lab": surfaceLabSurfaceManifest,
@@ -591,7 +564,7 @@
 
   // frontend/ts/live-updates/frontend-surface.ts
   function parseFrontendSurfaceSubscriptionConfig(value) {
-    const config = parseFrontendSurfaceMountConfig2(value);
+    const config = parseFrontendSurfaceMountConfig(value);
     if (!config?.subscription) return null;
     const resyncFragments = config.subscription.resyncFragments.map(surfaceLiveFragmentToWire);
     if (resyncFragments.length === 0) return null;
@@ -606,12 +579,40 @@
       decorateRequestsWithin: config.subscription.resyncFragments.map((fragment) => `#${fragment.targetId}`)
     };
   }
-  function parseFrontendSurfaceMountConfig2(value) {
-    try {
-      return parseFrontendSurfaceMountConfig(value);
-    } catch (_error) {
-      return null;
-    }
+  function parseFrontendSurfaceMountConfig(value) {
+    if (!isFrontendSurfaceMountConfig(value)) return null;
+    return {
+      ...value,
+      subscription: value.subscription ?? null,
+      fragments: value.fragments.map((fragment) => ({
+        ...fragment,
+        protection: fragment.protection ?? null,
+        loadPolicy: fragment.loadPolicy ?? null
+      }))
+    };
+  }
+  function isFrontendSurfaceMountConfig(value) {
+    if (!isRecord2(value)) return false;
+    if (!isFrontendSurfaceName(value.surface)) return false;
+    if (typeof value.scopeKey !== "string" || typeof value.mountKey !== "string") return false;
+    if (!Array.isArray(value.fragments) || !value.fragments.every((fragment) => isFrontendSurfaceMountedFragmentConfigForSurface(value.surface, fragment))) return false;
+    if (value.subscription !== null && value.subscription !== void 0 && !isFrontendSurfaceLiveSubscription(value.subscription)) return false;
+    return true;
+  }
+  function isFrontendSurfaceMountedFragmentConfigForSurface(surface, value) {
+    if (!isRecord2(value)) return false;
+    if (!isRecord2(value.key)) return false;
+    if (typeof value.key.kind !== "string" || !surfaceHasFragment(surface, value.key.kind)) return false;
+    if (typeof value.targetId !== "string" || typeof value.url !== "string") return false;
+    if (value.protection !== null && value.protection !== void 0 && !isRecord2(value.protection)) return false;
+    if (value.loadPolicy !== null && value.loadPolicy !== void 0 && typeof value.loadPolicy !== "string") return false;
+    return true;
+  }
+  function surfaceHasFragment(surface, fragment) {
+    return FrontendSurfaceRegistry[surface].fragments.includes(fragment);
+  }
+  function isRecord2(value) {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
   }
   function surfaceLiveFragmentToWire(fragment) {
     return {
@@ -657,7 +658,7 @@
       } catch (_error) {
         return;
       }
-      const config = parseFrontendSurfaceMountConfig2(parsedJson);
+      const config = parseFrontendSurfaceMountConfig(parsedJson);
       if (!config) return;
       instances.push({
         instanceId: frontendSurfaceInstanceId(config),
@@ -1310,7 +1311,7 @@
       }
       const parsedConfig = parseFrontendSurfaceSubscriptionConfig(config);
       if (parsedConfig === null) {
-        if (parseFrontendSurfaceMountConfig2(config) !== null) return null;
+        if (parseFrontendSurfaceMountConfig(config) !== null) return null;
         reportSurfaceConfigError(ownerEl, new Error("Invalid FrontendSurface config"));
         return null;
       }

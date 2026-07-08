@@ -91,6 +91,11 @@ expect_no_match \
     'Application\.Helper\.Frontend\.' \
     Application Web Test
 
+expect_no_match_including_generated \
+    "frontend contract generator must not reintroduce raw TypeScript support contract exports" \
+    '"export (type|function) (FrontendSurface(UUID|Day)|HtmxActionOptions|FrontendSurfaceActionManifest|AppShellActionManifest|FrontendSurfaceMountConfig|FrontendSurfaceMountedFragmentConfig|FrontendSurfaceLiveSubscription|FrontendSurfaceLiveWireFragment|FrontendSurfaceSurfaceFragmentProtection)' \
+    Application/Helper/FrontendContract/TypeScript.hs
+
 expect_no_match \
     "migrated FrontendSurface lab must not author old frontend codec/DTO/schema groups" \
     'Application\.Helper\.Frontend\.(Codec|Generic|ContractGroup|Options|Contracts|TypeScript|Dto\.|.*Schema)|FrontendCodec|HasFrontendCodec|someFrontendCodec|genericFrontendCodec' \

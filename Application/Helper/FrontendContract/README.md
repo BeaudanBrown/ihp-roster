@@ -38,10 +38,19 @@ live-update carrier module is
 `Application.Helper.FrontendContract.Wire.LiveUpdate`.
 
 Generated TypeScript comes through
-`Application.Helper.FrontendContract.Contracts`. `FrontendSurface*` TypeScript
-names that remain in generated output are runtime/mount metadata adapters for
-server-rendered UI, not a parallel contract authority; websocket/browser wire
-shapes remain the generated `Surface*` and live-update contract types.
+`Application.Helper.FrontendContract.Contracts`. Exported TypeScript contract
+shapes must be rendered from Haskell DSL declarations, `FrontendContract.IR`, or
+explicit Haskell support schemas consumed by the same renderer as ordinary
+contracts. Raw TypeScript strings are allowed as renderer syntax templates and
+for generated runtime data constants, but not as independent `export type` /
+`export function` contract authorities. Helper implementations that normalize or
+query generated data should live in handwritten `frontend/ts` runtime modules and
+import generated types/data.
+
+`FrontendSurface*` TypeScript names that remain in generated output are
+runtime/mount metadata adapters for server-rendered UI, not a parallel contract
+authority; websocket/browser wire shapes remain the generated `Surface*` and
+live-update contract types.
 
 The old `Application.Helper.Frontend` codec/DTO/schema-group tree has been
 removed. Guardrails fail if production Haskell modules or imports under that

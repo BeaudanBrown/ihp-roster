@@ -1,6 +1,6 @@
 ---
 id: ir-nvqv
-status: open
+status: closed
 deps: [ir-mpwp, ir-sc3c]
 links: []
 created: 2026-07-08T07:20:33Z
@@ -22,3 +22,9 @@ Move helpers such as registry lookup guards, parseFrontendSurfaceMountConfig nor
 
 Generated contracts no longer contain large handwritten runtime helper bodies; frontend modules import replacement helpers from stable runtime locations; tests remain green.
 
+
+## Notes
+
+**2026-07-08T07:42:31Z**
+
+Moved FrontendSurfaceMountConfig validation/normalization out of generated contracts.ts and into frontend/ts/live-updates/frontend-surface.ts, importing generated registry/types.
