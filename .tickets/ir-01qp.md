@@ -1,6 +1,6 @@
 ---
 id: ir-01qp
-status: in_progress
+status: closed
 deps: [ir-2yh1]
 links: []
 created: 2026-07-08T08:24:31Z
@@ -28,3 +28,7 @@ Main Xero helper/preparation files are materially shorter and more focused. Exis
 **2026-07-08T08:48:58Z**
 
 First behavior-preserving split: moved Xero request/reference/client data types, JSON response wrappers, and Xero reference parsing helpers from Application.Helper.Xero into Application.Helper.Xero.Types. Application.Helper.Xero remains the facade export used by existing callers. Verification: bash ./bin/in-env typecheck passed; bash ./bin/in-env hspec-test --match "Xero" passed (135 examples, 0 failures).
+
+**2026-07-08T08:53:05Z**
+
+Second split: moved preparation run status/readiness view assembly, period/run helpers, decision predicates, pay-item/staff row view helpers, and preparation JSON snapshot helpers into Application.Xero.Timesheets.Prepare.Helpers. The root Prepare module now focuses on orchestration and keeps the same public API. Verification after this split: bash ./bin/in-env typecheck passed; bash ./bin/in-env hspec-test --match "Xero" passed (135 examples, 0 failures).
