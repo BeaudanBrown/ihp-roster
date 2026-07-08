@@ -161,15 +161,36 @@
     color: var(--app-text) !important;
 }
 
-.roster-grid .slot-time-cell[data-roster-shift-colour^="palette-"],
-.roster-grid .slot-staff-cell[data-roster-shift-colour^="palette-"],
-.roster-grid .slot-shift-type-cell[data-roster-shift-colour^="palette-"]:not(.is-shift-type-empty) {
+.roster-grid .roster-shift-unit[data-roster-shift-colour^="palette-"] {
     position: relative;
 }
 
-.roster-grid .slot-time-cell[data-roster-shift-colour^="palette-"]::before,
-.roster-grid .slot-staff-cell[data-roster-shift-colour^="palette-"]::before,
-.roster-grid .slot-shift-type-cell[data-roster-shift-colour^="palette-"]:not(.is-shift-type-empty)::before {
+.roster-grid .roster-shift-unit[data-roster-shift-colour^="palette-"]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    border: var(--roster-shift-border-width) solid var(--roster-shift-type-colour);
+    pointer-events: none;
+}
+
+.roster-grid .roster-grid-day-section:last-child .day-row:last-child > .roster-shift-unit[data-roster-shift-colour^="palette-"]::after {
+    bottom: 1px;
+}
+
+.roster-grid .roster-grid-day-section:last-child .day-row:last-child > .roster-shift-unit:last-child[data-roster-shift-colour^="palette-"]::after {
+    border-bottom-right-radius: var(--roster-shift-edge-corner-radius);
+}
+
+.roster-grid .slot-time-cell[data-roster-shift-colour^="palette-"]:not(.roster-shift-unit-cell),
+.roster-grid .slot-staff-cell[data-roster-shift-colour^="palette-"]:not(.roster-shift-unit-cell),
+.roster-grid .slot-shift-type-cell[data-roster-shift-colour^="palette-"]:not(.roster-shift-unit-cell):not(.is-shift-type-empty) {
+    position: relative;
+}
+
+.roster-grid .slot-time-cell[data-roster-shift-colour^="palette-"]:not(.roster-shift-unit-cell)::before,
+.roster-grid .slot-staff-cell[data-roster-shift-colour^="palette-"]:not(.roster-shift-unit-cell)::before,
+.roster-grid .slot-shift-type-cell[data-roster-shift-colour^="palette-"]:not(.roster-shift-unit-cell):not(.is-shift-type-empty)::before {
     content: "";
     position: absolute;
     pointer-events: none;
@@ -182,23 +203,23 @@
     border-bottom: var(--roster-shift-border-width) solid var(--roster-shift-type-colour);
 }
 
-.roster-grid .slot-time-cell[data-roster-shift-colour^="palette-"]:not(.slot-end-time-cell)::before {
+.roster-grid .slot-time-cell[data-roster-shift-colour^="palette-"]:not(.roster-shift-unit-cell):not(.slot-end-time-cell)::before {
     left: 0;
     border-left: var(--roster-shift-border-width) solid var(--roster-shift-type-colour);
 }
 
-.roster-grid .roster-block-end[data-roster-shift-colour^="palette-"]:not(.is-shift-type-empty)::before {
+.roster-grid .roster-block-end[data-roster-shift-colour^="palette-"]:not(.roster-shift-unit-cell):not(.is-shift-type-empty)::before {
     right: 0;
     border-right: var(--roster-shift-border-width) solid var(--roster-shift-type-colour);
 }
 
-.roster-grid .roster-grid-day-section:last-child .day-row:last-child .slot-time-cell[data-roster-shift-colour^="palette-"]::before,
-.roster-grid .roster-grid-day-section:last-child .day-row:last-child .slot-staff-cell[data-roster-shift-colour^="palette-"]::before,
-.roster-grid .roster-grid-day-section:last-child .day-row:last-child .slot-shift-type-cell[data-roster-shift-colour^="palette-"]:not(.is-shift-type-empty)::before {
+.roster-grid .roster-grid-day-section:last-child .day-row:last-child .slot-time-cell[data-roster-shift-colour^="palette-"]:not(.roster-shift-unit-cell)::before,
+.roster-grid .roster-grid-day-section:last-child .day-row:last-child .slot-staff-cell[data-roster-shift-colour^="palette-"]:not(.roster-shift-unit-cell)::before,
+.roster-grid .roster-grid-day-section:last-child .day-row:last-child .slot-shift-type-cell[data-roster-shift-colour^="palette-"]:not(.roster-shift-unit-cell):not(.is-shift-type-empty)::before {
     bottom: 1px;
 }
 
-.roster-grid .roster-grid-day-section:last-child .day-row:last-child > .roster-block-end:last-child[data-roster-shift-colour^="palette-"]:not(.is-shift-type-empty)::before {
+.roster-grid .roster-grid-day-section:last-child .day-row:last-child > .roster-block-end:last-child[data-roster-shift-colour^="palette-"]:not(.roster-shift-unit-cell):not(.is-shift-type-empty)::before {
     right: 0;
     border-bottom-right-radius: var(--roster-shift-edge-corner-radius);
 }

@@ -157,7 +157,7 @@ renderRosterContent =
 renderRosterMainPanel :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
 renderRosterMainPanel gridModel =
     profileHtmlComponent "render.roster.main_panel" [hsx|
-        <div class="app-panel overflow-hidden mb-5 mb-xl-0 roster-main-panel">
+        <div class="app-panel mb-5 mb-xl-0 roster-main-panel">
             {renderrosterGridToolbarLiveFragment gridModel}
             {renderrosterGridFrameLiveFragment gridModel}
         </div>

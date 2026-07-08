@@ -40,7 +40,10 @@ rosterWeekShellSync :: FrontendSurfaceCustomHtmxAttrs
 rosterWeekShellSync =
     FrontendSurfaceCustomHtmxAttrs
         { customHtmxAttrMarker = "roster-week-shell-sync-custom-htmx"
-        , customHtmxAttrValues = [("hx-sync", "#" <> rosterWeekShellId <> ":replace")]
+        , customHtmxAttrValues =
+            [ ("hx-sync", "#" <> rosterWeekShellId <> ":replace")
+            , ("hx-swap", "outerHTML")
+            ]
         }
 
 rosterWeekShellSyncRoute :: Text -> FrontendSurfaceActionRoute

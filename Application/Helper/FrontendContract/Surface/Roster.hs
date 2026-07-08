@@ -15,6 +15,7 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterSlotsGrid
     , RosterStaffPanel
     , RosterSurface
+    , RosterWeekShell
     , RosterWageRail
     , RosterWeek
     , RosterWeekBoundaryConfig
@@ -53,6 +54,7 @@ data RosterGroupId
 data WeekOffset
 
 data RosterContent
+data RosterWeekShell
 data RosterGridToolbar
 data RosterGridFrame
 data RosterDayColumns
@@ -181,8 +183,7 @@ type RosterActionBundle =
          , Field RosterGroupId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxGet
-         , 'HtmxTarget RosterContent
-         , 'HtmxSwap OuterHTML
+         , 'HtmxTarget RosterWeekShell
          , 'HtmxPushUrl 'HtmxPushUrlTrue
          , 'CustomHtmx RosterWeekShellSyncCustomHtmx "roster week navigation serializes through the stable roster week shell"
          ]
@@ -292,6 +293,7 @@ type RosterActionBundle =
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          ]
      , DomToken RosterContent
+     , DomToken RosterWeekShell
      , DomToken RosterDaySection
      , DomToken RosterStaffPanel
      , DomToken RosterStaffSelfServiceLeaveFormFragment

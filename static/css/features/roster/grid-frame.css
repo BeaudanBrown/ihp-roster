@@ -112,6 +112,11 @@
     background-color: var(--app-panel-bg);
 }
 
+.roster-main-panel .roster-grid-frame {
+    border-bottom-right-radius: calc(0.9rem - 1px);
+    border-bottom-left-radius: calc(0.9rem - 1px);
+}
+
 .roster-grid-frame:not([data-roster-layout="day_columns"]) {
     overflow-x: hidden;
 }
