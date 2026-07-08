@@ -1154,6 +1154,18 @@ export function encodeOpenFeedbackDialogOverlayActionFields(value: OpenFeedbackD
 
 export const openFeedbackDialogOverlayActionManifest = {"name":"open-feedback-dialog","fields":[],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
 
+export type SubmitFeedbackOverlayActionFields = { feedbackType: string; content: string };
+export function isSubmitFeedbackOverlayActionFields(value: unknown): value is SubmitFeedbackOverlayActionFields {
+    return isRecord(value) && (typeof value["feedbackType"] === "string") && (typeof value["content"] === "string");
+}
+export function parseSubmitFeedbackOverlayActionFields(value: unknown): SubmitFeedbackOverlayActionFields {
+    if (isSubmitFeedbackOverlayActionFields(value)) return value;
+    throw new Error("Invalid SubmitFeedbackOverlayActionFields");
+}
+export function encodeSubmitFeedbackOverlayActionFields(value: SubmitFeedbackOverlayActionFields): SubmitFeedbackOverlayActionFields { return value; }
+
+export const submitFeedbackOverlayActionManifest = {"name":"submit-feedback","fields":["feedbackType","content"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
 export type SurfaceLabLabScopeScope = { venueId: FrontendContractUuid; weekOffset: number };
 export function isSurfaceLabLabScopeScope(value: unknown): value is SurfaceLabLabScopeScope {
     return isRecord(value) && (typeof value["venueId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));

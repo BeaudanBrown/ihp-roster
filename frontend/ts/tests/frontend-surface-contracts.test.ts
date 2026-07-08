@@ -4,6 +4,7 @@ import {
     adminPageSurfaceManifest,
     isOverlayActionManifest,
     openFeedbackDialogOverlayActionManifest,
+    submitFeedbackOverlayActionManifest,
     isFrontendSurfaceActionManifest,
     isFrontendSurfaceContainmentEdge,
     isFrontendSurfaceName,
@@ -45,6 +46,10 @@ test("generated overlay action manifests expose dialog request contracts", () =>
             custom: [],
         },
     });
+    assertEqual(isOverlayActionManifest(submitFeedbackOverlayActionManifest), true);
+    assertEqual(parseOverlayActionManifest(submitFeedbackOverlayActionManifest).name, "submit-feedback");
+    assertDeepEqual(submitFeedbackOverlayActionManifest.fields, ["feedbackType", "content"]);
+    assertEqual(submitFeedbackOverlayActionManifest.htmx.method, "post");
 });
 
 test("generated FrontendSurface registry exposes lab surface primitives", () => {

@@ -76,11 +76,20 @@ tests = describe "Frontend contract generator foundation" do
                 | global <- registeredFrontendContractIR.contractGlobals
                 , Contract.GlobalOverlayActionIR action <- global.globalPrimitives
                 ]
-        let feedbackAction = find ((== "open-feedback-dialog") . (.overlayActionName)) overlayActions
-        fmap (.overlayActionFields) feedbackAction `shouldBe` Just []
-        fmap (.overlayActionOptions) feedbackAction
+        let openFeedbackAction = find ((== "open-feedback-dialog") . (.overlayActionName)) overlayActions
+        fmap (.overlayActionFields) openFeedbackAction `shouldBe` Just []
+        fmap (.overlayActionOptions) openFeedbackAction
             `shouldBe` Just
                 [ Contract.HtmxActionMethodIR "get"
+                , Contract.HtmxActionTargetIR "dialog-overlay-mount"
+                , Contract.HtmxActionSwapIR "innerHTML"
+                , Contract.HtmxActionPushUrlIR False
+                ]
+        let submitFeedbackAction = find ((== "submit-feedback") . (.overlayActionName)) overlayActions
+        fmap (fmap (.fieldName) . (.overlayActionFields)) submitFeedbackAction `shouldBe` Just ["feedbackType", "content"]
+        fmap (.overlayActionOptions) submitFeedbackAction
+            `shouldBe` Just
+                [ Contract.HtmxActionMethodIR "post"
                 , Contract.HtmxActionTargetIR "dialog-overlay-mount"
                 , Contract.HtmxActionSwapIR "innerHTML"
                 , Contract.HtmxActionPushUrlIR False

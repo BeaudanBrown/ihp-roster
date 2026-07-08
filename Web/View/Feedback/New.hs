@@ -1,5 +1,11 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Web.View.Feedback.New where
 
+import Application.Helper.FrontendContract.Overlay (SubmitFeedback)
+import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
+                                                            overlayActionByMarker,
+                                                            renderOverlayActionForm)
 import qualified Data.Text as Text
 import Web.View.Prelude
 
@@ -33,18 +39,20 @@ feedbackDialogConfig formMode feedbackItem =
 renderFeedbackForm :: OverlayFormMode -> UserFeedbackItem -> Html
 renderFeedbackForm formMode feedbackItem =
     case formMode of
-        HtmxOverlayForm -> [hsx|
-            <form id={feedbackFormId}
-                  method="POST"
-                  action={CreateFeedbackAction}
-                  data-disable-javascript-submission="true"
-                  hx-post={CreateFeedbackAction}
-                  hx-target={"#" <> dialogOverlayMountId}
-                  hx-swap="innerHTML"
-                  hx-push-url="false">
-                {renderFeedbackFormFields feedbackItem}
-            </form>
-        |]
+        HtmxOverlayForm ->
+            renderOverlayActionForm
+                (overlayActionByMarker @SubmitFeedback)
+                OverlayActionRoute
+                    { overlayActionRouteUrl = pathTo CreateFeedbackAction
+                    , overlayActionRouteFields = []
+                    , overlayActionRouteCustomHtmx = []
+                    , overlayActionRouteStandardUrl = Nothing
+                    , overlayActionRouteExtraAttrs =
+                        [ ("id", feedbackFormId)
+                        , ("data-disable-javascript-submission", "true")
+                        ]
+                    }
+                (renderFeedbackFormFields feedbackItem)
         PageOverlayForm -> [hsx|
             <form id={feedbackFormId}
                   method="POST"
