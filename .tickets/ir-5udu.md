@@ -1,6 +1,6 @@
 ---
 id: ir-5udu
-status: open
+status: closed
 deps: []
 links: [ir-f2p4, ir-176p, ir-mjov, ir-7cyb]
 created: 2026-07-08T08:24:31Z
@@ -22,3 +22,9 @@ Proceed linearly. First remeasure current hotspots and active-ticket overlap, th
 
 The five target areas have focused modules/tickets completed or explicitly deferred with notes. No behavior/route/schema/DOM contract changes are introduced by cleanup. Relevant focused checks pass per ticket, final verification is documented, and living docs/local AGENTS files are updated only for durable ownership rules discovered during work.
 
+
+## Notes
+
+**2026-07-08T09:14:24Z**
+
+Closeout: completed the approved linear cleanup pass. Closed children ir-wwyg, ir-2yh1, ir-01qp, ir-81q7, ir-dcm4, ir-8p1e, ir-kq7a, and ir-kkr1. Main outputs: Xero helper/preparation modules split behind existing facades, roster controller/grid helpers split, live-update runtime diagnostics/types split, oversized Xero/Roster test helpers moved into Test.Support modules, seed week calendar helpers consolidated, and ignored source-tree .hi/.o artifacts removed. Final checks passed: typecheck and frontend-check; focused Xero, RosterWeeks, and Dev seed Hspec runs passed during the relevant chunks.
