@@ -57,19 +57,19 @@ convertFragment fragment = SurfaceFragmentIR fragment.fragmentMarker fragment.fr
 convertAction :: Surface.HtmxActionIR -> SurfacePrimitiveIR
 convertAction action = SurfaceActionIR action.htmxActionMarker action.htmxActionName (fmap convertField action.htmxActionFields) (mapMaybe convertActionOption action.htmxActionOptions)
 
-convertActionOption :: Surface.OptionIR -> Maybe SurfaceActionOptionIR
+convertActionOption :: Surface.OptionIR -> Maybe HtmxActionOptionIR
 convertActionOption = \case
-    Surface.HtmxMethodOption method -> Just (SurfaceActionMethodIR (convertHtmxMethod method))
-    Surface.HtmxTriggerOption value -> Just (SurfaceActionTriggerIR value)
-    Surface.HtmxIncludeOption value -> Just (SurfaceActionIncludeIR value)
-    Surface.HtmxSyncOption value -> Just (SurfaceActionSyncIR value)
-    Surface.HtmxIndicatorOption value -> Just (SurfaceActionIndicatorIR value)
-    Surface.HtmxConfirmOption value -> Just (SurfaceActionConfirmIR value)
-    Surface.HtmxSelectOption value -> Just (SurfaceActionSelectIR value)
-    Surface.HtmxTargetOption value -> Just (SurfaceActionTargetIR value)
-    Surface.HtmxSwapOption value -> Just (SurfaceActionSwapIR value)
-    Surface.HtmxPushUrlOption value -> Just (SurfaceActionPushUrlIR (convertHtmxPushUrl value))
-    Surface.CustomHtmxOption marker reason -> Just (SurfaceActionCustomHtmxIR marker reason)
+    Surface.HtmxMethodOption method -> Just (HtmxActionMethodIR (convertHtmxMethod method))
+    Surface.HtmxTriggerOption value -> Just (HtmxActionTriggerIR value)
+    Surface.HtmxIncludeOption value -> Just (HtmxActionIncludeIR value)
+    Surface.HtmxSyncOption value -> Just (HtmxActionSyncIR value)
+    Surface.HtmxIndicatorOption value -> Just (HtmxActionIndicatorIR value)
+    Surface.HtmxConfirmOption value -> Just (HtmxActionConfirmIR value)
+    Surface.HtmxSelectOption value -> Just (HtmxActionSelectIR value)
+    Surface.HtmxTargetOption value -> Just (HtmxActionTargetIR value)
+    Surface.HtmxSwapOption value -> Just (HtmxActionSwapIR value)
+    Surface.HtmxPushUrlOption value -> Just (HtmxActionPushUrlIR (convertHtmxPushUrl value))
+    Surface.CustomHtmxOption marker reason -> Just (HtmxActionCustomHtmxIR marker reason)
     _ -> Nothing
 
 convertHtmxMethod :: Surface.HtmxMethodIR -> Text

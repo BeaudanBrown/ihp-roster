@@ -418,19 +418,19 @@ renderSurfaceActionManifest = \case
         ]
     _ -> objectLiteral []
 
-renderSurfaceActionHtmxOptions :: [SurfaceActionOptionIR] -> Text
+renderSurfaceActionHtmxOptions :: [HtmxActionOptionIR] -> Text
 renderSurfaceActionHtmxOptions options = objectLiteral
-    [ ("method", maybe "null" quote (listToMaybe [value | SurfaceActionMethodIR value <- options]))
-    , ("trigger", maybe "null" quote (listToMaybe [value | SurfaceActionTriggerIR value <- options]))
-    , ("include", maybe "null" quote (listToMaybe [value | SurfaceActionIncludeIR value <- options]))
-    , ("sync", maybe "null" quote (listToMaybe [value | SurfaceActionSyncIR value <- options]))
-    , ("indicator", maybe "null" quote (listToMaybe [value | SurfaceActionIndicatorIR value <- options]))
-    , ("confirm", maybe "null" quote (listToMaybe [value | SurfaceActionConfirmIR value <- options]))
-    , ("select", maybe "null" quote (listToMaybe [value | SurfaceActionSelectIR value <- options]))
-    , ("target", maybe "null" quote (listToMaybe [value | SurfaceActionTargetIR value <- options]))
-    , ("swap", maybe "null" quote (listToMaybe [value | SurfaceActionSwapIR value <- options]))
-    , ("pushUrl", maybe "null" boolLiteral (listToMaybe [value | SurfaceActionPushUrlIR value <- options]))
-    , ("custom", arrayLiteral [objectLiteral [("name", quote marker), ("reason", quote reason)] | SurfaceActionCustomHtmxIR marker reason <- options])
+    [ ("method", maybe "null" quote (listToMaybe [value | HtmxActionMethodIR value <- options]))
+    , ("trigger", maybe "null" quote (listToMaybe [value | HtmxActionTriggerIR value <- options]))
+    , ("include", maybe "null" quote (listToMaybe [value | HtmxActionIncludeIR value <- options]))
+    , ("sync", maybe "null" quote (listToMaybe [value | HtmxActionSyncIR value <- options]))
+    , ("indicator", maybe "null" quote (listToMaybe [value | HtmxActionIndicatorIR value <- options]))
+    , ("confirm", maybe "null" quote (listToMaybe [value | HtmxActionConfirmIR value <- options]))
+    , ("select", maybe "null" quote (listToMaybe [value | HtmxActionSelectIR value <- options]))
+    , ("target", maybe "null" quote (listToMaybe [value | HtmxActionTargetIR value <- options]))
+    , ("swap", maybe "null" quote (listToMaybe [value | HtmxActionSwapIR value <- options]))
+    , ("pushUrl", maybe "null" boolLiteral (listToMaybe [value | HtmxActionPushUrlIR value <- options]))
+    , ("custom", arrayLiteral [objectLiteral [("name", quote marker), ("reason", quote reason)] | HtmxActionCustomHtmxIR marker reason <- options])
     ]
 
 boolLiteral :: Bool -> Text

@@ -104,20 +104,20 @@ overlayActionHtmxAttrs action route =
     where
         method = overlayActionMethod action
         optionAttrs = concatMap \case
-            SurfaceActionTriggerIR value -> [attr "hx-trigger" value]
-            SurfaceActionIncludeIR value -> [attr "hx-include" value]
-            SurfaceActionSyncIR value -> [attr "hx-sync" value]
-            SurfaceActionIndicatorIR value -> [attr "hx-indicator" value]
-            SurfaceActionConfirmIR value -> [attr "hx-confirm" value]
-            SurfaceActionSelectIR value -> [attr "hx-select" value]
-            SurfaceActionTargetIR value -> [attr "hx-target" ("#" <> value)]
-            SurfaceActionSwapIR value -> [attr "hx-swap" value]
-            SurfaceActionPushUrlIR value -> [attr "hx-push-url" (if value then "true" else "false")]
+            HtmxActionTriggerIR value -> [attr "hx-trigger" value]
+            HtmxActionIncludeIR value -> [attr "hx-include" value]
+            HtmxActionSyncIR value -> [attr "hx-sync" value]
+            HtmxActionIndicatorIR value -> [attr "hx-indicator" value]
+            HtmxActionConfirmIR value -> [attr "hx-confirm" value]
+            HtmxActionSelectIR value -> [attr "hx-select" value]
+            HtmxActionTargetIR value -> [attr "hx-target" ("#" <> value)]
+            HtmxActionSwapIR value -> [attr "hx-swap" value]
+            HtmxActionPushUrlIR value -> [attr "hx-push-url" (if value then "true" else "false")]
             _ -> []
 
 overlayActionMethod :: OverlayActionIR -> Text
 overlayActionMethod action =
-    fromMaybe "get" (listToMaybe [value | SurfaceActionMethodIR value <- action.overlayActionOptions])
+    fromMaybe "get" (listToMaybe [value | HtmxActionMethodIR value <- action.overlayActionOptions])
 
 standardFormAttrs :: Text -> Text -> [Blaze.Attribute]
 standardFormAttrs method url =
@@ -149,7 +149,7 @@ customHtmxAttrs :: OverlayActionIR -> OverlayActionRoute -> [Blaze.Attribute]
 customHtmxAttrs action route =
     concatMap renderCustom route.overlayActionRouteCustomHtmx
     where
-        declaredMarkers = [marker | SurfaceActionCustomHtmxIR marker _ <- action.overlayActionOptions]
+        declaredMarkers = [marker | HtmxActionCustomHtmxIR marker _ <- action.overlayActionOptions]
         renderCustom custom
             | custom.overlayCustomHtmxAttrMarker `elem` declaredMarkers = fmap (uncurry attr) custom.overlayCustomHtmxAttrValues
             | otherwise = error ("undeclared custom HTMX marker " <> cs custom.overlayCustomHtmxAttrMarker <> " for overlay action " <> cs action.overlayActionName)
@@ -173,23 +173,23 @@ overlayActionConfigToJson action =
             , "select" Aeson..= firstOptionText action selectOptionValue
             , "target" Aeson..= firstOptionText action targetValue
             , "swap" Aeson..= firstOptionText action swapValue
-            , "pushUrl" Aeson..= listToMaybe [value | SurfaceActionPushUrlIR value <- action.overlayActionOptions]
-            , "custom" Aeson..= [Aeson.object ["name" Aeson..= marker, "reason" Aeson..= reason] | SurfaceActionCustomHtmxIR marker reason <- action.overlayActionOptions]
+            , "pushUrl" Aeson..= listToMaybe [value | HtmxActionPushUrlIR value <- action.overlayActionOptions]
+            , "custom" Aeson..= [Aeson.object ["name" Aeson..= marker, "reason" Aeson..= reason] | HtmxActionCustomHtmxIR marker reason <- action.overlayActionOptions]
             ]
         ]
 
-firstOptionText :: OverlayActionIR -> (SurfaceActionOptionIR -> Maybe Text) -> Maybe Text
+firstOptionText :: OverlayActionIR -> (HtmxActionOptionIR -> Maybe Text) -> Maybe Text
 firstOptionText action matcher = listToMaybe (mapMaybe matcher action.overlayActionOptions)
 
-triggerValue, includeValue, syncValue, indicatorValue, confirmValue, selectOptionValue, targetValue, swapValue :: SurfaceActionOptionIR -> Maybe Text
-triggerValue = \case SurfaceActionTriggerIR value -> Just value; _ -> Nothing
-includeValue = \case SurfaceActionIncludeIR value -> Just value; _ -> Nothing
-syncValue = \case SurfaceActionSyncIR value -> Just value; _ -> Nothing
-indicatorValue = \case SurfaceActionIndicatorIR value -> Just value; _ -> Nothing
-confirmValue = \case SurfaceActionConfirmIR value -> Just value; _ -> Nothing
-selectOptionValue = \case SurfaceActionSelectIR value -> Just value; _ -> Nothing
-targetValue = \case SurfaceActionTargetIR value -> Just value; _ -> Nothing
-swapValue = \case SurfaceActionSwapIR value -> Just value; _ -> Nothing
+triggerValue, includeValue, syncValue, indicatorValue, confirmValue, selectOptionValue, targetValue, swapValue :: HtmxActionOptionIR -> Maybe Text
+triggerValue = \case HtmxActionTriggerIR value -> Just value; _ -> Nothing
+includeValue = \case HtmxActionIncludeIR value -> Just value; _ -> Nothing
+syncValue = \case HtmxActionSyncIR value -> Just value; _ -> Nothing
+indicatorValue = \case HtmxActionIndicatorIR value -> Just value; _ -> Nothing
+confirmValue = \case HtmxActionConfirmIR value -> Just value; _ -> Nothing
+selectOptionValue = \case HtmxActionSelectIR value -> Just value; _ -> Nothing
+targetValue = \case HtmxActionTargetIR value -> Just value; _ -> Nothing
+swapValue = \case HtmxActionSwapIR value -> Just value; _ -> Nothing
 
 renderHiddenField :: OverlayFieldValue -> Blaze.Html
 renderHiddenField (OverlayFieldValue (fieldName, fieldValue)) =

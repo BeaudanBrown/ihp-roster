@@ -134,7 +134,7 @@ instance (Typeable marker, ReflectFieldList fields, ReflectOverlayActionOptionLi
         }
 
 class ReflectOverlayActionOptionList (options :: [OverlayActionOption]) where
-    reflectOverlayActionOptionList :: [SurfaceActionOptionIR]
+    reflectOverlayActionOptionList :: [HtmxActionOptionIR]
 
 instance ReflectOverlayActionOptionList '[] where
     reflectOverlayActionOptionList = []
@@ -143,40 +143,40 @@ instance (ReflectOverlayActionOption option, ReflectOverlayActionOptionList rest
     reflectOverlayActionOptionList = reflectOverlayActionOption @option : reflectOverlayActionOptionList @rest
 
 class ReflectOverlayActionOption (option :: OverlayActionOption) where
-    reflectOverlayActionOption :: SurfaceActionOptionIR
+    reflectOverlayActionOption :: HtmxActionOptionIR
 
 instance ReflectHtmxMethod method => ReflectOverlayActionOption ('OverlayHtmxMethod method) where
-    reflectOverlayActionOption = SurfaceActionMethodIR (reflectHtmxMethod @method)
+    reflectOverlayActionOption = HtmxActionMethodIR (reflectHtmxMethod @method)
 
 instance KnownSymbol value => ReflectOverlayActionOption ('OverlayHtmxTrigger value) where
-    reflectOverlayActionOption = SurfaceActionTriggerIR (cs (symbolVal (Proxy @value)))
+    reflectOverlayActionOption = HtmxActionTriggerIR (cs (symbolVal (Proxy @value)))
 
 instance KnownSymbol value => ReflectOverlayActionOption ('OverlayHtmxInclude value) where
-    reflectOverlayActionOption = SurfaceActionIncludeIR (cs (symbolVal (Proxy @value)))
+    reflectOverlayActionOption = HtmxActionIncludeIR (cs (symbolVal (Proxy @value)))
 
 instance KnownSymbol value => ReflectOverlayActionOption ('OverlayHtmxSync value) where
-    reflectOverlayActionOption = SurfaceActionSyncIR (cs (symbolVal (Proxy @value)))
+    reflectOverlayActionOption = HtmxActionSyncIR (cs (symbolVal (Proxy @value)))
 
 instance KnownSymbol value => ReflectOverlayActionOption ('OverlayHtmxIndicator value) where
-    reflectOverlayActionOption = SurfaceActionIndicatorIR (cs (symbolVal (Proxy @value)))
+    reflectOverlayActionOption = HtmxActionIndicatorIR (cs (symbolVal (Proxy @value)))
 
 instance KnownSymbol value => ReflectOverlayActionOption ('OverlayHtmxConfirm value) where
-    reflectOverlayActionOption = SurfaceActionConfirmIR (cs (symbolVal (Proxy @value)))
+    reflectOverlayActionOption = HtmxActionConfirmIR (cs (symbolVal (Proxy @value)))
 
 instance KnownSymbol value => ReflectOverlayActionOption ('OverlayHtmxSelect value) where
-    reflectOverlayActionOption = SurfaceActionSelectIR (cs (symbolVal (Proxy @value)))
+    reflectOverlayActionOption = HtmxActionSelectIR (cs (symbolVal (Proxy @value)))
 
 instance Typeable marker => ReflectOverlayActionOption ('OverlayHtmxTarget marker) where
-    reflectOverlayActionOption = SurfaceActionTargetIR (nameToKebab (typeMarker @marker))
+    reflectOverlayActionOption = HtmxActionTargetIR (nameToKebab (typeMarker @marker))
 
 instance KnownSymbol value => ReflectOverlayActionOption ('OverlayHtmxSwap value) where
-    reflectOverlayActionOption = SurfaceActionSwapIR (cs (symbolVal (Proxy @value)))
+    reflectOverlayActionOption = HtmxActionSwapIR (cs (symbolVal (Proxy @value)))
 
 instance ReflectHtmxPushUrl value => ReflectOverlayActionOption ('OverlayHtmxPushUrl value) where
-    reflectOverlayActionOption = SurfaceActionPushUrlIR (reflectHtmxPushUrl @value)
+    reflectOverlayActionOption = HtmxActionPushUrlIR (reflectHtmxPushUrl @value)
 
 instance (Typeable marker, KnownSymbol reason) => ReflectOverlayActionOption ('OverlayCustomHtmx marker reason) where
-    reflectOverlayActionOption = SurfaceActionCustomHtmxIR (nameToKebab (typeMarker @marker)) (cs (symbolVal (Proxy @reason)))
+    reflectOverlayActionOption = HtmxActionCustomHtmxIR (nameToKebab (typeMarker @marker)) (cs (symbolVal (Proxy @reason)))
 
 class ReflectHtmxMethod (method :: OverlayRequestMethod) where
     reflectHtmxMethod :: Text

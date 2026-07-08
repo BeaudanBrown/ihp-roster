@@ -13,7 +13,7 @@ module Application.Helper.FrontendContract.IR
     , OverlayActionIR (..)
     , SchemaIR (..)
     , SurfaceIR (..)
-    , SurfaceActionOptionIR (..)
+    , HtmxActionOptionIR (..)
     , SurfaceInteractionPolicyIR (..)
     , SurfacePrimitiveIR (..)
     , UnionCaseIR (..)
@@ -79,29 +79,29 @@ data OverlayActionIR = OverlayActionIR
     { overlayActionMarker  :: !Text
     , overlayActionName    :: !Text
     , overlayActionFields  :: ![FieldIR]
-    , overlayActionOptions :: ![SurfaceActionOptionIR]
+    , overlayActionOptions :: ![HtmxActionOptionIR]
     }
     deriving (Eq, Show)
 
-data SurfaceActionOptionIR
-    = SurfaceActionMethodIR !Text
-    | SurfaceActionTriggerIR !Text
-    | SurfaceActionIncludeIR !Text
-    | SurfaceActionSyncIR !Text
-    | SurfaceActionIndicatorIR !Text
-    | SurfaceActionConfirmIR !Text
-    | SurfaceActionSelectIR !Text
-    | SurfaceActionTargetIR !Text
-    | SurfaceActionSwapIR !Text
-    | SurfaceActionPushUrlIR !Bool
-    | SurfaceActionCustomHtmxIR !Text !Text
+data HtmxActionOptionIR
+    = HtmxActionMethodIR !Text
+    | HtmxActionTriggerIR !Text
+    | HtmxActionIncludeIR !Text
+    | HtmxActionSyncIR !Text
+    | HtmxActionIndicatorIR !Text
+    | HtmxActionConfirmIR !Text
+    | HtmxActionSelectIR !Text
+    | HtmxActionTargetIR !Text
+    | HtmxActionSwapIR !Text
+    | HtmxActionPushUrlIR !Bool
+    | HtmxActionCustomHtmxIR !Text !Text
     deriving (Eq, Show)
 
 data SurfacePrimitiveIR
     = SurfaceSchemaIR !SchemaIR
     | SurfaceScopeIR !Text !Text ![FieldIR]
     | SurfaceFragmentIR !Text !Text ![FieldIR]
-    | SurfaceActionIR !Text !Text ![FieldIR] ![SurfaceActionOptionIR]
+    | SurfaceActionIR !Text !Text ![FieldIR] ![HtmxActionOptionIR]
     | SurfaceIntentIR !Text !Text ![FieldIR]
     | SurfaceMountStateIR !Text !Text ![FieldIR]
     | SurfaceDtoIR !Text !Text ![FieldIR]
