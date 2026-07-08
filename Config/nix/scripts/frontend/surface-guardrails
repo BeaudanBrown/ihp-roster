@@ -50,6 +50,21 @@ timesheets_paths=(
 migrated_overlay_paths=(
     Web/View/Layout.hs
     Web/View/Feedback/New.hs
+    Web/View/Timesheets/Index.hs
+    Web/View/Timesheets/New.hs
+    Web/View/Timesheets/Edit.hs
+    Application/Helper/View/Timesheets.hs
+    Web/View/Passkeys/Management.hs
+    Web/View/Passkeys/StepUp.hs
+    Web/View/LeaveRequests/New.hs
+    Web/View/Staff/Edit.hs
+    Web/View/StaffProfileSections.hs
+    Web/View/RosterWeeks/Grid.hs
+    Web/View/RosterWeeks/ShiftDialog.hs
+    Web/Controller/RosterWeeks.hs
+    Web/View/Admin/Xero.hs
+    Web/View/Admin/Xero/PayItems.hs
+    Web/View/Admin/Xero/TimesheetPreparation.hs
 )
 
 if find Application/Helper/Frontend -type f -name '*.hs' -print -quit 2>/dev/null | rg --quiet .; then
@@ -132,8 +147,8 @@ expect_match \
     frontend/ts/generated/contracts.ts
 
 expect_no_match \
-    "migrated overlay views must use generated OverlayAction helpers instead of handwritten request HTMX attrs" \
-    'hx-(get|post|target|swap|push-url)=' \
+    "migrated overlay request initiators must not hand-author dialog mount targets" \
+    'hx-target=\{?"?#"? <> dialogOverlayMountId|hx-target="#dialog-overlay-mount"' \
     "${migrated_overlay_paths[@]}"
 
 expect_no_match \

@@ -1,6 +1,6 @@
 ---
 id: ir-nrd1
-status: open
+status: closed
 deps: [ir-1347]
 links: []
 created: 2026-07-08T00:22:15Z
@@ -22,3 +22,9 @@ Use existing OverlayAction runtime helpers and typed marker lookup. Preserve cur
 
 Migrated callsites use generated OverlayAction helpers, generated TS is refreshed, and focused checks pass.
 
+
+## Notes
+
+**2026-07-08T01:07:50Z**
+
+Expanded migrated overlay guardrails to all generated OverlayAction migration files and narrowed the check to handwritten dialog-mount request targets so non-overlay fragment HTMX remains allowed. frontend-check passes.
