@@ -1,6 +1,10 @@
 module Application.Helper.View.Overlay where
 
 import Application.Helper.FrontendContract.AppValues (sharedDialogOverlayMountId)
+import Application.Helper.FrontendContract.IR (OverlayActionIR)
+import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
+                                                            OverlayFieldValue (..),
+                                                            renderOverlayActionForm)
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ViewPrelude
@@ -22,6 +26,7 @@ data OverlayButtonAction
     | OverlaySubmitFormAction !Text
     | OverlayNavigateAction !Text
     | OverlayFormAction !Text !Text ![(Text, Text)] !Text !(Maybe Text)
+    | OverlayGeneratedFormAction !OverlayActionIR !OverlayActionRoute ![(Text, Text)] !(Maybe Text)
 
 data OverlayButton = OverlayButton
     { overlayButtonLabel  :: !Text
@@ -145,9 +150,30 @@ renderDialogOverlayButton button =
                 </button>
             </form>
         |]
+        OverlayGeneratedFormAction overlayAction route hiddenFields _maybeConfirm ->
+            renderOverlayActionForm
+                overlayAction
+                route
+                    { overlayActionRouteFields = route.overlayActionRouteFields <> fmap OverlayFieldValue hiddenFields
+                    , overlayActionRouteExtraAttrs =
+                        route.overlayActionRouteExtraAttrs
+                            <> [ ("class", "app-modal-footer-form")
+                               , ("data-disable-javascript-submission", "true")
+                               ]
+                    }
+                [hsx|
+                    <button type="submit" class={button.overlayButtonClass}>
+                        {button.overlayButtonLabel}
+                    </button>
+                |]
 
 renderOverlayFormHiddenField :: (Text, Text) -> Html
 renderOverlayFormHiddenField (fieldName, fieldValue) = [hsx|
+    <input type="hidden" name={fieldName} value={fieldValue} />
+|]
+
+renderGeneratedOverlayFormHiddenField :: OverlayFieldValue -> Html
+renderGeneratedOverlayFormHiddenField (OverlayFieldValue (fieldName, fieldValue)) = [hsx|
     <input type="hidden" name={fieldName} value={fieldValue} />
 |]
 
@@ -223,6 +249,17 @@ renderPageDialogButton closeUrl button =
                   onsubmit={confirmSubmitAttribute maybeConfirm}>
                 <input type="hidden" name="_method" value={method} />
                 {forEach fields renderOverlayFormHiddenField}
+                <button type="submit" class={button.overlayButtonClass}>
+                    {button.overlayButtonLabel}
+                </button>
+            </form>
+        |]
+        OverlayGeneratedFormAction _overlayAction route hiddenFields maybeConfirm -> [hsx|
+            <form method="POST"
+                  action={fromMaybe route.overlayActionRouteUrl route.overlayActionRouteStandardUrl}
+                  class="app-modal-footer-form"
+                  onsubmit={confirmSubmitAttribute maybeConfirm}>
+                {forEach (route.overlayActionRouteFields <> fmap OverlayFieldValue hiddenFields) renderGeneratedOverlayFormHiddenField}
                 <button type="submit" class={button.overlayButtonClass}>
                     {button.overlayButtonLabel}
                 </button>

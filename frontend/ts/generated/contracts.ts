@@ -1214,6 +1214,18 @@ export function encodeUpdateTimesheetEntryOverlayOverlayActionFields(value: Upda
 
 export const updateTimesheetEntryOverlayOverlayActionManifest = {"name":"update-timesheet-entry-overlay","fields":["weekOffset","showApproved","showAllStaff","staffFilterId","staffId","shiftTypeId","workedOn","startTime","endTime","hadBreak","breakStartTime","breakEndTime","staffComment","managerNote"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
 
+export type DeleteTimesheetEntryOverlayOverlayActionFields = { weekOffset: string; showApproved: string; showAllStaff: string; staffFilterId: string };
+export function isDeleteTimesheetEntryOverlayOverlayActionFields(value: unknown): value is DeleteTimesheetEntryOverlayOverlayActionFields {
+    return isRecord(value) && (typeof value["weekOffset"] === "string") && (typeof value["showApproved"] === "string") && (typeof value["showAllStaff"] === "string") && (typeof value["staffFilterId"] === "string");
+}
+export function parseDeleteTimesheetEntryOverlayOverlayActionFields(value: unknown): DeleteTimesheetEntryOverlayOverlayActionFields {
+    if (isDeleteTimesheetEntryOverlayOverlayActionFields(value)) return value;
+    throw new Error("Invalid DeleteTimesheetEntryOverlayOverlayActionFields");
+}
+export function encodeDeleteTimesheetEntryOverlayOverlayActionFields(value: DeleteTimesheetEntryOverlayOverlayActionFields): DeleteTimesheetEntryOverlayOverlayActionFields { return value; }
+
+export const deleteTimesheetEntryOverlayOverlayActionManifest = {"name":"delete-timesheet-entry-overlay","fields":["weekOffset","showApproved","showAllStaff","staffFilterId"],"htmx":{"method":"delete","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":"Delete this timesheet entry? This cannot be undone.","select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
 export type SurfaceLabLabScopeScope = { venueId: FrontendContractUuid; weekOffset: number };
 export function isSurfaceLabLabScopeScope(value: unknown): value is SurfaceLabLabScopeScope {
     return isRecord(value) && (typeof value["venueId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));

@@ -2,8 +2,10 @@
 
 module Web.View.Timesheets.Edit where
 
-import Application.Helper.FrontendContract.Overlay (UpdateTimesheetEntryOverlay)
-import Application.Helper.FrontendContract.Overlay.Runtime (overlayActionByMarker)
+import Application.Helper.FrontendContract.Overlay (DeleteTimesheetEntryOverlay,
+                                                    UpdateTimesheetEntryOverlay)
+import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
+                                                            overlayActionByMarker)
 import Web.Timesheets.Paths (timesheetWeekUrl)
 import Web.View.Prelude
 
@@ -44,15 +46,21 @@ deleteButtonsFor timesheetEntry weekOffset showApproved showAllStaff selectedSta
         { overlayButtonLabel = "Delete"
         , overlayButtonClass = "btn btn-outline-danger"
         , overlayButtonAction =
-            OverlayFormAction
-                "DELETE"
-                deleteUrl
-                [ ("weekOffset", tshow weekOffset)
+            OverlayGeneratedFormAction
+                (overlayActionByMarker @DeleteTimesheetEntryOverlay)
+                OverlayActionRoute
+                    { overlayActionRouteUrl = deleteUrl
+                    , overlayActionRouteFields = []
+                    , overlayActionRouteCustomHtmx = []
+                    , overlayActionRouteStandardUrl = Nothing
+                    , overlayActionRouteExtraAttrs = []
+                    }
+                [ ("_method", "DELETE")
+                , ("weekOffset", tshow weekOffset)
                 , ("showApproved", boolParam showApproved)
                 , ("showAllStaff", boolParam showAllStaff)
                 , ("staffFilterId", maybe "" tshow selectedStaffFilterId)
                 ]
-                ("#" <> dialogOverlayMountId)
                 (Just "Delete this timesheet entry? This cannot be undone.")
         }
     ]

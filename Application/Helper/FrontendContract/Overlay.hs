@@ -12,6 +12,7 @@ module Application.Helper.FrontendContract.Overlay
     , EditTimesheetEntryDialog
     , CreateTimesheetEntryOverlay
     , UpdateTimesheetEntryOverlay
+    , DeleteTimesheetEntryOverlay
     , WeekOffsetField
     , ShowApprovedField
     , ShowAllStaffField
@@ -42,6 +43,7 @@ data OpenTimesheetEntryDialog
 data EditTimesheetEntryDialog
 data CreateTimesheetEntryOverlay
 data UpdateTimesheetEntryOverlay
+data DeleteTimesheetEntryOverlay
 data WeekOffsetField
 data ShowApprovedField
 data ShowAllStaffField
@@ -91,6 +93,18 @@ type OverlayContract =
              ]
          , OverlayAction CreateTimesheetEntryOverlay TimesheetEntryFields TimesheetEntrySubmitOptions
          , OverlayAction UpdateTimesheetEntryOverlay TimesheetEntryFields TimesheetEntrySubmitOptions
+         , OverlayAction DeleteTimesheetEntryOverlay
+            '[ Field WeekOffsetField 'WireText
+             , Field ShowApprovedField 'WireText
+             , Field ShowAllStaffField 'WireText
+             , Field StaffFilterIdField 'WireText
+             ]
+            '[ OverlayHtmxMethod 'OverlayDelete
+             , OverlayHtmxTarget DialogOverlayMount
+             , OverlayHtmxSwap "innerHTML"
+             , OverlayHtmxPushUrl 'OverlayPushUrlFalse
+             , OverlayHtmxConfirm "Delete this timesheet entry? This cannot be undone."
+             ]
          ]
 
 type TimesheetEntryFields =
