@@ -27,6 +27,7 @@ module Web.Admin.FrontendSurface
     , adminXeroTimesheetsFragment
     , adminShiftTypesAction
     , adminRosterGroupsAction
+    , adminXeroAction
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
@@ -283,7 +284,15 @@ xeroHandlers scope =
             fh adminXeroPayItemsFragment `HandlerCons`
             fh adminXeroTimesheetsFragment `HandlerCons`
             HandlerNil
-        , surfaceActionHandlers = HandlerNil
+        , surfaceActionHandlers =
+            adminActionHandler "sync-xero-payroll-reference-data" (pathTo SyncXeroPayrollReferenceDataAction) `HandlerCons`
+            adminActionHandler "save-xero-payroll-calendar-selection" (pathTo SaveXeroPayrollCalendarSelectionAction) `HandlerCons`
+            adminActionHandler "save-xero-pay-item-account-code-selection" (pathTo SaveXeroPayItemAccountCodeSelectionAction) `HandlerCons`
+            adminActionHandler "create-missing-xero-pay-items" (pathTo CreateMissingXeroPayItemsAction) `HandlerCons`
+            adminActionHandler "archive-xero-imported-pay-item" (pathTo (ArchiveXeroImportedPayItemAction (Id UUID.nil))) `HandlerCons`
+            adminActionHandler "save-xero-staff-mapping" (pathTo SaveXeroStaffMappingAction) `HandlerCons`
+            adminActionHandler "suggest-xero-staff-mapping" (pathTo (SuggestXeroStaffMappingAction (Id UUID.nil))) `HandlerCons`
+            HandlerNil
         , surfaceIntentHandlers = HandlerNil
         }
 
@@ -350,6 +359,9 @@ adminShiftTypesAction = adminSurfaceAction "admin-shift-types"
 
 adminRosterGroupsAction :: Text -> SurfaceIR.HtmxActionIR
 adminRosterGroupsAction = adminSurfaceAction "admin-roster-groups"
+
+adminXeroAction :: Text -> SurfaceIR.HtmxActionIR
+adminXeroAction = adminSurfaceAction "admin-xero"
 
 adminSurfaceAction :: Text -> Text -> SurfaceIR.HtmxActionIR
 adminSurfaceAction surfaceName actionName =

@@ -5,10 +5,14 @@ module Web.View.Admin.Xero.StaffMappings
     , renderXeroStaffMappings
     ) where
 
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            FrontendSurfaceCustomHtmxAttrs (..),
+                                                            renderFrontendSurfaceActionForm)
 import Application.Helper.XeroAdminTypes
 import Application.Xero.Admin.ReadModel (xeroEmployeeAvailableForStaff)
 import qualified Data.List as List
 import qualified Data.Text as Text
+import Web.Admin.FrontendSurface (adminXeroAction)
 import Web.View.Prelude
 
 renderXeroStaffMappings :: [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> Html
@@ -139,19 +143,7 @@ renderXeroStaffMappingCountsWith maybeOobSwap mappingCounts = [hsx|
 renderXeroStaffMappingControl :: [XeroEmployee] -> Text -> XeroStaffMappingRow -> Staff -> Html
 renderXeroStaffMappingControl selectableEmployees currentSelection row staff = [hsx|
     <div id={xeroStaffMappingControlId staff.id} class="d-flex align-items-center gap-2">
-        <form class="flex-grow-1"
-              method="POST"
-              action={SaveXeroStaffMappingAction}
-              data-disable-javascript-submission="true"
-              hx-post={pathTo SaveXeroStaffMappingAction}
-              hx-trigger="change"
-              hx-swap="none">
-            <input type="hidden" name="staffId" value={tshow staff.id} />
-            <select class="form-select form-select-sm" name="xeroEmployeeSelection" aria-label={"Xero employee for " <> staffFullName staff}>
-                <option value="not_applicable" selected={currentSelection == "not_applicable"}>Not paid through Xero</option>
-                {forEach selectableEmployees (renderXeroEmployeeOption currentSelection)}
-            </select>
-        </form>
+        {renderXeroStaffMappingForm selectableEmployees currentSelection staff}
         {renderXeroStaffMappingSuggestButton row staff}
     </div>
 |]
@@ -166,35 +158,57 @@ renderXeroStaffMappingControlOob xeroEmployees mappingRows row =
         <div id={xeroStaffMappingControlId staff.id}
              class="d-flex align-items-center gap-2"
              hx-swap-oob={outerHtmlOobSwap}>
-            <form class="flex-grow-1"
-                  method="POST"
-                  action={SaveXeroStaffMappingAction}
-                  data-disable-javascript-submission="true"
-                  hx-post={pathTo SaveXeroStaffMappingAction}
-                  hx-target="#admin-xero-fragment"
-                  hx-trigger="change"
-                  hx-swap="none">
-                <input type="hidden" name="staffId" value={tshow staff.id} />
-                <select class="form-select form-select-sm" name="xeroEmployeeSelection" aria-label={"Xero employee for " <> staffFullName staff}>
-                    <option value="not_applicable" selected={currentSelection == "not_applicable"}>Not paid through Xero</option>
-                    {forEach selectableEmployees (renderXeroEmployeeOption currentSelection)}
-                </select>
-            </form>
+            {renderXeroStaffMappingForm selectableEmployees currentSelection staff}
             {renderXeroStaffMappingSuggestButton row staff}
         </div>
     |]
 
+renderXeroStaffMappingForm :: [XeroEmployee] -> Text -> Staff -> Html
+renderXeroStaffMappingForm selectableEmployees currentSelection staff =
+    renderFrontendSurfaceActionForm
+        (adminXeroAction "save-xero-staff-mapping")
+        (xeroStaffMappingChangeActionRoute (pathTo SaveXeroStaffMappingAction))
+            { actionRouteExtraAttrs = [("class", "flex-grow-1"), ("data-disable-javascript-submission", "true")]
+            }
+        [hsx|
+            <input type="hidden" name="staffId" value={tshow staff.id} />
+            <select class="form-select form-select-sm" name="xeroEmployeeSelection" aria-label={"Xero employee for " <> staffFullName staff}>
+                <option value="not_applicable" selected={currentSelection == "not_applicable"}>Not paid through Xero</option>
+                {forEach selectableEmployees (renderXeroEmployeeOption currentSelection)}
+            </select>
+        |]
+
 renderXeroStaffMappingSuggestButton :: XeroStaffMappingRow -> Staff -> Html
-renderXeroStaffMappingSuggestButton row staff = [hsx|
-    <form method="POST"
-          action={SuggestXeroStaffMappingAction staff.id}
-          data-disable-javascript-submission="true"
-          hx-post={pathTo (SuggestXeroStaffMappingAction staff.id)}
-          hx-target="#admin-xero-fragment"
-          hx-swap="none">
-        <button class="btn btn-outline-secondary btn-sm" type="submit" disabled={isNothing row.mappingRowSuggestedEmployee}>Match</button>
-    </form>
-|]
+renderXeroStaffMappingSuggestButton row staff =
+    renderFrontendSurfaceActionForm
+        (adminXeroAction "suggest-xero-staff-mapping")
+        (xeroStaffMappingActionRoute (pathTo (SuggestXeroStaffMappingAction staff.id)))
+            { actionRouteStandardUrl = Just (pathTo (SuggestXeroStaffMappingAction staff.id))
+            , actionRouteExtraAttrs = [("data-disable-javascript-submission", "true")]
+            }
+        [hsx|<button class="btn btn-outline-secondary btn-sm" type="submit" disabled={isNothing row.mappingRowSuggestedEmployee}>Match</button>|]
+
+xeroStaffMappingActionRoute :: Text -> FrontendSurfaceActionRoute
+xeroStaffMappingActionRoute actionUrl =
+    FrontendSurfaceActionRoute
+        { actionRouteUrl = actionUrl
+        , actionRouteFields = []
+        , actionRouteCustomHtmx = []
+        , actionRouteStandardUrl = Nothing
+        , actionRouteExtraAttrs = []
+        }
+
+xeroStaffMappingChangeActionRoute :: Text -> FrontendSurfaceActionRoute
+xeroStaffMappingChangeActionRoute actionUrl =
+    (xeroStaffMappingActionRoute actionUrl)
+        { actionRouteCustomHtmx =
+            [ FrontendSurfaceCustomHtmxAttrs
+                { customHtmxAttrMarker = "change-autosave-custom-htmx"
+                , customHtmxAttrValues = [("hx-trigger", "change")]
+                }
+            ]
+        , actionRouteStandardUrl = Just actionUrl
+        }
 
 renderXeroStaffMappingControlsOob :: Maybe (Id Staff) -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> Html
 renderXeroStaffMappingControlsOob maybeUnchangedStaffId xeroEmployees mappingRows mappingCounts =

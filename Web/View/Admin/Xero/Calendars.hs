@@ -2,8 +2,12 @@ module Web.View.Admin.Xero.Calendars
     ( renderXeroPayrollCalendarSelection
     ) where
 
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            FrontendSurfaceCustomHtmxAttrs (..),
+                                                            renderFrontendSurfaceActionForm)
 import Application.Helper.XeroAdminTypes
 import qualified Data.Text as Text
+import Web.Admin.FrontendSurface (adminXeroAction)
 import Web.View.Prelude
 
 renderXeroPayrollCalendarSelection :: [XeroPayrollCalendar] -> Maybe XeroPayrollCalendarSelection -> Html
@@ -19,18 +23,7 @@ renderXeroPayrollCalendarSelection payrollCalendars maybeSelection
     | otherwise = [hsx|
         <div>
             <h3 class="h6 mb-2">Payroll calendar</h3>
-            <form method="POST"
-                  action={SaveXeroPayrollCalendarSelectionAction}
-                  data-disable-javascript-submission="true"
-                  hx-post={pathTo SaveXeroPayrollCalendarSelectionAction}
-                  hx-target="#admin-xero-fragment"
-                  hx-trigger="change"
-                  hx-swap="outerHTML">
-                <select class="form-select form-select-sm" name="xeroPayrollCalendarSelection" aria-label="Xero payroll calendar">
-                    <option value="" selected={currentSelection == ""}>Not selected</option>
-                    {forEach payrollCalendars (renderXeroPayrollCalendarOption currentSelection)}
-                </select>
-            </form>
+            {renderXeroPayrollCalendarSelectionForm payrollCalendars currentSelection}
         </div>
     |]
     where
@@ -41,6 +34,33 @@ renderXeroPayrollCalendarSelection payrollCalendars maybeSelection
                     case payrollCalendars of
                         [payrollCalendar] -> payrollCalendar.xeroPayrollCalendarId
                         _                 -> ""
+
+renderXeroPayrollCalendarSelectionForm :: [XeroPayrollCalendar] -> Text -> Html
+renderXeroPayrollCalendarSelectionForm payrollCalendars currentSelection =
+    renderFrontendSurfaceActionForm
+        (adminXeroAction "save-xero-payroll-calendar-selection")
+        (xeroSurfaceChangeActionRoute (pathTo SaveXeroPayrollCalendarSelectionAction))
+        [hsx|
+            <select class="form-select form-select-sm" name="xeroPayrollCalendarSelection" aria-label="Xero payroll calendar">
+                <option value="" selected={currentSelection == ""}>Not selected</option>
+                {forEach payrollCalendars (renderXeroPayrollCalendarOption currentSelection)}
+            </select>
+        |]
+
+xeroSurfaceChangeActionRoute :: Text -> FrontendSurfaceActionRoute
+xeroSurfaceChangeActionRoute actionUrl =
+    FrontendSurfaceActionRoute
+        { actionRouteUrl = actionUrl
+        , actionRouteFields = []
+        , actionRouteCustomHtmx =
+            [ FrontendSurfaceCustomHtmxAttrs
+                { customHtmxAttrMarker = "change-autosave-custom-htmx"
+                , customHtmxAttrValues = [("hx-trigger", "change")]
+                }
+            ]
+        , actionRouteStandardUrl = Just actionUrl
+        , actionRouteExtraAttrs = [("data-disable-javascript-submission", "true")]
+        }
 
 renderXeroPayrollCalendarOption :: Text -> XeroPayrollCalendar -> Html
 renderXeroPayrollCalendarOption currentSelection payrollCalendar = [hsx|

@@ -10,6 +10,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             FrontendSurfaceCustomHtmxAttrs (..),
                                                             FrontendSurfaceFieldValue (..),
                                                             applyFrontendSurfaceActionAttrs,
+                                                            frontendSurfaceActionHtmxAttrPairs,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionLink,
                                                             renderFrontendSurfaceActionSubmitButton,
@@ -144,7 +145,7 @@ renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates impor
             </div>
             <div class="col-12 col-lg-2">
                 <label class="form-label" for={"shift-type-active-" <> tshow shiftType.id}>Status</label>
-                {renderAdminActiveToggle ("shift-type-active-" <> tshow shiftType.id) (Just (pathTo (UpdateShiftTypeAction shiftType.id))) "admin-shift-types-fragment" shiftType.isActive}
+                {renderAdminActiveToggleWithInputAttrs ("shift-type-active-" <> tshow shiftType.id) shiftType.isActive (frontendSurfaceActionHtmxAttrPairs (adminShiftTypesAction "autosave-shift-type-selection") (autosaveSelectionRoute shiftType))}
             </div>
         </div>
     |]

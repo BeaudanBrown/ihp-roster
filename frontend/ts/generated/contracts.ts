@@ -2296,6 +2296,76 @@ export function parseAdminXeroAdminXeroTimesheetsFragmentFragmentParams(value: u
 }
 export function encodeAdminXeroAdminXeroTimesheetsFragmentFragmentParams(value: AdminXeroAdminXeroTimesheetsFragmentFragmentParams): AdminXeroAdminXeroTimesheetsFragmentFragmentParams { return value; }
 
+export type AdminXeroSyncXeroPayrollReferenceDataActionFields = {  };
+export function isAdminXeroSyncXeroPayrollReferenceDataActionFields(value: unknown): value is AdminXeroSyncXeroPayrollReferenceDataActionFields {
+    return isRecord(value);
+}
+export function parseAdminXeroSyncXeroPayrollReferenceDataActionFields(value: unknown): AdminXeroSyncXeroPayrollReferenceDataActionFields {
+    if (isAdminXeroSyncXeroPayrollReferenceDataActionFields(value)) return value;
+    throw new Error("Invalid AdminXeroSyncXeroPayrollReferenceDataActionFields");
+}
+export function encodeAdminXeroSyncXeroPayrollReferenceDataActionFields(value: AdminXeroSyncXeroPayrollReferenceDataActionFields): AdminXeroSyncXeroPayrollReferenceDataActionFields { return value; }
+
+export type AdminXeroSaveXeroPayrollCalendarSelectionActionFields = { xeroPayrollCalendarSelection: string };
+export function isAdminXeroSaveXeroPayrollCalendarSelectionActionFields(value: unknown): value is AdminXeroSaveXeroPayrollCalendarSelectionActionFields {
+    return isRecord(value) && (typeof value["xeroPayrollCalendarSelection"] === "string");
+}
+export function parseAdminXeroSaveXeroPayrollCalendarSelectionActionFields(value: unknown): AdminXeroSaveXeroPayrollCalendarSelectionActionFields {
+    if (isAdminXeroSaveXeroPayrollCalendarSelectionActionFields(value)) return value;
+    throw new Error("Invalid AdminXeroSaveXeroPayrollCalendarSelectionActionFields");
+}
+export function encodeAdminXeroSaveXeroPayrollCalendarSelectionActionFields(value: AdminXeroSaveXeroPayrollCalendarSelectionActionFields): AdminXeroSaveXeroPayrollCalendarSelectionActionFields { return value; }
+
+export type AdminXeroSaveXeroPayItemAccountCodeSelectionActionFields = { xeroPayItemAccountCodeSelection: string };
+export function isAdminXeroSaveXeroPayItemAccountCodeSelectionActionFields(value: unknown): value is AdminXeroSaveXeroPayItemAccountCodeSelectionActionFields {
+    return isRecord(value) && (typeof value["xeroPayItemAccountCodeSelection"] === "string");
+}
+export function parseAdminXeroSaveXeroPayItemAccountCodeSelectionActionFields(value: unknown): AdminXeroSaveXeroPayItemAccountCodeSelectionActionFields {
+    if (isAdminXeroSaveXeroPayItemAccountCodeSelectionActionFields(value)) return value;
+    throw new Error("Invalid AdminXeroSaveXeroPayItemAccountCodeSelectionActionFields");
+}
+export function encodeAdminXeroSaveXeroPayItemAccountCodeSelectionActionFields(value: AdminXeroSaveXeroPayItemAccountCodeSelectionActionFields): AdminXeroSaveXeroPayItemAccountCodeSelectionActionFields { return value; }
+
+export type AdminXeroCreateMissingXeroPayItemsActionFields = {  };
+export function isAdminXeroCreateMissingXeroPayItemsActionFields(value: unknown): value is AdminXeroCreateMissingXeroPayItemsActionFields {
+    return isRecord(value);
+}
+export function parseAdminXeroCreateMissingXeroPayItemsActionFields(value: unknown): AdminXeroCreateMissingXeroPayItemsActionFields {
+    if (isAdminXeroCreateMissingXeroPayItemsActionFields(value)) return value;
+    throw new Error("Invalid AdminXeroCreateMissingXeroPayItemsActionFields");
+}
+export function encodeAdminXeroCreateMissingXeroPayItemsActionFields(value: AdminXeroCreateMissingXeroPayItemsActionFields): AdminXeroCreateMissingXeroPayItemsActionFields { return value; }
+
+export type AdminXeroArchiveXeroImportedPayItemActionFields = {  };
+export function isAdminXeroArchiveXeroImportedPayItemActionFields(value: unknown): value is AdminXeroArchiveXeroImportedPayItemActionFields {
+    return isRecord(value);
+}
+export function parseAdminXeroArchiveXeroImportedPayItemActionFields(value: unknown): AdminXeroArchiveXeroImportedPayItemActionFields {
+    if (isAdminXeroArchiveXeroImportedPayItemActionFields(value)) return value;
+    throw new Error("Invalid AdminXeroArchiveXeroImportedPayItemActionFields");
+}
+export function encodeAdminXeroArchiveXeroImportedPayItemActionFields(value: AdminXeroArchiveXeroImportedPayItemActionFields): AdminXeroArchiveXeroImportedPayItemActionFields { return value; }
+
+export type AdminXeroSaveXeroStaffMappingActionFields = { staffId: FrontendContractUuid; xeroEmployeeSelection: string };
+export function isAdminXeroSaveXeroStaffMappingActionFields(value: unknown): value is AdminXeroSaveXeroStaffMappingActionFields {
+    return isRecord(value) && (typeof value["staffId"] === "string") && (typeof value["xeroEmployeeSelection"] === "string");
+}
+export function parseAdminXeroSaveXeroStaffMappingActionFields(value: unknown): AdminXeroSaveXeroStaffMappingActionFields {
+    if (isAdminXeroSaveXeroStaffMappingActionFields(value)) return value;
+    throw new Error("Invalid AdminXeroSaveXeroStaffMappingActionFields");
+}
+export function encodeAdminXeroSaveXeroStaffMappingActionFields(value: AdminXeroSaveXeroStaffMappingActionFields): AdminXeroSaveXeroStaffMappingActionFields { return value; }
+
+export type AdminXeroSuggestXeroStaffMappingActionFields = {  };
+export function isAdminXeroSuggestXeroStaffMappingActionFields(value: unknown): value is AdminXeroSuggestXeroStaffMappingActionFields {
+    return isRecord(value);
+}
+export function parseAdminXeroSuggestXeroStaffMappingActionFields(value: unknown): AdminXeroSuggestXeroStaffMappingActionFields {
+    if (isAdminXeroSuggestXeroStaffMappingActionFields(value)) return value;
+    throw new Error("Invalid AdminXeroSuggestXeroStaffMappingActionFields");
+}
+export function encodeAdminXeroSuggestXeroStaffMappingActionFields(value: AdminXeroSuggestXeroStaffMappingActionFields): AdminXeroSuggestXeroStaffMappingActionFields { return value; }
+
 export type VenueId = FrontendSurfaceUUID;
 export type StaffFilterId = FrontendSurfaceUUID;
 export type PanelId = FrontendSurfaceUUID;
@@ -2399,7 +2469,15 @@ export const adminRosterGroupsSurfaceManifest = {"surface":"admin-roster-groups"
 
 export type AdminXeroSurfaceName = "admin-xero";
 export type AdminXeroFragmentKey = AdminXeroSurfaceFragmentKey;
-export const adminXeroSurfaceManifest = {"surface":"admin-xero","scopes":["admin-xero"],"fragments":["admin-xero-shell","admin-xero-staff-mappings","admin-xero-pay-items","admin-xero-timesheets"],"liveFragments":["admin-xero-shell","admin-xero-staff-mappings","admin-xero-pay-items","admin-xero-timesheets"],"htmxActions":[],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":[],"overlayLanes":[],"containedSurfaces":{}} as const;
+export type SyncXeroPayrollReferenceDataActionFields = AdminXeroSyncXeroPayrollReferenceDataActionFields;
+export type SaveXeroPayrollCalendarSelectionActionFields = AdminXeroSaveXeroPayrollCalendarSelectionActionFields;
+export type SaveXeroPayItemAccountCodeSelectionActionFields = AdminXeroSaveXeroPayItemAccountCodeSelectionActionFields;
+export type CreateMissingXeroPayItemsActionFields = AdminXeroCreateMissingXeroPayItemsActionFields;
+export type ArchiveXeroImportedPayItemActionFields = AdminXeroArchiveXeroImportedPayItemActionFields;
+export type SaveXeroStaffMappingActionFields = AdminXeroSaveXeroStaffMappingActionFields;
+export type SuggestXeroStaffMappingActionFields = AdminXeroSuggestXeroStaffMappingActionFields;
+export type AdminXeroDomToken = "admin-xero-fragment" | "xero-pay-items-data" | "xero-pay-items-sync-indicator";
+export const adminXeroSurfaceManifest = {"surface":"admin-xero","scopes":["admin-xero"],"fragments":["admin-xero-shell","admin-xero-staff-mappings","admin-xero-pay-items","admin-xero-timesheets"],"liveFragments":["admin-xero-shell","admin-xero-staff-mappings","admin-xero-pay-items","admin-xero-timesheets"],"htmxActions":[{"name":"sync-xero-payroll-reference-data","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"admin-xero-fragment","swap":"outer-html","pushUrl":null,"custom":[{"name":"load-reference-sync-custom-htmx","reason":"automatic post-connect reference sync uses hx-trigger=load, a concrete Xero page push URL, and the connection status indicator"}]}},{"name":"save-xero-payroll-calendar-selection","fields":["xeroPayrollCalendarSelection"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"admin-xero-fragment","swap":"none","pushUrl":null,"custom":[{"name":"change-autosave-custom-htmx","reason":"payroll calendar selection submits on change"}]}},{"name":"save-xero-pay-item-account-code-selection","fields":["xeroPayItemAccountCodeSelection"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"admin-xero-fragment","swap":"none","pushUrl":null,"custom":[{"name":"change-autosave-custom-htmx","reason":"pay item account-code selection submits on change"}]}},{"name":"create-missing-xero-pay-items","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":"xero-pay-items-sync-indicator","confirm":null,"select":null,"target":"xero-pay-items-data","swap":"none","pushUrl":null,"custom":[]}},{"name":"archive-xero-imported-pay-item","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"xero-pay-items-data","swap":"none","pushUrl":null,"custom":[]}},{"name":"save-xero-staff-mapping","fields":["staffId","xeroEmployeeSelection"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"admin-xero-fragment","swap":"none","pushUrl":null,"custom":[{"name":"change-autosave-custom-htmx","reason":"staff mapping selection submits on change"}]}},{"name":"suggest-xero-staff-mapping","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"admin-xero-fragment","swap":"none","pushUrl":null,"custom":[]}}],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":["admin-xero-fragment","xero-pay-items-data","xero-pay-items-sync-indicator"],"overlayLanes":[],"containedSurfaces":{}} as const;
 
 // FrontendSurface* live types are server-rendered mount metadata adapters.
 // Canonical websocket wire contracts remain SurfaceScope, SurfaceFragmentKey, and SurfaceWireFragment.

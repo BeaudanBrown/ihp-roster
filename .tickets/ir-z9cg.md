@@ -1,6 +1,6 @@
 ---
 id: ir-z9cg
-status: in_progress
+status: closed
 deps: []
 links: [ir-cpkv]
 created: 2026-07-07T07:24:38Z
@@ -39,3 +39,11 @@ Migrated Admin Venue Settings, Invites, and Exports request initiators to genera
 **2026-07-07T09:08:45Z**
 
 Next decision point: Admin Xero still has substantial HTMX. Some controls are in-surface AdminXero mutations (reference sync, calendar/account-code selections, pay item creation/archive, staff mappings/suggestions) and can migrate. The Xero timesheet preparation and pay-item import modal flows target the global dialog overlay and look like workflow/dialog controls rather than AdminXero surface actions; need decide whether to model them as AdminXero actions, a separate dialog workflow surface, or the global HTMX helper lane.
+
+**2026-07-08T01:16:33Z**
+
+Revised Admin Xero plan after OverlayAction migration: overlay/dialog flows are now out of scope for this ticket and handled by ir-od63/ir-1347. Remaining ir-z9cg scope is AdminXero surface-owned request initiators only: reference-data sync; payroll-calendar selection; pay-item account-code selection; create missing Xero pay items; archive imported pay item; staff mapping saves; staff mapping suggestion/apply controls; and any other Admin Xero page mutations targeting Admin Xero fragments. Keep pure fragment reads/lazy refreshes, shell/container navigation, and response OOB/toast/dialog cleanup out of SurfaceAction. Successful migrated mutations must continue actor-local/passive invalidation, not authoritative business OOB HTML.
+
+**2026-07-08T01:36:39Z**
+
+Completed remaining Admin config request-action rollout. Added generated AdminXero surface actions for reference sync, payroll-calendar and pay-item account-code selections, managed pay-item creation/archive, and staff mapping save/suggest controls. Added reusable FrontendSurface action attr-pair rendering so shared AppToggle inputs can carry generated action metadata; migrated Shift Type active autosave toggle through it. Verified typecheck, frontend-check, and focused AdminController/Xero hspec.

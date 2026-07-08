@@ -17,12 +17,16 @@ import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (
                                                             OverlayFieldValue (..),
                                                             overlayActionByMarker,
                                                             renderOverlayActionForm)
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            FrontendSurfaceCustomHtmxAttrs (..),
+                                                            renderFrontendSurfaceActionForm)
 import Application.Helper.Xero (XeroEarningsRateRef (..))
 import Application.Helper.XeroAdminTypes
 import Application.Xero.Admin.ImportedPayItems (XeroImportedPayItemCandidate (..))
 import qualified Data.List as List
 import Data.Scientific (FPFormat (Fixed), Scientific, formatScientific)
 import qualified Data.Text as Text
+import Web.Admin.FrontendSurface (adminXeroAction)
 import Web.View.Prelude
 
 xeroPayItemOverlayActionRoute :: Text -> OverlayActionRoute
@@ -46,18 +50,7 @@ renderXeroPayItemAccountCodeSelection :: [XeroPayItemAccountCodeOption] -> Maybe
 renderXeroPayItemAccountCodeSelection accountCodeOptions maybeSelection canManagePayItems = [hsx|
     <div>
         <h3 class="h6 mb-2">Account code</h3>
-        <form method="POST"
-              action={SaveXeroPayItemAccountCodeSelectionAction}
-              data-disable-javascript-submission="true"
-              hx-post={pathTo SaveXeroPayItemAccountCodeSelectionAction}
-              hx-target="#admin-xero-fragment"
-              hx-trigger="change"
-              hx-swap="outerHTML">
-            <select id="xero-pay-item-account-code-selection" class="form-select form-select-sm" name="xeroPayItemAccountCodeSelection" disabled={not canManagePayItems}>
-                <option value="" selected={currentSelection == ""}>Not selected</option>
-                {forEach accountCodeOptions (renderXeroPayItemAccountCodeOption currentSelection)}
-            </select>
-        </form>
+        {renderXeroPayItemAccountCodeSelectionForm accountCodeOptions currentSelection canManagePayItems}
     </div>
 |]
     where
@@ -74,6 +67,41 @@ renderXeroPayItemAccountCodeSelection accountCodeOptions maybeSelection canManag
                     case accountCodeOptions of
                         [option] -> option.accountCodeOptionValue
                         _        -> ""
+
+renderXeroPayItemAccountCodeSelectionForm :: [XeroPayItemAccountCodeOption] -> Text -> Bool -> Html
+renderXeroPayItemAccountCodeSelectionForm accountCodeOptions currentSelection canManagePayItems =
+    renderFrontendSurfaceActionForm
+        (adminXeroAction "save-xero-pay-item-account-code-selection")
+        (xeroSurfaceChangeActionRoute (pathTo SaveXeroPayItemAccountCodeSelectionAction))
+        [hsx|
+            <select id="xero-pay-item-account-code-selection" class="form-select form-select-sm" name="xeroPayItemAccountCodeSelection" disabled={not canManagePayItems}>
+                <option value="" selected={currentSelection == ""}>Not selected</option>
+                {forEach accountCodeOptions (renderXeroPayItemAccountCodeOption currentSelection)}
+            </select>
+        |]
+
+xeroSurfaceActionRoute :: Text -> FrontendSurfaceActionRoute
+xeroSurfaceActionRoute actionUrl =
+    FrontendSurfaceActionRoute
+        { actionRouteUrl = actionUrl
+        , actionRouteFields = []
+        , actionRouteCustomHtmx = []
+        , actionRouteStandardUrl = Nothing
+        , actionRouteExtraAttrs = []
+        }
+
+xeroSurfaceChangeActionRoute :: Text -> FrontendSurfaceActionRoute
+xeroSurfaceChangeActionRoute actionUrl =
+    (xeroSurfaceActionRoute actionUrl)
+        { actionRouteCustomHtmx =
+            [ FrontendSurfaceCustomHtmxAttrs
+                { customHtmxAttrMarker = "change-autosave-custom-htmx"
+                , customHtmxAttrValues = [("hx-trigger", "change")]
+                }
+            ]
+        , actionRouteStandardUrl = Just actionUrl
+        , actionRouteExtraAttrs = [("data-disable-javascript-submission", "true")]
+        }
 
 renderXeroPayItemAccountCodeOption :: Text -> XeroPayItemAccountCodeOption -> Html
 renderXeroPayItemAccountCodeOption currentSelection option = [hsx|
@@ -124,21 +152,22 @@ renderArchivedXeroPayItemRequirements requirements = [hsx|
 renderCreateMissingXeroPayItemsControl :: Bool -> Bool -> Int -> Html
 renderCreateMissingXeroPayItemsControl canManagePayItems hasAccountCode proposedCount
     | proposedCount <= 0 = mempty
-    | otherwise = [hsx|
-        <form method="POST"
-              action={CreateMissingXeroPayItemsAction}
-              data-disable-javascript-submission="true"
-              hx-post={pathTo CreateMissingXeroPayItemsAction}
-              hx-target="#xero-pay-items-data"
-              hx-swap="outerHTML"
-              hx-indicator="#xero-pay-items-sync-indicator"
-              class="mb-3">
+    | otherwise = renderCreateMissingXeroPayItemsForm canManagePayItems hasAccountCode proposedCount
+
+renderCreateMissingXeroPayItemsForm :: Bool -> Bool -> Int -> Html
+renderCreateMissingXeroPayItemsForm canManagePayItems hasAccountCode proposedCount =
+    renderFrontendSurfaceActionForm
+        (adminXeroAction "create-missing-xero-pay-items")
+        (xeroSurfaceActionRoute (pathTo CreateMissingXeroPayItemsAction))
+            { actionRouteStandardUrl = Just (pathTo CreateMissingXeroPayItemsAction)
+            , actionRouteExtraAttrs = [("data-disable-javascript-submission", "true"), ("class", "mb-3")]
+            }
+        [hsx|
             <button class="btn btn-outline-primary btn-sm" type="submit" disabled={not canManagePayItems || not hasAccountCode}>
                 Create {tshow proposedCount} missing pay items in Xero
             </button>
             {renderMissingPayItemAccountCodeNotice hasAccountCode}
-        </form>
-    |]
+        |]
 
 renderMissingPayItemAccountCodeNotice :: Bool -> Html
 renderMissingPayItemAccountCodeNotice True = mempty
@@ -242,17 +271,20 @@ renderActiveImportedPayItemRow accountCodeOptions item = [hsx|
         <td>{renderImportedPayItemAccount accountCodeOptions item}</td>
         <td class="text-end">${formatMoney item.ratePerUnit}/hr</td>
         <td class="text-end">
-            <form method="POST"
-                  action={ArchiveXeroImportedPayItemAction item.id}
-                  hx-post={pathTo (ArchiveXeroImportedPayItemAction item.id)}
-                  hx-target="#xero-pay-items-data"
-                  hx-swap="outerHTML"
-                  class="d-inline">
-                <button type="submit" class="btn btn-sm btn-outline-danger">Archive</button>
-            </form>
+            {renderArchiveXeroImportedPayItemForm item}
         </td>
     </tr>
 |]
+
+renderArchiveXeroImportedPayItemForm :: XeroImportedPayItem -> Html
+renderArchiveXeroImportedPayItemForm item =
+    renderFrontendSurfaceActionForm
+        (adminXeroAction "archive-xero-imported-pay-item")
+        (xeroSurfaceActionRoute (pathTo (ArchiveXeroImportedPayItemAction item.id)))
+            { actionRouteStandardUrl = Just (pathTo (ArchiveXeroImportedPayItemAction item.id))
+            , actionRouteExtraAttrs = [("class", "d-inline")]
+            }
+        [hsx|<button type="submit" class="btn btn-sm btn-outline-danger">Archive</button>|]
 
 renderArchivedImportedPayItems :: [XeroPayItemAccountCodeOption] -> [XeroImportedPayItem] -> Html
 renderArchivedImportedPayItems _ [] = mempty

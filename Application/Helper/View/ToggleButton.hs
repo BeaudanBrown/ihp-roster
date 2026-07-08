@@ -6,6 +6,10 @@ module Application.Helper.View.ToggleButton
 
 import qualified Data.Text as Text
 import IHP.ViewPrelude
+import Text.Blaze (toValue, (!))
+import qualified Text.Blaze.Html as Blaze
+import qualified Text.Blaze.Html5 as Html5
+import Text.Blaze.Internal (customAttribute, textTag)
 
 data AppToggleButtonConfig = AppToggleButtonConfig
     { appToggleInputId                   :: !Text
@@ -30,6 +34,7 @@ data AppToggleButtonConfig = AppToggleButtonConfig
     , appToggleHiddenInputUncheckedValue :: !(Maybe Text)
     , appToggleBreakTarget               :: !(Maybe Text)
     , appToggleShiftPreferenceAvailable  :: !Bool
+    , appToggleInputExtraAttrs           :: ![(Text, Text)]
     }
 
 defaultAppToggleButtonConfig :: Text -> Bool -> Html -> AppToggleButtonConfig
@@ -56,6 +61,7 @@ defaultAppToggleButtonConfig inputId checked label = AppToggleButtonConfig
     , appToggleHiddenInputUncheckedValue = Nothing
     , appToggleBreakTarget = Nothing
     , appToggleShiftPreferenceAvailable = False
+    , appToggleInputExtraAttrs = []
     }
 
 renderAppToggleButton :: AppToggleButtonConfig -> Html
@@ -64,33 +70,56 @@ renderAppToggleButton config@AppToggleButtonConfig { .. } = [hsx|
            for={appToggleInputId}
            data-app-toggle-button="true"
            aria-pressed={boolAttr appToggleChecked}>
-        <input id={appToggleInputId}
-               class={appToggleInputClasses config}
-               type="checkbox"
-               role={switchRoleAttr appToggleRoleSwitch}
-               aria-checked={switchAriaCheckedAttr appToggleRoleSwitch appToggleChecked}
-               name={appToggleInputName}
-               value={appToggleInputValue}
-               checked={appToggleChecked}
-               onchange={appToggleOnChange}
-               hx-get={appToggleHxGet}
-               hx-post={appToggleHxPost}
-               hx-trigger={appToggleHxTrigger}
-               hx-include={appToggleHxInclude}
-               hx-target={appToggleHxTarget}
-               hx-swap={appToggleHxSwap}
-               hx-push-url={appToggleHxPushUrl}
-               hx-sync={appToggleHxSync}
-               data-app-toggle-button-input="true"
-               data-app-toggle-hidden-input-id={appToggleHiddenInputId}
-               data-app-toggle-hidden-checked-value={appToggleHiddenInputCheckedValue}
-               data-app-toggle-hidden-unchecked-value={appToggleHiddenInputUncheckedValue}
-               data-break-toggle={breakToggleAttr appToggleBreakTarget}
-               data-break-target={appToggleBreakTarget}
-               data-shift-preference-available={boolDataAttr appToggleShiftPreferenceAvailable} />
+        {renderAppToggleInput config}
         {appToggleLabel}
     </label>
 |]
+
+renderAppToggleInput :: AppToggleButtonConfig -> Html
+renderAppToggleInput config@AppToggleButtonConfig { .. } =
+    applyAttributes
+        Html5.input
+        ( [ attr "id" appToggleInputId
+          , attr "class" (appToggleInputClasses config)
+          , attr "type" "checkbox"
+          , maybeAttr "role" (switchRoleAttr appToggleRoleSwitch)
+          , maybeAttr "aria-checked" (switchAriaCheckedAttr appToggleRoleSwitch appToggleChecked)
+          , maybeAttr "name" appToggleInputName
+          , attr "value" appToggleInputValue
+          , checkedAttr appToggleChecked
+          , maybeAttr "onchange" appToggleOnChange
+          , maybeAttr "hx-get" appToggleHxGet
+          , maybeAttr "hx-post" appToggleHxPost
+          , maybeAttr "hx-trigger" appToggleHxTrigger
+          , maybeAttr "hx-include" appToggleHxInclude
+          , maybeAttr "hx-target" appToggleHxTarget
+          , maybeAttr "hx-swap" appToggleHxSwap
+          , maybeAttr "hx-push-url" appToggleHxPushUrl
+          , maybeAttr "hx-sync" appToggleHxSync
+          , attr "data-app-toggle-button-input" "true"
+          , maybeAttr "data-app-toggle-hidden-input-id" appToggleHiddenInputId
+          , maybeAttr "data-app-toggle-hidden-checked-value" appToggleHiddenInputCheckedValue
+          , maybeAttr "data-app-toggle-hidden-unchecked-value" appToggleHiddenInputUncheckedValue
+          , maybeAttr "data-break-toggle" (breakToggleAttr appToggleBreakTarget)
+          , maybeAttr "data-break-target" appToggleBreakTarget
+          , maybeAttr "data-shift-preference-available" (boolDataAttr appToggleShiftPreferenceAvailable)
+          ]
+            <> fmap (uncurry attr) appToggleInputExtraAttrs
+        )
+
+applyAttributes :: Blaze.Html -> [Blaze.Attribute] -> Blaze.Html
+applyAttributes = foldl' (!)
+
+attr :: Text -> Text -> Blaze.Attribute
+attr name value = customAttribute (textTag name) (toValue value)
+
+maybeAttr :: Text -> Maybe Text -> Blaze.Attribute
+maybeAttr _ Nothing         = mempty
+maybeAttr name (Just value) = attr name value
+
+checkedAttr :: Bool -> Blaze.Attribute
+checkedAttr True  = attr "checked" "checked"
+checkedAttr False = mempty
 
 appToggleButtonClasses :: AppToggleButtonConfig -> Text
 appToggleButtonClasses AppToggleButtonConfig { appToggleChecked, appToggleButtonClass } =

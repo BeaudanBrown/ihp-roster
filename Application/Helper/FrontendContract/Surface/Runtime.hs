@@ -46,6 +46,7 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , frontendSurfaceMountedFragmentToWire
     , frontendSurfaceMountedFragmentsToWire
     , applyFrontendSurfaceActionAttrs
+    , frontendSurfaceActionHtmxAttrPairs
     , renderFrontendSurfaceActionForm
     , renderFrontendSurfaceActionLink
     , renderFrontendSurfaceActionSubmitButton
@@ -766,25 +767,29 @@ routeExtraAttrs route = fmap (uncurry attr) route.actionRouteExtraAttrs
 
 frontendSurfaceActionHtmxAttrs :: SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> [Blaze.Attribute]
 frontendSurfaceActionHtmxAttrs action route =
-    [ attr (frontendSurfaceHtmxMethodAttr method) route.actionRouteUrl
-    , attr "data-bepis-surface-action" action.htmxActionName
-    , attr "data-bepis-surface-action-config" (frontendSurfaceActionConfigJson action)
+    fmap (uncurry attr) (frontendSurfaceActionHtmxAttrPairs action route)
+
+frontendSurfaceActionHtmxAttrPairs :: SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> [(Text, Text)]
+frontendSurfaceActionHtmxAttrPairs action route =
+    [ (frontendSurfaceHtmxMethodAttr method, route.actionRouteUrl)
+    , ("data-bepis-surface-action", action.htmxActionName)
+    , ("data-bepis-surface-action-config", frontendSurfaceActionConfigJson action)
     ]
         <> optionAttrs action.htmxActionOptions
-        <> customHtmxAttrs action route
+        <> customHtmxAttrPairs action route
     where
         method = frontendSurfaceActionMethod action
 
         optionAttrs = concatMap \case
-            SurfaceIR.HtmxTriggerOption value -> [attr "hx-trigger" value]
-            SurfaceIR.HtmxIncludeOption value -> [attr "hx-include" value]
-            SurfaceIR.HtmxSyncOption value -> [attr "hx-sync" value]
-            SurfaceIR.HtmxIndicatorOption value -> [attr "hx-indicator" value]
-            SurfaceIR.HtmxConfirmOption value -> [attr "hx-confirm" value]
-            SurfaceIR.HtmxSelectOption value -> [attr "hx-select" value]
-            SurfaceIR.HtmxTargetOption value -> [attr "hx-target" ("#" <> value)]
-            SurfaceIR.HtmxSwapOption value -> [attr "hx-swap" value]
-            SurfaceIR.HtmxPushUrlOption value -> [attr "hx-push-url" (if value == SurfaceIR.HtmxPushUrlTrueIR then "true" else "false")]
+            SurfaceIR.HtmxTriggerOption value -> [("hx-trigger", value)]
+            SurfaceIR.HtmxIncludeOption value -> [("hx-include", value)]
+            SurfaceIR.HtmxSyncOption value -> [("hx-sync", value)]
+            SurfaceIR.HtmxIndicatorOption value -> [("hx-indicator", value)]
+            SurfaceIR.HtmxConfirmOption value -> [("hx-confirm", value)]
+            SurfaceIR.HtmxSelectOption value -> [("hx-select", value)]
+            SurfaceIR.HtmxTargetOption value -> [("hx-target", "#" <> value)]
+            SurfaceIR.HtmxSwapOption value -> [("hx-swap", value)]
+            SurfaceIR.HtmxPushUrlOption value -> [("hx-push-url", if value == SurfaceIR.HtmxPushUrlTrueIR then "true" else "false")]
             _ -> []
 
 frontendSurfaceActionMethod :: SurfaceIR.HtmxActionIR -> FrontendSurfaceHtmxMethod
@@ -822,13 +827,13 @@ frontendSurfaceStandardMethodText = \case
     FrontendSurfacePatch -> "post"
     FrontendSurfaceDelete -> "post"
 
-customHtmxAttrs :: SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> [Blaze.Attribute]
-customHtmxAttrs action route =
+customHtmxAttrPairs :: SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> [(Text, Text)]
+customHtmxAttrPairs action route =
     concatMap renderCustom route.actionRouteCustomHtmx
     where
         declaredMarkers = [marker | SurfaceIR.CustomHtmxOption marker _ <- action.htmxActionOptions]
         renderCustom custom
-            | custom.customHtmxAttrMarker `elem` declaredMarkers = fmap (uncurry attr) custom.customHtmxAttrValues
+            | custom.customHtmxAttrMarker `elem` declaredMarkers = custom.customHtmxAttrValues
             | otherwise = error ("undeclared custom HTMX marker " <> cs custom.customHtmxAttrMarker <> " for action " <> cs action.htmxActionName)
 
 frontendSurfaceActionConfigJson :: SurfaceIR.HtmxActionIR -> Text

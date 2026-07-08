@@ -69,24 +69,6 @@ renderRosterGroupDefaultBadge rosterGroup
     | rosterGroup.isDefault = renderAppStatusBadge AppStatusInfo "Default"
     | otherwise = mempty
 
-renderMoveButton :: Bool -> AdminController -> Text -> Text -> Html
-renderMoveButton isDisabled action targetId label =
-    if isDisabled
-        then [hsx|
-            <button class="btn btn-outline-secondary" type="button" disabled={True}>{label}</button>
-        |]
-        else [hsx|
-            <button class="btn btn-outline-secondary"
-                    type="submit"
-                    formaction={action}
-                    hx-post={action}
-                    hx-trigger="click"
-                    hx-include="closest form"
-                    hx-target={"#" <> targetId}
-                    hx-swap="outerHTML"
-                    hx-push-url="false">{label}</button>
-        |]
-
 renderShiftTypeRuleOption :: ShiftType -> Html
 renderShiftTypeRuleOption shiftType = [hsx|
     <option value={tshow (unpackId (get #id shiftType))}>{renderShiftTypeLabel shiftType}</option>
@@ -129,7 +111,22 @@ renderActiveBadge isActive =
         else renderAppStatusBadge AppStatusNeutral "inactive"
 
 renderAdminActiveToggle :: Text -> Maybe Text -> Text -> Bool -> Html
-renderAdminActiveToggle inputId maybePostPath targetId isActive = [hsx|
+renderAdminActiveToggle inputId maybePostPath targetId isActive =
+    renderAdminActiveToggleWithInputAttrs inputId isActive generatedAttrs
+    where
+        generatedAttrs =
+            case maybePostPath of
+                Nothing -> []
+                Just postPath ->
+                    [ ("hx-post", postPath)
+                    , ("hx-trigger", "change")
+                    , ("hx-include", "closest form")
+                    , ("hx-target", "#" <> targetId)
+                    , ("hx-swap", "outerHTML")
+                    ]
+
+renderAdminActiveToggleWithInputAttrs :: Text -> Bool -> [(Text, Text)] -> Html
+renderAdminActiveToggleWithInputAttrs inputId isActive inputAttrs = [hsx|
     {renderAppToggleButton toggleConfig}
     <input type="hidden" name="isActive" value="false" />
 |]
@@ -141,11 +138,7 @@ renderAdminActiveToggle inputId maybePostPath targetId isActive = [hsx|
             , appToggleInputValue = "true"
             , appToggleButtonClass = "btn-sm w-100"
             , appToggleRoleSwitch = True
-            , appToggleHxPost = maybePostPath
-            , appToggleHxTrigger = if isJust maybePostPath then Just "change" else Nothing
-            , appToggleHxInclude = if isJust maybePostPath then Just "closest form" else Nothing
-            , appToggleHxTarget = if isJust maybePostPath then Just ("#" <> targetId) else Nothing
-            , appToggleHxSwap = if isJust maybePostPath then Just "outerHTML" else Nothing
+            , appToggleInputExtraAttrs = inputAttrs
             }
 
 renderEmptyState :: Text -> Html

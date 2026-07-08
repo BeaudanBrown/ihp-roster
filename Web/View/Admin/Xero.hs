@@ -21,9 +21,12 @@ import Application.Helper.FrontendContract.Overlay (OpenXeroPayItemImportOverlay
 import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
                                                             overlayActionByMarker,
                                                             renderOverlayActionForm)
-import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            FrontendSurfaceCustomHtmxAttrs (..),
+                                                            renderFrontendSurfaceActionForm,
+                                                            renderFrontendSurfaceMount)
 import Application.Helper.XeroAdminTypes
-import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
+import Web.Admin.FrontendSurface (AdminVenueScopeValue (..), adminXeroAction,
                                   adminXeroPageSurfaceImpl,
                                   adminXeroSurfaceImpl)
 import Web.View.Admin.Common
@@ -102,18 +105,29 @@ renderXeroSectionFragmentWithSwap maybeSwapOob shouldAutoSync xeroSectionData =
 
 renderXeroAutoSyncTrigger :: Bool -> Maybe XeroConnection -> Html
 renderXeroAutoSyncTrigger True (Just connection)
-    | connection.connectionStatus == "active" = [hsx|
-        <form id="xero-auto-reference-sync"
-              method="POST"
-              action={SyncXeroPayrollReferenceDataAction}
-              data-disable-javascript-submission="true"
-              hx-post={pathTo SyncXeroPayrollReferenceDataAction}
-              hx-trigger="load"
-              hx-target="#admin-xero-fragment"
-              hx-swap="outerHTML"
-              hx-push-url={pathTo XeroAction}
-              hx-indicator="#xero-connection-status-badge"></form>
-    |]
+    | connection.connectionStatus == "active" =
+        renderFrontendSurfaceActionForm
+            (adminXeroAction "sync-xero-payroll-reference-data")
+            FrontendSurfaceActionRoute
+                { actionRouteUrl = pathTo SyncXeroPayrollReferenceDataAction
+                , actionRouteFields = []
+                , actionRouteCustomHtmx =
+                    [ FrontendSurfaceCustomHtmxAttrs
+                        { customHtmxAttrMarker = "load-reference-sync-custom-htmx"
+                        , customHtmxAttrValues =
+                            [ ("hx-trigger", "load")
+                            , ("hx-push-url", pathTo XeroAction)
+                            , ("hx-indicator", "#xero-connection-status-badge")
+                            ]
+                        }
+                    ]
+                , actionRouteStandardUrl = Just (pathTo SyncXeroPayrollReferenceDataAction)
+                , actionRouteExtraAttrs =
+                    [ ("id", "xero-auto-reference-sync")
+                    , ("data-disable-javascript-submission", "true")
+                    ]
+                }
+            mempty
 renderXeroAutoSyncTrigger _ _ =
     mempty
 
