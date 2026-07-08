@@ -23,6 +23,14 @@ workflow mutations should close/clear overlays and refresh business surfaces
 through actor-local/passive invalidation rather than returning authoritative
 business fragments OOB.
 
+`InteractionContract` is intentionally generic runtime vocabulary: activation
+triggers, field presence, conflict/effect shapes, DOM attrs, and generic
+capability/static-schema records. Feature-specific interaction vocabulary such
+as roster intent names, roster field names, sessions, disposable layers, and
+surface-family keys is derived from registered `FrontendSurface` declarations
+and rendered as `FrontendSurfaceInteraction*` TypeScript unions. Do not add
+compatibility shim aliases that resurrect global `Interaction*` roster enums.
+
 Haskell wire code must not re-declare browser shapes. Typed carrier modules may
 exist for ergonomic runtime APIs, but JSON validation/parsing/rendering delegates
 to `Application.Helper.FrontendContract.Wire.Json` over the registered IR. The

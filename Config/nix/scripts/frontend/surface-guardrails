@@ -25,6 +25,20 @@ expect_no_match() {
     rm -f "$tmp_log"
 }
 
+expect_no_match_including_generated() {
+    local label="$1"
+    local pattern="$2"
+    shift 2
+
+    local tmp_log
+    tmp_log="$(mktemp)"
+    if rg --line-number --glob '!*.md' --glob '!*.test.ts' --glob '!*.log' "$pattern" "$@" >"$tmp_log" 2>/dev/null; then
+        report_failure "$label"
+        cat "$tmp_log" >&2
+    fi
+    rm -f "$tmp_log"
+}
+
 expect_match() {
     local label="$1"
     local pattern="$2"
@@ -228,6 +242,26 @@ expect_no_match \
     "generated/static contracts must not expose deleted semantic interaction DOM attrs" \
     'data-bepis-(marker|item|pointer-session|session-kind|session-intent|activation-intent|activation-trigger|activation-value-field)|"(item|pointerSession|sessionIntent|activationIntent|activationTrigger|activationValueField|activationMarker|itemMarker|dropzoneMarker)"' \
     frontend/ts/generated/contracts.ts static/app-interactions.js static/app-live-updates.js
+
+expect_no_match \
+    "InteractionContract must not own roster-specific interaction enum authority" \
+    'Interaction(SurfaceFamily|DisposableLayerName|SessionKindName|IntentName|IntentFieldName)|SetRosterLayoutMode|MoveRosterShiftToSlot|DragPreview|\bdata Roster\b' \
+    Application/Helper/FrontendContract/Interaction.hs
+
+expect_no_match_including_generated \
+    "generated contracts must not expose compatibility shim aliases for old global interaction vocabulary" \
+    '\bInteraction(SurfaceFamily|DisposableLayerName|SessionKindName|IntentName|IntentFieldName)\b|isInteractionSurfaceFamily|parseInteractionSurfaceFamily|encodeInteractionSurfaceFamily' \
+    frontend/ts/generated/contracts.ts
+
+expect_match \
+    "generated contracts expose surface-derived interaction surface names" \
+    'FrontendSurfaceInteractionSurfaceName = "roster"' \
+    frontend/ts/generated/contracts.ts
+
+expect_match \
+    "generated contracts expose surface-derived roster interaction intents" \
+    'FrontendSurfaceInteractionIntentName = "set-roster-layout-mode" \| "move-roster-shift-to-slot"' \
+    frontend/ts/generated/contracts.ts
 
 expect_no_match \
     "roster must use generic FrontendSurface interaction shell rendering" \
