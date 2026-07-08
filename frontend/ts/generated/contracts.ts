@@ -464,6 +464,37 @@ export function parseRosterStaffSortKey(value: unknown): RosterStaffSortKey {
 }
 export function encodeRosterStaffSortKey(value: RosterStaffSortKey): RosterStaffSortKey { return value; }
 
+export type HtmxActionMethod =
+    "get"
+  | "post"
+  | "put"
+  | "patch"
+  | "delete";
+export function isHtmxActionMethod(value: unknown): value is HtmxActionMethod {
+    return typeof value === "string" && ["get", "post", "put", "patch", "delete"].includes(value);
+}
+export function parseHtmxActionMethod(value: unknown): HtmxActionMethod {
+    if (isHtmxActionMethod(value)) return value;
+    throw new Error("Invalid HtmxActionMethod");
+}
+export function encodeHtmxActionMethod(value: HtmxActionMethod): HtmxActionMethod { return value; }
+
+export type HtmxActionSwap =
+    "innerHTML"
+  | "outerHTML"
+  | "outer-html"
+  | "beforeend"
+  | "afterbegin"
+  | "none";
+export function isHtmxActionSwap(value: unknown): value is HtmxActionSwap {
+    return typeof value === "string" && ["innerHTML", "outerHTML", "outer-html", "beforeend", "afterbegin", "none"].includes(value);
+}
+export function parseHtmxActionSwap(value: unknown): HtmxActionSwap {
+    if (isHtmxActionSwap(value)) return value;
+    throw new Error("Invalid HtmxActionSwap");
+}
+export function encodeHtmxActionSwap(value: HtmxActionSwap): HtmxActionSwap { return value; }
+
 export type PageReadyEventDetail = {  };
 export function isPageReadyEventDetail(value: unknown): value is PageReadyEventDetail {
     return isRecord(value);
@@ -1099,36 +1130,6 @@ export function parseInteractionFieldPresence(value: unknown): InteractionFieldP
 }
 export function encodeInteractionFieldPresence(value: InteractionFieldPresence): InteractionFieldPresence { return value; }
 
-export type HtmxMethod =
-    "get"
-  | "post"
-  | "put"
-  | "patch"
-  | "delete";
-export function isHtmxMethod(value: unknown): value is HtmxMethod {
-    return typeof value === "string" && ["get", "post", "put", "patch", "delete"].includes(value);
-}
-export function parseHtmxMethod(value: unknown): HtmxMethod {
-    if (isHtmxMethod(value)) return value;
-    throw new Error("Invalid HtmxMethod");
-}
-export function encodeHtmxMethod(value: HtmxMethod): HtmxMethod { return value; }
-
-export type HtmxSwap =
-    "innerHTML"
-  | "outerHTML"
-  | "beforeend"
-  | "afterbegin"
-  | "none";
-export function isHtmxSwap(value: unknown): value is HtmxSwap {
-    return typeof value === "string" && ["innerHTML", "outerHTML", "beforeend", "afterbegin", "none"].includes(value);
-}
-export function parseHtmxSwap(value: unknown): HtmxSwap {
-    if (isHtmxSwap(value)) return value;
-    throw new Error("Invalid HtmxSwap");
-}
-export function encodeHtmxSwap(value: HtmxSwap): HtmxSwap { return value; }
-
 export type InteractionConflictResolution =
     "apply"
   | "defer"
@@ -1338,9 +1339,9 @@ export function parseInteractionIntentTarget(value: unknown): InteractionIntentT
 }
 export function encodeInteractionIntentTarget(value: InteractionIntentTarget): InteractionIntentTarget { return value; }
 
-export type IntentFormContract = { intent: InteractionIntentName; name: InteractionIntentName; action: string; method: HtmxMethod; trigger: string; target: InteractionIntentTarget; swap: HtmxSwap; fields: ReadonlyArray<IntentFieldSchema>; hiddenFields: ReadonlyArray<IntentHiddenField>; sync?: string | null; disabledElement?: string | null };
+export type IntentFormContract = { intent: InteractionIntentName; name: InteractionIntentName; action: string; method: HtmxActionMethod; trigger: string; target: InteractionIntentTarget; swap: HtmxActionSwap; fields: ReadonlyArray<IntentFieldSchema>; hiddenFields: ReadonlyArray<IntentHiddenField>; sync?: string | null; disabledElement?: string | null };
 export function isIntentFormContract(value: unknown): value is IntentFormContract {
-    return isRecord(value) && (isInteractionIntentName(value["intent"])) && (isInteractionIntentName(value["name"])) && (typeof value["action"] === "string") && (isHtmxMethod(value["method"])) && (typeof value["trigger"] === "string") && (isInteractionIntentTarget(value["target"])) && (isHtmxSwap(value["swap"])) && (Array.isArray(value["fields"]) && value["fields"].every((item) => isIntentFieldSchema(item))) && (Array.isArray(value["hiddenFields"]) && value["hiddenFields"].every((item) => isIntentHiddenField(item))) && (!("sync" in value) || (value["sync"] === null || typeof value["sync"] === "string")) && (!("disabledElement" in value) || (value["disabledElement"] === null || typeof value["disabledElement"] === "string"));
+    return isRecord(value) && (isInteractionIntentName(value["intent"])) && (isInteractionIntentName(value["name"])) && (typeof value["action"] === "string") && (isHtmxActionMethod(value["method"])) && (typeof value["trigger"] === "string") && (isInteractionIntentTarget(value["target"])) && (isHtmxActionSwap(value["swap"])) && (Array.isArray(value["fields"]) && value["fields"].every((item) => isIntentFieldSchema(item))) && (Array.isArray(value["hiddenFields"]) && value["hiddenFields"].every((item) => isIntentHiddenField(item))) && (!("sync" in value) || (value["sync"] === null || typeof value["sync"] === "string")) && (!("disabledElement" in value) || (value["disabledElement"] === null || typeof value["disabledElement"] === "string"));
 }
 export function parseIntentFormContract(value: unknown): IntentFormContract {
     if (isIntentFormContract(value)) return value;
@@ -1417,16 +1418,6 @@ export function parseInteractionStaticSchema(value: unknown): InteractionStaticS
     throw new Error("Invalid InteractionStaticSchema");
 }
 export function encodeInteractionStaticSchema(value: InteractionStaticSchema): InteractionStaticSchema { return value; }
-
-export type InteractionStaticSchemaRegistry = { roster: InteractionStaticSchema };
-export function isInteractionStaticSchemaRegistry(value: unknown): value is InteractionStaticSchemaRegistry {
-    return isRecord(value) && (isInteractionStaticSchema(value["roster"]));
-}
-export function parseInteractionStaticSchemaRegistry(value: unknown): InteractionStaticSchemaRegistry {
-    if (isInteractionStaticSchemaRegistry(value)) return value;
-    throw new Error("Invalid InteractionStaticSchemaRegistry");
-}
-export function encodeInteractionStaticSchemaRegistry(value: InteractionStaticSchemaRegistry): InteractionStaticSchemaRegistry { return value; }
 
 export const surfaceDomAttr = "data-bepis-surface" as const;
 
@@ -1531,6 +1522,16 @@ export const InteractionDom: InteractionDom = {
     pointerFields: { sessionKind: sessionKindFieldName, pointerId: pointerIdFieldName, pointerType: pointerTypeFieldName, startClientX: startClientXFieldName, startClientY: startClientYFieldName, currentClientX: currentClientXFieldName, currentClientY: currentClientYFieldName, deltaX: deltaXFieldName, deltaY: deltaYFieldName, sourceItemKey: sourceItemKeyFieldName, targetDropzoneKey: targetDropzoneKeyFieldName },
 };
 
+export type InteractionStaticSchemaRegistry = Record<InteractionSurfaceFamily, InteractionStaticSchema>;
+export function isInteractionStaticSchemaRegistry(value: unknown): value is InteractionStaticSchemaRegistry {
+    if (!isRecord(value)) return false;
+    return Object.entries(value).every(([key, entry]) => isInteractionSurfaceFamily(key) && isInteractionStaticSchema(entry));
+}
+export function parseInteractionStaticSchemaRegistry(value: unknown): InteractionStaticSchemaRegistry {
+    if (isInteractionStaticSchemaRegistry(value)) return value;
+    throw new Error("Invalid InteractionStaticSchemaRegistry");
+}
+export function encodeInteractionStaticSchemaRegistry(value: InteractionStaticSchemaRegistry): InteractionStaticSchemaRegistry { return value; }
 export const InteractionStaticSchemas: InteractionStaticSchemaRegistry = {"roster":{"serverLayers":[],"disposableLayers":[{"name":"drag-preview","domIdSuffix":"drag-preview"}],"sessionKinds":[{"kind":"drag","description":"Roster drag/drop prototype","effects":{"global":[{"className":"bepis-pointer-clone-shadow","kind":"clone-shadow","layer":"drag-preview","preserveGrabOffset":true,"source":"pointer-marker"}],"contextual":[{"className":"bepis-dropzone-highlight","kind":"dropzone-highlight"}]}}],"intents":[{"name":"set-roster-layout-mode","fields":[{"name":"rosterLayoutMode","presence":"required","defaultValue":null}]},{"name":"move-roster-shift-to-slot","fields":[{"name":"sourceItemKey","presence":"required","defaultValue":null},{"name":"targetDropzoneKey","presence":"required","defaultValue":null},{"name":"sessionKind","presence":"optional","defaultValue":null},{"name":"pointerId","presence":"optional","defaultValue":null},{"name":"pointerType","presence":"optional","defaultValue":null},{"name":"startClientX","presence":"optional","defaultValue":null},{"name":"startClientY","presence":"optional","defaultValue":null},{"name":"currentClientX","presence":"optional","defaultValue":null},{"name":"currentClientY","presence":"optional","defaultValue":null},{"name":"deltaX","presence":"optional","defaultValue":null},{"name":"deltaY","presence":"optional","defaultValue":null}]}],"conflictPolicies":[{"session":{"kind":"session","session":"drag"},"fragment":{"kind":"any"},"resolution":"defer","timeoutMs":5000}]}};
 
 export type SurfaceFragmentProtection =
@@ -2977,20 +2978,17 @@ export function parseFrontendSurfaceLiveFragment(value: unknown): FrontendSurfac
     throw new Error("Invalid FrontendSurfaceLiveFragment");
 }
 
-export type HtmxActionMethod = "get" | "post" | "put" | "patch" | "delete";
-export type HtmxActionOptions = { method: HtmxActionMethod | null; trigger: string | null; include: string | null; sync: string | null; indicator: string | null; confirm: string | null; select: string | null; target: string | null; swap: string | null; pushUrl: boolean | null; custom: ReadonlyArray<{ name: string; reason: string }> };
+export type HtmxActionOptions = { method: HtmxActionMethod | null; trigger: string | null; include: string | null; sync: string | null; indicator: string | null; confirm: string | null; select: string | null; target: string | null; swap: HtmxActionSwap | null; pushUrl: boolean | null; custom: ReadonlyArray<{ name: string; reason: string }> };
 export type FrontendSurfaceActionManifest = { name: string; fields: readonly string[]; htmx: HtmxActionOptions };
 export type AppShellActionManifest = { name: string; fields: readonly string[]; htmx: HtmxActionOptions };
-export function isHtmxActionMethod(value: unknown): value is HtmxActionMethod {
-    return value === "get" || value === "post" || value === "put" || value === "patch" || value === "delete";
-}
 export function isHtmxActionOptions(value: unknown): value is HtmxActionOptions {
     if (!isRecord(value)) return false;
     const nullableString = (candidate: unknown) => candidate === null || typeof candidate === "string";
     const methodOk = value.method === null || isHtmxActionMethod(value.method);
+    const swapOk = value.swap === null || isHtmxActionSwap(value.swap);
     const pushUrlOk = value.pushUrl === null || typeof value.pushUrl === "boolean";
     const customOk = Array.isArray(value.custom) && value.custom.every((entry) => isRecord(entry) && typeof entry.name === "string" && entry.name.length > 0 && typeof entry.reason === "string" && entry.reason.length > 0);
-    return methodOk && nullableString(value.trigger) && nullableString(value.include) && nullableString(value.sync) && nullableString(value.indicator) && nullableString(value.confirm) && nullableString(value.select) && nullableString(value.target) && nullableString(value.swap) && pushUrlOk && customOk;
+    return methodOk && nullableString(value.trigger) && nullableString(value.include) && nullableString(value.sync) && nullableString(value.indicator) && nullableString(value.confirm) && nullableString(value.select) && nullableString(value.target) && swapOk && pushUrlOk && customOk;
 }
 export function isFrontendSurfaceActionManifest(value: unknown): value is FrontendSurfaceActionManifest {
     return isRecord(value) && typeof value.name === "string" && Array.isArray(value.fields) && value.fields.every((field) => typeof field === "string") && isHtmxActionOptions(value.htmx);

@@ -22,6 +22,19 @@ module Application.Helper.FrontendContract.App
     , AppContentMount
     , DialogOverlayMount
     , ToastOverlayMount
+    , HtmxActionMethod
+    , HtmxGet
+    , HtmxPost
+    , HtmxPut
+    , HtmxPatch
+    , HtmxDelete
+    , HtmxActionSwap
+    , HtmxInnerHTML
+    , HtmxOuterHTML
+    , HtmxBeforeEnd
+    , HtmxAfterBegin
+    , HtmxNoneSwap
+    , HtmxOuterHTMLDashed
     ) where
 
 import Application.Helper.FrontendContract.DSL
@@ -50,10 +63,40 @@ data AppContentMount
 data DialogOverlayMount
 data ToastOverlayMount
 
+data HtmxActionMethod
+data HtmxGet
+data HtmxPost
+data HtmxPut
+data HtmxPatch
+data HtmxDelete
+
+data HtmxActionSwap
+data HtmxInnerHTML
+data HtmxOuterHTML
+data HtmxBeforeEnd
+data HtmxAfterBegin
+data HtmxNoneSwap
+data HtmxOuterHTMLDashed
+
 type AppContract =
     Global App
         '[ GlobalSchema (Enum OverlayLane '[Dialog, Picker, Toast])
          , GlobalSchema (Enum RosterStaffSortKey '[Name, Role, Shifts])
+         , GlobalSchema (LiteralEnum HtmxActionMethod
+            '[ Literal HtmxGet "get"
+             , Literal HtmxPost "post"
+             , Literal HtmxPut "put"
+             , Literal HtmxPatch "patch"
+             , Literal HtmxDelete "delete"
+             ])
+         , GlobalSchema (LiteralEnum HtmxActionSwap
+            '[ Literal HtmxInnerHTML "innerHTML"
+             , Literal HtmxOuterHTML "outerHTML"
+             , Literal HtmxOuterHTMLDashed "outer-html"
+             , Literal HtmxBeforeEnd "beforeend"
+             , Literal HtmxAfterBegin "afterbegin"
+             , Literal HtmxNoneSwap "none"
+             ])
          , Event PageReady '[]
          , Event LiveFragmentsRefresh '[]
          , Event InteractionIntent '[]

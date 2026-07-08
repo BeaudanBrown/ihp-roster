@@ -6,6 +6,7 @@ module Application.Helper.FrontendContract.Interaction
     , Interaction
     ) where
 
+import qualified Application.Helper.FrontendContract.App as App
 import Application.Helper.FrontendContract.DSL hiding (Action, DomId, Fragment,
                                                 Global, Intent, Surface)
 import qualified Application.Helper.FrontendContract.DSL as DSL
@@ -21,20 +22,6 @@ data KeydownSpace
 data InteractionFieldPresence
 data Required
 data Optional
-
-data HtmxMethod
-data Get
-data Post
-data Put
-data Patch
-data Delete
-
-data HtmxSwap
-data InnerHTML
-data OuterHTML
-data BeforeEnd
-data AfterBegin
-data NoneSwap
 
 data InteractionConflictResolution
 data Apply
@@ -136,8 +123,6 @@ data InteractionStaticIntent
 data InteractionStaticSchema
 data Intents
 
-data InteractionStaticSchemaRegistry
-
 data Surface
 data SurfaceFamily
 data ScopeKey
@@ -175,14 +160,6 @@ type InteractionContract =
     DSL.Global Interaction
         '[ GlobalSchema (Enum InteractionActivationTrigger '[Click, Change, KeydownEnter, KeydownSpace])
          , GlobalSchema (Enum InteractionFieldPresence '[Required, Optional])
-         , GlobalSchema (Enum HtmxMethod '[Get, Post, Put, Patch, Delete])
-         , GlobalSchema (LiteralEnum HtmxSwap
-            '[ Literal InnerHTML "innerHTML"
-             , Literal OuterHTML "outerHTML"
-             , Literal BeforeEnd "beforeend"
-             , Literal AfterBegin "afterbegin"
-             , Literal NoneSwap "none"
-             ])
          , GlobalSchema (Enum InteractionConflictResolution '[Apply, Defer, Cancel])
          , GlobalSchema (Enum InteractionEffectSource '[PointerMarker])
          , GlobalSchema (Enum InteractionSurfaceFamily '[Roster])
@@ -270,10 +247,10 @@ type InteractionContract =
             '[ Field Intent ('WireRef InteractionIntentName)
              , Field Name ('WireRef InteractionIntentName)
              , Field Action 'WireText
-             , Field Method ('WireRef HtmxMethod)
+             , Field Method ('WireRef App.HtmxActionMethod)
              , Field Trigger 'WireText
              , Field Target ('WireRef InteractionIntentTarget)
-             , Field Swap ('WireRef HtmxSwap)
+             , Field Swap ('WireRef App.HtmxActionSwap)
              , Field Fields ('WireList ('WireRef IntentFieldSchema))
              , Field HiddenFields ('WireList ('WireRef IntentHiddenField))
              , OptionalField Sync ('WireNullable 'WireText)
@@ -316,9 +293,6 @@ type InteractionContract =
              , Field SessionKinds ('WireList ('WireRef InteractionStaticSessionKind))
              , Field Intents ('WireList ('WireRef InteractionStaticIntent))
              , Field ConflictPolicies ('WireList ('WireRef InteractionConflictPolicy))
-             ])
-         , GlobalSchema (Record InteractionStaticSchemaRegistry
-            '[ Field Roster ('WireRef InteractionStaticSchema)
              ])
          , DomAttr Surface
          , DomAttr SurfaceFamily
