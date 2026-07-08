@@ -471,6 +471,7 @@ currentVenueBuckets venue effectiveDay = do
     timeAllowances <- query @AwardTimePenaltyAllowance |> fetch
     pure
         ( deriveXeroLocalEarningsBuckets
+            1
             effectiveDay
             (deriveXeroUsedAwardPayScopes staffMembers shiftTypes)
             awardLevels

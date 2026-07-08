@@ -2074,6 +2074,24 @@ AS $$
         );
 $$ LANGUAGE SQL;
 
+CREATE OR REPLACE FUNCTION venue_effective_award_rate_from(p_week_starts_on INT, p_operative_from DATE)
+RETURNS DATE
+AS $$
+    SELECT CASE
+        WHEN p_operative_from IS NULL THEN NULL
+        ELSE p_operative_from + (((p_week_starts_on - EXTRACT(DOW FROM p_operative_from)::INT + 7) % 7)::INT)
+    END;
+$$ LANGUAGE SQL IMMUTABLE;
+
+CREATE OR REPLACE FUNCTION venue_effective_award_rate_to(p_week_starts_on INT, p_operative_to DATE)
+RETURNS DATE
+AS $$
+    SELECT CASE
+        WHEN p_operative_to IS NULL THEN NULL
+        ELSE venue_effective_award_rate_from(p_week_starts_on, p_operative_to + 1) - 1
+    END;
+$$ LANGUAGE SQL IMMUTABLE;
+
 CREATE OR REPLACE FUNCTION calculate_timesheet_pay(p_entry_id UUID)
 RETURNS JSONB
 AS $$
@@ -2109,6 +2127,15 @@ AS $$
             e.shift_type_pay_version_id,
             e.approved_at,
             e.version_shift_type_name,
+            COALESCE(
+                (
+                    SELECT vc.roster_week_starts_on
+                    FROM venue_config vc
+                    WHERE vc.venue_id = e.venue_id
+                    LIMIT 1
+                ),
+                1
+            ) AS venue_week_starts_on,
             COALESCE(
                 e.version_employment_basis,
                 (
@@ -2235,10 +2262,10 @@ AS $$
                     FROM award_level_base_rates albr
                     WHERE albr.award_level_id = r.pay_level_id
                         AND albr.employment_basis = r.employment_basis
-                        AND (albr.operative_from IS NULL OR albr.operative_from <= r.worked_on)
-                        AND (albr.operative_to IS NULL OR albr.operative_to >= r.worked_on)
+                        AND (venue_effective_award_rate_from(r.venue_week_starts_on, albr.operative_from) IS NULL OR venue_effective_award_rate_from(r.venue_week_starts_on, albr.operative_from) <= r.worked_on)
+                        AND (venue_effective_award_rate_to(r.venue_week_starts_on, albr.operative_to) IS NULL OR venue_effective_award_rate_to(r.venue_week_starts_on, albr.operative_to) >= r.worked_on)
                         AND (r.approved_at IS NULL OR albr.created_at <= r.approved_at)
-                    ORDER BY albr.operative_from DESC NULLS LAST, albr.created_at DESC
+                    ORDER BY venue_effective_award_rate_from(r.venue_week_starts_on, albr.operative_from) DESC NULLS LAST, albr.created_at DESC
                     LIMIT 1
                 ),
                 0::NUMERIC(12,4)
@@ -2255,10 +2282,10 @@ AS $$
                     FROM award_level_base_rates albr
                     WHERE albr.award_level_id = r.pay_level_id
                         AND albr.employment_basis = 'permanent'
-                        AND (albr.operative_from IS NULL OR albr.operative_from <= r.worked_on)
-                        AND (albr.operative_to IS NULL OR albr.operative_to >= r.worked_on)
+                        AND (venue_effective_award_rate_from(r.venue_week_starts_on, albr.operative_from) IS NULL OR venue_effective_award_rate_from(r.venue_week_starts_on, albr.operative_from) <= r.worked_on)
+                        AND (venue_effective_award_rate_to(r.venue_week_starts_on, albr.operative_to) IS NULL OR venue_effective_award_rate_to(r.venue_week_starts_on, albr.operative_to) >= r.worked_on)
                         AND (r.approved_at IS NULL OR albr.created_at <= r.approved_at)
-                    ORDER BY albr.operative_from DESC NULLS LAST, albr.created_at DESC
+                    ORDER BY venue_effective_award_rate_from(r.venue_week_starts_on, albr.operative_from) DESC NULLS LAST, albr.created_at DESC
                     LIMIT 1
                 ),
                 (
@@ -2266,10 +2293,10 @@ AS $$
                     FROM award_level_base_rates albr
                     WHERE albr.award_level_id = r.pay_level_id
                         AND albr.employment_basis = r.employment_basis
-                        AND (albr.operative_from IS NULL OR albr.operative_from <= r.worked_on)
-                        AND (albr.operative_to IS NULL OR albr.operative_to >= r.worked_on)
+                        AND (venue_effective_award_rate_from(r.venue_week_starts_on, albr.operative_from) IS NULL OR venue_effective_award_rate_from(r.venue_week_starts_on, albr.operative_from) <= r.worked_on)
+                        AND (venue_effective_award_rate_to(r.venue_week_starts_on, albr.operative_to) IS NULL OR venue_effective_award_rate_to(r.venue_week_starts_on, albr.operative_to) >= r.worked_on)
                         AND (r.approved_at IS NULL OR albr.created_at <= r.approved_at)
-                    ORDER BY albr.operative_from DESC NULLS LAST, albr.created_at DESC
+                    ORDER BY venue_effective_award_rate_from(r.venue_week_starts_on, albr.operative_from) DESC NULLS LAST, albr.created_at DESC
                     LIMIT 1
                 ),
                 0::NUMERIC(12,4)
@@ -2362,10 +2389,10 @@ AS $$
                                                     WHEN 'delayed_meal_break_public_holiday' THEN 'public_holiday_penalty'::award_penalty_kind_enum
                                                     ELSE NULL::award_penalty_kind_enum
                                                 END
-                                            AND (alpr.operative_from IS NULL OR alpr.operative_from <= scoped.segment_date)
-                                            AND (alpr.operative_to IS NULL OR alpr.operative_to >= scoped.segment_date)
+                                            AND (venue_effective_award_rate_from(scoped.venue_week_starts_on, alpr.operative_from) IS NULL OR venue_effective_award_rate_from(scoped.venue_week_starts_on, alpr.operative_from) <= scoped.segment_date)
+                                            AND (venue_effective_award_rate_to(scoped.venue_week_starts_on, alpr.operative_to) IS NULL OR venue_effective_award_rate_to(scoped.venue_week_starts_on, alpr.operative_to) >= scoped.segment_date)
                                             AND (scoped.approved_at IS NULL OR alpr.created_at <= scoped.approved_at)
-                                        ORDER BY alpr.operative_from DESC NULLS LAST, alpr.created_at DESC
+                                        ORDER BY venue_effective_award_rate_from(scoped.venue_week_starts_on, alpr.operative_from) DESC NULLS LAST, alpr.created_at DESC
                                         LIMIT 1
                                     ),
                                     scoped.base_rate
@@ -2381,10 +2408,10 @@ AS $$
                             WHERE alpr.award_level_id = scoped.pay_level_id
                                 AND alpr.employment_basis = scoped.employment_basis
                                 AND alpr.penalty_kind = scoped.penalty_kind
-                                AND (alpr.operative_from IS NULL OR alpr.operative_from <= scoped.segment_date)
-                                AND (alpr.operative_to IS NULL OR alpr.operative_to >= scoped.segment_date)
+                                AND (venue_effective_award_rate_from(scoped.venue_week_starts_on, alpr.operative_from) IS NULL OR venue_effective_award_rate_from(scoped.venue_week_starts_on, alpr.operative_from) <= scoped.segment_date)
+                                AND (venue_effective_award_rate_to(scoped.venue_week_starts_on, alpr.operative_to) IS NULL OR venue_effective_award_rate_to(scoped.venue_week_starts_on, alpr.operative_to) >= scoped.segment_date)
                                 AND (scoped.approved_at IS NULL OR alpr.created_at <= scoped.approved_at)
-                            ORDER BY alpr.operative_from DESC NULLS LAST, alpr.created_at DESC
+                            ORDER BY venue_effective_award_rate_from(scoped.venue_week_starts_on, alpr.operative_from) DESC NULLS LAST, alpr.created_at DESC
                             LIMIT 1
                         ),
                         scoped.base_rate
@@ -2396,10 +2423,10 @@ AS $$
                             FROM award_time_penalty_allowances atpa
                             WHERE atpa.award_fixed_id = scoped.award_fixed_id
                                 AND atpa.penalty_kind = scoped.penalty_kind
-                                AND (atpa.operative_from IS NULL OR atpa.operative_from <= scoped.segment_date)
-                                AND (atpa.operative_to IS NULL OR atpa.operative_to >= scoped.segment_date)
+                                AND (venue_effective_award_rate_from(scoped.venue_week_starts_on, atpa.operative_from) IS NULL OR venue_effective_award_rate_from(scoped.venue_week_starts_on, atpa.operative_from) <= scoped.segment_date)
+                                AND (venue_effective_award_rate_to(scoped.venue_week_starts_on, atpa.operative_to) IS NULL OR venue_effective_award_rate_to(scoped.venue_week_starts_on, atpa.operative_to) >= scoped.segment_date)
                                 AND (scoped.approved_at IS NULL OR atpa.created_at <= scoped.approved_at)
-                            ORDER BY atpa.operative_from DESC NULLS LAST, atpa.created_at DESC
+                            ORDER BY venue_effective_award_rate_from(scoped.venue_week_starts_on, atpa.operative_from) DESC NULLS LAST, atpa.created_at DESC
                             LIMIT 1
                         ),
                         (
@@ -2408,10 +2435,10 @@ AS $$
                             WHERE alpr.award_level_id = scoped.pay_level_id
                                 AND alpr.employment_basis = scoped.employment_basis
                                 AND alpr.penalty_kind = scoped.penalty_kind
-                                AND (alpr.operative_from IS NULL OR alpr.operative_from <= scoped.segment_date)
-                                AND (alpr.operative_to IS NULL OR alpr.operative_to >= scoped.segment_date)
+                                AND (venue_effective_award_rate_from(scoped.venue_week_starts_on, alpr.operative_from) IS NULL OR venue_effective_award_rate_from(scoped.venue_week_starts_on, alpr.operative_from) <= scoped.segment_date)
+                                AND (venue_effective_award_rate_to(scoped.venue_week_starts_on, alpr.operative_to) IS NULL OR venue_effective_award_rate_to(scoped.venue_week_starts_on, alpr.operative_to) >= scoped.segment_date)
                                 AND (scoped.approved_at IS NULL OR alpr.created_at <= scoped.approved_at)
-                            ORDER BY alpr.operative_from DESC NULLS LAST, alpr.created_at DESC
+                            ORDER BY venue_effective_award_rate_from(scoped.venue_week_starts_on, alpr.operative_from) DESC NULLS LAST, alpr.created_at DESC
                             LIMIT 1
                         ),
                         0::NUMERIC(12,4)
@@ -2434,6 +2461,7 @@ AS $$
                 pw.pay_level_name,
                 pw.award_fixed_id,
                 pw.employment_basis,
+                pw.venue_week_starts_on,
                 pw.permanent_base_rate,
                 pw.staff_pay_version_id,
                 pw.shift_type_pay_version_id,

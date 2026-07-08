@@ -2,6 +2,7 @@ module Web.Controller.Staff where
 
 import Application.Helper.Controller (VenueRole (..), parseVenueRole,
                                       venueRoleToEnum)
+import Application.Helper.Pay (rateEffectiveOn)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchStaffLeaveRequests)
 import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
@@ -304,12 +305,15 @@ fetchAwardLevelsForStaffForm =
         |> orderByAsc #classification
         |> fetch
 
-fetchAwardLevelBaseRatesForStaffForm :: (?modelContext :: ModelContext) => IO [AwardLevelBaseRate]
-fetchAwardLevelBaseRatesForStaffForm =
-    query @AwardLevelBaseRate
-        |> filterWhere (#operativeTo, Nothing :: Maybe Day)
-        |> orderByAsc #createdAt
-        |> fetch
+fetchAwardLevelBaseRatesForStaffForm :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [AwardLevelBaseRate]
+fetchAwardLevelBaseRatesForStaffForm = do
+    venueConfig <- fetchVenueConfig
+    today <- utctDay <$> getCurrentTime
+    rates <-
+        query @AwardLevelBaseRate
+            |> orderByAsc #createdAt
+            |> fetch
+    pure (filter (rateEffectiveOn venueConfig.rosterWeekStartsOn today) rates)
 
 parseSubmittedDefaultAwardLevelId ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

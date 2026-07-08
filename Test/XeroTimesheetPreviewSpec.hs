@@ -387,6 +387,7 @@ createPreviewMappings venue connection periodStart staffA staffB buckets = do
             |> fetch
     let requirements =
             deriveXeroPayItemRequirements
+                1
                 periodStart
                 (deriveXeroUsedAwardPayScopes staffMembers shiftTypes)
                 awardLevels
@@ -440,7 +441,7 @@ currentVenueBuckets venue effectiveDay = do
     baseRates <- query @AwardLevelBaseRate |> fetch
     penaltyRates <- query @AwardLevelPenaltyRate |> fetch
     timeAllowances <- query @AwardTimePenaltyAllowance |> fetch
-    pure (deriveXeroLocalEarningsBuckets effectiveDay (deriveXeroUsedAwardPayScopes staffMembers shiftTypes) awardLevels baseRates penaltyRates timeAllowances)
+    pure (deriveXeroLocalEarningsBuckets 1 effectiveDay (deriveXeroUsedAwardPayScopes staffMembers shiftTypes) awardLevels baseRates penaltyRates timeAllowances)
 
 buildFixturePreview :: (?modelContext :: ModelContext) => PreviewFixture -> IO XeroTimesheetPreviewRun
 buildFixturePreview fixture = buildFixturePreviewWithRemotes fixture []

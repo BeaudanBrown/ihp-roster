@@ -1,21 +1,47 @@
 module Application.Helper.Pay where
 
 import Application.Helper.Controller
+import Application.Helper.WeekBoundaries (WeekdayIndex, startOfWeekFor)
 import Control.Monad (void)
 import Data.Aeson ((.:), (.:?))
 import qualified Data.Aeson as Aeson
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
+import Data.Ord (Down (..))
 import qualified Data.Scientific as Scientific
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
-import Data.Time.Calendar (Day)
+import Data.Time.Calendar (Day, addDays)
+import Data.Time.Clock (UTCTime)
 import qualified Database.PostgreSQL.Simple as PG
 import Generated.Types
+import GHC.Records (HasField)
 import IHP.ControllerPrelude
 import IHP.ModelSupport (ModelContext, sqlQueryScalar, unpackId)
 import IHP.Prelude
+
+venueEffectiveRateDate :: WeekdayIndex -> Day -> Day
+venueEffectiveRateDate weekStartsOn rawOperativeFrom
+    | rawOperativeFrom == weekStart = rawOperativeFrom
+    | otherwise = addDays 7 weekStart
+    where
+        weekStart = startOfWeekFor weekStartsOn rawOperativeFrom
+
+venueEffectiveRateEndDate :: WeekdayIndex -> Maybe Day -> Maybe Day
+venueEffectiveRateEndDate weekStartsOn rawOperativeTo = do
+    operativeTo <- rawOperativeTo
+    pure (addDays (-1) (venueEffectiveRateDate weekStartsOn (addDays 1 operativeTo)))
+
+rateEffectiveOn :: (HasField "operativeFrom" record (Maybe Day), HasField "operativeTo" record (Maybe Day)) => WeekdayIndex -> Day -> record -> Bool
+rateEffectiveOn weekStartsOn referenceDate record =
+    maybe True ((<= referenceDate) . venueEffectiveRateDate weekStartsOn) record.operativeFrom
+        && maybe True (>= referenceDate) (venueEffectiveRateEndDate weekStartsOn record.operativeTo)
+
+latestVenueEffectiveRate :: (HasField "operativeFrom" record (Maybe Day), HasField "operativeTo" record (Maybe Day), HasField "createdAt" record UTCTime) => WeekdayIndex -> Day -> [record] -> Maybe record
+latestVenueEffectiveRate weekStartsOn referenceDate =
+    List.find (rateEffectiveOn weekStartsOn referenceDate)
+        . List.sortOn (\record -> (Down (venueEffectiveRateDate weekStartsOn <$> record.operativeFrom), Down record.createdAt))
 
 data PaySegment = PaySegment
     { segment           :: !Text

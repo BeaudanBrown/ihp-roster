@@ -6,6 +6,8 @@ module Application.Helper.View.Awards
     , formatHourlyRate
     ) where
 
+import qualified Data.List as List
+import Data.Ord (Down (..))
 import qualified Data.Scientific as Scientific
 import qualified Data.Text as Text
 import Generated.Types
@@ -25,10 +27,12 @@ awardLevelRateLabels :: [AwardLevelBaseRate] -> AwardLevel -> [Text]
 awardLevelRateLabels awardLevelBaseRates awardLevel =
     mapMaybe rateLabel [Permanent, Casual]
     where
+        sortedRates = List.sortOn (\rate -> (Down rate.operativeFrom, Down rate.createdAt)) awardLevelBaseRates
+
         rateLabel employmentBasis =
             fmap
                 (\rate -> employmentBasisShortLabel employmentBasis <> " " <> formatHourlyRate rate.hourlyRate)
-                (find (matchingRate employmentBasis) awardLevelBaseRates)
+                (find (matchingRate employmentBasis) sortedRates)
 
         matchingRate employmentBasis rate =
             rate.awardLevelId == unpackId awardLevel.id

@@ -12,6 +12,7 @@ module Application.Helper.RosterWagePrediction
     , formatMoneyAmount
     ) where
 
+import Application.Helper.Pay (latestVenueEffectiveRate)
 import Application.Helper.TimeRules (automaticMealBreakMinutes,
                                      automaticMealBreakWindowMinutes,
                                      timeOfDayToMinutes,
@@ -19,15 +20,12 @@ import Application.Helper.TimeRules (automaticMealBreakMinutes,
 import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
-import Data.Ord (Down (..))
 import Data.Scientific (Scientific)
 import qualified Data.Scientific as Scientific
 import Data.Time.Calendar (Day, addDays)
-import Data.Time.Clock (UTCTime)
 import Data.Time.LocalTime (TimeOfDay)
 import Data.UUID (UUID)
 import Generated.Types
-import GHC.Records (HasField)
 import IHP.ControllerPrelude
 
 data RosterWagePrediction = RosterWagePrediction
@@ -136,11 +134,11 @@ predictShiftAmount venueConfig staff shiftType workedOn startTime endTime = do
         Nothing -> pure 0
         Just awardLevelId -> do
             awardLevel <- fetch awardLevelId
-            baseRate <- fetchBaseRate awardLevel staff.employmentBasis workedOn
+            baseRate <- fetchBaseRate venueConfig awardLevel staff.employmentBasis workedOn
             segmentAmounts <- forM (payWindowsForShift startTime endTime) \window -> do
                 let segmentDate = segmentDateForWindow workedOn window
                 penaltyKind <- resolveWindowPenaltyKind venueConfig segmentDate window
-                hourlyRate <- segmentHourlyRate awardLevel staff.employmentBasis workedOn segmentDate baseRate penaltyKind
+                hourlyRate <- segmentHourlyRate venueConfig awardLevel staff.employmentBasis workedOn segmentDate baseRate penaltyKind
                 pure (roundMoney (fromIntegral (paidMinutesInWindow startTime endTime window) / 60 * hourlyRate))
             pure (roundMoney (sum segmentAmounts))
 
@@ -213,6 +211,7 @@ isPublicHolidayForVenue venueConfig day =
 
 segmentHourlyRate ::
     (?modelContext :: ModelContext) =>
+    VenueConfig ->
     AwardLevel ->
     StaffEmploymentBasisEnum ->
     Day ->
@@ -220,71 +219,64 @@ segmentHourlyRate ::
     Scientific ->
     Maybe AwardPenaltyKindEnum ->
     IO Scientific
-segmentHourlyRate _ _ _ _ baseRate Nothing =
+segmentHourlyRate _ _ _ _ _ baseRate Nothing =
     pure baseRate
-segmentHourlyRate awardLevel employmentBasis workedOn segmentDate baseRate (Just penaltyKind)
+segmentHourlyRate venueConfig awardLevel employmentBasis workedOn segmentDate baseRate (Just penaltyKind)
     | penaltyKind `elem` [SaturdayPenalty, SundayPenalty, PublicHolidayPenalty] =
-        fromMaybe baseRate <$> fetchPenaltyRate awardLevel employmentBasis segmentDate penaltyKind
+        fromMaybe baseRate <$> fetchPenaltyRate venueConfig awardLevel employmentBasis segmentDate penaltyKind
     | penaltyKind `elem` [EveningAfter7Pm, LateNightAfterMidnight] = do
-        maybeAllowance <- fetchTimeAllowance awardLevel segmentDate penaltyKind
+        maybeAllowance <- fetchTimeAllowance venueConfig awardLevel segmentDate penaltyKind
         case maybeAllowance of
             Just allowance -> pure (baseRate + allowance)
             Nothing -> do
-                maybePenaltyRate <- fetchPenaltyRate awardLevel employmentBasis segmentDate penaltyKind
+                maybePenaltyRate <- fetchPenaltyRate venueConfig awardLevel employmentBasis segmentDate penaltyKind
                 pure (maybe baseRate (\penaltyRate -> baseRate + max 0 (penaltyRate - baseRate)) maybePenaltyRate)
     | otherwise =
-        fromMaybe baseRate <$> fetchPenaltyRate awardLevel employmentBasis workedOn penaltyKind
+        fromMaybe baseRate <$> fetchPenaltyRate venueConfig awardLevel employmentBasis workedOn penaltyKind
 
 fetchBaseRate ::
     (?modelContext :: ModelContext) =>
+    VenueConfig ->
     AwardLevel ->
     StaffEmploymentBasisEnum ->
     Day ->
     IO Scientific
-fetchBaseRate awardLevel employmentBasis workedOn = do
+fetchBaseRate venueConfig awardLevel employmentBasis workedOn = do
     rates <- query @AwardLevelBaseRate
         |> filterWhere (#awardLevelId, unpackId awardLevel.id)
         |> filterWhere (#employmentBasis, employmentBasis)
         |> fetch
-    pure (maybe 0 (.hourlyRate) (latestEffective workedOn rates))
+    pure (maybe 0 (.hourlyRate) (latestVenueEffectiveRate venueConfig.rosterWeekStartsOn workedOn rates))
 
 fetchPenaltyRate ::
     (?modelContext :: ModelContext) =>
+    VenueConfig ->
     AwardLevel ->
     StaffEmploymentBasisEnum ->
     Day ->
     AwardPenaltyKindEnum ->
     IO (Maybe Scientific)
-fetchPenaltyRate awardLevel employmentBasis segmentDate penaltyKind = do
+fetchPenaltyRate venueConfig awardLevel employmentBasis segmentDate penaltyKind = do
     rates <- query @AwardLevelPenaltyRate
         |> filterWhere (#awardLevelId, unpackId awardLevel.id)
         |> filterWhere (#employmentBasis, employmentBasis)
         |> filterWhere (#penaltyKind, penaltyKind)
         |> fetch
-    pure ((.hourlyRate) <$> latestEffective segmentDate rates)
+    pure ((.hourlyRate) <$> latestVenueEffectiveRate venueConfig.rosterWeekStartsOn segmentDate rates)
 
 fetchTimeAllowance ::
     (?modelContext :: ModelContext) =>
+    VenueConfig ->
     AwardLevel ->
     Day ->
     AwardPenaltyKindEnum ->
     IO (Maybe Scientific)
-fetchTimeAllowance awardLevel segmentDate penaltyKind = do
+fetchTimeAllowance venueConfig awardLevel segmentDate penaltyKind = do
     allowances <- query @AwardTimePenaltyAllowance
         |> filterWhere (#awardFixedId, awardLevel.awardFixedId)
         |> filterWhere (#penaltyKind, penaltyKind)
         |> fetch
-    pure ((.hourlyAmount) <$> latestEffective segmentDate allowances)
-
-latestEffective :: (HasField "operativeFrom" record (Maybe Day), HasField "operativeTo" record (Maybe Day), HasField "createdAt" record UTCTime) => Day -> [record] -> Maybe record
-latestEffective day =
-    List.find (effectiveOn day)
-        . List.sortOn (\record -> (Down record.operativeFrom, Down record.createdAt))
-
-effectiveOn :: (HasField "operativeFrom" record (Maybe Day), HasField "operativeTo" record (Maybe Day)) => Day -> record -> Bool
-effectiveOn day record =
-    maybe True (<= day) record.operativeFrom
-        && maybe True (>= day) record.operativeTo
+    pure ((.hourlyAmount) <$> latestVenueEffectiveRate venueConfig.rosterWeekStartsOn segmentDate allowances)
 
 weekStartDate :: VenueConfig -> RosterWeek -> Day
 weekStartDate venueConfig rosterWeek =

@@ -38,12 +38,15 @@ fetchActiveAwardLevels =
         |> orderByAsc #classificationLevel
         |> fetch
 
-fetchCurrentAwardLevelBaseRates :: (?modelContext :: ModelContext) => IO [AwardLevelBaseRate]
-fetchCurrentAwardLevelBaseRates =
-    query @AwardLevelBaseRate
-        |> filterWhere (#operativeTo, Nothing :: Maybe Day)
-        |> orderByAsc #createdAt
-        |> fetch
+fetchCurrentAwardLevelBaseRates :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [AwardLevelBaseRate]
+fetchCurrentAwardLevelBaseRates = do
+    venueConfig <- fetchVenueConfig
+    today <- utctDay <$> getCurrentTime
+    rates <-
+        query @AwardLevelBaseRate
+            |> orderByAsc #createdAt
+            |> fetch
+    pure (filter (rateEffectiveOn venueConfig.rosterWeekStartsOn today) rates)
 
 fetchActiveImportedXeroPayItems :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [XeroImportedPayItem]
 fetchActiveImportedXeroPayItems =

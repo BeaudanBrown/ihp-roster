@@ -7,6 +7,9 @@ module Application.Helper.XeroPayItems
     , isXeroManagedPayItemName
     ) where
 
+import Application.Helper.Pay (venueEffectiveRateDate,
+                               venueEffectiveRateEndDate)
+import Application.Helper.WeekBoundaries (WeekdayIndex)
 import Application.Helper.XeroAdminTypes
 import Control.Monad (void, zipWithM_)
 import qualified Data.List as List
@@ -19,6 +22,7 @@ import IHP.ControllerPrelude
 import IHP.ModelSupport (inputValue, unpackId)
 
 deriveXeroPayItemRequirements ::
+    WeekdayIndex ->
     Day ->
     [XeroUsedAwardPayScope] ->
     [AwardLevel] ->
@@ -27,7 +31,7 @@ deriveXeroPayItemRequirements ::
     [AwardTimePenaltyAllowance] ->
     [XeroEarningsRate] ->
     [XeroPayItemRequirement]
-deriveXeroPayItemRequirements today usedScopes awardLevels baseRates penaltyRates timeAllowances xeroEarningsRates =
+deriveXeroPayItemRequirements weekStartsOn today usedScopes awardLevels baseRates penaltyRates timeAllowances xeroEarningsRates =
     map attachMatch $
         dedupeRequirementsByKey $
             concatMap ordinaryRequirement baseRows
@@ -36,9 +40,9 @@ deriveXeroPayItemRequirements today usedScopes awardLevels baseRates penaltyRate
                 ++ concatMap delayedMealBreakRequirements baseRows
     where
         activeAwardLevels = filter (.isActive) awardLevels
-        allBaseRows = awardBaseRows activeAwardLevels baseRates
+        allBaseRows = awardBaseRows weekStartsOn activeAwardLevels baseRates
         baseRows = filter rowIsUsed allBaseRows
-        penaltyRows = filter rowIsUsed (awardPenaltyRows activeAwardLevels penaltyRates)
+        penaltyRows = filter rowIsUsed (awardPenaltyRows weekStartsOn activeAwardLevels penaltyRates)
         rowIsUsed row =
             XeroUsedAwardPayScope
                 { usedAwardLevelId = row.awardLevelId
@@ -96,8 +100,8 @@ deriveXeroPayItemRequirements today usedScopes awardLevels baseRates penaltyRate
                     let allowanceRow = row
                             { condition = PenaltyCondition allowance.penaltyKind
                             , hourlyRate = allowance.hourlyAmount
-                            , operativeFrom = allowance.operativeFrom
-                            , operativeTo = allowance.operativeTo
+                            , operativeFrom = venueEffectiveRateDate weekStartsOn <$> allowance.operativeFrom
+                            , operativeTo = venueEffectiveRateEndDate weekStartsOn allowance.operativeTo
                             }
                      in
                     requirement
@@ -134,6 +138,7 @@ deriveXeroPayItemRequirements today usedScopes awardLevels baseRates penaltyRate
                 )
 
 deriveXeroLocalEarningsBuckets ::
+    WeekdayIndex ->
     Day ->
     [XeroUsedAwardPayScope] ->
     [AwardLevel] ->
@@ -141,7 +146,7 @@ deriveXeroLocalEarningsBuckets ::
     [AwardLevelPenaltyRate] ->
     [AwardTimePenaltyAllowance] ->
     [XeroLocalEarningsBucket]
-deriveXeroLocalEarningsBuckets today usedScopes awardLevels baseRates penaltyRates timeAllowances =
+deriveXeroLocalEarningsBuckets weekStartsOn today usedScopes awardLevels baseRates penaltyRates timeAllowances =
     dedupeBucketsByKey $
         concatMap ordinaryBucket baseRows
             ++ map penaltyBucket penaltyRows
@@ -149,9 +154,9 @@ deriveXeroLocalEarningsBuckets today usedScopes awardLevels baseRates penaltyRat
             ++ concatMap delayedMealBreakBuckets baseRows
     where
         activeAwardLevels = filter (.isActive) awardLevels
-        allBaseRows = awardBaseRows activeAwardLevels baseRates
+        allBaseRows = awardBaseRows weekStartsOn activeAwardLevels baseRates
         baseRows = filter rowIsUsed (filter (rowIsActiveOn today) allBaseRows)
-        penaltyRows = filter rowIsUsed (filter (rowIsActiveOn today) (awardPenaltyRows activeAwardLevels penaltyRates))
+        penaltyRows = filter rowIsUsed (filter (rowIsActiveOn today) (awardPenaltyRows weekStartsOn activeAwardLevels penaltyRates))
         rowIsUsed row =
             XeroUsedAwardPayScope
                 { usedAwardLevelId = row.awardLevelId
@@ -168,12 +173,12 @@ deriveXeroLocalEarningsBuckets today usedScopes awardLevels baseRates penaltyRat
                 |> filter (\allowance -> allowance.awardFixedId == row.awardFixedId)
                 |> filter (\allowance -> allowance.hourlyAmount > 0)
                 |> filter (\allowance -> allowance.penaltyKind `elem` timeAllowancePenaltyKinds)
-                |> filter (allowanceIsActiveOn today)
+                |> filter (allowanceIsActiveOn weekStartsOn today)
                 |> map (\allowance ->
                     bucket row
                         { condition = PenaltyCondition allowance.penaltyKind
-                        , operativeFrom = allowance.operativeFrom
-                        , operativeTo = allowance.operativeTo
+                        , operativeFrom = venueEffectiveRateDate weekStartsOn <$> allowance.operativeFrom
+                        , operativeTo = venueEffectiveRateEndDate weekStartsOn allowance.operativeTo
                         }
                 )
 
@@ -206,10 +211,11 @@ data PayItemCondition
     deriving (Eq)
 
 awardBaseRows ::
+    WeekdayIndex ->
     [AwardLevel] ->
     [AwardLevelBaseRate] ->
     [AwardPayItemRow]
-awardBaseRows awardLevels baseRates =
+awardBaseRows weekStartsOn awardLevels baseRates =
     baseRates
         |> mapMaybe rowForBaseRate
     where
@@ -223,15 +229,16 @@ awardBaseRows awardLevels baseRates =
                 , employmentBasis = baseRate.employmentBasis
                 , condition = OrdinaryCondition
                 , hourlyRate = baseRate.hourlyRate
-                , operativeFrom = baseRate.operativeFrom
-                , operativeTo = baseRate.operativeTo
+                , operativeFrom = venueEffectiveRateDate weekStartsOn <$> baseRate.operativeFrom
+                , operativeTo = venueEffectiveRateEndDate weekStartsOn baseRate.operativeTo
                 }
 
 awardPenaltyRows ::
+    WeekdayIndex ->
     [AwardLevel] ->
     [AwardLevelPenaltyRate] ->
     [AwardPayItemRow]
-awardPenaltyRows awardLevels penaltyRates =
+awardPenaltyRows weekStartsOn awardLevels penaltyRates =
     penaltyRates
         |> filter (\penaltyRate -> penaltyRate.penaltyKind `elem` penaltyPayItemKinds)
         |> mapMaybe rowForPenaltyRate
@@ -246,8 +253,8 @@ awardPenaltyRows awardLevels penaltyRates =
                 , employmentBasis = penaltyRate.employmentBasis
                 , condition = PenaltyCondition penaltyRate.penaltyKind
                 , hourlyRate = penaltyRate.hourlyRate
-                , operativeFrom = penaltyRate.operativeFrom
-                , operativeTo = penaltyRate.operativeTo
+                , operativeFrom = venueEffectiveRateDate weekStartsOn <$> penaltyRate.operativeFrom
+                , operativeTo = venueEffectiveRateEndDate weekStartsOn penaltyRate.operativeTo
                 }
 
 penaltyPayItemKinds :: [AwardPenaltyKindEnum]
@@ -324,10 +331,10 @@ rowIsActiveOn today row =
     maybe True (<= today) row.operativeFrom
         && maybe True (>= today) row.operativeTo
 
-allowanceIsActiveOn :: Day -> AwardTimePenaltyAllowance -> Bool
-allowanceIsActiveOn today allowance =
-    maybe True (<= today) allowance.operativeFrom
-        && maybe True (>= today) allowance.operativeTo
+allowanceIsActiveOn :: WeekdayIndex -> Day -> AwardTimePenaltyAllowance -> Bool
+allowanceIsActiveOn weekStartsOn today allowance =
+    maybe True ((<= today) . venueEffectiveRateDate weekStartsOn) allowance.operativeFrom
+        && maybe True (>= today) (venueEffectiveRateEndDate weekStartsOn allowance.operativeTo)
 
 requiredPayItemKey :: AwardPayItemRow -> Text
 requiredPayItemKey row =

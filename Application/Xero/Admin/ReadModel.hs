@@ -233,6 +233,7 @@ fetchCurrentVenueXeroPayItemRequirements maybeConnection xeroEarningsRates =
         Nothing -> pure []
         Just connection -> do
             today <- utctDay <$> getCurrentTime
+            venueConfig <- fetchVenueConfig
             usedScopes <- fetchCurrentVenueXeroUsedAwardPayScopes
             awardLevels <-
                 query @AwardLevel
@@ -251,12 +252,13 @@ fetchCurrentVenueXeroPayItemRequirements maybeConnection xeroEarningsRates =
                 query @AwardTimePenaltyAllowance
                     |> orderBy #createdAt
                     |> fetch
-            let requirements = deriveXeroPayItemRequirements today usedScopes awardLevels awardLevelBaseRates awardLevelPenaltyRates awardTimePenaltyAllowances xeroEarningsRates
+            let requirements = deriveXeroPayItemRequirements venueConfig.rosterWeekStartsOn today usedScopes awardLevels awardLevelBaseRates awardLevelPenaltyRates awardTimePenaltyAllowances xeroEarningsRates
             syncXeroPayItemRequirementRecords connection.id currentVenueId (Just currentUser.id) requirements
 
 currentVenueLocalXeroEarningsBuckets :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [XeroLocalEarningsBucket]
 currentVenueLocalXeroEarningsBuckets = do
     today <- utctDay <$> getCurrentTime
+    venueConfig <- fetchVenueConfig
     usedScopes <- fetchCurrentVenueXeroUsedAwardPayScopes
     awardLevels <-
         query @AwardLevel
@@ -275,7 +277,7 @@ currentVenueLocalXeroEarningsBuckets = do
         query @AwardTimePenaltyAllowance
             |> orderBy #createdAt
             |> fetch
-    pure (deriveXeroLocalEarningsBuckets today usedScopes awardLevels awardLevelBaseRates awardLevelPenaltyRates awardTimePenaltyAllowances)
+    pure (deriveXeroLocalEarningsBuckets venueConfig.rosterWeekStartsOn today usedScopes awardLevels awardLevelBaseRates awardLevelPenaltyRates awardTimePenaltyAllowances)
 
 fetchCurrentVenueXeroUsedAwardPayScopes :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [XeroUsedAwardPayScope]
 fetchCurrentVenueXeroUsedAwardPayScopes = do
