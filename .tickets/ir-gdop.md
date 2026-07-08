@@ -1,6 +1,6 @@
 ---
 id: ir-gdop
-status: open
+status: closed
 deps: []
 links: [ir-cpkv]
 created: 2026-07-07T07:24:38Z
@@ -21,3 +21,9 @@ Use the generated SurfaceAction pattern only for surface-owned request initiator
 
 Callsites in scope are classified; migrated surface-owned controls render through generated helpers; any CustomHtmx use is declared with a reason; focused typecheck/tests pass for the subsystem.
 
+
+## Notes
+
+**2026-07-08T01:41:35Z**
+
+Migrated Timesheets surface-owned request initiators to generated FrontendSurface actions: week navigation, filter form GETs, and approve/unapprove mutations. Existing entry dialog launchers/submits remain generated OverlayAction from ir-jert; response OOB dialog clears remain out of scope. typecheck, frontend-check, and focused TimesheetsController/contract checks pass.

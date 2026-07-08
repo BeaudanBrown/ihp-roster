@@ -8,7 +8,14 @@ import Application.Helper.FrontendContract.Overlay (EditTimesheetEntryDialog,
 import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
                                                             overlayActionByMarker,
                                                             renderOverlayActionLink)
-import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl,
+import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
+import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            FrontendSurfaceCustomHtmxAttrs (..),
+                                                            FrontendSurfaceFieldValue (..),
+                                                            SurfaceImpl,
+                                                            renderFrontendSurfaceActionForm,
+                                                            renderFrontendSurfaceActionLink,
                                                             renderFrontendSurfaceMount)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
 import Data.Fixed (Pico)
@@ -36,6 +43,37 @@ data IndexView = IndexView
     , currentViewerStaffId  :: Maybe UUID
     , frontendSurfaceImpl   :: Maybe (SurfaceImpl Surface.TimesheetsSurface)
     }
+
+timesheetsAction :: Text -> SurfaceIR.HtmxActionIR
+timesheetsAction actionName =
+    case [action | surface <- registeredFrontendSurfaceContractIR.contractSurfaces, surface.surfaceName == "timesheets", action <- surface.surfaceHtmxActions, action.htmxActionName == actionName] of
+        action : _ -> action
+        [] -> error ("missing timesheets action contract: " <> cs actionName)
+
+timesheetsActionRoute :: Text -> FrontendSurfaceActionRoute
+timesheetsActionRoute actionUrl =
+    FrontendSurfaceActionRoute
+        { actionRouteUrl = actionUrl
+        , actionRouteFields = []
+        , actionRouteCustomHtmx = []
+        , actionRouteStandardUrl = Nothing
+        , actionRouteExtraAttrs = []
+        }
+
+timesheetsWeekShellSync :: FrontendSurfaceCustomHtmxAttrs
+timesheetsWeekShellSync =
+    FrontendSurfaceCustomHtmxAttrs
+        { customHtmxAttrMarker = "timesheet-week-shell-sync-custom-htmx"
+        , customHtmxAttrValues = [("hx-sync", "#" <> timesheetWeekShellId <> ":replace")]
+        }
+
+timesheetStateFields :: Int -> Bool -> Bool -> Maybe UUID -> [FrontendSurfaceFieldValue]
+timesheetStateFields weekOffset showApproved showAllStaff staffFilterId =
+    [ FrontendSurfaceFieldValue "weekOffset" (tshow weekOffset)
+    , FrontendSurfaceFieldValue "showApproved" (boolParam showApproved)
+    , FrontendSurfaceFieldValue "showAllStaff" (boolParam showAllStaff)
+    , FrontendSurfaceFieldValue "staffFilterId" (maybe "" tshow staffFilterId)
+    ]
 
 data TimesheetDayRenderModel = TimesheetDayRenderModel
     { dayEntries        :: [TimesheetEntry]
@@ -128,17 +166,17 @@ renderTimesheetDayColumnsWithSwap maybeSwapOob view = [hsx|
     </div>
 |]
 
-renderTimesheetWeekNavigationLink :: Text -> Text -> Html
-renderTimesheetWeekNavigationLink label url = [hsx|
-    <a href={url}
-       class="btn btn-outline-secondary app-week-nav-button"
-       hx-get={url}
-       hx-swap="none"
-       hx-push-url="true"
-       hx-sync={"#" <> timesheetWeekShellId <> ":replace"}>
-        {label}
-    </a>
-|]
+renderTimesheetWeekNavigationLink :: Text -> Text -> Int -> Bool -> Bool -> Maybe UUID -> Html
+renderTimesheetWeekNavigationLink label url targetWeekOffset showApproved showAllStaff selectedStaffFilterId =
+    renderFrontendSurfaceActionLink
+        (timesheetsAction "navigate-timesheet-week")
+        (timesheetsActionRoute url)
+            { actionRouteFields = timesheetStateFields targetWeekOffset showApproved showAllStaff selectedStaffFilterId
+            , actionRouteCustomHtmx = [timesheetsWeekShellSync]
+            , actionRouteStandardUrl = Just url
+            , actionRouteExtraAttrs = [("class", "btn btn-outline-secondary app-week-nav-button")]
+            }
+        [hsx|{label}|]
 
 renderTimesheetWeekHeader :: (?context :: ControllerContext) => Int -> Day -> Bool -> Bool -> Maybe UUID -> [Staff] -> Html
 renderTimesheetWeekHeader weekOffset weekStartDate showApproved showAllStaff selectedStaffFilterId staffMembers =
@@ -147,14 +185,14 @@ renderTimesheetWeekHeader weekOffset weekStartDate showApproved showAllStaff sel
         , weekToolbarAriaLabel = "Timesheet week controls"
         , weekToolbarExtraClass = "timesheet-week-header"
         , weekToolbarPrimary = mempty
-        , weekToolbarReset = renderTimesheetWeekNavigationLink "This week" (timesheetWeekResetUrl showApproved showAllStaff selectedStaffFilterId)
+        , weekToolbarReset = renderTimesheetWeekNavigationLink "This week" (timesheetWeekResetUrl showApproved showAllStaff selectedStaffFilterId) 0 showApproved showAllStaff selectedStaffFilterId
         , weekToolbarNavigation = [hsx|
             <div class="btn-group app-week-nav-group" role="group" aria-label="Timesheet week navigation">
-                {renderTimesheetWeekNavigationLink "<" (timesheetWeekUrl (weekOffset - 1) showApproved showAllStaff selectedStaffFilterId)}
+                {renderTimesheetWeekNavigationLink "<" (timesheetWeekUrl (weekOffset - 1) showApproved showAllStaff selectedStaffFilterId) (weekOffset - 1) showApproved showAllStaff selectedStaffFilterId}
                 <div class="btn btn-outline-secondary app-week-nav-label">
                     {renderTimesheetWeekLabel weekStartDate}
                 </div>
-                {renderTimesheetWeekNavigationLink ">" (timesheetWeekUrl (weekOffset + 1) showApproved showAllStaff selectedStaffFilterId)}
+                {renderTimesheetWeekNavigationLink ">" (timesheetWeekUrl (weekOffset + 1) showApproved showAllStaff selectedStaffFilterId) (weekOffset + 1) showApproved showAllStaff selectedStaffFilterId}
             </div>
         |]
         , weekToolbarSettings = renderTimesheetWeekMoreMenu weekOffset showApproved showAllStaff selectedStaffFilterId staffMembers
@@ -169,27 +207,32 @@ renderTimesheetWeekMoreMenu weekOffset showApproved showAllStaff selectedStaffFi
     <div class="dropdown">
         {renderAppSettingsMenuButton menuTriggerId "Timesheet settings"}
         <div class="dropdown-menu dropdown-menu-end p-2 app-action-menu" aria-labelledby={menuTriggerId}>
-            <form class="px-1 py-1"
-                  method="GET"
-                  action={updateUrl}
-                  data-disable-javascript-submission="true"
-                  hx-get={updateUrl}
-                  hx-swap="none"
-                  hx-push-url="true"
-                  hx-sync={"#" <> timesheetWeekShellId <> ":replace"}>
-                <input type="hidden" name="weekOffset" value={tshow weekOffset} />
-                <input type="hidden" name="showApproved" id="timesheet-show-approved-value" value={boolParam showApproved} />
-                <input type="hidden" name="showAllStaff" id="timesheet-show-all-staff-value" value={boolParam showAllStaff} />
-                <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Filters</div>
-                <div class="timesheet-settings-toggle-grid mb-2">
-                    {renderTimesheetHideApprovedToggle showApproved}
-                    {when currentUserIsManager (renderTimesheetMenuToggle "timesheet-show-all-staff-toggle" "timesheet-show-all-staff-value" showAllStaff "Show all staff")}
-                </div>
-                {when currentUserIsManager (renderTimesheetStaffFilter selectedStaffFilterId staffMembers)}
-            </form>
+            {renderTimesheetFilterForm updateUrl weekOffset showApproved showAllStaff selectedStaffFilterId staffMembers}
         </div>
     </div>
 |]
+
+renderTimesheetFilterForm :: (?context :: ControllerContext) => Text -> Int -> Bool -> Bool -> Maybe UUID -> [Staff] -> Html
+renderTimesheetFilterForm updateUrl weekOffset showApproved showAllStaff selectedStaffFilterId staffMembers =
+    renderFrontendSurfaceActionForm
+        (timesheetsAction "update-timesheet-filters")
+        (timesheetsActionRoute updateUrl)
+            { actionRouteFields = timesheetStateFields weekOffset showApproved showAllStaff selectedStaffFilterId
+            , actionRouteCustomHtmx = [timesheetsWeekShellSync]
+            , actionRouteStandardUrl = Just updateUrl
+            , actionRouteExtraAttrs = [("class", "px-1 py-1"), ("data-disable-javascript-submission", "true")]
+            }
+        [hsx|
+            <input type="hidden" name="weekOffset" value={tshow weekOffset} />
+            <input type="hidden" name="showApproved" id="timesheet-show-approved-value" value={boolParam showApproved} />
+            <input type="hidden" name="showAllStaff" id="timesheet-show-all-staff-value" value={boolParam showAllStaff} />
+            <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Filters</div>
+            <div class="timesheet-settings-toggle-grid mb-2">
+                {renderTimesheetHideApprovedToggle showApproved}
+                {when currentUserIsManager (renderTimesheetMenuToggle "timesheet-show-all-staff-toggle" "timesheet-show-all-staff-value" showAllStaff "Show all staff")}
+            </div>
+            {when currentUserIsManager (renderTimesheetStaffFilter selectedStaffFilterId staffMembers)}
+        |]
 
 renderTimesheetStaffFilter :: Maybe UUID -> [Staff] -> Html
 renderTimesheetStaffFilter selectedStaffFilterId staffMembers = [hsx|
@@ -402,36 +445,25 @@ renderApprovalAction dayOffset entry weekOffset showApproved showAllStaff staffF
         </button>
     |]
     | not currentUserIsManager = mempty
-    | entry.isApproved = [hsx|
-        <form method="POST"
-              action={UnapproveTimesheetEntryAction entry.id}
-              class="timesheet-entry-action-form"
-              data-disable-javascript-submission="true"
-              hx-post={UnapproveTimesheetEntryAction entry.id}
-              hx-swap="none"
-              hx-push-url="false">
+    | entry.isApproved = renderTimesheetApprovalForm "unapprove-timesheet-entry" (pathTo (UnapproveTimesheetEntryAction entry.id)) weekOffset showApproved showAllStaff staffFilterId [hsx|<button type="submit" class="btn btn-sm btn-success timesheet-approval-toggle">Approved</button>|]
+    | otherwise = renderTimesheetApprovalForm "approve-timesheet-entry" (pathTo (ApproveTimesheetEntryAction entry.id)) weekOffset showApproved showAllStaff staffFilterId [hsx|<button type="submit" class="btn btn-sm btn-outline-success timesheet-approval-toggle">Approve</button>|]
+
+renderTimesheetApprovalForm :: Text -> Text -> Int -> Bool -> Bool -> Maybe UUID -> Html -> Html
+renderTimesheetApprovalForm actionName actionUrl weekOffset showApproved showAllStaff staffFilterId button =
+    renderFrontendSurfaceActionForm
+        (timesheetsAction actionName)
+        (timesheetsActionRoute actionUrl)
+            { actionRouteFields = timesheetStateFields weekOffset showApproved showAllStaff staffFilterId
+            , actionRouteStandardUrl = Just actionUrl
+            , actionRouteExtraAttrs = [("class", "timesheet-entry-action-form"), ("data-disable-javascript-submission", "true")]
+            }
+        [hsx|
             <input type="hidden" name="weekOffset" value={tshow weekOffset} />
             <input type="hidden" name="showApproved" value={boolParam showApproved} />
             <input type="hidden" name="showAllStaff" value={boolParam showAllStaff} />
             <input type="hidden" name="staffFilterId" value={maybe "" tshow staffFilterId} />
-            <button type="submit" class="btn btn-sm btn-success timesheet-approval-toggle">Approved</button>
-        </form>
-    |]
-    | otherwise = [hsx|
-        <form method="POST"
-              action={ApproveTimesheetEntryAction entry.id}
-              class="timesheet-entry-action-form"
-              data-disable-javascript-submission="true"
-              hx-post={ApproveTimesheetEntryAction entry.id}
-              hx-swap="none"
-              hx-push-url="false">
-            <input type="hidden" name="weekOffset" value={tshow weekOffset} />
-            <input type="hidden" name="showApproved" value={boolParam showApproved} />
-            <input type="hidden" name="showAllStaff" value={boolParam showAllStaff} />
-            <input type="hidden" name="staffFilterId" value={maybe "" tshow staffFilterId} />
-            <button type="submit" class="btn btn-sm btn-outline-success timesheet-approval-toggle">Approve</button>
-        </form>
-    |]
+            {button}
+        |]
 
 renderBreakSummary :: TimesheetEntry -> Text
 renderBreakSummary entry

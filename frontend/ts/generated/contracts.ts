@@ -1656,6 +1656,46 @@ export function parseTimesheetsTimesheetDaySectionFragmentParams(value: unknown)
 }
 export function encodeTimesheetsTimesheetDaySectionFragmentParams(value: TimesheetsTimesheetDaySectionFragmentParams): TimesheetsTimesheetDaySectionFragmentParams { return value; }
 
+export type TimesheetsNavigateTimesheetWeekActionFields = { weekOffset: number; showApproved: boolean; showAllStaff: boolean; staffFilterId?: FrontendContractUuid };
+export function isTimesheetsNavigateTimesheetWeekActionFields(value: unknown): value is TimesheetsNavigateTimesheetWeekActionFields {
+    return isRecord(value) && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) && (typeof value["showApproved"] === "boolean") && (typeof value["showAllStaff"] === "boolean") && (!("staffFilterId" in value) || (typeof value["staffFilterId"] === "string"));
+}
+export function parseTimesheetsNavigateTimesheetWeekActionFields(value: unknown): TimesheetsNavigateTimesheetWeekActionFields {
+    if (isTimesheetsNavigateTimesheetWeekActionFields(value)) return value;
+    throw new Error("Invalid TimesheetsNavigateTimesheetWeekActionFields");
+}
+export function encodeTimesheetsNavigateTimesheetWeekActionFields(value: TimesheetsNavigateTimesheetWeekActionFields): TimesheetsNavigateTimesheetWeekActionFields { return value; }
+
+export type TimesheetsUpdateTimesheetFiltersActionFields = { weekOffset: number; showApproved: boolean; showAllStaff: boolean; staffFilterId?: FrontendContractUuid };
+export function isTimesheetsUpdateTimesheetFiltersActionFields(value: unknown): value is TimesheetsUpdateTimesheetFiltersActionFields {
+    return isRecord(value) && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) && (typeof value["showApproved"] === "boolean") && (typeof value["showAllStaff"] === "boolean") && (!("staffFilterId" in value) || (typeof value["staffFilterId"] === "string"));
+}
+export function parseTimesheetsUpdateTimesheetFiltersActionFields(value: unknown): TimesheetsUpdateTimesheetFiltersActionFields {
+    if (isTimesheetsUpdateTimesheetFiltersActionFields(value)) return value;
+    throw new Error("Invalid TimesheetsUpdateTimesheetFiltersActionFields");
+}
+export function encodeTimesheetsUpdateTimesheetFiltersActionFields(value: TimesheetsUpdateTimesheetFiltersActionFields): TimesheetsUpdateTimesheetFiltersActionFields { return value; }
+
+export type TimesheetsApproveTimesheetEntryActionFields = { weekOffset: number; showApproved: boolean; showAllStaff: boolean; staffFilterId?: FrontendContractUuid };
+export function isTimesheetsApproveTimesheetEntryActionFields(value: unknown): value is TimesheetsApproveTimesheetEntryActionFields {
+    return isRecord(value) && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) && (typeof value["showApproved"] === "boolean") && (typeof value["showAllStaff"] === "boolean") && (!("staffFilterId" in value) || (typeof value["staffFilterId"] === "string"));
+}
+export function parseTimesheetsApproveTimesheetEntryActionFields(value: unknown): TimesheetsApproveTimesheetEntryActionFields {
+    if (isTimesheetsApproveTimesheetEntryActionFields(value)) return value;
+    throw new Error("Invalid TimesheetsApproveTimesheetEntryActionFields");
+}
+export function encodeTimesheetsApproveTimesheetEntryActionFields(value: TimesheetsApproveTimesheetEntryActionFields): TimesheetsApproveTimesheetEntryActionFields { return value; }
+
+export type TimesheetsUnapproveTimesheetEntryActionFields = { weekOffset: number; showApproved: boolean; showAllStaff: boolean; staffFilterId?: FrontendContractUuid };
+export function isTimesheetsUnapproveTimesheetEntryActionFields(value: unknown): value is TimesheetsUnapproveTimesheetEntryActionFields {
+    return isRecord(value) && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) && (typeof value["showApproved"] === "boolean") && (typeof value["showAllStaff"] === "boolean") && (!("staffFilterId" in value) || (typeof value["staffFilterId"] === "string"));
+}
+export function parseTimesheetsUnapproveTimesheetEntryActionFields(value: unknown): TimesheetsUnapproveTimesheetEntryActionFields {
+    if (isTimesheetsUnapproveTimesheetEntryActionFields(value)) return value;
+    throw new Error("Invalid TimesheetsUnapproveTimesheetEntryActionFields");
+}
+export function encodeTimesheetsUnapproveTimesheetEntryActionFields(value: TimesheetsUnapproveTimesheetEntryActionFields): TimesheetsUnapproveTimesheetEntryActionFields { return value; }
+
 export type RosterRosterWeekScope = { venueId: FrontendContractUuid; rosterGroupId: FrontendContractUuid; weekOffset: number };
 export function isRosterRosterWeekScope(value: unknown): value is RosterRosterWeekScope {
     return isRecord(value) && (typeof value["venueId"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
@@ -2386,7 +2426,11 @@ export const surfaceLabSurfaceManifest = {"surface":"surface-lab","scopes":["lab
 export type TimesheetsSurfaceName = "timesheets";
 export type TimesheetsFragmentKey = TimesheetsSurfaceFragmentKey;
 export type TimesheetsMountState = TimesheetsTimesheetsMountStateMountState;
-export const timesheetsSurfaceManifest = {"surface":"timesheets","scopes":["timesheet-week"],"fragments":["timesheet-toolbar","timesheet-day-columns","timesheet-day-section"],"liveFragments":["timesheet-toolbar","timesheet-day-columns","timesheet-day-section"],"htmxActions":[],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":[],"overlayLanes":[],"containedSurfaces":{}} as const;
+export type NavigateTimesheetWeekActionFields = TimesheetsNavigateTimesheetWeekActionFields;
+export type UpdateTimesheetFiltersActionFields = TimesheetsUpdateTimesheetFiltersActionFields;
+export type ApproveTimesheetEntryActionFields = TimesheetsApproveTimesheetEntryActionFields;
+export type UnapproveTimesheetEntryActionFields = TimesheetsUnapproveTimesheetEntryActionFields;
+export const timesheetsSurfaceManifest = {"surface":"timesheets","scopes":["timesheet-week"],"fragments":["timesheet-toolbar","timesheet-day-columns","timesheet-day-section"],"liveFragments":["timesheet-toolbar","timesheet-day-columns","timesheet-day-section"],"htmxActions":[{"name":"navigate-timesheet-week","fields":["weekOffset","showApproved","showAllStaff","staffFilterId"],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":null,"swap":"none","pushUrl":true,"custom":[{"name":"timesheet-week-shell-sync-custom-htmx","reason":"week navigation serializes through the timesheet week shell with hx-sync=closest shell:replace"}]}},{"name":"update-timesheet-filters","fields":["weekOffset","showApproved","showAllStaff","staffFilterId"],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":null,"swap":"none","pushUrl":true,"custom":[{"name":"timesheet-week-shell-sync-custom-htmx","reason":"filter changes serialize through the timesheet week shell with hx-sync=closest shell:replace"}]}},{"name":"approve-timesheet-entry","fields":["weekOffset","showApproved","showAllStaff","staffFilterId"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":null,"swap":"none","pushUrl":false,"custom":[]}},{"name":"unapprove-timesheet-entry","fields":["weekOffset","showApproved","showAllStaff","staffFilterId"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":null,"swap":"none","pushUrl":false,"custom":[]}}],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":[],"overlayLanes":[],"containedSurfaces":{}} as const;
 
 export type RosterSurfaceName = "roster";
 export type RosterFragmentKey = RosterSurfaceFragmentKey;

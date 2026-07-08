@@ -113,9 +113,27 @@ timesheetsSurfaceHandlers scope mountState =
                     , fragmentHandlerRender = const mempty
                     }
                 `HandlerCons` HandlerNil
-        , surfaceActionHandlers = HandlerNil
+        , surfaceActionHandlers =
+            timesheetActionHandler "navigate-timesheet-week" (pathTo (ShowTimesheetWeekAction scope.timesheetWeekWeekOffset)) `HandlerCons`
+            timesheetActionHandler "update-timesheet-filters" (pathTo (ShowTimesheetWeekAction scope.timesheetWeekWeekOffset)) `HandlerCons`
+            timesheetActionHandler "approve-timesheet-entry" (pathTo (ApproveTimesheetEntryAction (Id UUID.nil))) `HandlerCons`
+            timesheetActionHandler "unapprove-timesheet-entry" (pathTo (UnapproveTimesheetEntryAction (Id UUID.nil))) `HandlerCons`
+            HandlerNil
         , surfaceIntentHandlers = HandlerNil
         }
+
+timesheetActionHandler :: Text -> Text -> FrontendSurfaceActionHandler ('Action marker fields options)
+timesheetActionHandler actionName actionUrl = FrontendSurfaceActionHandler
+    { actionHandlerDefaultFields = frontendSurfaceFieldValues Aeson.Null
+    , actionHandlerRequest = const FrontendSurfaceHtmxRequest
+        { htmxRequestName = actionName
+        , htmxRequestMethod = FrontendSurfacePost
+        , htmxRequestUrl = actionUrl
+        , htmxRequestTarget = ""
+        , htmxRequestSwap = "none"
+        , htmxRequestFields = []
+        }
+    }
 
 timesheetWeekScopeFields :: TimesheetWeekScopeValue -> FrontendSurfaceFieldValues '[ 'Field Surface.VenueId 'WireUUID, 'Field Surface.WeekOffset 'WireInt]
 timesheetWeekScopeFields scope =
