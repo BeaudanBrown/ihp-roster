@@ -39,8 +39,30 @@ registeredFrontendContractIR = registeredFrontendContractIRForSurfaceContract re
 
 registeredFrontendContractIRForSurfaceContract :: Surface.SurfaceContractIR -> FrontendContractIR
 registeredFrontendContractIRForSurfaceContract surfaceContract = appendFrontendContractIR
-    (reflectFrontendContracts @RegisteredFrontendContracts)
+    (rebaseOverlayActionsToAppShell (reflectFrontendContracts @RegisteredFrontendContracts))
     (frontendSurfaceContractToFrontendContractIR surfaceContract)
+
+rebaseOverlayActionsToAppShell :: FrontendContractIR -> FrontendContractIR
+rebaseOverlayActionsToAppShell contract = contract
+    { contractGlobals = fmap addOverlayActions contract.contractGlobals
+    }
+    where
+        overlayActions =
+            [ overlayActionToAppShellAction action
+            | global <- contract.contractGlobals
+            , GlobalOverlayActionIR action <- global.globalPrimitives
+            ]
+
+        addOverlayActions global
+            | global.globalMarker == "AppShell" = global { globalPrimitives = global.globalPrimitives <> fmap GlobalAppShellActionIR overlayActions }
+            | otherwise = global
+
+        overlayActionToAppShellAction action = AppShellActionIR
+            { appShellActionMarker = action.overlayActionMarker
+            , appShellActionName = action.overlayActionName
+            , appShellActionFields = action.overlayActionFields
+            , appShellActionOptions = action.overlayActionOptions
+            }
 
 appendFrontendContractIR :: FrontendContractIR -> FrontendContractIR -> FrontendContractIR
 appendFrontendContractIR left right = FrontendContractIR

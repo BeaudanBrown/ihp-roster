@@ -527,6 +527,414 @@ export function encodePartialNavigateAppShellActionFields(value: PartialNavigate
 
 export const partialNavigateAppShellActionManifest = {"name":"partial-navigate","fields":[],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"app-content-mount","swap":"innerHTML","pushUrl":true,"custom":[]}} as const;
 
+export type OpenFeedbackDialogAppShellActionFields = {  };
+export function isOpenFeedbackDialogAppShellActionFields(value: unknown): value is OpenFeedbackDialogAppShellActionFields {
+    return isRecord(value);
+}
+export function parseOpenFeedbackDialogAppShellActionFields(value: unknown): OpenFeedbackDialogAppShellActionFields {
+    if (isOpenFeedbackDialogAppShellActionFields(value)) return value;
+    throw new Error("Invalid OpenFeedbackDialogAppShellActionFields");
+}
+export function encodeOpenFeedbackDialogAppShellActionFields(value: OpenFeedbackDialogAppShellActionFields): OpenFeedbackDialogAppShellActionFields { return value; }
+
+export const openFeedbackDialogAppShellActionManifest = {"name":"open-feedback-dialog","fields":[],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type SubmitFeedbackAppShellActionFields = { feedbackType: string; content: string };
+export function isSubmitFeedbackAppShellActionFields(value: unknown): value is SubmitFeedbackAppShellActionFields {
+    return isRecord(value) && (typeof value["feedbackType"] === "string") && (typeof value["content"] === "string");
+}
+export function parseSubmitFeedbackAppShellActionFields(value: unknown): SubmitFeedbackAppShellActionFields {
+    if (isSubmitFeedbackAppShellActionFields(value)) return value;
+    throw new Error("Invalid SubmitFeedbackAppShellActionFields");
+}
+export function encodeSubmitFeedbackAppShellActionFields(value: SubmitFeedbackAppShellActionFields): SubmitFeedbackAppShellActionFields { return value; }
+
+export const submitFeedbackAppShellActionManifest = {"name":"submit-feedback","fields":["feedbackType","content"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type OpenTimesheetEntryDialogAppShellActionFields = {  };
+export function isOpenTimesheetEntryDialogAppShellActionFields(value: unknown): value is OpenTimesheetEntryDialogAppShellActionFields {
+    return isRecord(value);
+}
+export function parseOpenTimesheetEntryDialogAppShellActionFields(value: unknown): OpenTimesheetEntryDialogAppShellActionFields {
+    if (isOpenTimesheetEntryDialogAppShellActionFields(value)) return value;
+    throw new Error("Invalid OpenTimesheetEntryDialogAppShellActionFields");
+}
+export function encodeOpenTimesheetEntryDialogAppShellActionFields(value: OpenTimesheetEntryDialogAppShellActionFields): OpenTimesheetEntryDialogAppShellActionFields { return value; }
+
+export const openTimesheetEntryDialogAppShellActionManifest = {"name":"open-timesheet-entry-dialog","fields":[],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type EditTimesheetEntryDialogAppShellActionFields = {  };
+export function isEditTimesheetEntryDialogAppShellActionFields(value: unknown): value is EditTimesheetEntryDialogAppShellActionFields {
+    return isRecord(value);
+}
+export function parseEditTimesheetEntryDialogAppShellActionFields(value: unknown): EditTimesheetEntryDialogAppShellActionFields {
+    if (isEditTimesheetEntryDialogAppShellActionFields(value)) return value;
+    throw new Error("Invalid EditTimesheetEntryDialogAppShellActionFields");
+}
+export function encodeEditTimesheetEntryDialogAppShellActionFields(value: EditTimesheetEntryDialogAppShellActionFields): EditTimesheetEntryDialogAppShellActionFields { return value; }
+
+export const editTimesheetEntryDialogAppShellActionManifest = {"name":"edit-timesheet-entry-dialog","fields":[],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type CreateTimesheetEntryOverlayAppShellActionFields = { weekOffset: string; showApproved: string; showAllStaff: string; staffFilterId: string; staffId: string; shiftTypeId: string; workedOn: string; startTime: string; endTime: string; hadBreak: string; breakStartTime: string; breakEndTime: string; staffComment: string; managerNote: string };
+export function isCreateTimesheetEntryOverlayAppShellActionFields(value: unknown): value is CreateTimesheetEntryOverlayAppShellActionFields {
+    return isRecord(value) && (typeof value["weekOffset"] === "string") && (typeof value["showApproved"] === "string") && (typeof value["showAllStaff"] === "string") && (typeof value["staffFilterId"] === "string") && (typeof value["staffId"] === "string") && (typeof value["shiftTypeId"] === "string") && (typeof value["workedOn"] === "string") && (typeof value["startTime"] === "string") && (typeof value["endTime"] === "string") && (typeof value["hadBreak"] === "string") && (typeof value["breakStartTime"] === "string") && (typeof value["breakEndTime"] === "string") && (typeof value["staffComment"] === "string") && (typeof value["managerNote"] === "string");
+}
+export function parseCreateTimesheetEntryOverlayAppShellActionFields(value: unknown): CreateTimesheetEntryOverlayAppShellActionFields {
+    if (isCreateTimesheetEntryOverlayAppShellActionFields(value)) return value;
+    throw new Error("Invalid CreateTimesheetEntryOverlayAppShellActionFields");
+}
+export function encodeCreateTimesheetEntryOverlayAppShellActionFields(value: CreateTimesheetEntryOverlayAppShellActionFields): CreateTimesheetEntryOverlayAppShellActionFields { return value; }
+
+export const createTimesheetEntryOverlayAppShellActionManifest = {"name":"create-timesheet-entry-overlay","fields":["weekOffset","showApproved","showAllStaff","staffFilterId","staffId","shiftTypeId","workedOn","startTime","endTime","hadBreak","breakStartTime","breakEndTime","staffComment","managerNote"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type UpdateTimesheetEntryOverlayAppShellActionFields = { weekOffset: string; showApproved: string; showAllStaff: string; staffFilterId: string; staffId: string; shiftTypeId: string; workedOn: string; startTime: string; endTime: string; hadBreak: string; breakStartTime: string; breakEndTime: string; staffComment: string; managerNote: string };
+export function isUpdateTimesheetEntryOverlayAppShellActionFields(value: unknown): value is UpdateTimesheetEntryOverlayAppShellActionFields {
+    return isRecord(value) && (typeof value["weekOffset"] === "string") && (typeof value["showApproved"] === "string") && (typeof value["showAllStaff"] === "string") && (typeof value["staffFilterId"] === "string") && (typeof value["staffId"] === "string") && (typeof value["shiftTypeId"] === "string") && (typeof value["workedOn"] === "string") && (typeof value["startTime"] === "string") && (typeof value["endTime"] === "string") && (typeof value["hadBreak"] === "string") && (typeof value["breakStartTime"] === "string") && (typeof value["breakEndTime"] === "string") && (typeof value["staffComment"] === "string") && (typeof value["managerNote"] === "string");
+}
+export function parseUpdateTimesheetEntryOverlayAppShellActionFields(value: unknown): UpdateTimesheetEntryOverlayAppShellActionFields {
+    if (isUpdateTimesheetEntryOverlayAppShellActionFields(value)) return value;
+    throw new Error("Invalid UpdateTimesheetEntryOverlayAppShellActionFields");
+}
+export function encodeUpdateTimesheetEntryOverlayAppShellActionFields(value: UpdateTimesheetEntryOverlayAppShellActionFields): UpdateTimesheetEntryOverlayAppShellActionFields { return value; }
+
+export const updateTimesheetEntryOverlayAppShellActionManifest = {"name":"update-timesheet-entry-overlay","fields":["weekOffset","showApproved","showAllStaff","staffFilterId","staffId","shiftTypeId","workedOn","startTime","endTime","hadBreak","breakStartTime","breakEndTime","staffComment","managerNote"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type DeleteTimesheetEntryOverlayAppShellActionFields = { weekOffset: string; showApproved: string; showAllStaff: string; staffFilterId: string };
+export function isDeleteTimesheetEntryOverlayAppShellActionFields(value: unknown): value is DeleteTimesheetEntryOverlayAppShellActionFields {
+    return isRecord(value) && (typeof value["weekOffset"] === "string") && (typeof value["showApproved"] === "string") && (typeof value["showAllStaff"] === "string") && (typeof value["staffFilterId"] === "string");
+}
+export function parseDeleteTimesheetEntryOverlayAppShellActionFields(value: unknown): DeleteTimesheetEntryOverlayAppShellActionFields {
+    if (isDeleteTimesheetEntryOverlayAppShellActionFields(value)) return value;
+    throw new Error("Invalid DeleteTimesheetEntryOverlayAppShellActionFields");
+}
+export function encodeDeleteTimesheetEntryOverlayAppShellActionFields(value: DeleteTimesheetEntryOverlayAppShellActionFields): DeleteTimesheetEntryOverlayAppShellActionFields { return value; }
+
+export const deleteTimesheetEntryOverlayAppShellActionManifest = {"name":"delete-timesheet-entry-overlay","fields":["weekOffset","showApproved","showAllStaff","staffFilterId"],"htmx":{"method":"delete","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":"Delete this timesheet entry? This cannot be undone.","select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type OpenPasskeySetupDialogAppShellActionFields = {  };
+export function isOpenPasskeySetupDialogAppShellActionFields(value: unknown): value is OpenPasskeySetupDialogAppShellActionFields {
+    return isRecord(value);
+}
+export function parseOpenPasskeySetupDialogAppShellActionFields(value: unknown): OpenPasskeySetupDialogAppShellActionFields {
+    if (isOpenPasskeySetupDialogAppShellActionFields(value)) return value;
+    throw new Error("Invalid OpenPasskeySetupDialogAppShellActionFields");
+}
+export function encodeOpenPasskeySetupDialogAppShellActionFields(value: OpenPasskeySetupDialogAppShellActionFields): OpenPasskeySetupDialogAppShellActionFields { return value; }
+
+export const openPasskeySetupDialogAppShellActionManifest = {"name":"open-passkey-setup-dialog","fields":[],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type OpenPasskeyRecoveryCodeDialogAppShellActionFields = {  };
+export function isOpenPasskeyRecoveryCodeDialogAppShellActionFields(value: unknown): value is OpenPasskeyRecoveryCodeDialogAppShellActionFields {
+    return isRecord(value);
+}
+export function parseOpenPasskeyRecoveryCodeDialogAppShellActionFields(value: unknown): OpenPasskeyRecoveryCodeDialogAppShellActionFields {
+    if (isOpenPasskeyRecoveryCodeDialogAppShellActionFields(value)) return value;
+    throw new Error("Invalid OpenPasskeyRecoveryCodeDialogAppShellActionFields");
+}
+export function encodeOpenPasskeyRecoveryCodeDialogAppShellActionFields(value: OpenPasskeyRecoveryCodeDialogAppShellActionFields): OpenPasskeyRecoveryCodeDialogAppShellActionFields { return value; }
+
+export const openPasskeyRecoveryCodeDialogAppShellActionManifest = {"name":"open-passkey-recovery-code-dialog","fields":[],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type CreateLeaveRequestOverlayAppShellActionFields = { startDate: string; endDate: string; reason: string };
+export function isCreateLeaveRequestOverlayAppShellActionFields(value: unknown): value is CreateLeaveRequestOverlayAppShellActionFields {
+    return isRecord(value) && (typeof value["startDate"] === "string") && (typeof value["endDate"] === "string") && (typeof value["reason"] === "string");
+}
+export function parseCreateLeaveRequestOverlayAppShellActionFields(value: unknown): CreateLeaveRequestOverlayAppShellActionFields {
+    if (isCreateLeaveRequestOverlayAppShellActionFields(value)) return value;
+    throw new Error("Invalid CreateLeaveRequestOverlayAppShellActionFields");
+}
+export function encodeCreateLeaveRequestOverlayAppShellActionFields(value: CreateLeaveRequestOverlayAppShellActionFields): CreateLeaveRequestOverlayAppShellActionFields { return value; }
+
+export const createLeaveRequestOverlayAppShellActionManifest = {"name":"create-leave-request-overlay","fields":["startDate","endDate","reason"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type OpenXeroTimesheetPreparationOverlayAppShellActionFields = {  };
+export function isOpenXeroTimesheetPreparationOverlayAppShellActionFields(value: unknown): value is OpenXeroTimesheetPreparationOverlayAppShellActionFields {
+    return isRecord(value);
+}
+export function parseOpenXeroTimesheetPreparationOverlayAppShellActionFields(value: unknown): OpenXeroTimesheetPreparationOverlayAppShellActionFields {
+    if (isOpenXeroTimesheetPreparationOverlayAppShellActionFields(value)) return value;
+    throw new Error("Invalid OpenXeroTimesheetPreparationOverlayAppShellActionFields");
+}
+export function encodeOpenXeroTimesheetPreparationOverlayAppShellActionFields(value: OpenXeroTimesheetPreparationOverlayAppShellActionFields): OpenXeroTimesheetPreparationOverlayAppShellActionFields { return value; }
+
+export const openXeroTimesheetPreparationOverlayAppShellActionManifest = {"name":"open-xero-timesheet-preparation-overlay","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type RunXeroTimesheetPreparationOverlayAppShellActionFields = {  };
+export function isRunXeroTimesheetPreparationOverlayAppShellActionFields(value: unknown): value is RunXeroTimesheetPreparationOverlayAppShellActionFields {
+    return isRecord(value);
+}
+export function parseRunXeroTimesheetPreparationOverlayAppShellActionFields(value: unknown): RunXeroTimesheetPreparationOverlayAppShellActionFields {
+    if (isRunXeroTimesheetPreparationOverlayAppShellActionFields(value)) return value;
+    throw new Error("Invalid RunXeroTimesheetPreparationOverlayAppShellActionFields");
+}
+export function encodeRunXeroTimesheetPreparationOverlayAppShellActionFields(value: RunXeroTimesheetPreparationOverlayAppShellActionFields): RunXeroTimesheetPreparationOverlayAppShellActionFields { return value; }
+
+export const runXeroTimesheetPreparationOverlayAppShellActionManifest = {"name":"run-xero-timesheet-preparation-overlay","fields":[],"htmx":{"method":"post","trigger":"load","include":null,"sync":null,"indicator":"#xero-timesheet-preparation-modal-loading-indicator","confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type ContinueXeroTimesheetPreparationStaffOverlayAppShellActionFields = {  };
+export function isContinueXeroTimesheetPreparationStaffOverlayAppShellActionFields(value: unknown): value is ContinueXeroTimesheetPreparationStaffOverlayAppShellActionFields {
+    return isRecord(value);
+}
+export function parseContinueXeroTimesheetPreparationStaffOverlayAppShellActionFields(value: unknown): ContinueXeroTimesheetPreparationStaffOverlayAppShellActionFields {
+    if (isContinueXeroTimesheetPreparationStaffOverlayAppShellActionFields(value)) return value;
+    throw new Error("Invalid ContinueXeroTimesheetPreparationStaffOverlayAppShellActionFields");
+}
+export function encodeContinueXeroTimesheetPreparationStaffOverlayAppShellActionFields(value: ContinueXeroTimesheetPreparationStaffOverlayAppShellActionFields): ContinueXeroTimesheetPreparationStaffOverlayAppShellActionFields { return value; }
+
+export const continueXeroTimesheetPreparationStaffOverlayAppShellActionManifest = {"name":"continue-xero-timesheet-preparation-staff-overlay","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type SelectXeroTimesheetPreparationPeriodOverlayAppShellActionFields = { periodKey: string };
+export function isSelectXeroTimesheetPreparationPeriodOverlayAppShellActionFields(value: unknown): value is SelectXeroTimesheetPreparationPeriodOverlayAppShellActionFields {
+    return isRecord(value) && (typeof value["periodKey"] === "string");
+}
+export function parseSelectXeroTimesheetPreparationPeriodOverlayAppShellActionFields(value: unknown): SelectXeroTimesheetPreparationPeriodOverlayAppShellActionFields {
+    if (isSelectXeroTimesheetPreparationPeriodOverlayAppShellActionFields(value)) return value;
+    throw new Error("Invalid SelectXeroTimesheetPreparationPeriodOverlayAppShellActionFields");
+}
+export function encodeSelectXeroTimesheetPreparationPeriodOverlayAppShellActionFields(value: SelectXeroTimesheetPreparationPeriodOverlayAppShellActionFields): SelectXeroTimesheetPreparationPeriodOverlayAppShellActionFields { return value; }
+
+export const selectXeroTimesheetPreparationPeriodOverlayAppShellActionManifest = {"name":"select-xero-timesheet-preparation-period-overlay","fields":["periodKey"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type ApproveXeroTimesheetPreparationPayItemsOverlayAppShellActionFields = {  };
+export function isApproveXeroTimesheetPreparationPayItemsOverlayAppShellActionFields(value: unknown): value is ApproveXeroTimesheetPreparationPayItemsOverlayAppShellActionFields {
+    return isRecord(value);
+}
+export function parseApproveXeroTimesheetPreparationPayItemsOverlayAppShellActionFields(value: unknown): ApproveXeroTimesheetPreparationPayItemsOverlayAppShellActionFields {
+    if (isApproveXeroTimesheetPreparationPayItemsOverlayAppShellActionFields(value)) return value;
+    throw new Error("Invalid ApproveXeroTimesheetPreparationPayItemsOverlayAppShellActionFields");
+}
+export function encodeApproveXeroTimesheetPreparationPayItemsOverlayAppShellActionFields(value: ApproveXeroTimesheetPreparationPayItemsOverlayAppShellActionFields): ApproveXeroTimesheetPreparationPayItemsOverlayAppShellActionFields { return value; }
+
+export const approveXeroTimesheetPreparationPayItemsOverlayAppShellActionManifest = {"name":"approve-xero-timesheet-preparation-pay-items-overlay","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type ConfirmXeroTimesheetPreparationSubmissionOverlayAppShellActionFields = {  };
+export function isConfirmXeroTimesheetPreparationSubmissionOverlayAppShellActionFields(value: unknown): value is ConfirmXeroTimesheetPreparationSubmissionOverlayAppShellActionFields {
+    return isRecord(value);
+}
+export function parseConfirmXeroTimesheetPreparationSubmissionOverlayAppShellActionFields(value: unknown): ConfirmXeroTimesheetPreparationSubmissionOverlayAppShellActionFields {
+    if (isConfirmXeroTimesheetPreparationSubmissionOverlayAppShellActionFields(value)) return value;
+    throw new Error("Invalid ConfirmXeroTimesheetPreparationSubmissionOverlayAppShellActionFields");
+}
+export function encodeConfirmXeroTimesheetPreparationSubmissionOverlayAppShellActionFields(value: ConfirmXeroTimesheetPreparationSubmissionOverlayAppShellActionFields): ConfirmXeroTimesheetPreparationSubmissionOverlayAppShellActionFields { return value; }
+
+export const confirmXeroTimesheetPreparationSubmissionOverlayAppShellActionManifest = {"name":"confirm-xero-timesheet-preparation-submission-overlay","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type RunXeroTimesheetPreparationSubmissionOverlayAppShellActionFields = {  };
+export function isRunXeroTimesheetPreparationSubmissionOverlayAppShellActionFields(value: unknown): value is RunXeroTimesheetPreparationSubmissionOverlayAppShellActionFields {
+    return isRecord(value);
+}
+export function parseRunXeroTimesheetPreparationSubmissionOverlayAppShellActionFields(value: unknown): RunXeroTimesheetPreparationSubmissionOverlayAppShellActionFields {
+    if (isRunXeroTimesheetPreparationSubmissionOverlayAppShellActionFields(value)) return value;
+    throw new Error("Invalid RunXeroTimesheetPreparationSubmissionOverlayAppShellActionFields");
+}
+export function encodeRunXeroTimesheetPreparationSubmissionOverlayAppShellActionFields(value: RunXeroTimesheetPreparationSubmissionOverlayAppShellActionFields): RunXeroTimesheetPreparationSubmissionOverlayAppShellActionFields { return value; }
+
+export const runXeroTimesheetPreparationSubmissionOverlayAppShellActionManifest = {"name":"run-xero-timesheet-preparation-submission-overlay","fields":[],"htmx":{"method":"post","trigger":"load","include":null,"sync":null,"indicator":"#xero-timesheet-preparation-submitting-indicator","confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type ApplyXeroTimesheetPreparationStaffDecisionOverlayAppShellActionFields = { staffId: string; decision: string; xeroEmployeeSelection: string };
+export function isApplyXeroTimesheetPreparationStaffDecisionOverlayAppShellActionFields(value: unknown): value is ApplyXeroTimesheetPreparationStaffDecisionOverlayAppShellActionFields {
+    return isRecord(value) && (typeof value["staffId"] === "string") && (typeof value["decision"] === "string") && (typeof value["xeroEmployeeSelection"] === "string");
+}
+export function parseApplyXeroTimesheetPreparationStaffDecisionOverlayAppShellActionFields(value: unknown): ApplyXeroTimesheetPreparationStaffDecisionOverlayAppShellActionFields {
+    if (isApplyXeroTimesheetPreparationStaffDecisionOverlayAppShellActionFields(value)) return value;
+    throw new Error("Invalid ApplyXeroTimesheetPreparationStaffDecisionOverlayAppShellActionFields");
+}
+export function encodeApplyXeroTimesheetPreparationStaffDecisionOverlayAppShellActionFields(value: ApplyXeroTimesheetPreparationStaffDecisionOverlayAppShellActionFields): ApplyXeroTimesheetPreparationStaffDecisionOverlayAppShellActionFields { return value; }
+
+export const applyXeroTimesheetPreparationStaffDecisionOverlayAppShellActionManifest = {"name":"apply-xero-timesheet-preparation-staff-decision-overlay","fields":["staffId","decision","xeroEmployeeSelection"],"htmx":{"method":"post","trigger":"change, submit","include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type RefreshXeroTimesheetPreparationOverlayAppShellActionFields = {  };
+export function isRefreshXeroTimesheetPreparationOverlayAppShellActionFields(value: unknown): value is RefreshXeroTimesheetPreparationOverlayAppShellActionFields {
+    return isRecord(value);
+}
+export function parseRefreshXeroTimesheetPreparationOverlayAppShellActionFields(value: unknown): RefreshXeroTimesheetPreparationOverlayAppShellActionFields {
+    if (isRefreshXeroTimesheetPreparationOverlayAppShellActionFields(value)) return value;
+    throw new Error("Invalid RefreshXeroTimesheetPreparationOverlayAppShellActionFields");
+}
+export function encodeRefreshXeroTimesheetPreparationOverlayAppShellActionFields(value: RefreshXeroTimesheetPreparationOverlayAppShellActionFields): RefreshXeroTimesheetPreparationOverlayAppShellActionFields { return value; }
+
+export const refreshXeroTimesheetPreparationOverlayAppShellActionManifest = {"name":"refresh-xero-timesheet-preparation-overlay","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type SubmitXeroTimesheetPreparationOverlayAppShellActionFields = {  };
+export function isSubmitXeroTimesheetPreparationOverlayAppShellActionFields(value: unknown): value is SubmitXeroTimesheetPreparationOverlayAppShellActionFields {
+    return isRecord(value);
+}
+export function parseSubmitXeroTimesheetPreparationOverlayAppShellActionFields(value: unknown): SubmitXeroTimesheetPreparationOverlayAppShellActionFields {
+    if (isSubmitXeroTimesheetPreparationOverlayAppShellActionFields(value)) return value;
+    throw new Error("Invalid SubmitXeroTimesheetPreparationOverlayAppShellActionFields");
+}
+export function encodeSubmitXeroTimesheetPreparationOverlayAppShellActionFields(value: SubmitXeroTimesheetPreparationOverlayAppShellActionFields): SubmitXeroTimesheetPreparationOverlayAppShellActionFields { return value; }
+
+export const submitXeroTimesheetPreparationOverlayAppShellActionManifest = {"name":"submit-xero-timesheet-preparation-overlay","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":"Submit draft timesheets to Xero?","select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type OpenXeroPayItemImportOverlayAppShellActionFields = {  };
+export function isOpenXeroPayItemImportOverlayAppShellActionFields(value: unknown): value is OpenXeroPayItemImportOverlayAppShellActionFields {
+    return isRecord(value);
+}
+export function parseOpenXeroPayItemImportOverlayAppShellActionFields(value: unknown): OpenXeroPayItemImportOverlayAppShellActionFields {
+    if (isOpenXeroPayItemImportOverlayAppShellActionFields(value)) return value;
+    throw new Error("Invalid OpenXeroPayItemImportOverlayAppShellActionFields");
+}
+export function encodeOpenXeroPayItemImportOverlayAppShellActionFields(value: OpenXeroPayItemImportOverlayAppShellActionFields): OpenXeroPayItemImportOverlayAppShellActionFields { return value; }
+
+export const openXeroPayItemImportOverlayAppShellActionManifest = {"name":"open-xero-pay-item-import-overlay","fields":[],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type LoadXeroPayItemImportOverlayAppShellActionFields = { loadCandidates: string };
+export function isLoadXeroPayItemImportOverlayAppShellActionFields(value: unknown): value is LoadXeroPayItemImportOverlayAppShellActionFields {
+    return isRecord(value) && (typeof value["loadCandidates"] === "string");
+}
+export function parseLoadXeroPayItemImportOverlayAppShellActionFields(value: unknown): LoadXeroPayItemImportOverlayAppShellActionFields {
+    if (isLoadXeroPayItemImportOverlayAppShellActionFields(value)) return value;
+    throw new Error("Invalid LoadXeroPayItemImportOverlayAppShellActionFields");
+}
+export function encodeLoadXeroPayItemImportOverlayAppShellActionFields(value: LoadXeroPayItemImportOverlayAppShellActionFields): LoadXeroPayItemImportOverlayAppShellActionFields { return value; }
+
+export const loadXeroPayItemImportOverlayAppShellActionManifest = {"name":"load-xero-pay-item-import-overlay","fields":["loadCandidates"],"htmx":{"method":"get","trigger":"load","include":null,"sync":null,"indicator":"#xero-import-pay-items-loading-indicator","confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type ImportXeroPayItemsOverlayAppShellActionFields = { xeroEarningsRateId: string };
+export function isImportXeroPayItemsOverlayAppShellActionFields(value: unknown): value is ImportXeroPayItemsOverlayAppShellActionFields {
+    return isRecord(value) && (typeof value["xeroEarningsRateId"] === "string");
+}
+export function parseImportXeroPayItemsOverlayAppShellActionFields(value: unknown): ImportXeroPayItemsOverlayAppShellActionFields {
+    if (isImportXeroPayItemsOverlayAppShellActionFields(value)) return value;
+    throw new Error("Invalid ImportXeroPayItemsOverlayAppShellActionFields");
+}
+export function encodeImportXeroPayItemsOverlayAppShellActionFields(value: ImportXeroPayItemsOverlayAppShellActionFields): ImportXeroPayItemsOverlayAppShellActionFields { return value; }
+
+export const importXeroPayItemsOverlayAppShellActionManifest = {"name":"import-xero-pay-items-overlay","fields":["xeroEarningsRateId"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type OpenRosterShiftDialogAppShellActionFields = {  };
+export function isOpenRosterShiftDialogAppShellActionFields(value: unknown): value is OpenRosterShiftDialogAppShellActionFields {
+    return isRecord(value);
+}
+export function parseOpenRosterShiftDialogAppShellActionFields(value: unknown): OpenRosterShiftDialogAppShellActionFields {
+    if (isOpenRosterShiftDialogAppShellActionFields(value)) return value;
+    throw new Error("Invalid OpenRosterShiftDialogAppShellActionFields");
+}
+export function encodeOpenRosterShiftDialogAppShellActionFields(value: OpenRosterShiftDialogAppShellActionFields): OpenRosterShiftDialogAppShellActionFields { return value; }
+
+export const openRosterShiftDialogAppShellActionManifest = {"name":"open-roster-shift-dialog","fields":[],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type OpenRosterStaffCreateDialogAppShellActionFields = {  };
+export function isOpenRosterStaffCreateDialogAppShellActionFields(value: unknown): value is OpenRosterStaffCreateDialogAppShellActionFields {
+    return isRecord(value);
+}
+export function parseOpenRosterStaffCreateDialogAppShellActionFields(value: unknown): OpenRosterStaffCreateDialogAppShellActionFields {
+    if (isOpenRosterStaffCreateDialogAppShellActionFields(value)) return value;
+    throw new Error("Invalid OpenRosterStaffCreateDialogAppShellActionFields");
+}
+export function encodeOpenRosterStaffCreateDialogAppShellActionFields(value: OpenRosterStaffCreateDialogAppShellActionFields): OpenRosterStaffCreateDialogAppShellActionFields { return value; }
+
+export const openRosterStaffCreateDialogAppShellActionManifest = {"name":"open-roster-staff-create-dialog","fields":[],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type OpenRosterStaffEditDialogAppShellActionFields = {  };
+export function isOpenRosterStaffEditDialogAppShellActionFields(value: unknown): value is OpenRosterStaffEditDialogAppShellActionFields {
+    return isRecord(value);
+}
+export function parseOpenRosterStaffEditDialogAppShellActionFields(value: unknown): OpenRosterStaffEditDialogAppShellActionFields {
+    if (isOpenRosterStaffEditDialogAppShellActionFields(value)) return value;
+    throw new Error("Invalid OpenRosterStaffEditDialogAppShellActionFields");
+}
+export function encodeOpenRosterStaffEditDialogAppShellActionFields(value: OpenRosterStaffEditDialogAppShellActionFields): OpenRosterStaffEditDialogAppShellActionFields { return value; }
+
+export const openRosterStaffEditDialogAppShellActionManifest = {"name":"open-roster-staff-edit-dialog","fields":[],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type CreateRosterShiftOverlayAppShellActionFields = { staffId: string; shiftTypeId: string; startTime: string; endTime: string };
+export function isCreateRosterShiftOverlayAppShellActionFields(value: unknown): value is CreateRosterShiftOverlayAppShellActionFields {
+    return isRecord(value) && (typeof value["staffId"] === "string") && (typeof value["shiftTypeId"] === "string") && (typeof value["startTime"] === "string") && (typeof value["endTime"] === "string");
+}
+export function parseCreateRosterShiftOverlayAppShellActionFields(value: unknown): CreateRosterShiftOverlayAppShellActionFields {
+    if (isCreateRosterShiftOverlayAppShellActionFields(value)) return value;
+    throw new Error("Invalid CreateRosterShiftOverlayAppShellActionFields");
+}
+export function encodeCreateRosterShiftOverlayAppShellActionFields(value: CreateRosterShiftOverlayAppShellActionFields): CreateRosterShiftOverlayAppShellActionFields { return value; }
+
+export const createRosterShiftOverlayAppShellActionManifest = {"name":"create-roster-shift-overlay","fields":["staffId","shiftTypeId","startTime","endTime"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type UpdateRosterShiftOverlayAppShellActionFields = { staffId: string; shiftTypeId: string; startTime: string; endTime: string };
+export function isUpdateRosterShiftOverlayAppShellActionFields(value: unknown): value is UpdateRosterShiftOverlayAppShellActionFields {
+    return isRecord(value) && (typeof value["staffId"] === "string") && (typeof value["shiftTypeId"] === "string") && (typeof value["startTime"] === "string") && (typeof value["endTime"] === "string");
+}
+export function parseUpdateRosterShiftOverlayAppShellActionFields(value: unknown): UpdateRosterShiftOverlayAppShellActionFields {
+    if (isUpdateRosterShiftOverlayAppShellActionFields(value)) return value;
+    throw new Error("Invalid UpdateRosterShiftOverlayAppShellActionFields");
+}
+export function encodeUpdateRosterShiftOverlayAppShellActionFields(value: UpdateRosterShiftOverlayAppShellActionFields): UpdateRosterShiftOverlayAppShellActionFields { return value; }
+
+export const updateRosterShiftOverlayAppShellActionManifest = {"name":"update-roster-shift-overlay","fields":["staffId","shiftTypeId","startTime","endTime"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type DeleteRosterSlotOverlayAppShellActionFields = {  };
+export function isDeleteRosterSlotOverlayAppShellActionFields(value: unknown): value is DeleteRosterSlotOverlayAppShellActionFields {
+    return isRecord(value);
+}
+export function parseDeleteRosterSlotOverlayAppShellActionFields(value: unknown): DeleteRosterSlotOverlayAppShellActionFields {
+    if (isDeleteRosterSlotOverlayAppShellActionFields(value)) return value;
+    throw new Error("Invalid DeleteRosterSlotOverlayAppShellActionFields");
+}
+export function encodeDeleteRosterSlotOverlayAppShellActionFields(value: DeleteRosterSlotOverlayAppShellActionFields): DeleteRosterSlotOverlayAppShellActionFields { return value; }
+
+export const deleteRosterSlotOverlayAppShellActionManifest = {"name":"delete-roster-slot-overlay","fields":[],"htmx":{"method":"delete","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":"Delete this shift?","select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type ConfirmRemoveRosterRowOverlayAppShellActionFields = { confirmDeletePopulatedRow: string };
+export function isConfirmRemoveRosterRowOverlayAppShellActionFields(value: unknown): value is ConfirmRemoveRosterRowOverlayAppShellActionFields {
+    return isRecord(value) && (typeof value["confirmDeletePopulatedRow"] === "string");
+}
+export function parseConfirmRemoveRosterRowOverlayAppShellActionFields(value: unknown): ConfirmRemoveRosterRowOverlayAppShellActionFields {
+    if (isConfirmRemoveRosterRowOverlayAppShellActionFields(value)) return value;
+    throw new Error("Invalid ConfirmRemoveRosterRowOverlayAppShellActionFields");
+}
+export function encodeConfirmRemoveRosterRowOverlayAppShellActionFields(value: ConfirmRemoveRosterRowOverlayAppShellActionFields): ConfirmRemoveRosterRowOverlayAppShellActionFields { return value; }
+
+export const confirmRemoveRosterRowOverlayAppShellActionManifest = {"name":"confirm-remove-roster-row-overlay","fields":["confirmDeletePopulatedRow"],"htmx":{"method":"post","trigger":null,"include":null,"sync":"#roster-week-shell:replace","indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type CreateTrialStaffOverlayAppShellActionFields = { firstName: string; lastName: string; preferredName: string; phone: string; idealShiftsPerWeek: string; emergencyContactName: string; emergencyContactPhone: string; section: string; weekOffset: string; rosterGroupId: string; venueRole: string; employmentBasis: string; payRateSelection: string; isActive: string; rosterGroupIds: string };
+export function isCreateTrialStaffOverlayAppShellActionFields(value: unknown): value is CreateTrialStaffOverlayAppShellActionFields {
+    return isRecord(value) && (typeof value["firstName"] === "string") && (typeof value["lastName"] === "string") && (typeof value["preferredName"] === "string") && (typeof value["phone"] === "string") && (typeof value["idealShiftsPerWeek"] === "string") && (typeof value["emergencyContactName"] === "string") && (typeof value["emergencyContactPhone"] === "string") && (typeof value["section"] === "string") && (typeof value["weekOffset"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["venueRole"] === "string") && (typeof value["employmentBasis"] === "string") && (typeof value["payRateSelection"] === "string") && (typeof value["isActive"] === "string") && (typeof value["rosterGroupIds"] === "string");
+}
+export function parseCreateTrialStaffOverlayAppShellActionFields(value: unknown): CreateTrialStaffOverlayAppShellActionFields {
+    if (isCreateTrialStaffOverlayAppShellActionFields(value)) return value;
+    throw new Error("Invalid CreateTrialStaffOverlayAppShellActionFields");
+}
+export function encodeCreateTrialStaffOverlayAppShellActionFields(value: CreateTrialStaffOverlayAppShellActionFields): CreateTrialStaffOverlayAppShellActionFields { return value; }
+
+export const createTrialStaffOverlayAppShellActionManifest = {"name":"create-trial-staff-overlay","fields":["firstName","lastName","preferredName","phone","idealShiftsPerWeek","emergencyContactName","emergencyContactPhone","section","weekOffset","rosterGroupId","venueRole","employmentBasis","payRateSelection","isActive","rosterGroupIds"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type UpdateStaffProfileOverlayAppShellActionFields = { firstName: string; lastName: string; preferredName: string; phone: string; idealShiftsPerWeek: string; emergencyContactName: string; emergencyContactPhone: string; section: string; weekOffset: string; rosterGroupId: string; venueRole: string; employmentBasis: string; payRateSelection: string; isActive: string; rosterGroupIds: string };
+export function isUpdateStaffProfileOverlayAppShellActionFields(value: unknown): value is UpdateStaffProfileOverlayAppShellActionFields {
+    return isRecord(value) && (typeof value["firstName"] === "string") && (typeof value["lastName"] === "string") && (typeof value["preferredName"] === "string") && (typeof value["phone"] === "string") && (typeof value["idealShiftsPerWeek"] === "string") && (typeof value["emergencyContactName"] === "string") && (typeof value["emergencyContactPhone"] === "string") && (typeof value["section"] === "string") && (typeof value["weekOffset"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["venueRole"] === "string") && (typeof value["employmentBasis"] === "string") && (typeof value["payRateSelection"] === "string") && (typeof value["isActive"] === "string") && (typeof value["rosterGroupIds"] === "string");
+}
+export function parseUpdateStaffProfileOverlayAppShellActionFields(value: unknown): UpdateStaffProfileOverlayAppShellActionFields {
+    if (isUpdateStaffProfileOverlayAppShellActionFields(value)) return value;
+    throw new Error("Invalid UpdateStaffProfileOverlayAppShellActionFields");
+}
+export function encodeUpdateStaffProfileOverlayAppShellActionFields(value: UpdateStaffProfileOverlayAppShellActionFields): UpdateStaffProfileOverlayAppShellActionFields { return value; }
+
+export const updateStaffProfileOverlayAppShellActionManifest = {"name":"update-staff-profile-overlay","fields":["firstName","lastName","preferredName","phone","idealShiftsPerWeek","emergencyContactName","emergencyContactPhone","section","weekOffset","rosterGroupId","venueRole","employmentBasis","payRateSelection","isActive","rosterGroupIds"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type UpdateStaffShiftPreferencesOverlayAppShellActionFields = { section: string; weekOffset: string; rosterGroupId: string; shiftPreferenceKeys: string };
+export function isUpdateStaffShiftPreferencesOverlayAppShellActionFields(value: unknown): value is UpdateStaffShiftPreferencesOverlayAppShellActionFields {
+    return isRecord(value) && (typeof value["section"] === "string") && (typeof value["weekOffset"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["shiftPreferenceKeys"] === "string");
+}
+export function parseUpdateStaffShiftPreferencesOverlayAppShellActionFields(value: unknown): UpdateStaffShiftPreferencesOverlayAppShellActionFields {
+    if (isUpdateStaffShiftPreferencesOverlayAppShellActionFields(value)) return value;
+    throw new Error("Invalid UpdateStaffShiftPreferencesOverlayAppShellActionFields");
+}
+export function encodeUpdateStaffShiftPreferencesOverlayAppShellActionFields(value: UpdateStaffShiftPreferencesOverlayAppShellActionFields): UpdateStaffShiftPreferencesOverlayAppShellActionFields { return value; }
+
+export const updateStaffShiftPreferencesOverlayAppShellActionManifest = {"name":"update-staff-shift-preferences-overlay","fields":["section","weekOffset","rosterGroupId","shiftPreferenceKeys"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type CreateTrialStaffInvitationOverlayAppShellActionFields = { invitationEmail: string };
+export function isCreateTrialStaffInvitationOverlayAppShellActionFields(value: unknown): value is CreateTrialStaffInvitationOverlayAppShellActionFields {
+    return isRecord(value) && (typeof value["invitationEmail"] === "string");
+}
+export function parseCreateTrialStaffInvitationOverlayAppShellActionFields(value: unknown): CreateTrialStaffInvitationOverlayAppShellActionFields {
+    if (isCreateTrialStaffInvitationOverlayAppShellActionFields(value)) return value;
+    throw new Error("Invalid CreateTrialStaffInvitationOverlayAppShellActionFields");
+}
+export function encodeCreateTrialStaffInvitationOverlayAppShellActionFields(value: CreateTrialStaffInvitationOverlayAppShellActionFields): CreateTrialStaffInvitationOverlayAppShellActionFields { return value; }
+
+export const createTrialStaffInvitationOverlayAppShellActionManifest = {"name":"create-trial-staff-invitation-overlay","fields":["invitationEmail"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
 export type UiRegionTransitionProfile =
     "none"
   | "fade"

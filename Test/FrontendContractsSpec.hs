@@ -24,6 +24,7 @@ import Application.Helper.FrontendContract.Contracts (TypeScriptDeclaration (..)
                                                       frontendContractsTypeScript)
 import qualified Application.Helper.FrontendContract.Htmx as Htmx
 import qualified Application.Helper.FrontendContract.IR as Contract
+import qualified Application.Helper.FrontendContract.Overlay as Overlay
 import Application.Helper.FrontendContract.Registry (registeredFrontendContractIR)
 import qualified Application.Helper.FrontendContract.Roster as Roster
 import Application.Helper.FrontendContract.RosterValues (RosterStaffSortKey (..),
@@ -126,12 +127,19 @@ tests = describe "Frontend contract generator foundation" do
                 , Contract.GlobalAppShellActionIR action <- global.globalPrimitives
                 ]
         let partialNavigateAction = appShellActionByMarker @AppShell.PartialNavigate
+        let openFeedbackDialogAction = appShellActionByMarker @Overlay.OpenFeedbackDialog
         fmap (.appShellActionName) (find ((== "partial-navigate") . (.appShellActionName)) appShellActions) `shouldBe` Just "partial-navigate"
         partialNavigateAction.appShellActionOptions
             `shouldBe` [ Contract.HtmxActionMethodIR "get"
                        , Contract.HtmxActionTargetIR "app-content-mount"
                        , Contract.HtmxActionSwapIR "innerHTML"
                        , Contract.HtmxActionPushUrlIR True
+                       ]
+        openFeedbackDialogAction.appShellActionOptions
+            `shouldBe` [ Contract.HtmxActionMethodIR "get"
+                       , Contract.HtmxActionTargetIR "dialog-overlay-mount"
+                       , Contract.HtmxActionSwapIR "innerHTML"
+                       , Contract.HtmxActionPushUrlIR False
                        ]
         appShellActionHtmxAttrPairs partialNavigateAction AppShellActionRoute
             { appShellActionRouteUrl = "/next"
@@ -143,6 +151,7 @@ tests = describe "Frontend contract generator foundation" do
             `shouldContain` [("data-bepis-app-shell-action", "partial-navigate")]
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export type AppShellActionManifest"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const partialNavigateAppShellActionManifest"
+        frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const openFeedbackDialogAppShellActionManifest"
 
     it "reflects generated overlay action manifests" do
         let overlayActions =
