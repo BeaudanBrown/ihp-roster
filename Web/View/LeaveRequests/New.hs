@@ -1,5 +1,11 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Web.View.LeaveRequests.New where
 
+import Application.Helper.FrontendContract.Overlay (CreateLeaveRequestOverlay)
+import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
+                                                            overlayActionByMarker,
+                                                            renderOverlayActionForm)
 import Web.View.Prelude
 
 newtype NewView = NewView
@@ -34,19 +40,21 @@ renderNewLeaveRequestDialog leaveRequest =
 renderLeaveRequestForm :: OverlayFormMode -> LeaveRequest -> Html
 renderLeaveRequestForm formMode leaveRequest =
     case formMode of
-        HtmxOverlayForm -> [hsx|
-            <form id={leaveRequestFormId}
-                  method="POST"
-                  action={CreateLeaveRequestAction}
-                  class="mt-3"
-                  data-disable-javascript-submission="true"
-                  hx-post={CreateLeaveRequestAction}
-                  hx-target={"#" <> dialogOverlayMountId}
-                  hx-swap="innerHTML"
-                  hx-push-url="false">
-                {renderLeaveRequestFormFields leaveRequest}
-            </form>
-        |]
+        HtmxOverlayForm ->
+            renderOverlayActionForm
+                (overlayActionByMarker @CreateLeaveRequestOverlay)
+                OverlayActionRoute
+                    { overlayActionRouteUrl = pathTo CreateLeaveRequestAction
+                    , overlayActionRouteFields = []
+                    , overlayActionRouteCustomHtmx = []
+                    , overlayActionRouteStandardUrl = Nothing
+                    , overlayActionRouteExtraAttrs =
+                        [ ("id", leaveRequestFormId)
+                        , ("class", "mt-3")
+                        , ("data-disable-javascript-submission", "true")
+                        ]
+                    }
+                (renderLeaveRequestFormFields leaveRequest)
         PageOverlayForm -> [hsx|
             <form id={leaveRequestFormId}
                   method="POST"

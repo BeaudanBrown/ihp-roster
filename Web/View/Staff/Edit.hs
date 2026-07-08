@@ -1,7 +1,13 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Web.View.Staff.Edit where
 
 import Application.Helper.Controller (VenueRole (VenueOwnerRole),
                                       currentUserIsSuperAdmin, hasRole)
+import Application.Helper.FrontendContract.Overlay (CreateTrialStaffInvitationOverlay)
+import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
+                                                            applyOverlayActionAttrs,
+                                                            overlayActionByMarker)
 import Application.Helper.StaffShiftPreferences
 import Web.View.LeaveRequests.New (renderLeaveRequestFormFields)
 import Web.View.Prelude
@@ -340,16 +346,7 @@ renderTrialStaffEmailField HtmxOverlayForm staff Nothing = [hsx|
                 class="form-control"
                 placeholder="name@example.com"
             />
-            <button
-                type="submit"
-                class="btn btn-outline-primary"
-                formaction={CreateTrialStaffInvitationAction staff.id}
-                formmethod="POST"
-                hx-post={CreateTrialStaffInvitationAction staff.id}
-                hx-target={"#" <> dialogOverlayMountId}
-                hx-swap="innerHTML"
-                hx-push-url="false"
-            >Invite</button>
+            {renderTrialStaffInviteOverlayButton staff}
         </div>
         <div class="form-text">Send an invite link to claim this trial staff profile.</div>
     </div>
@@ -375,6 +372,24 @@ renderTrialStaffEmailField PageOverlayForm staff Nothing = [hsx|
         <div class="form-text">Send an invite link to claim this trial staff profile.</div>
     </div>
 |]
+
+renderTrialStaffInviteOverlayButton :: Staff -> Html
+renderTrialStaffInviteOverlayButton staff =
+    applyOverlayActionAttrs
+        (overlayActionByMarker @CreateTrialStaffInvitationOverlay)
+        OverlayActionRoute
+            { overlayActionRouteUrl = pathTo (CreateTrialStaffInvitationAction staff.id)
+            , overlayActionRouteFields = []
+            , overlayActionRouteCustomHtmx = []
+            , overlayActionRouteStandardUrl = Nothing
+            , overlayActionRouteExtraAttrs =
+                [ ("type", "submit")
+                , ("class", "btn btn-outline-primary")
+                , ("formaction", pathTo (CreateTrialStaffInvitationAction staff.id))
+                , ("formmethod", "POST")
+                ]
+            }
+        [hsx|<button>Invite</button>|]
 
 renderStaffShiftPreferencesEditForm :: OverlayFormMode -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Int -> Maybe (Id RosterGroup) -> StaffController -> Html
 renderStaffShiftPreferencesEditForm formMode preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId action =

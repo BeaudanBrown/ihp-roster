@@ -1,5 +1,11 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Web.View.Passkeys.StepUp where
 
+import Application.Helper.FrontendContract.Overlay (OpenPasskeyRecoveryCodeDialog)
+import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
+                                                            overlayActionByMarker,
+                                                            renderOverlayActionLink)
 import Web.View.Prelude
 
 data StepUpView = StepUpView
@@ -35,16 +41,22 @@ renderStepUpControl redirectTo = [hsx|
     </div>
     <div id="passkey-step-up-status" class="alert d-none mt-3"></div>
     <div class="text-center mt-3">
-        <a href={ShowPasskeyRecoveryCodeDialogAction}
-           class="small"
-           hx-get={ShowPasskeyRecoveryCodeDialogAction}
-           hx-target={"#" <> dialogOverlayMountId}
-           hx-swap="innerHTML"
-           hx-push-url="false">
-            Can't access your passkey?
-        </a>
+        {renderRecoveryCodeDialogLink}
     </div>
 |]
+
+renderRecoveryCodeDialogLink :: (?context :: ControllerContext) => Html
+renderRecoveryCodeDialogLink =
+    renderOverlayActionLink
+        (overlayActionByMarker @OpenPasskeyRecoveryCodeDialog)
+        OverlayActionRoute
+            { overlayActionRouteUrl = pathTo ShowPasskeyRecoveryCodeDialogAction
+            , overlayActionRouteFields = []
+            , overlayActionRouteCustomHtmx = []
+            , overlayActionRouteStandardUrl = Nothing
+            , overlayActionRouteExtraAttrs = [("class", "small")]
+            }
+        [hsx|Can't access your passkey?|]
 
 passkeyRecoveryCodeFormId :: Text
 passkeyRecoveryCodeFormId = "passkey-recovery-code-form"

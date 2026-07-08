@@ -1226,6 +1226,54 @@ export function encodeDeleteTimesheetEntryOverlayOverlayActionFields(value: Dele
 
 export const deleteTimesheetEntryOverlayOverlayActionManifest = {"name":"delete-timesheet-entry-overlay","fields":["weekOffset","showApproved","showAllStaff","staffFilterId"],"htmx":{"method":"delete","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":"Delete this timesheet entry? This cannot be undone.","select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
 
+export type OpenPasskeySetupDialogOverlayActionFields = {  };
+export function isOpenPasskeySetupDialogOverlayActionFields(value: unknown): value is OpenPasskeySetupDialogOverlayActionFields {
+    return isRecord(value);
+}
+export function parseOpenPasskeySetupDialogOverlayActionFields(value: unknown): OpenPasskeySetupDialogOverlayActionFields {
+    if (isOpenPasskeySetupDialogOverlayActionFields(value)) return value;
+    throw new Error("Invalid OpenPasskeySetupDialogOverlayActionFields");
+}
+export function encodeOpenPasskeySetupDialogOverlayActionFields(value: OpenPasskeySetupDialogOverlayActionFields): OpenPasskeySetupDialogOverlayActionFields { return value; }
+
+export const openPasskeySetupDialogOverlayActionManifest = {"name":"open-passkey-setup-dialog","fields":[],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type OpenPasskeyRecoveryCodeDialogOverlayActionFields = {  };
+export function isOpenPasskeyRecoveryCodeDialogOverlayActionFields(value: unknown): value is OpenPasskeyRecoveryCodeDialogOverlayActionFields {
+    return isRecord(value);
+}
+export function parseOpenPasskeyRecoveryCodeDialogOverlayActionFields(value: unknown): OpenPasskeyRecoveryCodeDialogOverlayActionFields {
+    if (isOpenPasskeyRecoveryCodeDialogOverlayActionFields(value)) return value;
+    throw new Error("Invalid OpenPasskeyRecoveryCodeDialogOverlayActionFields");
+}
+export function encodeOpenPasskeyRecoveryCodeDialogOverlayActionFields(value: OpenPasskeyRecoveryCodeDialogOverlayActionFields): OpenPasskeyRecoveryCodeDialogOverlayActionFields { return value; }
+
+export const openPasskeyRecoveryCodeDialogOverlayActionManifest = {"name":"open-passkey-recovery-code-dialog","fields":[],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type CreateLeaveRequestOverlayOverlayActionFields = { startDate: string; endDate: string; reason: string };
+export function isCreateLeaveRequestOverlayOverlayActionFields(value: unknown): value is CreateLeaveRequestOverlayOverlayActionFields {
+    return isRecord(value) && (typeof value["startDate"] === "string") && (typeof value["endDate"] === "string") && (typeof value["reason"] === "string");
+}
+export function parseCreateLeaveRequestOverlayOverlayActionFields(value: unknown): CreateLeaveRequestOverlayOverlayActionFields {
+    if (isCreateLeaveRequestOverlayOverlayActionFields(value)) return value;
+    throw new Error("Invalid CreateLeaveRequestOverlayOverlayActionFields");
+}
+export function encodeCreateLeaveRequestOverlayOverlayActionFields(value: CreateLeaveRequestOverlayOverlayActionFields): CreateLeaveRequestOverlayOverlayActionFields { return value; }
+
+export const createLeaveRequestOverlayOverlayActionManifest = {"name":"create-leave-request-overlay","fields":["startDate","endDate","reason"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type CreateTrialStaffInvitationOverlayOverlayActionFields = { invitationEmail: string };
+export function isCreateTrialStaffInvitationOverlayOverlayActionFields(value: unknown): value is CreateTrialStaffInvitationOverlayOverlayActionFields {
+    return isRecord(value) && (typeof value["invitationEmail"] === "string");
+}
+export function parseCreateTrialStaffInvitationOverlayOverlayActionFields(value: unknown): CreateTrialStaffInvitationOverlayOverlayActionFields {
+    if (isCreateTrialStaffInvitationOverlayOverlayActionFields(value)) return value;
+    throw new Error("Invalid CreateTrialStaffInvitationOverlayOverlayActionFields");
+}
+export function encodeCreateTrialStaffInvitationOverlayOverlayActionFields(value: CreateTrialStaffInvitationOverlayOverlayActionFields): CreateTrialStaffInvitationOverlayOverlayActionFields { return value; }
+
+export const createTrialStaffInvitationOverlayOverlayActionManifest = {"name":"create-trial-staff-invitation-overlay","fields":["invitationEmail"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
 export type SurfaceLabLabScopeScope = { venueId: FrontendContractUuid; weekOffset: number };
 export function isSurfaceLabLabScopeScope(value: unknown): value is SurfaceLabLabScopeScope {
     return isRecord(value) && (typeof value["venueId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));

@@ -27,6 +27,14 @@ module Application.Helper.FrontendContract.Overlay
     , BreakEndTimeField
     , StaffCommentField
     , ManagerNoteField
+    , OpenPasskeySetupDialog
+    , OpenPasskeyRecoveryCodeDialog
+    , CreateLeaveRequestOverlay
+    , CreateTrialStaffInvitationOverlay
+    , StartDateField
+    , EndDateField
+    , ReasonField
+    , InvitationEmailField
     ) where
 
 import Application.Helper.FrontendContract.App (DialogOverlayMount)
@@ -58,6 +66,15 @@ data BreakStartTimeField
 data BreakEndTimeField
 data StaffCommentField
 data ManagerNoteField
+
+data OpenPasskeySetupDialog
+data OpenPasskeyRecoveryCodeDialog
+data CreateLeaveRequestOverlay
+data CreateTrialStaffInvitationOverlay
+data StartDateField
+data EndDateField
+data ReasonField
+data InvitationEmailField
 
 type OverlayContract =
     Global Overlay
@@ -105,7 +122,35 @@ type OverlayContract =
              , OverlayHtmxPushUrl 'OverlayPushUrlFalse
              , OverlayHtmxConfirm "Delete this timesheet entry? This cannot be undone."
              ]
+         , OverlayAction OpenPasskeySetupDialog DialogLauncherFields DialogLauncherOptions
+         , OverlayAction OpenPasskeyRecoveryCodeDialog DialogLauncherFields DialogLauncherOptions
+         , OverlayAction CreateLeaveRequestOverlay
+            '[ Field StartDateField 'WireText
+             , Field EndDateField 'WireText
+             , Field ReasonField 'WireText
+             ]
+            DialogSubmitOptions
+         , OverlayAction CreateTrialStaffInvitationOverlay
+            '[ Field InvitationEmailField 'WireText
+             ]
+            DialogSubmitOptions
          ]
+
+type DialogLauncherFields = '[]
+
+type DialogLauncherOptions =
+    '[ OverlayHtmxMethod 'OverlayGet
+     , OverlayHtmxTarget DialogOverlayMount
+     , OverlayHtmxSwap "innerHTML"
+     , OverlayHtmxPushUrl 'OverlayPushUrlFalse
+     ]
+
+type DialogSubmitOptions =
+    '[ OverlayHtmxMethod 'OverlayPost
+     , OverlayHtmxTarget DialogOverlayMount
+     , OverlayHtmxSwap "innerHTML"
+     , OverlayHtmxPushUrl 'OverlayPushUrlFalse
+     ]
 
 type TimesheetEntryFields =
     '[ Field WeekOffsetField 'WireText
