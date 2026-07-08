@@ -1,5 +1,10 @@
+{-# LANGUAGE OverloadedRecordDot #-}
+
 module Web.View.StaffProfileSections where
 
+import Application.Helper.FrontendContract.IR (OverlayActionIR)
+import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
+                                                            renderOverlayActionForm)
 import Application.Helper.StaffShiftPreferences
 import Web.View.Prelude
 import Web.View.StaffProfileForm
@@ -17,17 +22,21 @@ data StaffProfileAccordionSection = StaffProfileAccordionSection
     , staffProfileSectionBody  :: Html
     }
 
-data StaffProfileFormHtmxConfig = StaffProfileFormHtmxConfig
+data StaffProfileFragmentHtmxConfig = StaffProfileFragmentHtmxConfig
     { staffProfileFormHtmxTarget  :: Text
     , staffProfileFormHtmxSwap    :: Text
     , staffProfileFormHtmxPushUrl :: Text
     }
 
+data StaffProfileFormRequestMode
+    = StaffProfileFragmentHtmx StaffProfileFragmentHtmxConfig
+    | StaffProfileOverlayAction OverlayActionIR OverlayActionRoute
+
 data StaffProfileDetailsFormConfig = StaffProfileDetailsFormConfig
     { staffProfileDetailsFormId             :: Text
     , staffProfileDetailsFormAction         :: Text
     , staffProfileDetailsFormClass          :: Text
-    , staffProfileDetailsFormHtmx           :: Maybe StaffProfileFormHtmxConfig
+    , staffProfileDetailsFormRequestMode    :: Maybe StaffProfileFormRequestMode
     , staffProfileDetailsFormAttributes     :: [(Text, Text)]
     , staffProfileDetailsFormHiddenInputs   :: Html
     , staffProfileDetailsFormBeforeFields   :: Html
@@ -43,7 +52,7 @@ data StaffShiftPreferencesFormConfig = StaffShiftPreferencesFormConfig
     { staffShiftPreferencesFormId           :: Text
     , staffShiftPreferencesFormAction       :: Text
     , staffShiftPreferencesFormClass        :: Text
-    , staffShiftPreferencesFormHtmx         :: Maybe StaffProfileFormHtmxConfig
+    , staffShiftPreferencesFormRequestMode  :: Maybe StaffProfileFormRequestMode
     , staffShiftPreferencesFormHiddenInputs :: Html
     , staffShiftPreferencesFormSubmitLabel  :: Text
     }
@@ -69,13 +78,19 @@ renderStaffProfileAccordionSection accordionId openSection StaffProfileAccordion
         }
 
 renderStaffProfileDetailsForm :: StaffProfileDetailsFormConfig -> Staff -> Maybe Text -> Html
-renderStaffProfileDetailsForm config@StaffProfileDetailsFormConfig { staffProfileDetailsFormHtmx = Just htmxConfig } staff maybeEmail =
-    renderStaffProfileDetailsFormWithHtmx config htmxConfig staff maybeEmail
+renderStaffProfileDetailsForm config@StaffProfileDetailsFormConfig { staffProfileDetailsFormRequestMode = Just requestMode } staff maybeEmail =
+    renderStaffProfileDetailsFormWithRequestMode config requestMode staff maybeEmail
 renderStaffProfileDetailsForm config staff maybeEmail =
     renderStaffProfileDetailsFormNative config staff maybeEmail
 
-renderStaffProfileDetailsFormWithHtmx :: StaffProfileDetailsFormConfig -> StaffProfileFormHtmxConfig -> Staff -> Maybe Text -> Html
-renderStaffProfileDetailsFormWithHtmx config@StaffProfileDetailsFormConfig { .. } StaffProfileFormHtmxConfig { .. } staff maybeEmail = [hsx|
+renderStaffProfileDetailsFormWithRequestMode :: StaffProfileDetailsFormConfig -> StaffProfileFormRequestMode -> Staff -> Maybe Text -> Html
+renderStaffProfileDetailsFormWithRequestMode config (StaffProfileFragmentHtmx htmxConfig) staff maybeEmail =
+    renderStaffProfileDetailsFormWithFragmentHtmx config htmxConfig staff maybeEmail
+renderStaffProfileDetailsFormWithRequestMode config (StaffProfileOverlayAction action route) staff maybeEmail =
+    renderStaffProfileDetailsFormWithOverlayAction config action route staff maybeEmail
+
+renderStaffProfileDetailsFormWithFragmentHtmx :: StaffProfileDetailsFormConfig -> StaffProfileFragmentHtmxConfig -> Staff -> Maybe Text -> Html
+renderStaffProfileDetailsFormWithFragmentHtmx config@StaffProfileDetailsFormConfig { .. } StaffProfileFragmentHtmxConfig { .. } staff maybeEmail = [hsx|
     <form id={staffProfileDetailsFormId}
           method="POST"
           action={staffProfileDetailsFormAction}
@@ -89,6 +104,21 @@ renderStaffProfileDetailsFormWithHtmx config@StaffProfileDetailsFormConfig { .. 
         {renderStaffProfileDetailsFormBody config staff maybeEmail}
     </form>
 |]
+
+renderStaffProfileDetailsFormWithOverlayAction :: StaffProfileDetailsFormConfig -> OverlayActionIR -> OverlayActionRoute -> Staff -> Maybe Text -> Html
+renderStaffProfileDetailsFormWithOverlayAction config@StaffProfileDetailsFormConfig { .. } action route staff maybeEmail =
+    renderOverlayActionForm
+        action
+        route
+            { overlayActionRouteExtraAttrs =
+                [ ("id", staffProfileDetailsFormId)
+                , ("class", staffProfileDetailsFormClass)
+                , ("data-disable-javascript-submission", "true")
+                ]
+                    <> staffProfileDetailsFormAttributes
+                    <> route.overlayActionRouteExtraAttrs
+            }
+        (renderStaffProfileDetailsFormBody config staff maybeEmail)
 
 renderStaffProfileDetailsFormNative :: StaffProfileDetailsFormConfig -> Staff -> Maybe Text -> Html
 renderStaffProfileDetailsFormNative config@StaffProfileDetailsFormConfig { .. } staff maybeEmail = [hsx|
@@ -119,13 +149,19 @@ renderStaffProfileDetailsFieldsHeading (Just heading) = [hsx|<h5 class="mb-3">{h
 renderStaffProfileDetailsFieldsHeading Nothing = mempty
 
 renderStaffShiftPreferencesForm :: StaffShiftPreferencesFormConfig -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
-renderStaffShiftPreferencesForm config@StaffShiftPreferencesFormConfig { staffShiftPreferencesFormHtmx = Just htmxConfig } preferenceWeekdays selectedShiftPreferences =
-    renderStaffShiftPreferencesFormWithHtmx config htmxConfig preferenceWeekdays selectedShiftPreferences
+renderStaffShiftPreferencesForm config@StaffShiftPreferencesFormConfig { staffShiftPreferencesFormRequestMode = Just requestMode } preferenceWeekdays selectedShiftPreferences =
+    renderStaffShiftPreferencesFormWithRequestMode config requestMode preferenceWeekdays selectedShiftPreferences
 renderStaffShiftPreferencesForm config preferenceWeekdays selectedShiftPreferences =
     renderStaffShiftPreferencesFormNative config preferenceWeekdays selectedShiftPreferences
 
-renderStaffShiftPreferencesFormWithHtmx :: StaffShiftPreferencesFormConfig -> StaffProfileFormHtmxConfig -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
-renderStaffShiftPreferencesFormWithHtmx config@StaffShiftPreferencesFormConfig { .. } StaffProfileFormHtmxConfig { .. } preferenceWeekdays selectedShiftPreferences = [hsx|
+renderStaffShiftPreferencesFormWithRequestMode :: StaffShiftPreferencesFormConfig -> StaffProfileFormRequestMode -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
+renderStaffShiftPreferencesFormWithRequestMode config (StaffProfileFragmentHtmx htmxConfig) preferenceWeekdays selectedShiftPreferences =
+    renderStaffShiftPreferencesFormWithFragmentHtmx config htmxConfig preferenceWeekdays selectedShiftPreferences
+renderStaffShiftPreferencesFormWithRequestMode config (StaffProfileOverlayAction action route) preferenceWeekdays selectedShiftPreferences =
+    renderStaffShiftPreferencesFormWithOverlayAction config action route preferenceWeekdays selectedShiftPreferences
+
+renderStaffShiftPreferencesFormWithFragmentHtmx :: StaffShiftPreferencesFormConfig -> StaffProfileFragmentHtmxConfig -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
+renderStaffShiftPreferencesFormWithFragmentHtmx config@StaffShiftPreferencesFormConfig { .. } StaffProfileFragmentHtmxConfig { .. } preferenceWeekdays selectedShiftPreferences = [hsx|
     <form id={staffShiftPreferencesFormId}
           method="POST"
           action={staffShiftPreferencesFormAction}
@@ -138,6 +174,20 @@ renderStaffShiftPreferencesFormWithHtmx config@StaffShiftPreferencesFormConfig {
         {renderStaffShiftPreferencesFormBody config preferenceWeekdays selectedShiftPreferences}
     </form>
 |]
+
+renderStaffShiftPreferencesFormWithOverlayAction :: StaffShiftPreferencesFormConfig -> OverlayActionIR -> OverlayActionRoute -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
+renderStaffShiftPreferencesFormWithOverlayAction config@StaffShiftPreferencesFormConfig { .. } action route preferenceWeekdays selectedShiftPreferences =
+    renderOverlayActionForm
+        action
+        route
+            { overlayActionRouteExtraAttrs =
+                [ ("id", staffShiftPreferencesFormId)
+                , ("class", staffShiftPreferencesFormClass)
+                , ("data-disable-javascript-submission", "true")
+                ]
+                    <> route.overlayActionRouteExtraAttrs
+            }
+        (renderStaffShiftPreferencesFormBody config preferenceWeekdays selectedShiftPreferences)
 
 renderStaffShiftPreferencesFormNative :: StaffShiftPreferencesFormConfig -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
 renderStaffShiftPreferencesFormNative config@StaffShiftPreferencesFormConfig { .. } preferenceWeekdays selectedShiftPreferences = [hsx|

@@ -1,6 +1,6 @@
 ---
 id: ir-h9ui
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-07-08T00:22:15Z
@@ -28,3 +28,7 @@ Migrated callsites use generated OverlayAction helpers, generated TS is refreshe
 **2026-07-08T00:36:10Z**
 
 Migrated passkey setup/recovery dialog launchers, leave request dialog submit, and trial-staff invitation overlay button to generated OverlayAction. Remaining decision point: shared StaffProfileSections forms are used both as overlay-modal staff edit forms and profile/fragment forms; migrating the overlay variant cleanly requires splitting/extending the shared Htmx config with generated OverlayAction metadata while preserving non-overlay fragment targets.
+
+**2026-07-08T00:52:18Z**
+
+Implemented request-mode sum type for shared staff/profile forms: fragment HTMX remains for profile fragments; staff dialog create/update/preference forms now use generated OverlayAction metadata. Verified typecheck, frontend-check, and focused ProfilesController/StaffController tests.

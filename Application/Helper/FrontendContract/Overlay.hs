@@ -30,10 +30,28 @@ module Application.Helper.FrontendContract.Overlay
     , OpenPasskeySetupDialog
     , OpenPasskeyRecoveryCodeDialog
     , CreateLeaveRequestOverlay
+    , CreateTrialStaffOverlay
+    , UpdateStaffProfileOverlay
+    , UpdateStaffShiftPreferencesOverlay
     , CreateTrialStaffInvitationOverlay
     , StartDateField
     , EndDateField
     , ReasonField
+    , FirstNameField
+    , LastNameField
+    , PreferredNameField
+    , PhoneField
+    , IdealShiftsPerWeekField
+    , EmergencyContactNameField
+    , EmergencyContactPhoneField
+    , SectionField
+    , VenueRoleField
+    , EmploymentBasisField
+    , PayRateSelectionField
+    , IsActiveField
+    , RosterGroupIdsField
+    , RosterGroupIdField
+    , ShiftPreferenceKeysField
     , InvitationEmailField
     ) where
 
@@ -70,10 +88,28 @@ data ManagerNoteField
 data OpenPasskeySetupDialog
 data OpenPasskeyRecoveryCodeDialog
 data CreateLeaveRequestOverlay
+data CreateTrialStaffOverlay
+data UpdateStaffProfileOverlay
+data UpdateStaffShiftPreferencesOverlay
 data CreateTrialStaffInvitationOverlay
 data StartDateField
 data EndDateField
 data ReasonField
+data FirstNameField
+data LastNameField
+data PreferredNameField
+data PhoneField
+data IdealShiftsPerWeekField
+data EmergencyContactNameField
+data EmergencyContactPhoneField
+data SectionField
+data VenueRoleField
+data EmploymentBasisField
+data PayRateSelectionField
+data IsActiveField
+data RosterGroupIdsField
+data RosterGroupIdField
+data ShiftPreferenceKeysField
 data InvitationEmailField
 
 type OverlayContract =
@@ -130,6 +166,9 @@ type OverlayContract =
              , Field ReasonField 'WireText
              ]
             DialogSubmitOptions
+         , OverlayAction CreateTrialStaffOverlay StaffProfileFields DialogSubmitOptions
+         , OverlayAction UpdateStaffProfileOverlay StaffProfileFields DialogSubmitOptions
+         , OverlayAction UpdateStaffShiftPreferencesOverlay StaffShiftPreferenceFields DialogSubmitOptions
          , OverlayAction CreateTrialStaffInvitationOverlay
             '[ Field InvitationEmailField 'WireText
              ]
@@ -150,6 +189,31 @@ type DialogSubmitOptions =
      , OverlayHtmxTarget DialogOverlayMount
      , OverlayHtmxSwap "innerHTML"
      , OverlayHtmxPushUrl 'OverlayPushUrlFalse
+     ]
+
+type StaffProfileFields =
+    '[ Field FirstNameField 'WireText
+     , Field LastNameField 'WireText
+     , Field PreferredNameField 'WireText
+     , Field PhoneField 'WireText
+     , Field IdealShiftsPerWeekField 'WireText
+     , Field EmergencyContactNameField 'WireText
+     , Field EmergencyContactPhoneField 'WireText
+     , Field SectionField 'WireText
+     , Field WeekOffsetField 'WireText
+     , Field RosterGroupIdField 'WireText
+     , Field VenueRoleField 'WireText
+     , Field EmploymentBasisField 'WireText
+     , Field PayRateSelectionField 'WireText
+     , Field IsActiveField 'WireText
+     , Field RosterGroupIdsField 'WireText
+     ]
+
+type StaffShiftPreferenceFields =
+    '[ Field SectionField 'WireText
+     , Field WeekOffsetField 'WireText
+     , Field RosterGroupIdField 'WireText
+     , Field ShiftPreferenceKeysField 'WireText
      ]
 
 type TimesheetEntryFields =

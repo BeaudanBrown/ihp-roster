@@ -4,7 +4,11 @@ module Web.View.Staff.Edit where
 
 import Application.Helper.Controller (VenueRole (VenueOwnerRole),
                                       currentUserIsSuperAdmin, hasRole)
-import Application.Helper.FrontendContract.Overlay (CreateTrialStaffInvitationOverlay)
+import Application.Helper.FrontendContract.IR (OverlayActionIR)
+import Application.Helper.FrontendContract.Overlay (CreateTrialStaffInvitationOverlay,
+                                                    CreateTrialStaffOverlay,
+                                                    UpdateStaffProfileOverlay,
+                                                    UpdateStaffShiftPreferencesOverlay)
 import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
                                                             applyOverlayActionAttrs,
                                                             overlayActionByMarker)
@@ -96,7 +100,7 @@ renderNewStaffBody formMode staff rosterGroups awardLevels awardLevelBaseRates i
                 { staffProfileDetailsFormId = "staff-new-form"
                 , staffProfileDetailsFormAction = pathTo CreateStaffAction
                 , staffProfileDetailsFormClass = "mt-3"
-                , staffProfileDetailsFormHtmx = staffEditFormHtmxConfig formMode
+                , staffProfileDetailsFormRequestMode = staffDetailsFormRequestMode formMode (pathTo CreateStaffAction) CreateTrialStaffOverlayMarker
                 , staffProfileDetailsFormAttributes = []
                 , staffProfileDetailsFormHiddenInputs = mempty
                 , staffProfileDetailsFormBeforeFields = [hsx|
@@ -305,7 +309,7 @@ renderStaffDetailsForm formMode staff maybeLinkedUserEmail pendingTrialStaffInvi
             { staffProfileDetailsFormId = staffEditFormId
             , staffProfileDetailsFormAction = pathTo action
             , staffProfileDetailsFormClass = "mt-3"
-            , staffProfileDetailsFormHtmx = staffEditFormHtmxConfig formMode
+            , staffProfileDetailsFormRequestMode = staffDetailsFormRequestMode formMode (pathTo action) UpdateStaffProfileOverlayMarker
             , staffProfileDetailsFormAttributes = []
             , staffProfileDetailsFormHiddenInputs = [hsx|<input type="hidden" name="section" value="profile"/>|]
             , staffProfileDetailsFormBeforeFields = mempty
@@ -398,7 +402,7 @@ renderStaffShiftPreferencesEditForm formMode preferenceWeekdays selectedShiftPre
             { staffShiftPreferencesFormId = staffShiftPreferencesEditFormId
             , staffShiftPreferencesFormAction = pathTo action
             , staffShiftPreferencesFormClass = "mt-3"
-            , staffShiftPreferencesFormHtmx = staffEditFormHtmxConfig formMode
+            , staffShiftPreferencesFormRequestMode = staffShiftPreferencesOverlayRequestMode formMode (pathTo action)
             , staffShiftPreferencesFormHiddenInputs = [hsx|
                 <input type="hidden" name="section" value="preferences"/>
                 {renderWeekOffsetHiddenInput weekOffset}
@@ -409,12 +413,31 @@ renderStaffShiftPreferencesEditForm formMode preferenceWeekdays selectedShiftPre
         preferenceWeekdays
         selectedShiftPreferences
 
-staffEditFormHtmxConfig :: OverlayFormMode -> Maybe StaffProfileFormHtmxConfig
-staffEditFormHtmxConfig HtmxOverlayForm =
-    Just StaffProfileFormHtmxConfig
-        { staffProfileFormHtmxTarget = "#" <> dialogOverlayMountId
-        , staffProfileFormHtmxSwap = "innerHTML"
-        , staffProfileFormHtmxPushUrl = "false"
+data StaffDetailsOverlayMarker
+    = CreateTrialStaffOverlayMarker
+    | UpdateStaffProfileOverlayMarker
+
+staffDetailsFormRequestMode :: OverlayFormMode -> Text -> StaffDetailsOverlayMarker -> Maybe StaffProfileFormRequestMode
+staffDetailsFormRequestMode HtmxOverlayForm actionUrl marker =
+    Just (StaffProfileOverlayAction (staffDetailsOverlayAction marker) (staffOverlayActionRoute actionUrl))
+staffDetailsFormRequestMode PageOverlayForm _ _ = Nothing
+
+staffDetailsOverlayAction :: StaffDetailsOverlayMarker -> OverlayActionIR
+staffDetailsOverlayAction CreateTrialStaffOverlayMarker = overlayActionByMarker @CreateTrialStaffOverlay
+staffDetailsOverlayAction UpdateStaffProfileOverlayMarker = overlayActionByMarker @UpdateStaffProfileOverlay
+
+staffShiftPreferencesOverlayRequestMode :: OverlayFormMode -> Text -> Maybe StaffProfileFormRequestMode
+staffShiftPreferencesOverlayRequestMode HtmxOverlayForm actionUrl =
+    Just (StaffProfileOverlayAction (overlayActionByMarker @UpdateStaffShiftPreferencesOverlay) (staffOverlayActionRoute actionUrl))
+staffShiftPreferencesOverlayRequestMode PageOverlayForm _ = Nothing
+
+staffOverlayActionRoute :: Text -> OverlayActionRoute
+staffOverlayActionRoute actionUrl =
+    OverlayActionRoute
+        { overlayActionRouteUrl = actionUrl
+        , overlayActionRouteFields = []
+        , overlayActionRouteCustomHtmx = []
+        , overlayActionRouteStandardUrl = Nothing
+        , overlayActionRouteExtraAttrs = []
         }
-staffEditFormHtmxConfig PageOverlayForm = Nothing
 

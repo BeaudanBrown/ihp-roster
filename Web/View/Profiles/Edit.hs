@@ -229,12 +229,12 @@ renderProfileForm staff currentUserEmail staffManagementFields =
             { staffProfileDetailsFormId = profileDetailsFormId
             , staffProfileDetailsFormAction = pathTo UpdateProfileAction
             , staffProfileDetailsFormClass = ""
-            , staffProfileDetailsFormHtmx =
-                Just StaffProfileFormHtmxConfig
+            , staffProfileDetailsFormRequestMode =
+                Just (StaffProfileFragmentHtmx StaffProfileFragmentHtmxConfig
                     { staffProfileFormHtmxTarget = "#" <> profileDetailsSectionId
                     , staffProfileFormHtmxSwap = "outerHTML show:none"
                     , staffProfileFormHtmxPushUrl = "false"
-                    }
+                    })
             , staffProfileDetailsFormAttributes = []
             , staffProfileDetailsFormHiddenInputs = [hsx|<input type="hidden" name="section" value="profile"/>|]
             , staffProfileDetailsFormBeforeFields = mempty
@@ -255,12 +255,12 @@ renderProfileShiftPreferencesForm preferenceWeekdays selectedShiftPreferences =
             { staffShiftPreferencesFormId = profileShiftPreferencesFormId
             , staffShiftPreferencesFormAction = pathTo UpdateProfileAction
             , staffShiftPreferencesFormClass = ""
-            , staffShiftPreferencesFormHtmx =
-                Just StaffProfileFormHtmxConfig
+            , staffShiftPreferencesFormRequestMode =
+                Just (StaffProfileFragmentHtmx StaffProfileFragmentHtmxConfig
                     { staffProfileFormHtmxTarget = "#" <> profilePreferencesSectionId
                     , staffProfileFormHtmxSwap = "outerHTML show:none"
                     , staffProfileFormHtmxPushUrl = "false"
-                    }
+                    })
             , staffShiftPreferencesFormHiddenInputs = [hsx|<input type="hidden" name="section" value="preferences"/>|]
             , staffShiftPreferencesFormSubmitLabel = "Save shift preferences"
             }

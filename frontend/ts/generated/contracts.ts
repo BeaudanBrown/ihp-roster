@@ -1262,6 +1262,42 @@ export function encodeCreateLeaveRequestOverlayOverlayActionFields(value: Create
 
 export const createLeaveRequestOverlayOverlayActionManifest = {"name":"create-leave-request-overlay","fields":["startDate","endDate","reason"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
 
+export type CreateTrialStaffOverlayOverlayActionFields = { firstName: string; lastName: string; preferredName: string; phone: string; idealShiftsPerWeek: string; emergencyContactName: string; emergencyContactPhone: string; section: string; weekOffset: string; rosterGroupId: string; venueRole: string; employmentBasis: string; payRateSelection: string; isActive: string; rosterGroupIds: string };
+export function isCreateTrialStaffOverlayOverlayActionFields(value: unknown): value is CreateTrialStaffOverlayOverlayActionFields {
+    return isRecord(value) && (typeof value["firstName"] === "string") && (typeof value["lastName"] === "string") && (typeof value["preferredName"] === "string") && (typeof value["phone"] === "string") && (typeof value["idealShiftsPerWeek"] === "string") && (typeof value["emergencyContactName"] === "string") && (typeof value["emergencyContactPhone"] === "string") && (typeof value["section"] === "string") && (typeof value["weekOffset"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["venueRole"] === "string") && (typeof value["employmentBasis"] === "string") && (typeof value["payRateSelection"] === "string") && (typeof value["isActive"] === "string") && (typeof value["rosterGroupIds"] === "string");
+}
+export function parseCreateTrialStaffOverlayOverlayActionFields(value: unknown): CreateTrialStaffOverlayOverlayActionFields {
+    if (isCreateTrialStaffOverlayOverlayActionFields(value)) return value;
+    throw new Error("Invalid CreateTrialStaffOverlayOverlayActionFields");
+}
+export function encodeCreateTrialStaffOverlayOverlayActionFields(value: CreateTrialStaffOverlayOverlayActionFields): CreateTrialStaffOverlayOverlayActionFields { return value; }
+
+export const createTrialStaffOverlayOverlayActionManifest = {"name":"create-trial-staff-overlay","fields":["firstName","lastName","preferredName","phone","idealShiftsPerWeek","emergencyContactName","emergencyContactPhone","section","weekOffset","rosterGroupId","venueRole","employmentBasis","payRateSelection","isActive","rosterGroupIds"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type UpdateStaffProfileOverlayOverlayActionFields = { firstName: string; lastName: string; preferredName: string; phone: string; idealShiftsPerWeek: string; emergencyContactName: string; emergencyContactPhone: string; section: string; weekOffset: string; rosterGroupId: string; venueRole: string; employmentBasis: string; payRateSelection: string; isActive: string; rosterGroupIds: string };
+export function isUpdateStaffProfileOverlayOverlayActionFields(value: unknown): value is UpdateStaffProfileOverlayOverlayActionFields {
+    return isRecord(value) && (typeof value["firstName"] === "string") && (typeof value["lastName"] === "string") && (typeof value["preferredName"] === "string") && (typeof value["phone"] === "string") && (typeof value["idealShiftsPerWeek"] === "string") && (typeof value["emergencyContactName"] === "string") && (typeof value["emergencyContactPhone"] === "string") && (typeof value["section"] === "string") && (typeof value["weekOffset"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["venueRole"] === "string") && (typeof value["employmentBasis"] === "string") && (typeof value["payRateSelection"] === "string") && (typeof value["isActive"] === "string") && (typeof value["rosterGroupIds"] === "string");
+}
+export function parseUpdateStaffProfileOverlayOverlayActionFields(value: unknown): UpdateStaffProfileOverlayOverlayActionFields {
+    if (isUpdateStaffProfileOverlayOverlayActionFields(value)) return value;
+    throw new Error("Invalid UpdateStaffProfileOverlayOverlayActionFields");
+}
+export function encodeUpdateStaffProfileOverlayOverlayActionFields(value: UpdateStaffProfileOverlayOverlayActionFields): UpdateStaffProfileOverlayOverlayActionFields { return value; }
+
+export const updateStaffProfileOverlayOverlayActionManifest = {"name":"update-staff-profile-overlay","fields":["firstName","lastName","preferredName","phone","idealShiftsPerWeek","emergencyContactName","emergencyContactPhone","section","weekOffset","rosterGroupId","venueRole","employmentBasis","payRateSelection","isActive","rosterGroupIds"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type UpdateStaffShiftPreferencesOverlayOverlayActionFields = { section: string; weekOffset: string; rosterGroupId: string; shiftPreferenceKeys: string };
+export function isUpdateStaffShiftPreferencesOverlayOverlayActionFields(value: unknown): value is UpdateStaffShiftPreferencesOverlayOverlayActionFields {
+    return isRecord(value) && (typeof value["section"] === "string") && (typeof value["weekOffset"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["shiftPreferenceKeys"] === "string");
+}
+export function parseUpdateStaffShiftPreferencesOverlayOverlayActionFields(value: unknown): UpdateStaffShiftPreferencesOverlayOverlayActionFields {
+    if (isUpdateStaffShiftPreferencesOverlayOverlayActionFields(value)) return value;
+    throw new Error("Invalid UpdateStaffShiftPreferencesOverlayOverlayActionFields");
+}
+export function encodeUpdateStaffShiftPreferencesOverlayOverlayActionFields(value: UpdateStaffShiftPreferencesOverlayOverlayActionFields): UpdateStaffShiftPreferencesOverlayOverlayActionFields { return value; }
+
+export const updateStaffShiftPreferencesOverlayOverlayActionManifest = {"name":"update-staff-shift-preferences-overlay","fields":["section","weekOffset","rosterGroupId","shiftPreferenceKeys"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
 export type CreateTrialStaffInvitationOverlayOverlayActionFields = { invitationEmail: string };
 export function isCreateTrialStaffInvitationOverlayOverlayActionFields(value: unknown): value is CreateTrialStaffInvitationOverlayOverlayActionFields {
     return isRecord(value) && (typeof value["invitationEmail"] === "string");
