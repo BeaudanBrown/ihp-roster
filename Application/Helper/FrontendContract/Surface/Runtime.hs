@@ -527,6 +527,11 @@ data FrontendSurfaceCustomHtmxAttrs = FrontendSurfaceCustomHtmxAttrs
 
 data FrontendSurfaceActionRoute = FrontendSurfaceActionRoute
     { actionRouteUrl         :: !Text
+    -- ^ Hidden request fields rendered before a form body by
+    -- 'renderFrontendSurfaceActionForm'. Use these for stable route/context
+    -- values only. Do not mirror a field that is also rendered as a mutable
+    -- input/select/textarea in the form body; IHP reads the first scalar
+    -- parameter value.
     , actionRouteFields      :: ![FrontendSurfaceFieldValue]
     , actionRouteCustomHtmx  :: ![FrontendSurfaceCustomHtmxAttrs]
     , actionRouteStandardUrl :: !(Maybe Text)

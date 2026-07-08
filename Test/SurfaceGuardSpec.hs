@@ -44,9 +44,43 @@ tests = describe "FrontendSurface strict API guard" do
         violations <- lazyFragmentRenderingViolations
         violations `shouldBe` []
 
+    it "keeps FrontendSurface hidden fields out of mutable settings forms" do
+        violations <- frontendSurfaceHiddenFieldOwnershipViolations
+        violations `shouldBe` []
+
     it "keeps migrated Admin Roster Groups actions generated" do
         violations <- adminRosterGroupsActionContractViolations
         violations `shouldBe` []
+
+frontendSurfaceHiddenFieldOwnershipViolations :: IO [Text]
+frontendSurfaceHiddenFieldOwnershipViolations = do
+    rosterHeader <- Text.readFile "Web/View/RosterWeeks/Header.hs"
+    timesheetsIndex <- Text.readFile "Web/View/Timesheets/Index.hs"
+    runtime <- Text.readFile "Application/Helper/FrontendContract/Surface/Runtime.hs"
+    contracts <- Text.readFile "frontend/ts/generated/contracts.ts"
+    let rosterWarningForm = sourceSlice "renderRosterWarningPreferenceForm" "renderRosterWageEstimatePreferenceForm" rosterHeader
+        rosterWageForm = sourceSlice "renderRosterWageEstimatePreferenceForm" "renderRosterWarningToggle" rosterHeader
+        rosterAssignmentFiltersForm = sourceSlice "renderRosterAssignmentFiltersMenuSection" "renderRosterAssignmentFilterToggle" rosterHeader
+        timesheetFilterForm = sourceSlice "renderTimesheetFilterForm" "renderTimesheetStaffFilter" timesheetsIndex
+        timesheetApprovalForm = sourceSlice "renderTimesheetApprovalForm" "renderBreakSummary" timesheetsIndex
+        staleAssignmentFields = ["showUnavailableStaff", "showIdealShiftMatches"]
+        currentAssignmentFields = ["hideStaffAtIdealShifts", "hideStaffUnavailable", "hideStaffOnApprovedLeave", "hideStaffAlreadyAssignedToday"]
+    pure $ concat
+        [ ["Web/View/RosterWeeks/Header.hs: roster warning preference form must not mirror mutable showRosterWarnings in actionRouteFields" | "actionRouteFields" `Text.isInfixOf` rosterWarningForm]
+        , ["Web/View/RosterWeeks/Header.hs: roster wage preference form must not mirror mutable showWageEstimates in actionRouteFields" | "actionRouteFields" `Text.isInfixOf` rosterWageForm]
+        , ["Web/View/RosterWeeks/Header.hs: roster assignment filter form must let body controls own mutable hideStaff* fields" | "actionRouteFields" `Text.isInfixOf` rosterAssignmentFiltersForm]
+        , ["Web/View/Timesheets/Index.hs: timesheet filter form must not mirror mutable filter controls in actionRouteFields" | "actionRouteFields" `Text.isInfixOf` timesheetFilterForm]
+        , ["Web/View/Timesheets/Index.hs: timesheet approval form should use actionRouteFields rather than duplicate body hidden state inputs" | "name=\"weekOffset\"" `Text.isInfixOf` timesheetApprovalForm || "name=\"showApproved\"" `Text.isInfixOf` timesheetApprovalForm || "name=\"showAllStaff\"" `Text.isInfixOf` timesheetApprovalForm || "name=\"staffFilterId\"" `Text.isInfixOf` timesheetApprovalForm]
+        , ["frontend/ts/generated/contracts.ts: stale roster assignment filter action field still generated: " <> field | field <- staleAssignmentFields, field `Text.isInfixOf` contracts]
+        , ["frontend/ts/generated/contracts.ts: missing roster assignment filter action field: " <> field | field <- currentAssignmentFields, not (field `Text.isInfixOf` contracts)]
+        , ["Application/Helper/FrontendContract/Surface/Runtime.hs: actionRouteFields must document hidden-field ownership and IHP first-param semantics" | not ("IHP reads the first scalar" `Text.isInfixOf` runtime && "stable route/context" `Text.isInfixOf` runtime)]
+        ]
+
+sourceSlice :: Text -> Text -> Text -> Text
+sourceSlice start end source =
+    case Text.breakOn start source of
+        (_, "") -> ""
+        (_, afterStart) -> fst (Text.breakOn end (Text.drop (Text.length start) afterStart))
 
 actorBusinessOobCompatibilityViolations :: IO [Text]
 actorBusinessOobCompatibilityViolations = do
