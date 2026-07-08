@@ -19,6 +19,19 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterWeek
     , RosterWeekBoundaryConfig
     , MoveRosterShiftToSlot
+    , NavigateRosterWeek
+    , ToggleRosterWarnings
+    , ToggleRosterWageEstimates
+    , SortRosterWeek
+    , ToggleRosterWeekLiveStatus
+    , ToggleRosterAssignmentFilters
+    , CopyRosterWeek
+    , CreateRosterWeekSlotDefinition
+    , DeleteRosterWeekSlotDefinition
+    , ToggleRosterDayClosed
+    , AddRosterRow
+    , RemoveRosterRow
+    , ToggleRosterStaffScope
     , RosterLayoutMode
     , RowIndex
     , SetRosterLayoutMode
@@ -49,10 +62,33 @@ data RosterRow
 
 data SetRosterLayoutMode
 data MoveRosterShiftToSlot
+data NavigateRosterWeek
+data ToggleRosterWarnings
+data ToggleRosterWageEstimates
+data SortRosterWeek
+data ToggleRosterWeekLiveStatus
+data ToggleRosterAssignmentFilters
+data CopyRosterWeek
+data CreateRosterWeekSlotDefinition
+data DeleteRosterWeekSlotDefinition
+data ToggleRosterDayClosed
+data AddRosterRow
+data RemoveRosterRow
+data ToggleRosterStaffScope
 data RosterLayoutMode
 
 data RosterDayId
 data RowIndex
+data None
+data OuterHTML
+data ShowRosterWarnings
+data IsLive
+data ShowWageEstimates
+data ShowUnavailableStaff
+data ShowIdealShiftMatches
+data StaffScope
+data RosterWeekShellSyncCustomHtmx
+data CopyRosterWeekCustomHtmx
 
 data RosterDay
 data RosterEndTimesConfig
@@ -129,6 +165,117 @@ type RosterFragmentBundle =
          ]
      ]
 
+type RosterActionBundle =
+    '[ Action NavigateRosterWeek
+        '[ Field WeekOffset 'WireInt
+         , Field RosterGroupId 'WireUUID
+         ]
+        '[ 'HtmxMethod 'HtmxGet
+         , 'HtmxTarget RosterContent
+         , 'HtmxSwap OuterHTML
+         , 'HtmxPushUrl 'HtmxPushUrlTrue
+         , 'CustomHtmx RosterWeekShellSyncCustomHtmx "roster week navigation serializes through the stable roster week shell"
+         ]
+     , Action ToggleRosterWarnings
+        '[ Field ShowRosterWarnings 'WireBool ]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxSwap None
+         , 'HtmxPushUrl 'HtmxPushUrlFalse
+         , 'CustomHtmx RosterWeekShellSyncCustomHtmx "preference toggles serialize through the stable roster week shell"
+         ]
+     , Action ToggleRosterWageEstimates
+        '[ Field ShowWageEstimates 'WireBool ]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxSwap None
+         , 'HtmxPushUrl 'HtmxPushUrlFalse
+         , 'CustomHtmx RosterWeekShellSyncCustomHtmx "preference toggles serialize through the stable roster week shell"
+         ]
+     , Action SortRosterWeek
+        '[]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxTarget RosterContent
+         , 'HtmxSwap None
+         , 'HtmxPushUrl 'HtmxPushUrlFalse
+         , 'CustomHtmx RosterWeekShellSyncCustomHtmx "sort mutations serialize through the stable roster week shell"
+         ]
+     , Action ToggleRosterWeekLiveStatus
+        '[ Field IsLive 'WireBool ]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxTarget RosterContent
+         , 'HtmxSwap OuterHTML
+         , 'HtmxPushUrl 'HtmxPushUrlFalse
+         , 'CustomHtmx RosterWeekShellSyncCustomHtmx "live toggle serializes through the stable roster week shell"
+         ]
+     , Action ToggleRosterAssignmentFilters
+        '[ Field ShowUnavailableStaff 'WireBool
+         , Field ShowIdealShiftMatches 'WireBool
+         ]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxSwap None
+         , 'HtmxPushUrl 'HtmxPushUrlFalse
+         , 'CustomHtmx RosterWeekShellSyncCustomHtmx "assignment filter toggles serialize through the stable roster week shell"
+         ]
+     , Action CopyRosterWeek
+        '[]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxTarget RosterContent
+         , 'HtmxSwap OuterHTML
+         , 'HtmxPushUrl 'HtmxPushUrlFalse
+         , 'CustomHtmx RosterWeekShellSyncCustomHtmx "copy mutations serialize through the stable roster week shell"
+         , 'CustomHtmx CopyRosterWeekCustomHtmx "copy previous week requires a destructive overwrite confirmation"
+         ]
+     , Action CreateRosterWeekSlotDefinition
+        '[]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxTarget RosterContent
+         , 'HtmxSwap None
+         , 'HtmxPushUrl 'HtmxPushUrlFalse
+         , 'CustomHtmx RosterWeekShellSyncCustomHtmx "slot-definition mutations serialize through the stable roster week shell"
+         ]
+     , Action DeleteRosterWeekSlotDefinition
+        '[]
+        '[ 'HtmxMethod 'HtmxDelete
+         , 'HtmxTarget RosterContent
+         , 'HtmxSwap None
+         , 'HtmxPushUrl 'HtmxPushUrlFalse
+         , 'CustomHtmx RosterWeekShellSyncCustomHtmx "slot-definition mutations serialize through the stable roster week shell"
+         ]
+     , Action ToggleRosterDayClosed
+        '[]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxTarget RosterDaySection
+         , 'HtmxSwap None
+         , 'HtmxPushUrl 'HtmxPushUrlFalse
+         , 'CustomHtmx RosterWeekShellSyncCustomHtmx "day row mutations serialize through the stable roster week shell"
+         ]
+     , Action AddRosterRow
+        '[]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxTarget RosterDaySection
+         , 'HtmxSwap None
+         , 'HtmxPushUrl 'HtmxPushUrlFalse
+         , 'CustomHtmx RosterWeekShellSyncCustomHtmx "day row mutations serialize through the stable roster week shell"
+         ]
+     , Action RemoveRosterRow
+        '[]
+        '[ 'HtmxMethod 'HtmxPost
+         , 'HtmxTarget RosterDaySection
+         , 'HtmxSwap None
+         , 'HtmxPushUrl 'HtmxPushUrlFalse
+         , 'CustomHtmx RosterWeekShellSyncCustomHtmx "day row mutations serialize through the stable roster week shell"
+         ]
+     , Action ToggleRosterStaffScope
+        '[ Field StaffScope 'WireText ]
+        '[ 'HtmxMethod 'HtmxGet
+         , 'HtmxTarget RosterStaffPanel
+         , 'HtmxSwap OuterHTML
+         , 'HtmxPushUrl 'HtmxPushUrlFalse
+         ]
+     , DomToken RosterContent
+     , DomToken RosterDaySection
+     , DomToken RosterStaffPanel
+     ]
+
 type RosterInteractionBundle =
     Concat
         '[ LayoutModeInteraction SetRosterLayoutMode RosterContent RosterLayoutMode
@@ -136,4 +283,4 @@ type RosterInteractionBundle =
          ]
 
 type RosterSurface =
-    Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle, RosterInteractionBundle ])
+    Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle, RosterActionBundle, RosterInteractionBundle ])

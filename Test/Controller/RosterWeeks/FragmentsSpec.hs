@@ -134,7 +134,23 @@ tests = beforeAll testContext do
                 let wireFragments = rosterSurfaceWireFragments mountConfig.mountFragments
 
                 impl.surfaceImplName `shouldBe` "roster"
-                map (.htmxRequestName) impl.surfaceImplActions `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot"]
+                map (.htmxRequestName) impl.surfaceImplActions
+                    `shouldBe` [ "navigate-roster-week"
+                               , "toggle-roster-warnings"
+                               , "toggle-roster-wage-estimates"
+                               , "sort-roster-week"
+                               , "toggle-roster-week-live-status"
+                               , "toggle-roster-assignment-filters"
+                               , "copy-roster-week"
+                               , "create-roster-week-slot-definition"
+                               , "delete-roster-week-slot-definition"
+                               , "toggle-roster-day-closed"
+                               , "add-roster-row"
+                               , "remove-roster-row"
+                               , "toggle-roster-staff-scope"
+                               , "set-roster-layout-mode"
+                               , "move-roster-shift-to-slot"
+                               ]
                 map (.intentFormName) impl.surfaceImplIntents `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot"]
                 mountConfig.mountSurfaceName `shouldBe` "roster"
                 mountConfig.mountScopeKey `shouldBe` "roster:00000000-0000-0000-0000-000000000111:00000000-0000-0000-0000-000000000222:3"

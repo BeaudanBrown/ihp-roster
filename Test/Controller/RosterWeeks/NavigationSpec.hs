@@ -273,7 +273,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-roster-week-controls=\"manager-actions\""
                 response `responseBodyShouldContain` "Week actions"
                 response `responseBodyShouldContain` "hx-post=\"/CopyRosterWeek?sourceWeekOffset=-1&amp;targetWeekOffset=0&amp;rosterGroupId="
-                response `responseBodyShouldContain` "hx-confirm=\"This will overwrite the current week with the previous week's roster. Continue?\""
+                response `responseBodyShouldContain` "hx-confirm=\"This will overwrite the current week with the previous week&#39;s roster. Continue?\""
                 response `responseBodyShouldContain` "Sort shifts"
                 response `responseBodyShouldContain` "hx-post=\"/SortRosterWeek?rosterWeekId="
                 response `responseBodyShouldNotContain` "Roster columns"

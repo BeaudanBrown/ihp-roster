@@ -1830,6 +1830,136 @@ export function parseRosterRosterRowFragmentParams(value: unknown): RosterRoster
 }
 export function encodeRosterRosterRowFragmentParams(value: RosterRosterRowFragmentParams): RosterRosterRowFragmentParams { return value; }
 
+export type RosterNavigateRosterWeekActionFields = { weekOffset: number; rosterGroupId: FrontendContractUuid };
+export function isRosterNavigateRosterWeekActionFields(value: unknown): value is RosterNavigateRosterWeekActionFields {
+    return isRecord(value) && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) && (typeof value["rosterGroupId"] === "string");
+}
+export function parseRosterNavigateRosterWeekActionFields(value: unknown): RosterNavigateRosterWeekActionFields {
+    if (isRosterNavigateRosterWeekActionFields(value)) return value;
+    throw new Error("Invalid RosterNavigateRosterWeekActionFields");
+}
+export function encodeRosterNavigateRosterWeekActionFields(value: RosterNavigateRosterWeekActionFields): RosterNavigateRosterWeekActionFields { return value; }
+
+export type RosterToggleRosterWarningsActionFields = { showRosterWarnings: boolean };
+export function isRosterToggleRosterWarningsActionFields(value: unknown): value is RosterToggleRosterWarningsActionFields {
+    return isRecord(value) && (typeof value["showRosterWarnings"] === "boolean");
+}
+export function parseRosterToggleRosterWarningsActionFields(value: unknown): RosterToggleRosterWarningsActionFields {
+    if (isRosterToggleRosterWarningsActionFields(value)) return value;
+    throw new Error("Invalid RosterToggleRosterWarningsActionFields");
+}
+export function encodeRosterToggleRosterWarningsActionFields(value: RosterToggleRosterWarningsActionFields): RosterToggleRosterWarningsActionFields { return value; }
+
+export type RosterToggleRosterWageEstimatesActionFields = { showWageEstimates: boolean };
+export function isRosterToggleRosterWageEstimatesActionFields(value: unknown): value is RosterToggleRosterWageEstimatesActionFields {
+    return isRecord(value) && (typeof value["showWageEstimates"] === "boolean");
+}
+export function parseRosterToggleRosterWageEstimatesActionFields(value: unknown): RosterToggleRosterWageEstimatesActionFields {
+    if (isRosterToggleRosterWageEstimatesActionFields(value)) return value;
+    throw new Error("Invalid RosterToggleRosterWageEstimatesActionFields");
+}
+export function encodeRosterToggleRosterWageEstimatesActionFields(value: RosterToggleRosterWageEstimatesActionFields): RosterToggleRosterWageEstimatesActionFields { return value; }
+
+export type RosterSortRosterWeekActionFields = {  };
+export function isRosterSortRosterWeekActionFields(value: unknown): value is RosterSortRosterWeekActionFields {
+    return isRecord(value);
+}
+export function parseRosterSortRosterWeekActionFields(value: unknown): RosterSortRosterWeekActionFields {
+    if (isRosterSortRosterWeekActionFields(value)) return value;
+    throw new Error("Invalid RosterSortRosterWeekActionFields");
+}
+export function encodeRosterSortRosterWeekActionFields(value: RosterSortRosterWeekActionFields): RosterSortRosterWeekActionFields { return value; }
+
+export type RosterToggleRosterWeekLiveStatusActionFields = { isLive: boolean };
+export function isRosterToggleRosterWeekLiveStatusActionFields(value: unknown): value is RosterToggleRosterWeekLiveStatusActionFields {
+    return isRecord(value) && (typeof value["isLive"] === "boolean");
+}
+export function parseRosterToggleRosterWeekLiveStatusActionFields(value: unknown): RosterToggleRosterWeekLiveStatusActionFields {
+    if (isRosterToggleRosterWeekLiveStatusActionFields(value)) return value;
+    throw new Error("Invalid RosterToggleRosterWeekLiveStatusActionFields");
+}
+export function encodeRosterToggleRosterWeekLiveStatusActionFields(value: RosterToggleRosterWeekLiveStatusActionFields): RosterToggleRosterWeekLiveStatusActionFields { return value; }
+
+export type RosterToggleRosterAssignmentFiltersActionFields = { showUnavailableStaff: boolean; showIdealShiftMatches: boolean };
+export function isRosterToggleRosterAssignmentFiltersActionFields(value: unknown): value is RosterToggleRosterAssignmentFiltersActionFields {
+    return isRecord(value) && (typeof value["showUnavailableStaff"] === "boolean") && (typeof value["showIdealShiftMatches"] === "boolean");
+}
+export function parseRosterToggleRosterAssignmentFiltersActionFields(value: unknown): RosterToggleRosterAssignmentFiltersActionFields {
+    if (isRosterToggleRosterAssignmentFiltersActionFields(value)) return value;
+    throw new Error("Invalid RosterToggleRosterAssignmentFiltersActionFields");
+}
+export function encodeRosterToggleRosterAssignmentFiltersActionFields(value: RosterToggleRosterAssignmentFiltersActionFields): RosterToggleRosterAssignmentFiltersActionFields { return value; }
+
+export type RosterCopyRosterWeekActionFields = {  };
+export function isRosterCopyRosterWeekActionFields(value: unknown): value is RosterCopyRosterWeekActionFields {
+    return isRecord(value);
+}
+export function parseRosterCopyRosterWeekActionFields(value: unknown): RosterCopyRosterWeekActionFields {
+    if (isRosterCopyRosterWeekActionFields(value)) return value;
+    throw new Error("Invalid RosterCopyRosterWeekActionFields");
+}
+export function encodeRosterCopyRosterWeekActionFields(value: RosterCopyRosterWeekActionFields): RosterCopyRosterWeekActionFields { return value; }
+
+export type RosterCreateRosterWeekSlotDefinitionActionFields = {  };
+export function isRosterCreateRosterWeekSlotDefinitionActionFields(value: unknown): value is RosterCreateRosterWeekSlotDefinitionActionFields {
+    return isRecord(value);
+}
+export function parseRosterCreateRosterWeekSlotDefinitionActionFields(value: unknown): RosterCreateRosterWeekSlotDefinitionActionFields {
+    if (isRosterCreateRosterWeekSlotDefinitionActionFields(value)) return value;
+    throw new Error("Invalid RosterCreateRosterWeekSlotDefinitionActionFields");
+}
+export function encodeRosterCreateRosterWeekSlotDefinitionActionFields(value: RosterCreateRosterWeekSlotDefinitionActionFields): RosterCreateRosterWeekSlotDefinitionActionFields { return value; }
+
+export type RosterDeleteRosterWeekSlotDefinitionActionFields = {  };
+export function isRosterDeleteRosterWeekSlotDefinitionActionFields(value: unknown): value is RosterDeleteRosterWeekSlotDefinitionActionFields {
+    return isRecord(value);
+}
+export function parseRosterDeleteRosterWeekSlotDefinitionActionFields(value: unknown): RosterDeleteRosterWeekSlotDefinitionActionFields {
+    if (isRosterDeleteRosterWeekSlotDefinitionActionFields(value)) return value;
+    throw new Error("Invalid RosterDeleteRosterWeekSlotDefinitionActionFields");
+}
+export function encodeRosterDeleteRosterWeekSlotDefinitionActionFields(value: RosterDeleteRosterWeekSlotDefinitionActionFields): RosterDeleteRosterWeekSlotDefinitionActionFields { return value; }
+
+export type RosterToggleRosterDayClosedActionFields = {  };
+export function isRosterToggleRosterDayClosedActionFields(value: unknown): value is RosterToggleRosterDayClosedActionFields {
+    return isRecord(value);
+}
+export function parseRosterToggleRosterDayClosedActionFields(value: unknown): RosterToggleRosterDayClosedActionFields {
+    if (isRosterToggleRosterDayClosedActionFields(value)) return value;
+    throw new Error("Invalid RosterToggleRosterDayClosedActionFields");
+}
+export function encodeRosterToggleRosterDayClosedActionFields(value: RosterToggleRosterDayClosedActionFields): RosterToggleRosterDayClosedActionFields { return value; }
+
+export type RosterAddRosterRowActionFields = {  };
+export function isRosterAddRosterRowActionFields(value: unknown): value is RosterAddRosterRowActionFields {
+    return isRecord(value);
+}
+export function parseRosterAddRosterRowActionFields(value: unknown): RosterAddRosterRowActionFields {
+    if (isRosterAddRosterRowActionFields(value)) return value;
+    throw new Error("Invalid RosterAddRosterRowActionFields");
+}
+export function encodeRosterAddRosterRowActionFields(value: RosterAddRosterRowActionFields): RosterAddRosterRowActionFields { return value; }
+
+export type RosterRemoveRosterRowActionFields = {  };
+export function isRosterRemoveRosterRowActionFields(value: unknown): value is RosterRemoveRosterRowActionFields {
+    return isRecord(value);
+}
+export function parseRosterRemoveRosterRowActionFields(value: unknown): RosterRemoveRosterRowActionFields {
+    if (isRosterRemoveRosterRowActionFields(value)) return value;
+    throw new Error("Invalid RosterRemoveRosterRowActionFields");
+}
+export function encodeRosterRemoveRosterRowActionFields(value: RosterRemoveRosterRowActionFields): RosterRemoveRosterRowActionFields { return value; }
+
+export type RosterToggleRosterStaffScopeActionFields = { staffScope: string };
+export function isRosterToggleRosterStaffScopeActionFields(value: unknown): value is RosterToggleRosterStaffScopeActionFields {
+    return isRecord(value) && (typeof value["staffScope"] === "string");
+}
+export function parseRosterToggleRosterStaffScopeActionFields(value: unknown): RosterToggleRosterStaffScopeActionFields {
+    if (isRosterToggleRosterStaffScopeActionFields(value)) return value;
+    throw new Error("Invalid RosterToggleRosterStaffScopeActionFields");
+}
+export function encodeRosterToggleRosterStaffScopeActionFields(value: RosterToggleRosterStaffScopeActionFields): RosterToggleRosterStaffScopeActionFields { return value; }
+
 export type RosterSetRosterLayoutModeActionFields = { rosterLayoutMode: string };
 export function isRosterSetRosterLayoutModeActionFields(value: unknown): value is RosterSetRosterLayoutModeActionFields {
     return isRecord(value) && (typeof value["rosterLayoutMode"] === "string");
@@ -2458,6 +2588,19 @@ export const timesheetsSurfaceManifest = {"surface":"timesheets","scopes":["time
 
 export type RosterSurfaceName = "roster";
 export type RosterFragmentKey = RosterSurfaceFragmentKey;
+export type NavigateRosterWeekActionFields = RosterNavigateRosterWeekActionFields;
+export type ToggleRosterWarningsActionFields = RosterToggleRosterWarningsActionFields;
+export type ToggleRosterWageEstimatesActionFields = RosterToggleRosterWageEstimatesActionFields;
+export type SortRosterWeekActionFields = RosterSortRosterWeekActionFields;
+export type ToggleRosterWeekLiveStatusActionFields = RosterToggleRosterWeekLiveStatusActionFields;
+export type ToggleRosterAssignmentFiltersActionFields = RosterToggleRosterAssignmentFiltersActionFields;
+export type CopyRosterWeekActionFields = RosterCopyRosterWeekActionFields;
+export type CreateRosterWeekSlotDefinitionActionFields = RosterCreateRosterWeekSlotDefinitionActionFields;
+export type DeleteRosterWeekSlotDefinitionActionFields = RosterDeleteRosterWeekSlotDefinitionActionFields;
+export type ToggleRosterDayClosedActionFields = RosterToggleRosterDayClosedActionFields;
+export type AddRosterRowActionFields = RosterAddRosterRowActionFields;
+export type RemoveRosterRowActionFields = RosterRemoveRosterRowActionFields;
+export type ToggleRosterStaffScopeActionFields = RosterToggleRosterStaffScopeActionFields;
 export type SetRosterLayoutModeActionFields = RosterSetRosterLayoutModeActionFields;
 export type MoveRosterShiftToSlotActionFields = RosterMoveRosterShiftToSlotActionFields;
 export type SetRosterLayoutModeIntentFields = RosterSetRosterLayoutModeIntentFields;
@@ -2467,7 +2610,8 @@ export type RosterSourceRef = "drag-source";
 export type RosterDropzoneRef = "drag-dropzone";
 export type RosterActivationRef = "roster-layout-mode-activation";
 export type RosterDisposableLayerName = "drag-preview";
-export const rosterSurfaceManifest = {"surface":"roster","scopes":["roster-week"],"fragments":["roster-content","roster-grid-toolbar","roster-grid-frame","roster-day-columns","roster-day-rail","roster-wage-rail","roster-slots-grid","roster-staff-panel","roster-day-section","roster-row"],"liveFragments":["roster-content","roster-grid-toolbar","roster-grid-frame","roster-day-columns","roster-day-rail","roster-wage-rail","roster-slots-grid","roster-staff-panel","roster-day-section","roster-row"],"htmxActions":[{"name":"set-roster-layout-mode","fields":["rosterLayoutMode"],"htmx":{"method":null,"trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":null,"swap":null,"pushUrl":null,"custom":[]}},{"name":"move-roster-shift-to-slot","fields":["sourceItemKey","targetDropzoneKey","sessionKind","pointerId","pointerType","startClientX","startClientY","currentClientX","currentClientY","deltaX","deltaY"],"htmx":{"method":null,"trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":null,"swap":null,"pushUrl":null,"custom":[]}}],"intents":["set-roster-layout-mode","move-roster-shift-to-slot"],"sessions":["drag"],"interaction":{"sourceRefs":[{"ref":"drag-source","session":"drag","intent":"move-roster-shift-to-slot","sourceField":"sourceItemKey"}],"dropzoneRefs":[{"ref":"drag-dropzone","session":"drag","targetField":"targetDropzoneKey"}],"activationRefs":[{"ref":"roster-layout-mode-activation","intent":"set-roster-layout-mode","valueField":"rosterLayoutMode","trigger":"click"}]},"layers":["drag-preview"],"domTokens":[],"overlayLanes":[],"containedSurfaces":{}} as const;
+export type RosterDomToken = "roster-content" | "roster-day-section" | "roster-staff-panel";
+export const rosterSurfaceManifest = {"surface":"roster","scopes":["roster-week"],"fragments":["roster-content","roster-grid-toolbar","roster-grid-frame","roster-day-columns","roster-day-rail","roster-wage-rail","roster-slots-grid","roster-staff-panel","roster-day-section","roster-row"],"liveFragments":["roster-content","roster-grid-toolbar","roster-grid-frame","roster-day-columns","roster-day-rail","roster-wage-rail","roster-slots-grid","roster-staff-panel","roster-day-section","roster-row"],"htmxActions":[{"name":"navigate-roster-week","fields":["weekOffset","rosterGroupId"],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"roster-content","swap":"outer-html","pushUrl":true,"custom":[{"name":"roster-week-shell-sync-custom-htmx","reason":"roster week navigation serializes through the stable roster week shell"}]}},{"name":"toggle-roster-warnings","fields":["showRosterWarnings"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":null,"swap":"none","pushUrl":false,"custom":[{"name":"roster-week-shell-sync-custom-htmx","reason":"preference toggles serialize through the stable roster week shell"}]}},{"name":"toggle-roster-wage-estimates","fields":["showWageEstimates"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":null,"swap":"none","pushUrl":false,"custom":[{"name":"roster-week-shell-sync-custom-htmx","reason":"preference toggles serialize through the stable roster week shell"}]}},{"name":"sort-roster-week","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"roster-content","swap":"none","pushUrl":false,"custom":[{"name":"roster-week-shell-sync-custom-htmx","reason":"sort mutations serialize through the stable roster week shell"}]}},{"name":"toggle-roster-week-live-status","fields":["isLive"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"roster-content","swap":"outer-html","pushUrl":false,"custom":[{"name":"roster-week-shell-sync-custom-htmx","reason":"live toggle serializes through the stable roster week shell"}]}},{"name":"toggle-roster-assignment-filters","fields":["showUnavailableStaff","showIdealShiftMatches"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":null,"swap":"none","pushUrl":false,"custom":[{"name":"roster-week-shell-sync-custom-htmx","reason":"assignment filter toggles serialize through the stable roster week shell"}]}},{"name":"copy-roster-week","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"roster-content","swap":"outer-html","pushUrl":false,"custom":[{"name":"roster-week-shell-sync-custom-htmx","reason":"copy mutations serialize through the stable roster week shell"},{"name":"copy-roster-week-custom-htmx","reason":"copy previous week requires a destructive overwrite confirmation"}]}},{"name":"create-roster-week-slot-definition","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"roster-content","swap":"none","pushUrl":false,"custom":[{"name":"roster-week-shell-sync-custom-htmx","reason":"slot-definition mutations serialize through the stable roster week shell"}]}},{"name":"delete-roster-week-slot-definition","fields":[],"htmx":{"method":"delete","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"roster-content","swap":"none","pushUrl":false,"custom":[{"name":"roster-week-shell-sync-custom-htmx","reason":"slot-definition mutations serialize through the stable roster week shell"}]}},{"name":"toggle-roster-day-closed","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"roster-day-section","swap":"none","pushUrl":false,"custom":[{"name":"roster-week-shell-sync-custom-htmx","reason":"day row mutations serialize through the stable roster week shell"}]}},{"name":"add-roster-row","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"roster-day-section","swap":"none","pushUrl":false,"custom":[{"name":"roster-week-shell-sync-custom-htmx","reason":"day row mutations serialize through the stable roster week shell"}]}},{"name":"remove-roster-row","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"roster-day-section","swap":"none","pushUrl":false,"custom":[{"name":"roster-week-shell-sync-custom-htmx","reason":"day row mutations serialize through the stable roster week shell"}]}},{"name":"toggle-roster-staff-scope","fields":["staffScope"],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"roster-staff-panel","swap":"outer-html","pushUrl":false,"custom":[]}},{"name":"set-roster-layout-mode","fields":["rosterLayoutMode"],"htmx":{"method":null,"trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":null,"swap":null,"pushUrl":null,"custom":[]}},{"name":"move-roster-shift-to-slot","fields":["sourceItemKey","targetDropzoneKey","sessionKind","pointerId","pointerType","startClientX","startClientY","currentClientX","currentClientY","deltaX","deltaY"],"htmx":{"method":null,"trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":null,"swap":null,"pushUrl":null,"custom":[]}}],"intents":["set-roster-layout-mode","move-roster-shift-to-slot"],"sessions":["drag"],"interaction":{"sourceRefs":[{"ref":"drag-source","session":"drag","intent":"move-roster-shift-to-slot","sourceField":"sourceItemKey"}],"dropzoneRefs":[{"ref":"drag-dropzone","session":"drag","targetField":"targetDropzoneKey"}],"activationRefs":[{"ref":"roster-layout-mode-activation","intent":"set-roster-layout-mode","valueField":"rosterLayoutMode","trigger":"click"}]},"layers":["drag-preview"],"domTokens":["roster-content","roster-day-section","roster-staff-panel"],"overlayLanes":[],"containedSurfaces":{}} as const;
 
 export type LeaveRequestsSurfaceName = "leave-requests";
 export type LeaveRequestsFragmentKey = LeaveRequestsSurfaceFragmentKey;

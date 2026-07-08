@@ -13,12 +13,16 @@ import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (
                                                             renderOverlayActionHtmxControl)
 import Application.Helper.FrontendContract.RosterValues (RosterStaffSortKey (..),
                                                          rosterStaffSortKeyAttribute)
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
+                                                            FrontendSurfaceFieldValue (..),
+                                                            frontendSurfaceActionHtmxAttrPairs)
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
 import Application.Helper.View (staffDisplayName)
 import Data.List (sortBy)
 import qualified Data.Text as Text
 import Web.RosterWeeks.Dom (rosterStaffPanelFragmentClasses,
                             rosterStaffPanelFragmentId)
+import Web.RosterWeeks.FrontendSurface (rosterSurfaceAction)
 import Web.RosterWeeks.Types (RosterStaffPanelEntry (..),
                               RosterStaffPanelScope (..))
 import Web.View.Prelude
@@ -260,12 +264,17 @@ renderStaffScopeToggleButton weekOffset currentRosterGroupId panelScope =
         , appToggleInputValue = "all"
         , appToggleButtonClass = "btn-sm"
         , appToggleRoleSwitch = True
-        , appToggleHxGet = Just (pathTo (ShowRosterWeekStaffPanelFragmentAction weekOffset))
-        , appToggleHxTrigger = Just "change"
-        , appToggleHxInclude = Just "closest form"
-        , appToggleHxTarget = Just staffPanelTargetSelector
-        , appToggleHxSwap = Just "outerHTML"
-        , appToggleHxPushUrl = Just "false"
+        , appToggleInputExtraAttrs =
+            frontendSurfaceActionHtmxAttrPairs
+                (rosterSurfaceAction "toggle-roster-staff-scope")
+                FrontendSurfaceActionRoute
+                    { actionRouteUrl = pathTo (ShowRosterWeekStaffPanelFragmentAction weekOffset)
+                    , actionRouteFields = [FrontendSurfaceFieldValue "staffScope" (if panelScope == RosterStaffPanelAllVenue then "all" else "roster_group")]
+                    , actionRouteCustomHtmx = []
+                    , actionRouteStandardUrl = Just (pathTo (ShowRosterWeekStaffPanelFragmentAction weekOffset))
+                    , actionRouteExtraAttrs = []
+                    }
+                <> [("hx-trigger", "change"), ("hx-include", "closest form")]
         }
 
 staffPanelTargetSelector :: Text

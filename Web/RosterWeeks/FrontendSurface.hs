@@ -22,6 +22,7 @@ module Web.RosterWeeks.FrontendSurface
     , rosterFrontendSurfaceIR
     , rosterSurfaceImpl
     , rosterSurfaceMountConfig
+    , rosterSurfaceAction
     , rosterSurfaceScopeKey
     , rosterSurfaceWireFragments
     ) where
@@ -245,6 +246,19 @@ rosterSurfaceHandlers scope _plan =
                     }
                 `HandlerCons` HandlerNil
         , surfaceActionHandlers =
+            rosterActionHandler "navigate-roster-week" (pathTo (ShowRosterWeekAction scope.rosterWeekWeekOffset)) `HandlerCons`
+            rosterActionHandler "toggle-roster-warnings" (rosterLayoutPreferenceUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId) `HandlerCons`
+            rosterActionHandler "toggle-roster-wage-estimates" (rosterLayoutPreferenceUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId) `HandlerCons`
+            rosterActionHandler "sort-roster-week" (pathTo (SortRosterWeekAction (Id placeholderRosterDayId))) `HandlerCons`
+            rosterActionHandler "toggle-roster-week-live-status" (pathTo (ToggleRosterWeekLiveStatusAction (Id placeholderRosterDayId))) `HandlerCons`
+            rosterActionHandler "toggle-roster-assignment-filters" (rosterLayoutPreferenceUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId) `HandlerCons`
+            rosterActionHandler "copy-roster-week" (pathTo (CopyRosterWeekAction 0 scope.rosterWeekWeekOffset)) `HandlerCons`
+            rosterActionHandler "create-roster-week-slot-definition" (pathTo (CreateRosterWeekSlotDefinitionAction (Id placeholderRosterDayId))) `HandlerCons`
+            rosterActionHandler "delete-roster-week-slot-definition" (pathTo (DeleteRosterWeekSlotDefinitionAction (Id placeholderRosterDayId))) `HandlerCons`
+            rosterActionHandler "toggle-roster-day-closed" (pathTo (ToggleRosterDayClosedAction (Id placeholderRosterDayId))) `HandlerCons`
+            rosterActionHandler "add-roster-row" (pathTo (AddRosterRowAction (Id placeholderRosterDayId))) `HandlerCons`
+            rosterActionHandler "remove-roster-row" (pathTo (RemoveRosterRowAction (Id placeholderRosterDayId))) `HandlerCons`
+            rosterActionHandler "toggle-roster-staff-scope" (pathTo (ShowRosterWeekStaffPanelFragmentAction scope.rosterWeekWeekOffset)) `HandlerCons`
             FrontendSurfaceActionHandler
                 { actionHandlerDefaultFields = frontendSurfaceFieldValues (Aeson.object ["rosterLayoutMode" Aeson..= ("day_rows" :: Text)])
                 , actionHandlerRequest = rosterLayoutModeRequest scope
@@ -265,6 +279,25 @@ rosterSurfaceHandlers scope _plan =
                     }
                 `HandlerCons` HandlerNil
         }
+
+rosterActionHandler :: Text -> Text -> FrontendSurfaceActionHandler ('Action marker fields options)
+rosterActionHandler actionName actionUrl = FrontendSurfaceActionHandler
+    { actionHandlerDefaultFields = frontendSurfaceFieldValues Aeson.Null
+    , actionHandlerRequest = const FrontendSurfaceHtmxRequest
+        { htmxRequestName = actionName
+        , htmxRequestMethod = FrontendSurfacePost
+        , htmxRequestUrl = actionUrl
+        , htmxRequestTarget = ""
+        , htmxRequestSwap = "none"
+        , htmxRequestFields = []
+        }
+    }
+
+rosterSurfaceAction :: Text -> SurfaceIR.HtmxActionIR
+rosterSurfaceAction actionName =
+    case [action | action <- rosterFrontendSurfaceIR.surfaceHtmxActions, action.htmxActionName == actionName] of
+        action : _ -> action
+        []         -> error ("missing roster surface action: " <> cs actionName)
 
 rosterWeekScopeFields :: RosterWeekScopeValue -> FrontendSurfaceFieldValues '[ 'Field Surface.VenueId 'WireUUID, 'Field Surface.RosterGroupId 'WireUUID, 'Field Surface.WeekOffset 'WireInt]
 rosterWeekScopeFields scope =
