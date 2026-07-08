@@ -5,8 +5,6 @@
 export type FrontendContractUuid = string;
 export type FrontendContractDay = string;
 export const FrontendSurfaceInteractionDom = { sourceRef: "data-bepis-source-ref", sourceKey: "data-bepis-source-key", dropzoneRef: "data-bepis-dropzone-ref", dropzoneKey: "data-bepis-dropzone-key", activationRef: "data-bepis-activation-ref" } as const;
-export type FrontendSurfaceUUID = string & { readonly __brand: "FrontendSurfaceUUID" };
-export type FrontendSurfaceDay = string & { readonly __brand: "FrontendSurfaceDay" };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -2729,12 +2727,12 @@ export function parseAdminXeroShowXeroTimesheetPreparationStaffMappingsActionFie
 }
 export function encodeAdminXeroShowXeroTimesheetPreparationStaffMappingsActionFields(value: AdminXeroShowXeroTimesheetPreparationStaffMappingsActionFields): AdminXeroShowXeroTimesheetPreparationStaffMappingsActionFields { return value; }
 
-export type VenueId = FrontendSurfaceUUID;
-export type StaffFilterId = FrontendSurfaceUUID;
-export type PanelId = FrontendSurfaceUUID;
-export type RosterGroupId = FrontendSurfaceUUID;
-export type RosterDayId = FrontendSurfaceUUID;
-export type StaffId = FrontendSurfaceUUID;
+export type VenueId = FrontendContractUuid;
+export type StaffFilterId = FrontendContractUuid;
+export type PanelId = FrontendContractUuid;
+export type RosterGroupId = FrontendContractUuid;
+export type RosterDayId = FrontendContractUuid;
+export type StaffId = FrontendContractUuid;
 
 export type SurfaceLabSurfaceName = "surface-lab";
 export type SurfaceLabFragmentKey = SurfaceLabSurfaceFragmentKey;

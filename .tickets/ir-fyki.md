@@ -1,6 +1,6 @@
 ---
 id: ir-fyki
-status: open
+status: closed
 deps: [ir-zi2e]
 links: []
 created: 2026-07-08T07:20:33Z
@@ -22,3 +22,9 @@ Make WireIR primitive TypeScript names a single Haskell value-level source used 
 
 No raw header strings define wire primitive exported aliases; generated UUID/Day references still compile; tests prove renaming/changing primitive aliases happens through Haskell source only.
 
+
+## Notes
+
+**2026-07-08T07:29:16Z**
+
+Implemented primitive alias derivation in Application.Helper.FrontendContract.TypeScript. WireUuidIR/WireDayIR now map through a Haskell value-level primitive registry used by alias rendering, wire type rendering, and primitive guards. Removed redundant FrontendSurfaceUUID/FrontendSurfaceDay generated aliases; surface UUID aliases now target FrontendContractUuid directly.

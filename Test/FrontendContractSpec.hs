@@ -93,6 +93,14 @@ tests = describe "FrontendContract foundation" do
         source `shouldContainText` "  | \"shifts\";"
         source `shouldContainText` "export type RosterRosterWeekScope = { venueId: FrontendContractUuid; rosterGroupId: FrontendContractUuid; weekOffset: number };"
 
+    it "derives primitive TypeScript aliases from the wire primitive registry" do
+        let Right source = renderFrontendContractTypeScript (reflectFrontendContracts @FixtureContracts)
+        source `shouldContainText` "export type FrontendContractUuid = string;"
+        source `shouldContainText` "export type FrontendContractDay = string;"
+        source `shouldContainText` "export type UserId = FrontendContractUuid;"
+        source `shouldNotContainText` "FrontendSurfaceUUID"
+        source `shouldNotContainText` "FrontendSurfaceDay"
+
     it "reflects a mixed Global and Surface registry" do
         let contract = reflectFrontendContracts @FixtureContracts
         fmap (.globalName) contract.contractGlobals `shouldBe` ["app"]
@@ -124,3 +132,6 @@ tests = describe "FrontendContract foundation" do
 
 shouldContainText :: Text -> Text -> Expectation
 shouldContainText haystack needle = haystack `shouldSatisfy` (needle `isInfixOf`)
+
+shouldNotContainText :: Text -> Text -> Expectation
+shouldNotContainText haystack needle = haystack `shouldSatisfy` not . (needle `isInfixOf`)
