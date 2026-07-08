@@ -1,7 +1,10 @@
 module Application.Helper.View.WeekToolbar
-    ( WeekToolbarConfig (..)
+    ( WeekNavigationConfig (..)
+    , WeekToolbarConfig (..)
     , WeekToolbarVariant (..)
+    , renderWeekNavigationGroup
     , renderWeekToolbar
+    , weekNavigationButtonClass
     ) where
 
 import qualified Data.Text as Text
@@ -28,6 +31,33 @@ data WeekToolbarConfig = WeekToolbarConfig
     , weekToolbarSettings   :: !Html
     , weekToolbarAuxiliary  :: !Html
     }
+
+data WeekNavigationConfig = WeekNavigationConfig
+    { weekNavigationAriaLabel    :: !Text
+    , weekNavigationExtraClass   :: !Text
+    , weekNavigationPrevious     :: !Html
+    , weekNavigationCurrentLabel :: !Html
+    , weekNavigationLabelClass   :: !Text
+    , weekNavigationNext         :: !Html
+    }
+
+weekNavigationButtonClass :: Text -> Text
+weekNavigationButtonClass extraClass =
+    Text.unwords (filter (not . Text.null)
+        [ "btn"
+        , "btn-outline-secondary"
+        , "app-week-nav-button"
+        , extraClass
+        ])
+
+renderWeekNavigationGroup :: WeekNavigationConfig -> Html
+renderWeekNavigationGroup WeekNavigationConfig { weekNavigationAriaLabel, weekNavigationExtraClass, weekNavigationPrevious, weekNavigationCurrentLabel, weekNavigationLabelClass, weekNavigationNext } = [hsx|
+    <div class={Text.unwords (filter (not . Text.null) ["btn-group app-week-nav-group", weekNavigationExtraClass])} role="group" aria-label={weekNavigationAriaLabel}>
+        {weekNavigationPrevious}
+        <span class={weekNavigationButtonClass (Text.unwords (filter (not . Text.null) ["app-week-nav-label", weekNavigationLabelClass]))} aria-current="date">{weekNavigationCurrentLabel}</span>
+        {weekNavigationNext}
+    </div>
+|]
 
 renderWeekToolbar :: WeekToolbarConfig -> Html
 renderWeekToolbar WeekToolbarConfig { weekToolbarVariant, weekToolbarAriaLabel, weekToolbarExtraClass, weekToolbarPrimary, weekToolbarReset, weekToolbarNavigation, weekToolbarSettings, weekToolbarAuxiliary } = [hsx|

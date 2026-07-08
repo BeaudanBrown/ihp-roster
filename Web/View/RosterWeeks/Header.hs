@@ -90,13 +90,15 @@ renderRosterWeekWageSummary (Just prediction)
     |]
 
 renderRosterWeekControls :: (?context :: ControllerContext) => Int -> RosterGroup -> Day -> Html
-renderRosterWeekControls weekOffset currentRosterGroup weekStartDate = [hsx|
-    <div class="btn-group app-week-nav-group roster-week-nav-group" role="group" aria-label="Roster week navigation">
-        {renderWeekNavigationLink "bi-chevron-left" "Previous week" (rosterWeekUrl (weekOffset - 1) currentRosterGroup.id) (weekOffset - 1) currentRosterGroup.id}
-        <span class="btn btn-outline-secondary app-week-nav-button app-week-nav-label roster-week-nav-button roster-week-nav-label" aria-current="date">{renderRosterWeekLabel weekStartDate}</span>
-        {renderWeekNavigationLink "bi-chevron-right" "Next week" (rosterWeekUrl (weekOffset + 1) currentRosterGroup.id) (weekOffset + 1) currentRosterGroup.id}
-    </div>
-|]
+renderRosterWeekControls weekOffset currentRosterGroup weekStartDate =
+    renderWeekNavigationGroup WeekNavigationConfig
+        { weekNavigationAriaLabel = "Roster week navigation"
+        , weekNavigationExtraClass = "roster-week-nav-group"
+        , weekNavigationPrevious = renderWeekNavigationLink "bi-chevron-left" "Previous week" (rosterWeekUrl (weekOffset - 1) currentRosterGroup.id) (weekOffset - 1) currentRosterGroup.id
+        , weekNavigationCurrentLabel = [hsx|{renderRosterWeekLabel weekStartDate}|]
+        , weekNavigationLabelClass = "roster-week-nav-button roster-week-nav-label"
+        , weekNavigationNext = renderWeekNavigationLink "bi-chevron-right" "Next week" (rosterWeekUrl (weekOffset + 1) currentRosterGroup.id) (weekOffset + 1) currentRosterGroup.id
+        }
 
 renderRosterGroupSwitcher :: Int -> [RosterGroup] -> RosterGroup -> Html
 renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup = [hsx|
@@ -130,7 +132,7 @@ renderWeekNavigationLink iconClass ariaLabel url targetWeekOffset rosterGroupId 
                 ]
             , actionRouteStandardUrl = Just url
             , actionRouteExtraAttrs =
-                [ ("class", "btn btn-outline-secondary app-week-nav-button roster-week-nav-button roster-week-nav-arrow")
+                [ ("class", weekNavigationButtonClass "roster-week-nav-button roster-week-nav-arrow")
                 , ("aria-label", ariaLabel)
                 , ("title", ariaLabel)
                 , ("data-turbolinks", "false")
@@ -152,7 +154,7 @@ renderThisWeekButton =
             , partialNavigationUrl = pathTo RosterWeeksAction
             , partialNavigationTargetId = rosterWeekShellId
             , partialNavigationSelectId = Just rosterWeekShellId
-            , partialNavigationClass = "btn btn-outline-secondary app-week-nav-button"
+            , partialNavigationClass = weekNavigationButtonClass ""
             , partialNavigationSwap = "outerHTML"
             , partialNavigationSync = Just ("#" <> rosterWeekShellId <> ":replace")
             , partialNavigationPushUrl = True

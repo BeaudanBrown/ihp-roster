@@ -21,7 +21,7 @@ import Application.Helper.FrontendContract.AppShell (PartialNavigate)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              AppShellCustomHtmxAttrs (..),
                                                              appShellActionByMarker,
-                                                             applyAppShellActionAttrs)
+                                                             renderAppShellActionLink)
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ViewPrelude
@@ -216,7 +216,7 @@ renderAppSettingsMenuButton buttonId ariaLabel = [hsx|
 
 renderPartialNavigationLink :: PartialNavigationLink -> Html
 renderPartialNavigationLink PartialNavigationLink { partialNavigationLabel, partialNavigationUrl, partialNavigationTargetId, partialNavigationSelectId, partialNavigationClass, partialNavigationSwap, partialNavigationSync, partialNavigationPushUrl } =
-    applyAppShellActionAttrs
+    renderAppShellActionLink
         (appShellActionByMarker @PartialNavigate)
         AppShellActionRoute
             { appShellActionRouteUrl = partialNavigationUrl

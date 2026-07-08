@@ -563,6 +563,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-week-toolbar-section=\"quick\""
                 response `responseBodyShouldContain` "data-week-toolbar-section=\"navigation\""
                 response `responseBodyShouldContain` "data-week-toolbar-section=\"settings\""
+                response `responseBodyShouldContain` "btn btn-outline-secondary app-week-nav-button"
                 response `responseBodyShouldContain` "href=\"/Timesheets?showApproved=true&amp;showAllStaff=false\""
                 response `responseBodyShouldContain` "href=\"/ShowTimesheetWeek?weekOffset=1&amp;showApproved=true&amp;showAllStaff=false\""
                 response `responseBodyShouldContain` "href=\"/ShowTimesheetWeek?weekOffset=3&amp;showApproved=true&amp;showAllStaff=false\""

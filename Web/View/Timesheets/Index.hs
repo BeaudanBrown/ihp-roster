@@ -174,7 +174,7 @@ renderTimesheetWeekNavigationLink label url targetWeekOffset showApproved showAl
             { actionRouteFields = timesheetStateFields targetWeekOffset showApproved showAllStaff selectedStaffFilterId
             , actionRouteCustomHtmx = [timesheetsWeekShellSync]
             , actionRouteStandardUrl = Just url
-            , actionRouteExtraAttrs = [("class", "btn btn-outline-secondary app-week-nav-button")]
+            , actionRouteExtraAttrs = [("class", weekNavigationButtonClass "")]
             }
         [hsx|{label}|]
 
@@ -186,15 +186,14 @@ renderTimesheetWeekHeader weekOffset weekStartDate showApproved showAllStaff sel
         , weekToolbarExtraClass = "timesheet-week-header"
         , weekToolbarPrimary = mempty
         , weekToolbarReset = renderTimesheetWeekNavigationLink "This week" (timesheetWeekResetUrl showApproved showAllStaff selectedStaffFilterId) 0 showApproved showAllStaff selectedStaffFilterId
-        , weekToolbarNavigation = [hsx|
-            <div class="btn-group app-week-nav-group" role="group" aria-label="Timesheet week navigation">
-                {renderTimesheetWeekNavigationLink "<" (timesheetWeekUrl (weekOffset - 1) showApproved showAllStaff selectedStaffFilterId) (weekOffset - 1) showApproved showAllStaff selectedStaffFilterId}
-                <div class="btn btn-outline-secondary app-week-nav-label">
-                    {renderTimesheetWeekLabel weekStartDate}
-                </div>
-                {renderTimesheetWeekNavigationLink ">" (timesheetWeekUrl (weekOffset + 1) showApproved showAllStaff selectedStaffFilterId) (weekOffset + 1) showApproved showAllStaff selectedStaffFilterId}
-            </div>
-        |]
+        , weekToolbarNavigation = renderWeekNavigationGroup WeekNavigationConfig
+            { weekNavigationAriaLabel = "Timesheet week navigation"
+            , weekNavigationExtraClass = ""
+            , weekNavigationPrevious = renderTimesheetWeekNavigationLink "<" (timesheetWeekUrl (weekOffset - 1) showApproved showAllStaff selectedStaffFilterId) (weekOffset - 1) showApproved showAllStaff selectedStaffFilterId
+            , weekNavigationCurrentLabel = [hsx|{renderTimesheetWeekLabel weekStartDate}|]
+            , weekNavigationLabelClass = ""
+            , weekNavigationNext = renderTimesheetWeekNavigationLink ">" (timesheetWeekUrl (weekOffset + 1) showApproved showAllStaff selectedStaffFilterId) (weekOffset + 1) showApproved showAllStaff selectedStaffFilterId
+            }
         , weekToolbarSettings = renderTimesheetWeekMoreMenu weekOffset showApproved showAllStaff selectedStaffFilterId staffMembers
         , weekToolbarAuxiliary = mempty
         }
