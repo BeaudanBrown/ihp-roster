@@ -47,6 +47,11 @@ timesheets_paths=(
     Web/View/Timesheets/Index.hs
 )
 
+migrated_overlay_paths=(
+    Web/View/Layout.hs
+    Web/View/Feedback/New.hs
+)
+
 if find Application/Helper/Frontend -type f -name '*.hs' -print -quit 2>/dev/null | rg --quiet .; then
     report_failure "legacy Application/Helper/Frontend Haskell contract authority must stay deleted"
     find Application/Helper/Frontend -type f -name '*.hs' -print >&2
@@ -115,6 +120,41 @@ expect_match \
     "generated contracts must expose declared Admin Roster Groups custom HTMX reason" \
     'move buttons submit the containing row form via hx-include=closest form' \
     frontend/ts/generated/contracts.ts
+
+expect_match \
+    "generated contracts must expose migrated feedback overlay opener action" \
+    'open-feedback-dialog' \
+    frontend/ts/generated/contracts.ts
+
+expect_match \
+    "generated contracts must expose migrated feedback overlay submit action" \
+    'submit-feedback' \
+    frontend/ts/generated/contracts.ts
+
+expect_no_match \
+    "migrated overlay views must use generated OverlayAction helpers instead of handwritten request HTMX attrs" \
+    'hx-(get|post|target|swap|push-url)=' \
+    "${migrated_overlay_paths[@]}"
+
+expect_no_match \
+    "migrated feedback dialog view must not hand-author dialog mount targets" \
+    '#dialog-overlay-mount|dialogOverlayMountId' \
+    Web/View/Feedback/New.hs
+
+expect_no_match \
+    "migrated overlay views must not use raw OverlayAction name lookup" \
+    'overlayActionByName' \
+    "${migrated_overlay_paths[@]}"
+
+expect_match \
+    "migrated feedback overlay opener uses typed OverlayAction marker lookup" \
+    'overlayActionByMarker @OpenFeedbackDialog' \
+    Web/View/Layout.hs
+
+expect_match \
+    "migrated feedback overlay submit uses typed OverlayAction marker lookup" \
+    'overlayActionByMarker @SubmitFeedback' \
+    Web/View/Feedback/New.hs
 
 expect_no_match \
     "migrated Admin Roster Groups view must not hand-author request HTMX attrs" \

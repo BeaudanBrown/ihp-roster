@@ -1,6 +1,6 @@
 ---
 id: ir-fyeq
-status: open
+status: closed
 deps: [ir-ajxv]
 links: []
 created: 2026-07-08T00:02:52Z
