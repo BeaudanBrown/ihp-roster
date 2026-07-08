@@ -1,6 +1,6 @@
 ---
 id: ir-4spc
-status: open
+status: closed
 deps: []
 links: [ir-cpkv]
 created: 2026-07-07T07:24:38Z
@@ -21,3 +21,9 @@ Use the generated SurfaceAction pattern only for surface-owned request initiator
 
 Callsites in scope are classified; migrated surface-owned controls render through generated helpers; any CustomHtmx use is declared with a reason; focused typecheck/tests pass for the subsystem.
 
+
+## Notes
+
+**2026-07-08T02:15:02Z**
+
+Global/non-surface lane classification: dialog/overlay request initiators use the generated OverlayAction lane; mounted durable UI request initiators use FrontendSurfaceAction; partial-navigation chrome remains shell helper behavior; response-only OOB clears/toasts remain response behavior; local fragment forms without mounted surface ownership (e.g. staff edit leave form, roster self-service leave form) remain candidates for a future narrow global/local-fragment helper and are not forced into SurfaceAction. While auditing this lane, migrated the remaining Support mounted-surface refresh controls to generated Support FrontendSurface actions.

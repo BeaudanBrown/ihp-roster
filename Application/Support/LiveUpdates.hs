@@ -7,10 +7,13 @@ module Application.Support.LiveUpdates
     ( SupportLiveFragment (..)
     , supportCandidateMountedFragments
     , supportSurface
+    , supportSurfaceAction
     , supportSurfaceScope
     , supportSurfaceWireFragments
     ) where
 
+import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
+import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import Application.Helper.FrontendContract.Surface.DSL
 import Application.Helper.FrontendContract.Surface.Runtime
 import qualified Application.Helper.FrontendContract.Surface.Support as Surface
@@ -76,9 +79,31 @@ supportSurfaceHandlers =
                     , fragmentHandlerRender = const mempty
                     }
                 `HandlerCons` HandlerNil
-        , surfaceActionHandlers = HandlerNil
+        , surfaceActionHandlers =
+            supportActionHandler "create-public-holiday-refresh-job" "/CreatePublicHolidayRefreshJob" `HandlerCons`
+            supportActionHandler "create-fwc-mapd-refresh-job" "/CreateFwcMapdRefreshJob" `HandlerCons`
+            HandlerNil
         , surfaceIntentHandlers = HandlerNil
         }
+
+supportActionHandler :: Text -> Text -> FrontendSurfaceActionHandler ('Action marker fields options)
+supportActionHandler actionName actionUrl = FrontendSurfaceActionHandler
+    { actionHandlerDefaultFields = frontendSurfaceFieldValues Aeson.Null
+    , actionHandlerRequest = const FrontendSurfaceHtmxRequest
+        { htmxRequestName = actionName
+        , htmxRequestMethod = FrontendSurfacePost
+        , htmxRequestUrl = actionUrl
+        , htmxRequestTarget = ""
+        , htmxRequestSwap = "outerHTML"
+        , htmxRequestFields = []
+        }
+    }
+
+supportSurfaceAction :: Text -> SurfaceIR.HtmxActionIR
+supportSurfaceAction actionName =
+    case [action | surface <- registeredFrontendSurfaceContractIR.contractSurfaces, surface.surfaceName == "support", action <- surface.surfaceHtmxActions, action.htmxActionName == actionName] of
+        action : _ -> action
+        [] -> error ("missing support surface action: " <> cs actionName)
 
 supportAwardRatesMountedFragment :: FrontendSurfaceMountedFragment
 supportAwardRatesMountedFragment =

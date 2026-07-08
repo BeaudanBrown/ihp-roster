@@ -2110,6 +2110,26 @@ export function parseSupportSupportPublicHolidaysFragmentParams(value: unknown):
 }
 export function encodeSupportSupportPublicHolidaysFragmentParams(value: SupportSupportPublicHolidaysFragmentParams): SupportSupportPublicHolidaysFragmentParams { return value; }
 
+export type SupportCreatePublicHolidayRefreshJobActionFields = {  };
+export function isSupportCreatePublicHolidayRefreshJobActionFields(value: unknown): value is SupportCreatePublicHolidayRefreshJobActionFields {
+    return isRecord(value);
+}
+export function parseSupportCreatePublicHolidayRefreshJobActionFields(value: unknown): SupportCreatePublicHolidayRefreshJobActionFields {
+    if (isSupportCreatePublicHolidayRefreshJobActionFields(value)) return value;
+    throw new Error("Invalid SupportCreatePublicHolidayRefreshJobActionFields");
+}
+export function encodeSupportCreatePublicHolidayRefreshJobActionFields(value: SupportCreatePublicHolidayRefreshJobActionFields): SupportCreatePublicHolidayRefreshJobActionFields { return value; }
+
+export type SupportCreateFwcMapdRefreshJobActionFields = {  };
+export function isSupportCreateFwcMapdRefreshJobActionFields(value: unknown): value is SupportCreateFwcMapdRefreshJobActionFields {
+    return isRecord(value);
+}
+export function parseSupportCreateFwcMapdRefreshJobActionFields(value: unknown): SupportCreateFwcMapdRefreshJobActionFields {
+    if (isSupportCreateFwcMapdRefreshJobActionFields(value)) return value;
+    throw new Error("Invalid SupportCreateFwcMapdRefreshJobActionFields");
+}
+export function encodeSupportCreateFwcMapdRefreshJobActionFields(value: SupportCreateFwcMapdRefreshJobActionFields): SupportCreateFwcMapdRefreshJobActionFields { return value; }
+
 export type ProfileProfileScopeScope = { venueId: FrontendContractUuid; staffId: FrontendContractUuid };
 export function isProfileProfileScopeScope(value: unknown): value is ProfileProfileScopeScope {
     return isRecord(value) && (typeof value["venueId"] === "string") && (typeof value["staffId"] === "string");
@@ -2668,7 +2688,10 @@ export const billingSurfaceManifest = {"surface":"billing","scopes":["billing-ve
 
 export type SupportSurfaceName = "support";
 export type SupportFragmentKey = SupportSurfaceFragmentKey;
-export const supportSurfaceManifest = {"surface":"support","scopes":["support-platform"],"fragments":["support-award-rates","support-public-holidays"],"liveFragments":["support-award-rates","support-public-holidays"],"htmxActions":[],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":[],"overlayLanes":[],"containedSurfaces":{}} as const;
+export type CreatePublicHolidayRefreshJobActionFields = SupportCreatePublicHolidayRefreshJobActionFields;
+export type CreateFwcMapdRefreshJobActionFields = SupportCreateFwcMapdRefreshJobActionFields;
+export type SupportDomToken = "support-public-holidays" | "support-award-rates";
+export const supportSurfaceManifest = {"surface":"support","scopes":["support-platform"],"fragments":["support-award-rates","support-public-holidays"],"liveFragments":["support-award-rates","support-public-holidays"],"htmxActions":[{"name":"create-public-holiday-refresh-job","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"support-public-holidays","swap":"outer-html","pushUrl":null,"custom":[]}},{"name":"create-fwc-mapd-refresh-job","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"support-award-rates","swap":"outer-html","pushUrl":null,"custom":[]}}],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":["support-public-holidays","support-award-rates"],"overlayLanes":[],"containedSurfaces":{}} as const;
 
 export type ProfileSurfaceName = "profile";
 export type ProfileFragmentKey = ProfileSurfaceFragmentKey;
