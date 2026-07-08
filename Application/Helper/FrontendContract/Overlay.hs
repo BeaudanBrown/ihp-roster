@@ -30,6 +30,19 @@ module Application.Helper.FrontendContract.Overlay
     , OpenPasskeySetupDialog
     , OpenPasskeyRecoveryCodeDialog
     , CreateLeaveRequestOverlay
+    , OpenXeroTimesheetPreparationOverlay
+    , RunXeroTimesheetPreparationOverlay
+    , ContinueXeroTimesheetPreparationStaffOverlay
+    , SelectXeroTimesheetPreparationPeriodOverlay
+    , ApproveXeroTimesheetPreparationPayItemsOverlay
+    , ConfirmXeroTimesheetPreparationSubmissionOverlay
+    , RunXeroTimesheetPreparationSubmissionOverlay
+    , ApplyXeroTimesheetPreparationStaffDecisionOverlay
+    , RefreshXeroTimesheetPreparationOverlay
+    , SubmitXeroTimesheetPreparationOverlay
+    , OpenXeroPayItemImportOverlay
+    , LoadXeroPayItemImportOverlay
+    , ImportXeroPayItemsOverlay
     , OpenRosterShiftDialog
     , CreateRosterShiftOverlay
     , UpdateRosterShiftOverlay
@@ -58,6 +71,11 @@ module Application.Helper.FrontendContract.Overlay
     , RosterGroupIdField
     , ShiftPreferenceKeysField
     , ConfirmDeletePopulatedRowField
+    , LoadCandidatesField
+    , PeriodKeyField
+    , DecisionField
+    , XeroEmployeeSelectionField
+    , XeroEarningsRateIdField
     , InvitationEmailField
     ) where
 
@@ -94,6 +112,19 @@ data ManagerNoteField
 data OpenPasskeySetupDialog
 data OpenPasskeyRecoveryCodeDialog
 data CreateLeaveRequestOverlay
+data OpenXeroTimesheetPreparationOverlay
+data RunXeroTimesheetPreparationOverlay
+data ContinueXeroTimesheetPreparationStaffOverlay
+data SelectXeroTimesheetPreparationPeriodOverlay
+data ApproveXeroTimesheetPreparationPayItemsOverlay
+data ConfirmXeroTimesheetPreparationSubmissionOverlay
+data RunXeroTimesheetPreparationSubmissionOverlay
+data ApplyXeroTimesheetPreparationStaffDecisionOverlay
+data RefreshXeroTimesheetPreparationOverlay
+data SubmitXeroTimesheetPreparationOverlay
+data OpenXeroPayItemImportOverlay
+data LoadXeroPayItemImportOverlay
+data ImportXeroPayItemsOverlay
 data OpenRosterShiftDialog
 data CreateRosterShiftOverlay
 data UpdateRosterShiftOverlay
@@ -122,6 +153,11 @@ data RosterGroupIdsField
 data RosterGroupIdField
 data ShiftPreferenceKeysField
 data ConfirmDeletePopulatedRowField
+data LoadCandidatesField
+data PeriodKeyField
+data DecisionField
+data XeroEmployeeSelectionField
+data XeroEarningsRateIdField
 data InvitationEmailField
 
 type OverlayContract =
@@ -176,6 +212,67 @@ type OverlayContract =
             '[ Field StartDateField 'WireText
              , Field EndDateField 'WireText
              , Field ReasonField 'WireText
+             ]
+            DialogSubmitOptions
+         , OverlayAction OpenXeroTimesheetPreparationOverlay DialogLauncherFields DialogSubmitOptions
+         , OverlayAction RunXeroTimesheetPreparationOverlay
+            '[]
+            '[ OverlayHtmxMethod 'OverlayPost
+             , OverlayHtmxTarget DialogOverlayMount
+             , OverlayHtmxSwap "innerHTML"
+             , OverlayHtmxPushUrl 'OverlayPushUrlFalse
+             , OverlayHtmxTrigger "load"
+             , OverlayHtmxIndicator "#xero-timesheet-preparation-modal-loading-indicator"
+             ]
+         , OverlayAction ContinueXeroTimesheetPreparationStaffOverlay '[] DialogSubmitOptions
+         , OverlayAction SelectXeroTimesheetPreparationPeriodOverlay
+            '[ Field PeriodKeyField 'WireText
+             ]
+            DialogSubmitOptions
+         , OverlayAction ApproveXeroTimesheetPreparationPayItemsOverlay '[] DialogSubmitOptions
+         , OverlayAction ConfirmXeroTimesheetPreparationSubmissionOverlay '[] DialogSubmitOptions
+         , OverlayAction RunXeroTimesheetPreparationSubmissionOverlay
+            '[]
+            '[ OverlayHtmxMethod 'OverlayPost
+             , OverlayHtmxTarget DialogOverlayMount
+             , OverlayHtmxSwap "innerHTML"
+             , OverlayHtmxPushUrl 'OverlayPushUrlFalse
+             , OverlayHtmxTrigger "load"
+             , OverlayHtmxIndicator "#xero-timesheet-preparation-submitting-indicator"
+             ]
+         , OverlayAction ApplyXeroTimesheetPreparationStaffDecisionOverlay
+            '[ Field StaffIdField 'WireText
+             , Field DecisionField 'WireText
+             , Field XeroEmployeeSelectionField 'WireText
+             ]
+            '[ OverlayHtmxMethod 'OverlayPost
+             , OverlayHtmxTarget DialogOverlayMount
+             , OverlayHtmxSwap "innerHTML"
+             , OverlayHtmxPushUrl 'OverlayPushUrlFalse
+             , OverlayHtmxTrigger "change, submit"
+             ]
+         , OverlayAction RefreshXeroTimesheetPreparationOverlay '[] DialogSubmitOptions
+         , OverlayAction SubmitXeroTimesheetPreparationOverlay
+            '[]
+            '[ OverlayHtmxMethod 'OverlayPost
+             , OverlayHtmxTarget DialogOverlayMount
+             , OverlayHtmxSwap "innerHTML"
+             , OverlayHtmxPushUrl 'OverlayPushUrlFalse
+             , OverlayHtmxConfirm "Submit draft timesheets to Xero?"
+             ]
+         , OverlayAction OpenXeroPayItemImportOverlay DialogLauncherFields DialogLauncherOptions
+         , OverlayAction LoadXeroPayItemImportOverlay
+            '[ Field LoadCandidatesField 'WireText
+             ]
+            '[ OverlayHtmxMethod 'OverlayGet
+             , OverlayHtmxTarget DialogOverlayMount
+             , OverlayHtmxSwap "innerHTML"
+             , OverlayHtmxPushUrl 'OverlayPushUrlFalse
+             , OverlayHtmxTrigger "load"
+             , OverlayHtmxIndicator "#xero-import-pay-items-loading-indicator"
+             ]
+         , OverlayAction ImportXeroPayItemsOverlay
+            '[ Field XeroEarningsRateIdField 'WireText
              ]
             DialogSubmitOptions
          , OverlayAction OpenRosterShiftDialog DialogLauncherFields DialogLauncherOptions

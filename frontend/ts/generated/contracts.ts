@@ -1262,6 +1262,162 @@ export function encodeCreateLeaveRequestOverlayOverlayActionFields(value: Create
 
 export const createLeaveRequestOverlayOverlayActionManifest = {"name":"create-leave-request-overlay","fields":["startDate","endDate","reason"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
 
+export type OpenXeroTimesheetPreparationOverlayOverlayActionFields = {  };
+export function isOpenXeroTimesheetPreparationOverlayOverlayActionFields(value: unknown): value is OpenXeroTimesheetPreparationOverlayOverlayActionFields {
+    return isRecord(value);
+}
+export function parseOpenXeroTimesheetPreparationOverlayOverlayActionFields(value: unknown): OpenXeroTimesheetPreparationOverlayOverlayActionFields {
+    if (isOpenXeroTimesheetPreparationOverlayOverlayActionFields(value)) return value;
+    throw new Error("Invalid OpenXeroTimesheetPreparationOverlayOverlayActionFields");
+}
+export function encodeOpenXeroTimesheetPreparationOverlayOverlayActionFields(value: OpenXeroTimesheetPreparationOverlayOverlayActionFields): OpenXeroTimesheetPreparationOverlayOverlayActionFields { return value; }
+
+export const openXeroTimesheetPreparationOverlayOverlayActionManifest = {"name":"open-xero-timesheet-preparation-overlay","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type RunXeroTimesheetPreparationOverlayOverlayActionFields = {  };
+export function isRunXeroTimesheetPreparationOverlayOverlayActionFields(value: unknown): value is RunXeroTimesheetPreparationOverlayOverlayActionFields {
+    return isRecord(value);
+}
+export function parseRunXeroTimesheetPreparationOverlayOverlayActionFields(value: unknown): RunXeroTimesheetPreparationOverlayOverlayActionFields {
+    if (isRunXeroTimesheetPreparationOverlayOverlayActionFields(value)) return value;
+    throw new Error("Invalid RunXeroTimesheetPreparationOverlayOverlayActionFields");
+}
+export function encodeRunXeroTimesheetPreparationOverlayOverlayActionFields(value: RunXeroTimesheetPreparationOverlayOverlayActionFields): RunXeroTimesheetPreparationOverlayOverlayActionFields { return value; }
+
+export const runXeroTimesheetPreparationOverlayOverlayActionManifest = {"name":"run-xero-timesheet-preparation-overlay","fields":[],"htmx":{"method":"post","trigger":"load","include":null,"sync":null,"indicator":"#xero-timesheet-preparation-modal-loading-indicator","confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type ContinueXeroTimesheetPreparationStaffOverlayOverlayActionFields = {  };
+export function isContinueXeroTimesheetPreparationStaffOverlayOverlayActionFields(value: unknown): value is ContinueXeroTimesheetPreparationStaffOverlayOverlayActionFields {
+    return isRecord(value);
+}
+export function parseContinueXeroTimesheetPreparationStaffOverlayOverlayActionFields(value: unknown): ContinueXeroTimesheetPreparationStaffOverlayOverlayActionFields {
+    if (isContinueXeroTimesheetPreparationStaffOverlayOverlayActionFields(value)) return value;
+    throw new Error("Invalid ContinueXeroTimesheetPreparationStaffOverlayOverlayActionFields");
+}
+export function encodeContinueXeroTimesheetPreparationStaffOverlayOverlayActionFields(value: ContinueXeroTimesheetPreparationStaffOverlayOverlayActionFields): ContinueXeroTimesheetPreparationStaffOverlayOverlayActionFields { return value; }
+
+export const continueXeroTimesheetPreparationStaffOverlayOverlayActionManifest = {"name":"continue-xero-timesheet-preparation-staff-overlay","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type SelectXeroTimesheetPreparationPeriodOverlayOverlayActionFields = { periodKey: string };
+export function isSelectXeroTimesheetPreparationPeriodOverlayOverlayActionFields(value: unknown): value is SelectXeroTimesheetPreparationPeriodOverlayOverlayActionFields {
+    return isRecord(value) && (typeof value["periodKey"] === "string");
+}
+export function parseSelectXeroTimesheetPreparationPeriodOverlayOverlayActionFields(value: unknown): SelectXeroTimesheetPreparationPeriodOverlayOverlayActionFields {
+    if (isSelectXeroTimesheetPreparationPeriodOverlayOverlayActionFields(value)) return value;
+    throw new Error("Invalid SelectXeroTimesheetPreparationPeriodOverlayOverlayActionFields");
+}
+export function encodeSelectXeroTimesheetPreparationPeriodOverlayOverlayActionFields(value: SelectXeroTimesheetPreparationPeriodOverlayOverlayActionFields): SelectXeroTimesheetPreparationPeriodOverlayOverlayActionFields { return value; }
+
+export const selectXeroTimesheetPreparationPeriodOverlayOverlayActionManifest = {"name":"select-xero-timesheet-preparation-period-overlay","fields":["periodKey"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type ApproveXeroTimesheetPreparationPayItemsOverlayOverlayActionFields = {  };
+export function isApproveXeroTimesheetPreparationPayItemsOverlayOverlayActionFields(value: unknown): value is ApproveXeroTimesheetPreparationPayItemsOverlayOverlayActionFields {
+    return isRecord(value);
+}
+export function parseApproveXeroTimesheetPreparationPayItemsOverlayOverlayActionFields(value: unknown): ApproveXeroTimesheetPreparationPayItemsOverlayOverlayActionFields {
+    if (isApproveXeroTimesheetPreparationPayItemsOverlayOverlayActionFields(value)) return value;
+    throw new Error("Invalid ApproveXeroTimesheetPreparationPayItemsOverlayOverlayActionFields");
+}
+export function encodeApproveXeroTimesheetPreparationPayItemsOverlayOverlayActionFields(value: ApproveXeroTimesheetPreparationPayItemsOverlayOverlayActionFields): ApproveXeroTimesheetPreparationPayItemsOverlayOverlayActionFields { return value; }
+
+export const approveXeroTimesheetPreparationPayItemsOverlayOverlayActionManifest = {"name":"approve-xero-timesheet-preparation-pay-items-overlay","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type ConfirmXeroTimesheetPreparationSubmissionOverlayOverlayActionFields = {  };
+export function isConfirmXeroTimesheetPreparationSubmissionOverlayOverlayActionFields(value: unknown): value is ConfirmXeroTimesheetPreparationSubmissionOverlayOverlayActionFields {
+    return isRecord(value);
+}
+export function parseConfirmXeroTimesheetPreparationSubmissionOverlayOverlayActionFields(value: unknown): ConfirmXeroTimesheetPreparationSubmissionOverlayOverlayActionFields {
+    if (isConfirmXeroTimesheetPreparationSubmissionOverlayOverlayActionFields(value)) return value;
+    throw new Error("Invalid ConfirmXeroTimesheetPreparationSubmissionOverlayOverlayActionFields");
+}
+export function encodeConfirmXeroTimesheetPreparationSubmissionOverlayOverlayActionFields(value: ConfirmXeroTimesheetPreparationSubmissionOverlayOverlayActionFields): ConfirmXeroTimesheetPreparationSubmissionOverlayOverlayActionFields { return value; }
+
+export const confirmXeroTimesheetPreparationSubmissionOverlayOverlayActionManifest = {"name":"confirm-xero-timesheet-preparation-submission-overlay","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type RunXeroTimesheetPreparationSubmissionOverlayOverlayActionFields = {  };
+export function isRunXeroTimesheetPreparationSubmissionOverlayOverlayActionFields(value: unknown): value is RunXeroTimesheetPreparationSubmissionOverlayOverlayActionFields {
+    return isRecord(value);
+}
+export function parseRunXeroTimesheetPreparationSubmissionOverlayOverlayActionFields(value: unknown): RunXeroTimesheetPreparationSubmissionOverlayOverlayActionFields {
+    if (isRunXeroTimesheetPreparationSubmissionOverlayOverlayActionFields(value)) return value;
+    throw new Error("Invalid RunXeroTimesheetPreparationSubmissionOverlayOverlayActionFields");
+}
+export function encodeRunXeroTimesheetPreparationSubmissionOverlayOverlayActionFields(value: RunXeroTimesheetPreparationSubmissionOverlayOverlayActionFields): RunXeroTimesheetPreparationSubmissionOverlayOverlayActionFields { return value; }
+
+export const runXeroTimesheetPreparationSubmissionOverlayOverlayActionManifest = {"name":"run-xero-timesheet-preparation-submission-overlay","fields":[],"htmx":{"method":"post","trigger":"load","include":null,"sync":null,"indicator":"#xero-timesheet-preparation-submitting-indicator","confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type ApplyXeroTimesheetPreparationStaffDecisionOverlayOverlayActionFields = { staffId: string; decision: string; xeroEmployeeSelection: string };
+export function isApplyXeroTimesheetPreparationStaffDecisionOverlayOverlayActionFields(value: unknown): value is ApplyXeroTimesheetPreparationStaffDecisionOverlayOverlayActionFields {
+    return isRecord(value) && (typeof value["staffId"] === "string") && (typeof value["decision"] === "string") && (typeof value["xeroEmployeeSelection"] === "string");
+}
+export function parseApplyXeroTimesheetPreparationStaffDecisionOverlayOverlayActionFields(value: unknown): ApplyXeroTimesheetPreparationStaffDecisionOverlayOverlayActionFields {
+    if (isApplyXeroTimesheetPreparationStaffDecisionOverlayOverlayActionFields(value)) return value;
+    throw new Error("Invalid ApplyXeroTimesheetPreparationStaffDecisionOverlayOverlayActionFields");
+}
+export function encodeApplyXeroTimesheetPreparationStaffDecisionOverlayOverlayActionFields(value: ApplyXeroTimesheetPreparationStaffDecisionOverlayOverlayActionFields): ApplyXeroTimesheetPreparationStaffDecisionOverlayOverlayActionFields { return value; }
+
+export const applyXeroTimesheetPreparationStaffDecisionOverlayOverlayActionManifest = {"name":"apply-xero-timesheet-preparation-staff-decision-overlay","fields":["staffId","decision","xeroEmployeeSelection"],"htmx":{"method":"post","trigger":"change, submit","include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type RefreshXeroTimesheetPreparationOverlayOverlayActionFields = {  };
+export function isRefreshXeroTimesheetPreparationOverlayOverlayActionFields(value: unknown): value is RefreshXeroTimesheetPreparationOverlayOverlayActionFields {
+    return isRecord(value);
+}
+export function parseRefreshXeroTimesheetPreparationOverlayOverlayActionFields(value: unknown): RefreshXeroTimesheetPreparationOverlayOverlayActionFields {
+    if (isRefreshXeroTimesheetPreparationOverlayOverlayActionFields(value)) return value;
+    throw new Error("Invalid RefreshXeroTimesheetPreparationOverlayOverlayActionFields");
+}
+export function encodeRefreshXeroTimesheetPreparationOverlayOverlayActionFields(value: RefreshXeroTimesheetPreparationOverlayOverlayActionFields): RefreshXeroTimesheetPreparationOverlayOverlayActionFields { return value; }
+
+export const refreshXeroTimesheetPreparationOverlayOverlayActionManifest = {"name":"refresh-xero-timesheet-preparation-overlay","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type SubmitXeroTimesheetPreparationOverlayOverlayActionFields = {  };
+export function isSubmitXeroTimesheetPreparationOverlayOverlayActionFields(value: unknown): value is SubmitXeroTimesheetPreparationOverlayOverlayActionFields {
+    return isRecord(value);
+}
+export function parseSubmitXeroTimesheetPreparationOverlayOverlayActionFields(value: unknown): SubmitXeroTimesheetPreparationOverlayOverlayActionFields {
+    if (isSubmitXeroTimesheetPreparationOverlayOverlayActionFields(value)) return value;
+    throw new Error("Invalid SubmitXeroTimesheetPreparationOverlayOverlayActionFields");
+}
+export function encodeSubmitXeroTimesheetPreparationOverlayOverlayActionFields(value: SubmitXeroTimesheetPreparationOverlayOverlayActionFields): SubmitXeroTimesheetPreparationOverlayOverlayActionFields { return value; }
+
+export const submitXeroTimesheetPreparationOverlayOverlayActionManifest = {"name":"submit-xero-timesheet-preparation-overlay","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":"Submit draft timesheets to Xero?","select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type OpenXeroPayItemImportOverlayOverlayActionFields = {  };
+export function isOpenXeroPayItemImportOverlayOverlayActionFields(value: unknown): value is OpenXeroPayItemImportOverlayOverlayActionFields {
+    return isRecord(value);
+}
+export function parseOpenXeroPayItemImportOverlayOverlayActionFields(value: unknown): OpenXeroPayItemImportOverlayOverlayActionFields {
+    if (isOpenXeroPayItemImportOverlayOverlayActionFields(value)) return value;
+    throw new Error("Invalid OpenXeroPayItemImportOverlayOverlayActionFields");
+}
+export function encodeOpenXeroPayItemImportOverlayOverlayActionFields(value: OpenXeroPayItemImportOverlayOverlayActionFields): OpenXeroPayItemImportOverlayOverlayActionFields { return value; }
+
+export const openXeroPayItemImportOverlayOverlayActionManifest = {"name":"open-xero-pay-item-import-overlay","fields":[],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type LoadXeroPayItemImportOverlayOverlayActionFields = { loadCandidates: string };
+export function isLoadXeroPayItemImportOverlayOverlayActionFields(value: unknown): value is LoadXeroPayItemImportOverlayOverlayActionFields {
+    return isRecord(value) && (typeof value["loadCandidates"] === "string");
+}
+export function parseLoadXeroPayItemImportOverlayOverlayActionFields(value: unknown): LoadXeroPayItemImportOverlayOverlayActionFields {
+    if (isLoadXeroPayItemImportOverlayOverlayActionFields(value)) return value;
+    throw new Error("Invalid LoadXeroPayItemImportOverlayOverlayActionFields");
+}
+export function encodeLoadXeroPayItemImportOverlayOverlayActionFields(value: LoadXeroPayItemImportOverlayOverlayActionFields): LoadXeroPayItemImportOverlayOverlayActionFields { return value; }
+
+export const loadXeroPayItemImportOverlayOverlayActionManifest = {"name":"load-xero-pay-item-import-overlay","fields":["loadCandidates"],"htmx":{"method":"get","trigger":"load","include":null,"sync":null,"indicator":"#xero-import-pay-items-loading-indicator","confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type ImportXeroPayItemsOverlayOverlayActionFields = { xeroEarningsRateId: string };
+export function isImportXeroPayItemsOverlayOverlayActionFields(value: unknown): value is ImportXeroPayItemsOverlayOverlayActionFields {
+    return isRecord(value) && (typeof value["xeroEarningsRateId"] === "string");
+}
+export function parseImportXeroPayItemsOverlayOverlayActionFields(value: unknown): ImportXeroPayItemsOverlayOverlayActionFields {
+    if (isImportXeroPayItemsOverlayOverlayActionFields(value)) return value;
+    throw new Error("Invalid ImportXeroPayItemsOverlayOverlayActionFields");
+}
+export function encodeImportXeroPayItemsOverlayOverlayActionFields(value: ImportXeroPayItemsOverlayOverlayActionFields): ImportXeroPayItemsOverlayOverlayActionFields { return value; }
+
+export const importXeroPayItemsOverlayOverlayActionManifest = {"name":"import-xero-pay-items-overlay","fields":["xeroEarningsRateId"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
 export type OpenRosterShiftDialogOverlayActionFields = {  };
 export function isOpenRosterShiftDialogOverlayActionFields(value: unknown): value is OpenRosterShiftDialogOverlayActionFields {
     return isRecord(value);

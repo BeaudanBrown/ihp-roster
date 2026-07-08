@@ -13,9 +13,15 @@ module Web.View.Admin.Xero
     , renderXeroTimesheetsFragment
     ) where
 
+{-# LANGUAGE TypeApplications #-}
+
 import Application.Helper.Controller (currentVenueOrNothing)
+import Application.Helper.FrontendContract.Overlay (OpenXeroPayItemImportOverlay,
+                                                    OpenXeroTimesheetPreparationOverlay)
+import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
+                                                            overlayActionByMarker,
+                                                            renderOverlayActionForm)
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
-import Application.Helper.View.Overlay (dialogOverlayMountId)
 import Application.Helper.XeroAdminTypes
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminXeroPageSurfaceImpl,
@@ -130,33 +136,48 @@ renderXeroConnectionBody (Just connection) _maybeConnectedByUser _maybeSyncRun _
     </div>
 |]
 
+xeroOverlayActionRoute :: Text -> OverlayActionRoute
+xeroOverlayActionRoute actionUrl =
+    OverlayActionRoute
+        { overlayActionRouteUrl = actionUrl
+        , overlayActionRouteFields = []
+        , overlayActionRouteCustomHtmx = []
+        , overlayActionRouteStandardUrl = Nothing
+        , overlayActionRouteExtraAttrs = []
+        }
+
 renderXeroActionControls :: XeroTimesheetPanelData -> Bool -> Html
 renderXeroActionControls timesheetPanel connectionActionsAllowed = [hsx|
     <div class="d-flex flex-wrap gap-2">
-        <form method="POST"
-              action={OpenXeroTimesheetPreparationAction}
-              data-xero-timesheet-preparation-form="true"
-              hx-post={pathTo OpenXeroTimesheetPreparationAction}
-              hx-target={"#" <> dialogOverlayMountId}
-              hx-swap="innerHTML">
-            <button type="submit"
-                    class="btn btn-primary"
-                    disabled={not (connectionActionsAllowed && timesheetPanel.xeroTimesheetActionsAllowed)}>
-                Upload timesheets
-            </button>
-        </form>
-        <form method="GET"
-              action={OpenXeroPayItemImportAction}
-              hx-get={pathTo OpenXeroPayItemImportAction}
-              hx-target={"#" <> dialogOverlayMountId}
-              hx-swap="innerHTML">
-            <button type="submit" class="btn btn-outline-primary" disabled={not connectionActionsAllowed}>Import pay items</button>
-        </form>
+        {renderOpenXeroTimesheetPreparationForm timesheetPanel connectionActionsAllowed}
+        {renderOpenXeroPayItemImportForm connectionActionsAllowed}
         <form method="POST" action={DisconnectXeroConnectionAction} data-disable-javascript-submission="true">
             <button class="btn btn-outline-danger" type="submit" disabled={not connectionActionsAllowed}>Disconnect</button>
         </form>
     </div>
 |]
+
+renderOpenXeroTimesheetPreparationForm :: XeroTimesheetPanelData -> Bool -> Html
+renderOpenXeroTimesheetPreparationForm timesheetPanel connectionActionsAllowed =
+    renderOverlayActionForm
+        (overlayActionByMarker @OpenXeroTimesheetPreparationOverlay)
+        (xeroOverlayActionRoute (pathTo OpenXeroTimesheetPreparationAction))
+            { overlayActionRouteExtraAttrs = [("data-xero-timesheet-preparation-form", "true")]
+            }
+        [hsx|
+            <button type="submit"
+                    class="btn btn-primary"
+                    disabled={not (connectionActionsAllowed && timesheetPanel.xeroTimesheetActionsAllowed)}>
+                Upload timesheets
+            </button>
+        |]
+
+renderOpenXeroPayItemImportForm :: Bool -> Html
+renderOpenXeroPayItemImportForm connectionActionsAllowed =
+    renderOverlayActionForm
+        (overlayActionByMarker @OpenXeroPayItemImportOverlay)
+        (xeroOverlayActionRoute (pathTo OpenXeroPayItemImportAction))
+        [hsx|<button type="submit" class="btn btn-outline-primary" disabled={not connectionActionsAllowed}>Import pay items</button>|]
 
 renderXeroOperationalPanels :: XeroConnection -> XeroTimesheetPanelData -> [XeroPayItemRequirement] -> [XeroImportedPayItem] -> [XeroPayItemAccountCodeOption] -> Maybe XeroSyncRun -> Maybe XeroPayItemAccountCodeSelection -> Bool -> Html
 renderXeroOperationalPanels connection timesheetPanel payItemRequirements importedPayItems accountCodeOptions maybePayItemSyncRun maybePayItemAccountCodeSelection connectionActionsAllowed
