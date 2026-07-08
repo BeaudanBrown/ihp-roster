@@ -21,7 +21,9 @@ owns browser-visible HTMX metadata and submitted fields; Haskell still owns IHP
 route/path construction through `Application.Helper.FrontendContract.Overlay.Runtime`.
 Successful final workflow mutations should close/clear overlays and refresh
 business surfaces through actor-local/passive invalidation rather than returning
-authoritative business fragments OOB.
+authoritative business fragments OOB. See
+`Application/Helper/FrontendContract/Overlay/README.md` for declaration,
+rendering, response, and guardrail examples.
 
 Haskell wire code must not re-declare browser shapes. Typed carrier modules may
 exist for ergonomic runtime APIs, but JSON validation/parsing/rendering delegates

@@ -1,6 +1,6 @@
 ---
 id: ir-s2n9
-status: open
+status: closed
 deps: [ir-fyeq]
 links: []
 created: 2026-07-08T00:02:52Z
