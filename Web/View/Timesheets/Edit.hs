@@ -1,5 +1,9 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Web.View.Timesheets.Edit where
 
+import Application.Helper.FrontendContract.Overlay (UpdateTimesheetEntryOverlay)
+import Application.Helper.FrontendContract.Overlay.Runtime (overlayActionByMarker)
 import Web.Timesheets.Paths (timesheetWeekUrl)
 import Web.View.Prelude
 
@@ -20,7 +24,7 @@ instance View EditView where
             (timesheetModalTitle timesheetEntry.workedOn)
             (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
             editTimesheetFormId
-            (renderTimesheetForm timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId (pathTo (UpdateTimesheetEntryAction (get #id timesheetEntry))) editTimesheetFormId PageOverlayForm)
+            (renderTimesheetForm (overlayActionByMarker @UpdateTimesheetEntryOverlay) timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId (pathTo (UpdateTimesheetEntryAction (get #id timesheetEntry))) editTimesheetFormId PageOverlayForm)
             (deleteButtonsFor timesheetEntry weekOffset showApproved showAllStaff selectedStaffFilterId)
 
 editTimesheetFormId :: Text
@@ -31,7 +35,7 @@ renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset show
     renderTimesheetEntryDialogWithStartButtons
         (timesheetModalTitle timesheetEntry.workedOn)
         editTimesheetFormId
-        (renderTimesheetForm timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId (pathTo (UpdateTimesheetEntryAction (get #id timesheetEntry))) editTimesheetFormId HtmxOverlayForm)
+        (renderTimesheetForm (overlayActionByMarker @UpdateTimesheetEntryOverlay) timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId (pathTo (UpdateTimesheetEntryAction (get #id timesheetEntry))) editTimesheetFormId HtmxOverlayForm)
         (deleteButtonsFor timesheetEntry weekOffset showApproved showAllStaff selectedStaffFilterId)
 
 deleteButtonsFor :: TimesheetEntry -> Int -> Bool -> Bool -> Maybe UUID -> [OverlayButton]

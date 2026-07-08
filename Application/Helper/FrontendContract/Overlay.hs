@@ -8,6 +8,24 @@ module Application.Helper.FrontendContract.Overlay
     , SubmitFeedback
     , FeedbackTypeField
     , ContentField
+    , OpenTimesheetEntryDialog
+    , EditTimesheetEntryDialog
+    , CreateTimesheetEntryOverlay
+    , UpdateTimesheetEntryOverlay
+    , WeekOffsetField
+    , ShowApprovedField
+    , ShowAllStaffField
+    , StaffFilterIdField
+    , StaffIdField
+    , ShiftTypeIdField
+    , WorkedOnField
+    , StartTimeField
+    , EndTimeField
+    , HadBreakField
+    , BreakStartTimeField
+    , BreakEndTimeField
+    , StaffCommentField
+    , ManagerNoteField
     ) where
 
 import Application.Helper.FrontendContract.App (DialogOverlayMount)
@@ -19,6 +37,25 @@ data OpenFeedbackDialog
 data SubmitFeedback
 data FeedbackTypeField
 data ContentField
+
+data OpenTimesheetEntryDialog
+data EditTimesheetEntryDialog
+data CreateTimesheetEntryOverlay
+data UpdateTimesheetEntryOverlay
+data WeekOffsetField
+data ShowApprovedField
+data ShowAllStaffField
+data StaffFilterIdField
+data StaffIdField
+data ShiftTypeIdField
+data WorkedOnField
+data StartTimeField
+data EndTimeField
+data HadBreakField
+data BreakStartTimeField
+data BreakEndTimeField
+data StaffCommentField
+data ManagerNoteField
 
 type OverlayContract =
     Global Overlay
@@ -38,4 +75,44 @@ type OverlayContract =
              , OverlayHtmxSwap "innerHTML"
              , OverlayHtmxPushUrl 'OverlayPushUrlFalse
              ]
+         , OverlayAction OpenTimesheetEntryDialog
+            '[]
+            '[ OverlayHtmxMethod 'OverlayGet
+             , OverlayHtmxTarget DialogOverlayMount
+             , OverlayHtmxSwap "innerHTML"
+             , OverlayHtmxPushUrl 'OverlayPushUrlFalse
+             ]
+         , OverlayAction EditTimesheetEntryDialog
+            '[]
+            '[ OverlayHtmxMethod 'OverlayGet
+             , OverlayHtmxTarget DialogOverlayMount
+             , OverlayHtmxSwap "innerHTML"
+             , OverlayHtmxPushUrl 'OverlayPushUrlFalse
+             ]
+         , OverlayAction CreateTimesheetEntryOverlay TimesheetEntryFields TimesheetEntrySubmitOptions
+         , OverlayAction UpdateTimesheetEntryOverlay TimesheetEntryFields TimesheetEntrySubmitOptions
          ]
+
+type TimesheetEntryFields =
+    '[ Field WeekOffsetField 'WireText
+     , Field ShowApprovedField 'WireText
+     , Field ShowAllStaffField 'WireText
+     , Field StaffFilterIdField 'WireText
+     , Field StaffIdField 'WireText
+     , Field ShiftTypeIdField 'WireText
+     , Field WorkedOnField 'WireText
+     , Field StartTimeField 'WireText
+     , Field EndTimeField 'WireText
+     , Field HadBreakField 'WireText
+     , Field BreakStartTimeField 'WireText
+     , Field BreakEndTimeField 'WireText
+     , Field StaffCommentField 'WireText
+     , Field ManagerNoteField 'WireText
+     ]
+
+type TimesheetEntrySubmitOptions =
+    '[ OverlayHtmxMethod 'OverlayPost
+     , OverlayHtmxTarget DialogOverlayMount
+     , OverlayHtmxSwap "innerHTML"
+     , OverlayHtmxPushUrl 'OverlayPushUrlFalse
+     ]

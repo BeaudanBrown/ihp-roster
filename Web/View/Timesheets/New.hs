@@ -1,5 +1,9 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Web.View.Timesheets.New where
 
+import Application.Helper.FrontendContract.Overlay (CreateTimesheetEntryOverlay)
+import Application.Helper.FrontendContract.Overlay.Runtime (overlayActionByMarker)
 import Web.Timesheets.Paths (timesheetWeekUrl)
 import Web.View.Prelude
 
@@ -20,7 +24,7 @@ instance View NewView where
             (timesheetModalTitle timesheetEntry.workedOn)
             (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
             newTimesheetFormId
-            (renderTimesheetForm timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId (pathTo CreateTimesheetEntryAction) newTimesheetFormId PageOverlayForm)
+            (renderTimesheetForm (overlayActionByMarker @CreateTimesheetEntryOverlay) timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId (pathTo CreateTimesheetEntryAction) newTimesheetFormId PageOverlayForm)
 
 newTimesheetFormId :: Text
 newTimesheetFormId = "timesheet-entry-create-form"
@@ -30,4 +34,4 @@ renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showA
     renderTimesheetEntryDialog
         (timesheetModalTitle timesheetEntry.workedOn)
         newTimesheetFormId
-        (renderTimesheetForm timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId (pathTo CreateTimesheetEntryAction) newTimesheetFormId HtmxOverlayForm)
+        (renderTimesheetForm (overlayActionByMarker @CreateTimesheetEntryOverlay) timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId (pathTo CreateTimesheetEntryAction) newTimesheetFormId HtmxOverlayForm)

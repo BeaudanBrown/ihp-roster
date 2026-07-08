@@ -1166,6 +1166,54 @@ export function encodeSubmitFeedbackOverlayActionFields(value: SubmitFeedbackOve
 
 export const submitFeedbackOverlayActionManifest = {"name":"submit-feedback","fields":["feedbackType","content"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
 
+export type OpenTimesheetEntryDialogOverlayActionFields = {  };
+export function isOpenTimesheetEntryDialogOverlayActionFields(value: unknown): value is OpenTimesheetEntryDialogOverlayActionFields {
+    return isRecord(value);
+}
+export function parseOpenTimesheetEntryDialogOverlayActionFields(value: unknown): OpenTimesheetEntryDialogOverlayActionFields {
+    if (isOpenTimesheetEntryDialogOverlayActionFields(value)) return value;
+    throw new Error("Invalid OpenTimesheetEntryDialogOverlayActionFields");
+}
+export function encodeOpenTimesheetEntryDialogOverlayActionFields(value: OpenTimesheetEntryDialogOverlayActionFields): OpenTimesheetEntryDialogOverlayActionFields { return value; }
+
+export const openTimesheetEntryDialogOverlayActionManifest = {"name":"open-timesheet-entry-dialog","fields":[],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type EditTimesheetEntryDialogOverlayActionFields = {  };
+export function isEditTimesheetEntryDialogOverlayActionFields(value: unknown): value is EditTimesheetEntryDialogOverlayActionFields {
+    return isRecord(value);
+}
+export function parseEditTimesheetEntryDialogOverlayActionFields(value: unknown): EditTimesheetEntryDialogOverlayActionFields {
+    if (isEditTimesheetEntryDialogOverlayActionFields(value)) return value;
+    throw new Error("Invalid EditTimesheetEntryDialogOverlayActionFields");
+}
+export function encodeEditTimesheetEntryDialogOverlayActionFields(value: EditTimesheetEntryDialogOverlayActionFields): EditTimesheetEntryDialogOverlayActionFields { return value; }
+
+export const editTimesheetEntryDialogOverlayActionManifest = {"name":"edit-timesheet-entry-dialog","fields":[],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type CreateTimesheetEntryOverlayOverlayActionFields = { weekOffset: string; showApproved: string; showAllStaff: string; staffFilterId: string; staffId: string; shiftTypeId: string; workedOn: string; startTime: string; endTime: string; hadBreak: string; breakStartTime: string; breakEndTime: string; staffComment: string; managerNote: string };
+export function isCreateTimesheetEntryOverlayOverlayActionFields(value: unknown): value is CreateTimesheetEntryOverlayOverlayActionFields {
+    return isRecord(value) && (typeof value["weekOffset"] === "string") && (typeof value["showApproved"] === "string") && (typeof value["showAllStaff"] === "string") && (typeof value["staffFilterId"] === "string") && (typeof value["staffId"] === "string") && (typeof value["shiftTypeId"] === "string") && (typeof value["workedOn"] === "string") && (typeof value["startTime"] === "string") && (typeof value["endTime"] === "string") && (typeof value["hadBreak"] === "string") && (typeof value["breakStartTime"] === "string") && (typeof value["breakEndTime"] === "string") && (typeof value["staffComment"] === "string") && (typeof value["managerNote"] === "string");
+}
+export function parseCreateTimesheetEntryOverlayOverlayActionFields(value: unknown): CreateTimesheetEntryOverlayOverlayActionFields {
+    if (isCreateTimesheetEntryOverlayOverlayActionFields(value)) return value;
+    throw new Error("Invalid CreateTimesheetEntryOverlayOverlayActionFields");
+}
+export function encodeCreateTimesheetEntryOverlayOverlayActionFields(value: CreateTimesheetEntryOverlayOverlayActionFields): CreateTimesheetEntryOverlayOverlayActionFields { return value; }
+
+export const createTimesheetEntryOverlayOverlayActionManifest = {"name":"create-timesheet-entry-overlay","fields":["weekOffset","showApproved","showAllStaff","staffFilterId","staffId","shiftTypeId","workedOn","startTime","endTime","hadBreak","breakStartTime","breakEndTime","staffComment","managerNote"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
+export type UpdateTimesheetEntryOverlayOverlayActionFields = { weekOffset: string; showApproved: string; showAllStaff: string; staffFilterId: string; staffId: string; shiftTypeId: string; workedOn: string; startTime: string; endTime: string; hadBreak: string; breakStartTime: string; breakEndTime: string; staffComment: string; managerNote: string };
+export function isUpdateTimesheetEntryOverlayOverlayActionFields(value: unknown): value is UpdateTimesheetEntryOverlayOverlayActionFields {
+    return isRecord(value) && (typeof value["weekOffset"] === "string") && (typeof value["showApproved"] === "string") && (typeof value["showAllStaff"] === "string") && (typeof value["staffFilterId"] === "string") && (typeof value["staffId"] === "string") && (typeof value["shiftTypeId"] === "string") && (typeof value["workedOn"] === "string") && (typeof value["startTime"] === "string") && (typeof value["endTime"] === "string") && (typeof value["hadBreak"] === "string") && (typeof value["breakStartTime"] === "string") && (typeof value["breakEndTime"] === "string") && (typeof value["staffComment"] === "string") && (typeof value["managerNote"] === "string");
+}
+export function parseUpdateTimesheetEntryOverlayOverlayActionFields(value: unknown): UpdateTimesheetEntryOverlayOverlayActionFields {
+    if (isUpdateTimesheetEntryOverlayOverlayActionFields(value)) return value;
+    throw new Error("Invalid UpdateTimesheetEntryOverlayOverlayActionFields");
+}
+export function encodeUpdateTimesheetEntryOverlayOverlayActionFields(value: UpdateTimesheetEntryOverlayOverlayActionFields): UpdateTimesheetEntryOverlayOverlayActionFields { return value; }
+
+export const updateTimesheetEntryOverlayOverlayActionManifest = {"name":"update-timesheet-entry-overlay","fields":["weekOffset","showApproved","showAllStaff","staffFilterId","staffId","shiftTypeId","workedOn","startTime","endTime","hadBreak","breakStartTime","breakEndTime","staffComment","managerNote"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
 export type SurfaceLabLabScopeScope = { venueId: FrontendContractUuid; weekOffset: number };
 export function isSurfaceLabLabScopeScope(value: unknown): value is SurfaceLabLabScopeScope {
     return isRecord(value) && (typeof value["venueId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));

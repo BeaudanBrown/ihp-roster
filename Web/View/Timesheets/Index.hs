@@ -1,6 +1,13 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Web.View.Timesheets.Index where
 
 import Application.Helper.Controller (isWithinEditWindow, shiftDurationMinutes)
+import Application.Helper.FrontendContract.Overlay (EditTimesheetEntryDialog,
+                                                    OpenTimesheetEntryDialog)
+import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
+                                                            overlayActionByMarker,
+                                                            renderOverlayActionLink)
 import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl,
                                                             renderFrontendSurfaceMount)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
@@ -261,17 +268,7 @@ renderDaySectionWithSwap maybeSwapOob model@TimesheetDayRenderModel { dayEntries
              data-timesheet-day-offset={tshow dayOffset}
              hx-swap-oob={maybeSwapOob}>
         <header class="timesheet-day-header">
-            <a href={newEntryUrl}
-               class="timesheet-day-add-bar"
-               data-timesheet-day-add="true"
-               hx-get={newEntryUrl}
-               hx-target={"#" <> dialogOverlayMountId}
-               hx-swap="innerHTML"
-               hx-push-url="false"
-               aria-label={"Add timesheet entry for " <> weekdayLabel <> " " <> formatDateCompact dayDate}>
-                <span class="timesheet-day-add-plus">+</span>
-                <span class="timesheet-day-add-label">{weekdayShortLabel} {formatDateCompact dayDate}</span>
-            </a>
+            {renderNewEntryOverlayLink newEntryUrl weekdayLabel weekdayShortLabel dayDate}
         </header>
 
         <div class="timesheet-day-body">
@@ -285,6 +282,26 @@ renderDaySectionWithSwap maybeSwapOob model@TimesheetDayRenderModel { dayEntries
         weekdayLabel = Text.pack (formatTime defaultTimeLocale "%A" dayDate)
         weekdayShortLabel = Text.pack (formatTime defaultTimeLocale "%a" dayDate)
         newEntryUrl = newTimesheetEntryUrl dayWeekOffset dayDate dayShowApproved dayShowAllStaff dayStaffFilterId
+
+renderNewEntryOverlayLink :: Text -> Text -> Text -> Day -> Html
+renderNewEntryOverlayLink newEntryUrl weekdayLabel weekdayShortLabel dayDate =
+    renderOverlayActionLink
+        (overlayActionByMarker @OpenTimesheetEntryDialog)
+        OverlayActionRoute
+            { overlayActionRouteUrl = newEntryUrl
+            , overlayActionRouteFields = []
+            , overlayActionRouteCustomHtmx = []
+            , overlayActionRouteStandardUrl = Nothing
+            , overlayActionRouteExtraAttrs =
+                [ ("class", "timesheet-day-add-bar")
+                , ("data-timesheet-day-add", "true")
+                , ("aria-label", "Add timesheet entry for " <> weekdayLabel <> " " <> formatDateCompact dayDate)
+                ]
+            }
+        [hsx|
+            <span class="timesheet-day-add-plus">+</span>
+            <span class="timesheet-day-add-label">{weekdayShortLabel} {formatDateCompact dayDate}</span>
+        |]
 
 timesheetDaySectionDomId :: Int -> Text
 timesheetDaySectionDomId dayOffset = "timesheet-day-section-" <> tshow dayOffset
@@ -337,15 +354,20 @@ renderEntryCard TimesheetDayRenderModel { dayStaffMembers, dayShiftTypes, dayTod
 
 renderEntryCardOverlayLink :: TimesheetEntry -> Bool -> Text -> Html
 renderEntryCardOverlayLink entry canEdit editUrl
-    | canEdit = [hsx|
-        <a href={editUrl}
-           class="timesheet-entry-card-link"
-           aria-label={"Edit timesheet entry for " <> tshow entry.workedOn}
-           hx-get={editUrl}
-           hx-target={"#" <> dialogOverlayMountId}
-           hx-swap="innerHTML"
-           hx-push-url="false"></a>
-    |]
+    | canEdit =
+        renderOverlayActionLink
+            (overlayActionByMarker @EditTimesheetEntryDialog)
+            OverlayActionRoute
+                { overlayActionRouteUrl = editUrl
+                , overlayActionRouteFields = []
+                , overlayActionRouteCustomHtmx = []
+                , overlayActionRouteStandardUrl = Nothing
+                , overlayActionRouteExtraAttrs =
+                    [ ("class", "timesheet-entry-card-link")
+                    , ("aria-label", "Edit timesheet entry for " <> tshow entry.workedOn)
+                    ]
+                }
+            mempty
     | otherwise = mempty
 
 renderEntryComments :: (?context :: ControllerContext) => TimesheetEntry -> Html

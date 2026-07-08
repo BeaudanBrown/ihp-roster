@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Application.Helper.View.Timesheets
     ( hasErrorFor
     , renderFieldError
@@ -16,6 +18,9 @@ module Application.Helper.View.Timesheets
     , timesheetModalTitle
     ) where
 
+import Application.Helper.FrontendContract.IR (OverlayActionIR)
+import Application.Helper.FrontendContract.Overlay.Runtime (OverlayActionRoute (..),
+                                                            renderOverlayActionForm)
 import Application.Helper.View.Audience
 import Application.Helper.View.Format
 import Application.Helper.View.Overlay
@@ -36,22 +41,24 @@ timesheetModalTitle day =
         <> formatDayMonthDisplay day
 
 -- | Shared timesheet entry form used by New and Edit views.
-renderTimesheetForm :: (?context :: ControllerContext) => TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Maybe UUID -> Maybe UUID -> Text -> Text -> OverlayFormMode -> Html
-renderTimesheetForm entry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId actionUrl formId formMode =
+renderTimesheetForm :: (?context :: ControllerContext) => OverlayActionIR -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Maybe UUID -> Maybe UUID -> Text -> Text -> OverlayFormMode -> Html
+renderTimesheetForm overlayAction entry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId actionUrl formId formMode =
     case formMode of
-        HtmxOverlayForm -> [hsx|
-            <form id={formId}
-                  method="POST"
-                  action={actionUrl}
-                  class="mt-3"
-                  data-disable-javascript-submission="true"
-                  hx-post={actionUrl}
-                  hx-target={"#" <> dialogOverlayMountId}
-                  hx-swap="innerHTML"
-                  hx-push-url="false">
-                {renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId}
-            </form>
-        |]
+        HtmxOverlayForm ->
+            renderOverlayActionForm
+                overlayAction
+                OverlayActionRoute
+                    { overlayActionRouteUrl = actionUrl
+                    , overlayActionRouteFields = []
+                    , overlayActionRouteCustomHtmx = []
+                    , overlayActionRouteStandardUrl = Nothing
+                    , overlayActionRouteExtraAttrs =
+                        [ ("id", formId)
+                        , ("class", "mt-3")
+                        , ("data-disable-javascript-submission", "true")
+                        ]
+                    }
+                (renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId)
         PageOverlayForm -> [hsx|
             <form id={formId}
                   method="POST"
