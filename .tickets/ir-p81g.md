@@ -1,6 +1,6 @@
 ---
 id: ir-p81g
-status: open
+status: closed
 deps: [ir-83ct]
 links: []
 created: 2026-07-08T04:59:57Z
@@ -22,3 +22,9 @@ Migrate Application/Helper/View/Chrome.hs partial navigation. Verify page-conten
 
 Chrome partial navigation renders through AppShell helpers; no raw request-side HTMX in Chrome.hs; surface lifecycle after page-content swaps remains covered.
 
+
+## Notes
+
+**2026-07-08T05:32:48Z**
+
+Migrated Application/Helper/View/Chrome.hs partial navigation to AppShellAction PartialNavigate with a declared CustomHtmx marker for route-specific target/swap/select/push-url/sync attrs. Added guardrails that Chrome no longer hand-authors request HTMX attrs and updated AppShell manifest expectations. Verified with: bash ./bin/in-env typecheck; bash ./bin/in-env frontend-check; bash ./bin/in-env hspec-test --match "Frontend contract".

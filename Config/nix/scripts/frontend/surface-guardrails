@@ -172,6 +172,16 @@ expect_match \
     Web/View/Feedback/New.hs
 
 expect_no_match \
+    "migrated chrome partial navigation must not hand-author request HTMX attrs" \
+    'hx-(get|post|target|swap|select|push-url|sync)=' \
+    Application/Helper/View/Chrome.hs
+
+expect_match \
+    "migrated chrome partial navigation uses typed AppShellAction marker lookup" \
+    'appShellActionByMarker @PartialNavigate' \
+    Application/Helper/View/Chrome.hs
+
+expect_no_match \
     "migrated Admin Roster Groups view must not hand-author request HTMX attrs" \
     'hx-(get|post|target|swap|trigger|push-url)=' \
     Web/View/Admin/RosterGroups.hs

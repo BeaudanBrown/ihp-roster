@@ -130,9 +130,7 @@ tests = describe "Frontend contract generator foundation" do
         fmap (.appShellActionName) (find ((== "partial-navigate") . (.appShellActionName)) appShellActions) `shouldBe` Just "partial-navigate"
         partialNavigateAction.appShellActionOptions
             `shouldBe` [ Contract.HtmxActionMethodIR "get"
-                       , Contract.HtmxActionTargetIR "app-content-mount"
-                       , Contract.HtmxActionSwapIR "innerHTML"
-                       , Contract.HtmxActionPushUrlIR True
+                       , Contract.HtmxActionCustomHtmxIR "partial-navigation-htmx-attrs" "partial navigation supplies route-specific target, swap, select, push-url, and sync attrs"
                        ]
         openFeedbackDialogAction.appShellActionOptions
             `shouldBe` [ Contract.HtmxActionMethodIR "get"

@@ -525,7 +525,7 @@ export function parsePartialNavigateAppShellActionFields(value: unknown): Partia
 }
 export function encodePartialNavigateAppShellActionFields(value: PartialNavigateAppShellActionFields): PartialNavigateAppShellActionFields { return value; }
 
-export const partialNavigateAppShellActionManifest = {"name":"partial-navigate","fields":[],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"app-content-mount","swap":"innerHTML","pushUrl":true,"custom":[]}} as const;
+export const partialNavigateAppShellActionManifest = {"name":"partial-navigate","fields":[],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":null,"swap":null,"pushUrl":null,"custom":[{"name":"partial-navigation-htmx-attrs","reason":"partial navigation supplies route-specific target, swap, select, push-url, and sync attrs"}]}} as const;
 
 export type OpenFeedbackDialogAppShellActionFields = {  };
 export function isOpenFeedbackDialogAppShellActionFields(value: unknown): value is OpenFeedbackDialogAppShellActionFields {

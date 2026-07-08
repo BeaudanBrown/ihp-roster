@@ -1,3 +1,6 @@
+{-# LANGUAGE LambdaCase       #-}
+{-# LANGUAGE TypeApplications #-}
+
 module Application.Helper.View.Chrome
     ( AppAccordionItemConfig (..)
     , AppPageConfig (..)
@@ -14,6 +17,11 @@ module Application.Helper.View.Chrome
     , simpleAppPanel
     ) where
 
+import Application.Helper.FrontendContract.AppShell (PartialNavigate)
+import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             AppShellCustomHtmxAttrs (..),
+                                                             appShellActionByMarker,
+                                                             applyAppShellActionAttrs)
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ViewPrelude
@@ -207,19 +215,36 @@ renderAppSettingsMenuButton buttonId ariaLabel = [hsx|
 |]
 
 renderPartialNavigationLink :: PartialNavigationLink -> Html
-renderPartialNavigationLink PartialNavigationLink { partialNavigationLabel, partialNavigationUrl, partialNavigationTargetId, partialNavigationSelectId, partialNavigationClass, partialNavigationSwap, partialNavigationSync, partialNavigationPushUrl } = [hsx|
-    <a href={partialNavigationUrl}
-       class={partialNavigationClass}
-       data-turbolinks="false"
-       hx-get={partialNavigationUrl}
-       hx-target={"#" <> partialNavigationTargetId}
-       hx-swap={partialNavigationSwap}
-       hx-select={fmap ("#" <>) partialNavigationSelectId}
-       hx-push-url={pushUrlValue}
-       hx-sync={partialNavigationSync}>
-        {partialNavigationLabel}
-    </a>
-|]
+renderPartialNavigationLink PartialNavigationLink { partialNavigationLabel, partialNavigationUrl, partialNavigationTargetId, partialNavigationSelectId, partialNavigationClass, partialNavigationSwap, partialNavigationSync, partialNavigationPushUrl } =
+    applyAppShellActionAttrs
+        (appShellActionByMarker @PartialNavigate)
+        AppShellActionRoute
+            { appShellActionRouteUrl = partialNavigationUrl
+            , appShellActionRouteFields = []
+            , appShellActionRouteCustomHtmx =
+                [ AppShellCustomHtmxAttrs
+                    { appShellCustomHtmxAttrMarker = "partial-navigation-htmx-attrs"
+                    , appShellCustomHtmxAttrValues =
+                        [ ("hx-target", "#" <> partialNavigationTargetId)
+                        , ("hx-swap", partialNavigationSwap)
+                        , ("hx-push-url", pushUrlValue)
+                        ]
+                            <> maybeAttrPair "hx-select" (fmap ("#" <>) partialNavigationSelectId)
+                            <> maybeAttrPair "hx-sync" partialNavigationSync
+                    }
+                ]
+            , appShellActionRouteStandardUrl = Just partialNavigationUrl
+            , appShellActionRouteExtraAttrs =
+                [ ("class", partialNavigationClass)
+                , ("data-turbolinks", "false")
+                ]
+            }
+        [hsx|{partialNavigationLabel}|]
     where
         pushUrlValue :: Text
         pushUrlValue = if partialNavigationPushUrl then "true" else "false"
+
+        maybeAttrPair :: Text -> Maybe Text -> [(Text, Text)]
+        maybeAttrPair name = \case
+            Nothing -> []
+            Just value -> [(name, value)]

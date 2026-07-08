@@ -5,6 +5,7 @@ module Application.Helper.FrontendContract.AppShell
     ( AppShellContract
     , AppShell
     , PartialNavigate
+    , PartialNavigationHtmxAttrs
     , OpenFeedbackDialog
     , SubmitFeedback
     , FeedbackTypeField
@@ -82,12 +83,12 @@ module Application.Helper.FrontendContract.AppShell
     , InvitationEmailField
     ) where
 
-import Application.Helper.FrontendContract.App (AppContentMount,
-                                                DialogOverlayMount)
+import Application.Helper.FrontendContract.App (DialogOverlayMount)
 import Application.Helper.FrontendContract.DSL
 
 data AppShell
 data PartialNavigate
+data PartialNavigationHtmxAttrs
 
 data OpenFeedbackDialog
 data SubmitFeedback
@@ -172,9 +173,7 @@ type AppShellContract =
         '[ AppShellAction PartialNavigate
             '[]
             '[ AppShellHtmxMethod 'AppShellGet
-             , AppShellHtmxTarget AppContentMount
-             , AppShellHtmxSwap "innerHTML"
-             , AppShellHtmxPushUrl 'AppShellPushUrlTrue
+             , AppShellCustomHtmx PartialNavigationHtmxAttrs "partial navigation supplies route-specific target, swap, select, push-url, and sync attrs"
              ]
          , AppShellAction OpenFeedbackDialog
             '[]
