@@ -2,7 +2,7 @@
 id: ir-7cyb
 status: open
 deps: []
-links: []
+links: [ir-5udu]
 created: 2026-06-02T07:20:13Z
 type: task
 priority: 2
