@@ -40,6 +40,7 @@ instance View BillingView where
             { appPageTitle = "Billing"
             , appPageDescription = Nothing
             , appPageActions = mempty
+            , appPageHelpTopic = Just (PageHelpTopicId "billing")
             , appPageWidthClass = ""
             , appPageBody = [hsx|
                 <div id="billing-live-surface" class="app-page-stack">
@@ -66,6 +67,7 @@ renderBillingResultPage title message =
         { appPageTitle = title
         , appPageDescription = Nothing
         , appPageActions = [hsx|<a class="btn btn-outline-secondary" href={BillingAction}>Back to Billing</a>|]
+        , appPageHelpTopic = Just (PageHelpTopicId "billing")
         , appPageWidthClass = "app-form-width"
         , appPageBody =
             simpleAppPanel title Nothing [hsx|

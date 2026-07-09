@@ -11,6 +11,7 @@ instance View FrontendSurfaceLabView where
             { appPageTitle = "FrontendSurface lab"
             , appPageDescription = Just "Support-only type-level surface runtime scaffold."
             , appPageActions = [hsx|<a href={SupportAction} class="btn btn-sm btn-outline-secondary">Back to support</a>|]
+            , appPageHelpTopic = Nothing
             , appPageWidthClass = "app-page-narrow"
             , appPageBody = renderAppPanel (defaultAppPanelConfig renderSurfaceLabMount)
                 { appPanelTitle = Just "Surface lab"

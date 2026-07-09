@@ -62,6 +62,11 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
 - The picker and toast lanes stay separate: picker overlays are globally mounted helpers such as `renderQuarterHourTimePickerModal`, and toasts use the toast overlay helpers.
 - When migrating a bespoke modal, remove obsolete modal-specific JS, CSS selectors, data attributes, exports, and tests in the same change.
 
+## Page Help Pattern
+- Scoped authenticated pages can opt into contextual help through `appPageHelpTopic` on `AppPageConfig`. Keep the trigger title-adjacent; do not add duplicate page-specific help buttons in toolbars.
+- Help content lives in `Application.Helper.View.PageHelp` and is loaded into `#dialog-overlay-mount` through the shared help dialog. When changing visible page controls, workflows, gestures, settings, or role-specific behavior, update the matching help topic in the same change.
+- Keep help copy concise, role-aware, and grounded in implemented behavior. Do not add public/auth/legal/dev-lab pages to contextual help unless a ticket explicitly expands the scope.
+
 ## Roster HTMX Pattern
 - Roster shift edits are whole-shift dialog submits. Grid cells/cards are launchers with `data-roster-shift-launcher`, not inline autosave inputs.
 - Dialog forms post atomically to the slot create/update actions and target `#dialog-overlay-mount`; successful actor responses clear the dialog and trigger live fragment refreshes.

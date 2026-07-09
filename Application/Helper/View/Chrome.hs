@@ -17,11 +17,13 @@ module Application.Helper.View.Chrome
     , simpleAppPanel
     ) where
 
-import Application.Helper.FrontendContract.AppShell (PartialNavigate)
+import Application.Helper.FrontendContract.AppShell (OpenPageHelpDialog,
+                                                     PartialNavigate)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              AppShellCustomHtmxAttrs (..),
                                                              appShellActionByMarker,
                                                              renderAppShellActionLink)
+import Application.Helper.View.PageHelp (PageHelpTopicId, pageHelpTopicIdToText)
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ViewPrelude
@@ -32,6 +34,7 @@ data AppPageConfig = AppPageConfig
     { appPageTitle       :: !Text
     , appPageDescription :: !(Maybe Text)
     , appPageActions     :: !Html
+    , appPageHelpTopic   :: !(Maybe PageHelpTopicId)
     , appPageWidthClass  :: !Text
     , appPageBody        :: !Html
     }
@@ -105,11 +108,14 @@ appPanelWithActions title description actions body =
         }
 
 renderAppPage :: AppPageConfig -> Html
-renderAppPage AppPageConfig { appPageTitle, appPageDescription, appPageActions, appPageWidthClass, appPageBody } = [hsx|
+renderAppPage AppPageConfig { appPageTitle, appPageDescription, appPageActions, appPageHelpTopic, appPageWidthClass, appPageBody } = [hsx|
     <section class={classes [("app-page", True), (appPageWidthClass, not (Text.null appPageWidthClass))]}>
         <header class="app-page-header">
             <div class="app-page-title-block">
-                <h1 class="app-page-title">{appPageTitle}</h1>
+                <div class="app-page-title-row d-flex align-items-center gap-2 flex-wrap">
+                    <h1 class="app-page-title mb-0">{appPageTitle}</h1>
+                    {forEach appPageHelpTopic (renderPageHelpTrigger appPageTitle)}
+                </div>
                 {forEach appPageDescription renderAppPageDescription}
             </div>
             {appPageActions}
@@ -117,6 +123,24 @@ renderAppPage AppPageConfig { appPageTitle, appPageDescription, appPageActions, 
         {appPageBody}
     </section>
 |]
+
+renderPageHelpTrigger :: Text -> PageHelpTopicId -> Html
+renderPageHelpTrigger title topicId =
+    renderAppShellActionLink
+        (appShellActionByMarker @OpenPageHelpDialog)
+        AppShellActionRoute
+            { appShellActionRouteUrl = pathTo ShowPageHelpAction { topic = pageHelpTopicIdToText topicId }
+            , appShellActionRouteFields = []
+            , appShellActionRouteCustomHtmx = []
+            , appShellActionRouteStandardUrl = Just (pathTo ShowPageHelpAction { topic = pageHelpTopicIdToText topicId })
+            , appShellActionRouteExtraAttrs =
+                [ ("class", "btn btn-sm btn-outline-secondary app-page-help-trigger rounded-circle")
+                , ("aria-label", "Help for " <> title)
+                , ("title", "Help for " <> title)
+                , ("data-turbolinks", "false")
+                ]
+            }
+        [hsx|<span aria-hidden="true">?</span>|]
 
 renderAppPageDescription :: Text -> Html
 renderAppPageDescription description = [hsx|

@@ -7,6 +7,7 @@ module Application.Helper.FrontendContract.AppShell
     , PartialNavigate
     , PartialNavigationHtmxAttrs
     , OpenFeedbackDialog
+    , OpenPageHelpDialog
     , SubmitFeedback
     , FeedbackTypeField
     , ContentField
@@ -91,6 +92,7 @@ data PartialNavigate
 data PartialNavigationHtmxAttrs
 
 data OpenFeedbackDialog
+data OpenPageHelpDialog
 data SubmitFeedback
 data FeedbackTypeField
 data ContentField
@@ -182,6 +184,9 @@ type AppShellContract =
              , AppShellHtmxSwap "innerHTML"
              , AppShellHtmxPushUrl 'AppShellPushUrlFalse
              ]
+         , AppShellAction OpenPageHelpDialog
+            '[]
+            DialogLauncherOptions
          , AppShellAction SubmitFeedback
             '[ Field FeedbackTypeField 'WireText
              , Field ContentField 'WireText

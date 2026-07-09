@@ -21,6 +21,7 @@ renderRosterWeekShell ShowView { .. } =
             { appPageTitle = "Roster"
             , appPageDescription = Nothing
             , appPageActions = mempty
+            , appPageHelpTopic = Just (PageHelpTopicId "roster")
             , appPageWidthClass = ""
             , appPageBody =
                 mconcat

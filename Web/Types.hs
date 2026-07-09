@@ -182,6 +182,10 @@ data FeedbackController
     | CreateFeedbackAction
     deriving (Eq, Show, Data)
 
+data HelpController
+    = ShowPageHelpAction { topic :: !Text }
+    deriving (Eq, Show, Data)
+
 data SupportController
     = SupportAction
     | FrontendSurfaceLabAction

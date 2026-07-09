@@ -107,6 +107,7 @@ renderTimesheetWeekShell view@IndexView { .. } =
             { appPageTitle = "Timesheets"
             , appPageDescription = Nothing
             , appPageActions = mempty
+            , appPageHelpTopic = Just (PageHelpTopicId "timesheets")
             , appPageWidthClass = ""
             , appPageBody =
                 renderAppPanel AppPanelConfig

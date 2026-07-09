@@ -11,6 +11,7 @@ unavailability views.
 - Keep profile-specific integration in `ProfileSelfService.hs`.
 - Use unavailability language in user-facing copy unless working directly on
   backend schema names.
+- When changing visible request creation, date semantics, status lifecycle, manager review, or roster-invalidation behavior, update the `leave` topic in `Application.Helper.View.PageHelp`.
 
 ## Gotchas
 

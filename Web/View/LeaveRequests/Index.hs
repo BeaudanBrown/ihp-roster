@@ -95,6 +95,7 @@ renderLeaveRequestsShell IndexView { .. } =
             { appPageTitle = "Unavailability"
             , appPageDescription = Nothing
             , appPageActions = mempty
+            , appPageHelpTopic = Just (PageHelpTopicId "leave")
             , appPageWidthClass = ""
             , appPageBody = leaveRequestsPanel
             })

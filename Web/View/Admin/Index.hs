@@ -52,6 +52,7 @@ instance View IndexView where
             { appPageTitle = "Admin"
             , appPageDescription = Nothing
             , appPageActions = mempty
+            , appPageHelpTopic = Just (PageHelpTopicId "admin")
             , appPageWidthClass = ""
             , appPageBody = [hsx|
                 {adminContentPanel}

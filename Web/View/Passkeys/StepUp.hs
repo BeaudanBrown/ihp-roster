@@ -18,6 +18,7 @@ instance View StepUpView where
             { appPageTitle = "Passkey Verification"
             , appPageDescription = Just "Confirm your identity before continuing to privileged venue administration."
             , appPageActions = mempty
+        , appPageHelpTopic = Nothing
             , appPageWidthClass = "app-form-width"
             , appPageBody =
                 simpleAppPanel

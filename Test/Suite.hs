@@ -24,6 +24,7 @@ import qualified Test.Controller.BillingSpec
 import qualified Test.Controller.E2ETestSpec
 import qualified Test.Controller.ExportsSpec
 import qualified Test.Controller.FeedbackSpec
+import qualified Test.Controller.HelpSpec
 import qualified Test.Controller.LeaveRequestsSpec
 import qualified Test.Controller.PasskeysSpec
 import qualified Test.Controller.PayrollExportParitySpec
@@ -48,6 +49,7 @@ import qualified Test.FwcMapdSyncSpec
 import qualified Test.LiveUpdateSpec
 import qualified Test.MailSpec
 import qualified Test.MutationBoundarySpec
+import qualified Test.PageHelpSpec
 import qualified Test.PaySpec
 import qualified Test.ProfilingSpec
 import qualified Test.PublicHolidaySyncSpec
@@ -193,12 +195,14 @@ allSuites =
     , TestSuite "RosterWeeksController" 120 Test.Controller.RosterWeeksSpec.tests
     , TestSuite "LeaveRequestsController" 20 Test.Controller.LeaveRequestsSpec.tests
     , TestSuite "FeedbackController" 10 Test.Controller.FeedbackSpec.tests
+    , TestSuite "HelpController" 10 Test.Controller.HelpSpec.tests
     , TestSuite "SupportController" 20 Test.Controller.SupportSpec.tests
     , TestSuite "RosterGrid" 10 Test.RosterGridSpec.tests
     , TestSuite "UsersController" 10 Test.Controller.UsersSpec.tests
     , TestSuite "ExportsController" 10 Test.Controller.ExportsSpec.tests
     , TestSuite "TimesheetsController" 40 Test.Controller.TimesheetsSpec.tests
     , TestSuite "Pay" 20 Test.PaySpec.tests
+    , TestSuite "PageHelp" 5 Test.PageHelpSpec.tests
     , TestSuite "Profiling" 5 Test.ProfilingSpec.tests
     , TestSuite "PublicHolidaySync" 15 Test.PublicHolidaySyncSpec.tests
     , TestSuite "FwcMapdSync" 20 Test.FwcMapdSyncSpec.tests

@@ -59,6 +59,7 @@ instance View XeroView where
             { appPageTitle = "Xero"
             , appPageDescription = Nothing
             , appPageActions = mempty
+            , appPageHelpTopic = Just (PageHelpTopicId "xero")
             , appPageWidthClass = ""
             , appPageBody = xeroPanel
             }

@@ -113,6 +113,7 @@ instance View EditView where
             { appPageTitle = "Profile"
             , appPageDescription = Nothing
             , appPageActions = mempty
+            , appPageHelpTopic = Just (PageHelpTopicId "profile")
             , appPageWidthClass = ""
             , appPageBody =
                 renderAppPanel AppPanelConfig

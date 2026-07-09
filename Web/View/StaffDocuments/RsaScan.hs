@@ -33,6 +33,7 @@ instance View ScanView where
             { appPageTitle = "Confirm RSA Upload"
             , appPageDescription = Just "Review the scan results, edit anything uncertain, then save the pending RSA document."
             , appPageActions = mempty
+        , appPageHelpTopic = Nothing
             , appPageWidthClass = ""
             , appPageBody = [hsx|{renderScanConfirmation scanConfirmation}|]
             }

@@ -21,6 +21,7 @@ Read this before editing `Application/Billing/` or billing controllers.
 - Use idempotency keys for Stripe create requests.
 - Never log Stripe secret keys, webhook secrets, payment method details, or full
   raw webhook/API payloads.
+- When changing visible billing status, Checkout/Portal flows, pending/webhook language, manual read-only controls, or owner/support access behavior, update the `billing` topic in `Application.Helper.View.PageHelp`.
 
 ## Configuration
 

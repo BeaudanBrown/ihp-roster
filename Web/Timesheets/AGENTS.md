@@ -10,6 +10,7 @@ Read this before editing timesheet controllers, views, or helpers.
 - Keep HTMX/OOB response shape in `Responses.hs`; successful actor refreshes should go through the shared typed fragment helper, not local OOB-only fragment helpers.
 - Keep parsing and validation helpers in `Validation.hs`.
 - Use IHP form helpers plus explicit server-side checks for required fields.
+- When changing visible timesheet entry, week navigation, approval, provenance, or role-specific review behavior, update the `timesheets` topic in `Application.Helper.View.PageHelp`.
 
 ## Gotchas
 

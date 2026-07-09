@@ -633,6 +633,18 @@ export function encodeOpenFeedbackDialogAppShellActionFields(value: OpenFeedback
 
 export const openFeedbackDialogAppShellActionManifest = {"name":"open-feedback-dialog","fields":[],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
 
+export type OpenPageHelpDialogAppShellActionFields = {  };
+export function isOpenPageHelpDialogAppShellActionFields(value: unknown): value is OpenPageHelpDialogAppShellActionFields {
+    return isRecord(value);
+}
+export function parseOpenPageHelpDialogAppShellActionFields(value: unknown): OpenPageHelpDialogAppShellActionFields {
+    if (isOpenPageHelpDialogAppShellActionFields(value)) return value;
+    throw new Error("Invalid OpenPageHelpDialogAppShellActionFields");
+}
+export function encodeOpenPageHelpDialogAppShellActionFields(value: OpenPageHelpDialogAppShellActionFields): OpenPageHelpDialogAppShellActionFields { return value; }
+
+export const openPageHelpDialogAppShellActionManifest = {"name":"open-page-help-dialog","fields":[],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"dialog-overlay-mount","swap":"innerHTML","pushUrl":false,"custom":[]}} as const;
+
 export type SubmitFeedbackAppShellActionFields = { feedbackType: string; content: string };
 export function isSubmitFeedbackAppShellActionFields(value: unknown): value is SubmitFeedbackAppShellActionFields {
     return isRecord(value) && (typeof value["feedbackType"] === "string") && (typeof value["content"] === "string");

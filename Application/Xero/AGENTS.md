@@ -19,6 +19,7 @@ Read this before editing `Application/Xero/` or Xero application helpers.
 - Real Xero API behavior can differ from the OpenAPI shape. Preserve contract
   probes as diagnostics, but harden local request construction with tests.
 - Xero payroll submission must not bypass pay-version locking.
+- When changing visible Xero connection, reference sync, mapping, preparation, or submission workflows, update the `xero` topic in `Application.Helper.View.PageHelp`.
 
 ## Verification
 

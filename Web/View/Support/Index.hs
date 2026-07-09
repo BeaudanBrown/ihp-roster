@@ -97,6 +97,7 @@ instance View IndexView where
                     { appPageTitle = "Support"
                     , appPageDescription = Nothing
                     , appPageActions = mempty
+        , appPageHelpTopic = Nothing
                     , appPageWidthClass = ""
                     , appPageBody = [hsx|
                         <div class="app-page-stack">

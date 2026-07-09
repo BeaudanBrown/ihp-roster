@@ -17,6 +17,7 @@ instance View PasskeySetupView where
             { appPageTitle = "Passkey Setup"
             , appPageDescription = Just "Create a passkey before continuing to restricted account or venue administration."
             , appPageActions = mempty
+        , appPageHelpTopic = Nothing
             , appPageWidthClass = ""
             , appPageBody = renderPasskeySetupPageDialog (pathTo DismissMandatoryPasskeySetupAction) MandatoryFirstPasskey passkeySetupRedirectTo
             }
