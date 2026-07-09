@@ -11,7 +11,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import qualified Data.List as List
 import qualified Data.Text as Text
-import IHP.Prelude
+import IHP.Prelude (liftIO)
 import qualified System.Environment as Environment
 import System.Exit (exitFailure)
 
