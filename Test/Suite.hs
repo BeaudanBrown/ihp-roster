@@ -179,23 +179,23 @@ allSuites =
     , TestSuite "AsyncQueue" 10 Test.AsyncQueueSpec.tests
     , TestSuite "Billing" 10 Test.BillingPersistenceSpec.tests
     , TestSuite "BillingReadOnly" 20 Test.BillingReadOnlySpec.tests
-    , TestSuite "BillingController" 60 Test.Controller.BillingSpec.tests
+    , TestSuite "BillingController" 15 Test.Controller.BillingSpec.tests
     , TestSuite "BillingWebhook" 35 Test.BillingWebhookSpec.tests
     , TestSuite "E2ETestController" 5 Test.Controller.E2ETestSpec.tests
     , TestSuite "StripeBilling" 10 Test.StripeBillingSpec.tests
     , TestSuite "StripeContract" 10 Test.StripeContractSpec.tests
-    , TestSuite "AdminController" 165 Test.Controller.AdminSpec.tests
+    , TestSuite "AdminController" 180 Test.Controller.AdminSpec.tests
     , TestSuite "ProfilesController" 35 Test.Controller.ProfilesSpec.tests
-    , TestSuite "PasskeysController" 180 Test.Controller.PasskeysSpec.tests
+    , TestSuite "PasskeysController" 25 Test.Controller.PasskeysSpec.tests
     , TestSuite "Schema" 10 Test.SchemaSpec.tests
     , TestSuite "DatabaseProtection" 10 Test.DatabaseProtectionSpec.tests
     , TestSuite "SessionsController" 25 Test.Controller.SessionsSpec.tests
     , TestSuite "RosterWeeksController" 120 Test.Controller.RosterWeeksSpec.tests
-    , TestSuite "LeaveRequestsController" 35 Test.Controller.LeaveRequestsSpec.tests
+    , TestSuite "LeaveRequestsController" 20 Test.Controller.LeaveRequestsSpec.tests
     , TestSuite "FeedbackController" 10 Test.Controller.FeedbackSpec.tests
     , TestSuite "SupportController" 20 Test.Controller.SupportSpec.tests
     , TestSuite "RosterGrid" 10 Test.RosterGridSpec.tests
-    , TestSuite "UsersController" 25 Test.Controller.UsersSpec.tests
+    , TestSuite "UsersController" 10 Test.Controller.UsersSpec.tests
     , TestSuite "ExportsController" 10 Test.Controller.ExportsSpec.tests
     , TestSuite "TimesheetsController" 40 Test.Controller.TimesheetsSpec.tests
     , TestSuite "Pay" 20 Test.PaySpec.tests
@@ -210,7 +210,7 @@ allSuites =
     , TestSuite "StaffDocumentsRSA" 20 Test.StaffDocumentsRsaSpec.tests
     , TestSuite "VenueInvitation" 10 Test.VenueInvitationSpec.tests
     , TestSuite "VenueOnboardingInvitation" 5 Test.VenueOnboardingInvitationSpec.tests
-    , TestSuite "DevSeed" 20 Test.DevSeedSpec.tests
+    , TestSuite "DevSeed" 180 Test.DevSeedSpec.tests
     , TestSuite "Conflict" 5 Test.ConflictSpec.tests
     , TestSuite "FrontendContract" 5 Test.FrontendContractSpec.tests
     , TestSuite "FrontendContracts" 15 Test.FrontendContractsSpec.tests
@@ -227,7 +227,7 @@ allSuites =
     , TestSuite "XeroContract" 20 Test.XeroContractSpec.tests
     , TestSuite "XeroImportedPayItems" 10 Test.XeroImportedPayItemsSpec.tests
     , TestSuite "XeroKeepalive" 10 Test.XeroKeepaliveSpec.tests
-    , TestSuite "XeroTimesheetPreview" 20 Test.XeroTimesheetPreviewSpec.tests
+    , TestSuite "XeroTimesheetPreview" 50 Test.XeroTimesheetPreviewSpec.tests
     , TestSuite "XeroTimesheetReadiness" 35 Test.XeroTimesheetReadinessSpec.tests
     , TestSuite "XeroTimesheetSubmission" 35 Test.XeroTimesheetSubmissionSpec.tests
     ]
