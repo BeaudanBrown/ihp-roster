@@ -11,6 +11,8 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             FrontendSurfaceCustomHtmxAttrs (..),
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
+import Application.Helper.TimeRules (venueTimePickerFinalSelectableTimeText,
+                                     venueTimePickerStartTimeText)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminVenueSettingsAction,
                                   adminVenueSettingsSurfaceImpl)
@@ -47,10 +49,39 @@ renderVenueSettingsSection venueConfig =
         mempty
         [hsx|
             <div class="admin-settings-grid">
+                {renderRosterTimePickerWindowForm venueConfig}
                 {renderRosterEndTimesForm venueConfig}
                 {renderAutoTimesheetCreationForm venueConfig}
             </div>
         |]
+
+renderRosterTimePickerWindowForm :: VenueConfig -> Html
+renderRosterTimePickerWindowForm venueConfig =
+    renderFrontendSurfaceActionForm (adminVenueSettingsAction "update-venue-config") venueSettingRoute [hsx|
+        <input type="hidden" name="configField" value="timePickerWindow" />
+        <div class="admin-setting-row-copy">
+            <div class="fw-semibold">Time picker window</div>
+            <p class="small app-muted mb-0">Controls the selectable roster and timesheet picker times. Existing saved times outside this window remain allowed.</p>
+        </div>
+        <div class="admin-setting-row-control admin-setting-row-control-wide">
+            <div class="d-flex flex-wrap gap-2 align-items-end justify-content-end">
+                <div>
+                    <label class="form-label small mb-1" for="venue-time-picker-start">Start</label>
+                    {renderTimePickerField (defaultTimePickerConfig "timePickerStart" (venueTimePickerStartTimeText venueConfig) "00:00" "23:45" False)
+                        { timePickerFieldClasses = ["admin-time-picker-field"]
+                        , timePickerAriaLabel = "Select time picker start"
+                        }}
+                </div>
+                <div>
+                    <label class="form-label small mb-1" for="venue-time-picker-end">End</label>
+                    {renderTimePickerField (defaultTimePickerConfig "timePickerEnd" (venueTimePickerFinalSelectableTimeText venueConfig) "00:00" "23:45" False)
+                        { timePickerFieldClasses = ["admin-time-picker-field"]
+                        , timePickerAriaLabel = "Select time picker end"
+                        }}
+                </div>
+            </div>
+        </div>
+    |]
 
 renderRosterEndTimesForm :: VenueConfig -> Html
 renderRosterEndTimesForm venueConfig =

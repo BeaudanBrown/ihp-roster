@@ -38,6 +38,7 @@ import qualified Test.XeroMock as XeroMock
 import Web.Admin.Mutations (adminVenueSettingsTouchedResources,
                             autoTimesheetCreationTouchedResources,
                             rosterEndTimesTouchedResources,
+                            rosterTimePickerWindowTouchedResources,
                             rosterWeekStartsOnTouchedResources)
 import Web.Controller.Admin ()
 import Web.FrontController ()
@@ -88,6 +89,11 @@ tests = beforeAll testContext do
                     `shouldBe` Set.fromList
                         [ adminVenueSettingsResource venueId
                         , rosterEndTimesConfigResource venueId
+                        ]
+                Set.fromList (rosterTimePickerWindowTouchedResources venue.id)
+                    `shouldBe` Set.fromList
+                        [ adminVenueSettingsResource venueId
+                        , timePickerConfigResource venueId
                         ]
                 Set.fromList (rosterWeekStartsOnTouchedResources venue.id)
                     `shouldBe` Set.fromList
@@ -737,6 +743,9 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "hx-post=\"/UpdateVenueConfig\""
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-venue-settings-fragment\""
                 pageResponse `responseBodyShouldContain` "hx-swap=\"none\""
+                pageResponse `responseBodyShouldContain` "Time picker window"
+                pageResponse `responseBodyShouldContain` "name=\"timePickerStart\" value=\"06:00\""
+                pageResponse `responseBodyShouldContain` "name=\"timePickerEnd\" value=\"05:45\""
                 pageResponse `responseBodyShouldNotContain` "Roster week starts on"
                 pageResponse `responseBodyShouldNotContain` "admin-roster-week-starts-on"
                 pageResponse `responseBodyShouldNotContain` "name=\"rosterWeekStartsOn\""
@@ -835,6 +844,47 @@ tests = beforeAll testContext do
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 venueConfig.rosterEndTimesEnabled `shouldBe` True
                 venueConfig.rosterWeekStartsOn `shouldBe` originalConfig.rosterWeekStartsOn
+
+        it "updates the venue time picker window without changing the roster week start" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Venue"
+                admin <- createUserRecord "admin-time-picker-window@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                originalConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams UpdateVenueConfigAction
+                        [ ("configField", "timePickerWindow")
+                        , ("timePickerStart", "09:00")
+                        , ("timePickerEnd", "02:00")
+                        ]
+
+                response `responseStatusShouldBe` status302
+
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                venueConfig.timePickerStartMinuteOfDay `shouldBe` 540
+                venueConfig.timePickerFinalSelectableMinuteOfDay `shouldBe` 120
+                venueConfig.rosterWeekStartsOn `shouldBe` originalConfig.rosterWeekStartsOn
+
+        it "rejects invalid venue time picker windows" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Venue"
+                admin <- createUserRecord "admin-time-picker-window-invalid@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                originalConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams UpdateVenueConfigAction
+                        [ ("configField", "timePickerWindow")
+                        , ("timePickerStart", "09:10")
+                        , ("timePickerEnd", "09:10")
+                        ]
+
+                response `responseStatusShouldBe` status302
+
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                venueConfig.timePickerStartMinuteOfDay `shouldBe` originalConfig.timePickerStartMinuteOfDay
+                venueConfig.timePickerFinalSelectableMinuteOfDay `shouldBe` originalConfig.timePickerFinalSelectableMinuteOfDay
 
         it "toggles auto-created pending timesheets without changing the roster week start" $ withContext do
             withCleanDb do

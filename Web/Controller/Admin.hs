@@ -7,6 +7,7 @@ import Application.Helper.PasskeySetupTokens
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.SurfaceResource
+import Application.Helper.TimeRules (parseQuarterHourMinuteOfDay)
 import Application.Helper.Url (appendQueryParams)
 import Application.Helper.WeekBoundaries (validRosterWeekStartDays,
                                           weekdayIndexLabel)
@@ -313,6 +314,17 @@ instance Controller AdminController where
                         then "Auto-created pending timesheets enabled."
                         else "Auto-created pending timesheets disabled."
                 respondToVenueSettingsMutation
+            "timePickerWindow" -> do
+                let maybeStartMinute = parseQuarterHourMinuteOfDay =<< paramOrNothing @Text "timePickerStart"
+                let maybeFinalSelectableMinute = parseQuarterHourMinuteOfDay =<< paramOrNothing @Text "timePickerEnd"
+                case (maybeStartMinute, maybeFinalSelectableMinute) of
+                    (Just startMinute, Just finalSelectableMinute) | startMinute /= finalSelectableMinute -> do
+                        _ <- setRosterTimePickerWindowMutation venueConfig startMinute finalSelectableMinute
+                        setSuccessMessage "Time picker window updated."
+                        respondToVenueSettingsMutation
+                    _ -> do
+                        setErrorMessage "Choose different start and end times on 15-minute increments."
+                        respondToVenueSettingsMutation
             _ -> do
                 requestedRosterWeekStartsOn <- parseRosterWeekStartsOn
                 case requestedRosterWeekStartsOn of

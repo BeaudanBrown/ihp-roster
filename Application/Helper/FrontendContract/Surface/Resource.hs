@@ -32,6 +32,7 @@ module Application.Helper.FrontendContract.Surface.Resource
     , timesheetDayResource
     , timesheetWeekBoundaryConfigResource
     , timesheetWeekResource
+    , timePickerConfigResource
     , xeroConnectionResource
     , xeroMappingsResource
     , xeroPayItemsResource
@@ -81,7 +82,7 @@ frontendSurfaceResourceDefinitions =
             , resourceFields = resourceDefinition.resourceFields
             }
 
-leaveRequestsResource, pendingLeaveRequestsResource, approvedLeaveRequestsResource, deniedLeaveRequestsResource, archivedLeaveRequestsResource, staffLeaveRequestsResource, staffProfileResource, staffPreferencesResource, staffRsaDocumentsResource, rosterDayResource, adminVenueSettingsResource, rosterEndTimesConfigResource, rosterWeekBoundaryConfigResource, timesheetWeekBoundaryConfigResource, adminRosterGroupsResource, adminShiftTypesResource, adminInvitesResource, adminExportsResource, billingResource, xeroConnectionResource, xeroMappingsResource, xeroPayItemsResource, xeroTimesheetsResource :: UUID.UUID -> SurfaceResourceValue
+leaveRequestsResource, pendingLeaveRequestsResource, approvedLeaveRequestsResource, deniedLeaveRequestsResource, archivedLeaveRequestsResource, staffLeaveRequestsResource, staffProfileResource, staffPreferencesResource, staffRsaDocumentsResource, rosterDayResource, adminVenueSettingsResource, rosterEndTimesConfigResource, rosterWeekBoundaryConfigResource, timesheetWeekBoundaryConfigResource, timePickerConfigResource, adminRosterGroupsResource, adminShiftTypesResource, adminInvitesResource, adminExportsResource, billingResource, xeroConnectionResource, xeroMappingsResource, xeroPayItemsResource, xeroTimesheetsResource :: UUID.UUID -> SurfaceResourceValue
 leaveRequestsResource venueId = resource "leave-requests" ["venueId" Aeson..= uuid venueId]
 pendingLeaveRequestsResource venueId = leaveRequestsSectionResource venueId "pending"
 approvedLeaveRequestsResource venueId = leaveRequestsSectionResource venueId "approved"
@@ -96,6 +97,7 @@ adminVenueSettingsResource venueId = resource "admin-venue-settings" ["venueId" 
 rosterEndTimesConfigResource venueId = resource "roster-end-times-config" ["venueId" Aeson..= uuid venueId]
 rosterWeekBoundaryConfigResource venueId = resource "roster-week-boundary-config" ["venueId" Aeson..= uuid venueId]
 timesheetWeekBoundaryConfigResource venueId = resource "timesheet-week-boundary-config" ["venueId" Aeson..= uuid venueId]
+timePickerConfigResource venueId = resource "time-picker-config" ["venueId" Aeson..= uuid venueId]
 adminRosterGroupsResource venueId = resource "admin-roster-groups" ["venueId" Aeson..= uuid venueId]
 adminShiftTypesResource venueId = resource "admin-shift-types" ["venueId" Aeson..= uuid venueId]
 adminInvitesResource venueId = resource "admin-invites" ["venueId" Aeson..= uuid venueId]

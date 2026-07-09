@@ -32,6 +32,7 @@ module Application.Helper.SurfaceResource
     , timesheetDayResource
     , timesheetWeekBoundaryConfigResource
     , timesheetWeekResource
+    , timePickerConfigResource
     , xeroConnectionResource
     , xeroMappingsResource
     , xeroPayItemsResource

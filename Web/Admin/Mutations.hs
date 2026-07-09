@@ -10,9 +10,11 @@ module Web.Admin.Mutations
     , moveShiftTypeMutation
     , revokeVenueInvitationMutation
     , rosterEndTimesTouchedResources
+    , rosterTimePickerWindowTouchedResources
     , rosterWeekStartsOnTouchedResources
     , setAutoTimesheetCreationEnabledMutation
     , setRosterEndTimesEnabledMutation
+    , setRosterTimePickerWindowMutation
     , setRosterWeekStartsOnMutation
     , shiftTypeAffectsXeroPayItems
     , shiftTypeXeroPayItemScopeChanged
@@ -28,6 +30,7 @@ import Application.Helper.ShiftTypeColours (assignShiftTypeColourKey,
                                             blankShiftTypeColourKey,
                                             normalizeShiftTypeColourKey)
 import Application.Helper.SurfaceResource
+import Application.Helper.TimeRules (formatMinuteOfDayText)
 import Application.Helper.VenueInvitation
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
 import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob)
@@ -65,6 +68,16 @@ setRosterWeekStartsOnMutation venueConfig rosterWeekStartsOn = do
             |> updateRecord
     invalidateTouchedResources "admin.venue_config.week_start" (liveMutationResult updated (rosterWeekStartsOnTouchedResources currentVenueId))
 
+setRosterTimePickerWindowMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Int -> Int -> IO (LiveMutationResult VenueConfig)
+setRosterTimePickerWindowMutation venueConfig startMinute finalSelectableMinute = do
+    updated <- venueConfig
+        |> set #timePickerStartMinuteOfDay startMinute
+        |> set #timePickerFinalSelectableMinuteOfDay finalSelectableMinute
+        |> updateRecord
+    invalidateTouchedResources
+        ("admin.venue_config.time_picker_window " <> formatMinuteOfDayText startMinute <> "-" <> formatMinuteOfDayText finalSelectableMinute)
+        (liveMutationResult updated (rosterTimePickerWindowTouchedResources currentVenueId))
+
 adminVenueSettingsTouchedResources :: Id Venue -> [SurfaceResourceValue]
 adminVenueSettingsTouchedResources venueId =
     [adminVenueSettingsResource (unpackId venueId)]
@@ -76,6 +89,11 @@ rosterEndTimesTouchedResources venueId =
 autoTimesheetCreationTouchedResources :: Id Venue -> [SurfaceResourceValue]
 autoTimesheetCreationTouchedResources =
     adminVenueSettingsTouchedResources
+
+rosterTimePickerWindowTouchedResources :: Id Venue -> [SurfaceResourceValue]
+rosterTimePickerWindowTouchedResources venueId =
+    adminVenueSettingsTouchedResources venueId
+        <> [ timePickerConfigResource (unpackId venueId) ]
 
 rosterWeekStartsOnTouchedResources :: Id Venue -> [SurfaceResourceValue]
 rosterWeekStartsOnTouchedResources venueId =
