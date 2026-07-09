@@ -23,6 +23,7 @@ type ElementLike = Element & {
     getAttribute(name: string): string | null;
     closest(selector: string): Element | null;
     querySelectorAll(selector: string): Iterable<Element>;
+    ownerDocument?: (Document & { documentElement?: ElementLike }) | null;
     setPointerCapture?(pointerId: number): void;
     releasePointerCapture?(pointerId: number): void;
 };
@@ -94,6 +95,7 @@ const sourceRefSelector = `[${FrontendSurfaceInteractionDom.sourceRef}]`;
 const disposableLayerSelector = `[${attrs.disposableLayer}]`;
 const pointerFields = InteractionDom.pointerFields;
 const defaultThresholdPx = 4;
+const activeSourceRefAttribute = "data-bepis-active-source-ref";
 const noOpEffectRunner: PointerSessionEffectRunner = {
     activate: () => undefined,
     update: () => undefined,
@@ -158,7 +160,7 @@ export function createPointerSessionController(options: PointerSessionOptions = 
         session.effects.cleanup(session);
         clearDisposableLayers(session.mount);
         releasePointerCapture(session.marker, session.pointerId);
-        setDocumentInteractionActive(session.mount, false);
+        setDocumentInteractionActive(session, false);
         if (activeSession === session) activeSession = null;
         dispatchInteractionSessionEnd(sessionSnapshot(session, reason));
     };
@@ -218,7 +220,7 @@ export function createPointerSessionController(options: PointerSessionOptions = 
             clearDisposableLayers(start.mount);
             activeSession = start;
             capturePointer(start.marker, start.pointerId);
-            setDocumentInteractionActive(start.mount, true);
+            setDocumentInteractionActive(start, true);
             if (event.cancelable) event.preventDefault();
 
             const result = runtime.emit({
@@ -684,11 +686,16 @@ function clearDisposableLayers(mount: ElementLike): void {
     for (const layer of mount.querySelectorAll(disposableLayerSelector)) clearElement(layer);
 }
 
-function setDocumentInteractionActive(mount: ElementLike, active: boolean): void {
-    const root = mount.ownerDocument?.documentElement;
+function setDocumentInteractionActive(session: ActivePointerSession, active: boolean): void {
+    const root = session.mount.ownerDocument?.documentElement;
     if (!root) return;
-    if (active) root.setAttribute(attrs.interactionActive, values.enabled);
-    else root.removeAttribute(attrs.interactionActive);
+    if (active) {
+        root.setAttribute(attrs.interactionActive, values.enabled);
+        root.setAttribute(activeSourceRefAttribute, session.sourceRef);
+    } else {
+        root.removeAttribute(attrs.interactionActive);
+        root.removeAttribute(activeSourceRefAttribute);
+    }
 }
 
 function clearElement(element: Element): void {

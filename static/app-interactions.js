@@ -361,6 +361,7 @@
   var disposableLayerSelector = `[${attrs4.disposableLayer}]`;
   var pointerFields = InteractionDom.pointerFields;
   var defaultThresholdPx = 4;
+  var activeSourceRefAttribute = "data-bepis-active-source-ref";
   var noOpEffectRunner = {
     activate: () => void 0,
     update: () => void 0,
@@ -417,7 +418,7 @@
       session.effects.cleanup(session);
       clearDisposableLayers(session.mount);
       releasePointerCapture(session.marker, session.pointerId);
-      setDocumentInteractionActive(session.mount, false);
+      setDocumentInteractionActive(session, false);
       if (activeSession === session) activeSession = null;
       dispatchInteractionSessionEnd(sessionSnapshot(session, reason));
     };
@@ -472,7 +473,7 @@
         clearDisposableLayers(start.mount);
         activeSession = start;
         capturePointer(start.marker, start.pointerId);
-        setDocumentInteractionActive(start.mount, true);
+        setDocumentInteractionActive(start, true);
         if (event.cancelable) event.preventDefault();
         const result = runtime.emit({
           phase: "start",
@@ -860,11 +861,16 @@
   function clearDisposableLayers(mount) {
     for (const layer of mount.querySelectorAll(disposableLayerSelector)) clearElement(layer);
   }
-  function setDocumentInteractionActive(mount, active) {
-    const root = mount.ownerDocument?.documentElement;
+  function setDocumentInteractionActive(session, active) {
+    const root = session.mount.ownerDocument?.documentElement;
     if (!root) return;
-    if (active) root.setAttribute(attrs4.interactionActive, values.enabled);
-    else root.removeAttribute(attrs4.interactionActive);
+    if (active) {
+      root.setAttribute(attrs4.interactionActive, values.enabled);
+      root.setAttribute(activeSourceRefAttribute, session.sourceRef);
+    } else {
+      root.removeAttribute(attrs4.interactionActive);
+      root.removeAttribute(activeSourceRefAttribute);
+    }
   }
   function clearElement(element) {
     const mutable = element;
