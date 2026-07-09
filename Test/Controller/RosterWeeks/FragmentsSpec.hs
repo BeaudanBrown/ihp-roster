@@ -319,6 +319,27 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` ">CrossGroup</option>"
 
+        it "defaults new shift dialog times from the venue time picker window" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-default-picker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                mondayRosterDay <- createRosterDayRecord rosterWeek 0
+                slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName mondayRosterDay slotName
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- updateRecord (venueConfig |> set #timePickerStartMinuteOfDay 540 |> set #timePickerFinalSelectableMinuteOfDay 780)
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (NewRosterSlotDialogAction mondayRosterDay.id slotDefinition.id 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "name=\"startTime\" value=\"09:00\""
+                response `responseBodyShouldContain` "name=\"endTime\" value=\"13:00\""
+                response `responseBodyShouldContain` "data-time-picker-start=\"09:00\""
+                response `responseBodyShouldContain` "data-time-picker-end=\"13:00\""
+
         it "only hides staff for approved leave overlapping the roster week" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

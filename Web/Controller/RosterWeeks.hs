@@ -19,10 +19,13 @@ import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.SurfaceResource (LiveMutationResult (..),
                                            SurfaceResourceValue)
-import Application.Helper.TimeRules (isQuarterHourMinutes,
+import Application.Helper.TimeRules (defaultShiftTimesForVenueConfig,
+                                     isQuarterHourMinutes,
                                      minuteOfDayToTimeOfDay,
                                      shiftDurationMinutes,
-                                     validRosterShiftDurationMinutes)
+                                     validRosterShiftDurationMinutes,
+                                     venueTimePickerFinalSelectableTimeText,
+                                     venueTimePickerStartTimeText)
 import Application.Helper.UserPreferences
 import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 OverlayButtonAction (..),
@@ -639,7 +642,8 @@ instance Controller RosterWeeksController where
         ensureManagerRole
         ensureVenueWritable
         (rosterDay, rosterWeek, slotDefinition) <- fetchRosterSlotCreateContext rosterDayId rosterWeekSlotDefinitionId rowIndex
-        renderRosterShiftDialogForCreate rosterDay rosterWeek slotDefinition rowIndex emptyRosterShiftDialogValues
+        venueConfig <- fetchVenueConfig
+        renderRosterShiftDialogForCreate rosterDay rosterWeek slotDefinition rowIndex (defaultRosterShiftDialogValuesForVenue venueConfig)
 
     action currentAction@EditRosterSlotDialogAction { rosterSlotId } = runBepis currentAction BepisDialogAction do
         ensureManagerRole
@@ -1094,6 +1098,7 @@ rosterShiftDialogForCreateHtml :: (?context :: ControllerContext, ?modelContext 
 rosterShiftDialogForCreateHtml rosterDay rosterWeek slotDefinition rowIndex values = do
     staffMembers <- fetchEligibleRosterGroupStaff (coerce rosterWeek.rosterGroupId)
     shiftTypes <- fetchCurrentVenueRosterShiftTypesForDialog
+    venueConfig <- fetchVenueConfig
     let targetSlot =
             newRecord @RosterSlot
                 |> set #rosterDayId (unpackId rosterDay.id)
@@ -1107,6 +1112,8 @@ rosterShiftDialogForCreateHtml rosterDay rosterWeek slotDefinition rowIndex valu
         , rosterShiftDialogStaff = staffMembers
         , rosterShiftDialogStaffOptionStates = staffOptionStates
         , rosterShiftDialogShiftTypes = shiftTypes
+        , rosterShiftDialogTimePickerStart = venueTimePickerStartTimeText venueConfig
+        , rosterShiftDialogTimePickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
         , rosterShiftDialogValues = values
         }
 
@@ -1114,6 +1121,7 @@ renderRosterShiftDialogForEdit :: (?context :: ControllerContext, ?modelContext 
 renderRosterShiftDialogForEdit rosterSlot _rosterDay rosterWeek values = do
     staffMembers <- fetchEligibleRosterGroupStaff (coerce rosterWeek.rosterGroupId)
     shiftTypes <- fetchCurrentVenueRosterShiftTypesForDialog
+    venueConfig <- fetchVenueConfig
     staffOptionStates <- buildRosterShiftDialogStaffOptionStates (coerce rosterWeek.rosterGroupId) rosterWeek rosterSlot staffMembers
     respondHtmlProfiled $ renderRosterShiftDialog RosterShiftDialogData
         { rosterShiftDialogMode = EditRosterShiftDialog rosterSlot.id
@@ -1121,8 +1129,18 @@ renderRosterShiftDialogForEdit rosterSlot _rosterDay rosterWeek values = do
         , rosterShiftDialogStaff = staffMembers
         , rosterShiftDialogStaffOptionStates = staffOptionStates
         , rosterShiftDialogShiftTypes = shiftTypes
+        , rosterShiftDialogTimePickerStart = venueTimePickerStartTimeText venueConfig
+        , rosterShiftDialogTimePickerEnd = venueTimePickerFinalSelectableTimeText venueConfig
         , rosterShiftDialogValues = values
         }
+
+defaultRosterShiftDialogValuesForVenue :: VenueConfig -> RosterShiftDialogValues
+defaultRosterShiftDialogValuesForVenue venueConfig =
+    let (defaultStart, defaultEnd) = defaultShiftTimesForVenueConfig venueConfig
+     in emptyRosterShiftDialogValues
+            { rosterShiftStartTime = timeOfDayToStorageValue defaultStart
+            , rosterShiftEndTime = timeOfDayToStorageValue defaultEnd
+            }
 
 buildRosterShiftDialogStaffOptionStates :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterSlot -> [Staff] -> IO (Map.Map UUID.UUID RosterAssignmentOptionState)
 buildRosterShiftDialogStaffOptionStates rosterGroupId rosterWeek targetSlot staffMembers = do

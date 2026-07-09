@@ -17,8 +17,6 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              appShellActionByMarker,
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
-import Application.Helper.TimeRules (rosterOperationalFinalSelectableTimeText,
-                                     rosterOperationalStartTimeText)
 import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 OverlayButtonAction (..), defaultOverlayButtons,
                                 renderDialogOverlay, staffDisplayName)
@@ -63,6 +61,8 @@ data RosterShiftDialogData = RosterShiftDialogData
     , rosterShiftDialogStaff             :: ![Staff]
     , rosterShiftDialogStaffOptionStates :: !(Map.Map UUID RosterAssignmentOptionState)
     , rosterShiftDialogShiftTypes        :: ![ShiftType]
+    , rosterShiftDialogTimePickerStart   :: !Text
+    , rosterShiftDialogTimePickerEnd     :: !Text
     , rosterShiftDialogValues     :: !RosterShiftDialogValues
     }
 
@@ -127,7 +127,7 @@ rosterAppShellActionRoute actionUrl =
 
 
 renderRosterShiftForm :: (?context :: ControllerContext) => RosterShiftDialogData -> Html
-renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogStaff, rosterShiftDialogStaffOptionStates, rosterShiftDialogShiftTypes, rosterShiftDialogValues } =
+renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogStaff, rosterShiftDialogStaffOptionStates, rosterShiftDialogShiftTypes, rosterShiftDialogTimePickerStart, rosterShiftDialogTimePickerEnd, rosterShiftDialogValues } =
     renderAppShellActionForm
         (rosterShiftSubmitAppShellAction rosterShiftDialogMode)
         (rosterAppShellActionRoute (pathTo (rosterShiftFormAction rosterShiftDialogMode)))
@@ -167,12 +167,12 @@ renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShift
         <div class="row g-3 mb-3">
             <div class="col-12 col-sm-6">
                 <label class="form-label">Start time</label>
-                {renderDialogTimePicker "startTime" "Start" rosterShiftDialogValues.rosterShiftStartTime (isJust rosterShiftDialogValues.rosterShiftStartError)}
+                {renderDialogTimePicker "startTime" "Start" rosterShiftDialogValues.rosterShiftStartTime rosterShiftDialogTimePickerStart rosterShiftDialogTimePickerEnd (isJust rosterShiftDialogValues.rosterShiftStartError)}
                 {renderDialogFieldError rosterShiftDialogValues.rosterShiftStartError}
             </div>
             <div class="col-12 col-sm-6">
                 <label class="form-label">End time</label>
-                {renderDialogTimePicker "endTime" "End" rosterShiftDialogValues.rosterShiftEndTime (isJust rosterShiftDialogValues.rosterShiftEndError)}
+                {renderDialogTimePicker "endTime" "End" rosterShiftDialogValues.rosterShiftEndTime rosterShiftDialogTimePickerStart rosterShiftDialogTimePickerEnd (isJust rosterShiftDialogValues.rosterShiftEndError)}
                 {renderDialogFieldError rosterShiftDialogValues.rosterShiftEndError}
             </div>
         </div>
@@ -195,10 +195,10 @@ renderDialogFieldError Nothing = mempty
 renderDialogFieldError (Just message) = [hsx|<div class="invalid-feedback d-block">{message}</div>|]
 
 
-renderDialogTimePicker :: Text -> Text -> Text -> Bool -> Html
-renderDialogTimePicker fieldName emptyLabel value hasError =
+renderDialogTimePicker :: Text -> Text -> Text -> Text -> Text -> Bool -> Html
+renderDialogTimePicker fieldName emptyLabel value rangeStart rangeEnd hasError =
     let pickerConfig =
-            (defaultTimePickerConfig fieldName value rosterOperationalStartTimeText rosterOperationalFinalSelectableTimeText False)
+            (defaultTimePickerConfig fieldName value rangeStart rangeEnd False)
                 { timePickerEmptyLabel = emptyLabel
                 , timePickerFieldClasses = ["roster-shift-dialog-time-picker"]
                 , timePickerTriggerClasses = ["w-100", "justify-content-center", "text-center"] <> ["is-invalid" | hasError]
