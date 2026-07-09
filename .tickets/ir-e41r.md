@@ -1,6 +1,6 @@
 ---
 id: ir-e41r
-status: open
+status: closed
 deps: [ir-rprs]
 links: []
 created: 2026-07-09T01:05:25Z
@@ -22,3 +22,9 @@ Prefer existing DSL support where possible: Fragment params and DependsOn resour
 
 A fixture or focused test surface demonstrates parameterized fragment/resource matching. Generated frontend contracts validate parameterized fragment keys. Existing surfaces compile before migrations. No production feature behavior changes except test fixtures.
 
+
+## Notes
+
+**2026-07-09T01:10:57Z**
+
+Implemented initial reusable FrontendSurface parameterized-fragment helpers: field values from canonical JSON pairs, fragment key builders, mounted fragment builder, and exported resourceFieldText for parameter-aware resource handling. Added focused DSL foundation coverage for mounted parameterized fragment key construction. While running the focused spec, synced stale roster contract expectations to current code (roster-week-overview and full roster action inventory). Verification: bash ./bin/in-env hspec-test --match 'FrontendSurface DSL foundation'; bash ./bin/in-env typecheck.

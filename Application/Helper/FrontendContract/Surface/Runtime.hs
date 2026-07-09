@@ -38,6 +38,10 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , SurfaceImpl (..)
     , SurfaceImplHandlers (..)
     , frontendSurfaceFieldValues
+    , frontendSurfaceFieldValuesFromPairs
+    , frontendSurfaceFragmentKey
+    , frontendSurfaceFragmentKeyFromPairs
+    , frontendSurfaceMountedFragment
     , getSurfaceField
     , frontendSurfaceHtmxMethodText
     , frontendSurfaceInteractionMountDomId
@@ -113,6 +117,9 @@ newtype FrontendSurfaceFieldValues (fields :: [FieldSpec]) = FrontendSurfaceFiel
 
 frontendSurfaceFieldValues :: Aeson.Value -> FrontendSurfaceFieldValues fields
 frontendSurfaceFieldValues = FrontendSurfaceFieldValues
+
+frontendSurfaceFieldValuesFromPairs :: [Aeson.Types.Pair] -> FrontendSurfaceFieldValues fields
+frontendSurfaceFieldValuesFromPairs = FrontendSurfaceFieldValues . Aeson.object
 
 data FrontendSurfaceFieldError
     = FrontendSurfaceFieldContainerNotObject !Text
@@ -470,6 +477,13 @@ data FrontendSurfaceFragmentKey = FrontendSurfaceFragmentKey
     }
     deriving (Eq, Show)
 
+frontendSurfaceFragmentKey :: Text -> Aeson.Value -> FrontendSurfaceFragmentKey
+frontendSurfaceFragmentKey = FrontendSurfaceFragmentKey
+
+frontendSurfaceFragmentKeyFromPairs :: Text -> [Aeson.Types.Pair] -> FrontendSurfaceFragmentKey
+frontendSurfaceFragmentKeyFromPairs kind params =
+    FrontendSurfaceFragmentKey kind (Aeson.object params)
+
 data FrontendSurfaceMountedFragment = FrontendSurfaceMountedFragment
     { mountedFragmentKey             :: !FrontendSurfaceFragmentKey
     , mountedFragmentTargetId        :: !Text
@@ -494,6 +508,18 @@ data FrontendSurfaceProtection
     | FrontendSurfaceFocusedField
     | FrontendSurfaceFocusedFieldConfig !FrontendSurfaceFocusedFieldProtectionConfig
     deriving (Eq, Show)
+
+frontendSurfaceMountedFragment :: Text -> Aeson.Value -> Text -> Text -> FrontendSurfaceProtection -> FrontendSurfaceMountedFragment
+frontendSurfaceMountedFragment kind params targetId url protection =
+    FrontendSurfaceMountedFragment
+        { mountedFragmentKey = frontendSurfaceFragmentKey kind params
+        , mountedFragmentTargetId = targetId
+        , mountedFragmentUrl = url
+        , mountedFragmentProtection = protection
+        , mountedFragmentLoadPolicy = "eager"
+        , mountedFragmentLazyTrigger = Nothing
+        , mountedFragmentPlaceholderKind = Nothing
+        }
 
 data FrontendSurfaceHtmxMethod
     = FrontendSurfaceGet

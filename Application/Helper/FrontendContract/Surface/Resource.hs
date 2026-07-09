@@ -15,6 +15,7 @@ module Application.Helper.FrontendContract.Surface.Resource
     , pendingLeaveRequestsResource
     , resource
     , resourceFieldInt
+    , resourceFieldText
     , resourceFieldUuid
     , resourceMatches
     , rosterDayResource

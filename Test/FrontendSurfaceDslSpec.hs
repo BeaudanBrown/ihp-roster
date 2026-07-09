@@ -160,6 +160,18 @@ tests = describe "FrontendSurface DSL foundation" do
             Left (FrontendSurfaceFieldParseFailed "panelId" _) -> True
             _ -> False
 
+    it "builds mounted parameterized fragment keys from canonical params" do
+        let fields = frontendSurfaceFieldValuesFromPairs ["panelId" Aeson..= ("panel-1" :: Text)] :: FrontendSurfaceFieldValues '[Field PanelId 'WireUUID]
+        let key = frontendSurfaceFragmentKeyFromPairs "lab-panel" ["panelId" Aeson..= ("panel-1" :: Text)]
+        let fragment = frontendSurfaceMountedFragment "lab-panel" key.fragmentParams "surface-lab-panel-panel-1" "/lab/panel?panelId=panel-1" FrontendSurfaceReplace
+
+        getSurfaceField @PanelId fields `shouldBe` Just ("panel-1" :: Text)
+        key `shouldBe` FrontendSurfaceFragmentKey "lab-panel" (Aeson.object ["panelId" Aeson..= ("panel-1" :: Text)])
+        fragment.mountedFragmentKey `shouldBe` key
+        fragment.mountedFragmentTargetId `shouldBe` "surface-lab-panel-panel-1"
+        fragment.mountedFragmentUrl `shouldBe` "/lab/panel?panelId=panel-1"
+        fragment.mountedFragmentLoadPolicy `shouldBe` "eager"
+
     it "extracts the registered lab surface into checked contract IR" do
         let surface = expectSurface "surface-lab" registeredFrontendSurfaceContractIR
 
@@ -242,6 +254,7 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "roster-wage-rail"
                        , "roster-slots-grid"
                        , "roster-staff-panel"
+                       , "roster-week-overview"
                        , "roster-day-section"
                        , "roster-row"
                        ]
@@ -250,7 +263,24 @@ tests = describe "FrontendSurface DSL foundation" do
             |> fmap (.fragmentParams)
             |> fmap (map (.fieldName))
             `shouldBe` Just ["rosterDayId", "rowIndex"]
-        map (.htmxActionName) surface.surfaceHtmxActions `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot"]
+        map (.htmxActionName) surface.surfaceHtmxActions
+            `shouldBe` [ "navigate-roster-week"
+                       , "toggle-roster-warnings"
+                       , "toggle-roster-wage-estimates"
+                       , "sort-roster-week"
+                       , "toggle-roster-week-live-status"
+                       , "toggle-roster-assignment-filters"
+                       , "copy-roster-week"
+                       , "create-roster-self-service-leave-request"
+                       , "create-roster-week-slot-definition"
+                       , "delete-roster-week-slot-definition"
+                       , "toggle-roster-day-closed"
+                       , "add-roster-row"
+                       , "remove-roster-row"
+                       , "toggle-roster-staff-scope"
+                       , "set-roster-layout-mode"
+                       , "move-roster-shift-to-slot"
+                       ]
         map (.intentName) surface.surfaceIntents `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot"]
         surface.surfaceSessions `shouldBe` ["drag"]
         map (.sourceRefName) surface.surfaceSourceRefs `shouldBe` ["drag-source"]
@@ -264,8 +294,9 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterFragmentKey ="
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterRosterWeekScope = { venueId: FrontendContractUuid; rosterGroupId: FrontendContractUuid; weekOffset: number };"
         frontendSurfaceContractsTypeScript `shouldContainText` "{ kind: \"roster-row\"; params: RosterRosterRowFragmentParams }"
-        frontendSurfaceContractsTypeScript `shouldContainText` "\"htmxActions\":[{\"name\":\"set-roster-layout-mode\""
-        frontendSurfaceContractsTypeScript `shouldContainText` "\"intents\":[{\"name\":\"set-roster-layout-mode\""
+        frontendSurfaceContractsTypeScript `shouldContainText` "\"htmxActions\":[{\"name\":\"navigate-roster-week\""
+        frontendSurfaceContractsTypeScript `shouldContainText` "{\"name\":\"set-roster-layout-mode\",\"fields\":[\"rosterLayoutMode\"]"
+        frontendSurfaceContractsTypeScript `shouldContainText` "\"intents\":[\"set-roster-layout-mode\",\"move-roster-shift-to-slot\"]"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type MoveRosterShiftToSlotIntentFields = RosterMoveRosterShiftToSlotIntentFields;"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterSessionName = \"drag\";"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterSourceRef = \"drag-source\";"
