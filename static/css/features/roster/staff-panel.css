@@ -320,6 +320,10 @@
         --bs-gutter-x: 0;
     }
 
+    .roster-fullscreen-toggle {
+        display: none !important;
+    }
+
     .roster-layout-side {
         display: block;
     }

@@ -116,6 +116,8 @@ test.describe('Roster mobile baseline', () => {
             expect(rosterTableMetrics?.cellWidths[1]).toBeGreaterThanOrEqual(rosterTableMetrics?.cellWidths[0] ?? 0);
         }
 
+        await expect(page.getByRole('button', { name: 'Expand roster' })).toBeHidden();
+
         const metrics = await page.evaluate(() => {
             const side = document.querySelector('.roster-layout-side');
             const panel = document.querySelector('.roster-staff-panel');
