@@ -1,0 +1,136 @@
+.roster-day-timeline-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    padding: 0;
+    margin-left: 0.35rem;
+}
+
+.roster-day-timeline {
+    --roster-timeline-label-width: 11rem;
+    --roster-timeline-row-min-height: 4rem;
+    --roster-timeline-track-height: 3.25rem;
+    --roster-timeline-track-gap: 0.35rem;
+    min-width: 72rem;
+    overflow-x: auto;
+}
+
+.roster-day-timeline-scale,
+.roster-day-timeline-lane {
+    display: grid;
+    grid-template-columns: var(--roster-timeline-label-width) minmax(60rem, 1fr);
+}
+
+.roster-day-timeline-scale {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--bs-body-bg);
+    border-bottom: 1px solid var(--bs-border-color);
+    min-height: 2rem;
+}
+
+.roster-day-timeline-scale::before {
+    content: "Time";
+    grid-column: 1;
+    align-self: center;
+    color: var(--bs-secondary-color);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.roster-day-timeline-scale-tick {
+    grid-column: 2;
+    position: absolute;
+    bottom: 0.25rem;
+    transform: translateX(-50%);
+    color: var(--bs-secondary-color);
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+
+.roster-day-timeline-lane {
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
+.roster-day-timeline-lane-label {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.15rem;
+    min-height: var(--roster-timeline-row-min-height);
+    padding: 0.75rem 1rem 0.75rem 0;
+    border-right: 1px solid var(--bs-border-color);
+}
+
+.roster-day-timeline-lane-body {
+    position: relative;
+    min-height: calc(
+        var(--roster-timeline-track-count, 1) * var(--roster-timeline-track-height)
+        + max(0, var(--roster-timeline-track-count, 1) - 1) * var(--roster-timeline-track-gap)
+        + 1rem
+    );
+    background-image: linear-gradient(to right, var(--bs-border-color-translucent) 1px, transparent 1px);
+    background-size: calc(100% / 24) 100%;
+}
+
+.roster-day-timeline-dropzones,
+.roster-day-timeline-shifts {
+    position: absolute;
+    inset: 0.5rem 0;
+}
+
+.roster-day-timeline-dropzone {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    border-radius: 0.25rem;
+}
+
+.roster-day-timeline-dropzone.bepis-dropzone-highlight,
+.roster-day-timeline-dropzone:hover {
+    background: color-mix(in srgb, var(--bs-primary) 14%, transparent);
+    outline: 1px solid color-mix(in srgb, var(--bs-primary) 45%, transparent);
+}
+
+.roster-day-timeline-shift {
+    position: absolute;
+    top: calc(var(--roster-timeline-track) * (var(--roster-timeline-track-height) + var(--roster-timeline-track-gap)));
+    min-width: 4rem;
+    min-height: var(--roster-timeline-track-height);
+    padding: 0.45rem 0.55rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.55rem;
+    background: var(--bs-body-bg);
+    box-shadow: var(--app-shadow-sm, 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075));
+    overflow: hidden;
+}
+
+.roster-day-timeline-shift.roster-shift-launcher {
+    cursor: grab;
+}
+
+.roster-day-timeline-shift.roster-shift-launcher:active {
+    cursor: grabbing;
+}
+
+.roster-day-timeline-shift-time {
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color);
+    font-weight: 600;
+}
+
+.roster-day-timeline-shift-staff {
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.roster-day-timeline-shift-role {
+    color: var(--bs-secondary-color);
+    font-size: 0.78rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

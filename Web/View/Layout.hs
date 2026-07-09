@@ -258,6 +258,7 @@ stylesheets = [hsx|
         <link rel="stylesheet" href={assetPath "/css/features/preferences.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/roster/toolbar.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/roster/week-overview.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/features/roster/timeline.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/roster/staff-panel.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/roster/grid-frame.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/roster/day-actions.css"}/>
