@@ -11,6 +11,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             renderFrontendSurfaceActionLink)
 import Application.Helper.RosterWagePrediction (RosterWagePrediction (..),
                                                 formatMoneyAmount)
+import Application.Helper.Url (appendQueryParams)
 import Application.Helper.UserPreferences (rosterLayoutModeLabel,
                                            rosterLayoutModeValue,
                                            rosterLayoutModes)
@@ -69,10 +70,7 @@ renderRosterGridHeader maybeRosterWeek rosterDays weekOffset rosterGroups curren
             [ when canToggleFullscreen renderRosterFullscreenToggle
             , renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters viewCapabilities rosterLayoutMode showWageEstimates showRosterWarnings gridViewMode
             ]
-        , weekToolbarAuxiliary = mconcat
-            [ renderTimelineDayControls weekOffset currentRosterGroup weekStartDate rosterDays gridViewMode
-            , renderRosterWeekWageSummary rosterWagePrediction
-            ]
+        , weekToolbarAuxiliary = renderRosterWeekWageSummary rosterWagePrediction
         }
 
 renderRosterFullscreenToggle :: Html
@@ -100,22 +98,31 @@ renderRosterWeekWageSummary (Just prediction)
     |]
 
 renderRosterWeekControls :: (?context :: ControllerContext) => Int -> RosterGroup -> Day -> RosterGridViewMode -> Html
-renderRosterWeekControls weekOffset currentRosterGroup weekStartDate gridViewMode =
+renderRosterWeekControls weekOffset currentRosterGroup weekStartDate RosterWeekGridView =
     renderWeekNavigationGroup WeekNavigationConfig
         { weekNavigationAriaLabel = "Roster week navigation"
         , weekNavigationExtraClass = "roster-week-nav-group"
-        , weekNavigationPrevious = renderWeekNavigationLink "bi-chevron-left" "Previous week" previousUrl (weekOffset - 1) currentRosterGroup.id
+        , weekNavigationPrevious = renderWeekNavigationLink "bi-chevron-left" "Previous week" (rosterWeekUrl (weekOffset - 1) currentRosterGroup.id) (weekOffset - 1) currentRosterGroup.id
         , weekNavigationCurrentLabel = [hsx|{renderRosterWeekLabel weekStartDate}|]
         , weekNavigationLabelClass = "roster-week-nav-button roster-week-nav-label"
-        , weekNavigationNext = renderWeekNavigationLink "bi-chevron-right" "Next week" nextUrl (weekOffset + 1) currentRosterGroup.id
+        , weekNavigationNext = renderWeekNavigationLink "bi-chevron-right" "Next week" (rosterWeekUrl (weekOffset + 1) currentRosterGroup.id) (weekOffset + 1) currentRosterGroup.id
+        }
+renderRosterWeekControls weekOffset currentRosterGroup weekStartDate (RosterDayTimelineGridView dayOffset) =
+    renderWeekNavigationGroup WeekNavigationConfig
+        { weekNavigationAriaLabel = "Roster timeline day navigation"
+        , weekNavigationExtraClass = "roster-week-nav-group roster-timeline-day-nav"
+        , weekNavigationPrevious = renderWeekNavigationLink "bi-chevron-left" "Previous day" previousUrl previousWeekOffset currentRosterGroup.id
+        , weekNavigationCurrentLabel = [hsx|{Text.pack (formatTime defaultTimeLocale "%a %d/%m" selectedDate)}|]
+        , weekNavigationLabelClass = "roster-week-nav-button roster-week-nav-label"
+        , weekNavigationNext = renderWeekNavigationLink "bi-chevron-right" "Next day" nextUrl nextWeekOffset currentRosterGroup.id
         }
     where
-        previousUrl = case gridViewMode of
-            RosterDayTimelineGridView dayOffset -> rosterDayTimelineUrl (weekOffset - 1) currentRosterGroup.id dayOffset
-            RosterWeekGridView -> rosterWeekUrl (weekOffset - 1) currentRosterGroup.id
-        nextUrl = case gridViewMode of
-            RosterDayTimelineGridView dayOffset -> rosterDayTimelineUrl (weekOffset + 1) currentRosterGroup.id dayOffset
-            RosterWeekGridView -> rosterWeekUrl (weekOffset + 1) currentRosterGroup.id
+        clampedDayOffset = max 0 (min 6 dayOffset)
+        selectedDate = Calendar.addDays (toInteger clampedDayOffset) weekStartDate
+        (previousWeekOffset, previousDayOffset) = if clampedDayOffset <= 0 then (weekOffset - 1, 6) else (weekOffset, clampedDayOffset - 1)
+        (nextWeekOffset, nextDayOffset) = if clampedDayOffset >= 6 then (weekOffset + 1, 0) else (weekOffset, clampedDayOffset + 1)
+        previousUrl = rosterDayTimelineUrl previousWeekOffset currentRosterGroup.id previousDayOffset
+        nextUrl = rosterDayTimelineUrl nextWeekOffset currentRosterGroup.id nextDayOffset
 
 renderRosterGroupSwitcher :: Int -> [RosterGroup] -> RosterGroup -> Html
 renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup = [hsx|
@@ -167,7 +174,7 @@ renderThisWeekButton :: (?context :: ControllerContext) => RosterGridViewMode ->
 renderThisWeekButton gridViewMode _weekStartDate currentRosterGroup =
     renderPartialNavigationLink
         PartialNavigationLink
-            { partialNavigationLabel = "This week"
+            { partialNavigationLabel = resetLabel
             , partialNavigationUrl = thisWeekUrl
             , partialNavigationTargetId = rosterWeekShellId
             , partialNavigationSelectId = Just rosterWeekShellId
@@ -177,33 +184,12 @@ renderThisWeekButton gridViewMode _weekStartDate currentRosterGroup =
             , partialNavigationPushUrl = True
             }
     where
+        resetLabel = case gridViewMode of
+            RosterDayTimelineGridView _ -> "Today"
+            RosterWeekGridView          -> "This week"
         thisWeekUrl = case gridViewMode of
-            RosterDayTimelineGridView dayOffset -> rosterDayTimelineUrl 0 currentRosterGroup.id dayOffset
+            RosterDayTimelineGridView _ -> appendQueryParams (pathTo RosterWeeksAction) [("rosterGroupId", tshow currentRosterGroup.id), ("rosterView", "timeline")]
             RosterWeekGridView -> pathTo RosterWeeksAction
-
-renderTimelineDayControls :: (?context :: ControllerContext) => Int -> RosterGroup -> Day -> [RosterDay] -> RosterGridViewMode -> Html
-renderTimelineDayControls _ _ _ _ RosterWeekGridView = mempty
-renderTimelineDayControls weekOffset currentRosterGroup weekStartDate rosterDays (RosterDayTimelineGridView dayOffset) =
-    let clampedDayOffset = max 0 (min 6 dayOffset)
-        selectedDate = Calendar.addDays (toInteger clampedDayOffset) weekStartDate
-        (previousWeekOffset, previousDayOffset) = if clampedDayOffset <= 0 then (weekOffset - 1, 6) else (weekOffset, clampedDayOffset - 1)
-        (nextWeekOffset, nextDayOffset) = if clampedDayOffset >= 6 then (weekOffset + 1, 0) else (weekOffset, clampedDayOffset + 1)
-     in [hsx|
-        <div class="btn-group btn-group-sm roster-timeline-day-nav" role="group" aria-label="Timeline day navigation">
-            <a class="btn btn-outline-secondary" href={rosterDayTimelineUrl previousWeekOffset currentRosterGroup.id previousDayOffset} data-turbolinks="false">
-                <i class="bi bi-chevron-left" aria-hidden="true"></i>
-                <span class="visually-hidden">Previous day</span>
-            </a>
-            <span class="btn btn-outline-secondary disabled roster-timeline-day-label" aria-disabled="true">
-                {Text.pack (formatTime defaultTimeLocale "%a %d/%m" selectedDate)}
-            </span>
-            <a class="btn btn-outline-secondary" href={rosterDayTimelineUrl nextWeekOffset currentRosterGroup.id nextDayOffset} data-turbolinks="false">
-                <span class="visually-hidden">Next day</span>
-                <i class="bi bi-chevron-right" aria-hidden="true"></i>
-            </a>
-            <a class="btn btn-outline-secondary" href={rosterWeekUrl weekOffset currentRosterGroup.id} data-turbolinks="false">Week grid</a>
-        </div>
-    |]
 
 renderRosterWeekMoreMenu :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> RosterViewCapabilities -> RosterLayoutModeEnum -> Bool -> Bool -> RosterGridViewMode -> Html
 renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters viewCapabilities rosterLayoutMode showWageEstimates showRosterWarnings gridViewMode =
@@ -218,7 +204,7 @@ renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGr
             </div>
             <div class="dropdown-divider my-1"></div>
             {renderRosterWeekActionsMenuSection maybeRosterWeek weekOffset currentRosterGroup.id viewCapabilities}
-            {renderRosterLayoutMenuSection weekOffset currentRosterGroup.id rosterLayoutMode}
+            {renderRosterLayoutMenuSection weekOffset currentRosterGroup.id rosterLayoutMode gridViewMode}
             {renderRosterDisplayPreferencesMenuSection weekOffset currentRosterGroup.id viewCapabilities showWageEstimates showRosterWarnings}
             {renderRosterExportMenuSection maybeRosterWeek viewCapabilities}
             {renderRosterAssignmentFiltersMenuSection weekOffset currentRosterGroup.id menuTriggerId assignmentFilters viewCapabilities}
@@ -241,8 +227,14 @@ renderRosterWeekActionsMenuSection maybeRosterWeek weekOffset rosterGroupId view
         <div class="dropdown-divider my-1"></div>
     |]
 
-renderRosterLayoutMenuSection :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterLayoutModeEnum -> Html
-renderRosterLayoutMenuSection _weekOffset _rosterGroupId selectedLayoutMode = [hsx|
+renderRosterLayoutMenuSection :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterLayoutModeEnum -> RosterGridViewMode -> Html
+renderRosterLayoutMenuSection weekOffset rosterGroupId _selectedLayoutMode (RosterDayTimelineGridView _) = [hsx|
+    <div class="px-1 py-1">
+        <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Roster view</div>
+        <a class="btn btn-outline-secondary btn-sm w-100" href={rosterWeekUrl weekOffset rosterGroupId} data-turbolinks="false">Week grid</a>
+    </div>
+|]
+renderRosterLayoutMenuSection _weekOffset _rosterGroupId selectedLayoutMode RosterWeekGridView = [hsx|
     <div class="px-1 py-1">
         <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Roster layout</div>
         <div class="btn-group w-100 roster-layout-mode-group" role="group" aria-label="Roster layout">

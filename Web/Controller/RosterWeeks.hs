@@ -83,7 +83,13 @@ instance Controller RosterWeeksController where
         -- Redirect to the current week's offset based on today's date
         currentWeekOffset <- fetchCurrentRosterWeekOffset
         currentRosterGroup <- resolveRequestedRosterGroup
-        let currentWeekPath = rosterWeekUrl currentWeekOffset currentRosterGroup.id
+        currentWeekPath <- case paramOrNothing @Text "rosterView" of
+            Just "timeline" -> do
+                venueConfig <- fetchVenueConfig
+                today <- utctDay <$> getCurrentTime
+                let todayDayOffset = fromInteger (Calendar.diffDays today (venueWeekStartDate venueConfig currentWeekOffset))
+                pure (rosterDayTimelineUrl currentWeekOffset currentRosterGroup.id (max 0 (min 6 todayDayOffset)))
+            _ -> pure (rosterWeekUrl currentWeekOffset currentRosterGroup.id)
 
         if isHtmxRequest
             then do

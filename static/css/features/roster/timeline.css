@@ -9,18 +9,19 @@
 }
 
 .roster-day-timeline {
-    --roster-timeline-label-width: 11rem;
+    --roster-timeline-label-width: clamp(7rem, 13vw, 11rem);
     --roster-timeline-row-min-height: 4rem;
     --roster-timeline-track-height: 3.25rem;
     --roster-timeline-track-gap: 0.35rem;
-    min-width: 72rem;
-    overflow-x: auto;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
 }
 
 .roster-day-timeline-scale,
 .roster-day-timeline-lane {
     display: grid;
-    grid-template-columns: var(--roster-timeline-label-width) minmax(60rem, 1fr);
+    grid-template-columns: var(--roster-timeline-label-width) minmax(0, 1fr);
 }
 
 .roster-day-timeline-scale {
@@ -32,8 +33,7 @@
     min-height: 2rem;
 }
 
-.roster-day-timeline-scale::before {
-    content: "Time";
+.roster-day-timeline-scale-label {
     grid-column: 1;
     align-self: center;
     color: var(--bs-secondary-color);
@@ -41,13 +41,18 @@
     font-weight: 600;
 }
 
-.roster-day-timeline-scale-tick {
+.roster-day-timeline-scale-body {
     grid-column: 2;
+    position: relative;
+    min-width: 0;
+}
+
+.roster-day-timeline-scale-tick {
     position: absolute;
     bottom: 0.25rem;
     transform: translateX(-50%);
     color: var(--bs-secondary-color);
-    font-size: 0.75rem;
+    font-size: clamp(0.55rem, 0.7vw, 0.75rem);
     white-space: nowrap;
 }
 
@@ -61,18 +66,19 @@
     justify-content: center;
     gap: 0.15rem;
     min-height: var(--roster-timeline-row-min-height);
-    padding: 0.75rem 1rem 0.75rem 0;
+    padding: 0.75rem 0.75rem 0.75rem 0;
     border-right: 1px solid var(--bs-border-color);
 }
 
 .roster-day-timeline-lane-body {
     position: relative;
+    min-width: 0;
     min-height: calc(
         var(--roster-timeline-track-count, 1) * var(--roster-timeline-track-height)
         + max(0, var(--roster-timeline-track-count, 1) - 1) * var(--roster-timeline-track-gap)
         + 1rem
     );
-    background-image: linear-gradient(to right, var(--bs-border-color-translucent) 1px, transparent 1px);
+    background-image: linear-gradient(to right, color-mix(in srgb, var(--bs-border-color) 65%, transparent) 1px, transparent 1px);
     background-size: calc(100% / 24) 100%;
 }
 
@@ -133,4 +139,10 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+@media (max-width: 991.98px) {
+    .roster-day-timeline-scale-tick:nth-child(even) {
+        display: none;
+    }
 }

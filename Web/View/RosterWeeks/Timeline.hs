@@ -84,17 +84,11 @@ renderRosterDayTimelineContent maybeSwapOob rosterData rosterDay =
         editable = currentUserIsManager && not rosterData.rosterWeek.isLive && not rosterDay.isClosed
      in [hsx|
         <section id={rosterDayTimelineContentFragmentId rosterDay.id}
-                 class="app-panel roster-day-timeline-shell"
+                 class="roster-day-timeline-shell"
                  data-roster-day-timeline="true"
                  data-roster-day-timeline-editable={if editable then ("true" :: Text) else "false"}
                  hx-swap-oob={maybeSwapOob}>
-            <header class="d-flex align-items-center justify-content-between gap-3 mb-3">
-                <div>
-                    <h2 class="h5 mb-1">{Text.pack (formatTime defaultTimeLocale "%A" date)} timeline</h2>
-                    <p class="text-muted mb-0">{if editable then ("Drag shifts to a 15-minute time target." :: Text) else "Timeline is read-only."}</p>
-                </div>
-            </header>
-            <div class="roster-day-timeline" role="grid" aria-label="Roster day timeline">
+            <div class="roster-day-timeline" role="grid" aria-label={Text.pack (formatTime defaultTimeLocale "%A %d/%m roster timeline" date)}>
                 {renderTimelineScale}
                 {forEach rosterData.orderedSlotNames (renderTimelineLane editable rosterDay staffById shiftTypeById slotsByDefinition)}
             </div>
@@ -104,7 +98,10 @@ renderRosterDayTimelineContent maybeSwapOob rosterData rosterDay =
 renderTimelineScale :: Html
 renderTimelineScale = [hsx|
     <div class="roster-day-timeline-scale" aria-hidden="true">
-        {forEach timelineHourTicks renderTimelineScaleTick}
+        <div class="roster-day-timeline-scale-label">Time</div>
+        <div class="roster-day-timeline-scale-body">
+            {forEach timelineHourTicks renderTimelineScaleTick}
+        </div>
     </div>
 |]
 
