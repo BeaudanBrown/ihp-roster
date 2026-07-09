@@ -67,6 +67,7 @@ renderRosterDayTimelineMounted RosterRenderData { rosterWeek, currentRosterGroup
             { rosterDayTimelineVenueId = currentRosterGroup.venueId
             , rosterDayTimelineGroupId = currentRosterGroup.id
             , rosterDayTimelineWeekOffset = rosterWeek.weekOffset
+            , rosterDayTimelineDayOffset = rosterDay.dayOffset
             , rosterDayTimelineDayId = rosterDay.id
             }
         timelineSurface = rosterDayTimelineSurfaceImpl timelineSurfaceScope
@@ -220,8 +221,12 @@ timelineLeftStyle :: Int -> Text
 timelineLeftStyle minute = "left:" <> timelinePercent (minute - rosterOperationalStartMinuteOfDay) <> "%;"
 
 timelineDropzoneStyle :: Int -> Text
-timelineDropzoneStyle minute =
-    "left:" <> timelinePercent (minute - rosterOperationalStartMinuteOfDay) <> "%;width:" <> timelinePercent 15 <> "%;"
+timelineDropzoneStyle minute
+    | minute == lastTimelineQuarterHour = "left:" <> timelinePercent (minute - rosterOperationalStartMinuteOfDay) <> "%;right:0;"
+    | otherwise = "left:" <> timelinePercent (minute - rosterOperationalStartMinuteOfDay) <> "%;width:" <> timelinePercent 15 <> "%;"
+
+lastTimelineQuarterHour :: Int
+lastTimelineQuarterHour = rosterOperationalStartMinuteOfDay + rosterTimelineTotalMinutes - 15
 
 timelineShiftStyle :: Int -> Int -> Int -> Text
 timelineShiftStyle startMin endMin track =

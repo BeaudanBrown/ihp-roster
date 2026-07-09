@@ -135,6 +135,10 @@
     pointer-events: auto;
 }
 
+html[data-bepis-interaction-active="true"] .roster-day-timeline-shift {
+    pointer-events: none;
+}
+
 .roster-day-timeline-shift.roster-shift-launcher:active {
     cursor: grabbing;
 }

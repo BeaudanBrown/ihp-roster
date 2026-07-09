@@ -80,6 +80,7 @@ data RosterDayTimelineScopeValue = RosterDayTimelineScopeValue
     { rosterDayTimelineVenueId    :: !UUID.UUID
     , rosterDayTimelineGroupId    :: !(Id RosterGroup)
     , rosterDayTimelineWeekOffset :: !Int
+    , rosterDayTimelineDayOffset  :: !Int
     , rosterDayTimelineDayId      :: !(Id RosterDay)
     }
     deriving (Eq, Show)
@@ -459,7 +460,7 @@ rosterDuplicateShiftRequest scope fields =
 
 rosterDayTimelineMoveShiftRequest :: RosterDayTimelineScopeValue -> FrontendSurfaceFieldValues DragDropFieldSpecs -> FrontendSurfaceHtmxRequest
 rosterDayTimelineMoveShiftRequest scope fields =
-    rosterDragDropRequest "move-roster-timeline-shift" (rosterTimelineMoveShiftUrl scope.rosterDayTimelineWeekOffset scope.rosterDayTimelineGroupId) fields
+    rosterDragDropRequest "move-roster-timeline-shift" (rosterTimelineMoveShiftUrl scope.rosterDayTimelineWeekOffset scope.rosterDayTimelineGroupId scope.rosterDayTimelineDayOffset) fields
 
 rosterDragDropRequest :: Text -> Text -> FrontendSurfaceFieldValues DragDropFieldSpecs -> FrontendSurfaceHtmxRequest
 rosterDragDropRequest requestName requestUrl fields =

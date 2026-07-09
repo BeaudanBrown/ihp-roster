@@ -126,9 +126,14 @@ rosterMoveShiftUrl :: Int -> Id RosterGroup -> Text
 rosterMoveShiftUrl weekOffset rosterGroupId =
     appendQueryParams (pathTo MoveRosterShiftToSlotAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
 
-rosterTimelineMoveShiftUrl :: Int -> Id RosterGroup -> Text
-rosterTimelineMoveShiftUrl weekOffset rosterGroupId =
-    appendQueryParams (pathTo MoveRosterTimelineShiftAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
+rosterTimelineMoveShiftUrl :: Int -> Id RosterGroup -> Int -> Text
+rosterTimelineMoveShiftUrl weekOffset rosterGroupId dayOffset =
+    appendQueryParams
+        (pathTo MoveRosterTimelineShiftAction { weekOffset })
+        [ ("rosterGroupId", tshow rosterGroupId)
+        , ("rosterView", "timeline")
+        , ("dayOffset", tshow dayOffset)
+        ]
 
 rosterDuplicateShiftUrl :: Int -> Id RosterGroup -> Text
 rosterDuplicateShiftUrl weekOffset rosterGroupId =
