@@ -594,13 +594,8 @@ instance Controller RosterWeeksController where
                 let warningToast = shouldWarnSourceTimesheetUnchanged
                 respondToRosterSlotMutation rosterGroup.id staffDropRosterWeek staffDropRosterDay updatedSlot.rowIndex mutationResult (Just (coerce staffDropStaff.id)) $
                     if warningToast then "Staff assigned. A pending timesheet already exists for this roster slot, so the timesheet was not changed." else "Staff assigned."
-            Right RosterStaffCreateShiftDropIntent { staffDropStaff, staffDropRosterDay, staffDropRosterWeek, staffDropSlotDefinition, staffDropRowIndex } -> do
-                dialog <- rosterShiftDialogForCreateHtml staffDropRosterDay staffDropRosterWeek staffDropSlotDefinition staffDropRowIndex emptyRosterShiftDialogValues { rosterShiftStaffId = Just (coerce staffDropStaff.id) }
-                respondHtmlProfiled [hsx|
-                    <div id={dialogOverlayMountId} hx-swap-oob="innerHTML">
-                        {dialog}
-                    </div>
-                |]
+            Right RosterStaffCreateShiftDropIntent { staffDropStaff, staffDropRosterDay, staffDropRosterWeek, staffDropSlotDefinition, staffDropRowIndex } ->
+                respondWithRosterShiftCreateDialogOob staffDropRosterDay staffDropRosterWeek staffDropSlotDefinition staffDropRowIndex emptyRosterShiftDialogValues { rosterShiftStaffId = Just (coerce staffDropStaff.id) }
 
     action currentAction@UpdateRosterWarningPreferenceAction { weekOffset } =
         runBepis currentAction BepisMutationAction do
@@ -1052,6 +1047,15 @@ renderRosterShiftDialogForCreate :: (?context :: ControllerContext, ?modelContex
 renderRosterShiftDialogForCreate rosterDay rosterWeek slotDefinition rowIndex values = do
     dialog <- rosterShiftDialogForCreateHtml rosterDay rosterWeek slotDefinition rowIndex values
     respondHtmlProfiled dialog
+
+respondWithRosterShiftCreateDialogOob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterDay -> RosterWeek -> RosterWeekSlotDefinition -> Int -> RosterShiftDialogValues -> IO ()
+respondWithRosterShiftCreateDialogOob rosterDay rosterWeek slotDefinition rowIndex values = do
+    dialog <- rosterShiftDialogForCreateHtml rosterDay rosterWeek slotDefinition rowIndex values
+    respondHtmlProfiled [hsx|
+        <div id={dialogOverlayMountId} hx-swap-oob="innerHTML">
+            {dialog}
+        </div>
+    |]
 
 rosterShiftDialogForCreateHtml :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterDay -> RosterWeek -> RosterWeekSlotDefinition -> Int -> RosterShiftDialogValues -> IO Blaze.Html
 rosterShiftDialogForCreateHtml rosterDay rosterWeek slotDefinition rowIndex values = do

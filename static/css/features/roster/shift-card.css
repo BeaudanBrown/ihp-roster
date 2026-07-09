@@ -114,7 +114,8 @@ article.roster-shift-card:not(.roster-shift-card-create) {
 
 .roster-shift-card.roster-shift-launcher:hover,
 .roster-shift-card.roster-shift-launcher:focus-visible,
-.roster-shift-card.roster-shift-launcher.is-roster-shift-group-highlighted {
+.roster-shift-card.roster-shift-launcher.is-roster-shift-group-highlighted,
+.roster-shift-card.roster-shift-launcher.bepis-dropzone-highlight {
     border-color: var(--app-accent-border-strong);
     background: linear-gradient(
         180deg,
@@ -123,6 +124,10 @@ article.roster-shift-card:not(.roster-shift-card-create) {
     ) !important;
     box-shadow: 0 0 0 2px var(--app-accent-softer), 0 0.6rem 1.2rem var(--app-shadow-md-raw);
     transform: translateY(-1px);
+}
+
+.roster-shift-card.roster-shift-launcher.bepis-dropzone-highlight {
+    box-shadow: 0 0 0 3px var(--bs-success), 0 0.65rem 1.25rem var(--app-shadow-md-raw);
 }
 
 .roster-shift-card.roster-shift-launcher:focus-visible {

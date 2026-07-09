@@ -123,8 +123,13 @@
 .roster-grid .roster-shift-create-plus-cell.is-roster-shift-group-highlighted .slot-cell-static,
 .roster-grid .roster-shift-create-unit:hover .roster-shift-create-plus-overlay,
 .roster-grid .roster-shift-create-unit:focus-visible .roster-shift-create-plus-overlay,
-.roster-grid .roster-shift-create-unit.is-roster-shift-group-highlighted .roster-shift-create-plus-overlay {
+.roster-grid .roster-shift-create-unit.is-roster-shift-group-highlighted .roster-shift-create-plus-overlay,
+.roster-grid .roster-shift-create-unit.bepis-dropzone-highlight .roster-shift-create-plus-overlay {
     opacity: 1;
+}
+
+.roster-grid .roster-shift-create-unit.bepis-dropzone-highlight {
+    box-shadow: inset 0 0 0 3px var(--bs-success), 0 0.45rem 0.9rem var(--app-shadow-md-raw);
 }
 
 .roster-grid .slot-closed-cell {

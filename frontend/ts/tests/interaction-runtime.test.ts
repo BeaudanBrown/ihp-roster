@@ -586,6 +586,52 @@ test("generated pointer session effects render proxy shadows and highlight dropz
     assertEqual(phases.join(","), "start,preview,preview,preview,preview,preview,commit");
 });
 
+test("staff drag highlights only compatible roster drop targets", () => {
+    const mount = new MiniElement({ [attrs.surface]: "roster", [attrs.surfaceFamily]: "roster" });
+    const marker = mount.append(new MiniElement({
+        [FrontendSurfaceInteractionDom.sourceRef]: "staff-drag-source",
+        [FrontendSurfaceInteractionDom.sourceKey]: "staff:1",
+        [attrs.sessionThreshold]: "0",
+    }));
+    marker.rect = { left: 0, top: 0, width: 80, height: 30 };
+    const dayColumn = mount.append(new MiniElement({
+        [FrontendSurfaceInteractionDom.dropzoneRef]: "day-column-dropzone",
+        [FrontendSurfaceInteractionDom.dropzoneKey]: "day:1",
+    }));
+    const existingShift = mount.append(new MiniElement({
+        [FrontendSurfaceInteractionDom.dropzoneRef]: "existing-shift-dropzone",
+        [FrontendSurfaceInteractionDom.dropzoneKey]: "existing:1",
+    }));
+    const createTarget = mount.append(new MiniElement({
+        [FrontendSurfaceInteractionDom.dropzoneRef]: "shift-create-dropzone",
+        [FrontendSurfaceInteractionDom.dropzoneKey]: "new:1:2:0",
+    }));
+    const layer = mount.append(new MiniElement({ [attrs.disposableLayer]: "drag-preview" }));
+    let hitTarget: MiniElement | null = dayColumn;
+    const doc = {
+        elementFromPoint: (_x: number, _y: number) => hitTarget,
+        createElement: (_tag: string) => new MiniElement(),
+    };
+    for (const element of [mount, marker, dayColumn, existingShift, createTarget, layer]) element.ownerDocument = doc;
+
+    const controller = createPointerSessionController({ runtime: { emit: () => ({ canceled: false }) } });
+    controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 1, 0, 0));
+    controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 1, 8, 0));
+    assertEqual(dayColumn.getAttribute("class"), null);
+
+    hitTarget = existingShift;
+    controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 1, 16, 0));
+    assertEqual(existingShift.getAttribute("class"), "bepis-dropzone-highlight");
+
+    hitTarget = createTarget;
+    controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 1, 24, 0));
+    assertEqual(existingShift.getAttribute("class"), null);
+    assertEqual(createTarget.getAttribute("class"), "bepis-dropzone-highlight");
+
+    controller.handlePointerUp(pointerEventWithTarget("pointerup", marker, 1, 24, 0));
+    assertEqual(createTarget.getAttribute("class"), null);
+});
+
 test("touch pointers do not start generic drag sessions", () => {
     const phases: string[] = [];
     const mount = new MiniElement({ [attrs.surface]: "roster", [attrs.surfaceFamily]: "roster" });
