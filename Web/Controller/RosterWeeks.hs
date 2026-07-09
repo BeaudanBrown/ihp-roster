@@ -70,7 +70,8 @@ import Web.View.RosterWeeks.Overview (renderWeekOverviewPanelFragment)
 import Web.View.RosterWeeks.ShiftDialog
 import Web.View.RosterWeeks.Show (renderRosterWeekShell)
 import Web.View.RosterWeeks.StaffPanel (renderrosterStaffPanelLiveFragment)
-import Web.View.RosterWeeks.Timeline (renderRosterDayTimelineContent,
+import Web.View.RosterWeeks.Timeline (RosterDayTimelineView (..),
+                                      renderRosterDayTimelineContent,
                                       renderRosterDayTimelineShell)
 
 instance Controller RosterWeeksController where
@@ -122,7 +123,9 @@ instance Controller RosterWeeksController where
                         setErrorMessage "Roster day not found."
                         redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
                     Just rosterDay ->
-                        respondHtmlProfiled (renderRosterDayTimelineShell rosterData rosterDay)
+                        if isHtmxRequest
+                            then respondHtmlProfiled (renderRosterDayTimelineShell rosterData rosterDay)
+                            else renderProfiled RosterDayTimelineView { timelineViewRosterData = rosterData, timelineViewRosterDay = rosterDay }
 
     action currentAction@ShowRosterDayTimelineContentFragmentAction { weekOffset, rosterDayId } = runBepis currentAction BepisFragmentAction do
         rosterGroup <- resolveRequestedRosterGroup

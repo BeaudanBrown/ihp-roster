@@ -1,7 +1,8 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 
 module Web.View.RosterWeeks.Timeline
-    ( renderRosterDayTimelineContent
+    ( RosterDayTimelineView (..)
+    , renderRosterDayTimelineContent
     , renderRosterDayTimelineShell
     ) where
 
@@ -28,6 +29,15 @@ import Web.RosterWeeks.FrontendSurface (RosterDayTimelineScopeValue (..),
 import Web.RosterWeeks.Paths (rosterWeekUrl)
 import Web.RosterWeeks.Types
 import Web.View.Prelude
+
+data RosterDayTimelineView = RosterDayTimelineView
+    { timelineViewRosterData :: !RosterRenderData
+    , timelineViewRosterDay  :: !RosterDay
+    }
+
+instance View RosterDayTimelineView where
+    html RosterDayTimelineView { timelineViewRosterData, timelineViewRosterDay } =
+        renderRosterDayTimelineShell timelineViewRosterData timelineViewRosterDay
 
 renderRosterDayTimelineShell :: RosterRenderData -> RosterDay -> Html
 renderRosterDayTimelineShell rosterData@RosterRenderData { rosterWeek, currentRosterGroup, weekStartDate } rosterDay =
