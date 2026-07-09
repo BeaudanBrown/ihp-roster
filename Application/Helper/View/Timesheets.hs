@@ -41,8 +41,8 @@ timesheetModalTitle day =
         <> formatDayMonthDisplay day
 
 -- | Shared timesheet entry form used by New and Edit views.
-renderTimesheetForm :: (?context :: ControllerContext) => AppShellActionIR -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Maybe UUID -> Maybe UUID -> Text -> Text -> OverlayFormMode -> Html
-renderTimesheetForm appShellAction entry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId actionUrl formId formMode =
+renderTimesheetForm :: (?context :: ControllerContext) => AppShellActionIR -> TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Maybe UUID -> Maybe UUID -> Text -> Text -> Text -> Text -> OverlayFormMode -> Html
+renderTimesheetForm appShellAction entry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd actionUrl formId formMode =
     case formMode of
         HtmxOverlayForm ->
             renderAppShellActionForm
@@ -58,18 +58,18 @@ renderTimesheetForm appShellAction entry staffMembers shiftTypes weekOffset show
                         , ("data-disable-javascript-submission", "true")
                         ]
                     }
-                (renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId)
+                (renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd)
         PageOverlayForm -> [hsx|
             <form id={formId}
                   method="POST"
                   action={actionUrl}
                   class="mt-3">
-                {renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId}
+                {renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd}
             </form>
         |]
 
-renderTimesheetFormFields :: (?context :: ControllerContext) => TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Maybe UUID -> Maybe UUID -> Html
-renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId = [hsx|
+renderTimesheetFormFields :: (?context :: ControllerContext) => TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Maybe UUID -> Maybe UUID -> Text -> Text -> Html
+renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd = [hsx|
     <input type="hidden" name="weekOffset" value={tshow weekOffset} />
     <input type="hidden" name="showApproved" value={if showApproved then ("true" :: Text) else "false"} />
     <input type="hidden" name="showAllStaff" value={if showAllStaff then ("true" :: Text) else "false"} />
@@ -82,12 +82,12 @@ renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved 
     <div class="row mb-3">
         <div class="col">
             <label class="form-label">Shift Start</label>
-            {renderTimePickerField (defaultTimePickerConfig "startTime" startTimeValue "06:00" "04:45" False)}
+            {renderTimePickerField (defaultTimePickerConfig "startTime" startTimeValue pickerStart pickerEnd False)}
             {renderFieldError entry "startTime"}
         </div>
         <div class="col">
             <label class="form-label">Shift End</label>
-            {renderTimePickerField (defaultTimePickerConfig "endTime" endTimeValue "06:00" "04:45" False)}
+            {renderTimePickerField (defaultTimePickerConfig "endTime" endTimeValue pickerStart pickerEnd False)}
             {renderFieldError entry "endTime"}
         </div>
     </div>
@@ -100,12 +100,12 @@ renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved 
     <div id="timesheet-break-time-fields" class="row mb-3">
         <div class="col">
             <label class="form-label">Break Start</label>
-            {renderTimePickerField (defaultTimePickerConfig "breakStartTime" breakStartTimeValue "06:00" "04:45" (not entry.hadBreak))}
+            {renderTimePickerField (defaultTimePickerConfig "breakStartTime" breakStartTimeValue pickerStart pickerEnd (not entry.hadBreak))}
             {renderFieldError entry "breakStartTime"}
         </div>
         <div class="col">
             <label class="form-label">Break End</label>
-            {renderTimePickerField (defaultTimePickerConfig "breakEndTime" breakEndTimeValue "06:00" "04:45" (not entry.hadBreak))}
+            {renderTimePickerField (defaultTimePickerConfig "breakEndTime" breakEndTimeValue pickerStart pickerEnd (not entry.hadBreak))}
             {renderFieldError entry "breakEndTime"}
         </div>
     </div>

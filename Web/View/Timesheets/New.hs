@@ -16,6 +16,8 @@ data NewView = NewView
     , showAllStaff          :: Bool
     , selectedStaffFilterId :: Maybe UUID
     , currentViewerStaffId  :: Maybe UUID
+    , pickerStart           :: Text
+    , pickerEnd             :: Text
     }
 
 instance View NewView where
@@ -24,14 +26,14 @@ instance View NewView where
             (timesheetModalTitle timesheetEntry.workedOn)
             (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
             newTimesheetFormId
-            (renderTimesheetForm (appShellActionByMarker @CreateTimesheetEntryOverlay) timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId (pathTo CreateTimesheetEntryAction) newTimesheetFormId PageOverlayForm)
+            (renderTimesheetForm (appShellActionByMarker @CreateTimesheetEntryOverlay) timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd (pathTo CreateTimesheetEntryAction) newTimesheetFormId PageOverlayForm)
 
 newTimesheetFormId :: Text
 newTimesheetFormId = "timesheet-entry-create-form"
 
-renderNewTimesheetDialog :: TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Maybe UUID -> Maybe UUID -> Html
-renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId =
+renderNewTimesheetDialog :: TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Maybe UUID -> Maybe UUID -> Text -> Text -> Html
+renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd =
     renderTimesheetEntryDialog
         (timesheetModalTitle timesheetEntry.workedOn)
         newTimesheetFormId
-        (renderTimesheetForm (appShellActionByMarker @CreateTimesheetEntryOverlay) timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId (pathTo CreateTimesheetEntryAction) newTimesheetFormId HtmxOverlayForm)
+        (renderTimesheetForm (appShellActionByMarker @CreateTimesheetEntryOverlay) timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd (pathTo CreateTimesheetEntryAction) newTimesheetFormId HtmxOverlayForm)

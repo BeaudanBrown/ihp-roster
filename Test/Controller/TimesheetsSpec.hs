@@ -261,10 +261,36 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
                 response `responseBodyShouldContain` "Timesheet Tuesday 07/01"
-                response `responseBodyShouldContain` "name=\"startTime\" value=\"12:00\""
-                response `responseBodyShouldContain` "name=\"endTime\" value=\"20:00\""
+                response `responseBodyShouldContain` "name=\"startTime\" value=\"06:00\""
+                response `responseBodyShouldContain` "name=\"endTime\" value=\"14:00\""
+                response `responseBodyShouldContain` "data-time-picker-start=\"06:00\""
+                response `responseBodyShouldContain` "data-time-picker-end=\"05:45\""
                 response `responseBodyShouldNotContain` ">Day<"
                 response `responseBodyShouldNotContain` "07/01/2025</div>"
+
+        it "uses venue time picker window for new timesheet defaults and picker ranges" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Picker Venue"
+                user <- createUserRecord "timesheet-picker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createStaffRecord venue (Just user) "Tess" "Picker"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- createShiftTypeRecord venue payLevel "Ordinary"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- updateRecord (venueConfig |> set #timePickerStartMinuteOfDay 540 |> set #timePickerFinalSelectableMinuteOfDay 780)
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams NewTimesheetEntryAction
+                            [ ("weekOffset", "0")
+                            , ("workedOn", "2025-01-07")
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "name=\"startTime\" value=\"09:00\""
+                response `responseBodyShouldContain` "name=\"endTime\" value=\"13:00\""
+                response `responseBodyShouldContain` "data-time-picker-start=\"09:00\""
+                response `responseBodyShouldContain` "data-time-picker-end=\"13:00\""
 
         it "excludes trial staff from manager timesheet forms and staff filters" $ withContext do
             withCleanDb do
