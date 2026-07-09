@@ -143,6 +143,18 @@ Ref values are generated static names. Key values are dynamic opaque strings
 rendered by the server and submitted back through generated intent fields; the
 browser may forward them but must not parse them as domain authority.
 
+For pointer drag/drop, prefer the shared aliases in
+`Application.Helper.FrontendContract.Surface.Interaction` over hand-assembling
+low-level primitives. `DragSessionDefinition`, `DragSourceRefFor`,
+`DragDropzoneRefFor`, `DragDropIntent`, and
+`DragDropInteractionWithRefsAndVariants` cover the common pattern: one drag
+session, one or more named source refs, named compatible dropzone refs, opaque
+`sourceItemKey`/`targetDropzoneKey` fields, optional modifier variants, and a
+DOM-owned HTMX intent form. Multi-source surfaces should give each semantic
+source and target a distinct generated ref, then list the compatible dropzone
+refs on each source; the browser runtime uses that manifest data for hit-testing
+and highlighting while controllers keep validating opaque keys server-side.
+
 Concrete HTMX forms remain DOM-owned and server-rendered. `SurfaceImpl` intent
 handlers/render helpers own action URLs, methods, hidden inputs, targets, swaps,
 sync selectors, disabled selectors, and trigger events. Mount JSON must not

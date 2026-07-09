@@ -230,10 +230,14 @@ Activation keys should be unique within a concrete mount for the ref kind unless
 multiple rendered controls intentionally alias the same logical action.
 
 Generic pointer session refs may start local disposable sessions from mouse,
-pen, or touch pointer events. A helper-rendered source ref declares only the
-static generated source ref plus an opaque source key; the generated manifest
-maps that source ref to the session kind, compatible dropzone refs, eventual
-intent, submitted source/target field names, and effect metadata. Generated or
+pen, or touch pointer events. Surface specs should use shared aliases such as
+`DragSessionDefinition`, `DragSourceRefFor`, `DragDropzoneRefFor`, and
+`DragDropIntent` when declaring ordinary drag/drop behavior, so multi-source
+surfaces stay explicit without re-declaring pointer fields and session effects.
+A helper-rendered source ref declares only the static generated source ref plus
+an opaque source key; the generated manifest maps that source ref to the session
+kind, compatible dropzone refs, eventual intent, submitted source/target field
+names, and effect metadata. Generated or
 helper-owned DOM attributes may disable/read-only a source, set a movement
 threshold, or set a timeout. The runtime keeps one active session at a time,
 captures the pointer when possible, emits `start`/`preview`/`commit`/`cancel`

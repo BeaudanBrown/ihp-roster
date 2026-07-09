@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PolyKinds           #-}
+{-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE TypeOperators       #-}
 
 module Application.Helper.FrontendContract.Surface.Interaction
@@ -27,9 +28,16 @@ module Application.Helper.FrontendContract.Surface.Interaction
     , StartClientX
     , StartClientY
     , TargetDropzoneKey
+    , CompatibleDropzoneOptions
     , DragDropFields
+    , DragDropIntent
     , DragDropInteraction
+    , DragDropInteractionWithRefs
+    , DragDropInteractionWithRefsAndVariants
     , DragDropInteractionWithVariants
+    , DragDropzoneRefFor
+    , DragSessionDefinition
+    , DragSourceRefFor
     , LayoutModeInteraction
     , frontendSurfaceActivationRefAttribute
     , frontendSurfaceDropzoneKeyAttribute
@@ -151,13 +159,37 @@ type DragDropFields =
          , PointerDragFields
          ]
 
+type family CompatibleDropzoneOptions (dropzoneRefs :: [Type]) :: [PrimitiveOption] where
+    CompatibleDropzoneOptions '[] = '[]
+    CompatibleDropzoneOptions (dropzoneRef ': rest) = 'CompatibleDropzone dropzoneRef ': CompatibleDropzoneOptions rest
+
+type DragSessionDefinition =
+    Session DragSession '[ 'Layer DragPreviewLayer, 'Effect CloneShadow '[ 'Layer DragPreviewLayer ], 'Effect DropzoneHighlight '[] ]
+
+type DragSourceRefFor (sourceRef :: Type) (intent :: Type) (compatibleDropzoneRefs :: [Type]) (variants :: [PrimitiveOption]) =
+    SourceRef sourceRef (Concat '[ '[ 'SessionOption DragSession, 'Submits intent, 'SourceField SourceItemKey ], CompatibleDropzoneOptions compatibleDropzoneRefs, variants ])
+
+type DragDropzoneRefFor (dropzoneRef :: Type) =
+    DropzoneRef dropzoneRef '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]
+
+type DragDropIntent (intent :: Type) (targetFragment :: Type) =
+    '[ Action intent DragDropFields '[ 'Target targetFragment ]
+     , Intent intent DragDropFields '[ 'SessionOption DragSession, 'BackedBy intent ]
+     ]
+
 type DragDropInteraction (intent :: Type) (targetFragment :: Type) =
     DragDropInteractionWithVariants intent targetFragment '[]
 
 type DragDropInteractionWithVariants (intent :: Type) (targetFragment :: Type) (variants :: [PrimitiveOption]) =
-    '[ Session DragSession '[ 'Layer DragPreviewLayer, 'Effect CloneShadow '[ 'Layer DragPreviewLayer ], 'Effect DropzoneHighlight '[] ]
-     , SourceRef DragSourceRef (Concat '[ '[ 'SessionOption DragSession, 'Submits intent, 'SourceField SourceItemKey ], variants ])
-     , DropzoneRef DragDropzoneRef '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]
+    DragDropInteractionWithRefsAndVariants DragSourceRef DragDropzoneRef intent targetFragment variants
+
+type DragDropInteractionWithRefs (sourceRef :: Type) (dropzoneRef :: Type) (intent :: Type) (targetFragment :: Type) =
+    DragDropInteractionWithRefsAndVariants sourceRef dropzoneRef intent targetFragment '[]
+
+type DragDropInteractionWithRefsAndVariants (sourceRef :: Type) (dropzoneRef :: Type) (intent :: Type) (targetFragment :: Type) (variants :: [PrimitiveOption]) =
+    '[ DragSessionDefinition
+     , DragSourceRefFor sourceRef intent '[dropzoneRef] variants
+     , DragDropzoneRefFor dropzoneRef
      , Action intent DragDropFields '[ 'Target targetFragment ]
      , Intent intent DragDropFields '[ 'SessionOption DragSession, 'BackedBy intent ]
      , ConflictPolicyFor ('SessionKind DragSession) 'AnyFragment 'Defer
