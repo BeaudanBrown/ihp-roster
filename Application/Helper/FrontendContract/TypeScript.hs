@@ -504,6 +504,7 @@ renderSourceRef ref = objectLiteral
     , ("session", quote ref.interactionSourceRefSession)
     , ("intent", quote ref.interactionSourceRefIntent)
     , ("sourceField", quote ref.interactionSourceRefSourceField)
+    , ("compatibleDropzones", arrayLiteral (fmap quote ref.interactionSourceRefCompatibleDropzones))
     , ("modifierVariants", arrayLiteral (fmap renderModifierVariant ref.interactionSourceRefVariants))
     ]
 

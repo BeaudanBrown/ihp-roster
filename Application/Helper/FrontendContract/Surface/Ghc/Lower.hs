@@ -150,6 +150,7 @@ interactionSourceRef marker options = do
         , IR.sourceRefSession = session
         , IR.sourceRefIntent = intent
         , IR.sourceRefSourceField = sourceField
+        , IR.sourceRefCompatibleDropzones = [name | IR.CompatibleDropzoneOption name <- options]
         , IR.sourceRefVariants = [variant | IR.ModifierVariantOption variant <- options]
         }
 
@@ -313,6 +314,7 @@ lowerOption option
         (Just "Submits", marker : _) -> IR.SubmitsOption <$> (protocol Naming.IntentName <$> rawMarkerName marker)
         (Just "SourceField", marker : _) -> IR.SourceFieldOption <$> (protocol Naming.FieldName <$> rawMarkerName marker)
         (Just "TargetField", marker : _) -> IR.TargetFieldOption <$> (protocol Naming.FieldName <$> rawMarkerName marker)
+        (Just "CompatibleDropzone", marker : _) -> IR.CompatibleDropzoneOption <$> (protocol Naming.InteractionRefName <$> rawMarkerName marker)
         (Just "ValueField", marker : _) -> IR.ValueFieldOption <$> (protocol Naming.FieldName <$> rawMarkerName marker)
         (Just "Emits", marker : _) -> IR.EmitsOption <$> (protocol Naming.EventName <$> rawMarkerName marker)
         (Just "Contains", marker : _) -> IR.ContainsOption <$> (protocol Naming.DomTokenName <$> rawMarkerName marker)

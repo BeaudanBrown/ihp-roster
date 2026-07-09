@@ -114,6 +114,7 @@ data PrimitiveOption
     | Submits Type
     | SourceField Type
     | TargetField Type
+    | CompatibleDropzone Type
     | ValueField Type
     | Emits Type
     | Contains Type

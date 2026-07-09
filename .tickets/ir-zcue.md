@@ -1,6 +1,6 @@
 ---
 id: ir-zcue
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-07-09T05:06:02Z

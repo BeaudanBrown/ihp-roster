@@ -67,11 +67,12 @@ data SurfaceInteractionPolicyIR = SurfaceInteractionPolicyIR
     deriving (Eq, Show)
 
 data InteractionSourceRefIR = InteractionSourceRefIR
-    { interactionSourceRefName        :: !Text
-    , interactionSourceRefSession     :: !Text
-    , interactionSourceRefIntent      :: !Text
-    , interactionSourceRefSourceField :: !Text
-    , interactionSourceRefVariants    :: ![InteractionModifierVariantIR]
+    { interactionSourceRefName                :: !Text
+    , interactionSourceRefSession             :: !Text
+    , interactionSourceRefIntent              :: !Text
+    , interactionSourceRefSourceField         :: !Text
+    , interactionSourceRefCompatibleDropzones :: ![Text]
+    , interactionSourceRefVariants            :: ![InteractionModifierVariantIR]
     }
     deriving (Eq, Show)
 

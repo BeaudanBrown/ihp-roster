@@ -1,4 +1,4 @@
-import { FrontendSurfaceInteractionDom, FrontendSurfaceRegistry, InteractionDom, InteractionStaticSchemas, isFrontendSurfaceInteractionSurfaceName, isFrontendSurfaceName, type InteractionEffectSource, type InteractionSessionEffect } from "../generated/contracts";
+import { FrontendSurfaceInteractionDom, FrontendSurfaceRegistry, InteractionDom, InteractionStaticSchemas, isFrontendSurfaceInteractionSurfaceName, isFrontendSurfaceName, type FrontendSurfaceName, type InteractionEffectSource, type InteractionSessionEffect } from "../generated/contracts";
 import { assertNever } from "../shared/exhaustive";
 import type { InteractionIntentPayload } from "./intent-bus";
 import { defaultInteractionRuntime } from "./runtime";
@@ -61,6 +61,8 @@ export type ActivePointerSession = {
     activeModifierSemantic: string | null;
     modifierVariants: ReadonlyArray<InteractionModifierVariant>;
     sessionKind: string;
+    sourceRef: string;
+    compatibleDropzoneRefs: ReadonlyArray<string>;
     sourceField: string | null;
     sourceKey: string | null;
     targetField: string | null;
@@ -315,8 +317,9 @@ export function readPointerSessionStart(event: Event, fallbackThresholdPx = defa
     const sourceKey = marker.getAttribute(FrontendSurfaceInteractionDom.sourceKey);
     if (!sourceKey) return null;
 
-    const targetField = FrontendSurfaceRegistry[surface].interaction.dropzoneRefs.find((candidate) => candidate.session === source.session)?.targetField ?? null;
-    return buildPointerSession({ event: pointerEvent, marker, mount, intent: source.intent, modifierVariants: source.modifierVariants ?? [], sessionKind: source.session, sourceField: source.sourceField, sourceKey, targetField, fallbackThresholdPx });
+    const compatibleDropzoneRefs = compatibleDropzoneRefsForSource(surface, source);
+    const targetField = FrontendSurfaceRegistry[surface].interaction.dropzoneRefs.find((candidate) => compatibleDropzoneRefs.includes(candidate.ref))?.targetField ?? null;
+    return buildPointerSession({ event: pointerEvent, marker, mount, intent: source.intent, modifierVariants: source.modifierVariants ?? [], sessionKind: source.session, sourceRef: source.ref, compatibleDropzoneRefs, sourceField: source.sourceField, sourceKey, targetField, fallbackThresholdPx });
 }
 
 type PointerSessionBuildInput = {
@@ -326,6 +329,8 @@ type PointerSessionBuildInput = {
     intent: string;
     modifierVariants: ReadonlyArray<InteractionModifierVariant>;
     sessionKind: string;
+    sourceRef: string;
+    compatibleDropzoneRefs: ReadonlyArray<string>;
     sourceField: string | null;
     sourceKey: string | null;
     targetField: string | null;
@@ -344,6 +349,8 @@ function buildPointerSession(input: PointerSessionBuildInput): ActivePointerSess
         activeModifierSemantic: null,
         modifierVariants: input.modifierVariants,
         sessionKind: input.sessionKind,
+        sourceRef: input.sourceRef,
+        compatibleDropzoneRefs: input.compatibleDropzoneRefs,
         sourceField: input.sourceField,
         sourceKey: input.sourceKey,
         targetField: input.targetField,
@@ -573,7 +580,8 @@ function pointerSessionFields(session: ActivePointerSession): Record<string, str
 
     const targetDropzone = activeDropzone(session);
     const targetDropzoneKey = targetDropzoneKeyForSession(session, targetDropzone);
-    if (session.targetField && targetDropzoneKey) fields[session.targetField] = targetDropzoneKey;
+    const targetField = targetDropzoneFieldForSession(session, targetDropzone) ?? session.targetField;
+    if (targetField && targetDropzoneKey) fields[targetField] = targetDropzoneKey;
 
     return fields;
 }
@@ -583,13 +591,26 @@ function activeDropzone(session: ActivePointerSession): Element | null {
 }
 
 function surfaceDropzoneSelectorForSession(session: ActivePointerSession): string {
-    const surface = session.mount.getAttribute(attrs.surface);
-    if (!isFrontendSurfaceName(surface)) return `[${FrontendSurfaceInteractionDom.dropzoneRef}]`;
-    const compatibleRefs = FrontendSurfaceRegistry[surface].interaction.dropzoneRefs
-        .filter((candidate) => candidate.session === session.sessionKind)
-        .map((candidate) => candidate.ref);
+    const compatibleRefs = session.compatibleDropzoneRefs;
     if (compatibleRefs.length === 0) return `[${FrontendSurfaceInteractionDom.dropzoneRef}]`;
     return compatibleRefs.map((ref) => `[${FrontendSurfaceInteractionDom.dropzoneRef}="${cssString(ref)}"]`).join(",");
+}
+
+function compatibleDropzoneRefsForSource(surface: FrontendSurfaceName, source: { readonly session: string; readonly compatibleDropzones?: readonly string[] }): ReadonlyArray<string> {
+    const explicitRefs = source.compatibleDropzones ?? [];
+    if (explicitRefs.length > 0) return explicitRefs;
+    return FrontendSurfaceRegistry[surface].interaction.dropzoneRefs
+        .filter((candidate) => candidate.session === source.session)
+        .map((candidate) => candidate.ref);
+}
+
+function targetDropzoneFieldForSession(session: ActivePointerSession, target: Element | null): string | null {
+    if (!target) return null;
+    const surface = session.mount.getAttribute(attrs.surface);
+    if (!isFrontendSurfaceName(surface)) return null;
+    const ref = target.getAttribute(FrontendSurfaceInteractionDom.dropzoneRef);
+    if (!ref) return null;
+    return FrontendSurfaceRegistry[surface].interaction.dropzoneRefs.find((candidate) => candidate.ref === ref)?.targetField ?? null;
 }
 
 function targetDropzoneKeyForSession(session: ActivePointerSession, target: Element | null): string | null {

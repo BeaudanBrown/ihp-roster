@@ -128,6 +128,7 @@ instance (Typeable marker, ReflectOptionList options) => ReflectPrimitive ('Sour
             , sourceRefSession = requiredOption "source ref" (typeMarker @marker) "SessionOption" [name | SessionOptionIR name <- options]
             , sourceRefIntent = requiredOption "source ref" (typeMarker @marker) "Submits" [name | SubmitsOption name <- options]
             , sourceRefSourceField = requiredOption "source ref" (typeMarker @marker) "SourceField" [name | SourceFieldOption name <- options]
+            , sourceRefCompatibleDropzones = [name | CompatibleDropzoneOption name <- options]
             , sourceRefVariants = [variant | ModifierVariantOption variant <- options]
             }
 
@@ -311,6 +312,7 @@ instance Typeable marker => ReflectOption ('SessionOption marker) where reflectO
 instance Typeable marker => ReflectOption ('Submits marker) where reflectOption = SubmitsOption (protocolName @marker IntentName)
 instance Typeable marker => ReflectOption ('SourceField marker) where reflectOption = SourceFieldOption (protocolName @marker FieldName)
 instance Typeable marker => ReflectOption ('TargetField marker) where reflectOption = TargetFieldOption (protocolName @marker FieldName)
+instance Typeable marker => ReflectOption ('CompatibleDropzone marker) where reflectOption = CompatibleDropzoneOption (protocolName @marker InteractionRefName)
 instance Typeable marker => ReflectOption ('ValueField marker) where reflectOption = ValueFieldOption (protocolName @marker FieldName)
 instance Typeable marker => ReflectOption ('Emits marker) where reflectOption = EmitsOption (protocolName @marker EventName)
 instance Typeable marker => ReflectOption ('Contains marker) where reflectOption = ContainsOption (protocolName @marker DomTokenName)

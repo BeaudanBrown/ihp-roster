@@ -97,6 +97,7 @@ convertSourceRef ref = InteractionSourceRefIR
     , interactionSourceRefSession = ref.sourceRefSession
     , interactionSourceRefIntent = ref.sourceRefIntent
     , interactionSourceRefSourceField = ref.sourceRefSourceField
+    , interactionSourceRefCompatibleDropzones = ref.sourceRefCompatibleDropzones
     , interactionSourceRefVariants = fmap convertModifierVariant ref.sourceRefVariants
     }
 

@@ -114,12 +114,13 @@ data IntentIR = IntentIR
     deriving (Eq, Show)
 
 data InteractionSourceRefIR = InteractionSourceRefIR
-    { sourceRefMarker      :: !Text
-    , sourceRefName        :: !Text
-    , sourceRefSession     :: !Text
-    , sourceRefIntent      :: !Text
-    , sourceRefSourceField :: !Text
-    , sourceRefVariants    :: ![InteractionModifierVariantIR]
+    { sourceRefMarker              :: !Text
+    , sourceRefName                :: !Text
+    , sourceRefSession             :: !Text
+    , sourceRefIntent              :: !Text
+    , sourceRefSourceField         :: !Text
+    , sourceRefCompatibleDropzones :: ![Text]
+    , sourceRefVariants            :: ![InteractionModifierVariantIR]
     }
     deriving (Eq, Show)
 
@@ -223,6 +224,7 @@ data OptionIR
     | SubmitsOption !Text
     | SourceFieldOption !Text
     | TargetFieldOption !Text
+    | CompatibleDropzoneOption !Text
     | ValueFieldOption !Text
     | EmitsOption !Text
     | ContainsOption !Text
@@ -271,6 +273,7 @@ data PrimitiveRefKind
     | RefIntent
     | RefLayer
     | RefSession
+    | RefDropzone
     | RefClientEvent
     | RefDto
     | RefDomToken
@@ -530,6 +533,7 @@ validateCrossReferences surface =
         intentNames = map (.intentName) surface.surfaceIntents
         layerNames = surface.surfaceLayers
         sessionNames = surface.surfaceSessions
+        dropzoneNames = map (.dropzoneRefName) surface.surfaceDropzoneRefs
         eventNames = map fst surface.surfaceClientEvents
         dtoNames = map fst surface.surfaceDtos
         domTokenNames = surface.surfaceDomTokens
@@ -553,6 +557,7 @@ validateCrossReferences surface =
             SubmitsOption name -> requireRef owner RefIntent intentNames name
             SourceFieldOption name -> requireAnyIntentField owner name
             TargetFieldOption name -> requireAnyIntentField owner name
+            CompatibleDropzoneOption _ -> []
             ValueFieldOption name -> requireAnyIntentField owner name
             EmitsOption name -> requireRef owner RefClientEvent eventNames name
             UsesDtoOption name -> requireRef owner RefDto dtoNames name
@@ -571,7 +576,13 @@ validateCrossReferences surface =
             requireRef ("source ref " <> ref.sourceRefName) RefSession sessionNames ref.sourceRefSession
                 <> requireRef ("source ref " <> ref.sourceRefName) RefIntent intentNames ref.sourceRefIntent
                 <> requireIntentField ("source ref " <> ref.sourceRefName) ref.sourceRefIntent ref.sourceRefSourceField
+                <> concatMap (validateCompatibleDropzone ref) ref.sourceRefCompatibleDropzones
                 <> concatMap (validateSourceRefVariant ref) ref.sourceRefVariants
+        validateCompatibleDropzone ref dropzoneName =
+            requireRef ("source ref " <> ref.sourceRefName <> " compatible dropzone") RefDropzone dropzoneNames dropzoneName
+                <> case find ((== dropzoneName) . (.dropzoneRefName)) surface.surfaceDropzoneRefs of
+                    Just dropzone | dropzone.dropzoneRefSession /= ref.sourceRefSession -> [diagnostic "invalid-reference" ("surface " <> surface.surfaceName <> " source ref " <> ref.sourceRefName <> " compatible dropzone " <> dropzoneName <> " uses session " <> dropzone.dropzoneRefSession <> " but source uses session " <> ref.sourceRefSession)]
+                    _ -> []
         validateSourceRefVariant ref variant =
             requireRef ("source ref " <> ref.sourceRefName <> " modifier variant " <> variant.modifierVariantSemantic) RefIntent intentNames variant.modifierVariantIntent
                 <> requireIntentField ("source ref " <> ref.sourceRefName <> " modifier variant " <> variant.modifierVariantSemantic) variant.modifierVariantIntent ref.sourceRefSourceField
@@ -709,6 +720,7 @@ refKindLabel = \case
     RefIntent      -> "intent"
     RefLayer       -> "layer"
     RefSession     -> "session"
+    RefDropzone    -> "dropzone ref"
     RefClientEvent -> "client event"
     RefDto         -> "dto"
     RefDomToken    -> "dom token"
