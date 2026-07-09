@@ -7,12 +7,16 @@ import Application.Helper.FrontendContract.Registry (registeredFrontendContractI
 import Application.Helper.FrontendContract.Surface.Ghc.Extract (inspectFrontendSurfaceRegistryRaw)
 import Application.Helper.FrontendContract.Surface.Ghc.Lower (lowerRawRegistry)
 import Application.Helper.FrontendContract.TypeScript (renderFrontendContractTypeScript)
+import Application.Script.Prelude (Script)
 import qualified Data.Text.IO as Text
 import IHP.Prelude
 import qualified System.Directory as Directory
 import qualified System.Environment as Environment
 import System.Exit (exitFailure)
 import System.FilePath (takeDirectory)
+
+run :: Script
+run = liftIO main
 
 main :: IO ()
 main = do
