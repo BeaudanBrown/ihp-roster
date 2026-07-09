@@ -347,12 +347,17 @@ render a ghost and insertion guide in disposable layers while dragging. On drop,
 it submits the generated form. The server validates assignment ownership, target
 scope, ordering, conflicts, and permissions before returning OOB fragments.
 
-The roster drop implementation uses editable row-grid shift launchers as draggable
-items and empty row-grid create launchers as dropzones. The browser submits
-opaque `sourceItemKey` and `targetDropzoneKey` tokens through the generated
-`move-roster-shift-to-slot` form; the controller parses those tokens, validates
-venue/roster-week scope and empty target slots, and returns authoritative roster
-fragments plus toast feedback.
+The roster drop implementation uses distinct generated refs for each semantic
+source/target pair. Existing shift launchers are `shift-drag-source` sources;
+staff-panel rows are `staff-drag-source` sources. Empty row-grid create
+launchers and day-column `+ Add shift` cards are `shift-create-dropzone` targets;
+whole open day columns are `day-column-dropzone` shift-move targets; existing
+editable shift cards are `existing-shift-dropzone` staff-assignment targets.
+The browser submits opaque `sourceItemKey` and `targetDropzoneKey` tokens through
+the generated move/copy/staff-drop forms. Controllers parse those tokens,
+validate venue/roster-week scope, draft/open-day status, empty target slots,
+active staff, and roster-group eligibility, then return authoritative roster
+fragments, dialogs, and toast feedback.
 
 ### Resize
 

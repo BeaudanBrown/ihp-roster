@@ -30,6 +30,26 @@ centered merged `+` affordance only on hover/focus/highlight.
 Read-only row-grid shifts intentionally use separate non-launcher cells and must
 not emit edit/create launcher attributes.
 
+## Drag/Drop Interaction Contract
+
+The roster `FrontendSurface` declares distinct source/dropzone refs so the
+generic pointer runtime can filter compatible targets without roster-specific
+JavaScript:
+
+- `shift-drag-source` can drop onto row-grid create targets and whole open
+  day-column move targets. The default intent moves; the copy modifier submits
+  the duplicate intent.
+- `staff-drag-source` can drop onto existing shift cards or explicit create
+  targets only. Existing-shift drops assign/replace staff immediately with a
+  toast; create-target drops open the new-shift dialog with staff preselected.
+- Day-column gaps/whitespace are not staff-create targets. Only the bottom
+  `+ Add shift` card is a staff-create target in day-column layout.
+
+All rendered keys remain opaque (`existing:<slot-id>`, `staff:<staff-id>`,
+`new:<day-id>:<slot-definition-id>:<row-index>`); controllers parse and validate
+venue, roster-group, draft/open-day, active staff, and eligibility before any
+mutation or dialog render.
+
 ## Day Timeline Rendering Contract
 
 The single-day timeline is selected on the normal roster week page via

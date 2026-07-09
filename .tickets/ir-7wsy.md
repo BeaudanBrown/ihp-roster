@@ -1,6 +1,6 @@
 ---
 id: ir-7wsy
-status: open
+status: closed
 deps: []
 links: [ir-jsyd, ir-qbm4]
 created: 2026-07-09T05:05:28Z

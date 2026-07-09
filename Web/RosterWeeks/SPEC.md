@@ -85,6 +85,15 @@ lands.
   platform-native copy modifier duplicates instead: Ctrl on Windows/Linux and
   Option/Alt on macOS. Copying onto the same day is allowed and creates a new
   copied shift in the first available/grown backing cell.
+- In editable draft rosters, manager staff-panel rows are draggable staff
+  sources. Dropping staff onto an existing editable shift immediately replaces
+  that shift's assigned staff after server-side venue, roster-group, draft/open
+  day, active-staff, and eligibility validation, then refreshes roster fragments
+  and shows a toast. Dropping staff onto an empty row-grid create cell or the
+  day-column bottom `+ Add shift` card opens the new-shift dialog with that staff
+  member preselected; required time and shift-type fields still need user input.
+  Day-column whitespace/gaps are not staff-create targets, even though the whole
+  day column remains a shift-move target for dragging existing shifts.
 - Each visible day exposes a timeline entry link. The single-day timeline is a
   URL-scoped view mode of the normal roster week page
   (`rosterView=timeline&dayOffset=<0-6>`), so the roster controls and staff side
