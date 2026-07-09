@@ -592,28 +592,32 @@ renderRosterDayColumnWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIs
         date = Calendar.addDays (toInteger (get #dayOffset rosterDay)) dayWeekStartDate
         compactSlots = if rosterDay.isClosed then [] else compactDayColumnSlots dayModel.daySlotNames daySlots
         maybeCreateTarget = if rosterDay.isClosed then Nothing else firstAvailableDayColumnTarget dayModel.daySlotNames rosterDay daySlots
-     in [hsx|
-        <section id={rosterDaySectionDomId rosterDay.id}
-                 data-roster-day-section="true"
-                 hx-swap-oob={maybeSwapOob}
-                 class={classes [("roster-day-column", True), ("app-horizontal-panel", True), ("day-alt-dark", odd (get #dayOffset rosterDay)), ("day-alt-light", even (get #dayOffset rosterDay))]}>
-            <header class="roster-day-column-header">
-                <div class="roster-day-heading">
-                    {renderPrimaryDayLabel (Map.lookup date dayPublicHolidays) date}
+        dayDropzoneKey = "day:" <> tshow rosterDay.id
+        columnHtml = [hsx|
+            <section id={rosterDaySectionDomId rosterDay.id}
+                     data-roster-day-section="true"
+                     hx-swap-oob={maybeSwapOob}
+                     class={classes [("roster-day-column", True), ("app-horizontal-panel", True), ("day-alt-dark", odd (get #dayOffset rosterDay)), ("day-alt-light", even (get #dayOffset rosterDay))]}>
+                <header class="roster-day-column-header">
+                    <div class="roster-day-heading">
+                        {renderPrimaryDayLabel (Map.lookup date dayPublicHolidays) date}
+                    </div>
+                    <div class="roster-day-column-wage-slot">
+                        {renderDayColumnWageEstimate dayRosterWagePrediction date}
+                    </div>
+                    <div class="roster-day-column-control-slot">
+                        {renderDayColumnHeaderControls dayIsEditable rosterDay}
+                    </div>
+                </header>
+                <div class="roster-day-column-body">
+                    {forEach compactSlots (renderDayColumnRosterSlotCard dayModel)}
+                    {renderDayColumnCreateCard dayModel rosterDay maybeCreateTarget}
                 </div>
-                <div class="roster-day-column-wage-slot">
-                    {renderDayColumnWageEstimate dayRosterWagePrediction date}
-                </div>
-                <div class="roster-day-column-control-slot">
-                    {renderDayColumnHeaderControls dayIsEditable rosterDay}
-                </div>
-            </header>
-            <div class="roster-day-column-body">
-                {forEach compactSlots (renderDayColumnRosterSlotCard dayModel)}
-                {renderDayColumnCreateCard dayModel rosterDay maybeCreateTarget}
-            </div>
-        </section>
-    |]
+            </section>
+        |]
+     in if dayIsEditable && not rosterDay.isClosed
+            then SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDragDropzoneRef dayDropzoneKey columnHtml
+            else columnHtml
 
 compactDayColumnSlots :: [RosterWeekSlotDefinition] -> [RosterSlot] -> [RosterSlot]
 compactDayColumnSlots slotNames daySlots =

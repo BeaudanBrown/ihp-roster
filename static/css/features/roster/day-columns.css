@@ -17,6 +17,20 @@
 
 .roster-day-column {
     background: var(--app-white-alpha-015);
+    transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+}
+
+.roster-day-column.bepis-dropzone-highlight {
+    border-color: var(--app-success-border);
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--app-success-soft) 34%, var(--app-surface-2)),
+        color-mix(in srgb, var(--app-success-soft) 24%, var(--app-surface))
+    );
+    box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--app-success-border) 36%, transparent),
+        0 0.6rem 1.2rem var(--app-shadow-md-raw),
+        inset 0 0 0 1px var(--app-white-alpha-03);
 }
 
 .roster-day-column-header {

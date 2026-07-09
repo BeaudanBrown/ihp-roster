@@ -1,6 +1,6 @@
 ---
 id: ir-i1i9
-status: open
+status: closed
 deps: [ir-smzc]
 links: []
 created: 2026-07-09T01:32:04Z

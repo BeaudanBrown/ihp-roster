@@ -295,17 +295,16 @@ renderDayColumnCreateCard RosterDayRenderModel { dayIsEditable } rosterDay maybe
 renderDayColumnCreateLauncherCard :: (?context :: ControllerContext) => RosterSlotCellTarget -> Html
 renderDayColumnCreateLauncherCard target =
     let groupKey = rosterShiftGroupKey target
-     in SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDragDropzoneRef groupKey $
-        applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction target)) [hsx|
-            <article class="roster-shift-card roster-shift-card-empty roster-shift-card-create roster-shift-launcher roster-shift-create-plus-card"
-                     data-roster-shift-group-key={groupKey}
-                     data-roster-shift-launcher="true"
-                     tabindex="0"
-                     aria-label="Add shift">
-                <span class="roster-shift-create-plus" aria-hidden="true">+</span>
-                <span class="visually-hidden">Add shift</span>
-            </article>
-        |]
+     in applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction target)) [hsx|
+        <article class="roster-shift-card roster-shift-card-empty roster-shift-card-create roster-shift-launcher roster-shift-create-plus-card"
+                 data-roster-shift-group-key={groupKey}
+                 data-roster-shift-launcher="true"
+                 tabindex="0"
+                 aria-label="Add shift">
+            <span class="roster-shift-create-plus" aria-hidden="true">+</span>
+            <span class="visually-hidden">Add shift</span>
+        </article>
+    |]
 
 renderDayColumnSlotCard :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> Bool -> RosterDay -> Int -> [RosterSlot] -> RosterRenderIndexes -> (Int, RosterWeekSlotDefinition) -> Html
 renderDayColumnSlotCard isEditable assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted rosterDay rowIndex rowSlots renderIndexes (_, slotName)
