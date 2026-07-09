@@ -250,6 +250,7 @@ data RosterWeeksController
     | MoveRosterShiftToSlotAction { weekOffset :: !Int }
     | MoveRosterTimelineShiftAction { weekOffset :: !Int }
     | DuplicateRosterShiftToDayAction { weekOffset :: !Int }
+    | DropRosterStaffAction { weekOffset :: !Int }
     | UpdateRosterWarningPreferenceAction { weekOffset :: !Int }
     | UpdateRosterWageEstimatePreferenceAction { weekOffset :: !Int }
     | NewRosterSlotDialogAction { rosterDayId :: !(Id RosterDay), rosterWeekSlotDefinitionId :: !(Id RosterWeekSlotDefinition), rowIndex :: !Int }

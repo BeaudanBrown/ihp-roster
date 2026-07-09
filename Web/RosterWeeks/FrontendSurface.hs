@@ -10,9 +10,13 @@ module Web.RosterWeeks.FrontendSurface
     , RosterWeekScopeValue (..)
     , rosterCandidateMountedFragments
     , rosterMountedFragmentForProjection
+    , rosterDayColumnDropzoneRef
     , rosterDragDropzoneRef
     , rosterDragSessionKindName
     , rosterDragSourceRef
+    , rosterExistingShiftDropzoneRef
+    , rosterShiftCreateDropzoneRef
+    , rosterStaffDragSourceRef
     , rosterInteractionMountKey
     , rosterLayoutModeActivationRef
     , rosterLayoutModeIntentFieldName
@@ -49,7 +53,7 @@ import Generated.Types
 import Web.Controller.Prelude
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Paths (rosterDayTimelineContentFragmentUrl,
-                              rosterDuplicateShiftUrl,
+                              rosterDropStaffUrl, rosterDuplicateShiftUrl,
                               rosterLayoutPreferenceUrl, rosterMoveShiftUrl,
                               rosterOverviewFragmentUrl,
                               rosterTimelineMoveShiftUrl,
@@ -173,10 +177,25 @@ rosterDuplicateShiftIntentName :: Text
 rosterDuplicateShiftIntentName = "duplicate-roster-shift-to-day"
 
 rosterDragSourceRef :: SurfaceIR.InteractionSourceRefIR
-rosterDragSourceRef = expectOne "source ref" rosterFrontendSurfaceIR.surfaceSourceRefs
+rosterDragSourceRef = rosterShiftDragSourceRef
+
+rosterShiftDragSourceRef :: SurfaceIR.InteractionSourceRefIR
+rosterShiftDragSourceRef = expectSourceRef "shift-drag-source"
+
+rosterStaffDragSourceRef :: SurfaceIR.InteractionSourceRefIR
+rosterStaffDragSourceRef = expectSourceRef "staff-drag-source"
 
 rosterDragDropzoneRef :: SurfaceIR.InteractionDropzoneRefIR
-rosterDragDropzoneRef = expectOne "dropzone ref" rosterFrontendSurfaceIR.surfaceDropzoneRefs
+rosterDragDropzoneRef = rosterShiftCreateDropzoneRef
+
+rosterShiftCreateDropzoneRef :: SurfaceIR.InteractionDropzoneRefIR
+rosterShiftCreateDropzoneRef = expectDropzoneRef "shift-create-dropzone"
+
+rosterDayColumnDropzoneRef :: SurfaceIR.InteractionDropzoneRefIR
+rosterDayColumnDropzoneRef = expectDropzoneRef "day-column-dropzone"
+
+rosterExistingShiftDropzoneRef :: SurfaceIR.InteractionDropzoneRefIR
+rosterExistingShiftDropzoneRef = expectDropzoneRef "existing-shift-dropzone"
 
 rosterDayTimelineSourceRef :: SurfaceIR.InteractionSourceRefIR
 rosterDayTimelineSourceRef = expectOne "timeline source ref" rosterDayTimelineFrontendSurfaceIR.surfaceSourceRefs
@@ -193,6 +212,16 @@ expectOne label values =
         [value] -> value
         []      -> error ("missing roster " <> cs label)
         _       -> error ("multiple roster " <> cs label <> " declarations")
+
+expectSourceRef :: Text -> SurfaceIR.InteractionSourceRefIR
+expectSourceRef refName =
+    fromMaybe (error ("missing roster source ref: " <> cs refName)) do
+        find ((== refName) . (.sourceRefName)) rosterFrontendSurfaceIR.surfaceSourceRefs
+
+expectDropzoneRef :: Text -> SurfaceIR.InteractionDropzoneRefIR
+expectDropzoneRef refName =
+    fromMaybe (error ("missing roster dropzone ref: " <> cs refName)) do
+        find ((== refName) . (.dropzoneRefName)) rosterFrontendSurfaceIR.surfaceDropzoneRefs
 
 rosterFrontendSurfaceIR :: SurfaceIR.SurfaceIR
 rosterFrontendSurfaceIR =
@@ -397,6 +426,10 @@ rosterSurfaceHandlers scope _plan =
                     { actionHandlerDefaultFields = frontendSurfaceFieldValues (Aeson.object ["sourceItemKey" Aeson..= ("" :: Text), "targetDropzoneKey" Aeson..= ("" :: Text)])
                     , actionHandlerRequest = rosterDuplicateShiftRequest scope
                     }
+                `HandlerCons` FrontendSurfaceActionHandler
+                    { actionHandlerDefaultFields = frontendSurfaceFieldValues (Aeson.object ["sourceItemKey" Aeson..= ("" :: Text), "targetDropzoneKey" Aeson..= ("" :: Text)])
+                    , actionHandlerRequest = rosterDropStaffRequest scope
+                    }
                 `HandlerCons` HandlerNil
         , surfaceIntentHandlers =
             FrontendSurfaceIntentHandler
@@ -410,6 +443,10 @@ rosterSurfaceHandlers scope _plan =
                 `HandlerCons` FrontendSurfaceIntentHandler
                     { intentHandlerDefaultFields = frontendSurfaceFieldValues (Aeson.object ["sourceItemKey" Aeson..= ("" :: Text), "targetDropzoneKey" Aeson..= ("" :: Text)])
                     , intentHandlerForm = \fields -> FrontendSurfaceIntentForm "duplicate-roster-shift-to-day" (rosterDuplicateShiftRequest scope fields)
+                    }
+                `HandlerCons` FrontendSurfaceIntentHandler
+                    { intentHandlerDefaultFields = frontendSurfaceFieldValues (Aeson.object ["sourceItemKey" Aeson..= ("" :: Text), "targetDropzoneKey" Aeson..= ("" :: Text)])
+                    , intentHandlerForm = \fields -> FrontendSurfaceIntentForm "drop-roster-staff" (rosterDropStaffRequest scope fields)
                     }
                 `HandlerCons` HandlerNil
         }
@@ -470,6 +507,10 @@ rosterMoveShiftRequest scope fields =
 rosterDuplicateShiftRequest :: RosterWeekScopeValue -> FrontendSurfaceFieldValues DragDropFieldSpecs -> FrontendSurfaceHtmxRequest
 rosterDuplicateShiftRequest scope fields =
     rosterDragDropRequest "duplicate-roster-shift-to-day" (rosterDuplicateShiftUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId) fields
+
+rosterDropStaffRequest :: RosterWeekScopeValue -> FrontendSurfaceFieldValues DragDropFieldSpecs -> FrontendSurfaceHtmxRequest
+rosterDropStaffRequest scope fields =
+    rosterDragDropRequest "drop-roster-staff" (rosterDropStaffUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId) fields
 
 rosterDayTimelineMoveShiftRequest :: RosterDayTimelineScopeValue -> FrontendSurfaceFieldValues DragDropFieldSpecs -> FrontendSurfaceHtmxRequest
 rosterDayTimelineMoveShiftRequest scope fields =

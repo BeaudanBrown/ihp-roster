@@ -580,6 +580,12 @@ instance Controller RosterWeeksController where
                 mutationResult <- saveRosterSlotMutation rosterGroup.id rosterWeek targetRosterDay Nothing copiedSlot
                 respondToRosterSlotMutation rosterGroup.id rosterWeek targetRosterDay targetRowIndex mutationResult sourceSlot.staffId "Roster shift duplicated."
 
+    action currentAction@DropRosterStaffAction { weekOffset } = runBepis currentAction BepisMutationAction do
+        ensureManagerRole
+        ensureVenueWritable
+        rosterGroup <- resolveRequestedRosterGroup
+        respondWithMoveRosterShiftFailure rosterGroup.id weekOffset "Staff drag/drop is not available yet."
+
     action currentAction@UpdateRosterWarningPreferenceAction { weekOffset } =
         runBepis currentAction BepisMutationAction do
             ensureManagerRole

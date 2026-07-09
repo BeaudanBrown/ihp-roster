@@ -27,6 +27,7 @@ module Application.Helper.FrontendContract.Surface.Roster
     , MoveRosterShiftToSlot
     , MoveRosterTimelineShift
     , DuplicateRosterShiftToDay
+    , DropRosterStaff
     , NavigateRosterWeek
     , ToggleRosterWarnings
     , ToggleRosterWageEstimates
@@ -76,6 +77,13 @@ data SetRosterLayoutMode
 data MoveRosterShiftToSlot
 data MoveRosterTimelineShift
 data DuplicateRosterShiftToDay
+data DropRosterStaff
+
+data ShiftDragSource
+data StaffDragSource
+data ShiftCreateDropzone
+data DayColumnDropzone
+data ExistingShiftDropzone
 data NavigateRosterWeek
 data ToggleRosterWarnings
 data ToggleRosterWageEstimates
@@ -315,10 +323,30 @@ type RosterActionBundle =
 type RosterInteractionBundle =
     Concat
         '[ LayoutModeInteraction SetRosterLayoutMode RosterContent RosterLayoutMode
-         , DragDropInteractionWithVariants MoveRosterShiftToSlot RosterContent
-            '[ 'ModifierVariant Copy DuplicateRosterShiftToDay '[ 'Effect CloneShadowCopy '[ 'Layer DragPreviewLayer ], 'Effect DropzoneHighlight '[] ] ]
+         , '[ DragSessionDefinition
+            , SourceRef ShiftDragSource
+                '[ 'SessionOption DragSession
+                 , 'Submits MoveRosterShiftToSlot
+                 , 'SourceField SourceItemKey
+                 , 'CompatibleDropzone ShiftCreateDropzone
+                 , 'CompatibleDropzone DayColumnDropzone
+                 , 'ModifierVariant Copy DuplicateRosterShiftToDay '[ 'Effect CloneShadowCopy '[ 'Layer DragPreviewLayer ], 'Effect DropzoneHighlight '[] ]
+                 ]
+            , SourceRef StaffDragSource
+                '[ 'SessionOption DragSession
+                 , 'Submits DropRosterStaff
+                 , 'SourceField SourceItemKey
+                 , 'CompatibleDropzone ExistingShiftDropzone
+                 , 'CompatibleDropzone ShiftCreateDropzone
+                 ]
+            , DropzoneRef ShiftCreateDropzone '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]
+            , DropzoneRef DayColumnDropzone '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]
+            , DropzoneRef ExistingShiftDropzone '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]
+            ]
+         , DragDropIntent MoveRosterShiftToSlot RosterContent
          , '[ Action DuplicateRosterShiftToDay DragDropFields '[ 'Target RosterContent ] ]
          , '[ Intent DuplicateRosterShiftToDay DragDropFields '[ 'SessionOption DragSession, 'BackedBy DuplicateRosterShiftToDay ] ]
+         , DragDropIntent DropRosterStaff RosterContent
          ]
 
 type RosterSurface =

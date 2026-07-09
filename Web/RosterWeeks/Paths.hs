@@ -5,6 +5,7 @@ module Web.RosterWeeks.Paths
     , rosterMoveShiftUrl
     , rosterTimelineMoveShiftUrl
     , rosterDuplicateShiftUrl
+    , rosterDropStaffUrl
     , rosterWarningPreferenceUrl
     , rosterWageEstimatePreferenceUrl
     , rosterOverviewFragmentUrl
@@ -138,6 +139,10 @@ rosterTimelineMoveShiftUrl weekOffset rosterGroupId dayOffset =
 rosterDuplicateShiftUrl :: Int -> Id RosterGroup -> Text
 rosterDuplicateShiftUrl weekOffset rosterGroupId =
     appendQueryParams (pathTo DuplicateRosterShiftToDayAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
+
+rosterDropStaffUrl :: Int -> Id RosterGroup -> Text
+rosterDropStaffUrl weekOffset rosterGroupId =
+    appendQueryParams (pathTo DropRosterStaffAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
 
 rosterWarningPreferenceUrl :: Int -> Id RosterGroup -> Text
 rosterWarningPreferenceUrl weekOffset rosterGroupId =

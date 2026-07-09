@@ -188,7 +188,7 @@ type DragDropInteractionWithRefs (sourceRef :: Type) (dropzoneRef :: Type) (inte
 
 type DragDropInteractionWithRefsAndVariants (sourceRef :: Type) (dropzoneRef :: Type) (intent :: Type) (targetFragment :: Type) (variants :: [PrimitiveOption]) =
     '[ DragSessionDefinition
-     , DragSourceRefFor sourceRef intent '[dropzoneRef] variants
+     , SourceRef sourceRef (Concat '[ '[ 'SessionOption DragSession, 'Submits intent, 'SourceField SourceItemKey, 'CompatibleDropzone dropzoneRef ], variants ])
      , DragDropzoneRefFor dropzoneRef
      , Action intent DragDropFields '[ 'Target targetFragment ]
      , Intent intent DragDropFields '[ 'SessionOption DragSession, 'BackedBy intent ]

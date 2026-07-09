@@ -63,7 +63,7 @@ import Data.Time.LocalTime (TimeOfDay)
 import Data.UUID (UUID)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
-                                        rosterDragDropzoneRef,
+                                        rosterDayColumnDropzoneRef,
                                         rosterDragSourceRef,
                                         rosterFrontendSurfaceIR,
                                         rosterMountedFragmentPlanFromRenderData,
@@ -635,7 +635,7 @@ renderRosterDayColumnWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIs
             </section>
         |]
      in if dayIsEditable && not rosterDay.isClosed
-            then SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDragDropzoneRef dayDropzoneKey columnHtml
+            then SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDayColumnDropzoneRef dayDropzoneKey columnHtml
             else columnHtml
 
 compactDayColumnSlots :: [RosterWeekSlotDefinition] -> [RosterSlot] -> [RosterSlot]
