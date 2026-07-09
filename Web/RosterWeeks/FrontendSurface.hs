@@ -599,7 +599,7 @@ rosterSlotsGridMountedFragment scope =
 
 rosterStaffPanelMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterStaffPanelMountedFragment scope =
-    rosterLazyMountedFragment "roster-staff-panel" Aeson.Null rosterStaffPanelFragmentId (rosterWeekStaffPanelFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
+    rosterMountedFragment "roster-staff-panel" Aeson.Null rosterStaffPanelFragmentId (rosterWeekStaffPanelFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
 
 rosterWeekOverviewMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterWeekOverviewMountedFragment scope =

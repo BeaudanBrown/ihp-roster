@@ -36,14 +36,9 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             FrontendSurfaceCustomHtmxAttrs (..),
                                                             FrontendSurfaceFragmentKey (..),
                                                             FrontendSurfaceInteractionShellConfig (..),
-                                                            FrontendSurfaceLazyFragmentConfig (..),
                                                             FrontendSurfaceMountConfig (..),
-                                                            FrontendSurfaceMountedFragment (..),
-                                                            SurfaceImpl (..),
-                                                            customPlaceholderFrontendSurfaceLazyFragmentConfig,
                                                             renderFrontendSurfaceActionForm,
-                                                            renderFrontendSurfaceInteractionShell,
-                                                            renderFrontendSurfaceLazyFragmentWithConfig)
+                                                            renderFrontendSurfaceInteractionShell)
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
 import Application.Helper.RosterWagePrediction
 import Application.Helper.ShiftTypeColours (shiftTypeColourPaletteKeys)
@@ -52,7 +47,7 @@ import Application.Helper.TimeRules (rosterOperationalFinalSelectableTimeText,
 import Application.Helper.UserPreferences (rosterLayoutModeValue)
 import Application.Helper.View (staffDisplayName)
 import Data.Coerce (coerce)
-import Data.List (find, sortOn)
+import Data.List (sortOn)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe, isJust, isNothing)
 import qualified Data.Text as Text
@@ -68,13 +63,11 @@ import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
                                         rosterFrontendSurfaceIR,
                                         rosterMountedFragmentPlanFromRenderData,
                                         rosterSurfaceAction, rosterSurfaceImpl)
-import Web.RosterWeeks.Paths (rosterDayTimelineUrl)
 import Web.RosterWeeks.Types
 import Web.View.Prelude
 import Web.View.RosterWeeks.Grid.Cells
 import Web.View.RosterWeeks.Header (renderRosterGridHeader)
-import Web.View.RosterWeeks.StaffPanel (renderRosterStaffPanelPlaceholder,
-                                        renderrosterStaffPanelLiveFragment)
+import Web.View.RosterWeeks.StaffPanel (renderrosterStaffPanelLiveFragment)
 import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServicePanelFragment)
 import Web.View.RosterWeeks.Timeline (renderRosterDayTimelinePanel)
 
@@ -125,16 +118,9 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
                 RosterWeekGridView                  -> Nothing
             }
         rosterSurface = rosterSurfaceImpl rosterSurfaceScope (rosterMountedFragmentPlanFromRenderData gridRosterDays gridRenderIndexes)
-        staffPanelFragment = findMountedFragment "roster-staff-panel" rosterSurface
         renderStaffPanelMount rosterWeek =
             if currentUserIsManager
-                then case staffPanelFragment of
-                    Nothing -> mempty
-                    Just fragment ->
-                        renderFrontendSurfaceLazyFragmentWithConfig
-                            customPlaceholderFrontendSurfaceLazyFragmentConfig { lazyFragmentRootClasses = rosterStaffPanelFragmentClasses }
-                            fragment
-                            (renderRosterStaffPanelPlaceholder (length gridRosterGroups > 1))
+                then renderrosterStaffPanelLiveFragment rosterWeek.weekOffset gridCurrentRosterGroup.id (length gridRosterGroups > 1) RosterStaffPanelCurrentGroup gridPanelStaff
                 else mempty
      in profileHtmlComponent "render.roster.layout" do
         renderFrontendSurfaceInteractionShell rosterSurface rosterFrontendSurfaceIR FrontendSurfaceInteractionShellConfig { interactionShellHtmxSync = Just ("#" <> rosterWeekShellId <> ":replace") } [hsx|
@@ -144,10 +130,6 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
                 {renderRosterStaffSelfServicePanelFragment gridStaffSelfServicePanel}
             </div>
         |]
-
-findMountedFragment :: Text -> SurfaceImpl spec -> Maybe FrontendSurfaceMountedFragment
-findMountedFragment fragmentKind impl =
-    find ((== fragmentKind) . (.mountedFragmentKey.fragmentKind)) impl.surfaceImplMountConfig.mountFragments
 
 rosterContentColumnClasses :: (?context :: ControllerContext) => RosterGridRenderModel -> Text
 rosterContentColumnClasses RosterGridRenderModel { gridStaffSelfServicePanel } =
@@ -772,16 +754,7 @@ renderPrimaryDayLabel maybeHolidayName date = [hsx|
 |]
 
 renderTimelineLink :: Maybe (Int, Id RosterGroup) -> RosterDay -> Html
-renderTimelineLink Nothing _ = mempty
-renderTimelineLink (Just (weekOffset, rosterGroupId)) rosterDay = [hsx|
-    <a href={rosterDayTimelineUrl weekOffset rosterGroupId rosterDay.dayOffset}
-       class="btn btn-sm btn-outline-secondary roster-day-timeline-link"
-       aria-label="Open day timeline"
-       title="Open day timeline">
-        <i class="bi bi-clock-history" aria-hidden="true"></i>
-        <span class="visually-hidden">Timeline</span>
-    </a>
-|]
+renderTimelineLink _ _ = mempty
 
 renderPublicHolidayIndicator :: Maybe Text -> Html
 renderPublicHolidayIndicator Nothing = mempty

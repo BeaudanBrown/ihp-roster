@@ -15,7 +15,6 @@ import Application.Helper.FrontendContract.RosterValues (RosterStaffSortKey (..)
                                                          rosterStaffSortKeyAttribute)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
-                                                            FrontendSurfaceFieldValue (..),
                                                             frontendSurfaceActionHtmxAttrPairs)
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
 import Application.Helper.View (staffDisplayName)
@@ -275,7 +274,7 @@ renderStaffScopeToggleButton weekOffset currentRosterGroupId panelScope =
                 (rosterSurfaceAction "toggle-roster-staff-scope")
                 FrontendSurfaceActionRoute
                     { actionRouteUrl = pathTo (ShowRosterWeekStaffPanelFragmentAction weekOffset)
-                    , actionRouteFields = [FrontendSurfaceFieldValue "staffScope" (if panelScope == RosterStaffPanelAllVenue then "all" else "roster_group")]
+                    , actionRouteFields = []
                     , actionRouteCustomHtmx = []
                     , actionRouteStandardUrl = Just (pathTo (ShowRosterWeekStaffPanelFragmentAction weekOffset))
                     , actionRouteExtraAttrs = []

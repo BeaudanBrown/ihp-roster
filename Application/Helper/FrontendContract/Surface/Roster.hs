@@ -289,7 +289,6 @@ type RosterActionBundle =
      , Action ToggleRosterDayClosed
         '[]
         '[ 'HtmxMethod 'HtmxPost
-         , 'HtmxTarget RosterDaySection
          , 'HtmxSwap None
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          , 'CustomHtmx RosterWeekShellSyncCustomHtmx "day row mutations serialize through the stable roster week shell"
@@ -297,7 +296,6 @@ type RosterActionBundle =
      , Action AddRosterRow
         '[]
         '[ 'HtmxMethod 'HtmxPost
-         , 'HtmxTarget RosterDaySection
          , 'HtmxSwap None
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          , 'CustomHtmx RosterWeekShellSyncCustomHtmx "day row mutations serialize through the stable roster week shell"
@@ -305,7 +303,6 @@ type RosterActionBundle =
      , Action RemoveRosterRow
         '[]
         '[ 'HtmxMethod 'HtmxPost
-         , 'HtmxTarget RosterDaySection
          , 'HtmxSwap None
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          , 'CustomHtmx RosterWeekShellSyncCustomHtmx "day row mutations serialize through the stable roster week shell"

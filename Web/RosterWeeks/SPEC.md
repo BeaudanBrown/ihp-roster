@@ -98,16 +98,16 @@ lands.
   drags in day-column layout target the whole day column, not the green `+`
   create card. Dropping a shift on the roster toolbar opens the existing delete
   confirmation dialog instead of deleting immediately.
-- Each visible day exposes a timeline entry link. The single-day timeline is a
-  URL-scoped view mode of the normal roster week page
-  (`rosterView=timeline&dayOffset=<0-6>`), so the roster controls and staff side
-  panel remain visible while only the main roster frame swaps. It uses the
-  venue-configured time-picker window for its horizontal time axis and editable
-  15-minute dropzones, with outer lanes based on active
+- The single-day timeline remains a URL-scoped view mode of the normal roster
+  week page (`rosterView=timeline&dayOffset=<0-6>`), but visible roster entry
+  links are hidden for the release candidate. When accessed directly, the roster
+  controls and staff side panel remain visible while only the main roster frame
+  swaps. It uses the venue-configured valid shift window for its horizontal time
+  axis and editable 15-minute dropzones, with outer lanes based on active
   `roster_week_slot_definitions` sorted by roster-week order. Existing shifts
-  outside the current picker window remain renderable and are clamped into the
-  visible timeline track rather than being deleted or rejected solely because of
-  the window.
+  outside the current window remain renderable and are clamped into the visible
+  timeline track rather than being deleted or rejected solely because of the
+  window.
 - Timeline overlap tracks are display-only. They are computed from rendered shift
   intervals within a slot-definition lane and do not persist or redefine
   `row_index`.
@@ -171,12 +171,10 @@ lands.
 - `#roster-staff-panel-fragment` is a sibling side-panel fragment. Broad roster
   week refreshes may request content and staff panel together because their
   containment paths are siblings.
-- The manager staff panel is lazy-loaded from the typed live fragment contract:
-  the full roster shell renders the shared lazy placeholder with the staff panel
-  target id and `ShowRosterWeekStaffPanelFragmentAction` URL, then HTMX replaces
-  it with the authoritative fragment. The fragment endpoint remains the same
-  permission-checked source of truth and must keep returning the root node with
-  id `roster-staff-panel-fragment`.
+- The manager staff panel is eagerly rendered in the full roster shell for the
+  release candidate. Its fragment endpoint remains the same permission-checked
+  source of truth for live/actor refreshes and must keep returning the root node
+  with id `roster-staff-panel-fragment`.
 - Day and row fragments remain descendants of `#roster-content`; when a parent
   content refresh is selected, actor/passive planning drops overlapping day or
   row refs.
