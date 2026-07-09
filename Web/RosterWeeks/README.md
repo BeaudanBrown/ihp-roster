@@ -11,7 +11,7 @@
 - `Web/RosterWeeks/DirectReadModel.hs` - direct database/read-model construction.
 - `Web/RosterWeeks/RenderData.hs` - view-facing render data and fragment rendering helpers.
 - `Web/RosterWeeks/Responses.hs` - HTMX/OOB response helpers.
-- `Web/RosterWeeks/FrontendSurface.hs` - FrontendSurface contract/runtime bridge, fragment metadata, live dependencies, and interaction shell helpers.
+- `Web/RosterWeeks/FrontendSurface.hs` - FrontendSurface contract/runtime bridge, fragment metadata, live dependencies, and interaction shell helpers for the week grid and single-day timeline surfaces.
 - `Web/RosterWeeks/Paths.hs` - canonical route/query helpers.
 - `Web/RosterWeeks/Dom.hs` - stable DOM ids/selectors.
 - `Web/RosterWeeks/Conflicts.hs` - conflict presentation helpers.
@@ -29,6 +29,16 @@ centered merged `+` affordance only on hover/focus/highlight.
 
 Read-only row-grid shifts intentionally use separate non-launcher cells and must
 not emit edit/create launcher attributes.
+
+## Day Timeline Rendering Contract
+
+The single-day timeline is a separate `roster-day-timeline` FrontendSurface.
+Time is rendered horizontally across the operational day, outer lanes are active
+slot definitions, and inner overlap tracks are computed for display only.
+Timeline drag/drop uses the same generic source/dropzone runtime as the roster
+grid: Haskell renders opaque `existing:<slot-id>` source keys and
+`time:<day-id>:<slot-definition-id>:<operational-minute>` target keys, while the
+controller owns all parsing, validation, row-index placement, and mutation.
 
 ## Related Docs
 

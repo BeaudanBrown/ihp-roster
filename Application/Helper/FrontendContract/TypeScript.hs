@@ -229,7 +229,7 @@ renderInteractionStaticSchemas surfaces =
            ]
     where
         interactionSurfaces = filter (\surface -> surface.surfaceName /= "surface-lab" && surfaceHasInteractionSchema surface) surfaces
-        surfaceEntries = [(constName surface.surfaceName, renderStaticSchema surface) | surface <- interactionSurfaces]
+        surfaceEntries = [(surface.surfaceName, renderStaticSchema surface) | surface <- interactionSurfaces]
 
 surfaceHasInteractionSchema :: SurfaceIR -> Bool
 surfaceHasInteractionSchema surface =

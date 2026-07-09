@@ -1,6 +1,6 @@
 ---
 id: ir-lktw
-status: open
+status: closed
 deps: [ir-75hc]
 links: []
 created: 2026-07-07T03:54:41Z

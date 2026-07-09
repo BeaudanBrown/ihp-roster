@@ -85,6 +85,23 @@ lands.
   platform-native copy modifier duplicates instead: Ctrl on Windows/Linux and
   Option/Alt on macOS. Copying onto the same day is allowed and creates a new
   copied shift in the first available/grown backing cell.
+- Each visible day exposes a timeline entry link. The single-day timeline uses a
+  horizontal 06:00-to-05:45 operational time axis and outer lanes based on active
+  `roster_week_slot_definitions` sorted by roster-week order.
+- Timeline overlap tracks are display-only. They are computed from rendered shift
+  intervals within a slot-definition lane and do not persist or redefine
+  `row_index`.
+- Editable draft timelines render 15-minute server-owned dropzones per
+  slot-definition lane. Dragging an existing staffed shift to a timeline target
+  preserves its duration, changes start/end times, and changes
+  `roster_week_slot_definition_id` when dropped in another lane.
+- Timeline drag persistence preserves the source `row_index` when the target
+  slot-definition cell is free, otherwise it uses the first free row. Invalid
+  targets, live weeks, closed days, unstaffed shifts, and shifts without complete
+  start/end times are rejected server-side.
+- Timeline resize handles, creating shifts, deleting shifts, configurable
+  slot-definition titles, staff reassignment, and live-roster editing are not
+  part of the implemented timeline contract.
 - Shift type badges show the assigned shift type name. Shift types with a
   palette colour key render a small persisted colour marker; blank colour keys
   render without a colour highlight. Unassigned shifts show `Role`; staffed

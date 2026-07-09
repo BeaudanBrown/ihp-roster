@@ -1,6 +1,6 @@
 ---
 id: ir-6rnm
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-07-07T03:54:40Z
