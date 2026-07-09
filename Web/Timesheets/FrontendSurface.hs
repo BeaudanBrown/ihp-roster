@@ -107,7 +107,7 @@ timesheetsSurfaceHandlers scope mountState =
                     , fragmentHandlerRender = const mempty
                     }
                 `HandlerCons` FrontendSurfaceFragmentHandler
-                    { fragmentHandlerDefaultParams = frontendSurfaceFieldValues (Aeson.object ["dayOffset" Aeson..= (0 :: Int)])
+                    { fragmentHandlerDefaultParams = frontendSurfaceFieldValuesFromPairs ["dayOffset" Aeson..= (0 :: Int)]
                     , fragmentHandlerMountedFragment = \fields ->
                         timesheetDaySectionMountedFragment mountState scope.timesheetWeekWeekOffset (fromMaybe 0 (getSurfaceField @Surface.DayOffset fields))
                     , fragmentHandlerRender = const mempty
@@ -137,10 +137,10 @@ timesheetActionHandler actionName actionUrl = FrontendSurfaceActionHandler
 
 timesheetWeekScopeFields :: TimesheetWeekScopeValue -> FrontendSurfaceFieldValues '[ 'Field Surface.VenueId 'WireUUID, 'Field Surface.WeekOffset 'WireInt]
 timesheetWeekScopeFields scope =
-    frontendSurfaceFieldValues (Aeson.object
+    frontendSurfaceFieldValuesFromPairs
         [ "venueId" Aeson..= tshow scope.timesheetWeekVenueId
         , "weekOffset" Aeson..= scope.timesheetWeekWeekOffset
-        ])
+        ]
 
 timesheetsMountStateFields :: TimesheetsMountStateValue -> FrontendSurfaceFieldValues '[ 'Field Surface.ShowApproved 'WireBool, 'Field Surface.ShowAllStaff 'WireBool, 'Field Surface.StaffFilterId ('WireOptional 'WireUUID)]
 timesheetsMountStateFields mountState =
@@ -156,36 +156,28 @@ timesheetsMountStateJson mountState =
 
 timesheetToolbarMountedFragment :: TimesheetsMountStateValue -> Int -> FrontendSurfaceMountedFragment
 timesheetToolbarMountedFragment mountState weekOffset =
-    FrontendSurfaceMountedFragment
-        { mountedFragmentKey = FrontendSurfaceFragmentKey "timesheet-toolbar" Aeson.Null
-        , mountedFragmentTargetId = timesheetWeekToolbarId
-        , mountedFragmentUrl = timesheetToolbarFragmentUrl weekOffset mountState.timesheetsMountShowApproved mountState.timesheetsMountShowAllStaff mountState.timesheetsMountStaffFilterId
-        , mountedFragmentProtection = FrontendSurfaceReplace
-        , mountedFragmentLoadPolicy = "eager"
-        , mountedFragmentLazyTrigger = Nothing
-        , mountedFragmentPlaceholderKind = Nothing
-        }
+    frontendSurfaceMountedFragment
+        "timesheet-toolbar"
+        Aeson.Null
+        timesheetWeekToolbarId
+        (timesheetToolbarFragmentUrl weekOffset mountState.timesheetsMountShowApproved mountState.timesheetsMountShowAllStaff mountState.timesheetsMountStaffFilterId)
+        FrontendSurfaceReplace
 
 timesheetDayColumnsMountedFragment :: TimesheetsMountStateValue -> Int -> FrontendSurfaceMountedFragment
 timesheetDayColumnsMountedFragment mountState weekOffset =
-    FrontendSurfaceMountedFragment
-        { mountedFragmentKey = FrontendSurfaceFragmentKey "timesheet-day-columns" Aeson.Null
-        , mountedFragmentTargetId = timesheetDayColumnsId
-        , mountedFragmentUrl = timesheetDayColumnsFragmentUrl weekOffset mountState.timesheetsMountShowApproved mountState.timesheetsMountShowAllStaff mountState.timesheetsMountStaffFilterId
-        , mountedFragmentProtection = FrontendSurfaceReplace
-        , mountedFragmentLoadPolicy = "eager"
-        , mountedFragmentLazyTrigger = Nothing
-        , mountedFragmentPlaceholderKind = Nothing
-        }
+    frontendSurfaceMountedFragment
+        "timesheet-day-columns"
+        Aeson.Null
+        timesheetDayColumnsId
+        (timesheetDayColumnsFragmentUrl weekOffset mountState.timesheetsMountShowApproved mountState.timesheetsMountShowAllStaff mountState.timesheetsMountStaffFilterId)
+        FrontendSurfaceReplace
 
 timesheetDaySectionMountedFragment :: TimesheetsMountStateValue -> Int -> Int -> FrontendSurfaceMountedFragment
 timesheetDaySectionMountedFragment mountState weekOffset dayOffset =
-    FrontendSurfaceMountedFragment
-        { mountedFragmentKey = FrontendSurfaceFragmentKey "timesheet-day-section" (Aeson.object ["dayOffset" Aeson..= dayOffset])
-        , mountedFragmentTargetId = timesheetDaySectionDomId dayOffset
-        , mountedFragmentUrl = timesheetDaySectionFragmentUrl weekOffset dayOffset mountState.timesheetsMountShowApproved mountState.timesheetsMountShowAllStaff mountState.timesheetsMountStaffFilterId
-        , mountedFragmentProtection = FrontendSurfaceReplace
-        , mountedFragmentLoadPolicy = "lazy"
-        , mountedFragmentLazyTrigger = Nothing
-        , mountedFragmentPlaceholderKind = Nothing
-        }
+    (frontendSurfaceMountedFragment
+        "timesheet-day-section"
+        (Aeson.object ["dayOffset" Aeson..= dayOffset])
+        (timesheetDaySectionDomId dayOffset)
+        (timesheetDaySectionFragmentUrl weekOffset dayOffset mountState.timesheetsMountShowApproved mountState.timesheetsMountShowAllStaff mountState.timesheetsMountStaffFilterId)
+        FrontendSurfaceReplace)
+        { mountedFragmentLoadPolicy = "lazy" }

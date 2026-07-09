@@ -1,6 +1,6 @@
 ---
 id: ir-dcs9
-status: open
+status: closed
 deps: [ir-gfa2]
 links: []
 created: 2026-07-09T01:05:26Z
@@ -22,3 +22,9 @@ Likely targets include Timesheets timesheet-day-section { dayOffset }, Roster ro
 
 Inventory-approved existing-param surfaces use the new parameterized helper path where applicable. Existing behavior is preserved. Focused timesheet, roster, live-update, and frontend checks pass. Any unforeseen decision fork is captured in notes and user-approved child tickets.
 
+
+## Notes
+
+**2026-07-09T01:28:08Z**
+
+Migrated existing parameterized/surface fixture mounting paths onto the reusable FrontendSurface helpers where behavior is unchanged: Timesheets day-section params now use frontendSurfaceFieldValuesFromPairs and frontendSurfaceMountedFragment; SurfaceLab panel params use the same helper path; Roster static and parameterized mounted fragments now share local helper wrappers over frontendSurfaceMountedFragment while preserving lazy policies, target ids, URLs, and DOM ownership. Verification: hspec-test --match 'generated FrontendSurface resource dependencies'; hspec-test --match 'FrontendSurface DSL foundation'; typecheck.

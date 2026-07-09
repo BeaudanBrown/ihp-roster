@@ -30,18 +30,18 @@ surfaceLabHandlers =
     SurfaceImplHandlers
         { surfaceScopeHandlers =
             FrontendSurfaceScopeHandler
-                { scopeHandlerDefaultValue = frontendSurfaceFieldValues (Aeson.object
+                { scopeHandlerDefaultValue = frontendSurfaceFieldValuesFromPairs
                     [ "venueId" Aeson..= ("current-support-venue" :: Text)
                     , "weekOffset" Aeson..= (0 :: Int)
-                    ])
+                    ]
                 , scopeHandlerKey = const "surface-lab:current-support-venue:0"
                 }
                 `HandlerCons` HandlerNil
         , surfaceMountStateHandlers =
             FrontendSurfaceMountStateHandler
-                { mountStateHandlerDefaultValue = frontendSurfaceFieldValues (Aeson.object
+                { mountStateHandlerDefaultValue = frontendSurfaceFieldValuesFromPairs
                     [ "showArchived" Aeson..= False
-                    ])
+                    ]
                 }
                 `HandlerCons` HandlerNil
         , surfaceFragmentHandlers =
@@ -51,7 +51,7 @@ surfaceLabHandlers =
                 , fragmentHandlerRender = const mempty
                 }
                 `HandlerCons` FrontendSurfaceFragmentHandler
-                    { fragmentHandlerDefaultParams = frontendSurfaceFieldValues (Aeson.object ["panelId" Aeson..= labPanelUuid])
+                    { fragmentHandlerDefaultParams = frontendSurfaceFieldValuesFromPairs ["panelId" Aeson..= labPanelUuid]
                     , fragmentHandlerMountedFragment = \params ->
                         surfaceLabPanelFragmentFor (fromMaybe labPanelUuid (getSurfaceField @PanelId params))
                     , fragmentHandlerRender = const mempty
@@ -59,17 +59,17 @@ surfaceLabHandlers =
                 `HandlerCons` HandlerNil
         , surfaceActionHandlers =
             FrontendSurfaceActionHandler
-                { actionHandlerDefaultFields = frontendSurfaceFieldValues (Aeson.object ["panelId" Aeson..= labPanelUuid])
+                { actionHandlerDefaultFields = frontendSurfaceFieldValuesFromPairs ["panelId" Aeson..= labPanelUuid]
                 , actionHandlerRequest = \fields ->
                     refreshPanelActionFor (fromMaybe labPanelUuid (getSurfaceField @PanelId fields))
                 }
                 `HandlerCons` HandlerNil
         , surfaceIntentHandlers =
             FrontendSurfaceIntentHandler
-                { intentHandlerDefaultFields = frontendSurfaceFieldValues (Aeson.object
+                { intentHandlerDefaultFields = frontendSurfaceFieldValuesFromPairs
                     [ "sourceItemKey" Aeson..= ("card-a" :: Text)
                     , "targetDropzoneKey" Aeson..= ("dropzone-b" :: Text)
-                    ])
+                    ]
                 , intentHandlerForm = \fields ->
                     moveCardIntentFor
                         (fromMaybe "card-a" (getSurfaceField @SourceItemKey fields))
@@ -97,15 +97,12 @@ surfaceLabMountConfig =
 
 surfaceLabShellFragment :: (?context :: ControllerContext) => FrontendSurfaceMountedFragment
 surfaceLabShellFragment =
-    FrontendSurfaceMountedFragment
-        { mountedFragmentKey = FrontendSurfaceFragmentKey "lab-shell" Aeson.Null
-        , mountedFragmentTargetId = "surface-lab-shell"
-        , mountedFragmentUrl = pathTo FrontendSurfaceLabAction
-        , mountedFragmentProtection = FrontendSurfaceReplace
-        , mountedFragmentLoadPolicy = "eager"
-        , mountedFragmentLazyTrigger = Nothing
-        , mountedFragmentPlaceholderKind = Nothing
-        }
+    frontendSurfaceMountedFragment
+        "lab-shell"
+        Aeson.Null
+        "surface-lab-shell"
+        (pathTo FrontendSurfaceLabAction)
+        FrontendSurfaceReplace
 
 surfaceLabPanelFragment :: (?context :: ControllerContext) => FrontendSurfaceMountedFragment
 surfaceLabPanelFragment =
@@ -113,15 +110,13 @@ surfaceLabPanelFragment =
 
 surfaceLabPanelFragmentFor :: (?context :: ControllerContext) => Text -> FrontendSurfaceMountedFragment
 surfaceLabPanelFragmentFor panelIdValue =
-    FrontendSurfaceMountedFragment
-        { mountedFragmentKey = FrontendSurfaceFragmentKey "lab-panel" (Aeson.object ["panelId" Aeson..= panelIdValue])
-        , mountedFragmentTargetId = frontendSurfaceLabPanelId
-        , mountedFragmentUrl = pathTo ShowFrontendSurfaceLabPanelFragmentAction { panelId = panelIdValue }
-        , mountedFragmentProtection = FrontendSurfaceReplace
-        , mountedFragmentLoadPolicy = "lazy"
-        , mountedFragmentLazyTrigger = Nothing
-        , mountedFragmentPlaceholderKind = Nothing
-        }
+    (frontendSurfaceMountedFragment
+        "lab-panel"
+        (Aeson.object ["panelId" Aeson..= panelIdValue])
+        frontendSurfaceLabPanelId
+        (pathTo ShowFrontendSurfaceLabPanelFragmentAction { panelId = panelIdValue })
+        FrontendSurfaceReplace)
+        { mountedFragmentLoadPolicy = "lazy" }
 
 refreshPanelAction :: (?context :: ControllerContext) => FrontendSurfaceHtmxRequest
 refreshPanelAction =

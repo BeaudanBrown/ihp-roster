@@ -374,99 +374,35 @@ placeholderRosterDayId = fromMaybe (error "invalid placeholder roster day id") (
 
 rosterContentMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterContentMountedFragment scope =
-    FrontendSurfaceMountedFragment
-        { mountedFragmentKey = FrontendSurfaceFragmentKey "roster-content" Aeson.Null
-        , mountedFragmentTargetId = rosterContentFragmentId
-        , mountedFragmentUrl = rosterWeekContentFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId
-        , mountedFragmentProtection = FrontendSurfaceReplace
-        , mountedFragmentLoadPolicy = "eager"
-        , mountedFragmentLazyTrigger = Nothing
-        , mountedFragmentPlaceholderKind = Nothing
-        }
+    rosterMountedFragment "roster-content" Aeson.Null rosterContentFragmentId (rosterWeekContentFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
 
 rosterGridToolbarMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterGridToolbarMountedFragment scope =
-    FrontendSurfaceMountedFragment
-        { mountedFragmentKey = FrontendSurfaceFragmentKey "roster-grid-toolbar" Aeson.Null
-        , mountedFragmentTargetId = rosterGridToolbarFragmentId
-        , mountedFragmentUrl = rosterWeekGridToolbarFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId
-        , mountedFragmentProtection = FrontendSurfaceReplace
-        , mountedFragmentLoadPolicy = "eager"
-        , mountedFragmentLazyTrigger = Nothing
-        , mountedFragmentPlaceholderKind = Nothing
-        }
+    rosterMountedFragment "roster-grid-toolbar" Aeson.Null rosterGridToolbarFragmentId (rosterWeekGridToolbarFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
 
 rosterGridFrameMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterGridFrameMountedFragment scope =
-    FrontendSurfaceMountedFragment
-        { mountedFragmentKey = FrontendSurfaceFragmentKey "roster-grid-frame" Aeson.Null
-        , mountedFragmentTargetId = rosterGridFrameFragmentId
-        , mountedFragmentUrl = rosterWeekGridFrameFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId
-        , mountedFragmentProtection = FrontendSurfaceReplace
-        , mountedFragmentLoadPolicy = "eager"
-        , mountedFragmentLazyTrigger = Nothing
-        , mountedFragmentPlaceholderKind = Nothing
-        }
+    rosterMountedFragment "roster-grid-frame" Aeson.Null rosterGridFrameFragmentId (rosterWeekGridFrameFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
 
 rosterDayColumnsMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterDayColumnsMountedFragment scope =
-    FrontendSurfaceMountedFragment
-        { mountedFragmentKey = FrontendSurfaceFragmentKey "roster-day-columns" Aeson.Null
-        , mountedFragmentTargetId = rosterDayColumnsFragmentId
-        , mountedFragmentUrl = rosterWeekDayColumnsFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId
-        , mountedFragmentProtection = FrontendSurfaceReplace
-        , mountedFragmentLoadPolicy = "eager"
-        , mountedFragmentLazyTrigger = Nothing
-        , mountedFragmentPlaceholderKind = Nothing
-        }
+    rosterMountedFragment "roster-day-columns" Aeson.Null rosterDayColumnsFragmentId (rosterWeekDayColumnsFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
 
 rosterDayRailMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterDayRailMountedFragment scope =
-    FrontendSurfaceMountedFragment
-        { mountedFragmentKey = FrontendSurfaceFragmentKey "roster-day-rail" Aeson.Null
-        , mountedFragmentTargetId = rosterDayRailFragmentId
-        , mountedFragmentUrl = rosterWeekDayRailFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId
-        , mountedFragmentProtection = FrontendSurfaceReplace
-        , mountedFragmentLoadPolicy = "eager"
-        , mountedFragmentLazyTrigger = Nothing
-        , mountedFragmentPlaceholderKind = Nothing
-        }
+    rosterMountedFragment "roster-day-rail" Aeson.Null rosterDayRailFragmentId (rosterWeekDayRailFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
 
 rosterWageRailMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterWageRailMountedFragment scope =
-    FrontendSurfaceMountedFragment
-        { mountedFragmentKey = FrontendSurfaceFragmentKey "roster-wage-rail" Aeson.Null
-        , mountedFragmentTargetId = rosterWageRailFragmentId
-        , mountedFragmentUrl = rosterWeekWageRailFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId
-        , mountedFragmentProtection = FrontendSurfaceReplace
-        , mountedFragmentLoadPolicy = "eager"
-        , mountedFragmentLazyTrigger = Nothing
-        , mountedFragmentPlaceholderKind = Nothing
-        }
+    rosterMountedFragment "roster-wage-rail" Aeson.Null rosterWageRailFragmentId (rosterWeekWageRailFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
 
 rosterSlotsGridMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterSlotsGridMountedFragment scope =
-    FrontendSurfaceMountedFragment
-        { mountedFragmentKey = FrontendSurfaceFragmentKey "roster-slots-grid" Aeson.Null
-        , mountedFragmentTargetId = rosterSlotsGridFragmentId
-        , mountedFragmentUrl = rosterWeekSlotsGridFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId
-        , mountedFragmentProtection = FrontendSurfaceReplace
-        , mountedFragmentLoadPolicy = "eager"
-        , mountedFragmentLazyTrigger = Nothing
-        , mountedFragmentPlaceholderKind = Nothing
-        }
+    rosterMountedFragment "roster-slots-grid" Aeson.Null rosterSlotsGridFragmentId (rosterWeekSlotsGridFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
 
 rosterStaffPanelMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterStaffPanelMountedFragment scope =
-    FrontendSurfaceMountedFragment
-        { mountedFragmentKey = FrontendSurfaceFragmentKey "roster-staff-panel" Aeson.Null
-        , mountedFragmentTargetId = rosterStaffPanelFragmentId
-        , mountedFragmentUrl = rosterWeekStaffPanelFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId
-        , mountedFragmentProtection = FrontendSurfaceReplace
-        , mountedFragmentLoadPolicy = "lazy"
-        , mountedFragmentLazyTrigger = Nothing
-        , mountedFragmentPlaceholderKind = Nothing
-        }
+    rosterLazyMountedFragment "roster-staff-panel" Aeson.Null rosterStaffPanelFragmentId (rosterWeekStaffPanelFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
 
 rosterWeekOverviewMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterWeekOverviewMountedFragment scope =
@@ -482,24 +418,16 @@ rosterWeekOverviewMountedFragment scope =
 
 rosterDaySectionMountedFragment :: RosterWeekScopeValue -> Id RosterDay -> FrontendSurfaceMountedFragment
 rosterDaySectionMountedFragment scope rosterDayId =
-    FrontendSurfaceMountedFragment
-        { mountedFragmentKey = FrontendSurfaceFragmentKey "roster-day-section" (Aeson.object ["rosterDayId" Aeson..= tshow rosterDayId])
-        , mountedFragmentTargetId = rosterDaySectionDomId rosterDayId
-        , mountedFragmentUrl = rosterWeekDaySectionFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId rosterDayId
-        , mountedFragmentProtection = FrontendSurfaceReplace
-        , mountedFragmentLoadPolicy = "lazy"
-        , mountedFragmentLazyTrigger = Nothing
-        , mountedFragmentPlaceholderKind = Nothing
-        }
+    rosterLazyMountedFragment "roster-day-section" (Aeson.object ["rosterDayId" Aeson..= tshow rosterDayId]) (rosterDaySectionDomId rosterDayId) (rosterWeekDaySectionFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId rosterDayId)
 
 rosterRowMountedFragment :: RosterWeekScopeValue -> Id RosterDay -> Int -> FrontendSurfaceMountedFragment
 rosterRowMountedFragment scope rosterDayId rowIndex =
-    FrontendSurfaceMountedFragment
-        { mountedFragmentKey = FrontendSurfaceFragmentKey "roster-row" (Aeson.object ["rosterDayId" Aeson..= tshow rosterDayId, "rowIndex" Aeson..= rowIndex])
-        , mountedFragmentTargetId = rosterRowDomIdText rosterDayId rowIndex
-        , mountedFragmentUrl = rosterWeekRowFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId rosterDayId rowIndex
-        , mountedFragmentProtection = FrontendSurfaceReplace
-        , mountedFragmentLoadPolicy = "lazy"
-        , mountedFragmentLazyTrigger = Nothing
-        , mountedFragmentPlaceholderKind = Nothing
-        }
+    rosterLazyMountedFragment "roster-row" (Aeson.object ["rosterDayId" Aeson..= tshow rosterDayId, "rowIndex" Aeson..= rowIndex]) (rosterRowDomIdText rosterDayId rowIndex) (rosterWeekRowFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId rosterDayId rowIndex)
+
+rosterMountedFragment :: Text -> Aeson.Value -> Text -> Text -> FrontendSurfaceMountedFragment
+rosterMountedFragment kind params targetId url =
+    frontendSurfaceMountedFragment kind params targetId url FrontendSurfaceReplace
+
+rosterLazyMountedFragment :: Text -> Aeson.Value -> Text -> Text -> FrontendSurfaceMountedFragment
+rosterLazyMountedFragment kind params targetId url =
+    (rosterMountedFragment kind params targetId url) { mountedFragmentLoadPolicy = "lazy" }
