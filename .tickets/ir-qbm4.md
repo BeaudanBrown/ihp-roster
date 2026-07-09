@@ -2,7 +2,7 @@
 id: ir-qbm4
 status: closed
 deps: []
-links: [ir-jsyd]
+links: [ir-jsyd, ir-7wsy]
 created: 2026-07-09T01:32:04Z
 type: epic
 priority: 2
