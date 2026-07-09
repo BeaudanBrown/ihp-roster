@@ -6,7 +6,9 @@ module Web.View.RosterWeeks.Timeline
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
-import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceInteractionShellConfig (..),
+                                                            renderFrontendSurfaceInteractionShell,
+                                                            renderFrontendSurfaceMount)
 import Application.Helper.Profiling (profileHtmlComponent)
 import Application.Helper.TimeRules (normalizeRosterOperationalMinute,
                                      rosterOperationalStartMinuteOfDay,
@@ -20,9 +22,11 @@ import qualified Data.Time.Calendar as Calendar
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.UUID as UUID
-import Web.RosterWeeks.Dom (rosterDayTimelineContentFragmentId)
+import Web.RosterWeeks.Dom (rosterDayTimelineContentFragmentId,
+                            rosterWeekShellId)
 import Web.RosterWeeks.FrontendSurface (RosterDayTimelineScopeValue (..),
                                         rosterDayTimelineDropzoneRef,
+                                        rosterDayTimelineFrontendSurfaceIR,
                                         rosterDayTimelineSourceRef,
                                         rosterDayTimelineSurfaceImpl)
 import Web.RosterWeeks.Types
@@ -65,7 +69,9 @@ renderRosterDayTimelineMounted RosterRenderData { rosterWeek, currentRosterGroup
             , rosterDayTimelineWeekOffset = rosterWeek.weekOffset
             , rosterDayTimelineDayId = rosterDay.id
             }
-     in renderFrontendSurfaceMount (rosterDayTimelineSurfaceImpl timelineSurfaceScope) body
+        timelineSurface = rosterDayTimelineSurfaceImpl timelineSurfaceScope
+     in renderFrontendSurfaceMount timelineSurface $
+            renderFrontendSurfaceInteractionShell timelineSurface rosterDayTimelineFrontendSurfaceIR FrontendSurfaceInteractionShellConfig { interactionShellHtmxSync = Just ("#" <> rosterWeekShellId <> ":replace") } body
 
 data TimelineShift = TimelineShift
     { timelineShiftSlot     :: !RosterSlot
