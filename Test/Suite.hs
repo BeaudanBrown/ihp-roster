@@ -6,6 +6,8 @@ module Test.Suite
     )
 where
 
+import Data.List (minimumBy, sortOn)
+import Data.Ord (Down (..), comparing)
 import qualified Data.Text as Text
 import IHP.Prelude
 import System.Environment (lookupEnv)
@@ -69,8 +71,9 @@ import qualified Test.XeroTimesheetReadinessSpec
 import qualified Test.XeroTimesheetSubmissionSpec
 
 data TestSuite = TestSuite
-    { suiteLabel :: String
-    , suiteSpec  :: Spec
+    { suiteLabel  :: String
+    , suiteWeight :: Int
+    , suiteSpec   :: Spec
     }
 
 data ShardSelection = ShardSelection
@@ -105,7 +108,7 @@ renderShardSelection selection =
         summaryTail =
             if null selectedLabels
                 then " (no suites assigned)"
-                else " [" <> Text.intercalate ", " selectedLabels <> "]"
+                else " weight=" <> tshow (sum (map suiteWeight selection.suites)) <> " [" <> Text.intercalate ", " selectedLabels <> "]"
      in
         cs $
             "Hspec shard "
@@ -137,67 +140,94 @@ readShardEnv varName fallback = do
 selectShardSuites :: Int -> Int -> [TestSuite]
 selectShardSuites total index
     | total <= 1 = allSuites
-    | otherwise =
-        allSuites
-            |> zip [0 ..]
-            |> filter (\(suiteIndex, _) -> suiteIndex `mod` total == index - 1)
-            |> map snd
+    | otherwise = balancedShardSuites total !! (index - 1)
+
+balancedShardSuites :: Int -> [[TestSuite]]
+balancedShardSuites total =
+    allSuites
+        |> sortOn (Down . suiteWeight)
+        |> foldl' assignToLightest initialBuckets
+        |> sortOn bucketIndex
+        |> map (reverse . bucketSuites)
+  where
+    initialBuckets =
+        [ ShardBucket bucketIndex 0 []
+        | bucketIndex <- [0 .. total - 1]
+        ]
+
+    assignToLightest buckets suite =
+        let
+            target = minimumBy (comparing bucketWeight <> comparing bucketIndex) buckets
+         in
+            buckets
+                |> map
+                    ( \bucket ->
+                        if bucketIndex bucket == bucketIndex target
+                            then bucket{bucketWeight = bucketWeight bucket + suiteWeight suite, bucketSuites = suite : bucketSuites bucket}
+                            else bucket
+                    )
+
+data ShardBucket = ShardBucket
+    { bucketIndex  :: Int
+    , bucketWeight :: Int
+    , bucketSuites :: [TestSuite]
+    }
 
 allSuites :: [TestSuite]
 allSuites =
-    [ TestSuite "StaticController" Test.Controller.StaticSpec.tests
-    , TestSuite "AsyncQueue" Test.AsyncQueueSpec.tests
-    , TestSuite "Billing" Test.BillingPersistenceSpec.tests
-    , TestSuite "BillingReadOnly" Test.BillingReadOnlySpec.tests
-    , TestSuite "BillingController" Test.Controller.BillingSpec.tests
-    , TestSuite "BillingWebhook" Test.BillingWebhookSpec.tests
-    , TestSuite "E2ETestController" Test.Controller.E2ETestSpec.tests
-    , TestSuite "StripeBilling" Test.StripeBillingSpec.tests
-    , TestSuite "StripeContract" Test.StripeContractSpec.tests
-    , TestSuite "AdminController" Test.Controller.AdminSpec.tests
-    , TestSuite "ProfilesController" Test.Controller.ProfilesSpec.tests
-    , TestSuite "PasskeysController" Test.Controller.PasskeysSpec.tests
-    , TestSuite "Schema" Test.SchemaSpec.tests
-    , TestSuite "DatabaseProtection" Test.DatabaseProtectionSpec.tests
-    , TestSuite "SessionsController" Test.Controller.SessionsSpec.tests
-    , TestSuite "RosterWeeksController" Test.Controller.RosterWeeksSpec.tests
-    , TestSuite "LeaveRequestsController" Test.Controller.LeaveRequestsSpec.tests
-    , TestSuite "FeedbackController" Test.Controller.FeedbackSpec.tests
-    , TestSuite "SupportController" Test.Controller.SupportSpec.tests
-    , TestSuite "RosterGrid" Test.RosterGridSpec.tests
-    , TestSuite "UsersController" Test.Controller.UsersSpec.tests
-    , TestSuite "ExportsController" Test.Controller.ExportsSpec.tests
-    , TestSuite "TimesheetsController" Test.Controller.TimesheetsSpec.tests
-    , TestSuite "Pay" Test.PaySpec.tests
-    , TestSuite "Profiling" Test.ProfilingSpec.tests
-    , TestSuite "PublicHolidaySync" Test.PublicHolidaySyncSpec.tests
-    , TestSuite "FwcMapdSync" Test.FwcMapdSyncSpec.tests
-    , TestSuite "RosterTimesheetsAutomation" Test.RosterTimesheetsAutomationSpec.tests
-    , TestSuite "VenueAccess" Test.Controller.VenueAccessSpec.tests
-    , TestSuite "PayrollExportParity" Test.Controller.PayrollExportParitySpec.tests
-    , TestSuite "StaffController" Test.Controller.StaffSpec.tests
-    , TestSuite "StaffDocumentsController" Test.Controller.StaffDocumentsSpec.tests
-    , TestSuite "StaffDocumentsRSA" Test.StaffDocumentsRsaSpec.tests
-    , TestSuite "VenueInvitation" Test.VenueInvitationSpec.tests
-    , TestSuite "VenueOnboardingInvitation" Test.VenueOnboardingInvitationSpec.tests
-    , TestSuite "DevSeed" Test.DevSeedSpec.tests
-    , TestSuite "Conflict" Test.ConflictSpec.tests
-    , TestSuite "FrontendContract" Test.FrontendContractSpec.tests
-    , TestSuite "FrontendContracts" Test.FrontendContractsSpec.tests
-    , TestSuite "FrontendSurfaceNaming" Test.FrontendSurfaceNamingSpec.tests
-    , TestSuite "FrontendSurfaceDSL" Test.FrontendSurfaceDslSpec.tests
-    , TestSuite "FrontendSurfaceGHC" Test.FrontendSurfaceGhcSpec.tests
-    , TestSuite "LiveUpdate" Test.LiveUpdateSpec.tests
-    , TestSuite "SurfaceResource" Test.SurfaceResourceSpec.tests
-    , TestSuite "SurfaceInvalidation" Test.SurfaceInvalidationSpec.tests
-    , TestSuite "SurfaceDependency" Test.SurfaceDependencySpec.tests
-    , TestSuite "SurfaceGuard" Test.SurfaceGuardSpec.tests
-    , TestSuite "Mail" Test.MailSpec.tests
-    , TestSuite "MutationBoundary" Test.MutationBoundarySpec.tests
-    , TestSuite "XeroContract" Test.XeroContractSpec.tests
-    , TestSuite "XeroImportedPayItems" Test.XeroImportedPayItemsSpec.tests
-    , TestSuite "XeroKeepalive" Test.XeroKeepaliveSpec.tests
-    , TestSuite "XeroTimesheetPreview" Test.XeroTimesheetPreviewSpec.tests
-    , TestSuite "XeroTimesheetReadiness" Test.XeroTimesheetReadinessSpec.tests
-    , TestSuite "XeroTimesheetSubmission" Test.XeroTimesheetSubmissionSpec.tests
+    [ TestSuite "StaticController" 10 Test.Controller.StaticSpec.tests
+    , TestSuite "AsyncQueue" 10 Test.AsyncQueueSpec.tests
+    , TestSuite "Billing" 10 Test.BillingPersistenceSpec.tests
+    , TestSuite "BillingReadOnly" 20 Test.BillingReadOnlySpec.tests
+    , TestSuite "BillingController" 60 Test.Controller.BillingSpec.tests
+    , TestSuite "BillingWebhook" 35 Test.BillingWebhookSpec.tests
+    , TestSuite "E2ETestController" 5 Test.Controller.E2ETestSpec.tests
+    , TestSuite "StripeBilling" 10 Test.StripeBillingSpec.tests
+    , TestSuite "StripeContract" 10 Test.StripeContractSpec.tests
+    , TestSuite "AdminController" 165 Test.Controller.AdminSpec.tests
+    , TestSuite "ProfilesController" 35 Test.Controller.ProfilesSpec.tests
+    , TestSuite "PasskeysController" 180 Test.Controller.PasskeysSpec.tests
+    , TestSuite "Schema" 10 Test.SchemaSpec.tests
+    , TestSuite "DatabaseProtection" 10 Test.DatabaseProtectionSpec.tests
+    , TestSuite "SessionsController" 25 Test.Controller.SessionsSpec.tests
+    , TestSuite "RosterWeeksController" 120 Test.Controller.RosterWeeksSpec.tests
+    , TestSuite "LeaveRequestsController" 35 Test.Controller.LeaveRequestsSpec.tests
+    , TestSuite "FeedbackController" 10 Test.Controller.FeedbackSpec.tests
+    , TestSuite "SupportController" 20 Test.Controller.SupportSpec.tests
+    , TestSuite "RosterGrid" 10 Test.RosterGridSpec.tests
+    , TestSuite "UsersController" 25 Test.Controller.UsersSpec.tests
+    , TestSuite "ExportsController" 10 Test.Controller.ExportsSpec.tests
+    , TestSuite "TimesheetsController" 40 Test.Controller.TimesheetsSpec.tests
+    , TestSuite "Pay" 20 Test.PaySpec.tests
+    , TestSuite "Profiling" 5 Test.ProfilingSpec.tests
+    , TestSuite "PublicHolidaySync" 15 Test.PublicHolidaySyncSpec.tests
+    , TestSuite "FwcMapdSync" 20 Test.FwcMapdSyncSpec.tests
+    , TestSuite "RosterTimesheetsAutomation" 20 Test.RosterTimesheetsAutomationSpec.tests
+    , TestSuite "VenueAccess" 35 Test.Controller.VenueAccessSpec.tests
+    , TestSuite "PayrollExportParity" 30 Test.Controller.PayrollExportParitySpec.tests
+    , TestSuite "StaffController" 35 Test.Controller.StaffSpec.tests
+    , TestSuite "StaffDocumentsController" 20 Test.Controller.StaffDocumentsSpec.tests
+    , TestSuite "StaffDocumentsRSA" 20 Test.StaffDocumentsRsaSpec.tests
+    , TestSuite "VenueInvitation" 10 Test.VenueInvitationSpec.tests
+    , TestSuite "VenueOnboardingInvitation" 5 Test.VenueOnboardingInvitationSpec.tests
+    , TestSuite "DevSeed" 20 Test.DevSeedSpec.tests
+    , TestSuite "Conflict" 5 Test.ConflictSpec.tests
+    , TestSuite "FrontendContract" 5 Test.FrontendContractSpec.tests
+    , TestSuite "FrontendContracts" 15 Test.FrontendContractsSpec.tests
+    , TestSuite "FrontendSurfaceNaming" 5 Test.FrontendSurfaceNamingSpec.tests
+    , TestSuite "FrontendSurfaceDSL" 15 Test.FrontendSurfaceDslSpec.tests
+    , TestSuite "FrontendSurfaceGHC" 25 Test.FrontendSurfaceGhcSpec.tests
+    , TestSuite "LiveUpdate" 20 Test.LiveUpdateSpec.tests
+    , TestSuite "SurfaceResource" 5 Test.SurfaceResourceSpec.tests
+    , TestSuite "SurfaceInvalidation" 5 Test.SurfaceInvalidationSpec.tests
+    , TestSuite "SurfaceDependency" 10 Test.SurfaceDependencySpec.tests
+    , TestSuite "SurfaceGuard" 5 Test.SurfaceGuardSpec.tests
+    , TestSuite "Mail" 10 Test.MailSpec.tests
+    , TestSuite "MutationBoundary" 5 Test.MutationBoundarySpec.tests
+    , TestSuite "XeroContract" 20 Test.XeroContractSpec.tests
+    , TestSuite "XeroImportedPayItems" 10 Test.XeroImportedPayItemsSpec.tests
+    , TestSuite "XeroKeepalive" 10 Test.XeroKeepaliveSpec.tests
+    , TestSuite "XeroTimesheetPreview" 20 Test.XeroTimesheetPreviewSpec.tests
+    , TestSuite "XeroTimesheetReadiness" 35 Test.XeroTimesheetReadinessSpec.tests
+    , TestSuite "XeroTimesheetSubmission" 35 Test.XeroTimesheetSubmissionSpec.tests
     ]
