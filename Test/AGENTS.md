@@ -48,8 +48,31 @@ The coverage command is intentionally separate from `hspec-test`: use `hspec-tes
 When adding a new spec module:
 
 1. Import it in `Test/Suite.hs`
-2. Add a `TestSuite "Label" Module.tests` entry to `allSuites`
-3. Place it so heavier DB-backed suites are spread across shards instead of clustered together
+2. Add a `TestSuite "Label" weight Module.tests` entry to `allSuites`
+3. Choose an initial `weight` that roughly matches the suite's expected runtime in seconds, rounded to the nearest 5 or 10 seconds. Use a small value such as `5` or `10` for tiny pure/contract specs.
+
+`Test/Suite.hs` uses weighted greedy sharding for parallel `hspec-test` runs. The suite order is no longer a balancing mechanism; do not manually cluster or reorder suites to tune shards unless the weighted algorithm itself is changing.
+
+To rebalance weights when full-suite shard times drift:
+
+1. Run the full suite:
+   ```bash
+   bash ./bin/in-env hspec-test
+   ```
+2. Inspect shard headers and durations:
+   ```bash
+   for f in .devenv/test/latest/shard-*.log; do
+       echo "--- $(basename "$f")"
+       grep -E 'Hspec shard|Finished in|examples' "$f"
+   done
+   ```
+3. Identify slow shards from `Finished in ... seconds` and the suite list in the `Hspec shard N/M weight=... [...]` header.
+4. If one suite appears to dominate a slow shard, estimate it with a focused run:
+   ```bash
+   bash ./bin/in-env hspec-test --match "PasskeysController"
+   ```
+5. Update only the relevant `suiteWeight` values in `Test/Suite.hs`. Prefer approximate relative runtime; round to the nearest 5 or 10 seconds and avoid overfitting tiny differences.
+6. Re-run the full suite when practical, or at least run `TEST_SHARDS=N bash ./bin/in-env hspec-test --match "some small suite"` to verify shard selection still works and prints weighted headers.
 
 Do not reintroduce a hard-coded linear `hspec do ...` list in `Test/Main.hs`; that bypasses shard selection.
 
