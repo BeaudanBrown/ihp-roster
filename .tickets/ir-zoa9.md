@@ -1,6 +1,6 @@
 ---
 id: ir-zoa9
-status: open
+status: closed
 deps: [ir-7ulr]
 links: []
 created: 2026-07-09T05:06:02Z

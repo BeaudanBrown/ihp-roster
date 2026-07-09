@@ -36,7 +36,8 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (TimeOfDay)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.FrontendSurface (rosterDragDropzoneRef,
-                                        rosterDragSourceRef)
+                                        rosterDragSourceRef,
+                                        rosterExistingShiftDropzoneRef)
 import Web.RosterWeeks.Types
 import Web.View.Prelude
 
@@ -142,7 +143,8 @@ renderEditableNoEndTimeSlotCells display target groupKey blockIndex slot =
 renderEditableShiftUnit :: (?context :: ControllerContext) => RosterSlotCellTarget -> Text -> RosterSlot -> Int -> [ReadOnlyExistingSlotCell] -> Html
 renderEditableShiftUnit target groupKey slot gridSpan cells =
     SurfaceInteraction.withFrontendSurfaceSourceRef rosterDragSourceRef groupKey $
-        applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction target)) [hsx|
+        SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterExistingShiftDropzoneRef groupKey $
+            applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction target)) [hsx|
             <div role="gridcell"
                  class="roster-shift-unit roster-shift-launcher"
                  style={rosterGridColumnSpanStyle gridSpan}
@@ -295,7 +297,8 @@ renderDayColumnCreateCard RosterDayRenderModel { dayIsEditable } rosterDay maybe
 renderDayColumnCreateLauncherCard :: (?context :: ControllerContext) => RosterSlotCellTarget -> Html
 renderDayColumnCreateLauncherCard target =
     let groupKey = rosterShiftGroupKey target
-     in applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction target)) [hsx|
+     in SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDragDropzoneRef groupKey $
+        applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction target)) [hsx|
         <article class="roster-shift-card roster-shift-card-empty roster-shift-card-create roster-shift-launcher roster-shift-create-plus-card"
                  data-roster-shift-group-key={groupKey}
                  data-roster-shift-launcher="true"
@@ -367,7 +370,8 @@ renderDayColumnSlotCardContent isEditable _assignmentFilters _staffMembers shift
                 then applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction target)) card
                 else card
      in if isEditable && targetHasExistingSlot target
-            then SurfaceInteraction.withFrontendSurfaceSourceRef rosterDragSourceRef groupKey launcherCard
+            then SurfaceInteraction.withFrontendSurfaceSourceRef rosterDragSourceRef groupKey $
+                SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterExistingShiftDropzoneRef groupKey launcherCard
             else launcherCard
 
 targetHasExistingSlot :: RosterSlotCellTarget -> Bool

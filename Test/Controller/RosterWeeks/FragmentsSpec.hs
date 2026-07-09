@@ -152,8 +152,9 @@ tests = beforeAll testContext do
                                , "set-roster-layout-mode"
                                , "move-roster-shift-to-slot"
                                , "duplicate-roster-shift-to-day"
+                               , "drop-roster-staff"
                                ]
-                map (.intentFormName) impl.surfaceImplIntents `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot", "duplicate-roster-shift-to-day"]
+                map (.intentFormName) impl.surfaceImplIntents `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot", "duplicate-roster-shift-to-day", "drop-roster-staff"]
                 mountConfig.mountSurfaceName `shouldBe` "roster"
                 mountConfig.mountScopeKey `shouldBe` "roster:00000000-0000-0000-0000-000000000111:00000000-0000-0000-0000-000000000222:3"
                 fragmentKinds
@@ -436,8 +437,8 @@ tests = beforeAll testContext do
                 bodyText `shouldContain` "<span class=\"roster-shift-create-plus\" aria-hidden=\"true\">+</span>"
                 bodyText `shouldContain` "<span class=\"visually-hidden\">Add shift</span>"
                 bodyText `shouldContain` ("data-roster-shift-group-key=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
-                bodyText `shouldContain` "data-bepis-dropzone-ref=\"drag-dropzone\""
-                bodyText `shouldContain` ("data-bepis-dropzone-key=\"day:" <> cs (tshow rosterDay.id) <> "\"")
+                bodyText `shouldContain` "data-bepis-dropzone-ref=\"shift-create-dropzone\""
+                bodyText `shouldContain` ("data-bepis-dropzone-key=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
                 bodyText `shouldNotContain` ">Add shift</div>"
 
         it "renders editable day-column shifts as typed drag sources and create cards as drop targets" $ withContext do
@@ -466,10 +467,14 @@ tests = beforeAll testContext do
                 let sourceGroupKey = "existing:" <> tshow sourceSlot.id
                 let targetGroupKey = "new:" <> tshow rosterDay.id <> ":" <> tshow sourceSlot.rosterWeekSlotDefinitionId <> ":1"
                 bodyText `shouldContain` "roster-day-columns"
-                bodyText `shouldContain` "data-bepis-source-ref=\"drag-source\""
+                bodyText `shouldContain` "data-bepis-source-ref=\"shift-drag-source\""
                 bodyText `shouldContain` ("data-bepis-source-key=\"" <> cs sourceGroupKey <> "\"")
-                bodyText `shouldContain` "data-bepis-dropzone-ref=\"drag-dropzone\""
+                bodyText `shouldContain` "data-bepis-dropzone-ref=\"existing-shift-dropzone\""
+                bodyText `shouldContain` ("data-bepis-dropzone-key=\"" <> cs sourceGroupKey <> "\"")
+                bodyText `shouldContain` "data-bepis-dropzone-ref=\"day-column-dropzone\""
                 bodyText `shouldContain` ("data-bepis-dropzone-key=\"day:" <> cs (tshow rosterDay.id) <> "\"")
+                bodyText `shouldContain` "data-bepis-dropzone-ref=\"shift-create-dropzone\""
+                bodyText `shouldContain` ("data-bepis-dropzone-key=\"" <> cs targetGroupKey <> "\"")
                 bodyText `shouldContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow sourceSlot.id) <> "\"")
                 bodyText `shouldContain` ("hx-get=\"/NewRosterSlotDialog?rosterDayId=" <> cs (tshow rosterDay.id) <> "&amp;rosterWeekSlotDefinitionId=" <> cs (tshow sourceSlot.rosterWeekSlotDefinitionId) <> "&amp;rowIndex=1\"")
 
@@ -866,11 +871,13 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-bepis-disposable-layer=\"drag-preview\""
                 response `responseBodyShouldContain` "data-bepis-intent-form=\"move-roster-shift-to-slot\""
                 response `responseBodyShouldContain` "data-bepis-intent-form=\"duplicate-roster-shift-to-day\""
+                response `responseBodyShouldContain` "data-bepis-intent-form=\"drop-roster-staff\""
                 response `responseBodyShouldContain` "name=\"sourceItemKey\" value=\"\" data-bepis-intent-field=\"sourceItemKey\" data-bepis-field-presence=\"required\""
                 response `responseBodyShouldContain` "name=\"targetDropzoneKey\" value=\"\" data-bepis-intent-field=\"targetDropzoneKey\" data-bepis-field-presence=\"required\""
-                response `responseBodyShouldContain` "data-bepis-source-ref=\"drag-source\""
+                response `responseBodyShouldContain` "data-bepis-source-ref=\"shift-drag-source\""
                 response `responseBodyShouldContain` "data-bepis-source-key=\"existing:"
-                response `responseBodyShouldContain` "data-bepis-dropzone-ref=\"drag-dropzone\""
+                response `responseBodyShouldContain` "data-bepis-dropzone-ref=\"existing-shift-dropzone\""
+                response `responseBodyShouldContain` "data-bepis-dropzone-ref=\"shift-create-dropzone\""
                 response `responseBodyShouldContain` "data-bepis-dropzone-key=\"new:"
 
         it "moves an editable roster shift to a typed empty dropzone intent target" $ withContext do

@@ -13,6 +13,7 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              renderAppShellActionHtmxControl)
 import Application.Helper.FrontendContract.RosterValues (RosterStaffSortKey (..),
                                                          rosterStaffSortKeyAttribute)
+import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceFieldValue (..),
                                                             frontendSurfaceActionHtmxAttrPairs)
@@ -22,7 +23,8 @@ import Data.List (sortBy)
 import qualified Data.Text as Text
 import Web.RosterWeeks.Dom (rosterStaffPanelFragmentClasses,
                             rosterStaffPanelFragmentId)
-import Web.RosterWeeks.FrontendSurface (rosterSurfaceAction)
+import Web.RosterWeeks.FrontendSurface (rosterStaffDragSourceRef,
+                                        rosterSurfaceAction)
 import Web.RosterWeeks.Types (RosterStaffPanelEntry (..),
                               RosterStaffPanelScope (..))
 import Web.View.Prelude
@@ -299,21 +301,22 @@ renderRosterStaffPanelEntry panelStaffMembers weekOffset currentRosterGroupId en
 
 renderRosterStaffPanelEntryRow :: Int -> Id RosterGroup -> Text -> Text -> RosterStaffPanelEntry -> Html
 renderRosterStaffPanelEntryRow weekOffset currentRosterGroupId staffDisplayLabel staffRoleLabel entry =
-    applyAppShellActionAttrs
-        (appShellActionByMarker @OpenRosterStaffEditDialog)
-        (rosterStaffOverlayRoute (appendQueryParams (pathTo (EditStaffAction entry.staff.id)) [("weekOffset", tshow weekOffset), ("rosterGroupId", tshow currentRosterGroupId)]))
-        [hsx|
-            <tr class="roster-staff-panel-entry"
-                data-roster-staff-id={tshow entry.staff.id}
-                data-roster-staff-name={staffDisplayLabel}
-                data-roster-staff-role={staffRoleLabel}
-                data-roster-staff-assigned={tshow entry.assignedShiftCount}
-                data-roster-staff-ideal={tshow entry.staff.idealShiftsPerWeek}
-                role="button"
-                tabindex="0">
-                {forEach rosterStaffPanelColumns (renderRosterStaffPanelEntryCell staffDisplayLabel staffRoleLabel entry)}
-            </tr>
-        |]
+    SurfaceInteraction.withFrontendSurfaceSourceRef rosterStaffDragSourceRef ("staff:" <> tshow entry.staff.id) $
+        applyAppShellActionAttrs
+            (appShellActionByMarker @OpenRosterStaffEditDialog)
+            (rosterStaffOverlayRoute (appendQueryParams (pathTo (EditStaffAction entry.staff.id)) [("weekOffset", tshow weekOffset), ("rosterGroupId", tshow currentRosterGroupId)]))
+            [hsx|
+                <tr class="roster-staff-panel-entry"
+                    data-roster-staff-id={tshow entry.staff.id}
+                    data-roster-staff-name={staffDisplayLabel}
+                    data-roster-staff-role={staffRoleLabel}
+                    data-roster-staff-assigned={tshow entry.assignedShiftCount}
+                    data-roster-staff-ideal={tshow entry.staff.idealShiftsPerWeek}
+                    role="button"
+                    tabindex="0">
+                    {forEach rosterStaffPanelColumns (renderRosterStaffPanelEntryCell staffDisplayLabel staffRoleLabel entry)}
+                </tr>
+            |]
 
 renderRosterStaffPanelEntryCell :: Text -> Text -> RosterStaffPanelEntry -> RosterStaffPanelColumn -> Html
 renderRosterStaffPanelEntryCell staffDisplayLabel _ entry RosterStaffNameColumn = [hsx|
