@@ -3,6 +3,7 @@ module Web.RosterWeeks.Types
     , RosterAssignmentOptionState (..)
     , RosterDayRenderModel (..)
     , RosterGridRenderModel (..)
+    , RosterGridViewMode (..)
     , RosterProjectionFragment (..)
     , RosterProjectionScope (..)
     , RosterRenderData (..)
@@ -52,7 +53,13 @@ data ShowView = ShowView
     , publicHolidays        :: Map Day Text
     , shiftTypes            :: [ShiftType]
     , passkeySetupPrompt    :: Maybe PasskeySetupPromptMode
+    , rosterGridViewMode    :: RosterGridViewMode
     }
+
+data RosterGridViewMode
+    = RosterWeekGridView
+    | RosterDayTimelineGridView { timelineDayOffset :: !Int }
+    deriving (Eq, Show)
 
 data RosterViewCapabilities = RosterViewCapabilities
     { canToggleRosterLive       :: Bool
@@ -169,6 +176,7 @@ data RosterGridRenderModel = RosterGridRenderModel
     , gridShowRosterWarnings    :: Bool
     , gridPublicHolidays        :: Map Day Text
     , gridPublishAttempted      :: Bool
+    , gridViewMode              :: RosterGridViewMode
     }
 
 data RosterDayRenderModel = RosterDayRenderModel

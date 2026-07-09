@@ -156,7 +156,7 @@ tests = do
             let venueId = fromWords 7 0 0 0
             let rosterGroupId = Id (fromWords 8 0 0 0) :: Id RosterGroup
             let rosterDayId = Id (fromWords 9 0 0 0) :: Id RosterDay
-            let scope = RosterWeekScopeValue venueId rosterGroupId 3
+            let scope = RosterWeekScopeValue venueId rosterGroupId 3 Nothing
             let plan = RosterMountedFragmentPlan { rosterMountedDayIds = [rosterDayId], rosterMountedRows = [(rosterDayId, 2)] }
             let candidates = rosterCandidateMountedFragments scope plan
             map (.mountedFragmentTargetId) candidates

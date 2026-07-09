@@ -76,6 +76,7 @@ import Web.View.RosterWeeks.Header (renderRosterGridHeader)
 import Web.View.RosterWeeks.StaffPanel (renderRosterStaffPanelPlaceholder,
                                         renderrosterStaffPanelLiveFragment)
 import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServicePanelFragment)
+import Web.View.RosterWeeks.Timeline (renderRosterDayTimelinePanel)
 
 rosterGridActionRoute :: Text -> FrontendSurfaceActionRoute
 rosterGridActionRoute actionUrl =
@@ -114,11 +115,14 @@ renderrosterContentLiveFragmentWithSwap maybeSwapOob gridModel =
     |]
 
 renderRosterLayout :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
-renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridPanelStaff, gridStaffSelfServicePanel, gridRenderIndexes } =
+renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridPanelStaff, gridStaffSelfServicePanel, gridRenderIndexes, gridViewMode } =
     let rosterSurfaceScope = RosterWeekScopeValue
             { rosterWeekVenueId = gridCurrentRosterGroup.venueId
             , rosterWeekGroupId = gridCurrentRosterGroup.id
             , rosterWeekWeekOffset = gridWeekOffset
+            , rosterWeekTimelineDayOffset = case gridViewMode of
+                RosterDayTimelineGridView dayOffset -> Just dayOffset
+                RosterWeekGridView                  -> Nothing
             }
         rosterSurface = rosterSurfaceImpl rosterSurfaceScope (rosterMountedFragmentPlanFromRenderData gridRosterDays gridRenderIndexes)
         staffPanelFragment = findMountedFragment "roster-staff-panel" rosterSurface
@@ -169,10 +173,10 @@ renderrosterGridToolbarLiveFragment =
     renderrosterGridToolbarLiveFragmentWithSwap Nothing
 
 renderrosterGridToolbarLiveFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterGridRenderModel -> Html
-renderrosterGridToolbarLiveFragmentWithSwap maybeSwapOob RosterGridRenderModel { gridRosterWeek, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridAssignmentFilters, gridWeekStartDate, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction, gridShowWageEstimates, gridShowRosterWarnings, gridStaffSelfServicePanel } =
+renderrosterGridToolbarLiveFragmentWithSwap maybeSwapOob RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridAssignmentFilters, gridWeekStartDate, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction, gridShowWageEstimates, gridShowRosterWarnings, gridStaffSelfServicePanel, gridViewMode } =
     profileHtmlComponent "render.roster.toolbar" [hsx|
         <div id={rosterGridToolbarFragmentId} hx-swap-oob={maybeSwapOob}>
-            {renderRosterGridHeader gridRosterWeek gridWeekOffset gridRosterGroups gridCurrentRosterGroup gridAssignmentFilters gridWeekStartDate gridViewCapabilities gridRosterLayoutMode gridRosterEndTimesEnabled gridRosterWagePrediction gridShowWageEstimates gridShowRosterWarnings hasSidePanel}
+            {renderRosterGridHeader gridRosterWeek gridRosterDays gridWeekOffset gridRosterGroups gridCurrentRosterGroup gridAssignmentFilters gridWeekStartDate gridViewCapabilities gridRosterLayoutMode gridRosterEndTimesEnabled gridRosterWagePrediction gridShowWageEstimates gridShowRosterWarnings hasSidePanel gridViewMode}
         </div>
     |]
     where
@@ -183,12 +187,22 @@ renderrosterGridFrameLiveFragment =
     renderrosterGridFrameLiveFragmentWithSwap Nothing
 
 renderrosterGridFrameLiveFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterGridRenderModel -> Html
-renderrosterGridFrameLiveFragmentWithSwap maybeSwapOob gridModel@RosterGridRenderModel { gridRosterWeek, gridSlotNames, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridShowWageEstimates, gridShowRosterWarnings } =
+renderrosterGridFrameLiveFragmentWithSwap maybeSwapOob gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridSlotNames, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridShowWageEstimates, gridShowRosterWarnings, gridViewMode } =
     let slotColumnsAreEditable = gridViewCapabilities.canManageRosterColumns
         rosterIsHiddenDraft = isNothing gridRosterWeek
-        isDayColumnsLayout = not rosterIsHiddenDraft && rosterLayoutModeValue gridRosterLayoutMode == "day_columns"
-        frameLayoutValue = if rosterIsHiddenDraft then ("hidden_draft" :: Text) else rosterLayoutModeValue gridRosterLayoutMode
-        gridBody = renderRosterGridInnerFragments gridModel
+        isTimelineLayout = case gridViewMode of
+            RosterDayTimelineGridView _ -> True
+            RosterWeekGridView          -> False
+        isDayColumnsLayout = not rosterIsHiddenDraft && not isTimelineLayout && rosterLayoutModeValue gridRosterLayoutMode == "day_columns"
+        frameLayoutValue = case gridViewMode of
+            RosterDayTimelineGridView _ -> "timeline"
+            RosterWeekGridView -> if rosterIsHiddenDraft then ("hidden_draft" :: Text) else rosterLayoutModeValue gridRosterLayoutMode
+        gridBody = case gridViewMode of
+            RosterDayTimelineGridView dayOffset ->
+                case find ((== dayOffset) . (.dayOffset)) gridRosterDays of
+                    Nothing -> [hsx|<div class="alert alert-warning mb-0">Selected timeline day is not available.</div>|]
+                    Just rosterDay -> renderRosterDayTimelinePanel gridModel rosterDay
+            RosterWeekGridView -> renderRosterGridInnerFragments gridModel
      in profileHtmlComponent "render.roster.grid_frame" [hsx|
         <div id={rosterGridFrameFragmentId}
              class={classes [("roster-grid-frame", True), ("app-horizontal-frame", isDayColumnsLayout)]}
@@ -760,7 +774,7 @@ renderPrimaryDayLabel maybeHolidayName date = [hsx|
 renderTimelineLink :: Maybe (Int, Id RosterGroup) -> RosterDay -> Html
 renderTimelineLink Nothing _ = mempty
 renderTimelineLink (Just (weekOffset, rosterGroupId)) rosterDay = [hsx|
-    <a href={rosterDayTimelineUrl weekOffset rosterGroupId rosterDay.id}
+    <a href={rosterDayTimelineUrl weekOffset rosterGroupId rosterDay.dayOffset}
        class="btn btn-sm btn-outline-secondary roster-day-timeline-link"
        aria-label="Open day timeline"
        title="Open day timeline">

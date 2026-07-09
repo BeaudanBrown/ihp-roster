@@ -45,11 +45,20 @@ rosterWeekWithDateUrl weekOffset rosterGroupId date =
         , ("weekDate", formatDayParam date)
         ]
 
-rosterDayTimelineUrl :: Int -> Id RosterGroup -> Id RosterDay -> Text
-rosterDayTimelineUrl weekOffset rosterGroupId rosterDayId =
+rosterViewQueryParams :: Id RosterGroup -> Maybe Int -> [(Text, Text)]
+rosterViewQueryParams rosterGroupId maybeTimelineDayOffset =
+    ("rosterGroupId", tshow rosterGroupId) : case maybeTimelineDayOffset of
+        Nothing -> []
+        Just dayOffset -> [("rosterView", "timeline"), ("dayOffset", tshow dayOffset)]
+
+rosterDayTimelineUrl :: Int -> Id RosterGroup -> Int -> Text
+rosterDayTimelineUrl weekOffset rosterGroupId dayOffset =
     appendQueryParams
-        (pathTo ShowRosterDayTimelineAction { weekOffset, rosterDayId })
-        [("rosterGroupId", tshow rosterGroupId)]
+        (pathTo ShowRosterWeekAction { weekOffset })
+        [ ("rosterGroupId", tshow rosterGroupId)
+        , ("rosterView", "timeline")
+        , ("dayOffset", tshow dayOffset)
+        ]
 
 rosterDayTimelineContentFragmentUrl :: Int -> Id RosterGroup -> Id RosterDay -> Text
 rosterDayTimelineContentFragmentUrl weekOffset rosterGroupId rosterDayId =
@@ -65,13 +74,13 @@ rosterWeekContentFragmentUrl :: Int -> Id RosterGroup -> Text
 rosterWeekContentFragmentUrl weekOffset rosterGroupId =
     appendQueryParams (pathTo ShowRosterWeekContentFragmentAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
 
-rosterWeekGridToolbarFragmentUrl :: Int -> Id RosterGroup -> Text
-rosterWeekGridToolbarFragmentUrl weekOffset rosterGroupId =
-    appendQueryParams (pathTo ShowRosterWeekGridToolbarFragmentAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
+rosterWeekGridToolbarFragmentUrl :: Int -> Id RosterGroup -> Maybe Int -> Text
+rosterWeekGridToolbarFragmentUrl weekOffset rosterGroupId maybeTimelineDayOffset =
+    appendQueryParams (pathTo ShowRosterWeekGridToolbarFragmentAction { weekOffset }) (rosterViewQueryParams rosterGroupId maybeTimelineDayOffset)
 
-rosterWeekGridFrameFragmentUrl :: Int -> Id RosterGroup -> Text
-rosterWeekGridFrameFragmentUrl weekOffset rosterGroupId =
-    appendQueryParams (pathTo ShowRosterWeekGridFrameFragmentAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
+rosterWeekGridFrameFragmentUrl :: Int -> Id RosterGroup -> Maybe Int -> Text
+rosterWeekGridFrameFragmentUrl weekOffset rosterGroupId maybeTimelineDayOffset =
+    appendQueryParams (pathTo ShowRosterWeekGridFrameFragmentAction { weekOffset }) (rosterViewQueryParams rosterGroupId maybeTimelineDayOffset)
 
 rosterWeekDayColumnsFragmentUrl :: Int -> Id RosterGroup -> Text
 rosterWeekDayColumnsFragmentUrl weekOffset rosterGroupId =

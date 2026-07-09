@@ -1,9 +1,8 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 
 module Web.View.RosterWeeks.Timeline
-    ( RosterDayTimelineView (..)
-    , renderRosterDayTimelineContent
-    , renderRosterDayTimelineShell
+    ( renderRosterDayTimelineContent
+    , renderRosterDayTimelinePanel
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
@@ -26,43 +25,47 @@ import Web.RosterWeeks.FrontendSurface (RosterDayTimelineScopeValue (..),
                                         rosterDayTimelineDropzoneRef,
                                         rosterDayTimelineSourceRef,
                                         rosterDayTimelineSurfaceImpl)
-import Web.RosterWeeks.Paths (rosterWeekUrl)
 import Web.RosterWeeks.Types
 import Web.View.Prelude
 
-data RosterDayTimelineView = RosterDayTimelineView
-    { timelineViewRosterData :: !RosterRenderData
-    , timelineViewRosterDay  :: !RosterDay
-    }
-
-instance View RosterDayTimelineView where
-    html RosterDayTimelineView { timelineViewRosterData, timelineViewRosterDay } =
-        renderRosterDayTimelineShell timelineViewRosterData timelineViewRosterDay
-
-renderRosterDayTimelineShell :: RosterRenderData -> RosterDay -> Html
-renderRosterDayTimelineShell rosterData@RosterRenderData { rosterWeek, currentRosterGroup, weekStartDate } rosterDay =
-    let date = Calendar.addDays (toInteger rosterDay.dayOffset) weekStartDate
-        backUrl = rosterWeekUrl rosterWeek.weekOffset currentRosterGroup.id
-        page = renderAppPage AppPageConfig
-            { appPageTitle = "Roster timeline"
-            , appPageDescription = Just (Text.pack (formatTime defaultTimeLocale "%A %d/%m/%Y" date))
-            , appPageActions = [hsx|
-                <a href={backUrl} class="btn btn-outline-secondary btn-sm">
-                    <i class="bi bi-arrow-left" aria-hidden="true"></i>
-                    Back to week view
-                </a>
-            |]
-            , appPageHelpTopic = Just (PageHelpTopicId "roster")
-            , appPageWidthClass = ""
-            , appPageBody = renderRosterDayTimelineContent Nothing rosterData rosterDay
+renderRosterDayTimelinePanel :: (?context :: ControllerContext) => RosterGridRenderModel -> RosterDay -> Html
+renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Nothing } _ = [hsx|
+    <div class="alert alert-info mb-0">This draft roster is not visible.</div>
+|]
+renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Just rosterWeek, gridRosterDays, gridCurrentRosterGroup, gridWeekStartDate, gridAssignmentFilters, gridStaffMembers, gridPanelStaff, gridStaffSelfServicePanel, gridSlotNames, gridShiftTypes, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction, gridShowWageEstimates, gridShowRosterWarnings, gridPublicHolidays } rosterDay =
+    let rosterData = RosterRenderData
+            { rosterWeek = rosterWeek
+            , rosterDays = gridRosterDays
+            , rosterGroups = []
+            , currentRosterGroup = gridCurrentRosterGroup
+            , weekStartDate = gridWeekStartDate
+            , assignmentFilters = gridAssignmentFilters
+            , staffMembers = gridStaffMembers
+            , panelStaff = gridPanelStaff
+            , staffSelfServicePanel = gridStaffSelfServicePanel
+            , orderedSlotNames = gridSlotNames
+            , shiftTypes = gridShiftTypes
+            , allSlots = gridAllSlots
+            , slotConflicts = gridSlotConflicts
+            , renderIndexes = gridRenderIndexes
+            , rosterLayoutMode = gridRosterLayoutMode
+            , rosterEndTimesEnabled = gridRosterEndTimesEnabled
+            , rosterWagePrediction = gridRosterWagePrediction
+            , showWageEstimates = gridShowWageEstimates
+            , showRosterWarnings = gridShowRosterWarnings
+            , rosterPublicHolidays = gridPublicHolidays
             }
-        timelineSurfaceScope = RosterDayTimelineScopeValue
+     in renderRosterDayTimelineMounted rosterData rosterDay (renderRosterDayTimelineContent Nothing rosterData rosterDay)
+
+renderRosterDayTimelineMounted :: RosterRenderData -> RosterDay -> Html -> Html
+renderRosterDayTimelineMounted RosterRenderData { rosterWeek, currentRosterGroup } rosterDay body =
+    let timelineSurfaceScope = RosterDayTimelineScopeValue
             { rosterDayTimelineVenueId = currentRosterGroup.venueId
             , rosterDayTimelineGroupId = currentRosterGroup.id
             , rosterDayTimelineWeekOffset = rosterWeek.weekOffset
             , rosterDayTimelineDayId = rosterDay.id
             }
-     in profileHtmlComponent "render.roster.day_timeline_shell" (renderFrontendSurfaceMount (rosterDayTimelineSurfaceImpl timelineSurfaceScope) page)
+     in renderFrontendSurfaceMount (rosterDayTimelineSurfaceImpl timelineSurfaceScope) body
 
 data TimelineShift = TimelineShift
     { timelineShiftSlot     :: !RosterSlot

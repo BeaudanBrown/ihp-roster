@@ -85,7 +85,10 @@ lands.
   platform-native copy modifier duplicates instead: Ctrl on Windows/Linux and
   Option/Alt on macOS. Copying onto the same day is allowed and creates a new
   copied shift in the first available/grown backing cell.
-- Each visible day exposes a timeline entry link. The single-day timeline uses a
+- Each visible day exposes a timeline entry link. The single-day timeline is a
+  URL-scoped view mode of the normal roster week page
+  (`rosterView=timeline&dayOffset=<0-6>`), so the roster controls and staff side
+  panel remain visible while only the main roster frame swaps. It uses a
   horizontal 06:00-to-05:45 operational time axis and outer lanes based on active
   `roster_week_slot_definitions` sorted by roster-week order.
 - Timeline overlap tracks are display-only. They are computed from rendered shift

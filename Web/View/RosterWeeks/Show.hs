@@ -50,6 +50,7 @@ renderRosterWeekShell ShowView { .. } =
                         , gridShowRosterWarnings = showRosterWarnings
                         , gridPublicHolidays = publicHolidays
                         , gridPublishAttempted = False
+                        , gridViewMode = rosterGridViewMode
                         }
                     ]
             })
@@ -57,6 +58,9 @@ renderRosterWeekShell ShowView { .. } =
             { rosterWeekVenueId = currentRosterGroup.venueId
             , rosterWeekGroupId = currentRosterGroup.id
             , rosterWeekWeekOffset = weekOffset
+            , rosterWeekTimelineDayOffset = case rosterGridViewMode of
+                RosterDayTimelineGridView dayOffset -> Just dayOffset
+                RosterWeekGridView                  -> Nothing
             }
         rosterSurfacePlan = rosterMountedFragmentPlanFromRenderData rosterDays renderIndexes
         rosterSurface = rosterSurfaceImpl rosterSurfaceScope rosterSurfacePlan

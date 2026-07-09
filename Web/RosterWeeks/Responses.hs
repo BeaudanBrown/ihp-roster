@@ -29,6 +29,7 @@ import Web.RosterWeeks.RenderData (fetchVisibleRosterReadModel,
                                    renderRosterProjectionFragmentWithMode,
                                    renderVisibleRosterReadModelFragment)
 import Web.RosterWeeks.Types (RosterGridRenderModel (..),
+                              RosterGridViewMode (..),
                               RosterProjectionFragment (..),
                               RosterRenderData (..))
 import Web.View.RosterWeeks.Grid (renderrosterContentLiveFragment,
@@ -55,6 +56,7 @@ respondWithRosterActorInvalidation rosterGroupId weekOffset fragments extraHtml 
             { rosterWeekVenueId = unpackId currentVenueId
             , rosterWeekGroupId = rosterGroupId
             , rosterWeekWeekOffset = weekOffset
+            , rosterWeekTimelineDayOffset = currentRosterTimelineDayOffset
             }
     setHeader ("HX-Reswap", "none")
     setActorLiveFragmentsRefresh (rosterSurfaceScope scope) (rosterSurfaceWireFragments (map (rosterMountedFragmentForProjection scope) (nub fragments)))
@@ -97,6 +99,7 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
                             , gridShowRosterWarnings = showRosterWarnings
                             , gridPublicHolidays = rosterPublicHolidays
                             , gridPublishAttempted = False
+                            , gridViewMode = currentRosterGridViewMode
                             }
 
 respondWithRosterContentUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO ()
@@ -143,9 +146,21 @@ respondWithRosterContentToast rosterGroupId weekOffset publishAttempted toast = 
                                 , gridShowRosterWarnings = showRosterWarnings
                                 , gridPublicHolidays = rosterPublicHolidays
                                 , gridPublishAttempted = publishAttempted
+                                , gridViewMode = currentRosterGridViewMode
                                 }
             , renderToastOob ToastBottomCenter toast
             ]
+
+currentRosterGridViewMode :: (?request :: Request) => RosterGridViewMode
+currentRosterGridViewMode =
+    case (paramOrNothing @Text "rosterView", paramOrNothing @Int "dayOffset") of
+        (Just "timeline", Just dayOffset) -> RosterDayTimelineGridView (max 0 (min 6 dayOffset))
+        _ -> RosterWeekGridView
+
+currentRosterTimelineDayOffset :: (?request :: Request) => Maybe Int
+currentRosterTimelineDayOffset = case currentRosterGridViewMode of
+    RosterDayTimelineGridView dayOffset -> Just dayOffset
+    RosterWeekGridView                  -> Nothing
 
 respondWithRosterToast :: (?context :: ControllerContext, ?request :: Request) => Text -> Text -> IO ()
 respondWithRosterToast message toastClass =

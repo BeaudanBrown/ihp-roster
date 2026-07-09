@@ -32,7 +32,12 @@ not emit edit/create launcher attributes.
 
 ## Day Timeline Rendering Contract
 
-The single-day timeline is a separate `roster-day-timeline` FrontendSurface.
+The single-day timeline is selected on the normal roster week page via
+`rosterView=timeline&dayOffset=<0-6>`. The roster controls and staff side panel
+remain mounted; only the main roster frame swaps from week grid to the selected
+single-day timeline. The timeline keeps a contained `roster-day-timeline`
+FrontendSurface for its drag/drop refs and intent form.
+
 Time is rendered horizontally across the operational day, outer lanes are active
 slot definitions, and inner overlap tracks are computed for display only.
 Timeline drag/drop uses the same generic source/dropzone runtime as the roster

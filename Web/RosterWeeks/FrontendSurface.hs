@@ -69,9 +69,10 @@ import Web.RosterWeeks.Types (RosterProjectionFragment (..),
 -- | Logical roster week live invalidation scope. Viewer-specific preferences and
 -- visibility stay server-owned; the scope identifies the authorized data slice.
 data RosterWeekScopeValue = RosterWeekScopeValue
-    { rosterWeekVenueId    :: !UUID.UUID
-    , rosterWeekGroupId    :: !(Id RosterGroup)
-    , rosterWeekWeekOffset :: !Int
+    { rosterWeekVenueId           :: !UUID.UUID
+    , rosterWeekGroupId           :: !(Id RosterGroup)
+    , rosterWeekWeekOffset        :: !Int
+    , rosterWeekTimelineDayOffset :: !(Maybe Int)
     }
     deriving (Eq, Show)
 
@@ -511,11 +512,11 @@ rosterContentMountedFragment scope =
 
 rosterGridToolbarMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterGridToolbarMountedFragment scope =
-    rosterMountedFragment "roster-grid-toolbar" Aeson.Null rosterGridToolbarFragmentId (rosterWeekGridToolbarFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
+    rosterMountedFragment "roster-grid-toolbar" Aeson.Null rosterGridToolbarFragmentId (rosterWeekGridToolbarFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId scope.rosterWeekTimelineDayOffset)
 
 rosterGridFrameMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterGridFrameMountedFragment scope =
-    rosterMountedFragment "roster-grid-frame" Aeson.Null rosterGridFrameFragmentId (rosterWeekGridFrameFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
+    rosterMountedFragment "roster-grid-frame" Aeson.Null rosterGridFrameFragmentId (rosterWeekGridFrameFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId scope.rosterWeekTimelineDayOffset)
 
 rosterDayColumnsMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterDayColumnsMountedFragment scope =

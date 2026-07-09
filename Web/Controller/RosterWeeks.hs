@@ -54,7 +54,7 @@ import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
                                         rosterSurfaceWireFragments)
 import Web.RosterWeeks.Mutations
 import Web.RosterWeeks.Overview
-import Web.RosterWeeks.Paths (rosterWeekUrl)
+import Web.RosterWeeks.Paths (rosterDayTimelineUrl, rosterWeekUrl)
 import Web.RosterWeeks.Projection
 import Web.RosterWeeks.RenderData
 import Web.RosterWeeks.Responses (respondWithRosterContent,
@@ -70,9 +70,7 @@ import Web.View.RosterWeeks.Overview (renderWeekOverviewPanelFragment)
 import Web.View.RosterWeeks.ShiftDialog
 import Web.View.RosterWeeks.Show (renderRosterWeekShell)
 import Web.View.RosterWeeks.StaffPanel (renderrosterStaffPanelLiveFragment)
-import Web.View.RosterWeeks.Timeline (RosterDayTimelineView (..),
-                                      renderRosterDayTimelineContent,
-                                      renderRosterDayTimelineShell)
+import Web.View.RosterWeeks.Timeline (renderRosterDayTimelineContent)
 
 instance Controller RosterWeeksController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
@@ -123,9 +121,7 @@ instance Controller RosterWeeksController where
                         setErrorMessage "Roster day not found."
                         redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
                     Just rosterDay ->
-                        if isHtmxRequest
-                            then respondHtmlProfiled (renderRosterDayTimelineShell rosterData rosterDay)
-                            else renderProfiled RosterDayTimelineView { timelineViewRosterData = rosterData, timelineViewRosterDay = rosterDay }
+                        redirectToPath (rosterDayTimelineUrl weekOffset rosterGroup.id rosterDay.dayOffset)
 
     action currentAction@ShowRosterDayTimelineContentFragmentAction { weekOffset, rosterDayId } = runBepis currentAction BepisFragmentAction do
         rosterGroup <- resolveRequestedRosterGroup
@@ -1275,7 +1271,7 @@ respondWithRemoveRosterRowConfirmation rosterDay preview =
                 , dialogOverlayDialogClass = ""
                 }
 
-rosterActorFragmentsForTouchedResources :: (?context :: ControllerContext) => Id RosterGroup -> Int -> Set.Set SurfaceResourceValue -> [RosterProjectionFragment] -> [RosterProjectionFragment]
+rosterActorFragmentsForTouchedResources :: (?context :: ControllerContext, ?request :: Request) => Id RosterGroup -> Int -> Set.Set SurfaceResourceValue -> [RosterProjectionFragment] -> [RosterProjectionFragment]
 rosterActorFragmentsForTouchedResources rosterGroupId weekOffset touchedResources candidates =
     map fst affectedPairs
     where
@@ -1283,6 +1279,7 @@ rosterActorFragmentsForTouchedResources rosterGroupId weekOffset touchedResource
             { rosterWeekVenueId = unpackId currentVenueId
             , rosterWeekGroupId = rosterGroupId
             , rosterWeekWeekOffset = weekOffset
+            , rosterWeekTimelineDayOffset = currentRosterTimelineDayOffset
             }
         candidatePairs = [(fragment, rosterMountedFragmentForProjection scope fragment) | fragment <- candidates]
         affectedMounted = planFrontendSurfaceInvalidation touchedResources (rosterSurfaceScope scope) (map snd candidatePairs)
@@ -1316,6 +1313,7 @@ respondWithRosterActorFragments rosterGroupId weekOffset fragments extraHtml = d
             { rosterWeekVenueId = unpackId currentVenueId
             , rosterWeekGroupId = rosterGroupId
             , rosterWeekWeekOffset = weekOffset
+            , rosterWeekTimelineDayOffset = currentRosterTimelineDayOffset
             }
     setHeader ("HX-Reswap", "none")
     setActorLiveFragmentsRefresh (rosterSurfaceScope scope) (rosterSurfaceWireFragments (map (rosterMountedFragmentForProjection scope) (nub fragments)))
@@ -1327,6 +1325,17 @@ clearDialogOverlayOob = [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHT
 respondWithActorRosterFragmentRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> IO ()
 respondWithActorRosterFragmentRefresh rosterGroupId weekOffset fragments =
     respondWithRosterActorFragments rosterGroupId weekOffset fragments mempty
+
+currentRosterGridViewMode :: (?request :: Request) => RosterGridViewMode
+currentRosterGridViewMode =
+    case (paramOrNothing @Text "rosterView", paramOrNothing @Int "dayOffset") of
+        (Just "timeline", Just dayOffset) -> RosterDayTimelineGridView (max 0 (min 6 dayOffset))
+        _ -> RosterWeekGridView
+
+currentRosterTimelineDayOffset :: (?request :: Request) => Maybe Int
+currentRosterTimelineDayOffset = case currentRosterGridViewMode of
+    RosterDayTimelineGridView dayOffset -> Just dayOffset
+    RosterWeekGridView                  -> Nothing
 
 renderRosterWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Int -> Id RosterGroup -> IO ()
 renderRosterWeekPage weekOffset requestedRosterGroupId =
@@ -1375,6 +1384,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId =
                                 , showRosterWarnings
                                 , publicHolidays = rosterPublicHolidays
                                 , passkeySetupPrompt
+                                , rosterGridViewMode = currentRosterGridViewMode
                                 }
             Nothing ->
                 error "Roster week should exist after ensureRosterWeekExists"
