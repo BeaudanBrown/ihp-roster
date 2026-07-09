@@ -437,7 +437,7 @@ tests = beforeAll testContext do
                 bodyText `shouldContain` "<span class=\"visually-hidden\">Add shift</span>"
                 bodyText `shouldContain` ("data-roster-shift-group-key=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
                 bodyText `shouldContain` "data-bepis-dropzone-ref=\"drag-dropzone\""
-                bodyText `shouldContain` ("data-bepis-dropzone-key=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
+                bodyText `shouldContain` ("data-bepis-dropzone-key=\"day:" <> cs (tshow rosterDay.id) <> "\"")
                 bodyText `shouldNotContain` ">Add shift</div>"
 
         it "renders editable day-column shifts as typed drag sources and create cards as drop targets" $ withContext do
@@ -469,7 +469,7 @@ tests = beforeAll testContext do
                 bodyText `shouldContain` "data-bepis-source-ref=\"drag-source\""
                 bodyText `shouldContain` ("data-bepis-source-key=\"" <> cs sourceGroupKey <> "\"")
                 bodyText `shouldContain` "data-bepis-dropzone-ref=\"drag-dropzone\""
-                bodyText `shouldContain` ("data-bepis-dropzone-key=\"" <> cs targetGroupKey <> "\"")
+                bodyText `shouldContain` ("data-bepis-dropzone-key=\"day:" <> cs (tshow rosterDay.id) <> "\"")
                 bodyText `shouldContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow sourceSlot.id) <> "\"")
                 bodyText `shouldContain` ("hx-get=\"/NewRosterSlotDialog?rosterDayId=" <> cs (tshow rosterDay.id) <> "&amp;rosterWeekSlotDefinitionId=" <> cs (tshow sourceSlot.rosterWeekSlotDefinitionId) <> "&amp;rowIndex=1\"")
 
@@ -865,6 +865,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-bepis-disposable-layer=\"drag-preview\""
                 response `responseBodyShouldContain` "data-bepis-intent-form=\"move-roster-shift-to-slot\""
+                response `responseBodyShouldContain` "data-bepis-intent-form=\"duplicate-roster-shift-to-day\""
                 response `responseBodyShouldContain` "name=\"sourceItemKey\" value=\"\" data-bepis-intent-field=\"sourceItemKey\" data-bepis-field-presence=\"required\""
                 response `responseBodyShouldContain` "name=\"targetDropzoneKey\" value=\"\" data-bepis-intent-field=\"targetDropzoneKey\" data-bepis-field-presence=\"required\""
                 response `responseBodyShouldContain` "data-bepis-source-ref=\"drag-source\""
@@ -899,6 +900,99 @@ tests = beforeAll testContext do
                 updatedSlot.rosterWeekSlotDefinitionId `shouldBe` sourceSlot.rosterWeekSlotDefinitionId
                 updatedSlot.rowIndex `shouldBe` 1
                 response `responseBodyShouldContain` "Roster shift moved."
+
+        it "moves a shift onto a semantic day target and grows the target day rows" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-drag-move-day@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                otherStaff <- createStaffRecord venue Nothing "Beta" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                sourceDay <- createRosterDayRecord rosterWeek 0
+                targetDay <- createRosterDayRecord rosterWeek 1 >>= updateRecord . set #rowCount 1
+                sourceSlot <- createRosterSlotRecord sourceDay slotName (Just staffMember) 0
+                _ <- createRosterSlotRecord targetDay slotName (Just otherStaff) 0
+                let sourceToken = "existing:" <> tshow sourceSlot.id
+                let targetToken = "day:" <> tshow targetDay.id
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams MoveRosterShiftToSlotAction { weekOffset = 0 }
+                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                            , ("sourceItemKey", cs sourceToken)
+                            , ("targetDropzoneKey", cs targetToken)
+                            ]
+
+                response `responseStatusShouldBe` status200
+                updatedSlot <- fetch sourceSlot.id
+                updatedTargetDay <- fetch targetDay.id
+                updatedSlot.rosterDayId `shouldBe` unpackId targetDay.id
+                updatedSlot.rowIndex `shouldBe` 1
+                updatedTargetDay.rowCount `shouldBe` 2
+                response `responseBodyShouldContain` "Roster shift moved."
+
+        it "silently no-ops a semantic day move onto the source day" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-drag-same-day@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                sourceSlot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams MoveRosterShiftToSlotAction { weekOffset = 0 }
+                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                            , ("sourceItemKey", cs ("existing:" <> tshow sourceSlot.id))
+                            , ("targetDropzoneKey", cs ("day:" <> tshow rosterDay.id))
+                            ]
+
+                response `responseStatusShouldBe` status200
+                updatedSlot <- fetch sourceSlot.id
+                updatedSlot.rosterDayId `shouldBe` unpackId rosterDay.id
+                updatedSlot.rowIndex `shouldBe` 0
+                response `responseBodyShouldNotContain` "Roster shift moved."
+
+        it "duplicates a shift onto a semantic day target and grows rows" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-drag-copy-day@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0 >>= updateRecord . set #rowCount 1
+                sourceSlot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+                sourceSlot <- updateRecord (sourceSlot |> set #startTime (Just (TimeOfDay 9 0 0)) |> set #endTime (Just (TimeOfDay 17 0 0)) |> set #durationMinutes (Just 480))
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams DuplicateRosterShiftToDayAction { weekOffset = 0 }
+                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                            , ("sourceItemKey", cs ("existing:" <> tshow sourceSlot.id))
+                            , ("targetDropzoneKey", cs ("day:" <> tshow rosterDay.id))
+                            ]
+
+                response `responseStatusShouldBe` status200
+                updatedSource <- fetch sourceSlot.id
+                updatedDay <- fetch rosterDay.id
+                copiedSlots <- query @RosterSlot
+                    |> filterWhere (#rosterDayId, unpackId rosterDay.id)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> orderByAsc #rowIndex
+                    |> fetch
+                length copiedSlots `shouldBe` 2
+                updatedSource.rowIndex `shouldBe` 0
+                updatedDay.rowCount `shouldBe` 2
+                map (.staffId) copiedSlots `shouldBe` [sourceSlot.staffId, sourceSlot.staffId]
+                map (.startTime) copiedSlots `shouldBe` [sourceSlot.startTime, sourceSlot.startTime]
+                map (.durationMinutes) copiedSlots `shouldBe` [sourceSlot.durationMinutes, sourceSlot.durationMinutes]
+                response `responseBodyShouldContain` "Roster shift duplicated."
 
         it "month overview fragment includes other weeks in the same month and counts assigned shifts rather than unique staff" $ withContext do
             withCleanDb do

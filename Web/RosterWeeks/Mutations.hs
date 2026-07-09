@@ -136,6 +136,11 @@ moveRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: Model
 moveRosterSlotMutation rosterGroupId rosterWeek sourceRosterDay targetRosterDay originalSlot updatedSlot = do
     let previousStaffId = originalSlot.staffId
     sourceTimesheetExists <- rosterSlotHasGeneratedTimesheet originalSlot
+    when (updatedSlot.rowIndex >= targetRosterDay.rowCount) do
+        _ <- targetRosterDay
+            |> set #rowCount (updatedSlot.rowIndex + 1)
+            |> updateRecord
+        pure ()
     persistedSlot <- updateRecord updatedSlot
     let shouldWarnSourceTimesheetUnchanged =
             sourceTimesheetExists && rosterSlotTimesheetSourceChanged originalSlot updatedSlot

@@ -479,6 +479,7 @@ instance Controller RosterWeeksController where
         result <- validateMoveRosterShiftIntent rosterGroup.id weekOffset
         case result of
             Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+            Right MoveRosterShiftIntent { moveIsNoOp = True } -> respondWithSilentRosterNoOp rosterGroup.id weekOffset
             Right MoveRosterShiftIntent { sourceSlot, sourceRosterDay, targetRosterDay, targetSlotDefinition, targetRowIndex } -> do
                 let updatedSlot = sourceSlot
                         |> set #rosterDayId (unpackId targetRosterDay.id)
@@ -495,7 +496,23 @@ instance Controller RosterWeeksController where
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
-        respondWithMoveRosterShiftFailure rosterGroup.id weekOffset "Duplicate drag/drop is not available yet."
+        result <- validateDuplicateRosterShiftIntent rosterGroup.id weekOffset
+        case result of
+            Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+            Right MoveRosterShiftIntent { sourceSlot, targetRosterDay, targetSlotDefinition, targetRowIndex } -> do
+                rosterWeek <- fetch (Id targetRosterDay.rosterWeekId :: Id RosterWeek)
+                let copiedSlot = newRecord @RosterSlot
+                        |> set #rosterDayId (unpackId targetRosterDay.id)
+                        |> set #staffId sourceSlot.staffId
+                        |> set #rosterWeekSlotDefinitionId (unpackId targetSlotDefinition.id)
+                        |> set #slotSortOrder targetSlotDefinition.sortOrder
+                        |> set #rowIndex targetRowIndex
+                        |> set #startTime sourceSlot.startTime
+                        |> set #endTime sourceSlot.endTime
+                        |> set #shiftTypeId sourceSlot.shiftTypeId
+                        |> set #durationMinutes sourceSlot.durationMinutes
+                mutationResult <- saveRosterSlotMutation rosterGroup.id rosterWeek targetRosterDay Nothing copiedSlot
+                respondToRosterSlotMutation rosterGroup.id rosterWeek targetRosterDay targetRowIndex mutationResult sourceSlot.staffId "Roster shift duplicated."
 
     action currentAction@UpdateRosterWarningPreferenceAction { weekOffset } =
         runBepis currentAction BepisMutationAction do
@@ -598,48 +615,62 @@ data MoveRosterShiftIntent = MoveRosterShiftIntent
     , targetRosterDay      :: !RosterDay
     , targetSlotDefinition :: !RosterWeekSlotDefinition
     , targetRowIndex       :: !Int
+    , moveIsNoOp           :: !Bool
     }
 
+data RosterShiftDropTarget
+    = PreciseRosterShiftDropTarget !(Id RosterDay) !(Id RosterWeekSlotDefinition) !Int
+    | DayRosterShiftDropTarget !(Id RosterDay)
+
 validateMoveRosterShiftIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Either Text MoveRosterShiftIntent)
-validateMoveRosterShiftIntent rosterGroupId weekOffset = do
+validateMoveRosterShiftIntent rosterGroupId weekOffset =
+    validateRosterShiftDropIntent rosterGroupId weekOffset True
+
+validateDuplicateRosterShiftIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Either Text MoveRosterShiftIntent)
+validateDuplicateRosterShiftIntent rosterGroupId weekOffset =
+    validateRosterShiftDropIntent rosterGroupId weekOffset False
+
+validateRosterShiftDropIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Bool -> IO (Either Text MoveRosterShiftIntent)
+validateRosterShiftDropIntent rosterGroupId weekOffset allowSemanticDayNoOp = do
     let sourceToken = paramOrDefault @Text "" "sourceItemKey"
     let targetToken = paramOrDefault @Text "" "targetDropzoneKey"
-    case (parseExistingSlotToken sourceToken, parseNewSlotToken targetToken) of
-        (Just sourceSlotId, Just (targetRosterDayId, targetSlotDefinitionId, targetRowIndex)) -> do
-            maybeResult <- validateMoveRosterShiftTarget rosterGroupId weekOffset sourceSlotId targetRosterDayId targetSlotDefinitionId targetRowIndex
-            pure (maybe (Left "Choose an empty roster slot in this week.") Right maybeResult)
-        _ -> pure (Left "Drag the shift onto an empty roster slot.")
+    case (parseExistingSlotToken sourceToken, parseRosterShiftDropTargetToken targetToken) of
+        (Just sourceSlotId, Just target) -> do
+            maybeResult <- validateRosterShiftDropTarget rosterGroupId weekOffset allowSemanticDayNoOp sourceSlotId target
+            pure (maybe (Left "Choose an open roster day in this week.") Right maybeResult)
+        _ -> pure (Left "Drag the shift onto an open roster day.")
 
-validateMoveRosterShiftTarget :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> Id RosterSlot -> Id RosterDay -> Id RosterWeekSlotDefinition -> Int -> IO (Maybe MoveRosterShiftIntent)
-validateMoveRosterShiftTarget rosterGroupId weekOffset sourceSlotId targetRosterDayId targetSlotDefinitionId targetRowIndex = do
+validateRosterShiftDropTarget :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> Bool -> Id RosterSlot -> RosterShiftDropTarget -> IO (Maybe MoveRosterShiftIntent)
+validateRosterShiftDropTarget rosterGroupId weekOffset allowSemanticDayNoOp sourceSlotId dropTarget = do
     maybeSourceSlot <- fetchOneOrNothing (query @RosterSlot |> filterWhere (#id, sourceSlotId))
-    maybeTargetRosterDay <- fetchOneOrNothing (query @RosterDay |> filterWhere (#id, targetRosterDayId))
-    maybeTargetSlotDefinition <- fetchOneOrNothing (query @RosterWeekSlotDefinition |> filterWhere (#id, targetSlotDefinitionId))
-    case (maybeSourceSlot, maybeTargetRosterDay, maybeTargetSlotDefinition) of
-        (Just sourceSlot, Just targetRosterDay, Just targetSlotDefinition) -> do
+    case maybeSourceSlot of
+        Nothing -> pure Nothing
+        Just sourceSlot -> do
             sourceRosterDay <- fetch (Id sourceSlot.rosterDayId :: Id RosterDay)
             sourceRosterWeek <- fetch (Id sourceRosterDay.rosterWeekId :: Id RosterWeek)
-            targetRosterWeek <- fetch (Id targetRosterDay.rosterWeekId :: Id RosterWeek)
-            targetExists <- query @RosterSlot
-                |> filterWhere (#rosterDayId, unpackId targetRosterDay.id)
-                |> filterWhere (#rosterWeekSlotDefinitionId, unpackId targetSlotDefinition.id)
-                |> filterWhere (#rowIndex, targetRowIndex)
-                |> filterWhere (#deletedAt, Nothing)
-                |> fetchExists
-            let sourceMatchesScope = sourceRosterWeek.rosterGroupId == unpackId rosterGroupId && sourceRosterWeek.weekOffset == weekOffset
-            let targetMatchesScope = targetRosterWeek.rosterGroupId == unpackId rosterGroupId && targetRosterWeek.weekOffset == weekOffset
-            let targetDefinitionMatchesWeek = targetSlotDefinition.rosterWeekId == unpackId targetRosterWeek.id
-            let sourceIsStaffed = isJust sourceSlot.staffId
-            let targetIsOpen = not targetRosterDay.isClosed && targetRowIndex >= 0 && targetRowIndex < targetRosterDay.rowCount
-            pure do
-                guard sourceMatchesScope
-                guard targetMatchesScope
-                guard targetDefinitionMatchesWeek
-                guard sourceIsStaffed
-                guard targetIsOpen
-                guard (not targetExists)
-                pure MoveRosterShiftIntent { sourceSlot, sourceRosterDay, targetRosterDay, targetSlotDefinition, targetRowIndex }
-        _ -> pure Nothing
+            let targetRosterDayId = dropTargetRosterDayId dropTarget
+            maybeTargetRosterDay <- fetchOneOrNothing (query @RosterDay |> filterWhere (#id, targetRosterDayId))
+            case maybeTargetRosterDay of
+                Nothing -> pure Nothing
+                Just targetRosterDay -> do
+                    targetRosterWeek <- fetch (Id targetRosterDay.rosterWeekId :: Id RosterWeek)
+                    maybeResolvedTarget <- resolveRosterShiftDropPlacement targetRosterWeek targetRosterDay dropTarget
+                    let sourceMatchesScope = sourceRosterWeek.rosterGroupId == unpackId rosterGroupId && sourceRosterWeek.weekOffset == weekOffset
+                    let targetMatchesScope = targetRosterWeek.rosterGroupId == unpackId rosterGroupId && targetRosterWeek.weekOffset == weekOffset
+                    let sourceIsStaffed = isJust sourceSlot.staffId
+                    let targetIsOpen = not targetRosterDay.isClosed
+                    let semanticSameDayNoOp = allowSemanticDayNoOp && isDayDropTarget dropTarget && sourceSlot.rosterDayId == unpackId targetRosterDay.id
+                    pure do
+                        guard sourceMatchesScope
+                        guard targetMatchesScope
+                        guard sourceIsStaffed
+                        guard targetIsOpen
+                        case (semanticSameDayNoOp, maybeResolvedTarget) of
+                            (True, Just (targetSlotDefinition, _)) ->
+                                pure MoveRosterShiftIntent { sourceSlot, sourceRosterDay, targetRosterDay, targetSlotDefinition, targetRowIndex = sourceSlot.rowIndex, moveIsNoOp = True }
+                            (False, Just (targetSlotDefinition, targetRowIndex)) ->
+                                pure MoveRosterShiftIntent { sourceSlot, sourceRosterDay, targetRosterDay, targetSlotDefinition, targetRowIndex, moveIsNoOp = False }
+                            _ -> Nothing
 
 parseExistingSlotToken :: Text -> Maybe (Id RosterSlot)
 parseExistingSlotToken token =
@@ -647,15 +678,64 @@ parseExistingSlotToken token =
         ["existing", rawSlotId] -> Id <$> parseUUIDText rawSlotId
         _                       -> Nothing
 
-parseNewSlotToken :: Text -> Maybe (Id RosterDay, Id RosterWeekSlotDefinition, Int)
-parseNewSlotToken token =
+parseRosterShiftDropTargetToken :: Text -> Maybe RosterShiftDropTarget
+parseRosterShiftDropTargetToken token =
     case Text.splitOn ":" token of
+        ["day", rawRosterDayId] ->
+            DayRosterShiftDropTarget . Id <$> parseUUIDText rawRosterDayId
         ["new", rawRosterDayId, rawSlotDefinitionId, rawRowIndex] -> do
             rosterDayId <- Id <$> parseUUIDText rawRosterDayId
             slotDefinitionId <- Id <$> parseUUIDText rawSlotDefinitionId
             rowIndex <- TextRead.readMaybe (cs rawRowIndex)
-            pure (rosterDayId, slotDefinitionId, rowIndex)
+            pure (PreciseRosterShiftDropTarget rosterDayId slotDefinitionId rowIndex)
         _ -> Nothing
+
+dropTargetRosterDayId :: RosterShiftDropTarget -> Id RosterDay
+dropTargetRosterDayId = \case
+    PreciseRosterShiftDropTarget rosterDayId _ _ -> rosterDayId
+    DayRosterShiftDropTarget rosterDayId -> rosterDayId
+
+isDayDropTarget :: RosterShiftDropTarget -> Bool
+isDayDropTarget = \case
+    DayRosterShiftDropTarget {} -> True
+    _ -> False
+
+resolveRosterShiftDropPlacement :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWeek -> RosterDay -> RosterShiftDropTarget -> IO (Maybe (RosterWeekSlotDefinition, Int))
+resolveRosterShiftDropPlacement targetRosterWeek targetRosterDay = \case
+    PreciseRosterShiftDropTarget _ targetSlotDefinitionId targetRowIndex -> do
+        maybeTargetSlotDefinition <- fetchOneOrNothing (query @RosterWeekSlotDefinition |> filterWhere (#id, targetSlotDefinitionId))
+        targetExists <- rosterSlotCellExists targetRosterDay.id targetSlotDefinitionId targetRowIndex
+        pure do
+            targetSlotDefinition <- maybeTargetSlotDefinition
+            guard (targetRowIndex >= 0)
+            guard (targetSlotDefinition.rosterWeekId == unpackId targetRosterWeek.id)
+            guard (isNothing targetSlotDefinition.deletedAt)
+            guard (not targetExists)
+            pure (targetSlotDefinition, targetRowIndex)
+    DayRosterShiftDropTarget _ -> do
+        targetSlotDefinitions <- fetchActiveRosterWeekSlotDefinitions targetRosterWeek
+        daySlots <- query @RosterSlot
+            |> filterWhere (#rosterDayId, unpackId targetRosterDay.id)
+            |> filterWhere (#deletedAt, Nothing)
+            |> fetch
+        pure (firstAvailableRosterDayPlacement targetRosterDay targetSlotDefinitions daySlots)
+
+firstAvailableRosterDayPlacement :: RosterDay -> [RosterWeekSlotDefinition] -> [RosterSlot] -> Maybe (RosterWeekSlotDefinition, Int)
+firstAvailableRosterDayPlacement targetRosterDay targetSlotDefinitions daySlots = do
+    firstDefinition <- listToMaybe targetSlotDefinitions
+    let occupiedCells = Set.fromList [(slot.rowIndex, slot.rosterWeekSlotDefinitionId) | slot <- daySlots]
+    let candidateRows = [0 .. max 0 targetRosterDay.rowCount]
+    let candidates = [(definition, rowIndex) | rowIndex <- candidateRows, definition <- targetSlotDefinitions, (rowIndex, unpackId definition.id) `Set.notMember` occupiedCells]
+    pure (fromMaybe (firstDefinition, max 0 targetRosterDay.rowCount) (listToMaybe candidates))
+
+rosterSlotCellExists :: (?modelContext :: ModelContext) => Id RosterDay -> Id RosterWeekSlotDefinition -> Int -> IO Bool
+rosterSlotCellExists rosterDayId targetSlotDefinitionId targetRowIndex =
+    query @RosterSlot
+        |> filterWhere (#rosterDayId, unpackId rosterDayId)
+        |> filterWhere (#rosterWeekSlotDefinitionId, unpackId targetSlotDefinitionId)
+        |> filterWhere (#rowIndex, targetRowIndex)
+        |> filterWhere (#deletedAt, Nothing)
+        |> fetchExists
 
 respondWithMoveRosterShiftFailure :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO ()
 respondWithMoveRosterShiftFailure rosterGroupId weekOffset message =
@@ -664,6 +744,12 @@ respondWithMoveRosterShiftFailure rosterGroupId weekOffset message =
         else do
             setErrorMessage message
             redirectToPath (rosterWeekUrl weekOffset rosterGroupId)
+
+respondWithSilentRosterNoOp :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO ()
+respondWithSilentRosterNoOp rosterGroupId weekOffset =
+    if isHtmxRequest
+        then respondWithRosterActorRefresh rosterGroupId weekOffset []
+        else redirectToPath (rosterWeekUrl weekOffset rosterGroupId)
 
 fetchRosterSlotCreateContext :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterDay -> Id RosterWeekSlotDefinition -> Int -> IO (RosterDay, RosterWeek, RosterWeekSlotDefinition)
 fetchRosterSlotCreateContext rosterDayId rosterWeekSlotDefinitionId rowIndex = do

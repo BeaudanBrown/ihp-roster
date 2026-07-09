@@ -9,6 +9,7 @@ module Web.RosterWeeks.Service
     , fetchRosterWeekSlotTemplate
     , fetchRosterWeekSlotTemplateFromSlots
     , fetchCurrentRosterWeekOffset
+    , fetchActiveRosterWeekSlotDefinitions
     , fetchRosterWeekOrderedSlotNames
     , fetchRosterWeekOrderedSlotNamesFromSlots
     , previewRemoveRosterRowPacking
