@@ -27,7 +27,7 @@ import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 successToast)
 import Control.Monad (guard)
 import Data.Coerce (coerce)
-import Data.List (nub)
+import Data.List (find, nub)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (catMaybes, fromMaybe, isJust, mapMaybe)
 import qualified Data.Set as Set
@@ -66,6 +66,7 @@ import Web.View.RosterWeeks.Overview (renderWeekOverviewPanelFragment)
 import Web.View.RosterWeeks.ShiftDialog
 import Web.View.RosterWeeks.Show (renderRosterWeekShell)
 import Web.View.RosterWeeks.StaffPanel (renderrosterStaffPanelLiveFragment)
+import Web.View.RosterWeeks.Timeline (renderRosterDayTimelineShell)
 
 instance Controller RosterWeeksController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
@@ -100,6 +101,23 @@ instance Controller RosterWeeksController where
                     else redirectToPath targetPath
             Nothing ->
                 renderRosterWeekPage weekOffset rosterGroup.id
+
+    action currentAction@ShowRosterDayTimelineAction { weekOffset, rosterDayId } = runBepis currentAction BepisPageAction do
+        rosterGroup <- resolveRequestedRosterGroup
+        maybeRosterData <- fetchVisibleRosterReadModel rosterGroup.id weekOffset
+        case maybeRosterData of
+            Nothing -> do
+                setErrorMessage "Roster week not found."
+                redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
+            Just rosterData -> do
+                let canViewTimeline = rosterData.rosterWeek.isLive || hasRole ManagerRole'
+                accessDeniedUnless canViewTimeline
+                case find (\rosterDay -> rosterDay.id == rosterDayId) rosterData.rosterDays of
+                    Nothing -> do
+                        setErrorMessage "Roster day not found."
+                        redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
+                    Just rosterDay ->
+                        respondHtmlProfiled (renderRosterDayTimelineShell rosterData rosterDay)
 
     action currentAction@ShowRosterWeekOverviewFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         rosterGroup <- resolveRequestedRosterGroup

@@ -7,6 +7,7 @@ module Web.RosterWeeks.Paths
     , rosterWarningPreferenceUrl
     , rosterWageEstimatePreferenceUrl
     , rosterOverviewFragmentUrl
+    , rosterDayTimelineUrl
     , rosterWeekContentFragmentUrl
     , rosterWeekGridFrameFragmentUrl
     , rosterWeekGridToolbarFragmentUrl
@@ -41,6 +42,12 @@ rosterWeekWithDateUrl weekOffset rosterGroupId date =
         [ ("rosterGroupId", tshow rosterGroupId)
         , ("weekDate", formatDayParam date)
         ]
+
+rosterDayTimelineUrl :: Int -> Id RosterGroup -> Id RosterDay -> Text
+rosterDayTimelineUrl weekOffset rosterGroupId rosterDayId =
+    appendQueryParams
+        (pathTo ShowRosterDayTimelineAction { weekOffset, rosterDayId })
+        [("rosterGroupId", tshow rosterGroupId)]
 
 rosterOverviewFragmentUrl :: Int -> Id RosterGroup -> Text
 rosterOverviewFragmentUrl weekOffset rosterGroupId =

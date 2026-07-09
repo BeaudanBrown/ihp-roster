@@ -178,6 +178,7 @@ data RosterDayRenderModel = RosterDayRenderModel
     , dayStaffMembers          :: [Staff]
     , dayShiftTypes            :: [ShiftType]
     , dayWeekStartDate         :: Day
+    , dayTimelineContext       :: Maybe (Int, Id RosterGroup)
     , dayAllSlots              :: [RosterSlot]
     , daySlotConflicts         :: [(Id RosterSlot, [RosterConflict])]
     , dayRenderIndexes         :: RosterRenderIndexes

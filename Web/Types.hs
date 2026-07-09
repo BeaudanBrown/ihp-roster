@@ -222,6 +222,7 @@ newtype LiveUpdatesWSApp
 data RosterWeeksController
     = RosterWeeksAction
     | ShowRosterWeekAction { weekOffset :: !Int }
+    | ShowRosterDayTimelineAction { weekOffset :: !Int, rosterDayId :: !(Id RosterDay) }
     | ShowRosterWeekOverviewFragmentAction { weekOffset :: !Int }
     | ShowRosterWeekContentFragmentAction { weekOffset :: !Int }
     | ShowRosterWeekGridToolbarFragmentAction { weekOffset :: !Int }

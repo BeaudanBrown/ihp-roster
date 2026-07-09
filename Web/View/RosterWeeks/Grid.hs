@@ -68,6 +68,7 @@ import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
                                         rosterFrontendSurfaceIR,
                                         rosterMountedFragmentPlanFromRenderData,
                                         rosterSurfaceAction, rosterSurfaceImpl)
+import Web.RosterWeeks.Paths (rosterDayTimelineUrl)
 import Web.RosterWeeks.Types
 import Web.View.Prelude
 import Web.View.RosterWeeks.Grid.Cells
@@ -208,7 +209,7 @@ renderrosterGridFrameLiveFragmentWithSwap maybeSwapOob gridModel@RosterGridRende
 |]
 
 rosterDayRenderModelFromGrid :: (?context :: ControllerContext) => RosterGridRenderModel -> RosterDayRenderModel
-rosterDayRenderModelFromGrid RosterGridRenderModel { gridRosterWeek, gridAssignmentFilters, gridStaffMembers, gridSlotNames, gridShiftTypes, gridWeekStartDate, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction, gridShowWageEstimates, gridShowRosterWarnings, gridPublicHolidays, gridPublishAttempted } =
+rosterDayRenderModelFromGrid RosterGridRenderModel { gridRosterWeek, gridWeekOffset, gridCurrentRosterGroup, gridAssignmentFilters, gridStaffMembers, gridSlotNames, gridShiftTypes, gridWeekStartDate, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction, gridShowWageEstimates, gridShowRosterWarnings, gridPublicHolidays, gridPublishAttempted } =
     RosterDayRenderModel
         { dayIsEditable = rosterWeekIsEditable gridRosterWeek
         , daySlotNames = gridSlotNames
@@ -216,6 +217,7 @@ rosterDayRenderModelFromGrid RosterGridRenderModel { gridRosterWeek, gridAssignm
         , dayStaffMembers = gridStaffMembers
         , dayShiftTypes = gridShiftTypes
         , dayWeekStartDate = gridWeekStartDate
+        , dayTimelineContext = Just (gridWeekOffset, gridCurrentRosterGroup.id)
         , dayAllSlots = gridAllSlots
         , daySlotConflicts = gridSlotConflicts
         , dayRenderIndexes = gridRenderIndexes
@@ -502,7 +504,7 @@ renderRosterDaySectionFragmentWithSwap maybeSwapOob dayModel@RosterDayRenderMode
         daySlots = filter (\s -> s.rosterDayId == coerce (get #id rosterDay)) dayAllSlots
 
 renderRosterDayRailSection :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterDay -> Html
-renderRosterDayRailSection RosterDayRenderModel { dayIsEditable, dayWeekStartDate, dayAllSlots, dayRenderIndexes, dayPublicHolidays } rosterDay =
+renderRosterDayRailSection RosterDayRenderModel { dayIsEditable, dayWeekStartDate, dayTimelineContext, dayAllSlots, dayRenderIndexes, dayPublicHolidays } rosterDay =
     let daySlots = filter (\s -> s.rosterDayId == coerce (get #id rosterDay)) dayAllSlots
         dayRows = Map.findWithDefault (rowsForDay rosterDay daySlots) (coerce (get #id rosterDay)) dayRenderIndexes.rosterDayRowsByDayId
         rowCount = length dayRows
@@ -515,6 +517,7 @@ renderRosterDayRailSection RosterDayRenderModel { dayIsEditable, dayWeekStartDat
                 <div class="roster-day-label-row roster-day-label-row-primary">
                     <div class="roster-day-heading">
                         {renderPrimaryDayLabel (Map.lookup date dayPublicHolidays) date}
+                        {renderTimelineLink dayTimelineContext rosterDay}
                     </div>
                 </div>
                 <div class="roster-day-label-row roster-day-label-row-controls">
@@ -526,7 +529,7 @@ renderRosterDayRailSection RosterDayRenderModel { dayIsEditable, dayWeekStartDat
     |]
 
 renderHiddenDraftDayRailSection :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterDay -> Html
-renderHiddenDraftDayRailSection RosterDayRenderModel { dayWeekStartDate, dayPublicHolidays } rosterDay =
+renderHiddenDraftDayRailSection RosterDayRenderModel { dayWeekStartDate, dayTimelineContext, dayPublicHolidays } rosterDay =
     let date = Calendar.addDays (toInteger (get #dayOffset rosterDay)) dayWeekStartDate
      in [hsx|
         <div class={classes [("roster-day-rail-section", True), ("roster-day-rail-section-hidden-draft", True), ("day-alt-dark", odd (get #dayOffset rosterDay)), ("day-alt-light", even (get #dayOffset rosterDay))]}>
@@ -534,6 +537,7 @@ renderHiddenDraftDayRailSection RosterDayRenderModel { dayWeekStartDate, dayPubl
                 <div class="roster-day-label-row roster-day-label-row-primary">
                     <div class="roster-day-heading">
                         {renderPrimaryDayLabel (Map.lookup date dayPublicHolidays) date}
+                        {renderTimelineLink dayTimelineContext rosterDay}
                     </div>
                 </div>
             </div>
@@ -584,7 +588,7 @@ renderRosterDayColumn =
     renderRosterDayColumnWithSwap Nothing
 
 renderRosterDayColumnWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterDayRenderModel -> RosterDay -> Html
-renderRosterDayColumnWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIsEditable, dayWeekStartDate, dayAllSlots, dayRenderIndexes, dayRosterWagePrediction, dayPublicHolidays } rosterDay =
+renderRosterDayColumnWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIsEditable, dayWeekStartDate, dayTimelineContext, dayAllSlots, dayRenderIndexes, dayRosterWagePrediction, dayPublicHolidays } rosterDay =
     let daySlots = filter (\s -> s.rosterDayId == coerce (get #id rosterDay)) dayAllSlots
         dayRows = Map.findWithDefault (rowsForDay rosterDay daySlots) (coerce (get #id rosterDay)) dayRenderIndexes.rosterDayRowsByDayId
         rowCount = length dayRows
@@ -601,6 +605,7 @@ renderRosterDayColumnWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIs
                 <header class="roster-day-column-header">
                     <div class="roster-day-heading">
                         {renderPrimaryDayLabel (Map.lookup date dayPublicHolidays) date}
+                        {renderTimelineLink dayTimelineContext rosterDay}
                     </div>
                     <div class="roster-day-column-wage-slot">
                         {renderDayColumnWageEstimate dayRosterWagePrediction date}
@@ -750,6 +755,18 @@ renderPrimaryDayLabel maybeHolidayName date = [hsx|
         {renderPublicHolidayIndicator maybeHolidayName}
         <span>{Text.pack (formatTime defaultTimeLocale "%a" date)} {Text.pack (formatTime defaultTimeLocale "%d/%m" date)}</span>
     </div>
+|]
+
+renderTimelineLink :: Maybe (Int, Id RosterGroup) -> RosterDay -> Html
+renderTimelineLink Nothing _ = mempty
+renderTimelineLink (Just (weekOffset, rosterGroupId)) rosterDay = [hsx|
+    <a href={rosterDayTimelineUrl weekOffset rosterGroupId rosterDay.id}
+       class="btn btn-sm btn-outline-secondary roster-day-timeline-link"
+       aria-label="Open day timeline"
+       title="Open day timeline">
+        <i class="bi bi-clock-history" aria-hidden="true"></i>
+        <span class="visually-hidden">Timeline</span>
+    </a>
 |]
 
 renderPublicHolidayIndicator :: Maybe Text -> Html
