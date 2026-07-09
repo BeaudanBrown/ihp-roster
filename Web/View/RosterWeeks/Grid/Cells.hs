@@ -437,19 +437,23 @@ createShiftUnitVisualCellClasses False blockIndex =
 
 renderCreateShiftUnit :: (?context :: ControllerContext) => RosterSlotCellTarget -> Text -> [Text] -> Int -> Html
 renderCreateShiftUnit target groupKey visualCellClasses gridSpan =
-    SurfaceInteraction.renderFrontendSurfaceDropzoneRef rosterDragDropzoneRef groupKey $
-        SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterStaffCreateDropzoneRef groupKey $
-            applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction target)) [hsx|
-                <div role="gridcell"
-                     class="roster-shift-unit roster-shift-launcher roster-shift-create-unit"
-                     style={rosterGridColumnSpanStyle gridSpan}
-                     data-roster-shift-group-key={groupKey}
-                     data-roster-shift-launcher="true"
-                     tabindex="0">
-                    {forEach visualCellClasses renderCreateShiftUnitVisualCell}
-                    <div class="roster-shift-create-plus-overlay" aria-hidden="true">+</div>
-                </div>
-            |]
+    let staffCreateDropzone = SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterStaffCreateDropzoneRef groupKey [hsx|
+            <div class="roster-shift-create-staff-dropzone">
+                {forEach visualCellClasses renderCreateShiftUnitVisualCell}
+                <div class="roster-shift-create-plus-overlay" aria-hidden="true">+</div>
+            </div>
+        |]
+     in SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDragDropzoneRef groupKey $
+        applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction target)) [hsx|
+            <div role="gridcell"
+                 class="roster-shift-unit roster-shift-launcher roster-shift-create-unit"
+                 style={rosterGridColumnSpanStyle gridSpan}
+                 data-roster-shift-group-key={groupKey}
+                 data-roster-shift-launcher="true"
+                 tabindex="0">
+                {staffCreateDropzone}
+            </div>
+        |]
 
 renderCreateShiftUnitVisualCell :: Text -> Html
 renderCreateShiftUnitVisualCell cellClasses = [hsx|<div class={cellClasses}></div>|]

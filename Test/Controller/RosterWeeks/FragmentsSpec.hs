@@ -450,6 +450,9 @@ tests = beforeAll testContext do
                 body <- responseBody response
                 let bodyText = cs body :: String
                 bodyText `shouldContain` "roster-shift-unit roster-shift-launcher roster-shift-create-unit"
+                bodyText `shouldContain` "data-bepis-dropzone-ref=\"shift-slot-dropzone\""
+                bodyText `shouldContain` "roster-shift-create-staff-dropzone"
+                bodyText `shouldContain` "data-bepis-dropzone-ref=\"staff-create-dropzone\""
                 bodyText `shouldContain` "roster-shift-unit-cell slot-empty-cell"
                 bodyText `shouldContain` "roster-shift-create-plus-overlay"
                 bodyText `shouldContain` ("data-roster-shift-group-key=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
@@ -580,6 +583,9 @@ tests = beforeAll testContext do
             css `shouldContain` ".roster-grid .roster-shift-create-plus-cell .slot-cell-static"
             css `shouldContain` "opacity: 0;"
             css `shouldContain` ".roster-grid .roster-shift-create-plus-cell:hover .slot-cell-static"
+            css `shouldContain` ".roster-grid .roster-shift-create-staff-dropzone"
+            css `shouldContain` "display: contents;"
+            css `shouldContain` ".roster-grid .roster-shift-create-unit:has(.roster-shift-create-staff-dropzone.bepis-dropzone-highlight)"
             dayActionsCss `shouldContain` ".roster-grid-frame[data-roster-column-editing=\"true\"] .roster-day-action-add"
             dayActionsCss `shouldContain` ".roster-day-rail-section .roster-day-action-add,"
             dayActionsCss `shouldContain` "display: none;"
