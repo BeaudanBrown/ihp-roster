@@ -8,6 +8,7 @@ module Web.Timesheets.Responses
     , respondWithTimesheetWeekView
     ) where
 
+import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment (..))
 import Application.Helper.LiveUpdate (setActorLiveFragmentsRefresh)
 import Application.Helper.Profiling
@@ -41,7 +42,7 @@ respondWithTimesheetFragments :: (?context :: ControllerContext, ?modelContext :
 respondWithTimesheetFragments requestKey fragments extraHtml = do
     projection <- fetchTimesheetWeekProjection requestKey
     respondHtmlProfiled $
-        mconcat (mapMaybe (renderTimesheetProjectionFragmentFromProjection (TimesheetFragmentOob outerHtmlOobSwap) projection) (normalizeTimesheetFragments fragments)) <> extraHtml
+        mconcat (mapMaybe (renderTimesheetProjectionFragmentFromProjection (FragmentOob outerHtmlOobSwap) projection) (normalizeTimesheetFragments fragments)) <> extraHtml
 
 respondWithTimesheetActorInvalidation :: (?context :: ControllerContext, ?request :: Request) => TimesheetProjectionRequest -> [TimesheetProjectionFragment] -> Blaze.Html -> IO ()
 respondWithTimesheetActorInvalidation requestKey fragments extraHtml = do

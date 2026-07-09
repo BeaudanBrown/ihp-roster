@@ -7,16 +7,13 @@ module Web.Profiles.LeaveFragments
     , renderProfileLeaveFragment
     ) where
 
+import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchStaffLeaveRequests)
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.Profiles.LiveUpdates
 import Web.View.Profiles.Edit (renderProfileleaveRequestsContentLiveFragmentWithSwap)
-
-data FragmentRenderMode
-    = FragmentPlain
-    | FragmentOob (Maybe Text)
 
 data ProfileLeaveFragmentModel = ProfileLeaveFragmentModel
     { profileLeaveModelStaff    :: !Staff

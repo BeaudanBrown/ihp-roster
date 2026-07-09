@@ -1,6 +1,6 @@
 ---
 id: ir-nkvu
-status: open
+status: closed
 deps: [ir-e41r]
 links: []
 created: 2026-07-09T01:05:25Z
@@ -22,3 +22,9 @@ Introduce or standardize a small response mode API, e.g. PlainFragment and OobFr
 
 At least one existing plain/OOB renderer pair is collapsed. Tests cover plain and OOB output for the same fragment. Fragment GET endpoints still return plain target nodes by default. Docs clarify response modes and OOB boundaries.
 
+
+## Notes
+
+**2026-07-09T01:15:28Z**
+
+Standardized additional fragment renderers on the shared Application.Helper.FrontendContract.Surface.FragmentRender mode. Removed the timesheets-specific TimesheetFragmentRenderMode and the profiles-local duplicate FragmentRenderMode; both now use the shared FragmentPlain/FragmentOob path. Existing plain fragment GETs continue to render FragmentPlain and legacy OOB delivery uses FragmentOob explicitly. Verification: hspec-test --match Timesheets; hspec-test --match Profiles; typecheck.

@@ -1,8 +1,7 @@
 {-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 
 module Web.Timesheets.Projection
-    ( TimesheetFragmentRenderMode (..)
-    , TimesheetProjectionFragment (..)
+    ( TimesheetProjectionFragment (..)
     , TimesheetProjectionRequest (..)
     , TimesheetWeekProjection (..)
     , currentTimesheetWeekOffset
@@ -23,9 +22,9 @@ module Web.Timesheets.Projection
     , weekOffsetFromParamOrEntry
     ) where
 
+import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
 import Application.Helper.Profiling
 import Application.Helper.VenueScopedQueries (fetchLinkedActiveVenueStaff)
-import Application.Helper.View.Oob (OobSwapAttr)
 import Data.Time.Calendar (Day, addDays, diffDays)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
@@ -63,11 +62,6 @@ data TimesheetProjectionFragment
     = TimesheetProjectionToolbar
     | TimesheetProjectionDayColumns
     | TimesheetProjectionDaySection !Int
-    deriving (Eq, Show)
-
-data TimesheetFragmentRenderMode
-    = TimesheetFragmentPlain
-    | TimesheetFragmentOob !OobSwapAttr
     deriving (Eq, Show)
 
 fetchTimesheetDataForWeek :: (?modelContext :: ModelContext, ?context :: ControllerContext) => Day -> Day -> Bool -> Bool -> Maybe UUID.UUID -> IO ([TimesheetEntry], [Staff], Maybe UUID.UUID, Maybe UUID.UUID)
@@ -183,9 +177,9 @@ renderTimesheetProjectionFragment requestKey fragment =
 
 renderTimesheetWeekProjectionFragment :: (?context :: ControllerContext, ?request :: Request) => TimesheetWeekProjection -> TimesheetProjectionFragment -> Maybe Blaze.Html
 renderTimesheetWeekProjectionFragment =
-    renderTimesheetProjectionFragmentFromProjection TimesheetFragmentPlain
+    renderTimesheetProjectionFragmentFromProjection FragmentPlain
 
-renderTimesheetProjectionFragmentFromProjection :: (?context :: ControllerContext, ?request :: Request) => TimesheetFragmentRenderMode -> TimesheetWeekProjection -> TimesheetProjectionFragment -> Maybe Blaze.Html
+renderTimesheetProjectionFragmentFromProjection :: (?context :: ControllerContext, ?request :: Request) => FragmentRenderMode -> TimesheetWeekProjection -> TimesheetProjectionFragment -> Maybe Blaze.Html
 renderTimesheetProjectionFragmentFromProjection renderMode projection fragment =
     case fragment of
         TimesheetProjectionToolbar ->
@@ -196,14 +190,14 @@ renderTimesheetProjectionFragmentFromProjection renderMode projection fragment =
             Just (dayRenderer (timesheetDayRenderModelFromProjection projection dayOffset))
     where
         toolbarRenderer = case renderMode of
-            TimesheetFragmentPlain        -> renderTimesheetWeekToolbar
-            TimesheetFragmentOob swapAttr -> renderTimesheetWeekToolbarWithSwap swapAttr
+            FragmentPlain        -> renderTimesheetWeekToolbar
+            FragmentOob swapAttr -> renderTimesheetWeekToolbarWithSwap swapAttr
         columnsRenderer = case renderMode of
-            TimesheetFragmentPlain        -> renderTimesheetDayColumns
-            TimesheetFragmentOob swapAttr -> renderTimesheetDayColumnsWithSwap swapAttr
+            FragmentPlain        -> renderTimesheetDayColumns
+            FragmentOob swapAttr -> renderTimesheetDayColumnsWithSwap swapAttr
         dayRenderer = case renderMode of
-            TimesheetFragmentPlain        -> renderDaySection
-            TimesheetFragmentOob swapAttr -> renderDaySectionWithSwap swapAttr
+            FragmentPlain        -> renderDaySection
+            FragmentOob swapAttr -> renderDaySectionWithSwap swapAttr
 
 timesheetDayRenderModelFromProjection :: TimesheetWeekProjection -> Int -> TimesheetDayRenderModel
 timesheetDayRenderModelFromProjection projection dayOffset =
