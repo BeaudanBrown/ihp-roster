@@ -60,8 +60,8 @@ renderRosterTimePickerWindowForm venueConfig =
     renderFrontendSurfaceActionForm (adminVenueSettingsAction "update-venue-config") venueSettingRoute [hsx|
         <input type="hidden" name="configField" value="timePickerWindow" />
         <div class="admin-setting-row-copy">
-            <div class="fw-semibold">Time picker window</div>
-            <p class="small app-muted mb-0">Controls the selectable roster and timesheet picker times. Existing saved times outside this window remain allowed.</p>
+            <div class="fw-semibold">Valid shift window</div>
+            <p class="small app-muted mb-0">Controls the selectable roster and timesheet shift times. Existing saved times outside this window remain allowed.</p>
         </div>
         <div class="admin-setting-row-control admin-setting-row-control-wide">
             <div class="d-flex flex-wrap gap-2 align-items-end justify-content-end">
@@ -69,14 +69,14 @@ renderRosterTimePickerWindowForm venueConfig =
                     <label class="form-label small mb-1" for="venue-time-picker-start">Start</label>
                     {renderTimePickerField (defaultTimePickerConfig "timePickerStart" (venueTimePickerStartTimeText venueConfig) "00:00" "23:45" False)
                         { timePickerFieldClasses = ["admin-time-picker-field"]
-                        , timePickerAriaLabel = "Select time picker start"
+                        , timePickerAriaLabel = "Select valid shift window start"
                         }}
                 </div>
                 <div>
                     <label class="form-label small mb-1" for="venue-time-picker-end">End</label>
                     {renderTimePickerField (defaultTimePickerConfig "timePickerEnd" (venueTimePickerFinalSelectableTimeText venueConfig) "00:00" "23:45" False)
                         { timePickerFieldClasses = ["admin-time-picker-field"]
-                        , timePickerAriaLabel = "Select time picker end"
+                        , timePickerAriaLabel = "Select valid shift window end"
                         }}
                 </div>
             </div>

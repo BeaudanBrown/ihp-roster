@@ -177,7 +177,7 @@ pageHelpTopics =
     , topic "admin" "Admin"
         [ section HelpAdminPlus "Venue setup"
             [ item HelpAdminPlus "Manage venue settings, staff invitations, shift types, roster groups, and export jobs from the admin area."
-            , item HelpAdminPlus "Use venue settings to control the roster/timesheet time-picker window and default new shift times."
+            , item HelpAdminPlus "Use venue settings to control the roster/timesheet valid shift window and default new shift times."
             , item HelpAdminPlus "Keep roster groups and shift types tidy because they shape roster and timesheet choices."
             , item HelpAdminPlus "Use passkey setup emails and recovery emails to help staff regain secure access."
             ]

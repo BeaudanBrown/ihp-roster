@@ -321,7 +321,7 @@ instance Controller AdminController where
                 case (maybeStartMinute, maybeFinalSelectableMinute) of
                     (Just startMinute, Just finalSelectableMinute) | startMinute /= finalSelectableMinute -> do
                         _ <- setRosterTimePickerWindowMutation venueConfig startMinute finalSelectableMinute
-                        setSuccessMessage "Time picker window updated."
+                        setSuccessMessage "Valid shift window updated."
                         respondToVenueSettingsMutation
                     _ -> do
                         setErrorMessage "Choose different start and end times on 15-minute increments."
@@ -397,13 +397,7 @@ instance Controller AdminController where
         case maybeEmail of
             Just email -> do
                 _ <- createVenueInvitationMutation email
-                if isHtmxRequest
-                    then do
-                        invitations <- fetchCurrentVenueInvitations
-                        setSuccessMessage ("Invitation queued for " <> email)
-                        respondHtml (renderInvitesSectionFragment invitations currentRosterGroup.id)
-                    else do
-                        respondToInvitesSectionMutation ("Invitation queued for " <> email) currentRosterGroup.id
+                respondToInvitesSectionMutation ("Invitation queued for " <> email) currentRosterGroup.id
             _ ->
                 respondToInvitesSectionMutation "" currentRosterGroup.id
 

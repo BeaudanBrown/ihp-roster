@@ -64,8 +64,13 @@ renderRosterGroupsInactiveSummary rosterGroups showInactive = [hsx|
             , actionRouteFields = [FrontendSurfaceFieldValue "showInactiveRosterGroups" (if showInactive then "false" else "true")]
             , actionRouteCustomHtmx = []
             , actionRouteStandardUrl = Just toggleHref
-            , actionRouteExtraAttrs = [("class", "btn btn-sm btn-outline-secondary"), ("role", "switch"), ("aria-checked", if showInactive then "true" else "false")]
+            , actionRouteExtraAttrs = [("class", toggleClass), ("role", "switch"), ("aria-checked", if showInactive then "true" else "false")]
             }
+        toggleClass = classes
+            [ ("btn app-toggle-button btn-sm", True)
+            , ("btn-success", showInactive)
+            , ("btn-outline-success", not showInactive)
+            ]
 
 renderRosterGroupCreateForm :: Bool -> Html
 renderRosterGroupCreateForm showInactive =

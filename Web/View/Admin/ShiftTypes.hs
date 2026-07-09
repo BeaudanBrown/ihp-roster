@@ -69,8 +69,13 @@ renderShiftTypesInactiveSummary shiftTypes showInactive = [hsx|
             , actionRouteFields = [FrontendSurfaceFieldValue "showInactiveShiftTypes" (if showInactive then "false" else "true")]
             , actionRouteCustomHtmx = []
             , actionRouteStandardUrl = Just toggleHref
-            , actionRouteExtraAttrs = [("class", "btn btn-sm btn-outline-secondary"), ("role", "switch"), ("aria-checked", if showInactive then "true" else "false")]
+            , actionRouteExtraAttrs = [("class", toggleClass), ("role", "switch"), ("aria-checked", if showInactive then "true" else "false")]
             }
+        toggleClass = classes
+            [ ("btn app-toggle-button btn-sm", True)
+            , ("btn-success", showInactive)
+            , ("btn-outline-success", not showInactive)
+            ]
 
 renderShiftTypeCreateForm :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Html
 renderShiftTypeCreateForm _shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems =
