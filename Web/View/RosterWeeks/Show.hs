@@ -51,6 +51,7 @@ renderRosterWeekShell ShowView { .. } =
                         , gridPublicHolidays = publicHolidays
                         , gridPublishAttempted = False
                         , gridViewMode = rosterGridViewMode
+                        , gridTimelineTodayUrl = rosterTimelineTodayUrl
                         }
                     ]
             })

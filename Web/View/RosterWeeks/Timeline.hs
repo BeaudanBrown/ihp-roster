@@ -205,7 +205,7 @@ timelineQuarterHours :: [Int]
 timelineQuarterHours = [rosterOperationalStartMinuteOfDay, rosterOperationalStartMinuteOfDay + 15 .. rosterOperationalStartMinuteOfDay + rosterTimelineTotalMinutes - 15]
 
 timelineHourTicks :: [Int]
-timelineHourTicks = [rosterOperationalStartMinuteOfDay, rosterOperationalStartMinuteOfDay + 60 .. rosterOperationalStartMinuteOfDay + rosterTimelineTotalMinutes]
+timelineHourTicks = [rosterOperationalStartMinuteOfDay, rosterOperationalStartMinuteOfDay + 60 .. rosterOperationalStartMinuteOfDay + rosterTimelineTotalMinutes - 60]
 
 rosterTimelineTotalMinutes :: Int
 rosterTimelineTotalMinutes = 24 * 60

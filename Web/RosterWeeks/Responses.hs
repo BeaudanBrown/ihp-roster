@@ -100,6 +100,7 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
                             , gridPublicHolidays = rosterPublicHolidays
                             , gridPublishAttempted = False
                             , gridViewMode = currentRosterGridViewMode
+                            , gridTimelineTodayUrl = Nothing
                             }
 
 respondWithRosterContentUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO ()
@@ -147,6 +148,7 @@ respondWithRosterContentToast rosterGroupId weekOffset publishAttempted toast = 
                                 , gridPublicHolidays = rosterPublicHolidays
                                 , gridPublishAttempted = publishAttempted
                                 , gridViewMode = currentRosterGridViewMode
+                                , gridTimelineTodayUrl = Nothing
                                 }
             , renderToastOob ToastBottomCenter toast
             ]

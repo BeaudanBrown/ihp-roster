@@ -223,6 +223,7 @@ rosterGridRenderModelFromProjectionWithGroups rosterGroups currentRosterGroup vi
         , gridPublicHolidays = rosterPublicHolidays
         , gridPublishAttempted = False
         , gridViewMode = gridViewMode
+        , gridTimelineTodayUrl = Nothing
         }
 
 currentRosterGridViewMode :: (?request :: Request) => RosterGridViewMode

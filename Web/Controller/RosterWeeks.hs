@@ -1343,6 +1343,14 @@ currentRosterTimelineDayOffset = case currentRosterGridViewMode of
     RosterDayTimelineGridView dayOffset -> Just dayOffset
     RosterWeekGridView                  -> Nothing
 
+buildRosterTimelineTodayUrl :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> IO Text
+buildRosterTimelineTodayUrl rosterGroupId = do
+    venueConfig <- fetchVenueConfig
+    today <- utctDay <$> getCurrentTime
+    let currentWeekOffset = venueWeekOffsetForDay venueConfig today
+        todayDayOffset = fromInteger (Calendar.diffDays today (venueWeekStartDate venueConfig currentWeekOffset))
+    pure (rosterDayTimelineUrl currentWeekOffset rosterGroupId (max 0 (min 6 todayDayOffset)))
+
 renderRosterWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Int -> Id RosterGroup -> IO ()
 renderRosterWeekPage weekOffset requestedRosterGroupId =
     profileActionSpan "roster.page.render" do
@@ -1355,6 +1363,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId =
         _ <- profileActionSpan "roster.page.ensure_week_exists" (ensureRosterWeekExists currentRosterGroup.id weekOffset)
         rosterDataOrNothing <- profileActionSpan "roster.page.fetch_read_model" (fetchVisibleRosterReadModel currentRosterGroup.id weekOffset)
         passkeySetupPrompt <- profileActionSpan "roster.page.passkey_prompt" passkeySetupPromptFromSession
+        timelineTodayUrl <- profileActionSpan "roster.page.timeline_today_url" (buildRosterTimelineTodayUrl currentRosterGroup.id)
 
         case rosterDataOrNothing of
             Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } ->
@@ -1391,6 +1400,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId =
                                 , publicHolidays = rosterPublicHolidays
                                 , passkeySetupPrompt
                                 , rosterGridViewMode = currentRosterGridViewMode
+                                , rosterTimelineTodayUrl = Just timelineTodayUrl
                                 }
             Nothing ->
                 error "Roster week should exist after ensureRosterWeekExists"

@@ -57,14 +57,14 @@ rosterWeekShellSyncRoute actionUrl =
         { actionRouteCustomHtmx = [rosterWeekShellSync]
         }
 
-renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> Day -> RosterViewCapabilities -> RosterLayoutModeEnum -> Bool -> Maybe RosterWagePrediction -> Bool -> Bool -> Bool -> RosterGridViewMode -> Html
-renderRosterGridHeader maybeRosterWeek rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters weekStartDate viewCapabilities rosterLayoutMode _rosterEndTimesEnabled rosterWagePrediction showWageEstimates showRosterWarnings canToggleFullscreen gridViewMode =
+renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> Day -> RosterViewCapabilities -> RosterLayoutModeEnum -> Bool -> Maybe RosterWagePrediction -> Bool -> Bool -> Bool -> RosterGridViewMode -> Maybe Text -> Html
+renderRosterGridHeader maybeRosterWeek rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters weekStartDate viewCapabilities rosterLayoutMode _rosterEndTimesEnabled rosterWagePrediction showWageEstimates showRosterWarnings canToggleFullscreen gridViewMode timelineTodayUrl =
     renderWeekToolbar WeekToolbarConfig
         { weekToolbarVariant = WeekToolbarRoster
         , weekToolbarAriaLabel = "Roster week controls"
         , weekToolbarExtraClass = "roster-grid-header"
         , weekToolbarPrimary = renderLiveToggle maybeRosterWeek viewCapabilities
-        , weekToolbarReset = renderThisWeekButton gridViewMode weekStartDate currentRosterGroup
+        , weekToolbarReset = renderThisWeekButton gridViewMode weekStartDate currentRosterGroup timelineTodayUrl
         , weekToolbarNavigation = renderRosterWeekControls weekOffset currentRosterGroup weekStartDate gridViewMode
         , weekToolbarSettings = mconcat
             [ when canToggleFullscreen renderRosterFullscreenToggle
@@ -170,8 +170,8 @@ renderLiveToggle (Just rosterWeek) viewCapabilities
     | viewCapabilities.canToggleRosterLive = renderLiveToggleForm rosterWeek
 renderLiveToggle _ _ = mempty
 
-renderThisWeekButton :: (?context :: ControllerContext) => RosterGridViewMode -> Day -> RosterGroup -> Html
-renderThisWeekButton gridViewMode _weekStartDate currentRosterGroup =
+renderThisWeekButton :: (?context :: ControllerContext) => RosterGridViewMode -> Day -> RosterGroup -> Maybe Text -> Html
+renderThisWeekButton gridViewMode _weekStartDate currentRosterGroup timelineTodayUrl =
     renderPartialNavigationLink
         PartialNavigationLink
             { partialNavigationLabel = resetLabel
@@ -188,7 +188,7 @@ renderThisWeekButton gridViewMode _weekStartDate currentRosterGroup =
             RosterDayTimelineGridView _ -> "Today"
             RosterWeekGridView          -> "This week"
         thisWeekUrl = case gridViewMode of
-            RosterDayTimelineGridView _ -> appendQueryParams (pathTo RosterWeeksAction) [("rosterGroupId", tshow currentRosterGroup.id), ("rosterView", "timeline")]
+            RosterDayTimelineGridView _ -> fromMaybe (appendQueryParams (pathTo RosterWeeksAction) [("rosterGroupId", tshow currentRosterGroup.id), ("rosterView", "timeline")]) timelineTodayUrl
             RosterWeekGridView -> pathTo RosterWeeksAction
 
 renderRosterWeekMoreMenu :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> RosterViewCapabilities -> RosterLayoutModeEnum -> Bool -> Bool -> RosterGridViewMode -> Html

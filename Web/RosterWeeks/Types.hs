@@ -28,32 +28,33 @@ import IHP.Prelude
 import Web.Types (PasskeySetupPromptMode)
 
 data ShowView = ShowView
-    { rosterWeek            :: Maybe RosterWeek
-    , rosterDays            :: [RosterDay]
-    , weekOffset            :: Int
-    , rosterGroups          :: [RosterGroup]
-    , currentRosterGroup    :: RosterGroup
-    , weekStartDate         :: Day
-    , weekEndDate           :: Day
-    , assignmentFilters     :: RosterAssignmentFilters
-    , staffMembers          :: [Staff]
-    , panelStaff            :: [RosterStaffPanelEntry]
-    , staffSelfServicePanel :: Maybe RosterStaffSelfServicePanel
-    , slotNames             :: [RosterWeekSlotDefinition]
-    , allSlots              :: [RosterSlot]
-    , slotConflicts         :: [(Id RosterSlot, [RosterConflict])]
-    , renderIndexes         :: RosterRenderIndexes
-    , surfaceScope          :: Maybe SurfaceScope
-    , viewCapabilities      :: RosterViewCapabilities
-    , rosterLayoutMode      :: RosterLayoutModeEnum
-    , rosterEndTimesEnabled :: Bool
-    , rosterWagePrediction  :: Maybe RosterWagePrediction
-    , showWageEstimates     :: Bool
-    , showRosterWarnings    :: Bool
-    , publicHolidays        :: Map Day Text
-    , shiftTypes            :: [ShiftType]
-    , passkeySetupPrompt    :: Maybe PasskeySetupPromptMode
-    , rosterGridViewMode    :: RosterGridViewMode
+    { rosterWeek             :: Maybe RosterWeek
+    , rosterDays             :: [RosterDay]
+    , weekOffset             :: Int
+    , rosterGroups           :: [RosterGroup]
+    , currentRosterGroup     :: RosterGroup
+    , weekStartDate          :: Day
+    , weekEndDate            :: Day
+    , assignmentFilters      :: RosterAssignmentFilters
+    , staffMembers           :: [Staff]
+    , panelStaff             :: [RosterStaffPanelEntry]
+    , staffSelfServicePanel  :: Maybe RosterStaffSelfServicePanel
+    , slotNames              :: [RosterWeekSlotDefinition]
+    , allSlots               :: [RosterSlot]
+    , slotConflicts          :: [(Id RosterSlot, [RosterConflict])]
+    , renderIndexes          :: RosterRenderIndexes
+    , surfaceScope           :: Maybe SurfaceScope
+    , viewCapabilities       :: RosterViewCapabilities
+    , rosterLayoutMode       :: RosterLayoutModeEnum
+    , rosterEndTimesEnabled  :: Bool
+    , rosterWagePrediction   :: Maybe RosterWagePrediction
+    , showWageEstimates      :: Bool
+    , showRosterWarnings     :: Bool
+    , publicHolidays         :: Map Day Text
+    , shiftTypes             :: [ShiftType]
+    , passkeySetupPrompt     :: Maybe PasskeySetupPromptMode
+    , rosterGridViewMode     :: RosterGridViewMode
+    , rosterTimelineTodayUrl :: Maybe Text
     }
 
 data RosterGridViewMode
@@ -177,6 +178,7 @@ data RosterGridRenderModel = RosterGridRenderModel
     , gridPublicHolidays        :: Map Day Text
     , gridPublishAttempted      :: Bool
     , gridViewMode              :: RosterGridViewMode
+    , gridTimelineTodayUrl      :: Maybe Text
     }
 
 data RosterDayRenderModel = RosterDayRenderModel
