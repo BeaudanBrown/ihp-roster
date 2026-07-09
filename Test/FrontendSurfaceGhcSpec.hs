@@ -228,6 +228,7 @@ timesheetsRawRegistry =
                     , raw "Live" []
                     , dependsOn "TimesheetDay" [field "VenueId" "WireUUID", field "WeekOffset" "WireInt", field "DayOffset" "WireInt"] [fromScope "VenueId", fromScope "WeekOffset", fromFragment "DayOffset"]
                     , dependsOn "TimesheetWeekBoundaryConfig" [field "VenueId" "WireUUID"] [fromScope "VenueId"]
+                    , dependsOn "TimePickerConfig" [field "VenueId" "WireUUID"] [fromScope "VenueId"]
                     ]
                 ]
             , raw "Action" [marker "NavigateTimesheetWeek", promotedList timesheetActionFieldsRaw, promotedList (timesheetGetOptions "week navigation serializes through the timesheet week shell with hx-sync=closest shell:replace")]
@@ -368,6 +369,7 @@ timesheetWeekDependencyOptions :: [RawType]
 timesheetWeekDependencyOptions =
     [ dependsOn "TimesheetWeek" [field "VenueId" "WireUUID", field "WeekOffset" "WireInt"] [fromScope "VenueId", fromScope "WeekOffset"]
     , dependsOn "TimesheetWeekBoundaryConfig" [field "VenueId" "WireUUID"] [fromScope "VenueId"]
+    , dependsOn "TimePickerConfig" [field "VenueId" "WireUUID"] [fromScope "VenueId"]
     ]
 
 rosterWeekResourceDependency :: RawType

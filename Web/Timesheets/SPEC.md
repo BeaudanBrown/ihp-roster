@@ -11,6 +11,12 @@ lands.
   are excluded from manual timesheet staff selectors and manager staff filters,
   and tampered create/update requests that target trial staff are rejected.
 - Time inputs must be exact 15-minute increments.
+- Timesheet start/end/break pickers use the venue-configured time-picker window.
+  New manual entries default to the venue picker start time and an 8-hour end
+  time clamped to the configured picker end when the window is shorter than 8
+  hours. Existing saved times outside the picker window remain valid/displayed;
+  picker +/- buttons stay unavailable until the field is changed to an
+  in-window option.
 - Leave `end_date` style conventions do not apply to timesheet worked dates;
   each entry has a concrete worked date and start/end/break data.
 - Managers/admins can review and approve according to controller role checks.

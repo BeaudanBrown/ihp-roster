@@ -101,20 +101,29 @@ lands.
 - Each visible day exposes a timeline entry link. The single-day timeline is a
   URL-scoped view mode of the normal roster week page
   (`rosterView=timeline&dayOffset=<0-6>`), so the roster controls and staff side
-  panel remain visible while only the main roster frame swaps. It uses a
-  horizontal 06:00-to-05:45 operational time axis and outer lanes based on active
-  `roster_week_slot_definitions` sorted by roster-week order.
+  panel remain visible while only the main roster frame swaps. It uses the
+  venue-configured time-picker window for its horizontal time axis and editable
+  15-minute dropzones, with outer lanes based on active
+  `roster_week_slot_definitions` sorted by roster-week order. Existing shifts
+  outside the current picker window remain renderable and are clamped into the
+  visible timeline track rather than being deleted or rejected solely because of
+  the window.
 - Timeline overlap tracks are display-only. They are computed from rendered shift
   intervals within a slot-definition lane and do not persist or redefine
   `row_index`.
 - Editable draft timelines render 15-minute server-owned dropzones per
-  slot-definition lane. Dragging an existing staffed shift to a timeline target
+  slot-definition lane within the venue picker window. Dragging an existing staffed shift to a timeline target
   preserves its duration, changes start/end times, and changes
   `roster_week_slot_definition_id` when dropped in another lane.
 - Timeline drag persistence preserves the source `row_index` when the target
   slot-definition cell is free, otherwise it uses the first free row. Invalid
   targets, live weeks, closed days, unstaffed shifts, and shifts without complete
   start/end times are rejected server-side.
+- New roster shift dialogs default to the venue picker start time and an
+  8-hour end time clamped to the configured picker end when the window is
+  shorter than 8 hours. Existing saved shift times outside the picker window
+  remain valid/displayed; picker +/- buttons stay unavailable until the field is
+  changed to an in-window option.
 - Timeline resize handles, creating shifts, deleting shifts, configurable
   slot-definition titles, staff reassignment, and live-roster editing are not
   part of the implemented timeline contract.

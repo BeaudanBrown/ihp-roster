@@ -127,8 +127,8 @@ pageHelpTopics =
             , item HelpEveryone "Warnings highlight conflicts such as leave, availability, or roster rule issues when they are enabled."
             ]
         , section HelpManagerPlus "Planning shifts"
-            [ item HelpManagerPlus "Create or edit shifts from empty cells or existing shifts while the roster is still draft."
-            , item HelpManagerPlus "In day-column layout, drag a shift to move it to another slot, row, or day."
+            [ item HelpManagerPlus "Create or edit shifts from empty cells or existing shifts while the roster is still draft. New shifts use the venue time-picker defaults."
+            , item HelpManagerPlus "In day-column or timeline layout, drag a shift to move it to another slot, row, time, or day."
             , item HelpManagerPlus "Hold Ctrl on Windows/Linux, or Option/Alt on macOS, while dragging to copy instead of move."
             , item HelpManagerPlus "Use settings to change layout, show warnings, show wage estimates, and control assignment prevention filters."
             , item HelpManagerPlus "Copy previous week and sort tools help prepare a draft before it goes live."
@@ -153,7 +153,7 @@ pageHelpTopics =
     , topic "timesheets" "Timesheets"
         [ section HelpEveryone "Entering time"
             [ item HelpEveryone "Use week navigation to review the correct pay week."
-            , item HelpEveryone "Add or edit entries with start and end times; times are rounded to the configured 15-minute increment rules."
+            , item HelpEveryone "Add or edit entries with start and end times; new entries use the venue time-picker defaults and times must stay on 15-minute increments."
             , item HelpEveryone "Record breaks when a break was taken, including break start and end times where required."
             , item HelpEveryone "Approved entries may be locked from normal editing so payroll records stay traceable."
             ]
@@ -177,6 +177,7 @@ pageHelpTopics =
     , topic "admin" "Admin"
         [ section HelpAdminPlus "Venue setup"
             [ item HelpAdminPlus "Manage venue settings, staff invitations, shift types, roster groups, and export jobs from the admin area."
+            , item HelpAdminPlus "Use venue settings to control the roster/timesheet time-picker window and default new shift times."
             , item HelpAdminPlus "Keep roster groups and shift types tidy because they shape roster and timesheet choices."
             , item HelpAdminPlus "Use passkey setup emails and recovery emails to help staff regain secure access."
             ]

@@ -52,7 +52,10 @@ data TimesheetWeekShellSyncCustomHtmx
 
 type TimesheetDayResource = Resource TimesheetDay '[ Field VenueId 'WireUUID, Field WeekOffset 'WireInt, Field DayOffset 'WireInt ]
 type TimesheetWeekResource = Resource TimesheetWeek '[ Field VenueId 'WireUUID, Field WeekOffset 'WireInt ]
+data TimePickerConfig
+
 type TimesheetWeekBoundaryConfigResource = Resource TimesheetWeekBoundaryConfig '[ Field VenueId 'WireUUID ]
+type TimePickerConfigResource = Resource TimePickerConfig '[ Field VenueId 'WireUUID ]
 
 type TimesheetScopeBundle =
     '[ Scope TimesheetWeek
@@ -119,6 +122,7 @@ type TimesheetFragmentBundle =
          , 'Live
          , 'DependsOn TimesheetWeekResource '[ 'FromScope VenueId, 'FromScope WeekOffset ]
          , 'DependsOn TimesheetWeekBoundaryConfigResource '[ 'FromScope VenueId ]
+         , 'DependsOn TimePickerConfigResource '[ 'FromScope VenueId ]
          ]
      , Fragment TimesheetDayColumns
         '[]
@@ -126,6 +130,7 @@ type TimesheetFragmentBundle =
          , 'Live
          , 'DependsOn TimesheetWeekResource '[ 'FromScope VenueId, 'FromScope WeekOffset ]
          , 'DependsOn TimesheetWeekBoundaryConfigResource '[ 'FromScope VenueId ]
+         , 'DependsOn TimePickerConfigResource '[ 'FromScope VenueId ]
          ]
      , Fragment TimesheetDaySection
         '[ Field DayOffset 'WireInt ]
@@ -133,6 +138,7 @@ type TimesheetFragmentBundle =
          , 'Live
          , 'DependsOn TimesheetDayResource '[ 'FromScope VenueId, 'FromScope WeekOffset, 'FromFragment DayOffset ]
          , 'DependsOn TimesheetWeekBoundaryConfigResource '[ 'FromScope VenueId ]
+         , 'DependsOn TimePickerConfigResource '[ 'FromScope VenueId ]
          ]
      ]
 

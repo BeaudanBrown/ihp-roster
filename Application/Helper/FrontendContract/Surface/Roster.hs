@@ -150,7 +150,6 @@ type RosterFragmentBundle =
          , 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ]
          , 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ]
          , 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ]
-         , 'DependsOn TimePickerConfigResource '[ 'FromScope VenueId ]
          , 'Contains RosterGridToolbar
          , 'Contains RosterGridFrame
          ]
@@ -161,7 +160,6 @@ type RosterFragmentBundle =
          , 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ]
          , 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ]
          , 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ]
-         , 'DependsOn TimePickerConfigResource '[ 'FromScope VenueId ]
          ]
      , Fragment RosterGridFrame
         '[]
@@ -170,7 +168,6 @@ type RosterFragmentBundle =
          , 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ]
          , 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ]
          , 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ]
-         , 'DependsOn TimePickerConfigResource '[ 'FromScope VenueId ]
          , 'Contains RosterDayColumns
          , 'Contains RosterDayRail
          , 'Contains RosterWageRail
