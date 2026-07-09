@@ -1,6 +1,6 @@
 ---
 id: ir-momf
-status: open
+status: closed
 deps: [ir-z1tz, ir-2ur7]
 links: []
 created: 2026-07-09T01:32:04Z

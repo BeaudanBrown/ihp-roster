@@ -73,6 +73,18 @@ lands.
 - Day-column draft/editable and live/read-only cards use the same compact shift
   type badge shape. Editable badges remain select controls; read-only badges do
   not present interactive affordance.
+- In editable day-column layout, each open day column is the drag/drop target.
+  Hovering a compatible dragged shift highlights the whole day column using the
+  add-shift success visual style; the `+ Add shift` card remains a create-dialog
+  launcher but is not the drop target owner.
+- Dropping a shift onto an open day-column target moves the shift to that day.
+  The server chooses the first available backing slot cell, grows the day row
+  count when all existing cells are occupied, and the compact day-column render
+  then sorts visible cards by the normal day-column order.
+- Dropping a shift onto its own day-column target is a silent no-op. Holding the
+  platform-native copy modifier duplicates instead: Ctrl on Windows/Linux and
+  Option/Alt on macOS. Copying onto the same day is allowed and creates a new
+  copied shift in the first available/grown backing cell.
 - Shift type badges show the assigned shift type name. Shift types with a
   palette colour key render a small persisted colour marker; blank colour keys
   render without a colour highlight. Unassigned shifts show `Role`; staffed
