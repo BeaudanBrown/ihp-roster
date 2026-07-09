@@ -38,24 +38,16 @@
 }
 
 .roster-grid-header[data-bepis-dropzone-ref="delete-shift-dropzone"]::after {
-    content: "×";
+    content: "";
     position: absolute;
     inset: 0;
     z-index: 10;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     border: 1px solid color-mix(in srgb, var(--bs-danger) 58%, transparent);
     border-radius: inherit;
     background: color-mix(in srgb, var(--bs-danger) 8%, transparent);
-    color: var(--bs-danger);
-    font-size: clamp(3.4rem, 8vw, 5.4rem);
-    font-weight: 900;
-    line-height: 1;
     opacity: 0;
     pointer-events: none;
-    text-shadow: 0 0.08em 0.18em var(--app-shadow-md-raw);
-    transition: opacity 140ms ease, background 140ms ease, box-shadow 140ms ease, border-color 140ms ease, color 140ms ease;
+    transition: opacity 140ms ease, background 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
 }
 
 html[data-bepis-active-source-ref="shift-drag-source"] .roster-grid-header[data-bepis-dropzone-ref="delete-shift-dropzone"]::after {
@@ -73,5 +65,4 @@ html[data-bepis-active-source-ref="shift-drag-source"] .roster-grid-header[data-
 .roster-grid-header[data-bepis-dropzone-ref="delete-shift-dropzone"].bepis-dropzone-highlight::after {
     border-color: var(--bs-danger);
     background: color-mix(in srgb, var(--bs-danger) 16%, transparent);
-    color: var(--bs-danger-text-emphasis);
 }

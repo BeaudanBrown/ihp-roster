@@ -1352,27 +1352,17 @@ resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId = do
 
 respondWithDeleteRosterSlotDropConfirmation :: (?context :: ControllerContext, ?request :: Request) => RosterSlot -> IO ()
 respondWithDeleteRosterSlotDropConfirmation rosterSlot =
-    let dialog = renderDialogOverlay DialogOverlayConfig
-            { dialogOverlayTitle = "Delete shift?"
-            , dialogOverlayBody = [hsx|<p class="mb-0">Delete this shift?</p>|]
-            , dialogOverlayStartButtons = []
-            , dialogOverlayButtons =
-                [ OverlayButton
-                    { overlayButtonLabel = "Cancel"
-                    , overlayButtonClass = "btn btn-outline-secondary"
-                    , overlayButtonAction = OverlayCloseAction
-                    }
-                , OverlayButton
-                    { overlayButtonLabel = "Delete shift"
-                    , overlayButtonClass = "btn btn-danger"
-                    , overlayButtonAction = GeneratedDialogFormAction (appShellActionByMarker @DeleteRosterSlotOverlay) (rosterDeleteSlotActionRoute (pathTo (DeleteRosterSlotAction rosterSlot.id))) [] (Just "Delete this shift?")
-                    }
-                ]
-            , dialogOverlayDialogClass = ""
-            }
-     in respondHtmlProfiled [hsx|
+    respondHtmlProfiled [hsx|
         <div id={dialogOverlayMountId} hx-swap-oob="innerHTML">
-            {dialog}
+            {renderAppShellActionForm
+                (appShellActionByMarker @DeleteRosterSlotOverlay)
+                (rosterDeleteSlotActionRoute (pathTo (DeleteRosterSlotAction rosterSlot.id)))
+                    { appShellActionRouteExtraAttrs =
+                        [ ("class", "d-none")
+                        , ("hx-trigger", "load")
+                        ]
+                    }
+                mempty}
         </div>
     |]
 
