@@ -314,6 +314,7 @@ isAllowedInfrastructureFile path =
     path
         `elem`
             [ "Application/Helper/FrontendContract/AppValues.hs"
+            , "Application/Helper/FrontendContract/AppShell/Runtime.hs"
             , "Application/Helper/FrontendContract/Contracts.hs"
             , "Application/Helper/FrontendContract/RosterValues.hs"
             , "Application/Helper/FrontendContract/Values.hs"

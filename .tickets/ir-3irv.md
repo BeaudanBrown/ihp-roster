@@ -1,6 +1,6 @@
 ---
 id: ir-3irv
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-07-09T01:05:25Z
@@ -21,3 +21,9 @@ Model repeated UI regions as fragment kind + typed params + target id + URL, wit
 
 Parameterized fragments/resources are documented and tested as the preferred FrontendSurface pattern for repeated regions. Actor refresh can be driven by touched resources and matches passive invalidation planning. Fragment response mode is standardized for plain vs OOB delivery. Leave requests, roster, timesheets, SurfaceLab, profile/staff, and applicable admin/support/billing surfaces are migrated or explicitly marked non-applicable with rationale. No successful migrated FrontendSurface business refresh relies on authoritative actor OOB HTML. Final inventory confirms no applicable surface remains unmigrated. Required verification passes.
 
+
+## Notes
+
+**2026-07-09T01:55:32Z**
+
+Epic complete. Parameterized FrontendSurface helpers, resource-driven actor refresh, shared fragment response mode, leave-section parameterization, existing parameterized surface helper migrations, applicability classification, docs, final sweep, and final verification are complete. Final verification: typecheck, full hspec-test, frontend-check, and doc-drift-check passed.

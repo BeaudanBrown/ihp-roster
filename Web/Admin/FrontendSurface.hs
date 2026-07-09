@@ -321,7 +321,7 @@ adminSurfaceWireFragments fragments =
     concatMap fragmentsForSurface groupedFragments
     where
         groupedFragments =
-            [ ("admin-venue-config", [fragment | fragment <- fragments, fragment.mountedFragmentKey.fragmentKind == "admin-venue-config"])
+            [ ("admin-venue-config", [fragment | fragment <- fragments, fragment.mountedFragmentKey.fragmentKind == "admin-venue-settings"])
             , ("admin-invites", [fragment | fragment <- fragments, fragment.mountedFragmentKey.fragmentKind == "admin-invites"])
             , ("admin-exports", [fragment | fragment <- fragments, fragment.mountedFragmentKey.fragmentKind == "admin-exports"])
             , ("admin-shift-types", [fragment | fragment <- fragments, fragment.mountedFragmentKey.fragmentKind == "admin-shift-types"])
@@ -333,7 +333,7 @@ adminSurfaceWireFragments fragments =
 adminPageContentFragment, adminXeroPageContentFragment, adminVenueSettingsFragment, adminExportsFragment, adminShiftTypesFragment, adminRosterGroupsFragment, adminXeroShellFragment, adminXeroStaffMappingsFragment, adminXeroPayItemsFragment, adminXeroTimesheetsFragment :: FrontendSurfaceMountedFragment
 adminPageContentFragment = fragment "admin-page-content" "admin-page-content-fragment" (pathTo AdminAction) FrontendSurfaceReplace
 adminXeroPageContentFragment = fragment "admin-xero-page-content" "admin-xero-page-content-fragment" (pathTo XeroAction) FrontendSurfaceReplace
-adminVenueSettingsFragment = fragment "admin-venue-config" "admin-venue-settings-fragment" (pathTo ShowAdminVenueSettingsFragmentAction) FrontendSurfaceReplace
+adminVenueSettingsFragment = fragment "admin-venue-settings" "admin-venue-settings-fragment" (pathTo ShowAdminVenueSettingsFragmentAction) FrontendSurfaceReplace
 adminExportsFragment = fragment "admin-exports" "admin-exports-fragment" (pathTo ShowadminExportsLiveFragmentAction) FrontendSurfaceReplace
 adminShiftTypesFragment = fragment "admin-shift-types" "admin-shift-types-fragment" (pathTo ShowadminShiftTypesLiveFragmentAction) (FrontendSurfaceFocusedFieldConfig FrontendSurfaceFocusedFieldProtectionConfig { focusedProtectionActiveSelector = "input[data-admin-shift-type-field-key]:focus", focusedProtectionFieldKeyAttr = "data-admin-shift-type-field-key", focusedProtectionFieldNameFallback = True, focusedProtectionContainerSelector = Just "form[data-admin-shift-type-row]" })
 adminRosterGroupsFragment = fragment "admin-roster-groups" "admin-roster-groups-fragment" (pathTo ShowadminRosterGroupsLiveFragmentAction) FrontendSurfaceReplace

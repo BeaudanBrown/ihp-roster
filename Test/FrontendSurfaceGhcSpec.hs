@@ -230,6 +230,10 @@ timesheetsRawRegistry =
                     , dependsOn "TimesheetWeekBoundaryConfig" [field "VenueId" "WireUUID"] [fromScope "VenueId"]
                     ]
                 ]
+            , raw "Action" [marker "NavigateTimesheetWeek", promotedList timesheetActionFieldsRaw, promotedList (timesheetGetOptions "week navigation serializes through the timesheet week shell with hx-sync=closest shell:replace")]
+            , raw "Action" [marker "UpdateTimesheetFilters", promotedList timesheetActionFieldsRaw, promotedList (timesheetGetOptions "filter changes serialize through the timesheet week shell with hx-sync=closest shell:replace")]
+            , raw "Action" [marker "ApproveTimesheetEntry", promotedList timesheetActionFieldsRaw, promotedList timesheetPostOptions]
+            , raw "Action" [marker "UnapproveTimesheetEntry", promotedList timesheetActionFieldsRaw, promotedList timesheetPostOptions]
             ]
         ]
 
@@ -263,6 +267,7 @@ rosterRawRegistry =
             , raw "Fragment" [marker "RosterWageRail", promotedList [], promotedList ([raw "Eager" [], raw "Live" []] <> rosterWeekDependencyOptions)]
             , raw "Fragment" [marker "RosterSlotsGrid", promotedList [], promotedList ([raw "Eager" [], raw "Live" []] <> rosterWeekDependencyOptions)]
             , raw "Fragment" [marker "RosterStaffPanel", promotedList [], promotedList [raw "Lazy" [promotedList [raw "DependsOnFragment" [marker "RosterContent"]]], raw "Live" [], rosterWeekResourceDependency]]
+            , raw "Fragment" [marker "RosterWeekOverview", promotedList [], promotedList [raw "Lazy" [promotedList [raw "DependsOnFragment" [marker "RosterContent"]]], rosterWeekResourceDependency]]
             , raw "Fragment"
                 [ marker "RosterDaySection"
                 , promotedList [field "RosterDayId" "WireUUID"]
@@ -273,6 +278,20 @@ rosterRawRegistry =
                 , promotedList [field "RosterDayId" "WireUUID", field "RowIndex" "WireInt"]
                 , promotedList ([raw "Lazy" [promotedList [raw "DependsOnFragment" [marker "RosterDaySection"]]], raw "Live" []] <> rosterDayDependencyOptions)
                 ]
+            , raw "Action" [marker "NavigateRosterWeek", promotedList [field "WeekOffset" "WireInt", field "RosterGroupId" "WireUUID"], promotedList [raw "HtmxMethod" [raw "HtmxGet" []], raw "HtmxTarget" [marker "RosterWeekShell"], raw "HtmxPushUrl" [raw "HtmxPushUrlTrue" []], rosterShellSyncCustomHtmx "roster week navigation serializes through the stable roster week shell"]]
+            , raw "Action" [marker "ToggleRosterWarnings", promotedList [field "ShowRosterWarnings" "WireBool"], promotedList (rosterPostNoneOptions "preference toggles serialize through the stable roster week shell")]
+            , raw "Action" [marker "ToggleRosterWageEstimates", promotedList [field "ShowWageEstimates" "WireBool"], promotedList (rosterPostNoneOptions "preference toggles serialize through the stable roster week shell")]
+            , raw "Action" [marker "SortRosterWeek", promotedList [], promotedList (rosterPostTargetNoneOptions "RosterContent" "sort mutations serialize through the stable roster week shell")]
+            , raw "Action" [marker "ToggleRosterWeekLiveStatus", promotedList [field "IsLive" "WireBool"], promotedList [raw "HtmxMethod" [raw "HtmxPost" []], raw "HtmxTarget" [marker "RosterContent"], raw "HtmxSwap" [marker "OuterHTML"], raw "HtmxPushUrl" [raw "HtmxPushUrlFalse" []], rosterShellSyncCustomHtmx "live toggle serializes through the stable roster week shell"]]
+            , raw "Action" [marker "ToggleRosterAssignmentFilters", promotedList [field "HideStaffAtIdealShifts" "WireBool", field "HideStaffUnavailable" "WireBool", field "HideStaffOnApprovedLeave" "WireBool", field "HideStaffAlreadyAssignedToday" "WireBool"], promotedList (rosterPostNoneOptions "assignment filter toggles serialize through the stable roster week shell")]
+            , raw "Action" [marker "CopyRosterWeek", promotedList [], promotedList (rosterPostTargetOuterHtmlOptions "RosterContent" "copy mutations serialize through the stable roster week shell" <> [raw "CustomHtmx" [marker "CopyRosterWeekCustomHtmx", symbol "copy previous week requires a destructive overwrite confirmation"]])]
+            , raw "Action" [marker "CreateRosterSelfServiceLeaveRequest", promotedList [field "StartDate" "WireDay", field "EndDate" "WireDay", field "Reason" "WireText"], promotedList [raw "HtmxMethod" [raw "HtmxPost" []], raw "HtmxTarget" [marker "RosterStaffSelfServiceLeaveFormFragment"], raw "HtmxSwap" [marker "OuterHTML"], raw "HtmxPushUrl" [raw "HtmxPushUrlFalse" []]]]
+            , raw "Action" [marker "CreateRosterWeekSlotDefinition", promotedList [], promotedList (rosterPostTargetNoneOptions "RosterContent" "slot-definition mutations serialize through the stable roster week shell")]
+            , raw "Action" [marker "DeleteRosterWeekSlotDefinition", promotedList [], promotedList [raw "HtmxMethod" [raw "HtmxDelete" []], raw "HtmxTarget" [marker "RosterContent"], raw "HtmxSwap" [marker "None"], raw "HtmxPushUrl" [raw "HtmxPushUrlFalse" []], rosterShellSyncCustomHtmx "slot-definition mutations serialize through the stable roster week shell"]]
+            , raw "Action" [marker "ToggleRosterDayClosed", promotedList [], promotedList (rosterPostTargetNoneOptions "RosterDaySection" "day row mutations serialize through the stable roster week shell")]
+            , raw "Action" [marker "AddRosterRow", promotedList [], promotedList (rosterPostTargetNoneOptions "RosterDaySection" "day row mutations serialize through the stable roster week shell")]
+            , raw "Action" [marker "RemoveRosterRow", promotedList [], promotedList (rosterPostTargetNoneOptions "RosterDaySection" "day row mutations serialize through the stable roster week shell")]
+            , raw "Action" [marker "ToggleRosterStaffScope", promotedList [field "StaffScope" "WireText"], promotedList [raw "HtmxMethod" [raw "HtmxGet" []], raw "HtmxTarget" [marker "RosterStaffPanel"], raw "HtmxSwap" [marker "OuterHTML"], raw "HtmxPushUrl" [raw "HtmxPushUrlFalse" []]]]
             , raw "ActivationRef" [marker "RosterLayoutModeActivationRef", promotedList [raw "Submits" [marker "SetRosterLayoutMode"], raw "ValueField" [marker "RosterLayoutMode"]]]
             , raw "Action" [marker "SetRosterLayoutMode", promotedList [field "RosterLayoutMode" "WireText"], promotedList [raw "Target" [marker "RosterContent"]]]
             , raw "Intent" [marker "SetRosterLayoutMode", promotedList [field "RosterLayoutMode" "WireText"], promotedList [raw "BackedBy" [marker "SetRosterLayoutMode"]]]
@@ -282,8 +301,66 @@ rosterRawRegistry =
             , raw "Action" [marker "MoveRosterShiftToSlot", promotedList dragDropFieldsRaw, promotedList [raw "Target" [marker "RosterContent"]]]
             , raw "Intent" [marker "MoveRosterShiftToSlot", promotedList dragDropFieldsRaw, promotedList [raw "SessionOption" [marker "DragSession"], raw "BackedBy" [marker "MoveRosterShiftToSlot"]]]
             , raw "ConflictPolicy" [raw "SessionKind" [marker "DragSession"], raw "AnyFragment" [], raw "Defer" []]
+            , raw "DomToken" [marker "RosterContent"]
+            , raw "DomToken" [marker "RosterWeekShell"]
+            , raw "DomToken" [marker "RosterDaySection"]
+            , raw "DomToken" [marker "RosterStaffPanel"]
+            , raw "DomToken" [marker "RosterStaffSelfServiceLeaveFormFragment"]
             ]
         ]
+
+timesheetActionFieldsRaw :: [RawType]
+timesheetActionFieldsRaw =
+    [ field "WeekOffset" "WireInt"
+    , field "ShowApproved" "WireBool"
+    , field "ShowAllStaff" "WireBool"
+    , optionalField "StaffFilterId" "WireUUID"
+    ]
+
+timesheetGetOptions :: String -> [RawType]
+timesheetGetOptions reason =
+    [ raw "HtmxMethod" [raw "HtmxGet" []]
+    , raw "HtmxSwap" [marker "None"]
+    , raw "HtmxPushUrl" [raw "HtmxPushUrlTrue" []]
+    , raw "CustomHtmx" [marker "TimesheetWeekShellSyncCustomHtmx", symbol reason]
+    ]
+
+timesheetPostOptions :: [RawType]
+timesheetPostOptions =
+    [ raw "HtmxMethod" [raw "HtmxPost" []]
+    , raw "HtmxSwap" [marker "None"]
+    , raw "HtmxPushUrl" [raw "HtmxPushUrlFalse" []]
+    ]
+
+rosterShellSyncCustomHtmx :: String -> RawType
+rosterShellSyncCustomHtmx reason =
+    raw "CustomHtmx" [marker "RosterWeekShellSyncCustomHtmx", symbol reason]
+
+rosterPostNoneOptions :: String -> [RawType]
+rosterPostNoneOptions reason =
+    [ raw "HtmxMethod" [raw "HtmxPost" []]
+    , raw "HtmxSwap" [marker "None"]
+    , raw "HtmxPushUrl" [raw "HtmxPushUrlFalse" []]
+    , rosterShellSyncCustomHtmx reason
+    ]
+
+rosterPostTargetNoneOptions :: String -> String -> [RawType]
+rosterPostTargetNoneOptions target reason =
+    [ raw "HtmxMethod" [raw "HtmxPost" []]
+    , raw "HtmxTarget" [marker target]
+    , raw "HtmxSwap" [marker "None"]
+    , raw "HtmxPushUrl" [raw "HtmxPushUrlFalse" []]
+    , rosterShellSyncCustomHtmx reason
+    ]
+
+rosterPostTargetOuterHtmlOptions :: String -> String -> [RawType]
+rosterPostTargetOuterHtmlOptions target reason =
+    [ raw "HtmxMethod" [raw "HtmxPost" []]
+    , raw "HtmxTarget" [marker target]
+    , raw "HtmxSwap" [marker "OuterHTML"]
+    , raw "HtmxPushUrl" [raw "HtmxPushUrlFalse" []]
+    , rosterShellSyncCustomHtmx reason
+    ]
 
 timesheetWeekDependencyOptions :: [RawType]
 timesheetWeekDependencyOptions =

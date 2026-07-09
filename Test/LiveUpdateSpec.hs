@@ -104,7 +104,7 @@ tests = describe "LiveUpdate runtime types" do
                 [ rosterContentLiveFragment
                 , rosterStaffPanelLiveFragment
                 , rosterRowLiveFragment rosterDayId 1
-                , leaveRequestsContentLiveFragment
+                , leavePendingCountLiveFragment
                 , timesheetDaySectionLiveFragment 4
                 , adminVenueConfigLiveFragment
                 , adminInvitesLiveFragment
@@ -279,9 +279,9 @@ tests = describe "LiveUpdate runtime types" do
         let scope = leaveRequestsLiveScope venueId
         let fragment =
                 SurfaceWireFragment
-                    { fragmentKey = leaveRequestsContentLiveFragment
-                    , targetId = "leave-requests-content"
-                    , url = "/ShowleaveRequestsContentLiveFragment"
+                    { fragmentKey = leavePendingCountLiveFragment
+                    , targetId = "leave-pending-count"
+                    , url = "/ShowleaveRequestsContentLiveFragment?fragment=leave-section-count&section=pending"
                     , deferUntilBlur = False
                     , protectionPolicy = NoProtection
                     }
@@ -323,9 +323,9 @@ tests = describe "LiveUpdate runtime types" do
         let scope = leaveRequestsLiveScope venueId
         let fragment =
                 SurfaceWireFragment
-                    { fragmentKey = leaveRequestsContentLiveFragment
-                    , targetId = "leave-requests-content"
-                    , url = "/ShowleaveRequestsContentLiveFragment"
+                    { fragmentKey = leavePendingCountLiveFragment
+                    , targetId = "leave-pending-count"
+                    , url = "/ShowleaveRequestsContentLiveFragment?fragment=leave-section-count&section=pending"
                     , deferUntilBlur = False
                     , protectionPolicy = NoProtection
                     }
@@ -344,9 +344,9 @@ tests = describe "LiveUpdate runtime types" do
         let scope = leaveRequestsLiveScope venueId
         let fragment =
                 SurfaceWireFragment
-                    { fragmentKey = leaveRequestsContentLiveFragment
-                    , targetId = "leave-requests-content"
-                    , url = "/ShowleaveRequestsContentLiveFragment"
+                    { fragmentKey = leavePendingCountLiveFragment
+                    , targetId = "leave-pending-count"
+                    , url = "/ShowleaveRequestsContentLiveFragment?fragment=leave-section-count&section=pending"
                     , deferUntilBlur = False
                     , protectionPolicy = NoProtection
                     }
@@ -385,7 +385,7 @@ tests = describe "LiveUpdate runtime types" do
 
         validateFrontendSurfaceLiveSubscription subscription `shouldBe` True
         validateFrontendSurfaceLiveSubscription subscription { subscriptionScopeKey = "timesheets:wrong" } `shouldBe` False
-        validateFrontendSurfaceLiveSubscription subscription { subscriptionMountedFragments = [fragment { fragmentKey = leaveRequestsContentLiveFragment }] } `shouldBe` False
+        validateFrontendSurfaceLiveSubscription subscription { subscriptionMountedFragments = [fragment { fragmentKey = leavePendingCountLiveFragment }] } `shouldBe` False
         validateFrontendSurfaceLiveSubscription subscription { subscriptionMountedFragments = [fragment { fragmentKey = timesheetToolbarLiveFragment }] } `shouldBe` True
 
     it "declares live authorization requirements at the surface boundary" do
@@ -394,6 +394,10 @@ tests = describe "LiveUpdate runtime types" do
         frontendSurfaceScopeAuthorizationRequirement supportPlatformLiveScope `shouldBe` Just (Just RequireSupportSuperAdmin)
         frontendSurfaceScopeAuthorizationRequirement (adminXeroLiveScope venueId) `shouldBe` Just (Just (RequireCurrentVenueOwner venueId))
         frontendSurfaceScopeAuthorizationRequirement (timesheetWeekLiveScope venueId 0) `shouldBe` Just (Just (RequireCurrentVenue venueId))
+
+leavePendingCountLiveFragment :: SurfaceFragmentKey
+leavePendingCountLiveFragment =
+    frontendSurfaceSurfaceFragmentKey "leave-requests" "leave-section-count" (Aeson.object ["leaveSection" Aeson..= ("pending" :: Text)])
 
 supportAwardRatesSectionFragmentRef :: SurfaceWireFragment
 supportAwardRatesSectionFragmentRef =
