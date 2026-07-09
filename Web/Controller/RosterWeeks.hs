@@ -584,7 +584,18 @@ instance Controller RosterWeeksController where
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
-        respondWithMoveRosterShiftFailure rosterGroup.id weekOffset "Staff drag/drop is not available yet."
+        result <- validateRosterStaffDropIntent rosterGroup.id weekOffset
+        case result of
+            Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+            Right RosterStaffExistingShiftDropIntent { staffDropStaff, staffDropSlot, staffDropRosterDay, staffDropRosterWeek } -> do
+                let updatedSlot = staffDropSlot |> set #staffId (Just (coerce staffDropStaff.id))
+                mutationResult <- updateRosterSlotMutation rosterGroup.id staffDropRosterWeek staffDropRosterDay staffDropSlot updatedSlot
+                let RosterSlotMutationResult { rosterSlotMutationPreviousStaffId = previousStaffId, rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged } = mutationResult.liveMutationValue
+                let warningToast = shouldWarnSourceTimesheetUnchanged
+                respondToRosterSlotMutation rosterGroup.id staffDropRosterWeek staffDropRosterDay updatedSlot.rowIndex mutationResult (Just (coerce staffDropStaff.id)) $
+                    if warningToast then "Staff assigned. A pending timesheet already exists for this roster slot, so the timesheet was not changed." else "Staff assigned."
+            Right RosterStaffCreateShiftDropIntent { staffDropStaff, staffDropRosterDay, staffDropRosterWeek, staffDropSlotDefinition, staffDropRowIndex } -> do
+                renderRosterShiftDialogForCreate staffDropRosterDay staffDropRosterWeek staffDropSlotDefinition staffDropRowIndex emptyRosterShiftDialogValues { rosterShiftStaffId = Just (coerce staffDropStaff.id) }
 
     action currentAction@UpdateRosterWarningPreferenceAction { weekOffset } =
         runBepis currentAction BepisMutationAction do
@@ -711,6 +722,21 @@ data MoveRosterTimelineShiftIntent = MoveRosterTimelineShiftIntent
     , timelineMoveIsNoOp           :: !Bool
     }
 
+data RosterStaffDropIntent
+    = RosterStaffExistingShiftDropIntent
+        { staffDropStaff      :: !Staff
+        , staffDropSlot       :: !RosterSlot
+        , staffDropRosterDay  :: !RosterDay
+        , staffDropRosterWeek :: !RosterWeek
+        }
+    | RosterStaffCreateShiftDropIntent
+        { staffDropStaff          :: !Staff
+        , staffDropRosterDay      :: !RosterDay
+        , staffDropRosterWeek     :: !RosterWeek
+        , staffDropSlotDefinition :: !RosterWeekSlotDefinition
+        , staffDropRowIndex       :: !Int
+        }
+
 validateMoveRosterShiftIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Either Text MoveRosterShiftIntent)
 validateMoveRosterShiftIntent rosterGroupId weekOffset =
     validateRosterShiftDropIntent rosterGroupId weekOffset True
@@ -738,6 +764,64 @@ validateRosterShiftDropIntent rosterGroupId weekOffset allowSemanticDayNoOp = do
             maybeResult <- validateRosterShiftDropTarget rosterGroupId weekOffset allowSemanticDayNoOp sourceSlotId target
             pure (maybe (Left "Choose an open roster day in this week.") Right maybeResult)
         _ -> pure (Left "Drag the shift onto an open roster day.")
+
+validateRosterStaffDropIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Either Text RosterStaffDropIntent)
+validateRosterStaffDropIntent rosterGroupId weekOffset = do
+    let sourceToken = paramOrDefault @Text "" "sourceItemKey"
+    let targetToken = paramOrDefault @Text "" "targetDropzoneKey"
+    case (parseStaffToken sourceToken, parseExistingSlotToken targetToken, parseRosterShiftDropTargetToken targetToken) of
+        (Just staffId, Just rosterSlotId, _) -> do
+            maybeResult <- validateRosterStaffExistingShiftDropTarget rosterGroupId weekOffset staffId rosterSlotId
+            pure (maybe (Left "Drop staff onto an editable shift in this roster week.") Right maybeResult)
+        (Just staffId, _, Just createTarget) -> do
+            maybeResult <- validateRosterStaffCreateShiftDropTarget rosterGroupId weekOffset staffId createTarget
+            pure (maybe (Left "Drop staff onto an open add-shift target in this roster week.") Right maybeResult)
+        _ -> pure (Left "Drag a staff member onto a shift or add-shift target.")
+
+validateRosterStaffExistingShiftDropTarget :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> Id Staff -> Id RosterSlot -> IO (Maybe RosterStaffDropIntent)
+validateRosterStaffExistingShiftDropTarget rosterGroupId weekOffset staffId rosterSlotId = do
+    maybeStaff <- fetchActiveStaffForCurrentVenue staffId
+    staffEligible <- staffIsEligibleForRosterGroup staffId rosterGroupId
+    maybeSlot <- fetchOneOrNothing (query @RosterSlot |> filterWhere (#id, rosterSlotId) |> filterWhere (#deletedAt, Nothing))
+    case (maybeStaff, maybeSlot) of
+        (Just staff, Just rosterSlot) -> do
+            rosterDay <- fetch (Id rosterSlot.rosterDayId :: Id RosterDay)
+            rosterWeek <- fetch (Id rosterDay.rosterWeekId :: Id RosterWeek)
+            let matchesScope = rosterWeek.rosterGroupId == unpackId rosterGroupId && rosterWeek.weekOffset == weekOffset
+            pure do
+                guard matchesScope
+                guard (not rosterWeek.isLive)
+                guard (not rosterDay.isClosed)
+                guard staffEligible
+                pure RosterStaffExistingShiftDropIntent { staffDropStaff = staff, staffDropSlot = rosterSlot, staffDropRosterDay = rosterDay, staffDropRosterWeek = rosterWeek }
+        _ -> pure Nothing
+
+validateRosterStaffCreateShiftDropTarget :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> Id Staff -> RosterShiftDropTarget -> IO (Maybe RosterStaffDropIntent)
+validateRosterStaffCreateShiftDropTarget rosterGroupId weekOffset staffId dropTarget = do
+    maybeStaff <- fetchActiveStaffForCurrentVenue staffId
+    staffEligible <- staffIsEligibleForRosterGroup staffId rosterGroupId
+    maybeTargetRosterDay <- fetchOneOrNothing (query @RosterDay |> filterWhere (#id, dropTargetRosterDayId dropTarget))
+    case (maybeStaff, maybeTargetRosterDay) of
+        (Just staff, Just targetRosterDay) -> do
+            rosterWeek <- fetch (Id targetRosterDay.rosterWeekId :: Id RosterWeek)
+            maybeResolvedTarget <- resolveRosterShiftDropPlacement rosterWeek targetRosterDay dropTarget
+            let matchesScope = rosterWeek.rosterGroupId == unpackId rosterGroupId && rosterWeek.weekOffset == weekOffset
+            pure do
+                guard matchesScope
+                guard (not rosterWeek.isLive)
+                guard (not targetRosterDay.isClosed)
+                guard staffEligible
+                (slotDefinition, rowIndex) <- maybeResolvedTarget
+                pure RosterStaffCreateShiftDropIntent { staffDropStaff = staff, staffDropRosterDay = targetRosterDay, staffDropRosterWeek = rosterWeek, staffDropSlotDefinition = slotDefinition, staffDropRowIndex = rowIndex }
+        _ -> pure Nothing
+
+fetchActiveStaffForCurrentVenue :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id Staff -> IO (Maybe Staff)
+fetchActiveStaffForCurrentVenue staffId =
+    fetchOneOrNothing $ query @Staff
+        |> filterWhere (#id, staffId)
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#isActive, True)
+        |> filterWhere (#archivedAt, Nothing)
 
 validateRosterShiftDropTarget :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> Bool -> Id RosterSlot -> RosterShiftDropTarget -> IO (Maybe MoveRosterShiftIntent)
 validateRosterShiftDropTarget rosterGroupId weekOffset allowSemanticDayNoOp sourceSlotId dropTarget = do
@@ -832,6 +916,12 @@ resolveTimelineTargetRowIndex sourceSlot targetRosterDay targetSlotDefinition = 
         candidateRows = preferredRow : filter (/= preferredRow) [0 .. max preferredRow targetRosterDay.rowCount]
         fallbackRow = max preferredRow targetRosterDay.rowCount
     pure (listToMaybe (filter (`Set.notMember` occupiedRows) candidateRows) <|> Just fallbackRow)
+
+parseStaffToken :: Text -> Maybe (Id Staff)
+parseStaffToken token =
+    case Text.splitOn ":" token of
+        ["staff", rawStaffId] -> Id <$> parseUUIDText rawStaffId
+        _                     -> Nothing
 
 parseExistingSlotToken :: Text -> Maybe (Id RosterSlot)
 parseExistingSlotToken token =

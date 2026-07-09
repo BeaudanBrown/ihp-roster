@@ -965,6 +965,81 @@ tests = beforeAll testContext do
                 updatedSlot.rowIndex `shouldBe` 0
                 response `responseBodyShouldNotContain` "Roster shift moved."
 
+        it "assigns dragged staff onto an existing roster shift" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-staff-drop-existing@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                originalStaff <- createStaffRecord venue Nothing "Alpha" "Crew"
+                replacementStaff <- createStaffRecord venue Nothing "Beta" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                targetSlot <- createRosterSlotRecord rosterDay slotName (Just originalStaff) 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams DropRosterStaffAction { weekOffset = 0 }
+                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                            , ("sourceItemKey", cs ("staff:" <> tshow replacementStaff.id))
+                            , ("targetDropzoneKey", cs ("existing:" <> tshow targetSlot.id))
+                            ]
+
+                response `responseStatusShouldBe` status200
+                updatedSlot <- fetch targetSlot.id
+                updatedSlot.staffId `shouldBe` Just (unpackId replacementStaff.id)
+                response `responseBodyShouldContain` "Staff assigned."
+
+        it "rejects dragged staff assignment on live roster weeks" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-staff-drop-live@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                originalStaff <- createStaffRecord venue Nothing "Alpha" "Crew"
+                replacementStaff <- createStaffRecord venue Nothing "Beta" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                targetSlot <- createRosterSlotRecord rosterDay slotName (Just originalStaff) 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams DropRosterStaffAction { weekOffset = 0 }
+                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                            , ("sourceItemKey", cs ("staff:" <> tshow replacementStaff.id))
+                            , ("targetDropzoneKey", cs ("existing:" <> tshow targetSlot.id))
+                            ]
+
+                response `responseStatusShouldBe` status200
+                updatedSlot <- fetch targetSlot.id
+                updatedSlot.staffId `shouldBe` Just (unpackId originalStaff.id)
+                response `responseBodyShouldContain` "Drop staff onto an editable shift in this roster week."
+
+        it "opens the new shift dialog with dragged staff preselected" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-staff-drop-create@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
+                let targetToken = "new:" <> tshow rosterDay.id <> ":" <> tshow slotDefinition.id <> ":0"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams DropRosterStaffAction { weekOffset = 0 }
+                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                            , ("sourceItemKey", cs ("staff:" <> tshow staffMember.id))
+                            , ("targetDropzoneKey", cs targetToken)
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Add shift"
+                response `responseBodyShouldContain` ("value=\"" <> cs (tshow staffMember.id) <> "\"")
+                response `responseBodyShouldContain` "selected"
+
         it "duplicates a shift onto a semantic day target and grows rows" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

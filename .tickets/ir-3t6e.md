@@ -1,6 +1,6 @@
 ---
 id: ir-3t6e
-status: open
+status: closed
 deps: [ir-zoa9]
 links: []
 created: 2026-07-09T05:06:02Z
