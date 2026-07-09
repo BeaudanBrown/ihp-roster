@@ -1,19 +1,22 @@
 module Application.Script.FrontendSurfaceGhcProbe where
 
-import Prelude
-
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as IR
 import Application.Helper.FrontendContract.Surface.Ghc.Extract (inspectFrontendSurfaceRegistryRaw)
 import Application.Helper.FrontendContract.Surface.Ghc.Lower (lowerRawRegistry)
 import Application.Helper.FrontendContract.Surface.Ghc.Raw hiding
                                                            (rawRegistryToJson)
 import qualified Application.Helper.FrontendContract.Surface.Ghc.Raw as Raw
+import Application.Script.Prelude (Script)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import qualified Data.List as List
 import qualified Data.Text as Text
+import IHP.Prelude
 import qualified System.Environment as Environment
 import System.Exit (exitFailure)
+
+run :: Script
+run = liftIO main
 
 data OutputMode
     = HumanOutput
