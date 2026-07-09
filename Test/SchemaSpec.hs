@@ -133,6 +133,8 @@ tests = describe "Schema" do
                 , get #rosterWeekStartsOn venueConfig
                 , get #weekOffsetEpoch venueConfig
                 , get #lateToEarlyMinStartGapMinutes venueConfig
+                , get #timePickerStartMinuteOfDay venueConfig
+                , get #timePickerFinalSelectableMinuteOfDay venueConfig
                 , get #rosterEndTimesEnabled venueConfig
                 , get #autoTimesheetCreationEnabled venueConfig
                 )
@@ -690,6 +692,26 @@ tests = describe "Schema" do
         it "normalizes after-midnight shift durations consistently with overnight shifts" do
             shiftDurationMinutes (TimeOfDay 0 15 0) (TimeOfDay 4 0 0) `shouldBe` 225
             shiftDurationMinutes (TimeOfDay 23 0 0) (TimeOfDay 1 0 0) `shouldBe` 120
+
+        it "parses and formats quarter-hour picker minute values" do
+            parseQuarterHourMinuteOfDay "06:00" `shouldBe` Just 360
+            parseQuarterHourMinuteOfDay "05:45" `shouldBe` Just 345
+            parseQuarterHourMinuteOfDay "05:10" `shouldBe` Nothing
+            parseQuarterHourMinuteOfDay "24:00" `shouldBe` Nothing
+            formatMinuteOfDayText 360 `shouldBe` "06:00"
+            formatMinuteOfDayText 1425 `shouldBe` "23:45"
+
+        it "computes default shift times from picker windows with short-window clamping" do
+            defaultShiftTimesForPickerWindow 360 345 `shouldBe` (TimeOfDay 6 0 0, TimeOfDay 14 0 0)
+            defaultShiftTimesForPickerWindow 540 780 `shouldBe` (TimeOfDay 9 0 0, TimeOfDay 13 0 0)
+            defaultShiftTimesForPickerWindow 1200 120 `shouldBe` (TimeOfDay 20 0 0, TimeOfDay 2 0 0)
+
+        it "checks membership in overnight picker windows" do
+            isMinuteWithinTimePickerWindow 360 345 360 `shouldBe` True
+            isMinuteWithinTimePickerWindow 360 345 345 `shouldBe` True
+            isMinuteWithinTimePickerWindow 360 345 350 `shouldBe` False
+            isMinuteWithinTimePickerWindow 540 1020 480 `shouldBe` False
+            isMinuteWithinTimePickerWindow 540 1020 1020 `shouldBe` True
 
         it "returns original text when value is not a valid HH:MM input" do
             storageTimeToDisplayLabel "not-a-time" `shouldBe` "not-a-time"

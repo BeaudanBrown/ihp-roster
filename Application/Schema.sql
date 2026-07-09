@@ -411,6 +411,8 @@ CREATE TABLE venue_config (
     roster_week_starts_on INT NOT NULL,
     week_offset_epoch DATE NOT NULL,
     late_to_early_min_start_gap_minutes INT DEFAULT 0 NOT NULL,
+    time_picker_start_minute_of_day INT DEFAULT 360 NOT NULL,
+    time_picker_final_selectable_minute_of_day INT DEFAULT 345 NOT NULL,
     roster_end_times_enabled BOOLEAN DEFAULT TRUE NOT NULL,
     auto_timesheet_creation_enabled BOOLEAN DEFAULT FALSE NOT NULL,
     staff_timesheet_edit_window_days INT DEFAULT 7 NOT NULL,
@@ -421,6 +423,9 @@ CREATE TABLE venue_config (
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     CHECK ((roster_week_starts_on >= 0) AND (roster_week_starts_on <= 6)),
     CHECK (late_to_early_min_start_gap_minutes >= 0),
+    CHECK (time_picker_start_minute_of_day IN (0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180, 195, 210, 225, 240, 255, 270, 285, 300, 315, 330, 345, 360, 375, 390, 405, 420, 435, 450, 465, 480, 495, 510, 525, 540, 555, 570, 585, 600, 615, 630, 645, 660, 675, 690, 705, 720, 735, 750, 765, 780, 795, 810, 825, 840, 855, 870, 885, 900, 915, 930, 945, 960, 975, 990, 1005, 1020, 1035, 1050, 1065, 1080, 1095, 1110, 1125, 1140, 1155, 1170, 1185, 1200, 1215, 1230, 1245, 1260, 1275, 1290, 1305, 1320, 1335, 1350, 1365, 1380, 1395, 1410, 1425)),
+    CHECK (time_picker_final_selectable_minute_of_day IN (0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180, 195, 210, 225, 240, 255, 270, 285, 300, 315, 330, 345, 360, 375, 390, 405, 420, 435, 450, 465, 480, 495, 510, 525, 540, 555, 570, 585, 600, 615, 630, 645, 660, 675, 690, 705, 720, 735, 750, 765, 780, 795, 810, 825, 840, 855, 870, 885, 900, 915, 930, 945, 960, 975, 990, 1005, 1020, 1035, 1050, 1065, 1080, 1095, 1110, 1125, 1140, 1155, 1170, 1185, 1200, 1215, 1230, 1245, 1260, 1275, 1290, 1305, 1320, 1335, 1350, 1365, 1380, 1395, 1410, 1425)),
+    CHECK (time_picker_start_minute_of_day <> time_picker_final_selectable_minute_of_day),
     CHECK (staff_timesheet_edit_window_days >= 0)
 );
 

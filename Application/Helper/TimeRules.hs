@@ -1,8 +1,9 @@
 module Application.Helper.TimeRules where
 
+import Control.Monad (guard)
 import Data.Time.Calendar (Day, addDays, diffDays)
 import Data.Time.Clock (UTCTime (..), getCurrentTime)
-import Data.Time.Format (defaultTimeLocale, parseTimeM)
+import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
 import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
@@ -18,6 +19,9 @@ isQuarterHourTime tod = todMin tod `mod` 15 == 0 && todSec tod == 0
 
 isQuarterHourMinutes :: Int -> Bool
 isQuarterHourMinutes mins = mins >= 0 && mins `mod` 15 == 0
+
+isQuarterHourMinuteOfDay :: Int -> Bool
+isQuarterHourMinuteOfDay mins = mins >= 0 && mins < 24 * 60 && mins `mod` 15 == 0
 
 automaticMealBreakThresholdMinutes :: Int
 automaticMealBreakThresholdMinutes = 6 * 60 + 15
@@ -48,6 +52,66 @@ rosterOperationalStartTimeText = "06:00"
 
 rosterOperationalFinalSelectableTimeText :: Text
 rosterOperationalFinalSelectableTimeText = "05:45"
+
+defaultNewShiftDurationMinutes :: Int
+defaultNewShiftDurationMinutes = 8 * 60
+
+venueTimePickerStartMinuteOfDay :: VenueConfig -> Int
+venueTimePickerStartMinuteOfDay = (.timePickerStartMinuteOfDay)
+
+venueTimePickerFinalSelectableMinuteOfDay :: VenueConfig -> Int
+venueTimePickerFinalSelectableMinuteOfDay = (.timePickerFinalSelectableMinuteOfDay)
+
+formatMinuteOfDayText :: Int -> Text
+formatMinuteOfDayText minuteOfDay = timeOfDayToStorageValue (minuteOfDayToTimeOfDay minuteOfDay)
+
+parseQuarterHourMinuteOfDay :: Text -> Maybe Int
+parseQuarterHourMinuteOfDay value = do
+    tod <- parseTimeParam value
+    let minute = timeOfDayToMinutes tod
+    guard (isQuarterHourMinuteOfDay minute)
+    pure minute
+
+venueTimePickerStartTimeText :: VenueConfig -> Text
+venueTimePickerStartTimeText = formatMinuteOfDayText . venueTimePickerStartMinuteOfDay
+
+venueTimePickerFinalSelectableTimeText :: VenueConfig -> Text
+venueTimePickerFinalSelectableTimeText = formatMinuteOfDayText . venueTimePickerFinalSelectableMinuteOfDay
+
+venueTimePickerStartTime :: VenueConfig -> TimeOfDay
+venueTimePickerStartTime = minuteOfDayToTimeOfDay . venueTimePickerStartMinuteOfDay
+
+venueTimePickerFinalSelectableTime :: VenueConfig -> TimeOfDay
+venueTimePickerFinalSelectableTime = minuteOfDayToTimeOfDay . venueTimePickerFinalSelectableMinuteOfDay
+
+normalizeWindowEndMinute :: Int -> Int -> Int
+normalizeWindowEndMinute startMinute endMinute =
+    if endMinute <= startMinute then endMinute + 24 * 60 else endMinute
+
+venueTimePickerWindowDurationMinutes :: Int -> Int -> Int
+venueTimePickerWindowDurationMinutes startMinute endMinute =
+    normalizeWindowEndMinute startMinute endMinute - startMinute
+
+isMinuteWithinTimePickerWindow :: Int -> Int -> Int -> Bool
+isMinuteWithinTimePickerWindow startMinute endMinute minuteOfDay =
+    let endMinuteNormalized = normalizeWindowEndMinute startMinute endMinute
+        minuteNormalized = if minuteOfDay < startMinute then minuteOfDay + 24 * 60 else minuteOfDay
+     in minuteNormalized >= startMinute && minuteNormalized <= endMinuteNormalized
+
+defaultShiftTimesForPickerWindow :: Int -> Int -> (TimeOfDay, TimeOfDay)
+defaultShiftTimesForPickerWindow startMinute endMinute =
+    let endMinuteNormalized = normalizeWindowEndMinute startMinute endMinute
+        defaultEndMinute = min (startMinute + defaultNewShiftDurationMinutes) endMinuteNormalized
+     in (minuteOfDayToTimeOfDay startMinute, minuteOfDayToTimeOfDay defaultEndMinute)
+
+defaultShiftTimesForVenueConfig :: VenueConfig -> (TimeOfDay, TimeOfDay)
+defaultShiftTimesForVenueConfig venueConfig =
+    defaultShiftTimesForPickerWindow
+        (venueTimePickerStartMinuteOfDay venueConfig)
+        (venueTimePickerFinalSelectableMinuteOfDay venueConfig)
+
+timeOfDayToStorageValue :: TimeOfDay -> Text
+timeOfDayToStorageValue tod = cs (formatTime defaultTimeLocale "%H:%M" tod)
 
 shiftDurationMinutes :: TimeOfDay -> TimeOfDay -> Int
 shiftDurationMinutes start end =
