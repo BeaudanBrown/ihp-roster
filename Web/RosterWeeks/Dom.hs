@@ -2,6 +2,7 @@ module Web.RosterWeeks.Dom
     ( closedRosterDayRows
     , minimumOpenRosterRows
     , rosterContentFragmentId
+    , rosterDayTimelineContentFragmentId
     , rosterGridFrameFragmentId
     , rosterGridToolbarFragmentId
     , rosterDayColumnsFragmentId
@@ -29,6 +30,9 @@ rosterWeekShellId = "roster-week-shell"
 
 rosterContentFragmentId :: Text
 rosterContentFragmentId = "roster-content"
+
+rosterDayTimelineContentFragmentId :: Id RosterDay -> Text
+rosterDayTimelineContentFragmentId rosterDayId = "roster-day-timeline-content-" <> tshow rosterDayId
 
 rosterGridToolbarFragmentId :: Text
 rosterGridToolbarFragmentId = "roster-grid-toolbar"

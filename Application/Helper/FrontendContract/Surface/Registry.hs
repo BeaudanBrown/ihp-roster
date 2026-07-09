@@ -18,7 +18,8 @@ import Application.Helper.FrontendContract.Surface.Lab (SurfaceLabSurface)
 import Application.Helper.FrontendContract.Surface.LeaveRequests (LeaveRequestsSurface)
 import Application.Helper.FrontendContract.Surface.Profile (ProfileSurface,
                                                             StaffSurface)
-import Application.Helper.FrontendContract.Surface.Roster (RosterSurface)
+import Application.Helper.FrontendContract.Surface.Roster (RosterDayTimelineSurface,
+                                                           RosterSurface)
 import Application.Helper.FrontendContract.Surface.Support (SupportSurface)
 import Application.Helper.FrontendContract.Surface.Timesheets (TimesheetsSurface)
 
@@ -26,6 +27,7 @@ type RegisteredFrontendSurfaces =
     '[ SurfaceLabSurface
      , TimesheetsSurface
      , RosterSurface
+     , RosterDayTimelineSurface
      , LeaveRequestsSurface
      , BillingSurface
      , SupportSurface

@@ -223,6 +223,7 @@ data RosterWeeksController
     = RosterWeeksAction
     | ShowRosterWeekAction { weekOffset :: !Int }
     | ShowRosterDayTimelineAction { weekOffset :: !Int, rosterDayId :: !(Id RosterDay) }
+    | ShowRosterDayTimelineContentFragmentAction { weekOffset :: !Int, rosterDayId :: !(Id RosterDay) }
     | ShowRosterWeekOverviewFragmentAction { weekOffset :: !Int }
     | ShowRosterWeekContentFragmentAction { weekOffset :: !Int }
     | ShowRosterWeekGridToolbarFragmentAction { weekOffset :: !Int }
@@ -247,6 +248,7 @@ data RosterWeeksController
     | RemoveRosterRowAction { rosterDayId :: !(Id RosterDay) }
     | UpdateRosterLayoutPreferenceAction { weekOffset :: !Int }
     | MoveRosterShiftToSlotAction { weekOffset :: !Int }
+    | MoveRosterTimelineShiftAction { weekOffset :: !Int }
     | DuplicateRosterShiftToDayAction { weekOffset :: !Int }
     | UpdateRosterWarningPreferenceAction { weekOffset :: !Int }
     | UpdateRosterWageEstimatePreferenceAction { weekOffset :: !Int }

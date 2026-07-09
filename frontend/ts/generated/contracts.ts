@@ -43,6 +43,17 @@ export function parseRosterSurfaceScope(value: unknown): RosterSurfaceScope {
 }
 export function encodeRosterSurfaceScope(value: RosterSurfaceScope): RosterSurfaceScope { return value; }
 
+export type RosterDayTimelineSurfaceScope =
+    RosterDayTimelineRosterDayTimelineScope;
+export function isRosterDayTimelineSurfaceScope(value: unknown): value is RosterDayTimelineSurfaceScope {
+    return (isRosterDayTimelineRosterDayTimelineScope(value));
+}
+export function parseRosterDayTimelineSurfaceScope(value: unknown): RosterDayTimelineSurfaceScope {
+    if (isRosterDayTimelineSurfaceScope(value)) return value;
+    throw new Error("Invalid RosterDayTimelineSurfaceScope");
+}
+export function encodeRosterDayTimelineSurfaceScope(value: RosterDayTimelineSurfaceScope): RosterDayTimelineSurfaceScope { return value; }
+
 export type LeaveRequestsSurfaceScope =
     LeaveRequestsLeaveRequestsScopeScope;
 export function isLeaveRequestsSurfaceScope(value: unknown): value is LeaveRequestsSurfaceScope {
@@ -232,6 +243,17 @@ export function parseRosterSurfaceFragmentKey(value: unknown): RosterSurfaceFrag
 }
 export function encodeRosterSurfaceFragmentKey(value: RosterSurfaceFragmentKey): RosterSurfaceFragmentKey { return value; }
 
+export type RosterDayTimelineSurfaceFragmentKey =
+    { kind: "roster-day-timeline-content"; params: RosterDayTimelineRosterDayTimelineContentFragmentParams };
+export function isRosterDayTimelineSurfaceFragmentKey(value: unknown): value is RosterDayTimelineSurfaceFragmentKey {
+    return ((isRecord(value) && value.kind === "roster-day-timeline-content" && (isRecord(value["params"]) && (typeof value["params"]["rosterDayId"] === "string"))));
+}
+export function parseRosterDayTimelineSurfaceFragmentKey(value: unknown): RosterDayTimelineSurfaceFragmentKey {
+    if (isRosterDayTimelineSurfaceFragmentKey(value)) return value;
+    throw new Error("Invalid RosterDayTimelineSurfaceFragmentKey");
+}
+export function encodeRosterDayTimelineSurfaceFragmentKey(value: RosterDayTimelineSurfaceFragmentKey): RosterDayTimelineSurfaceFragmentKey { return value; }
+
 export type LeaveRequestsSurfaceFragmentKey =
     { kind: "leave-section-count"; params: LeaveRequestsLeaveSectionCountFragmentParams }
   | { kind: "leave-section-list"; params: LeaveRequestsLeaveSectionListFragmentParams };
@@ -389,6 +411,7 @@ export type SurfaceScope =
     { surface: "surface-lab"; scope: SurfaceLabSurfaceScope }
   | { surface: "timesheets"; scope: TimesheetsSurfaceScope }
   | { surface: "roster"; scope: RosterSurfaceScope }
+  | { surface: "roster-day-timeline"; scope: RosterDayTimelineSurfaceScope }
   | { surface: "leave-requests"; scope: LeaveRequestsSurfaceScope }
   | { surface: "billing"; scope: BillingSurfaceScope }
   | { surface: "support"; scope: SupportSurfaceScope }
@@ -403,7 +426,7 @@ export type SurfaceScope =
   | { surface: "admin-roster-groups"; scope: AdminRosterGroupsSurfaceScope }
   | { surface: "admin-xero"; scope: AdminXeroSurfaceScope };
 export function isSurfaceScope(value: unknown): value is SurfaceScope {
-    return ((isRecord(value) && value.surface === "surface-lab" && isSurfaceLabSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "timesheets" && isTimesheetsSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "roster" && isRosterSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "leave-requests" && isLeaveRequestsSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "billing" && isBillingSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "support" && isSupportSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "profile" && isProfileSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "staff" && isStaffSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-page" && isAdminPageSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-xero-page" && isAdminXeroPageSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-venue-config" && isAdminVenueConfigSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-invites" && isAdminInvitesSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-exports" && isAdminExportsSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-shift-types" && isAdminShiftTypesSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-roster-groups" && isAdminRosterGroupsSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-xero" && isAdminXeroSurfaceScope(value.scope)));
+    return ((isRecord(value) && value.surface === "surface-lab" && isSurfaceLabSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "timesheets" && isTimesheetsSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "roster" && isRosterSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "roster-day-timeline" && isRosterDayTimelineSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "leave-requests" && isLeaveRequestsSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "billing" && isBillingSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "support" && isSupportSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "profile" && isProfileSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "staff" && isStaffSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-page" && isAdminPageSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-xero-page" && isAdminXeroPageSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-venue-config" && isAdminVenueConfigSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-invites" && isAdminInvitesSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-exports" && isAdminExportsSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-shift-types" && isAdminShiftTypesSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-roster-groups" && isAdminRosterGroupsSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-xero" && isAdminXeroSurfaceScope(value.scope)));
 }
 export function parseSurfaceScope(value: unknown): SurfaceScope {
     if (isSurfaceScope(value)) return value;
@@ -415,6 +438,7 @@ export type SurfaceFragmentKey =
     ({ surface: "surface-lab" } & SurfaceLabSurfaceFragmentKey)
   | ({ surface: "timesheets" } & TimesheetsSurfaceFragmentKey)
   | ({ surface: "roster" } & RosterSurfaceFragmentKey)
+  | ({ surface: "roster-day-timeline" } & RosterDayTimelineSurfaceFragmentKey)
   | ({ surface: "leave-requests" } & LeaveRequestsSurfaceFragmentKey)
   | ({ surface: "billing" } & BillingSurfaceFragmentKey)
   | ({ surface: "support" } & SupportSurfaceFragmentKey)
@@ -429,7 +453,7 @@ export type SurfaceFragmentKey =
   | ({ surface: "admin-roster-groups" } & AdminRosterGroupsSurfaceFragmentKey)
   | ({ surface: "admin-xero" } & AdminXeroSurfaceFragmentKey);
 export function isSurfaceFragmentKey(value: unknown): value is SurfaceFragmentKey {
-    return ((isRecord(value) && value.surface === "surface-lab" && isSurfaceLabSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "timesheets" && isTimesheetsSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "roster" && isRosterSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "leave-requests" && isLeaveRequestsSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "billing" && isBillingSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "support" && isSupportSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "profile" && isProfileSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "staff" && isStaffSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-page" && isAdminPageSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-xero-page" && isAdminXeroPageSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-venue-config" && isAdminVenueConfigSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-invites" && isAdminInvitesSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-exports" && isAdminExportsSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-shift-types" && isAdminShiftTypesSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-roster-groups" && isAdminRosterGroupsSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-xero" && isAdminXeroSurfaceFragmentKey(value)));
+    return ((isRecord(value) && value.surface === "surface-lab" && isSurfaceLabSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "timesheets" && isTimesheetsSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "roster" && isRosterSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "roster-day-timeline" && isRosterDayTimelineSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "leave-requests" && isLeaveRequestsSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "billing" && isBillingSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "support" && isSupportSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "profile" && isProfileSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "staff" && isStaffSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-page" && isAdminPageSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-xero-page" && isAdminXeroPageSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-venue-config" && isAdminVenueConfigSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-invites" && isAdminInvitesSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-exports" && isAdminExportsSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-shift-types" && isAdminShiftTypesSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-roster-groups" && isAdminRosterGroupsSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-xero" && isAdminXeroSurfaceFragmentKey(value)));
 }
 export function parseSurfaceFragmentKey(value: unknown): SurfaceFragmentKey {
     if (isSurfaceFragmentKey(value)) return value;
@@ -437,9 +461,9 @@ export function parseSurfaceFragmentKey(value: unknown): SurfaceFragmentKey {
 }
 export function encodeSurfaceFragmentKey(value: SurfaceFragmentKey): SurfaceFragmentKey { return value; }
 
-export type FrontendSurfaceInteractionSurfaceName = "roster";
+export type FrontendSurfaceInteractionSurfaceName = "roster" | "roster-day-timeline";
 export function isFrontendSurfaceInteractionSurfaceName(value: unknown): value is FrontendSurfaceInteractionSurfaceName {
-    return typeof value === "string" && ["roster"].includes(value);
+    return typeof value === "string" && ["roster", "roster-day-timeline"].includes(value);
 }
 
 export type FrontendSurfaceInteractionSessionKindName = "drag";
@@ -452,9 +476,9 @@ export function isFrontendSurfaceInteractionDisposableLayerName(value: unknown):
     return typeof value === "string" && ["drag-preview"].includes(value);
 }
 
-export type FrontendSurfaceInteractionIntentName = "set-roster-layout-mode" | "move-roster-shift-to-slot" | "duplicate-roster-shift-to-day";
+export type FrontendSurfaceInteractionIntentName = "set-roster-layout-mode" | "move-roster-shift-to-slot" | "duplicate-roster-shift-to-day" | "move-roster-timeline-shift";
 export function isFrontendSurfaceInteractionIntentName(value: unknown): value is FrontendSurfaceInteractionIntentName {
-    return typeof value === "string" && ["set-roster-layout-mode", "move-roster-shift-to-slot", "duplicate-roster-shift-to-day"].includes(value);
+    return typeof value === "string" && ["set-roster-layout-mode", "move-roster-shift-to-slot", "duplicate-roster-shift-to-day", "move-roster-timeline-shift"].includes(value);
 }
 
 export type FrontendSurfaceInteractionIntentFieldName = "rosterLayoutMode" | "sourceItemKey" | "targetDropzoneKey" | "sessionKind" | "pointerId" | "pointerType" | "startClientX" | "startClientY" | "currentClientX" | "currentClientY" | "deltaX" | "deltaY";
@@ -1501,7 +1525,7 @@ export function parseInteractionStaticSchemaRegistry(value: unknown): Interactio
 }
 export function encodeInteractionStaticSchemaRegistry(value: InteractionStaticSchemaRegistry): InteractionStaticSchemaRegistry { return value; }
 
-export const InteractionStaticSchemas: InteractionStaticSchemaRegistry = {"roster":{"serverLayers":[],"disposableLayers":[{"name":"drag-preview","domIdSuffix":"drag-preview"}],"sessionKinds":[{"kind":"drag","description":"Roster drag/drop prototype","effects":{"global":[{"className":"bepis-pointer-clone-shadow","kind":"clone-shadow","layer":"drag-preview","preserveGrabOffset":true,"source":"pointer-marker"}],"contextual":[{"className":"bepis-dropzone-highlight","kind":"dropzone-highlight"}]}}],"intents":[{"name":"set-roster-layout-mode","fields":[{"name":"rosterLayoutMode","presence":"required","defaultValue":null}]},{"name":"move-roster-shift-to-slot","fields":[{"name":"sourceItemKey","presence":"required","defaultValue":null},{"name":"targetDropzoneKey","presence":"required","defaultValue":null},{"name":"sessionKind","presence":"optional","defaultValue":null},{"name":"pointerId","presence":"optional","defaultValue":null},{"name":"pointerType","presence":"optional","defaultValue":null},{"name":"startClientX","presence":"optional","defaultValue":null},{"name":"startClientY","presence":"optional","defaultValue":null},{"name":"currentClientX","presence":"optional","defaultValue":null},{"name":"currentClientY","presence":"optional","defaultValue":null},{"name":"deltaX","presence":"optional","defaultValue":null},{"name":"deltaY","presence":"optional","defaultValue":null}]},{"name":"duplicate-roster-shift-to-day","fields":[{"name":"sourceItemKey","presence":"required","defaultValue":null},{"name":"targetDropzoneKey","presence":"required","defaultValue":null},{"name":"sessionKind","presence":"optional","defaultValue":null},{"name":"pointerId","presence":"optional","defaultValue":null},{"name":"pointerType","presence":"optional","defaultValue":null},{"name":"startClientX","presence":"optional","defaultValue":null},{"name":"startClientY","presence":"optional","defaultValue":null},{"name":"currentClientX","presence":"optional","defaultValue":null},{"name":"currentClientY","presence":"optional","defaultValue":null},{"name":"deltaX","presence":"optional","defaultValue":null},{"name":"deltaY","presence":"optional","defaultValue":null}]}],"conflictPolicies":[{"session":{"kind":"session","session":"drag"},"fragment":{"kind":"any"},"resolution":"defer","timeoutMs":5000}]}};
+export const InteractionStaticSchemas: InteractionStaticSchemaRegistry = {"roster":{"serverLayers":[],"disposableLayers":[{"name":"drag-preview","domIdSuffix":"drag-preview"}],"sessionKinds":[{"kind":"drag","description":"Roster drag/drop prototype","effects":{"global":[{"className":"bepis-pointer-clone-shadow","kind":"clone-shadow","layer":"drag-preview","preserveGrabOffset":true,"source":"pointer-marker"}],"contextual":[{"className":"bepis-dropzone-highlight","kind":"dropzone-highlight"}]}}],"intents":[{"name":"set-roster-layout-mode","fields":[{"name":"rosterLayoutMode","presence":"required","defaultValue":null}]},{"name":"move-roster-shift-to-slot","fields":[{"name":"sourceItemKey","presence":"required","defaultValue":null},{"name":"targetDropzoneKey","presence":"required","defaultValue":null},{"name":"sessionKind","presence":"optional","defaultValue":null},{"name":"pointerId","presence":"optional","defaultValue":null},{"name":"pointerType","presence":"optional","defaultValue":null},{"name":"startClientX","presence":"optional","defaultValue":null},{"name":"startClientY","presence":"optional","defaultValue":null},{"name":"currentClientX","presence":"optional","defaultValue":null},{"name":"currentClientY","presence":"optional","defaultValue":null},{"name":"deltaX","presence":"optional","defaultValue":null},{"name":"deltaY","presence":"optional","defaultValue":null}]},{"name":"duplicate-roster-shift-to-day","fields":[{"name":"sourceItemKey","presence":"required","defaultValue":null},{"name":"targetDropzoneKey","presence":"required","defaultValue":null},{"name":"sessionKind","presence":"optional","defaultValue":null},{"name":"pointerId","presence":"optional","defaultValue":null},{"name":"pointerType","presence":"optional","defaultValue":null},{"name":"startClientX","presence":"optional","defaultValue":null},{"name":"startClientY","presence":"optional","defaultValue":null},{"name":"currentClientX","presence":"optional","defaultValue":null},{"name":"currentClientY","presence":"optional","defaultValue":null},{"name":"deltaX","presence":"optional","defaultValue":null},{"name":"deltaY","presence":"optional","defaultValue":null}]}],"conflictPolicies":[{"session":{"kind":"session","session":"drag"},"fragment":{"kind":"any"},"resolution":"defer","timeoutMs":5000}]},"rosterDayTimeline":{"serverLayers":[],"disposableLayers":[{"name":"drag-preview","domIdSuffix":"drag-preview"}],"sessionKinds":[{"kind":"drag","description":"roster-day-timeline drag interaction session","effects":{"global":[{"className":"bepis-pointer-clone-shadow","kind":"clone-shadow","layer":"drag-preview","preserveGrabOffset":true,"source":"pointer-marker"}],"contextual":[{"className":"bepis-dropzone-highlight","kind":"dropzone-highlight"}]}}],"intents":[{"name":"move-roster-timeline-shift","fields":[{"name":"sourceItemKey","presence":"required","defaultValue":null},{"name":"targetDropzoneKey","presence":"required","defaultValue":null},{"name":"sessionKind","presence":"optional","defaultValue":null},{"name":"pointerId","presence":"optional","defaultValue":null},{"name":"pointerType","presence":"optional","defaultValue":null},{"name":"startClientX","presence":"optional","defaultValue":null},{"name":"startClientY","presence":"optional","defaultValue":null},{"name":"currentClientX","presence":"optional","defaultValue":null},{"name":"currentClientY","presence":"optional","defaultValue":null},{"name":"deltaX","presence":"optional","defaultValue":null},{"name":"deltaY","presence":"optional","defaultValue":null}]}],"conflictPolicies":[{"session":{"kind":"session","session":"drag"},"fragment":{"kind":"any"},"resolution":"defer","timeoutMs":5000}]}};
 
 export type SurfaceFragmentProtection =
     { kind: "none" }
@@ -2049,6 +2073,46 @@ export function parseRosterDuplicateRosterShiftToDayIntentFields(value: unknown)
     throw new Error("Invalid RosterDuplicateRosterShiftToDayIntentFields");
 }
 export function encodeRosterDuplicateRosterShiftToDayIntentFields(value: RosterDuplicateRosterShiftToDayIntentFields): RosterDuplicateRosterShiftToDayIntentFields { return value; }
+
+export type RosterDayTimelineRosterDayTimelineScope = { venueId: FrontendContractUuid; rosterGroupId: FrontendContractUuid; weekOffset: number; rosterDayId: FrontendContractUuid };
+export function isRosterDayTimelineRosterDayTimelineScope(value: unknown): value is RosterDayTimelineRosterDayTimelineScope {
+    return isRecord(value) && (typeof value["venueId"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) && (typeof value["rosterDayId"] === "string");
+}
+export function parseRosterDayTimelineRosterDayTimelineScope(value: unknown): RosterDayTimelineRosterDayTimelineScope {
+    if (isRosterDayTimelineRosterDayTimelineScope(value)) return value;
+    throw new Error("Invalid RosterDayTimelineRosterDayTimelineScope");
+}
+export function encodeRosterDayTimelineRosterDayTimelineScope(value: RosterDayTimelineRosterDayTimelineScope): RosterDayTimelineRosterDayTimelineScope { return value; }
+
+export type RosterDayTimelineRosterDayTimelineContentFragmentParams = { rosterDayId: FrontendContractUuid };
+export function isRosterDayTimelineRosterDayTimelineContentFragmentParams(value: unknown): value is RosterDayTimelineRosterDayTimelineContentFragmentParams {
+    return isRecord(value) && (typeof value["rosterDayId"] === "string");
+}
+export function parseRosterDayTimelineRosterDayTimelineContentFragmentParams(value: unknown): RosterDayTimelineRosterDayTimelineContentFragmentParams {
+    if (isRosterDayTimelineRosterDayTimelineContentFragmentParams(value)) return value;
+    throw new Error("Invalid RosterDayTimelineRosterDayTimelineContentFragmentParams");
+}
+export function encodeRosterDayTimelineRosterDayTimelineContentFragmentParams(value: RosterDayTimelineRosterDayTimelineContentFragmentParams): RosterDayTimelineRosterDayTimelineContentFragmentParams { return value; }
+
+export type RosterDayTimelineMoveRosterTimelineShiftActionFields = { sourceItemKey: string; targetDropzoneKey: string; sessionKind?: string; pointerId?: string; pointerType?: string; startClientX?: string; startClientY?: string; currentClientX?: string; currentClientY?: string; deltaX?: string; deltaY?: string };
+export function isRosterDayTimelineMoveRosterTimelineShiftActionFields(value: unknown): value is RosterDayTimelineMoveRosterTimelineShiftActionFields {
+    return isRecord(value) && (typeof value["sourceItemKey"] === "string") && (typeof value["targetDropzoneKey"] === "string") && (!("sessionKind" in value) || (typeof value["sessionKind"] === "string")) && (!("pointerId" in value) || (typeof value["pointerId"] === "string")) && (!("pointerType" in value) || (typeof value["pointerType"] === "string")) && (!("startClientX" in value) || (typeof value["startClientX"] === "string")) && (!("startClientY" in value) || (typeof value["startClientY"] === "string")) && (!("currentClientX" in value) || (typeof value["currentClientX"] === "string")) && (!("currentClientY" in value) || (typeof value["currentClientY"] === "string")) && (!("deltaX" in value) || (typeof value["deltaX"] === "string")) && (!("deltaY" in value) || (typeof value["deltaY"] === "string"));
+}
+export function parseRosterDayTimelineMoveRosterTimelineShiftActionFields(value: unknown): RosterDayTimelineMoveRosterTimelineShiftActionFields {
+    if (isRosterDayTimelineMoveRosterTimelineShiftActionFields(value)) return value;
+    throw new Error("Invalid RosterDayTimelineMoveRosterTimelineShiftActionFields");
+}
+export function encodeRosterDayTimelineMoveRosterTimelineShiftActionFields(value: RosterDayTimelineMoveRosterTimelineShiftActionFields): RosterDayTimelineMoveRosterTimelineShiftActionFields { return value; }
+
+export type RosterDayTimelineMoveRosterTimelineShiftIntentFields = { sourceItemKey: string; targetDropzoneKey: string; sessionKind?: string; pointerId?: string; pointerType?: string; startClientX?: string; startClientY?: string; currentClientX?: string; currentClientY?: string; deltaX?: string; deltaY?: string };
+export function isRosterDayTimelineMoveRosterTimelineShiftIntentFields(value: unknown): value is RosterDayTimelineMoveRosterTimelineShiftIntentFields {
+    return isRecord(value) && (typeof value["sourceItemKey"] === "string") && (typeof value["targetDropzoneKey"] === "string") && (!("sessionKind" in value) || (typeof value["sessionKind"] === "string")) && (!("pointerId" in value) || (typeof value["pointerId"] === "string")) && (!("pointerType" in value) || (typeof value["pointerType"] === "string")) && (!("startClientX" in value) || (typeof value["startClientX"] === "string")) && (!("startClientY" in value) || (typeof value["startClientY"] === "string")) && (!("currentClientX" in value) || (typeof value["currentClientX"] === "string")) && (!("currentClientY" in value) || (typeof value["currentClientY"] === "string")) && (!("deltaX" in value) || (typeof value["deltaX"] === "string")) && (!("deltaY" in value) || (typeof value["deltaY"] === "string"));
+}
+export function parseRosterDayTimelineMoveRosterTimelineShiftIntentFields(value: unknown): RosterDayTimelineMoveRosterTimelineShiftIntentFields {
+    if (isRosterDayTimelineMoveRosterTimelineShiftIntentFields(value)) return value;
+    throw new Error("Invalid RosterDayTimelineMoveRosterTimelineShiftIntentFields");
+}
+export function encodeRosterDayTimelineMoveRosterTimelineShiftIntentFields(value: RosterDayTimelineMoveRosterTimelineShiftIntentFields): RosterDayTimelineMoveRosterTimelineShiftIntentFields { return value; }
 
 export type LeaveRequestsLeaveRequestsScopeScope = { venueId: FrontendContractUuid };
 export function isLeaveRequestsLeaveRequestsScopeScope(value: unknown): value is LeaveRequestsLeaveRequestsScopeScope {
@@ -2826,6 +2890,17 @@ export type RosterDisposableLayerName = "drag-preview";
 export type RosterDomToken = "roster-content" | "roster-week-shell" | "roster-day-section" | "roster-staff-panel" | "roster-staff-self-service-leave-form-fragment";
 export const rosterSurfaceManifest = {"surface":"roster","scopes":["roster-week"],"fragments":["roster-content","roster-grid-toolbar","roster-grid-frame","roster-day-columns","roster-day-rail","roster-wage-rail","roster-slots-grid","roster-staff-panel","roster-week-overview","roster-day-section","roster-row"],"liveFragments":["roster-content","roster-grid-toolbar","roster-grid-frame","roster-day-columns","roster-day-rail","roster-wage-rail","roster-slots-grid","roster-staff-panel","roster-day-section","roster-row"],"htmxActions":[{"name":"navigate-roster-week","fields":["weekOffset","rosterGroupId"],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"roster-week-shell","swap":null,"pushUrl":true,"custom":[{"name":"roster-week-shell-sync-custom-htmx","reason":"roster week navigation serializes through the stable roster week shell"}]}},{"name":"toggle-roster-warnings","fields":["showRosterWarnings"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":null,"swap":"none","pushUrl":false,"custom":[{"name":"roster-week-shell-sync-custom-htmx","reason":"preference toggles serialize through the stable roster week shell"}]}},{"name":"toggle-roster-wage-estimates","fields":["showWageEstimates"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":null,"swap":"none","pushUrl":false,"custom":[{"name":"roster-week-shell-sync-custom-htmx","reason":"preference toggles serialize through the stable roster week shell"}]}},{"name":"sort-roster-week","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"roster-content","swap":"none","pushUrl":false,"custom":[{"name":"roster-week-shell-sync-custom-htmx","reason":"sort mutations serialize through the stable roster week shell"}]}},{"name":"toggle-roster-week-live-status","fields":["isLive"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"roster-content","swap":"outer-html","pushUrl":false,"custom":[{"name":"roster-week-shell-sync-custom-htmx","reason":"live toggle serializes through the stable roster week shell"}]}},{"name":"toggle-roster-assignment-filters","fields":["hideStaffAtIdealShifts","hideStaffUnavailable","hideStaffOnApprovedLeave","hideStaffAlreadyAssignedToday"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":null,"swap":"none","pushUrl":false,"custom":[{"name":"roster-week-shell-sync-custom-htmx","reason":"assignment filter toggles serialize through the stable roster week shell"}]}},{"name":"copy-roster-week","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"roster-content","swap":"outer-html","pushUrl":false,"custom":[{"name":"roster-week-shell-sync-custom-htmx","reason":"copy mutations serialize through the stable roster week shell"},{"name":"copy-roster-week-custom-htmx","reason":"copy previous week requires a destructive overwrite confirmation"}]}},{"name":"create-roster-self-service-leave-request","fields":["startDate","endDate","reason"],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"roster-staff-self-service-leave-form-fragment","swap":"outer-html","pushUrl":false,"custom":[]}},{"name":"create-roster-week-slot-definition","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"roster-content","swap":"none","pushUrl":false,"custom":[{"name":"roster-week-shell-sync-custom-htmx","reason":"slot-definition mutations serialize through the stable roster week shell"}]}},{"name":"delete-roster-week-slot-definition","fields":[],"htmx":{"method":"delete","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"roster-content","swap":"none","pushUrl":false,"custom":[{"name":"roster-week-shell-sync-custom-htmx","reason":"slot-definition mutations serialize through the stable roster week shell"}]}},{"name":"toggle-roster-day-closed","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"roster-day-section","swap":"none","pushUrl":false,"custom":[{"name":"roster-week-shell-sync-custom-htmx","reason":"day row mutations serialize through the stable roster week shell"}]}},{"name":"add-roster-row","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"roster-day-section","swap":"none","pushUrl":false,"custom":[{"name":"roster-week-shell-sync-custom-htmx","reason":"day row mutations serialize through the stable roster week shell"}]}},{"name":"remove-roster-row","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"roster-day-section","swap":"none","pushUrl":false,"custom":[{"name":"roster-week-shell-sync-custom-htmx","reason":"day row mutations serialize through the stable roster week shell"}]}},{"name":"toggle-roster-staff-scope","fields":["staffScope"],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"roster-staff-panel","swap":"outer-html","pushUrl":false,"custom":[]}},{"name":"set-roster-layout-mode","fields":["rosterLayoutMode"],"htmx":{"method":null,"trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":null,"swap":null,"pushUrl":null,"custom":[]}},{"name":"move-roster-shift-to-slot","fields":["sourceItemKey","targetDropzoneKey","sessionKind","pointerId","pointerType","startClientX","startClientY","currentClientX","currentClientY","deltaX","deltaY"],"htmx":{"method":null,"trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":null,"swap":null,"pushUrl":null,"custom":[]}},{"name":"duplicate-roster-shift-to-day","fields":["sourceItemKey","targetDropzoneKey","sessionKind","pointerId","pointerType","startClientX","startClientY","currentClientX","currentClientY","deltaX","deltaY"],"htmx":{"method":null,"trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":null,"swap":null,"pushUrl":null,"custom":[]}}],"intents":["set-roster-layout-mode","move-roster-shift-to-slot","duplicate-roster-shift-to-day"],"sessions":["drag"],"interaction":{"sourceRefs":[{"ref":"drag-source","session":"drag","intent":"move-roster-shift-to-slot","sourceField":"sourceItemKey","modifierVariants":[{"semantic":"copy","intent":"duplicate-roster-shift-to-day","effects":{"global":[{"className":"bepis-pointer-clone-shadow bepis-pointer-clone-shadow-copy","kind":"clone-shadow","layer":"drag-preview","preserveGrabOffset":true,"source":"pointer-marker"}],"contextual":[{"className":"bepis-dropzone-highlight","kind":"dropzone-highlight"}]}}]}],"dropzoneRefs":[{"ref":"drag-dropzone","session":"drag","targetField":"targetDropzoneKey"}],"activationRefs":[{"ref":"roster-layout-mode-activation","intent":"set-roster-layout-mode","valueField":"rosterLayoutMode","trigger":"click"}]},"layers":["drag-preview"],"domTokens":["roster-content","roster-week-shell","roster-day-section","roster-staff-panel","roster-staff-self-service-leave-form-fragment"],"overlayLanes":[],"containedSurfaces":{}} as const;
 
+export type RosterDayTimelineSurfaceName = "roster-day-timeline";
+export type RosterDayTimelineFragmentKey = RosterDayTimelineSurfaceFragmentKey;
+export type MoveRosterTimelineShiftActionFields = RosterDayTimelineMoveRosterTimelineShiftActionFields;
+export type MoveRosterTimelineShiftIntentFields = RosterDayTimelineMoveRosterTimelineShiftIntentFields;
+export type RosterDayTimelineSessionName = "drag";
+export type RosterDayTimelineSourceRef = "drag-source";
+export type RosterDayTimelineDropzoneRef = "drag-dropzone";
+export type RosterDayTimelineDisposableLayerName = "drag-preview";
+export type RosterDayTimelineDomToken = "roster-day-timeline-content";
+export const rosterDayTimelineSurfaceManifest = {"surface":"roster-day-timeline","scopes":["roster-day-timeline"],"fragments":["roster-day-timeline-content"],"liveFragments":["roster-day-timeline-content"],"htmxActions":[{"name":"move-roster-timeline-shift","fields":["sourceItemKey","targetDropzoneKey","sessionKind","pointerId","pointerType","startClientX","startClientY","currentClientX","currentClientY","deltaX","deltaY"],"htmx":{"method":null,"trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":null,"swap":null,"pushUrl":null,"custom":[]}}],"intents":["move-roster-timeline-shift"],"sessions":["drag"],"interaction":{"sourceRefs":[{"ref":"drag-source","session":"drag","intent":"move-roster-timeline-shift","sourceField":"sourceItemKey","modifierVariants":[]}],"dropzoneRefs":[{"ref":"drag-dropzone","session":"drag","targetField":"targetDropzoneKey"}],"activationRefs":[]},"layers":["drag-preview"],"domTokens":["roster-day-timeline-content"],"overlayLanes":[],"containedSurfaces":{}} as const;
+
 export type LeaveRequestsSurfaceName = "leave-requests";
 export type LeaveRequestsFragmentKey = LeaveRequestsSurfaceFragmentKey;
 export type ArchiveLeaveRequestsPageActionFields = LeaveRequestsArchiveLeaveRequestsPageActionFields;
@@ -2929,6 +3004,7 @@ export const adminXeroSurfaceManifest = {"surface":"admin-xero","scopes":["admin
 export type FrontendSurfaceScope =
     { surface: "timesheets"; scope: TimesheetsTimesheetWeekScope }
   | { surface: "roster"; scope: RosterRosterWeekScope }
+  | { surface: "roster-day-timeline"; scope: RosterDayTimelineRosterDayTimelineScope }
   | { surface: "leave-requests"; scope: LeaveRequestsLeaveRequestsScopeScope }
   | { surface: "billing"; scope: BillingBillingVenueScope }
   | { surface: "support"; scope: SupportSupportPlatformScope }
@@ -2943,6 +3019,7 @@ export type FrontendSurfaceScope =
 export type FrontendSurfaceLiveFragment =
     { surface: "timesheets"; fragment: TimesheetsSurfaceFragmentKey }
   | { surface: "roster"; fragment: RosterSurfaceFragmentKey }
+  | { surface: "roster-day-timeline"; fragment: RosterDayTimelineSurfaceFragmentKey }
   | { surface: "leave-requests"; fragment: LeaveRequestsSurfaceFragmentKey }
   | { surface: "billing"; fragment: BillingSurfaceFragmentKey }
   | { surface: "support"; fragment: SupportSurfaceFragmentKey }
@@ -3055,11 +3132,12 @@ function __surfaceHasFragment(surface: FrontendSurfaceName, fragment: string): b
     return (FrontendSurfaceRegistry[surface].fragments as readonly string[]).includes(fragment);
 }
 
-export type FrontendSurfaceName = "surface-lab" | "timesheets" | "roster" | "leave-requests" | "billing" | "support" | "profile" | "staff" | "admin-page" | "admin-xero-page" | "admin-venue-config" | "admin-invites" | "admin-exports" | "admin-shift-types" | "admin-roster-groups" | "admin-xero";
+export type FrontendSurfaceName = "surface-lab" | "timesheets" | "roster" | "roster-day-timeline" | "leave-requests" | "billing" | "support" | "profile" | "staff" | "admin-page" | "admin-xero-page" | "admin-venue-config" | "admin-invites" | "admin-exports" | "admin-shift-types" | "admin-roster-groups" | "admin-xero";
 export const FrontendSurfaceRegistry = {
     "surface-lab": surfaceLabSurfaceManifest,
     timesheets: timesheetsSurfaceManifest,
     roster: rosterSurfaceManifest,
+    "roster-day-timeline": rosterDayTimelineSurfaceManifest,
     "leave-requests": leaveRequestsSurfaceManifest,
     billing: billingSurfaceManifest,
     support: supportSurfaceManifest,

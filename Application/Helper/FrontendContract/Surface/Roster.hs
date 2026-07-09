@@ -5,6 +5,8 @@ module Application.Helper.FrontendContract.Surface.Roster
     ( RosterContent
     , RosterDayColumns
     , RosterDayId
+    , RosterDayTimeline
+    , RosterDayTimelineContent
     , RosterDayRail
     , RosterDaySection
     , RosterGridFrame
@@ -15,6 +17,7 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterSlotsGrid
     , RosterStaffPanel
     , RosterSurface
+    , RosterDayTimelineSurface
     , RosterWeekShell
     , RosterWageRail
     , RosterWeek
@@ -22,6 +25,7 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterWeekOverview
     , RosterStaffSelfServiceLeaveFormFragment
     , MoveRosterShiftToSlot
+    , MoveRosterTimelineShift
     , DuplicateRosterShiftToDay
     , NavigateRosterWeek
     , ToggleRosterWarnings
@@ -48,6 +52,7 @@ import Application.Helper.FrontendContract.Surface.DSL
 import Application.Helper.FrontendContract.Surface.Interaction
 
 data Roster
+data RosterDayTimeline
 
 data RosterWeek
 data VenueId
@@ -65,9 +70,11 @@ data RosterSlotsGrid
 data RosterStaffPanel
 data RosterDaySection
 data RosterRow
+data RosterDayTimelineContent
 
 data SetRosterLayoutMode
 data MoveRosterShiftToSlot
+data MoveRosterTimelineShift
 data DuplicateRosterShiftToDay
 data NavigateRosterWeek
 data ToggleRosterWarnings
@@ -316,3 +323,34 @@ type RosterInteractionBundle =
 
 type RosterSurface =
     Surface Roster (Concat '[ RosterScopeBundle, RosterFragmentBundle, RosterActionBundle, RosterInteractionBundle ])
+
+type RosterDayTimelineScopeBundle =
+    '[ Scope RosterDayTimeline
+        '[ Field VenueId 'WireUUID
+         , Field RosterGroupId 'WireUUID
+         , Field WeekOffset 'WireInt
+         , Field RosterDayId 'WireUUID
+         ]
+        '[ 'Authorize 'CurrentVenueRosterGroup '[ VenueId, RosterGroupId ] ]
+     ]
+
+type RosterDayTimelineFragmentBundle =
+    '[ Fragment RosterDayTimelineContent
+        '[ Field RosterDayId 'WireUUID ]
+        '[ 'Eager
+         , 'Live
+         , 'DependsOn RosterDayResource '[ 'FromFragment RosterDayId ]
+         , 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ]
+         , 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ]
+         ]
+     ]
+
+type RosterDayTimelineActionBundle =
+    '[ DomToken RosterDayTimelineContent
+     ]
+
+type RosterDayTimelineInteractionBundle =
+    DragDropInteraction MoveRosterTimelineShift RosterDayTimelineContent
+
+type RosterDayTimelineSurface =
+    Surface RosterDayTimeline (Concat '[ RosterDayTimelineScopeBundle, RosterDayTimelineFragmentBundle, RosterDayTimelineActionBundle, RosterDayTimelineInteractionBundle ])

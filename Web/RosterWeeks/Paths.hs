@@ -3,11 +3,13 @@ module Web.RosterWeeks.Paths
     , rosterCopyWeekUrl
     , rosterLayoutPreferenceUrl
     , rosterMoveShiftUrl
+    , rosterTimelineMoveShiftUrl
     , rosterDuplicateShiftUrl
     , rosterWarningPreferenceUrl
     , rosterWageEstimatePreferenceUrl
     , rosterOverviewFragmentUrl
     , rosterDayTimelineUrl
+    , rosterDayTimelineContentFragmentUrl
     , rosterWeekContentFragmentUrl
     , rosterWeekGridFrameFragmentUrl
     , rosterWeekGridToolbarFragmentUrl
@@ -47,6 +49,12 @@ rosterDayTimelineUrl :: Int -> Id RosterGroup -> Id RosterDay -> Text
 rosterDayTimelineUrl weekOffset rosterGroupId rosterDayId =
     appendQueryParams
         (pathTo ShowRosterDayTimelineAction { weekOffset, rosterDayId })
+        [("rosterGroupId", tshow rosterGroupId)]
+
+rosterDayTimelineContentFragmentUrl :: Int -> Id RosterGroup -> Id RosterDay -> Text
+rosterDayTimelineContentFragmentUrl weekOffset rosterGroupId rosterDayId =
+    appendQueryParams
+        (pathTo ShowRosterDayTimelineContentFragmentAction { weekOffset, rosterDayId })
         [("rosterGroupId", tshow rosterGroupId)]
 
 rosterOverviewFragmentUrl :: Int -> Id RosterGroup -> Text
@@ -108,6 +116,10 @@ rosterLayoutPreferenceUrl weekOffset rosterGroupId =
 rosterMoveShiftUrl :: Int -> Id RosterGroup -> Text
 rosterMoveShiftUrl weekOffset rosterGroupId =
     appendQueryParams (pathTo MoveRosterShiftToSlotAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
+
+rosterTimelineMoveShiftUrl :: Int -> Id RosterGroup -> Text
+rosterTimelineMoveShiftUrl weekOffset rosterGroupId =
+    appendQueryParams (pathTo MoveRosterTimelineShiftAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
 
 rosterDuplicateShiftUrl :: Int -> Id RosterGroup -> Text
 rosterDuplicateShiftUrl weekOffset rosterGroupId =

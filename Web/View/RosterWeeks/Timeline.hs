@@ -1,22 +1,27 @@
+{-# LANGUAGE OverloadedRecordDot #-}
+
 module Web.View.RosterWeeks.Timeline
-    ( renderRosterDayTimelineShell
+    ( renderRosterDayTimelineContent
+    , renderRosterDayTimelineShell
     ) where
 
+import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Application.Helper.Profiling (profileHtmlComponent)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import qualified Data.Time.Calendar as Calendar
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import qualified Data.UUID as UUID
+import Web.RosterWeeks.Dom (rosterDayTimelineContentFragmentId)
+import Web.RosterWeeks.FrontendSurface (RosterDayTimelineScopeValue (..),
+                                        rosterDayTimelineSurfaceImpl)
 import Web.RosterWeeks.Paths (rosterWeekUrl)
 import Web.RosterWeeks.Types
 import Web.View.Prelude
 
 renderRosterDayTimelineShell :: RosterRenderData -> RosterDay -> Html
-renderRosterDayTimelineShell RosterRenderData { rosterWeek, currentRosterGroup, weekStartDate, orderedSlotNames, allSlots } rosterDay =
+renderRosterDayTimelineShell rosterData@RosterRenderData { rosterWeek, currentRosterGroup, weekStartDate } rosterDay =
     let date = Calendar.addDays (toInteger rosterDay.dayOffset) weekStartDate
-        daySlots = filter (\slot -> slot.rosterDayId == unpackId rosterDay.id) allSlots
-        slotsByDefinition = Map.fromListWith (<>) [ (slot.rosterWeekSlotDefinitionId, [slot]) | slot <- daySlots ]
         backUrl = rosterWeekUrl rosterWeek.weekOffset currentRosterGroup.id
         page = renderAppPage AppPageConfig
             { appPageTitle = "Roster timeline"
@@ -29,21 +34,37 @@ renderRosterDayTimelineShell RosterRenderData { rosterWeek, currentRosterGroup, 
             |]
             , appPageHelpTopic = Just (PageHelpTopicId "roster")
             , appPageWidthClass = ""
-            , appPageBody = [hsx|
-                <section class="app-panel roster-day-timeline-shell" data-roster-day-timeline="true">
-                    <header class="d-flex align-items-center justify-content-between gap-3 mb-3">
-                        <div>
-                            <h2 class="h5 mb-1">{Text.pack (formatTime defaultTimeLocale "%A" date)} timeline</h2>
-                            <p class="text-muted mb-0">Drag-to-move timeline interactions will be added here.</p>
-                        </div>
-                    </header>
-                    <div class="roster-day-timeline-placeholder" role="region" aria-label="Roster day timeline">
-                        {forEach orderedSlotNames (renderPlaceholderLane slotsByDefinition)}
-                    </div>
-                </section>
-            |]
+            , appPageBody = renderRosterDayTimelineContent Nothing rosterData rosterDay
             }
-     in profileHtmlComponent "render.roster.day_timeline_shell" page
+        timelineSurfaceScope = RosterDayTimelineScopeValue
+            { rosterDayTimelineVenueId = currentRosterGroup.venueId
+            , rosterDayTimelineGroupId = currentRosterGroup.id
+            , rosterDayTimelineWeekOffset = rosterWeek.weekOffset
+            , rosterDayTimelineDayId = rosterDay.id
+            }
+     in profileHtmlComponent "render.roster.day_timeline_shell" (renderFrontendSurfaceMount (rosterDayTimelineSurfaceImpl timelineSurfaceScope) page)
+
+renderRosterDayTimelineContent :: Maybe Text -> RosterRenderData -> RosterDay -> Html
+renderRosterDayTimelineContent maybeSwapOob rosterData rosterDay =
+    let date = Calendar.addDays (toInteger rosterDay.dayOffset) rosterData.weekStartDate
+        daySlots = filter (\slot -> slot.rosterDayId == unpackId rosterDay.id) rosterData.allSlots
+        slotsByDefinition = Map.fromListWith (<>) [ (slot.rosterWeekSlotDefinitionId, [slot]) | slot <- daySlots ]
+     in [hsx|
+        <section id={rosterDayTimelineContentFragmentId rosterDay.id}
+                 class="app-panel roster-day-timeline-shell"
+                 data-roster-day-timeline="true"
+                 hx-swap-oob={maybeSwapOob}>
+            <header class="d-flex align-items-center justify-content-between gap-3 mb-3">
+                <div>
+                    <h2 class="h5 mb-1">{Text.pack (formatTime defaultTimeLocale "%A" date)} timeline</h2>
+                    <p class="text-muted mb-0">Drag-to-move timeline interactions will be added here.</p>
+                </div>
+            </header>
+            <div class="roster-day-timeline-placeholder" role="region" aria-label="Roster day timeline">
+                {forEach rosterData.orderedSlotNames (renderPlaceholderLane slotsByDefinition)}
+            </div>
+        </section>
+    |]
 
 renderPlaceholderLane :: Map.Map UUID.UUID [RosterSlot] -> RosterWeekSlotDefinition -> Html
 renderPlaceholderLane slotsByDefinition slotDefinition =

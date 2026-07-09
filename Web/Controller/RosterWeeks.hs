@@ -66,7 +66,8 @@ import Web.View.RosterWeeks.Overview (renderWeekOverviewPanelFragment)
 import Web.View.RosterWeeks.ShiftDialog
 import Web.View.RosterWeeks.Show (renderRosterWeekShell)
 import Web.View.RosterWeeks.StaffPanel (renderrosterStaffPanelLiveFragment)
-import Web.View.RosterWeeks.Timeline (renderRosterDayTimelineShell)
+import Web.View.RosterWeeks.Timeline (renderRosterDayTimelineContent,
+                                      renderRosterDayTimelineShell)
 
 instance Controller RosterWeeksController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
@@ -118,6 +119,17 @@ instance Controller RosterWeeksController where
                         redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
                     Just rosterDay ->
                         respondHtmlProfiled (renderRosterDayTimelineShell rosterData rosterDay)
+
+    action currentAction@ShowRosterDayTimelineContentFragmentAction { weekOffset, rosterDayId } = runBepis currentAction BepisFragmentAction do
+        rosterGroup <- resolveRequestedRosterGroup
+        maybeRosterData <- fetchVisibleRosterReadModel rosterGroup.id weekOffset
+        case maybeRosterData of
+            Nothing -> respondHtmlProfiled mempty
+            Just rosterData -> do
+                let canViewTimeline = rosterData.rosterWeek.isLive || hasRole ManagerRole'
+                accessDeniedUnless canViewTimeline
+                let maybeRosterDay = find (\rosterDay -> rosterDay.id == rosterDayId) rosterData.rosterDays
+                respondHtmlProfiled (maybe mempty (renderRosterDayTimelineContent Nothing rosterData) maybeRosterDay)
 
     action currentAction@ShowRosterWeekOverviewFragmentAction { weekOffset } = runBepis currentAction BepisFragmentAction do
         rosterGroup <- resolveRequestedRosterGroup
@@ -509,6 +521,12 @@ instance Controller RosterWeeksController where
                 let RosterSlotMutationResult { rosterSlotMutationPreviousStaffId = previousStaffId, rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged } = mutationResult.liveMutationValue
                 let impactedRows = nub [(sourceSlot.rosterDayId, sourceSlot.rowIndex), (unpackId targetRosterDay.id, targetRowIndex)]
                 respondToRosterSlotMove rosterGroup.id rosterWeek mutationResult previousStaffId impactedRows shouldWarnSourceTimesheetUnchanged
+
+    action currentAction@MoveRosterTimelineShiftAction { weekOffset } = runBepis currentAction BepisMutationAction do
+        ensureManagerRole
+        ensureVenueWritable
+        rosterGroup <- resolveRequestedRosterGroup
+        respondWithMoveRosterShiftFailure rosterGroup.id weekOffset "Timeline shift moves are not enabled yet."
 
     action currentAction@DuplicateRosterShiftToDayAction { weekOffset } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
