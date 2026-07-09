@@ -1379,10 +1379,16 @@
       if (!(ownerEl instanceof HTMLElement)) return false;
       const scopeInfo = readFrontendSurface(ownerEl);
       if (!scopeInfo) return false;
+      if (isSurfaceOwnedHtmxRequest(sourceEl, ownerEl)) return true;
       if (scopeInfo.decorateRequestsWithin.length === 0) return true;
       return scopeInfo.decorateRequestsWithin.some(function(selector) {
         return Boolean(selector && sourceEl.closest(selector));
       });
+    }
+    function isSurfaceOwnedHtmxRequest(sourceEl, ownerEl) {
+      const surfaceOwnedControl = sourceEl.closest("[data-bepis-surface-action], [data-bepis-intent-form]");
+      if (!(surfaceOwnedControl instanceof HTMLElement)) return false;
+      return surfaceOwnedControl.closest("[data-bepis-surface-config]") === ownerEl;
     }
     function fragmentMergeKey(fragment) {
       return liveUpdateFragmentMergeKey(fragment);
