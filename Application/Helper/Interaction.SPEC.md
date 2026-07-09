@@ -351,8 +351,9 @@ The roster drop implementation uses distinct generated refs for each semantic
 source/target pair. Existing shift launchers are `shift-drag-source` sources;
 staff-panel rows are `staff-drag-source` sources. Empty row-grid create
 launchers and day-column `+ Add shift` cards are `shift-create-dropzone` targets;
-whole open day columns are `day-column-dropzone` shift-move targets; existing
-editable shift cards are `existing-shift-dropzone` staff-assignment targets.
+whole open day columns are `day-column-dropzone` targets for shift moves and
+staff-create drops; existing editable shift cards are `existing-shift-dropzone`
+staff-assignment targets.
 The browser submits opaque `sourceItemKey` and `targetDropzoneKey` tokens through
 the generated move/copy/staff-drop forms. Controllers parse those tokens,
 validate venue/roster-week scope, draft/open-day status, empty target slots,

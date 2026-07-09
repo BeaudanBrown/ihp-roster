@@ -409,7 +409,7 @@ test("generated pointer sessions emit manifest fields from compatible dropzones"
     assertEqual(layer.children.length, 0);
 });
 
-test("generated pointer sessions ignore incompatible dropzones for active source refs", () => {
+test("generated pointer sessions use source-specific compatible dropzones", () => {
     const observed: string[] = [];
     const mount = new MiniElement({ [attrs.surface]: "roster", [attrs.surfaceFamily]: "roster" });
     const marker = mount.append(new MiniElement({
@@ -417,7 +417,7 @@ test("generated pointer sessions ignore incompatible dropzones for active source
         [FrontendSurfaceInteractionDom.sourceKey]: "staff:1",
         [attrs.sessionThreshold]: "0",
     }));
-    const incompatibleDropzone = mount.append(new MiniElement({
+    const dayDropzone = mount.append(new MiniElement({
         [FrontendSurfaceInteractionDom.dropzoneRef]: "day-column-dropzone",
         [FrontendSurfaceInteractionDom.dropzoneKey]: "day:1",
     }));
@@ -426,11 +426,11 @@ test("generated pointer sessions ignore incompatible dropzones for active source
         [FrontendSurfaceInteractionDom.dropzoneKey]: "existing:2",
     }));
     const layer = mount.append(new MiniElement({ [attrs.disposableLayer]: "drag-preview" }));
-    let hitTarget: MiniElement | null = incompatibleDropzone;
+    let hitTarget: MiniElement | null = dayDropzone;
     const doc = { elementFromPoint: (_x: number, _y: number) => hitTarget, createElement: (_tag: string) => new MiniElement() };
     mount.ownerDocument = doc;
     marker.ownerDocument = doc;
-    incompatibleDropzone.ownerDocument = doc;
+    dayDropzone.ownerDocument = doc;
     compatibleDropzone.ownerDocument = doc;
     layer.ownerDocument = doc;
 
@@ -451,8 +451,8 @@ test("generated pointer sessions ignore incompatible dropzones for active source
     controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 1, 2, 0));
     controller.handlePointerUp(pointerEventWithTarget("pointerup", marker, 1, 3, 0));
 
-    assertEqual(observed.join(","), "staff:1->,staff:1->existing:2,staff:1->existing:2,staff:1->existing:2");
-    assertEqual(incompatibleDropzone.getAttribute("class"), null);
+    assertEqual(observed.join(","), "staff:1->day:1,staff:1->existing:2,staff:1->existing:2,staff:1->existing:2");
+    assertEqual(dayDropzone.getAttribute("class"), null);
     assertEqual(compatibleDropzone.getAttribute("class"), null);
 });
 

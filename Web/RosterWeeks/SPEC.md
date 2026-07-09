@@ -92,8 +92,8 @@ lands.
   and shows a toast. Dropping staff onto an empty row-grid create cell or the
   day-column bottom `+ Add shift` card opens the new-shift dialog with that staff
   member preselected; required time and shift-type fields still need user input.
-  Day-column whitespace/gaps are not staff-create targets, even though the whole
-  day column remains a shift-move target for dragging existing shifts.
+  Dropping staff into open day-column whitespace uses the day-column target and
+  opens the same prefilled create dialog for the first available backing cell.
 - Each visible day exposes a timeline entry link. The single-day timeline is a
   URL-scoped view mode of the normal roster week page
   (`rosterView=timeline&dayOffset=<0-6>`), so the roster controls and staff side
