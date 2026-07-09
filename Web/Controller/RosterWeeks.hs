@@ -1144,22 +1144,18 @@ respondToRosterSlotMove rosterGroupId rosterWeek mutationResult maybeStaffId imp
         (clearDialogOverlayOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> warningHtml)
 
 respondToRosterTimelineSlotMove :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> LiveMutationResult RosterSlotMutationResult -> Maybe UUID.UUID -> [(UUID.UUID, Int)] -> Bool -> IO ()
-respondToRosterTimelineSlotMove rosterGroupId rosterWeek targetRosterDay mutationResult maybeStaffId impactedRowKeys shouldWarnSourceTimesheetUnchanged = do
-    layoutMode <- fetchCurrentRosterLayoutMode
-    let maybeStaffParam = tshow <$> maybeStaffId
+respondToRosterTimelineSlotMove rosterGroupId rosterWeek _targetRosterDay mutationResult _maybeStaffId _impactedRowKeys shouldWarnSourceTimesheetUnchanged = do
     let actorFragmentCandidates =
-            case rosterLayoutModeValue layoutMode of
-                "day_columns" -> rosterGridInnerAndStaffPanelFragments
-                _ -> rosterGridInnerAndStaffPanelFragments
-                    <> actorRosterRowFragments maybeStaffParam impactedRowKeys
-                    <> assignmentRefreshFragments maybeStaffParam
+            [ RosterProjectionGridToolbar
+            , RosterProjectionGridFrame
+            , RosterProjectionStaffPanel
+            ]
     let actorFragments =
             rosterActorFragmentsForTouchedResources
                 rosterGroupId
                 rosterWeek.weekOffset
                 mutationResult.liveMutationTouchedResources
                 actorFragmentCandidates
-    timelineHtml <- renderTimelineContentOob rosterGroupId rosterWeek.weekOffset targetRosterDay.id
     let warningHtml =
             if shouldWarnSourceTimesheetUnchanged
                 then renderToastOob ToastBottomCenter (errorToast "A pending timesheet already exists for this roster slot, so the timesheet was not changed. Edit the timesheet entry directly.")
@@ -1168,17 +1164,7 @@ respondToRosterTimelineSlotMove rosterGroupId rosterWeek targetRosterDay mutatio
         rosterGroupId
         rosterWeek.weekOffset
         actorFragments
-        (timelineHtml <> clearDialogOverlayOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> warningHtml)
-
-renderTimelineContentOob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Id RosterDay -> IO Blaze.Html
-renderTimelineContentOob rosterGroupId weekOffset rosterDayId = do
-    maybeRosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
-    pure case maybeRosterData of
-        Nothing -> mempty
-        Just rosterData ->
-            case find (\rosterDay -> rosterDay.id == rosterDayId) rosterData.rosterDays of
-                Nothing -> mempty
-                Just rosterDay -> renderRosterDayTimelineContent (Just "outerHTML") rosterData rosterDay
+        (clearDialogOverlayOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> warningHtml)
 
 respondToRosterSlotUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> LiveMutationResult RosterSlotMutationResult -> Maybe UUID.UUID -> [(UUID.UUID, Int)] -> Bool -> IO ()
 respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult maybeStaffId impactedRowKeys shouldWarnSourceTimesheetUnchanged = do

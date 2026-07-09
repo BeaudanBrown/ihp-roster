@@ -104,13 +104,13 @@ rosterMountedFragmentPlanFromRenderData rosterDays renderIndexes =
 
 rosterSurfaceImpl :: RosterWeekScopeValue -> RosterMountedFragmentPlan -> SurfaceImpl Surface.RosterSurface
 rosterSurfaceImpl scope plan =
-    let impl = mkSurfaceImpl "roster" (rosterSurfaceMountConfig scope plan) (rosterSurfaceHandlers scope plan)
-     in impl { surfaceImplMountConfig = impl.surfaceImplMountConfig { mountFragments = rosterCandidateMountedFragments scope plan } }
+    mkSurfaceImpl "roster" (rosterSurfaceMountConfig scope plan) (rosterSurfaceHandlers scope plan)
+        |> surfaceImplWithMountedFragments (rosterCandidateMountedFragments scope plan)
 
 rosterDayTimelineSurfaceImpl :: RosterDayTimelineScopeValue -> SurfaceImpl Surface.RosterDayTimelineSurface
 rosterDayTimelineSurfaceImpl scope =
-    let impl = mkSurfaceImpl "roster-day-timeline" (rosterDayTimelineSurfaceMountConfig scope) (rosterDayTimelineSurfaceHandlers scope)
-     in impl { surfaceImplMountConfig = impl.surfaceImplMountConfig { mountFragments = rosterDayTimelineCandidateMountedFragments scope } }
+    mkSurfaceImpl "roster-day-timeline" (rosterDayTimelineSurfaceMountConfig scope) (rosterDayTimelineSurfaceHandlers scope)
+        |> surfaceImplWithMountedFragments (rosterDayTimelineCandidateMountedFragments scope)
 
 rosterSurfaceMountConfig :: RosterWeekScopeValue -> RosterMountedFragmentPlan -> FrontendSurfaceMountConfig
 rosterSurfaceMountConfig scope plan =
@@ -214,6 +214,19 @@ rosterSurfaceWireFragments =
 
 rosterCandidateMountedFragments :: RosterWeekScopeValue -> RosterMountedFragmentPlan -> [FrontendSurfaceMountedFragment]
 rosterCandidateMountedFragments scope plan =
+    case scope.rosterWeekTimelineDayOffset of
+        Just _  -> rosterTimelineModeMountedFragments scope
+        Nothing -> rosterWeekGridMountedFragments scope plan
+
+rosterTimelineModeMountedFragments :: RosterWeekScopeValue -> [FrontendSurfaceMountedFragment]
+rosterTimelineModeMountedFragments scope =
+    [ rosterGridToolbarMountedFragment scope
+    , rosterGridFrameMountedFragment scope
+    , rosterStaffPanelMountedFragment scope
+    ]
+
+rosterWeekGridMountedFragments :: RosterWeekScopeValue -> RosterMountedFragmentPlan -> [FrontendSurfaceMountedFragment]
+rosterWeekGridMountedFragments scope plan =
     [ rosterContentMountedFragment scope
     , rosterGridToolbarMountedFragment scope
     , rosterGridFrameMountedFragment scope

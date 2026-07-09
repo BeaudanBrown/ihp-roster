@@ -63,6 +63,7 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , renderFrontendSurfaceLazyFragmentWithConfig
     , requireSurfaceField
     , mkSurfaceImpl
+    , surfaceImplWithMountedFragments
     , renderFrontendSurfaceMount
     ) where
 
@@ -386,6 +387,18 @@ mkSurfaceImpl name mountConfig handlers =
         , surfaceImplActions = handlerListToList defaultActionRequest handlers.surfaceActionHandlers
         , surfaceImplIntents = handlerListToList defaultIntentForm handlers.surfaceIntentHandlers
         }
+
+surfaceImplWithMountedFragments :: forall spec. KnownLiveFragments spec => [FrontendSurfaceMountedFragment] -> SurfaceImpl spec -> SurfaceImpl spec
+surfaceImplWithMountedFragments fragments impl =
+    impl
+        { surfaceImplMountConfig = nextConfig
+        }
+    where
+        previousConfig = impl.surfaceImplMountConfig
+        nextConfig = previousConfig
+            { mountFragments = fragments
+            , mountSubscription = frontendSurfaceLiveSubscription impl.surfaceImplName (liveFragmentNames @spec) (previousConfig { mountFragments = fragments })
+            }
 
 handlerListToList :: (forall requirement. handler requirement -> value) -> HandlerList handler requirements -> [value]
 handlerListToList toValue = \case
