@@ -145,7 +145,7 @@ renderTimelineShift editable staffById shiftTypeById TimelineShift { timelineShi
             <article class={classes [("roster-day-timeline-shift", True), ("roster-shift-launcher", editable)]}
                      style={timelineShiftStyle timelineShiftStartMin timelineShiftEndMin timelineShiftTrack}
                      data-roster-slot-id={tshow timelineShiftSlot.id}
-                     data-roster-shift-group-key={tshow timelineShiftSlot.id}
+                     data-roster-shift-group-key={"existing:" <> tshow timelineShiftSlot.id}
                      tabindex={if editable then ("0" :: Text) else ""}>
                 <div class="roster-day-timeline-shift-time">{minuteLabel timelineShiftStartMin}–{minuteLabel timelineShiftEndMin}</div>
                 <div class="roster-day-timeline-shift-staff">{staffLabel}</div>
@@ -153,7 +153,7 @@ renderTimelineShift editable staffById shiftTypeById TimelineShift { timelineShi
             </article>
         |]
      in if editable
-            then SurfaceInteraction.withFrontendSurfaceSourceRef rosterDayTimelineSourceRef (tshow timelineShiftSlot.id) card
+            then SurfaceInteraction.withFrontendSurfaceSourceRef rosterDayTimelineSourceRef ("existing:" <> tshow timelineShiftSlot.id) card
             else card
 
 staffTimelineLabel :: Staff -> Text

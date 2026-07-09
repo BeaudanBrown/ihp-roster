@@ -18,6 +18,10 @@ import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.SurfaceResource (LiveMutationResult (..),
                                            SurfaceResourceValue)
+import Application.Helper.TimeRules (isQuarterHourMinutes,
+                                     minuteOfDayToTimeOfDay,
+                                     shiftDurationMinutes,
+                                     validRosterShiftDurationMinutes)
 import Application.Helper.UserPreferences
 import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 OverlayButtonAction (..),
@@ -526,7 +530,24 @@ instance Controller RosterWeeksController where
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
-        respondWithMoveRosterShiftFailure rosterGroup.id weekOffset "Timeline shift moves are not enabled yet."
+        result <- validateMoveRosterTimelineShiftIntent rosterGroup.id weekOffset
+        case result of
+            Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+            Right MoveRosterTimelineShiftIntent { timelineMoveIsNoOp = True } -> respondWithSilentRosterNoOp rosterGroup.id weekOffset
+            Right MoveRosterTimelineShiftIntent { timelineSourceSlot, timelineSourceRosterDay, timelineTargetRosterDay, timelineTargetSlotDefinition, timelineTargetRowIndex, timelineTargetStartTime, timelineTargetEndTime } -> do
+                let updatedSlot = timelineSourceSlot
+                        |> set #rosterDayId (unpackId timelineTargetRosterDay.id)
+                        |> set #rosterWeekSlotDefinitionId (unpackId timelineTargetSlotDefinition.id)
+                        |> set #slotSortOrder timelineTargetSlotDefinition.sortOrder
+                        |> set #rowIndex timelineTargetRowIndex
+                        |> set #startTime (Just timelineTargetStartTime)
+                        |> set #endTime (Just timelineTargetEndTime)
+                        |> applyRosterSlotDuration
+                rosterWeek <- fetch (Id timelineTargetRosterDay.rosterWeekId :: Id RosterWeek)
+                mutationResult <- moveRosterSlotMutation rosterGroup.id rosterWeek timelineSourceRosterDay timelineTargetRosterDay timelineSourceSlot updatedSlot
+                let RosterSlotMutationResult { rosterSlotMutationPreviousStaffId = previousStaffId, rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged } = mutationResult.liveMutationValue
+                let impactedRows = nub [(timelineSourceSlot.rosterDayId, timelineSourceSlot.rowIndex), (unpackId timelineTargetRosterDay.id, timelineTargetRowIndex)]
+                respondToRosterTimelineSlotMove rosterGroup.id rosterWeek timelineTargetRosterDay mutationResult previousStaffId impactedRows shouldWarnSourceTimesheetUnchanged
 
     action currentAction@DuplicateRosterShiftToDayAction { weekOffset } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -658,6 +679,23 @@ data RosterShiftDropTarget
     = PreciseRosterShiftDropTarget !(Id RosterDay) !(Id RosterWeekSlotDefinition) !Int
     | DayRosterShiftDropTarget !(Id RosterDay)
 
+data TimelineShiftDropTarget = TimelineShiftDropTarget
+    { timelineTargetRosterDayId       :: !(Id RosterDay)
+    , timelineTargetSlotDefinitionId  :: !(Id RosterWeekSlotDefinition)
+    , timelineTargetOperationalMinute :: !Int
+    }
+
+data MoveRosterTimelineShiftIntent = MoveRosterTimelineShiftIntent
+    { timelineSourceSlot           :: !RosterSlot
+    , timelineSourceRosterDay      :: !RosterDay
+    , timelineTargetRosterDay      :: !RosterDay
+    , timelineTargetSlotDefinition :: !RosterWeekSlotDefinition
+    , timelineTargetRowIndex       :: !Int
+    , timelineTargetStartTime      :: !TimeOfDay
+    , timelineTargetEndTime        :: !TimeOfDay
+    , timelineMoveIsNoOp           :: !Bool
+    }
+
 validateMoveRosterShiftIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Either Text MoveRosterShiftIntent)
 validateMoveRosterShiftIntent rosterGroupId weekOffset =
     validateRosterShiftDropIntent rosterGroupId weekOffset True
@@ -665,6 +703,16 @@ validateMoveRosterShiftIntent rosterGroupId weekOffset =
 validateDuplicateRosterShiftIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Either Text MoveRosterShiftIntent)
 validateDuplicateRosterShiftIntent rosterGroupId weekOffset =
     validateRosterShiftDropIntent rosterGroupId weekOffset False
+
+validateMoveRosterTimelineShiftIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Either Text MoveRosterTimelineShiftIntent)
+validateMoveRosterTimelineShiftIntent rosterGroupId weekOffset = do
+    let sourceToken = paramOrDefault @Text "" "sourceItemKey"
+    let targetToken = paramOrDefault @Text "" "targetDropzoneKey"
+    case (parseExistingSlotToken sourceToken, parseTimelineShiftDropTargetToken targetToken) of
+        (Just sourceSlotId, Just target) -> do
+            maybeResult <- validateRosterTimelineShiftDropTarget rosterGroupId weekOffset sourceSlotId target
+            pure (maybe (Left "Drag the shift onto an open timeline time target.") Right maybeResult)
+        _ -> pure (Left "Drag the shift onto an open timeline time target.")
 
 validateRosterShiftDropIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Bool -> IO (Either Text MoveRosterShiftIntent)
 validateRosterShiftDropIntent rosterGroupId weekOffset allowSemanticDayNoOp = do
@@ -708,6 +756,68 @@ validateRosterShiftDropTarget rosterGroupId weekOffset allowSemanticDayNoOp sour
                                 pure MoveRosterShiftIntent { sourceSlot, sourceRosterDay, targetRosterDay, targetSlotDefinition, targetRowIndex, moveIsNoOp = False }
                             _ -> Nothing
 
+validateRosterTimelineShiftDropTarget :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> Id RosterSlot -> TimelineShiftDropTarget -> IO (Maybe MoveRosterTimelineShiftIntent)
+validateRosterTimelineShiftDropTarget rosterGroupId weekOffset sourceSlotId target = do
+    maybeSourceSlot <- fetchOneOrNothing (query @RosterSlot |> filterWhere (#id, sourceSlotId) |> filterWhere (#deletedAt, Nothing))
+    case maybeSourceSlot of
+        Nothing -> pure Nothing
+        Just sourceSlot -> do
+            sourceRosterDay <- fetch (Id sourceSlot.rosterDayId :: Id RosterDay)
+            sourceRosterWeek <- fetch (Id sourceRosterDay.rosterWeekId :: Id RosterWeek)
+            maybeTargetRosterDay <- fetchOneOrNothing (query @RosterDay |> filterWhere (#id, target.timelineTargetRosterDayId))
+            maybeTargetSlotDefinition <- fetchOneOrNothing (query @RosterWeekSlotDefinition |> filterWhere (#id, target.timelineTargetSlotDefinitionId))
+            case (maybeTargetRosterDay, maybeTargetSlotDefinition, sourceSlot.startTime, sourceSlot.endTime) of
+                (Just targetRosterDay, Just targetSlotDefinition, Just sourceStart, Just sourceEnd) -> do
+                    targetRosterWeek <- fetch (Id targetRosterDay.rosterWeekId :: Id RosterWeek)
+                    let duration = shiftDurationMinutes sourceStart sourceEnd
+                        targetStartTime = minuteOfDayToTimeOfDay target.timelineTargetOperationalMinute
+                        targetEndTime = minuteOfDayToTimeOfDay (target.timelineTargetOperationalMinute + duration)
+                        sourceMatchesScope = sourceRosterWeek.rosterGroupId == unpackId rosterGroupId && sourceRosterWeek.weekOffset == weekOffset
+                        targetMatchesScope = targetRosterWeek.rosterGroupId == unpackId rosterGroupId && targetRosterWeek.weekOffset == weekOffset
+                        targetDefinitionMatchesWeek = targetSlotDefinition.rosterWeekId == unpackId targetRosterWeek.id
+                        validTargetTime = isQuarterHourMinutes target.timelineTargetOperationalMinute && isJust (validRosterShiftDurationMinutes targetStartTime targetEndTime)
+                    maybeRowIndex <- resolveTimelineTargetRowIndex sourceSlot targetRosterDay targetSlotDefinition
+                    pure do
+                        targetRowIndex <- maybeRowIndex
+                        guard sourceMatchesScope
+                        guard targetMatchesScope
+                        guard (not sourceRosterWeek.isLive)
+                        guard (not targetRosterWeek.isLive)
+                        guard (not targetRosterDay.isClosed)
+                        guard (isJust sourceSlot.staffId)
+                        guard targetDefinitionMatchesWeek
+                        guard (isNothing targetSlotDefinition.deletedAt)
+                        guard (duration > 0)
+                        guard validTargetTime
+                        let isNoOp = sourceSlot.rosterDayId == unpackId targetRosterDay.id
+                                && sourceSlot.rosterWeekSlotDefinitionId == unpackId targetSlotDefinition.id
+                                && sourceSlot.startTime == Just targetStartTime
+                                && sourceSlot.endTime == Just targetEndTime
+                        pure MoveRosterTimelineShiftIntent
+                            { timelineSourceSlot = sourceSlot
+                            , timelineSourceRosterDay = sourceRosterDay
+                            , timelineTargetRosterDay = targetRosterDay
+                            , timelineTargetSlotDefinition = targetSlotDefinition
+                            , timelineTargetRowIndex = targetRowIndex
+                            , timelineTargetStartTime = targetStartTime
+                            , timelineTargetEndTime = targetEndTime
+                            , timelineMoveIsNoOp = isNoOp
+                            }
+                _ -> pure Nothing
+
+resolveTimelineTargetRowIndex :: (?modelContext :: ModelContext) => RosterSlot -> RosterDay -> RosterWeekSlotDefinition -> IO (Maybe Int)
+resolveTimelineTargetRowIndex sourceSlot targetRosterDay targetSlotDefinition = do
+    daySlots <- query @RosterSlot
+        |> filterWhere (#rosterDayId, unpackId targetRosterDay.id)
+        |> filterWhere (#rosterWeekSlotDefinitionId, unpackId targetSlotDefinition.id)
+        |> filterWhere (#deletedAt, Nothing)
+        |> fetch
+    let occupiedRows = Set.fromList [ slot.rowIndex | slot <- daySlots, slot.id /= sourceSlot.id ]
+        preferredRow = sourceSlot.rowIndex
+        candidateRows = preferredRow : filter (/= preferredRow) [0 .. max preferredRow targetRosterDay.rowCount]
+        fallbackRow = max preferredRow targetRosterDay.rowCount
+    pure (listToMaybe (filter (`Set.notMember` occupiedRows) candidateRows) <|> Just fallbackRow)
+
 parseExistingSlotToken :: Text -> Maybe (Id RosterSlot)
 parseExistingSlotToken token =
     case Text.splitOn ":" token of
@@ -724,6 +834,20 @@ parseRosterShiftDropTargetToken token =
             slotDefinitionId <- Id <$> parseUUIDText rawSlotDefinitionId
             rowIndex <- TextRead.readMaybe (cs rawRowIndex)
             pure (PreciseRosterShiftDropTarget rosterDayId slotDefinitionId rowIndex)
+        _ -> Nothing
+
+parseTimelineShiftDropTargetToken :: Text -> Maybe TimelineShiftDropTarget
+parseTimelineShiftDropTargetToken token =
+    case Text.splitOn ":" token of
+        ["time", rawRosterDayId, rawSlotDefinitionId, rawMinute] -> do
+            rosterDayId <- Id <$> parseUUIDText rawRosterDayId
+            slotDefinitionId <- Id <$> parseUUIDText rawSlotDefinitionId
+            minute <- TextRead.readMaybe (cs rawMinute)
+            pure TimelineShiftDropTarget
+                { timelineTargetRosterDayId = rosterDayId
+                , timelineTargetSlotDefinitionId = slotDefinitionId
+                , timelineTargetOperationalMinute = minute
+                }
         _ -> Nothing
 
 dropTargetRosterDayId :: RosterShiftDropTarget -> Id RosterDay
@@ -1013,6 +1137,43 @@ respondToRosterSlotMove rosterGroupId rosterWeek mutationResult maybeStaffId imp
         rosterWeek.weekOffset
         actorFragments
         (clearDialogOverlayOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> warningHtml)
+
+respondToRosterTimelineSlotMove :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> LiveMutationResult RosterSlotMutationResult -> Maybe UUID.UUID -> [(UUID.UUID, Int)] -> Bool -> IO ()
+respondToRosterTimelineSlotMove rosterGroupId rosterWeek targetRosterDay mutationResult maybeStaffId impactedRowKeys shouldWarnSourceTimesheetUnchanged = do
+    layoutMode <- fetchCurrentRosterLayoutMode
+    let maybeStaffParam = tshow <$> maybeStaffId
+    let actorFragmentCandidates =
+            case rosterLayoutModeValue layoutMode of
+                "day_columns" -> rosterGridInnerAndStaffPanelFragments
+                _ -> rosterGridInnerAndStaffPanelFragments
+                    <> actorRosterRowFragments maybeStaffParam impactedRowKeys
+                    <> assignmentRefreshFragments maybeStaffParam
+    let actorFragments =
+            rosterActorFragmentsForTouchedResources
+                rosterGroupId
+                rosterWeek.weekOffset
+                mutationResult.liveMutationTouchedResources
+                actorFragmentCandidates
+    timelineHtml <- renderTimelineContentOob rosterGroupId rosterWeek.weekOffset targetRosterDay.id
+    let warningHtml =
+            if shouldWarnSourceTimesheetUnchanged
+                then renderToastOob ToastBottomCenter (errorToast "A pending timesheet already exists for this roster slot, so the timesheet was not changed. Edit the timesheet entry directly.")
+                else mempty
+    respondWithRosterActorFragments
+        rosterGroupId
+        rosterWeek.weekOffset
+        actorFragments
+        (timelineHtml <> clearDialogOverlayOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> warningHtml)
+
+renderTimelineContentOob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Id RosterDay -> IO Blaze.Html
+renderTimelineContentOob rosterGroupId weekOffset rosterDayId = do
+    maybeRosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
+    pure case maybeRosterData of
+        Nothing -> mempty
+        Just rosterData ->
+            case find (\rosterDay -> rosterDay.id == rosterDayId) rosterData.rosterDays of
+                Nothing -> mempty
+                Just rosterDay -> renderRosterDayTimelineContent (Just "outerHTML") rosterData rosterDay
 
 respondToRosterSlotUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> LiveMutationResult RosterSlotMutationResult -> Maybe UUID.UUID -> [(UUID.UUID, Int)] -> Bool -> IO ()
 respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult maybeStaffId impactedRowKeys shouldWarnSourceTimesheetUnchanged = do
