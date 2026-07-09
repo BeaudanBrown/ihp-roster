@@ -12,6 +12,7 @@ import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
 import Application.Helper.SurfaceResource
+import Application.Helper.View (dialogOverlayMountId)
 import Config
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as ByteString
@@ -1036,6 +1037,8 @@ tests = beforeAll testContext do
                             ]
 
                 response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` ("id=\"" <> cs dialogOverlayMountId <> "\"")
+                response `responseBodyShouldContain` "hx-swap-oob=\"innerHTML\""
                 response `responseBodyShouldContain` "Add shift"
                 response `responseBodyShouldContain` ("value=\"" <> cs (tshow staffMember.id) <> "\"")
                 response `responseBodyShouldContain` "selected"
