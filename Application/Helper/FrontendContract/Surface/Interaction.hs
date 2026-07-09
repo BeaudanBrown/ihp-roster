@@ -7,6 +7,8 @@
 
 module Application.Helper.FrontendContract.Surface.Interaction
     ( CloneShadow
+    , CloneShadowCopy
+    , Copy
     , CurrentClientX
     , CurrentClientY
     , DeltaX
@@ -25,7 +27,9 @@ module Application.Helper.FrontendContract.Surface.Interaction
     , StartClientX
     , StartClientY
     , TargetDropzoneKey
+    , DragDropFields
     , DragDropInteraction
+    , DragDropInteractionWithVariants
     , LayoutModeInteraction
     , frontendSurfaceActivationRefAttribute
     , frontendSurfaceDropzoneKeyAttribute
@@ -108,7 +112,9 @@ attr name value =
 data DragSession
 data DragPreviewLayer
 data CloneShadow
+data CloneShadowCopy
 data DropzoneHighlight
+data Copy
 data DragSourceRef
 data DragDropzoneRef
 data RosterLayoutModeActivationRef
@@ -146,8 +152,11 @@ type DragDropFields =
          ]
 
 type DragDropInteraction (intent :: Type) (targetFragment :: Type) =
+    DragDropInteractionWithVariants intent targetFragment '[]
+
+type DragDropInteractionWithVariants (intent :: Type) (targetFragment :: Type) (variants :: [PrimitiveOption]) =
     '[ Session DragSession '[ 'Layer DragPreviewLayer, 'Effect CloneShadow '[ 'Layer DragPreviewLayer ], 'Effect DropzoneHighlight '[] ]
-     , SourceRef DragSourceRef '[ 'SessionOption DragSession, 'Submits intent, 'SourceField SourceItemKey ]
+     , SourceRef DragSourceRef (Concat '[ '[ 'SessionOption DragSession, 'Submits intent, 'SourceField SourceItemKey ], variants ])
      , DropzoneRef DragDropzoneRef '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]
      , Action intent DragDropFields '[ 'Target targetFragment ]
      , Intent intent DragDropFields '[ 'SessionOption DragSession, 'BackedBy intent ]

@@ -91,8 +91,21 @@ convertIntent intent = SurfaceIntentIR intent.intentMarker intent.intentName (fm
 convertDto :: (Text, [Surface.FieldIR]) -> SurfacePrimitiveIR
 convertDto (name, fields) = SurfaceDtoIR name (typeNameFromProtocolName name) (fmap convertField fields)
 
-convertSourceRef :: Surface.InteractionSourceRefIR -> (Text, Text, Text, Text)
-convertSourceRef ref = (ref.sourceRefName, ref.sourceRefSession, ref.sourceRefIntent, ref.sourceRefSourceField)
+convertSourceRef :: Surface.InteractionSourceRefIR -> InteractionSourceRefIR
+convertSourceRef ref = InteractionSourceRefIR
+    { interactionSourceRefName = ref.sourceRefName
+    , interactionSourceRefSession = ref.sourceRefSession
+    , interactionSourceRefIntent = ref.sourceRefIntent
+    , interactionSourceRefSourceField = ref.sourceRefSourceField
+    , interactionSourceRefVariants = fmap convertModifierVariant ref.sourceRefVariants
+    }
+
+convertModifierVariant :: Surface.InteractionModifierVariantIR -> InteractionModifierVariantIR
+convertModifierVariant variant = InteractionModifierVariantIR
+    { interactionModifierSemantic = variant.modifierVariantSemantic
+    , interactionModifierIntent = variant.modifierVariantIntent
+    , interactionModifierEffects = fmap convertEffect variant.modifierVariantEffects
+    }
 
 convertDropzoneRef :: Surface.InteractionDropzoneRefIR -> (Text, Text, Text)
 convertDropzoneRef ref = (ref.dropzoneRefName, ref.dropzoneRefSession, ref.dropzoneRefTargetField)

@@ -109,6 +109,7 @@ data PrimitiveOption
     | BackedBy Type
     | Layer Type
     | Effect Type [PrimitiveOption]
+    | ModifierVariant Type Type [PrimitiveOption]
     | SessionOption Type
     | Submits Type
     | SourceField Type

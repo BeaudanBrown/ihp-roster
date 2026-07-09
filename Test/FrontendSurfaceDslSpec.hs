@@ -280,14 +280,17 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "toggle-roster-staff-scope"
                        , "set-roster-layout-mode"
                        , "move-roster-shift-to-slot"
+                       , "duplicate-roster-shift-to-day"
                        ]
-        map (.intentName) surface.surfaceIntents `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot"]
+        map (.intentName) surface.surfaceIntents `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot", "duplicate-roster-shift-to-day"]
         surface.surfaceSessions `shouldBe` ["drag"]
         map (.sourceRefName) surface.surfaceSourceRefs `shouldBe` ["drag-source"]
         map (.dropzoneRefName) surface.surfaceDropzoneRefs `shouldBe` ["drag-dropzone"]
         map (.activationRefName) surface.surfaceActivationRefs `shouldBe` ["roster-layout-mode-activation"]
         surface.surfaceLayers `shouldBe` ["drag-preview"]
         map fst surface.surfaceEffects `shouldBe` ["clone-shadow", "dropzone-highlight"]
+        map (map (.modifierVariantSemantic) . (.sourceRefVariants)) surface.surfaceSourceRefs `shouldBe` [["copy"]]
+        map (concatMap (map fst . (.modifierVariantEffects)) . (.sourceRefVariants)) surface.surfaceSourceRefs `shouldBe` [["clone-shadow-copy", "dropzone-highlight"]]
         map (.conflictPolicyResolution) surface.surfacePolicies `shouldBe` [DeferIR]
 
     it "renders generated TypeScript contracts for the roster surface" do
@@ -296,13 +299,14 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceContractsTypeScript `shouldContainText` "{ kind: \"roster-row\"; params: RosterRosterRowFragmentParams }"
         frontendSurfaceContractsTypeScript `shouldContainText` "\"htmxActions\":[{\"name\":\"navigate-roster-week\""
         frontendSurfaceContractsTypeScript `shouldContainText` "{\"name\":\"set-roster-layout-mode\",\"fields\":[\"rosterLayoutMode\"]"
-        frontendSurfaceContractsTypeScript `shouldContainText` "\"intents\":[\"set-roster-layout-mode\",\"move-roster-shift-to-slot\"]"
+        frontendSurfaceContractsTypeScript `shouldContainText` "\"intents\":[\"set-roster-layout-mode\",\"move-roster-shift-to-slot\",\"duplicate-roster-shift-to-day\"]"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type MoveRosterShiftToSlotIntentFields = RosterMoveRosterShiftToSlotIntentFields;"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type DuplicateRosterShiftToDayIntentFields = RosterDuplicateRosterShiftToDayIntentFields;"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterSessionName = \"drag\";"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterSourceRef = \"drag-source\";"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterDropzoneRef = \"drag-dropzone\";"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterActivationRef = \"roster-layout-mode-activation\";"
-        frontendSurfaceContractsTypeScript `shouldContainText` "\"interaction\":{\"sourceRefs\":[{\"ref\":\"drag-source\",\"session\":\"drag\",\"intent\":\"move-roster-shift-to-slot\",\"sourceField\":\"sourceItemKey\"}]"
+        frontendSurfaceContractsTypeScript `shouldContainText` "\"interaction\":{\"sourceRefs\":[{\"ref\":\"drag-source\",\"session\":\"drag\",\"intent\":\"move-roster-shift-to-slot\",\"sourceField\":\"sourceItemKey\",\"modifierVariants\":[{\"semantic\":\"copy\",\"intent\":\"duplicate-roster-shift-to-day\""
         frontendSurfaceContractsTypeScript `shouldContainText` "\"dropzoneRefs\":[{\"ref\":\"drag-dropzone\",\"session\":\"drag\",\"targetField\":\"targetDropzoneKey\"}]"
         frontendSurfaceContractsTypeScript `shouldContainText` "\"activationRefs\":[{\"ref\":\"roster-layout-mode-activation\",\"intent\":\"set-roster-layout-mode\",\"valueField\":\"rosterLayoutMode\",\"trigger\":\"click\"}]"
         frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterSurfaceManifest"

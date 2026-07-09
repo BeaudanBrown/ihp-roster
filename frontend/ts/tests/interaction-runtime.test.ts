@@ -145,13 +145,28 @@ function eventWithTarget(type: string, target: MiniElement): Event {
     return event;
 }
 
-function pointerEventWithTarget(type: string, target: MiniElement, pointerId: number, clientX: number, clientY: number, pointerType = "mouse"): Event {
-    const event = eventWithTarget(type, target) as Event & { pointerId: number; clientX: number; clientY: number; pointerType: string };
+function pointerEventWithTarget(type: string, target: MiniElement, pointerId: number, clientX: number, clientY: number, pointerType = "mouse", modifiers: Partial<Pick<PointerEvent, "ctrlKey" | "shiftKey" | "altKey" | "metaKey">> = {}): Event {
+    const event = eventWithTarget(type, target) as Event & { pointerId: number; clientX: number; clientY: number; pointerType: string; ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean; metaKey?: boolean };
     event.pointerId = pointerId;
     event.clientX = clientX;
     event.clientY = clientY;
     event.pointerType = pointerType;
+    event.ctrlKey = modifiers.ctrlKey ?? false;
+    event.shiftKey = modifiers.shiftKey ?? false;
+    event.altKey = modifiers.altKey ?? false;
+    event.metaKey = modifiers.metaKey ?? false;
     return event;
+}
+
+function withNavigatorPlatform<T>(platform: string, run: () => T): T {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+    Object.defineProperty(globalThis, "navigator", { configurable: true, value: { platform } });
+    try {
+        return run();
+    } finally {
+        if (descriptor) Object.defineProperty(globalThis, "navigator", descriptor);
+        else Reflect.deleteProperty(globalThis, "navigator");
+    }
 }
 
 function keyEvent(key: string): Event {
@@ -518,6 +533,61 @@ test("generated pointer session effects render proxy shadows and highlight dropz
     assertEqual(layer.children.length, 0);
     assertEqual(secondDropzone.getAttribute("class"), null);
     assertEqual(phases.join(","), "start,preview,preview,preview,preview,preview,commit");
+});
+
+test("pointer modifier variants select copy intent and variant shadow on platform-native keys", () => {
+    withNavigatorPlatform("Win32", () => {
+        const intents: string[] = [];
+        const mount = new MiniElement({ [attrs.surface]: "roster", [attrs.surfaceFamily]: "roster" });
+        const marker = mount.append(new MiniElement({
+            [FrontendSurfaceInteractionDom.sourceRef]: "drag-source",
+            [FrontendSurfaceInteractionDom.sourceKey]: "existing:source-slot",
+            [attrs.sessionThreshold]: "0",
+        }));
+        marker.rect = { left: 0, top: 0, width: 40, height: 20 };
+        const dropzone = mount.append(new MiniElement({ [FrontendSurfaceInteractionDom.dropzoneRef]: "drag-dropzone", [FrontendSurfaceInteractionDom.dropzoneKey]: "day:target" }));
+        const layer = mount.append(new MiniElement({ [attrs.disposableLayer]: "drag-preview" }));
+        const doc = { elementFromPoint: (_x: number, _y: number) => dropzone, createElement: (_tag: string) => new MiniElement() };
+        mount.ownerDocument = doc;
+        marker.ownerDocument = doc;
+        dropzone.ownerDocument = doc;
+        layer.ownerDocument = doc;
+
+        const controller = createPointerSessionController({ runtime: { emit: (payload) => { if (payload.phase === "preview" || payload.phase === "commit") intents.push(payload.intent); return { canceled: false }; } } });
+        controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 1, 0, 0));
+        controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 1, 8, 0, "mouse", { ctrlKey: true }));
+        const copyShadow = layer.children[0];
+        if (!copyShadow) throw new Error("Expected copy proxy shadow");
+        assertEqual(copyShadow.getAttribute("class"), "bepis-pointer-clone-shadow bepis-pointer-clone-shadow-copy");
+        controller.handlePointerUp(pointerEventWithTarget("pointerup", marker, 1, 8, 0, "mouse", { ctrlKey: true }));
+        assertEqual(intents.join(","), "duplicate-roster-shift-to-day,duplicate-roster-shift-to-day,duplicate-roster-shift-to-day");
+    });
+
+    withNavigatorPlatform("MacIntel", () => {
+        const committed: string[] = [];
+        const mount = new MiniElement({ [attrs.surface]: "roster", [attrs.surfaceFamily]: "roster" });
+        const marker = mount.append(new MiniElement({ [FrontendSurfaceInteractionDom.sourceRef]: "drag-source", [FrontendSurfaceInteractionDom.sourceKey]: "existing:source-slot", [attrs.sessionThreshold]: "0" }));
+        marker.rect = { left: 0, top: 0, width: 10, height: 10 };
+        const dropzone = mount.append(new MiniElement({ [FrontendSurfaceInteractionDom.dropzoneRef]: "drag-dropzone", [FrontendSurfaceInteractionDom.dropzoneKey]: "day:target" }));
+        const layer = mount.append(new MiniElement({ [attrs.disposableLayer]: "drag-preview" }));
+        const doc = { elementFromPoint: (_x: number, _y: number) => dropzone, createElement: (_tag: string) => new MiniElement() };
+        mount.ownerDocument = doc;
+        marker.ownerDocument = doc;
+        dropzone.ownerDocument = doc;
+        layer.ownerDocument = doc;
+
+        const controller = createPointerSessionController({ runtime: { emit: (payload) => { if (payload.phase === "commit") committed.push(payload.intent); return { canceled: false }; } } });
+        controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 2, 0, 0));
+        controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 2, 8, 0, "mouse", { ctrlKey: true }));
+        controller.handlePointerUp(pointerEventWithTarget("pointerup", marker, 2, 8, 0, "mouse", { ctrlKey: true }));
+        assertEqual(committed.join(","), "move-roster-shift-to-slot");
+
+        committed.length = 0;
+        controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 3, 0, 0));
+        controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 3, 8, 0, "mouse", { altKey: true }));
+        controller.handlePointerUp(pointerEventWithTarget("pointerup", marker, 3, 8, 0, "mouse", { altKey: true }));
+        assertEqual(committed.join(","), "duplicate-roster-shift-to-day");
+    });
 });
 
 test("pointer session effect cleanup runs on pointercancel Escape and external cleanup", () => {

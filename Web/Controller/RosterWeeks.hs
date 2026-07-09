@@ -491,6 +491,12 @@ instance Controller RosterWeeksController where
                 let impactedRows = nub [(sourceSlot.rosterDayId, sourceSlot.rowIndex), (unpackId targetRosterDay.id, targetRowIndex)]
                 respondToRosterSlotMove rosterGroup.id rosterWeek mutationResult previousStaffId impactedRows shouldWarnSourceTimesheetUnchanged
 
+    action currentAction@DuplicateRosterShiftToDayAction { weekOffset } = runBepis currentAction BepisMutationAction do
+        ensureManagerRole
+        ensureVenueWritable
+        rosterGroup <- resolveRequestedRosterGroup
+        respondWithMoveRosterShiftFailure rosterGroup.id weekOffset "Duplicate drag/drop is not available yet."
+
     action currentAction@UpdateRosterWarningPreferenceAction { weekOffset } =
         runBepis currentAction BepisMutationAction do
             ensureManagerRole

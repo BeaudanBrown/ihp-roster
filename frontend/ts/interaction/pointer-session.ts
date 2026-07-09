@@ -32,6 +32,19 @@ type PointerEventLike = Event & {
     pointerType?: string;
     clientX?: number;
     clientY?: number;
+    ctrlKey?: boolean;
+    shiftKey?: boolean;
+    altKey?: boolean;
+    metaKey?: boolean;
+};
+
+type InteractionModifierVariant = {
+    semantic: string;
+    intent: string;
+    effects?: {
+        global: ReadonlyArray<InteractionSessionEffect>;
+        contextual: ReadonlyArray<InteractionSessionEffect>;
+    };
 };
 
 export type PointerSessionEffectRunner = {
@@ -44,6 +57,9 @@ export type ActivePointerSession = {
     mount: ElementLike;
     marker: ElementLike;
     intent: string;
+    defaultIntent: string;
+    activeModifierSemantic: string | null;
+    modifierVariants: ReadonlyArray<InteractionModifierVariant>;
     sessionKind: string;
     sourceField: string | null;
     sourceKey: string | null;
@@ -177,6 +193,7 @@ export function createPointerSessionController(options: PointerSessionOptions = 
         const firstActivation = !session.activated;
         session.activated = true;
         if (firstActivation) session.effects.activate(session);
+        updateActiveModifierVariant(session, event);
         session.effects.update(session);
         runtime.emit({
             phase: "preview",
@@ -288,7 +305,7 @@ export function readPointerSessionStart(event: Event, fallbackThresholdPx = defa
     if (!sourceKey) return null;
 
     const targetField = FrontendSurfaceRegistry[surface].interaction.dropzoneRefs.find((candidate) => candidate.session === source.session)?.targetField ?? null;
-    return buildPointerSession({ event: pointerEvent, marker, mount, intent: source.intent, sessionKind: source.session, sourceField: source.sourceField, sourceKey, targetField, fallbackThresholdPx });
+    return buildPointerSession({ event: pointerEvent, marker, mount, intent: source.intent, modifierVariants: source.modifierVariants ?? [], sessionKind: source.session, sourceField: source.sourceField, sourceKey, targetField, fallbackThresholdPx });
 }
 
 type PointerSessionBuildInput = {
@@ -296,6 +313,7 @@ type PointerSessionBuildInput = {
     marker: ElementLike;
     mount: ElementLike;
     intent: string;
+    modifierVariants: ReadonlyArray<InteractionModifierVariant>;
     sessionKind: string;
     sourceField: string | null;
     sourceKey: string | null;
@@ -311,6 +329,9 @@ function buildPointerSession(input: PointerSessionBuildInput): ActivePointerSess
         mount: input.mount,
         marker: input.marker,
         intent: input.intent,
+        defaultIntent: input.intent,
+        activeModifierSemantic: null,
+        modifierVariants: input.modifierVariants,
         sessionKind: input.sessionKind,
         sourceField: input.sourceField,
         sourceKey: input.sourceKey,
@@ -330,13 +351,13 @@ function buildPointerSession(input: PointerSessionBuildInput): ActivePointerSess
 }
 
 export function createPointerSessionEffectRunner(session: ActivePointerSession): PointerSessionEffectRunner {
-    const sessionDefinition = interactionSessionDefinitionFor(session);
-    if (!sessionDefinition) return noOpEffectRunner;
+    const sessionEffects = activeSessionEffects(session);
+    if (!sessionEffects) return noOpEffectRunner;
 
-    const globalHandlers = sessionDefinition.effects.global
+    const globalHandlers = sessionEffects.global
         .map(createGlobalEffectHandler)
         .filter((handler): handler is GlobalEffectHandler => handler !== null);
-    const contextualHandlers = sessionDefinition.effects.contextual
+    const contextualHandlers = sessionEffects.contextual
         .map(createContextualEffectHandler)
         .filter((handler): handler is ContextualEffectHandler => handler !== null);
 
@@ -367,6 +388,48 @@ export function hitTestClosest(root: Document | Element, clientX: number, client
     const hit = elementFromPoint(clientX, clientY);
     if (!isElementLike(hit)) return null;
     return hit.closest(selector);
+}
+
+function activeSessionEffects(session: ActivePointerSession): { global: ReadonlyArray<InteractionSessionEffect>; contextual: ReadonlyArray<InteractionSessionEffect> } | null {
+    const variant = activeModifierVariant(session);
+    if (variant?.effects) return variant.effects;
+
+    const sessionDefinition = interactionSessionDefinitionFor(session);
+    return sessionDefinition?.effects ?? null;
+}
+
+function activeModifierVariant(session: ActivePointerSession): InteractionModifierVariant | null {
+    if (!session.activeModifierSemantic) return null;
+    return session.modifierVariants.find((variant) => variant.semantic === session.activeModifierSemantic) ?? null;
+}
+
+function updateActiveModifierVariant(session: ActivePointerSession, event: PointerEventLike): void {
+    const nextSemantic = semanticModifierForEvent(event);
+    const nextVariant = nextSemantic ? session.modifierVariants.find((variant) => variant.semantic === nextSemantic) ?? null : null;
+    const nextIntent = nextVariant?.intent ?? session.defaultIntent;
+    const activeSemantic = nextVariant?.semantic ?? null;
+    if (session.intent === nextIntent && session.activeModifierSemantic === activeSemantic) return;
+
+    const wasActivated = session.activated;
+    if (wasActivated) session.effects.cleanup(session);
+    session.intent = nextIntent;
+    session.activeModifierSemantic = activeSemantic;
+    session.effects = createPointerSessionEffectRunner(session);
+    if (wasActivated) session.effects.activate(session);
+}
+
+function semanticModifierForEvent(event: PointerEventLike): string | null {
+    const pressed = [event.ctrlKey, event.shiftKey, event.altKey, event.metaKey].filter(Boolean).length;
+    if (pressed !== 1) return null;
+    if (isMacPlatform()) return event.altKey ? "copy" : null;
+    return event.ctrlKey ? "copy" : null;
+}
+
+function isMacPlatform(): boolean {
+    const nav = typeof navigator === "undefined" ? null : navigator;
+    const platform = nav?.platform ?? "";
+    const userAgentDataPlatform = (nav as Navigator & { userAgentData?: { platform?: string } } | null)?.userAgentData?.platform ?? "";
+    return /mac|iphone|ipad|ipod/i.test(`${platform} ${userAgentDataPlatform}`);
 }
 
 function interactionSessionDefinitionFor(session: ActivePointerSession) {

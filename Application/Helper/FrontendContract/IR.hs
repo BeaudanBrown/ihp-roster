@@ -11,6 +11,8 @@ module Application.Helper.FrontendContract.IR
     , GlobalIR (..)
     , GlobalPrimitiveIR (..)
     , AppShellActionIR (..)
+    , InteractionModifierVariantIR (..)
+    , InteractionSourceRefIR (..)
     , SchemaIR (..)
     , SurfaceIR (..)
     , HtmxActionOptionIR (..)
@@ -48,7 +50,7 @@ data SurfaceIR = SurfaceIR
     , surfaceInteractionLayers   :: ![Text]
     , surfaceInteractionEffects  :: ![(Text, [Text])]
     , surfaceInteractionPolicies :: ![SurfaceInteractionPolicyIR]
-    , surfaceSourceRefs          :: ![(Text, Text, Text, Text)]
+    , surfaceSourceRefs          :: ![InteractionSourceRefIR]
     , surfaceDropzoneRefs        :: ![(Text, Text, Text)]
     , surfaceActivationRefs      :: ![(Text, Text, Maybe Text, Text)]
     , surfaceDomTokens           :: ![Text]
@@ -61,6 +63,22 @@ data SurfaceIR = SurfaceIR
 data SurfaceInteractionPolicyIR = SurfaceInteractionPolicyIR
     { interactionPolicySession    :: !(Maybe Text)
     , interactionPolicyResolution :: !Text
+    }
+    deriving (Eq, Show)
+
+data InteractionSourceRefIR = InteractionSourceRefIR
+    { interactionSourceRefName        :: !Text
+    , interactionSourceRefSession     :: !Text
+    , interactionSourceRefIntent      :: !Text
+    , interactionSourceRefSourceField :: !Text
+    , interactionSourceRefVariants    :: ![InteractionModifierVariantIR]
+    }
+    deriving (Eq, Show)
+
+data InteractionModifierVariantIR = InteractionModifierVariantIR
+    { interactionModifierSemantic :: !Text
+    , interactionModifierIntent   :: !Text
+    , interactionModifierEffects  :: ![(Text, [Text])]
     }
     deriving (Eq, Show)
 

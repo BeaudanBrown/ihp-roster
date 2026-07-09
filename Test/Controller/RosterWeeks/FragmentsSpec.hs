@@ -151,8 +151,9 @@ tests = beforeAll testContext do
                                , "toggle-roster-staff-scope"
                                , "set-roster-layout-mode"
                                , "move-roster-shift-to-slot"
+                               , "duplicate-roster-shift-to-day"
                                ]
-                map (.intentFormName) impl.surfaceImplIntents `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot"]
+                map (.intentFormName) impl.surfaceImplIntents `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot", "duplicate-roster-shift-to-day"]
                 mountConfig.mountSurfaceName `shouldBe` "roster"
                 mountConfig.mountScopeKey `shouldBe` "roster:00000000-0000-0000-0000-000000000111:00000000-0000-0000-0000-000000000222:3"
                 fragmentKinds

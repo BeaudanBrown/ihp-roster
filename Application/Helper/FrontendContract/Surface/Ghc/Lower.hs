@@ -150,6 +150,7 @@ interactionSourceRef marker options = do
         , IR.sourceRefSession = session
         , IR.sourceRefIntent = intent
         , IR.sourceRefSourceField = sourceField
+        , IR.sourceRefVariants = [variant | IR.ModifierVariantOption variant <- options]
         }
 
 interactionDropzoneRef :: String -> [IR.OptionIR] -> Either [String] IR.InteractionDropzoneRefIR
@@ -201,11 +202,16 @@ addSessionOptionMetadata options surface =
             IR.LazyOption nested -> layersIn nested
             IR.LayerOption name -> [name]
             IR.EffectOption _ nested -> layersIn nested
+            IR.ModifierVariantOption variant -> concatMap (layersIn . snd) variant.modifierVariantEffects
             _ -> []
-        effectsIn = concatMap \case
-            IR.LazyOption nested -> effectsIn nested
-            IR.EffectOption name nested -> (name, nested) : effectsIn nested
-            _ -> []
+        effectsIn = effectsInOptions
+
+effectsInOptions :: [IR.OptionIR] -> [(Text, [IR.OptionIR])]
+effectsInOptions = concatMap \case
+    IR.LazyOption nested -> effectsInOptions nested
+    IR.EffectOption name nested -> (name, nested) : effectsInOptions nested
+    IR.ModifierVariantOption variant -> variant.modifierVariantEffects <> concatMap (effectsInOptions . snd) variant.modifierVariantEffects
+    _ -> []
 
 lowerFieldList :: RawType -> Either [String] [IR.FieldIR]
 lowerFieldList fields = rawListElements "field list" fields >>= collectEither . map lowerField
@@ -294,6 +300,15 @@ lowerOption option
         (Just "BackedBy", marker : _) -> IR.BackedByOption <$> (protocol Naming.ActionName <$> rawMarkerName marker)
         (Just "Layer", marker : _) -> IR.LayerOption <$> (protocol Naming.LayerName <$> rawMarkerName marker)
         (Just "Effect", marker : options : _) -> IR.EffectOption <$> (protocol Naming.ActionName <$> rawMarkerName marker) <*> lowerOptionList options
+        (Just "ModifierVariant", semantic : intent : effects : _) -> do
+            semanticName <- protocol Naming.ActionName <$> rawMarkerName semantic
+            intentName <- protocol Naming.IntentName <$> rawMarkerName intent
+            effectOptions <- lowerOptionList effects
+            Right $ IR.ModifierVariantOption IR.InteractionModifierVariantIR
+                { IR.modifierVariantSemantic = semanticName
+                , IR.modifierVariantIntent = intentName
+                , IR.modifierVariantEffects = effectsInOptions effectOptions
+                }
         (Just "SessionOption", marker : _) -> IR.SessionOptionIR <$> (protocol Naming.SessionName <$> rawMarkerName marker)
         (Just "Submits", marker : _) -> IR.SubmitsOption <$> (protocol Naming.IntentName <$> rawMarkerName marker)
         (Just "SourceField", marker : _) -> IR.SourceFieldOption <$> (protocol Naming.FieldName <$> rawMarkerName marker)

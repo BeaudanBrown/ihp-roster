@@ -1,6 +1,6 @@
 ---
 id: ir-smzc
-status: open
+status: closed
 deps: [ir-lzqr]
 links: []
 created: 2026-07-09T01:32:04Z

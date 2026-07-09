@@ -128,6 +128,7 @@ instance (Typeable marker, ReflectOptionList options) => ReflectPrimitive ('Sour
             , sourceRefSession = requiredOption "source ref" (typeMarker @marker) "SessionOption" [name | SessionOptionIR name <- options]
             , sourceRefIntent = requiredOption "source ref" (typeMarker @marker) "Submits" [name | SubmitsOption name <- options]
             , sourceRefSourceField = requiredOption "source ref" (typeMarker @marker) "SourceField" [name | SourceFieldOption name <- options]
+            , sourceRefVariants = [variant | ModifierVariantOption variant <- options]
             }
 
 instance (Typeable marker, ReflectOptionList options) => ReflectPrimitive ('DropzoneRef marker options) where
@@ -300,6 +301,12 @@ instance Typeable marker => ReflectOption ('Target marker) where reflectOption =
 instance Typeable marker => ReflectOption ('BackedBy marker) where reflectOption = BackedByOption (protocolName @marker ActionName)
 instance Typeable marker => ReflectOption ('Layer marker) where reflectOption = LayerOption (protocolName @marker LayerName)
 instance (Typeable marker, ReflectOptionList options) => ReflectOption ('Effect marker options) where reflectOption = EffectOption (protocolName @marker ActionName) (reflectOptionList @options)
+instance (Typeable semantic, Typeable intent, ReflectOptionList effects) => ReflectOption ('ModifierVariant semantic intent effects) where
+    reflectOption = ModifierVariantOption InteractionModifierVariantIR
+        { modifierVariantSemantic = protocolName @semantic ActionName
+        , modifierVariantIntent = protocolName @intent IntentName
+        , modifierVariantEffects = effectsInOptions (reflectOptionList @effects)
+        }
 instance Typeable marker => ReflectOption ('SessionOption marker) where reflectOption = SessionOptionIR (protocolName @marker SessionName)
 instance Typeable marker => ReflectOption ('Submits marker) where reflectOption = SubmitsOption (protocolName @marker IntentName)
 instance Typeable marker => ReflectOption ('SourceField marker) where reflectOption = SourceFieldOption (protocolName @marker FieldName)
@@ -413,11 +420,16 @@ addOptionMetadata options surface =
             LazyOption nested -> layersIn nested
             LayerOption name -> [name]
             EffectOption _ nested -> layersIn nested
+            ModifierVariantOption variant -> concatMap (layersIn . snd) variant.modifierVariantEffects
             _ -> []
-        effectsIn = concatMap \case
-            LazyOption nested -> effectsIn nested
-            EffectOption name nested -> (name, nested) : effectsIn nested
-            _ -> []
+        effectsIn = effectsInOptions
+
+effectsInOptions :: [OptionIR] -> [(Text, [OptionIR])]
+effectsInOptions = concatMap \case
+    LazyOption nested -> effectsInOptions nested
+    EffectOption name nested -> (name, nested) : effectsInOptions nested
+    ModifierVariantOption variant -> variant.modifierVariantEffects <> concatMap (effectsInOptions . snd) variant.modifierVariantEffects
+    _ -> []
 
 emptySurface :: SurfaceIR
 emptySurface = SurfaceIR

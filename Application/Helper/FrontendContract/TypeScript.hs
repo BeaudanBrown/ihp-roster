@@ -268,14 +268,18 @@ renderSessionEffects effects = objectLiteral
     ]
 
 renderGlobalEffect :: (Text, [Text]) -> Maybe Text
-renderGlobalEffect ("clone-shadow", layers) = Just $ objectLiteral
-    [ ("className", quote "bepis-pointer-clone-shadow")
+renderGlobalEffect ("clone-shadow", layers) = Just $ renderCloneShadowEffect "bepis-pointer-clone-shadow" layers
+renderGlobalEffect ("clone-shadow-copy", layers) = Just $ renderCloneShadowEffect "bepis-pointer-clone-shadow bepis-pointer-clone-shadow-copy" layers
+renderGlobalEffect _ = Nothing
+
+renderCloneShadowEffect :: Text -> [Text] -> Text
+renderCloneShadowEffect className layers = objectLiteral
+    [ ("className", quote className)
     , ("kind", quote "clone-shadow")
     , ("layer", quote (fromMaybe "drag-preview" (listToMaybe layers)))
     , ("preserveGrabOffset", "true")
     , ("source", quote "pointer-marker")
     ]
-renderGlobalEffect _ = Nothing
 
 renderContextualEffect :: (Text, [Text]) -> Maybe Text
 renderContextualEffect ("dropzone-highlight", _) = Just $ objectLiteral
@@ -405,7 +409,7 @@ renderFrontendSurfaceAliases surface =
         <> concatMap renderActionAlias surface.surfacePrimitives
         <> concatMap renderIntentAlias surface.surfacePrimitives
         <> renderVocabulary (prefix <> "SessionName") surface.surfaceInteractionSessions
-        <> renderVocabulary (prefix <> "SourceRef") [ref | (ref, _, _, _) <- surface.surfaceSourceRefs]
+        <> renderVocabulary (prefix <> "SourceRef") [ref.interactionSourceRefName | ref <- surface.surfaceSourceRefs]
         <> renderVocabulary (prefix <> "DropzoneRef") [ref | (ref, _, _) <- surface.surfaceDropzoneRefs]
         <> renderVocabulary (prefix <> "ActivationRef") [ref | (ref, _, _, _) <- surface.surfaceActivationRefs]
         <> renderVocabulary (prefix <> "DisposableLayerName") surface.surfaceInteractionLayers
@@ -494,8 +498,21 @@ renderFrontendSurfaceInteractionManifest surface = objectLiteral
     , ("activationRefs", arrayLiteral (fmap renderActivationRef surface.surfaceActivationRefs))
     ]
 
-renderSourceRef :: (Text, Text, Text, Text) -> Text
-renderSourceRef (ref, session, intent, sourceField) = objectLiteral [("ref", quote ref), ("session", quote session), ("intent", quote intent), ("sourceField", quote sourceField)]
+renderSourceRef :: InteractionSourceRefIR -> Text
+renderSourceRef ref = objectLiteral
+    [ ("ref", quote ref.interactionSourceRefName)
+    , ("session", quote ref.interactionSourceRefSession)
+    , ("intent", quote ref.interactionSourceRefIntent)
+    , ("sourceField", quote ref.interactionSourceRefSourceField)
+    , ("modifierVariants", arrayLiteral (fmap renderModifierVariant ref.interactionSourceRefVariants))
+    ]
+
+renderModifierVariant :: InteractionModifierVariantIR -> Text
+renderModifierVariant variant = objectLiteral
+    [ ("semantic", quote variant.interactionModifierSemantic)
+    , ("intent", quote variant.interactionModifierIntent)
+    , ("effects", renderSessionEffects variant.interactionModifierEffects)
+    ]
 
 renderDropzoneRef :: (Text, Text, Text) -> Text
 renderDropzoneRef (ref, session, targetField) = objectLiteral [("ref", quote ref), ("session", quote session), ("targetField", quote targetField)]

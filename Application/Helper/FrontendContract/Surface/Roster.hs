@@ -22,6 +22,7 @@ module Application.Helper.FrontendContract.Surface.Roster
     , RosterWeekOverview
     , RosterStaffSelfServiceLeaveFormFragment
     , MoveRosterShiftToSlot
+    , DuplicateRosterShiftToDay
     , NavigateRosterWeek
     , ToggleRosterWarnings
     , ToggleRosterWageEstimates
@@ -67,6 +68,7 @@ data RosterRow
 
 data SetRosterLayoutMode
 data MoveRosterShiftToSlot
+data DuplicateRosterShiftToDay
 data NavigateRosterWeek
 data ToggleRosterWarnings
 data ToggleRosterWageEstimates
@@ -306,7 +308,10 @@ type RosterActionBundle =
 type RosterInteractionBundle =
     Concat
         '[ LayoutModeInteraction SetRosterLayoutMode RosterContent RosterLayoutMode
-         , DragDropInteraction MoveRosterShiftToSlot RosterContent
+         , DragDropInteractionWithVariants MoveRosterShiftToSlot RosterContent
+            '[ 'ModifierVariant Copy DuplicateRosterShiftToDay '[ 'Effect CloneShadowCopy '[ 'Layer DragPreviewLayer ], 'Effect DropzoneHighlight '[] ] ]
+         , '[ Action DuplicateRosterShiftToDay DragDropFields '[ 'Target RosterContent ] ]
+         , '[ Intent DuplicateRosterShiftToDay DragDropFields '[ 'SessionOption DragSession, 'BackedBy DuplicateRosterShiftToDay ] ]
          ]
 
 type RosterSurface =

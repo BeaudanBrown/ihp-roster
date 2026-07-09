@@ -17,6 +17,7 @@ module Application.Helper.FrontendContract.Surface.ContractIR
     , HtmxPushUrlIR (..)
     , InteractionActivationRefIR (..)
     , InteractionDropzoneRefIR (..)
+    , InteractionModifierVariantIR (..)
     , InteractionSourceRefIR (..)
     , IntentIR (..)
     , MountStateIR (..)
@@ -118,6 +119,14 @@ data InteractionSourceRefIR = InteractionSourceRefIR
     , sourceRefSession     :: !Text
     , sourceRefIntent      :: !Text
     , sourceRefSourceField :: !Text
+    , sourceRefVariants    :: ![InteractionModifierVariantIR]
+    }
+    deriving (Eq, Show)
+
+data InteractionModifierVariantIR = InteractionModifierVariantIR
+    { modifierVariantSemantic :: !Text
+    , modifierVariantIntent   :: !Text
+    , modifierVariantEffects  :: ![(Text, [OptionIR])]
     }
     deriving (Eq, Show)
 
@@ -209,6 +218,7 @@ data OptionIR
     | BackedByOption !Text
     | LayerOption !Text
     | EffectOption !Text ![OptionIR]
+    | ModifierVariantOption !InteractionModifierVariantIR
     | SessionOptionIR !Text
     | SubmitsOption !Text
     | SourceFieldOption !Text
@@ -367,6 +377,7 @@ validateResourceDependencies surface =
         validateOptionDependency fragment = \case
             LazyOption options -> concatMap (validateOptionDependency fragment) options
             EffectOption _ options -> concatMap (validateOptionDependency fragment) options
+            ModifierVariantOption variant -> concatMap (validateOptionDependency fragment) (concatMap snd variant.modifierVariantEffects)
             DependsOnOption dependency -> validateDependency fragment dependency
             _ -> []
 
@@ -440,6 +451,7 @@ validateActionRequestOptions surface =
                 | otherwise -> []
             LazyOption options -> concatMap validateCustomHtmx options
             EffectOption _ options -> concatMap validateCustomHtmx options
+            ModifierVariantOption variant -> concatMap validateCustomHtmx (concatMap snd variant.modifierVariantEffects)
             _ -> []
 
         isHtmxMethod = \case
@@ -484,6 +496,7 @@ optionsContainLive = any \case
     LiveOption -> True
     LazyOption options -> optionsContainLive options
     EffectOption _ options -> optionsContainLive options
+    ModifierVariantOption variant -> any (optionsContainLive . snd) variant.modifierVariantEffects
     _ -> False
 
 optionsContainLiveInvalidation :: [OptionIR] -> Bool
@@ -492,6 +505,7 @@ optionsContainLiveInvalidation = any \case
     DependsOnOption _ -> True
     LazyOption options -> optionsContainLiveInvalidation options
     EffectOption _ options -> optionsContainLiveInvalidation options
+    ModifierVariantOption variant -> any (optionsContainLiveInvalidation . snd) variant.modifierVariantEffects
     _ -> False
 
 optionResourceDependencies :: [OptionIR] -> [ResourceDependencyIR]
@@ -499,6 +513,7 @@ optionResourceDependencies = concatMap \case
     DependsOnOption dependency -> [dependency]
     LazyOption options -> optionResourceDependencies options
     EffectOption _ options -> optionResourceDependencies options
+    ModifierVariantOption variant -> concatMap (optionResourceDependencies . snd) variant.modifierVariantEffects
     _ -> []
 
 validateCrossReferences :: SurfaceIR -> [ContractDiagnostic]
@@ -528,6 +543,9 @@ validateCrossReferences surface =
         validateOptionRef owner = \case
             LazyOption options -> concatMap (validateOptionRef owner) options
             EffectOption _ options -> concatMap (validateOptionRef owner) options
+            ModifierVariantOption variant ->
+                requireRef (owner <> " modifier variant " <> variant.modifierVariantSemantic) RefIntent intentNames variant.modifierVariantIntent
+                    <> concatMap (validateOptionRef (owner <> " modifier variant " <> variant.modifierVariantSemantic <> " effect")) (concatMap snd variant.modifierVariantEffects)
             TargetOption name -> requireRef owner RefFragment fragmentNames name
             BackedByOption name -> requireRef owner RefAction actionNames name
             LayerOption name -> requireRef owner RefLayer layerNames name
@@ -553,6 +571,11 @@ validateCrossReferences surface =
             requireRef ("source ref " <> ref.sourceRefName) RefSession sessionNames ref.sourceRefSession
                 <> requireRef ("source ref " <> ref.sourceRefName) RefIntent intentNames ref.sourceRefIntent
                 <> requireIntentField ("source ref " <> ref.sourceRefName) ref.sourceRefIntent ref.sourceRefSourceField
+                <> concatMap (validateSourceRefVariant ref) ref.sourceRefVariants
+        validateSourceRefVariant ref variant =
+            requireRef ("source ref " <> ref.sourceRefName <> " modifier variant " <> variant.modifierVariantSemantic) RefIntent intentNames variant.modifierVariantIntent
+                <> requireIntentField ("source ref " <> ref.sourceRefName <> " modifier variant " <> variant.modifierVariantSemantic) variant.modifierVariantIntent ref.sourceRefSourceField
+                <> concatMap (validateOptionRef ("source ref " <> ref.sourceRefName <> " modifier variant " <> variant.modifierVariantSemantic <> " effect")) (concatMap snd variant.modifierVariantEffects)
         validateDropzoneRef ref =
             requireRef ("dropzone ref " <> ref.dropzoneRefName) RefSession sessionNames ref.dropzoneRefSession
                 <> requireAnyIntentField ("dropzone ref " <> ref.dropzoneRefName) ref.dropzoneRefTargetField
@@ -631,6 +654,7 @@ containedSurfaceNames :: [OptionIR] -> [Text]
 containedSurfaceNames = concatMap \case
     LazyOption options -> containedSurfaceNames options
     EffectOption _ options -> containedSurfaceNames options
+    ModifierVariantOption variant -> concatMap (containedSurfaceNames . snd) variant.modifierVariantEffects
     ContainsSurfaceOption surfaceName -> [surfaceName]
     _ -> []
 

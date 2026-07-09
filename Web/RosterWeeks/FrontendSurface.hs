@@ -42,7 +42,8 @@ import qualified Data.UUID as UUID
 import Generated.Types
 import Web.Controller.Prelude
 import Web.RosterWeeks.Dom
-import Web.RosterWeeks.Paths (rosterLayoutPreferenceUrl, rosterMoveShiftUrl,
+import Web.RosterWeeks.Paths (rosterDuplicateShiftUrl,
+                              rosterLayoutPreferenceUrl, rosterMoveShiftUrl,
                               rosterOverviewFragmentUrl,
                               rosterWeekContentFragmentUrl,
                               rosterWeekDayColumnsFragmentUrl,
@@ -118,6 +119,9 @@ rosterLayoutModeIntentFieldName = "rosterLayoutMode"
 
 rosterMoveShiftIntentName :: Text
 rosterMoveShiftIntentName = "move-roster-shift-to-slot"
+
+rosterDuplicateShiftIntentName :: Text
+rosterDuplicateShiftIntentName = "duplicate-roster-shift-to-day"
 
 rosterDragSourceRef :: SurfaceIR.InteractionSourceRefIR
 rosterDragSourceRef = expectOne "source ref" rosterFrontendSurfaceIR.surfaceSourceRefs
@@ -274,6 +278,10 @@ rosterSurfaceHandlers scope _plan =
                     { actionHandlerDefaultFields = frontendSurfaceFieldValues (Aeson.object ["sourceItemKey" Aeson..= ("" :: Text), "targetDropzoneKey" Aeson..= ("" :: Text)])
                     , actionHandlerRequest = rosterMoveShiftRequest scope
                     }
+                `HandlerCons` FrontendSurfaceActionHandler
+                    { actionHandlerDefaultFields = frontendSurfaceFieldValues (Aeson.object ["sourceItemKey" Aeson..= ("" :: Text), "targetDropzoneKey" Aeson..= ("" :: Text)])
+                    , actionHandlerRequest = rosterDuplicateShiftRequest scope
+                    }
                 `HandlerCons` HandlerNil
         , surfaceIntentHandlers =
             FrontendSurfaceIntentHandler
@@ -283,6 +291,10 @@ rosterSurfaceHandlers scope _plan =
                 `HandlerCons` FrontendSurfaceIntentHandler
                     { intentHandlerDefaultFields = frontendSurfaceFieldValues (Aeson.object ["sourceItemKey" Aeson..= ("" :: Text), "targetDropzoneKey" Aeson..= ("" :: Text)])
                     , intentHandlerForm = \fields -> FrontendSurfaceIntentForm "move-roster-shift-to-slot" (rosterMoveShiftRequest scope fields)
+                    }
+                `HandlerCons` FrontendSurfaceIntentHandler
+                    { intentHandlerDefaultFields = frontendSurfaceFieldValues (Aeson.object ["sourceItemKey" Aeson..= ("" :: Text), "targetDropzoneKey" Aeson..= ("" :: Text)])
+                    , intentHandlerForm = \fields -> FrontendSurfaceIntentForm "duplicate-roster-shift-to-day" (rosterDuplicateShiftRequest scope fields)
                     }
                 `HandlerCons` HandlerNil
         }
@@ -329,10 +341,18 @@ rosterLayoutModeRequest scope fields =
 
 rosterMoveShiftRequest :: RosterWeekScopeValue -> FrontendSurfaceFieldValues DragDropFieldSpecs -> FrontendSurfaceHtmxRequest
 rosterMoveShiftRequest scope fields =
+    rosterDragDropRequest "move-roster-shift-to-slot" (rosterMoveShiftUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId) fields
+
+rosterDuplicateShiftRequest :: RosterWeekScopeValue -> FrontendSurfaceFieldValues DragDropFieldSpecs -> FrontendSurfaceHtmxRequest
+rosterDuplicateShiftRequest scope fields =
+    rosterDragDropRequest "duplicate-roster-shift-to-day" (rosterDuplicateShiftUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId) fields
+
+rosterDragDropRequest :: Text -> Text -> FrontendSurfaceFieldValues DragDropFieldSpecs -> FrontendSurfaceHtmxRequest
+rosterDragDropRequest requestName requestUrl fields =
     FrontendSurfaceHtmxRequest
-        { htmxRequestName = "move-roster-shift-to-slot"
+        { htmxRequestName = requestName
         , htmxRequestMethod = FrontendSurfacePost
-        , htmxRequestUrl = rosterMoveShiftUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId
+        , htmxRequestUrl = requestUrl
         , htmxRequestTarget = "#" <> rosterContentFragmentId
         , htmxRequestSwap = "none"
         , htmxRequestFields =
