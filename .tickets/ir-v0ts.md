@@ -1,6 +1,6 @@
 ---
 id: ir-v0ts
-status: open
+status: closed
 deps: [ir-e41r]
 links: []
 created: 2026-07-09T01:05:25Z
@@ -22,3 +22,9 @@ Add a helper such as setActorLiveResourcesRefresh scope touchedResources mounted
 
 New helper exists and is documented. Tests prove touched resources resolve only matching mounted fragments. Actor and passive planning agree for static and parameterized fragments. No successful actor business OOB HTML is introduced.
 
+
+## Notes
+
+**2026-07-09T01:13:04Z**
+
+Added resource-driven actor refresh helper setActorLiveResourcesRefresh plus pure actorLiveFragmentsRefreshFragments. The helper reuses planFrontendSurfaceInvalidation and converts selected mounted fragments to typed wire fragments for the actor HX-Trigger payload. Added focused SurfaceDependency coverage showing actor-local resource refresh selects the same parameterized timesheet-day fragment as passive planning. Verification: hspec-test --match 'generated FrontendSurface resource dependencies'; typecheck.

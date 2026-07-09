@@ -52,19 +52,26 @@ module Application.Helper.LiveUpdate
     , timesheetToolbarLiveFragment
     , timesheetWeekLiveScope
     , activeRosterWeekScopes
+    , actorLiveFragmentsRefreshFragments
     , actorLiveFragmentsRefreshTriggerPayload
     , currentLiveUpdateVersion
     , surfaceScopeFieldUuid
     , surfaceScopeKey
     , surfaceScopeKind
     , setActorLiveFragmentsRefresh
+    , setActorLiveResourcesRefresh
     ) where
 
 import Application.Helper.FrontendContract.AppValues (AppEvents (..),
                                                       canonicalAppEvents)
+import Application.Helper.FrontendContract.Surface.DependencyPlanner (planFrontendSurfaceInvalidation)
+import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue)
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment,
+                                                            frontendSurfaceMountedFragmentsToWire)
 import Application.Helper.LiveUpdate.Internal
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
+import qualified Data.Set as Set
 import IHP.ControllerPrelude
 
 setActorLiveFragmentsRefresh :: (?context :: ControllerContext, ?request :: Request) => SurfaceScope -> [SurfaceWireFragment] -> IO ()
@@ -73,6 +80,16 @@ setActorLiveFragmentsRefresh scope fragments =
         ( "HX-Trigger"
         , cs (Aeson.encode (actorLiveFragmentsRefreshTriggerPayload scope fragments))
         )
+
+setActorLiveResourcesRefresh :: (?context :: ControllerContext, ?request :: Request) => SurfaceScope -> Set.Set SurfaceResourceValue -> [FrontendSurfaceMountedFragment] -> IO ()
+setActorLiveResourcesRefresh scope touchedResources candidates =
+    setActorLiveFragmentsRefresh scope (actorLiveFragmentsRefreshFragments scope touchedResources candidates)
+
+actorLiveFragmentsRefreshFragments :: SurfaceScope -> Set.Set SurfaceResourceValue -> [FrontendSurfaceMountedFragment] -> [SurfaceWireFragment]
+actorLiveFragmentsRefreshFragments scope touchedResources candidates =
+    candidates
+        |> planFrontendSurfaceInvalidation touchedResources scope
+        |> frontendSurfaceMountedFragmentsToWire (surfaceScopeKind scope)
 
 actorLiveFragmentsRefreshTriggerPayload :: SurfaceScope -> [SurfaceWireFragment] -> Aeson.Value
 actorLiveFragmentsRefreshTriggerPayload scope fragments =

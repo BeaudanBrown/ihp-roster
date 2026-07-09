@@ -2,6 +2,7 @@ module Test.SurfaceDependencySpec where
 
 import Application.Helper.FrontendContract.Surface.DependencyPlanner (planFrontendSurfaceInvalidation)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment (..))
+import Application.Helper.LiveUpdate (actorLiveFragmentsRefreshFragments)
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
 import Application.Support.LiveUpdates (supportCandidateMountedFragments,
@@ -49,6 +50,17 @@ tests = do
 
             map (.mountedFragmentTargetId) affectedByDay `shouldBe` ["timesheet-day-section-4"]
             map (.mountedFragmentTargetId) affectedByWeek `shouldBe` ["timesheet-week-toolbar", "timesheet-day-columns"]
+
+        it "uses the same dependency planner for actor-local resource refreshes" do
+            let venueId = fromWords 1 0 0 0
+            let scopeValue = TimesheetWeekScopeValue venueId 2
+            let mountState = TimesheetsMountStateValue True True Nothing
+            let scope = timesheetsSurfaceScope scopeValue
+            let candidates = timesheetsCandidateMountedFragments scopeValue mountState
+            let fragments = actorLiveFragmentsRefreshFragments scope (Set.fromList [timesheetDayResource venueId 2 4]) candidates
+
+            map targetId fragments `shouldBe` ["timesheet-day-section-4"]
+            map fragmentKey fragments `shouldBe` [timesheetDaySectionLiveFragment 4]
 
         it "plans affected wire fragments from generated dependencies" do
             let venueId = fromWords 1 0 0 0
