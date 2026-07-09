@@ -48,15 +48,31 @@ leaveRequestsShellId = "leave-requests-shell"
 leaveRequestsContentFragmentId :: Text
 leaveRequestsContentFragmentId = "leave-requests-content"
 
+leaveSectionCountFragmentKind, leaveSectionListFragmentKind :: Text
+leaveSectionCountFragmentKind = "leave-section-count"
+leaveSectionListFragmentKind = "leave-section-list"
+
+leavePendingSection, leaveApprovedSection, leaveDeniedSection, leaveArchiveSection :: Text
+leavePendingSection = "pending"
+leaveApprovedSection = "approved"
+leaveDeniedSection = "denied"
+leaveArchiveSection = "archive"
+
+leaveSectionCountFragmentId, leaveSectionListFragmentId :: Text -> Text
+leaveSectionCountFragmentId section = "leave-" <> section <> "-count"
+leaveSectionListFragmentId section
+    | section == leaveArchiveSection = "leave-archive-page-content"
+    | otherwise = "leave-" <> section <> "-list"
+
 leavePendingCountFragmentId, leavePendingListFragmentId, leaveApprovedCountFragmentId, leaveApprovedListFragmentId, leaveDeniedCountFragmentId, leaveDeniedListFragmentId, leaveArchiveCountFragmentId, leaveArchiveListFragmentId :: Text
-leavePendingCountFragmentId = "leave-pending-count"
-leavePendingListFragmentId = "leave-pending-list"
-leaveApprovedCountFragmentId = "leave-approved-count"
-leaveApprovedListFragmentId = "leave-approved-list"
-leaveDeniedCountFragmentId = "leave-denied-count"
-leaveDeniedListFragmentId = "leave-denied-list"
-leaveArchiveCountFragmentId = "leave-archive-count"
-leaveArchiveListFragmentId = "leave-archive-page-content"
+leavePendingCountFragmentId = leaveSectionCountFragmentId leavePendingSection
+leavePendingListFragmentId = leaveSectionListFragmentId leavePendingSection
+leaveApprovedCountFragmentId = leaveSectionCountFragmentId leaveApprovedSection
+leaveApprovedListFragmentId = leaveSectionListFragmentId leaveApprovedSection
+leaveDeniedCountFragmentId = leaveSectionCountFragmentId leaveDeniedSection
+leaveDeniedListFragmentId = leaveSectionListFragmentId leaveDeniedSection
+leaveArchiveCountFragmentId = leaveSectionCountFragmentId leaveArchiveSection
+leaveArchiveListFragmentId = leaveSectionListFragmentId leaveArchiveSection
 
 instance View IndexView where
     html = renderLeaveRequestsShell
@@ -149,10 +165,24 @@ renderManagerLeaveRequests leaveRequests staffMembers currentViewerStaffId today
         approvedRequests = sortOn (Down . (.startDate)) (filter ((== Just LeaveApproved) . parseLeaveRequestStatus . (.status)) activeRequests)
         deniedRequests = sortOn (Down . (.startDate)) (filter ((== Just LeaveDenied) . parseLeaveRequestStatus . (.status)) activeRequests)
 
+renderLeaveSectionCountLiveFragment :: Text -> [LeaveRequest] -> Day -> Html
+renderLeaveSectionCountLiveFragment section leaveRequests today
+    | section == leaveApprovedSection = renderManagerSectionCount (leaveSectionCountFragmentId section) (approvedLeaveRequests leaveRequests today)
+    | section == leaveDeniedSection = renderManagerSectionCount (leaveSectionCountFragmentId section) (deniedLeaveRequests leaveRequests today)
+    | section == leaveArchiveSection = renderArchiveCountLiveFragment (buildArchivePagination 1 (archivedLeaveRequests leaveRequests today))
+    | otherwise = renderManagerSectionCount (leaveSectionCountFragmentId leavePendingSection) (pendingLeaveRequests leaveRequests today)
+
+renderLeaveSectionListLiveFragment :: (?context :: ControllerContext) => Text -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> ArchivePagination -> [LeaveRequest] -> Html
+renderLeaveSectionListLiveFragment section leaveRequests staffMembers currentViewerStaffId today archivePagination archivedPageRequests
+    | section == leaveApprovedSection = renderManagerSectionList (leaveSectionListFragmentId section) (approvedLeaveRequests leaveRequests today) staffMembers currentViewerStaffId True
+    | section == leaveDeniedSection = renderManagerSectionList (leaveSectionListFragmentId section) (deniedLeaveRequests leaveRequests today) staffMembers currentViewerStaffId True
+    | section == leaveArchiveSection = renderArchivePageContent Nothing archivePagination archivedPageRequests staffMembers currentViewerStaffId
+    | otherwise = renderManagerSectionList (leaveSectionListFragmentId leavePendingSection) (pendingLeaveRequests leaveRequests today) staffMembers currentViewerStaffId True
+
 renderPendingCountLiveFragment, renderApprovedCountLiveFragment, renderDeniedCountLiveFragment :: [LeaveRequest] -> Day -> Html
-renderPendingCountLiveFragment leaveRequests today = renderManagerSectionCount leavePendingCountFragmentId (pendingLeaveRequests leaveRequests today)
-renderApprovedCountLiveFragment leaveRequests today = renderManagerSectionCount leaveApprovedCountFragmentId (approvedLeaveRequests leaveRequests today)
-renderDeniedCountLiveFragment leaveRequests today = renderManagerSectionCount leaveDeniedCountFragmentId (deniedLeaveRequests leaveRequests today)
+renderPendingCountLiveFragment = renderLeaveSectionCountLiveFragment leavePendingSection
+renderApprovedCountLiveFragment = renderLeaveSectionCountLiveFragment leaveApprovedSection
+renderDeniedCountLiveFragment = renderLeaveSectionCountLiveFragment leaveDeniedSection
 
 renderPendingListLiveFragment, renderApprovedListLiveFragment, renderDeniedListLiveFragment :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> Html
 renderPendingListLiveFragment leaveRequests staffMembers currentViewerStaffId today = renderManagerSectionList leavePendingListFragmentId (pendingLeaveRequests leaveRequests today) staffMembers currentViewerStaffId True

@@ -11,10 +11,12 @@ module Application.Helper.SurfaceResource
     , billingResource
     , deniedLeaveRequestsResource
     , leaveRequestsResource
+    , leaveRequestsSectionResource
     , pendingLeaveRequestsResource
     , liveMutationResult
     , recordLiveMutationDiagnostics
     , resourceFieldInt
+    , resourceFieldText
     , resourceFieldUuid
     , resourceMatches
     , rosterDayResource

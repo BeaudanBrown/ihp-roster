@@ -12,6 +12,7 @@ module Application.Helper.FrontendContract.Surface.Resource
     , approvedLeaveRequestsResource
     , deniedLeaveRequestsResource
     , leaveRequestsResource
+    , leaveRequestsSectionResource
     , pendingLeaveRequestsResource
     , resource
     , resourceFieldInt
@@ -82,10 +83,10 @@ frontendSurfaceResourceDefinitions =
 
 leaveRequestsResource, pendingLeaveRequestsResource, approvedLeaveRequestsResource, deniedLeaveRequestsResource, archivedLeaveRequestsResource, staffLeaveRequestsResource, staffProfileResource, staffPreferencesResource, staffRsaDocumentsResource, rosterDayResource, adminVenueSettingsResource, rosterEndTimesConfigResource, rosterWeekBoundaryConfigResource, timesheetWeekBoundaryConfigResource, adminRosterGroupsResource, adminShiftTypesResource, adminInvitesResource, adminExportsResource, billingResource, xeroConnectionResource, xeroMappingsResource, xeroPayItemsResource, xeroTimesheetsResource :: UUID.UUID -> SurfaceResourceValue
 leaveRequestsResource venueId = resource "leave-requests" ["venueId" Aeson..= uuid venueId]
-pendingLeaveRequestsResource venueId = resource "leave-pending-count" ["venueId" Aeson..= uuid venueId]
-approvedLeaveRequestsResource venueId = resource "leave-approved-count" ["venueId" Aeson..= uuid venueId]
-deniedLeaveRequestsResource venueId = resource "leave-denied-count" ["venueId" Aeson..= uuid venueId]
-archivedLeaveRequestsResource venueId = resource "leave-archive-count" ["venueId" Aeson..= uuid venueId]
+pendingLeaveRequestsResource venueId = leaveRequestsSectionResource venueId "pending"
+approvedLeaveRequestsResource venueId = leaveRequestsSectionResource venueId "approved"
+deniedLeaveRequestsResource venueId = leaveRequestsSectionResource venueId "denied"
+archivedLeaveRequestsResource venueId = leaveRequestsSectionResource venueId "archive"
 staffLeaveRequestsResource staffId = resource "staff-leave-requests" ["staffId" Aeson..= uuid staffId]
 staffProfileResource staffId = resource "staff-profile" ["staffId" Aeson..= uuid staffId]
 staffPreferencesResource staffId = resource "staff-preferences" ["staffId" Aeson..= uuid staffId]
@@ -110,6 +111,9 @@ timesheetWeekResource venueId weekOffset = resource "timesheet-week" ["venueId" 
 
 timesheetDayResource :: UUID.UUID -> Int -> Int -> SurfaceResourceValue
 timesheetDayResource venueId weekOffset dayOffset = resource "timesheet-day" ["venueId" Aeson..= uuid venueId, "weekOffset" Aeson..= weekOffset, "dayOffset" Aeson..= dayOffset]
+
+leaveRequestsSectionResource :: UUID.UUID -> Text -> SurfaceResourceValue
+leaveRequestsSectionResource venueId section = resource "leave-requests-section" ["venueId" Aeson..= uuid venueId, "leaveSection" Aeson..= section]
 
 rosterWeekResource :: UUID.UUID -> Int -> SurfaceResourceValue
 rosterWeekResource rosterGroupId weekOffset = resource "roster-week" ["rosterGroupId" Aeson..= uuid rosterGroupId, "weekOffset" Aeson..= weekOffset]

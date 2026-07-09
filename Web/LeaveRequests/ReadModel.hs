@@ -3,7 +3,7 @@
 module Web.LeaveRequests.ReadModel
     ( LeaveRequestsReadModel (..)
     , LeaveRequestsFragment (..)
-    , LeaveRequestsFragmentRenderMode (..)
+    , LeaveRequestsSectionFragment (..)
     , affectedRosterWeekInvalidationTargetsForScopes
     , buildLeaveRequestsScope
     , currentLeaveArchiveOpen
@@ -14,11 +14,11 @@ module Web.LeaveRequests.ReadModel
     , renderLeaveRequestsFragmentFromReadModel
     ) where
 
+import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (SurfaceImpl)
 import Application.Helper.LiveUpdate
 import Application.Helper.Profiling
-import Application.Helper.View.Oob (OobSwapAttr)
 import Data.Coerce (coerce)
 import qualified Data.Set as Set
 import Data.Time.Clock (getCurrentTime, utctDay)
@@ -38,19 +38,14 @@ data LeaveRequestsReadModel = LeaveRequestsReadModel
 
 data LeaveRequestsFragment
     = LeaveRequestsContent
-    | LeavePendingCount
-    | LeavePendingList
-    | LeaveApprovedCount
-    | LeaveApprovedList
-    | LeaveDeniedCount
-    | LeaveDeniedList
-    | LeaveArchiveCount
-    | LeaveArchiveList
+    | LeaveRequestsSectionCount !Text
+    | LeaveRequestsSectionList !Text
     deriving (Eq, Show)
 
-data LeaveRequestsFragmentRenderMode
-    = LeaveRequestsFragmentPlain
-    | LeaveRequestsFragmentOob !OobSwapAttr
+data LeaveRequestsSectionFragment
+    = LeaveRequestsSectionCountFragment
+    | LeaveRequestsSectionListFragment
+    deriving (Eq, Show)
 
 fetchStaffMembersForCurrentVenue :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO [Staff]
 fetchStaffMembersForCurrentVenue =
@@ -89,9 +84,9 @@ renderLeaveRequestsFragment :: (?context :: ControllerContext, ?modelContext :: 
 renderLeaveRequestsFragment fragment =
     profileActionSpan "leave.read_model.render_fragment" do
         readModel <- fetchLeaveRequestsReadModel
-        pure (renderLeaveRequestsFragmentFromReadModel LeaveRequestsFragmentPlain readModel fragment)
+        pure (renderLeaveRequestsFragmentFromReadModel FragmentPlain readModel fragment)
 
-renderLeaveRequestsFragmentFromReadModel :: (?context :: ControllerContext, ?request :: Request) => LeaveRequestsFragmentRenderMode -> LeaveRequestsReadModel -> LeaveRequestsFragment -> Maybe Blaze.Html
+renderLeaveRequestsFragmentFromReadModel :: (?context :: ControllerContext, ?request :: Request) => FragmentRenderMode -> LeaveRequestsReadModel -> LeaveRequestsFragment -> Maybe Blaze.Html
 renderLeaveRequestsFragmentFromReadModel renderMode readModel fragment =
     Just $ case fragment of
         LeaveRequestsContent ->
@@ -102,26 +97,14 @@ renderLeaveRequestsFragmentFromReadModel renderMode readModel fragment =
                 readModel.leaveReadModelToday
                 currentLeaveArchivePage
                 currentLeaveArchiveOpen
-        LeavePendingCount ->
-            renderPendingCountLiveFragment readModel.leaveReadModelRequests readModel.leaveReadModelToday
-        LeavePendingList ->
-            renderPendingListLiveFragment readModel.leaveReadModelRequests readModel.leaveReadModelStaffMembers readModel.leaveReadModelCurrentViewerStaffId readModel.leaveReadModelToday
-        LeaveApprovedCount ->
-            renderApprovedCountLiveFragment readModel.leaveReadModelRequests readModel.leaveReadModelToday
-        LeaveApprovedList ->
-            renderApprovedListLiveFragment readModel.leaveReadModelRequests readModel.leaveReadModelStaffMembers readModel.leaveReadModelCurrentViewerStaffId readModel.leaveReadModelToday
-        LeaveDeniedCount ->
-            renderDeniedCountLiveFragment readModel.leaveReadModelRequests readModel.leaveReadModelToday
-        LeaveDeniedList ->
-            renderDeniedListLiveFragment readModel.leaveReadModelRequests readModel.leaveReadModelStaffMembers readModel.leaveReadModelCurrentViewerStaffId readModel.leaveReadModelToday
-        LeaveArchiveCount ->
-            renderArchiveCountLiveFragment archivePagination
-        LeaveArchiveList ->
-            renderArchivePageContent Nothing archivePagination archivedPageRequests readModel.leaveReadModelStaffMembers readModel.leaveReadModelCurrentViewerStaffId
+        LeaveRequestsSectionCount section ->
+            renderLeaveSectionCountLiveFragment section readModel.leaveReadModelRequests readModel.leaveReadModelToday
+        LeaveRequestsSectionList section ->
+            renderLeaveSectionListLiveFragment section readModel.leaveReadModelRequests readModel.leaveReadModelStaffMembers readModel.leaveReadModelCurrentViewerStaffId readModel.leaveReadModelToday archivePagination archivedPageRequests
     where
         contentRenderer = case renderMode of
-            LeaveRequestsFragmentPlain        -> renderleaveRequestsContentLiveFragment
-            LeaveRequestsFragmentOob swapAttr -> renderleaveRequestsContentLiveFragmentWithSwap swapAttr
+            FragmentPlain        -> renderleaveRequestsContentLiveFragment
+            FragmentOob swapAttr -> renderleaveRequestsContentLiveFragmentWithSwap swapAttr
         archivedRequests = archivedLeaveRequests readModel.leaveReadModelRequests readModel.leaveReadModelToday
         archivePagination = buildArchivePagination currentLeaveArchivePage archivedRequests
         archivedPageRequests = archivePageItems archivePagination archivedRequests

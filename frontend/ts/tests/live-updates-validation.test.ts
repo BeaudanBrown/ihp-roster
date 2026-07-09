@@ -100,16 +100,16 @@ test("FrontendSurface config parser derives Leave Requests live subscriptions fr
         mountState: null,
         fragments: [
             {
-                key: { kind: "leave-pending-count", params: null },
+                key: { kind: "leave-section-count", params: { leaveSection: "pending" } },
                 targetId: "leave-pending-count",
-                url: "/ShowLeaveRequestsContentFragment?fragment=leave-pending-count",
+                url: "/ShowLeaveRequestsContentFragment?fragment=leave-section-count&section=pending",
                 protection: { kind: "replace" },
                 loadPolicy: "eager",
             },
             {
-                key: { kind: "leave-pending-list", params: null },
+                key: { kind: "leave-section-list", params: { leaveSection: "pending" } },
                 targetId: "leave-pending-list",
-                url: "/ShowLeaveRequestsContentFragment?fragment=leave-pending-list",
+                url: "/ShowLeaveRequestsContentFragment?fragment=leave-section-list&section=pending",
                 protection: { kind: "replace" },
                 loadPolicy: "eager",
             },
@@ -119,8 +119,8 @@ test("FrontendSurface config parser derives Leave Requests live subscriptions fr
     assertEqual(config?.feature, "leave-requests");
     assertDeepEqual(config?.scope, { surface: "leave-requests", scope: { venueId: "venue-1" } });
     assertEqual(config?.scopeKey, "leave-requests:venue-1");
-    assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { surface: "leave-requests", kind: "leave-pending-count", params: null });
-    assertDeepEqual(config?.resyncFragments[1]?.fragmentKey, { surface: "leave-requests", kind: "leave-pending-list", params: null });
+    assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { surface: "leave-requests", kind: "leave-section-count", params: { leaveSection: "pending" } });
+    assertDeepEqual(config?.resyncFragments[1]?.fragmentKey, { surface: "leave-requests", kind: "leave-section-list", params: { leaveSection: "pending" } });
 });
 
 test("FrontendSurface config parser derives Billing and Support live subscriptions from mounted fragments", () => {

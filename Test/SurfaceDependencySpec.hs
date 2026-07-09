@@ -19,6 +19,9 @@ import Web.Billing.FrontendSurface (BillingCheckoutReturnState (..),
                                     BillingScopeValue (..),
                                     billingCandidateMountedFragments,
                                     billingSurfaceScope)
+import Web.LeaveRequests.FrontendSurface (LeaveRequestsScopeValue (..),
+                                          leaveRequestsCandidateMountedFragments,
+                                          leaveRequestsSurfaceScope)
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
                                      profileCandidateMountedFragments,
                                      profileSurfaceScope)
@@ -61,6 +64,16 @@ tests = do
 
             map targetId fragments `shouldBe` ["timesheet-day-section-4"]
             map fragmentKey fragments `shouldBe` [timesheetDaySectionLiveFragment 4]
+
+        it "selects parameterized leave section fragments from generated dependencies" do
+            let venueId = fromWords 10 0 0 0
+            let scopeValue = LeaveRequestsScopeValue venueId
+            let candidates = leaveRequestsCandidateMountedFragments scopeValue
+            let affectedByPending = planFrontendSurfaceInvalidation (Set.fromList [leaveRequestsSectionResource venueId "pending"]) (leaveRequestsSurfaceScope scopeValue) candidates
+            let affectedByApproved = planFrontendSurfaceInvalidation (Set.fromList [leaveRequestsSectionResource venueId "approved"]) (leaveRequestsSurfaceScope scopeValue) candidates
+
+            map (.mountedFragmentTargetId) affectedByPending `shouldBe` ["leave-pending-count", "leave-pending-list"]
+            map (.mountedFragmentTargetId) affectedByApproved `shouldBe` ["leave-approved-count", "leave-approved-list"]
 
         it "plans affected wire fragments from generated dependencies" do
             let venueId = fromWords 1 0 0 0
