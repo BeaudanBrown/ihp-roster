@@ -39,6 +39,33 @@
     transform-origin: top left;
 }
 
+.bepis-pointer-clone-shadow-copy {
+    opacity: 0.96;
+    border-color: var(--app-success-border);
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--app-success-soft) 62%, var(--app-surface-2)),
+        color-mix(in srgb, var(--app-success-soft) 48%, var(--app-surface))
+    );
+    box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--app-success-border) 42%, transparent),
+        0 0.85rem 1.65rem var(--app-shadow-md-raw);
+}
+
+.bepis-pointer-clone-shadow-copy::after {
+    content: "Copy";
+    position: absolute;
+    right: 0.35rem;
+    bottom: 0.3rem;
+    padding: 0.12rem 0.38rem;
+    border-radius: 999px;
+    background: var(--bs-success);
+    color: var(--app-panel-bg);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+}
+
 .bepis-dropzone-highlight,
 .roster-grid .bepis-dropzone-highlight {
     z-index: 5;

@@ -373,6 +373,7 @@
     root.addEventListener("pointerup", controller.handlePointerUp);
     root.addEventListener("pointercancel", controller.handlePointerCancel);
     root.addEventListener("keydown", controller.handleKeyDown);
+    root.addEventListener("keyup", controller.handleKeyUp);
     root.addEventListener("click", controller.handleClick, true);
     root.addEventListener("htmx:beforeSwap", controller.handleExternalCleanup);
     root.addEventListener("htmx:beforeCleanupElement", controller.handleExternalCleanup);
@@ -383,6 +384,7 @@
       root.removeEventListener("pointerup", controller.handlePointerUp);
       root.removeEventListener("pointercancel", controller.handlePointerCancel);
       root.removeEventListener("keydown", controller.handleKeyDown);
+      root.removeEventListener("keyup", controller.handleKeyUp);
       root.removeEventListener("click", controller.handleClick, true);
       root.removeEventListener("htmx:beforeSwap", controller.handleExternalCleanup);
       root.removeEventListener("htmx:beforeCleanupElement", controller.handleExternalCleanup);
@@ -503,9 +505,17 @@
         cancelSession(activeSession, event);
       },
       handleKeyDown(event) {
-        if (!activeSession || !isEscapeKeyboardEvent(event)) return;
-        if (event.cancelable) event.preventDefault();
-        cancelSession(activeSession, event);
+        if (!activeSession) return;
+        if (isEscapeKeyboardEvent(event)) {
+          if (event.cancelable) event.preventDefault();
+          cancelSession(activeSession, event);
+          return;
+        }
+        updateSessionModifierFromKeyboard(activeSession, event);
+      },
+      handleKeyUp(event) {
+        if (!activeSession) return;
+        updateSessionModifierFromKeyboard(activeSession, event);
       },
       handleExternalCleanup(event) {
         if (!activeSession) return;
@@ -538,6 +548,7 @@
   }
   function readPointerSessionStart(event, fallbackThresholdPx = defaultThresholdPx) {
     const pointerEvent = event;
+    if (pointerEvent.pointerType === "touch") return null;
     const marker = closestSurfaceSourceRef(event.target);
     if (!marker) return null;
     if (isDisabled(marker)) return null;
@@ -620,6 +631,11 @@
   function activeModifierVariant(session) {
     if (!session.activeModifierSemantic) return null;
     return session.modifierVariants.find((variant) => variant.semantic === session.activeModifierSemantic) ?? null;
+  }
+  function updateSessionModifierFromKeyboard(session, event) {
+    if (!session.activated) return;
+    updateActiveModifierVariant(session, event);
+    session.effects.update(session);
   }
   function updateActiveModifierVariant(session, event) {
     const nextSemantic = semanticModifierForEvent(event);

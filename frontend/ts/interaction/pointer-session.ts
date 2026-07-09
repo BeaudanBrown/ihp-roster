@@ -109,6 +109,7 @@ export function enableGenericPointerSessions(options: PointerSessionOptions = {}
     root.addEventListener("pointerup", controller.handlePointerUp);
     root.addEventListener("pointercancel", controller.handlePointerCancel);
     root.addEventListener("keydown", controller.handleKeyDown);
+    root.addEventListener("keyup", controller.handleKeyUp);
     root.addEventListener("click", controller.handleClick, true);
     root.addEventListener("htmx:beforeSwap", controller.handleExternalCleanup);
     root.addEventListener("htmx:beforeCleanupElement", controller.handleExternalCleanup);
@@ -120,6 +121,7 @@ export function enableGenericPointerSessions(options: PointerSessionOptions = {}
         root.removeEventListener("pointerup", controller.handlePointerUp);
         root.removeEventListener("pointercancel", controller.handlePointerCancel);
         root.removeEventListener("keydown", controller.handleKeyDown);
+        root.removeEventListener("keyup", controller.handleKeyUp);
         root.removeEventListener("click", controller.handleClick, true);
         root.removeEventListener("htmx:beforeSwap", controller.handleExternalCleanup);
         root.removeEventListener("htmx:beforeCleanupElement", controller.handleExternalCleanup);
@@ -251,9 +253,17 @@ export function createPointerSessionController(options: PointerSessionOptions = 
             cancelSession(activeSession, event);
         },
         handleKeyDown(event: Event) {
-            if (!activeSession || !isEscapeKeyboardEvent(event)) return;
-            if (event.cancelable) event.preventDefault();
-            cancelSession(activeSession, event);
+            if (!activeSession) return;
+            if (isEscapeKeyboardEvent(event)) {
+                if (event.cancelable) event.preventDefault();
+                cancelSession(activeSession, event);
+                return;
+            }
+            updateSessionModifierFromKeyboard(activeSession, event);
+        },
+        handleKeyUp(event: Event) {
+            if (!activeSession) return;
+            updateSessionModifierFromKeyboard(activeSession, event);
         },
         handleExternalCleanup(event: Event) {
             if (!activeSession) return;
@@ -287,6 +297,7 @@ export function createPointerSessionController(options: PointerSessionOptions = 
 
 export function readPointerSessionStart(event: Event, fallbackThresholdPx = defaultThresholdPx): ActivePointerSession | null {
     const pointerEvent = event as PointerEventLike;
+    if (pointerEvent.pointerType === "touch") return null;
     const marker = closestSurfaceSourceRef(event.target);
     if (!marker) return null;
     if (isDisabled(marker)) return null;
@@ -401,6 +412,12 @@ function activeSessionEffects(session: ActivePointerSession): { global: Readonly
 function activeModifierVariant(session: ActivePointerSession): InteractionModifierVariant | null {
     if (!session.activeModifierSemantic) return null;
     return session.modifierVariants.find((variant) => variant.semantic === session.activeModifierSemantic) ?? null;
+}
+
+function updateSessionModifierFromKeyboard(session: ActivePointerSession, event: Event): void {
+    if (!session.activated) return;
+    updateActiveModifierVariant(session, event as PointerEventLike);
+    session.effects.update(session);
 }
 
 function updateActiveModifierVariant(session: ActivePointerSession, event: PointerEventLike): void {

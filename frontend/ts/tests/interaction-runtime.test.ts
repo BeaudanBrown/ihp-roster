@@ -169,9 +169,13 @@ function withNavigatorPlatform<T>(platform: string, run: () => T): T {
     }
 }
 
-function keyEvent(key: string): Event {
-    const event = new Event("keydown", { bubbles: true, cancelable: true }) as Event & { key: string };
+function keyEvent(key: string, modifiers: Partial<Pick<KeyboardEvent, "ctrlKey" | "shiftKey" | "altKey" | "metaKey">> = {}, type = "keydown"): Event {
+    const event = new Event(type, { bubbles: true, cancelable: true }) as Event & { key: string; ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean; metaKey?: boolean };
     event.key = key;
+    event.ctrlKey = modifiers.ctrlKey ?? false;
+    event.shiftKey = modifiers.shiftKey ?? false;
+    event.altKey = modifiers.altKey ?? false;
+    event.metaKey = modifiers.metaKey ?? false;
     return event;
 }
 
@@ -535,6 +539,24 @@ test("generated pointer session effects render proxy shadows and highlight dropz
     assertEqual(phases.join(","), "start,preview,preview,preview,preview,preview,commit");
 });
 
+test("touch pointers do not start generic drag sessions", () => {
+    const phases: string[] = [];
+    const mount = new MiniElement({ [attrs.surface]: "roster", [attrs.surfaceFamily]: "roster" });
+    const marker = mount.append(new MiniElement({
+        [FrontendSurfaceInteractionDom.sourceRef]: "drag-source",
+        [FrontendSurfaceInteractionDom.sourceKey]: "existing:source-slot",
+        [attrs.sessionThreshold]: "0",
+    }));
+    const controller = createPointerSessionController({ runtime: { emit: (payload) => { phases.push(payload.phase); return { canceled: false }; } } });
+
+    controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 9, 0, 0, "touch"));
+    controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 9, 20, 0, "touch"));
+    controller.handlePointerUp(pointerEventWithTarget("pointerup", marker, 9, 20, 0, "touch"));
+
+    assertEqual(phases.join(","), "");
+    assertEqual(controller.currentSession(), null);
+});
+
 test("pointer modifier variants select copy intent and variant shadow on platform-native keys", () => {
     withNavigatorPlatform("Win32", () => {
         const intents: string[] = [];
@@ -555,12 +577,16 @@ test("pointer modifier variants select copy intent and variant shadow on platfor
 
         const controller = createPointerSessionController({ runtime: { emit: (payload) => { if (payload.phase === "preview" || payload.phase === "commit") intents.push(payload.intent); return { canceled: false }; } } });
         controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 1, 0, 0));
-        controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 1, 8, 0, "mouse", { ctrlKey: true }));
+        controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 1, 8, 0));
+        const moveShadow = layer.children[0];
+        if (!moveShadow) throw new Error("Expected move proxy shadow");
+        assertEqual(moveShadow.getAttribute("class"), "bepis-pointer-clone-shadow");
+        controller.handleKeyDown(keyEvent("Control", { ctrlKey: true }));
         const copyShadow = layer.children[0];
         if (!copyShadow) throw new Error("Expected copy proxy shadow");
         assertEqual(copyShadow.getAttribute("class"), "bepis-pointer-clone-shadow bepis-pointer-clone-shadow-copy");
         controller.handlePointerUp(pointerEventWithTarget("pointerup", marker, 1, 8, 0, "mouse", { ctrlKey: true }));
-        assertEqual(intents.join(","), "duplicate-roster-shift-to-day,duplicate-roster-shift-to-day,duplicate-roster-shift-to-day");
+        assertEqual(intents.join(","), "move-roster-shift-to-slot,duplicate-roster-shift-to-day,duplicate-roster-shift-to-day");
     });
 
     withNavigatorPlatform("MacIntel", () => {
