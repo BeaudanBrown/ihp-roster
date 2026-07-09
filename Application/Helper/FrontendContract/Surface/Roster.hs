@@ -121,6 +121,7 @@ data RosterDay
 data RosterWeekOverview
 data RosterEndTimesConfig
 data RosterWeekBoundaryConfig
+data TimePickerConfig
 data RosterStaffSelfServiceLeaveFormFragment
 data StartDate
 data EndDate
@@ -130,6 +131,7 @@ type RosterWeekResource = Resource RosterWeek '[ Field RosterGroupId 'WireUUID, 
 type RosterDayResource = Resource RosterDay '[ Field RosterDayId 'WireUUID ]
 type RosterEndTimesConfigResource = Resource RosterEndTimesConfig '[ Field VenueId 'WireUUID ]
 type RosterWeekBoundaryConfigResource = Resource RosterWeekBoundaryConfig '[ Field VenueId 'WireUUID ]
+type TimePickerConfigResource = Resource TimePickerConfig '[ Field VenueId 'WireUUID ]
 
 type RosterScopeBundle =
     '[ Scope RosterWeek
@@ -148,6 +150,7 @@ type RosterFragmentBundle =
          , 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ]
          , 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ]
          , 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ]
+         , 'DependsOn TimePickerConfigResource '[ 'FromScope VenueId ]
          , 'Contains RosterGridToolbar
          , 'Contains RosterGridFrame
          ]
@@ -158,6 +161,7 @@ type RosterFragmentBundle =
          , 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ]
          , 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ]
          , 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ]
+         , 'DependsOn TimePickerConfigResource '[ 'FromScope VenueId ]
          ]
      , Fragment RosterGridFrame
         '[]
@@ -166,6 +170,7 @@ type RosterFragmentBundle =
          , 'DependsOn RosterWeekResource '[ 'FromScope RosterGroupId, 'FromScope WeekOffset ]
          , 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ]
          , 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ]
+         , 'DependsOn TimePickerConfigResource '[ 'FromScope VenueId ]
          , 'Contains RosterDayColumns
          , 'Contains RosterDayRail
          , 'Contains RosterWageRail
@@ -375,6 +380,7 @@ type RosterDayTimelineFragmentBundle =
          , 'DependsOn RosterDayResource '[ 'FromFragment RosterDayId ]
          , 'DependsOn RosterEndTimesConfigResource '[ 'FromScope VenueId ]
          , 'DependsOn RosterWeekBoundaryConfigResource '[ 'FromScope VenueId ]
+         , 'DependsOn TimePickerConfigResource '[ 'FromScope VenueId ]
          ]
      ]
 

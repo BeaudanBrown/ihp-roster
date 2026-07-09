@@ -10,8 +10,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceInter
                                                             renderFrontendSurfaceInteractionShell,
                                                             renderFrontendSurfaceMount)
 import Application.Helper.Profiling (profileHtmlComponent)
-import Application.Helper.TimeRules (normalizeRosterOperationalMinute,
-                                     rosterOperationalStartMinuteOfDay,
+import Application.Helper.TimeRules (normalizeWindowEndMinute,
                                      shiftDurationMinutes)
 import Control.Monad (guard)
 import Data.List (sortOn)
@@ -36,7 +35,7 @@ renderRosterDayTimelinePanel :: (?context :: ControllerContext) => RosterGridRen
 renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Nothing } _ = [hsx|
     <div class="alert alert-info mb-0">This draft roster is not visible.</div>
 |]
-renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Just rosterWeek, gridRosterDays, gridCurrentRosterGroup, gridWeekStartDate, gridAssignmentFilters, gridStaffMembers, gridPanelStaff, gridStaffSelfServicePanel, gridSlotNames, gridShiftTypes, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction, gridShowWageEstimates, gridShowRosterWarnings, gridPublicHolidays } rosterDay =
+renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Just rosterWeek, gridRosterDays, gridCurrentRosterGroup, gridWeekStartDate, gridAssignmentFilters, gridStaffMembers, gridPanelStaff, gridStaffSelfServicePanel, gridSlotNames, gridShiftTypes, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterTimePickerStartMinute, gridRosterTimePickerFinalSelectableMinute, gridRosterWagePrediction, gridShowWageEstimates, gridShowRosterWarnings, gridPublicHolidays } rosterDay =
     let rosterData = RosterRenderData
             { rosterWeek = rosterWeek
             , rosterDays = gridRosterDays
@@ -54,6 +53,8 @@ renderRosterDayTimelinePanel RosterGridRenderModel { gridRosterWeek = Just roste
             , renderIndexes = gridRenderIndexes
             , rosterLayoutMode = gridRosterLayoutMode
             , rosterEndTimesEnabled = gridRosterEndTimesEnabled
+            , rosterTimePickerStartMinute = gridRosterTimePickerStartMinute
+            , rosterTimePickerFinalSelectableMinute = gridRosterTimePickerFinalSelectableMinute
             , rosterWagePrediction = gridRosterWagePrediction
             , showWageEstimates = gridShowWageEstimates
             , showRosterWarnings = gridShowRosterWarnings
@@ -89,6 +90,7 @@ renderRosterDayTimelineContent maybeSwapOob rosterData rosterDay =
         staffById = Map.fromList [ (unpackId staff.id, staff) | staff <- rosterData.staffMembers ]
         shiftTypeById = Map.fromList [ (unpackId shiftType.id, shiftType) | shiftType <- rosterData.shiftTypes ]
         editable = currentUserIsManager && not rosterData.rosterWeek.isLive && not rosterDay.isClosed
+        timelineWindow = timelineWindowFromRosterData rosterData
      in [hsx|
         <section id={rosterDayTimelineContentFragmentId rosterDay.id}
                  class="roster-day-timeline-shell"
@@ -96,35 +98,50 @@ renderRosterDayTimelineContent maybeSwapOob rosterData rosterDay =
                  data-roster-day-timeline-editable={if editable then ("true" :: Text) else "false"}
                  hx-swap-oob={maybeSwapOob}>
             <div class="roster-day-timeline" role="grid" aria-label={Text.pack (formatTime defaultTimeLocale "%A %d/%m roster timeline" date)}>
-                {renderTimelineScale}
-                {forEach rosterData.orderedSlotNames (renderTimelineLane editable rosterDay staffById shiftTypeById slotsByDefinition)}
+                {renderTimelineScale timelineWindow}
+                {forEach rosterData.orderedSlotNames (renderTimelineLane timelineWindow editable rosterDay staffById shiftTypeById slotsByDefinition)}
             </div>
         </section>
     |]
 
-renderTimelineScale :: Html
-renderTimelineScale = [hsx|
+data TimelineWindow = TimelineWindow
+    { timelineWindowStartMinute  :: !Int
+    , timelineWindowEndMinute    :: !Int
+    , timelineWindowTotalMinutes :: !Int
+    }
+
+timelineWindowFromRosterData :: RosterRenderData -> TimelineWindow
+timelineWindowFromRosterData RosterRenderData { rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute } =
+    let endMinute = normalizeWindowEndMinute rosterTimePickerStartMinute rosterTimePickerFinalSelectableMinute
+     in TimelineWindow
+            { timelineWindowStartMinute = rosterTimePickerStartMinute
+            , timelineWindowEndMinute = endMinute
+            , timelineWindowTotalMinutes = max 15 (endMinute - rosterTimePickerStartMinute + 15)
+            }
+
+renderTimelineScale :: TimelineWindow -> Html
+renderTimelineScale timelineWindow = [hsx|
     <div class="roster-day-timeline-scale" aria-hidden="true">
         <div class="roster-day-timeline-scale-label">Time</div>
         <div class="roster-day-timeline-scale-body">
-            {forEach timelineHourTicks renderTimelineScaleTick}
+            {forEach (timelineHourTicks timelineWindow) (renderTimelineScaleTick timelineWindow)}
         </div>
     </div>
 |]
 
-renderTimelineScaleTick :: Int -> Html
-renderTimelineScaleTick minute = [hsx|
-    <div class="roster-day-timeline-scale-tick" style={timelineLeftStyle minute}>
+renderTimelineScaleTick :: TimelineWindow -> Int -> Html
+renderTimelineScaleTick timelineWindow minute = [hsx|
+    <div class="roster-day-timeline-scale-tick" style={timelineLeftStyle timelineWindow minute}>
         {minuteLabel minute}
     </div>
 |]
 
-renderTimelineLane :: Bool -> RosterDay -> Map.Map UUID.UUID Staff -> Map.Map UUID.UUID ShiftType -> Map.Map UUID.UUID [RosterSlot] -> RosterWeekSlotDefinition -> Html
-renderTimelineLane editable rosterDay staffById shiftTypeById slotsByDefinition slotDefinition =
+renderTimelineLane :: TimelineWindow -> Bool -> RosterDay -> Map.Map UUID.UUID Staff -> Map.Map UUID.UUID ShiftType -> Map.Map UUID.UUID [RosterSlot] -> RosterWeekSlotDefinition -> Html
+renderTimelineLane timelineWindow editable rosterDay staffById shiftTypeById slotsByDefinition slotDefinition =
     let laneSlots = Map.findWithDefault [] (unpackId slotDefinition.id) slotsByDefinition
-        positionedShifts = assignTimelineTracks (mapMaybe timelineShiftFromSlot laneSlots)
+        positionedShifts = assignTimelineTracks (mapMaybe (timelineShiftFromSlot timelineWindow) laneSlots)
         trackCount = max 1 (1 + maximum (0 : map timelineShiftTrack positionedShifts))
-        dropzones = if editable then timelineDropzones rosterDay slotDefinition else []
+        dropzones = if editable then timelineDropzones timelineWindow rosterDay slotDefinition else []
      in [hsx|
         <section class="roster-day-timeline-lane"
                  role="rowgroup"
@@ -135,32 +152,32 @@ renderTimelineLane editable rosterDay staffById shiftTypeById slotsByDefinition 
             </div>
             <div class="roster-day-timeline-lane-body" role="row">
                 <div class="roster-day-timeline-dropzones" aria-hidden={if editable then ("false" :: Text) else "true"}>
-                    {forEach dropzones renderTimelineDropzone}
+                    {forEach dropzones (renderTimelineDropzone timelineWindow)}
                 </div>
                 <div class="roster-day-timeline-shifts">
-                    {forEach positionedShifts (renderTimelineShift editable staffById shiftTypeById)}
+                    {forEach positionedShifts (renderTimelineShift timelineWindow editable staffById shiftTypeById)}
                 </div>
             </div>
         </section>
     |]
 
-renderTimelineDropzone :: (Int, Text) -> Html
-renderTimelineDropzone (minute, targetKey) =
+renderTimelineDropzone :: TimelineWindow -> (Int, Text) -> Html
+renderTimelineDropzone timelineWindow (minute, targetKey) =
     SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDayTimelineDropzoneRef targetKey [hsx|
         <div class="roster-day-timeline-dropzone"
-             style={timelineDropzoneStyle minute}
+             style={timelineDropzoneStyle timelineWindow minute}
              data-roster-timeline-minute={tshow minute}
              aria-label={"Move shift to " <> minuteLabel minute}>
         </div>
     |]
 
-renderTimelineShift :: Bool -> Map.Map UUID.UUID Staff -> Map.Map UUID.UUID ShiftType -> TimelineShift -> Html
-renderTimelineShift editable staffById shiftTypeById TimelineShift { timelineShiftSlot, timelineShiftStartMin, timelineShiftEndMin, timelineShiftTrack } =
+renderTimelineShift :: TimelineWindow -> Bool -> Map.Map UUID.UUID Staff -> Map.Map UUID.UUID ShiftType -> TimelineShift -> Html
+renderTimelineShift timelineWindow editable staffById shiftTypeById TimelineShift { timelineShiftSlot, timelineShiftStartMin, timelineShiftEndMin, timelineShiftTrack } =
     let staffLabel = maybe "Unassigned" staffTimelineLabel (timelineShiftSlot.staffId >>= (`Map.lookup` staffById))
         shiftTypeLabel = maybe "Shift" (.name) (timelineShiftSlot.shiftTypeId >>= (`Map.lookup` shiftTypeById))
         card = [hsx|
             <article class={classes [("roster-day-timeline-shift", True), ("roster-shift-launcher", editable)]}
-                     style={timelineShiftStyle timelineShiftStartMin timelineShiftEndMin timelineShiftTrack}
+                     style={timelineShiftStyle timelineWindow timelineShiftStartMin timelineShiftEndMin timelineShiftTrack}
                      data-roster-slot-id={tshow timelineShiftSlot.id}
                      data-roster-shift-group-key={"existing:" <> tshow timelineShiftSlot.id}
                      tabindex={if editable then ("0" :: Text) else ""}>
@@ -177,12 +194,17 @@ staffTimelineLabel :: Staff -> Text
 staffTimelineLabel staff =
     fromMaybe (staff.firstName <> " " <> staff.lastName) staff.preferredName
 
-timelineShiftFromSlot :: RosterSlot -> Maybe TimelineShift
-timelineShiftFromSlot slot = do
+normalizeTimelineMinute :: TimelineWindow -> TimeOfDay -> Int
+normalizeTimelineMinute TimelineWindow { timelineWindowStartMinute } tod =
+    let minute = todHour tod * 60 + todMin tod
+     in if minute < timelineWindowStartMinute then minute + 24 * 60 else minute
+
+timelineShiftFromSlot :: TimelineWindow -> RosterSlot -> Maybe TimelineShift
+timelineShiftFromSlot timelineWindow slot = do
     start <- slot.startTime
     end <- slot.endTime
-    let startMin = normalizeRosterOperationalMinute start
-        endMin = normalizeRosterOperationalMinute end
+    let startMin = normalizeTimelineMinute timelineWindow start
+        endMin = startMin + shiftDurationMinutes start end
         duration = shiftDurationMinutes start end
     guard (duration > 0)
     pure TimelineShift { timelineShiftSlot = slot, timelineShiftStartMin = startMin, timelineShiftEndMin = endMin, timelineShiftTrack = 0 }
@@ -202,45 +224,43 @@ placeInTrack trackIndex (trackEnd:rest) startMin endMin
         let (selectedTrack, updatedRest) = placeInTrack (trackIndex + 1) rest startMin endMin
          in (selectedTrack, trackEnd : updatedRest)
 
-timelineDropzones :: RosterDay -> RosterWeekSlotDefinition -> [(Int, Text)]
-timelineDropzones rosterDay slotDefinition =
+timelineDropzones :: TimelineWindow -> RosterDay -> RosterWeekSlotDefinition -> [(Int, Text)]
+timelineDropzones timelineWindow rosterDay slotDefinition =
     [ (minute, "time:" <> tshow rosterDay.id <> ":" <> tshow slotDefinition.id <> ":" <> tshow minute)
-    | minute <- timelineQuarterHours
+    | minute <- timelineQuarterHours timelineWindow
     ]
 
-timelineQuarterHours :: [Int]
-timelineQuarterHours = [rosterOperationalStartMinuteOfDay, rosterOperationalStartMinuteOfDay + 15 .. rosterOperationalStartMinuteOfDay + rosterTimelineTotalMinutes - 15]
+timelineQuarterHours :: TimelineWindow -> [Int]
+timelineQuarterHours TimelineWindow { timelineWindowStartMinute, timelineWindowEndMinute } =
+    [timelineWindowStartMinute, timelineWindowStartMinute + 15 .. timelineWindowEndMinute]
 
-timelineHourTicks :: [Int]
-timelineHourTicks = [rosterOperationalStartMinuteOfDay, rosterOperationalStartMinuteOfDay + 60 .. rosterOperationalStartMinuteOfDay + rosterTimelineTotalMinutes - 60]
+timelineHourTicks :: TimelineWindow -> [Int]
+timelineHourTicks TimelineWindow { timelineWindowStartMinute, timelineWindowEndMinute } =
+    [timelineWindowStartMinute, timelineWindowStartMinute + 60 .. timelineWindowEndMinute]
 
-rosterTimelineTotalMinutes :: Int
-rosterTimelineTotalMinutes = 24 * 60
+timelineLeftStyle :: TimelineWindow -> Int -> Text
+timelineLeftStyle timelineWindow minute = "left:" <> timelinePercent timelineWindow (minute - timelineWindow.timelineWindowStartMinute) <> "%;"
 
-timelineLeftStyle :: Int -> Text
-timelineLeftStyle minute = "left:" <> timelinePercent (minute - rosterOperationalStartMinuteOfDay) <> "%;"
+timelineDropzoneStyle :: TimelineWindow -> Int -> Text
+timelineDropzoneStyle timelineWindow minute
+    | minute == timelineWindow.timelineWindowEndMinute = "left:" <> timelinePercent timelineWindow (minute - timelineWindow.timelineWindowStartMinute) <> "%;right:0;"
+    | otherwise = "left:" <> timelinePercent timelineWindow (minute - timelineWindow.timelineWindowStartMinute) <> "%;width:" <> timelinePercent timelineWindow 15 <> "%;"
 
-timelineDropzoneStyle :: Int -> Text
-timelineDropzoneStyle minute
-    | minute == lastTimelineQuarterHour = "left:" <> timelinePercent (minute - rosterOperationalStartMinuteOfDay) <> "%;right:0;"
-    | otherwise = "left:" <> timelinePercent (minute - rosterOperationalStartMinuteOfDay) <> "%;width:" <> timelinePercent 15 <> "%;"
+timelineShiftStyle :: TimelineWindow -> Int -> Int -> Int -> Text
+timelineShiftStyle timelineWindow startMin endMin track =
+    let clampedStart = max timelineWindow.timelineWindowStartMinute (min timelineWindow.timelineWindowEndMinute startMin)
+        clampedEnd = max (clampedStart + 15) (min (timelineWindow.timelineWindowEndMinute + 15) endMin)
+     in "left:"
+            <> timelinePercent timelineWindow (clampedStart - timelineWindow.timelineWindowStartMinute)
+            <> "%;width:"
+            <> timelinePercent timelineWindow (max 15 (clampedEnd - clampedStart))
+            <> "%;--roster-timeline-track:"
+            <> tshow track
+            <> ";"
 
-lastTimelineQuarterHour :: Int
-lastTimelineQuarterHour = rosterOperationalStartMinuteOfDay + rosterTimelineTotalMinutes - 15
-
-timelineShiftStyle :: Int -> Int -> Int -> Text
-timelineShiftStyle startMin endMin track =
-    "left:"
-        <> timelinePercent (startMin - rosterOperationalStartMinuteOfDay)
-        <> "%;width:"
-        <> timelinePercent (max 15 (endMin - startMin))
-        <> "%;--roster-timeline-track:"
-        <> tshow track
-        <> ";"
-
-timelinePercent :: Int -> Text
-timelinePercent minutes =
-    tshow ((fromIntegral minutes :: Double) * 100 / fromIntegral rosterTimelineTotalMinutes)
+timelinePercent :: TimelineWindow -> Int -> Text
+timelinePercent TimelineWindow { timelineWindowTotalMinutes } minutes =
+    tshow ((fromIntegral minutes :: Double) * 100 / fromIntegral timelineWindowTotalMinutes)
 
 minuteLabel :: Int -> Text
 minuteLabel minute =
@@ -248,6 +268,6 @@ minuteLabel minute =
 
 minuteOfTimeline :: Int -> TimeOfDay
 minuteOfTimeline minute =
-    let normalized = minute `mod` rosterTimelineTotalMinutes
+    let normalized = minute `mod` (24 * 60)
         (hour, minuteOfHour) = normalized `divMod` 60
      in TimeOfDay hour minuteOfHour 0

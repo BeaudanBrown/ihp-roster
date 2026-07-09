@@ -51,6 +51,7 @@ profileSurfaceResourcesFor resourceName = do
         "roster-end-times-config" -> [rosterEndTimesConfigResource venueUuid]
         "roster-week-boundary-config" -> [rosterWeekBoundaryConfigResource venueUuid]
         "timesheet-week-boundary-config" -> [timesheetWeekBoundaryConfigResource venueUuid]
+        "time-picker-config" -> [timePickerConfigResource venueUuid]
         "admin-invites" -> [adminInvitesResource venueUuid]
         "admin-roster-groups" -> [adminRosterGroupsResource venueUuid]
         "admin-shift-types" -> [adminShiftTypesResource venueUuid]

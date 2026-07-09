@@ -319,6 +319,29 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` ">CrossGroup</option>"
 
+        it "renders timeline dropzones from the venue time picker window" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-timeline-picker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- updateRecord (venueConfig |> set #timePickerStartMinuteOfDay 540 |> set #timePickerFinalSelectableMinuteOfDay 780)
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                _ <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (ShowRosterWeekAction 0)
+                        [ ("rosterView", "timeline")
+                        , ("dayOffset", "0")
+                        ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "data-roster-timeline-minute=\"540\""
+                response `responseBodyShouldContain` "data-roster-timeline-minute=\"780\""
+                response `responseBodyShouldNotContain` "data-roster-timeline-minute=\"360\""
+
         it "defaults new shift dialog times from the venue time picker window" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

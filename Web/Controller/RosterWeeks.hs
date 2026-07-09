@@ -1543,7 +1543,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId =
         timelineTodayUrl <- profileActionSpan "roster.page.timeline_today_url" (buildRosterTimelineTodayUrl currentRosterGroup.id)
 
         case rosterDataOrNothing of
-            Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } ->
+            Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterTimePickerStartMinute, rosterTimePickerFinalSelectableMinute, rosterWagePrediction, showWageEstimates, showRosterWarnings, rosterPublicHolidays } ->
                 let visibleRosterWeek =
                         if rosterWeek.isLive || hasRole ManagerRole'
                             then Just rosterWeek
@@ -1571,6 +1571,8 @@ renderRosterWeekPage weekOffset requestedRosterGroupId =
                                 , viewCapabilities = buildRosterViewCapabilities visibleRosterWeek
                                 , rosterLayoutMode
                                 , rosterEndTimesEnabled
+                                , rosterTimePickerStartMinute
+                                , rosterTimePickerFinalSelectableMinute
                                 , rosterWagePrediction
                                 , showWageEstimates
                                 , showRosterWarnings

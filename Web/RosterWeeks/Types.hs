@@ -46,8 +46,10 @@ data ShowView = ShowView
     , surfaceScope           :: Maybe SurfaceScope
     , viewCapabilities       :: RosterViewCapabilities
     , rosterLayoutMode       :: RosterLayoutModeEnum
-    , rosterEndTimesEnabled  :: Bool
-    , rosterWagePrediction   :: Maybe RosterWagePrediction
+    , rosterEndTimesEnabled              :: Bool
+    , rosterTimePickerStartMinute        :: Int
+    , rosterTimePickerFinalSelectableMinute :: Int
+    , rosterWagePrediction               :: Maybe RosterWagePrediction
     , showWageEstimates      :: Bool
     , showRosterWarnings     :: Bool
     , publicHolidays         :: Map Day Text
@@ -146,8 +148,10 @@ data RosterRenderData = RosterRenderData
     , slotConflicts         :: [(Id RosterSlot, [RosterConflict])]
     , renderIndexes         :: RosterRenderIndexes
     , rosterLayoutMode      :: RosterLayoutModeEnum
-    , rosterEndTimesEnabled :: Bool
-    , rosterWagePrediction  :: Maybe RosterWagePrediction
+    , rosterEndTimesEnabled              :: Bool
+    , rosterTimePickerStartMinute        :: Int
+    , rosterTimePickerFinalSelectableMinute :: Int
+    , rosterWagePrediction               :: Maybe RosterWagePrediction
     , showWageEstimates     :: Bool
     , showRosterWarnings    :: Bool
     , rosterPublicHolidays  :: Map Day Text
@@ -171,8 +175,10 @@ data RosterGridRenderModel = RosterGridRenderModel
     , gridRenderIndexes         :: RosterRenderIndexes
     , gridViewCapabilities      :: RosterViewCapabilities
     , gridRosterLayoutMode      :: RosterLayoutModeEnum
-    , gridRosterEndTimesEnabled :: Bool
-    , gridRosterWagePrediction  :: Maybe RosterWagePrediction
+    , gridRosterEndTimesEnabled              :: Bool
+    , gridRosterTimePickerStartMinute        :: Int
+    , gridRosterTimePickerFinalSelectableMinute :: Int
+    , gridRosterWagePrediction               :: Maybe RosterWagePrediction
     , gridShowWageEstimates     :: Bool
     , gridShowRosterWarnings    :: Bool
     , gridPublicHolidays        :: Map Day Text
