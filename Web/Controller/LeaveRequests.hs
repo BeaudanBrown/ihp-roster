@@ -1,14 +1,17 @@
 module Web.Controller.LeaveRequests where
 
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment (..))
 import Application.Helper.LiveUpdate (setActorLiveFragmentsRefresh)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchStaffLeaveRequests)
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups (fetchCurrentVenueRosterGroupOrDefault)
+import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.View (ToastOverlayPosition (..), dialogOverlayMountId,
                                 errorToast, renderToastOob, successToast)
 import Data.Coerce (coerce)
 import qualified Data.Text.IO as TextIO
+import Data.Time.Clock (getCurrentTime, utctDay)
 import Web.Controller.Prelude
 import Web.LeaveRequests.FrontendSurface (LeaveRequestsScopeValue (..),
                                           leaveRequestsCandidateMountedFragments,
@@ -61,9 +64,10 @@ instance Controller LeaveRequestsController where
                             readModel.leaveReadModelToday
                             currentLeaveArchivePage
                 else do
-                    maybeHtml <- profileActionSpan "leave.fragment.render" (renderLeaveRequestsFragment LeaveRequestsContent)
+                    let requestedFragment = requestedLeaveRequestsFragment
+                    maybeHtml <- profileActionSpan "leave.fragment.render" (renderLeaveRequestsFragment requestedFragment)
                     when (isNothing maybeHtml) do
-                        TextIO.putStrLn "leave_fragment_miss: fragment=content"
+                        TextIO.putStrLn ("leave_fragment_miss: fragment=" <> tshow requestedFragment)
                     respondHtmlProfiled (fromMaybe mempty maybeHtml)
 
     action currentAction@NewLeaveRequestAction = runBepis currentAction BepisFormAction do
@@ -118,9 +122,9 @@ instance Controller LeaveRequestsController where
         leaveRequest <- fetch leaveRequestId
         ensureRecordInCurrentVenue leaveRequest.venueId
         accessDeniedUnless (isNothing leaveRequest.deletedAt)
-        _ <- reviewLeaveRequest ApproveLeave leaveRequest
+        result <- reviewLeaveRequest ApproveLeave leaveRequest
         if isHtmxRequest
-            then respondWithLeaveRequestsContent "Unavailable period approved"
+            then respondWithLeaveRequestsContentForReview leaveRequest result.liveMutationValue.reviewedLeaveRequest "Unavailable period approved"
             else do
                 setSuccessMessage "Unavailable period approved"
                 redirectTo LeaveRequestsAction
@@ -132,12 +136,25 @@ instance Controller LeaveRequestsController where
         leaveRequest <- fetch leaveRequestId
         ensureRecordInCurrentVenue leaveRequest.venueId
         accessDeniedUnless (isNothing leaveRequest.deletedAt)
-        _ <- reviewLeaveRequest DenyLeave leaveRequest
+        result <- reviewLeaveRequest DenyLeave leaveRequest
         if isHtmxRequest
-            then respondWithLeaveRequestsContent "Unavailable period denied"
+            then respondWithLeaveRequestsContentForReview leaveRequest result.liveMutationValue.reviewedLeaveRequest "Unavailable period denied"
             else do
                 setSuccessMessage "Unavailable period denied"
                 redirectTo LeaveRequestsAction
+
+requestedLeaveRequestsFragment :: (?request :: Request) => LeaveRequestsFragment
+requestedLeaveRequestsFragment =
+    case paramOrDefault @Text "leave-requests-content" "fragment" of
+        "leave-pending-count"  -> LeavePendingCount
+        "leave-pending-list"   -> LeavePendingList
+        "leave-approved-count" -> LeaveApprovedCount
+        "leave-approved-list"  -> LeaveApprovedList
+        "leave-denied-count"   -> LeaveDeniedCount
+        "leave-denied-list"    -> LeaveDeniedList
+        "leave-archive-count"  -> LeaveArchiveCount
+        "leave-archive-list"   -> LeaveArchiveList
+        _                      -> LeaveRequestsContent
 
 respondWithLeaveRequestsContent :: (?context :: ControllerContext, ?request :: Request) => Text -> IO ()
 respondWithLeaveRequestsContent successMessage = do
@@ -147,6 +164,36 @@ respondWithLeaveRequestsContent successMessage = do
     respondHtmlProfiled $
         [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
             <> renderToastOob ToastBottomCenter (successToast successMessage)
+
+respondWithLeaveRequestsContentForReview :: (?context :: ControllerContext, ?request :: Request) => LeaveRequest -> LeaveRequest -> Text -> IO ()
+respondWithLeaveRequestsContentForReview beforeReview afterReview successMessage = do
+    today <- liftIO (utctDay <$> getCurrentTime)
+    let scope = LeaveRequestsScopeValue (unpackId currentVenueId)
+    let fragments = leaveReviewMountedFragments today beforeReview afterReview (leaveRequestsCandidateMountedFragments scope)
+    setHeader ("HX-Reswap", "none")
+    setActorLiveFragmentsRefresh (leaveRequestsSurfaceScope scope) (leaveRequestsSurfaceWireFragments fragments)
+    respondHtmlProfiled $
+        [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
+            <> renderToastOob ToastBottomCenter (successToast successMessage)
+
+leaveReviewMountedFragments :: Day -> LeaveRequest -> LeaveRequest -> [FrontendSurfaceMountedFragment] -> [FrontendSurfaceMountedFragment]
+leaveReviewMountedFragments today beforeReview afterReview mountedFragments =
+    filter ((`elem` affectedTargetIds) . (.mountedFragmentTargetId)) mountedFragments
+    where
+        affectedTargetIds = concatMap leaveSectionTargetIds (nub [leaveRequestSection today beforeReview, leaveRequestSection today afterReview])
+
+leaveRequestSection :: Day -> LeaveRequest -> Text
+leaveRequestSection today leaveRequest
+    | leaveRequestIsArchived today leaveRequest = "archive"
+    | parseLeaveRequestStatus leaveRequest.status == Just LeaveApproved = "approved"
+    | parseLeaveRequestStatus leaveRequest.status == Just LeaveDenied = "denied"
+    | otherwise = "pending"
+
+leaveSectionTargetIds :: Text -> [Text]
+leaveSectionTargetIds "approved" = [leaveApprovedCountFragmentId, leaveApprovedListFragmentId]
+leaveSectionTargetIds "denied" = [leaveDeniedCountFragmentId, leaveDeniedListFragmentId]
+leaveSectionTargetIds "archive" = [leaveArchiveCountFragmentId, leaveArchiveListFragmentId]
+leaveSectionTargetIds _ = [leavePendingCountFragmentId, leavePendingListFragmentId]
 
 respondWithProfileLeaveActorInvalidation :: (?context :: ControllerContext, ?request :: Request) => Staff -> Text -> IO ()
 respondWithProfileLeaveActorInvalidation staff successMessage = do

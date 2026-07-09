@@ -100,9 +100,16 @@ test("FrontendSurface config parser derives Leave Requests live subscriptions fr
         mountState: null,
         fragments: [
             {
-                key: { kind: "leave-requests-content", params: null },
-                targetId: "leave-requests-content",
-                url: "/ShowLeaveRequestsContentFragment",
+                key: { kind: "leave-pending-count", params: null },
+                targetId: "leave-pending-count",
+                url: "/ShowLeaveRequestsContentFragment?fragment=leave-pending-count",
+                protection: { kind: "replace" },
+                loadPolicy: "eager",
+            },
+            {
+                key: { kind: "leave-pending-list", params: null },
+                targetId: "leave-pending-list",
+                url: "/ShowLeaveRequestsContentFragment?fragment=leave-pending-list",
                 protection: { kind: "replace" },
                 loadPolicy: "eager",
             },
@@ -112,7 +119,8 @@ test("FrontendSurface config parser derives Leave Requests live subscriptions fr
     assertEqual(config?.feature, "leave-requests");
     assertDeepEqual(config?.scope, { surface: "leave-requests", scope: { venueId: "venue-1" } });
     assertEqual(config?.scopeKey, "leave-requests:venue-1");
-    assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { surface: "leave-requests", kind: "leave-requests-content", params: null });
+    assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { surface: "leave-requests", kind: "leave-pending-count", params: null });
+    assertDeepEqual(config?.resyncFragments[1]?.fragmentKey, { surface: "leave-requests", kind: "leave-pending-list", params: null });
 });
 
 test("FrontendSurface config parser derives Billing and Support live subscriptions from mounted fragments", () => {

@@ -4,10 +4,14 @@ module Application.Helper.SurfaceResource
     , adminExportsResource
     , adminInvitesResource
     , adminRosterGroupsResource
+    , archivedLeaveRequestsResource
+    , approvedLeaveRequestsResource
     , adminShiftTypesResource
     , adminVenueSettingsResource
     , billingResource
+    , deniedLeaveRequestsResource
     , leaveRequestsResource
+    , pendingLeaveRequestsResource
     , liveMutationResult
     , recordLiveMutationDiagnostics
     , resourceFieldInt

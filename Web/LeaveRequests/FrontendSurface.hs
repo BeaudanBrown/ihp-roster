@@ -19,10 +19,19 @@ import Application.Helper.FrontendContract.Surface.DSL
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
 import Application.Helper.FrontendContract.Surface.Runtime
 import Application.Helper.LiveUpdate.Runtime
+import Application.Helper.Url (appendQueryParams)
 import qualified Data.Aeson as Aeson
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
-import Web.View.LeaveRequests.Index (leaveRequestsContentFragmentId)
+import Web.View.LeaveRequests.Index (leaveApprovedCountFragmentId,
+                                     leaveApprovedListFragmentId,
+                                     leaveArchiveCountFragmentId,
+                                     leaveArchiveListFragmentId,
+                                     leaveDeniedCountFragmentId,
+                                     leaveDeniedListFragmentId,
+                                     leavePendingCountFragmentId,
+                                     leavePendingListFragmentId,
+                                     leaveRequestsContentFragmentId)
 
 data LeaveRequestsScopeValue = LeaveRequestsScopeValue
     { leaveRequestsVenueId :: !UUID.UUID
@@ -56,7 +65,7 @@ leaveRequestsSurfaceScope scope =
 
 leaveRequestsCandidateMountedFragments :: LeaveRequestsScopeValue -> [FrontendSurfaceMountedFragment]
 leaveRequestsCandidateMountedFragments _ =
-    [leaveRequestsContentMountedFragment]
+    leaveRequestsSectionMountedFragments
 
 leaveRequestsSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [SurfaceWireFragment]
 leaveRequestsSurfaceWireFragments =
@@ -75,12 +84,15 @@ leaveRequestsSurfaceHandlers scope =
                 `HandlerCons` HandlerNil
         , surfaceMountStateHandlers = HandlerNil
         , surfaceFragmentHandlers =
-            FrontendSurfaceFragmentHandler
-                { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
-                , fragmentHandlerMountedFragment = const leaveRequestsContentMountedFragment
-                , fragmentHandlerRender = const mempty
-                }
-                `HandlerCons` HandlerNil
+            leaveRequestsFragmentHandler leavePendingCountMountedFragment `HandlerCons`
+            leaveRequestsFragmentHandler leavePendingListMountedFragment `HandlerCons`
+            leaveRequestsFragmentHandler leaveApprovedCountMountedFragment `HandlerCons`
+            leaveRequestsFragmentHandler leaveApprovedListMountedFragment `HandlerCons`
+            leaveRequestsFragmentHandler leaveDeniedCountMountedFragment `HandlerCons`
+            leaveRequestsFragmentHandler leaveDeniedListMountedFragment `HandlerCons`
+            leaveRequestsFragmentHandler leaveArchiveCountMountedFragment `HandlerCons`
+            leaveRequestsFragmentHandler leaveArchiveListMountedFragment `HandlerCons`
+            HandlerNil
         , surfaceActionHandlers =
             leaveRequestsActionHandler "archive-leave-requests-page" (pathTo ShowleaveRequestsContentLiveFragmentAction) `HandlerCons`
             leaveRequestsActionHandler "approve-leave-request" (pathTo (ApproveLeaveRequestAction (Id UUID.nil))) `HandlerCons`
@@ -112,12 +124,42 @@ leaveRequestsScopeFields :: LeaveRequestsScopeValue -> FrontendSurfaceFieldValue
 leaveRequestsScopeFields scope =
     frontendSurfaceFieldValues (Aeson.object ["venueId" Aeson..= tshow scope.leaveRequestsVenueId])
 
-leaveRequestsContentMountedFragment :: FrontendSurfaceMountedFragment
-leaveRequestsContentMountedFragment =
+leaveRequestsFragmentHandler :: KnownFragmentOptions options => FrontendSurfaceMountedFragment -> FrontendSurfaceFragmentHandler ('Fragment marker '[] options)
+leaveRequestsFragmentHandler mountedFragment =
+    FrontendSurfaceFragmentHandler
+        { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
+        , fragmentHandlerMountedFragment = const mountedFragment
+        , fragmentHandlerRender = const mempty
+        }
+
+leaveRequestsSectionMountedFragments :: [FrontendSurfaceMountedFragment]
+leaveRequestsSectionMountedFragments =
+    [ leavePendingCountMountedFragment
+    , leavePendingListMountedFragment
+    , leaveApprovedCountMountedFragment
+    , leaveApprovedListMountedFragment
+    , leaveDeniedCountMountedFragment
+    , leaveDeniedListMountedFragment
+    , leaveArchiveCountMountedFragment
+    , leaveArchiveListMountedFragment
+    ]
+
+leavePendingCountMountedFragment, leavePendingListMountedFragment, leaveApprovedCountMountedFragment, leaveApprovedListMountedFragment, leaveDeniedCountMountedFragment, leaveDeniedListMountedFragment, leaveArchiveCountMountedFragment, leaveArchiveListMountedFragment :: FrontendSurfaceMountedFragment
+leavePendingCountMountedFragment = leaveRequestsMountedFragment "leave-pending-count" leavePendingCountFragmentId
+leavePendingListMountedFragment = leaveRequestsMountedFragment "leave-pending-list" leavePendingListFragmentId
+leaveApprovedCountMountedFragment = leaveRequestsMountedFragment "leave-approved-count" leaveApprovedCountFragmentId
+leaveApprovedListMountedFragment = leaveRequestsMountedFragment "leave-approved-list" leaveApprovedListFragmentId
+leaveDeniedCountMountedFragment = leaveRequestsMountedFragment "leave-denied-count" leaveDeniedCountFragmentId
+leaveDeniedListMountedFragment = leaveRequestsMountedFragment "leave-denied-list" leaveDeniedListFragmentId
+leaveArchiveCountMountedFragment = leaveRequestsMountedFragment "leave-archive-count" leaveArchiveCountFragmentId
+leaveArchiveListMountedFragment = leaveRequestsMountedFragment "leave-archive-list" leaveArchiveListFragmentId
+
+leaveRequestsMountedFragment :: Text -> Text -> FrontendSurfaceMountedFragment
+leaveRequestsMountedFragment kind targetId =
     FrontendSurfaceMountedFragment
-        { mountedFragmentKey = FrontendSurfaceFragmentKey "leave-requests-content" Aeson.Null
-        , mountedFragmentTargetId = leaveRequestsContentFragmentId
-        , mountedFragmentUrl = pathTo ShowleaveRequestsContentLiveFragmentAction
+        { mountedFragmentKey = FrontendSurfaceFragmentKey kind Aeson.Null
+        , mountedFragmentTargetId = targetId
+        , mountedFragmentUrl = appendQueryParams (pathTo ShowleaveRequestsContentLiveFragmentAction) [("fragment", kind)]
         , mountedFragmentProtection = FrontendSurfaceReplace
         , mountedFragmentLoadPolicy = "eager"
         , mountedFragmentLazyTrigger = Nothing

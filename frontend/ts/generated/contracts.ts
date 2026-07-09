@@ -233,9 +233,16 @@ export function parseRosterSurfaceFragmentKey(value: unknown): RosterSurfaceFrag
 export function encodeRosterSurfaceFragmentKey(value: RosterSurfaceFragmentKey): RosterSurfaceFragmentKey { return value; }
 
 export type LeaveRequestsSurfaceFragmentKey =
-    { kind: "leave-requests-content"; params: LeaveRequestsLeaveRequestsContentFragmentParams | null };
+    { kind: "leave-pending-count"; params: LeaveRequestsLeavePendingCountFragmentParams | null }
+  | { kind: "leave-pending-list"; params: LeaveRequestsLeavePendingListFragmentParams | null }
+  | { kind: "leave-approved-count"; params: LeaveRequestsLeaveApprovedCountFragmentParams | null }
+  | { kind: "leave-approved-list"; params: LeaveRequestsLeaveApprovedListFragmentParams | null }
+  | { kind: "leave-denied-count"; params: LeaveRequestsLeaveDeniedCountFragmentParams | null }
+  | { kind: "leave-denied-list"; params: LeaveRequestsLeaveDeniedListFragmentParams | null }
+  | { kind: "leave-archive-count"; params: LeaveRequestsLeaveArchiveCountFragmentParams | null }
+  | { kind: "leave-archive-list"; params: LeaveRequestsLeaveArchiveListFragmentParams | null };
 export function isLeaveRequestsSurfaceFragmentKey(value: unknown): value is LeaveRequestsSurfaceFragmentKey {
-    return ((isRecord(value) && value.kind === "leave-requests-content" && (value["params"] === null || isRecord(value["params"]))));
+    return ((isRecord(value) && value.kind === "leave-pending-count" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "leave-pending-list" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "leave-approved-count" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "leave-approved-list" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "leave-denied-count" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "leave-denied-list" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "leave-archive-count" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "leave-archive-list" && (value["params"] === null || isRecord(value["params"]))));
 }
 export function parseLeaveRequestsSurfaceFragmentKey(value: unknown): LeaveRequestsSurfaceFragmentKey {
     if (isLeaveRequestsSurfaceFragmentKey(value)) return value;
@@ -2027,15 +2034,85 @@ export function parseLeaveRequestsLeaveRequestsScopeScope(value: unknown): Leave
 }
 export function encodeLeaveRequestsLeaveRequestsScopeScope(value: LeaveRequestsLeaveRequestsScopeScope): LeaveRequestsLeaveRequestsScopeScope { return value; }
 
-export type LeaveRequestsLeaveRequestsContentFragmentParams = {  };
-export function isLeaveRequestsLeaveRequestsContentFragmentParams(value: unknown): value is LeaveRequestsLeaveRequestsContentFragmentParams {
+export type LeaveRequestsLeavePendingCountFragmentParams = {  };
+export function isLeaveRequestsLeavePendingCountFragmentParams(value: unknown): value is LeaveRequestsLeavePendingCountFragmentParams {
     return isRecord(value);
 }
-export function parseLeaveRequestsLeaveRequestsContentFragmentParams(value: unknown): LeaveRequestsLeaveRequestsContentFragmentParams {
-    if (isLeaveRequestsLeaveRequestsContentFragmentParams(value)) return value;
-    throw new Error("Invalid LeaveRequestsLeaveRequestsContentFragmentParams");
+export function parseLeaveRequestsLeavePendingCountFragmentParams(value: unknown): LeaveRequestsLeavePendingCountFragmentParams {
+    if (isLeaveRequestsLeavePendingCountFragmentParams(value)) return value;
+    throw new Error("Invalid LeaveRequestsLeavePendingCountFragmentParams");
 }
-export function encodeLeaveRequestsLeaveRequestsContentFragmentParams(value: LeaveRequestsLeaveRequestsContentFragmentParams): LeaveRequestsLeaveRequestsContentFragmentParams { return value; }
+export function encodeLeaveRequestsLeavePendingCountFragmentParams(value: LeaveRequestsLeavePendingCountFragmentParams): LeaveRequestsLeavePendingCountFragmentParams { return value; }
+
+export type LeaveRequestsLeavePendingListFragmentParams = {  };
+export function isLeaveRequestsLeavePendingListFragmentParams(value: unknown): value is LeaveRequestsLeavePendingListFragmentParams {
+    return isRecord(value);
+}
+export function parseLeaveRequestsLeavePendingListFragmentParams(value: unknown): LeaveRequestsLeavePendingListFragmentParams {
+    if (isLeaveRequestsLeavePendingListFragmentParams(value)) return value;
+    throw new Error("Invalid LeaveRequestsLeavePendingListFragmentParams");
+}
+export function encodeLeaveRequestsLeavePendingListFragmentParams(value: LeaveRequestsLeavePendingListFragmentParams): LeaveRequestsLeavePendingListFragmentParams { return value; }
+
+export type LeaveRequestsLeaveApprovedCountFragmentParams = {  };
+export function isLeaveRequestsLeaveApprovedCountFragmentParams(value: unknown): value is LeaveRequestsLeaveApprovedCountFragmentParams {
+    return isRecord(value);
+}
+export function parseLeaveRequestsLeaveApprovedCountFragmentParams(value: unknown): LeaveRequestsLeaveApprovedCountFragmentParams {
+    if (isLeaveRequestsLeaveApprovedCountFragmentParams(value)) return value;
+    throw new Error("Invalid LeaveRequestsLeaveApprovedCountFragmentParams");
+}
+export function encodeLeaveRequestsLeaveApprovedCountFragmentParams(value: LeaveRequestsLeaveApprovedCountFragmentParams): LeaveRequestsLeaveApprovedCountFragmentParams { return value; }
+
+export type LeaveRequestsLeaveApprovedListFragmentParams = {  };
+export function isLeaveRequestsLeaveApprovedListFragmentParams(value: unknown): value is LeaveRequestsLeaveApprovedListFragmentParams {
+    return isRecord(value);
+}
+export function parseLeaveRequestsLeaveApprovedListFragmentParams(value: unknown): LeaveRequestsLeaveApprovedListFragmentParams {
+    if (isLeaveRequestsLeaveApprovedListFragmentParams(value)) return value;
+    throw new Error("Invalid LeaveRequestsLeaveApprovedListFragmentParams");
+}
+export function encodeLeaveRequestsLeaveApprovedListFragmentParams(value: LeaveRequestsLeaveApprovedListFragmentParams): LeaveRequestsLeaveApprovedListFragmentParams { return value; }
+
+export type LeaveRequestsLeaveDeniedCountFragmentParams = {  };
+export function isLeaveRequestsLeaveDeniedCountFragmentParams(value: unknown): value is LeaveRequestsLeaveDeniedCountFragmentParams {
+    return isRecord(value);
+}
+export function parseLeaveRequestsLeaveDeniedCountFragmentParams(value: unknown): LeaveRequestsLeaveDeniedCountFragmentParams {
+    if (isLeaveRequestsLeaveDeniedCountFragmentParams(value)) return value;
+    throw new Error("Invalid LeaveRequestsLeaveDeniedCountFragmentParams");
+}
+export function encodeLeaveRequestsLeaveDeniedCountFragmentParams(value: LeaveRequestsLeaveDeniedCountFragmentParams): LeaveRequestsLeaveDeniedCountFragmentParams { return value; }
+
+export type LeaveRequestsLeaveDeniedListFragmentParams = {  };
+export function isLeaveRequestsLeaveDeniedListFragmentParams(value: unknown): value is LeaveRequestsLeaveDeniedListFragmentParams {
+    return isRecord(value);
+}
+export function parseLeaveRequestsLeaveDeniedListFragmentParams(value: unknown): LeaveRequestsLeaveDeniedListFragmentParams {
+    if (isLeaveRequestsLeaveDeniedListFragmentParams(value)) return value;
+    throw new Error("Invalid LeaveRequestsLeaveDeniedListFragmentParams");
+}
+export function encodeLeaveRequestsLeaveDeniedListFragmentParams(value: LeaveRequestsLeaveDeniedListFragmentParams): LeaveRequestsLeaveDeniedListFragmentParams { return value; }
+
+export type LeaveRequestsLeaveArchiveCountFragmentParams = {  };
+export function isLeaveRequestsLeaveArchiveCountFragmentParams(value: unknown): value is LeaveRequestsLeaveArchiveCountFragmentParams {
+    return isRecord(value);
+}
+export function parseLeaveRequestsLeaveArchiveCountFragmentParams(value: unknown): LeaveRequestsLeaveArchiveCountFragmentParams {
+    if (isLeaveRequestsLeaveArchiveCountFragmentParams(value)) return value;
+    throw new Error("Invalid LeaveRequestsLeaveArchiveCountFragmentParams");
+}
+export function encodeLeaveRequestsLeaveArchiveCountFragmentParams(value: LeaveRequestsLeaveArchiveCountFragmentParams): LeaveRequestsLeaveArchiveCountFragmentParams { return value; }
+
+export type LeaveRequestsLeaveArchiveListFragmentParams = {  };
+export function isLeaveRequestsLeaveArchiveListFragmentParams(value: unknown): value is LeaveRequestsLeaveArchiveListFragmentParams {
+    return isRecord(value);
+}
+export function parseLeaveRequestsLeaveArchiveListFragmentParams(value: unknown): LeaveRequestsLeaveArchiveListFragmentParams {
+    if (isLeaveRequestsLeaveArchiveListFragmentParams(value)) return value;
+    throw new Error("Invalid LeaveRequestsLeaveArchiveListFragmentParams");
+}
+export function encodeLeaveRequestsLeaveArchiveListFragmentParams(value: LeaveRequestsLeaveArchiveListFragmentParams): LeaveRequestsLeaveArchiveListFragmentParams { return value; }
 
 export type LeaveRequestsArchiveLeaveRequestsPageActionFields = { archivePage: number };
 export function isLeaveRequestsArchiveLeaveRequestsPageActionFields(value: unknown): value is LeaveRequestsArchiveLeaveRequestsPageActionFields {
@@ -2786,8 +2863,8 @@ export type LeaveRequestsFragmentKey = LeaveRequestsSurfaceFragmentKey;
 export type ArchiveLeaveRequestsPageActionFields = LeaveRequestsArchiveLeaveRequestsPageActionFields;
 export type ApproveLeaveRequestActionFields = LeaveRequestsApproveLeaveRequestActionFields;
 export type DenyLeaveRequestActionFields = LeaveRequestsDenyLeaveRequestActionFields;
-export type LeaveRequestsDomToken = "leave-requests-content" | "leave-archive-page-content";
-export const leaveRequestsSurfaceManifest = {"surface":"leave-requests","scopes":["leave-requests"],"fragments":["leave-requests-content"],"liveFragments":["leave-requests-content"],"htmxActions":[{"name":"archive-leave-requests-page","fields":["archivePage"],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"leave-archive-page-content","swap":"none","pushUrl":true,"custom":[]}},{"name":"approve-leave-request","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"leave-requests-content","swap":"none","pushUrl":false,"custom":[]}},{"name":"deny-leave-request","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"leave-requests-content","swap":"none","pushUrl":false,"custom":[]}}],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":["leave-requests-content","leave-archive-page-content"],"overlayLanes":[],"containedSurfaces":{}} as const;
+export type LeaveRequestsDomToken = "leave-requests-content" | "leave-pending-count" | "leave-pending-list" | "leave-approved-count" | "leave-approved-list" | "leave-denied-count" | "leave-denied-list" | "leave-archive-count" | "leave-archive-list" | "leave-archive-page-content";
+export const leaveRequestsSurfaceManifest = {"surface":"leave-requests","scopes":["leave-requests"],"fragments":["leave-pending-count","leave-pending-list","leave-approved-count","leave-approved-list","leave-denied-count","leave-denied-list","leave-archive-count","leave-archive-list"],"liveFragments":["leave-pending-count","leave-pending-list","leave-approved-count","leave-approved-list","leave-denied-count","leave-denied-list","leave-archive-count","leave-archive-list"],"htmxActions":[{"name":"archive-leave-requests-page","fields":["archivePage"],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"leave-archive-page-content","swap":"none","pushUrl":true,"custom":[]}},{"name":"approve-leave-request","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"leave-requests-content","swap":"none","pushUrl":false,"custom":[]}},{"name":"deny-leave-request","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"leave-requests-content","swap":"none","pushUrl":false,"custom":[]}}],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":["leave-requests-content","leave-pending-count","leave-pending-list","leave-approved-count","leave-approved-list","leave-denied-count","leave-denied-list","leave-archive-count","leave-archive-list","leave-archive-page-content"],"overlayLanes":[],"containedSurfaces":{}} as const;
 
 export type BillingSurfaceName = "billing";
 export type BillingFragmentKey = BillingSurfaceFragmentKey;

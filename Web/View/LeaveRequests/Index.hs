@@ -48,6 +48,16 @@ leaveRequestsShellId = "leave-requests-shell"
 leaveRequestsContentFragmentId :: Text
 leaveRequestsContentFragmentId = "leave-requests-content"
 
+leavePendingCountFragmentId, leavePendingListFragmentId, leaveApprovedCountFragmentId, leaveApprovedListFragmentId, leaveDeniedCountFragmentId, leaveDeniedListFragmentId, leaveArchiveCountFragmentId, leaveArchiveListFragmentId :: Text
+leavePendingCountFragmentId = "leave-pending-count"
+leavePendingListFragmentId = "leave-pending-list"
+leaveApprovedCountFragmentId = "leave-approved-count"
+leaveApprovedListFragmentId = "leave-approved-list"
+leaveDeniedCountFragmentId = "leave-denied-count"
+leaveDeniedListFragmentId = "leave-denied-list"
+leaveArchiveCountFragmentId = "leave-archive-count"
+leaveArchiveListFragmentId = "leave-archive-page-content"
+
 instance View IndexView where
     html = renderLeaveRequestsShell
 
@@ -124,9 +134,9 @@ renderLeaveRequestsTable leaveRequests staffMembers currentViewerStaffId = [hsx|
 renderManagerLeaveRequests :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> Int -> Bool -> Html
 renderManagerLeaveRequests leaveRequests staffMembers currentViewerStaffId today archivePage archiveIsOpen = [hsx|
     <div class="accordion leave-request-accordion" id="leave-request-manager-sections">
-        {renderManagerSection "leave-pending" "Pending" (length pendingRequests) pendingRequests staffMembers currentViewerStaffId (not archiveIsOpen) True}
-        {renderManagerSection "leave-approved" "Approved" (length approvedRequests) approvedRequests staffMembers currentViewerStaffId False True}
-        {renderManagerSection "leave-denied" "Denied" (length deniedRequests) deniedRequests staffMembers currentViewerStaffId False True}
+        {renderManagerSection "leave-pending" "Pending" leavePendingCountFragmentId leavePendingListFragmentId pendingRequests staffMembers currentViewerStaffId (not archiveIsOpen) True}
+        {renderManagerSection "leave-approved" "Approved" leaveApprovedCountFragmentId leaveApprovedListFragmentId approvedRequests staffMembers currentViewerStaffId False True}
+        {renderManagerSection "leave-denied" "Denied" leaveDeniedCountFragmentId leaveDeniedListFragmentId deniedRequests staffMembers currentViewerStaffId False True}
         {renderArchiveSection archivePagination archivedPageRequests staffMembers currentViewerStaffId archiveIsOpen}
     </div>
 |]
@@ -138,6 +148,25 @@ renderManagerLeaveRequests leaveRequests staffMembers currentViewerStaffId today
         pendingRequests = sortOn (Down . (.startDate)) (filter ((== Just LeavePending) . parseLeaveRequestStatus . (.status)) activeRequests)
         approvedRequests = sortOn (Down . (.startDate)) (filter ((== Just LeaveApproved) . parseLeaveRequestStatus . (.status)) activeRequests)
         deniedRequests = sortOn (Down . (.startDate)) (filter ((== Just LeaveDenied) . parseLeaveRequestStatus . (.status)) activeRequests)
+
+renderPendingCountLiveFragment, renderApprovedCountLiveFragment, renderDeniedCountLiveFragment :: [LeaveRequest] -> Day -> Html
+renderPendingCountLiveFragment leaveRequests today = renderManagerSectionCount leavePendingCountFragmentId (pendingLeaveRequests leaveRequests today)
+renderApprovedCountLiveFragment leaveRequests today = renderManagerSectionCount leaveApprovedCountFragmentId (approvedLeaveRequests leaveRequests today)
+renderDeniedCountLiveFragment leaveRequests today = renderManagerSectionCount leaveDeniedCountFragmentId (deniedLeaveRequests leaveRequests today)
+
+renderPendingListLiveFragment, renderApprovedListLiveFragment, renderDeniedListLiveFragment :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> Html
+renderPendingListLiveFragment leaveRequests staffMembers currentViewerStaffId today = renderManagerSectionList leavePendingListFragmentId (pendingLeaveRequests leaveRequests today) staffMembers currentViewerStaffId True
+renderApprovedListLiveFragment leaveRequests staffMembers currentViewerStaffId today = renderManagerSectionList leaveApprovedListFragmentId (approvedLeaveRequests leaveRequests today) staffMembers currentViewerStaffId True
+renderDeniedListLiveFragment leaveRequests staffMembers currentViewerStaffId today = renderManagerSectionList leaveDeniedListFragmentId (deniedLeaveRequests leaveRequests today) staffMembers currentViewerStaffId True
+
+pendingLeaveRequests, approvedLeaveRequests, deniedLeaveRequests :: [LeaveRequest] -> Day -> [LeaveRequest]
+pendingLeaveRequests leaveRequests today = sortOn (Down . (.startDate)) (filter ((== Just LeavePending) . parseLeaveRequestStatus . (.status)) (activeLeaveRequests leaveRequests today))
+approvedLeaveRequests leaveRequests today = sortOn (Down . (.startDate)) (filter ((== Just LeaveApproved) . parseLeaveRequestStatus . (.status)) (activeLeaveRequests leaveRequests today))
+deniedLeaveRequests leaveRequests today = sortOn (Down . (.startDate)) (filter ((== Just LeaveDenied) . parseLeaveRequestStatus . (.status)) (activeLeaveRequests leaveRequests today))
+
+activeLeaveRequests, archivedLeaveRequests :: [LeaveRequest] -> Day -> [LeaveRequest]
+activeLeaveRequests leaveRequests today = filter (not . leaveRequestIsArchived today) leaveRequests
+archivedLeaveRequests leaveRequests today = sortOn (Down . (.endDate)) (filter (leaveRequestIsArchived today) leaveRequests)
 
 leaveRequestIsArchived :: Day -> LeaveRequest -> Bool
 leaveRequestIsArchived today leaveRequest =
@@ -181,7 +210,7 @@ renderArchiveSection archivePagination@ArchivePagination { archivePaginationTota
                 aria-controls="leave-archive-collapse"
                 aria-label="Archive"
             >
-                <span class="leave-request-accordion-title">{"Archive (" <> tshow archivePaginationTotalItems <> ")"}</span>
+                <span class="leave-request-accordion-title" data-label={"Archive (" <> tshow archivePaginationTotalItems <> ")"}>Archive (<span id={leaveArchiveCountFragmentId}>{tshow archivePaginationTotalItems}</span>)</span>
             </button>
         </h2>
         <div
@@ -205,9 +234,14 @@ renderArchivePageContentOob leaveRequests staffMembers currentViewerStaffId toda
         archivePagination = buildArchivePagination archivePage archivedRequests
         archivedPageRequests = archivePageItems archivePagination archivedRequests
 
+renderArchiveCountLiveFragment :: ArchivePagination -> Html
+renderArchiveCountLiveFragment ArchivePagination { archivePaginationTotalItems } = [hsx|
+    <span id={leaveArchiveCountFragmentId}>{tshow archivePaginationTotalItems}</span>
+|]
+
 renderArchivePageContent :: (?context :: ControllerContext) => Maybe Text -> ArchivePagination -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Html
 renderArchivePageContent maybeSwapOob archivePagination requests staffMembers currentViewerStaffId = [hsx|
-    <div id="leave-archive-page-content" hx-swap-oob={maybeSwapOob}>
+    <div id={leaveArchiveListFragmentId} hx-swap-oob={maybeSwapOob}>
         {renderArchivePagination "leave-request-archive-pagination-top" archivePagination}
         {unless (null requests) (renderArchiveRequestList requests staffMembers currentViewerStaffId)}
         {renderArchivePagination "leave-request-archive-pagination-bottom" archivePagination}
@@ -310,8 +344,8 @@ renderArchivePageLink ArchivePagination { archivePaginationCurrentPage, archiveP
         href = appendQueryParams (pathTo LeaveRequestsAction) pageParam
         fragmentHref = appendQueryParams (pathTo ShowleaveRequestsContentLiveFragmentAction) (pageParam <> [("swapOob", "true")])
 
-renderManagerSection :: (?context :: ControllerContext) => Text -> Text -> Int -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Bool -> Bool -> Html
-renderManagerSection sectionId title displayCount requests staffMembers currentViewerStaffId isOpen showActions =
+renderManagerSection :: (?context :: ControllerContext) => Text -> Text -> Text -> Text -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Bool -> Bool -> Html
+renderManagerSection sectionId title countFragmentId listFragmentId requests staffMembers currentViewerStaffId isOpen showActions =
     renderAppAccordionItem AppAccordionItemConfig
         { appAccordionItemId = sectionId
         , appAccordionItemParentId = "leave-request-manager-sections"
@@ -320,10 +354,22 @@ renderManagerSection sectionId title displayCount requests staffMembers currentV
         , appAccordionItemClass = "leave-request-section"
         , appAccordionItemBodyClass = ""
         , appAccordionItemButtonContent = [hsx|
-            <span class="leave-request-accordion-title">{title <> " (" <> tshow displayCount <> ")"}</span>
+            <span class="leave-request-accordion-title" data-label={title <> " (" <> tshow (length requests) <> ")"}>{title} ({renderManagerSectionCount countFragmentId requests})</span>
         |]
-        , appAccordionItemBody = sectionBody
+        , appAccordionItemBody = renderManagerSectionList listFragmentId requests staffMembers currentViewerStaffId showActions
         }
+
+renderManagerSectionCount :: Text -> [LeaveRequest] -> Html
+renderManagerSectionCount countFragmentId requests = [hsx|
+    <span id={countFragmentId}>{tshow (length requests)}</span>
+|]
+
+renderManagerSectionList :: (?context :: ControllerContext) => Text -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Bool -> Html
+renderManagerSectionList listFragmentId requests staffMembers currentViewerStaffId showActions = [hsx|
+    <div id={listFragmentId}>
+        {sectionBody}
+    </div>
+|]
     where
         sectionBody
             | null requests =

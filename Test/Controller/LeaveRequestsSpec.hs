@@ -1,6 +1,7 @@
 module Test.Controller.LeaveRequestsSpec where
 
-import Application.Helper.Controller (PlatformRole (SuperAdminRole))
+import Application.Helper.Controller (LeaveRequestStatus (LeavePending),
+                                      PlatformRole (SuperAdminRole))
 import Application.Helper.LiveUpdate
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
 import Application.Helper.SurfaceResource
@@ -127,9 +128,11 @@ tests = beforeAll testContext do
                 leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 8) (fromGregorian 2025 1 15) "pending"
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
 
-                Set.fromList (leaveReviewTouchedResources venueConfig ApproveLeave False leaveRequest)
+                Set.fromList (leaveReviewTouchedResources venueConfig ApproveLeave (Just LeavePending) leaveRequest)
                     `shouldBe` Set.fromList
                         [ leaveRequestsResource (unpackId venue.id)
+                        , pendingLeaveRequestsResource (unpackId venue.id)
+                        , approvedLeaveRequestsResource (unpackId venue.id)
                         , staffLeaveRequestsResource leaveRequest.staffId
                         ]
 
@@ -565,7 +568,8 @@ tests = beforeAll testContext do
                 manager <- createUserRecord "leave-live-manager@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
                 staff <- createStaffRecord venue Nothing "Dina" "Leave"
-                leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 8) (fromGregorian 2025 1 10) "pending"
+                today <- utctDay <$> getCurrentTime
+                leaveRequest <- createLeaveRequestRecord venue staff (addDays 7 today) (addDays 9 today) "pending"
 
                 versionBefore <- currentLiveUpdateVersion (leaveRequestsLiveScope (unpackId venue.id))
 
@@ -581,7 +585,11 @@ tests = beforeAll testContext do
                 bodyText `shouldContain` "id=\"dialog-overlay-mount\" hx-swap-oob=\"innerHTML\""
                 let leaveReviewTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 leaveReviewTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
-                leaveReviewTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "leave-requests-content")
+                leaveReviewTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "leave-pending-count")
+                leaveReviewTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "leave-pending-list")
+                leaveReviewTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "leave-approved-count")
+                leaveReviewTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "leave-approved-list")
+                leaveReviewTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "leave-requests-content")
                 versionAfter <- currentLiveUpdateVersion (leaveRequestsLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` versionBefore
 

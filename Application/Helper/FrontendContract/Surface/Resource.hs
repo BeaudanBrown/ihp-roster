@@ -8,7 +8,11 @@ module Application.Helper.FrontendContract.Surface.Resource
     , adminVenueSettingsResource
     , billingResource
     , frontendSurfaceResourceDefinitions
+    , archivedLeaveRequestsResource
+    , approvedLeaveRequestsResource
+    , deniedLeaveRequestsResource
     , leaveRequestsResource
+    , pendingLeaveRequestsResource
     , resource
     , resourceFieldInt
     , resourceFieldUuid
@@ -75,8 +79,12 @@ frontendSurfaceResourceDefinitions =
             , resourceFields = resourceDefinition.resourceFields
             }
 
-leaveRequestsResource, staffLeaveRequestsResource, staffProfileResource, staffPreferencesResource, staffRsaDocumentsResource, rosterDayResource, adminVenueSettingsResource, rosterEndTimesConfigResource, rosterWeekBoundaryConfigResource, timesheetWeekBoundaryConfigResource, adminRosterGroupsResource, adminShiftTypesResource, adminInvitesResource, adminExportsResource, billingResource, xeroConnectionResource, xeroMappingsResource, xeroPayItemsResource, xeroTimesheetsResource :: UUID.UUID -> SurfaceResourceValue
+leaveRequestsResource, pendingLeaveRequestsResource, approvedLeaveRequestsResource, deniedLeaveRequestsResource, archivedLeaveRequestsResource, staffLeaveRequestsResource, staffProfileResource, staffPreferencesResource, staffRsaDocumentsResource, rosterDayResource, adminVenueSettingsResource, rosterEndTimesConfigResource, rosterWeekBoundaryConfigResource, timesheetWeekBoundaryConfigResource, adminRosterGroupsResource, adminShiftTypesResource, adminInvitesResource, adminExportsResource, billingResource, xeroConnectionResource, xeroMappingsResource, xeroPayItemsResource, xeroTimesheetsResource :: UUID.UUID -> SurfaceResourceValue
 leaveRequestsResource venueId = resource "leave-requests" ["venueId" Aeson..= uuid venueId]
+pendingLeaveRequestsResource venueId = resource "leave-pending-count" ["venueId" Aeson..= uuid venueId]
+approvedLeaveRequestsResource venueId = resource "leave-approved-count" ["venueId" Aeson..= uuid venueId]
+deniedLeaveRequestsResource venueId = resource "leave-denied-count" ["venueId" Aeson..= uuid venueId]
+archivedLeaveRequestsResource venueId = resource "leave-archive-count" ["venueId" Aeson..= uuid venueId]
 staffLeaveRequestsResource staffId = resource "staff-leave-requests" ["staffId" Aeson..= uuid staffId]
 staffProfileResource staffId = resource "staff-profile" ["staffId" Aeson..= uuid staffId]
 staffPreferencesResource staffId = resource "staff-preferences" ["staffId" Aeson..= uuid staffId]

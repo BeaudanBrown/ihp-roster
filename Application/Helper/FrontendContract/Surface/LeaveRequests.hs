@@ -3,7 +3,18 @@
 
 module Application.Helper.FrontendContract.Surface.LeaveRequests
     ( LeaveRequestsContent
-    , LeaveRequestsResource
+    , LeavePendingCount
+    , LeavePendingList
+    , LeaveApprovedCount
+    , LeaveApprovedList
+    , LeaveDeniedCount
+    , LeaveDeniedList
+    , LeaveArchiveCount
+    , LeaveArchiveList
+    , PendingLeaveRequestsResource
+    , ApprovedLeaveRequestsResource
+    , DeniedLeaveRequestsResource
+    , ArchivedLeaveRequestsResource
     , LeaveRequestsSurface
     , LeaveRequestsScope
     , ArchiveLeaveRequestsPage
@@ -20,6 +31,14 @@ data LeaveRequestsScope
 data VenueId
 
 data LeaveRequestsContent
+data LeavePendingCount
+data LeavePendingList
+data LeaveApprovedCount
+data LeaveApprovedList
+data LeaveDeniedCount
+data LeaveDeniedList
+data LeaveArchiveCount
+data LeaveArchiveList
 data ArchiveLeaveRequestsPage
 data ApproveLeaveRequest
 data DenyLeaveRequest
@@ -27,7 +46,10 @@ data ArchivePage
 data None
 data LeaveArchivePageContent
 
-type LeaveRequestsResource = Resource LeaveRequests '[ Field VenueId 'WireUUID ]
+type PendingLeaveRequestsResource = Resource LeavePendingCount '[ Field VenueId 'WireUUID ]
+type ApprovedLeaveRequestsResource = Resource LeaveApprovedCount '[ Field VenueId 'WireUUID ]
+type DeniedLeaveRequestsResource = Resource LeaveDeniedCount '[ Field VenueId 'WireUUID ]
+type ArchivedLeaveRequestsResource = Resource LeaveArchiveCount '[ Field VenueId 'WireUUID ]
 
 type LeaveRequestsSurface =
     Surface LeaveRequests
@@ -35,7 +57,14 @@ type LeaveRequestsSurface =
             '[ Field VenueId 'WireUUID
              ]
             '[ 'Authorize 'CurrentVenueManager '[ VenueId ] ]
-         , Fragment LeaveRequestsContent '[] '[ 'Eager, 'Live, 'DependsOn LeaveRequestsResource '[ 'FromScope VenueId ] ]
+         , Fragment LeavePendingCount '[] '[ 'Eager, 'Live, 'DependsOn PendingLeaveRequestsResource '[ 'FromScope VenueId ] ]
+         , Fragment LeavePendingList '[] '[ 'Eager, 'Live, 'DependsOn PendingLeaveRequestsResource '[ 'FromScope VenueId ] ]
+         , Fragment LeaveApprovedCount '[] '[ 'Eager, 'Live, 'DependsOn ApprovedLeaveRequestsResource '[ 'FromScope VenueId ] ]
+         , Fragment LeaveApprovedList '[] '[ 'Eager, 'Live, 'DependsOn ApprovedLeaveRequestsResource '[ 'FromScope VenueId ] ]
+         , Fragment LeaveDeniedCount '[] '[ 'Eager, 'Live, 'DependsOn DeniedLeaveRequestsResource '[ 'FromScope VenueId ] ]
+         , Fragment LeaveDeniedList '[] '[ 'Eager, 'Live, 'DependsOn DeniedLeaveRequestsResource '[ 'FromScope VenueId ] ]
+         , Fragment LeaveArchiveCount '[] '[ 'Eager, 'Live, 'DependsOn ArchivedLeaveRequestsResource '[ 'FromScope VenueId ] ]
+         , Fragment LeaveArchiveList '[] '[ 'Eager, 'Live, 'DependsOn ArchivedLeaveRequestsResource '[ 'FromScope VenueId ] ]
          , Action ArchiveLeaveRequestsPage
             '[ Field ArchivePage 'WireInt ]
             '[ 'HtmxMethod 'HtmxGet
@@ -58,5 +87,13 @@ type LeaveRequestsSurface =
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]
          , DomToken LeaveRequestsContent
+         , DomToken LeavePendingCount
+         , DomToken LeavePendingList
+         , DomToken LeaveApprovedCount
+         , DomToken LeaveApprovedList
+         , DomToken LeaveDeniedCount
+         , DomToken LeaveDeniedList
+         , DomToken LeaveArchiveCount
+         , DomToken LeaveArchiveList
          , DomToken LeaveArchivePageContent
          ]

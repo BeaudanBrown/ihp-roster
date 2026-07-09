@@ -281,7 +281,7 @@ candidateLiveScopesForSurfaceResources resources =
     coalesceScopes . concat <$> mapM candidateScopesForResource (Set.toList resources)
     where
         candidateScopesForResource resourceValue
-            | resourceMatches "leave-requests" resourceValue
+            | resourceMatches "leave-requests" resourceValue || resourceMatches "leave-pending-count" resourceValue || resourceMatches "leave-approved-count" resourceValue || resourceMatches "leave-denied-count" resourceValue || resourceMatches "leave-archive-count" resourceValue
             , Just venueId <- resourceFieldUuid "venueId" resourceValue = pure [leaveRequestsLiveScope venueId]
             | resourceMatches "staff-leave-requests" resourceValue || resourceMatches "staff-profile" resourceValue || resourceMatches "staff-preferences" resourceValue || resourceMatches "staff-rsa-documents" resourceValue
             , Just staffId <- resourceFieldUuid "staffId" resourceValue = staffProfileScope staffId

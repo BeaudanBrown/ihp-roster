@@ -39,11 +39,12 @@ submitLeaveRequest leaveRequest = do
                 (Just createdLeaveRequest.status)
                 Aeson.Null
         pure createdLeaveRequest
-    invalidateTouchedResources "leave.submit" (liveMutationResult createdLeaveRequest (baseLeaveTouchedResources createdLeaveRequest))
+    invalidateTouchedResources "leave.submit" (liveMutationResult createdLeaveRequest (baseLeaveTouchedResources createdLeaveRequest <> [pendingLeaveRequestsResource createdLeaveRequest.venueId]))
 
 reviewLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveReviewDecision -> LeaveRequest -> IO (LiveMutationResult ReviewedLeaveRequest)
 reviewLeaveRequest decision leaveRequest = do
-    let wasApproved = parseLeaveRequestStatus leaveRequest.status == Just LeaveApproved
+    let previousStatus = parseLeaveRequestStatus leaveRequest.status
+    let wasApproved = previousStatus == Just LeaveApproved
     updatedLeaveRequest <- withTransaction do
         updatedLeaveRequest <-
             leaveRequest
@@ -72,7 +73,7 @@ reviewLeaveRequest decision leaveRequest = do
 
     venueConfig <- fetchVenueConfig
     activeRosterScopes <- activeRosterWeekScopes
-    let touchedResources = leaveReviewTouchedResources venueConfig decision wasApproved updatedLeaveRequest <> leaveReviewRosterWeekResources activeRosterScopes venueConfig decision wasApproved updatedLeaveRequest
+    let touchedResources = leaveReviewTouchedResources venueConfig decision previousStatus updatedLeaveRequest <> leaveReviewRosterWeekResources activeRosterScopes venueConfig decision wasApproved updatedLeaveRequest
     invalidateTouchedResources "leave.review" $
         liveMutationResult
             ReviewedLeaveRequest
@@ -87,9 +88,16 @@ baseLeaveTouchedResources leaveRequest =
     , staffLeaveRequestsResource leaveRequest.staffId
     ]
 
-leaveReviewTouchedResources :: VenueConfig -> LeaveReviewDecision -> Bool -> LeaveRequest -> [SurfaceResourceValue]
-leaveReviewTouchedResources _venueConfig _decision _wasApproved leaveRequest =
-    baseLeaveTouchedResources leaveRequest
+leaveReviewTouchedResources :: VenueConfig -> LeaveReviewDecision -> Maybe LeaveRequestStatus -> LeaveRequest -> [SurfaceResourceValue]
+leaveReviewTouchedResources _venueConfig _decision previousStatus leaveRequest =
+    baseLeaveTouchedResources leaveRequest <> map (leaveRequestSectionResource leaveRequest.venueId) affectedSections
+    where
+        affectedSections = nub [fromMaybe LeavePending previousStatus, reviewDecisionStatus _decision]
+
+leaveRequestSectionResource :: UUID -> LeaveRequestStatus -> SurfaceResourceValue
+leaveRequestSectionResource venueId LeaveApproved = approvedLeaveRequestsResource venueId
+leaveRequestSectionResource venueId LeaveDenied = deniedLeaveRequestsResource venueId
+leaveRequestSectionResource venueId LeavePending = pendingLeaveRequestsResource venueId
 
 leaveReviewRosterWeekResources :: [(UUID, UUID, Int)] -> VenueConfig -> LeaveReviewDecision -> Bool -> LeaveRequest -> [SurfaceResourceValue]
 leaveReviewRosterWeekResources activeScopes venueConfig decision wasApproved leaveRequest
