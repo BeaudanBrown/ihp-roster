@@ -92,9 +92,13 @@ instance Controller RosterWeeksController where
             _ -> pure (rosterWeekUrl currentWeekOffset currentRosterGroup.id)
 
         if isHtmxRequest
-            then do
-                setHtmxPushUrl currentWeekPath
-                renderRosterWeekPage currentWeekOffset currentRosterGroup.id
+            then case (paramOrNothing @Text "rosterView", paramOrNothing @Int "dayOffset") of
+                (Just "timeline", Nothing) -> do
+                    setHeader ("HX-Redirect", cs currentWeekPath)
+                    respondHtmlProfiled mempty
+                _ -> do
+                    setHtmxPushUrl currentWeekPath
+                    renderRosterWeekPage currentWeekOffset currentRosterGroup.id
             else redirectToPath currentWeekPath
 
     action currentAction@ShowRosterWeekAction { weekOffset } = runBepis currentAction BepisPageAction do

@@ -1578,6 +1578,13 @@
         });
       });
     }
+    function subscriptionSignature(subscription) {
+      const fragments = subscription.resyncFragments.map((fragment) => ({ key: liveUpdateFragmentMergeKey(fragment) || JSON.stringify(fragment.fragmentKey), fragment })).sort((left, right) => left.key.localeCompare(right.key)).map((entry) => entry.fragment);
+      return JSON.stringify({ path: subscription.path, scope: subscription.scope, resyncFragments: fragments });
+    }
+    function subscriptionsEquivalent(left, right) {
+      return Boolean(left && subscriptionSignature(left) === subscriptionSignature(right));
+    }
     function syncConnection() {
       ensureClientId();
       reconcileSurfaceMountInstances();
@@ -1597,9 +1604,13 @@
         }
       });
       const added = [];
+      const changed = [];
       desired.forEach(function(subscription, scopeKey) {
-        if (!activeSubscriptions.has(scopeKey)) {
+        const active = activeSubscriptions.get(scopeKey);
+        if (!active) {
           added.push(subscription);
+        } else if (!subscriptionsEquivalent(active, subscription)) {
+          changed.push({ previous: active, next: subscription });
         }
       });
       removed.forEach(function(subscription) {
@@ -1608,6 +1619,15 @@
         clearScopeVersion(subscription.scopeKey);
         emitDebugEvent("subscription_removed", {
           scopeKey: subscription.scopeKey
+        });
+      });
+      changed.forEach(function(change) {
+        unsubscribeScope(change.previous);
+        clearScopeVersion(change.previous.scopeKey);
+        emitDebugEvent("subscription_changed", {
+          scopeKey: change.previous.scopeKey,
+          previousFragmentCount: change.previous.resyncFragments.length,
+          nextFragmentCount: change.next.resyncFragments.length
         });
       });
       desired.forEach(function(subscription, scopeKey) {
@@ -1619,6 +1639,9 @@
         return;
       }
       if (socket.readyState === window.WebSocket.OPEN) {
+        changed.forEach(function(change) {
+          subscribeScope(change.next);
+        });
         added.forEach(function(subscription) {
           subscribeScope(subscription);
           emitDebugEvent("subscription_added", {
