@@ -60,6 +60,14 @@
       mountEl.innerHTML = "";
       syncDialogState();
     }
+    function submitAutoFormsOnce(container) {
+      container.querySelectorAll('form[data-bepis-dialog-auto-submit-once="true"]').forEach(function(form) {
+        if (!(form instanceof HTMLFormElement)) return;
+        if (form.dataset.bepisDialogAutoSubmitted === "true") return;
+        form.dataset.bepisDialogAutoSubmitted = "true";
+        form.requestSubmit();
+      });
+    }
     document.addEventListener("click", function(event) {
       const activeDialog = getActiveDialog();
       const closeEl = closestHTMLElement(event.target, '[data-dialog-overlay-close="true"]');
@@ -135,6 +143,14 @@
       if (!isHTMLElement(target)) return;
       if (target.id !== mountId) return;
       window.htmx?.process?.(target);
+      submitAutoFormsOnce(target);
+      syncDialogState();
+    });
+    document.addEventListener("htmx:oobAfterSwap", function(event) {
+      const target = detailTarget(event, "target");
+      if (!isHTMLElement(target)) return;
+      if (target.id !== mountId) return;
+      submitAutoFormsOnce(target);
       syncDialogState();
     });
     document.addEventListener("shown.bs.modal", syncDialogState);

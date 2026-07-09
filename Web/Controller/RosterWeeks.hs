@@ -1359,7 +1359,7 @@ respondWithDeleteRosterSlotDropConfirmation rosterSlot =
                 (rosterDeleteSlotActionRoute (pathTo (DeleteRosterSlotAction rosterSlot.id)))
                     { appShellActionRouteExtraAttrs =
                         [ ("class", "d-none")
-                        , ("hx-trigger", "load")
+                        , ("data-bepis-dialog-auto-submit-once", "true")
                         ]
                     }
                 mempty}

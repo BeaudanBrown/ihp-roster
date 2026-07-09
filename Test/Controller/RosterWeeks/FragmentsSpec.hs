@@ -906,7 +906,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` ("id=\"" <> cs dialogOverlayMountId <> "\"")
                 response `responseBodyShouldContain` "hx-swap-oob=\"innerHTML\""
                 response `responseBodyShouldContain` "hx-confirm=\"Delete this shift?\""
-                response `responseBodyShouldContain` "hx-trigger=\"load\""
+                response `responseBodyShouldContain` "data-bepis-dialog-auto-submit-once=\"true\""
                 response `responseBodyShouldContain` "data-bepis-app-shell-action=\"delete-roster-slot-overlay\""
                 persistedSlot <- fetch sourceSlot.id
                 persistedSlot.deletedAt `shouldBe` Nothing
