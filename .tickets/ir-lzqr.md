@@ -1,6 +1,6 @@
 ---
 id: ir-lzqr
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-07-09T01:32:04Z

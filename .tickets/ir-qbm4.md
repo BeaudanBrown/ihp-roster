@@ -1,6 +1,6 @@
 ---
 id: ir-qbm4
-status: open
+status: in_progress
 deps: []
 links: [ir-jsyd]
 created: 2026-07-09T01:32:04Z

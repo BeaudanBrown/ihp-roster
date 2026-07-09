@@ -165,6 +165,41 @@ or infer a singleton surface for a scope.
 6. IHP parses and validates params strictly, enforces authorization/scope,
    mutates server state, and returns authoritative HTMX fragments/OOB swaps.
 
+## Modifier-Selected Intent Variants
+
+Pointer interactions may declare semantic modifier variants when the same source
+and target can commit different business intents. The modifier is semantic, such
+as `copy`, rather than a raw browser key. Haskell-owned surface metadata declares
+which semantic variants exist, which intent each variant submits, and which
+preview/effect styling applies while that variant is active.
+
+The generic runtime maps physical keys to semantic modifiers using platform-aware
+bindings. The initial semantic modifier is `copy`: Windows/Linux use Ctrl and
+macOS uses Option/Alt. Feature code should refer to the semantic `copy` variant,
+not to `ctrlKey` or `altKey` directly. This keeps platform conventions local to
+the generic runtime and generated contract while keeping server actions named by
+business meaning.
+
+Only one semantic modifier variant is active at a time. If no modifier is held,
+or if the held modifier state is unassigned/unsupported for the current source
+ref, the runtime falls back to the default intent. Multi-modifier chords are not
+part of the current contract; holding more than one recognized physical modifier
+also falls back to the default intent unless a future typed contract explicitly
+adds chords.
+
+Modifier variants should submit distinct semantic intents rather than sending raw
+modifier fields into one controller branch. For example, roster drag/drop uses
+`move-roster-shift-to-slot` as the default intent and a separate copy/duplicate
+intent for the `copy` variant. Controllers still validate all submitted fields
+and target tokens server-side; the modifier selection only chooses which
+server-owned HTMX intent form is submitted.
+
+Variant preview is also Haskell-owned metadata. A variant may override effect
+styling, such as using a duplicate drag shadow class for the `copy` variant while
+reusing the same drag session and compatible dropzone refs. Generic TypeScript
+may select the declared variant effects, but it must not invent feature-specific
+business rules or persistence URLs.
+
 ## Intent Phases And Submission
 
 The default intent lifecycle is local until commit:
