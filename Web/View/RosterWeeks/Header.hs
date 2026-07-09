@@ -19,7 +19,8 @@ import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import qualified Data.Time.Calendar as Calendar
 import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterWeekShellId)
-import Web.RosterWeeks.FrontendSurface (rosterLayoutModeActivationRef,
+import Web.RosterWeeks.FrontendSurface (rosterDeleteShiftDropzoneRef,
+                                        rosterLayoutModeActivationRef,
                                         rosterSurfaceAction)
 import Web.RosterWeeks.Paths (rosterAssignmentFiltersUrl, rosterCopyWeekUrl,
                               rosterDayTimelineUrl,
@@ -59,19 +60,23 @@ rosterWeekShellSyncRoute actionUrl =
 
 renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> Day -> RosterViewCapabilities -> RosterLayoutModeEnum -> Bool -> Maybe RosterWagePrediction -> Bool -> Bool -> Bool -> RosterGridViewMode -> Maybe Text -> Html
 renderRosterGridHeader maybeRosterWeek rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters weekStartDate viewCapabilities rosterLayoutMode _rosterEndTimesEnabled rosterWagePrediction showWageEstimates showRosterWarnings canToggleFullscreen gridViewMode timelineTodayUrl =
-    renderWeekToolbar WeekToolbarConfig
-        { weekToolbarVariant = WeekToolbarRoster
-        , weekToolbarAriaLabel = "Roster week controls"
-        , weekToolbarExtraClass = "roster-grid-header"
-        , weekToolbarPrimary = renderLiveToggle maybeRosterWeek viewCapabilities
-        , weekToolbarReset = renderThisWeekButton gridViewMode weekStartDate currentRosterGroup timelineTodayUrl
-        , weekToolbarNavigation = renderRosterWeekControls weekOffset currentRosterGroup weekStartDate gridViewMode
-        , weekToolbarSettings = mconcat
-            [ when canToggleFullscreen renderRosterFullscreenToggle
-            , renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters viewCapabilities rosterLayoutMode showWageEstimates showRosterWarnings gridViewMode
-            ]
-        , weekToolbarAuxiliary = renderRosterWeekWageSummary rosterWagePrediction
-        }
+    let toolbarHtml = renderWeekToolbar WeekToolbarConfig
+            { weekToolbarVariant = WeekToolbarRoster
+            , weekToolbarAriaLabel = "Roster week controls"
+            , weekToolbarExtraClass = "roster-grid-header"
+            , weekToolbarPrimary = renderLiveToggle maybeRosterWeek viewCapabilities
+            , weekToolbarReset = renderThisWeekButton gridViewMode weekStartDate currentRosterGroup timelineTodayUrl
+            , weekToolbarNavigation = renderRosterWeekControls weekOffset currentRosterGroup weekStartDate gridViewMode
+            , weekToolbarSettings = mconcat
+                [ when canToggleFullscreen renderRosterFullscreenToggle
+                , renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters viewCapabilities rosterLayoutMode showWageEstimates showRosterWarnings gridViewMode
+                ]
+            , weekToolbarAuxiliary = renderRosterWeekWageSummary rosterWagePrediction
+            }
+        deleteDropzoneKey = "delete" :: Text
+     in if currentUserIsManager && maybe False (not . (.isLive)) maybeRosterWeek
+            then SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDeleteShiftDropzoneRef deleteDropzoneKey toolbarHtml
+            else toolbarHtml
 
 renderRosterFullscreenToggle :: Html
 renderRosterFullscreenToggle = [hsx|

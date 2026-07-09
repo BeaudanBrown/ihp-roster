@@ -11,11 +11,13 @@ module Web.RosterWeeks.FrontendSurface
     , rosterCandidateMountedFragments
     , rosterMountedFragmentForProjection
     , rosterDayColumnDropzoneRef
+    , rosterDeleteShiftDropzoneRef
     , rosterDragDropzoneRef
     , rosterDragSessionKindName
     , rosterDragSourceRef
     , rosterExistingShiftDropzoneRef
-    , rosterShiftCreateDropzoneRef
+    , rosterStaffCreateDropzoneRef
+    , rosterShiftSlotDropzoneRef
     , rosterStaffDragSourceRef
     , rosterInteractionMountKey
     , rosterLayoutModeActivationRef
@@ -186,16 +188,22 @@ rosterStaffDragSourceRef :: SurfaceIR.InteractionSourceRefIR
 rosterStaffDragSourceRef = expectSourceRef "staff-drag-source"
 
 rosterDragDropzoneRef :: SurfaceIR.InteractionDropzoneRefIR
-rosterDragDropzoneRef = rosterShiftCreateDropzoneRef
+rosterDragDropzoneRef = rosterShiftSlotDropzoneRef
 
-rosterShiftCreateDropzoneRef :: SurfaceIR.InteractionDropzoneRefIR
-rosterShiftCreateDropzoneRef = expectDropzoneRef "shift-create-dropzone"
+rosterShiftSlotDropzoneRef :: SurfaceIR.InteractionDropzoneRefIR
+rosterShiftSlotDropzoneRef = expectDropzoneRef "shift-slot-dropzone"
+
+rosterStaffCreateDropzoneRef :: SurfaceIR.InteractionDropzoneRefIR
+rosterStaffCreateDropzoneRef = expectDropzoneRef "staff-create-dropzone"
 
 rosterDayColumnDropzoneRef :: SurfaceIR.InteractionDropzoneRefIR
 rosterDayColumnDropzoneRef = expectDropzoneRef "day-column-dropzone"
 
 rosterExistingShiftDropzoneRef :: SurfaceIR.InteractionDropzoneRefIR
 rosterExistingShiftDropzoneRef = expectDropzoneRef "existing-shift-dropzone"
+
+rosterDeleteShiftDropzoneRef :: SurfaceIR.InteractionDropzoneRefIR
+rosterDeleteShiftDropzoneRef = expectDropzoneRef "delete-shift-dropzone"
 
 rosterDayTimelineSourceRef :: SurfaceIR.InteractionSourceRefIR
 rosterDayTimelineSourceRef = expectOne "timeline source ref" rosterDayTimelineFrontendSurfaceIR.surfaceSourceRefs

@@ -81,9 +81,11 @@ data DropRosterStaff
 
 data ShiftDragSource
 data StaffDragSource
-data ShiftCreateDropzone
+data ShiftSlotDropzone
+data StaffCreateDropzone
 data DayColumnDropzone
 data ExistingShiftDropzone
+data DeleteShiftDropzone
 data NavigateRosterWeek
 data ToggleRosterWarnings
 data ToggleRosterWageEstimates
@@ -328,8 +330,9 @@ type RosterInteractionBundle =
                 '[ 'SessionOption DragSession
                  , 'Submits MoveRosterShiftToSlot
                  , 'SourceField SourceItemKey
-                 , 'CompatibleDropzone ShiftCreateDropzone
+                 , 'CompatibleDropzone ShiftSlotDropzone
                  , 'CompatibleDropzone DayColumnDropzone
+                 , 'CompatibleDropzone DeleteShiftDropzone
                  , 'ModifierVariant Copy DuplicateRosterShiftToDay '[ 'Effect CloneShadowCopy '[ 'Layer DragPreviewLayer ], 'Effect DropzoneHighlight '[] ]
                  ]
             , SourceRef StaffDragSource
@@ -337,11 +340,13 @@ type RosterInteractionBundle =
                  , 'Submits DropRosterStaff
                  , 'SourceField SourceItemKey
                  , 'CompatibleDropzone ExistingShiftDropzone
-                 , 'CompatibleDropzone ShiftCreateDropzone
+                 , 'CompatibleDropzone StaffCreateDropzone
                  ]
-            , DropzoneRef ShiftCreateDropzone '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]
+            , DropzoneRef ShiftSlotDropzone '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]
+            , DropzoneRef StaffCreateDropzone '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]
             , DropzoneRef DayColumnDropzone '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]
             , DropzoneRef ExistingShiftDropzone '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]
+            , DropzoneRef DeleteShiftDropzone '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]
             ]
          , DragDropIntent MoveRosterShiftToSlot RosterContent
          , '[ Action DuplicateRosterShiftToDay DragDropFields '[ 'Target RosterContent ] ]

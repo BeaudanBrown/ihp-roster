@@ -93,7 +93,11 @@ lands.
   day-column bottom `+ Add shift` card opens the new-shift dialog with that staff
   member preselected; required time and shift-type fields still need user input.
   Day-column whitespace/gaps are not staff-create targets, even though the whole
-  day column remains a shift-move target for dragging existing shifts.
+  day column remains a shift-move target for dragging existing shifts. Shift
+  drags in day-row layout target row-grid `shift-slot-dropzone` slots; shift
+  drags in day-column layout target the whole day column, not the green `+`
+  create card. Dropping a shift on the roster toolbar opens the existing delete
+  confirmation dialog instead of deleting immediately.
 - Each visible day exposes a timeline entry link. The single-day timeline is a
   URL-scoped view mode of the normal roster week page
   (`rosterView=timeline&dayOffset=<0-6>`), so the roster controls and staff side

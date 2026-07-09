@@ -37,7 +37,8 @@ import Data.Time.LocalTime (TimeOfDay)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.FrontendSurface (rosterDragDropzoneRef,
                                         rosterDragSourceRef,
-                                        rosterExistingShiftDropzoneRef)
+                                        rosterExistingShiftDropzoneRef,
+                                        rosterStaffCreateDropzoneRef)
 import Web.RosterWeeks.Types
 import Web.View.Prelude
 
@@ -297,7 +298,7 @@ renderDayColumnCreateCard RosterDayRenderModel { dayIsEditable } rosterDay maybe
 renderDayColumnCreateLauncherCard :: (?context :: ControllerContext) => RosterSlotCellTarget -> Html
 renderDayColumnCreateLauncherCard target =
     let groupKey = rosterShiftGroupKey target
-     in SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDragDropzoneRef groupKey $
+     in SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterStaffCreateDropzoneRef groupKey $
         applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction target)) [hsx|
         <article class="roster-shift-card roster-shift-card-empty roster-shift-card-create roster-shift-launcher roster-shift-create-plus-card"
                  data-roster-shift-group-key={groupKey}
@@ -436,18 +437,19 @@ createShiftUnitVisualCellClasses False blockIndex =
 
 renderCreateShiftUnit :: (?context :: ControllerContext) => RosterSlotCellTarget -> Text -> [Text] -> Int -> Html
 renderCreateShiftUnit target groupKey visualCellClasses gridSpan =
-    SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterDragDropzoneRef groupKey $
-        applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction target)) [hsx|
-            <div role="gridcell"
-                 class="roster-shift-unit roster-shift-launcher roster-shift-create-unit"
-                 style={rosterGridColumnSpanStyle gridSpan}
-                 data-roster-shift-group-key={groupKey}
-                 data-roster-shift-launcher="true"
-                 tabindex="0">
-                {forEach visualCellClasses renderCreateShiftUnitVisualCell}
-                <div class="roster-shift-create-plus-overlay" aria-hidden="true">+</div>
-            </div>
-        |]
+    SurfaceInteraction.renderFrontendSurfaceDropzoneRef rosterDragDropzoneRef groupKey $
+        SurfaceInteraction.withFrontendSurfaceDropzoneRef rosterStaffCreateDropzoneRef groupKey $
+            applyRosterShiftDialogLauncherAttrs (pathTo (rosterSlotDialogAction target)) [hsx|
+                <div role="gridcell"
+                     class="roster-shift-unit roster-shift-launcher roster-shift-create-unit"
+                     style={rosterGridColumnSpanStyle gridSpan}
+                     data-roster-shift-group-key={groupKey}
+                     data-roster-shift-launcher="true"
+                     tabindex="0">
+                    {forEach visualCellClasses renderCreateShiftUnitVisualCell}
+                    <div class="roster-shift-create-plus-overlay" aria-hidden="true">+</div>
+                </div>
+            |]
 
 renderCreateShiftUnitVisualCell :: Text -> Html
 renderCreateShiftUnitVisualCell cellClasses = [hsx|<div class={cellClasses}></div>|]

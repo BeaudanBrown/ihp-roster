@@ -7,7 +7,8 @@
 module Web.Controller.RosterWeeks where
 
 import Application.Helper.Controller
-import Application.Helper.FrontendContract.AppShell (ConfirmRemoveRosterRowOverlay)
+import Application.Helper.FrontendContract.AppShell (ConfirmRemoveRosterRowOverlay,
+                                                     DeleteRosterSlotOverlay)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
                                                              renderAppShellActionForm)
@@ -519,21 +520,28 @@ instance Controller RosterWeeksController where
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
-        result <- validateMoveRosterShiftIntent rosterGroup.id weekOffset
-        case result of
-            Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
-            Right MoveRosterShiftIntent { moveIsNoOp = True } -> respondWithSilentRosterNoOp rosterGroup.id weekOffset
-            Right MoveRosterShiftIntent { sourceSlot, sourceRosterDay, targetRosterDay, targetSlotDefinition, targetRowIndex } -> do
-                let updatedSlot = sourceSlot
-                        |> set #rosterDayId (unpackId targetRosterDay.id)
-                        |> set #rosterWeekSlotDefinitionId (unpackId targetSlotDefinition.id)
-                        |> set #slotSortOrder targetSlotDefinition.sortOrder
-                        |> set #rowIndex targetRowIndex
-                rosterWeek <- fetch (Id targetRosterDay.rosterWeekId :: Id RosterWeek)
-                mutationResult <- moveRosterSlotMutation rosterGroup.id rosterWeek sourceRosterDay targetRosterDay sourceSlot updatedSlot
-                let RosterSlotMutationResult { rosterSlotMutationPreviousStaffId = previousStaffId, rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged } = mutationResult.liveMutationValue
-                let impactedRows = nub [(sourceSlot.rosterDayId, sourceSlot.rowIndex), (unpackId targetRosterDay.id, targetRowIndex)]
-                respondToRosterSlotMove rosterGroup.id rosterWeek mutationResult previousStaffId impactedRows shouldWarnSourceTimesheetUnchanged
+        if paramOrDefault @Text "" "targetDropzoneKey" == "delete"
+            then do
+                result <- validateRosterShiftDeleteDropIntent rosterGroup.id weekOffset
+                case result of
+                    Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+                    Right rosterSlot -> respondWithDeleteRosterSlotDropConfirmation rosterSlot
+            else do
+                result <- validateMoveRosterShiftIntent rosterGroup.id weekOffset
+                case result of
+                    Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+                    Right MoveRosterShiftIntent { moveIsNoOp = True } -> respondWithSilentRosterNoOp rosterGroup.id weekOffset
+                    Right MoveRosterShiftIntent { sourceSlot, sourceRosterDay, targetRosterDay, targetSlotDefinition, targetRowIndex } -> do
+                        let updatedSlot = sourceSlot
+                                |> set #rosterDayId (unpackId targetRosterDay.id)
+                                |> set #rosterWeekSlotDefinitionId (unpackId targetSlotDefinition.id)
+                                |> set #slotSortOrder targetSlotDefinition.sortOrder
+                                |> set #rowIndex targetRowIndex
+                        rosterWeek <- fetch (Id targetRosterDay.rosterWeekId :: Id RosterWeek)
+                        mutationResult <- moveRosterSlotMutation rosterGroup.id rosterWeek sourceRosterDay targetRosterDay sourceSlot updatedSlot
+                        let RosterSlotMutationResult { rosterSlotMutationPreviousStaffId = previousStaffId, rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged } = mutationResult.liveMutationValue
+                        let impactedRows = nub [(sourceSlot.rosterDayId, sourceSlot.rowIndex), (unpackId targetRosterDay.id, targetRowIndex)]
+                        respondToRosterSlotMove rosterGroup.id rosterWeek mutationResult previousStaffId impactedRows shouldWarnSourceTimesheetUnchanged
 
     action currentAction@MoveRosterTimelineShiftAction { weekOffset } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -562,23 +570,30 @@ instance Controller RosterWeeksController where
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
-        result <- validateDuplicateRosterShiftIntent rosterGroup.id weekOffset
-        case result of
-            Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
-            Right MoveRosterShiftIntent { sourceSlot, targetRosterDay, targetSlotDefinition, targetRowIndex } -> do
-                rosterWeek <- fetch (Id targetRosterDay.rosterWeekId :: Id RosterWeek)
-                let copiedSlot = newRecord @RosterSlot
-                        |> set #rosterDayId (unpackId targetRosterDay.id)
-                        |> set #staffId sourceSlot.staffId
-                        |> set #rosterWeekSlotDefinitionId (unpackId targetSlotDefinition.id)
-                        |> set #slotSortOrder targetSlotDefinition.sortOrder
-                        |> set #rowIndex targetRowIndex
-                        |> set #startTime sourceSlot.startTime
-                        |> set #endTime sourceSlot.endTime
-                        |> set #shiftTypeId sourceSlot.shiftTypeId
-                        |> set #durationMinutes sourceSlot.durationMinutes
-                mutationResult <- saveRosterSlotMutation rosterGroup.id rosterWeek targetRosterDay Nothing copiedSlot
-                respondToRosterSlotMutation rosterGroup.id rosterWeek targetRosterDay targetRowIndex mutationResult sourceSlot.staffId "Roster shift duplicated."
+        if paramOrDefault @Text "" "targetDropzoneKey" == "delete"
+            then do
+                result <- validateRosterShiftDeleteDropIntent rosterGroup.id weekOffset
+                case result of
+                    Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+                    Right rosterSlot -> respondWithDeleteRosterSlotDropConfirmation rosterSlot
+            else do
+                result <- validateDuplicateRosterShiftIntent rosterGroup.id weekOffset
+                case result of
+                    Left message -> respondWithMoveRosterShiftFailure rosterGroup.id weekOffset message
+                    Right MoveRosterShiftIntent { sourceSlot, targetRosterDay, targetSlotDefinition, targetRowIndex } -> do
+                        rosterWeek <- fetch (Id targetRosterDay.rosterWeekId :: Id RosterWeek)
+                        let copiedSlot = newRecord @RosterSlot
+                                |> set #rosterDayId (unpackId targetRosterDay.id)
+                                |> set #staffId sourceSlot.staffId
+                                |> set #rosterWeekSlotDefinitionId (unpackId targetSlotDefinition.id)
+                                |> set #slotSortOrder targetSlotDefinition.sortOrder
+                                |> set #rowIndex targetRowIndex
+                                |> set #startTime sourceSlot.startTime
+                                |> set #endTime sourceSlot.endTime
+                                |> set #shiftTypeId sourceSlot.shiftTypeId
+                                |> set #durationMinutes sourceSlot.durationMinutes
+                        mutationResult <- saveRosterSlotMutation rosterGroup.id rosterWeek targetRosterDay Nothing copiedSlot
+                        respondToRosterSlotMutation rosterGroup.id rosterWeek targetRosterDay targetRowIndex mutationResult sourceSlot.staffId "Roster shift duplicated."
 
     action currentAction@DropRosterStaffAction { weekOffset } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -764,6 +779,24 @@ validateRosterShiftDropIntent rosterGroupId weekOffset allowSemanticDayNoOp = do
             maybeResult <- validateRosterShiftDropTarget rosterGroupId weekOffset allowSemanticDayNoOp sourceSlotId target
             pure (maybe (Left "Choose an open roster day in this week.") Right maybeResult)
         _ -> pure (Left "Drag the shift onto an open roster day.")
+
+validateRosterShiftDeleteDropIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Either Text RosterSlot)
+validateRosterShiftDeleteDropIntent rosterGroupId weekOffset = do
+    let sourceToken = paramOrDefault @Text "" "sourceItemKey"
+    let targetToken = paramOrDefault @Text "" "targetDropzoneKey"
+    case (parseExistingSlotToken sourceToken, targetToken) of
+        (Just rosterSlotId, "delete") -> do
+            maybeSlot <- fetchOneOrNothing (query @RosterSlot |> filterWhere (#id, rosterSlotId) |> filterWhere (#deletedAt, Nothing))
+            case maybeSlot of
+                Nothing -> pure (Left "Drag an editable shift to the delete area.")
+                Just rosterSlot -> do
+                    rosterDay <- fetch (Id rosterSlot.rosterDayId :: Id RosterDay)
+                    rosterWeek <- fetch (Id rosterDay.rosterWeekId :: Id RosterWeek)
+                    let matchesScope = rosterWeek.rosterGroupId == unpackId rosterGroupId && rosterWeek.weekOffset == weekOffset
+                    if matchesScope && not rosterWeek.isLive && not rosterDay.isClosed
+                        then pure (Right rosterSlot)
+                        else pure (Left "Drag an editable shift from this roster week to the delete area.")
+        _ -> pure (Left "Drag a shift to the delete area.")
 
 validateRosterStaffDropIntent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Either Text RosterStaffDropIntent)
 validateRosterStaffDropIntent rosterGroupId weekOffset = do
@@ -1316,6 +1349,42 @@ resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId = do
     ensureRecordInCurrentVenue rosterWeek.venueId
     accessDeniedUnless (rosterWeek.weekOffset == weekOffset)
     pure (coerce rosterWeek.rosterGroupId)
+
+respondWithDeleteRosterSlotDropConfirmation :: (?context :: ControllerContext, ?request :: Request) => RosterSlot -> IO ()
+respondWithDeleteRosterSlotDropConfirmation rosterSlot =
+    let dialog = renderDialogOverlay DialogOverlayConfig
+            { dialogOverlayTitle = "Delete shift?"
+            , dialogOverlayBody = [hsx|<p class="mb-0">Delete this shift?</p>|]
+            , dialogOverlayStartButtons = []
+            , dialogOverlayButtons =
+                [ OverlayButton
+                    { overlayButtonLabel = "Cancel"
+                    , overlayButtonClass = "btn btn-outline-secondary"
+                    , overlayButtonAction = OverlayCloseAction
+                    }
+                , OverlayButton
+                    { overlayButtonLabel = "Delete shift"
+                    , overlayButtonClass = "btn btn-danger"
+                    , overlayButtonAction = GeneratedDialogFormAction (appShellActionByMarker @DeleteRosterSlotOverlay) (rosterDeleteSlotActionRoute (pathTo (DeleteRosterSlotAction rosterSlot.id))) [] (Just "Delete this shift?")
+                    }
+                ]
+            , dialogOverlayDialogClass = ""
+            }
+     in respondHtmlProfiled [hsx|
+        <div id={dialogOverlayMountId} hx-swap-oob="innerHTML">
+            {dialog}
+        </div>
+    |]
+
+rosterDeleteSlotActionRoute :: Text -> AppShellActionRoute
+rosterDeleteSlotActionRoute actionUrl =
+    AppShellActionRoute
+        { appShellActionRouteUrl = actionUrl
+        , appShellActionRouteFields = []
+        , appShellActionRouteCustomHtmx = []
+        , appShellActionRouteStandardUrl = Nothing
+        , appShellActionRouteExtraAttrs = []
+        }
 
 respondWithRemoveRosterRowConfirmation :: (?context :: ControllerContext, ?request :: Request) => RosterDay -> RemoveRosterRowPackingPreview -> IO ()
 respondWithRemoveRosterRowConfirmation rosterDay preview =

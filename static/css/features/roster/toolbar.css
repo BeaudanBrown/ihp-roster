@@ -31,3 +31,34 @@
     padding-inline: 0;
     font-size: 1rem;
 }
+
+.roster-grid-header[data-bepis-dropzone-ref="delete-shift-dropzone"] {
+    position: relative;
+    transition: background 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+}
+
+.roster-grid-header[data-bepis-dropzone-ref="delete-shift-dropzone"]::after {
+    content: "Drop shift here to delete";
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed var(--bs-danger);
+    border-radius: inherit;
+    background: color-mix(in srgb, var(--bs-danger) 14%, transparent);
+    color: var(--bs-danger-text-emphasis);
+    font-weight: 800;
+    letter-spacing: 0.01em;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 140ms ease, background 140ms ease, box-shadow 140ms ease;
+}
+
+.roster-grid-header[data-bepis-dropzone-ref="delete-shift-dropzone"].bepis-dropzone-highlight::after {
+    content: "Release to delete shift";
+    background: color-mix(in srgb, var(--bs-danger) 24%, var(--app-surface));
+    box-shadow: inset 0 0 0 2px var(--bs-danger), 0 0.5rem 1rem var(--app-shadow-md-raw);
+    opacity: 1;
+}

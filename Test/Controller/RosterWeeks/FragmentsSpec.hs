@@ -438,7 +438,7 @@ tests = beforeAll testContext do
                 bodyText `shouldContain` "<span class=\"roster-shift-create-plus\" aria-hidden=\"true\">+</span>"
                 bodyText `shouldContain` "<span class=\"visually-hidden\">Add shift</span>"
                 bodyText `shouldContain` ("data-roster-shift-group-key=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
-                bodyText `shouldContain` "data-bepis-dropzone-ref=\"shift-create-dropzone\""
+                bodyText `shouldContain` "data-bepis-dropzone-ref=\"staff-create-dropzone\""
                 bodyText `shouldContain` ("data-bepis-dropzone-key=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
                 bodyText `shouldNotContain` ">Add shift</div>"
 
@@ -474,7 +474,7 @@ tests = beforeAll testContext do
                 bodyText `shouldContain` ("data-bepis-dropzone-key=\"" <> cs sourceGroupKey <> "\"")
                 bodyText `shouldContain` "data-bepis-dropzone-ref=\"day-column-dropzone\""
                 bodyText `shouldContain` ("data-bepis-dropzone-key=\"day:" <> cs (tshow rosterDay.id) <> "\"")
-                bodyText `shouldContain` "data-bepis-dropzone-ref=\"shift-create-dropzone\""
+                bodyText `shouldContain` "data-bepis-dropzone-ref=\"staff-create-dropzone\""
                 bodyText `shouldContain` ("data-bepis-dropzone-key=\"" <> cs targetGroupKey <> "\"")
                 bodyText `shouldContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow sourceSlot.id) <> "\"")
                 bodyText `shouldContain` ("hx-get=\"/NewRosterSlotDialog?rosterDayId=" <> cs (tshow rosterDay.id) <> "&amp;rosterWeekSlotDefinitionId=" <> cs (tshow sourceSlot.rosterWeekSlotDefinitionId) <> "&amp;rowIndex=1\"")
@@ -878,8 +878,37 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-bepis-source-ref=\"shift-drag-source\""
                 response `responseBodyShouldContain` "data-bepis-source-key=\"existing:"
                 response `responseBodyShouldContain` "data-bepis-dropzone-ref=\"existing-shift-dropzone\""
-                response `responseBodyShouldContain` "data-bepis-dropzone-ref=\"shift-create-dropzone\""
+                response `responseBodyShouldContain` "data-bepis-dropzone-ref=\"shift-slot-dropzone\""
+                response `responseBodyShouldContain` "data-bepis-dropzone-ref=\"staff-create-dropzone\""
+                response `responseBodyShouldContain` "data-bepis-dropzone-ref=\"delete-shift-dropzone\""
                 response `responseBodyShouldContain` "data-bepis-dropzone-key=\"new:"
+
+        it "opens delete confirmation when a roster shift is dropped on the toolbar delete target" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-drag-delete-confirm@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                sourceSlot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams MoveRosterShiftToSlotAction { weekOffset = 0 }
+                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
+                            , ("sourceItemKey", cs ("existing:" <> tshow sourceSlot.id))
+                            , ("targetDropzoneKey", "delete")
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` ("id=\"" <> cs dialogOverlayMountId <> "\"")
+                response `responseBodyShouldContain` "hx-swap-oob=\"innerHTML\""
+                response `responseBodyShouldContain` "Delete shift?"
+                response `responseBodyShouldContain` "Delete shift"
+                persistedSlot <- fetch sourceSlot.id
+                persistedSlot.deletedAt `shouldBe` Nothing
 
         it "moves an editable roster shift to a typed empty dropzone intent target" $ withContext do
             withCleanDb do
