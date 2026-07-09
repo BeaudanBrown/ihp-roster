@@ -39,10 +39,11 @@ JavaScript:
 - `shift-drag-source` can drop onto row-grid create targets and whole open
   day-column move targets. The default intent moves; the copy modifier submits
   the duplicate intent.
-- `staff-drag-source` can drop onto existing shift cards, explicit create
-  targets, or the open day-column body. Existing-shift drops assign/replace
-  staff immediately with a toast; create/day-column drops open the new-shift
-  dialog with staff preselected.
+- `staff-drag-source` can drop onto existing shift cards or explicit create
+  targets only. Existing-shift drops assign/replace staff immediately with a
+  toast; create-target drops open the new-shift dialog with staff preselected.
+- Day-column gaps/whitespace are not staff-create targets. Only the bottom
+  `+ Add shift` card is a staff-create target in day-column layout.
 
 All rendered keys remain opaque (`existing:<slot-id>`, `staff:<staff-id>`,
 `new:<day-id>:<slot-definition-id>:<row-index>`); controllers parse and validate

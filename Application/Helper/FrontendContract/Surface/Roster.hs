@@ -338,7 +338,6 @@ type RosterInteractionBundle =
                  , 'SourceField SourceItemKey
                  , 'CompatibleDropzone ExistingShiftDropzone
                  , 'CompatibleDropzone ShiftCreateDropzone
-                 , 'CompatibleDropzone DayColumnDropzone
                  ]
             , DropzoneRef ShiftCreateDropzone '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]
             , DropzoneRef DayColumnDropzone '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]

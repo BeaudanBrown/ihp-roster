@@ -1015,30 +1015,6 @@ tests = beforeAll testContext do
                 updatedSlot.staffId `shouldBe` Just (unpackId originalStaff.id)
                 response `responseBodyShouldContain` "Drop staff onto an editable shift in this roster week."
 
-        it "opens the new shift dialog with dragged staff preselected from a day-column target" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Venue A"
-                manager <- createUserRecord "roster-manager-staff-drop-day-create@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                slotName <- fetchSlotNameRecord venue "Early"
-                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
-                rosterWeek <- createRosterWeekRecord venue 0 False
-                rosterDay <- createRosterDayRecord rosterWeek 0
-                _ <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
-
-                response <- withUserAndCurrentVenue manager venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams DropRosterStaffAction { weekOffset = 0 }
-                            [ ("rosterGroupId", cs (tshow rosterWeek.rosterGroupId))
-                            , ("sourceItemKey", cs ("staff:" <> tshow staffMember.id))
-                            , ("targetDropzoneKey", cs ("day:" <> tshow rosterDay.id))
-                            ]
-
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Add shift"
-                response `responseBodyShouldContain` ("value=\"" <> cs (tshow staffMember.id) <> "\"")
-                response `responseBodyShouldContain` "selected"
-
         it "opens the new shift dialog with dragged staff preselected" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
