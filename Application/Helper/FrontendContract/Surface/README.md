@@ -177,10 +177,11 @@ controller returns full-page or redirect fallbacks.
 Successful migrated mutations must not return authoritative business fragment
 HTML/OOB for the same surface. They should set `HX-Reswap: none`, emit
 actor-local live-fragment refresh metadata through `setActorLiveFragmentsRefresh`,
-and rely on passive invalidation for other tabs/viewers. OOB remains valid for
-extras such as dialog clears, toasts, disposable-layer cleanup, focus/scroll
-hints, and validation-local responses. Plain fragment GET/refetch endpoints
-should return the target node itself, not OOB wrappers.
+or prefer `setActorLiveResourcesRefresh` when the mutation already reports touched
+`SurfaceResourceValue`s. Passive invalidation handles other tabs/viewers. OOB
+remains valid for extras such as dialog clears, toasts, disposable-layer cleanup,
+focus/scroll hints, and validation-local responses. Plain fragment GET/refetch
+endpoints should return the target node itself, not OOB wrappers.
 
 Admin Roster Groups is the reference migration: create/update/move/toggle
 request initiators are declared in `Surface.Admin`, rendered from generated
@@ -259,8 +260,16 @@ surface/scope pair.
 Fragments that participate in passive invalidation declare `Live` and then one
 invalidation mode. Prefer explicit `DependsOn SomeResource '[ ...sources... ]`,
 where each dependency field is sourced with `FromScope ScopeField` or
-`FromFragment FragmentField`. Use `ResyncOnly` only when a live fragment is
-refreshed by reconnect/resync or actor paths and has no passive business-resource
+`FromFragment FragmentField`. Parameterized fragments are the preferred shape for
+homogeneous repeated regions that differ mainly by a typed key/section, such as
+leave section count/list fragments, timesheet day sections, roster day sections,
+or roster rows. The parameter should also be the natural resource boundary so
+actor-local `setActorLiveResourcesRefresh` and passive websocket invalidation plan
+through the same `DependsOn ... FromFragment ...` declaration. Do not
+parameterize unrelated tabs/sections merely because they appear together in a
+page; keep distinct fragments when dependencies, permissions, forms, or response
+modes differ materially. Use `ResyncOnly` only when a live fragment is refreshed
+by reconnect/resync or actor paths and has no passive business-resource
 dependency. The generator validates that live fragments have one mode and that
 resource field sources are concrete and non-conflicting.
 

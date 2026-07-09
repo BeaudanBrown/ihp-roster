@@ -126,12 +126,15 @@ Actor responses and passive live updates should use one semantic fragment model
 with multiple delivery triggers. A feature-local fragment enum and `SurfaceImpl`
 name the fragments once. For migrated `FrontendSurface` successful mutations,
 the actor response emits selected semantic fragment refs as an actor-local
-invalidation instruction; the browser resolves those refs against every matching
-mounted surface instance in the current tab and refetches each mount's own plain
-fragment GET URL. Passive viewers receive the same structural invalidations over
-websocket and refetch through their mounted GET endpoints. Actor responses may
-append extras such as toasts or dialog clears, but successful actor responses
-must not include authoritative business OOB HTML for the refreshed fragments.
+invalidation instruction; prefer `setActorLiveResourcesRefresh` when the mutation
+already reports touched `SurfaceResourceValue`s so actor-local refresh and
+passive websocket invalidation use the same dependency planner. The browser
+resolves those refs against every matching mounted surface instance in the
+current tab and refetches each mount's own plain fragment GET URL. Passive
+viewers receive the same structural invalidations over websocket and refetch
+through their mounted GET endpoints. Actor responses may append extras such as
+toasts or dialog clears, but successful actor responses must not include
+authoritative business OOB HTML for the refreshed fragments.
 
 Prefer a simple, non-cached feature-local fragment model for new migrations:
 keep a single authoritative plain fragment renderer behind `SurfaceImpl` and
@@ -150,9 +153,14 @@ node and the browser/live runtime performs the swap.
 
 Feature-facing fragment selectors should be closed ADTs. Route/query strings may
 be parsed into those constructors, but the typed surface contract should not be
-backed by open `Text` values because that bypasses exhaustiveness checks. Unknown
-JSON at browser boundaries should be accepted only through generated `parseX`
-helpers, and outbound browser commands should use generated `encodeX` helpers.
+backed by open `Text` values because that bypasses exhaustiveness checks. Use
+parameterized fragments/resources for homogeneous repeated regions whose key is
+the natural invalidation boundary (`DependsOn ... FromFragment ...`). Do not
+parameterize unrelated page tabs or panels when dependencies, permissions, forms,
+or response modes differ materially; distinct fragments are clearer in that case.
+Unknown JSON at browser boundaries should be accepted only through generated
+`parseX` helpers, and outbound browser commands should use generated `encodeX`
+helpers.
 
 Feature-facing code must not use compatibility/manual authoring helpers such as
 `mkLiveSurface`, `mkDefinedLiveSurface`, `mkLiveFragmentRef`, raw
