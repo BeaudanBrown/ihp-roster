@@ -743,7 +743,7 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "hx-post=\"/UpdateVenueConfig\""
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-venue-settings-fragment\""
                 pageResponse `responseBodyShouldContain` "hx-swap=\"none\""
-                pageResponse `responseBodyShouldContain` "Time picker window"
+                pageResponse `responseBodyShouldContain` "Valid shift window"
                 pageResponse `responseBodyShouldContain` "name=\"timePickerStart\" value=\"06:00\""
                 pageResponse `responseBodyShouldContain` "name=\"timePickerEnd\" value=\"05:45\""
                 pageResponse `responseBodyShouldNotContain` "Roster week starts on"

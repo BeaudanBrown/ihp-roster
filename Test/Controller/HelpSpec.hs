@@ -28,7 +28,8 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-dialog-overlay=\"true\""
                 response `responseBodyShouldContain` "Roster"
-                response `responseBodyShouldContain` "Staff view"
+                response `responseBodyShouldContain` "Staff"
+                response `responseBodyShouldContain` "future roster"
                 response `responseBodyShouldNotContain` "Hold Ctrl"
 
         it "shows manager-only roster details to managers" $ withContext do
@@ -43,4 +44,4 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Hold Ctrl"
-                response `responseBodyShouldContain` "Option/Alt"
+                response `responseBodyShouldContain` "Option, or Alt"
