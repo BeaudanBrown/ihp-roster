@@ -377,10 +377,9 @@ renderTrialStaffInviteOverlayButton staff =
             , appShellActionRouteCustomHtmx = []
             , appShellActionRouteStandardUrl = Nothing
             , appShellActionRouteExtraAttrs =
-                [ ("type", "submit")
+                [ ("type", "button")
                 , ("class", "btn btn-outline-primary")
-                , ("formaction", pathTo (CreateTrialStaffInvitationAction staff.id))
-                , ("formmethod", "POST")
+                , ("hx-include", "#invitationEmail")
                 ]
             }
         [hsx|<button>Invite</button>|]
