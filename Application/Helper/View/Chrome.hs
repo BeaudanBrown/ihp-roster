@@ -134,13 +134,16 @@ renderPageHelpTrigger title topicId =
             , appShellActionRouteCustomHtmx = []
             , appShellActionRouteStandardUrl = Just (pathTo ShowPageHelpAction { topic = pageHelpTopicIdToText topicId })
             , appShellActionRouteExtraAttrs =
-                [ ("class", "btn btn-sm btn-outline-secondary app-page-help-trigger rounded-circle")
+                [ ("class", "btn btn-sm btn-outline-secondary app-page-help-trigger")
                 , ("aria-label", "Help for " <> title)
                 , ("title", "Help for " <> title)
                 , ("data-turbolinks", "false")
                 ]
             }
-        [hsx|<span aria-hidden="true">?</span>|]
+        [hsx|
+            <i class="bi bi-question-circle" aria-hidden="true"></i>
+            <span>Help</span>
+        |]
 
 renderAppPageDescription :: Text -> Html
 renderAppPageDescription description = [hsx|

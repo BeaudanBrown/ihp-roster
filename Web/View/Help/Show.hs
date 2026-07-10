@@ -19,7 +19,7 @@ renderPageHelpDialog topic =
 pageHelpDialogConfig :: PageHelpTopic -> DialogOverlayConfig
 pageHelpDialogConfig topic =
     DialogOverlayConfig
-        { dialogOverlayTitle = pageHelpTopicTitle topic
+        { dialogOverlayTitle = "Help - " <> pageHelpTopicTitle topic
         , dialogOverlayBody = renderPageHelpBody topic
         , dialogOverlayStartButtons = []
         , dialogOverlayButtons =
@@ -29,5 +29,5 @@ pageHelpDialogConfig topic =
                 , overlayButtonAction = OverlayCloseAction
                 }
             ]
-        , dialogOverlayDialogClass = ""
+        , dialogOverlayDialogClass = "modal-lg modal-dialog-scrollable"
         }

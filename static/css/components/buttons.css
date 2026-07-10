@@ -34,3 +34,25 @@
     border-color: var(--app-accent-border-strong);
     box-shadow: none;
 }
+
+.btn.app-page-help-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: calc(1.9rem * var(--app-density-control-scale));
+    padding: 0 calc(0.6rem * var(--app-density-space-scale));
+    border-color: var(--app-accent-border-soft);
+    border-radius: var(--app-radius-pill);
+    background: var(--app-white-alpha-05);
+    color: var(--app-muted);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    line-height: 1;
+}
+
+.btn.app-page-help-trigger:hover,
+.btn.app-page-help-trigger:focus {
+    border-color: var(--app-accent-border-strong);
+    background: var(--app-accent-soft);
+    color: var(--app-text);
+}

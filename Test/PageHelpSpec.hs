@@ -53,7 +53,7 @@ tests = do
 
 flattenHelpText :: PageHelpTopic -> [Text]
 flattenHelpText topic =
-    [ item.pageHelpItemText
+    [ item.pageHelpItemTitle <> " " <> item.pageHelpItemBody
     | section <- topic.pageHelpTopicSections
     , item <- section.pageHelpSectionItems
     ]

@@ -72,6 +72,96 @@
     margin: 0;
 }
 
+.app-page-help {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.app-page-help-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+.app-page-help-section:not(:last-child) {
+    margin-bottom: 0.25rem;
+}
+
+.app-page-help-section-title {
+    margin: 0;
+    font-size: 0.76rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--app-muted);
+}
+
+.app-page-help-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+    gap: 0.7rem;
+}
+
+.app-page-help-card {
+    padding: 0.8rem 0.9rem;
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-md);
+    background: var(--app-surface-muted);
+}
+
+.app-page-help-card-heading {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin-bottom: 0.35rem;
+}
+
+.app-page-help-card-icon {
+    display: inline-grid;
+    flex: 0 0 auto;
+    width: 1.75rem;
+    height: 1.75rem;
+    place-items: center;
+    border: 1px solid var(--app-accent-border-soft);
+    border-radius: var(--app-radius-pill);
+    background: var(--app-accent-soft);
+    color: var(--app-text);
+    font-size: 0.95rem;
+}
+
+.app-page-help-card-title {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--app-text);
+}
+
+.app-page-help-card-body {
+    margin: 0;
+    color: var(--app-muted);
+}
+
+.app-page-help-example {
+    display: flex;
+    margin-top: 0.7rem;
+}
+
+.app-page-help-example-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.app-page-help-example-button:disabled {
+    opacity: 1;
+    pointer-events: none;
+}
+
+.app-page-help-example-button span:empty {
+    display: none;
+}
+
 .app-toast-host {
     position: fixed;
     bottom: 1rem;

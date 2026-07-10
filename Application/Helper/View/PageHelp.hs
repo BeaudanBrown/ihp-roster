@@ -40,9 +40,20 @@ data PageHelpContext = PageHelpContext
 defaultPageHelpContext :: PageHelpContext
 defaultPageHelpContext = PageHelpContext False False False False
 
+data PageHelpExampleButton = PageHelpExampleButton
+    { pageHelpExampleButtonClass     :: !Text
+    , pageHelpExampleButtonIconClass :: !(Maybe Text)
+    , pageHelpExampleButtonLabel     :: !Text
+    }
+    deriving (Eq, Show)
+
 data PageHelpItem = PageHelpItem
-    { pageHelpItemAudience :: !PageHelpAudience
-    , pageHelpItemText     :: !Text
+    { pageHelpItemAudience      :: !PageHelpAudience
+    , pageHelpItemIconClass     :: !(Maybe Text)
+    , pageHelpItemIconLabel     :: !(Maybe Text)
+    , pageHelpItemTitle         :: !Text
+    , pageHelpItemBody          :: !Text
+    , pageHelpItemExampleButton :: !(Maybe PageHelpExampleButton)
     }
     deriving (Eq, Show)
 
@@ -105,100 +116,132 @@ renderEmptyHelp = [hsx|
 
 renderPageHelpSection :: PageHelpSection -> Html
 renderPageHelpSection section = [hsx|
-    <section class="mb-4">
-        <h6 class="mb-2">{section.pageHelpSectionTitle}</h6>
-        <ul class="mb-0 ps-3">
+    <section class="app-page-help-section">
+        <h6 class="app-page-help-section-title">{section.pageHelpSectionTitle}</h6>
+        <div class="app-page-help-grid">
             {forEach section.pageHelpSectionItems renderPageHelpItem}
-        </ul>
+        </div>
     </section>
 |]
 
 renderPageHelpItem :: PageHelpItem -> Html
 renderPageHelpItem item = [hsx|
-    <li class="mb-2">{item.pageHelpItemText}</li>
+    <article class="app-page-help-card">
+        <div class="app-page-help-card-heading">
+            {renderPageHelpItemIcon item}
+            <h6 class="app-page-help-card-title">{item.pageHelpItemTitle}</h6>
+        </div>
+        <p class="app-page-help-card-body">{item.pageHelpItemBody}</p>
+        {forEach item.pageHelpItemExampleButton renderPageHelpExampleButton}
+    </article>
 |]
+
+renderPageHelpItemIcon :: PageHelpItem -> Html
+renderPageHelpItemIcon PageHelpItem { pageHelpItemIconClass = Just iconClass, pageHelpItemIconLabel = Just iconLabel } = [hsx|
+    <span class="app-page-help-card-icon" title={iconLabel} aria-label={iconLabel}>
+        <i class={"bi " <> iconClass} aria-hidden="true"></i>
+    </span>
+|]
+renderPageHelpItemIcon _ = mempty
+
+renderPageHelpExampleButton :: PageHelpExampleButton -> Html
+renderPageHelpExampleButton PageHelpExampleButton { pageHelpExampleButtonClass, pageHelpExampleButtonIconClass, pageHelpExampleButtonLabel } = [hsx|
+    <div class="app-page-help-example">
+        <button type="button" class={pageHelpExampleButtonClass <> " app-page-help-example-button"} disabled>
+            {forEach pageHelpExampleButtonIconClass renderPageHelpExampleButtonIcon}
+            <span>{pageHelpExampleButtonLabel}</span>
+        </button>
+    </div>
+|]
+
+renderPageHelpExampleButtonIcon :: Text -> Html
+renderPageHelpExampleButtonIcon iconClass = [hsx|<i class={"bi " <> iconClass} aria-hidden="true"></i>|]
 
 pageHelpTopics :: [PageHelpTopic]
 pageHelpTopics =
     [ topic "roster" "Roster"
-        [ section HelpEveryone "What you can see"
-            [ item HelpEveryone "Use the week controls and roster group selector to choose the roster you are viewing."
-            , item HelpEveryone "Live rosters are visible to staff; draft rosters are for managers until published."
-            , item HelpEveryone "Warnings highlight conflicts such as leave, availability, or roster rule issues when they are enabled."
+        [ section HelpEveryone "Viewing"
+            [ iconItem HelpEveryone "bi-chevron-left" "Week controls" "View the right roster" "Use the arrow controls to change dates. Use the roster group selector to switch teams or areas."
             ]
-        , section HelpManagerPlus "Planning shifts"
-            [ item HelpManagerPlus "Create or edit shifts from empty cells or existing shifts while the roster is still draft. New shifts use the venue time-picker defaults."
-            , item HelpManagerPlus "In day-column or timeline layout, drag a shift to move it to another slot, row, time, or day."
-            , item HelpManagerPlus "Hold Ctrl on Windows/Linux, or Option/Alt on macOS, while dragging to copy instead of move."
-            , item HelpManagerPlus "Use settings to change layout, show warnings, show wage estimates, and control assignment prevention filters."
-            , item HelpManagerPlus "Copy previous week and sort tools help prepare a draft before it goes live."
-            , item HelpManagerPlus "Wage estimates are planning aids only and depend on the pay data available for the venue."
+        , section HelpManagerPlus "Planning"
+            [ iconItem HelpManagerPlus "bi-plus-lg" "Add shift" "Create or edit shifts" "In a draft roster, click an empty cell to add a shift or click a shift to edit it."
+            , iconItem HelpManagerPlus "bi-arrows-move" "Drag" "Move or copy shifts" "Drag a shift to move it. Hold Ctrl, Option, or Alt while dragging to copy it."
+            , iconItem HelpManagerPlus "bi-person-plus" "Staff drag" "Assign staff from the list" "Drag a staff member from the staff list onto an empty roster slot to create a shift for them."
+            , buttonItem HelpManagerPlus "bi-gear" "Roster settings" "Change the roster layout" "Click the settings button, then Roster layout, to switch layout modes." "btn btn-outline-secondary app-settings-menu-button" (Just "bi-gear") ""
+            , buttonItem HelpManagerPlus "bi-gear" "Roster settings" "Show warnings or wage estimates" "Click the settings button, then use the Warnings and Wages toggles." "btn btn-outline-secondary app-settings-menu-button" (Just "bi-gear") ""
+            , buttonItem HelpManagerPlus "bi-gear" "Roster settings" "Prepare a draft faster" "Click the settings button, then Week actions, for sort tools or Copy previous week." "btn btn-outline-secondary app-settings-menu-button" (Just "bi-gear") ""
             ]
-        , section HelpStaffOnly "Staff view"
-            [ item HelpStaffOnly "If a roster is not live yet, you may only see limited draft information or no shifts for that week."
-            , item HelpStaffOnly "Contact a manager if something looks wrong or if you need a change."
+        , section HelpStaffOnly "Staff"
+            [ iconItem HelpStaffOnly "bi-chevron-left" "Week controls" "Check your roster" "Use the arrow controls to find the week you need, then review your listed shifts."
+            , iconItem HelpStaffOnly "bi-calendar-x" "Missing shifts" "Find missing shifts" "If a future roster is not ready yet, it may not show all shifts. Check again later or ask a manager."
+            , iconItem HelpStaffOnly "bi-chat-left-text" "Ask manager" "Ask for changes" "Contact a manager if something looks wrong or you need a roster change."
             ]
         ]
     , topic "profile" "Profile"
-        [ section HelpEveryone "Your details"
-            [ item HelpEveryone "Keep your contact details and emergency contact information up to date."
-            , item HelpEveryone "Availability and shift preferences help managers plan rosters, but they do not automatically guarantee shifts."
-            , item HelpEveryone "Use passkeys and recovery options to keep your account secure when available."
-            , item HelpEveryone "Upload or review required documents such as RSA evidence when those sections are shown."
+        [ section HelpEveryone "Profile tasks"
+            [ iconItem HelpEveryone "bi-pencil" "Edit" "Keep your details current" "Use edit fields to update contact and emergency contact details when they change."
+            , iconItem HelpEveryone "bi-calendar-heart" "Availability" "Set availability and preferences" "Use the availability and preference sections to tell managers when you prefer to work."
+            , iconItem HelpEveryone "bi-shield-lock" "Security" "Manage account security" "Use passkey and recovery options to keep access secure."
+            , iconItem HelpEveryone "bi-upload" "Upload" "Upload required documents" "Use document upload controls for items such as RSA evidence when they are shown."
             ]
-        , section HelpManagerPlus "Managers"
-            [ item HelpManagerPlus "Managers may update staff profile details and role-visible settings from staff pages where permitted."
+        , section HelpManagerPlus "Manager tasks"
+            [ iconItem HelpManagerPlus "bi-pencil-square" "Edit staff" "Update staff details" "Use staff edit controls to change profile details and role-visible settings where permitted."
             ]
         ]
     , topic "timesheets" "Timesheets"
-        [ section HelpEveryone "Entering time"
-            [ item HelpEveryone "Use week navigation to review the correct pay week."
-            , item HelpEveryone "Add or edit entries with start and end times; new entries use the venue time-picker defaults and times must stay on 15-minute increments."
-            , item HelpEveryone "Record breaks when a break was taken, including break start and end times where required."
-            , item HelpEveryone "Approved entries may be locked from normal editing so payroll records stay traceable."
+        [ section HelpEveryone "Timesheet tasks"
+            [ iconItem HelpEveryone "bi-chevron-left" "Week controls" "Choose the right pay week" "Use the arrow controls before adding or reviewing entries."
+            , buttonItem HelpEveryone "bi-plus-lg" "Day add control" "Add a time entry" "Click the + bar on the day you want, then enter start and end times on 15-minute increments." "timesheet-day-add-bar" Nothing "+ Mon 1 Jan"
+            , iconItem HelpEveryone "bi-pencil" "Edit entry" "Edit an existing entry" "Click the entry card itself to fix times, notes, or break details before approval."
+            , iconItem HelpEveryone "bi-cup-hot" "Breaks" "Record breaks correctly" "Add break details when a break was taken, including break start and end where required."
+            , iconItem HelpEveryone "bi-chat-left-text" "Manager help" "Fix an approved entry" "If an approved entry needs changes, ask a manager to reopen or correct it."
             ]
-        , section HelpManagerPlus "Review and approval"
-            [ item HelpManagerPlus "Managers can review staff entries, add manager notes, approve entries, and unapprove them when correction is needed."
-            , item HelpManagerPlus "Trial staff are excluded from timesheet workflows."
-            , item HelpManagerPlus "Live updates keep the visible week current when another authorised user changes an entry."
+        , section HelpManagerPlus "Review tasks"
+            [ buttonItem HelpManagerPlus "bi-check-lg" "Approve" "Approve staff entries" "Click the green Approve button after checking the entry times and any manager notes." "btn btn-sm btn-outline-success timesheet-approval-toggle" Nothing "Approve"
+            , buttonItem HelpManagerPlus "bi-arrow-counterclockwise" "Unapprove" "Correct approved entries" "Click the green Approved button to unapprove an entry before editing it, then approve it again after correction." "btn btn-sm btn-success timesheet-approval-toggle" Nothing "Approved"
             ]
         ]
     , topic "leave" "Unavailability"
-        [ section HelpEveryone "Requesting time away"
-            [ item HelpEveryone "Create an unavailability request with a start date, end date, and reason."
-            , item HelpEveryone "The end date is exclusive: choose the day you return to availability."
-            , item HelpEveryone "Requests move through pending, approved, or denied states."
+        [ section HelpEveryone "Request tasks"
+            [ iconItem HelpEveryone "bi-table" "Request list" "Review unavailable periods" "Use this page to check each unavailable period's dates, staff member, status, and notes."
+            , iconItem HelpEveryone "bi-calendar2-range" "Date range" "Read the date range" "Unavailable From is the first day away. Available Again is the day the staff member returns."
+            , iconItem HelpEveryone "bi-hourglass-split" "Status" "Track approval status" "Check the Status column to see whether each request is pending, approved, or denied."
             ]
-        , section HelpManagerPlus "Manager review"
-            [ item HelpManagerPlus "Managers can approve or deny staff requests from this page."
-            , item HelpManagerPlus "Approved unavailability invalidates affected roster views so conflicts can be recalculated."
+        , section HelpManagerPlus "Manager tasks"
+            [ buttonItem HelpManagerPlus "bi-check-lg" "Approve" "Approve a request" "Open a pending request, review the dates and reason, then click Approve." "btn btn-sm btn-outline-success me-1" Nothing "Approve"
+            , buttonItem HelpManagerPlus "bi-x-lg" "Deny" "Deny a request" "Click Deny when the time away cannot be accepted, then add any needed follow-up outside the request." "btn btn-sm btn-outline-danger me-1" Nothing "Deny"
+            , iconItem HelpManagerPlus "bi-calendar-week" "Roster" "Check roster impact" "After approving time away, review affected roster weeks for conflicts."
             ]
         ]
     , topic "admin" "Admin"
-        [ section HelpAdminPlus "Venue setup"
-            [ item HelpAdminPlus "Manage venue settings, staff invitations, shift types, roster groups, and export jobs from the admin area."
-            , item HelpAdminPlus "Use venue settings to control the roster/timesheet valid shift window and default new shift times."
-            , item HelpAdminPlus "Keep roster groups and shift types tidy because they shape roster and timesheet choices."
-            , item HelpAdminPlus "Use passkey setup emails and recovery emails to help staff regain secure access."
+        [ section HelpAdminPlus "Admin tasks"
+            [ iconItem HelpAdminPlus "bi-envelope-plus" "Invites" "Invite staff" "Open Invites, enter an email address, then click Send."
+            , buttonItem HelpAdminPlus "bi-send" "Send invite" "Send an invite" "Use this button in the Invites section after entering the staff member's email address." "btn btn-outline-primary" Nothing "Send"
+            , iconItem HelpAdminPlus "bi-sliders" "Venue Settings" "Set venue defaults" "Open Venue Settings to control roster/timesheet windows and default new shift times."
+            , iconItem HelpAdminPlus "bi-people" "Roster Groups" "Keep teams and areas tidy" "Open Roster Groups when teams or areas need cleanup."
+            , iconItem HelpAdminPlus "bi-tags" "Shift Types" "Keep shift labels tidy" "Open Shift Types when shift labels, colours, or pay-item mappings need cleanup."
             ]
-        , section HelpOwnerPlus "Owner controls"
-            [ item HelpOwnerPlus "Venue owners can access owner-only integrations and billing areas when enabled."
+        , section HelpOwnerPlus "Owner tasks"
+            [ iconItem HelpOwnerPlus "bi-plug" "Integrations" "Manage integrations and billing" "Use the visible Xero and Billing navigation links for owner-only setup when those areas are enabled."
             ]
         ]
     , topic "xero" "Xero"
-        [ section HelpOwnerPlus "Payroll integration"
-            [ item HelpOwnerPlus "Connect Xero, sync payroll reference data, and maintain staff and pay item mappings before preparing timesheets."
-            , item HelpOwnerPlus "Preparation checks identify staff or pay item decisions needed before submission."
-            , item HelpOwnerPlus "Review the summary carefully before submitting draft timesheets to Xero."
+        [ section HelpOwnerPlus "Xero tasks"
+            [ iconItem HelpOwnerPlus "bi-link-45deg" "Connect" "Connect Xero first" "Use the connection section before syncing payroll data or preparing timesheets."
+            , iconItem HelpOwnerPlus "bi-arrow-repeat" "Sync" "Sync payroll reference data" "Use sync controls to refresh Xero staff and pay items before maintaining mappings."
+            , iconItem HelpOwnerPlus "bi-diagram-3" "Mappings" "Fix staff and pay item decisions" "Open the mapping and preparation sections to resolve decisions before submission."
+            , iconItem HelpOwnerPlus "bi-send-check" "Submit" "Review before submitting" "Check the preparation summary carefully before creating draft timesheets in Xero."
             ]
         ]
     , topic "billing" "Billing"
-        [ section HelpOwnerPlus "Subscription"
-            [ item HelpOwnerPlus "Review subscription status and use Stripe Checkout or the billing portal to manage payment details and plan changes."
-            , item HelpOwnerPlus "Webhook updates from Stripe are authoritative, so status changes may show as pending until Stripe confirms them."
+        [ section HelpOwnerPlus "Billing tasks"
+            [ iconItem HelpOwnerPlus "bi-receipt" "Status" "Check subscription status" "Review the Subscription table for the current venue billing state."
+            , buttonItem HelpOwnerPlus "bi-credit-card" "Payment" "Start a subscription" "Click Start Subscription when the venue needs a new Stripe subscription." "btn btn-primary" Nothing "Start Subscription"
+            , buttonItem HelpOwnerPlus "bi-credit-card" "Payment" "Manage payment details" "Click Manage Billing to open Stripe's billing portal for payment details and plan changes." "btn btn-outline-primary" Nothing "Manage Billing"
+            , iconItem HelpOwnerPlus "bi-arrow-clockwise" "Refresh" "Check a pending change" "If a payment or plan change is pending, wait briefly and refresh before trying again."
             ]
         , section HelpSupportOnly "Founder support"
-            [ item HelpSupportOnly "Support users can inspect billing state and manual read-only controls without acting as the venue owner."
+            [ iconItem HelpSupportOnly "bi-eye" "Inspect" "Inspect billing state" "Support users can view billing state and manual read-only controls without acting as the venue owner."
             ]
         ]
     ]
@@ -206,8 +249,36 @@ pageHelpTopics =
 section :: PageHelpAudience -> Text -> [PageHelpItem] -> PageHelpSection
 section pageHelpSectionAudience pageHelpSectionTitle pageHelpSectionItems = PageHelpSection { .. }
 
-item :: PageHelpAudience -> Text -> PageHelpItem
-item pageHelpItemAudience pageHelpItemText = PageHelpItem { .. }
+item :: PageHelpAudience -> Text -> Text -> PageHelpItem
+item pageHelpItemAudience pageHelpItemTitle pageHelpItemBody =
+    PageHelpItem
+        { pageHelpItemIconClass = Nothing
+        , pageHelpItemIconLabel = Nothing
+        , pageHelpItemExampleButton = Nothing
+        , ..
+        }
+
+iconItem :: PageHelpAudience -> Text -> Text -> Text -> Text -> PageHelpItem
+iconItem pageHelpItemAudience iconClass iconLabel pageHelpItemTitle pageHelpItemBody =
+    PageHelpItem
+        { pageHelpItemIconClass = Just iconClass
+        , pageHelpItemIconLabel = Just iconLabel
+        , pageHelpItemExampleButton = Nothing
+        , ..
+        }
+
+buttonItem :: PageHelpAudience -> Text -> Text -> Text -> Text -> Text -> Maybe Text -> Text -> PageHelpItem
+buttonItem pageHelpItemAudience iconClass iconLabel pageHelpItemTitle pageHelpItemBody buttonClass buttonIconClass buttonLabel =
+    PageHelpItem
+        { pageHelpItemIconClass = Just iconClass
+        , pageHelpItemIconLabel = Just iconLabel
+        , pageHelpItemExampleButton = Just PageHelpExampleButton
+            { pageHelpExampleButtonClass = buttonClass
+            , pageHelpExampleButtonIconClass = buttonIconClass
+            , pageHelpExampleButtonLabel = buttonLabel
+            }
+        , ..
+        }
 
 topic :: Text -> Text -> [PageHelpSection] -> PageHelpTopic
 topic topicIdText pageHelpTopicTitle pageHelpTopicSections =
