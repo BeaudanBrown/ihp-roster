@@ -176,8 +176,12 @@ renderStaffEditBody formMode staff maybeLinkedUserEmail pendingTrialStaffInvitat
                        ]
                 }
      in [hsx|
+        {renderTrialStaffEditInviteStandaloneForm formMode staff pendingTrialStaffInvitation}
         {renderStaffProfileAccordion accordionConfig}
     |]
+
+trialStaffEditInviteFormId :: Text
+trialStaffEditInviteFormId = "trial-staff-edit-invite-form"
 
 staffLeaveRequestFormFragmentId :: Text
 staffLeaveRequestFormFragmentId = "staff-leave-request-form-fragment"
@@ -339,6 +343,7 @@ renderTrialStaffEmailField HtmxOverlayForm staff Nothing = [hsx|
                 type="email"
                 class="form-control"
                 placeholder="name@example.com"
+                form={trialStaffEditInviteFormId}
             />
             {renderTrialStaffInviteOverlayButton staff}
         </div>
@@ -355,12 +360,12 @@ renderTrialStaffEmailField PageOverlayForm staff Nothing = [hsx|
                 type="email"
                 class="form-control"
                 placeholder="name@example.com"
+                form={trialStaffEditInviteFormId}
             />
             <button
                 type="submit"
                 class="btn btn-outline-primary"
-                formaction={CreateTrialStaffInvitationAction staff.id}
-                formmethod="POST"
+                form={trialStaffEditInviteFormId}
             >Invite</button>
         </div>
         <div class="form-text">Send an invite link to claim this trial staff profile.</div>
@@ -368,7 +373,18 @@ renderTrialStaffEmailField PageOverlayForm staff Nothing = [hsx|
 |]
 
 renderTrialStaffInviteOverlayButton :: Staff -> Html
-renderTrialStaffInviteOverlayButton staff =
+renderTrialStaffInviteOverlayButton _ = [hsx|
+    <button
+        type="submit"
+        class="btn btn-outline-primary"
+        form={trialStaffEditInviteFormId}
+    >Invite</button>
+|]
+
+renderTrialStaffEditInviteStandaloneForm :: OverlayFormMode -> Staff -> Maybe VenueInvitation -> Html
+renderTrialStaffEditInviteStandaloneForm _ staff pendingTrialStaffInvitation
+    | isJust staff.userId || isJust pendingTrialStaffInvitation = mempty
+renderTrialStaffEditInviteStandaloneForm HtmxOverlayForm staff _ =
     applyAppShellActionAttrs
         (appShellActionByMarker @CreateTrialStaffInvitationOverlay)
         AppShellActionRoute
@@ -377,12 +393,19 @@ renderTrialStaffInviteOverlayButton staff =
             , appShellActionRouteCustomHtmx = []
             , appShellActionRouteStandardUrl = Nothing
             , appShellActionRouteExtraAttrs =
-                [ ("type", "button")
-                , ("class", "btn btn-outline-primary")
-                , ("hx-include", "#invitationEmail")
+                [ ("id", trialStaffEditInviteFormId)
+                , ("class", "d-none")
                 ]
             }
-        [hsx|<button>Invite</button>|]
+        [hsx|<form method="POST" action={pathTo (CreateTrialStaffInvitationAction staff.id)}></form>|]
+renderTrialStaffEditInviteStandaloneForm PageOverlayForm staff _ = [hsx|
+    <form
+        id={trialStaffEditInviteFormId}
+        method="POST"
+        action={pathTo (CreateTrialStaffInvitationAction staff.id)}
+        class="d-none"
+    ></form>
+|]
 
 renderTrialStaffInvitationModalFragment :: Staff -> [VenueInvitation] -> Maybe Text -> Int -> Maybe (Id RosterGroup) -> Html
 renderTrialStaffInvitationModalFragment staff pendingInvitations maybeError weekOffset maybeRosterGroupId =
