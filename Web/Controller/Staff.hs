@@ -2,6 +2,7 @@ module Web.Controller.Staff where
 
 import Application.Helper.Controller (VenueRole (..), parseVenueRole,
                                       venueRoleToEnum)
+import Application.Helper.LiveUpdate (setActorLiveFragmentsRefresh)
 import Application.Helper.Pay (rateEffectiveOn)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchStaffLeaveRequests)
@@ -10,8 +11,10 @@ import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
                                         fetchCurrentVenueRosterGroups,
                                         fetchStaffRosterGroupIds)
 import Application.Helper.StaffShiftPreferences
+import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.Url (appendQueryParams)
-import Application.Helper.View (ToastOverlayConfig, ToastOverlayPosition (..),
+import Application.Helper.View (OverlayFormMode (HtmxOverlayForm),
+                                ToastOverlayConfig, ToastOverlayPosition (..),
                                 dialogOverlayMountId, errorToast,
                                 renderToastOob, successToast)
 import Application.StaffDocuments.Rsa (latestRsaDocumentForStaff)
@@ -22,6 +25,10 @@ import Web.Controller.Admin.Support (SubmittedPayRateSelection (..),
                                      parseRequiredEmail,
                                      parseSubmittedPayRateSelection)
 import Web.Controller.Prelude
+import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
+                                     staffSectionFragmentForSection,
+                                     staffSurfaceScope,
+                                     staffSurfaceWireFragments)
 import Web.RosterWeeks.Responses (respondWithRosterContentOob)
 import Web.Staff.Mutations
 import Web.View.Staff.Edit
@@ -109,6 +116,27 @@ instance Controller StaffController where
             then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
             else render EditView { .. }
 
+    action currentAction@ShowStaffContentLiveFragmentAction { staffId } = runBepis currentAction BepisFragmentAction do
+        staff <- fetch staffId
+        ensureRecordInCurrentVenue staff.venueId
+        maybeLinkedUserEmail <- fetchStaffLinkedUserEmail staff
+        maybeVenueMembership <- fetchStaffVenueMembership staff
+        pendingTrialStaffInvitation <- fetchPendingTrialStaffInvitation staff
+        let weekOffset = paramOrDefault @Int 0 "weekOffset"
+        let maybeRosterGroupId = paramOrNothing "rosterGroupId"
+        let openSection = normalizeStaffOpenSection (paramOrDefault @Text "" "section")
+        venueConfig <- fetchVenueConfig
+        rosterGroups <- fetchCurrentVenueRosterGroups
+        awardLevels <- fetchAwardLevelsForStaffForm
+        awardLevelBaseRates <- fetchAwardLevelBaseRatesForStaffForm
+        importedPayItems <- fetchActiveImportedXeroPayItems
+        selectedRosterGroupIds <- fetchStaffRosterGroupIds staff
+        let preferenceWeekdays = allPreferenceWeekdays venueConfig
+        selectedShiftPreferences <- fetchStaffShiftPreferenceSelections staff
+        leaveRequest <- buildDefaultLeaveRequest
+        leaveRequests <- fetchStaffLeaveRequests staff
+        respondHtml (renderStaffEditSectionFragment HtmxOverlayForm staff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences leaveRequest leaveRequests weekOffset maybeRosterGroupId openSection)
+
     action currentAction@UpdateStaffAction { staffId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         staff <- fetch staffId
@@ -149,13 +177,9 @@ instance Controller StaffController where
                         let selectedRosterGroupIds = renderedRosterGroupIds
                         let selectedShiftPreferences = renderedPreferences
                         render EditView { staff = renderedStaff, .. }
-        let respondStaffUpdateSuccess successMessage =
+        let respondStaffUpdateSuccess updatedStaff successMessage =
                 if isHtmxRequest
-                    then do
-                        rosterGroupId <- case maybeRosterGroupId of
-                            Just rosterGroupId -> pure rosterGroupId
-                            Nothing -> (.id) <$> fetchCurrentVenueDefaultRosterGroup
-                        respondWithRosterContentOob rosterGroupId weekOffset
+                    then respondWithStaffActorInvalidation updatedStaff openSection successMessage
                     else do
                         setSuccessMessage successMessage
                         redirectToPath $
@@ -169,8 +193,8 @@ instance Controller StaffController where
                     setErrorMessage preferenceError
                     renderStaffEditResponse staff currentSelectedRosterGroupIds selectedShiftPreferences
                 Right submittedSelections -> do
-                    _ <- updateStaffMember originalStaff staff currentSelectedRosterGroupIds submittedSelections Nothing Nothing
-                    respondStaffUpdateSuccess "Shift preferences updated"
+                    mutationResult <- updateStaffMember originalStaff staff currentSelectedRosterGroupIds submittedSelections Nothing Nothing
+                    respondStaffUpdateSuccess mutationResult.liveMutationValue "Shift preferences updated"
             else do
                 maybeSelectedRosterGroupIds <- parseStaffRosterGroupIds
                 maybeSubmittedVenueRole <- if canManageStaffPay then parseSubmittedStaffVenueRole staff maybeVenueMembership else pure (Just Nothing)
@@ -184,8 +208,8 @@ instance Controller StaffController where
                         Right validStaff -> do
                             case (maybeSelectedRosterGroupIds, maybeSubmittedVenueRole, maybeSubmittedDefaultAwardLevelId, maybeSubmittedImportedXeroPayItemId) of
                                 (Just selectedRosterGroupIds, Just submittedVenueRole, Just _, Just _) -> do
-                                    _ <- updateStaffMember originalStaff validStaff selectedRosterGroupIds selectedShiftPreferences maybeVenueMembership submittedVenueRole
-                                    respondStaffUpdateSuccess "Staff member updated"
+                                    mutationResult <- updateStaffMember originalStaff validStaff selectedRosterGroupIds selectedShiftPreferences maybeVenueMembership submittedVenueRole
+                                    respondStaffUpdateSuccess mutationResult.liveMutationValue "Staff member updated"
                                 _ -> renderStaffEditResponse validStaff submittedRosterGroupIds selectedShiftPreferences
 
     action currentAction@NewTrialStaffInvitationAction { staffId } = runBepis currentAction BepisDialogAction do
@@ -243,6 +267,13 @@ buildNewTrialStaff =
             |> set #idealShiftsPerWeek 0
             |> set #employmentBasis Casual
             |> set #isActive True
+
+respondWithStaffActorInvalidation :: (?context :: ControllerContext, ?request :: Request) => Staff -> Text -> Text -> IO ()
+respondWithStaffActorInvalidation staff openSection successMessage = do
+    let scope = ProfileScopeValue (unpackId currentVenueId) (unpackId staff.id)
+    setHeader ("HX-Reswap", "none")
+    setActorLiveFragmentsRefresh (staffSurfaceScope scope) (staffSurfaceWireFragments [staffSectionFragmentForSection scope openSection])
+    respondHtml (renderToastOob ToastBottomCenter (successToast successMessage))
 
 renderNewStaffResponse :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Staff -> [Id RosterGroup] -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Int -> Maybe (Id RosterGroup) -> IO ()
 renderNewStaffResponse staff selectedRosterGroupIds rosterGroups awardLevels awardLevelBaseRates importedPayItems weekOffset maybeRosterGroupId =

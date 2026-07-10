@@ -15,6 +15,7 @@ module Application.Helper.FrontendContract.Surface.Profile
     , ProfileScope
     , ProfileSurface
     , StaffDetailsSection
+    , StaffLeaveSection
     , StaffPreferencesSection
     , StaffScope
     , StaffSurface
@@ -41,6 +42,7 @@ data ProfileDetailsSection
 data ProfilePreferencesSection
 data StaffDetailsSection
 data StaffPreferencesSection
+data StaffLeaveSection
 data ProfileDetails
 data ProfilePreferences
 data StaffDetailsTarget
@@ -163,7 +165,7 @@ type StaffSurface =
             '[ Field VenueId 'WireUUID
              , Field StaffId 'WireUUID
              ]
-            '[ 'Authorize 'CurrentVenueStaff '[ VenueId, StaffId ] ]
+            '[ 'Authorize 'CurrentVenueManager '[ VenueId, StaffId ] ]
          , Fragment StaffDetailsSection
             '[]
             '[ 'Eager
@@ -172,6 +174,7 @@ type StaffSurface =
              , 'DependsOn StaffPreferencesResource '[ 'FromScope StaffId ]
              ]
          , Fragment StaffPreferencesSection '[] '[ 'Eager, 'Live, 'DependsOn StaffPreferencesResource '[ 'FromScope StaffId ] ]
+         , Fragment StaffLeaveSection '[] '[ 'Eager, 'Live, 'DependsOn StaffLeaveRequestsResource '[ 'FromScope StaffId ] ]
          , Action UpdateStaffProfile StaffProfileFields StaffProfileSubmitOptions
          , Action UpdateStaffShiftPreferences StaffShiftPreferenceFields StaffProfileSubmitOptions
          , Action CreateStaffLeaveRequest

@@ -254,6 +254,7 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "roster-wage-rail"
                        , "roster-slots-grid"
                        , "roster-staff-panel"
+                       , "roster-staff-self-service-leave-form"
                        , "roster-week-overview"
                        , "roster-day-section"
                        , "roster-row"
@@ -281,17 +282,18 @@ tests = describe "FrontendSurface DSL foundation" do
                        , "set-roster-layout-mode"
                        , "move-roster-shift-to-slot"
                        , "duplicate-roster-shift-to-day"
+                       , "drop-roster-staff"
                        ]
-        map (.intentName) surface.surfaceIntents `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot", "duplicate-roster-shift-to-day"]
+        map (.intentName) surface.surfaceIntents `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot", "duplicate-roster-shift-to-day", "drop-roster-staff"]
         surface.surfaceSessions `shouldBe` ["drag"]
-        map (.sourceRefName) surface.surfaceSourceRefs `shouldBe` ["drag-source"]
-        map (.dropzoneRefName) surface.surfaceDropzoneRefs `shouldBe` ["drag-dropzone"]
+        map (.sourceRefName) surface.surfaceSourceRefs `shouldBe` ["shift-drag-source", "staff-drag-source"]
+        map (.dropzoneRefName) surface.surfaceDropzoneRefs `shouldBe` ["shift-slot-dropzone", "staff-create-dropzone", "day-column-dropzone", "existing-shift-dropzone", "delete-shift-dropzone"]
         map (.activationRefName) surface.surfaceActivationRefs `shouldBe` ["roster-layout-mode-activation"]
         surface.surfaceLayers `shouldBe` ["drag-preview"]
         map fst surface.surfaceEffects `shouldBe` ["clone-shadow", "dropzone-highlight"]
-        map (map (.modifierVariantSemantic) . (.sourceRefVariants)) surface.surfaceSourceRefs `shouldBe` [["copy"]]
-        map (concatMap (map fst . (.modifierVariantEffects)) . (.sourceRefVariants)) surface.surfaceSourceRefs `shouldBe` [["clone-shadow-copy", "dropzone-highlight"]]
-        map (.conflictPolicyResolution) surface.surfacePolicies `shouldBe` [DeferIR]
+        map (map (.modifierVariantSemantic) . (.sourceRefVariants)) surface.surfaceSourceRefs `shouldBe` [["copy"], []]
+        map (concatMap (map fst . (.modifierVariantEffects)) . (.sourceRefVariants)) surface.surfaceSourceRefs `shouldBe` [["clone-shadow-copy", "dropzone-highlight"], []]
+        surface.surfacePolicies `shouldBe` []
 
     it "renders generated TypeScript contracts for the roster surface" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterFragmentKey ="
@@ -299,15 +301,15 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceContractsTypeScript `shouldContainText` "{ kind: \"roster-row\"; params: RosterRosterRowFragmentParams }"
         frontendSurfaceContractsTypeScript `shouldContainText` "\"htmxActions\":[{\"name\":\"navigate-roster-week\""
         frontendSurfaceContractsTypeScript `shouldContainText` "{\"name\":\"set-roster-layout-mode\",\"fields\":[\"rosterLayoutMode\"]"
-        frontendSurfaceContractsTypeScript `shouldContainText` "\"intents\":[\"set-roster-layout-mode\",\"move-roster-shift-to-slot\",\"duplicate-roster-shift-to-day\"]"
+        frontendSurfaceContractsTypeScript `shouldContainText` "\"intents\":[\"set-roster-layout-mode\",\"move-roster-shift-to-slot\",\"duplicate-roster-shift-to-day\",\"drop-roster-staff\"]"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type MoveRosterShiftToSlotIntentFields = RosterMoveRosterShiftToSlotIntentFields;"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type DuplicateRosterShiftToDayIntentFields = RosterDuplicateRosterShiftToDayIntentFields;"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterSessionName = \"drag\";"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterSourceRef = \"drag-source\";"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterDropzoneRef = \"drag-dropzone\";"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterSourceRef = \"shift-drag-source\" | \"staff-drag-source\";"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterDropzoneRef = \"shift-slot-dropzone\" | \"staff-create-dropzone\" | \"day-column-dropzone\" | \"existing-shift-dropzone\" | \"delete-shift-dropzone\";"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterActivationRef = \"roster-layout-mode-activation\";"
-        frontendSurfaceContractsTypeScript `shouldContainText` "\"interaction\":{\"sourceRefs\":[{\"ref\":\"drag-source\",\"session\":\"drag\",\"intent\":\"move-roster-shift-to-slot\",\"sourceField\":\"sourceItemKey\",\"modifierVariants\":[{\"semantic\":\"copy\",\"intent\":\"duplicate-roster-shift-to-day\""
-        frontendSurfaceContractsTypeScript `shouldContainText` "\"dropzoneRefs\":[{\"ref\":\"drag-dropzone\",\"session\":\"drag\",\"targetField\":\"targetDropzoneKey\"}]"
+        frontendSurfaceContractsTypeScript `shouldContainText` "\"interaction\":{\"sourceRefs\":[{\"ref\":\"shift-drag-source\",\"session\":\"drag\",\"intent\":\"move-roster-shift-to-slot\",\"sourceField\":\"sourceItemKey\",\"compatibleDropzones\":[\"shift-slot-dropzone\",\"day-column-dropzone\",\"delete-shift-dropzone\"],\"modifierVariants\":[{\"semantic\":\"copy\",\"intent\":\"duplicate-roster-shift-to-day\""
+        frontendSurfaceContractsTypeScript `shouldContainText` "\"dropzoneRefs\":[{\"ref\":\"shift-slot-dropzone\",\"session\":\"drag\",\"targetField\":\"targetDropzoneKey\"},{\"ref\":\"staff-create-dropzone\",\"session\":\"drag\",\"targetField\":\"targetDropzoneKey\"}"
         frontendSurfaceContractsTypeScript `shouldContainText` "\"activationRefs\":[{\"ref\":\"roster-layout-mode-activation\",\"intent\":\"set-roster-layout-mode\",\"valueField\":\"rosterLayoutMode\",\"trigger\":\"click\"}]"
         frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterSurfaceManifest"
 
@@ -365,10 +367,10 @@ tests = describe "FrontendSurface DSL foundation" do
         let dropzoneHtml = cs (HtmlRenderer.renderHtml (SurfaceInteraction.renderFrontendSurfaceDropzoneRef dropzoneRef "slot:2" (Html5.toHtml ("slot" :: Text))))
         let activationHtml = cs (HtmlRenderer.renderHtml (SurfaceInteraction.renderFrontendSurfaceActivationRef activationRef (Html5.toHtml ("mode" :: Text))))
 
-        sourceHtml `shouldContainText` "data-bepis-source-ref=\"drag-source\""
+        sourceHtml `shouldContainText` "data-bepis-source-ref=\"shift-drag-source\""
         sourceHtml `shouldContainText` "data-bepis-source-key=\"shift:1\""
         sourceHtml `shouldNotContainText` "data-bepis-session-kind"
-        dropzoneHtml `shouldContainText` "data-bepis-dropzone-ref=\"drag-dropzone\""
+        dropzoneHtml `shouldContainText` "data-bepis-dropzone-ref=\"shift-slot-dropzone\""
         dropzoneHtml `shouldContainText` "data-bepis-dropzone-key=\"slot:2\""
         activationHtml `shouldContainText` "data-bepis-activation-ref=\"roster-layout-mode-activation\""
         activationHtml `shouldNotContainText` "data-bepis-activation-intent"

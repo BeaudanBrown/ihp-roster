@@ -3,7 +3,8 @@
 module Web.View.Staff.Edit where
 
 import Application.Helper.Controller (VenueRole (VenueOwnerRole),
-                                      currentUserIsSuperAdmin, hasRole)
+                                      currentUserIsSuperAdmin, currentVenueId,
+                                      hasRole)
 import Application.Helper.FrontendContract.AppShell (CreateTrialStaffInvitationOverlay,
                                                      CreateTrialStaffOverlay,
                                                      UpdateStaffProfileOverlay,
@@ -13,9 +14,12 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              applyAppShellActionAttrs)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
-                                                            renderFrontendSurfaceActionForm)
+                                                            FrontendSurfaceCustomHtmxAttrs (..),
+                                                            renderFrontendSurfaceActionForm,
+                                                            renderFrontendSurfaceMount)
 import Application.Helper.StaffShiftPreferences
-import Web.Profiles.FrontendSurface (staffSurfaceAction)
+import Web.Profiles.FrontendSurface (ProfileScopeValue (..), staffSurfaceAction,
+                                     staffSurfaceImpl)
 import Web.View.LeaveRequests.New (renderLeaveRequestFormFields)
 import Web.View.Prelude
 import Web.View.Profiles.Edit (renderProfileLeaveRequestsList)
@@ -125,7 +129,11 @@ renderStaffEditModalFragment :: Staff -> Maybe Text -> Maybe VenueInvitation -> 
 renderStaffEditModalFragment staff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection =
     renderStaffEditDialogWithButtons
         []
-        (renderStaffEditBody HtmxOverlayForm staff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection)
+        (renderStaffSurfaceMount staff (renderStaffEditBody HtmxOverlayForm staff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences staffRsaDocument leaveRequest leaveRequests today weekOffset maybeRosterGroupId openSection))
+
+renderStaffSurfaceMount :: Staff -> Html -> Html
+renderStaffSurfaceMount staff =
+    renderFrontendSurfaceMount (staffSurfaceImpl (ProfileScopeValue (unpackId currentVenueId) (unpackId staff.id)))
 
 renderStaffEditBody :: OverlayFormMode -> Staff -> Maybe Text -> Maybe VenueInvitation -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Maybe VenueMembership -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> LeaveRequest -> [LeaveRequest] -> Day -> Int -> Maybe (Id RosterGroup) -> Text -> Html
 renderStaffEditBody formMode staff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences _staffRsaDocument leaveRequest leaveRequests _today weekOffset maybeRosterGroupId openSection =
@@ -179,6 +187,42 @@ renderStaffEditBody formMode staff maybeLinkedUserEmail pendingTrialStaffInvitat
         {renderTrialStaffEditInviteStandaloneForm formMode staff pendingTrialStaffInvitation}
         {renderStaffProfileAccordion accordionConfig}
     |]
+
+renderStaffEditSectionFragment :: OverlayFormMode -> Staff -> Maybe Text -> Maybe VenueInvitation -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> Maybe VenueMembership -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> LeaveRequest -> [LeaveRequest] -> Int -> Maybe (Id RosterGroup) -> Text -> Html
+renderStaffEditSectionFragment formMode staff maybeLinkedUserEmail pendingTrialStaffInvitation rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds maybeVenueMembership preferenceWeekdays selectedShiftPreferences leaveRequest leaveRequests weekOffset maybeRosterGroupId openSection =
+    let managementFields =
+            StaffManagementFieldData
+                { managementStaff = staff
+                , managementRosterGroups = rosterGroups
+                , managementAwardLevels = awardLevels
+                , managementAwardLevelBaseRates = awardLevelBaseRates
+                , managementImportedPayItems = importedPayItems
+                , managementSelectedRosterGroupIds = selectedRosterGroupIds
+                , managementVenueMembership = maybeVenueMembership
+                , managementWeekOffset = Just weekOffset
+                , managementRosterGroupId = maybeRosterGroupId
+                }
+        staffAction = UpdateStaffAction (get #id staff)
+        section = case openSection of
+            "preferences" -> StaffProfileAccordionSection
+                { staffProfileSectionKey = "preferences"
+                , staffProfileSectionId = "staff-profile-preferences"
+                , staffProfileSectionTitle = "Shift Preferences"
+                , staffProfileSectionBody = renderStaffShiftPreferencesEditForm formMode preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId staffAction
+                }
+            "leave" -> StaffProfileAccordionSection
+                { staffProfileSectionKey = "leave"
+                , staffProfileSectionId = "staff-profile-leave"
+                , staffProfileSectionTitle = "Unavailability"
+                , staffProfileSectionBody = renderStaffleaveRequestsContentLiveFragment staff leaveRequest leaveRequests
+                }
+            _ -> StaffProfileAccordionSection
+                { staffProfileSectionKey = "profile"
+                , staffProfileSectionId = "staff-profile-details"
+                , staffProfileSectionTitle = "Profile Details"
+                , staffProfileSectionBody = renderStaffDetailsForm formMode staff maybeLinkedUserEmail pendingTrialStaffInvitation managementFields staffAction
+                }
+     in renderStaffProfileAccordionSection staffSectionsAccordionId section.staffProfileSectionKey section
 
 trialStaffEditInviteFormId :: Text
 trialStaffEditInviteFormId = "trial-staff-edit-invite-form"
@@ -318,9 +362,8 @@ renderStaffDetailsForm formMode staff maybeLinkedUserEmail pendingTrialStaffInvi
         maybeLinkedUserEmail
 
 renderStaffEditPersonalProfileFields :: OverlayFormMode -> Maybe VenueInvitation -> Staff -> Maybe Text -> Html
-renderStaffEditPersonalProfileFields formMode pendingTrialStaffInvitation staff maybeLinkedUserEmail
-    | isNothing staff.userId = renderPersonalProfileFieldsWithEmailSlot (renderTrialStaffEmailField formMode staff pendingTrialStaffInvitation) staff
-    | otherwise = renderPersonalProfileFields staff maybeLinkedUserEmail
+renderStaffEditPersonalProfileFields _formMode _pendingTrialStaffInvitation staff maybeLinkedUserEmail =
+    renderPersonalProfileFields staff maybeLinkedUserEmail
 
 renderTrialStaffEmailField :: OverlayFormMode -> Staff -> Maybe VenueInvitation -> Html
 renderTrialStaffEmailField _ _ (Just invitation) = [hsx|
@@ -522,7 +565,11 @@ data StaffDetailsOverlayMarker
 
 staffDetailsFormRequestMode :: OverlayFormMode -> Text -> StaffDetailsOverlayMarker -> Maybe StaffProfileFormRequestMode
 staffDetailsFormRequestMode HtmxOverlayForm actionUrl marker =
-    Just (StaffProfileAppShellAction (staffDetailsAppShellAction marker) (staffAppShellActionRoute actionUrl))
+    case marker of
+        UpdateStaffProfileOverlayMarker ->
+            Just (StaffProfileSurfaceAction (staffSurfaceAction "update-staff-profile") (staffSectionActionRoute actionUrl "#staff-profile-details" "outerHTML show:none"))
+        CreateTrialStaffOverlayMarker ->
+            Just (StaffProfileAppShellAction (staffDetailsAppShellAction marker) (staffAppShellActionRoute actionUrl))
 staffDetailsFormRequestMode PageOverlayForm _ _ = Nothing
 
 staffDetailsAppShellAction :: StaffDetailsOverlayMarker -> AppShellActionIR
@@ -531,7 +578,7 @@ staffDetailsAppShellAction UpdateStaffProfileOverlayMarker = appShellActionByMar
 
 staffShiftPreferencesOverlayRequestMode :: OverlayFormMode -> Text -> Maybe StaffProfileFormRequestMode
 staffShiftPreferencesOverlayRequestMode HtmxOverlayForm actionUrl =
-    Just (StaffProfileAppShellAction (appShellActionByMarker @UpdateStaffShiftPreferencesOverlay) (staffAppShellActionRoute actionUrl))
+    Just (StaffProfileSurfaceAction (staffSurfaceAction "update-staff-shift-preferences") (staffSectionActionRoute actionUrl "#staff-profile-preferences" "outerHTML show:none"))
 staffShiftPreferencesOverlayRequestMode PageOverlayForm _ = Nothing
 
 staffAppShellActionRoute :: Text -> AppShellActionRoute
@@ -542,5 +589,23 @@ staffAppShellActionRoute actionUrl =
         , appShellActionRouteCustomHtmx = []
         , appShellActionRouteStandardUrl = Nothing
         , appShellActionRouteExtraAttrs = []
+        }
+
+staffSectionActionRoute :: Text -> Text -> Text -> FrontendSurfaceActionRoute
+staffSectionActionRoute actionUrl target swap =
+    FrontendSurfaceActionRoute
+        { actionRouteUrl = actionUrl
+        , actionRouteFields = []
+        , actionRouteCustomHtmx =
+            [ FrontendSurfaceCustomHtmxAttrs
+                { customHtmxAttrMarker = "staff-profile-section-htmx-attrs"
+                , customHtmxAttrValues =
+                    [ ("hx-target", target)
+                    , ("hx-swap", swap)
+                    ]
+                }
+            ]
+        , actionRouteStandardUrl = Nothing
+        , actionRouteExtraAttrs = []
         }
 

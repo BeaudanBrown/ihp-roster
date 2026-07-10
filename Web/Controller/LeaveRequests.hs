@@ -24,7 +24,10 @@ import Web.LeaveRequests.ReadModel
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
                                      profileSectionFragmentForSection,
                                      profileSurfaceScope,
-                                     profileSurfaceWireFragments)
+                                     profileSurfaceWireFragments,
+                                     staffSectionFragmentForSection,
+                                     staffSurfaceScope,
+                                     staffSurfaceWireFragments)
 import Web.Profiles.LeaveFragments
 import Web.Profiles.LiveUpdates (profileLeaveRequestsFragment)
 import Web.RosterWeeks.Responses (respondWithRosterFragments)
@@ -34,8 +37,7 @@ import Web.View.LeaveRequests.Index
 import Web.View.LeaveRequests.New
 import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServiceLeaveFormFragment,
                                                    renderRosterStaffSelfServiceLeaveFormFragmentForRoster)
-import Web.View.Staff.Edit (renderStaffLeaveRequestFormFragment,
-                            renderStaffLeaveRequestsListFragmentOob)
+import Web.View.Staff.Edit (renderStaffLeaveRequestFormFragment)
 
 instance Controller LeaveRequestsController where
     beforeAction = bepisBeforeAction BepisAuthenticatedVenueController do
@@ -182,6 +184,13 @@ respondWithProfileLeaveActorInvalidation staff successMessage = do
     setActorLiveFragmentsRefresh (profileSurfaceScope scope) (profileSurfaceWireFragments [profileSectionFragmentForSection "leave"])
     respondHtmlProfiled (renderToastOob ToastBottomCenter (successToast successMessage))
 
+respondWithStaffLeaveActorInvalidation :: (?context :: ControllerContext, ?request :: Request) => Staff -> Text -> IO ()
+respondWithStaffLeaveActorInvalidation staff successMessage = do
+    let scope = ProfileScopeValue (unpackId currentVenueId) (unpackId staff.id)
+    setHeader ("HX-Reswap", "none")
+    setActorLiveFragmentsRefresh (staffSurfaceScope scope) (staffSurfaceWireFragments [staffSectionFragmentForSection scope "leave"])
+    respondHtmlProfiled (renderToastOob ToastBottomCenter (successToast successMessage))
+
 resolveRosterLeaveScope :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Id RosterGroup, Int)
 resolveRosterLeaveScope = do
     currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing @(Id RosterGroup) "rosterGroupId")
@@ -255,21 +264,14 @@ respondWithLeaveMutationSuccess responseContext successMessage =
             respondWithRosterFragments
                 rosterGroupId
                 weekOffset
-                [RosterProjectionContent]
+                [RosterProjectionContent, RosterProjectionStaffSelfServiceLeaveForm]
                 (renderToastOob ToastBottomCenter (successToast successMessage))
         LeaveStaffResponseContext -> do
             maybeStaff <- fetchLeaveRequestTargetStaff LeaveStaffResponseContext
             case maybeStaff of
                 Nothing -> respondWithLeaveContextError LeaveStaffResponseContext "No staff record found. Contact an administrator."
-                Just staff -> do
-                    leaveRequest <- buildDefaultLeaveRequest
-                    leaveRequests <- fetchStaffLeaveRequests staff
-                    respondHtmlProfiled $
-                        mconcat
-                            [ renderStaffLeaveRequestFormFragment staff.id leaveRequest
-                            , renderStaffLeaveRequestsListFragmentOob leaveRequests
-                            , renderToastOob ToastBottomCenter (successToast successMessage)
-                            ]
+                Just staff ->
+                    respondWithStaffLeaveActorInvalidation staff successMessage
 
 ensureLeaveProfileAccess :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveResponseContext -> IO ()
 ensureLeaveProfileAccess responseContext =

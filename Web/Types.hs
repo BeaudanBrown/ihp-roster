@@ -209,6 +209,7 @@ data StaffController
     = NewStaffAction
     | CreateStaffAction
     | EditStaffAction { staffId :: !(Id Staff) }
+    | ShowStaffContentLiveFragmentAction { staffId :: !(Id Staff) }
     | UpdateStaffAction { staffId :: !(Id Staff) }
     | NewTrialStaffInvitationAction { staffId :: !(Id Staff) }
     | CreateTrialStaffInvitationAction { staffId :: !(Id Staff) }
@@ -235,6 +236,7 @@ data RosterWeeksController
     | ShowRosterWeekWageRailFragmentAction { weekOffset :: !Int }
     | ShowRosterWeekSlotsGridFragmentAction { weekOffset :: !Int }
     | ShowRosterWeekStaffPanelFragmentAction { weekOffset :: !Int }
+    | ShowRosterStaffSelfServiceLeaveFormFragmentAction { weekOffset :: !Int }
     | ShowRosterWeekDaySectionFragmentAction { weekOffset :: !Int, rosterDayId :: !(Id RosterDay) }
     | ShowRosterWeekRowFragmentAction { weekOffset :: !Int, rosterDayId :: !(Id RosterDay), rowIndex :: !Int }
     | UpdateRosterAssignmentFiltersAction { weekOffset :: !Int }

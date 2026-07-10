@@ -21,6 +21,7 @@ module Web.RosterWeeks.Paths
     , rosterWeekDaySectionFragmentUrl
     , rosterWeekRowFragmentUrl
     , rosterWeekStaffPanelFragmentUrl
+    , rosterStaffSelfServiceLeaveFormFragmentUrl
     , rosterWeekUrl
     , rosterWeekWithDateUrl
     ) where
@@ -102,6 +103,10 @@ rosterWeekSlotsGridFragmentUrl weekOffset rosterGroupId =
 rosterWeekStaffPanelFragmentUrl :: Int -> Id RosterGroup -> Text
 rosterWeekStaffPanelFragmentUrl weekOffset rosterGroupId =
     appendQueryParams (pathTo ShowRosterWeekStaffPanelFragmentAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
+
+rosterStaffSelfServiceLeaveFormFragmentUrl :: Int -> Id RosterGroup -> Text
+rosterStaffSelfServiceLeaveFormFragmentUrl weekOffset rosterGroupId =
+    appendQueryParams (pathTo ShowRosterStaffSelfServiceLeaveFormFragmentAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
 
 rosterWeekDaySectionFragmentUrl :: Int -> Id RosterGroup -> Id RosterDay -> Text
 rosterWeekDaySectionFragmentUrl weekOffset rosterGroupId rosterDayId =

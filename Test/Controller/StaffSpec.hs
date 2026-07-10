@@ -10,6 +10,7 @@ import Application.InvitationDelivery.Job (venueInvitationDeliveryJobKind)
 import Config
 import qualified Data.List as List
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
@@ -177,7 +178,7 @@ tests = beforeAll testContext do
                         , xeroMappingsResource (unpackId venue.id)
                         ]
 
-        it "returns a roster content patch for HTMX roster-launched staff edits" $ withContext do
+        it "returns actor-local StaffSurface invalidation for HTMX roster-launched staff edits" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "staff-modal-manager@example.com" "staff" True
@@ -204,9 +205,14 @@ tests = beforeAll testContext do
                             ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "id=\"roster-content\""
-                response `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
-                response `responseBodyShouldContain` "roster-grid"
+                lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
+                response `responseBodyShouldContain` "Staff member updated"
+                response `responseBodyShouldContain` "id=\"toast-overlay-mount\""
+                response `responseBodyShouldNotContain` "id=\"roster-content\""
+                response `responseBodyShouldNotContain` "hx-swap-oob=\"outerHTML\""
+                let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "staff-profile-details")
 
         it "hides trial staff invitation email from the staff details form" $ withContext do
             withCleanDb do

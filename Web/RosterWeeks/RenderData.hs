@@ -58,6 +58,7 @@ import Web.RosterWeeks.StaffOptions
 import Web.RosterWeeks.Types
 import Web.View.RosterWeeks.Grid
 import Web.View.RosterWeeks.StaffPanel
+import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServiceLeaveFormFragmentForRoster)
 
 shouldShowRosterWageEstimates :: (?context :: ControllerContext) => Bool -> Bool
 shouldShowRosterWageEstimates userShowWageEstimates =
@@ -122,6 +123,10 @@ renderRosterProjectionFragmentWithMode renderMode rosterData fragment =
             renderSlotsGridFragment rosterData
         RosterProjectionStaffPanel ->
             Just (renderRosterStaffPanelFromProjectionWithMode renderMode rosterData)
+        RosterProjectionStaffSelfServiceLeaveForm -> do
+            projection <- rosterData
+            panel <- projection.staffSelfServicePanel
+            pure (renderRosterStaffSelfServiceLeaveFormFragmentForRoster panel.quickToolsRosterGroupId panel.quickToolsRosterWeekOffset panel.quickToolsLeaveRequest)
         RosterProjectionDaySection rosterDayId ->
             rosterData >>= \projection ->
                 if isHiddenDraftForCurrentUser projection.rosterWeek
@@ -581,6 +586,9 @@ renderVisibleRosterReadModelFragmentDirect rosterGroupId weekOffset fragment = d
                     rosterData <- fetchVisibleRosterReadModelDirect rosterGroupId weekOffset
                     pure (renderRosterProjectionFragment rosterData fragment)
                 RosterProjectionSlotsGrid -> do
+                    rosterData <- fetchVisibleRosterReadModelDirect rosterGroupId weekOffset
+                    pure (renderRosterProjectionFragment rosterData fragment)
+                RosterProjectionStaffSelfServiceLeaveForm -> do
                     rosterData <- fetchVisibleRosterReadModelDirect rosterGroupId weekOffset
                     pure (renderRosterProjectionFragment rosterData fragment)
                 RosterProjectionRow rosterDayUuid rowIndex -> do

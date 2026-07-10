@@ -58,6 +58,7 @@ import Web.RosterWeeks.Paths (rosterDayTimelineContentFragmentUrl,
                               rosterDropStaffUrl, rosterDuplicateShiftUrl,
                               rosterLayoutPreferenceUrl, rosterMoveShiftUrl,
                               rosterOverviewFragmentUrl,
+                              rosterStaffSelfServiceLeaveFormFragmentUrl,
                               rosterTimelineMoveShiftUrl,
                               rosterWeekContentFragmentUrl,
                               rosterWeekDayColumnsFragmentUrl,
@@ -272,6 +273,7 @@ rosterWeekGridMountedFragments scope plan =
     , rosterWageRailMountedFragment scope
     , rosterSlotsGridMountedFragment scope
     , rosterStaffPanelMountedFragment scope
+    , rosterStaffSelfServiceLeaveFormMountedFragment scope
     ]
         <> map (rosterDaySectionMountedFragment scope) plan.rosterMountedDayIds
         <> map (uncurry (rosterRowMountedFragment scope)) plan.rosterMountedRows
@@ -290,6 +292,7 @@ rosterMountedFragmentForProjection scope = \case
     RosterProjectionWageRail -> rosterWageRailMountedFragment scope
     RosterProjectionSlotsGrid -> rosterSlotsGridMountedFragment scope
     RosterProjectionStaffPanel -> rosterStaffPanelMountedFragment scope
+    RosterProjectionStaffSelfServiceLeaveForm -> rosterStaffSelfServiceLeaveFormMountedFragment scope
     RosterProjectionDaySection rosterDayId -> rosterDaySectionMountedFragment scope (Id rosterDayId)
     RosterProjectionRow rosterDayId rowIndex -> rosterRowMountedFragment scope (Id rosterDayId) rowIndex
 
@@ -384,6 +387,11 @@ rosterSurfaceHandlers scope _plan =
                 `HandlerCons` FrontendSurfaceFragmentHandler
                     { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
                     , fragmentHandlerMountedFragment = const (rosterStaffPanelMountedFragment scope)
+                    , fragmentHandlerRender = const mempty
+                    }
+                `HandlerCons` FrontendSurfaceFragmentHandler
+                    { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
+                    , fragmentHandlerMountedFragment = const (rosterStaffSelfServiceLeaveFormMountedFragment scope)
                     , fragmentHandlerRender = const mempty
                     }
                 `HandlerCons` FrontendSurfaceFragmentHandler
@@ -600,6 +608,10 @@ rosterSlotsGridMountedFragment scope =
 rosterStaffPanelMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterStaffPanelMountedFragment scope =
     rosterMountedFragment "roster-staff-panel" Aeson.Null rosterStaffPanelFragmentId (rosterWeekStaffPanelFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
+
+rosterStaffSelfServiceLeaveFormMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
+rosterStaffSelfServiceLeaveFormMountedFragment scope =
+    rosterMountedFragment "roster-staff-self-service-leave-form-fragment" Aeson.Null "roster-staff-self-service-leave-form-fragment" (rosterStaffSelfServiceLeaveFormFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
 
 rosterWeekOverviewMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterWeekOverviewMountedFragment scope =
