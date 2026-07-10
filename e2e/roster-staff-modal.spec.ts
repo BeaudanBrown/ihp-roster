@@ -62,7 +62,16 @@ test.describe('Roster Staff Modal', () => {
         await modalMount.getByRole('button', { name: 'Save' }).click();
 
         await expect(page).toHaveURL(initialUrl);
-        await expect(modalMount).toBeEmpty();
+        await expect(modalMount.locator('[data-bepis-surface="staff"]')).toBeVisible();
+        await expect(modalMount.locator('#staff-profile-details')).toBeVisible();
+        await expect(modalMount.locator('#staff-edit-form #firstName')).toHaveValue('Roster');
+        await expect(page.locator('#toast-overlay-mount')).toContainText('Staff member updated');
+
+        await modalMount.getByRole('button', { name: 'Shift Preferences' }).click();
+        await expect(modalMount.locator('#staff-shift-preferences-form')).toBeVisible();
+        await modalMount.locator('#staff-shift-preferences-form button[type="submit"]').click();
+        await expect(modalMount.locator('#staff-profile-preferences')).toBeVisible();
+        await expect(page.locator('#toast-overlay-mount')).toContainText('Shift preferences updated');
 
     });
 });

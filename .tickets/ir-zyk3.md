@@ -1,6 +1,6 @@
 ---
 id: ir-zyk3
-status: open
+status: closed
 deps: []
 links: [ir-2d9a]
 created: 2026-07-10T05:30:27Z

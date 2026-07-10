@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
 import { writeFile } from 'node:fs/promises';
-import { gotoWhenReady, loginAs, openNewLeaveRequestDialog, openProfileLeaveSection, setFlatpickrDate } from './test-helpers';
+import { defaultE2ERosterGroupId, gotoWhenReady, loginAs, openNewLeaveRequestDialog, openProfileLeaveSection, setFlatpickrDate } from './test-helpers';
 
 async function login(page) {
     await gotoWhenReady(page, '/NewSession', '#email');
@@ -13,6 +13,23 @@ async function login(page) {
 }
 
 test.describe('HTMX submit regressions', () => {
+    test('roster quick-view unavailability submit resets the form through live refetch', async ({ page }) => {
+        await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
+        await gotoWhenReady(page, `/ShowRosterWeek?weekOffset=0&rosterGroupId=${defaultE2ERosterGroupId}`, '#roster-staff-self-service-leave-form');
+        await expect(page.locator('#roster-staff-self-service-leave-form')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
+
+        const startDateBefore = await page.locator('#roster-staff-self-service-leave-form input[name="startDate"]').inputValue();
+        const endDateBefore = await page.locator('#roster-staff-self-service-leave-form input[name="endDate"]').inputValue();
+        const note = `e2e roster quick unavailable ${Date.now()}`;
+        await page.locator('#roster-staff-self-service-leave-form textarea[name="notes"]').fill(note);
+        await page.locator('#roster-staff-self-service-leave-form button[type="submit"]').click();
+
+        await expect(page.locator('#toast-overlay-mount')).toContainText('Unavailable period submitted', { timeout: E2E_TIMEOUT.assertion });
+        await expect(page.locator('#roster-staff-self-service-leave-form textarea[name="notes"]')).toHaveValue('', { timeout: E2E_TIMEOUT.assertion });
+        await expect(page.locator('#roster-staff-self-service-leave-form input[name="startDate"]')).toHaveValue(startDateBefore, { timeout: E2E_TIMEOUT.assertion });
+        await expect(page.locator('#roster-staff-self-service-leave-form input[name="endDate"]')).toHaveValue(endDateBefore, { timeout: E2E_TIMEOUT.assertion });
+    });
+
     test('profile leave submit appends a leave request without nesting the whole profile page', async ({ page }) => {
         const note = 'profile-leave-submit-check';
 

@@ -144,10 +144,15 @@ test.describe('Admin and roster UI polish', () => {
         await page.locator('#staff-profile-leave-heading button').click({ timeout: 3_000 });
         await expect(page.locator('#staff-leave-request-form')).toBeVisible({ timeout: 3_000 });
 
+        const startDateBefore = await page.locator('#staff-leave-request-form input[name="startDate"]').inputValue();
+        const endDateBefore = await page.locator('#staff-leave-request-form input[name="endDate"]').inputValue();
         const note = `e2e staff modal unavailable ${Date.now()}`;
         await page.locator('#staff-leave-request-form textarea[name="notes"]').fill(note, { timeout: 3_000 });
         await page.locator('#staff-leave-request-form button[type="submit"]').click({ timeout: 3_000 });
 
         await expect(page.locator('#staff-leave-requests-list-fragment')).toContainText(note, { timeout: 3_000 });
+        await expect(page.locator('#staff-leave-request-form textarea[name="notes"]')).toHaveValue('', { timeout: 3_000 });
+        await expect(page.locator('#staff-leave-request-form input[name="startDate"]')).toHaveValue(startDateBefore, { timeout: 3_000 });
+        await expect(page.locator('#staff-leave-request-form input[name="endDate"]')).toHaveValue(endDateBefore, { timeout: 3_000 });
     });
 });
