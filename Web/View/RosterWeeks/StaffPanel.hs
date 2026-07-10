@@ -315,19 +315,19 @@ renderRosterStaffPanelEntryCell :: Int -> Id RosterGroup -> Text -> Text -> Rost
 renderRosterStaffPanelEntryCell weekOffset currentRosterGroupId staffDisplayLabel _ entry RosterStaffNameColumn = [hsx|
     <th scope="row" class="roster-staff-cell roster-staff-name">
         <div class="roster-staff-name-primary d-inline-flex align-items-center gap-2">
-            {renderRosterStaffEditLauncher weekOffset currentRosterGroupId staffDisplayLabel entry.staff.id [hsx|<span>{staffDisplayLabel}</span>|]}
+            {renderRosterStaffEditLauncher weekOffset currentRosterGroupId staffDisplayLabel entry.staff.id (text staffDisplayLabel)}
             {renderTrialStaffInviteButton weekOffset currentRosterGroupId staffDisplayLabel entry}
         </div>
     </th>
 |]
 renderRosterStaffPanelEntryCell weekOffset currentRosterGroupId staffDisplayLabel staffRoleLabel entry RosterStaffRoleColumn = [hsx|
     <td class="roster-staff-cell roster-staff-role">
-        {renderRosterStaffEditLauncher weekOffset currentRosterGroupId staffDisplayLabel entry.staff.id [hsx|<span>{staffRoleLabel}</span>|]}
+        {renderRosterStaffEditLauncher weekOffset currentRosterGroupId staffDisplayLabel entry.staff.id (text staffRoleLabel)}
     </td>
 |]
 renderRosterStaffPanelEntryCell weekOffset currentRosterGroupId staffDisplayLabel _ entry RosterStaffShiftsColumn = [hsx|
     <td class="roster-staff-cell roster-staff-shifts">
-        {renderRosterStaffEditLauncher weekOffset currentRosterGroupId staffDisplayLabel entry.staff.id [hsx|<span>{renderShiftSummary entry}</span>|]}
+        {renderRosterStaffEditLauncher weekOffset currentRosterGroupId staffDisplayLabel entry.staff.id (renderShiftSummary entry)}
     </td>
 |]
 renderRosterStaffPanelEntryCell _ _ staffDisplayLabel _ _ RosterStaffActionColumn = [hsx|
