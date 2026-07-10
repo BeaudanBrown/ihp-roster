@@ -1,6 +1,6 @@
 ---
 id: ir-qbmu
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-07-10T05:32:28Z
