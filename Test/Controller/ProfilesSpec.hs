@@ -183,7 +183,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "id=\"profile-details-collapse\" class=\"accordion-collapse collapse\""
                 response `responseBodyShouldContain` "id=\"profile-security-collapse\" class=\"accordion-collapse collapse\""
                 response `responseBodyShouldContain` "id=\"profile-leave-collapse\" class=\"accordion-collapse collapse\""
-                response `responseBodyShouldContain` "id=\"profile-rsa-collapse\" class=\"accordion-collapse collapse\""
+                response `responseBodyShouldNotContain` "id=\"profile-rsa-collapse\""
                 response `responseBodyShouldNotContain` "accordion-collapse collapse show"
 
                 securityResponse <- withUserAndCurrentVenue user venue.id do
@@ -192,7 +192,7 @@ tests = beforeAll testContext do
                 securityResponse `responseStatusShouldBe` status200
                 securityResponse `responseBodyShouldContain` "id=\"profile-security-collapse\" class=\"accordion-collapse collapse show\""
 
-        it "renders profile RSA without a duplicate inner RSA heading" $ withContext do
+        it "temporarily hides profile RSA section" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Profile RSA Chrome Venue"
                 user <- createUserRecord "profile-rsa-chrome@example.com" "staff" True
@@ -203,9 +203,8 @@ tests = beforeAll testContext do
                     callActionWithParams EditProfileAction [("section", "rsa")]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Upload and scan PDF"
-                response `responseBodyShouldNotContain` "Upload a Responsible Service of Alcohol statement of attainment."
-                response `responseBodyShouldNotContain` "<h5 class=\"mb-1\">RSA</h5>"
+                response `responseBodyShouldNotContain` "id=\"profile-rsa-collapse\""
+                response `responseBodyShouldNotContain` "Upload and scan PDF"
 
         it "renders an empty profile onboarding form for a user with membership but no staff row yet" $ withContext do
             withCleanDb do

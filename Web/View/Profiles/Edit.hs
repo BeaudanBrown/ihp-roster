@@ -164,12 +164,11 @@ renderprofileContentLiveFragmentWithManagement staff currentUserEmail preference
     |]
 
 profileAccordionSections :: Staff -> Text -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> [Passkey] -> [LeaveRequest] -> LeaveRequest -> Maybe StaffDocument -> Maybe StaffManagementFieldData -> Day -> UTCTime -> [StaffProfileAccordionSection]
-profileAccordionSections staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument staffManagementFields today now =
+profileAccordionSections staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm _staffRsaDocument staffManagementFields _today now =
     [ profileDetailsAccordionSection staff currentUserEmail staffManagementFields
     , profilePreferencesAccordionSection preferenceWeekdays selectedShiftPreferences
     , profileSecurityAccordionSection now passkeys
     , profileLeaveAccordionSection staff leaveRequestForm leaveRequests
-    , profileRsaAccordionSection staff staffRsaDocument today
     ]
 
 profileDetailsAccordionSection :: Staff -> Text -> Maybe StaffManagementFieldData -> StaffProfileAccordionSection
@@ -223,13 +222,12 @@ renderProfileSectionFragmentWithManagement staff currentUserEmail preferenceWeek
             "preferences" -> profilePreferencesAccordionSection preferenceWeekdays selectedShiftPreferences
             "security"    -> profileSecurityAccordionSection now passkeys
             "leave"       -> profileLeaveAccordionSection staff leaveRequestForm leaveRequests
-            "rsa"         -> profileRsaAccordionSection staff staffRsaDocument today
             _             -> profileDetailsAccordionSection staff currentUserEmail staffManagementFields
      in renderStaffProfileAccordionSection profileSectionsAccordionId openSection section
 
 normalizeProfileSectionForRender :: Text -> Text
 normalizeProfileSectionForRender section
-    | section `elem` ["preferences", "security", "leave", "rsa"] = section
+    | section `elem` ["preferences", "security", "leave"] = section
     | otherwise = "profile"
 
 profileSurfaceMount :: (?context :: ControllerContext) => Staff -> Maybe (SurfaceImpl Surface.ProfileSurface)

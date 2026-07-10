@@ -226,5 +226,5 @@ profilePreferenceViewDataWithSubmitted _maybeStaff submittedShiftPreferenceKeys 
 
 normalizeProfileOpenSection :: Text -> Text
 normalizeProfileOpenSection section
-    | section `elem` ["profile", "preferences", "security", "leave", "rsa"] = section
+    | section `elem` ["profile", "preferences", "security", "leave"] = section
     | otherwise = ""
