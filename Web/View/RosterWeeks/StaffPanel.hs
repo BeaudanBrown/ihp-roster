@@ -9,7 +9,8 @@ import Application.Helper.FrontendContract.AppShell (OpenRosterStaffCreateDialog
                                                      OpenRosterStaffEditDialog)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
-                                                             applyAppShellActionAttrs)
+                                                             applyAppShellActionAttrs,
+                                                             renderAppShellActionHtmxControl)
 import Application.Helper.FrontendContract.RosterValues (RosterStaffSortKey (..),
                                                          rosterStaffSortKeyAttribute)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
@@ -315,14 +316,14 @@ renderRosterStaffPanelEntryCell :: Int -> Id RosterGroup -> Text -> Text -> Rost
 renderRosterStaffPanelEntryCell weekOffset currentRosterGroupId staffDisplayLabel _ entry RosterStaffNameColumn = [hsx|
     <th scope="row" class="roster-staff-cell roster-staff-name">
         <div class="roster-staff-name-primary d-inline-flex align-items-center gap-2">
-            {renderRosterStaffEditLauncher weekOffset currentRosterGroupId staffDisplayLabel entry.staff.id (text staffDisplayLabel)}
+            {renderRosterStaffEditTextLauncher weekOffset currentRosterGroupId staffDisplayLabel entry.staff.id staffDisplayLabel}
             {renderTrialStaffInviteButton weekOffset currentRosterGroupId staffDisplayLabel entry}
         </div>
     </th>
 |]
 renderRosterStaffPanelEntryCell weekOffset currentRosterGroupId staffDisplayLabel staffRoleLabel entry RosterStaffRoleColumn = [hsx|
     <td class="roster-staff-cell roster-staff-role">
-        {renderRosterStaffEditLauncher weekOffset currentRosterGroupId staffDisplayLabel entry.staff.id (text staffRoleLabel)}
+        {renderRosterStaffEditTextLauncher weekOffset currentRosterGroupId staffDisplayLabel entry.staff.id staffRoleLabel}
     </td>
 |]
 renderRosterStaffPanelEntryCell weekOffset currentRosterGroupId staffDisplayLabel _ entry RosterStaffShiftsColumn = [hsx|
@@ -344,6 +345,10 @@ renderRosterStaffPanelEntryCell _ _ staffDisplayLabel _ _ RosterStaffActionColum
         </button>
     </td>
 |]
+
+renderRosterStaffEditTextLauncher :: Int -> Id RosterGroup -> Text -> Id Staff -> Text -> Html
+renderRosterStaffEditTextLauncher weekOffset currentRosterGroupId staffDisplayLabel staffId body =
+    renderRosterStaffEditLauncher weekOffset currentRosterGroupId staffDisplayLabel staffId [hsx|<span>{body}</span>|]
 
 renderRosterStaffEditLauncher :: Int -> Id RosterGroup -> Text -> Id Staff -> Html -> Html
 renderRosterStaffEditLauncher weekOffset currentRosterGroupId staffDisplayLabel staffId body =
