@@ -2,7 +2,7 @@
 id: ir-2d9a
 status: open
 deps: [ir-l2l8]
-links: []
+links: [ir-zyk3]
 created: 2026-04-29T04:41:29Z
 type: feature
 priority: 1
