@@ -205,9 +205,13 @@ instance Controller StaffController where
         case maybeEmail of
             Just email -> do
                 createTrialStaffInvitationMutation staff email >>= \case
-                    Right _ -> respondWithTrialStaffInvitationSuccess ("Invitation sent to " <> email)
-                    Left message -> renderTrialStaffInvitationError staff message
-            Nothing -> renderTrialStaffInvitationError staff "Invite email is required."
+                    Right _ -> renderStaffEditResponseFor staff "profile" (Just (successToast ("Invitation sent to " <> email)))
+                    Left message -> do
+                        setErrorMessage message
+                        renderStaffEditResponseFor staff "profile" Nothing
+            Nothing -> do
+                setErrorMessage "Invite email is required."
+                renderStaffEditResponseFor staff "profile" Nothing
 
     action currentAction@ResendTrialStaffInvitationAction { venueInvitationId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
