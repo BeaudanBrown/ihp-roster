@@ -351,7 +351,7 @@ renderTrialStaffInviteButton :: Int -> Id RosterGroup -> Text -> RosterStaffPane
 renderTrialStaffInviteButton weekOffset currentRosterGroupId staffDisplayLabel entry
     | not (isAdoptableTrialStaff entry.staff) = mempty
     | otherwise =
-        renderAppShellActionHtmxControl
+        applyAppShellActionAttrs
             (appShellActionByMarker @OpenRosterStaffCreateDialog)
             (rosterStaffOverlayRoute (appendQueryParams (pathTo (NewTrialStaffInvitationAction entry.staff.id)) [("weekOffset", tshow weekOffset), ("rosterGroupId", tshow currentRosterGroupId)]))
                 { appShellActionRouteExtraAttrs =
