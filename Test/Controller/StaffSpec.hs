@@ -208,7 +208,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
                 response `responseBodyShouldContain` "roster-grid"
 
-        it "renders a trial staff invitation email field in the staff details form" $ withContext do
+        it "hides trial staff invitation email from the staff details form" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Trial Invite Field Venue"
                 manager <- createUserRecord "staff-trial-invite-field-manager@example.com" "staff" True
@@ -219,11 +219,10 @@ tests = beforeAll testContext do
                     callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "name=\"invitationEmail\""
-                response `responseBodyShouldContain` "Send an invite link to claim this trial staff profile."
-                response `responseBodyShouldContain` "Invite</button>"
+                response `responseBodyShouldNotContain` "name=\"invitationEmail\""
+                response `responseBodyShouldNotContain` "Send an invite link to claim this trial staff profile."
 
-        it "shows pending invite state when a trial staff invitation already exists" $ withContext do
+        it "keeps pending trial invites out of the staff details form" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Pending Invite Field Venue"
                 manager <- createUserRecord "staff-pending-invite-field-manager@example.com" "staff" True
@@ -236,8 +235,8 @@ tests = beforeAll testContext do
                     callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Pending invite"
-                response `responseBodyShouldContain` "pending-trial-invite@example.com"
+                response `responseBodyShouldNotContain` "Pending invite"
+                response `responseBodyShouldNotContain` "pending-trial-invite@example.com"
                 response `responseBodyShouldNotContain` "name=\"invitationEmail\""
 
         it "lets managers create worker adoption invitations for current-venue trial staff" $ withContext do
@@ -258,8 +257,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Invitation sent to trial-invite-claim@example.com"
                 response `responseBodyShouldContain` "id=\"toast-overlay-mount\""
                 response `responseBodyShouldContain` "hx-swap-oob=\"innerHTML\""
-                response `responseBodyShouldContain` "Pending invite"
-                response `responseBodyShouldContain` "trial-invite-claim@example.com"
+                response `responseBodyShouldContain` "Invitation sent to trial-invite-claim@example.com"
                 invitation <- query @VenueInvitation
                     |> filterWhere (#venueId, unpackId venue.id)
                     |> filterWhere (#email, "trial-invite-claim@example.com" :: Text)
@@ -603,7 +601,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Default Pay Rate"
                 response `responseBodyShouldNotContain` "Archived Staff Rate"
 
-        it "renders staff login access and scan-first RSA upload in the staff edit modal" $ withContext do
+        it "renders staff login access and temporarily hides RSA upload in the staff edit modal" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Staff Access Modal Venue"
                 owner <- createUserRecord "staff-access-owner@example.com" "admin" True
@@ -620,12 +618,10 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "staff-access-worker@example.com"
                 response `responseBodyShouldContain` "Email passkey setup"
                 response `responseBodyShouldContain` "Email recovery link"
-                response `responseBodyShouldContain` "RSA"
-                response `responseBodyShouldContain` "Upload a Responsible Service of Alcohol statement of attainment."
-                response `responseBodyShouldContain` "Upload and scan PDF"
-                response `responseBodyShouldContain` "action=\"/ScanStaffDocument\""
-                response `responseBodyShouldNotContain` "Upload manually"
-                response `responseBodyShouldNotContain` "Expiry Date"
+                response `responseBodyShouldNotContain` "id=\"staff-profile-rsa\""
+                response `responseBodyShouldNotContain` "Upload a Responsible Service of Alcohol statement of attainment."
+                response `responseBodyShouldNotContain` "Upload and scan PDF"
+                response `responseBodyShouldNotContain` "action=\"/ScanStaffDocument\""
 
         it "ignores staff pay fields submitted by non-admin managers" $ withContext do
             withCleanDb do

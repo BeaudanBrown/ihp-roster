@@ -17,6 +17,7 @@ import qualified Application.Helper.FrontendContract.Surface.Interaction as Surf
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             frontendSurfaceActionHtmxAttrPairs)
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
+import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.Helper.View (staffDisplayName)
 import Data.List (sortBy)
 import qualified Data.Text as Text
@@ -82,7 +83,7 @@ renderRosterStaffPanelHeader weekOffset currentRosterGroupId hasMultipleRosterGr
         <div>
             <h2 class="h5 mb-0">Staff</h2>
         </div>
-        <div class="d-flex flex-column align-items-end gap-2">
+        <div class="d-flex flex-wrap align-items-center justify-content-end gap-2 roster-staff-panel-header-actions">
             {renderOpenRosterStaffCreateDialogButton weekOffset currentRosterGroupId}
             {when hasMultipleRosterGroups (renderStaffScopeToggle weekOffset currentRosterGroupId panelScope)}
         </div>
@@ -114,7 +115,7 @@ renderRosterStaffPanelPlaceholderHeader hasMultipleRosterGroups = [hsx|
                 <span class="app-lazy-surface-bar app-lazy-surface-bar-title roster-staff-panel-placeholder-title-bar"></span>
             </h2>
         </div>
-        <div class="d-flex flex-column align-items-end gap-2">
+        <div class="d-flex flex-wrap align-items-center justify-content-end gap-2 roster-staff-panel-header-actions">
             <div class="app-lazy-surface-button-placeholder"></div>
             {when hasMultipleRosterGroups renderRosterStaffPanelTogglePlaceholder}
         </div>
@@ -320,7 +321,10 @@ renderRosterStaffPanelEntryRow weekOffset currentRosterGroupId staffDisplayLabel
 renderRosterStaffPanelEntryCell :: Text -> Text -> RosterStaffPanelEntry -> RosterStaffPanelColumn -> Html
 renderRosterStaffPanelEntryCell staffDisplayLabel _ entry RosterStaffNameColumn = [hsx|
     <th scope="row" class="roster-staff-cell roster-staff-name">
-        <div class="roster-staff-name-primary">{staffDisplayLabel}</div>
+        <div class="roster-staff-name-primary d-inline-flex align-items-center gap-2">
+            <span>{staffDisplayLabel}</span>
+            {renderTrialStaffInviteButton staffDisplayLabel entry}
+        </div>
     </th>
 |]
 renderRosterStaffPanelEntryCell _ staffRoleLabel _ RosterStaffRoleColumn = [hsx|
@@ -342,6 +346,28 @@ renderRosterStaffPanelEntryCell staffDisplayLabel _ _ RosterStaffActionColumn = 
         </button>
     </td>
 |]
+
+renderTrialStaffInviteButton :: Text -> RosterStaffPanelEntry -> Html
+renderTrialStaffInviteButton staffDisplayLabel entry
+    | not (isAdoptableTrialStaff entry.staff) = mempty
+    | otherwise =
+        renderAppShellActionHtmxControl
+            (appShellActionByMarker @OpenRosterStaffEditDialog)
+            (rosterStaffOverlayRoute (pathTo (NewTrialStaffInvitationAction entry.staff.id)))
+                { appShellActionRouteExtraAttrs =
+                    [ ("class", "btn btn-sm btn-outline-primary app-icon-button roster-staff-invite-button")
+                    , ("type", "button")
+                    , ("title", "Invite " <> staffDisplayLabel)
+                    , ("aria-label", "Invite " <> staffDisplayLabel)
+                    , ("hx-trigger", "click consume")
+                    ]
+                }
+            [hsx|
+                <button>
+                    <i class="bi bi-envelope-plus" aria-hidden="true"></i>
+                    <span class="visually-hidden">Invite {staffDisplayLabel}</span>
+                </button>
+            |]
 
 humanizeStaffRole :: Text -> Text
 humanizeStaffRole "venue_admin" = "Venue Admin"

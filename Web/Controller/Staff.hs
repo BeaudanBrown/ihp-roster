@@ -12,6 +12,7 @@ import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
 import Application.Helper.StaffShiftPreferences
 import Application.Helper.Url (appendQueryParams)
 import Application.Helper.View (ToastOverlayConfig, ToastOverlayPosition (..),
+                                dialogOverlayMountId, errorToast,
                                 renderToastOob, successToast)
 import Application.StaffDocuments.Rsa (latestRsaDocumentForStaff)
 import Data.Time.Calendar (Day)
@@ -187,6 +188,15 @@ instance Controller StaffController where
                                     respondStaffUpdateSuccess "Staff member updated"
                                 _ -> renderStaffEditResponse validStaff submittedRosterGroupIds selectedShiftPreferences
 
+    action currentAction@NewTrialStaffInvitationAction { staffId } = runBepis currentAction BepisDialogAction do
+        ensureVenueWritable
+        staff <- fetch staffId
+        ensureRecordInCurrentVenue staff.venueId
+        pendingInvitations <- fetchPendingTrialStaffInvitations staff
+        let weekOffset = paramOrDefault @Int 0 "weekOffset"
+        let maybeRosterGroupId = paramOrNothing "rosterGroupId"
+        respondHtml (renderTrialStaffInvitationModalFragment staff pendingInvitations Nothing weekOffset maybeRosterGroupId)
+
     action currentAction@CreateTrialStaffInvitationAction { staffId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         staff <- fetch staffId
@@ -195,11 +205,22 @@ instance Controller StaffController where
         case maybeEmail of
             Just email -> do
                 createTrialStaffInvitationMutation staff email >>= \case
-                    Right _ -> renderStaffEditResponseFor staff "profile" (Just (successToast ("Invitation sent to " <> email)))
-                    Left message -> do
-                        setErrorMessage message
-                        renderStaffEditResponseFor staff "profile" Nothing
-            Nothing -> renderStaffEditResponseFor staff "profile" Nothing
+                    Right _ -> respondWithTrialStaffInvitationSuccess ("Invitation sent to " <> email)
+                    Left message -> renderTrialStaffInvitationError staff message
+            Nothing -> renderTrialStaffInvitationError staff "Invite email is required."
+
+    action currentAction@ResendTrialStaffInvitationAction { venueInvitationId } = runBepis currentAction BepisMutationAction do
+        ensureVenueWritable
+        invitation <- fetch venueInvitationId
+        ensureRecordInCurrentVenue invitation.venueId
+        case invitation.staffId of
+            Nothing -> renderTrialStaffInvitationErrorForInvitation invitation "Choose a staff-linked invitation to resend."
+            Just staffId -> do
+                staff <- fetch staffId
+                ensureRecordInCurrentVenue staff.venueId
+                resendTrialStaffInvitationMutation staff invitation >>= \case
+                    Right _ -> respondWithTrialStaffInvitationSuccess ("Invitation resent to " <> invitation.email)
+                    Left message -> renderTrialStaffInvitationError staff message
 
 emptyStaffPayRateSelection :: SubmittedPayRateSelection
 emptyStaffPayRateSelection = SubmittedPayRateSelection Nothing Nothing
@@ -224,6 +245,26 @@ renderNewStaffResponse staff selectedRosterGroupIds rosterGroups awardLevels awa
     if isHtmxRequest
         then respondHtml (renderNewStaffModalFragment staff rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds weekOffset maybeRosterGroupId)
         else render NewView { .. }
+
+respondWithTrialStaffInvitationSuccess :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Text -> IO ()
+respondWithTrialStaffInvitationSuccess message =
+    respondHtml [hsx|
+        <div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>
+        {renderToastOob ToastBottomCenter (successToast message)}
+    |]
+
+renderTrialStaffInvitationError :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Staff -> Text -> IO ()
+renderTrialStaffInvitationError staff message = do
+    pendingInvitations <- fetchPendingTrialStaffInvitations staff
+    let weekOffset = paramOrDefault @Int 0 "weekOffset"
+    let maybeRosterGroupId = paramOrNothing "rosterGroupId"
+    respondHtml (renderTrialStaffInvitationModalFragment staff pendingInvitations (Just message) weekOffset maybeRosterGroupId)
+
+renderTrialStaffInvitationErrorForInvitation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => VenueInvitation -> Text -> IO ()
+renderTrialStaffInvitationErrorForInvitation invitation message =
+    case invitation.staffId of
+        Nothing -> respondHtml [hsx|{renderToastOob ToastBottomCenter (errorToast message)}|]
+        Just staffId -> fetch staffId >>= \staff -> renderTrialStaffInvitationError staff message
 
 renderStaffEditResponseFor :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Staff -> Text -> Maybe ToastOverlayConfig -> IO ()
 renderStaffEditResponseFor staff openSection maybeToast = do
@@ -252,15 +293,18 @@ renderStaffEditResponseFor staff openSection maybeToast = do
         else render EditView { .. }
 
 fetchPendingTrialStaffInvitation :: (?modelContext :: ModelContext) => Staff -> IO (Maybe VenueInvitation)
-fetchPendingTrialStaffInvitation staff =
+fetchPendingTrialStaffInvitation staff = listToMaybe <$> fetchPendingTrialStaffInvitations staff
+
+fetchPendingTrialStaffInvitations :: (?modelContext :: ModelContext) => Staff -> IO [VenueInvitation]
+fetchPendingTrialStaffInvitations staff =
     case staff.userId of
-        Just _ -> pure Nothing
+        Just _ -> pure []
         Nothing ->
             query @VenueInvitation
                 |> filterWhere (#staffId, Just staff.id)
                 |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
                 |> orderByDesc #createdAt
-                |> fetchOneOrNothing
+                |> fetch
 
 buildStaff :: (?request :: Request) => Bool -> Maybe (Maybe (Id AwardLevel)) -> Maybe (Maybe (Id XeroImportedPayItem)) -> Staff -> Staff
 buildStaff canManageStaffPay maybeSubmittedDefaultAwardLevelId maybeSubmittedImportedXeroPayItemId staff =
@@ -420,5 +464,5 @@ parseRosterGroupIdText value =
 
 normalizeStaffOpenSection :: Text -> Text
 normalizeStaffOpenSection section
-    | section `elem` ["profile", "preferences", "security", "leave", "rsa"] = section
+    | section `elem` ["profile", "preferences", "security", "leave"] = section
     | otherwise = ""

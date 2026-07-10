@@ -1,5 +1,6 @@
 module Web.Staff.Mutations
     ( createTrialStaffInvitationMutation
+    , resendTrialStaffInvitationMutation
     , createTrialStaffMember
     , staffCreateTouchedResources
     , staffUpdateTouchedResources
@@ -59,6 +60,23 @@ createTrialStaffInvitationMutation staff email
                     |> createRecord
                 void (enqueueVenueInvitationDeliveryJob (Just currentUser.id) invitation)
                 Right <$> invalidateTouchedResources "staff.invite_trial" (liveMutationResult invitation (trialStaffInvitationTouchedResources staff))
+
+resendTrialStaffInvitationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> VenueInvitation -> IO (Either Text (LiveMutationResult VenueInvitation))
+resendTrialStaffInvitationMutation staff invitation
+    | staff.venueId /= unpackId currentVenueId = pure (Left "Choose trial staff from the current venue.")
+    | invitation.venueId /= unpackId currentVenueId = pure (Left "Choose an invitation from the current venue.")
+    | invitation.staffId /= Just staff.id = pure (Left "Choose a pending invitation for this trial staff member.")
+    | inputValue invitation.status /= ("pending" :: Text) = pure (Left "Only pending invitations can be resent.")
+    | not (isAdoptableTrialStaff staff) = pure (Left "Only active trial staff without a linked login can be invited.")
+    | otherwise = do
+        now <- getCurrentTime
+        resentInvitation <- invitation
+            |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "queued")
+            |> set #deliveryError Nothing
+            |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
+            |> updateRecord
+        void (enqueueVenueInvitationDeliveryJob (Just currentUser.id) resentInvitation)
+        Right <$> invalidateTouchedResources "staff.resend_trial_invite" (liveMutationResult resentInvitation (trialStaffInvitationTouchedResources staff))
 
 trialStaffInvitationTouchedResources :: (?context :: ControllerContext) => Staff -> [SurfaceResourceValue]
 trialStaffInvitationTouchedResources staff =
