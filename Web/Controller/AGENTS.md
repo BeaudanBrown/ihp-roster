@@ -98,6 +98,15 @@ Every controller requires changes in **four files** (missing any will cause comp
 - If a workflow mutates migrated roster or timesheet FrontendSurface data, return actor-local semantic invalidation for the smallest affected fragment set plus overlay/toast extras, not a full page redirect or authoritative business OOB. Legacy/non-migrated workflows should still prefer the smallest updated fragment possible until migrated.
 - Only one workflow dialog should be active at a time. Utility pickers are a separate overlay lane and must not reuse the workflow dialog mount.
 
+## HTMX Mutation Response Pattern
+- Use the same decision tree for form and workflow POST/PATCH/DELETE actions:
+  1. Parse and authorize request params with total helpers before mutating.
+  2. On validation failure, return the submitted form/dialog fragment directly to its HTMX target with field errors. Do not route validation failures through live invalidation.
+  3. On success for migrated `FrontendSurface` UI, commit the data, emit touched `SurfaceResourceValue`s, return actor-local semantic invalidation through the shared helper, and append requester-only extras such as toasts or dialog clears.
+  4. Let actor and passive viewers refetch the same plain fragment GET endpoints. Do not include authoritative business OOB HTML for the invalidated fragments in a success response.
+- If a success path still returns business fragments because the UI is not yet surface-owned, call it out in the ticket as a temporary legacy seam and prefer migrating the UI to a real `FrontendSurface` before expanding the behavior.
+- Keep section-specific validation, authorization, and domain mutation logic in feature modules/controllers; shared response helpers should only own mechanical response plumbing.
+
 ## Live Fragment Pattern
 - For collaborative pages, split delivery paths:
   - migrated `FrontendSurface` actor success responses return actor-local semantic invalidation plus requester-only extras, not authoritative business HTML/OOB

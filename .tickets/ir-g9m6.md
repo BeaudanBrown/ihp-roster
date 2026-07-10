@@ -1,6 +1,6 @@
 ---
 id: ir-g9m6
-status: open
+status: closed
 deps: [ir-xua1]
 links: []
 created: 2026-07-10T05:30:27Z
