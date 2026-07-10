@@ -326,7 +326,7 @@ instance Typeable marker => ReflectOption ('HtmxIndicator marker) where reflectO
 instance Typeable marker => ReflectOption ('HtmxConfirm marker) where reflectOption = HtmxConfirmOption (protocolName @marker DomTokenName)
 instance Typeable marker => ReflectOption ('HtmxSelect marker) where reflectOption = HtmxSelectOption (protocolName @marker DomTokenName)
 instance Typeable marker => ReflectOption ('HtmxTarget marker) where reflectOption = HtmxTargetOption (protocolName @marker DomTokenName)
-instance Typeable marker => ReflectOption ('HtmxSwap marker) where reflectOption = HtmxSwapOption (protocolName @marker DomTokenName)
+instance Typeable marker => ReflectOption ('HtmxSwap marker) where reflectOption = HtmxSwapOption (reflectHtmxSwapMarker (typeMarker @marker))
 instance ReflectHtmxPushUrl value => ReflectOption ('HtmxPushUrl value) where reflectOption = HtmxPushUrlOption (reflectHtmxPushUrl @value)
 instance (Typeable marker, KnownSymbol reason) => ReflectOption ('CustomHtmx marker reason) where
     reflectOption = CustomHtmxOption (protocolName @marker DomTokenName) (cs (symbolVal (Proxy @reason)))
@@ -345,6 +345,18 @@ class ReflectHtmxPushUrl (value :: HtmxPushUrl) where
 
 instance ReflectHtmxPushUrl 'HtmxPushUrlTrue where reflectHtmxPushUrl = HtmxPushUrlTrueIR
 instance ReflectHtmxPushUrl 'HtmxPushUrlFalse where reflectHtmxPushUrl = HtmxPushUrlFalseIR
+
+reflectHtmxSwapMarker :: Text -> Text
+reflectHtmxSwapMarker = \case
+    "InnerHTML" -> "innerHTML"
+    "InnerHtml" -> "innerHTML"
+    "OuterHTML" -> "outerHTML"
+    "OuterHtml" -> "outerHTML"
+    "BeforeEnd" -> "beforeend"
+    "AfterBegin" -> "afterbegin"
+    "None" -> "none"
+    "NoneSwap" -> "none"
+    other -> error (cs ("unsupported HTMX swap marker " <> other <> "; use InnerHTML, OuterHTML, BeforeEnd, AfterBegin, or None"))
 
 requiredOption :: Text -> Text -> Text -> [Text] -> Text
 requiredOption kind marker optionName values =

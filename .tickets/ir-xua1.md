@@ -1,6 +1,6 @@
 ---
 id: ir-xua1
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-07-10T05:30:27Z

@@ -328,7 +328,7 @@ lowerOption option
         (Just "HtmxConfirm", marker : _) -> IR.HtmxConfirmOption <$> (protocol Naming.DomTokenName <$> rawMarkerName marker)
         (Just "HtmxSelect", marker : _) -> IR.HtmxSelectOption <$> (protocol Naming.DomTokenName <$> rawMarkerName marker)
         (Just "HtmxTarget", marker : _) -> IR.HtmxTargetOption <$> (protocol Naming.DomTokenName <$> rawMarkerName marker)
-        (Just "HtmxSwap", marker : _) -> IR.HtmxSwapOption <$> (protocol Naming.DomTokenName <$> rawMarkerName marker)
+        (Just "HtmxSwap", marker : _) -> IR.HtmxSwapOption <$> lowerHtmxSwap marker
         (Just "HtmxPushUrl", value : _) -> IR.HtmxPushUrlOption <$> lowerHtmxPushUrl value
         (Just "CustomHtmx", marker : reason : _) -> IR.CustomHtmxOption <$> (protocol Naming.DomTokenName <$> rawMarkerName marker) <*> rawSymbolLiteral reason
         _ -> Left ["unsupported option " <> option.rawTypePretty]
@@ -349,6 +349,20 @@ lowerHtmxPushUrl value =
         Just "HtmxPushUrlTrue" -> Right IR.HtmxPushUrlTrueIR
         Just "HtmxPushUrlFalse" -> Right IR.HtmxPushUrlFalseIR
         _ -> Left ["unsupported HTMX push-url value " <> value.rawTypePretty]
+
+lowerHtmxSwap :: RawType -> Either [String] Text
+lowerHtmxSwap marker = do
+    markerName <- rawMarkerName marker
+    case markerName of
+        "InnerHTML" -> Right "innerHTML"
+        "InnerHtml" -> Right "innerHTML"
+        "OuterHTML" -> Right "outerHTML"
+        "OuterHtml" -> Right "outerHTML"
+        "BeforeEnd" -> Right "beforeend"
+        "AfterBegin" -> Right "afterbegin"
+        "None" -> Right "none"
+        "NoneSwap" -> Right "none"
+        other -> Left ["unsupported HTMX swap marker " <> other <> "; use InnerHTML, OuterHTML, BeforeEnd, AfterBegin, or None"]
 
 lowerResource :: RawType -> Either [String] IR.ResourceIR
 lowerResource resource

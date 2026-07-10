@@ -195,7 +195,7 @@ tests = describe "FrontendSurface DSL foundation" do
                 [ TargetOption "lab-panel"
                 , HtmxMethodOption HtmxPostIR
                 , HtmxTargetOption "lab-panel-target"
-                , HtmxSwapOption "outer-html"
+                , HtmxSwapOption "outerHTML"
                 , HtmxIncludeOption "lab-panel-include"
                 , HtmxPushUrlOption HtmxPushUrlFalseIR
                 , CustomHtmxOption "lab-panel-custom-htmx" "lab fixture covers auditable custom HTMX metadata"
@@ -391,7 +391,7 @@ tests = describe "FrontendSurface DSL foundation" do
         formHtml `shouldContainText` "action=\"/RefreshFrontendSurfaceLabPanel\""
         formHtml `shouldContainText` "hx-post=\"/RefreshFrontendSurfaceLabPanel\""
         formHtml `shouldContainText` "hx-target=\"#lab-panel-target\""
-        formHtml `shouldContainText` "hx-swap=\"outer-html\""
+        formHtml `shouldContainText` "hx-swap=\"outerHTML\""
         formHtml `shouldContainText` "hx-include=\"lab-panel-include\""
         formHtml `shouldContainText` "hx-push-url=\"false\""
         formHtml `shouldContainText` "hx-vals=\"{}\""

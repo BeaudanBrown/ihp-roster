@@ -73,7 +73,7 @@ test("generated FrontendSurface registry exposes lab surface primitives", () => 
         confirm: null,
         select: null,
         target: "lab-panel-target",
-        swap: "outer-html",
+        swap: "outerHTML",
         pushUrl: false,
         custom: [{ name: "lab-panel-custom-htmx", reason: "lab fixture covers auditable custom HTMX metadata" }],
     });
