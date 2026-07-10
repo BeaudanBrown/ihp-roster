@@ -1,6 +1,6 @@
 ---
 id: ir-v1w2
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-07-10T05:32:28Z
@@ -22,3 +22,9 @@ Update Application/Schema.sql constraints for time_picker_start_minute_of_day an
 
 SchemaSpec passes. regen-types passes. typecheck passes. Migration/no-migration decision is recorded in the ticket notes.
 
+
+## Notes
+
+**2026-07-10T06:38:31Z**
+
+Verified Application/Migration/1783600000.sql already carries the deployed upgrade path for these constraints. No new migration is needed for this ticket; Schema.sql is being aligned to the existing migration semantics using parser-friendly MOD(..., 15) checks instead of IN lists or % operator. Focused Schema specs, regen-types, and typecheck pass.
