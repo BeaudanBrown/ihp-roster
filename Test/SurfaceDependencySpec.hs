@@ -169,6 +169,7 @@ tests = do
                     , "roster-wage-rail"
                     , "roster-slots-grid"
                     , "roster-staff-panel-fragment"
+                    , "roster-staff-self-service-leave-form-fragment"
                     , "roster-day-section-" <> tshow rosterDayId
                     , "roster-row-" <> tshow rosterDayId <> "-2"
                     ]

@@ -12,6 +12,7 @@ module Application.Helper.FrontendContract.AppShell.Runtime
     , appShellActionByMarker
     , appShellActionByName
     , appShellActionHtmxAttrPairs
+    , appShellDialogAutoSubmitOnceAttr
     , applyAppShellActionAttrs
     , renderAppShellActionForm
     , renderAppShellActionHtmxControl
@@ -51,6 +52,9 @@ data AppShellActionRoute = AppShellActionRoute
     , appShellActionRouteExtraAttrs  :: ![(Text, Text)]
     }
     deriving (Eq, Show)
+
+appShellDialogAutoSubmitOnceAttr :: (Text, Text)
+appShellDialogAutoSubmitOnceAttr = ("data-bepis-dialog-auto-submit-once", "true")
 
 appShellActionByMarker :: forall marker. Typeable marker => AppShellActionIR
 appShellActionByMarker = appShellActionByName (deriveFrontendSurfaceTypeName @marker ActionName)
