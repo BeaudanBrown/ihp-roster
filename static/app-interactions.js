@@ -1,7 +1,7 @@
 "use strict";
 (() => {
   // frontend/ts/generated/contracts.ts
-  var FrontendSurfaceInteractionDom = { sourceRef: "data-bepis-source-ref", sourceKey: "data-bepis-source-key", dropzoneRef: "data-bepis-dropzone-ref", dropzoneKey: "data-bepis-dropzone-key", activationRef: "data-bepis-activation-ref" };
+  var FrontendSurfaceInteractionDom = { sourceRef: "data-bepis-source-ref", sourceKey: "data-bepis-source-key", dropzoneRef: "data-bepis-dropzone-ref", dropzoneKey: "data-bepis-dropzone-key", activationRef: "data-bepis-activation-ref", activeSourceRef: "data-bepis-active-source-ref" };
   function isFrontendSurfaceInteractionSurfaceName(value) {
     return typeof value === "string" && ["roster", "roster-day-timeline"].includes(value);
   }
@@ -361,7 +361,7 @@
   var disposableLayerSelector = `[${attrs4.disposableLayer}]`;
   var pointerFields = InteractionDom.pointerFields;
   var defaultThresholdPx = 4;
-  var activeSourceRefAttribute = "data-bepis-active-source-ref";
+  var activeSourceRefAttribute = FrontendSurfaceInteractionDom.activeSourceRef;
   var noOpEffectRunner = {
     activate: () => void 0,
     update: () => void 0,

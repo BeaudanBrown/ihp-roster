@@ -1,6 +1,7 @@
 "use strict";
 (() => {
   // frontend/ts/generated/contracts.ts
+  var FrontendContractAppShellDom = { dialogAutoSubmitOnce: "data-bepis-dialog-auto-submit-once" };
   var pageReadyEvent = "bepis:page-ready";
   var dialogOverlayMountDomId = "dialog-overlay-mount";
 
@@ -61,7 +62,7 @@
       syncDialogState();
     }
     function submitAutoFormsOnce(container) {
-      container.querySelectorAll('form[data-bepis-dialog-auto-submit-once="true"]').forEach(function(form) {
+      container.querySelectorAll(`form[${FrontendContractAppShellDom.dialogAutoSubmitOnce}="true"]`).forEach(function(form) {
         if (!(form instanceof HTMLFormElement)) return;
         if (form.dataset.bepisDialogAutoSubmitted === "true") return;
         form.dataset.bepisDialogAutoSubmitted = "true";
