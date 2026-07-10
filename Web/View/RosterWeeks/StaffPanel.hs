@@ -9,8 +9,7 @@ import Application.Helper.FrontendContract.AppShell (OpenRosterStaffCreateDialog
                                                      OpenRosterStaffEditDialog)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
-                                                             applyAppShellActionAttrs,
-                                                             renderAppShellActionHtmxControl)
+                                                             applyAppShellActionAttrs)
 import Application.Helper.FrontendContract.RosterValues (RosterStaffSortKey (..),
                                                          rosterStaffSortKeyAttribute)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
