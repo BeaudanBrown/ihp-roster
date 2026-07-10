@@ -305,6 +305,9 @@ renderRosterStaffPanelEntryRow weekOffset currentRosterGroupId staffDisplayLabel
         applyAppShellActionAttrs
             (appShellActionByMarker @OpenRosterStaffEditDialog)
             (rosterStaffOverlayRoute (appendQueryParams (pathTo (EditStaffAction entry.staff.id)) [("weekOffset", tshow weekOffset), ("rosterGroupId", tshow currentRosterGroupId)]))
+                { appShellActionRouteExtraAttrs =
+                    [("hx-trigger", "click[!event.target.closest('[data-roster-staff-row-action-ignore=\"true\"]')]")]
+                }
             [hsx|
                 <tr class="roster-staff-panel-entry"
                     data-roster-staff-id={tshow entry.staff.id}
@@ -339,7 +342,8 @@ renderRosterStaffPanelEntryCell _ _ staffDisplayLabel _ _ RosterStaffActionColum
                 class="btn btn-sm btn-outline-secondary app-icon-button roster-staff-locate-button"
                 data-roster-staff-highlight-toggle="true"
                 aria-label={"Locate shifts for " <> staffDisplayLabel}
-                aria-pressed="false">
+                aria-pressed="false"
+                data-roster-staff-row-action-ignore="true">
             <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16">
                 <path d="M12 5.25c-4.55 0-8.2 3.95-9.55 6.15a1.15 1.15 0 0 0 0 1.2c1.35 2.2 5 6.15 9.55 6.15s8.2-3.95 9.55-6.15a1.15 1.15 0 0 0 0-1.2c-1.35-2.2-5-6.15-9.55-6.15Zm0 11a4.25 4.25 0 1 1 0-8.5 4.25 4.25 0 0 1 0 8.5Zm0-1.75a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" fill="currentColor"></path>
             </svg>
@@ -359,6 +363,7 @@ renderTrialStaffInviteButton weekOffset currentRosterGroupId staffDisplayLabel e
                     , ("type", "button")
                     , ("title", "Invite " <> staffDisplayLabel)
                     , ("aria-label", "Invite " <> staffDisplayLabel)
+                    , ("data-roster-staff-row-action-ignore", "true")
                     , ("hx-trigger", "click consume")
                     , ("onclick", "event.stopPropagation()")
                     ]
