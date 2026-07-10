@@ -209,6 +209,13 @@ export function enableRosterStaffShiftHighlight(): void {
         deactivateRosterStaff(row);
     });
 
+    document.addEventListener("pointerdown", (event) => {
+        if (!(event.target instanceof Element)) return;
+        if (!event.target.closest('[data-roster-staff-row-action-ignore="true"]')) return;
+
+        event.stopImmediatePropagation();
+    }, true);
+
     document.addEventListener("click", (event) => {
         if (!(event.target instanceof Element)) return;
 

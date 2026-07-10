@@ -359,6 +359,7 @@ renderRosterStaffEditLauncher weekOffset currentRosterGroupId staffDisplayLabel 
                 [ ("role", "button")
                 , ("tabindex", "0")
                 , ("title", "Edit " <> staffDisplayLabel)
+                , ("data-roster-staff-row-action-ignore", "true")
                 ]
             }
         body
