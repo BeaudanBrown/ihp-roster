@@ -64,18 +64,18 @@ renderRosterTimePickerWindowForm venueConfig =
             <p class="small app-muted mb-0">Controls the selectable roster and timesheet shift times. Existing saved times outside this window remain allowed.</p>
         </div>
         <div class="admin-setting-row-control admin-setting-row-control-wide">
-            <div class="d-flex flex-wrap gap-2 align-items-end justify-content-end">
-                <div>
+            <div class="row g-2 align-items-end justify-content-end">
+                <div class="col-6 col-sm-auto">
                     <label class="form-label small mb-1" for="venue-time-picker-start">Start</label>
                     {renderTimePickerField (defaultTimePickerConfig "timePickerStart" (venueTimePickerStartTimeText venueConfig) "00:00" "23:45" False)
-                        { timePickerFieldClasses = ["admin-time-picker-field"]
+                        { timePickerFieldClasses = ["admin-time-picker-field", "w-100"]
                         , timePickerAriaLabel = "Select valid shift window start"
                         }}
                 </div>
-                <div>
+                <div class="col-6 col-sm-auto">
                     <label class="form-label small mb-1" for="venue-time-picker-end">End</label>
                     {renderTimePickerField (defaultTimePickerConfig "timePickerEnd" (venueTimePickerFinalSelectableTimeText venueConfig) "00:00" "23:45" False)
-                        { timePickerFieldClasses = ["admin-time-picker-field"]
+                        { timePickerFieldClasses = ["admin-time-picker-field", "w-100"]
                         , timePickerAriaLabel = "Select valid shift window end"
                         }}
                 </div>

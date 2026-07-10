@@ -130,18 +130,20 @@ renderRosterWeekControls weekOffset currentRosterGroup weekStartDate (RosterDayT
         nextUrl = rosterDayTimelineUrl nextWeekOffset currentRosterGroup.id nextDayOffset
 
 renderRosterGroupSwitcher :: Int -> [RosterGroup] -> RosterGroup -> Html
-renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup = [hsx|
-    <form class="d-flex align-items-center gap-2 mb-0" method="GET" action={pathTo (ShowRosterWeekAction weekOffset)}>
-        <label class="visually-hidden" for="roster-group-switch">Roster group</label>
-        <input type="hidden" name="weekOffset" value={tshow weekOffset}/>
-        <select id="roster-group-switch"
-                class="form-select form-select-sm"
-                name="rosterGroupId"
-                onchange="this.form.submit()">
-            {forEach rosterGroups (renderRosterGroupSwitchOption currentRosterGroup.id)}
-        </select>
-    </form>
-|]
+renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup
+    | length rosterGroups <= 1 = mempty
+    | otherwise = [hsx|
+        <form class="d-flex align-items-center gap-2 mb-0" method="GET" action={pathTo (ShowRosterWeekAction weekOffset)}>
+            <label class="visually-hidden" for="roster-group-switch">Roster group</label>
+            <input type="hidden" name="weekOffset" value={tshow weekOffset}/>
+            <select id="roster-group-switch"
+                    class="form-select form-select-sm"
+                    name="rosterGroupId"
+                    onchange="this.form.submit()">
+                {forEach rosterGroups (renderRosterGroupSwitchOption currentRosterGroup.id)}
+            </select>
+        </form>
+    |]
 
 renderRosterGroupSwitchOption :: Id RosterGroup -> RosterGroup -> Html
 renderRosterGroupSwitchOption selectedRosterGroupId rosterGroup = [hsx|

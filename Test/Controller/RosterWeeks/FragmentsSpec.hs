@@ -296,6 +296,8 @@ tests = beforeAll testContext do
                 staffUser <- createUserRecord "roster-cross-group-preference@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
                 _ <- createVenueMembershipRecord venue staffUser "worker"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- createShiftTypeRecord venue payLevel "Ordinary"
                 frontOfHouse <- createVenueRosterGroupWithDefaults venue "Front of House" 1 True
                 frontSlotName <- fetchSlotNameRecordForRosterGroup frontOfHouse "Early"
                 staffMember <- createStaffRecord venue (Just staffUser) "CrossGroup" "Preference"
@@ -347,6 +349,8 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-default-picker@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- createShiftTypeRecord venue payLevel "Ordinary"
                 slotName <- fetchSlotNameRecord venue "Early"
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 mondayRosterDay <- createRosterDayRecord rosterWeek 0
@@ -376,6 +380,8 @@ tests = beforeAll testContext do
                 _ <- createVenueMembershipRecord venue pendingUser "worker"
                 _ <- createVenueMembershipRecord venue endedUser "worker"
                 _ <- createVenueMembershipRecord venue futureUser "worker"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- createShiftTypeRecord venue payLevel "Ordinary"
                 slotName <- fetchSlotNameRecord venue "Early"
                 overlappingStaff <- createStaffRecord venue (Just overlapUser) "Approved" "Overlap"
                 pendingStaff <- createStaffRecord venue (Just pendingUser) "Pending" "Leave"
@@ -584,7 +590,7 @@ tests = beforeAll testContext do
             css `shouldContain` "opacity: 0;"
             css `shouldContain` ".roster-grid .roster-shift-create-plus-cell:hover .slot-cell-static"
             css `shouldContain` ".roster-grid .roster-shift-create-staff-dropzone"
-            css `shouldContain` "display: contents;"
+            css `shouldContain` "grid-column: 1 / -1;"
             css `shouldContain` ".roster-grid .roster-shift-create-unit:has(.roster-shift-create-staff-dropzone.bepis-dropzone-highlight)"
             dayActionsCss `shouldContain` ".roster-grid-frame[data-roster-column-editing=\"true\"] .roster-day-action-add"
             dayActionsCss `shouldContain` ".roster-day-rail-section .roster-day-action-add,"

@@ -642,8 +642,12 @@ instance Controller RosterWeeksController where
         ensureManagerRole
         ensureVenueWritable
         (rosterDay, rosterWeek, slotDefinition) <- fetchRosterSlotCreateContext rosterDayId rosterWeekSlotDefinitionId rowIndex
-        venueConfig <- fetchVenueConfig
-        renderRosterShiftDialogForCreate rosterDay rosterWeek slotDefinition rowIndex (defaultRosterShiftDialogValuesForVenue venueConfig)
+        shiftTypes <- fetchCurrentVenueRosterShiftTypesForDialog
+        if null shiftTypes
+            then respondWithRosterToast "Create at least one shift type in Admin > Shift Types before adding roster shifts." "app-toast-error"
+            else do
+                venueConfig <- fetchVenueConfig
+                renderRosterShiftDialogForCreate rosterDay rosterWeek slotDefinition rowIndex (defaultRosterShiftDialogValuesForVenue venueConfig)
 
     action currentAction@EditRosterSlotDialogAction { rosterSlotId } = runBepis currentAction BepisDialogAction do
         ensureManagerRole

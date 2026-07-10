@@ -301,11 +301,16 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "hx-post=\"/CopyRosterWeek"
                 response `responseBodyShouldNotContain` "Sort shifts"
 
-        it "roster group switcher preserves weekOffset in the submitted form" $ withContext do
+        it "roster group switcher preserves weekOffset in the submitted form for multi-group venues" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-group-switcher@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- newRecord @RosterGroup
+                    |> set #venueId (unpackId venue.id)
+                    |> set #name ("Second group" :: Text)
+                    |> set #sortOrder 2
+                    |> createRecord
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekAction 3)
