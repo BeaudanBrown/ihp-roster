@@ -301,44 +301,45 @@ renderRosterStaffPanelEntry panelStaffMembers weekOffset currentRosterGroupId en
 
 renderRosterStaffPanelEntryRow :: Int -> Id RosterGroup -> Text -> Text -> RosterStaffPanelEntry -> Html
 renderRosterStaffPanelEntryRow weekOffset currentRosterGroupId staffDisplayLabel staffRoleLabel entry =
-    SurfaceInteraction.withFrontendSurfaceSourceRef rosterStaffDragSourceRef ("staff:" <> tshow entry.staff.id) [hsx|
-        <tr class="roster-staff-panel-entry"
-            data-roster-staff-id={tshow entry.staff.id}
-            data-roster-staff-name={staffDisplayLabel}
-            data-roster-staff-role={staffRoleLabel}
-            data-roster-staff-assigned={tshow entry.assignedShiftCount}
-            data-roster-staff-ideal={tshow entry.staff.idealShiftsPerWeek}>
-            {forEach rosterStaffPanelColumns (renderRosterStaffPanelEntryCell weekOffset currentRosterGroupId staffDisplayLabel staffRoleLabel entry)}
-        </tr>
-    |]
+    SurfaceInteraction.withFrontendSurfaceSourceRef rosterStaffDragSourceRef ("staff:" <> tshow entry.staff.id) $
+        applyAppShellActionAttrs
+            (appShellActionByMarker @OpenRosterStaffEditDialog)
+            (rosterStaffOverlayRoute (appendQueryParams (pathTo (EditStaffAction entry.staff.id)) [("weekOffset", tshow weekOffset), ("rosterGroupId", tshow currentRosterGroupId)]))
+            [hsx|
+                <tr class="roster-staff-panel-entry"
+                    data-roster-staff-id={tshow entry.staff.id}
+                    data-roster-staff-name={staffDisplayLabel}
+                    data-roster-staff-role={staffRoleLabel}
+                    data-roster-staff-assigned={tshow entry.assignedShiftCount}
+                    data-roster-staff-ideal={tshow entry.staff.idealShiftsPerWeek}
+                    role="button"
+                    tabindex="0">
+                    {forEach rosterStaffPanelColumns (renderRosterStaffPanelEntryCell staffDisplayLabel staffRoleLabel entry)}
+                </tr>
+            |]
 
-renderRosterStaffPanelEntryCell :: Int -> Id RosterGroup -> Text -> Text -> RosterStaffPanelEntry -> RosterStaffPanelColumn -> Html
-renderRosterStaffPanelEntryCell weekOffset currentRosterGroupId staffDisplayLabel _ entry RosterStaffNameColumn = [hsx|
+renderRosterStaffPanelEntryCell :: Text -> Text -> RosterStaffPanelEntry -> RosterStaffPanelColumn -> Html
+renderRosterStaffPanelEntryCell staffDisplayLabel _ entry RosterStaffNameColumn = [hsx|
     <th scope="row" class="roster-staff-cell roster-staff-name">
         <div class="roster-staff-name-primary d-inline-flex align-items-center gap-2">
-            {renderRosterStaffEditTextLauncher weekOffset currentRosterGroupId staffDisplayLabel entry.staff.id staffDisplayLabel}
-            {renderTrialStaffInviteButton weekOffset currentRosterGroupId staffDisplayLabel entry}
+            <span>{staffDisplayLabel}</span>
+            {renderTrialStaffInviteButton staffDisplayLabel entry}
         </div>
     </th>
 |]
-renderRosterStaffPanelEntryCell weekOffset currentRosterGroupId staffDisplayLabel staffRoleLabel entry RosterStaffRoleColumn = [hsx|
-    <td class="roster-staff-cell roster-staff-role">
-        {renderRosterStaffEditTextLauncher weekOffset currentRosterGroupId staffDisplayLabel entry.staff.id staffRoleLabel}
-    </td>
+renderRosterStaffPanelEntryCell _ staffRoleLabel _ RosterStaffRoleColumn = [hsx|
+    <td class="roster-staff-cell roster-staff-role">{staffRoleLabel}</td>
 |]
-renderRosterStaffPanelEntryCell weekOffset currentRosterGroupId staffDisplayLabel _ entry RosterStaffShiftsColumn = [hsx|
-    <td class="roster-staff-cell roster-staff-shifts">
-        {renderRosterStaffEditLauncher weekOffset currentRosterGroupId staffDisplayLabel entry.staff.id (renderShiftSummary entry)}
-    </td>
+renderRosterStaffPanelEntryCell _ _ entry RosterStaffShiftsColumn = [hsx|
+    <td class="roster-staff-cell roster-staff-shifts">{renderShiftSummary entry}</td>
 |]
-renderRosterStaffPanelEntryCell _ _ staffDisplayLabel _ _ RosterStaffActionColumn = [hsx|
+renderRosterStaffPanelEntryCell staffDisplayLabel _ _ RosterStaffActionColumn = [hsx|
     <td class="roster-staff-cell roster-staff-action">
         <button type="button"
                 class="btn btn-sm btn-outline-secondary app-icon-button roster-staff-locate-button"
                 data-roster-staff-highlight-toggle="true"
                 aria-label={"Locate shifts for " <> staffDisplayLabel}
-                aria-pressed="false"
-                data-roster-staff-row-action-ignore="true">
+                aria-pressed="false">
             <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16">
                 <path d="M12 5.25c-4.55 0-8.2 3.95-9.55 6.15a1.15 1.15 0 0 0 0 1.2c1.35 2.2 5 6.15 9.55 6.15s8.2-3.95 9.55-6.15a1.15 1.15 0 0 0 0-1.2c-1.35-2.2-5-6.15-9.55-6.15Zm0 11a4.25 4.25 0 1 1 0-8.5 4.25 4.25 0 0 1 0 8.5Zm0-1.75a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z" fill="currentColor"></path>
             </svg>
@@ -346,47 +347,8 @@ renderRosterStaffPanelEntryCell _ _ staffDisplayLabel _ _ RosterStaffActionColum
     </td>
 |]
 
-renderRosterStaffEditTextLauncher :: Int -> Id RosterGroup -> Text -> Id Staff -> Text -> Html
-renderRosterStaffEditTextLauncher weekOffset currentRosterGroupId staffDisplayLabel staffId body =
-    renderRosterStaffEditLauncher weekOffset currentRosterGroupId staffDisplayLabel staffId [hsx|<span>{body}</span>|]
-
-renderRosterStaffEditLauncher :: Int -> Id RosterGroup -> Text -> Id Staff -> Html -> Html
-renderRosterStaffEditLauncher weekOffset currentRosterGroupId staffDisplayLabel staffId body =
-    applyAppShellActionAttrs
-        (appShellActionByMarker @OpenRosterStaffEditDialog)
-        (rosterStaffOverlayRoute (appendQueryParams (pathTo (EditStaffAction staffId)) [("weekOffset", tshow weekOffset), ("rosterGroupId", tshow currentRosterGroupId)]))
-            { appShellActionRouteExtraAttrs =
-                [ ("role", "button")
-                , ("tabindex", "0")
-                , ("title", "Edit " <> staffDisplayLabel)
-                , ("data-roster-staff-row-action-ignore", "true")
-                ]
-            }
-        body
-
-renderTrialStaffInviteButton :: Int -> Id RosterGroup -> Text -> RosterStaffPanelEntry -> Html
-renderTrialStaffInviteButton weekOffset currentRosterGroupId staffDisplayLabel entry
-    | not (isAdoptableTrialStaff entry.staff) = mempty
-    | otherwise =
-        applyAppShellActionAttrs
-            (appShellActionByMarker @OpenRosterStaffCreateDialog)
-            (rosterStaffOverlayRoute (appendQueryParams (pathTo (NewTrialStaffInvitationAction entry.staff.id)) [("weekOffset", tshow weekOffset), ("rosterGroupId", tshow currentRosterGroupId)]))
-                { appShellActionRouteExtraAttrs =
-                    [ ("class", "btn btn-outline-secondary app-settings-menu-button roster-staff-invite-button")
-                    , ("type", "button")
-                    , ("title", "Invite " <> staffDisplayLabel)
-                    , ("aria-label", "Invite " <> staffDisplayLabel)
-                    , ("data-roster-staff-row-action-ignore", "true")
-                    , ("hx-trigger", "click consume")
-                    , ("onclick", "event.stopPropagation()")
-                    ]
-                }
-            [hsx|
-                <button>
-                    <i class="bi bi-envelope" aria-hidden="true"></i>
-                    <span class="visually-hidden">Invite {staffDisplayLabel}</span>
-                </button>
-            |]
+renderTrialStaffInviteButton :: Text -> RosterStaffPanelEntry -> Html
+renderTrialStaffInviteButton _ _ = mempty
 
 humanizeStaffRole :: Text -> Text
 humanizeStaffRole "venue_admin" = "Venue Admin"

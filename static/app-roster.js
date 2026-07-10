@@ -609,11 +609,6 @@
       if (!row || movedWithinRow(event, row)) return;
       deactivateRosterStaff(row);
     });
-    document.addEventListener("pointerdown", (event) => {
-      if (!(event.target instanceof Element)) return;
-      if (!event.target.closest('[data-roster-staff-row-action-ignore="true"]')) return;
-      event.stopImmediatePropagation();
-    }, true);
     document.addEventListener("click", (event) => {
       if (!(event.target instanceof Element)) return;
       const toggleButton = event.target.closest('[data-roster-staff-highlight-toggle="true"]');

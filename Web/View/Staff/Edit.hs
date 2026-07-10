@@ -314,9 +314,76 @@ renderStaffDetailsForm formMode staff maybeLinkedUserEmail pendingTrialStaffInvi
         maybeLinkedUserEmail
 
 renderStaffEditPersonalProfileFields :: OverlayFormMode -> Maybe VenueInvitation -> Staff -> Maybe Text -> Html
-renderStaffEditPersonalProfileFields _ _ staff maybeLinkedUserEmail
-    | isNothing staff.userId = renderPersonalProfileFieldsWithEmailSlot mempty staff
+renderStaffEditPersonalProfileFields formMode pendingTrialStaffInvitation staff maybeLinkedUserEmail
+    | isNothing staff.userId = renderPersonalProfileFieldsWithEmailSlot (renderTrialStaffEmailField formMode staff pendingTrialStaffInvitation) staff
     | otherwise = renderPersonalProfileFields staff maybeLinkedUserEmail
+
+renderTrialStaffEmailField :: OverlayFormMode -> Staff -> Maybe VenueInvitation -> Html
+renderTrialStaffEmailField _ _ (Just invitation) = [hsx|
+    <div class="col-12 col-lg-6">
+        <label for="pendingInvitationEmail" class="form-label">Email</label>
+        <div class="form-control d-flex align-items-center justify-content-between gap-2" id="pendingInvitationEmail">
+            <span>{invitation.email}</span>
+            <span class="badge text-bg-warning">Pending invite</span>
+        </div>
+        <div class="form-text">An invitation has been sent and is waiting to be accepted.</div>
+    </div>
+|]
+renderTrialStaffEmailField HtmxOverlayForm staff Nothing = [hsx|
+    <div class="col-12 col-lg-6">
+        <label for="invitationEmail" class="form-label">Email</label>
+        <div class="input-group">
+            <input
+                id="invitationEmail"
+                name="invitationEmail"
+                type="email"
+                class="form-control"
+                placeholder="name@example.com"
+            />
+            {renderTrialStaffInviteOverlayButton staff}
+        </div>
+        <div class="form-text">Send an invite link to claim this trial staff profile.</div>
+    </div>
+|]
+renderTrialStaffEmailField PageOverlayForm staff Nothing = [hsx|
+    <div class="col-12 col-lg-6">
+        <label for="invitationEmail" class="form-label">Email</label>
+        <div class="input-group">
+            <input
+                id="invitationEmail"
+                name="invitationEmail"
+                type="email"
+                class="form-control"
+                placeholder="name@example.com"
+            />
+            <button
+                type="submit"
+                class="btn btn-outline-primary"
+                formaction={CreateTrialStaffInvitationAction staff.id}
+                formmethod="POST"
+            >Invite</button>
+        </div>
+        <div class="form-text">Send an invite link to claim this trial staff profile.</div>
+    </div>
+|]
+
+renderTrialStaffInviteOverlayButton :: Staff -> Html
+renderTrialStaffInviteOverlayButton staff =
+    applyAppShellActionAttrs
+        (appShellActionByMarker @CreateTrialStaffInvitationOverlay)
+        AppShellActionRoute
+            { appShellActionRouteUrl = pathTo (CreateTrialStaffInvitationAction staff.id)
+            , appShellActionRouteFields = []
+            , appShellActionRouteCustomHtmx = []
+            , appShellActionRouteStandardUrl = Nothing
+            , appShellActionRouteExtraAttrs =
+                [ ("type", "submit")
+                , ("class", "btn btn-outline-primary")
+                , ("formaction", pathTo (CreateTrialStaffInvitationAction staff.id))
+                , ("formmethod", "POST")
+                ]
+            }
+        [hsx|<button>Invite</button>|]
 
 renderTrialStaffInvitationModalFragment :: Staff -> [VenueInvitation] -> Maybe Text -> Int -> Maybe (Id RosterGroup) -> Html
 renderTrialStaffInvitationModalFragment staff pendingInvitations maybeError weekOffset maybeRosterGroupId =
