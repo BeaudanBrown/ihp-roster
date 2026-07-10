@@ -127,7 +127,16 @@ article.roster-shift-card:not(.roster-shift-card-create) {
 }
 
 .roster-shift-card.roster-shift-launcher.bepis-dropzone-highlight {
-    box-shadow: 0 0 0 3px var(--bs-success), 0 0.65rem 1.25rem var(--app-shadow-md-raw);
+    border-color: var(--app-success-border);
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--app-success-soft) 34%, var(--app-surface-2)),
+        color-mix(in srgb, var(--app-success-soft) 24%, var(--app-surface))
+    ) !important;
+    box-shadow:
+        0 0 0 2px color-mix(in srgb, var(--app-success-border) 36%, transparent),
+        0 0.6rem 1.2rem var(--app-shadow-md-raw),
+        inset 0 0 0 1px var(--app-white-alpha-03);
 }
 
 .roster-shift-card.roster-shift-launcher:focus-visible {
