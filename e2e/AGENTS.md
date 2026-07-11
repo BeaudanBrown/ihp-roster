@@ -275,9 +275,10 @@ bash ./bin/in-env pwcli state-load .devenv/playwright-cli/manager-state.json
 ## Responsive Project Split
 
 - `desktop-chromium` runs the existing desktop-oriented suite
-- `mobile-chromium` and `tablet-chromium` run `e2e/mobile-experience.spec.ts`
-- `mobile-chromium` and `tablet-chromium` also run `e2e/roster-mobile.spec.ts`
-- `galaxy-s9-plus` runs the same mobile-focused specs with a 360px-wide Android profile
+- `mobile-chromium` runs every behavior in `e2e/mobile-experience.spec.ts` and `e2e/roster-mobile.spec.ts` as the canonical mobile profile
+- `galaxy-s9-plus` and `tablet-chromium` rerun the profile-sensitive layout, touch, wheel, and snapping behaviors; tests suffixed `@canonical-mobile` are device-independent checks intentionally run only on Pixel 7
+- `galaxy-s9-plus` uses a 360px-wide Android profile, while `tablet-chromium` protects the iPad Mini breakpoint
+- Add `@canonical-mobile` only when the assertion has the same browser evidence at every mobile size; never use it for overflow, breakpoint, touch, wheel, snapping, dialog-fit, or other profile-sensitive behavior
 - `e2e/roster-mobile-screenshots.spec.ts` is opt-in via `E2E_INCLUDE_SCREENSHOTS=1`; prefer `bash ./bin/in-env e2e-roster-mobile-screenshots` during roster mobile UI work
 - Keep mobile assertions focused on layout contracts and core flows, not on pixel-perfect matching
 - If a spec assumes desktop-expanded navigation or sticky sidebars, keep it in the desktop suite unless the interaction is being made explicitly cross-device

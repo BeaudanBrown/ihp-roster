@@ -476,7 +476,7 @@ test.describe('Roster mobile baseline', () => {
         await expectNoHorizontalViewportOverflow(page);
     });
 
-    test('preserves core week navigation and row controls on a narrow viewport', async ({ page }) => {
+    test('preserves core week navigation and row controls on a narrow viewport @canonical-mobile', async ({ page }) => {
         await expect(firstRosterDayAddButton(page)).toBeAttached();
         await expect(firstRosterDayRemoveButton(page)).toBeAttached();
 
@@ -491,7 +491,7 @@ test.describe('Roster mobile baseline', () => {
         await expectNoHorizontalViewportOverflow(page);
     });
 
-    test('uses compact closed-day controls without add or remove actions', async ({ page }) => {
+    test('uses compact closed-day controls without add or remove actions @canonical-mobile', async ({ page }) => {
         const firstDayRailSection = page.locator('.roster-day-rail-section').first();
         const firstSlotDaySection = page.locator('[data-roster-day-section="true"]').first();
         const closeButton = firstDayRailSection.locator('[data-roster-day-closed-toggle="true"]');

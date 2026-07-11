@@ -193,6 +193,26 @@ retries or failures in 198.480s and showed distinct shard databases with no
 mail, port, or report collisions. This single run is correctness evidence, not
 a closeout timing median.
 
+## Faster-Layer Browser Contract Moves
+
+Issue #133 moved the app-source `autofocus` scan from Playwright into the pure
+`FrontendContractsSpec`, while retaining five runtime focus checks across public,
+authenticated, swapped-dialog, and passkey surfaces. Repeated payroll CSV/ZIP
+job and content determinism moved into DB-backed `PayrollExportParitySpec`; the
+real browser generate/download workflow remains in
+`exports-payroll-downloads.spec.ts`.
+
+Pixel 7 remains the canonical mobile profile for every mobile source behavior.
+Four device-independent role/copy/control-presence behaviors now carry the
+`@canonical-mobile` title marker, while Galaxy S9+ and iPad Mini continue to run
+all 16 profile-sensitive overflow, breakpoint, dialog, touch, wheel, and
+snapping behaviors. The canonical inventory fell from 176 tests in 43 files to
+165 tests in 42 files: 113 desktop, 20 Pixel, 16 Galaxy, and 16 iPad. The pure
+replacement passed 19 examples, the DB replacement passed 7 examples, and a
+canonical E2E run passed all 165 project-tests with no retries or failures in
+195.756s. The exact mapping remains in
+[e2e-coverage-audit.md](e2e-coverage-audit.md).
+
 ## Initial Bottlenecks And Interventions
 
 1. `DevSeed` alone controls full Hspec wall time despite having only 10 examples.

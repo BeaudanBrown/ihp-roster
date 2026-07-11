@@ -63,6 +63,7 @@ export default defineConfig({
         {
             name: 'galaxy-s9-plus',
             testMatch: mobileTestFiles,
+            grepInvert: /@canonical-mobile/,
             use: {
                 browserName: 'chromium',
                 viewport: { width: 360, height: 740 },
@@ -77,6 +78,7 @@ export default defineConfig({
         {
             name: 'tablet-chromium',
             testMatch: mobileTestFiles,
+            grepInvert: /@canonical-mobile/,
             use: {
                 ...devices['iPad Mini'],
                 browserName: 'chromium',

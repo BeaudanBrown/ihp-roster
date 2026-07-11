@@ -49,6 +49,19 @@ tests = beforeAll testContext do
                 get #payConfigVersionManifest exportJob `shouldBe` Just "mixed"
                 normalizePayrollEarningsCsv (fromMaybe "" (get #fileContents exportJob)) `shouldBe` normalizeExpectedPayrollEarningsCsv expectedCsv
 
+        it "keeps repeated CSV and ZIP jobs distinct with deterministic contents" $ withContext do
+            withCleanDb do
+                fixture <- seedCanonicalPayrollFixture
+                firstCsv <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
+                secondCsv <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
+                firstZip <- generatePayrollExportJob fixture.admin fixture.venue HourlyBreakdownZip
+                secondZip <- generatePayrollExportJob fixture.admin fixture.venue HourlyBreakdownZip
+
+                firstCsv.id `shouldNotBe` secondCsv.id
+                firstCsv.fileContents `shouldBe` secondCsv.fileContents
+                firstZip.id `shouldNotBe` secondZip.id
+                firstZip.fileContents `shouldBe` secondZip.fileContents
+
         it "keeps only approved non-trial hours and buckets canonical rows into the expected days" $ withContext do
             withCleanDb do
                 fixture <- seedCanonicalPayrollFixture

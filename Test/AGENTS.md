@@ -124,7 +124,7 @@ For payroll/report export correctness, prefer a dedicated parity spec with:
 - committed expected outputs under `Test/Fixtures/exports/`
 - exact CSV/ZIP comparisons
 
-Use browser tests only to prove the exports workflow still works. Keep detailed payroll-number validation in fast controller-level specs.
+Use browser tests only to prove the exports workflow still works. Keep detailed payroll-number validation in fast controller-level specs. `PayrollExportParitySpec` also owns repeated-job CSV/ZIP determinism; do not restore a browser-only byte-comparison loop.
 
 Current product scope for payroll verification is one canonical payroll CSV for the primary/only venue staff group. If historical filtered variants such as `kitchen` remain in tests, keep them explicitly marked as regression-only rather than treating them as the active product target.
 

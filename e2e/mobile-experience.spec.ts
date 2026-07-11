@@ -121,7 +121,7 @@ test.describe('Mobile experience smoke', () => {
         await expect(page.locator('#timesheet-week-shell')).toBeVisible();
     });
 
-    test('worker mobile navigation uses profile for unavailability access and hides the unavailability header link', async ({ page }) => {
+    test('worker mobile navigation uses profile for unavailability access and hides the unavailability header link @canonical-mobile', async ({ page }) => {
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
 
         const openedDrawer = await openAuthenticatedNavIfCollapsed(page);
@@ -457,7 +457,7 @@ test.describe('Mobile experience smoke', () => {
         expect(surfaceConfig).toContain('timesheet-day-columns');
     });
 
-    test('timesheet entries use uniform mobile actions for approved and pending entries', async ({ page }) => {
+    test('timesheet entries use uniform mobile actions for approved and pending entries @canonical-mobile', async ({ page }) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Timesheets?showApproved=true', '#timesheet-week-shell');
 

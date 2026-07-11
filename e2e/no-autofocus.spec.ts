@@ -8,10 +8,6 @@ import {
 
 test.use({ baseURL: webauthnBaseURL });
 
-declare const require: (moduleName: string) => any;
-const fs = require('fs');
-const path = require('path');
-
 const controlSelector = 'input:not([type="hidden"]), select, textarea, button, a[href]';
 
 async function focusedControl(page: Page, scopeSelector = 'body') {
@@ -43,32 +39,7 @@ async function expectNoFocusedControl(page: Page, scopeSelector = 'body') {
     }).toBeNull();
 }
 
-function sourceFiles(root: string): string[] {
-    const entries = fs.readdirSync(root, { withFileTypes: true });
-    return entries.flatMap((entry: any) => {
-        const fullPath = path.join(root, entry.name);
-        if (entry.isDirectory()) {
-            if (['vendor', 'node_modules'].includes(entry.name)) return [];
-            return sourceFiles(fullPath);
-        }
-        if (!entry.isFile()) return [];
-        return [fullPath];
-    });
-}
-
 test.describe('No automatic focus', () => {
-    test('app-owned sources do not render explicit autofocus attributes', () => {
-        const offenders = ['Web', 'Application', 'static']
-            .flatMap(sourceFiles)
-            .filter((filePath) => /\.(hs|js|ts|css)$/.test(filePath))
-            .flatMap((filePath) => {
-                const contents = fs.readFileSync(filePath, 'utf8');
-                return /autofocus\s*(=|$)/im.test(contents) ? [filePath] : [];
-            });
-
-        expect(offenders).toEqual([]);
-    });
-
     test('public sign-in page does not focus a control on load', async ({ page }) => {
         await gotoWhenReady(page, '/NewSession', '#email');
         await expectNoFocusedControl(page);

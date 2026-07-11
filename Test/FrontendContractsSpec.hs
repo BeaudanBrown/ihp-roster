@@ -45,6 +45,8 @@ import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.ByteString.Lazy as LBS
+import Control.Monad (filterM)
+import Data.Char (isSpace)
 import Data.Either (isLeft, isRight)
 import qualified Data.List as List
 import qualified Data.Text as Text
@@ -74,6 +76,11 @@ tests = describe "Frontend contract generator foundation" do
         source `shouldNotSatisfy` Text.isInfixOf "export type SurfaceScope"
         source `shouldNotSatisfy` Text.isInfixOf "export const InteractionDom"
         source `shouldNotSatisfy` Text.isInfixOf "export type UiRegionTransitionProfile"
+
+    it "keeps app-owned sources free of explicit autofocus attributes" do
+        files <- concat <$> mapM (collectSourceFilesWithExtensions [".hs", ".js", ".ts", ".css"]) ["Web", "Application", "static"]
+        offenders <- filterM sourceRendersAutofocus files
+        offenders `shouldBe` []
 
     it "uses one shared HTMX metadata model for generated request primitives" do
         let genericOptions =
@@ -455,8 +462,21 @@ replaceJsonField name value = \case
     Aeson.Object object -> Aeson.Object (KeyMap.insert (AesonKey.fromText name) value object)
     other               -> other
 
+sourceRendersAutofocus :: FilePath -> IO Bool
+sourceRendersAutofocus path = do
+    source <- Text.readFile path
+    pure (any rendersAutofocus (Text.lines source))
+    where
+        rendersAutofocus line =
+            let normalized = Text.toLower (Text.filter (not . isSpace) line)
+             in "autofocus=" `Text.isInfixOf` normalized
+                || "autofocus" `Text.isSuffixOf` normalized
+
 collectSourceFiles :: FilePath -> IO [FilePath]
-collectSourceFiles root = do
+collectSourceFiles = collectSourceFilesWithExtensions [".hs", ".ts"]
+
+collectSourceFilesWithExtensions :: [String] -> FilePath -> IO [FilePath]
+collectSourceFilesWithExtensions extensions root = do
     exists <- doesDirectoryExist root
     if not exists
         then pure []
@@ -469,4 +489,4 @@ collectSourceFiles root = do
                 isDirectory <- doesDirectoryExist child
                 if isDirectory
                     then go child
-                    else pure [child | takeExtension child `elem` [".hs", ".ts"]]
+                    else pure [child | takeExtension child `elem` extensions]
