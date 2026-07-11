@@ -10,6 +10,17 @@ BASE_E2E_DATABASE_NAME="${TEST_DATABASE_NAME:-app_e2e}"
 export E2E_RUN_ID="${E2E_RUN_ID:-$(date +%s)-$$-$RANDOM}"
 export IHP_ROSTER_E2E=1
 export E2E_TEST_TOKEN="${E2E_TEST_TOKEN:-e2e-$E2E_RUN_ID-$RANDOM}"
+E2E_SHARDS_MAX="${E2E_SHARDS_MAX:-8}"
+case "$E2E_SHARDS_MAX" in
+    ""|*[!0-9]*)
+        echo "E2E_SHARDS_MAX must be a positive integer, got: $E2E_SHARDS_MAX" >&2
+        exit 1
+        ;;
+esac
+if [ "$E2E_SHARDS_MAX" -lt 1 ]; then
+    echo "E2E_SHARDS_MAX must be at least 1" >&2
+    exit 1
+fi
 
 detect_e2e_shards() {
     if [ -n "${E2E_SHARDS:-}" ]; then
@@ -42,8 +53,8 @@ detect_e2e_shards() {
 
     local detected_cpu_count
     detected_cpu_count="$(ihp_roster_detect_cpu_count)"
-    if [ "$detected_cpu_count" -gt 2 ]; then
-        printf '2\n'
+    if [ "$detected_cpu_count" -gt "$E2E_SHARDS_MAX" ]; then
+        printf '%s\n' "$E2E_SHARDS_MAX"
     else
         printf '%s\n' "$detected_cpu_count"
     fi

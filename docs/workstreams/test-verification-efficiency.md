@@ -213,6 +213,28 @@ canonical E2E run passed all 165 project-tests with no retries or failures in
 195.756s. The exact mapping remains in
 [e2e-coverage-audit.md](e2e-coverage-audit.md).
 
+## E2E Concurrency Decision
+
+Issue #134 measured only isolated app/database shards with one Playwright worker
+per shard. This preserves run-specific databases, ports, logs, blob reports,
+traces, cleanup, and `TEST_KEEP_DATABASES`; focused and interactive invocations
+still default to one shard.
+
+| App/database shards | Wall time | Result |
+| ---: | ---: | --- |
+| 2 | 195.756s | 165 passed, no retries (post-#133 correctness run) |
+| 3 | 138.616s | 55/55/55 passed, no retries |
+| 4 | 106.189s | 45/43/45/32 passed, no retries |
+| 6 | 92.299s | 165 passed, no retries; visible workload imbalance |
+| 8 | 88.198s | 165 passed, no retries; 4.4% faster than six with a 48-78s shard spread |
+
+No run showed database, port, MailHog, or report collisions. Eight is therefore
+the measured default cap on the 12-core host, exposed as `E2E_SHARDS_MAX=8`
+rather than blindly equaling CPU count. `E2E_SHARDS` remains the explicit
+override. More than eight was not adopted because gains had already flattened
+from 13.1% (four to six) to 4.4% (six to eight), while each additional shard
+adds a PostgreSQL database, app server, and browser process.
+
 ## Initial Bottlenecks And Interventions
 
 1. `DevSeed` alone controls full Hspec wall time despite having only 10 examples.

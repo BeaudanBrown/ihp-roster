@@ -364,8 +364,13 @@ test.describe('Mobile experience smoke', () => {
             element.dataset.e2eScrollOwnerMarker = markerValue;
         }, marker);
         const toggleAssignmentFilter = async (label: string) => {
-            await page.getByRole('button', { name: 'Roster settings' }).click();
-            await expect(page.locator('form[data-roster-filter-form="true"]')).toBeVisible();
+            const filterForm = page.locator('form[data-roster-filter-form="true"]');
+            if (!(await filterForm.isVisible().catch(() => false))) {
+                const triggerId = await filterForm.getAttribute('data-roster-filter-menu-trigger-id');
+                if (!triggerId) throw new Error('Expected roster filter menu trigger id');
+                await page.locator(`#${triggerId}`).click();
+            }
+            await expect(filterForm).toBeVisible();
             const responsePromise = page.waitForResponse((response) => (
                 response.request().method() === 'POST'
                 && response.url().includes('/UpdateRosterAssignmentFilters')
