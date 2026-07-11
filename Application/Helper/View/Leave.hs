@@ -1,7 +1,6 @@
 module Application.Helper.View.Leave
     ( nonEmptyText
     , renderDateRangeText
-    , renderShortDate
     ) where
 
 import qualified Data.Text as Text

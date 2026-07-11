@@ -79,7 +79,6 @@ tests = describe "Mutation boundary guard" do
     it "does not keep legacy descriptive Bepis mutation APIs in runtime or architecture code" do
         sources <- mapM Text.readFile
             [ "Application/Bepis/Action.hs"
-            , "Application/Bepis/Mutation.hs"
             , "Application/Bepis/Architecture.hs"
             , "scripts/architecture/facts.mjs"
             , "scripts/architecture/gate.mjs"

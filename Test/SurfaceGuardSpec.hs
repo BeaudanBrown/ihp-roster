@@ -36,6 +36,10 @@ tests = describe "FrontendSurface strict API guard" do
         violations <- finalFrontendSurfaceCleanupViolations
         violations `shouldBe` []
 
+    it "keeps obsolete dead-leaf compatibility paths deleted" do
+        violations <- deadLeafCompatibilityViolations
+        violations `shouldBe` []
+
     it "keeps migrated actor success paths off business OOB compatibility helpers" do
         violations <- actorBusinessOobCompatibilityViolations
         violations `shouldBe` []
@@ -75,6 +79,35 @@ frontendSurfaceHiddenFieldOwnershipViolations = do
         , ["frontend/ts/generated/contracts.ts: missing roster assignment filter action field: " <> field | field <- currentAssignmentFields, not (field `Text.isInfixOf` contracts)]
         , ["Application/Helper/FrontendContract/Surface/Runtime.hs: actionRouteFields must document hidden-field ownership and IHP first-param semantics" | not ("IHP reads the first scalar" `Text.isInfixOf` runtime && "stable route/context" `Text.isInfixOf` runtime)]
         ]
+
+deadLeafCompatibilityViolations :: IO [Text]
+deadLeafCompatibilityViolations = do
+    existingFiles <- fmap catMaybes $ forM obsoleteDeadLeafFiles \path -> do
+        exists <- doesFileExist path
+        pure (if exists then Just path else Nothing)
+    layout <- Text.readFile "Web/View/Layout.hs"
+    readme <- Text.readFile "README.md"
+    staticGuide <- Text.readFile "static/AGENTS.md"
+    docDriftCheck <- Text.readFile "bin/doc-drift-check"
+    pure $
+        fmap (\path -> cs path <> ": obsolete dead-leaf compatibility file should stay deleted") existingFiles
+            <> ["Web/View/Layout.hs: obsolete /app.js compatibility script should stay deleted" | "assetPath \"/app.js\"" `Text.isInfixOf` layout]
+            <> ["README.md: obsolete static/app.js entrypoint should stay deleted" | "static/app.js" `Text.isInfixOf` readme]
+            <> ["static/AGENTS.md: obsolete app.js asset should stay deleted from the runtime list" | "  - `app.js`" `Text.isInfixOf` staticGuide]
+            <> ["bin/doc-drift-check: obsolete app.js requirement should stay deleted" | "    app.js" `Text.isInfixOf` docDriftCheck]
+
+obsoleteDeadLeafFiles :: [FilePath]
+obsoleteDeadLeafFiles =
+    [ "Application/Bepis/Mutation.hs"
+    , "Application/Bepis/Realtime.hs"
+    , "Application/Helper/FrontendContract/Validate.hs"
+    , "Application/Helper/Interaction.hs"
+    , "Application/Helper/Interaction/Types.hs"
+    , "frontend/ts/app.ts"
+    , "frontend/ts/shared/data-json.ts"
+    , "frontend/ts/tests/data-json.test.ts"
+    , "static/app.js"
+    ]
 
 sourceSlice :: Text -> Text -> Text -> Text
 sourceSlice start end source =

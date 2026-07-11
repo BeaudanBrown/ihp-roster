@@ -146,11 +146,6 @@ tests =
                 verifyStripeWebhookSignatureAt 1700000401 300 "whsec_test" validHeader rawBody
                     `shouldBe` Left "Stripe webhook timestamp is outside tolerance"
 
-            it "redacts secrets in diagnostic summaries" do
-                redactedStripeConfigSummary testConfig `shouldNotSatisfy` Text.isInfixOf "sk_test_123"
-                redactedStripeConfigSummary testConfig `shouldNotSatisfy` Text.isInfixOf "whsec_test_123"
-                redactedStripeRequestSummary (buildListPricesRequest testConfig) `shouldNotSatisfy` Text.isInfixOf "sk_test_123"
-
 testConfig :: StripeConfig
 testConfig =
     StripeConfig

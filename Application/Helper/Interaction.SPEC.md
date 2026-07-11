@@ -312,7 +312,7 @@ The standard Haskell helper output is intentionally ordinary HTML/HTMX. For a
 mount key `primary`, a helper-rendered shell includes the live-update surface
 metadata plus interaction metadata on the same owner, e.g.
 `data-bepis-surface="..."`, `data-bepis-surface-config="..."`, and
-`data-bepis-mount-key="primary"`. `renderInteractionIntentForm` renders the
+`data-bepis-mount-key="primary"`. The `FrontendSurface` runtime renders the
 server-owned `action`, `hx-post`/`hx-patch`/etc., `hx-trigger`, `hx-target`,
 `hx-swap`, optional `hx-sync`/`hx-disabled-elt`, declared field inputs marked
 with `data-bepis-intent-field`, and fixed hidden inputs marked with

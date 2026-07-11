@@ -1,14 +1,8 @@
 module Application.Helper.Profiling
-    ( RequestProfile (..)
-    , RequestProfileSpan (..)
-    , emitRequestProfileResponseHeaders
-    , initRequestProfiling
+    ( initRequestProfiling
     , isRequestProfilingEnabled
     , profileActionSpan
-    , profileActionSpanPrefixed
-    , profileActionSpanPrefixedWithDetail
     , profileActionSpanWithDetail
-    , profileCounter
     , profileHtmlComponent
     , profileRenderCounter
     , profilingMiddleware
@@ -28,7 +22,6 @@ import Data.IORef
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import qualified Data.Text.IO as TextIO
 import qualified Data.Text.Lazy.Encoding as LazyTextEncoding
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDv4
@@ -36,7 +29,7 @@ import qualified Data.Vault.Lazy as Vault
 import GHC.Clock (getMonotonicTimeNSec)
 import IHP.Controller.Context (ControllerContext, maybeFromContext, putContext)
 import IHP.Controller.Render (renderHtml, respondHtml)
-import IHP.ControllerSupport (Respond, respondAndExitWithHeaders, setHeader)
+import IHP.ControllerSupport (Respond, respondAndExitWithHeaders)
 import IHP.Prelude
 import IHP.ViewSupport (View)
 import Network.HTTP.Types (status200)
@@ -101,14 +94,6 @@ initRequestProfiling = do
 profileActionSpan :: (?context :: ControllerContext) => Text -> IO a -> IO a
 profileActionSpan name action =
     profileActionSpanWithDetail name (fmap (, Nothing) action)
-
-profileActionSpanPrefixed :: (?context :: ControllerContext) => Text -> Text -> IO a -> IO a
-profileActionSpanPrefixed prefix name =
-    profileActionSpan (prefix <> "." <> name)
-
-profileActionSpanPrefixedWithDetail :: (?context :: ControllerContext) => Text -> Text -> IO (a, Maybe Text) -> IO a
-profileActionSpanPrefixedWithDetail prefix name =
-    profileActionSpanWithDetail (prefix <> "." <> name)
 
 profileCounter :: (?context :: ControllerContext) => Text -> Int -> IO ()
 profileCounter name amount = do
@@ -196,13 +181,6 @@ respondHtmlProfiled html =
 
 isProfilingHtmxRequest :: (?context :: ControllerContext) => Bool
 isProfilingHtmxRequest = lookup "HX-Request" ?context.request.requestHeaders == Just "true"
-
-emitRequestProfileResponseHeaders :: (?context :: ControllerContext, ?request :: Request) => IO ()
-emitRequestProfileResponseHeaders = do
-    maybeProfile :: Maybe RequestProfile <- maybeFromContext
-    forEach maybeProfile \profile -> do
-        maybeHeaders <- finalizeRequestProfile ?request profile
-        forEach maybeHeaders (`forEach` setHeader)
 
 isRequestProfilingEnabled :: IO Bool
 isRequestProfilingEnabled = do
@@ -377,28 +355,3 @@ sanitizeTimingToken =
 sanitizeTimingDescription :: Text -> Text
 sanitizeTimingDescription =
     Text.filter (\char -> char /= '"' && char /= '\n' && char /= '\r')
-
-renderRequestProfileLog :: (?request :: Request) => Text -> Double -> [RequestProfileSpan] -> Text
-renderRequestProfileLog requestProfileId totalDurationMs spans =
-    Text.intercalate
-        " "
-        [ "[perf]"
-        , requestMethodText
-        , requestPathText
-        , "request_id=" <> requestProfileId
-        , "total_ms=" <> renderDuration totalDurationMs
-        , "spans=" <> renderSpanSummary spans
-        ]
-    where
-        requestMethodText = cs (Wai.requestMethod ?request)
-        requestPathText = cs (Wai.rawPathInfo ?request)
-
-renderSpanSummary :: [RequestProfileSpan] -> Text
-renderSpanSummary spans =
-    Text.intercalate "|" (map renderSpan spans)
-    where
-        renderSpan RequestProfileSpan { spanName, durationMs, detail } =
-            spanName
-                <> "="
-                <> renderDuration durationMs
-                <> maybe "" (\value -> "[" <> value <> "]") detail

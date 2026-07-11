@@ -39,7 +39,7 @@ strictStripeTransport (StrictStripeMock ref) request = do
     expectations <- IORef.readIORef ref
     case expectations of
         [] ->
-            pure (Left (StripeHttpError ("Unexpected Stripe request: " <> redactedStripeRequestSummary request)))
+            pure (Left (StripeHttpError ("Unexpected Stripe request to " <> request.stripeRequestUrl)))
         expected : rest -> do
             IORef.writeIORef ref rest
             pure case validateRequest expected request of

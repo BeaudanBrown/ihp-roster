@@ -90,12 +90,13 @@ Do not hand-edit generated app JS.
   explicitly requires it; app-owned CSS should stay split under `static/css/`
 - App JS entrypoints: generated `static/app-bootstrap.js`,
   `static/app-date-pickers.js`, `static/app-dialog-overlays.js`,
-  `static/app-horizontal-scroll.js`, `static/app-live-updates.js`,
+  `static/app-horizontal-scroll.js`, `static/app-interactions.js`,
+  `static/app-live-updates.js`,
   `static/app-passkeys.js`, `static/app-preferences.js`,
   `static/app-roster.js`, `static/app-scrollbars.js`,
   `static/app-time-picker.js`, `static/app-timesheets.js`,
-  `static/app-toasts.js`, `static/app-toggle-buttons.js`,
-  `static/app-xero.js`, and `static/app.js`
+  `static/app-toasts.js`, `static/app-toggle-buttons.js`, and
+  `static/app-xero.js`
 - Frontend contracts: Haskell-owned DTOs/enums generate TypeScript under
   `frontend/ts/generated/`; use them for backend-emitted JSON/data boundaries
   instead of duplicating broad backend or database models in browser code.

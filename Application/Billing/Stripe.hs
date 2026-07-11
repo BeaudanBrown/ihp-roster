@@ -24,8 +24,6 @@ module Application.Billing.Stripe
     , defaultPriceLookupKey
     , defaultStripeRequestBaseUrls
     , readStripeConfig
-    , redactedStripeConfigSummary
-    , redactedStripeRequestSummary
     , stripeClientErrorText
     , stripeClientWithTransport
     , stripeWebhookSignedPayload
@@ -301,32 +299,6 @@ cleanText value =
     let stripped = Text.strip value
      in if Text.null stripped then Nothing else Just stripped
 
-redactedStripeConfigSummary :: StripeConfig -> Text
-redactedStripeConfigSummary config =
-    "StripeConfig {secretKey = <redacted>, webhookSecret = <redacted>, priceLookupKey = "
-        <> tshow config.priceLookupKey
-        <> ", priceId = "
-        <> tshow config.priceId
-        <> ", appBaseUrl = "
-        <> tshow config.appBaseUrl
-        <> "}"
-
-redactedStripeRequestSummary :: StripeHttpRequest -> Text
-redactedStripeRequestSummary request =
-    "StripeHttpRequest {stripeRequestMethod = "
-        <> tshow request.stripeRequestMethod
-        <> ", stripeRequestUrl = "
-        <> tshow request.stripeRequestUrl
-        <> ", stripeRequestHeaders = "
-        <> tshow (map redactHeader request.stripeRequestHeaders)
-        <> ", stripeRequestBody = "
-        <> tshow request.stripeRequestBody
-        <> "}"
-    where
-        redactHeader (name, value)
-            | name == "Authorization" = (name, "<redacted>")
-            | otherwise = (name, value)
-
 buildListPricesRequest :: StripeConfig -> StripeHttpRequest
 buildListPricesRequest config =
     let
@@ -450,10 +422,6 @@ validateVenueMonthlyPrice price = do
     unless (recurringConfig.usageType == Just "licensed") (Left "Stripe Price usage type must be licensed")
     pure price
 
-sendStripeJsonRequest :: Aeson.FromJSON value => Text -> StripeHttpRequest -> IO (Either StripeClientError value)
-sendStripeJsonRequest label stripeRequest =
-    sendStripeJsonRequestWith sendStripeRawRequest label stripeRequest
-
 sendStripeJsonRequestWith :: Aeson.FromJSON value => (StripeHttpRequest -> IO (Either StripeClientError LByteString.ByteString)) -> Text -> StripeHttpRequest -> IO (Either StripeClientError value)
 sendStripeJsonRequestWith transport _label stripeRequest = do
     rawResult <- transport stripeRequest
@@ -496,9 +464,6 @@ decodeStripeRawResponse label response = do
     if statusCode < 200 || statusCode >= 300
         then pure (Left (StripeHttpError (label <> " failed with status " <> tshow statusCode <> responseBodySuffix bodyExcerpt)))
         else pure (Right responseBody)
-
-decodeBody :: Aeson.FromJSON value => LByteString.ByteString -> IO (Either StripeClientError value)
-decodeBody body = pure (decodeBodyPure body)
 
 decodeBodyPure :: Aeson.FromJSON value => LByteString.ByteString -> Either StripeClientError value
 decodeBodyPure body =

@@ -27,7 +27,6 @@ Read this before editing `static/` assets.
   - `app-time-picker.js`
   - `app-timesheets.js`
   - `app-toasts.js`
-  - `app.js`
 - Keep CSS split by concern under `static/css/`; read `static/css/README.md`
   before adding or moving app-owned CSS.
 - Choose the narrowest owner: semantic tokens in `static/css/tokens.css`,

@@ -39,23 +39,18 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , SurfaceImplHandlers (..)
     , frontendSurfaceFieldValues
     , frontendSurfaceFieldValuesFromPairs
-    , frontendSurfaceFragmentKey
     , frontendSurfaceFragmentKeyFromPairs
     , frontendSurfaceMountedFragment
     , getSurfaceField
-    , frontendSurfaceHtmxMethodText
-    , frontendSurfaceInteractionMountDomId
     , defaultFrontendSurfaceLazyFragmentConfig
     , customPlaceholderFrontendSurfaceLazyFragmentConfig
     , frontendSurfaceMountConfigJson
-    , frontendSurfaceMountedFragmentToWire
     , frontendSurfaceMountedFragmentsToWire
     , applyFrontendSurfaceActionAttrs
     , frontendSurfaceActionHtmxAttrPairs
     , renderFrontendSurfaceActionForm
     , renderFrontendSurfaceActionLink
     , renderFrontendSurfaceActionSubmitButton
-    , renderFrontendSurfaceActionHtmxControl
     , renderFrontendSurfaceHtmxForm
     , renderFrontendSurfaceInteractionShell
     , renderFrontendSurfaceIntentForm
@@ -490,9 +485,6 @@ data FrontendSurfaceFragmentKey = FrontendSurfaceFragmentKey
     }
     deriving (Eq, Show)
 
-frontendSurfaceFragmentKey :: Text -> Aeson.Value -> FrontendSurfaceFragmentKey
-frontendSurfaceFragmentKey = FrontendSurfaceFragmentKey
-
 frontendSurfaceFragmentKeyFromPairs :: Text -> [Aeson.Types.Pair] -> FrontendSurfaceFragmentKey
 frontendSurfaceFragmentKeyFromPairs kind params =
     FrontendSurfaceFragmentKey kind (Aeson.object params)
@@ -525,7 +517,7 @@ data FrontendSurfaceProtection
 frontendSurfaceMountedFragment :: Text -> Aeson.Value -> Text -> Text -> FrontendSurfaceProtection -> FrontendSurfaceMountedFragment
 frontendSurfaceMountedFragment kind params targetId url protection =
     FrontendSurfaceMountedFragment
-        { mountedFragmentKey = frontendSurfaceFragmentKey kind params
+        { mountedFragmentKey = FrontendSurfaceFragmentKey kind params
         , mountedFragmentTargetId = targetId
         , mountedFragmentUrl = url
         , mountedFragmentProtection = protection
@@ -810,10 +802,6 @@ renderFrontendSurfaceActionLink action route body =
             : (frontendSurfaceActionHtmxAttrs action route <> routeExtraAttrs route)
         )
 
-renderFrontendSurfaceActionHtmxControl :: SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> Blaze.Html -> Blaze.Html
-renderFrontendSurfaceActionHtmxControl action route body =
-    applyAttributes (Html5.span body) (frontendSurfaceActionHtmxAttrs action route <> routeExtraAttrs route)
-
 routeExtraAttrs :: FrontendSurfaceActionRoute -> [Blaze.Attribute]
 routeExtraAttrs route = fmap (uncurry attr) route.actionRouteExtraAttrs
 
@@ -920,9 +908,6 @@ renderHiddenField field =
 
 frontendSurfaceHtmxMethodAttr :: FrontendSurfaceHtmxMethod -> Text
 frontendSurfaceHtmxMethodAttr method = "hx-" <> frontendSurfaceHtmxMethodAttrSegment method
-
-frontendSurfaceHtmxMethodText :: FrontendSurfaceHtmxMethod -> Text
-frontendSurfaceHtmxMethodText = Text.toUpper . frontendSurfaceHtmxMethodAttrSegment
 
 mountConfigToJson :: FrontendSurfaceMountConfig -> Aeson.Value
 mountConfigToJson config =

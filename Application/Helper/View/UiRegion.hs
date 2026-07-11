@@ -1,19 +1,14 @@
 module Application.Helper.View.UiRegion
-    ( uiRegionAttrs
-    , uiRegionTransitionAttrs
+    ( uiRegionTransitionAttrs
     ) where
 
 import Application.Helper.UiRegion (UiRegionDomAttributes (..),
-                                    UiRegionTransitionProfile (..),
+                                    UiRegionTransitionProfile,
                                     canonicalUiRegionDomAttributes,
                                     uiRegionFragmentEnabledValue,
                                     uiRegionTransitionProfileText)
 import IHP.Prelude
 import qualified Text.Blaze.Html as Blaze
-
-uiRegionAttrs :: Blaze.Attribute
-uiRegionAttrs =
-    uiRegionTransitionAttrs UiRegionTransitionNone
 
 uiRegionTransitionAttrs :: UiRegionTransitionProfile -> Blaze.Attribute
 uiRegionTransitionAttrs transitionProfile =

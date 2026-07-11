@@ -53,8 +53,7 @@ for script in \
     app-timesheets.js \
     app-toasts.js \
     app-toggle-buttons.js \
-    app-xero.js \
-    app.js
+    app-xero.js
 do
     require_text Web/View/Layout.hs "assetPath \"/$script\""
 done

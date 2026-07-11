@@ -1,15 +1,6 @@
 import type { LiveUpdateMessage, SurfaceScope, SurfaceWireFragment } from "../generated/contracts";
 import type { FrontendSurfaceMountedInstance } from "./frontend-surface";
 
-export type LiveUpdateSurfaceConfig = {
-    feature?: string | null;
-    scope: SurfaceScope;
-    scopeKey: string;
-    socketPath?: string | null;
-    resyncFragments?: SurfaceWireFragment[];
-    decorateRequestsWithin?: string[];
-};
-
 export type LiveUpdateDebugDetail = Record<string, unknown>;
 
 export type LiveUpdatePerfSpan = {

@@ -776,7 +776,7 @@
     };
     if (session.sourceField && session.sourceKey) fields[session.sourceField] = session.sourceKey;
     const targetDropzone = activeDropzone(session);
-    const targetDropzoneKey = targetDropzoneKeyForSession(session, targetDropzone);
+    const targetDropzoneKey = targetDropzoneKeyForTarget(targetDropzone);
     const targetField = targetDropzoneFieldForSession(session, targetDropzone) ?? session.targetField;
     if (targetField && targetDropzoneKey) fields[targetField] = targetDropzoneKey;
     return fields;
@@ -802,7 +802,7 @@
     if (!ref) return null;
     return FrontendSurfaceRegistry[surface].interaction.dropzoneRefs.find((candidate) => candidate.ref === ref)?.targetField ?? null;
   }
-  function targetDropzoneKeyForSession(session, target) {
+  function targetDropzoneKeyForTarget(target) {
     if (!target) return null;
     return target.getAttribute(FrontendSurfaceInteractionDom.dropzoneKey);
   }

@@ -1,4 +1,4 @@
-import type { LiveUpdateCommand, LiveUpdateMessage, SurfaceWireFragment } from "./generated/contracts";
+import type { LiveUpdateCommand, LiveUpdateMessage } from "./generated/contracts";
 import { parseLiveUpdateMessage, pageReadyEvent, liveFragmentsRefreshEvent, interactionSessionEndEvent } from "./generated/contracts";
 import { enableHtmxUiRegionEventAdapter } from "./fragments/htmx-adapter";
 import { enableUiRegionTransitions } from "./fragments/transitions";
@@ -29,12 +29,10 @@ import type {
     FragmentProtectionAdapter,
     HtmxConfigRequestEvent,
     InFlightFragmentState,
-    LiveUpdateDebugDetail,
     LiveUpdateFragmentWithState,
     LiveUpdateInvalidateMessage,
     LiveUpdatePreservedField,
     LiveUpdateSubscribedMessage,
-    LiveUpdateSurfaceConfig,
     SurfaceSubscription,
 } from "./live-updates/runtime-types";
 

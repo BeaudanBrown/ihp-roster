@@ -581,7 +581,7 @@ function pointerSessionFields(session: ActivePointerSession): Record<string, str
     if (session.sourceField && session.sourceKey) fields[session.sourceField] = session.sourceKey;
 
     const targetDropzone = activeDropzone(session);
-    const targetDropzoneKey = targetDropzoneKeyForSession(session, targetDropzone);
+    const targetDropzoneKey = targetDropzoneKeyForTarget(targetDropzone);
     const targetField = targetDropzoneFieldForSession(session, targetDropzone) ?? session.targetField;
     if (targetField && targetDropzoneKey) fields[targetField] = targetDropzoneKey;
 
@@ -615,7 +615,7 @@ function targetDropzoneFieldForSession(session: ActivePointerSession, target: El
     return FrontendSurfaceRegistry[surface].interaction.dropzoneRefs.find((candidate) => candidate.ref === ref)?.targetField ?? null;
 }
 
-function targetDropzoneKeyForSession(session: ActivePointerSession, target: Element | null): string | null {
+function targetDropzoneKeyForTarget(target: Element | null): string | null {
     if (!target) return null;
     return target.getAttribute(FrontendSurfaceInteractionDom.dropzoneKey);
 }

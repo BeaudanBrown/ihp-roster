@@ -21,22 +21,15 @@ module Application.Helper.LiveUpdate
     , adminXeroTimesheetsLiveFragment
     , billingLiveScope
     , billingStatusLiveFragment
-    , frontendSurfaceSurfaceFragmentKey
     , frontendSurfaceLiveScope
     , leaveRequestsContentLiveFragment
     , leaveRequestsLiveScope
     , profileContentLiveFragment
-    , profileDetailsSectionLiveFragment
     , profileLeaveRequestsContentLiveFragment
-    , profileLeaveSectionLiveFragment
     , profileLiveScope
-    , profilePreferencesSectionLiveFragment
-    , profileRsaSectionLiveFragment
-    , profileSecuritySectionLiveFragment
     , rosterContentLiveFragment
     , rosterDayColumnsLiveFragment
     , rosterDayRailLiveFragment
-    , rosterDaySectionLiveFragment
     , rosterGridFrameLiveFragment
     , rosterGridToolbarLiveFragment
     , rosterRowLiveFragment
@@ -47,7 +40,6 @@ module Application.Helper.LiveUpdate
     , supportAwardRatesSectionLiveFragment
     , supportPlatformLiveScope
     , supportPublicHolidaysSectionLiveFragment
-    , timesheetDayColumnsLiveFragment
     , timesheetDaySectionLiveFragment
     , timesheetToolbarLiveFragment
     , timesheetWeekLiveScope
@@ -55,7 +47,6 @@ module Application.Helper.LiveUpdate
     , actorLiveFragmentsRefreshFragments
     , actorLiveFragmentsRefreshTriggerPayload
     , currentLiveUpdateVersion
-    , surfaceScopeFieldUuid
     , surfaceScopeKey
     , surfaceScopeKind
     , setActorLiveFragmentsRefresh

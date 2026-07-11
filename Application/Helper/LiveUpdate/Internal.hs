@@ -11,19 +11,13 @@ module Application.Helper.LiveUpdate.Internal
     , SurfaceSubscription (..)
     , activeSurfaceSubscriptions
     , activeSurfaceSubscriptionsWithBus
-    , activeSurfaceScopes
     , activeSurfaceScopesWithBus
-    , activeSurfaceScopeMatches
     , activeSurfaceScopeMatchesWithBus
     , activeRosterWeekScopes
     , activeRosterWeekScopesWithBus
-    , broadcastLiveInvalidation
     , broadcastLiveInvalidationDetailed
     , broadcastLiveInvalidationDetailedWithBus
     , broadcastLiveInvalidationDetailedWithoutContext
-    , broadcastLiveInvalidationWithoutContext
-    , broadcastLiveResync
-    , broadcastLiveResyncWithoutContext
     , coalesceSurfaceWireFragments
     , currentLiveUpdateVersion
     , currentLiveUpdateVersionWithBus
@@ -45,29 +39,20 @@ module Application.Helper.LiveUpdate.Internal
     , adminXeroTimesheetsLiveFragment
     , billingLiveScope
     , billingStatusLiveFragment
-    , frontendSurfaceSurfaceFragmentKey
     , frontendSurfaceLiveScope
     , leaveRequestsContentLiveFragment
     , leaveRequestsLiveScope
     , liveUpdateSourceClientId
     , surfaceScopeFromWire
-    , surfaceScopeFieldUuid
     , surfaceScopeKey
     , surfaceScopeKind
     , surfaceScopeToWire
-    , surfaceFragmentKeyKind
     , profileContentLiveFragment
-    , profileDetailsSectionLiveFragment
     , profileLeaveRequestsContentLiveFragment
-    , profileLeaveSectionLiveFragment
     , profileLiveScope
-    , profilePreferencesSectionLiveFragment
-    , profileRsaSectionLiveFragment
-    , profileSecuritySectionLiveFragment
     , rosterContentLiveFragment
     , rosterDayColumnsLiveFragment
     , rosterDayRailLiveFragment
-    , rosterDaySectionLiveFragment
     , rosterGridFrameLiveFragment
     , rosterGridToolbarLiveFragment
     , rosterRowLiveFragment
@@ -78,15 +63,12 @@ module Application.Helper.LiveUpdate.Internal
     , supportAwardRatesSectionLiveFragment
     , supportPlatformLiveScope
     , supportPublicHolidaysSectionLiveFragment
-    , timesheetDayColumnsLiveFragment
     , timesheetDaySectionLiveFragment
     , timesheetToolbarLiveFragment
     , timesheetWeekLiveScope
     , surfaceWireFragmentFromWire
     , surfaceWireFragmentFromSurface
-    , surfaceWireFragmentKind
     , surfaceWireFragmentToWire
-    , mkSurfaceWireFragment
     , newInMemoryLiveBus
     , registerSurfaceSubscription
     , registerSurfaceSubscriptionWithBus
@@ -96,8 +78,6 @@ module Application.Helper.LiveUpdate.Internal
 
 import qualified Control.Exception.Safe as Exception
 import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Key as Aeson.Key
-import qualified Data.Aeson.KeyMap as Aeson.KeyMap
 import qualified Data.Aeson.Types as Aeson
 import Data.IORef
 import qualified Data.Map.Strict as Map
@@ -125,26 +105,12 @@ data SurfaceScope = FrontendSurfaceScope
 surfaceScopeKind :: SurfaceScope -> Text
 surfaceScopeKind = (.surfaceScopeSurface)
 
-surfaceScopeFieldUuid :: Text -> SurfaceScope -> Maybe UUID.UUID
-surfaceScopeFieldUuid fieldName scope =
-    case scope.surfaceScopePayload of
-        Aeson.Object object -> do
-            Aeson.String value <- Aeson.KeyMap.lookup (Aeson.Key.fromText fieldName) object
-            UUID.fromText (Text.strip value)
-        _ -> Nothing
-
 data SurfaceFragmentKey = FrontendSurfaceSurfaceFragmentKey
     { surfaceFragmentSurface  :: !Text
     , surfaceFragmentWireKind :: !Text
     , surfaceFragmentParams   :: !Aeson.Value
     }
     deriving (Eq, Ord, Show)
-
-surfaceFragmentKeyKind :: SurfaceFragmentKey -> Text
-surfaceFragmentKeyKind = Text.replace "-" "_" . (.surfaceFragmentWireKind)
-
-surfaceWireFragmentKind :: SurfaceWireFragment -> Text
-surfaceWireFragmentKind fragment = surfaceFragmentKeyKind fragment.fragmentKey
 
 frontendSurfaceLiveScope :: Text -> Aeson.Value -> Text -> SurfaceScope
 frontendSurfaceLiveScope surfaceScopeSurface surfaceScopePayload surfaceScopeStableKey =
@@ -205,19 +171,17 @@ rosterWageRailLiveFragment = simpleSurfaceFragmentKey "roster" "roster-wage-rail
 rosterSlotsGridLiveFragment = simpleSurfaceFragmentKey "roster" "roster-slots-grid"
 rosterStaffPanelLiveFragment = simpleSurfaceFragmentKey "roster" "roster-staff-panel"
 
-rosterDaySectionLiveFragment, rosterRowLiveFragment :: UUID.UUID -> Int -> SurfaceFragmentKey
-rosterDaySectionLiveFragment dayId _ = frontendSurfaceSurfaceFragmentKey "roster" "roster-day-section" (Aeson.object ["rosterDayId" Aeson..= UUID.toText dayId])
+rosterRowLiveFragment :: UUID.UUID -> Int -> SurfaceFragmentKey
 rosterRowLiveFragment dayId row = frontendSurfaceSurfaceFragmentKey "roster" "roster-row" (Aeson.object ["rosterDayId" Aeson..= UUID.toText dayId, "rowIndex" Aeson..= row])
 
-leaveRequestsContentLiveFragment, timesheetToolbarLiveFragment, timesheetDayColumnsLiveFragment :: SurfaceFragmentKey
+leaveRequestsContentLiveFragment, timesheetToolbarLiveFragment :: SurfaceFragmentKey
 leaveRequestsContentLiveFragment = simpleSurfaceFragmentKey "leave-requests" "leave-requests-content"
 timesheetToolbarLiveFragment = simpleSurfaceFragmentKey "timesheets" "timesheet-toolbar"
-timesheetDayColumnsLiveFragment = simpleSurfaceFragmentKey "timesheets" "timesheet-day-columns"
 
 timesheetDaySectionLiveFragment :: Int -> SurfaceFragmentKey
 timesheetDaySectionLiveFragment offset = frontendSurfaceSurfaceFragmentKey "timesheets" "timesheet-day-section" (Aeson.object ["dayOffset" Aeson..= offset])
 
-adminVenueConfigLiveFragment, adminInvitesLiveFragment, adminExportsLiveFragment, adminShiftTypesLiveFragment, adminRosterGroupsLiveFragment, adminXeroShellLiveFragment, adminXeroStaffMappingsLiveFragment, adminXeroPayItemsLiveFragment, adminXeroTimesheetsLiveFragment, billingStatusLiveFragment, profileContentLiveFragment, profileDetailsSectionLiveFragment, profilePreferencesSectionLiveFragment, profileSecuritySectionLiveFragment, profileLeaveSectionLiveFragment, profileRsaSectionLiveFragment, profileLeaveRequestsContentLiveFragment, supportAwardRatesSectionLiveFragment, supportPublicHolidaysSectionLiveFragment :: SurfaceFragmentKey
+adminVenueConfigLiveFragment, adminInvitesLiveFragment, adminExportsLiveFragment, adminShiftTypesLiveFragment, adminRosterGroupsLiveFragment, adminXeroShellLiveFragment, adminXeroStaffMappingsLiveFragment, adminXeroPayItemsLiveFragment, adminXeroTimesheetsLiveFragment, billingStatusLiveFragment, profileContentLiveFragment, profileLeaveRequestsContentLiveFragment, supportAwardRatesSectionLiveFragment, supportPublicHolidaysSectionLiveFragment :: SurfaceFragmentKey
 adminVenueConfigLiveFragment = simpleSurfaceFragmentKey "admin-venue-config" "admin-venue-settings"
 adminInvitesLiveFragment = simpleSurfaceFragmentKey "admin-invites" "admin-invites"
 adminExportsLiveFragment = simpleSurfaceFragmentKey "admin-exports" "admin-exports"
@@ -228,13 +192,8 @@ adminXeroStaffMappingsLiveFragment = simpleSurfaceFragmentKey "admin-xero" "admi
 adminXeroPayItemsLiveFragment = simpleSurfaceFragmentKey "admin-xero" "admin-xero-pay-items"
 adminXeroTimesheetsLiveFragment = simpleSurfaceFragmentKey "admin-xero" "admin-xero-timesheets"
 billingStatusLiveFragment = simpleSurfaceFragmentKey "billing" "billing-status"
-profileContentLiveFragment = profileDetailsSectionLiveFragment
-profileDetailsSectionLiveFragment = simpleSurfaceFragmentKey "profile" "profile-details-section"
-profilePreferencesSectionLiveFragment = simpleSurfaceFragmentKey "profile" "profile-preferences-section"
-profileSecuritySectionLiveFragment = simpleSurfaceFragmentKey "profile" "profile-security-section"
-profileLeaveSectionLiveFragment = simpleSurfaceFragmentKey "profile" "profile-leave-section"
-profileRsaSectionLiveFragment = simpleSurfaceFragmentKey "profile" "profile-rsa-section"
-profileLeaveRequestsContentLiveFragment = profileLeaveSectionLiveFragment
+profileContentLiveFragment = simpleSurfaceFragmentKey "profile" "profile-details-section"
+profileLeaveRequestsContentLiveFragment = simpleSurfaceFragmentKey "profile" "profile-leave-section"
 supportAwardRatesSectionLiveFragment = simpleSurfaceFragmentKey "support" "support-award-rates"
 supportPublicHolidaysSectionLiveFragment = simpleSurfaceFragmentKey "support" "support-public-holidays"
 
@@ -259,16 +218,6 @@ data SurfaceWireFragment = SurfaceWireFragment
     , protectionPolicy :: !SurfaceFragmentProtection
     }
     deriving (Eq, Show)
-
-mkSurfaceWireFragment :: SurfaceFragmentKey -> Text -> Text -> SurfaceWireFragment
-mkSurfaceWireFragment fragmentKey targetId url =
-    SurfaceWireFragment
-        { fragmentKey
-        , targetId
-        , url
-        , deferUntilBlur = False
-        , protectionPolicy = NoProtection
-        }
 
 surfaceWireFragmentFromSurface :: Text -> Text -> Aeson.Value -> Text -> Text -> Bool -> SurfaceFragmentProtection -> Maybe SurfaceWireFragment
 surfaceWireFragmentFromSurface surface kind params targetId url deferUntilBlur protectionPolicy =
@@ -454,17 +403,9 @@ activeInMemorySubscriptions :: InMemoryLiveBusState -> IO [SurfaceSubscription]
 activeInMemorySubscriptions state =
     map (.activeSubscription) <$> readIORef state.inMemorySubscriptionsRef
 
-activeSurfaceScopes :: IO [SurfaceScope]
-activeSurfaceScopes =
-    activeSurfaceScopesWithBus defaultLiveBus
-
 activeSurfaceScopesWithBus :: LiveBus -> IO [SurfaceScope]
 activeSurfaceScopesWithBus bus =
     Set.toList . Set.fromList . map (.subscriptionScope) <$> activeSurfaceSubscriptionsWithBus bus
-
-activeSurfaceScopeMatches :: Ord a => (SurfaceScope -> Maybe a) -> IO [a]
-activeSurfaceScopeMatches =
-    activeSurfaceScopeMatchesWithBus defaultLiveBus
 
 activeSurfaceScopeMatchesWithBus :: Ord a => LiveBus -> (SurfaceScope -> Maybe a) -> IO [a]
 activeSurfaceScopeMatchesWithBus bus matcher =
@@ -506,10 +447,6 @@ currentInMemoryVersion :: InMemoryLiveBusState -> SurfaceScope -> IO Int
 currentInMemoryVersion state scope =
     Map.findWithDefault 0 (surfaceScopeKey scope) <$> readIORef state.inMemoryScopeVersionsRef
 
-incrementLiveUpdateVersion :: SurfaceScope -> IO Int
-incrementLiveUpdateVersion =
-    incrementLiveUpdateVersionWithBus defaultLiveBus
-
 incrementLiveUpdateVersionWithBus :: LiveBus -> SurfaceScope -> IO Int
 incrementLiveUpdateVersionWithBus =
     liveBusIncrementVersion
@@ -521,21 +458,11 @@ incrementInMemoryVersion state scope =
             nextVersion = Map.findWithDefault 0 scopeKey versions + 1
          in (Map.insert scopeKey nextVersion versions, nextVersion)
 
-broadcastLiveInvalidation :: (?context :: ControllerContext) => SurfaceScope -> Maybe Text -> [SurfaceWireFragment] -> IO ()
-broadcastLiveInvalidation scope sourceClientId fragments = do
-    _ <- broadcastLiveInvalidationDetailed scope sourceClientId fragments
-    pure ()
-
 broadcastLiveInvalidationDetailed :: (?context :: ControllerContext) => SurfaceScope -> Maybe Text -> [SurfaceWireFragment] -> IO LiveUpdateBroadcastResult
 broadcastLiveInvalidationDetailed scope sourceClientId fragments =
     profileActionSpanWithDetail "live_updates.broadcast_invalidation" do
         result <- broadcastLiveInvalidationDetailedWithoutContext scope sourceClientId fragments
         pure (result, Just (liveUpdateBroadcastDetail result))
-
-broadcastLiveInvalidationWithoutContext :: SurfaceScope -> Maybe Text -> [SurfaceWireFragment] -> IO ()
-broadcastLiveInvalidationWithoutContext scope sourceClientId fragments = do
-    _ <- broadcastLiveInvalidationDetailedWithoutContext scope sourceClientId fragments
-    pure ()
 
 broadcastLiveInvalidationDetailedWithoutContext :: SurfaceScope -> Maybe Text -> [SurfaceWireFragment] -> IO LiveUpdateBroadcastResult
 broadcastLiveInvalidationDetailedWithoutContext =
@@ -581,18 +508,6 @@ coalesceSurfaceWireFragments fragments =
 surfaceWireFragmentMergeKey :: SurfaceWireFragment -> (SurfaceFragmentKey, Text, Text)
 surfaceWireFragmentMergeKey fragment =
     (fragment.fragmentKey, fragment.targetId, fragment.url)
-
-broadcastLiveResync :: (?context :: ControllerContext) => SurfaceScope -> Maybe Text -> IO ()
-broadcastLiveResync scope sourceClientId =
-    profileActionSpanWithDetail "live_updates.broadcast_resync" do
-        result <- broadcastLiveInvalidationDetailedWithoutContext scope sourceClientId []
-        pure ((), Just (liveUpdateBroadcastDetail result))
-
-broadcastLiveResyncWithoutContext :: SurfaceScope -> Maybe Text -> IO ()
-broadcastLiveResyncWithoutContext scope sourceClientId =
-    -- The declarative client treats an invalidation with no explicit fragments as
-    -- "resync every fragment configured for this subscribed surface".
-    broadcastLiveInvalidationWithoutContext scope sourceClientId []
 
 liveUpdateBroadcastDetail :: LiveUpdateBroadcastResult -> Text
 liveUpdateBroadcastDetail result =

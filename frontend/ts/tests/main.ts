@@ -1,4 +1,3 @@
-import "./data-json.test";
 import "./frontend-surface-contracts.test";
 import "./interaction-contracts.test";
 import "./interaction-runtime.test";

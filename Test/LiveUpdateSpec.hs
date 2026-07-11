@@ -331,9 +331,7 @@ tests = describe "LiveUpdate runtime types" do
         encodedSubscribed `shouldSatisfy` Text.isInfixOf "\"scopeKey\":\"roster:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333:0\""
         encodedInvalidated `shouldSatisfy` Text.isInfixOf "\"scopeKey\":\"roster:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333:0\""
 
-    it "exposes active live scopes without leaking websocket subscription internals" do
-        activeSurfaceScopes `shouldReturn` []
-        activeSurfaceScopeMatches supportScopeLabel `shouldReturn` []
+    it "exposes active roster scopes without leaking websocket subscription internals" do
         activeRosterWeekScopes `shouldReturn` []
 
     it "exercises isolated in-memory live buses without global state leakage" do
@@ -459,7 +457,11 @@ tests = describe "LiveUpdate runtime types" do
 
 leavePendingCountLiveFragment :: SurfaceFragmentKey
 leavePendingCountLiveFragment =
-    frontendSurfaceSurfaceFragmentKey "leave-requests" "leave-section-count" (Aeson.object ["leaveSection" Aeson..= ("pending" :: Text)])
+    FrontendSurfaceSurfaceFragmentKey
+        { surfaceFragmentSurface = "leave-requests"
+        , surfaceFragmentWireKind = "leave-section-count"
+        , surfaceFragmentParams = Aeson.object ["leaveSection" Aeson..= ("pending" :: Text)]
+        }
 
 supportAwardRatesSectionFragmentRef :: SurfaceWireFragment
 supportAwardRatesSectionFragmentRef =
