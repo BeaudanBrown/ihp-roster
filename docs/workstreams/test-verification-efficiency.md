@@ -10,7 +10,7 @@ GitHub issues:
 - [#127](https://github.com/BeaudanBrown/ihp-roster/issues/127) - Hspec execution lanes
 - [#128](https://github.com/BeaudanBrown/ihp-roster/issues/128) and [#129](https://github.com/BeaudanBrown/ihp-roster/issues/129) - database-isolation prototype and implementation
 - [#130](https://github.com/BeaudanBrown/ihp-roster/issues/130) - GHC compilation reuse
-- [#131](https://github.com/BeaudanBrown/ihp-roster/issues/131), [#132](https://github.com/BeaudanBrown/ihp-roster/issues/132), [#133](https://github.com/BeaudanBrown/ihp-roster/issues/133), and [#134](https://github.com/BeaudanBrown/ihp-roster/issues/134) - E2E audit, isolation, layering, and concurrency
+- [#131](https://github.com/BeaudanBrown/ihp-roster/issues/131), [#132](https://github.com/BeaudanBrown/ihp-roster/issues/132), [#133](https://github.com/BeaudanBrown/ihp-roster/issues/133), and [#134](https://github.com/BeaudanBrown/ihp-roster/issues/134) - E2E audit, isolation, layering, and concurrency; the complete behavior classification is in [e2e-coverage-audit.md](e2e-coverage-audit.md)
 - [#135](https://github.com/BeaudanBrown/ihp-roster/issues/135) - tooling, CI, documentation, and closeout
 
 Living docs to update:
