@@ -96,7 +96,7 @@ Useful patterns:
 
 - `tests = beforeAll testContext do ...`
 - `withContext do withCleanDb do ...` to reset the DB between examples
-- `createVenueWithConfig`, `createUserRecord`, `createUserRecordWithPlatformRole`, `createVenueMembershipRecord`, `createStaffRecord`, and related helpers to seed only the rows the example needs
+- `createVenueWithConfig`, `createUserRecord`, `createUserRecordWithPlatformRole`, `createVenueMembershipRecord`, `createStaffRecord`, and related helpers to seed only the rows the example needs. Shared test-user builders use the fixed valid `testPasswordHash`; do not reintroduce per-user `hashPassword` calls. Sessions and user-creation specs retain real verifier and runtime hashing coverage.
 - `withUserAndCurrentVenue user venueId do ...` when the request needs both authenticated user session and `currentVenueId`
 - `withControllerTestContext do ...` when the test needs a real `ControllerContext`, e.g. to call `beforeLogin` and then `getSession`
 
@@ -112,7 +112,7 @@ The shard architecture assumes:
 - examples within a shard still reset their own state with `withCleanDb`
 - no spec may depend on rows created by another spec module or another example
 
-If a helper or fixture needs state to persist across examples, that is usually a test-design bug. Prefer explicit builders that recreate only the rows the example needs.
+If a helper or fixture needs state to persist across examples, that is usually a test-design bug. Prefer explicit builders that recreate only the rows the example needs. When several read-only examples would each construct the same unusually expensive immutable fixture, consolidate their assertions into one behaviorally named example rather than sharing mutable database state across examples; `DevSeedSpec` is the canonical pattern.
 
 For payroll/report export correctness, prefer a dedicated parity spec with:
 

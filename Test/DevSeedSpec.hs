@@ -27,7 +27,7 @@ profileSummary staff =
 tests :: Spec
 tests = beforeAll testContext do
     describe "Dev seed fixtures" do
-        it "seeds a busy current-week sandbox venue with multiple roster groups" $ withContext do
+        it "seeds the complete realistic development fixture contract" $ withContext do
             withCleanDb do
                 fixture <- seedDevelopmentFixtureForWeek defaultWeekEpoch
 
@@ -91,9 +91,7 @@ tests = beforeAll testContext do
                         ]
                 expectedSeededStaffNames `shouldSatisfy` all (`elem` seededStaffNames)
 
-        it "seeds at least two staffed roster rows for every roster day" $ withContext do
-            withCleanDb do
-                fixture <- seedDevelopmentFixtureForWeek defaultWeekEpoch
+                -- Every roster day retains enough staffed rows for realistic UI exercise.
 
                 rosterWeeks <-
                     query @RosterWeek
@@ -124,9 +122,7 @@ tests = beforeAll testContext do
                                 |> length
                     staffedRowCount `shouldSatisfy` (>= 2)
 
-        it "seeds staff applicability, approved leave, pending leave, and cross-group conflicts" $ withContext do
-            withCleanDb do
-                fixture <- seedDevelopmentFixtureForWeek defaultWeekEpoch
+                -- Staff applicability, leave states, and cross-group conflicts remain represented.
 
                 bob <-
                     query @Staff
@@ -197,9 +193,7 @@ tests = beforeAll testContext do
                 fmap (.startDate) (last leaveRequests) `shouldSatisfy` maybe False (>= addDays 12 defaultWeekEpoch)
                 length bobMondayAssignments `shouldSatisfy` (>= 1)
 
-        it "seeds support access, venue roles, and invitation bootstrap data" $ withContext do
-            withCleanDb do
-                fixture <- seedDevelopmentFixtureForWeek defaultWeekEpoch
+                -- Support access, venue roles, and invitation bootstrap data remain represented.
 
                 supportMemberships <-
                     query @VenueMembership
@@ -265,9 +259,7 @@ tests = beforeAll testContext do
                 get #status fixture.sandboxInvitation `shouldBe` InvitationStatusEnumPending
                 get #email fixture.sandboxInvitation `shouldBe` "pending-invite@example.com"
 
-        it "does not seed synthetic FWC MAPD or award-rate pay data" $ withContext do
-            withCleanDb do
-                _ <- seedDevelopmentFixtureForWeek defaultWeekEpoch
+                -- Seed data must not fabricate synced FWC MAPD or award-rate rows.
 
                 fwcAwardCount <- query @FwcMapdAward |> fetchCount
                 fwcClassificationCount <- query @FwcMapdClassification |> fetchCount
@@ -293,9 +285,7 @@ tests = beforeAll testContext do
                 staffPayVersionCount `shouldSatisfy` (> 0)
                 shiftTypePayVersionCount `shouldSatisfy` (> 0)
 
-        it "maps seeded shift types to the current hospitality award levels" $ withContext do
-            withCleanDb do
-                fixture <- seedDevelopmentFixtureForWeek defaultWeekEpoch
+                -- Shift types stay mapped to the current hospitality award levels.
 
                 shiftTypes <-
                     query @ShiftType
@@ -335,9 +325,7 @@ tests = beforeAll testContext do
                 length assignedShiftTypeIds `shouldBe` length staffedRosterSlots
                 length (nub assignedShiftTypeIds) `shouldSatisfy` (> 2)
 
-        it "seeds three times as many sandbox timesheets with break coverage on most entries" $ withContext do
-            withCleanDb do
-                fixture <- seedDevelopmentFixtureForWeek defaultWeekEpoch
+                -- Timesheets span the scenario window with realistic break coverage.
                 let seededScenario = get #scenario fixture
 
                 timesheetEntries <-
@@ -369,38 +357,7 @@ tests = beforeAll testContext do
                     all (`elem` offsets) [fixture.currentWeekOffset - 1, fixture.currentWeekOffset, fixture.currentWeekOffset + 1]
                 xeroMatchedApprovedCount `shouldSatisfy` (> otherApprovedCount)
 
-        it "supports deterministic scenario overrides for realistic demo seeding" $ withContext do
-            withCleanDb do
-                let scenario =
-                        applyOverrides
-                            defaultScenarioOverrides
-                                { overrideStaffCount = Just 12
-                                , overrideManagerCount = Just 2
-                                , overrideRosterFill = Just 65
-                                , overrideScenarioSeed = Just 12345
-                                }
-                            defaultScenario
-                fixture <- seedDevelopmentFixtureWithScenarioForWeek scenario defaultWeekEpoch
-
-                seededStaffCount <-
-                    query @Staff
-                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
-                        |> fetchCount
-                managerMembershipCount <-
-                    query @VenueMembership
-                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
-                        |> filterWhere (#venueRole, unsafeEnumFromText @VenueRoleEnum "manager")
-                        |> fetchCount
-
-                get #staffCount (get #scenario fixture) `shouldBe` 12
-                get #managerCount (get #scenario fixture) `shouldBe` 2
-                get #scenarioSeed (get #scenario fixture) `shouldBe` 12345
-                seededStaffCount `shouldSatisfy` (>= 12)
-                managerMembershipCount `shouldBe` 3
-
-        it "seeds per-staff roster day preferences, duplicate first names, and some preferred names" $ withContext do
-            withCleanDb do
-                fixture <- seedDevelopmentFixtureForWeek defaultWeekEpoch
+                -- Staff preferences include realistic names and recurring availability.
 
                 seededStaff <-
                     query @Staff
@@ -442,9 +399,7 @@ tests = beforeAll testContext do
                 duplicateFirstNames `shouldContain` ["Alice"]
                 length (filter (isJust . (.preferredName)) seededStaff) `shouldSatisfy` (> 0)
 
-        it "keeps at least 80 percent of seeded assigned shifts aligned with recurring day preferences" $ withContext do
-            withCleanDb do
-                fixture <- seedDevelopmentFixtureForWeek defaultWeekEpoch
+                -- Most assigned shifts align with recurring day preferences.
 
                 rosterWeeks <-
                     query @RosterWeek
@@ -488,6 +443,35 @@ tests = beforeAll testContext do
 
                 length assignedPreferenceKeys `shouldSatisfy` (> 0)
                 matchedAssignedCount `shouldSatisfy` (>= requiredPreferredCount)
+
+        it "supports deterministic scenario overrides for realistic demo seeding" $ withContext do
+            withCleanDb do
+                let scenario =
+                        applyOverrides
+                            defaultScenarioOverrides
+                                { overrideStaffCount = Just 12
+                                , overrideManagerCount = Just 2
+                                , overrideRosterFill = Just 65
+                                , overrideScenarioSeed = Just 12345
+                                }
+                            defaultScenario
+                fixture <- seedDevelopmentFixtureWithScenarioForWeek scenario defaultWeekEpoch
+
+                seededStaffCount <-
+                    query @Staff
+                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
+                        |> fetchCount
+                managerMembershipCount <-
+                    query @VenueMembership
+                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
+                        |> filterWhere (#venueRole, unsafeEnumFromText @VenueRoleEnum "manager")
+                        |> fetchCount
+
+                get #staffCount (get #scenario fixture) `shouldBe` 12
+                get #managerCount (get #scenario fixture) `shouldBe` 2
+                get #scenarioSeed (get #scenario fixture) `shouldBe` 12345
+                seededStaffCount `shouldSatisfy` (>= 12)
+                managerMembershipCount `shouldBe` 3
 
 expectedSeedShiftTypesBySortOrder :: [(Text, Text, Maybe Text)]
 expectedSeedShiftTypesBySortOrder =

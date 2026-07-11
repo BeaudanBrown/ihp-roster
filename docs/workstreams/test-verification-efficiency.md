@@ -103,6 +103,16 @@ overrides it. On the baseline host, an all-lane six-shard run took 211.516s
 versus 186.329s for the comparable eight-shard run; the six-shard critical path
 was balancing-limited rather than uniformly database-saturated.
 
+Issue #126 replaced repeated test-user hashing with one fixed valid fixture hash;
+real password verification remains covered by Sessions and runtime hash creation
+remains covered by Users controller tests. Nine read-only default DevSeed
+examples were consolidated into one example that constructs the expensive
+fixture once while retaining every assertion; the scenario-override behavior
+remains independently isolated. The DevSeed median Hspec time fell from
+168-175s to 17.689s. The complete suite now reports 930 examples, and its first
+post-change full run passed in 85.343s wall time, 53.0% below the 181.461s
+baseline median.
+
 ## Initial Bottlenecks And Interventions
 
 1. `DevSeed` alone controls full Hspec wall time despite having only 10 examples.

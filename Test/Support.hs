@@ -97,11 +97,10 @@ createUserRecord emailAddress globalRole isProfileCompleted =
     createUserRecordWithPlatformRole emailAddress globalRole Nothing isProfileCompleted
 
 createUserRecordWithPlatformRole :: (?modelContext :: ModelContext) => Text -> Text -> Maybe PlatformRole -> Bool -> IO User
-createUserRecordWithPlatformRole emailAddress globalRole platformRole isProfileCompleted = do
-    passwordHash <- hashPassword testPassword
+createUserRecordWithPlatformRole emailAddress globalRole platformRole isProfileCompleted =
     newRecord @User
         |> set #email emailAddress
-        |> set #passwordHash passwordHash
+        |> set #passwordHash testPasswordHash
         |> set #userRole globalRole
         |> set #platformRole (platformRoleToEnum <$> platformRole)
         |> set #isProfileCompleted isProfileCompleted
@@ -631,3 +630,9 @@ defaultWeekEpoch = fromGregorian 2025 1 6
 
 testPassword :: Text
 testPassword = "test-password-123"
+
+-- Precomputed exclusively for test fixture construction. Authentication tests
+-- still exercise IHP's real password verifier against this valid hash, while
+-- user creation controller tests retain coverage of runtime password hashing.
+testPasswordHash :: Text
+testPasswordHash = "sha256|17|/WmoffT24t1UB8XPcp6HHQ==|iAsujD+YRqOaJWub+pGioz5nT9r6wglmf0wiNmlD5vY="
