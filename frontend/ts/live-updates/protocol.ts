@@ -62,6 +62,8 @@ export function resolveMountedFragmentsForInvalidation(
     fragments: SurfaceWireFragment[],
     scopeKey: string | null = null,
 ): SurfaceWireFragment[] {
+    if (scopeKey === null || scopeKey.length === 0) return [];
+
     const resolved: SurfaceWireFragment[] = [];
     const seen = new Set<string>();
 
@@ -70,16 +72,15 @@ export function resolveMountedFragmentsForInvalidation(
         const matches: SurfaceWireFragment[] = [];
 
         for (const subscription of subscriptions) {
-            if (scopeKey && subscription.scopeKey !== scopeKey) continue;
+            if (subscription.scopeKey !== scopeKey) continue;
             subscription.resyncFragments.forEach((mountedFragment) => {
-                if (liveUpdateFragmentSemanticKey(mountedFragment) === semanticKey) {
-                    matches.push({ ...fragment, ...mountedFragment });
+                if (semanticKey !== null && liveUpdateFragmentSemanticKey(mountedFragment) === semanticKey) {
+                    matches.push(mountedFragment);
                 }
             });
         }
 
-        const selected = matches.length > 0 ? matches : [fragment];
-        selected.forEach((candidate) => {
+        matches.forEach((candidate) => {
             const mergeKey = liveUpdateFragmentMergeKey(candidate);
             if (mergeKey && seen.has(mergeKey)) return;
             if (mergeKey) seen.add(mergeKey);

@@ -110,6 +110,7 @@ import IHP.Prelude
 import qualified Network.WebSockets as WebSocket
 import System.IO.Unsafe (unsafePerformIO)
 
+import Application.Helper.FrontendContract.Surface.Identity (canonicalFrontendSurfaceScopeKey)
 import qualified Application.Helper.FrontendContract.Wire.LiveUpdate as Wire
 import Application.Helper.Profiling (profileActionSpan,
                                      profileActionSpanWithDetail)
@@ -635,28 +636,7 @@ surfaceScopeFromWire Wire.SurfaceScope { surface, scope } = do
     pure (frontendSurfaceLiveScope surface scope stableKey)
 
 surfaceScopeStableKeyFromWire :: Text -> Aeson.Value -> Aeson.Parser Text
-surfaceScopeStableKeyFromWire surface scopePayload =
-    case scopePayload of
-        Aeson.Object object -> case surface of
-            "roster" -> do
-                venueId <- parseUuidField object "venueId"
-                rosterGroupId <- parseUuidField object "rosterGroupId"
-                weekOffset <- object Aeson..: "weekOffset"
-                pure (Text.intercalate ":" ["roster", UUID.toText venueId, UUID.toText rosterGroupId, tshow (weekOffset :: Int)])
-            "timesheets" -> do
-                venueId <- parseUuidField object "venueId"
-                weekOffset <- object Aeson..: "weekOffset"
-                pure (Text.intercalate ":" ["timesheets", UUID.toText venueId, tshow (weekOffset :: Int)])
-            "profile" -> do
-                venueId <- parseUuidField object "venueId"
-                staffId <- parseUuidField object "staffId"
-                pure (Text.intercalate ":" ["profile", UUID.toText venueId, UUID.toText staffId])
-            "support" -> pure "support"
-            _ -> do
-                venueId <- parseUuidField object "venueId"
-                pure (Text.intercalate ":" [surface, UUID.toText venueId])
-        _ | surface == "support" -> pure "support"
-        _ -> fail ("Invalid live update scope payload for surface: " <> cs surface)
+surfaceScopeStableKeyFromWire = canonicalFrontendSurfaceScopeKey
 
 surfaceFragmentKeyToWire :: SurfaceFragmentKey -> Wire.SurfaceFragmentKey
 surfaceFragmentKeyToWire key = Wire.SurfaceFragmentKey
@@ -706,10 +686,15 @@ liveUpdateSubscriptionToWire SurfaceSubscription { subscriptionScope, subscripti
 
 liveUpdateSubscriptionFromWire :: Wire.SurfaceSubscription -> Aeson.Parser SurfaceSubscription
 liveUpdateSubscriptionFromWire Wire.SurfaceSubscription { scope, scopeKey, mountedFragments } = do
-    parsedScope <- surfaceScopeFromWire scope
-    let subscriptionScope = parsedScope { surfaceScopeStableKey = scopeKey }
+    subscriptionScope <- surfaceScopeFromWire scope
+    let canonicalScopeKey = surfaceScopeKey subscriptionScope
+    unless (scopeKey == canonicalScopeKey) do
+        fail "Live update subscription scope key does not match its canonical Surface scope"
+    forM_ mountedFragments \Wire.SurfaceWireFragment { fragmentKey = Wire.SurfaceFragmentKey { surface = fragmentSurface } } ->
+        unless (fragmentSurface == scope.surface) do
+            fail "Live update subscription fragment descriptor does not belong to its Surface scope"
     subscriptionMountedFragments <- mapM surfaceWireFragmentFromWire mountedFragments
-    pure SurfaceSubscription { subscriptionScope, subscriptionScopeKey = scopeKey, subscriptionMountedFragments }
+    pure SurfaceSubscription { subscriptionScope, subscriptionScopeKey = canonicalScopeKey, subscriptionMountedFragments }
 
 liveUpdateCommandToWire :: LiveUpdateCommand -> Wire.LiveUpdateCommand
 liveUpdateCommandToWire SubscribeLiveUpdates { subscription, clientId, lastSeenVersion } = Wire.Subscribe (liveUpdateSubscriptionToWire subscription) clientId lastSeenVersion

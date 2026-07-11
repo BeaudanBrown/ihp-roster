@@ -22,7 +22,10 @@ websocket controllers, and `static/app-live-updates.js`.
 - Invalidation payloads are structural fragment refs, not rendered HTML.
 - Fragment GET endpoints must enforce the same authorization and visibility as
   full-page routes.
-- Scope keys are server-owned and carried through surface config/messages.
+- Scope keys are server-owned and carried through surface config/messages. The
+  websocket boundary derives the canonical key from the registered typed Surface
+  scope fields and rejects a browser-supplied key or fragment descriptor whose
+  Surface identity disagrees; browser keys are assertions, not authority.
 - Bepis live facts are emitted by `invalidateTouchedResources*` after actual
   touched-resource expansion/planning/broadcast. This does not replace
   `SurfaceResourceValue` or FrontendSurface dependency planning; it records that the
@@ -205,7 +208,11 @@ that region only.
 
 ## Refetch And Protection
 
-- Clients refetch only mounted invalidated fragments.
+- Clients refetch only mounted invalidated fragments. An invalidation descriptor
+  is resolved by exact scope key and structural fragment key to each matching
+  local mount descriptor; its incoming URL, target id, and protection policy are
+  never executed and there is no fallback when the fragment is not locally
+  mounted.
 - Same-scope surface declarations should merge rather than clobber each other.
 - Fragment renderers should return exactly the DOM target owned by the fragment,
   not sibling live fragments. If a broad parent and a child are both selected,

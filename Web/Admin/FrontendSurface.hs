@@ -134,7 +134,7 @@ adminScopeKey name scope =
 adminPageHandlers :: AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImplHandlers Surface.AdminPageSurface
 adminPageHandlers scope fragment =
     SurfaceImplHandlers
-        { surfaceScopeHandlers = scopeHandler scope `HandlerCons` HandlerNil
+        { surfaceScopeHandlers = scopeHandler "admin-page" scope `HandlerCons` HandlerNil
         , surfaceMountStateHandlers = HandlerNil
         , surfaceFragmentHandlers = FrontendSurfaceFragmentHandler
             { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
@@ -148,7 +148,7 @@ adminPageHandlers scope fragment =
 adminXeroPageHandlers :: AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImplHandlers Surface.AdminXeroPageSurface
 adminXeroPageHandlers scope fragment =
     SurfaceImplHandlers
-        { surfaceScopeHandlers = scopeHandler scope `HandlerCons` HandlerNil
+        { surfaceScopeHandlers = scopeHandler "admin-xero-page" scope `HandlerCons` HandlerNil
         , surfaceMountStateHandlers = HandlerNil
         , surfaceFragmentHandlers = FrontendSurfaceFragmentHandler
             { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
@@ -159,10 +159,10 @@ adminXeroPageHandlers scope fragment =
         , surfaceIntentHandlers = HandlerNil
         }
 
-unitHandlers :: KnownFragmentOptions policies => AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImplHandlers ('Surface marker '[ 'Scope scopeMarker '[ 'Field Surface.VenueId 'WireUUID ] auth, 'Fragment fragment '[] policies])
-unitHandlers scope fragment =
+unitHandlers :: KnownFragmentOptions policies => Text -> AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImplHandlers ('Surface marker '[ 'Scope scopeMarker '[ 'Field Surface.VenueId 'WireUUID ] auth, 'Fragment fragment '[] policies])
+unitHandlers surfaceName scope fragment =
     SurfaceImplHandlers
-        { surfaceScopeHandlers = scopeHandler scope `HandlerCons` HandlerNil
+        { surfaceScopeHandlers = scopeHandler surfaceName scope `HandlerCons` HandlerNil
         , surfaceMountStateHandlers = HandlerNil
         , surfaceFragmentHandlers = FrontendSurfaceFragmentHandler
             { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
@@ -176,7 +176,7 @@ unitHandlers scope fragment =
 venueSettingsHandlers :: AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImplHandlers Surface.AdminVenueSettingsSurface
 venueSettingsHandlers scope fragment =
     SurfaceImplHandlers
-        { surfaceScopeHandlers = scopeHandler scope `HandlerCons` HandlerNil
+        { surfaceScopeHandlers = scopeHandler "admin-venue-config" scope `HandlerCons` HandlerNil
         , surfaceMountStateHandlers = HandlerNil
         , surfaceFragmentHandlers = FrontendSurfaceFragmentHandler
             { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
@@ -190,7 +190,7 @@ venueSettingsHandlers scope fragment =
 exportsHandlers :: AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImplHandlers Surface.AdminExportsSurface
 exportsHandlers scope fragment =
     SurfaceImplHandlers
-        { surfaceScopeHandlers = scopeHandler scope `HandlerCons` HandlerNil
+        { surfaceScopeHandlers = scopeHandler "admin-exports" scope `HandlerCons` HandlerNil
         , surfaceMountStateHandlers = HandlerNil
         , surfaceFragmentHandlers = FrontendSurfaceFragmentHandler
             { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
@@ -204,7 +204,7 @@ exportsHandlers scope fragment =
 shiftTypesHandlers :: AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImplHandlers Surface.AdminShiftTypesSurface
 shiftTypesHandlers scope fragment =
     SurfaceImplHandlers
-        { surfaceScopeHandlers = scopeHandler scope `HandlerCons` HandlerNil
+        { surfaceScopeHandlers = scopeHandler "admin-shift-types" scope `HandlerCons` HandlerNil
         , surfaceMountStateHandlers = HandlerNil
         , surfaceFragmentHandlers = FrontendSurfaceFragmentHandler
             { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
@@ -226,7 +226,7 @@ shiftTypesHandlers scope fragment =
 rosterGroupsHandlers :: AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImplHandlers Surface.AdminRosterGroupsSurface
 rosterGroupsHandlers scope fragment =
     SurfaceImplHandlers
-        { surfaceScopeHandlers = scopeHandler scope `HandlerCons` HandlerNil
+        { surfaceScopeHandlers = scopeHandler "admin-roster-groups" scope `HandlerCons` HandlerNil
         , surfaceMountStateHandlers = HandlerNil
         , surfaceFragmentHandlers = FrontendSurfaceFragmentHandler
             { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
@@ -259,7 +259,7 @@ adminActionHandler actionName actionUrl = FrontendSurfaceActionHandler
 invitesHandlers :: AdminVenueScopeValue -> FrontendSurfaceMountedFragment -> SurfaceImplHandlers Surface.AdminInvitesSurface
 invitesHandlers scope fragment =
     SurfaceImplHandlers
-        { surfaceScopeHandlers = invitesScopeHandler scope `HandlerCons` HandlerNil
+        { surfaceScopeHandlers = invitesScopeHandler "admin-invites" scope `HandlerCons` HandlerNil
         , surfaceMountStateHandlers = HandlerNil
         , surfaceFragmentHandlers = FrontendSurfaceFragmentHandler
             { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
@@ -276,7 +276,7 @@ invitesHandlers scope fragment =
 xeroHandlers :: AdminVenueScopeValue -> SurfaceImplHandlers Surface.AdminXeroSurface
 xeroHandlers scope =
     SurfaceImplHandlers
-        { surfaceScopeHandlers = scopeHandler scope `HandlerCons` HandlerNil
+        { surfaceScopeHandlers = scopeHandler "admin-xero" scope `HandlerCons` HandlerNil
         , surfaceMountStateHandlers = HandlerNil
         , surfaceFragmentHandlers =
             fh adminXeroShellFragment `HandlerCons`
@@ -304,16 +304,16 @@ fh fragment = FrontendSurfaceFragmentHandler
     , fragmentHandlerRender = const mempty
     }
 
-scopeHandler :: AdminVenueScopeValue -> FrontendSurfaceScopeHandler ('Scope scopeMarker '[ 'Field Surface.VenueId 'WireUUID] auth)
-scopeHandler scope = FrontendSurfaceScopeHandler
+scopeHandler :: Text -> AdminVenueScopeValue -> FrontendSurfaceScopeHandler ('Scope scopeMarker '[ 'Field Surface.VenueId 'WireUUID] auth)
+scopeHandler surfaceName scope = FrontendSurfaceScopeHandler
     { scopeHandlerDefaultValue = frontendSurfaceFieldValues (Aeson.object ["venueId" Aeson..= tshow scope.adminVenueId])
-    , scopeHandlerKey = \fields -> fromMaybe (tshow scope.adminVenueId) (getSurfaceField @Surface.VenueId fields)
+    , scopeHandlerKey = \fields -> surfaceName <> ":" <> fromMaybe (tshow scope.adminVenueId) (getSurfaceField @Surface.VenueId fields)
     }
 
-invitesScopeHandler :: AdminVenueScopeValue -> FrontendSurfaceScopeHandler ('Scope Surface.AdminInvitesScope '[ 'Field Surface.VenueId 'WireUUID] auth)
-invitesScopeHandler scope = FrontendSurfaceScopeHandler
+invitesScopeHandler :: Text -> AdminVenueScopeValue -> FrontendSurfaceScopeHandler ('Scope Surface.AdminInvitesScope '[ 'Field Surface.VenueId 'WireUUID] auth)
+invitesScopeHandler surfaceName scope = FrontendSurfaceScopeHandler
     { scopeHandlerDefaultValue = frontendSurfaceFieldValues (Aeson.object ["venueId" Aeson..= tshow scope.adminVenueId])
-    , scopeHandlerKey = \fields -> fromMaybe (tshow scope.adminVenueId) (getSurfaceField @Surface.VenueId fields)
+    , scopeHandlerKey = \fields -> surfaceName <> ":" <> fromMaybe (tshow scope.adminVenueId) (getSurfaceField @Surface.VenueId fields)
     }
 
 adminSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [SurfaceWireFragment]

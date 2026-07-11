@@ -9,6 +9,8 @@ import Application.Helper.FrontendContract.AppValues (AppEvents (..),
 import Application.Helper.FrontendContract.Surface.Authorization (frontendSurfaceScopeAuthorizationRequirement,
                                                                   validateFrontendSurfaceLiveSubscription)
 import Application.Helper.FrontendContract.Surface.AuthorizationRequirement (SurfaceScopeAuthorizationRequirement (..))
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountConfig (..),
+                                                            SurfaceImpl (..))
 import Application.Helper.FrontendContract.Wire.Json (validateContractValue,
                                                       validateSurfaceFragmentKeyValue,
                                                       validateSurfaceScopeValue)
@@ -26,6 +28,7 @@ import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import IHP.Prelude
 import Test.Hspec
+import qualified Web.Admin.FrontendSurface as AdminSurface
 
 tests :: Spec
 tests = describe "LiveUpdate runtime types" do
@@ -182,6 +185,65 @@ tests = describe "LiveUpdate runtime types" do
             `shouldBe` "profile:11111111-1111-1111-1111-111111111111:44444444-4444-4444-4444-444444444444"
         surfaceScopeKey supportPlatformLiveScope
             `shouldBe` "support"
+
+    it "derives canonical stable keys from every registered Surface scope contract" do
+        let venueId = "11111111-1111-1111-1111-111111111111"
+        let rosterGroupId = "33333333-3333-3333-3333-333333333333"
+        let staffId = "44444444-4444-4444-4444-444444444444"
+        let rosterDayId = "22222222-2222-2222-2222-222222222222"
+        let cases =
+                [ (Wire.SurfaceScope "surface-lab" (Aeson.object ["venueId" Aeson..= venueId, "weekOffset" Aeson..= (0 :: Int)]), "surface-lab:" <> venueId <> ":0")
+                , (Wire.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= venueId, "weekOffset" Aeson..= (2 :: Int)]), "timesheets:" <> venueId <> ":2")
+                , (Wire.SurfaceScope "roster" (Aeson.object ["venueId" Aeson..= venueId, "rosterGroupId" Aeson..= rosterGroupId, "weekOffset" Aeson..= (-1 :: Int)]), "roster:" <> venueId <> ":" <> rosterGroupId <> ":-1")
+                , (Wire.SurfaceScope "roster-day-timeline" (Aeson.object ["venueId" Aeson..= venueId, "rosterGroupId" Aeson..= rosterGroupId, "weekOffset" Aeson..= (1 :: Int), "rosterDayId" Aeson..= rosterDayId]), "roster-day-timeline:" <> venueId <> ":" <> rosterGroupId <> ":1:" <> rosterDayId)
+                , (Wire.SurfaceScope "leave-requests" (Aeson.object ["venueId" Aeson..= venueId]), "leave-requests:" <> venueId)
+                , (Wire.SurfaceScope "billing" (Aeson.object ["venueId" Aeson..= venueId]), "billing:" <> venueId)
+                , (Wire.SurfaceScope "support" (Aeson.object []), "support")
+                , (Wire.SurfaceScope "support" Aeson.Null, "support")
+                , (Wire.SurfaceScope "profile" (Aeson.object ["venueId" Aeson..= venueId, "staffId" Aeson..= staffId]), "profile:" <> venueId <> ":" <> staffId)
+                , (Wire.SurfaceScope "staff" (Aeson.object ["venueId" Aeson..= venueId, "staffId" Aeson..= staffId]), "staff:" <> venueId <> ":" <> staffId)
+                , (Wire.SurfaceScope "admin-page" (Aeson.object ["venueId" Aeson..= venueId]), "admin-page:" <> venueId)
+                , (Wire.SurfaceScope "admin-xero-page" (Aeson.object ["venueId" Aeson..= venueId]), "admin-xero-page:" <> venueId)
+                , (Wire.SurfaceScope "admin-venue-config" (Aeson.object ["venueId" Aeson..= venueId]), "admin-venue-config:" <> venueId)
+                , (Wire.SurfaceScope "admin-invites" (Aeson.object ["venueId" Aeson..= venueId]), "admin-invites:" <> venueId)
+                , (Wire.SurfaceScope "admin-exports" (Aeson.object ["venueId" Aeson..= venueId]), "admin-exports:" <> venueId)
+                , (Wire.SurfaceScope "admin-shift-types" (Aeson.object ["venueId" Aeson..= venueId]), "admin-shift-types:" <> venueId)
+                , (Wire.SurfaceScope "admin-roster-groups" (Aeson.object ["venueId" Aeson..= venueId]), "admin-roster-groups:" <> venueId)
+                , (Wire.SurfaceScope "admin-xero" (Aeson.object ["venueId" Aeson..= venueId]), "admin-xero:" <> venueId)
+                ]
+
+        forM_ cases \(wireScope, expectedKey) ->
+            (surfaceScopeKey <$> decodeValueAs @SurfaceScope (Aeson.toJSON wireScope)) `shouldBe` Right expectedKey
+
+    it "emits canonical scope keys from every admin Surface mount" do
+        let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
+        let scope = AdminSurface.AdminVenueScopeValue { adminVenueId = venueId, adminRosterGroupId = Nothing }
+        let expected surfaceName = surfaceName <> ":" <> UUID.toText venueId
+
+        (AdminSurface.adminPageSurfaceImpl scope).surfaceImplMountConfig.mountScopeKey `shouldBe` expected "admin-page"
+        (AdminSurface.adminXeroPageSurfaceImpl scope).surfaceImplMountConfig.mountScopeKey `shouldBe` expected "admin-xero-page"
+        (AdminSurface.adminVenueSettingsSurfaceImpl scope).surfaceImplMountConfig.mountScopeKey `shouldBe` expected "admin-venue-config"
+        (AdminSurface.adminInvitesSurfaceImpl scope).surfaceImplMountConfig.mountScopeKey `shouldBe` expected "admin-invites"
+        (AdminSurface.adminExportsSurfaceImpl scope).surfaceImplMountConfig.mountScopeKey `shouldBe` expected "admin-exports"
+        (AdminSurface.adminShiftTypesSurfaceImpl scope).surfaceImplMountConfig.mountScopeKey `shouldBe` expected "admin-shift-types"
+        (AdminSurface.adminRosterGroupsSurfaceImpl scope).surfaceImplMountConfig.mountScopeKey `shouldBe` expected "admin-roster-groups"
+        (AdminSurface.adminXeroSurfaceImpl scope).surfaceImplMountConfig.mountScopeKey `shouldBe` expected "admin-xero"
+
+    it "rejects substituted or malformed subscription scope identity" do
+        let venueId = "11111111-1111-1111-1111-111111111111"
+        let otherVenueId = "99999999-9999-9999-9999-999999999999"
+        let scope = Wire.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= venueId, "weekOffset" Aeson..= (0 :: Int)])
+        let fragment = Wire.SurfaceWireFragment (Wire.SurfaceFragmentKey "timesheets" "timesheet-toolbar" (Aeson.object [])) "timesheet-toolbar" "/ShowTimesheetToolbar" False Wire.NoProtection
+        let command key descriptor = Wire.Subscribe (Wire.SurfaceSubscription scope key [descriptor]) "client-1" Nothing
+
+        decodeValueAs @LiveUpdateCommand (Aeson.toJSON (command ("timesheets:" <> venueId <> ":0") fragment)) `shouldSatisfy` isRight
+        decodeValueAs @LiveUpdateCommand (Aeson.toJSON (command ("timesheets:" <> otherVenueId <> ":0") fragment)) `shouldSatisfy` isLeft
+        decodeValueAs @LiveUpdateCommand (Aeson.toJSON (command ("roster:" <> venueId <> ":0") fragment)) `shouldSatisfy` isLeft
+        decodeValueAs @LiveUpdateCommand (Aeson.toJSON (command ("timesheets:" <> venueId <> ":0") (fragment { Wire.fragmentKey = Wire.SurfaceFragmentKey "leave-requests" "leave-section-count" (Aeson.object ["leaveSection" Aeson..= ("pending" :: Text)]) }))) `shouldSatisfy` isLeft
+
+        let malformedScope = Wire.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= ("not-a-uuid" :: Text), "weekOffset" Aeson..= (0 :: Int)])
+        let malformedCommand = Wire.Subscribe (Wire.SurfaceSubscription malformedScope "timesheets:not-a-uuid:0" [fragment]) "client-1" Nothing
+        decodeValueAs @LiveUpdateCommand (Aeson.toJSON malformedCommand) `shouldSatisfy` isLeft
 
     it "rejects unknown fields when decoding live-update wire carrier types directly" do
         let scope = Wire.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "weekOffset" Aeson..= (4 :: Int)])

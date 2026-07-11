@@ -889,21 +889,21 @@
     return Boolean(sourceClientId && activeClientId && sourceClientId === activeClientId);
   }
   function resolveMountedFragmentsForInvalidation(subscriptions, fragments, scopeKey = null) {
+    if (scopeKey === null || scopeKey.length === 0) return [];
     const resolved = [];
     const seen = /* @__PURE__ */ new Set();
     fragments.forEach((fragment) => {
       const semanticKey = liveUpdateFragmentSemanticKey(fragment);
       const matches = [];
       for (const subscription of subscriptions) {
-        if (scopeKey && subscription.scopeKey !== scopeKey) continue;
+        if (subscription.scopeKey !== scopeKey) continue;
         subscription.resyncFragments.forEach((mountedFragment) => {
-          if (liveUpdateFragmentSemanticKey(mountedFragment) === semanticKey) {
-            matches.push({ ...fragment, ...mountedFragment });
+          if (semanticKey !== null && liveUpdateFragmentSemanticKey(mountedFragment) === semanticKey) {
+            matches.push(mountedFragment);
           }
         });
       }
-      const selected = matches.length > 0 ? matches : [fragment];
-      selected.forEach((candidate) => {
+      matches.forEach((candidate) => {
         const mergeKey = liveUpdateFragmentMergeKey(candidate);
         if (mergeKey && seen.has(mergeKey)) return;
         if (mergeKey) seen.add(mergeKey);

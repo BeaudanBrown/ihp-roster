@@ -1,0 +1,95 @@
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE TypeApplications    #-}
+
+module Application.Helper.FrontendContract.Surface.Identity
+    ( canonicalFrontendSurfaceScopeKey
+    ) where
+
+import qualified Application.Helper.FrontendContract.IR as Contract
+import Application.Helper.FrontendContract.Registry (registeredFrontendContractIR)
+import Application.Helper.FrontendContract.Wire.Json (validateSurfaceScopeValue)
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Key as Aeson.Key
+import qualified Data.Aeson.KeyMap as Aeson.KeyMap
+import qualified Data.Aeson.Types as Aeson
+import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Scientific as Scientific
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as TextEncoding
+import qualified Data.UUID as UUID
+import IHP.Prelude
+
+-- | Derive the transport identity from the registered typed Surface scope.
+-- Browser-supplied scope keys are only assertions of this value; they are never
+-- used to construct server scope identity.
+canonicalFrontendSurfaceScopeKey :: Text -> Aeson.Value -> Aeson.Parser Text
+canonicalFrontendSurfaceScopeKey surfaceName scopePayload = do
+    validateSurfaceScopeValue (Aeson.object ["surface" Aeson..= surfaceName, "scope" Aeson..= scopePayload])
+    surface <-
+        maybe
+            (fail ("Unknown frontend Surface scope: " <> cs surfaceName))
+            pure
+            (find ((== surfaceName) . (.surfaceName)) registeredFrontendContractIR.contractSurfaces)
+    fields <-
+        case [scopeFields | Contract.SurfaceScopeIR _ _ scopeFields <- surface.surfacePrimitives] of
+            [scopeFields] -> pure scopeFields
+            [] -> fail ("Frontend Surface has no registered scope: " <> cs surfaceName)
+            _ -> fail ("Frontend Surface has multiple registered scopes: " <> cs surfaceName)
+    object <-
+        case scopePayload of
+            Aeson.Object value -> pure value
+            Aeson.Null | null fields -> pure mempty
+            _ -> fail ("Invalid frontend Surface scope payload: " <> cs surfaceName)
+    segments <- mapM (canonicalFieldSegment object) fields
+    pure (Text.intercalate ":" (surfaceName : segments))
+
+canonicalFieldSegment :: Aeson.Object -> Contract.FieldIR -> Aeson.Parser Text
+canonicalFieldSegment object field =
+    case Aeson.KeyMap.lookup (Aeson.Key.fromText field.fieldName) object of
+        Nothing | field.fieldPresence == Contract.OptionalFieldPresence -> pure "~missing"
+        Nothing -> fail ("Missing frontend Surface scope field: " <> cs field.fieldName)
+        Just Aeson.Null | field.fieldPresence == Contract.NullableFieldPresence -> pure "~null"
+        Just value -> canonicalWireSegment field.fieldWire value
+
+canonicalWireSegment :: Contract.WireIR -> Aeson.Value -> Aeson.Parser Text
+canonicalWireSegment wire value =
+    case wire of
+        Contract.WireTextIR -> escapedText value
+        Contract.WireIntIR ->
+            case value of
+                Aeson.Number number -> maybe (fail "Surface scope integer is out of range") (pure . tshow) (Scientific.toBoundedInteger @Int number)
+                _ -> fail "Surface scope integer must be an integer"
+        Contract.WireBoolIR ->
+            case value of
+                Aeson.Bool True -> pure "true"
+                Aeson.Bool False -> pure "false"
+                _ -> fail "Surface scope boolean must be a boolean"
+        Contract.WireUuidIR ->
+            case value of
+                Aeson.String text -> maybe (fail "Surface scope UUID is malformed") (pure . UUID.toText) (UUID.fromText text)
+                _ -> fail "Surface scope UUID must be a string"
+        Contract.WireDayIR -> escapedText value
+        Contract.WireOptionalIR inner -> canonicalWireSegment inner value
+        Contract.WireNullableIR _ | value == Aeson.Null -> pure "~null"
+        Contract.WireNullableIR inner -> canonicalWireSegment inner value
+        Contract.WireListIR _ -> canonicalJsonSegment value
+        Contract.WireMapIR _ _ -> canonicalJsonSegment value
+        Contract.WireRefIR _ -> canonicalJsonSegment value
+        Contract.WireUnknownIR -> canonicalJsonSegment value
+        Contract.WireSurfaceScopeIR -> fail "Nested Surface scopes cannot define scope identity"
+        Contract.WireSurfaceFragmentKeyIR -> fail "Surface fragment keys cannot define scope identity"
+        Contract.WireSurfaceWireFragmentIR -> fail "Surface wire fragments cannot define scope identity"
+    where
+        escapedText = \case
+            Aeson.String text -> pure (escapeSegment text)
+            _ -> fail "Surface scope text must be a string"
+
+canonicalJsonSegment :: Aeson.Value -> Aeson.Parser Text
+canonicalJsonSegment = pure . escapeSegment . TextEncoding.decodeUtf8 . LBS.toStrict . Aeson.encode
+
+escapeSegment :: Text -> Text
+escapeSegment =
+    Text.replace ":" "%3A"
+        . Text.replace "~" "%7E"
+        . Text.replace "%" "%25"

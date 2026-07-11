@@ -90,6 +90,55 @@ test("live update invalidations suppress same-client websocket echoes only", () 
     assertEqual(liveUpdateInvalidationIsOwnEcho("client-1", null), false);
 });
 
+test("invalidations resolve only through exact descriptors on local mounts", () => {
+    const incomingDescriptor: SurfaceWireFragment = {
+        ...fragment,
+        targetId: "incoming-target",
+        url: "https://attacker.invalid/fragment",
+        protectionPolicy: { kind: "none" },
+    };
+    const localDescriptor: SurfaceWireFragment = {
+        ...fragment,
+        targetId: "local-target",
+        url: "/authorized-local-fragment",
+    };
+    const otherSurfaceDescriptor: SurfaceWireFragment = {
+        ...fragment,
+        fragmentKey: { surface: "roster", kind: "roster-content", params: {} },
+        targetId: "unmounted-roster-target",
+        url: "https://attacker.invalid/unmounted",
+    };
+
+    assertDeepEqual(
+        resolveMountedFragmentsForInvalidation(
+            [{ scopeKey: "timesheets:v:0", resyncFragments: [localDescriptor] }],
+            [incomingDescriptor],
+            "timesheets:v:0",
+        ),
+        [localDescriptor],
+    );
+    assertDeepEqual(
+        resolveMountedFragmentsForInvalidation(
+            [{ scopeKey: "timesheets:v:0", resyncFragments: [localDescriptor] }],
+            [otherSurfaceDescriptor],
+            "timesheets:v:0",
+        ),
+        [],
+    );
+    assertDeepEqual(
+        resolveMountedFragmentsForInvalidation([], [incomingDescriptor], "timesheets:v:0"),
+        [],
+    );
+    assertDeepEqual(
+        resolveMountedFragmentsForInvalidation(
+            [{ scopeKey: "timesheets:v:0", resyncFragments: [localDescriptor] }],
+            [incomingDescriptor],
+            null,
+        ),
+        [],
+    );
+});
+
 test("actor-local invalidation resolves through every duplicate mounted fragment in scope", () => {
     const actorFragment: SurfaceWireFragment = {
         ...fragment,
