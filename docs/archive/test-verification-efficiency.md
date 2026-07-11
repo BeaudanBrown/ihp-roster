@@ -1,6 +1,6 @@
 # Test Verification Efficiency
 
-Status: active
+Status: implemented; archived after #135 closeout
 
 GitHub issues:
 
@@ -263,13 +263,36 @@ adds a PostgreSQL database, app server, and browser process.
   replacement is explicit and the remaining browser test still protects the
   user-visible integration boundary.
 
-## Exit Criteria
+## Closeout Results
 
-- Same-host median full Hspec and E2E wall times improve by approximately 30%,
-  or measured evidence records the residual critical path and correctness cost
-  of further reduction.
-- Complete Hspec and E2E gates pass with no unexplained coverage loss.
-- Fast-feedback commands and isolation rules are documented in the nearest
-  living agent guides.
-- Durable implementation facts are moved to living docs and this workstream is
-  archived.
+The closeout protocol used the same 12-core host, one warm-up, and three
+successful default-command measurements per complete gate.
+
+| Gate | Warm-up | Measured wall seconds | Median | Baseline median | Improvement |
+| --- | ---: | --- | ---: | ---: | ---: |
+| complete Hspec, 8 shards | 122.669s | 119.644, 120.631, 117.859 | **119.644s** | 181.461s | **34.1%** |
+| complete E2E, 8 shards | 112.666s | 113.000, 116.126, 87.760 | **113.000s** | 310.152s | **63.6%** |
+
+Every Hspec run passed 932 examples with zero failures. Every E2E run passed all
+165 project-tests with zero final failures. The E2E warm-up and first two
+measurements recorded 2, 2, and 1 recovered retries respectively; the third
+measurement had none. The repeated cause was the mobile assignment-filter
+workflow exhausting its ordinary whole-test budget while opening and toggling a
+hidden dropdown. The test now submits the same HTMX action directly through the
+runtime, outside the shell's unrelated request-sync queue, and uses the named
+slow multi-layout budget. The first stabilization passed 9/9 repeated profile
+runs; a later full orchestration exposed one remaining queued-source retry, and
+the final no-sync HTMX check passed Pixel, Galaxy, and iPad 3/3 with retries
+disabled.
+
+`verify-fast` now runs typecheck, 259-example pure Hspec, and all 133 desktop plus
+canonical-Pixel project-tests. `verify-full` runs typecheck and both complete
+canonical gates. The orchestration commands passed end to end (80.058s fast;
+247.030s full), and the full run found zero source-tree compiler artifacts.
+Existing CI remains only typecheck plus complete Hspec; those sequential steps
+now reuse compatible GHC artifacts without adding a browser gate.
+
+All exit criteria are met: both median improvements exceed 30%, complete gates
+pass without unexplained behavior loss, fast/full and isolation rules live in
+`README.md`, `Test/AGENTS.md`, and `e2e/AGENTS.md`, and implementation history is
+archived here.

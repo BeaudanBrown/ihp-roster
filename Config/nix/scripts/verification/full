@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "verify-full: typecheck"
+typecheck
+
+echo "verify-full: complete Hspec"
+hspec-test
+
+echo "verify-full: complete Playwright"
+e2e

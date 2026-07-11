@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export E2E_TIER=fast
+exec e2e "$@"

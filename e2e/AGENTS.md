@@ -8,6 +8,15 @@ All commands require `bash ./bin/in-env` (or an already active devenv shell). Do
 # Run the full e2e suite, auto-sharded up to eight isolated app-server shards by default
 bash ./bin/in-env e2e
 
+# Run every source behavior once: desktop Chromium plus canonical Pixel 7
+bash ./bin/in-env e2e-fast
+
+# Run typecheck, pure Hspec, and the fast browser tier
+bash ./bin/in-env verify-fast
+
+# Run typecheck and both complete canonical gates
+bash ./bin/in-env verify-full
+
 # Run a specific test file
 bash ./bin/in-env e2e e2e/auth.spec.ts
 
@@ -57,6 +66,7 @@ bash ./bin/in-env pwcli --help
 ## Prerequisites
 
 - The local project Postgres socket under `build/db` must be available
+- `e2e-fast` sets `E2E_TIER=fast` and selects desktop plus canonical Pixel without changing focused-argument shard detection; `e2e` uses `E2E_TIER=full` by default
 - `bash ./bin/in-env e2e` auto-shards the full suite up to `E2E_SHARDS_MAX=8` app/database shards when no interactive or focused Playwright args are passed. Same-host 2/3/4/6/8-shard measurements selected eight; do not map directly to raw CPU count. Set `E2E_SHARDS` for an explicit diagnostic override or lower `E2E_SHARDS_MAX` on a constrained host.
 - Each shard gets its own ephemeral database, dedicated app server, blob report, and test-results directory under `.devenv/e2e/<run-id>/`
 - Parallel full-suite runs default to a single compiled app executable under the run artifact directory instead of multiple live-reload `RunDevServer` instances. Compatible application objects and interfaces are reused from the fingerprinted `build/Verification` cache shared with typecheck and normal Hspec; the run-specific executable still lives under `.devenv/e2e/<run-id>/build`. This avoids GHCi/file-watcher/schema-codegen reload races against the shared working tree. Set `E2E_SERVER_MODE=dev` only when intentionally debugging the dev-server path.

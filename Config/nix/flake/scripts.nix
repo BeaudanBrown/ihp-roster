@@ -63,6 +63,8 @@ in
         hspec-pure = script ../scripts/haskell/hspec-pure;
         hspec-db = script ../scripts/haskell/hspec-db;
         hspec-coverage = script ../scripts/haskell/hspec-coverage;
+        verify-fast = script ../scripts/verification/fast;
+        verify-full = script ../scripts/verification/full;
         lint = script ../scripts/haskell/lint;
         format = script ../scripts/haskell/format;
         ghci-app = script ../scripts/haskell/ghci-app;
@@ -81,6 +83,7 @@ in
         xero-pay-item-probe = script ../scripts/xero/pay-item-probe;
         test-e2e-server = script ../scripts/e2e/test-server;
         e2e = script ../scripts/e2e/e2e;
+        e2e-fast = script ../scripts/e2e/e2e-fast;
         screenshot = script ../scripts/e2e/screenshot;
         pwcli = script ../scripts/e2e/pwcli;
         pwcli-auth-save = script ../scripts/e2e/pwcli-auth-save;

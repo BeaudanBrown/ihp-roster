@@ -41,8 +41,13 @@ Keep high-churn parts of the app navigable without broad style churn.
 
 Several maintenance plans have already produced good subsystem patterns:
 roster feature modules, split export helpers, split FWC MAPD modules, focused
-view helper modules, and declarative live surfaces. Remaining work should keep
-those patterns local and documented beside the code.
+view helper modules, and declarative live surfaces. Verification now follows the
+same boundary discipline: `verify-fast` composes typecheck, pure Hspec, and the
+one-profile-per-behavior browser tier; `verify-full` composes the complete Hspec
+and browser gates. Compatible normal GHC checks share fingerprinted artifacts,
+while HPC stays isolated. The required CI scope remains typecheck plus complete
+Hspec and reuses that cache sequentially. Remaining work should keep those
+patterns local and documented beside the code.
 
 ## Intended Contract
 

@@ -1,6 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 import { E2E_TIMEOUT } from './e2e/timeouts';
 
+declare const process: { env: Record<string, string | undefined> };
+
 const baseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8000';
 const outputDir = process.env.PLAYWRIGHT_OUTPUT_DIR ?? 'test-results';
 const htmlReportDir = process.env.PLAYWRIGHT_HTML_REPORT_DIR ?? 'playwright-report';
@@ -11,6 +13,10 @@ const workers = Number.isFinite(configuredWorkers) && configuredWorkers > 0 ? co
 const configuredRetries = Number.parseInt(process.env.PLAYWRIGHT_RETRIES ?? '1', 10);
 const retries = Number.isFinite(configuredRetries) && configuredRetries >= 0 ? configuredRetries : 1;
 const fullyParallel = process.env.PLAYWRIGHT_FULLY_PARALLEL === '1';
+const e2eTier = process.env.E2E_TIER ?? 'full';
+if (!['fast', 'full'].includes(e2eTier)) {
+    throw new Error(`E2E_TIER must be fast or full, got: ${e2eTier}`);
+}
 const mobileTestFiles = [
     /.*mobile-experience\.spec\.ts/,
     /.*roster-mobile\.spec\.ts/,
@@ -50,14 +56,14 @@ export default defineConfig({
                 /.*roster-mobile\.spec\.ts/,
                 /.*roster-mobile-screenshots\.spec\.ts/,
             ],
-            use: { browserName: 'chromium' },
+            use: { browserName: 'chromium' as const },
         },
         {
             name: 'mobile-chromium',
             testMatch: mobileTestFiles,
             use: {
                 ...devices['Pixel 7'],
-                browserName: 'chromium',
+                browserName: 'chromium' as const,
             },
         },
         {
@@ -65,7 +71,7 @@ export default defineConfig({
             testMatch: mobileTestFiles,
             grepInvert: /@canonical-mobile/,
             use: {
-                browserName: 'chromium',
+                browserName: 'chromium' as const,
                 viewport: { width: 360, height: 740 },
                 screen: { width: 360, height: 740 },
                 deviceScaleFactor: 4,
@@ -81,8 +87,8 @@ export default defineConfig({
             grepInvert: /@canonical-mobile/,
             use: {
                 ...devices['iPad Mini'],
-                browserName: 'chromium',
+                browserName: 'chromium' as const,
             },
         },
-    ],
+    ].filter((project) => e2eTier === 'full' || ['desktop-chromium', 'mobile-chromium'].includes(project.name)),
 });

@@ -35,7 +35,6 @@ for forward-looking design.
 - `schema-hardening.md` - V1 schema hardening.
 - `subscription-billing.md` - per-venue Stripe Billing subscriptions.
 - `maintenance.md` - cross-cutting refactors and doc/agent cleanup.
-- `test-verification-efficiency.md` - measured Hspec, E2E, tooling, and CI feedback-time refactor.
 - `live-surface-architecture.md` - historical typed live-fragment surface
   ergonomics; superseded by generated `FrontendSurface` runtime docs.
 - `strict-live-surface-overhaul.md` - historical removal plan for the old

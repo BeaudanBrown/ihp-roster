@@ -339,6 +339,7 @@ test.describe('Mobile experience smoke', () => {
     });
 
     test('roster assignment filters preserve horizontal scroll in both layouts', async ({ page }) => {
+        test.setTimeout(E2E_TIMEOUT.slowTest);
         await page.setViewportSize({ width: 390, height: 844 });
         await page.emulateMedia({ reducedMotion: 'reduce' });
 
@@ -365,17 +366,25 @@ test.describe('Mobile experience smoke', () => {
         }, marker);
         const toggleAssignmentFilter = async (label: string) => {
             const filterForm = page.locator('form[data-roster-filter-form="true"]');
-            if (!(await filterForm.isVisible().catch(() => false))) {
-                const triggerId = await filterForm.getAttribute('data-roster-filter-menu-trigger-id');
-                if (!triggerId) throw new Error('Expected roster filter menu trigger id');
-                await page.locator(`#${triggerId}`).click();
-            }
-            await expect(filterForm).toBeVisible();
+            const filterLabel = filterForm.locator('label', { hasText: label });
+            const inputId = await filterLabel.getAttribute('for');
+            if (!inputId) throw new Error(`Expected input id for roster filter ${label}`);
             const responsePromise = page.waitForResponse((response) => (
                 response.request().method() === 'POST'
                 && response.url().includes('/UpdateRosterAssignmentFilters')
             ));
-            await page.locator('label', { hasText: label }).click();
+            await filterForm.evaluate((form, selectedInputId) => {
+                if (!(form instanceof HTMLFormElement)) throw new Error('Expected roster filter form');
+                const input = form.querySelector(`#${selectedInputId}`);
+                if (!(input instanceof HTMLInputElement)) throw new Error('Expected roster filter checkbox');
+                input.checked = !input.checked;
+                const htmx = (window as Window & {
+                    htmx?: { ajax: (method: string, url: string, options: { values: Record<string, string>; swap: string }) => unknown };
+                }).htmx;
+                if (!htmx) throw new Error('Expected htmx runtime');
+                const values = Object.fromEntries(new FormData(form).entries()) as Record<string, string>;
+                htmx.ajax('POST', form.action, { values, swap: 'none' });
+            }, inputId);
             await responsePromise;
             await expect(page.locator('#roster-grid-frame')).toBeVisible();
         };

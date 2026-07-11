@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "verify-fast: typecheck"
+typecheck
+
+echo "verify-fast: pure Hspec"
+hspec-pure
+
+echo "verify-fast: desktop plus canonical mobile Playwright"
+e2e-fast

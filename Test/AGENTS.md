@@ -18,6 +18,8 @@ TEST_SHARDS=4 bash ./bin/in-env hspec-test          # override shard count expli
 TEST_SHARDS=2 bash ./bin/in-env hspec-test --match "PasskeysController" --match "LiveUpdate"  # shard a focused multi-suite run
 bash ./bin/in-env hspec-coverage                    # serial full-suite run with GHC HPC coverage report
 bash ./bin/in-env hspec-coverage --match "PostsController"  # focused coverage run
+bash ./bin/in-env verify-fast                       # typecheck + pure Hspec + fast browser tier
+bash ./bin/in-env verify-full                       # typecheck + complete Hspec + complete browser tier
 ```
 
 `bash ./bin/in-env hspec-test` auto-shards the full Hspec suite when no Hspec filter args are passed. DB-backed full runs cap automatic fan-out at eight shards because same-host measurements found eight shards faster than six while higher raw host core counts would add PostgreSQL reset and connection pressure without splitting the remaining indivisible suites. `TEST_SHARDS` remains an explicit override and `TEST_DB_SHARDS_MAX` can tune the automatic cap for a measured host. Each DB-backed shard gets its own ephemeral database, compiled test binary invocation, and shard log directory under `.devenv/test/`.

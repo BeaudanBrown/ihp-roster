@@ -26,12 +26,25 @@ Run project commands through the wrapper unless you are already inside the
 activated devenv shell:
 
 ```bash
+# Additive fast feedback: typecheck, pure Hspec, desktop + canonical Pixel browser tier
+bash ./bin/in-env verify-fast
+
+# Complete local verification: typecheck, full Hspec, full desktop/Pixel/Galaxy/iPad browser tier
+bash ./bin/in-env verify-full
+
+# Individual canonical gates remain available
 bash ./bin/in-env typecheck
 bash ./bin/in-env hspec-test
 bash ./bin/in-env e2e
 bash ./bin/in-env lint
 bash ./bin/in-env format
 ```
+
+`e2e-fast` runs every browser source behavior once across desktop Chromium and
+the canonical Pixel 7 profile. `e2e` remains the complete gate and repeats
+profile-sensitive mobile behaviors on Galaxy S9+ and iPad Mini. Normal
+typecheck, Hspec, and compiled E2E commands reuse a compatible fingerprinted
+GHC cache; HPC remains isolated.
 
 For browser or integration work, use the managed dev server helpers:
 
@@ -128,6 +141,10 @@ Node/esbuild/TypeScript/frontend test tooling.
 bash ./bin/in-env typecheck
 bash ./bin/in-env hspec-test
 ```
+
+The required CI scope remains typecheck plus complete Hspec. Those sequential
+steps reuse the fingerprinted verification compilation cache; browser tiers are
+local/release commands and are not a newly mandatory CI gate.
 
 Deployment is managed outside this workflow. Production NixOS configuration lives
 under `Config/nix/`.
