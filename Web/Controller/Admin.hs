@@ -151,11 +151,6 @@ instance Controller AdminController where
             awardLevels <- profileActionSpan "admin.page.fetch_award_levels" fetchActiveAwardLevels
             awardLevelBaseRates <- profileActionSpan "admin.page.fetch_award_rates" fetchCurrentAwardLevelBaseRates
             importedPayItems <- profileActionSpan "admin.page.fetch_imported_pay_items" fetchActiveImportedXeroPayItems
-            currentWeekOffset <- profileActionSpan "admin.page.current_report_week" currentReportWeekOffset
-            reportWeekSelection <- profileActionSpan "admin.page.fetch_report_week_selection" (fetchReportWeekSelection currentWeekOffset)
-            let defaultRangeStart = reportWeekSelection.weekStart
-            let defaultRangeEnd = reportWeekSelection.weekEnd
-            exportJobs <- profileActionSpan "admin.page.fetch_export_jobs" fetchCurrentVenueExportJobs
             let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
             let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
             invitations <- profileActionSpan "admin.page.fetch_invitations" fetchCurrentVenueInvitations
@@ -370,12 +365,9 @@ instance Controller AdminController where
 
     action currentAction@ShowadminExportsLiveFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.exports_fragment.respond" do
-            currentWeekOffset <- profileActionSpan "admin.exports_fragment.current_report_week" currentReportWeekOffset
-            reportWeekSelection <- profileActionSpan "admin.exports_fragment.fetch_report_week_selection" (fetchReportWeekSelection currentWeekOffset)
-            let defaultRangeStart = reportWeekSelection.weekStart
-            let defaultRangeEnd = reportWeekSelection.weekEnd
+            (defaultRangeStart, defaultRangeEnd) <- profileActionSpan "admin.exports_fragment.current_date_range" currentExportDateRange
             exportJobs <- profileActionSpan "admin.exports_fragment.fetch_export_jobs" fetchCurrentVenueExportJobs
-            profileActionSpan "admin.exports_fragment.render_response" (respondFragmentHtml (renderExportsSectionFragment reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs))
+            profileActionSpan "admin.exports_fragment.render_response" (respondFragmentHtml (renderExportsSectionFragment defaultRangeStart defaultRangeEnd exportJobs))
 
     action currentAction@ShowadminXeroShellLiveFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.xero_fragment.respond" do

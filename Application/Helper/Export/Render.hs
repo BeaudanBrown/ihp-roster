@@ -156,21 +156,9 @@ safeIndex values index
 staffPayDisplayName :: Staff -> Text
 staffPayDisplayName staff = staff.firstName
 
-staffPayRecordLabel :: VenueReportDefinition -> TimesheetPayResult -> Text
-staffPayRecordLabel reportDefinition payResult
-    | null reportDefinition.shiftTypeFilters = fromMaybe "Unknown pay level" payResult.payLevelName
-    | otherwise = ""
-
 fixedStaffPayRecordLabel :: TimesheetPayResult -> Text
 fixedStaffPayRecordLabel payResult =
     fromMaybe "Unknown pay level" payResult.payLevelName
-
-reportDayIndex :: ReportWeekSelection -> Day -> Maybe Int
-reportDayIndex reportWeekSelection workedOnDate =
-    let dayIndex = fromInteger (diffDays workedOnDate reportWeekSelection.weekStart)
-     in if dayIndex >= 0 && dayIndex < length reportWeekSelection.dayLabels
-            then Just dayIndex
-            else Nothing
 
 addDayHours :: Int -> Double -> [Double] -> [Double]
 addDayHours dayIndex hours existingDayHours =
@@ -184,13 +172,6 @@ paidMinutesToHours paidMinutes = fromIntegral paidMinutes / 60
 formatStaffPayHours :: Double -> Text
 formatStaffPayHours value = Text.pack (printf "%.2f" value :: String)
 
-renderHourlyBreakdownZipBase64 :: ReportWeekSelection -> [ShiftType] -> [TimesheetEntry] -> Text
-renderHourlyBreakdownZipBase64 reportWeekSelection shiftTypes entries =
-    renderTextZipBase64
-        [ (dayLabel <> ".csv", renderHourlyBreakdownDayCsv reportWeekSelection dayOffset shiftTypes entries)
-        | (dayOffset, dayLabel) <- zip [0 ..] reportWeekSelection.dayLabels
-        ]
-
 renderHourlyBreakdownDateCsv :: Day -> [ShiftType] -> [TimesheetEntry] -> Text
 renderHourlyBreakdownDateCsv date shiftTypes entries =
     Text.unlines (csvHeader : map renderHourRow [8 .. 27])
@@ -201,30 +182,6 @@ renderHourlyBreakdownDateCsv date shiftTypes entries =
 
         dayEntries =
             filter (\entry -> entry.workedOn == date) entries
-
-        renderHourRow hourOfWindow =
-            let windowLabel = formatHourlyWindow hourOfWindow
-                hourValues =
-                    map
-                        (\shiftType ->
-                            let hours = sum (map (entryHoursForHourlyWindow hourOfWindow shiftType) dayEntries)
-                             in if hours <= 0
-                                    then ""
-                                    else formatHourlyBreakdownHours hours
-                        )
-                        shiftTypes
-             in Text.intercalate "," (csvCell windowLabel : map csvCell hourValues)
-
-renderHourlyBreakdownDayCsv :: ReportWeekSelection -> Int -> [ShiftType] -> [TimesheetEntry] -> Text
-renderHourlyBreakdownDayCsv reportWeekSelection dayOffset shiftTypes entries =
-    Text.unlines (csvHeader : map renderHourRow [8 .. 27])
-    where
-        csvHeader =
-            Text.intercalate ","
-                (map csvCell ("Time" : map (.name) shiftTypes))
-
-        dayEntries =
-            filter (\entry -> reportDayIndex reportWeekSelection entry.workedOn == Just dayOffset) entries
 
         renderHourRow hourOfWindow =
             let windowLabel = formatHourlyWindow hourOfWindow

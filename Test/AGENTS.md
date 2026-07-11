@@ -120,17 +120,17 @@ The shard architecture assumes:
 
 If a helper or fixture needs state to persist across examples, that is usually a test-design bug. Prefer explicit builders that recreate only the rows the example needs. When several read-only examples would each construct the same unusually expensive immutable fixture, consolidate their assertions into one behaviorally named example rather than sharing mutable database state across examples; `DevSeedSpec` is the canonical pattern.
 
-For payroll/report export correctness, prefer a dedicated parity spec with:
+For fixed payroll export correctness, prefer a dedicated golden spec with:
 
 - reusable fixture builders under `Test/Support/`
 - committed expected outputs under `Test/Fixtures/exports/`
 - exact CSV/ZIP comparisons
 
-Use browser tests only to prove the exports workflow still works. Keep detailed payroll-number validation in fast controller-level specs. `PayrollExportParitySpec` also owns repeated-job CSV/ZIP determinism; do not restore a browser-only byte-comparison loop.
+Use browser tests only to prove the exports workflow still works. Keep detailed payroll-number validation in fast controller-level specs. `FixedExportGoldenSpec` also owns repeated-job CSV/ZIP determinism; do not restore a browser-only byte-comparison loop.
 
-Current product scope for payroll verification is one canonical payroll CSV for the primary/only venue staff group. If historical filtered variants such as `kitchen` remain in tests, keep them explicitly marked as regression-only rather than treating them as the active product target.
+Current product scope is the fixed export catalog. Historical report-definition variants such as `kitchen` are not a supported test path.
 
-The canonical payroll parity suite in `Test/Controller/PayrollExportParitySpec.hs` is the main correctness oracle for that export. Keep it focused on:
+The fixed-export golden suite in `Test/Controller/FixedExportGoldenSpec.hs` is the main correctness oracle for payroll output. Keep it focused on:
 
 - exact `staff_hours` CSV output
 - approved vs unapproved and trial-row inclusion boundaries
@@ -138,7 +138,7 @@ The canonical payroll parity suite in `Test/Controller/PayrollExportParitySpec.h
 - snapshot-pinned stability after live pay-config changes
 - mixed-snapshot export metadata when approved entries span versions
 
-For manual inspection, `seed-dev` loads a broader exploration dataset outside the test suite. Keep the exact parity fixture stable for controller/golden tests, while the manual script projects a busier multi-venue, multi-group week plus support/bootstrap scenarios onto the current app week for easier browser exploration. The human default is `just seed-dev`, which now always wipes and reseeds `app` before loading the fixture. Keep the reusable test-support fixture modules deterministic enough that the manual dev seed does not weaken parity assertions.
+For manual inspection, `seed-dev` loads a broader exploration dataset outside the test suite. Keep the exact golden fixture stable for controller tests, while the manual script projects a busier multi-venue, multi-group week plus support/bootstrap scenarios onto the current app week for easier browser exploration. The human default is `just seed-dev`, which now always wipes and reseeds `app` before loading the fixture. Keep the reusable test-support fixture modules deterministic enough that the manual dev seed does not weaken golden assertions.
 
 Example shape:
 

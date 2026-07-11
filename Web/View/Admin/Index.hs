@@ -1,7 +1,6 @@
 module Web.View.Admin.Index where
 
 import Application.Helper.Controller (currentVenueOrNothing)
-import Application.Helper.Export (ReportWeekSelection (..))
 import Application.Helper.FrontendContract.Surface.Runtime (renderFrontendSurfaceMount)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminPageSurfaceImpl)
@@ -20,10 +19,6 @@ data IndexView = IndexView
     , awardLevels              :: [AwardLevel]
     , awardLevelBaseRates      :: [AwardLevelBaseRate]
     , importedPayItems         :: [XeroImportedPayItem]
-    , reportWeekSelection      :: ReportWeekSelection
-    , defaultRangeStart        :: Day
-    , defaultRangeEnd          :: Day
-    , exportJobs               :: [ExportJob]
     , invitations              :: [VenueInvitation]
     , today                    :: Day
     , showInactiveRosterGroups :: Bool

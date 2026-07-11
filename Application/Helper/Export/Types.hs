@@ -1,7 +1,6 @@
 module Application.Helper.Export.Types where
 
 import Data.Time.Clock (NominalDiffTime)
-import Generated.Types
 import IHP.ControllerPrelude
 
 data ExportJobType
@@ -9,12 +8,6 @@ data ExportJobType
     | StaffPayCsv
     | HourlyBreakdownZip
     | PayrollEarningsCsv
-    deriving (Eq, Show)
-
-data ReportDefinitionEngine
-    = StaffPayCsvReport
-    | HourlyBreakdownZipReport
-    | PayrollEarningsCsvReport
     deriving (Eq, Show)
 
 data ExportJobStatus
@@ -27,13 +20,6 @@ data FixedExportDefinition = FixedExportDefinition
     { fixedExportType        :: !ExportJobType
     , fixedExportLabel       :: !Text
     , fixedExportDescription :: !Text
-    }
-    deriving (Eq, Show)
-
-data VenueReportDefinition = VenueReportDefinition
-    { definition       :: !ReportDefinition
-    , engine           :: !ReportDefinitionEngine
-    , shiftTypeFilters :: ![ShiftType]
     }
     deriving (Eq, Show)
 
@@ -81,33 +67,8 @@ data PayrollEarningsCsvRecord = PayrollEarningsCsvRecord
     }
     deriving (Eq, Show)
 
-data PayrollEarningsCsvPayload = PayrollEarningsCsvPayload
-    { weekSelection         :: !ReportWeekSelection
-    , fileName              :: !Text
-    , csvContents           :: !Text
-    , entryCount            :: !Int
-    , rowCount              :: !Int
-    , versionManifests      :: ![Text]
-    , exportVersionManifest :: !(Maybe Text)
-    }
-    deriving (Eq, Show)
-
-data HourlyBreakdownZipPayload = HourlyBreakdownZipPayload
-    { weekSelection         :: !ReportWeekSelection
-    , fileName              :: !Text
-    , zipContentsBase64     :: !Text
-    , entryCount            :: !Int
-    , fileCount             :: !Int
-    , versionManifests      :: ![Text]
-    , exportVersionManifest :: !(Maybe Text)
-    }
-    deriving (Eq, Show)
-
 allExportJobTypeValues :: [Text]
 allExportJobTypeValues = ["approved_timesheets_csv", "staff_pay_csv", "hourly_breakdown_zip", "payroll_earnings_csv"]
-
-allReportDefinitionEngineValues :: [Text]
-allReportDefinitionEngineValues = ["staff_pay_csv", "hourly_breakdown_zip", "payroll_earnings_csv"]
 
 allExportJobStatusValues :: [Text]
 allExportJobStatusValues = ["pending", "ready", "expired"]
@@ -148,17 +109,6 @@ parseExportJobType "staff_pay_csv"           = Just StaffPayCsv
 parseExportJobType "hourly_breakdown_zip"    = Just HourlyBreakdownZip
 parseExportJobType "payroll_earnings_csv"    = Just PayrollEarningsCsv
 parseExportJobType _                         = Nothing
-
-reportDefinitionEngineToText :: ReportDefinitionEngine -> Text
-reportDefinitionEngineToText StaffPayCsvReport        = "staff_pay_csv"
-reportDefinitionEngineToText HourlyBreakdownZipReport = "hourly_breakdown_zip"
-reportDefinitionEngineToText PayrollEarningsCsvReport = "payroll_earnings_csv"
-
-parseReportDefinitionEngine :: Text -> Maybe ReportDefinitionEngine
-parseReportDefinitionEngine "staff_pay_csv" = Just StaffPayCsvReport
-parseReportDefinitionEngine "hourly_breakdown_zip" = Just HourlyBreakdownZipReport
-parseReportDefinitionEngine "payroll_earnings_csv" = Just PayrollEarningsCsvReport
-parseReportDefinitionEngine _ = Nothing
 
 exportJobStatusToText :: ExportJobStatus -> Text
 exportJobStatusToText ExportPending = "pending"

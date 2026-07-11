@@ -212,7 +212,6 @@ tests = describe "Schema" do
             ]
         allAuditSourceChannelValues `shouldBe` ["web", "htmx", "system"]
         allExportJobTypeValues `shouldBe` ["approved_timesheets_csv", "staff_pay_csv", "hourly_breakdown_zip", "payroll_earnings_csv"]
-        allReportDefinitionEngineValues `shouldBe` ["staff_pay_csv", "hourly_breakdown_zip", "payroll_earnings_csv"]
         allExportJobStatusValues `shouldBe` ["pending", "ready", "expired"]
 
         parseUserRole ("staff" :: Text) `shouldBe` Just StaffRole
@@ -238,10 +237,6 @@ tests = describe "Schema" do
         parseExportJobType "hourly_breakdown_zip" `shouldBe` Just HourlyBreakdownZip
         parseExportJobType "payroll_earnings_csv" `shouldBe` Just PayrollEarningsCsv
         parseExportJobType "leave_csv" `shouldBe` Nothing
-        parseReportDefinitionEngine "staff_pay_csv" `shouldBe` Just StaffPayCsvReport
-        parseReportDefinitionEngine "hourly_breakdown_zip" `shouldBe` Just HourlyBreakdownZipReport
-        parseReportDefinitionEngine "payroll_earnings_csv" `shouldBe` Just PayrollEarningsCsvReport
-        parseReportDefinitionEngine "approved_timesheets_csv" `shouldBe` Nothing
         parseExportJobStatus "pending" `shouldBe` Just ExportPending
         parseExportJobStatus "ready" `shouldBe` Just ExportReady
         parseExportJobStatus "expired" `shouldBe` Just ExportExpired
@@ -252,7 +247,6 @@ tests = describe "Schema" do
         map platformRoleToText [SuperAdminRole] `shouldBe` allPlatformRoleValues
         map leaveRequestStatusToText [LeavePending, LeaveApproved, LeaveDenied] `shouldBe` allLeaveRequestStatusValues
         map exportJobTypeToText [ApprovedTimesheetsCsv, StaffPayCsv, HourlyBreakdownZip, PayrollEarningsCsv] `shouldBe` allExportJobTypeValues
-        map reportDefinitionEngineToText [StaffPayCsvReport, HourlyBreakdownZipReport, PayrollEarningsCsvReport] `shouldBe` allReportDefinitionEngineValues
         map exportJobStatusToText [ExportPending, ExportReady, ExportExpired] `shouldBe` allExportJobStatusValues
 
     it "avoids IN-based CHECK constraints that pg_dump rewrites into parser-hostile ANY(ARRAY ...)" do

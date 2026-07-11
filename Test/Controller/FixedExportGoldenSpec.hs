@@ -1,4 +1,4 @@
-module Test.Controller.PayrollExportParitySpec where
+module Test.Controller.FixedExportGoldenSpec where
 
 import Application.Helper.Export
 import Config
@@ -26,7 +26,40 @@ import Web.Types
 
 tests :: Spec
 tests = beforeAll testContext do
-    describe "Payroll export parity" do
+    describe "Fixed export goldens" do
+        it "keeps the superseded report-definition runtime retired" $ withContext do
+            runtimeSources <- mapM Text.readFile
+                [ "Application/Helper/Export.hs"
+                , "Application/Helper/Export/Definitions.hs"
+                , "Application/Helper/Export/Payloads.hs"
+                , "Application/Helper/Export/Persistence.hs"
+                , "Application/Helper/Export/ReadModel.hs"
+                , "Application/Helper/Export/Render.hs"
+                , "Application/Helper/Export/Service.hs"
+                , "Application/Helper/Export/Types.hs"
+                , "Web/Controller/Admin/Support.hs"
+                , "Web/Controller/Exports.hs"
+                ]
+            adminControllerSource <- Text.readFile "Web/Controller/Admin.hs"
+            adminViewSource <- Text.readFile "Web/View/Admin/Index.hs"
+            let retiredRuntimeNames =
+                    [ "ReportDefinition"
+                    , "VenueReportDefinition"
+                    , "requestReportDefinitionExport"
+                    , "reportDefinitionEngine"
+                    , "buildStaffPayCsvPayload"
+                    , "buildPayrollEarningsCsvPayload"
+                    , "buildHourlyBreakdownZipPayload"
+                    , "fetchCurrentVenueReportDefinitions"
+                    , "bootstrapCurrentVenueReportDefinitionsIfMissing"
+                    , "fetchReportDefinitionShiftTypeFilters"
+                    ]
+            forM_ runtimeSources \source ->
+                filter (`Text.isInfixOf` source) retiredRuntimeNames `shouldBe` []
+            adminControllerSource `shouldNotSatisfy` Text.isInfixOf "currentReportWeekOffset"
+            adminControllerSource `shouldNotSatisfy` Text.isInfixOf "fetchReportWeekSelection"
+            adminViewSource `shouldNotSatisfy` Text.isInfixOf "reportWeekSelection"
+
         it "renders the canonical staff-hours CSV exactly" $ withContext do
             withCleanDb do
                 fixture <- seedCanonicalPayrollFixture
@@ -225,9 +258,6 @@ seedPayrollMatrixFixture = do
         >>= updateRecord . set #sortOrder 20
     kitchenShift <- createShiftTypeRecord venue levelThree "Kitchen"
         >>= updateRecord . set #sortOrder 30
-    _ <- createReportDefinitionRecord venue "staff_hours" "Staff Hours Report" StaffPayCsvReport 20
-    _ <- createReportDefinitionRecord venue "supervisor" "Supervisor Report" StaffPayCsvReport 40
-        >>= createReportDefinitionShiftTypeFilterRecord supervisorShift
 
     avaUser <- createUserRecord "payroll-matrix-ava@example.com" "staff" True
     benUser <- createUserRecord "payroll-matrix-ben@example.com" "staff" True
@@ -305,25 +335,6 @@ seedPayrollMatrixFixture = do
         ]
 
     pure PayrollMatrixFixture { venue, admin }
-
-createReportDefinitionRecord :: (?modelContext :: ModelContext) => Venue -> Text -> Text -> ReportDefinitionEngine -> Int -> IO ReportDefinition
-createReportDefinitionRecord venue slug name engine sortOrder =
-    newRecord @ReportDefinition
-        |> set #venueId (unpackId venue.id)
-        |> set #slug slug
-        |> set #name name
-        |> set #description Nothing
-        |> set #engine (reportDefinitionEngineToText engine)
-        |> set #sortOrder sortOrder
-        |> set #isActive True
-        |> createRecord
-
-createReportDefinitionShiftTypeFilterRecord :: (?modelContext :: ModelContext) => ShiftType -> ReportDefinition -> IO ReportDefinitionShiftTypeFilter
-createReportDefinitionShiftTypeFilterRecord shiftType reportDefinition =
-    newRecord @ReportDefinitionShiftTypeFilter
-        |> set #reportDefinitionId (unpackId reportDefinition.id)
-        |> set #shiftTypeId (unpackId shiftType.id)
-        |> createRecord
 
 seedCasualBaseRate :: (?modelContext :: ModelContext) => AwardLevel -> Scientific -> IO ()
 seedCasualBaseRate awardLevel hourlyRate = do

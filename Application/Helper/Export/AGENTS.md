@@ -1,6 +1,6 @@
 # Export Agent Notes
 
-Read this before editing export helpers, report definitions, or export tests.
+Read this before editing fixed export helpers or export tests.
 
 ## Local Rules
 
@@ -19,7 +19,8 @@ Read this before editing export helpers, report definitions, or export tests.
 - ZIP contents are base64 in `export_jobs.file_contents`.
 - `day_names.weekday_index` is real SQL weekday numbering; report columns must
   still follow the selected week order.
-- Do not treat historical filtered variants as current product scope.
+- Do not reintroduce report-definition lookup, bootstrap, or filtering; the
+  legacy tables remain only until their dedicated schema-retirement change.
 
 ## Verification
 

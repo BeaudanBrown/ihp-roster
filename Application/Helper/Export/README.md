@@ -2,17 +2,17 @@
 
 ## Purpose
 
-`Application/Helper/Export/` owns export/report definitions, read models,
+`Application/Helper/Export/` owns the fixed export catalog, read models,
 payload construction, rendering, persistence, download authorization, and
 controller-facing orchestration.
 
 ## Modules
 
-- `Types.hs` - export/report domain types and conversions.
+- `Types.hs` - fixed-export domain types and conversions.
 - `Render.hs` - CSV/ZIP rendering and pure formatting.
-- `Definitions.hs` - report definitions and week slicing.
+- `Definitions.hs` - default date ranges and week slicing.
 - `ReadModel.hs` - export read queries.
-- `Payloads.hs` - report payload construction.
+- `Payloads.hs` - fixed-export payload construction.
 - `Persistence.hs` - job persistence, expiry, download authorization, audit.
 - `Service.hs` - controller-facing orchestration.
 - `Application/Helper/Export.hs` - compatibility re-export facade.

@@ -25,21 +25,21 @@ currentVenueScopeId =
         Just venue -> unpackId venue.id
         Nothing -> error "Admin exports live surface requires a current venue"
 
-renderExportsSectionFragment :: ReportWeekSelection -> Day -> Day -> [ExportJob] -> Html
+renderExportsSectionFragment :: Day -> Day -> [ExportJob] -> Html
 renderExportsSectionFragment =
     renderExportsSectionFragmentWithSwap Nothing
 
-renderExportsSectionFragmentWithSwap :: Maybe Text -> ReportWeekSelection -> Day -> Day -> [ExportJob] -> Html
-renderExportsSectionFragmentWithSwap maybeSwapOob reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs =
+renderExportsSectionFragmentWithSwap :: Maybe Text -> Day -> Day -> [ExportJob] -> Html
+renderExportsSectionFragmentWithSwap maybeSwapOob defaultRangeStart defaultRangeEnd exportJobs =
     renderFrontendSurfaceMount (adminExportsSurfaceImpl AdminVenueScopeValue { adminVenueId = currentVenueScopeId, adminRosterGroupId = Nothing }) [hsx|
         <div id={adminExportsFragmentId}
              hx-swap-oob={maybeSwapOob}>
-            {renderExportsSection reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs}
+            {renderExportsSection defaultRangeStart defaultRangeEnd exportJobs}
         </div>
     |]
 
-renderExportsSection :: ReportWeekSelection -> Day -> Day -> [ExportJob] -> Html
-renderExportsSection _reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs =
+renderExportsSection :: Day -> Day -> [ExportJob] -> Html
+renderExportsSection defaultRangeStart defaultRangeEnd exportJobs =
     renderConfigSection
         "admin-exports-section"
         (renderExportSummary exportJobs)

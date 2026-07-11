@@ -28,10 +28,10 @@ import qualified Test.Controller.BillingSpec
 import qualified Test.Controller.E2ETestSpec
 import qualified Test.Controller.ExportsSpec
 import qualified Test.Controller.FeedbackSpec
+import qualified Test.Controller.FixedExportGoldenSpec
 import qualified Test.Controller.HelpSpec
 import qualified Test.Controller.LeaveRequestsSpec
 import qualified Test.Controller.PasskeysSpec
-import qualified Test.Controller.PayrollExportParitySpec
 import qualified Test.Controller.ProfilesSpec
 import qualified Test.Controller.RosterWeeks.BaselineSpec
 import qualified Test.Controller.RosterWeeks.DirectReadModelSpec
@@ -263,7 +263,7 @@ allSuites =
     , databaseSuite "FwcMapdSync" 20 Test.FwcMapdSyncSpec.tests
     , databaseSuite "RosterTimesheetsAutomation" 20 Test.RosterTimesheetsAutomationSpec.tests
     , databaseSuite "VenueAccess" 35 Test.Controller.VenueAccessSpec.tests
-    , databaseSuite "PayrollExportParity" 30 Test.Controller.PayrollExportParitySpec.tests
+    , databaseSuite "FixedExportGolden" 30 Test.Controller.FixedExportGoldenSpec.tests
     , databaseSuite "StaffController" 35 Test.Controller.StaffSpec.tests
     , databaseSuite "StaffDocumentsController" 20 Test.Controller.StaffDocumentsSpec.tests
     , databaseSuite "StaffDocumentsRSA" 20 Test.StaffDocumentsRsaSpec.tests

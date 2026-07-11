@@ -1,6 +1,5 @@
 module Web.Controller.Admin.Support where
 
-import Application.Helper.Export
 import Application.Helper.LiveUpdate (adminRosterGroupsLiveScope,
                                       setActorLiveFragmentsRefresh)
 import Application.Helper.Pay
@@ -500,7 +499,3 @@ redirectToAdminFor maybeRosterGroupId =
             (pathTo AdminAction)
             (\rosterGroupId -> pathTo AdminAction <> "?rosterGroupId=" <> tshow rosterGroupId)
             maybeRosterGroupId
-
-findReportDefinitionByEngine :: ReportDefinitionEngine -> [VenueReportDefinition] -> Maybe VenueReportDefinition
-findReportDefinitionByEngine engine =
-    List.find (\reportDefinition -> reportDefinition.engine == engine)

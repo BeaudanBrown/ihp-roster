@@ -1,7 +1,6 @@
 module Application.Helper.Export.ReadModel where
 
 import Application.Helper.Controller
-import Application.Helper.Export.Types
 import Application.Helper.Pay (payVersionManifestForEntry)
 import Data.Coerce (coerce)
 import qualified Data.List as List
@@ -31,27 +30,6 @@ fetchReportStaffMap entries =
             pure (Map.fromList (map (\staff -> (coerce (get #id staff), staff)) staffMembers))
     where
         staffIds = List.nub (map (.staffId) entries)
-
-fetchCurrentVenueReportShiftTypes ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    VenueReportDefinition ->
-    IO [ShiftType]
-fetchCurrentVenueReportShiftTypes reportDefinition =
-    if null allowedShiftTypeIds
-        then query @ShiftType
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> filterWhere (#isActive, True)
-            |> orderByAsc #sortOrder
-            |> orderByAsc #name
-            |> fetch
-        else query @ShiftType
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> filterWhereIn (#id, map Id allowedShiftTypeIds)
-            |> orderByAsc #sortOrder
-            |> orderByAsc #name
-            |> fetch
-    where
-        allowedShiftTypeIds = map (coerce . get #id) reportDefinition.shiftTypeFilters
 
 fetchApprovedTimesheetEntries ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>

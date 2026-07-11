@@ -20,13 +20,10 @@ respondToAdminExportsSectionMutation ::
 respondToAdminExportsSectionMutation =
     if isHtmxRequest
         then do
-            currentWeekOffset <- currentReportWeekOffset
-            reportWeekSelection <- fetchReportWeekSelection currentWeekOffset
-            let defaultRangeStart = reportWeekSelection.weekStart
-            let defaultRangeEnd = reportWeekSelection.weekEnd
+            (defaultRangeStart, defaultRangeEnd) <- currentExportDateRange
             exportJobs <- fetchCurrentVenueExportJobs
             setHeader ("HX-Reswap", "none")
-            respondHtml (renderExportsSectionFragmentWithSwap (Just "outerHTML") reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs)
+            respondHtml (renderExportsSectionFragmentWithSwap (Just "outerHTML") defaultRangeStart defaultRangeEnd exportJobs)
         else redirectToPath (pathTo AdminAction <> "#exports")
 
 instance Controller ExportsController where

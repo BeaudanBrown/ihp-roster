@@ -92,7 +92,7 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
 - Do not use a live surface just because a form currently redirects. A surface is warranted when the mounted page can become stale from another actor, another tab, or an async job. For actor-only edits outside migrated FrontendSurface flows, prefer ordinary HTMX fragments/OOB swaps when useful. For auth, passkey, support venue switching, and other session/security flows, prefer normal browser navigation unless the product explicitly needs in-place behavior.
 - Fan-out invalidations should not search every historical table row just to discover possible cold targets. Use the active live-scope snapshot helpers in `Application.Helper.LiveUpdate` to narrow broad mutations to currently mounted scopes, then fetch detailed fragment data for those scopes only.
 - Existing non-live candidate areas:
-  - export job/recent exports/report definitions can become a live surface when job progress or cross-admin report-definition edits matter while the page is open
+  - export job/recent exports can become a live surface when async job progress matters while the page is open
   - support venue switching, venue creation, owner invitations, passkeys, and auth/session flows should stay full-page or explicit HTMX workflows unless there is a concrete collaborative stale-DOM requirement
 
 ## Typed Interaction Surface Pattern
