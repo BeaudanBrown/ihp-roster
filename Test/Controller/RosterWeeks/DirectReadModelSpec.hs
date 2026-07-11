@@ -36,7 +36,7 @@ import Web.RosterWeeks.Types
 
 tests :: Spec
 tests = beforeAll testContext do
-    describe "Roster direct read model" do
+    describe "RosterWeeksController direct read model" do
         it "reads manager-visible base facts directly" $ withContext do
             withCleanDb do
                 fixture <- createDirectReadModelFixture

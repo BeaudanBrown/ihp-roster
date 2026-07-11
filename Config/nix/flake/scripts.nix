@@ -60,6 +60,8 @@ in
         regen-types = script ../scripts/haskell/regen-types;
         test-db-reset = script ../scripts/db/test-db-reset;
         hspec-test = script ../scripts/haskell/hspec-test;
+        hspec-pure = script ../scripts/haskell/hspec-pure;
+        hspec-db = script ../scripts/haskell/hspec-db;
         hspec-coverage = script ../scripts/haskell/hspec-coverage;
         lint = script ../scripts/haskell/lint;
         format = script ../scripts/haskell/format;

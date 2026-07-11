@@ -6,6 +6,29 @@ set -euo pipefail
 . "@scriptsRoot@/lib/common.sh"
 BASE_TEST_DATABASE_NAME="${TEST_DATABASE_NAME:-app_test}"
 export TEST_DB_SOCKET="${TEST_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
+TEST_LANE="${TEST_LANE:-all}"
+export TEST_LANE
+
+case "$TEST_LANE" in
+    all|pure|db)
+        ;;
+    *)
+        echo "TEST_LANE must be one of all, pure, or db; got: $TEST_LANE" >&2
+        exit 1
+        ;;
+esac
+
+TEST_DB_SHARDS_MAX="${TEST_DB_SHARDS_MAX:-8}"
+case "$TEST_DB_SHARDS_MAX" in
+    ""|*[!0-9]*)
+        echo "TEST_DB_SHARDS_MAX must be a positive integer, got: $TEST_DB_SHARDS_MAX" >&2
+        exit 1
+        ;;
+esac
+if [ "$TEST_DB_SHARDS_MAX" -lt 1 ]; then
+    echo "TEST_DB_SHARDS_MAX must be at least 1" >&2
+    exit 1
+fi
 
 detect_test_shards() {
     if [ -n "${TEST_SHARDS:-}" ]; then
@@ -18,7 +41,13 @@ detect_test_shards() {
         return 0
     fi
 
-    ihp_roster_detect_cpu_count
+    local detected_shards
+    detected_shards="$(ihp_roster_detect_cpu_count)"
+    if [ "$TEST_LANE" != "pure" ] && [ "$detected_shards" -gt "${TEST_DB_SHARDS_MAX:-8}" ]; then
+        printf '%s\n' "${TEST_DB_SHARDS_MAX:-8}"
+    else
+        printf '%s\n' "$detected_shards"
+    fi
 }
 
 TEST_SHARDS="$(detect_test_shards "$@")"
@@ -38,9 +67,11 @@ mkdir -p build/Test
 ghc $GHC_OPTS -iTest -main-is Main Test/Main.hs -o build/Test/Main -odir build/Test -hidir build/Test
 
 if [ "$TEST_SHARDS" -eq 1 ]; then
-    export TEST_DATABASE_NAME="$BASE_TEST_DATABASE_NAME"
-    export DATABASE_URL="postgresql:///$TEST_DATABASE_NAME?host=$TEST_DB_SOCKET"
-    test-db-reset
+    if [ "$TEST_LANE" != "pure" ]; then
+        export TEST_DATABASE_NAME="$BASE_TEST_DATABASE_NAME"
+        export DATABASE_URL="postgresql:///$TEST_DATABASE_NAME?host=$TEST_DB_SOCKET"
+        test-db-reset
+    fi
     exec build/Test/Main "$@"
 fi
 
@@ -66,7 +97,7 @@ run_test_shard() {
         export DATABASE_URL="postgresql:///$TEST_DATABASE_NAME?host=$TEST_DB_SOCKET"
 
         cleanup() {
-            if [ "${TEST_KEEP_DATABASES:-0}" = "1" ]; then
+            if [ "$TEST_LANE" = "pure" ] || [ "${TEST_KEEP_DATABASES:-0}" = "1" ]; then
                 return 0
             fi
 
@@ -76,7 +107,9 @@ SQL
         }
         trap cleanup EXIT INT TERM
 
-        test-db-reset
+        if [ "$TEST_LANE" != "pure" ]; then
+            test-db-reset
+        fi
         build/Test/Main "$@"
         exit $?
     ) >"$shard_log" 2>&1 &

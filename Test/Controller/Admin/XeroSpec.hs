@@ -50,7 +50,7 @@ import Web.Types
 
 tests :: Spec
 tests = beforeAll testContext do
-    describe "AdminController" do
+    describe "AdminController Xero" do
         it "shows the Xero page as not connected" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Admin Venue"

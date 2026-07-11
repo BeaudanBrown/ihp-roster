@@ -87,6 +87,22 @@ must identify the old suite/file and example title, the replacement suite/file
 and title, and whether project multiplication changed. This keeps coverage
 accountable even when raw example counts fall.
 
+## Current Hspec Lanes
+
+Issue #127 split the two large aggregate registrations into independently
+shardable child suites and classified the resulting 63 registry entries. The
+20 pure suites contain 238 examples and run through `hspec-pure` without a
+PostgreSQL reset or connection. The 43 database suites contain the remaining
+700 examples and run through `hspec-db` with the same per-shard database
+isolation as the canonical command. The canonical all lane remains 938 examples.
+
+The shared `AdminController`, `RosterWeeksController`, and `Xero` description
+prefixes intentionally remain broad Hspec match terms across the split suites.
+Automatic DB-backed fan-out is capped at eight unless `TEST_SHARDS` explicitly
+overrides it. On the baseline host, an all-lane six-shard run took 211.516s
+versus 186.329s for the comparable eight-shard run; the six-shard critical path
+was balancing-limited rather than uniformly database-saturated.
+
 ## Initial Bottlenecks And Interventions
 
 1. `DevSeed` alone controls full Hspec wall time despite having only 10 examples.

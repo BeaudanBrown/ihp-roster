@@ -11,6 +11,8 @@ Tests are a devenv shell script — use `bash ./bin/in-env` outside an interacti
 bash ./bin/in-env hspec-test                        # compile and run the full suite, auto-sharded across local cores
 bash ./bin/in-env hspec-test --match "PostsController"  # run tests matching a pattern
 bash ./bin/in-env hspec-test --match "PasskeysController" --match "LiveUpdate"  # OR multiple patterns in one run
+bash ./bin/in-env hspec-pure                        # pure/contract suites, no PostgreSQL reset or connection
+bash ./bin/in-env hspec-db                          # DB-backed suites only, with isolated shard databases
 TEST_SHARDS=1 bash ./bin/in-env hspec-test          # force serial execution
 TEST_SHARDS=4 bash ./bin/in-env hspec-test          # override shard count explicitly
 TEST_SHARDS=2 bash ./bin/in-env hspec-test --match "PasskeysController" --match "LiveUpdate"  # shard a focused multi-suite run
@@ -18,7 +20,9 @@ bash ./bin/in-env hspec-coverage                    # serial full-suite run with
 bash ./bin/in-env hspec-coverage --match "PostsController"  # focused coverage run
 ```
 
-`bash ./bin/in-env hspec-test` now auto-shards the full Hspec suite across local cores when no Hspec filter args are passed. Each shard gets its own ephemeral database, compiled test binary invocation, and shard log directory under `.devenv/test/`.
+`bash ./bin/in-env hspec-test` auto-shards the full Hspec suite when no Hspec filter args are passed. DB-backed full runs cap automatic fan-out at eight shards because same-host measurements found eight shards faster than six while higher raw host core counts would add PostgreSQL reset and connection pressure without splitting the remaining indivisible suites. `TEST_SHARDS` remains an explicit override and `TEST_DB_SHARDS_MAX` can tune the automatic cap for a measured host. Each DB-backed shard gets its own ephemeral database, compiled test binary invocation, and shard log directory under `.devenv/test/`.
+
+Use `hspec-pure` for the fastest broad feedback when changing pure helpers, renderers, contracts, or validation logic. Pure suites are selected by registry metadata and do not run `test-db-reset` or connect to PostgreSQL. Use `hspec-db` to exercise only DB-backed suites. Both are additive lanes: `hspec-test` remains the complete canonical gate.
 
 Hspec accepts repeated `--match` flags and treats them as OR filters. When checking several focused areas, prefer one command with multiple `--match` flags instead of running multiple `hspec-test --match ...` processes at the same time. Separate focused invocations compile into the shared `build/Test` directory and can race on GHC object files; they also default to the same `app_test` database unless explicitly isolated.
 
@@ -48,10 +52,10 @@ The coverage command is intentionally separate from `hspec-test`: use `hspec-tes
 When adding a new spec module:
 
 1. Import it in `Test/Suite.hs`
-2. Add a `TestSuite "Label" weight Module.tests` entry to `allSuites`
+2. Add a `pureSuite "Label" weight Module.tests` or `databaseSuite "Label" weight Module.tests` entry to `allSuites`. A pure suite must pass with PostgreSQL unavailable; classify any suite that opens a DB connection as database-backed.
 3. Choose an initial `weight` that roughly matches the suite's expected runtime in seconds, rounded to the nearest 5 or 10 seconds. Use a small value such as `5` or `10` for tiny pure/contract specs.
 
-`Test/Suite.hs` uses weighted greedy sharding for parallel `hspec-test` runs. The suite order is no longer a balancing mechanism; do not manually cluster or reorder suites to tune shards unless the weighted algorithm itself is changing.
+`Test/Suite.hs` uses weighted greedy sharding independently within the selected all/pure/DB lane. The suite order is no longer a balancing mechanism; do not manually cluster or reorder suites to tune shards unless the weighted algorithm itself is changing. Keep large controller families registered at their independently runnable child-spec boundary while retaining a common label prefix such as `AdminController.*` or `RosterWeeksController.*` for broad matching.
 
 To rebalance weights when full-suite shard times drift:
 
