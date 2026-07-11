@@ -8,6 +8,7 @@ Tickets:
 - `ir-mjov` - connection foundation maintenance
 - `ir-adtf`, `ir-shsr`, `ir-lgy7`, `ir-tfed`, `ir-ujwc`, `ir-z87w`
 - `ir-9u78` - guided draft-timesheet preparation modal
+- GitHub `#142` - retire disconnected operational panels and pre-wizard endpoints
 
 Living docs to update:
 
@@ -31,10 +32,12 @@ managed pay items and draft timesheet submission.
 
 ## Current State
 
-The app has Xero connection, owner-only management, reference-data sync, pay
-item foundations, readiness surfaces, preview builders, and probe scripts in
-various stages. Open work remains around readiness UI, preview/submission,
-audit trails, correction behavior, and custom pay item overrides.
+The app has owner-only connection management, one shared reference-data sync
+service, imported-pay-item support, and a guided preparation workflow covering
+staff decisions, managed pay items, readiness, preview, and submission. The
+ordinary Xero page is connection-state-only; disconnected operational panels
+and pre-wizard preview/submit/retry endpoints have been retired. Open work
+remains around audit trails, correction behavior, and custom pay item overrides.
 
 ## Intended Contract
 
@@ -48,12 +51,11 @@ audit trails, correction behavior, and custom pay item overrides.
 
 ## Guided Draft-Timesheet Preparation
 
-Draft-timesheet submission should be initiated from the Xero timesheet panel,
-but readiness work should happen inside a workflow modal mounted in the shared
-dialog overlay lane.
+Draft-timesheet submission is initiated from the Xero connection shell and
+continues inside a workflow modal mounted in the shared dialog overlay lane.
+There is no standalone timesheet or readiness panel.
 
-The panel should let the user choose a Xero pay period and start preparation.
-The modal then owns connection checks, token refresh/reconnect handoff,
+The modal owns period selection, connection checks, token refresh/reconnect handoff,
 reference-data sync, payroll-calendar/account-code deduction, staff mapping
 resolution, managed pay-item approval/creation, remote pay-run/timesheet
 checks, readiness validation, preview, and final draft submission.
@@ -88,6 +90,6 @@ Relevant tickets:
 ## Exit Criteria
 
 - Xero preview and submission use the same locked payroll facts as exports.
-- Readiness surfaces clearly show missing staff, pay item, and mapping inputs.
+- Guided preparation clearly shows missing staff, pay item, and mapping inputs.
 - Submission results and errors are auditable.
 - Living Xero docs replace archived plan instructions for future agents.

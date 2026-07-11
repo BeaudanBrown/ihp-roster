@@ -62,9 +62,9 @@ tests = describe "LiveUpdate runtime types" do
     it "encodes actor-local refresh instructions in the shared HTMX trigger payload" do
         let fragment =
                 SurfaceWireFragment
-                    { fragmentKey = adminXeroStaffMappingsLiveFragment
-                    , targetId = "xero-staff-mappings-data"
-                    , url = "/ShowadminXeroStaffMappingsLiveFragment"
+                    { fragmentKey = adminXeroShellLiveFragment
+                    , targetId = "admin-xero-fragment"
+                    , url = "/ShowadminXeroShellLiveFragment"
                     , deferUntilBlur = False
                     , protectionPolicy = NoProtection
                     }
@@ -115,9 +115,6 @@ tests = describe "LiveUpdate runtime types" do
                 , adminShiftTypesLiveFragment
                 , adminRosterGroupsLiveFragment
                 , adminXeroShellLiveFragment
-                , adminXeroStaffMappingsLiveFragment
-                , adminXeroPayItemsLiveFragment
-                , adminXeroTimesheetsLiveFragment
                 , billingStatusLiveFragment
                 , profileContentLiveFragment
                 , supportAwardRatesSectionLiveFragment

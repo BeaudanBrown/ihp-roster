@@ -1,14 +1,7 @@
 module Application.Xero.Admin.ReadModel
-    ( XeroEmployeeSuggestionResult (..)
-    , adminXeroScope
-    , attachXeroStaffMappingSuggestions
-    , bestXeroEmployeeSuggestion
-    , buildXeroReadyChecklist
-    , buildXeroTimesheetRunView
-    , currentVenueLocalXeroEarningsBuckets
-    , fetchActiveCurrentVenueXeroConnection
+    ( fetchActiveCurrentVenueXeroConnection
     , fetchCurrentVenueXeroAdminSectionData
-    , fetchCurrentVenueXeroEarningsBucketRows
+    , fetchCurrentVenueXeroConnection
     , fetchCurrentVenueXeroEarningsRates
     , fetchCurrentVenueXeroEmployees
     , fetchCurrentVenueXeroPayItemAccountCodeOptions
@@ -17,22 +10,13 @@ module Application.Xero.Admin.ReadModel
     , fetchCurrentVenueXeroPayrollCalendarSelection
     , fetchCurrentVenueXeroPayrollCalendars
     , fetchCurrentVenueXeroStaffMappingRows
-    , fetchCurrentVenueXeroConnection
-    , fetchCurrentVenueXeroTimesheetPanelData
     , fetchCurrentVenueXeroTimesheetPeriodOptions
-    , fetchLatestCurrentVenueXeroPayItemSyncRun
-    , fetchLatestCurrentVenueXeroSyncRun
-    , currentVenueXeroTimesheetReadinessRequest
-    , fetchXeroConnectedByUser
-    , staffFullNameText
     , xeroEmployeeAvailableForStaff
-    , xeroEarningsRateMappingCountsFor
+    , xeroTimesheetPreviewRowsFromJson
     , xeroTimesheetReadinessView
-    , xeroStaffMappingCountsFor
     ) where
 
 import Application.Helper.Controller
-import Application.Helper.LiveUpdate
 import Application.Helper.Profiling
 import Application.Helper.VenueScopedQueries
 import Application.Helper.XeroAdminTypes
@@ -51,10 +35,6 @@ import Data.Time.Calendar (Day, addDays, diffDays)
 import Generated.Types
 import IHP.ControllerPrelude
 
-adminXeroScope :: Id Venue -> SurfaceScope
-adminXeroScope venueId =
-    adminXeroLiveScope (unpackId venueId)
-
 fetchActiveCurrentVenueXeroConnection :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO (Maybe XeroConnection)
 fetchActiveCurrentVenueXeroConnection =
     query @XeroConnection
@@ -70,61 +50,6 @@ fetchCurrentVenueXeroConnection =
         |> filterWhereIn (#connectionStatus, ["active" :: Text, "reauthorization_required", "error"])
         |> orderByDesc #connectedAt
         |> fetchOneOrNothing
-
-fetchXeroConnectedByUser :: (?modelContext :: ModelContext) => Maybe XeroConnection -> IO (Maybe User)
-fetchXeroConnectedByUser maybeConnection =
-    case maybeConnection >>= (.connectedByUserId) of
-        Nothing -> pure Nothing
-        Just userId ->
-            query @User
-                |> filterWhere (#id, Id userId)
-                |> fetchOneOrNothing
-
-fetchLatestCurrentVenueXeroSyncRun :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO (Maybe XeroSyncRun)
-fetchLatestCurrentVenueXeroSyncRun =
-    query @XeroSyncRun
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> filterWhere (#syncKind, "payroll_reference_data" :: Text)
-        |> orderByDesc #startedAt
-        |> fetchOneOrNothing
-
-fetchLatestCurrentVenueXeroPayItemSyncRun :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO (Maybe XeroSyncRun)
-fetchLatestCurrentVenueXeroPayItemSyncRun =
-    query @XeroSyncRun
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> filterWhere (#syncKind, "pay_item_create" :: Text)
-        |> orderByDesc #startedAt
-        |> fetchOneOrNothing
-
-fetchCurrentVenueXeroEmployeeCount :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO Int
-fetchCurrentVenueXeroEmployeeCount maybeConnection =
-    case maybeConnection of
-        Nothing -> pure 0
-        Just connection ->
-            query @XeroEmployee
-                |> filterWhere (#venueId, unpackId currentVenueId)
-                |> filterWhere (#xeroConnectionId, unpackId connection.id)
-                |> fetchCount
-
-fetchCurrentVenueXeroEarningsRateCount :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO Int
-fetchCurrentVenueXeroEarningsRateCount maybeConnection =
-    case maybeConnection of
-        Nothing -> pure 0
-        Just connection ->
-            query @XeroEarningsRate
-                |> filterWhere (#venueId, unpackId currentVenueId)
-                |> filterWhere (#xeroConnectionId, unpackId connection.id)
-                |> fetchCount
-
-fetchCurrentVenueXeroPayrollCalendarCount :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO Int
-fetchCurrentVenueXeroPayrollCalendarCount maybeConnection =
-    case maybeConnection of
-        Nothing -> pure 0
-        Just connection ->
-            query @XeroPayrollCalendar
-                |> filterWhere (#venueId, unpackId currentVenueId)
-                |> filterWhere (#xeroConnectionId, unpackId connection.id)
-                |> fetchCount
 
 fetchCurrentVenueXeroEmployees :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO [XeroEmployee]
 fetchCurrentVenueXeroEmployees maybeConnection =
@@ -146,17 +71,6 @@ fetchCurrentVenueXeroEarningsRates maybeConnection =
                 |> filterWhere (#venueId, unpackId currentVenueId)
                 |> filterWhere (#xeroConnectionId, unpackId connection.id)
                 |> filterWhere (#isActive, True)
-                |> orderBy #name
-                |> fetch
-
-fetchCurrentVenueXeroImportedPayItems :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO [XeroImportedPayItem]
-fetchCurrentVenueXeroImportedPayItems maybeConnection =
-    case maybeConnection of
-        Nothing -> pure []
-        Just connection ->
-            query @XeroImportedPayItem
-                |> filterWhere (#venueId, unpackId currentVenueId)
-                |> filterWhere (#xeroConnectionId, unpackId connection.id)
                 |> orderBy #name
                 |> fetch
 
@@ -206,26 +120,6 @@ fetchCurrentVenueXeroPayItemAccountCodeSelection maybeConnection =
                 |> filterWhere (#venueId, unpackId currentVenueId)
                 |> filterWhere (#xeroConnectionId, unpackId connection.id)
                 |> fetchOneOrNothing
-
-fetchCurrentVenueXeroEarningsBucketRows :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO [XeroEarningsBucketRow]
-fetchCurrentVenueXeroEarningsBucketRows maybeConnection =
-    case maybeConnection of
-        Nothing -> pure []
-        Just connection -> do
-            buckets <- currentVenueLocalXeroEarningsBuckets
-            mappings <-
-                query @XeroEarningsRateMapping
-                    |> filterWhere (#venueId, unpackId currentVenueId)
-                    |> filterWhere (#xeroConnectionId, unpackId connection.id)
-                    |> fetch
-            pure $
-                buckets
-                    |> map (\bucket ->
-                        XeroEarningsBucketRow
-                            { earningsBucketRowBucket = bucket
-                            , earningsBucketRowMapping = List.find (\mapping -> mapping.localBucketKey == bucket.localBucketKey) mappings
-                            }
-                    )
 
 fetchCurrentVenueXeroPayItemRequirements :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Maybe XeroConnection -> [XeroEarningsRate] -> IO [XeroPayItemRequirement]
 fetchCurrentVenueXeroPayItemRequirements maybeConnection xeroEarningsRates =
@@ -328,115 +222,13 @@ fetchStaffLinkedUser staff =
                 |> filterWhere (#id, Id userId)
                 |> fetchOneOrNothing
 
-xeroStaffMappingCountsFor :: [XeroStaffMappingRow] -> XeroStaffMappingCounts
-xeroStaffMappingCountsFor rows =
-    XeroStaffMappingCounts
-        { xeroStaffVerifiedCount = countStatus "verified"
-        , xeroStaffNotApplicableCount = countStatus "not_applicable"
-        , xeroStaffStaleCount = countStatus "stale"
-        , xeroStaffPossibleMatchCount = length (filter (isJust . (.mappingRowSuggestedEmployee)) rows)
-        }
-    where
-        mappingStatus row = row.mappingRowMapping.mappingStatus
-        countStatus status = length (filter (\row -> mappingStatus row == status) rows)
-
-xeroEarningsRateMappingCountsFor :: [XeroEarningsBucketRow] -> XeroEarningsRateMappingCounts
-xeroEarningsRateMappingCountsFor rows =
-    XeroEarningsRateMappingCounts
-        { xeroEarningsVerifiedCount = countStatus "verified"
-        , xeroEarningsUnmappedCount = length (filter isUnmapped rows)
-        , xeroEarningsStaleCount = countStatus "stale"
-        }
-    where
-        mappingStatus row = (.mappingStatus) <$> row.earningsBucketRowMapping
-        countStatus status = length (filter (\row -> mappingStatus row == Just status) rows)
-        isUnmapped row =
-            case mappingStatus row of
-                Nothing         -> True
-                Just "unmapped" -> True
-                _               -> False
-
-buildXeroReadyChecklist :: Maybe XeroConnection -> Maybe XeroSyncRun -> [XeroStaffMappingRow] -> [XeroEarningsBucketRow] -> [XeroPayItemRequirement] -> Maybe XeroPayrollCalendarSelection -> Maybe XeroPayItemAccountCodeSelection -> XeroReadyChecklist
-buildXeroReadyChecklist maybeConnection maybeSyncRun staffRows earningsRows payItemRequirements maybeCalendarSelection maybePayItemAccountCodeSelection =
-    XeroReadyChecklist
-        { xeroReadyConnection = maybe False (\connection -> connection.connectionStatus == "active") maybeConnection
-        , xeroReadyReferenceSync = maybe False (\syncRun -> syncRun.syncStatus == "succeeded") maybeSyncRun
-        , xeroReadyStaffMappings = not (null staffRows) && all staffRowReady staffRows
-        , xeroReadyEarningsMappings = not (null earningsRows) && all earningsRowReady earningsRows
-        , xeroReadyManagedPayItems = not (null activeRequirements) && all payItemRequirementReady activeRequirements
-        , xeroReadyPayItemAccountCode = maybe False (\selection -> selection.selectionStatus == "verified" && maybe False (not . Text.null . Text.strip) selection.accountCode) maybePayItemAccountCodeSelection
-        , xeroReadyPayrollCalendar = maybe False (\selection -> selection.calendarStatus == "verified" && isJust selection.xeroPayrollCalendarId) maybeCalendarSelection
-        , xeroReadyStaffVerifiedCount = length (filter staffRowReady staffRows)
-        , xeroReadyStaffTotalCount = length staffRows
-        , xeroReadyEarningsVerifiedCount = length (filter earningsRowReady earningsRows)
-        , xeroReadyEarningsTotalCount = length earningsRows
-        , xeroReadyManagedPayItemReadyCount = length (filter payItemRequirementReady activeRequirements)
-        , xeroReadyManagedPayItemTotalCount = length activeRequirements
-        }
-    where
-        staffRowReady row =
-            row.mappingRowMapping.mappingStatus == "verified" || row.mappingRowMapping.mappingStatus == "not_applicable"
-        earningsRowReady row =
-            maybe False (\mapping -> mapping.mappingStatus == "verified" && isJust mapping.xeroEarningsRateId) row.earningsBucketRowMapping
-        activeRequirements = filter (\requirement -> requirement.payItemRequirementStatus /= "ignored") payItemRequirements
-        payItemRequirementReady requirement =
-            requirement.payItemRequirementStatus `elem` ["matched", "created"]
-
 fetchCurrentVenueXeroAdminSectionData ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Bool ->
     IO XeroAdminSectionData
 fetchCurrentVenueXeroAdminSectionData xeroConnectionActionsAllowed = do
     xeroConnection <- profileActionSpan "admin.xero.fragment.load_connection" fetchCurrentVenueXeroConnection
-    xeroConnectedByUser <- profileActionSpan "admin.xero.fragment.load_connected_user" (fetchXeroConnectedByUser xeroConnection)
-    xeroLatestSyncRun <- profileActionSpan "admin.xero.fragment.load_latest_sync" fetchLatestCurrentVenueXeroSyncRun
-    xeroLatestPayItemSyncRun <- profileActionSpan "admin.xero.fragment.load_latest_pay_item_sync" fetchLatestCurrentVenueXeroPayItemSyncRun
-    (xeroEmployeeCount, xeroEarningsRateCount, xeroPayrollCalendarCount) <- profileActionSpan "admin.xero.fragment.fetch_reference_counts" do
-        (,,)
-            <$> fetchCurrentVenueXeroEmployeeCount xeroConnection
-            <*> fetchCurrentVenueXeroEarningsRateCount xeroConnection
-            <*> fetchCurrentVenueXeroPayrollCalendarCount xeroConnection
-    xeroEmployees <- profileActionSpan "admin.xero.staff_mapping.fetch_employees" (fetchCurrentVenueXeroEmployees xeroConnection)
-    xeroStaffMappingRows <- profileActionSpan "admin.xero.staff_mapping.fetch_rows" (fetchCurrentVenueXeroStaffMappingRows xeroConnection)
-    let xeroStaffMappingCounts = xeroStaffMappingCountsFor xeroStaffMappingRows
-    xeroEarningsRates <- profileActionSpan "admin.xero.earnings_mapping.fetch_rates" (fetchCurrentVenueXeroEarningsRates xeroConnection)
-    xeroEarningsBucketRows <- profileActionSpan "admin.xero.earnings_mapping.fetch_rows" (fetchCurrentVenueXeroEarningsBucketRows xeroConnection)
-    xeroPayItemRequirements <- profileActionSpan "admin.xero.pay_items.fetch_requirements" (fetchCurrentVenueXeroPayItemRequirements xeroConnection xeroEarningsRates)
-    xeroImportedPayItems <- profileActionSpan "admin.xero.imported_pay_items.fetch" (fetchCurrentVenueXeroImportedPayItems xeroConnection)
-    xeroPayItemAccountCodeOptions <- profileActionSpan "admin.xero.pay_item_account_code.fetch_options" (fetchCurrentVenueXeroPayItemAccountCodeOptions xeroConnection)
-    xeroPayrollCalendars <- profileActionSpan "admin.xero.calendar.fetch_calendars" (fetchCurrentVenueXeroPayrollCalendars xeroConnection)
-    xeroPayrollCalendarSelection <- profileActionSpan "admin.xero.calendar.fetch_selection" (fetchCurrentVenueXeroPayrollCalendarSelection xeroConnection)
-    xeroPayItemAccountCodeSelection <- profileActionSpan "admin.xero.pay_item_account_code.fetch_selection" (fetchCurrentVenueXeroPayItemAccountCodeSelection xeroConnection)
-    let xeroReadyChecklist = buildXeroReadyChecklist xeroConnection xeroLatestSyncRun xeroStaffMappingRows xeroEarningsBucketRows xeroPayItemRequirements xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection
-    xeroTimesheetPanelData <- profileActionSpan "admin.xero.timesheets.fetch_panel" (fetchCurrentVenueXeroTimesheetPanelData xeroConnectionActionsAllowed xeroConnection xeroPayrollCalendarSelection)
     pure XeroAdminSectionData { .. }
-
-fetchCurrentVenueXeroTimesheetPanelData ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    Bool ->
-    Maybe XeroConnection ->
-    Maybe XeroPayrollCalendarSelection ->
-    IO XeroTimesheetPanelData
-fetchCurrentVenueXeroTimesheetPanelData actionsAllowed maybeConnection maybeCalendarSelection = do
-    maybeReadinessRequest <- currentVenueXeroTimesheetReadinessRequest maybeConnection maybeCalendarSelection
-    xeroTimesheetReadiness <-
-        case maybeReadinessRequest of
-            Nothing -> pure Nothing
-            Just readinessRequest -> Just . xeroTimesheetReadinessView <$> validateXeroTimesheetReadiness readinessRequest
-    xeroTimesheetLatestRun <- fetchCurrentVenueLatestXeroTimesheetRun maybeConnection
-    xeroTimesheetPeriodOptions <- fetchCurrentVenueXeroTimesheetPeriodOptions maybeConnection
-    pure XeroTimesheetPanelData
-        { xeroTimesheetActionsAllowed = actionsAllowed
-        , xeroTimesheetReadiness
-        , xeroTimesheetPeriodMessage =
-            case (maybeConnection, maybeCalendarSelection, maybeReadinessRequest) of
-                (Nothing, _, _) -> Just "Connect Xero before preparing draft timesheets."
-                (_, Nothing, _) -> Nothing
-                (_, _, Nothing) -> Just "The selected Xero payroll calendar period could not be derived."
-                _ -> Nothing
-        , xeroTimesheetPeriodOptions
-        , xeroTimesheetLatestRun
-        }
 
 fetchCurrentVenueXeroTimesheetPeriodOptions ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -500,17 +292,6 @@ derivedPeriodOptions today payRuns approvedWorkedOnDates calendar =
                 maybePayRun = findPayRun calendar periodStart periodEnd payRuns
             guard (not (maybe False isPostedPayRun maybePayRun))
             pure (periodOptionFrom calendar periodStart periodEnd maybePayRun True)
-
-payRunOnlyPeriodOption :: [XeroPayrollCalendar] -> [Day] -> XeroPayRun -> Maybe XeroTimesheetPeriodOption
-payRunOnlyPeriodOption calendars approvedWorkedOnDates payRun = do
-    guard (not (isPostedPayRun payRun))
-    guard (periodContainsApprovedEntry approvedWorkedOnDates payRun.payPeriodStart payRun.payPeriodEnd)
-    calendar <- List.find (\candidate -> candidate.xeroPayrollCalendarId == payRun.xeroPayrollCalendarId) calendars
-    pure (periodOptionFrom calendar payRun.payPeriodStart payRun.payPeriodEnd (Just payRun) False)
-
-periodContainsApprovedEntry :: [Day] -> Day -> Day -> Bool
-periodContainsApprovedEntry approvedWorkedOnDates periodStart periodEnd =
-    any (\workedOn -> workedOn >= periodStart && workedOn <= periodEnd) approvedWorkedOnDates
 
 staffPayrollCalendarAssignments :: [XeroStaffMapping] -> [XeroEmployee] -> Map.Map UUID Text
 staffPayrollCalendarAssignments mappings employees =
@@ -600,99 +381,6 @@ isPostedPayRun :: XeroPayRun -> Bool
 isPostedPayRun payRun =
     maybe False ((== "posted") . Text.toLower . Text.strip) payRun.payRunStatus
 
-currentVenueXeroTimesheetReadinessRequest ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    Maybe XeroConnection ->
-    Maybe XeroPayrollCalendarSelection ->
-    IO (Maybe XeroTimesheetReadinessRequest)
-currentVenueXeroTimesheetReadinessRequest Nothing _ = pure Nothing
-currentVenueXeroTimesheetReadinessRequest _ Nothing = pure Nothing
-currentVenueXeroTimesheetReadinessRequest (Just connection) (Just selection) =
-    case selection.xeroPayrollCalendarId of
-        Nothing -> pure Nothing
-        Just calendarId -> do
-            maybeCalendar <-
-                query @XeroPayrollCalendar
-                    |> filterWhere (#venueId, unpackId currentVenueId)
-                    |> filterWhere (#xeroConnectionId, unpackId connection.id)
-                    |> filterWhere (#xeroPayrollCalendarId, calendarId)
-                    |> fetchOneOrNothing
-            today <- utctDay <$> getCurrentTime
-            pure do
-                calendar <- maybeCalendar
-                (periodStart, periodEnd) <- deriveXeroPayrollCalendarPeriod calendar today
-                pure XeroTimesheetReadinessRequest
-                    { readinessVenueId = currentVenueId
-                    , readinessPayrollCalendarId = Just calendar.xeroPayrollCalendarId
-                    , readinessPayrollCalendarName = Just calendar.name
-                    , readinessSelectedPeriodKey = Just (xeroPeriodOptionKey calendar.xeroPayrollCalendarId periodStart periodEnd)
-                    , readinessPeriodStart = periodStart
-                    , readinessPeriodEnd = periodEnd
-                    , readinessPaymentDate = calendar.paymentDate
-                    , readinessXeroPayRunId = Nothing
-                    , readinessXeroPayRunStatus = Nothing
-                    , readinessRemoteTimesheets = []
-                    , readinessSkippedStaffIds = []
-                    }
-
-fetchCurrentVenueLatestXeroTimesheetRun ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    Maybe XeroConnection ->
-    IO (Maybe XeroTimesheetRunView)
-fetchCurrentVenueLatestXeroTimesheetRun Nothing = pure Nothing
-fetchCurrentVenueLatestXeroTimesheetRun (Just connection) = do
-    maybeRun <-
-        query @XeroSubmissionRun
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> orderByDesc #createdAt
-            |> fetchOneOrNothing
-    case maybeRun of
-        Nothing  -> pure Nothing
-        Just run -> Just <$> buildXeroTimesheetRunView connection run
-
-buildXeroTimesheetRunView ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    XeroConnection ->
-    XeroSubmissionRun ->
-    IO XeroTimesheetRunView
-buildXeroTimesheetRunView connection run = do
-    submissions <-
-        query @XeroTimesheetSubmission
-            |> filterWhere (#xeroSubmissionRunId, unpackId run.id)
-            |> orderBy #xeroEmployeeId
-            |> fetch
-    staffMembers <-
-        query @Staff
-            |> filterWhereIn (#id, map (Id . (.staffId)) submissions)
-            |> fetch
-    employees <- fetchCurrentVenueXeroEmployees (Just connection)
-    earningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
-    submittedBy <-
-        query @User
-            |> filterWhere (#id, Id run.submittedByUserId)
-            |> fetchOneOrNothing
-    historicalCount <-
-        query @XeroSubmissionRun
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> fetchCount
-    pure XeroTimesheetRunView
-        { timesheetRun = run
-        , timesheetRunPreviewRows = previewRowsFromJson employees earningsRates run.previewPayloadJson
-        , timesheetRunSubmissionRows = map (submissionRowView staffMembers employees) submissions
-        , timesheetRunSubmittedBy = submittedBy
-        , timesheetRunHasHistoricalSib = historicalCount > 1
-        }
-
-submissionRowView :: [Staff] -> [XeroEmployee] -> XeroTimesheetSubmission -> XeroTimesheetSubmissionRowView
-submissionRowView staffMembers employees submission =
-    XeroTimesheetSubmissionRowView
-        { submissionRowSubmission = submission
-        , submissionRowStaff = List.find (\staff -> unpackId staff.id == submission.staffId) staffMembers
-        , submissionRowEmployee = List.find (\employee -> employee.xeroEmployeeId == submission.xeroEmployeeId) employees
-        }
-
 xeroTimesheetReadinessView :: XeroTimesheetReadiness -> XeroTimesheetReadinessView
 xeroTimesheetReadinessView readiness =
     XeroTimesheetReadinessView
@@ -717,8 +405,8 @@ xeroTimesheetReadinessView readiness =
                 , timesheetIssueHint = issue.xeroBlockerActionHint
                 }
 
-previewRowsFromJson :: [XeroEmployee] -> [XeroEarningsRate] -> Aeson.Value -> [XeroTimesheetPreviewRowView]
-previewRowsFromJson employees earningsRates value =
+xeroTimesheetPreviewRowsFromJson :: [XeroEmployee] -> [XeroEarningsRate] -> Aeson.Value -> [XeroTimesheetPreviewRowView]
+xeroTimesheetPreviewRowsFromJson employees earningsRates value =
     case AesonTypes.parseMaybe parsePreviewRows value of
         Nothing   -> []
         Just rows -> map (toPreviewRow employeeNames earningsRateNames) rows

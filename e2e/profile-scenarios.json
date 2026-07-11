@@ -22,9 +22,7 @@
     ],
     "xero": [
       { "kind": "visit", "name": "xero.full", "routeKey": "xero", "fallbackPath": "/Xero", "readySelector": "#admin-xero-fragment" },
-      { "kind": "visit", "name": "xero.admin.fragment", "routeKey": "adminXeroFragment", "fallbackPath": "/ShowAdminXeroFragment", "readySelector": "#admin-xero-fragment" },
-      { "kind": "xeroAutosave", "name": "xero.staff_mapping.autosave" },
-      { "kind": "xeroAutosave", "name": "xero.staff_mapping.autosave_bottom" }
+      { "kind": "visit", "name": "xero.admin.fragment", "routeKey": "adminXeroFragment", "fallbackPath": "/ShowAdminXeroFragment", "readySelector": "#admin-xero-fragment" }
     ],
     "admin": [
       { "kind": "visit", "name": "admin.full", "routeKey": "admin", "fallbackPath": "/Admin", "readySelector": "#admin-config-sections" },

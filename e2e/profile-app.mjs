@@ -203,7 +203,6 @@ function scenarioDefinitions(manifest, catalog) {
     return Object.fromEntries(Object.entries(catalog.browserScenarios || {}).map(([scenarioName, entries]) => [
         scenarioName,
         entries.map((entry) => {
-            if (entry.kind === 'xeroAutosave') return { kind: 'xeroAutosave', name: entry.name };
             if (entry.kind === 'exportGeneration') return { kind: 'exportGeneration', name: entry.name };
             return {
                 kind: 'visit',
@@ -514,80 +513,6 @@ function renderMarkdown(options, manifest, summary) {
     return `${lines.join('\n')}\n`;
 }
 
-async function openXeroAdminSection(page, options, manifest) {
-    const routes = manifest.routes || {};
-    await gotoReady(page, options.baseUrl, routes.xero || '/Xero', '#admin-xero-fragment', options.timeoutMs);
-    await page.locator('#admin-xero-fragment').waitFor({ state: 'visible', timeout: options.timeoutMs });
-    await page.locator('select[name="xeroEmployeeSelection"]').first().waitFor({ state: 'visible', timeout: options.timeoutMs });
-}
-
-async function runXeroAutosaveScenario(page, options, manifest, scenario, records, iteration, warmup) {
-    const xero = manifest.xero || {};
-    if (!xero.targetStaffLabel || !xero.targetEmployeeId) {
-        throw new Error('Profile seed manifest is missing xero.targetStaffLabel or xero.targetEmployeeId');
-    }
-
-    await openXeroAdminSection(page, options, manifest);
-
-    const select = page.getByLabel(xero.targetStaffLabel);
-    await select.scrollIntoViewIfNeeded();
-
-    if (await select.inputValue() === xero.targetEmployeeId) {
-        await submitXeroMappingSelection(page, select, '');
-        await page.getByLabel(xero.targetStaffLabel).waitFor({ state: 'visible', timeout: options.timeoutMs });
-    }
-
-    const activeSelect = page.getByLabel(xero.targetStaffLabel);
-    await activeSelect.scrollIntoViewIfNeeded();
-    const beforeScrollY = await page.evaluate(() => window.scrollY);
-
-    const startedAt = performance.now();
-    const saveResponse = await submitXeroMappingSelection(page, activeSelect, xero.targetEmployeeId);
-    const wallMs = performance.now() - startedAt;
-    const saveResponseHeaders = saveResponse.headers();
-    const serverTimingHeader = saveResponseHeaders['server-timing'];
-
-    await page.getByLabel(xero.targetStaffLabel).waitFor({ state: 'visible', timeout: options.timeoutMs });
-    await page.getByLabel(xero.targetStaffLabel).evaluate((element, expectedValue) => {
-        if (element instanceof HTMLSelectElement && element.value !== expectedValue) {
-            throw new Error(`Expected Xero mapping value ${expectedValue}, received ${element.value}`);
-        }
-    }, xero.targetEmployeeId);
-    const afterScrollY = await page.evaluate(() => window.scrollY);
-
-    const existingRecord = [...records].reverse().find((record) =>
-        record.scenario === scenario.name
-        && record.iteration === iteration
-        && record.warmup === warmup
-        && record.method === 'POST'
-        && new URL(record.url).pathname.includes('SaveXeroStaffMapping')
-    );
-    const interactionDetails = {
-        scrollBeforeY: beforeScrollY,
-        scrollAfterY: afterScrollY,
-        scrollDeltaY: afterScrollY - beforeScrollY,
-    };
-
-    if (existingRecord) {
-        existingRecord.wallMs = round(wallMs);
-        existingRecord.interaction = interactionDetails;
-    } else {
-        records.push({
-            scenario: scenario.name,
-            iteration,
-            warmup,
-            url: absoluteUrl(options.baseUrl, '/SaveXeroStaffMapping'),
-            method: 'POST',
-            status: saveResponse.status(),
-            serverTiming: serverTimingHeader ? parseServerTiming(serverTimingHeader) : [],
-            profileCounters: parseProfileCounters(saveResponseHeaders['x-profile-counters']),
-            responseBytes: responseBytesFromHeaders(saveResponseHeaders),
-            wallMs: round(wallMs),
-            interaction: interactionDetails,
-        });
-    }
-}
-
 async function runExportGenerationScenario(page, options, manifest, scenario, records, iteration, warmup) {
     const routes = manifest.routes || {};
     const range = manifest.exports || {};
@@ -619,19 +544,6 @@ async function runExportGenerationScenario(page, options, manifest, scenario, re
         responseBytes: responseBytesFromHeaders(exportResponseHeaders),
         wallMs: round(wallMs),
     });
-}
-
-async function submitXeroMappingSelection(page, select, value) {
-    const saveResponsePromise = page.waitForResponse((response) =>
-        response.request().method() === 'POST'
-        && new URL(response.url()).pathname.includes('SaveXeroStaffMapping')
-    );
-    await select.selectOption(value);
-    const saveResponse = await saveResponsePromise;
-    if (saveResponse.status() < 200 || saveResponse.status() >= 300) {
-        throw new Error(`Xero staff mapping save failed with status ${saveResponse.status()}`);
-    }
-    return saveResponse;
 }
 
 async function main() {
@@ -684,15 +596,13 @@ async function main() {
             await ensurePrivilegedPasskeyReady(page, options);
         }
         for (const scenario of scenarios) {
-            if (scenario.kind !== 'xeroAutosave' && !scenario.target) continue;
+            if (!scenario.target && scenario.kind !== 'exportGeneration') continue;
             const totalIterations = options.warmupRuns + options.runs;
             for (let index = 0; index < totalIterations; index += 1) {
                 activeScenario = scenario.name;
                 activeIteration = index - options.warmupRuns + 1;
                 activeWarmup = index < options.warmupRuns;
-                if (scenario.kind === 'xeroAutosave') {
-                    await runXeroAutosaveScenario(page, options, manifest, scenario, records, activeIteration, activeWarmup);
-                } else if (scenario.kind === 'exportGeneration') {
+                if (scenario.kind === 'exportGeneration') {
                     await runExportGenerationScenario(page, options, manifest, scenario, records, activeIteration, activeWarmup);
                 } else {
                     const wallMs = await gotoReady(page, options.baseUrl, scenario.target, scenario.readySelector, options.timeoutMs);

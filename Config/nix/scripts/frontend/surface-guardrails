@@ -77,7 +77,7 @@ migrated_overlay_paths=(
     Web/View/RosterWeeks/ShiftDialog.hs
     Web/Controller/RosterWeeks.hs
     Web/View/Admin/Xero.hs
-    Web/View/Admin/Xero/PayItems.hs
+    Web/View/Admin/Xero/ImportedPayItems.hs
     Web/View/Admin/Xero/TimesheetPreparation.hs
 )
 

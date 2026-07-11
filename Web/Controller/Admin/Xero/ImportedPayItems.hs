@@ -1,25 +1,22 @@
 module Web.Controller.Admin.Xero.ImportedPayItems
-    ( archiveXeroImportedPayItemAction
-    , importXeroPayItemsAction
+    ( importXeroPayItemsAction
     , openXeroPayItemImportAction
     ) where
 
 import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.View (ToastOverlayConfig (..),
                                 ToastOverlayPosition (ToastBottomCenter),
-                                renderToastOverlayHostOob)
+                                dialogOverlayMountId, renderToastOverlayHostOob)
 import Application.Helper.Xero
 import Application.Xero.Admin.ImportedPayItems
 import Application.Xero.Admin.ReadModel (fetchActiveCurrentVenueXeroConnection)
 import Application.Xero.Connection
 import Web.Admin.Xero.Mutations
-import Web.Controller.Admin.Xero.Responses (respondWithXeroPayItemsActorInvalidationAndToast,
-                                            respondWithXeroPayItemsActorInvalidationAndToastAndCloseDialog,
-                                            xeroErrorToast, xeroSuccessToast)
+import Web.Controller.Admin.Xero.Responses (xeroErrorToast, xeroSuccessToast)
 import Web.Controller.Prelude
-import Web.View.Admin.Xero.PayItems (renderXeroImportedPayItemImportDialog,
-                                     renderXeroImportedPayItemImportErrorDialog,
-                                     renderXeroImportedPayItemImportLoadingDialog)
+import Web.View.Admin.Xero.ImportedPayItems (renderXeroImportedPayItemImportDialog,
+                                             renderXeroImportedPayItemImportErrorDialog,
+                                             renderXeroImportedPayItemImportLoadingDialog)
 
 openXeroPayItemImportAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 openXeroPayItemImportAction = do
@@ -43,20 +40,6 @@ importXeroPayItemsAction = do
                 LiveMutationResult { liveMutationValue = imported } <- importXeroEarningsRatesMutation connection now fetchedRates selectedRateIds
                 respondImportedPayItemImportSuccess (Just (xeroSuccessToast ("Imported " <> tshow (length imported) <> " Xero pay item" <> pluralSuffix imported <> ".")))
 
-archiveXeroImportedPayItemAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroImportedPayItem -> IO ()
-archiveXeroImportedPayItemAction importedPayItemId = do
-    maybePayItem <-
-        query @XeroImportedPayItem
-            |> filterWhere (#id, importedPayItemId)
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> fetchOneOrNothing
-    case maybePayItem of
-        Nothing -> respondImportedPayItemMutation (Just (xeroErrorToast "Imported Xero pay item was not found."))
-        Just payItem -> do
-            now <- getCurrentTime
-            _ <- archiveImportedXeroPayItemMutation now "Archived from Xero admin" payItem
-            respondImportedPayItemMutation (Just (xeroSuccessToast "Archived imported Xero pay item."))
-
 withFetchedXeroEarningsRates :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> (ToastOverlayConfig -> IO ()) -> (XeroConnection -> UTCTime -> [XeroEarningsRateRef] -> IO ()) -> IO ()
 withFetchedXeroEarningsRates actionLabel respondError action = do
     maybeConnection <- fetchActiveCurrentVenueXeroConnection
@@ -76,18 +59,14 @@ withFetchedXeroEarningsRates actionLabel respondError action = do
                                 Left err -> respondError (xeroErrorToast ("Could not " <> actionLabel <> ": " <> xeroClientErrorText err))
                                 Right fetchedRates -> action refreshedConnection now fetchedRates
 
-respondImportedPayItemMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Maybe ToastOverlayConfig -> IO ()
-respondImportedPayItemMutation maybeToast =
-    if isHtmxRequest
-        then respondWithXeroPayItemsActorInvalidationAndToast maybeToast
-        else do
-            setSuccessMessage "Updated imported Xero pay items."
-            redirectTo XeroAction
-
 respondImportedPayItemImportSuccess :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Maybe ToastOverlayConfig -> IO ()
 respondImportedPayItemImportSuccess maybeToast =
     if isHtmxRequest
-        then respondWithXeroPayItemsActorInvalidationAndToastAndCloseDialog maybeToast
+        then respondHtml $
+            mconcat
+                [ [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
+                , maybe mempty (renderToastOverlayHostOob ToastBottomCenter . pure) maybeToast
+                ]
         else do
             setSuccessMessage "Updated imported Xero pay items."
             redirectTo XeroAction

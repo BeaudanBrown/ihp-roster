@@ -15,10 +15,7 @@ module Application.Helper.LiveUpdate
     , adminVenueConfigLiveFragment
     , adminVenueConfigLiveScope
     , adminXeroLiveScope
-    , adminXeroPayItemsLiveFragment
     , adminXeroShellLiveFragment
-    , adminXeroStaffMappingsLiveFragment
-    , adminXeroTimesheetsLiveFragment
     , billingLiveScope
     , billingStatusLiveFragment
     , frontendSurfaceLiveScope

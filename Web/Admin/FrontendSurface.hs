@@ -22,9 +22,6 @@ module Web.Admin.FrontendSurface
     , adminRosterGroupsFragment
     , adminSurfaceWireFragments
     , adminXeroShellFragment
-    , adminXeroStaffMappingsFragment
-    , adminXeroPayItemsFragment
-    , adminXeroTimesheetsFragment
     , adminShiftTypesAction
     , adminRosterGroupsAction
     , adminXeroAction
@@ -110,7 +107,7 @@ adminRosterGroupsSurfaceImpl scope =
 
 adminXeroSurfaceImpl :: AdminVenueScopeValue -> SurfaceImpl Surface.AdminXeroSurface
 adminXeroSurfaceImpl scope =
-    let fragments = [adminXeroShellFragment, adminXeroStaffMappingsFragment, adminXeroPayItemsFragment, adminXeroTimesheetsFragment]
+    let fragments = [adminXeroShellFragment]
         config = mountConfig "admin-xero" scope fragments
         impl = mkSurfaceImpl "admin-xero" config (xeroHandlers scope)
      in impl
@@ -280,18 +277,9 @@ xeroHandlers scope =
         , surfaceMountStateHandlers = HandlerNil
         , surfaceFragmentHandlers =
             fh adminXeroShellFragment `HandlerCons`
-            fh adminXeroStaffMappingsFragment `HandlerCons`
-            fh adminXeroPayItemsFragment `HandlerCons`
-            fh adminXeroTimesheetsFragment `HandlerCons`
             HandlerNil
         , surfaceActionHandlers =
             adminActionHandler "sync-xero-payroll-reference-data" (pathTo SyncXeroPayrollReferenceDataAction) `HandlerCons`
-            adminActionHandler "save-xero-payroll-calendar-selection" (pathTo SaveXeroPayrollCalendarSelectionAction) `HandlerCons`
-            adminActionHandler "save-xero-pay-item-account-code-selection" (pathTo SaveXeroPayItemAccountCodeSelectionAction) `HandlerCons`
-            adminActionHandler "create-missing-xero-pay-items" (pathTo CreateMissingXeroPayItemsAction) `HandlerCons`
-            adminActionHandler "archive-xero-imported-pay-item" (pathTo (ArchiveXeroImportedPayItemAction (Id UUID.nil))) `HandlerCons`
-            adminActionHandler "save-xero-staff-mapping" (pathTo SaveXeroStaffMappingAction) `HandlerCons`
-            adminActionHandler "suggest-xero-staff-mapping" (pathTo (SuggestXeroStaffMappingAction (Id UUID.nil))) `HandlerCons`
             adminActionHandler "show-xero-timesheet-preparation-staff-mappings" (pathTo (ShowXeroTimesheetPreparationStaffMappingsFragmentAction (Id UUID.nil))) `HandlerCons`
             HandlerNil
         , surfaceIntentHandlers = HandlerNil
@@ -330,7 +318,7 @@ adminSurfaceWireFragments fragments =
             ]
         fragmentsForSurface (surfaceName, surfaceFragments) = frontendSurfaceMountedFragmentsToWire surfaceName surfaceFragments
 
-adminPageContentFragment, adminXeroPageContentFragment, adminVenueSettingsFragment, adminExportsFragment, adminShiftTypesFragment, adminRosterGroupsFragment, adminXeroShellFragment, adminXeroStaffMappingsFragment, adminXeroPayItemsFragment, adminXeroTimesheetsFragment :: FrontendSurfaceMountedFragment
+adminPageContentFragment, adminXeroPageContentFragment, adminVenueSettingsFragment, adminExportsFragment, adminShiftTypesFragment, adminRosterGroupsFragment, adminXeroShellFragment :: FrontendSurfaceMountedFragment
 adminPageContentFragment = fragment "admin-page-content" "admin-page-content-fragment" (pathTo AdminAction) FrontendSurfaceReplace
 adminXeroPageContentFragment = fragment "admin-xero-page-content" "admin-xero-page-content-fragment" (pathTo XeroAction) FrontendSurfaceReplace
 adminVenueSettingsFragment = fragment "admin-venue-settings" "admin-venue-settings-fragment" (pathTo ShowAdminVenueSettingsFragmentAction) FrontendSurfaceReplace
@@ -338,9 +326,6 @@ adminExportsFragment = fragment "admin-exports" "admin-exports-fragment" (pathTo
 adminShiftTypesFragment = fragment "admin-shift-types" "admin-shift-types-fragment" (pathTo ShowadminShiftTypesLiveFragmentAction) (FrontendSurfaceFocusedFieldConfig FrontendSurfaceFocusedFieldProtectionConfig { focusedProtectionActiveSelector = "input[data-admin-shift-type-field-key]:focus", focusedProtectionFieldKeyAttr = "data-admin-shift-type-field-key", focusedProtectionFieldNameFallback = True, focusedProtectionContainerSelector = Just "form[data-admin-shift-type-row]" })
 adminRosterGroupsFragment = fragment "admin-roster-groups" "admin-roster-groups-fragment" (pathTo ShowadminRosterGroupsLiveFragmentAction) FrontendSurfaceReplace
 adminXeroShellFragment = fragment "admin-xero-shell" "admin-xero-fragment" (pathTo ShowadminXeroShellLiveFragmentAction) FrontendSurfaceReplace
-adminXeroStaffMappingsFragment = fragment "admin-xero-staff-mappings" "xero-staff-mappings-data" (pathTo ShowadminXeroStaffMappingsLiveFragmentAction) FrontendSurfaceReplace
-adminXeroPayItemsFragment = fragment "admin-xero-pay-items" "xero-pay-items-data" (pathTo ShowadminXeroPayItemsLiveFragmentAction) FrontendSurfaceReplace
-adminXeroTimesheetsFragment = fragment "admin-xero-timesheets" "xero-timesheets-data" (pathTo ShowadminXeroTimesheetsLiveFragmentAction) FrontendSurfaceReplace
 
 adminInvitesFragment :: Maybe UUID.UUID -> FrontendSurfaceMountedFragment
 adminInvitesFragment maybeRosterGroupId =

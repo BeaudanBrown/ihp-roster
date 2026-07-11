@@ -240,7 +240,7 @@ benchmarkFragments = \case
     scope
         | surfaceScopeKind scope == "billing" -> [fragment billingStatusLiveFragment]
         | surfaceScopeKind scope == "timesheets" -> [fragment timesheetToolbarLiveFragment]
-        | surfaceScopeKind scope == "admin-xero" -> [fragment adminXeroStaffMappingsLiveFragment, fragment adminXeroPayItemsLiveFragment]
+        | surfaceScopeKind scope == "admin-xero" -> [fragment adminXeroShellLiveFragment]
         | surfaceScopeKind scope == "roster" -> [fragment rosterContentLiveFragment]
         | surfaceScopeKind scope == "support" -> [fragment supportAwardRatesSectionLiveFragment]
         | surfaceScopeKind scope == "admin-invites" -> [fragment adminInvitesLiveFragment]
@@ -258,8 +258,7 @@ surfaceFragmentKeyKindForProfile :: SurfaceFragmentKey -> Text
 surfaceFragmentKeyKindForProfile = \case
     billingStatusLiveFragment -> "billing-status"
     timesheetToolbarLiveFragment -> "timesheet-toolbar"
-    adminXeroStaffMappingsLiveFragment -> "admin-xero-staff-mappings"
-    adminXeroPayItemsLiveFragment -> "admin-xero-pay-items"
+    adminXeroShellLiveFragment -> "admin-xero-shell"
     rosterContentLiveFragment -> "roster-content"
     supportAwardRatesSectionLiveFragment -> "support-award-rates"
     adminInvitesLiveFragment -> "admin-invites"

@@ -124,10 +124,7 @@ compatibility helpers move internal.
 | Admin invites | `ShowAdminInvitesFragmentAction` | `ir-5m9m` | venue/admin-scoped typed admin invites surface |
 | Admin roster groups | `ShowAdminRosterGroupsFragmentAction` | `ir-5m9m` | venue/admin-scoped typed roster groups surface |
 | Roster quick timesheet card | staff self-service timesheet card in roster | `ir-5m9m` | reuse typed timesheet surface instead of manual `"timesheets"` config |
-| Admin Xero shell | `ShowAdminXeroFragmentAction` | `ir-1dhl` | owner/super-admin typed Xero shell surface |
-| Admin Xero staff mappings | `ShowAdminXeroStaffMappingsFragmentAction` | `ir-1dhl` | typed Xero sub-fragment |
-| Admin Xero pay items | `ShowAdminXeroPayItemsFragmentAction` | `ir-1dhl` | typed Xero sub-fragment |
-| Admin Xero timesheets | `ShowAdminXeroTimesheetsFragmentAction` | `ir-1dhl` | typed Xero sub-fragment |
+| Admin Xero shell | `ShowadminXeroShellLiveFragmentAction` | `ir-1dhl` | owner/super-admin typed connection shell; disconnected operational sub-fragments were retired by GitHub `#142` |
 
 ### Fragment Actions To Classify
 
@@ -158,10 +155,8 @@ tests, and whether browser coverage is required.
 | `ShowAdminShiftTypesFragmentAction` / shift types shell | typed live surface | `AdminShiftTypesScope` | current venue admin | `admin-shift-types-fragment` |
 | `ShowAdminRosterGroupsFragmentAction` / roster groups shell | typed live surface | `AdminRosterGroupsScope` | current venue admin | `admin-roster-groups-fragment` |
 | `ShowAdminExportsFragmentAction` / exports shell | typed live surface | `AdminExportsScope` | current venue admin | `admin-exports-fragment` |
-| `ShowAdminXeroFragmentAction` / Xero shell | typed live surface | `AdminXeroScope` | current venue owner or support super-admin | `admin-xero-fragment` |
-| `ShowAdminXeroStaffMappingsFragmentAction` | typed sub-fragment | `AdminXeroScope` | current venue owner or support super-admin | `xero-staff-mappings-data` |
-| `ShowAdminXeroPayItemsFragmentAction` | typed sub-fragment | `AdminXeroScope` | current venue owner or support super-admin | `xero-pay-items-data` |
-| `ShowAdminXeroTimesheetsFragmentAction` | typed sub-fragment | `AdminXeroScope` | current venue owner or support super-admin | `xero-timesheets-data` |
+| `ShowadminXeroShellLiveFragmentAction` / Xero shell | typed live surface | `AdminXeroScope` | current venue owner or support super-admin | `admin-xero-fragment` |
+| `ShowXeroTimesheetPreparationStaffMappingsFragmentAction` | HTMX-only workflow fragment | none | current venue owner or support super-admin | `xero-timesheet-preparation-staff-mappings` |
 | `ShowBillingStatusFragmentAction` / billing shell | typed live surface | `BillingScope` | current venue owner or support super-admin | `billing-status-fragment` |
 | `SupportAction` award/public-holiday sections | typed live surface | `SupportPlatformScope` | support super-admin | support section ids |
 

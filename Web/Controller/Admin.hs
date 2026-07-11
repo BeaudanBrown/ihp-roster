@@ -193,10 +193,6 @@ instance Controller AdminController where
         ensureVenueWritable
         requireCurrentVenueOwnerForXero syncXeroPayrollReferenceDataAction
 
-    action currentAction@CreateMissingXeroPayItemsAction = runBepis currentAction BepisMutationAction do
-        ensureVenueWritable
-        requireCurrentVenueOwnerForXero createMissingXeroPayItemsAction
-
     action currentAction@OpenXeroPayItemImportAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero openXeroPayItemImportAction
@@ -204,30 +200,6 @@ instance Controller AdminController where
     action currentAction@ImportXeroPayItemsAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero importXeroPayItemsAction
-
-    action currentAction@ArchiveXeroImportedPayItemAction { xeroImportedPayItemId } = runBepis currentAction BepisMutationAction do
-        ensureVenueWritable
-        requireCurrentVenueOwnerForXero (archiveXeroImportedPayItemAction xeroImportedPayItemId)
-
-    action currentAction@SaveXeroStaffMappingAction = runBepis currentAction BepisMutationAction do
-        ensureVenueWritable
-        requireCurrentVenueOwnerForXero saveXeroStaffMappingAction
-
-    action currentAction@SuggestXeroStaffMappingAction { staffId } = runBepis currentAction BepisMutationAction do
-        ensureVenueWritable
-        requireCurrentVenueOwnerForXero (suggestXeroStaffMappingAction staffId)
-
-    action currentAction@SaveXeroEarningsRateMappingAction = runBepis currentAction BepisMutationAction do
-        ensureVenueWritable
-        requireCurrentVenueOwnerForXero saveXeroEarningsRateMappingAction
-
-    action currentAction@SaveXeroPayItemAccountCodeSelectionAction = runBepis currentAction BepisMutationAction do
-        ensureVenueWritable
-        requireCurrentVenueOwnerForXero saveXeroPayItemAccountCodeSelectionAction
-
-    action currentAction@SaveXeroPayrollCalendarSelectionAction = runBepis currentAction BepisMutationAction do
-        ensureVenueWritable
-        requireCurrentVenueOwnerForXero saveXeroPayrollCalendarSelectionAction
 
     action currentAction@OpenXeroTimesheetPreparationAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
@@ -276,18 +248,6 @@ instance Controller AdminController where
     action currentAction@SubmitXeroTimesheetPreparationAction { xeroTimesheetPreparationRunId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (submitXeroTimesheetPreparationAction xeroTimesheetPreparationRunId)
-
-    action currentAction@PreviewXeroDraftTimesheetsAction = runBepis currentAction BepisPageAction do
-        ensureVenueWritable
-        requireCurrentVenueOwnerForXero previewXeroDraftTimesheetsAction
-
-    action currentAction@SubmitXeroDraftTimesheetsAction = runBepis currentAction BepisMutationAction do
-        ensureVenueWritable
-        requireCurrentVenueOwnerForXero submitXeroDraftTimesheetsAction
-
-    action currentAction@RetryXeroDraftTimesheetSubmissionAction { xeroTimesheetSubmissionId } = runBepis currentAction BepisMutationAction do
-        ensureVenueWritable
-        requireCurrentVenueOwnerForXero (retryXeroDraftTimesheetSubmissionAction xeroTimesheetSubmissionId)
 
     action currentAction@UpdateVenueConfigAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
@@ -372,15 +332,6 @@ instance Controller AdminController where
     action currentAction@ShowadminXeroShellLiveFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "admin.xero_fragment.respond" do
             requireCurrentVenueOwnerForXero respondWithXeroSectionFragment
-
-    action currentAction@ShowadminXeroStaffMappingsLiveFragmentAction = runBepis currentAction BepisFragmentAction $
-        requireCurrentVenueOwnerForXero respondWithXeroStaffMappingsFragment
-
-    action currentAction@ShowadminXeroPayItemsLiveFragmentAction = runBepis currentAction BepisFragmentAction $
-        requireCurrentVenueOwnerForXero respondWithXeroPayItemsFragment
-
-    action currentAction@ShowadminXeroTimesheetsLiveFragmentAction = runBepis currentAction BepisFragmentAction $
-        requireCurrentVenueOwnerForXero respondWithXeroTimesheetsFragment
 
     action currentAction@CreateVenueInvitationAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable

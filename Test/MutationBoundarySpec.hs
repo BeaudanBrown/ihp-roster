@@ -3,11 +3,13 @@ module Test.MutationBoundarySpec where
 import Application.Bepis.Architecture (bepisArchitectureContractsJson)
 import Application.Bepis.Fact
 import Application.Bepis.Response
+import Control.Monad (filterM)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Text as Text
 import qualified Data.Text.IO as Text
 import IHP.Prelude
+import System.Directory (doesFileExist)
 import Test.Hspec
 
 tests :: Spec
@@ -257,24 +259,49 @@ tests = describe "Mutation boundary guard" do
         filter (`Text.isInfixOf` controllerSource) controllerForbiddenTokens `shouldBe` []
         filter (`Text.isInfixOf` (connectionSource <> keepaliveSource)) applicationForbiddenTokens `shouldBe` []
 
-    it "keeps Xero mapping writes in the mutation module" do
-        source <- Text.readFile "Web/Controller/Admin/Xero/Mappings.hs"
-        let forbiddenTokens = ["createRecord", "updateRecord", "withTransaction", "recordCurrentUserAuditEvent", "refreshAdminXero"]
-        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
+    it "keeps retired Xero operational panel modules and routes deleted" do
+        let retiredPaths =
+                [ "Web/Controller/Admin/Xero/Mappings.hs"
+                , "Web/Controller/Admin/Xero/PayItemMutations.hs"
+                , "Web/View/Admin/Xero/Calendars.hs"
+                , "Web/View/Admin/Xero/PayItems.hs"
+                , "Web/View/Admin/Xero/Readiness.hs"
+                , "Web/View/Admin/Xero/StaffMappings.hs"
+                , "Web/View/Admin/Xero/Timesheets.hs"
+                ]
+            routeAuthorityPaths =
+                [ "Web/Types.hs"
+                , "Web/Controller/Admin.hs"
+                , "Application/Helper/FrontendContract/Surface/Admin.hs"
+                ]
+            retiredRouteTokens =
+                [ "CreateMissingXeroPayItemsAction"
+                , "ArchiveXeroImportedPayItemAction"
+                , "SaveXeroStaffMappingAction"
+                , "SuggestXeroStaffMappingAction"
+                , "SaveXeroEarningsRateMappingAction"
+                , "SaveXeroPayItemAccountCodeSelectionAction"
+                , "SaveXeroPayrollCalendarSelectionAction"
+                , "PreviewXeroDraftTimesheetsAction"
+                , "SubmitXeroDraftTimesheetsAction"
+                , "RetryXeroDraftTimesheetSubmissionAction"
+                , "ShowadminXeroStaffMappingsLiveFragmentAction"
+                , "ShowadminXeroPayItemsLiveFragmentAction"
+                , "ShowadminXeroTimesheetsLiveFragmentAction"
+                ]
+        existingPaths <- filterM doesFileExist retiredPaths
+        routeAuthority <- mconcat <$> mapM Text.readFile routeAuthorityPaths
+        existingPaths `shouldBe` []
+        filter (`Text.isInfixOf` routeAuthority) retiredRouteTokens `shouldBe` []
 
     it "keeps Xero connection writes in the mutation module" do
         source <- Text.readFile "Web/Controller/Admin/Xero/Connection.hs"
         let forbiddenTokens = ["createRecord", "updateRecord", "withTransaction", "recordCurrentUserAuditEvent", "refreshAdminXero"]
         filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
 
-    it "keeps Xero reference sync writes in the mutation module" do
+    it "keeps Xero reference sync writes behind the application service" do
         source <- Text.readFile "Web/Controller/Admin/Xero/ReferenceSync.hs"
         let forbiddenTokens = ["createRecord", "updateRecord", "withTransaction", "recordCurrentUserAuditEvent", "refreshAdminXero"]
-        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
-
-    it "keeps Xero pay item sync writes in the mutation module" do
-        source <- Text.readFile "Web/Controller/Admin/Xero/PayItemMutations.hs"
-        let forbiddenTokens = ["createRecord", "updateRecord", "withTransaction", "refreshAdminXeroPayItems"]
         filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
 
     it "routes Xero pay item sync live invalidation through touched resources" do

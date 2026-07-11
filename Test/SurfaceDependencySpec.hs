@@ -91,66 +91,35 @@ tests = do
             let subscriptions =
                     [ liveTestSubscription adminScope
                         [ SurfaceWireFragment adminXeroShellLiveFragment "admin-xero-shell" "/admin/xero" False NoProtection
-                        , SurfaceWireFragment adminXeroStaffMappingsLiveFragment "admin-xero-staff-mappings" "/admin/xero/staff" False NoProtection
-                        , SurfaceWireFragment adminXeroPayItemsLiveFragment "admin-xero-pay-items" "/admin/xero/pay-items" False NoProtection
-                        , SurfaceWireFragment adminXeroTimesheetsLiveFragment "admin-xero-timesheets" "/admin/xero/timesheets" False NoProtection
                         ]
                     , liveTestSubscription supportScope
                         [ SurfaceWireFragment supportAwardRatesSectionLiveFragment "support-award-rates" "/support/award-rates" False NoProtection
                         ]
                     ]
-            let targets = planSurfaceInvalidationsWithoutContext (Set.fromList [xeroPayItemsResource venueId]) subscriptions
+            let targets = planSurfaceInvalidationsWithoutContext (Set.fromList [xeroConnectionResource venueId]) subscriptions
 
-            map (map fragmentKey . targetFragments) targets `shouldBe` [[adminXeroPayItemsLiveFragment]]
+            map (map fragmentKey . targetFragments) targets `shouldBe` [[adminXeroShellLiveFragment]]
 
-        it "declares exact Admin Xero fragment targets for mounted refetches" do
+        it "declares the retained Admin Xero shell refetch target" do
             let fragments =
                     AdminSurface.adminSurfaceWireFragments
-                        [ AdminSurface.adminXeroShellFragment
-                        , AdminSurface.adminXeroStaffMappingsFragment
-                        , AdminSurface.adminXeroPayItemsFragment
-                        , AdminSurface.adminXeroTimesheetsFragment
-                        ]
+                        [AdminSurface.adminXeroShellFragment]
 
-            map fragmentKey fragments
-                `shouldBe`
-                    [ adminXeroShellLiveFragment
-                    , adminXeroStaffMappingsLiveFragment
-                    , adminXeroPayItemsLiveFragment
-                    , adminXeroTimesheetsLiveFragment
-                    ]
-            map targetId fragments
-                `shouldBe`
-                    [ "admin-xero-fragment"
-                    , "xero-staff-mappings-data"
-                    , "xero-pay-items-data"
-                    , "xero-timesheets-data"
-                    ]
-            map url fragments
-                `shouldBe`
-                    [ pathTo ShowadminXeroShellLiveFragmentAction
-                    , pathTo ShowadminXeroStaffMappingsLiveFragmentAction
-                    , pathTo ShowadminXeroPayItemsLiveFragmentAction
-                    , pathTo ShowadminXeroTimesheetsLiveFragmentAction
-                    ]
+            map fragmentKey fragments `shouldBe` [adminXeroShellLiveFragment]
+            map targetId fragments `shouldBe` ["admin-xero-fragment"]
+            map url fragments `shouldBe` [pathTo ShowadminXeroShellLiveFragmentAction]
 
-        it "maps each Admin Xero resource to the selected semantic fragment without shell-child duplication" do
+        it "maps only Xero connection changes to the retained shell" do
             let venueId = fromWords 3 0 0 0
             let scope = adminXeroLiveScope venueId
-            let fragments =
-                    AdminSurface.adminSurfaceWireFragments
-                        [ AdminSurface.adminXeroShellFragment
-                        , AdminSurface.adminXeroStaffMappingsFragment
-                        , AdminSurface.adminXeroPayItemsFragment
-                        , AdminSurface.adminXeroTimesheetsFragment
-                        ]
+            let fragments = AdminSurface.adminSurfaceWireFragments [AdminSurface.adminXeroShellFragment]
             let subscription = liveTestSubscription scope fragments
             let plannedFor resource = map (map fragmentKey . targetFragments) (planSurfaceInvalidationsWithoutContext (Set.fromList [resource venueId]) [subscription])
 
             plannedFor xeroConnectionResource `shouldBe` [[adminXeroShellLiveFragment]]
-            plannedFor xeroMappingsResource `shouldBe` [[adminXeroStaffMappingsLiveFragment]]
-            plannedFor xeroPayItemsResource `shouldBe` [[adminXeroPayItemsLiveFragment]]
-            plannedFor xeroTimesheetsResource `shouldBe` [[adminXeroTimesheetsLiveFragment]]
+            plannedFor xeroMappingsResource `shouldBe` []
+            plannedFor xeroPayItemsResource `shouldBe` []
+            plannedFor xeroTimesheetsResource `shouldBe` []
 
         it "declares exact roster projection fragment targets for mounted refetches" do
             let venueId = fromWords 7 0 0 0

@@ -4,13 +4,6 @@ module Web.View.Admin.Xero
     ( XeroView (..)
     , renderXeroSection
     , renderXeroSectionFragment
-    , renderXeroSectionFragmentOob
-    , renderXeroStaffMappingControlsOob
-    , renderXeroPayItemsFragment
-    , renderXeroPayItemsFragmentOob
-    , renderXeroStaffMappingsFragment
-    , renderXeroStaffMappingsOob
-    , renderXeroTimesheetsFragment
     ) where
 
 {-# LANGUAGE TypeApplications #-}
@@ -31,9 +24,6 @@ import Web.Admin.FrontendSurface (AdminVenueScopeValue (..), adminXeroAction,
                                   adminXeroSurfaceImpl)
 import Web.View.Admin.Common
 import Web.View.Admin.Xero.Connection
-import Web.View.Admin.Xero.PayItems
-import Web.View.Admin.Xero.StaffMappings
-import Web.View.Admin.Xero.Timesheets
 import Web.View.Prelude
 
 data XeroView = XeroView
@@ -79,8 +69,8 @@ renderXeroPageContentSurface body =
     |]
 
 renderXeroSection :: XeroAdminSectionData -> Html
-renderXeroSection XeroAdminSectionData { xeroConnection = maybeConnection, .. } =
-    renderXeroConnectionBody maybeConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroEarningsRates xeroPayItemRequirements xeroImportedPayItems xeroPayItemAccountCodeOptions xeroLatestPayItemSyncRun xeroPayrollCalendars xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection xeroReadyChecklist xeroConnectionActionsAllowed xeroTimesheetPanelData
+renderXeroSection XeroAdminSectionData { xeroConnection, xeroConnectionActionsAllowed } =
+    renderXeroConnectionBody xeroConnection xeroConnectionActionsAllowed
 
 renderXeroSectionFragment :: XeroAdminSectionData -> Html
 renderXeroSectionFragment =
@@ -89,10 +79,6 @@ renderXeroSectionFragment =
 renderXeroSectionFragmentWithAutoSync :: Bool -> XeroAdminSectionData -> Html
 renderXeroSectionFragmentWithAutoSync =
     renderXeroSectionFragmentWithSwap noOobSwap
-
-renderXeroSectionFragmentOob :: XeroAdminSectionData -> Html
-renderXeroSectionFragmentOob =
-    renderXeroSectionFragmentWithSwap outerHtmlOobSwap False
 
 renderXeroSectionFragmentWithSwap :: OobSwapAttr -> Bool -> XeroAdminSectionData -> Html
 renderXeroSectionFragmentWithSwap maybeSwapOob shouldAutoSync xeroSectionData =
@@ -109,10 +95,8 @@ renderXeroAutoSyncTrigger True (Just connection)
     | connection.connectionStatus == "active" =
         renderFrontendSurfaceActionForm
             (adminXeroAction "sync-xero-payroll-reference-data")
-            FrontendSurfaceActionRoute
-                { actionRouteUrl = pathTo SyncXeroPayrollReferenceDataAction
-                , actionRouteFields = []
-                , actionRouteCustomHtmx =
+            xeroReferenceSyncActionRoute
+                { actionRouteCustomHtmx =
                     [ FrontendSurfaceCustomHtmxAttrs
                         { customHtmxAttrMarker = "load-reference-sync-custom-htmx"
                         , customHtmxAttrValues =
@@ -132,20 +116,20 @@ renderXeroAutoSyncTrigger True (Just connection)
 renderXeroAutoSyncTrigger _ _ =
     mempty
 
-renderXeroConnectionBody :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> [XeroEarningsRate] -> [XeroPayItemRequirement] -> [XeroImportedPayItem] -> [XeroPayItemAccountCodeOption] -> Maybe XeroSyncRun -> [XeroPayrollCalendar] -> Maybe XeroPayrollCalendarSelection -> Maybe XeroPayItemAccountCodeSelection -> XeroReadyChecklist -> Bool -> XeroTimesheetPanelData -> Html
-renderXeroConnectionBody Nothing _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ connectionActionsAllowed _timesheetPanel = [hsx|
+renderXeroConnectionBody :: Maybe XeroConnection -> Bool -> Html
+renderXeroConnectionBody Nothing connectionActionsAllowed = [hsx|
     <div class="d-flex flex-column gap-4">
         <section class={appSurfaceClasses "p-3"}>
             {renderXeroDisconnectedConnectionDetails connectionActionsAllowed}
         </section>
     </div>
 |]
-renderXeroConnectionBody (Just connection) _maybeConnectedByUser _maybeSyncRun _employeeCount _earningsRateCount _payrollCalendarCount _xeroEmployees _mappingRows _mappingCounts _xeroEarningsRates _payItemRequirements _importedPayItems _accountCodeOptions _maybePayItemSyncRun _xeroPayrollCalendars _maybePayrollCalendarSelection _maybePayItemAccountCodeSelection _readyChecklist connectionActionsAllowed timesheetPanel = [hsx|
+renderXeroConnectionBody (Just connection) connectionActionsAllowed = [hsx|
     <div class="d-flex flex-column gap-4">
         <section class={appSurfaceClasses "p-3"}>
             <div class="d-flex flex-column gap-3">
                 {renderXeroConnectionDetails connection}
-                {renderXeroActionControls timesheetPanel connectionActionsAllowed}
+                {renderXeroActionControls connection connectionActionsAllowed}
             </div>
         </section>
     </div>
@@ -161,19 +145,44 @@ xeroAppShellActionRoute actionUrl =
         , appShellActionRouteExtraAttrs = []
         }
 
-renderXeroActionControls :: XeroTimesheetPanelData -> Bool -> Html
-renderXeroActionControls timesheetPanel connectionActionsAllowed = [hsx|
+xeroReferenceSyncActionRoute :: FrontendSurfaceActionRoute
+xeroReferenceSyncActionRoute =
+    FrontendSurfaceActionRoute
+        { actionRouteUrl = pathTo SyncXeroPayrollReferenceDataAction
+        , actionRouteFields = []
+        , actionRouteCustomHtmx =
+            [ FrontendSurfaceCustomHtmxAttrs
+                { customHtmxAttrMarker = "load-reference-sync-custom-htmx"
+                , customHtmxAttrValues = []
+                }
+            ]
+        , actionRouteStandardUrl = Nothing
+        , actionRouteExtraAttrs = []
+        }
+
+renderXeroActionControls :: XeroConnection -> Bool -> Html
+renderXeroActionControls connection connectionActionsAllowed = [hsx|
     <div class="d-flex flex-wrap gap-2">
-        {renderOpenXeroTimesheetPreparationForm timesheetPanel connectionActionsAllowed}
-        {renderOpenXeroPayItemImportForm connectionActionsAllowed}
+        {renderOpenXeroTimesheetPreparationForm canRunXeroActions}
+        {renderOpenXeroPayItemImportForm canRunXeroActions}
+        {renderXeroReferenceSyncForm canRunXeroActions}
         <form method="POST" action={DisconnectXeroConnectionAction} data-disable-javascript-submission="true">
             <button class="btn btn-outline-danger" type="submit" disabled={not connectionActionsAllowed}>Disconnect</button>
         </form>
     </div>
 |]
+    where
+        canRunXeroActions = connectionActionsAllowed && connection.connectionStatus == "active"
 
-renderOpenXeroTimesheetPreparationForm :: XeroTimesheetPanelData -> Bool -> Html
-renderOpenXeroTimesheetPreparationForm timesheetPanel connectionActionsAllowed =
+renderXeroReferenceSyncForm :: Bool -> Html
+renderXeroReferenceSyncForm actionsAllowed =
+    renderFrontendSurfaceActionForm
+        (adminXeroAction "sync-xero-payroll-reference-data")
+        xeroReferenceSyncActionRoute
+        [hsx|<button type="submit" class="btn btn-outline-primary" disabled={not actionsAllowed}>Sync Xero data</button>|]
+
+renderOpenXeroTimesheetPreparationForm :: Bool -> Html
+renderOpenXeroTimesheetPreparationForm connectionActionsAllowed =
     renderAppShellActionForm
         (appShellActionByMarker @OpenXeroTimesheetPreparationOverlay)
         (xeroAppShellActionRoute (pathTo OpenXeroTimesheetPreparationAction))
@@ -182,7 +191,7 @@ renderOpenXeroTimesheetPreparationForm timesheetPanel connectionActionsAllowed =
         [hsx|
             <button type="submit"
                     class="btn btn-primary"
-                    disabled={not (connectionActionsAllowed && timesheetPanel.xeroTimesheetActionsAllowed)}>
+                    disabled={not connectionActionsAllowed}>
                 Upload timesheets
             </button>
         |]
@@ -193,31 +202,3 @@ renderOpenXeroPayItemImportForm connectionActionsAllowed =
         (appShellActionByMarker @OpenXeroPayItemImportOverlay)
         (xeroAppShellActionRoute (pathTo OpenXeroPayItemImportAction))
         [hsx|<button type="submit" class="btn btn-outline-primary" disabled={not connectionActionsAllowed}>Import pay items</button>|]
-
-renderXeroOperationalPanels :: XeroConnection -> XeroTimesheetPanelData -> [XeroPayItemRequirement] -> [XeroImportedPayItem] -> [XeroPayItemAccountCodeOption] -> Maybe XeroSyncRun -> Maybe XeroPayItemAccountCodeSelection -> Bool -> Html
-renderXeroOperationalPanels connection timesheetPanel payItemRequirements importedPayItems accountCodeOptions maybePayItemSyncRun maybePayItemAccountCodeSelection connectionActionsAllowed
-    | connection.connectionStatus == "active" = [hsx|
-        <section class={appSurfaceClasses "p-3"}>
-            {renderXeroTimesheetPanel timesheetPanel}
-        </section>
-        <section>
-            {renderXeroPayItemsFragment accountCodeOptions payItemRequirements importedPayItems maybePayItemAccountCodeSelection maybePayItemSyncRun connectionActionsAllowed}
-        </section>
-    |]
-    | otherwise = mempty
-
-renderXeroStaffMappingsFragment :: [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> Html
-renderXeroStaffMappingsFragment =
-    renderXeroStaffMappingsData
-
-renderXeroPayItemsFragment :: [XeroPayItemAccountCodeOption] -> [XeroPayItemRequirement] -> [XeroImportedPayItem] -> Maybe XeroPayItemAccountCodeSelection -> Maybe XeroSyncRun -> Bool -> Html
-renderXeroPayItemsFragment =
-    renderXeroPayItemsData
-
-renderXeroPayItemsFragmentOob :: [XeroPayItemAccountCodeOption] -> [XeroPayItemRequirement] -> [XeroImportedPayItem] -> Maybe XeroPayItemAccountCodeSelection -> Maybe XeroSyncRun -> Bool -> Html
-renderXeroPayItemsFragmentOob =
-    renderXeroPayItemsDataOob
-
-renderXeroTimesheetsFragment :: XeroTimesheetPanelData -> Html
-renderXeroTimesheetsFragment =
-    renderXeroTimesheetPanel

@@ -83,7 +83,7 @@ Scenarios:
 
 This is the right tool when checking browser navigation, HTMX follow-up requests, and route-level app spans for realistic user journeys.
 
-Use `xero` when checking the Xero staff mapping autosave path. It loads the admin Xero section, changes a staff mapping select, captures the `SaveXeroStaffMapping` `Server-Timing` header, and records scroll delta in `profile.json`.
+Use `xero` when checking the owner-only Xero connection shell and its server-rendered shell fragment. Guided timesheet preparation and pay-item import remain focused browser flows rather than synthetic autosave profiling targets.
 
 Use `writes` for deterministic mutation profiling. It currently exercises export generation against the isolated profile database and records the POST timing separately from read-only journeys.
 

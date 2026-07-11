@@ -1,5 +1,6 @@
 module Application.Xero.Admin.ReferenceData
-    ( markStaleXeroEarningsRateMappings
+    ( XeroReferenceDataSyncResult (..)
+    , markStaleXeroEarningsRateMappings
     , reconcileXeroPayItemAccountCodeSelection
     , reconcileXeroPayrollCalendarSelection
     , markStaleXeroStaffMappings
@@ -8,16 +9,171 @@ module Application.Xero.Admin.ReferenceData
     , upsertXeroEmployee
     , upsertXeroPayRun
     , upsertXeroPayrollCalendar
+    , syncCurrentVenueXeroReferenceData
     ) where
 
+import Application.Helper.Audit (recordCurrentUserAuditEvent)
 import Application.Helper.ControllerContext
 import Application.Helper.Xero
+import Application.Xero.Connection (refreshXeroConnectionAccessWithoutBroadcast,
+                                    xeroClientErrorText)
 import Control.Monad (void)
+import qualified Data.Aeson as Aeson
 import Data.Functor ((<&>))
 import qualified Data.List as List
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
+
+data XeroReferenceDataSyncResult = XeroReferenceDataSyncResult
+    { referenceDataSyncRun                  :: XeroSyncRun
+    , referenceDataSyncConnection           :: XeroConnection
+    , referenceDataSyncEmployeeCount        :: Int
+    , referenceDataSyncEarningsRateCount    :: Int
+    , referenceDataSyncPayrollCalendarCount :: Int
+    , referenceDataSyncAccountCount         :: Int
+    }
+
+syncCurrentVenueXeroReferenceData ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroConnection ->
+    IO (Either Text XeroReferenceDataSyncResult)
+syncCurrentVenueXeroReferenceData connection
+    | connection.venueId /= unpackId currentVenueId =
+        pure (Left "Xero connection was not found for this venue.")
+    | connection.connectionStatus /= "active" =
+        pure (Left "Reconnect Xero before syncing payroll reference data.")
+    | otherwise = do
+        syncRun <- startReferenceDataSync connection
+        readXeroConfig >>= \case
+            Left message -> failReferenceDataSync syncRun connection message
+            Right config ->
+                refreshXeroConnectionAccessWithoutBroadcast config connection >>= \case
+                    Left message -> failReferenceDataSync syncRun connection message
+                    Right (refreshedConnection, accessToken) -> do
+                        xeroClient <- currentXeroClient
+                        employeesResult <- fetchPayrollEmployees xeroClient accessToken refreshedConnection.tenantId
+                        earningsRatesResult <- fetchEarningsRates xeroClient accessToken refreshedConnection.tenantId
+                        payrollCalendarsResult <- fetchPayrollCalendars xeroClient accessToken refreshedConnection.tenantId
+                        accountsResult <- fetchAccounts xeroClient accessToken refreshedConnection.tenantId
+                        payrollSettingsAccountsResult <- fetchPayrollSettingsAccounts xeroClient accessToken refreshedConnection.tenantId
+                        case (employeesResult, earningsRatesResult, payrollCalendarsResult, accountsResult, payrollSettingsAccountsResult) of
+                            (Right employees, Right earningsRates, Right payrollCalendars, Right accounts, Right payrollSettingsAccounts) ->
+                                Right <$> completeReferenceDataSync syncRun refreshedConnection employees earningsRates payrollCalendars accounts payrollSettingsAccounts
+                            (Left err, _, _, _, _) ->
+                                failReferenceDataSync syncRun refreshedConnection ("Xero employee sync failed: " <> xeroClientErrorText err)
+                            (_, Left err, _, _, _) ->
+                                failReferenceDataSync syncRun refreshedConnection ("Xero earnings-rate sync failed: " <> xeroClientErrorText err)
+                            (_, _, Left err, _, _) ->
+                                failReferenceDataSync syncRun refreshedConnection ("Xero payroll-calendar sync failed: " <> xeroClientErrorText err)
+                            (_, _, _, Left err, _) ->
+                                failReferenceDataSync syncRun refreshedConnection ("Xero account sync failed: " <> xeroClientErrorText err)
+                            (_, _, _, _, Left err) ->
+                                failReferenceDataSync syncRun refreshedConnection ("Xero payroll-settings sync failed: " <> xeroClientErrorText err)
+
+startReferenceDataSync ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    XeroConnection ->
+    IO XeroSyncRun
+startReferenceDataSync connection = do
+    now <- getCurrentTime
+    newRecord @XeroSyncRun
+        |> set #venueId connection.venueId
+        |> set #xeroConnectionId (unpackId connection.id)
+        |> set #syncStatus ("running" :: Text)
+        |> set #syncKind ("payroll_reference_data" :: Text)
+        |> set #startedAt now
+        |> createRecord
+
+completeReferenceDataSync ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroSyncRun ->
+    XeroConnection ->
+    [XeroEmployeeRef] ->
+    [XeroEarningsRateRef] ->
+    [XeroPayrollCalendarRef] ->
+    [XeroAccountRef] ->
+    [XeroAccountRef] ->
+    IO XeroReferenceDataSyncResult
+completeReferenceDataSync syncRun connection employees earningsRates payrollCalendars accounts payrollSettingsAccounts = do
+    now <- getCurrentTime
+    completedRun <- withTransaction do
+        mapM_ (upsertXeroEmployee connection now) employees
+        mapM_ (upsertXeroEarningsRate connection now) earningsRates
+        mapM_ (upsertXeroPayrollCalendar connection now) payrollCalendars
+        mapM_ (upsertXeroAccount connection now) accounts
+        markStaleXeroStaffMappings connection employees
+        markStaleXeroEarningsRateMappings connection earningsRates
+        reconcileXeroPayItemAccountCodeSelection connection accounts payrollSettingsAccounts
+        reconcileXeroPayrollCalendarSelection connection payrollCalendars
+        updatedSyncRun <-
+            syncRun
+                |> set #syncStatus ("succeeded" :: Text)
+                |> set #employeesCount (length employees)
+                |> set #earningsRatesCount (length earningsRates)
+                |> set #payrollCalendarsCount (length payrollCalendars)
+                |> set #finishedAt (Just now)
+                |> updateRecord
+        _ <-
+            connection
+                |> set #lastSyncAt (Just now)
+                |> set #lastError Nothing
+                |> updateRecord
+        void $
+            recordCurrentUserAuditEvent
+                "xero_reference_sync_succeeded"
+                "xero_sync_runs"
+                (unpackId syncRun.id)
+                (Aeson.object
+                    [ "tenantId" Aeson..= connection.tenantId
+                    , "employeesCount" Aeson..= length employees
+                    , "earningsRatesCount" Aeson..= length earningsRates
+                    , "payrollCalendarsCount" Aeson..= length payrollCalendars
+                    , "accountsCount" Aeson..= length accounts
+                    ]
+                )
+        pure updatedSyncRun
+    pure
+        XeroReferenceDataSyncResult
+            { referenceDataSyncRun = completedRun
+            , referenceDataSyncConnection = connection
+            , referenceDataSyncEmployeeCount = length employees
+            , referenceDataSyncEarningsRateCount = length earningsRates
+            , referenceDataSyncPayrollCalendarCount = length payrollCalendars
+            , referenceDataSyncAccountCount = length accounts
+            }
+
+failReferenceDataSync ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroSyncRun ->
+    XeroConnection ->
+    Text ->
+    IO (Either Text a)
+failReferenceDataSync syncRun connection message = do
+    now <- getCurrentTime
+    withTransaction do
+        _ <-
+            syncRun
+                |> set #syncStatus ("failed" :: Text)
+                |> set #errorMessage (Just message)
+                |> set #finishedAt (Just now)
+                |> updateRecord
+        latestConnection <- fetch connection.id
+        _ <-
+            latestConnection
+                |> set #lastError (Just message)
+                |> updateRecord
+        void $
+            recordCurrentUserAuditEvent
+                "xero_reference_sync_failed"
+                "xero_sync_runs"
+                (unpackId syncRun.id)
+                (Aeson.object
+                    [ "tenantId" Aeson..= connection.tenantId
+                    , "failure" Aeson..= message
+                    ]
+                )
+    pure (Left message)
 
 markStaleXeroStaffMappings ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>

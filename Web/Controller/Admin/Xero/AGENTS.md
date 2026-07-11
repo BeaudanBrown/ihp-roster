@@ -14,10 +14,11 @@ Read this before editing Xero admin controller submodules.
 ## Common Changes
 
 - Connection actions belong in `Connection.hs`.
-- Staff/pay item mapping actions belong in `Mappings.hs`.
-- Pay item mutation response wiring belongs in `PayItemMutations.hs`.
-- Reference sync actions belong in `ReferenceSync.hs`.
-- Timesheet preview/submission actions belong in `Timesheets.hs`.
+- Imported pay-item dialog actions belong in `ImportedPayItems.hs`.
+- Reference sync actions belong in `ReferenceSync.hs` and call the shared
+  application service.
+- Guided preparation actions belong in `Timesheets.hs`; do not recreate
+  standalone mapping/readiness panels or pre-wizard preview/submit/retry routes.
 - Shared controller response helpers belong in `Responses.hs`.
 
 ## Verification

@@ -228,9 +228,9 @@ pageHelpTopics =
     , topic "xero" "Xero"
         [ section HelpOwnerPlus "Xero tasks"
             [ iconItem HelpOwnerPlus "bi-link-45deg" "Connect" "Connect Xero first" "Use the connection section before syncing payroll data or preparing timesheets."
-            , iconItem HelpOwnerPlus "bi-arrow-repeat" "Sync" "Sync payroll reference data" "Use sync controls to refresh Xero staff and pay items before maintaining mappings."
-            , iconItem HelpOwnerPlus "bi-diagram-3" "Mappings" "Fix staff and pay item decisions" "Open the mapping and preparation sections to resolve decisions before submission."
-            , iconItem HelpOwnerPlus "bi-send-check" "Submit" "Review before submitting" "Check the preparation summary carefully before creating draft timesheets in Xero."
+            , iconItem HelpOwnerPlus "bi-arrow-repeat" "Sync" "Sync payroll reference data" "Refresh Xero employees, earnings rates, calendars, and accounts from the connection shell."
+            , iconItem HelpOwnerPlus "bi-cloud-download" "Import" "Import optional pay items" "Use Import pay items to bring supported hourly earnings rates into Bepis."
+            , iconItem HelpOwnerPlus "bi-send-check" "Prepare" "Review before submitting" "Upload timesheets opens the guided workflow for staff decisions, pay items, readiness, preview, and draft submission."
             ]
         ]
     , topic "billing" "Billing"

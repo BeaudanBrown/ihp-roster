@@ -15,27 +15,9 @@ data XeroStaffMappingRow = XeroStaffMappingRow
     , mappingRowSuggestedEmployee :: Maybe XeroEmployee
     }
 
-data XeroStaffMappingCounts = XeroStaffMappingCounts
-    { xeroStaffVerifiedCount      :: Int
-    , xeroStaffNotApplicableCount :: Int
-    , xeroStaffStaleCount         :: Int
-    , xeroStaffPossibleMatchCount :: Int
-    }
-
 data XeroLocalEarningsBucket = XeroLocalEarningsBucket
     { localBucketKey   :: Text
     , localBucketLabel :: Text
-    }
-
-data XeroEarningsBucketRow = XeroEarningsBucketRow
-    { earningsBucketRowBucket  :: XeroLocalEarningsBucket
-    , earningsBucketRowMapping :: Maybe XeroEarningsRateMapping
-    }
-
-data XeroEarningsRateMappingCounts = XeroEarningsRateMappingCounts
-    { xeroEarningsVerifiedCount :: Int
-    , xeroEarningsUnmappedCount :: Int
-    , xeroEarningsStaleCount    :: Int
     }
 
 data XeroUsedAwardPayScope = XeroUsedAwardPayScope
@@ -104,22 +86,6 @@ data XeroPayItemRequirement = XeroPayItemRequirement
     , payItemRequirementStatus        :: Text
     }
 
-data XeroReadyChecklist = XeroReadyChecklist
-    { xeroReadyConnection               :: Bool
-    , xeroReadyReferenceSync            :: Bool
-    , xeroReadyStaffMappings            :: Bool
-    , xeroReadyEarningsMappings         :: Bool
-    , xeroReadyManagedPayItems          :: Bool
-    , xeroReadyPayItemAccountCode       :: Bool
-    , xeroReadyPayrollCalendar          :: Bool
-    , xeroReadyStaffVerifiedCount       :: Int
-    , xeroReadyStaffTotalCount          :: Int
-    , xeroReadyEarningsVerifiedCount    :: Int
-    , xeroReadyEarningsTotalCount       :: Int
-    , xeroReadyManagedPayItemReadyCount :: Int
-    , xeroReadyManagedPayItemTotalCount :: Int
-    }
-
 data XeroTimesheetIssueView = XeroTimesheetIssueView
     { timesheetIssueCode     :: Text
     , timesheetIssueSeverity :: Text
@@ -168,28 +134,6 @@ data XeroPreparationReviewRow = XeroPreparationReviewRow
     , reviewRowTotalAmount :: Scientific
     }
     deriving (Eq, Show)
-
-data XeroTimesheetSubmissionRowView = XeroTimesheetSubmissionRowView
-    { submissionRowSubmission :: XeroTimesheetSubmission
-    , submissionRowStaff      :: Maybe Staff
-    , submissionRowEmployee   :: Maybe XeroEmployee
-    }
-
-data XeroTimesheetRunView = XeroTimesheetRunView
-    { timesheetRun                 :: XeroSubmissionRun
-    , timesheetRunPreviewRows      :: [XeroTimesheetPreviewRowView]
-    , timesheetRunSubmissionRows   :: [XeroTimesheetSubmissionRowView]
-    , timesheetRunSubmittedBy      :: Maybe User
-    , timesheetRunHasHistoricalSib :: Bool
-    }
-
-data XeroTimesheetPanelData = XeroTimesheetPanelData
-    { xeroTimesheetActionsAllowed :: Bool
-    , xeroTimesheetReadiness      :: Maybe XeroTimesheetReadinessView
-    , xeroTimesheetPeriodMessage  :: Maybe Text
-    , xeroTimesheetPeriodOptions  :: [XeroTimesheetPeriodOption]
-    , xeroTimesheetLatestRun      :: Maybe XeroTimesheetRunView
-    }
 
 data XeroTimesheetPeriodOption = XeroTimesheetPeriodOption
     { periodOptionKey                    :: Text
@@ -270,24 +214,6 @@ data XeroTimesheetPreparationView = XeroTimesheetPreparationView
     }
 
 data XeroAdminSectionData = XeroAdminSectionData
-    { xeroConnection                  :: Maybe XeroConnection
-    , xeroConnectedByUser             :: Maybe User
-    , xeroLatestSyncRun               :: Maybe XeroSyncRun
-    , xeroLatestPayItemSyncRun        :: Maybe XeroSyncRun
-    , xeroEmployeeCount               :: Int
-    , xeroEarningsRateCount           :: Int
-    , xeroPayrollCalendarCount        :: Int
-    , xeroEmployees                   :: [XeroEmployee]
-    , xeroStaffMappingRows            :: [XeroStaffMappingRow]
-    , xeroStaffMappingCounts          :: XeroStaffMappingCounts
-    , xeroEarningsRates               :: [XeroEarningsRate]
-    , xeroPayItemRequirements         :: [XeroPayItemRequirement]
-    , xeroImportedPayItems            :: [XeroImportedPayItem]
-    , xeroPayItemAccountCodeOptions   :: [XeroPayItemAccountCodeOption]
-    , xeroPayrollCalendars            :: [XeroPayrollCalendar]
-    , xeroPayrollCalendarSelection    :: Maybe XeroPayrollCalendarSelection
-    , xeroPayItemAccountCodeSelection :: Maybe XeroPayItemAccountCodeSelection
-    , xeroReadyChecklist              :: XeroReadyChecklist
-    , xeroConnectionActionsAllowed    :: Bool
-    , xeroTimesheetPanelData          :: XeroTimesheetPanelData
+    { xeroConnection               :: Maybe XeroConnection
+    , xeroConnectionActionsAllowed :: Bool
     }

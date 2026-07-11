@@ -1,6 +1,5 @@
 module Application.Xero.Admin.ImportedPayItems
     ( XeroImportedPayItemCandidate (..)
-    , archiveImportedXeroPayItem
     , fetchActiveImportedXeroPayItems
     , importXeroEarningsRates
     , viableImportedPayItemCandidates
@@ -94,11 +93,3 @@ upsertImportedXeroPayItem connection now rate = do
                 |> set #importedByUserId (unpackId currentUser.id)
                 |> set #importedAt now
                 |> createRecord
-
-archiveImportedXeroPayItem :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UTCTime -> Text -> XeroImportedPayItem -> IO XeroImportedPayItem
-archiveImportedXeroPayItem now reason payItem =
-    payItem
-        |> set #archivedAt (Just now)
-        |> set #archivedByUserId (Just (unpackId currentUser.id))
-        |> set #archiveReason (Just reason)
-        |> updateRecord

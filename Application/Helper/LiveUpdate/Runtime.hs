@@ -33,10 +33,7 @@ module Application.Helper.LiveUpdate.Runtime
     , adminVenueConfigLiveFragment
     , adminVenueConfigLiveScope
     , adminXeroLiveScope
-    , adminXeroPayItemsLiveFragment
     , adminXeroShellLiveFragment
-    , adminXeroStaffMappingsLiveFragment
-    , adminXeroTimesheetsLiveFragment
     , billingLiveScope
     , billingStatusLiveFragment
     , frontendSurfaceLiveScope

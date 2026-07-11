@@ -127,15 +127,8 @@ data AdminController
     | XeroOAuthCallbackAction
     | DisconnectXeroConnectionAction
     | SyncXeroPayrollReferenceDataAction
-    | CreateMissingXeroPayItemsAction
     | OpenXeroPayItemImportAction
     | ImportXeroPayItemsAction
-    | ArchiveXeroImportedPayItemAction { xeroImportedPayItemId :: !(Id XeroImportedPayItem) }
-    | SaveXeroStaffMappingAction
-    | SuggestXeroStaffMappingAction { staffId :: !(Id Staff) }
-    | SaveXeroEarningsRateMappingAction
-    | SaveXeroPayItemAccountCodeSelectionAction
-    | SaveXeroPayrollCalendarSelectionAction
     | OpenXeroTimesheetPreparationAction
     | RunXeroTimesheetPreparationAction
     | RefreshXeroTimesheetPreparationAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
@@ -148,9 +141,6 @@ data AdminController
     | ConfirmXeroTimesheetPreparationSubmissionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | RunXeroTimesheetPreparationSubmissionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | SubmitXeroTimesheetPreparationAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
-    | PreviewXeroDraftTimesheetsAction
-    | SubmitXeroDraftTimesheetsAction
-    | RetryXeroDraftTimesheetSubmissionAction { xeroTimesheetSubmissionId :: !(Id XeroTimesheetSubmission) }
     | UpdateVenueConfigAction
     | ShowAdminVenueSettingsFragmentAction
     | ShowadminInvitesLiveFragmentAction
@@ -158,9 +148,6 @@ data AdminController
     | ShowadminRosterGroupsLiveFragmentAction
     | ShowadminExportsLiveFragmentAction
     | ShowadminXeroShellLiveFragmentAction
-    | ShowadminXeroStaffMappingsLiveFragmentAction
-    | ShowadminXeroPayItemsLiveFragmentAction
-    | ShowadminXeroTimesheetsLiveFragmentAction
     | CreateVenueInvitationAction
     | RevokeVenueInvitationAction { venueInvitationId :: !(Id VenueInvitation) }
     | SendStaffPasskeySetupEmailAction { staffId :: !(Id Staff) }

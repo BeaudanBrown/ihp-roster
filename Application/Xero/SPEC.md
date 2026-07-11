@@ -13,6 +13,15 @@ lands.
   flows and should remain native full-page/session flows unless a specific
   ticket requires in-place behavior.
 - Xero reference-data and pay-item operations are venue-scoped.
+- The Xero page is a minimal connection shell. It may start reference sync,
+  open the imported-pay-item dialog, or launch guided timesheet preparation,
+  but it must not load or render standalone staff-mapping, earnings-mapping,
+  calendar, readiness, pay-item, or legacy timesheet panels.
+- Staff decisions, managed pay items, readiness checks, preview, and submission
+  belong to the guided preparation workflow. The pre-wizard preview, submit,
+  and retry endpoints are retired.
+- Manual reference sync and preparation use the same application service and
+  persistence/reconciliation path.
 - Managed Xero earnings-rate names put human payroll details first, e.g. `Saturday Penalty - Level 1 - CAS - Bepis - 1-July-2025`; legacy `Bepis - HIGA - ...` managed names remain matchable to avoid duplicate pay items.
 - Managed award pay-item effective-date keys/names use the Bepis venue-effective
   rate date from the pay engine, not necessarily the raw FWC/MAPD operative
@@ -21,7 +30,9 @@ lands.
 
 ## Boundaries
 
-- `Application/Xero/*` modules own API/service/read-model logic.
+- `Application/Xero/*` modules own API/service/read-model logic. Ordinary page
+  reads load connection state only; preparation-specific reads run after the
+  workflow is launched.
 - `Web/Controller/Admin/Xero/*` owns params, redirects, toasts, HTMX/OOB
   responses, and permission response choices.
 - Probe scripts are diagnostics; do not make production behavior depend on
@@ -33,9 +44,11 @@ lands.
   mutation services: they may write Xero preparation/submission records and
   perform Xero API orchestration, but they must not broadcast passive live
   updates directly.
-- `Web/Admin/Xero/Mutations.hs` is the web-facing mutation boundary for Xero
-  admin write flows. It wraps internal Xero services, returns
+- `Web/Admin/Xero/Mutations.hs` is the web-facing invalidation boundary for
+  Xero admin write flows. It wraps internal Xero services, returns
   `LiveMutationResult`, and calls touched-resource invalidation.
+- `Application/Xero/Admin/ReferenceData.hs` owns the single reference-sync
+  transaction path used by the manual action and preparation.
 - Controllers in `Web/Controller/Admin/Xero/*` should not import Xero
   preparation/preview/submission services directly, except narrow domain types
   needed for request parsing.
@@ -66,5 +79,5 @@ lands.
 ```bash
 bash ./bin/in-env typecheck
 bash ./bin/in-env hspec-test --match "Xero"
-bash ./bin/in-env e2e e2e/xero-staff-mapping.spec.ts
+bash ./bin/in-env e2e e2e/xero-timesheet-preparation.spec.ts e2e/xero-import-filter.spec.ts
 ```

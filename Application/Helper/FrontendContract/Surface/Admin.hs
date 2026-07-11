@@ -28,9 +28,6 @@ module Application.Helper.FrontendContract.Surface.Admin
     , AdminShiftTypesFragment
     , AdminRosterGroupsFragment
     , AdminXeroShellFragment
-    , AdminXeroStaffMappingsFragment
-    , AdminXeroPayItemsFragment
-    , AdminXeroTimesheetsFragment
     , CreateRosterGroup
     , UpdateRosterGroup
     , MoveRosterGroupUp
@@ -48,12 +45,6 @@ module Application.Helper.FrontendContract.Surface.Admin
     , AutosaveShiftTypeSelection
     , ToggleInactiveShiftTypes
     , SyncXeroPayrollReferenceData
-    , SaveXeroPayrollCalendarSelection
-    , SaveXeroPayItemAccountCodeSelection
-    , CreateMissingXeroPayItems
-    , ArchiveXeroImportedPayItem
-    , SaveXeroStaffMapping
-    , SuggestXeroStaffMapping
     , ShowXeroTimesheetPreparationStaffMappings
     , ConfigFieldField
     , RosterEndTimesEnabled
@@ -68,12 +59,8 @@ module Application.Helper.FrontendContract.Surface.Admin
     , PayRateSelection
     , ColourKey
     , IsActive
-    , XeroPayrollCalendarSelection
-    , XeroPayItemAccountCodeSelection
-    , StaffId
     , EditStaffId
     , ShowMatched
-    , XeroEmployeeSelection
     ) where
 
 import Application.Helper.FrontendContract.Surface.DSL
@@ -106,9 +93,6 @@ data AdminExportsFragment
 data AdminShiftTypesFragment
 data AdminRosterGroupsFragment
 data AdminXeroShellFragment
-data AdminXeroStaffMappingsFragment
-data AdminXeroPayItemsFragment
-data AdminXeroTimesheetsFragment
 
 data CreateRosterGroup
 data UpdateRosterGroup
@@ -127,12 +111,6 @@ data AutosaveShiftTypeName
 data AutosaveShiftTypeSelection
 data ToggleInactiveShiftTypes
 data SyncXeroPayrollReferenceData
-data SaveXeroPayrollCalendarSelection
-data SaveXeroPayItemAccountCodeSelection
-data CreateMissingXeroPayItems
-data ArchiveXeroImportedPayItem
-data SaveXeroStaffMapping
-data SuggestXeroStaffMapping
 data ShowXeroTimesheetPreparationStaffMappings
 data ConfigFieldField
 data RosterEndTimesEnabled
@@ -147,14 +125,10 @@ data Name
 data PayRateSelection
 data ColourKey
 data IsActive
-data XeroPayrollCalendarSelection
-data XeroPayItemAccountCodeSelection
-data StaffId
 data EditStaffId
 data ShowMatched
 data XeroPreparationStaffMappings
 
-data XeroEmployeeSelection
 data None
 data OuterHTML
 data Click
@@ -162,9 +136,7 @@ data ClosestFormCustomHtmx
 data InputChangedAutosaveCustomHtmx
 data ChangeAutosaveCustomHtmx
 data LoadReferenceSyncCustomHtmx
-data XeroPayItemsSyncIndicator
 data AdminXeroFragment
-data XeroPayItemsData
 
 data AdminVenueSettings
 data AdminInvitesResourceMarker
@@ -172,9 +144,6 @@ data AdminExportsResourceMarker
 data AdminShiftTypesResourceMarker
 data AdminRosterGroupsResourceMarker
 data XeroConnection
-data XeroMappings
-data XeroPayItems
-data XeroTimesheets
 
 type AdminVenueSettingsResource = Resource AdminVenueSettings '[ Field VenueId 'WireUUID ]
 type AdminInvitesResource = Resource AdminInvites '[ Field VenueId 'WireUUID ]
@@ -182,9 +151,6 @@ type AdminExportsResource = Resource AdminExports '[ Field VenueId 'WireUUID ]
 type AdminShiftTypesResource = Resource AdminShiftTypes '[ Field VenueId 'WireUUID ]
 type AdminRosterGroupsResource = Resource AdminRosterGroups '[ Field VenueId 'WireUUID ]
 type XeroConnectionResource = Resource XeroConnection '[ Field VenueId 'WireUUID ]
-type XeroMappingsResource = Resource XeroMappings '[ Field VenueId 'WireUUID ]
-type XeroPayItemsResource = Resource XeroPayItems '[ Field VenueId 'WireUUID ]
-type XeroTimesheetsResource = Resource XeroTimesheets '[ Field VenueId 'WireUUID ]
 
 type AdminPageSurface =
     Surface AdminPage
@@ -395,57 +361,12 @@ type AdminXeroSurface =
     Surface AdminXero
         '[ Scope AdminXeroScope '[ Field VenueId 'WireUUID ] '[ 'Authorize 'CurrentVenueOwner '[ VenueId ] ]
          , Fragment AdminXeroShellFragment '[] '[ 'Eager, 'Live, 'DependsOn XeroConnectionResource '[ 'FromScope VenueId ] ]
-         , Fragment AdminXeroStaffMappingsFragment '[] '[ 'Eager, 'Live, 'DependsOn XeroMappingsResource '[ 'FromScope VenueId ] ]
-         , Fragment AdminXeroPayItemsFragment '[] '[ 'Eager, 'Live, 'DependsOn XeroPayItemsResource '[ 'FromScope VenueId ] ]
-         , Fragment AdminXeroTimesheetsFragment '[] '[ 'Eager, 'Live, 'DependsOn XeroTimesheetsResource '[ 'FromScope VenueId ] ]
          , Action SyncXeroPayrollReferenceData
             '[]
             '[ 'HtmxMethod 'HtmxPost
              , 'HtmxTarget AdminXeroFragment
-             , 'HtmxSwap OuterHTML
-             , 'CustomHtmx LoadReferenceSyncCustomHtmx "automatic post-connect reference sync uses hx-trigger=load, a concrete Xero page push URL, and the connection status indicator"
-             ]
-         , Action SaveXeroPayrollCalendarSelection
-            '[ Field XeroPayrollCalendarSelection 'WireText ]
-            '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget AdminXeroFragment
              , 'HtmxSwap None
-             , 'CustomHtmx ChangeAutosaveCustomHtmx "payroll calendar selection submits on change"
-             ]
-         , Action SaveXeroPayItemAccountCodeSelection
-            '[ Field XeroPayItemAccountCodeSelection 'WireText ]
-            '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget AdminXeroFragment
-             , 'HtmxSwap None
-             , 'CustomHtmx ChangeAutosaveCustomHtmx "pay item account-code selection submits on change"
-             ]
-         , Action CreateMissingXeroPayItems
-            '[]
-            '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget XeroPayItemsData
-             , 'HtmxSwap None
-             , 'HtmxIndicator XeroPayItemsSyncIndicator
-             ]
-         , Action ArchiveXeroImportedPayItem
-            '[]
-            '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget XeroPayItemsData
-             , 'HtmxSwap None
-             ]
-         , Action SaveXeroStaffMapping
-            '[ Field StaffId 'WireUUID
-             , Field XeroEmployeeSelection 'WireText
-             ]
-            '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget AdminXeroFragment
-             , 'HtmxSwap None
-             , 'CustomHtmx ChangeAutosaveCustomHtmx "staff mapping selection submits on change"
-             ]
-         , Action SuggestXeroStaffMapping
-            '[]
-            '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget AdminXeroFragment
-             , 'HtmxSwap None
+             , 'CustomHtmx LoadReferenceSyncCustomHtmx "automatic post-connect sync supplies load/push-url/indicator attributes; the manual shell action supplies this marker with no extra attributes"
              ]
          , Action ShowXeroTimesheetPreparationStaffMappings
             '[ Field ShowMatched 'WireText
@@ -456,7 +377,5 @@ type AdminXeroSurface =
              , 'HtmxSwap OuterHTML
              ]
          , DomToken AdminXeroFragment
-         , DomToken XeroPayItemsData
-         , DomToken XeroPayItemsSyncIndicator
          , DomToken XeroPreparationStaffMappings
          ]

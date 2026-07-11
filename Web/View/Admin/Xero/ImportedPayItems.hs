@@ -1,0 +1,139 @@
+{-# LANGUAGE TypeApplications #-}
+
+module Web.View.Admin.Xero.ImportedPayItems
+    ( renderXeroImportedPayItemImportDialog
+    , renderXeroImportedPayItemImportErrorDialog
+    , renderXeroImportedPayItemImportLoadingDialog
+    ) where
+
+import Application.Helper.FrontendContract.AppShell (ImportXeroPayItemsOverlay,
+                                                     LoadXeroPayItemImportOverlay)
+import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
+                                                             AppShellFieldValue (..),
+                                                             appShellActionByMarker,
+                                                             renderAppShellActionForm)
+import Application.Helper.Xero (XeroEarningsRateRef (..))
+import Application.Xero.Admin.ImportedPayItems (XeroImportedPayItemCandidate (..))
+import Data.Scientific (FPFormat (Fixed), Scientific, formatScientific)
+import qualified Data.Text as Text
+import Web.View.Prelude
+
+xeroPayItemAppShellActionRoute :: Text -> AppShellActionRoute
+xeroPayItemAppShellActionRoute actionUrl =
+    AppShellActionRoute
+        { appShellActionRouteUrl = actionUrl
+        , appShellActionRouteFields = []
+        , appShellActionRouteCustomHtmx = []
+        , appShellActionRouteStandardUrl = Nothing
+        , appShellActionRouteExtraAttrs = []
+        }
+
+renderXeroImportedPayItemImportLoadingDialog :: Html
+renderXeroImportedPayItemImportLoadingDialog =
+    renderDialogOverlay DialogOverlayConfig
+        { dialogOverlayTitle = "Import Xero pay items"
+        , dialogOverlayBody = [hsx|
+            <div class="d-flex align-items-center gap-3" data-xero-import-loading="true">
+                <div id="xero-import-pay-items-loading-indicator" class="spinner-border text-primary" role="status" aria-hidden="true"></div>
+                <div>
+                    <div class="fw-semibold">Fetching Xero pay items...</div>
+                    <div class="small app-muted">Bepis is refreshing the Xero connection and loading supported hourly earnings rates.</div>
+                </div>
+                {renderLoadXeroPayItemImportForm}
+            </div>
+        |]
+        , dialogOverlayStartButtons = []
+        , dialogOverlayButtons = []
+        , dialogOverlayDialogClass = ""
+        }
+
+renderLoadXeroPayItemImportForm :: Html
+renderLoadXeroPayItemImportForm =
+    renderAppShellActionForm
+        (appShellActionByMarker @LoadXeroPayItemImportOverlay)
+        (xeroPayItemAppShellActionRoute (pathTo OpenXeroPayItemImportAction))
+            { appShellActionRouteFields = [AppShellFieldValue ("loadCandidates", "true")]
+            }
+        mempty
+
+renderXeroImportedPayItemImportErrorDialog :: Text -> Html
+renderXeroImportedPayItemImportErrorDialog message =
+    renderDialogOverlay DialogOverlayConfig
+        { dialogOverlayTitle = "Import Xero pay items"
+        , dialogOverlayBody = [hsx|
+            <div class="alert alert-danger mb-0">{message}</div>
+        |]
+        , dialogOverlayStartButtons = []
+        , dialogOverlayButtons =
+            [ OverlayButton
+                { overlayButtonLabel = "Close"
+                , overlayButtonClass = "btn btn-outline-secondary"
+                , overlayButtonAction = OverlayCloseAction
+                }
+            ]
+        , dialogOverlayDialogClass = ""
+        }
+
+renderXeroImportedPayItemImportDialog :: [XeroImportedPayItemCandidate] -> Html
+renderXeroImportedPayItemImportDialog candidates =
+    renderDialogOverlay DialogOverlayConfig
+        { dialogOverlayTitle = "Import Xero pay items"
+        , dialogOverlayBody = [hsx|
+            {renderImportXeroPayItemsForm candidates}
+        |]
+        , dialogOverlayStartButtons = []
+        , dialogOverlayButtons =
+            [ OverlayButton
+                { overlayButtonLabel = "Cancel"
+                , overlayButtonClass = "btn btn-outline-secondary"
+                , overlayButtonAction = OverlayCloseAction
+                }
+            , OverlayButton
+                { overlayButtonLabel = "Import selected"
+                , overlayButtonClass = classes [("btn btn-primary", True), ("disabled", null candidates)]
+                , overlayButtonAction = OverlaySubmitFormAction "xero-imported-pay-items-import-form"
+                }
+            ]
+        , dialogOverlayDialogClass = "modal-lg modal-dialog-scrollable"
+        }
+
+renderImportXeroPayItemsForm :: [XeroImportedPayItemCandidate] -> Html
+renderImportXeroPayItemsForm candidates =
+    renderAppShellActionForm
+        (appShellActionByMarker @ImportXeroPayItemsOverlay)
+        (xeroPayItemAppShellActionRoute (pathTo ImportXeroPayItemsAction))
+            { appShellActionRouteExtraAttrs = [("id", "xero-imported-pay-items-import-form")]
+            }
+        [hsx|
+            <p class="small app-muted">Only active hourly ordinary earnings rates that were not generated by Bepis and have not already been imported are shown.</p>
+            <input type="search" class="form-control form-control-sm mb-3" placeholder="Search pay items" data-xero-import-search="true">
+            {renderImportCandidateList candidates}
+        |]
+
+renderImportCandidateList :: [XeroImportedPayItemCandidate] -> Html
+renderImportCandidateList [] = [hsx|<div class="alert alert-secondary small mb-0">No new supported Xero pay items are available to import.</div>|]
+renderImportCandidateList candidates = [hsx|
+    <div class="list-group" data-xero-import-candidates="true">
+        {forEach candidates renderImportCandidate}
+    </div>
+|]
+
+renderImportCandidate :: XeroImportedPayItemCandidate -> Html
+renderImportCandidate XeroImportedPayItemCandidate { candidateEarningsRate = rate } = [hsx|
+    <label class="list-group-item d-flex gap-2 align-items-start" data-xero-import-candidate={searchText}>
+        <input class="form-check-input mt-1" type="checkbox" name="xeroEarningsRateId" value={rateId}>
+        <span class="flex-grow-1">
+            <span class="fw-semibold d-block">{rate.xeroEarningsRateName}</span>
+            <span class="small app-muted">{fromMaybe "No account" rate.xeroEarningsRateAccountCode} · ${maybe "—" formatMoney rate.xeroEarningsRateRatePerUnit}/hr</span>
+        </span>
+    </label>
+|]
+    where
+        rateId :: Text
+        rateId = rate.xeroEarningsRateId
+        searchText :: Text
+        searchText = Text.toLower (rate.xeroEarningsRateName <> " " <> fromMaybe "" rate.xeroEarningsRateAccountCode)
+
+formatMoney :: Scientific -> Text
+formatMoney =
+    Text.pack . formatScientific Fixed (Just 2)

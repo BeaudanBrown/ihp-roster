@@ -77,42 +77,8 @@ refreshCurrentVenueXeroReferenceDataForPreparation ::
     IO (Either Text XeroConnection)
 refreshCurrentVenueXeroReferenceDataForPreparation connection
     | connection.connectionStatus /= "active" = pure (Left "Reconnect Xero before preparing draft timesheets.")
-    | otherwise = do
-        now <- getCurrentTime
-        syncRun <-
-            newRecord @XeroSyncRun
-                |> set #venueId (unpackId currentVenueId)
-                |> set #xeroConnectionId (unpackId connection.id)
-                |> set #syncStatus ("running" :: Text)
-                |> set #syncKind ("payroll_reference_data" :: Text)
-                |> set #startedAt now
-                |> createRecord
-        readXeroConfig >>= \case
-            Left message -> failCurrentVenuePreparationReferenceSync syncRun connection message
-            Right config ->
-                refreshXeroConnectionAccessWithoutBroadcast config connection >>= \case
-                    Left message -> failCurrentVenuePreparationReferenceSync syncRun connection message
-                    Right (refreshedConnection, accessToken) -> do
-                        xeroClient <- currentXeroClient
-                        employeesResult <- fetchPayrollEmployees xeroClient accessToken refreshedConnection.tenantId
-                        earningsRatesResult <- fetchEarningsRates xeroClient accessToken refreshedConnection.tenantId
-                        payrollCalendarsResult <- fetchPayrollCalendars xeroClient accessToken refreshedConnection.tenantId
-                        accountsResult <- fetchAccounts xeroClient accessToken refreshedConnection.tenantId
-                        payrollSettingsAccountsResult <- fetchPayrollSettingsAccounts xeroClient accessToken refreshedConnection.tenantId
-                        case (employeesResult, earningsRatesResult, payrollCalendarsResult, accountsResult, payrollSettingsAccountsResult) of
-                            (Right employees, Right earningsRates, Right payrollCalendars, Right accounts, Right payrollSettingsAccounts) -> do
-                                completePreparationReferenceSync syncRun refreshedConnection employees earningsRates payrollCalendars accounts payrollSettingsAccounts
-                                pure (Right refreshedConnection)
-                            (Left err, _, _, _, _) ->
-                                failCurrentVenuePreparationReferenceSync syncRun refreshedConnection ("Xero employee sync failed: " <> xeroClientErrorText err)
-                            (_, Left err, _, _, _) ->
-                                failCurrentVenuePreparationReferenceSync syncRun refreshedConnection ("Xero earnings-rate sync failed: " <> xeroClientErrorText err)
-                            (_, _, Left err, _, _) ->
-                                failCurrentVenuePreparationReferenceSync syncRun refreshedConnection ("Xero payroll-calendar sync failed: " <> xeroClientErrorText err)
-                            (_, _, _, Left err, _) ->
-                                failCurrentVenuePreparationReferenceSync syncRun refreshedConnection ("Xero account sync failed: " <> xeroClientErrorText err)
-                            (_, _, _, _, Left err) ->
-                                failCurrentVenuePreparationReferenceSync syncRun refreshedConnection ("Xero payroll-settings sync failed: " <> xeroClientErrorText err)
+    | otherwise =
+        fmap (fmap (.referenceDataSyncConnection)) (syncCurrentVenueXeroReferenceData connection)
 
 refreshXeroTimesheetPreparation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -196,11 +162,12 @@ loadXeroTimesheetPreparationView runId = do
                 case run.xeroSubmissionRunId of
                     Nothing -> pure Nothing
                     Just submissionRunId -> Just <$> fetch (Id submissionRunId :: Id XeroSubmissionRun)
-            maybeSubmissionView <-
-                case maybeSubmissionRun of
-                    Nothing -> pure Nothing
-                    Just submissionRun -> Just <$> buildXeroTimesheetRunView connection submissionRun
-            let staffDecisionRows = map (preparationStaffRow decisions) staffRows
+            let submissionPreviewRows =
+                    maybe
+                        []
+                        (xeroTimesheetPreviewRowsFromJson xeroEmployees xeroEarningsRates . (.previewPayloadJson))
+                        maybeSubmissionRun
+                staffDecisionRows = map (preparationStaffRow decisions) staffRows
                 payItemRows = map (preparationPayItemRow decisions) (filter activePayItemRequirement payItemRequirements)
                 pendingDecisionCount = length (filter pendingManualPreparationDecision decisions)
                 manualStaffDecisionCount = length (filter (.preparationStaffNeedsDecision) staffDecisionRows)
@@ -248,7 +215,7 @@ loadXeroTimesheetPreparationView runId = do
                         , preparationCanPreview = canPreview
                         , preparationCanSubmit = canSubmit
                         , preparationReviewRows = reviewRows
-                        , preparationPreviewRows = maybe [] (\submissionView -> submissionView.timesheetRunPreviewRows) maybeSubmissionView
+                        , preparationPreviewRows = submissionPreviewRows
                         , preparationSubmissionRun = maybeSubmissionRun
                         }
 
@@ -393,54 +360,6 @@ selectXeroTimesheetPreparationPeriod runId selectedPeriodKey =
                             |> set #errorSummary Nothing
                             |> updateRecord
                     refreshXeroTimesheetPreparation updatedRun.id
-
-syncXeroPreparationReferenceData ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Id XeroTimesheetPreparationRun ->
-    IO (Either Text XeroTimesheetPreparationView)
-syncXeroPreparationReferenceData runId =
-    fetchPreparationRunForCurrentVenue runId >>= \case
-        Nothing -> pure (Left "Xero preparation run was not found for this venue.")
-        Just run -> do
-            connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
-            if connection.connectionStatus /= "active"
-                then refreshXeroTimesheetPreparation run.id
-                else do
-                    now <- getCurrentTime
-                    syncRun <-
-                        newRecord @XeroSyncRun
-                            |> set #venueId (unpackId currentVenueId)
-                            |> set #xeroConnectionId (unpackId connection.id)
-                            |> set #syncStatus ("running" :: Text)
-                            |> set #syncKind ("payroll_reference_data" :: Text)
-                            |> set #startedAt now
-                            |> createRecord
-                    readXeroConfig >>= \case
-                        Left message -> failPreparationReferenceSync run syncRun connection message
-                        Right config ->
-                            refreshXeroConnectionAccessWithoutBroadcast config connection >>= \case
-                                Left message -> failPreparationReferenceSync run syncRun connection message
-                                Right (refreshedConnection, accessToken) -> do
-                                    xeroClient <- currentXeroClient
-                                    employeesResult <- fetchPayrollEmployees xeroClient accessToken refreshedConnection.tenantId
-                                    earningsRatesResult <- fetchEarningsRates xeroClient accessToken refreshedConnection.tenantId
-                                    payrollCalendarsResult <- fetchPayrollCalendars xeroClient accessToken refreshedConnection.tenantId
-                                    accountsResult <- fetchAccounts xeroClient accessToken refreshedConnection.tenantId
-                                    payrollSettingsAccountsResult <- fetchPayrollSettingsAccounts xeroClient accessToken refreshedConnection.tenantId
-                                    case (employeesResult, earningsRatesResult, payrollCalendarsResult, accountsResult, payrollSettingsAccountsResult) of
-                                        (Right employees, Right earningsRates, Right payrollCalendars, Right accounts, Right payrollSettingsAccounts) -> do
-                                            completePreparationReferenceSync syncRun refreshedConnection employees earningsRates payrollCalendars accounts payrollSettingsAccounts
-                                            refreshXeroTimesheetPreparation run.id
-                                        (Left err, _, _, _, _) ->
-                                            failPreparationReferenceSync run syncRun refreshedConnection ("Xero employee sync failed: " <> xeroClientErrorText err)
-                                        (_, Left err, _, _, _) ->
-                                            failPreparationReferenceSync run syncRun refreshedConnection ("Xero earnings-rate sync failed: " <> xeroClientErrorText err)
-                                        (_, _, Left err, _, _) ->
-                                            failPreparationReferenceSync run syncRun refreshedConnection ("Xero payroll-calendar sync failed: " <> xeroClientErrorText err)
-                                        (_, _, _, Left err, _) ->
-                                            failPreparationReferenceSync run syncRun refreshedConnection ("Xero account sync failed: " <> xeroClientErrorText err)
-                                        (_, _, _, _, Left err) ->
-                                            failPreparationReferenceSync run syncRun refreshedConnection ("Xero payroll-settings sync failed: " <> xeroClientErrorText err)
 
 saveXeroPreparationPayrollCalendar ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -906,123 +825,6 @@ reloadAfterLocalDecision run remoteTimesheetReader = do
     latestRun <- fetch run.id
     _ <- refreshPreparationRunStatus latestRun (remoteTimesheetReader latestRun)
     loadXeroTimesheetPreparationView latestRun.id
-
-completePreparationReferenceSync ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    XeroSyncRun ->
-    XeroConnection ->
-    [XeroEmployeeRef] ->
-    [XeroEarningsRateRef] ->
-    [XeroPayrollCalendarRef] ->
-    [XeroAccountRef] ->
-    [XeroAccountRef] ->
-    IO ()
-completePreparationReferenceSync syncRun connection employees earningsRates payrollCalendars accounts payrollSettingsAccounts = do
-    now <- getCurrentTime
-    withTransaction do
-        mapM_ (upsertXeroEmployee connection now) employees
-        mapM_ (upsertXeroEarningsRate connection now) earningsRates
-        mapM_ (upsertXeroPayrollCalendar connection now) payrollCalendars
-        mapM_ (upsertXeroAccount connection now) accounts
-        markStaleXeroStaffMappings connection employees
-        markStaleXeroEarningsRateMappings connection earningsRates
-        reconcileXeroPayItemAccountCodeSelection connection accounts payrollSettingsAccounts
-        reconcileXeroPayrollCalendarSelection connection payrollCalendars
-        _ <-
-            syncRun
-                |> set #syncStatus ("succeeded" :: Text)
-                |> set #employeesCount (length employees)
-                |> set #earningsRatesCount (length earningsRates)
-                |> set #payrollCalendarsCount (length payrollCalendars)
-                |> set #finishedAt (Just now)
-                |> updateRecord
-        _ <-
-            connection
-                |> set #lastSyncAt (Just now)
-                |> set #lastError Nothing
-                |> updateRecord
-        void $
-            recordCurrentUserAuditEvent
-                "xero_reference_sync_succeeded"
-                "xero_sync_runs"
-                (unpackId syncRun.id)
-                (Aeson.object
-                    [ "tenantId" Aeson..= connection.tenantId
-                    , "employeesCount" Aeson..= length employees
-                    , "earningsRatesCount" Aeson..= length earningsRates
-                    , "payrollCalendarsCount" Aeson..= length payrollCalendars
-                    ]
-                )
-
-failCurrentVenuePreparationReferenceSync ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    XeroSyncRun ->
-    XeroConnection ->
-    Text ->
-    IO (Either Text XeroConnection)
-failCurrentVenuePreparationReferenceSync syncRun connection message = do
-    now <- getCurrentTime
-    withTransaction do
-        _ <-
-            syncRun
-                |> set #syncStatus ("failed" :: Text)
-                |> set #errorMessage (Just message)
-                |> set #finishedAt (Just now)
-                |> updateRecord
-        latestConnection <- fetch connection.id
-        _ <-
-            latestConnection
-                |> set #lastError (Just message)
-                |> updateRecord
-        void $
-            recordCurrentUserAuditEvent
-                "xero_reference_sync_failed"
-                "xero_sync_runs"
-                (unpackId syncRun.id)
-                (Aeson.object
-                    [ "tenantId" Aeson..= connection.tenantId
-                    , "failure" Aeson..= message
-                    ]
-                )
-    pure (Left message)
-
-failPreparationReferenceSync ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    XeroTimesheetPreparationRun ->
-    XeroSyncRun ->
-    XeroConnection ->
-    Text ->
-    IO (Either Text XeroTimesheetPreparationView)
-failPreparationReferenceSync run syncRun connection message = do
-    now <- getCurrentTime
-    withTransaction do
-        _ <-
-            syncRun
-                |> set #syncStatus ("failed" :: Text)
-                |> set #errorMessage (Just message)
-                |> set #finishedAt (Just now)
-                |> updateRecord
-        latestConnection <- fetch connection.id
-        _ <-
-            latestConnection
-                |> set #lastError (Just message)
-                |> updateRecord
-        _ <-
-            run
-                |> set #status ("failed" :: Text)
-                |> set #errorSummary (Just message)
-                |> updateRecord
-        void $
-            recordCurrentUserAuditEvent
-                "xero_reference_sync_failed"
-                "xero_sync_runs"
-                (unpackId syncRun.id)
-                (Aeson.object
-                    [ "tenantId" Aeson..= connection.tenantId
-                    , "failure" Aeson..= message
-                    ]
-                )
-    loadXeroTimesheetPreparationView run.id
 
 persistPreparationAccountCodeSelection ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

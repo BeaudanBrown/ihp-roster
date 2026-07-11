@@ -33,10 +33,7 @@ module Application.Helper.LiveUpdate.Internal
     , adminVenueConfigLiveFragment
     , adminVenueConfigLiveScope
     , adminXeroLiveScope
-    , adminXeroPayItemsLiveFragment
     , adminXeroShellLiveFragment
-    , adminXeroStaffMappingsLiveFragment
-    , adminXeroTimesheetsLiveFragment
     , billingLiveScope
     , billingStatusLiveFragment
     , frontendSurfaceLiveScope
@@ -180,16 +177,13 @@ timesheetToolbarLiveFragment = simpleSurfaceFragmentKey "timesheets" "timesheet-
 timesheetDaySectionLiveFragment :: Int -> SurfaceFragmentKey
 timesheetDaySectionLiveFragment offset = frontendSurfaceSurfaceFragmentKey "timesheets" "timesheet-day-section" (Aeson.object ["dayOffset" Aeson..= offset])
 
-adminVenueConfigLiveFragment, adminInvitesLiveFragment, adminExportsLiveFragment, adminShiftTypesLiveFragment, adminRosterGroupsLiveFragment, adminXeroShellLiveFragment, adminXeroStaffMappingsLiveFragment, adminXeroPayItemsLiveFragment, adminXeroTimesheetsLiveFragment, billingStatusLiveFragment, profileContentLiveFragment, supportAwardRatesSectionLiveFragment, supportPublicHolidaysSectionLiveFragment :: SurfaceFragmentKey
+adminVenueConfigLiveFragment, adminInvitesLiveFragment, adminExportsLiveFragment, adminShiftTypesLiveFragment, adminRosterGroupsLiveFragment, adminXeroShellLiveFragment, billingStatusLiveFragment, profileContentLiveFragment, supportAwardRatesSectionLiveFragment, supportPublicHolidaysSectionLiveFragment :: SurfaceFragmentKey
 adminVenueConfigLiveFragment = simpleSurfaceFragmentKey "admin-venue-config" "admin-venue-settings"
 adminInvitesLiveFragment = simpleSurfaceFragmentKey "admin-invites" "admin-invites"
 adminExportsLiveFragment = simpleSurfaceFragmentKey "admin-exports" "admin-exports"
 adminShiftTypesLiveFragment = simpleSurfaceFragmentKey "admin-shift-types" "admin-shift-types"
 adminRosterGroupsLiveFragment = simpleSurfaceFragmentKey "admin-roster-groups" "admin-roster-groups"
 adminXeroShellLiveFragment = simpleSurfaceFragmentKey "admin-xero" "admin-xero-shell"
-adminXeroStaffMappingsLiveFragment = simpleSurfaceFragmentKey "admin-xero" "admin-xero-staff-mappings"
-adminXeroPayItemsLiveFragment = simpleSurfaceFragmentKey "admin-xero" "admin-xero-pay-items"
-adminXeroTimesheetsLiveFragment = simpleSurfaceFragmentKey "admin-xero" "admin-xero-timesheets"
 billingStatusLiveFragment = simpleSurfaceFragmentKey "billing" "billing-status"
 profileContentLiveFragment = simpleSurfaceFragmentKey "profile" "profile-details-section"
 supportAwardRatesSectionLiveFragment = simpleSurfaceFragmentKey "support" "support-award-rates"

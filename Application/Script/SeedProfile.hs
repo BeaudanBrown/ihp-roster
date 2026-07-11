@@ -218,17 +218,7 @@ renderProfileSeedManifest plan =
         , "    \"adminShiftTypesFragment\": \"/ShowadminShiftTypesLiveFragment\","
         , "    \"adminRosterGroupsFragment\": \"/ShowadminRosterGroupsLiveFragment\","
         , "    \"xero\": \"/Xero\","
-        , "    \"adminXeroFragment\": \"/ShowadminXeroShellLiveFragment\","
-        , "    \"adminXeroStaffMappingsFragment\": \"/ShowadminXeroStaffMappingsLiveFragment\","
-        , "    \"adminXeroPayItemsFragment\": \"/ShowadminXeroPayItemsLiveFragment\","
-        , "    \"adminXeroTimesheetsFragment\": \"/ShowadminXeroTimesheetsLiveFragment\""
-        , "  },"
-        , "  \"xero\": {"
-        , "    \"connectionId\": " <> jsonString (xeroConnectionId 1) <> ","
-        , "    \"targetStaffId\": " <> jsonString (staffId 1 (xeroProfileTargetStaffIndex plan.options)) <> ","
-        , "    \"targetStaffLabel\": " <> jsonString ("Xero employee for " <> staffDisplayName 1 (xeroProfileTargetStaffIndex plan.options)) <> ","
-        , "    \"targetEmployeeId\": " <> jsonString (xeroEmployeeRemoteId (xeroProfileTargetStaffIndex plan.options)) <> ","
-        , "    \"targetEmployeeLabel\": " <> jsonString (xeroEmployeeDisplayName (xeroProfileTargetStaffIndex plan.options) <> " - " <> xeroEmployeeEmail (xeroProfileTargetStaffIndex plan.options))
+        , "    \"adminXeroFragment\": \"/ShowadminXeroShellLiveFragment\""
         , "  },"
         , "  \"exports\": {"
         , "    \"rangeStart\": " <> jsonString (dateText currentWeekStart) <> ","
@@ -773,10 +763,6 @@ staffIndexes plan = [1 .. staffPerVenue plan.options]
 mappedXeroStaffCount :: ProfileSeedOptions -> Int
 mappedXeroStaffCount options =
     min options.staffPerVenue (min (max 0 (options.xeroEmployees - 1)) options.xeroMappedStaff)
-
-xeroProfileTargetStaffIndex :: ProfileSeedOptions -> Int
-xeroProfileTargetStaffIndex options =
-    min options.staffPerVenue (min options.xeroEmployees (mappedXeroStaffCount options + 5))
 
 weekOffsets :: ProfileSeedPlan -> [Int]
 weekOffsets plan =
