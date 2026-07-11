@@ -113,6 +113,24 @@ remains independently isolated. The DevSeed median Hspec time fell from
 post-change full run passed in 85.343s wall time, 53.0% below the 181.461s
 baseline median.
 
+## Hspec Database Isolation Decision
+
+Issue #128 compared three mechanisms on the baseline host:
+
+| Mechanism | Timing evidence | Correctness evidence | Decision |
+| --- | --- | --- | --- |
+| transaction rollback per example | not eligible for timing | Rebinding the implicit `ModelContext` to an outer transaction immediately fails representative Sessions setup because helpers such as venue bootstrap legitimately call IHP `withTransaction`; IHP rejects nested transactions. Without rebinding, the apparent transaction does not contain test queries and therefore does not isolate them. Committed visibility, async jobs, and additional test contexts would also require exceptional lanes. | reject; changing production transaction semantics for the test harness is disproportionate |
+| targeted truncate with FK cascade | 50 iterations: 120.671ms median, 147.278ms p95 | Cascade reached a broad, schema-dependent table set anyway. The approximately 25% median gain over explicit cleanup would make isolation depend on an incomplete root-table list and could hide newly added state. | reject as the default |
+| explicit full truncate | 50 iterations: 160.482ms median, 216.094ms p95 | Existing full and focused suites prove controller writes, sessions/current venue, jobs, audit/version rows, constraints, and multiple test contexts. It remains explicit and fails visibly when schema state is omitted. | retain per example |
+| template-database clone | 20 creates: 148.616ms median, 192.615ms p95 | A clone is a byte-for-byte schema/bootstrap starting point and does not alter per-example semantics. It only replaces repeated per-shard schema loading; broad truncate still isolates examples. | select for shard database creation, with a content-addressed template and lock |
+
+The follow-on implementation in #129 must therefore use a mixed strategy: create
+or reuse a template keyed by `IHPSchema.sql`, `Application/Schema.sql`, and
+`Application/Fixtures.sql`; serialize template creation; clone each Hspec shard
+from it; retain the current explicit `withCleanDb` truncate; bypass or separately
+key E2E fixture loading; and provide a direct-reset escape hatch for diagnosis.
+No production database or transaction behavior changes.
+
 ## Initial Bottlenecks And Interventions
 
 1. `DevSeed` alone controls full Hspec wall time despite having only 10 examples.
