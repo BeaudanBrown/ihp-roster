@@ -3,6 +3,7 @@ set -euo pipefail
 DB_NAME="${TEST_DATABASE_NAME:-app_test}"
 DB_SOCKET="${TEST_DB_SOCKET:-${PGHOST:-$PWD/build/db}}"
 LOAD_E2E_FIXTURES="${TEST_DB_LOAD_E2E_FIXTURES:-0}"
+RESET_MODE="${TEST_DB_RESET_MODE:-template}"
 SYSTEM_SCHEMA="${IHP_DEV_CHECKOUT:-$PWD/IHP}/ihp-ide/data/IHPSchema.sql"
 
 if [ ! -f "$SYSTEM_SCHEMA" ]; then
@@ -16,21 +17,90 @@ if [ ! -f "$SYSTEM_SCHEMA" ]; then
     fi
 fi
 
+case "$RESET_MODE" in
+    template|direct)
+        ;;
+    *)
+        echo "TEST_DB_RESET_MODE must be template or direct, got: $RESET_MODE" >&2
+        exit 1
+        ;;
+esac
+
 if ! psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
     echo "Test database reset requires the local postgres socket at $DB_SOCKET" >&2
     echo "Start the local environment first (e.g. bash ./bin/in-env dev-start or devenv up)." >&2
     exit 1
 fi
 
+create_empty_database() {
+    local database_name="$1"
+    psql -h "$DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 <<SQL
+DROP DATABASE IF EXISTS "$database_name" WITH (FORCE);
+CREATE DATABASE "$database_name";
+SQL
+}
+
+load_base_schema() {
+    local database_name="$1"
+    psql -v ON_ERROR_STOP=1 -h "$DB_SOCKET" -d "$database_name" < "$SYSTEM_SCHEMA"
+    psql -v ON_ERROR_STOP=1 -h "$DB_SOCKET" -d "$database_name" < Application/Schema.sql
+    psql -v ON_ERROR_STOP=1 -h "$DB_SOCKET" -d "$database_name" < Application/Fixtures.sql
+}
+
+direct_reset() {
+    create_empty_database "$DB_NAME"
+    load_base_schema "$DB_NAME"
+
+    if [ "$LOAD_E2E_FIXTURES" = "1" ]; then
+        psql -v ON_ERROR_STOP=1 -h "$DB_SOCKET" -d "$DB_NAME" < e2e/fixtures/seed.sql
+    fi
+}
+
+# E2E fixtures contain run/date-sensitive state and intentionally bypass the
+# reusable Hspec schema template. Operators can also force this path while
+# diagnosing template behavior.
+if [ "$RESET_MODE" = "direct" ] || [ "$LOAD_E2E_FIXTURES" = "1" ]; then
+    direct_reset
+    exit 0
+fi
+
+schema_fingerprint="$({
+    sha256sum "$SYSTEM_SCHEMA"
+    sha256sum Application/Schema.sql
+    sha256sum Application/Fixtures.sql
+} | sha256sum | cut -c1-16)"
+template_name="ihp_roster_test_template_${schema_fingerprint}"
+state_root="$PWD/.devenv"
+lock_file="$state_root/test-db-template.lock"
+mkdir -p "$state_root"
+
+# All local Hspec shards share one immutable schema template. The file lock
+# ensures only one shard builds a missing fingerprint while the others wait.
+(
+    flock 9
+
+    template_exists="$(psql -h "$DB_SOCKET" -d postgres -Atv ON_ERROR_STOP=1 \
+        -c "SELECT 1 FROM pg_database WHERE datname = '$template_name'")"
+
+    if [ "$template_exists" != "1" ]; then
+        staging_name="${template_name}_building_$$"
+        cleanup_staging() {
+            psql -h "$DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 \
+                -c "DROP DATABASE IF EXISTS \"$staging_name\" WITH (FORCE)" >/dev/null 2>&1 || true
+        }
+        trap cleanup_staging EXIT
+
+        create_empty_database "$staging_name"
+        load_base_schema "$staging_name"
+        psql -h "$DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 <<SQL
+ALTER DATABASE "$staging_name" RENAME TO "$template_name";
+ALTER DATABASE "$template_name" WITH IS_TEMPLATE true ALLOW_CONNECTIONS false;
+SQL
+        trap - EXIT
+    fi
+) 9>"$lock_file"
+
 psql -h "$DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 <<SQL
 DROP DATABASE IF EXISTS "$DB_NAME" WITH (FORCE);
-CREATE DATABASE "$DB_NAME";
+CREATE DATABASE "$DB_NAME" TEMPLATE "$template_name";
 SQL
-
-psql -v ON_ERROR_STOP=1 -h "$DB_SOCKET" -d "$DB_NAME" < "$SYSTEM_SCHEMA"
-psql -v ON_ERROR_STOP=1 -h "$DB_SOCKET" -d "$DB_NAME" < Application/Schema.sql
-psql -v ON_ERROR_STOP=1 -h "$DB_SOCKET" -d "$DB_NAME" < Application/Fixtures.sql
-
-if [ "$LOAD_E2E_FIXTURES" = "1" ]; then
-    psql -v ON_ERROR_STOP=1 -h "$DB_SOCKET" -d "$DB_NAME" < e2e/fixtures/seed.sql
-fi

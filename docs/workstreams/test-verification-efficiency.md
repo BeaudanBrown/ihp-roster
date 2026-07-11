@@ -124,11 +124,15 @@ Issue #128 compared three mechanisms on the baseline host:
 | explicit full truncate | 50 iterations: 160.482ms median, 216.094ms p95 | Existing full and focused suites prove controller writes, sessions/current venue, jobs, audit/version rows, constraints, and multiple test contexts. It remains explicit and fails visibly when schema state is omitted. | retain per example |
 | template-database clone | 20 creates: 148.616ms median, 192.615ms p95 | A clone is a byte-for-byte schema/bootstrap starting point and does not alter per-example semantics. It only replaces repeated per-shard schema loading; broad truncate still isolates examples. | select for shard database creation, with a content-addressed template and lock |
 
-The follow-on implementation in #129 must therefore use a mixed strategy: create
-or reuse a template keyed by `IHPSchema.sql`, `Application/Schema.sql`, and
-`Application/Fixtures.sql`; serialize template creation; clone each Hspec shard
-from it; retain the current explicit `withCleanDb` truncate; bypass or separately
-key E2E fixture loading; and provide a direct-reset escape hatch for diagnosis.
+Issue #129 implements that mixed strategy. `test-db-reset` creates or reuses an
+immutable template keyed by `IHPSchema.sql`, `Application/Schema.sql`, and
+`Application/Fixtures.sql`, with a file lock serializing a missing-template
+build across shards. Hspec shard databases clone it while the current explicit
+`withCleanDb` truncate continues to isolate examples. `TEST_DB_RESET_MODE=direct`
+is the diagnostic escape hatch. E2E fixture loading always takes the direct path
+because those fixtures contain run/date-sensitive state. Eight concurrent cold
+shard resets produced one template build and eight valid isolated clones. Warm
+reset median was 0.247s versus 2.011s for direct schema replay (87.7% lower).
 No production database or transaction behavior changes.
 
 ## Initial Bottlenecks And Interventions

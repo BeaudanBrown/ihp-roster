@@ -106,6 +106,8 @@ For approved timesheet fixtures, use `createApprovedTimesheetEntryRecord` or `cr
 
 Leave request `end_date` is exclusive: a one-day leave request is `start_date = day`, `end_date = day + 1`. Do not seed `start_date == end_date`; the schema rejects empty ranges.
 
+Shard databases are cloned from an immutable content-addressed schema template keyed by IHP schema, app schema, and app fixtures. Missing-template creation is serialized across shards. Set `TEST_DB_RESET_MODE=direct` to replay schema files when diagnosing template/reset behavior. E2E fixture resets always use the direct path because their data is run/date-sensitive. Per-example `withCleanDb` remains an explicit full-table truncate; do not replace it with an outer transaction because normal helpers use legitimate nested transactions and some tests require committed visibility.
+
 The shard architecture assumes:
 
 - every parallel shard owns an isolated ephemeral database
