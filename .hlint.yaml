@@ -6,3 +6,42 @@
 
 - ignore:
     name: Use tuple-section
+
+- ignore:
+    name: Unused LANGUAGE pragma
+
+- ignore:
+    name: Avoid lambda
+
+- ignore:
+    name: Redundant bracket
+
+- ignore:
+    name: Redundant $
+
+- ignore:
+    name: Use find
+
+- ignore:
+    name: Eta reduce
+
+- ignore:
+    name: Use <$>
+
+- ignore:
+    name: Use record patterns
+
+- ignore:
+    name: Use list comprehension
+
+- ignore:
+    name: Use all
+
+- ignore:
+    name: Redundant <$>
+
+- ignore:
+    name: Replace case with maybe
+
+- ignore:
+    name: Functor law

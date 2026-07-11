@@ -1,6 +1,6 @@
 ---
 id: ir-6kbg
-status: open
+status: closed
 deps: [ir-zel6, ir-59zh, ir-v1w2, ir-qbmu, ir-jlm2, ir-v3wa]
 links: []
 created: 2026-07-10T05:32:28Z
