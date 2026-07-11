@@ -169,6 +169,30 @@ E2E workflows each found zero `.hi` or `.o` files under `Application`, `Web`,
 using the shared cache; callers needing concurrency can set an isolated
 `VERIFICATION_BUILD_DIR`.
 
+## E2E Authentication And Mutable-State Isolation
+
+Issue #132 makes `loginAs` lazily retain role-and-origin-scoped session cookies
+inside each Playwright worker. Non-auth specs navigate through the seeded
+session instead of repeatedly submitting the password form. Authentication and
+passkey coverage keeps explicit fresh browser flows through direct form actions
+or `loginAsWithFreshBrowserSession`; the six passkey behaviors still exercise
+real WebAuthn.
+
+App shards already own distinct ephemeral databases and remain at one
+Playwright worker each. Dynamic mail/database identifiers now include the E2E
+run/shard identity plus a worker-local counter. Mail tests no longer clear the
+shared MailHog inbox; they wait and count only messages addressed to their unique
+recipient. This prevents one shard or retry from deleting or consuming another
+shard's evidence. Fixed fixture mutations continue to reset at spec/test setup,
+and raising workers within one database remains prohibited until all selected
+fixed-row mutations are independently isolated.
+
+The affected auth/passkey/invite/onboarding selection passed 14/14 in 34.7s.
+A subsequent canonical two-shard run passed all 176 project-tests with zero
+retries or failures in 198.480s and showed distinct shard databases with no
+mail, port, or report collisions. This single run is correctness evidence, not
+a closeout timing median.
+
 ## Initial Bottlenecks And Interventions
 
 1. `DevSeed` alone controls full Hspec wall time despite having only 10 examples.

@@ -4,8 +4,8 @@ import {
     clearE2EUserPasskeys,
     enableVirtualPasskeyAuthenticator,
     gotoWhenReady,
-    loginAs,
     loginAsPrivilegedUserWithFreshPasskey,
+    loginAsWithFreshBrowserSession,
     openProfileSecuritySection,
     registerFirstPasskeyForCurrentUser,
     removeVirtualPasskeyAuthenticator,
@@ -59,7 +59,7 @@ test.describe('Venue-admin passkeys', () => {
         await loginAsPrivilegedUserWithFreshPasskey(page);
         await logout(page);
 
-        await loginAs(page, adminEmail, password);
+        await loginAsWithFreshBrowserSession(page, adminEmail, password);
         await openProfileSecuritySection(page);
         await page.getByRole('button', { name: 'Email setup link for another device' }).click();
 
@@ -112,7 +112,7 @@ test.describe('Venue-admin passkeys', () => {
         await registerFirstPasskeyForCurrentUser(page);
         await logout(page);
 
-        await loginAs(page, adminEmail, password);
+        await loginAsWithFreshBrowserSession(page, adminEmail, password);
         await openProfileSecuritySection(page);
         await expect(page.getByRole('link', { name: 'Create passkey' })).toHaveCount(0);
         await page.getByRole('button', { name: 'Email setup link for another device' }).click();

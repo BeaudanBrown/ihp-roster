@@ -26,6 +26,14 @@ type MailHogMessage = {
     To?: MailHogAddress[];
 };
 
+let uniqueE2ECounter = 0;
+
+export function uniqueE2EValue(prefix: string) {
+    uniqueE2ECounter += 1;
+    const runId = (process.env.E2E_RUN_ID ?? `pid-${process.pid}`).replace(/[^a-zA-Z0-9-]/g, '-');
+    return `${prefix}-${runId}-${uniqueE2ECounter}`;
+}
+
 function mailhogBaseUrl() {
     return process.env.MAILHOG_BASE_URL ?? 'http://127.0.0.1:8025';
 }
@@ -62,11 +70,6 @@ export function extractFirstUrl(text: string) {
 export function inviteUrlForCurrentBase(rawUrl: string, baseURL: string) {
     const parsed = new URL(rawUrl);
     return new URL(`${parsed.pathname}${parsed.search}`, baseURL).toString();
-}
-
-export async function clearMailhogInbox(request: APIRequestContext) {
-    const response = await request.delete(`${mailhogBaseUrl()}/api/v1/messages`);
-    expect(response.ok()).toBeTruthy();
 }
 
 export async function waitForMailhogMessages(
@@ -170,14 +173,41 @@ export async function gotoWhenReady(page: Page, path: string, readySelector: str
     await expect(page.locator(readySelector), failureContext).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
 }
 
-export async function loginAs(page: Page, email: string, password: string) {
-    await gotoWhenReady(page, '/NewSession', '#email');
+type CachedBrowserSession = Awaited<ReturnType<ReturnType<Page['context']>['cookies']>>;
+
+const cachedBrowserSessions = new Map<string, CachedBrowserSession>();
+
+function browserSessionKey(page: Page, email: string) {
+    return `${new URL(page.url()).origin}|${email.toLowerCase()}`;
+}
+
+async function completePasswordLoginFromVisibleForm(page: Page, email: string, password: string) {
     await page.fill('#email', email);
     await page.fill('#password', password);
     await page.click('button[type="submit"]');
     await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
     await expect(page.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
     await dismissOptionalPasskeySetupPrompt(page);
+}
+
+export async function loginAsWithFreshBrowserSession(page: Page, email: string, password: string) {
+    await gotoWhenReady(page, '/NewSession', '#email');
+    await completePasswordLoginFromVisibleForm(page, email, password);
+}
+
+export async function loginAs(page: Page, email: string, password: string) {
+    await gotoWhenReady(page, '/NewSession', '#email');
+    const key = browserSessionKey(page, email);
+    const cachedCookies = cachedBrowserSessions.get(key);
+    if (cachedCookies) {
+        await page.context().addCookies(cachedCookies);
+        await gotoWhenReady(page, '/RosterWeeks', '#roster-content');
+        await dismissOptionalPasskeySetupPrompt(page);
+        return;
+    }
+
+    await completePasswordLoginFromVisibleForm(page, email, password);
+    cachedBrowserSessions.set(key, await page.context().cookies());
 }
 
 export async function dismissOptionalPasskeySetupPrompt(page: Page) {

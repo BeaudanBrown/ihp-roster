@@ -103,7 +103,7 @@ await loginAs(page, 'e2e-test@example.com', 'test-password-123');
 await openRoster(page, { email: 'e2e-test@example.com', weekOffset: 1 });
 ```
 
-`gotoWhenReady` retries the navigation until the expected selector appears instead of failing on the temporary `Is compiling` page. `loginAs` wraps the seeded login flow and waits for the post-login roster shell.
+`gotoWhenReady` retries the navigation until the expected selector appears instead of failing on the temporary `Is compiling` page. `loginAs` lazily creates and reuses role/origin-scoped browser session cookies within each Playwright worker, then waits for the post-login roster shell. This keeps non-auth specs off repeated password form submissions while each app shard still owns its database. Specs whose subject is authentication, passkeys, or step-up must use their explicit UI flow or `loginAsWithFreshBrowserSession`; never let a cached session replace the behavior under test.
 For privileged admin/support feature specs that are not directly testing passkeys, use `loginAsPrivilegedUserWithSeededPasskeySession` or `openAdminWithSeededPasskeySession`; reserve `loginAsPrivilegedUserWithFreshPasskey` and raw WebAuthn registration helpers for `passkeys.spec.ts` or passkey-specific coverage.
 `gotoWhenReady` also retries transient `ERR_CONNECTION_REFUSED` startup races from the temporary E2E app server instead of failing immediately on the first `page.goto`.
 `openRoster(page, ...)` is the shared helper for authenticated roster-grid specs. It defaults to the seeded venue admin (`e2e-admin@example.com`) and canonical roster-group fixture, preserves the current post-login grid when one is already visible, and otherwise resolves the current roster group before navigating to the canonical `ShowRosterWeek` route instead of assuming the `/RosterWeeks` landing page has already resolved to a concrete grid. New roster-grid specs should use `openRoster` unless they are explicitly testing authentication or initial roster routing.
@@ -160,6 +160,9 @@ test('authenticated feature', async ({ page }) => {
 - Treat `e2e/fixtures/seed.sql` as durable fixture state: fixed-id venue rows can persist across runs, while teardown mainly cleans dynamic `e2e-%` users created during tests
 - If a spec mutates fixed-id roster/week fixture rows, reset the mutable venue-scoped rows at the top of `e2e/fixtures/seed.sql` before reinserting them; do not rely on teardown of `e2e-%` users alone to restore roster state.
 - Specs must not rely on cross-file ordering or cross-shard shared state. Treat each file as if it may run in a different isolated database from the rest of the suite.
+- Use `uniqueE2EValue` for dynamically created email addresses, venue names, and other externally visible identifiers. It includes the E2E run/shard identity and a worker-local counter, so retries and concurrent shards do not collide.
+- MailHog is shared transport only: never clear the global inbox in a test. Wait and count by a `uniqueE2EValue` recipient so another shard's messages cannot be deleted or mistaken for the current test's mail.
+- Default Playwright workers remain one per isolated app/database shard. Do not raise workers within a shard until every fixed-row mutation used by the selected tests is independently namespaced or reset at test start.
 
 ## Assertion Style
 

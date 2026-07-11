@@ -1,7 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
 import {
-    clearMailhogInbox,
     expectMailhogMessageCount,
     extractFirstUrl,
     gotoWhenReady,
@@ -9,6 +8,7 @@ import {
     mailhogMessageSubject,
     mailhogMessageText,
     openAdminWithSeededPasskeySession,
+    uniqueE2EValue,
     waitForMailhogMessage,
     webauthnBaseURL,
 } from './test-helpers';
@@ -43,12 +43,8 @@ async function fillRequiredInviteeStaffDetails(page: Page) {
 test.describe('Admin invites', () => {
     test.setTimeout(E2E_TIMEOUT.slowTest);
 
-    test.beforeEach(async ({ request }) => {
-        await clearMailhogInbox(request);
-    });
-
     test('admin can queue and revoke an invite, and revoked links stop working', async ({ page, request, baseURL }) => {
-        const inviteeEmail = `e2e-revoke-${Date.now()}@example.com`;
+        const inviteeEmail = `${uniqueE2EValue('e2e-revoke')}@example.com`;
 
         await openAdminWithSeededPasskeySession(page);
         await openInvitesSection(page);
@@ -77,7 +73,7 @@ test.describe('Admin invites', () => {
     });
 
     test('accepted invites verify the email, avoid a second email, and show accepted status when the admin revisits invites', async ({ browser, page, request, baseURL }) => {
-        const inviteeEmail = `e2e-accept-${Date.now()}@example.com`;
+        const inviteeEmail = `${uniqueE2EValue('e2e-accept')}@example.com`;
 
         await openAdminWithSeededPasskeySession(page);
         await openInvitesSection(page);

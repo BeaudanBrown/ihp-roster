@@ -1,13 +1,13 @@
 import { test, expect, Page } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
 import {
-    clearMailhogInbox,
     extractFirstUrl,
     gotoWhenReady,
     inviteUrlForCurrentBase,
     mailhogMessageSubject,
     mailhogMessageText,
     loginAsPrivilegedUserWithSeededPasskeySession,
+    uniqueE2EValue,
     waitForMailhogMessage,
     webauthnBaseURL,
 } from './test-helpers';
@@ -30,12 +30,8 @@ function onboardingInviteRow(page: Page, email: string) {
 test.describe('Venue owner onboarding invites', () => {
     test.setTimeout(E2E_TIMEOUT.slowTest);
 
-    test.beforeEach(async ({ request }) => {
-        await clearMailhogInbox(request);
-    });
-
     test('super-admin can send a venue owner invite email and support shows it as sent', async ({ page, request }) => {
-        const ownerEmail = `e2e-owner-mail-${Date.now()}@example.com`;
+        const ownerEmail = `${uniqueE2EValue('e2e-owner-mail')}@example.com`;
 
         await loginAsSuperAdmin(page);
         await openSupport(page);
@@ -56,8 +52,8 @@ test.describe('Venue owner onboarding invites', () => {
     });
 
     test('owner can redeem an emailed onboarding invite, create a Tuesday-start venue, and the link cannot be reused', async ({ browser, page, request, baseURL }) => {
-        const suffix = Date.now();
-        const ownerEmail = `e2e-owner-onboarding-${suffix}@example.com`;
+        const suffix = uniqueE2EValue('e2e-owner-onboarding');
+        const ownerEmail = `${suffix}@example.com`;
         const venueName = `e2e-owner-venue-${suffix}`;
 
         await loginAsSuperAdmin(page);
