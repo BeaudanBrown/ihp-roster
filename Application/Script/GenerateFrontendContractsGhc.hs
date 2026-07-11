@@ -33,7 +33,8 @@ main = do
 
 frontendContractsTypeScriptFromGhc :: FilePath -> IO Text
 frontendContractsTypeScriptFromGhc libdir = do
-    rawResult <- inspectFrontendSurfaceRegistryRaw libdir
+    buildDir <- fromMaybe "build/FrontendSurfaceGhcApi" <$> Environment.lookupEnv "FRONTEND_SURFACE_GHC_API_BUILD_DIR"
+    rawResult <- inspectFrontendSurfaceRegistryRaw libdir buildDir
     rawRegistry <- case rawResult of
         Right rawRegistry -> pure rawRegistry
         Left message -> do

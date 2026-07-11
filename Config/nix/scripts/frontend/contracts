@@ -13,19 +13,10 @@ fi
 
 output_path="${1:-frontend/ts/generated/contracts.ts}"
 
-if [ -n "${FRONTEND_CONTRACTS_BUILD_DIR:-}" ]; then
-    build_dir="$FRONTEND_CONTRACTS_BUILD_DIR"
-    cleanup() { :; }
-else
-    build_dir="$(mktemp -d)"
-    cleanup() {
-        rm -rf "$build_dir"
-    }
-fi
-trap cleanup EXIT
-
-mkdir -p "$build_dir/obj" "$build_dir/hi" "$(dirname "$output_path")"
+build_dir="${FRONTEND_CONTRACTS_BUILD_DIR:-$PWD/build/FrontendContracts}"
+mkdir -p "$(dirname "$output_path")"
 GHC_OPTS="$(ihp_roster_ghc_opts)"
+ihp_roster_prepare_ghc_build_dir "$build_dir" "$GHC_OPTS -package ghc"
 echo "frontend-contracts: compiling GHC FrontendSurface contract generator" >&2
 ghc $GHC_OPTS -package ghc Application/Script/GenerateFrontendContractsGhc.hs \
     -main-is Application.Script.GenerateFrontendContractsGhc \
@@ -35,7 +26,8 @@ ghc $GHC_OPTS -package ghc Application/Script/GenerateFrontendContractsGhc.hs \
 
 tmp_output="$(mktemp "$(dirname "$output_path")/.contracts.ts.XXXXXX")"
 echo "frontend-contracts: extracting FrontendSurface registry with GHC API" >&2
-"$build_dir/generate-frontend-contracts" "$(ghc --print-libdir)" "$tmp_output"
+FRONTEND_SURFACE_GHC_API_BUILD_DIR="$build_dir/ghc-api" \
+    "$build_dir/generate-frontend-contracts" "$(ghc --print-libdir)" "$tmp_output"
 
 if [ -f "$output_path" ] && cmp -s "$tmp_output" "$output_path"; then
     rm -f "$tmp_output"

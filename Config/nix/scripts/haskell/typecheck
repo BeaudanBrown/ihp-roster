@@ -3,14 +3,14 @@ set -euo pipefail
 # shellcheck source=../lib/ghc.sh
 . "@scriptsRoot@/lib/ghc.sh"
 TARGET="${1:-Main.hs}"
-GHC_OPTS="$(ihp_roster_ghc_opts)"
-TYPECHECK_DIR="${TYPECHECK_BUILD_DIR:-$PWD/build/Typecheck}"
+GHC_OPTS="$(ihp_roster_ghc_opts) -iTest"
+TYPECHECK_DIR="${TYPECHECK_BUILD_DIR:-$(ihp_roster_verification_build_dir)}"
 if [ -f "@scriptsRoot@/haskell/module-name-check" ]; then
     bash "@scriptsRoot@/haskell/module-name-check"
 else
     bash Config/nix/scripts/haskell/module-name-check
 fi
-mkdir -p "$TYPECHECK_DIR/obj" "$TYPECHECK_DIR/hi"
-exec ghc -fno-code -fwrite-interface $GHC_OPTS "$TARGET" \
+ihp_roster_prepare_ghc_build_dir "$TYPECHECK_DIR" "$GHC_OPTS"
+exec ghc -no-link $GHC_OPTS "$TARGET" \
     -odir "$TYPECHECK_DIR/obj" \
     -hidir "$TYPECHECK_DIR/hi"

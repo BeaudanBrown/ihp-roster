@@ -135,6 +135,40 @@ shard resets produced one template build and eight valid isolated clones. Warm
 reset median was 0.247s versus 2.011s for direct schema replay (87.7% lower).
 No production database or transaction behavior changes.
 
+## Shared Compilation Results
+
+Issue #130 gives typecheck, normal Hspec, and compiled E2E one compatible,
+option-fingerprinted object/interface cache under `build/Verification`. The Hspec
+runner moved to `Test/HspecMain.hs` with module name `Test.HspecMain`, avoiding a
+collision with the application `Main` while preserving reuse of the application
+graph. A changed or missing compiler/options fingerprint clears cached objects.
+HPC remains isolated under `build/TestCoverage`.
+
+Frontend contract generation and its GHC probe now retain their generator
+artifacts in dedicated build directories. The nested GHC API compilation also
+writes to those directories rather than producing `.hi` and `.o` files beside
+application sources.
+
+Same-host verification on 2026-07-11 produced the following evidence:
+
+| Workflow | Wall time | Result |
+| --- | ---: | --- |
+| clean shared-cache typecheck | 34.874s | pass |
+| first pure Hspec after clean typecheck | 27.829s | pass; application graph reused while test-only modules compiled |
+| incremental typecheck | 3.154s | pass |
+| fully warm pure Hspec | 2.528s | 258 examples, 0 failures |
+| frontend contracts check, cold / warm | 20.762s / 2.752s | pass; warm generator reuse |
+| focused compiled E2E | 23.216s | pass; down from 26.806s |
+| canonical Hspec | 129.544s | 930 examples, 0 failures across 8 shards |
+| canonical E2E | 153.963s | 176 project-tests, 0 retries or failures across 2 shards |
+
+The canonical measurements are successful verification runs, not closeout
+medians. Source-artifact checks after clean, incremental, Hspec, contract, and
+E2E workflows each found zero `.hi` or `.o` files under `Application`, `Web`,
+`Config`, or `Test`. Verification compiler commands must remain sequential when
+using the shared cache; callers needing concurrency can set an isolated
+`VERIFICATION_BUILD_DIR`.
+
 ## Initial Bottlenecks And Interventions
 
 1. `DevSeed` alone controls full Hspec wall time despite having only 10 examples.

@@ -30,7 +30,7 @@ while IFS= read -r file; do
         Setup.hs)
             continue
             ;;
-        Main.hs|Test/Main.hs)
+        Main.hs)
             expected="Main"
             ;;
         Config/Config.hs)

@@ -62,9 +62,13 @@ if [ "$TEST_SHARDS" -lt 1 ]; then
     exit 1
 fi
 
-GHC_OPTS="$(ihp_roster_ghc_opts)"
+GHC_OPTS="$(ihp_roster_ghc_opts) -iTest"
+VERIFICATION_DIR="$(ihp_roster_verification_build_dir)"
+ihp_roster_prepare_ghc_build_dir "$VERIFICATION_DIR" "$GHC_OPTS"
 mkdir -p build/Test
-ghc $GHC_OPTS -iTest -main-is Main Test/Main.hs -o build/Test/Main -odir build/Test -hidir build/Test
+ghc $GHC_OPTS -main-is Test.HspecMain Test/HspecMain.hs -o build/Test/Main \
+    -odir "$VERIFICATION_DIR/obj" \
+    -hidir "$VERIFICATION_DIR/hi"
 
 if [ "$TEST_SHARDS" -eq 1 ]; then
     if [ "$TEST_LANE" != "pure" ]; then

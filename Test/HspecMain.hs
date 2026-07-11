@@ -1,4 +1,4 @@
-module Main where
+module Test.HspecMain where
 
 import IHP.Prelude
 import System.Environment (setEnv)

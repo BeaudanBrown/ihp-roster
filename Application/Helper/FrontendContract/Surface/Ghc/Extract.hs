@@ -12,7 +12,7 @@ import GHC.Core.TyCo.Rep (TyLit (..), Type (..))
 import GHC.Core.TyCon (synTyConRhs_maybe, tyConKind, tyConName)
 import GHC.Core.Type (coreView)
 import GHC.Driver.Flags (GeneralFlag (Opt_ForceRecomp))
-import GHC.Driver.Session (gopt_set, xopt_set)
+import GHC.Driver.Session (gopt_set, hiDir, objectDir, xopt_set)
 import GHC.LanguageExtensions.Type (Extension (DataKinds, TypeFamilies, TypeOperators))
 import GHC.Types.Name (Name, nameOccName, nameSrcSpan)
 import GHC.Types.Name.Occurrence (OccName, occNameString)
@@ -20,6 +20,7 @@ import GHC.Types.TyThing (TyThing (ATyCon))
 import GHC.Types.Var (varName)
 import GHC.Utils.Outputable hiding ((<>))
 import Prelude
+import qualified System.Directory as Directory
 
 registryModuleName :: String
 registryModuleName = "Application.Helper.FrontendContract.Surface.Registry"
@@ -30,17 +31,24 @@ registryModulePath = "Application/Helper/FrontendContract/Surface/Registry.hs"
 registryTypeName :: String
 registryTypeName = "RegisteredFrontendSurfaces"
 
-inspectFrontendSurfaceRegistryRaw :: FilePath -> IO (Either String RawRegistry)
-inspectFrontendSurfaceRegistryRaw libdir =
+inspectFrontendSurfaceRegistryRaw :: FilePath -> FilePath -> IO (Either String RawRegistry)
+inspectFrontendSurfaceRegistryRaw libdir buildDir = do
+    let objectBuildDir = buildDir <> "/obj"
+        interfaceBuildDir = buildDir <> "/hi"
+    Directory.createDirectoryIfMissing True objectBuildDir
+    Directory.createDirectoryIfMissing True interfaceBuildDir
     runGhc (Just libdir) do
         dflags <- getSessionDynFlags
         let registryDynFlags =
                 gopt_set
-                    ( foldl xopt_set dflags
+                    ( (foldl xopt_set dflags
                         [ DataKinds
                         , TypeFamilies
                         , TypeOperators
-                        ]
+                        ])
+                        { objectDir = Just objectBuildDir
+                        , hiDir = Just interfaceBuildDir
+                        }
                     )
                     Opt_ForceRecomp
         _ <- setSessionDynFlags registryDynFlags

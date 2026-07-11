@@ -11,23 +11,14 @@ else
     . "Config/nix/scripts/lib/ghc.sh"
 fi
 
-if [ -n "${FRONTEND_SURFACE_GHC_PROBE_BUILD_DIR:-}" ]; then
-    build_dir="$FRONTEND_SURFACE_GHC_PROBE_BUILD_DIR"
-    cleanup() { :; }
-else
-    build_dir="$(mktemp -d)"
-    cleanup() {
-        rm -rf "$build_dir"
-    }
-fi
-trap cleanup EXIT
-
-mkdir -p "$build_dir/obj" "$build_dir/hi"
+build_dir="${FRONTEND_SURFACE_GHC_PROBE_BUILD_DIR:-$PWD/build/FrontendSurfaceGhcProbe}"
 GHC_OPTS="$(ihp_roster_ghc_opts)"
+ihp_roster_prepare_ghc_build_dir "$build_dir" "$GHC_OPTS -package ghc"
 ghc $GHC_OPTS -package ghc Application/Script/FrontendSurfaceGhcProbe.hs \
     -main-is Application.Script.FrontendSurfaceGhcProbe \
     -odir "$build_dir/obj" \
     -hidir "$build_dir/hi" \
     -o "$build_dir/frontend-surface-ghc-probe" >/dev/null
 
-"$build_dir/frontend-surface-ghc-probe" "$@" "$(ghc --print-libdir)"
+FRONTEND_SURFACE_GHC_API_BUILD_DIR="$build_dir/ghc-api" \
+    "$build_dir/frontend-surface-ghc-probe" "$@" "$(ghc --print-libdir)"

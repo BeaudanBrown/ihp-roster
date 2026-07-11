@@ -25,8 +25,8 @@ ghc $GHC_OPTS \
     -fhpc \
     -hpcdir "$HPC_DIR" \
     -iTest \
-    -main-is Main \
-    Test/Main.hs \
+    -main-is Test.HspecMain \
+    Test/HspecMain.hs \
     -o "$BUILD_DIR/Main" \
     -odir "$BUILD_DIR/obj" \
     -hidir "$BUILD_DIR/hi"

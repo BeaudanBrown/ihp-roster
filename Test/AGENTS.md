@@ -24,6 +24,8 @@ bash ./bin/in-env hspec-coverage --match "PostsController"  # focused coverage r
 
 Use `hspec-pure` for the fastest broad feedback when changing pure helpers, renderers, contracts, or validation logic. Pure suites are selected by registry metadata and do not run `test-db-reset` or connect to PostgreSQL. Use `hspec-db` to exercise only DB-backed suites. Both are additive lanes: `hspec-test` remains the complete canonical gate.
 
+Normal typecheck, Hspec, and compiled E2E commands share compatible GHC object and interface files under fingerprinted `build/Verification` directories. `Test/HspecMain.hs` deliberately uses a distinct module name from the application `Main`, and coverage remains isolated under `build/TestCoverage` because HPC artifacts are incompatible. Do not point concurrent compiler invocations at the shared directory; run normal verification commands sequentially. Override `VERIFICATION_BUILD_DIR` only when a task needs its own isolated cache.
+
 Hspec accepts repeated `--match` flags and treats them as OR filters. When checking several focused areas, prefer one command with multiple `--match` flags instead of running multiple `hspec-test --match ...` processes at the same time. Separate focused invocations compile into the shared `build/Test` directory and can race on GHC object files; they also default to the same `app_test` database unless explicitly isolated.
 
 Focused runs default to serial execution because they are usually small. Use `TEST_SHARDS=N` with focused matches only when the matches span multiple suites and the extra database setup/log fan-out is worth it. Sharding is by `TestSuite` entry, not by individual example, so forcing shards for a single-suite match usually adds overhead without parallel speedup.
@@ -47,7 +49,7 @@ The coverage command is intentionally separate from `hspec-test`: use `hspec-tes
 
 ## Shard Registry
 
-`Test/Main.hs` is now only the runner entrypoint. The authoritative suite registry lives in `Test/Suite.hs`.
+`Test/HspecMain.hs` is only the runner entrypoint. Its distinct module name allows normal checks to share compatible GHC artifacts with the application `Main` module. The authoritative suite registry lives in `Test/Suite.hs`.
 
 When adding a new spec module:
 
@@ -78,7 +80,7 @@ To rebalance weights when full-suite shard times drift:
 5. Update only the relevant `suiteWeight` values in `Test/Suite.hs`. Prefer approximate relative runtime; round to the nearest 5 or 10 seconds and avoid overfitting tiny differences.
 6. Re-run the full suite when practical, or at least run `TEST_SHARDS=N bash ./bin/in-env hspec-test --match "some small suite"` to verify shard selection still works and prints weighted headers.
 
-Do not reintroduce a hard-coded linear `hspec do ...` list in `Test/Main.hs`; that bypasses shard selection.
+Do not reintroduce a hard-coded linear `hspec do ...` list in `Test/HspecMain.hs`; that bypasses shard selection.
 
 ## DB-Backed Controller Tests
 

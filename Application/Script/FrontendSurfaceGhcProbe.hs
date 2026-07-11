@@ -11,6 +11,7 @@ import Control.Monad.IO.Class (liftIO)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import qualified Data.List as List
+import Data.Maybe (fromMaybe)
 import qualified Data.Text as Text
 import Prelude
 import qualified System.Environment as Environment
@@ -41,7 +42,8 @@ parseArgs = \case
 
 inspectRegistry :: OutputMode -> FilePath -> IO ()
 inspectRegistry mode libdir = do
-    result <- inspectFrontendSurfaceRegistryRaw libdir
+    buildDir <- fromMaybe "build/FrontendSurfaceGhcApi" <$> Environment.lookupEnv "FRONTEND_SURFACE_GHC_API_BUILD_DIR"
+    result <- inspectFrontendSurfaceRegistryRaw libdir buildDir
     case result of
         Left message -> do
             putStrLn ("frontend-surface-ghc-probe: " <> message)

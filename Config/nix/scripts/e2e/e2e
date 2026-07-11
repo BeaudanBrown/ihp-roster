@@ -123,12 +123,12 @@ fi
 
 E2E_SERVER_BIN=""
 if [ "$E2E_SERVER_MODE" = "compiled" ]; then
-    E2E_BUILD_DIR="$PWD/build/E2E"
+    E2E_BUILD_DIR="$(ihp_roster_verification_build_dir)"
     E2E_RUN_BUILD_DIR="$STATE_DIR/build"
     E2E_SERVER_BIN="$E2E_RUN_BUILD_DIR/RunE2EApp"
-    mkdir -p "$E2E_BUILD_DIR/obj" "$E2E_BUILD_DIR/hi" "$E2E_RUN_BUILD_DIR"
-    GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
-      | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
+    mkdir -p "$E2E_RUN_BUILD_DIR"
+    GHC_OPTS="$(ihp_roster_ghc_opts) -iTest"
+    ihp_roster_prepare_ghc_build_dir "$E2E_BUILD_DIR" "$GHC_OPTS"
     ghc $GHC_OPTS Main.hs -o "$E2E_SERVER_BIN" -odir "$E2E_BUILD_DIR/obj" -hidir "$E2E_BUILD_DIR/hi"
 elif [ "$E2E_SERVER_MODE" != "dev" ]; then
     echo "E2E_SERVER_MODE must be compiled or dev, got: $E2E_SERVER_MODE" >&2
