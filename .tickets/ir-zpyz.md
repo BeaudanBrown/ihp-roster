@@ -1,6 +1,6 @@
 ---
 id: ir-zpyz
-status: open
+status: closed
 deps: []
 links: [ir-9x82, ir-jsyd, ir-6vvh]
 created: 2026-07-10T05:32:28Z

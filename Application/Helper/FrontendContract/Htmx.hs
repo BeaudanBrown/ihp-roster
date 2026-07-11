@@ -140,10 +140,15 @@ htmxActionOptionAttrPairs metadata =
         <> maybePair "hx-sync" metadata.htmxSync
         <> maybePair "hx-indicator" metadata.htmxIndicator
         <> maybePair "hx-confirm" metadata.htmxConfirm
-        <> maybePair "hx-select" (fmap ("#" <>) metadata.htmxSelect)
-        <> maybePair "hx-target" (fmap ("#" <>) metadata.htmxTarget)
+        <> maybePair "hx-select" (fmap htmxSelector metadata.htmxSelect)
+        <> maybePair "hx-target" (fmap htmxSelector metadata.htmxTarget)
         <> maybePair "hx-swap" metadata.htmxSwap
         <> maybePair "hx-push-url" (fmap htmxPushUrlText metadata.htmxPushUrl)
+
+htmxSelector :: Text -> Text
+htmxSelector value
+    | any (`Text.isPrefixOf` value) ["#", ".", "["] = value
+    | otherwise = "#" <> value
 
 htmxCustomAttrPairs :: HtmxActionMetadata -> Text -> Text -> [(Text, Text)] -> [(Text, Text)]
 htmxCustomAttrPairs metadata actionName marker attrs
