@@ -204,12 +204,12 @@ instance Controller RosterWeeksController where
 
     action currentAction@ShowRosterWeekDaySectionFragmentAction { weekOffset, rosterDayId } = runBepis currentAction BepisFragmentAction do
         rosterGroupId <- resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId
-        daySectionHtml <- fetchVisibleRosterDaySectionFragment rosterGroupId weekOffset rosterDayId
+        daySectionHtml <- renderVisibleRosterReadModelFragment rosterGroupId weekOffset (RosterProjectionDaySection (unpackId rosterDayId))
         respondHtmlProfiled (fromMaybe mempty daySectionHtml)
 
     action currentAction@ShowRosterWeekRowFragmentAction { weekOffset, rosterDayId, rowIndex } = runBepis currentAction BepisFragmentAction do
         rosterGroupId <- resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId
-        rowHtml <- fetchVisibleRosterRowFragment rosterGroupId weekOffset rosterDayId rowIndex
+        rowHtml <- renderVisibleRosterReadModelFragment rosterGroupId weekOffset (RosterProjectionRow (unpackId rosterDayId) rowIndex)
         respondHtmlProfiled (fromMaybe mempty rowHtml)
 
     action currentAction@UpdateRosterAssignmentFiltersAction { weekOffset = _ } = runBepis currentAction BepisPreferenceAction do
@@ -320,31 +320,12 @@ instance Controller RosterWeeksController where
         case requestedSlotName of
             Left errorMessage -> respondToRosterSlotDefinitionError rosterWeek errorMessage
             Right slotName -> do
-                duplicate <- activeRosterWeekSlotDefinitionWithName rosterWeek slotName Nothing
+                duplicate <- activeRosterWeekSlotDefinitionWithName rosterWeek slotName
                 case duplicate of
                     Just _ -> respondToRosterSlotDefinitionError rosterWeek "A column with that name already exists for this week."
                     Nothing -> do
                         _ <- appendRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotName
                         respondToRosterSlotDefinitionSuccess rosterWeek "Roster column added."
-
-    action currentAction@UpdateRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId } = runBepis currentAction BepisMutationAction do
-        ensureManagerRole
-        ensureVenueWritable
-        slotDefinition <- fetch rosterWeekSlotDefinitionId
-        rosterWeek <- fetch (Id slotDefinition.rosterWeekId :: Id RosterWeek)
-        ensureRecordInCurrentVenue rosterWeek.venueId
-        ensureRosterWeekIsDraftForEdit rosterWeek
-
-        let rosterGroupId = coerce rosterWeek.rosterGroupId
-        case normalizeRosterSlotDefinitionName (paramOrDefault @Text "" "name") of
-            Left errorMessage -> respondToRosterSlotDefinitionError rosterWeek errorMessage
-            Right slotName -> do
-                duplicate <- activeRosterWeekSlotDefinitionWithName rosterWeek slotName (Just slotDefinition.id)
-                case duplicate of
-                    Just _ -> respondToRosterSlotDefinitionError rosterWeek "A column with that name already exists for this week."
-                    Nothing -> do
-                        _ <- renameRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotDefinition slotName
-                        respondToRosterSlotDefinitionSuccess rosterWeek "Roster column renamed."
 
     action currentAction@DeleteRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -550,9 +531,9 @@ instance Controller RosterWeeksController where
                                 |> set #rowIndex targetRowIndex
                         rosterWeek <- fetch (Id targetRosterDay.rosterWeekId :: Id RosterWeek)
                         mutationResult <- moveRosterSlotMutation rosterGroup.id rosterWeek sourceRosterDay targetRosterDay sourceSlot updatedSlot
-                        let RosterSlotMutationResult { rosterSlotMutationPreviousStaffId = previousStaffId, rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged } = mutationResult.liveMutationValue
+                        let shouldWarnSourceTimesheetUnchanged = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
                         let impactedRows = nub [(sourceSlot.rosterDayId, sourceSlot.rowIndex), (unpackId targetRosterDay.id, targetRowIndex)]
-                        respondToRosterSlotMove rosterGroup.id rosterWeek mutationResult previousStaffId impactedRows shouldWarnSourceTimesheetUnchanged
+                        respondToRosterSlotMove rosterGroup.id rosterWeek mutationResult impactedRows shouldWarnSourceTimesheetUnchanged
 
     action currentAction@MoveRosterTimelineShiftAction { weekOffset } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -573,9 +554,8 @@ instance Controller RosterWeeksController where
                         |> applyRosterSlotDuration
                 rosterWeek <- fetch (Id timelineTargetRosterDay.rosterWeekId :: Id RosterWeek)
                 mutationResult <- moveRosterSlotMutation rosterGroup.id rosterWeek timelineSourceRosterDay timelineTargetRosterDay timelineSourceSlot updatedSlot
-                let RosterSlotMutationResult { rosterSlotMutationPreviousStaffId = previousStaffId, rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged } = mutationResult.liveMutationValue
-                let impactedRows = nub [(timelineSourceSlot.rosterDayId, timelineSourceSlot.rowIndex), (unpackId timelineTargetRosterDay.id, timelineTargetRowIndex)]
-                respondToRosterTimelineSlotMove rosterGroup.id rosterWeek timelineTargetRosterDay mutationResult previousStaffId impactedRows shouldWarnSourceTimesheetUnchanged
+                let shouldWarnSourceTimesheetUnchanged = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
+                respondToRosterTimelineSlotMove rosterGroup.id rosterWeek mutationResult shouldWarnSourceTimesheetUnchanged
 
     action currentAction@DuplicateRosterShiftToDayAction { weekOffset } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -604,7 +584,7 @@ instance Controller RosterWeeksController where
                                 |> set #shiftTypeId sourceSlot.shiftTypeId
                                 |> set #durationMinutes sourceSlot.durationMinutes
                         mutationResult <- saveRosterSlotMutation rosterGroup.id rosterWeek targetRosterDay Nothing copiedSlot
-                        respondToRosterSlotMutation rosterGroup.id rosterWeek targetRosterDay targetRowIndex mutationResult sourceSlot.staffId "Roster shift duplicated."
+                        respondToRosterSlotMutation rosterGroup.id rosterWeek targetRosterDay targetRowIndex mutationResult "Roster shift duplicated."
 
     action currentAction@DropRosterStaffAction { weekOffset } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -616,9 +596,8 @@ instance Controller RosterWeeksController where
             Right RosterStaffExistingShiftDropIntent { staffDropStaff, staffDropSlot, staffDropRosterDay, staffDropRosterWeek } -> do
                 let updatedSlot = staffDropSlot |> set #staffId (Just (coerce staffDropStaff.id))
                 mutationResult <- updateRosterSlotMutation rosterGroup.id staffDropRosterWeek staffDropRosterDay staffDropSlot updatedSlot
-                let RosterSlotMutationResult { rosterSlotMutationPreviousStaffId = previousStaffId, rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged } = mutationResult.liveMutationValue
-                let warningToast = shouldWarnSourceTimesheetUnchanged
-                respondToRosterSlotMutation rosterGroup.id staffDropRosterWeek staffDropRosterDay updatedSlot.rowIndex mutationResult (Just (coerce staffDropStaff.id)) $
+                let warningToast = mutationResult.liveMutationValue.rosterSlotMutationShouldWarnSourceTimesheetUnchanged
+                respondToRosterSlotMutation rosterGroup.id staffDropRosterWeek staffDropRosterDay updatedSlot.rowIndex mutationResult $
                     if warningToast then "Staff assigned. A pending timesheet already exists for this roster slot, so the timesheet was not changed." else "Staff assigned."
             Right RosterStaffCreateShiftDropIntent { staffDropStaff, staffDropRosterDay, staffDropRosterWeek, staffDropSlotDefinition, staffDropRowIndex } ->
                 respondWithRosterShiftCreateDialogOob staffDropRosterDay staffDropRosterWeek staffDropSlotDefinition staffDropRowIndex emptyRosterShiftDialogValues { rosterShiftStaffId = Just (coerce staffDropStaff.id) }
@@ -689,7 +668,7 @@ instance Controller RosterWeeksController where
                             existingSlot
                             |> applyValidatedRosterShift valid
                 mutationResult <- saveRosterSlotMutation rosterGroupId rosterWeek rosterDay existingSlot newSlot
-                respondToRosterSlotMutation rosterGroupId rosterWeek rosterDay rowIndex mutationResult (Just valid.validRosterShiftStaffId) "Roster shift saved."
+                respondToRosterSlotMutation rosterGroupId rosterWeek rosterDay rowIndex mutationResult "Roster shift saved."
 
     action currentAction@UpdateRosterSlotAction { rosterSlotId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -705,7 +684,7 @@ instance Controller RosterWeeksController where
                 let RosterSlotMutationResult { rosterSlotMutationPreviousStaffId = previousStaffId, rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged } = mutationResult.liveMutationValue
                 relatedSlots <- fetchRelatedSlotsForStaffIdsInRosterWeek rosterWeek (catMaybes [previousStaffId, Just valid.validRosterShiftStaffId])
                 let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
-                respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult (Just valid.validRosterShiftStaffId) impactedRowKeys shouldWarnSourceTimesheetUnchanged
+                respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult impactedRowKeys shouldWarnSourceTimesheetUnchanged
 
     action currentAction@DeleteRosterSlotAction { rosterSlotId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -713,8 +692,7 @@ instance Controller RosterWeeksController where
         (rosterSlot, rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlotId
         let rosterGroupId = coerce rosterWeek.rosterGroupId
         mutationResult <- deleteRosterSlotMutation rosterGroupId rosterWeek rosterDay rosterSlot
-        let RosterSlotMutationResult { rosterSlotMutationPreviousStaffId = previousStaffId } = mutationResult.liveMutationValue
-        respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult previousStaffId [(rosterSlot.rosterDayId, rosterSlot.rowIndex)] False
+        respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult [(rosterSlot.rosterDayId, rosterSlot.rowIndex)] False
 
 data ValidatedRosterShift = ValidatedRosterShift
     { validRosterShiftStaffId   :: !UUID.UUID
@@ -1272,16 +1250,14 @@ applyValidatedRosterShift valid slot =
         |> set #shiftTypeId (Just valid.validRosterShiftTypeId)
         |> applyRosterSlotDuration
 
-respondToRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> Int -> LiveMutationResult RosterSlotMutationResult -> Maybe UUID.UUID -> Text -> IO ()
-respondToRosterSlotMutation rosterGroupId rosterWeek rosterDay rowIndex mutationResult maybeStaffId successMessage = do
+respondToRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> Int -> LiveMutationResult RosterSlotMutationResult -> Text -> IO ()
+respondToRosterSlotMutation rosterGroupId rosterWeek rosterDay rowIndex mutationResult successMessage = do
     layoutMode <- fetchCurrentRosterLayoutMode
-    let maybeStaffParam = tshow <$> maybeStaffId
     let actorFragmentCandidates =
-            case rosterLayoutModeValue layoutMode of
-                "day_columns" -> rosterGridInnerAndStaffPanelFragments
-                _ -> rosterGridInnerAndStaffPanelFragments
-                    <> actorRosterRowFragments maybeStaffParam [(unpackId rosterDay.id, rowIndex)]
-                    <> assignmentRefreshFragments maybeStaffParam
+            rosterGridInnerAndStaffPanelFragments
+                <> case rosterLayoutModeValue layoutMode of
+                    "day_columns" -> []
+                    _ -> actorRosterRowFragments [(unpackId rosterDay.id, rowIndex)]
     let actorFragments =
             rosterActorFragmentsForTouchedResources
                 rosterGroupId
@@ -1294,16 +1270,14 @@ respondToRosterSlotMutation rosterGroupId rosterWeek rosterDay rowIndex mutation
             setSuccessMessage successMessage
             redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
-respondToRosterSlotMove :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> LiveMutationResult RosterSlotMutationResult -> Maybe UUID.UUID -> [(UUID.UUID, Int)] -> Bool -> IO ()
-respondToRosterSlotMove rosterGroupId rosterWeek mutationResult maybeStaffId impactedRowKeys shouldWarnSourceTimesheetUnchanged = do
+respondToRosterSlotMove :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> LiveMutationResult RosterSlotMutationResult -> [(UUID.UUID, Int)] -> Bool -> IO ()
+respondToRosterSlotMove rosterGroupId rosterWeek mutationResult impactedRowKeys shouldWarnSourceTimesheetUnchanged = do
     layoutMode <- fetchCurrentRosterLayoutMode
-    let maybeStaffParam = tshow <$> maybeStaffId
     let actorFragmentCandidates =
-            case rosterLayoutModeValue layoutMode of
-                "day_columns" -> rosterGridInnerAndStaffPanelFragments
-                _ -> rosterGridInnerAndStaffPanelFragments
-                    <> actorRosterRowFragments maybeStaffParam impactedRowKeys
-                    <> assignmentRefreshFragments maybeStaffParam
+            rosterGridInnerAndStaffPanelFragments
+                <> case rosterLayoutModeValue layoutMode of
+                    "day_columns" -> []
+                    _             -> actorRosterRowFragments impactedRowKeys
     let actorFragments =
             rosterActorFragmentsForTouchedResources
                 rosterGroupId
@@ -1320,8 +1294,8 @@ respondToRosterSlotMove rosterGroupId rosterWeek mutationResult maybeStaffId imp
         actorFragments
         (clearDialogOverlayOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> warningHtml)
 
-respondToRosterTimelineSlotMove :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> LiveMutationResult RosterSlotMutationResult -> Maybe UUID.UUID -> [(UUID.UUID, Int)] -> Bool -> IO ()
-respondToRosterTimelineSlotMove rosterGroupId rosterWeek _targetRosterDay mutationResult _maybeStaffId _impactedRowKeys shouldWarnSourceTimesheetUnchanged = do
+respondToRosterTimelineSlotMove :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> LiveMutationResult RosterSlotMutationResult -> Bool -> IO ()
+respondToRosterTimelineSlotMove rosterGroupId rosterWeek mutationResult shouldWarnSourceTimesheetUnchanged = do
     let actorFragmentCandidates =
             [ RosterProjectionGridToolbar
             , RosterProjectionGridFrame
@@ -1343,16 +1317,14 @@ respondToRosterTimelineSlotMove rosterGroupId rosterWeek _targetRosterDay mutati
         actorFragments
         (clearDialogOverlayOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> warningHtml)
 
-respondToRosterSlotUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> LiveMutationResult RosterSlotMutationResult -> Maybe UUID.UUID -> [(UUID.UUID, Int)] -> Bool -> IO ()
-respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult maybeStaffId impactedRowKeys shouldWarnSourceTimesheetUnchanged = do
+respondToRosterSlotUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> LiveMutationResult RosterSlotMutationResult -> [(UUID.UUID, Int)] -> Bool -> IO ()
+respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult impactedRowKeys shouldWarnSourceTimesheetUnchanged = do
     layoutMode <- fetchCurrentRosterLayoutMode
-    let maybeStaffParam = tshow <$> maybeStaffId
     let actorFragmentCandidates =
-            case rosterLayoutModeValue layoutMode of
-                "day_columns" -> rosterGridInnerAndStaffPanelFragments
-                _ -> rosterGridInnerAndStaffPanelFragments
-                    <> actorRosterRowFragments maybeStaffParam impactedRowKeys
-                    <> assignmentRefreshFragments maybeStaffParam
+            rosterGridInnerAndStaffPanelFragments
+                <> case rosterLayoutModeValue layoutMode of
+                    "day_columns" -> []
+                    _             -> actorRosterRowFragments impactedRowKeys
     let actorFragments =
             rosterActorFragmentsForTouchedResources
                 rosterGroupId
@@ -1579,7 +1551,6 @@ renderRosterWeekPage weekOffset requestedRosterGroupId =
                                 , allSlots
                                 , slotConflicts
                                 , renderIndexes
-                                , surfaceScope = Just (rosterWeekLiveScope (unpackId currentVenueId) (unpackId currentRosterGroup.id) weekOffset)
                                 , viewCapabilities = buildRosterViewCapabilities visibleRosterWeek
                                 , rosterLayoutMode
                                 , rosterEndTimesEnabled

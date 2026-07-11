@@ -5,29 +5,25 @@ module Test.Controller.RosterWeeks.DirectReadModelSpec where
 
 import Application.Helper.Conflict
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
-                                        ensureVenueDefaultRosterGroup,
-                                        fetchCurrentVenueRosterGroupOrDefault,
-                                        fetchCurrentVenueRosterGroups)
-import Application.Helper.UserPreferences (upsertCurrentUserRosterLayoutMode)
+                                        ensureVenueDefaultRosterGroup)
 import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Data.Coerce (coerce)
 import Data.List (find, sortOn)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromJust)
-import qualified Data.Text.Lazy as LText
+import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
 import qualified Data.Time.Calendar as Calendar
 import Data.Time.Clock (getCurrentTime)
 import Data.Time.LocalTime (TimeOfDay (..))
-import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.Prelude
 import IHP.Test.Mocking
+import System.Directory (doesFileExist)
 import Test.Hspec
 import Test.Support
-import qualified Text.Blaze.Html as Blaze
-import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
 import Web.RosterWeeks.DirectReadModel
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.RenderData
@@ -37,6 +33,26 @@ import Web.RosterWeeks.Types
 tests :: Spec
 tests = beforeAll testContext do
     describe "RosterWeeksController direct read model" do
+        it "keeps the rollback read path and superseded column rename route deleted" $ withContext do
+            conflictEvaluatorExists <- doesFileExist "Web/RosterWeeks/Conflicts.hs"
+            renderDataSource <- Text.readFile "Web/RosterWeeks/RenderData.hs"
+            controllerSource <- Text.readFile "Web/Controller/RosterWeeks.hs"
+            typesSource <- Text.readFile "Web/Types.hs"
+            mutationSource <- Text.readFile "Web/RosterWeeks/Mutations.hs"
+            rosterTypesSource <- Text.readFile "Web/RosterWeeks/Types.hs"
+            let forbiddenRenderData =
+                    [ "fetchVisibleRosterReadModelDirect"
+                    , "fetchVisibleRosterRenderData"
+                    , "fetchHiddenRosterRenderDataWith"
+                    ]
+            conflictEvaluatorExists `shouldBe` False
+            filter (`Text.isInfixOf` renderDataSource) forbiddenRenderData `shouldBe` []
+            controllerSource `shouldNotSatisfy` Text.isInfixOf "UpdateRosterWeekSlotDefinitionAction"
+            typesSource `shouldNotSatisfy` Text.isInfixOf "UpdateRosterWeekSlotDefinitionAction"
+            mutationSource `shouldNotSatisfy` Text.isInfixOf "renameRosterWeekSlotDefinitionMutation"
+            rosterTypesSource `shouldNotSatisfy` Text.isInfixOf "pendingTrialInvitations"
+            rosterTypesSource `shouldNotSatisfy` Text.isInfixOf "RosterProjectionScope"
+
         it "reads manager-visible base facts directly" $ withContext do
             withCleanDb do
                 fixture <- createDirectReadModelFixture
@@ -64,7 +80,7 @@ tests = beforeAll testContext do
 
                 renderData <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
                     withCurrentControllerContext do
-                        fetchVisibleRosterReadModelDirect fixture.rosterGroup.id 0
+                        fetchVisibleRosterReadModel fixture.rosterGroup.id 0
 
                 let rosterData = fromJust renderData
                 rosterData.rosterWeek.id `shouldBe` fixture.rosterWeek.id
@@ -96,7 +112,7 @@ tests = beforeAll testContext do
 
                 withUserAndCurrentVenue fixture.manager fixture.venue.id do
                     withCurrentControllerContext do
-                        initialData <- fromJust <$> fetchVisibleRosterReadModelDirect fixture.rosterGroup.id 0
+                        initialData <- fromJust <$> fetchVisibleRosterReadModel fixture.rosterGroup.id 0
                         openDay <- fetch (Id fixture.visibleSparseSlot.rosterDayId) :: IO RosterDay
                         _ <- fixture.eligibleStaff |> set #idealShiftsPerWeek 1 |> updateRecord
                         _ <- createRosterSlotRecord openDay fixture.earlySlotName (Just fixture.eligibleStaff) 4
@@ -119,7 +135,7 @@ tests = beforeAll testContext do
                 withUserAndCurrentVenue fixture.manager fixture.venue.id do
                     withCurrentControllerContext do
                         (duplicateSlot, lateSlot, preferenceSlot) <- addDirectReadModelConflictFacts fixture
-                        initialData <- fromJust <$> fetchVisibleRosterReadModelDirect fixture.rosterGroup.id 0
+                        initialData <- fromJust <$> fetchVisibleRosterReadModel fixture.rosterGroup.id 0
                         facts <- fromJust <$> fetchRosterBaseFactsDirect fixture.rosterGroup.id 0
                         conflicts <- buildSlotConflictsDirect fixture.rosterGroup.id 480 initialData.weekStartDate facts.baseVisibleSlots
 
@@ -131,32 +147,9 @@ tests = beforeAll testContext do
                         lookup lateSlot.id conflicts `shouldSatisfy` hasConflictType LateToEarlyConflict
                         lookup preferenceSlot.id conflicts `shouldSatisfy` hasConflictType ShiftPreferenceSlotMismatch
 
-        it "matches public and direct render data for a manager draft with sparse rows and conflicts" $ withContext do
-            withCleanDb do
-                fixture <- createDirectReadModelFixture
-
-                withUserAndCurrentVenue fixture.manager fixture.venue.id do
-                    withCurrentControllerContext do
-                        _ <- addDirectReadModelConflictFacts fixture
-                        assertPublicDirectParity fixture.rosterGroup.id 0 allAssignmentFilters DayRows
-
-        it "matches public and direct render data for staff hidden draft and published roster states" $ withContext do
-            withCleanDb do
-                fixture <- createDirectReadModelFixture
-
-                withUserAndCurrentVenue fixture.eligibleUser fixture.venue.id do
-                    withCurrentControllerContext do
-                        assertPublicDirectParity fixture.rosterGroup.id 0 defaultRosterAssignmentFilters DayRows
-
-                _ <- fixture.rosterWeek |> set #isLive True |> updateRecord
-
-                withUserAndCurrentVenue fixture.eligibleUser fixture.venue.id do
-                    withCurrentControllerContext do
-                        assertPublicDirectParity fixture.rosterGroup.id 0 defaultRosterAssignmentFilters DayColumns
-
 addDirectReadModelConflictFacts :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => DirectReadModelFixture -> IO (RosterSlot, RosterSlot, RosterSlot)
 addDirectReadModelConflictFacts fixture = do
-    initialData <- fromJust <$> fetchVisibleRosterReadModelDirect fixture.rosterGroup.id 0
+    initialData <- fromJust <$> fetchVisibleRosterReadModel fixture.rosterGroup.id 0
     openDay <- fetch (Id fixture.visibleSparseSlot.rosterDayId) :: IO RosterDay
     nextDay <- query @RosterDay
         |> filterWhere (#rosterWeekId, unpackId fixture.rosterWeek.id)
@@ -175,111 +168,6 @@ addDirectReadModelConflictFacts fixture = do
         slot |> set #startTime (Just (TimeOfDay 12 0 0)) |> updateRecord
     _ <- createStaffShiftPreferenceRecord fixture.venue preferenceStaff (weekdayIndexForDay initialData.weekStartDate) 9 10
     pure (duplicateSlot, lateSlot, preferenceSlot)
-
-assertPublicDirectParity :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> RosterAssignmentFilters -> RosterLayoutModeEnum -> IO ()
-assertPublicDirectParity rosterGroupId weekOffset assignmentFilters layoutMode = do
-    setRosterAssignmentFiltersSession assignmentFilters
-    _ <- upsertCurrentUserRosterLayoutMode layoutMode
-
-    publicData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
-    directData <- fetchVisibleRosterReadModelDirect rosterGroupId weekOffset
-    snapshotRosterRenderData <$> publicData `shouldBe` snapshotRosterRenderData <$> directData
-
-    publicStaffPanel <- renderVisibleRosterReadModelFragment rosterGroupId weekOffset RosterProjectionStaffPanel
-    let directStaffPanel = renderRosterProjectionFragment directData RosterProjectionStaffPanel
-    renderMaybeHtml publicStaffPanel `shouldBe` renderMaybeHtml directStaffPanel
-
-    forM_ directData \rosterData -> do
-        let rosterDay = fromJust (head rosterData.rosterDays)
-            dayId = coerce rosterDay.id
-            rowIndex = maybe 0 (fst . fromJust . head) (Map.lookup dayId rosterData.renderIndexes.rosterDayRowsByDayId)
-        publicDay <- renderVisibleRosterReadModelFragment rosterGroupId weekOffset (RosterProjectionDaySection dayId)
-        let directDay = renderRosterProjectionFragment directData (RosterProjectionDaySection dayId)
-        renderMaybeHtml publicDay `shouldBe` renderMaybeHtml directDay
-
-        publicRow <- renderVisibleRosterReadModelFragment rosterGroupId weekOffset (RosterProjectionRow dayId rowIndex)
-        let directRow = renderRosterProjectionFragment directData (RosterProjectionRow dayId rowIndex)
-        renderMaybeHtml publicRow `shouldBe` renderMaybeHtml directRow
-
-        rosterGroups <- fetchCurrentVenueRosterGroups
-        currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
-        publicContent <- renderVisibleRosterReadModelFragment rosterGroupId weekOffset RosterProjectionContent
-        directContent <- Just <$> renderRosterContentFromProjection rosterGroups currentRosterGroup directData
-        renderMaybeHtml publicContent `shouldBe` renderMaybeHtml directContent
-
-renderMaybeHtml :: Maybe Blaze.Html -> Text
-renderMaybeHtml = maybe "" (LText.toStrict . HtmlRenderer.renderHtml)
-
-data RosterRenderDataSnapshot = RosterRenderDataSnapshot
-    { snapshotRosterWeekId            :: UUID.UUID
-    , snapshotRosterWeekIsLive        :: Bool
-    , snapshotRosterDays              :: [(UUID.UUID, Int, Bool)]
-    , snapshotWeekStartDate           :: Calendar.Day
-    , snapshotAssignmentFilters       :: (Bool, Bool, Bool, Bool)
-    , snapshotStaffIds                :: [UUID.UUID]
-    , snapshotPanelStaff              :: [(UUID.UUID, Int, Text)]
-    , snapshotSelfServiceStaffIds     :: Maybe [UUID.UUID]
-    , snapshotOrderedSlotNames        :: [(UUID.UUID, Text, Int)]
-    , snapshotShiftTypes              :: [(UUID.UUID, Text, Int)]
-    , snapshotAllSlots                :: [(UUID.UUID, UUID.UUID, Int, UUID.UUID, Maybe UUID.UUID, Maybe TimeOfDay, Maybe TimeOfDay, Maybe UUID.UUID, Maybe Int)]
-    , snapshotSlotConflicts           :: [(UUID.UUID, [(ConflictType, ConflictSeverity, Text)])]
-    , snapshotRenderRows              :: [(UUID.UUID, [(Int, [UUID.UUID])])]
-    , snapshotRenderSlotKeys          :: [((UUID.UUID, Int, UUID.UUID), UUID.UUID)]
-    , snapshotRenderStaffIds          :: [UUID.UUID]
-    , snapshotRenderConflictKeys      :: [(UUID.UUID, [ConflictType])]
-    , snapshotRosterLayoutMode        :: RosterLayoutModeEnum
-    , snapshotRosterEndTimesEnabled   :: Bool
-    , snapshotRosterWagePredictionSet :: Bool
-    , snapshotShowWageEstimates       :: Bool
-    } deriving (Eq, Show)
-
-snapshotRosterRenderData :: RosterRenderData -> RosterRenderDataSnapshot
-snapshotRosterRenderData RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction, showWageEstimates } =
-    RosterRenderDataSnapshot
-        { snapshotRosterWeekId = coerce rosterWeek.id
-        , snapshotRosterWeekIsLive = rosterWeek.isLive
-        , snapshotRosterDays = map snapshotRosterDay rosterDays
-        , snapshotWeekStartDate = weekStartDate
-        , snapshotAssignmentFilters = (assignmentFilters.hideStaffAtIdealShifts, assignmentFilters.hideStaffUnavailable, assignmentFilters.hideStaffOnApprovedLeave, assignmentFilters.hideStaffAlreadyAssignedToday)
-        , snapshotStaffIds = map (coerce . (.id)) staffMembers
-        , snapshotPanelStaff = map snapshotPanelEntry panelStaff
-        , snapshotSelfServiceStaffIds = fmap (map (coerce . (.id)) . (.quickToolsStaffMembers)) staffSelfServicePanel
-        , snapshotOrderedSlotNames = map (\slotName -> (coerce slotName.id, slotName.name, slotName.sortOrder)) orderedSlotNames
-        , snapshotShiftTypes = map (\shiftType -> (coerce shiftType.id, shiftType.name, shiftType.sortOrder)) shiftTypes
-        , snapshotAllSlots = sortOn (\(slotId, _, _, _, _, _, _, _, _) -> slotId) (map snapshotRosterSlot allSlots)
-        , snapshotSlotConflicts = sortOn fst (map snapshotSlotConflict slotConflicts)
-        , snapshotRenderRows = Map.toAscList (Map.map (map (\(rowIndex, slots) -> (rowIndex, map (coerce . (.id)) slots))) renderIndexes.rosterDayRowsByDayId)
-        , snapshotRenderSlotKeys = Map.toAscList (Map.map (coerce . (.id)) renderIndexes.rosterSlotByDayRowSlotName)
-        , snapshotRenderStaffIds = Map.keys renderIndexes.rosterStaffById
-        , snapshotRenderConflictKeys = Map.toAscList (Map.map (map (.conflictType)) renderIndexes.rosterConflictsBySlotId)
-        , snapshotRosterLayoutMode = rosterLayoutMode
-        , snapshotRosterEndTimesEnabled = rosterEndTimesEnabled
-        , snapshotRosterWagePredictionSet = isJust rosterWagePrediction
-        , snapshotShowWageEstimates = showWageEstimates
-        }
-
-snapshotRosterDay :: RosterDay -> (UUID.UUID, Int, Bool)
-snapshotRosterDay rosterDay = (coerce rosterDay.id, rosterDay.dayOffset, rosterDay.isClosed)
-
-snapshotPanelEntry :: RosterStaffPanelEntry -> (UUID.UUID, Int, Text)
-snapshotPanelEntry entry = (coerce entry.staff.id, entry.assignedShiftCount, entry.userRole)
-
-snapshotRosterSlot :: RosterSlot -> (UUID.UUID, UUID.UUID, Int, UUID.UUID, Maybe UUID.UUID, Maybe TimeOfDay, Maybe TimeOfDay, Maybe UUID.UUID, Maybe Int)
-snapshotRosterSlot slot =
-    ( coerce slot.id
-    , slot.rosterDayId
-    , slot.rowIndex
-    , slot.rosterWeekSlotDefinitionId
-    , slot.staffId
-    , slot.startTime
-    , slot.endTime
-    , slot.shiftTypeId
-    , slot.durationMinutes
-    )
-
-snapshotSlotConflict :: (Id RosterSlot, [RosterConflict]) -> (UUID.UUID, [(ConflictType, ConflictSeverity, Text)])
-snapshotSlotConflict (slotId, conflicts) =
-    (coerce slotId, map (\conflict -> (conflict.conflictType, conflict.severity, conflict.message)) conflicts)
 
 data DirectReadModelFixture = DirectReadModelFixture
     { venue                 :: Venue

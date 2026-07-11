@@ -244,7 +244,6 @@ data RosterWeeksController
     | CopyRosterWeekAction { sourceWeekOffset :: !Int, targetWeekOffset :: !Int }
     | ToggleRosterWeekLiveStatusAction { rosterWeekId :: !(Id RosterWeek) }
     | CreateRosterWeekSlotDefinitionAction { rosterWeekId :: !(Id RosterWeek) }
-    | UpdateRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId :: !(Id RosterWeekSlotDefinition) }
     | DeleteRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId :: !(Id RosterWeekSlotDefinition) }
     | SortRosterWeekAction { rosterWeekId :: !(Id RosterWeek) }
     | ToggleRosterDayClosedAction { rosterDayId :: !(Id RosterDay) }

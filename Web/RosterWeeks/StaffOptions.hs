@@ -44,25 +44,10 @@ fetchRosterStaffPanelEntriesForScope panelScope staffMembers allSlots = do
                 |> fetch
 
     let membershipsByUserId = Map.fromList [ (membership.userId, membership) | membership <- memberships ]
-    pendingInvitations <-
-        if null panelStaff
-            then pure []
-            else query @VenueInvitation
-                |> filterWhere (#venueId, unpackId currentVenueId)
-                |> filterWhereIn (#staffId, map (Just . (.id)) panelStaff)
-                |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
-                |> orderByDesc #createdAt
-                |> fetch
-
-    let pendingInvitationsByStaffId = Map.fromListWith (<>)
-            [ (staffId, [invitation])
-            | invitation <- pendingInvitations
-            , staffId <- maybeToList invitation.staffId
-            ]
     let assignedShiftCountByStaffId = Map.fromListWith (+) [ (staffId, 1 :: Int) | slot <- allSlots, staffId <- maybeToList slot.staffId ]
-    pure (map (buildPanelEntry membershipsByUserId pendingInvitationsByStaffId assignedShiftCountByStaffId) panelStaff)
+    pure (map (buildPanelEntry membershipsByUserId assignedShiftCountByStaffId) panelStaff)
     where
-        buildPanelEntry membershipsByUserId pendingInvitationsByStaffId assignedShiftCountByStaffId staff =
+        buildPanelEntry membershipsByUserId assignedShiftCountByStaffId staff =
             let staffId = coerce (get #id staff)
                 assignedShiftCount = Map.findWithDefault 0 staffId assignedShiftCountByStaffId
                 roleText = if isTrialStaff staff
@@ -74,7 +59,6 @@ fetchRosterStaffPanelEntriesForScope panelScope staffMembers allSlots = do
                     { staff
                     , assignedShiftCount
                     , userRole = roleText
-                    , pendingTrialInvitations = Map.findWithDefault [] staff.id pendingInvitationsByStaffId
                     }
 
 staffForPanelScope :: RosterStaffPanelScope -> [Staff] -> [Staff]

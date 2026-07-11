@@ -108,6 +108,13 @@ tests = describe "FrontendSurface DSL foundation" do
                 }
         let impl = (mkSurfaceImpl "surface-lab" config handlers :: SurfaceImpl SurfaceLabSurface)
         let html = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceMount impl (Html5.toHtml ("body" :: Text))))
+        let parameterlessConfig = config
+                { mountFragments =
+                    [ fragment
+                        { mountedFragmentKey = FrontendSurfaceFragmentKey "lab-shell" Aeson.Null
+                        }
+                    ]
+                }
 
         impl.surfaceImplActions |> map (.htmxRequestName) `shouldBe` ["refresh-panel"]
         impl.surfaceImplIntents |> map (.intentFormName) `shouldBe` ["move-lab-card"]
@@ -118,6 +125,7 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceMountConfigJson config `shouldContainText` "\"targetId\":\"surface-lab-panel\""
         frontendSurfaceMountConfigJson config `shouldContainText` "\"kind\":\"focused-field\""
         frontendSurfaceMountConfigJson config `shouldContainText` "\"activeSelector\":\"input[data-lab-field]:focus\""
+        frontendSurfaceMountConfigJson parameterlessConfig `shouldContainText` "\"key\":{\"kind\":\"lab-shell\",\"params\":{}}"
 
     it "renders lazy fragments with canonical UI-region attrs and feature slot classes" do
         let fragment = FrontendSurfaceMountedFragment

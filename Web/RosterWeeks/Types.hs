@@ -5,7 +5,6 @@ module Web.RosterWeeks.Types
     , RosterGridRenderModel (..)
     , RosterGridViewMode (..)
     , RosterProjectionFragment (..)
-    , RosterProjectionScope (..)
     , RosterRenderData (..)
     , RosterRenderIndexes (..)
     , RosterRowRenderModel (..)
@@ -18,7 +17,6 @@ module Web.RosterWeeks.Types
     ) where
 
 import Application.Helper.Conflict (RosterConflict)
-import Application.Helper.LiveUpdate
 import Application.Helper.RosterWagePrediction (RosterWagePrediction)
 import Data.Map.Strict (Map)
 import Data.Time.Calendar (Day)
@@ -43,7 +41,6 @@ data ShowView = ShowView
     , allSlots               :: [RosterSlot]
     , slotConflicts          :: [(Id RosterSlot, [RosterConflict])]
     , renderIndexes          :: RosterRenderIndexes
-    , surfaceScope           :: Maybe SurfaceScope
     , viewCapabilities       :: RosterViewCapabilities
     , rosterLayoutMode       :: RosterLayoutModeEnum
     , rosterEndTimesEnabled              :: Bool
@@ -97,10 +94,9 @@ data RosterStaffPanelScope
     deriving (Eq, Show)
 
 data RosterStaffPanelEntry = RosterStaffPanelEntry
-    { staff                   :: Staff
-    , assignedShiftCount      :: Int
-    , userRole                :: Text
-    , pendingTrialInvitations :: [VenueInvitation]
+    { staff              :: Staff
+    , assignedShiftCount :: Int
+    , userRole           :: Text
     }
 
 data RosterStaffSelfServicePanel = RosterStaffSelfServicePanel
@@ -223,12 +219,6 @@ data RosterRowRenderModel = RosterRowRenderModel
     , rowRosterEndTimesEnabled :: Bool
     , rowPublishAttempted      :: Bool
     }
-
-data RosterProjectionScope = RosterProjectionScope
-    { rosterProjectionGroupId    :: !(Id RosterGroup)
-    , rosterProjectionWeekOffset :: !Int
-    }
-    deriving (Eq, Show)
 
 data RosterProjectionFragment
     = RosterProjectionContent

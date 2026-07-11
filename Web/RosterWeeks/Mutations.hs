@@ -6,7 +6,6 @@ module Web.RosterWeeks.Mutations
     , ensureRosterWeekExistsMutation
     , moveRosterSlotMutation
     , removeRosterDayRowMutation
-    , renameRosterWeekSlotDefinitionMutation
     , repackRosterWeekMutation
     , rosterDayTouchedResources
     , rosterSlotTouchedResources
@@ -82,13 +81,6 @@ appendRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotName = do
     slotDefinition <- withTransaction (appendRosterWeekSlotDefinition rosterWeek slotName)
     invalidateTouchedResources "roster.slot_definition.append" (liveMutationResult slotDefinition (rosterWeekTouchedResources rosterGroupId rosterWeek.weekOffset))
 
-renameRosterWeekSlotDefinitionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterWeekSlotDefinition -> Text -> IO (LiveMutationResult RosterWeekSlotDefinition)
-renameRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotDefinition slotName = do
-    updatedSlotDefinition <- slotDefinition
-        |> set #name slotName
-        |> updateRecord
-    invalidateTouchedResources "roster.slot_definition.rename" (liveMutationResult updatedSlotDefinition (rosterWeekTouchedResources rosterGroupId rosterWeek.weekOffset))
-
 removeRosterWeekSlotDefinitionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterWeekSlotDefinition -> IO (LiveMutationResult ())
 removeRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotDefinition = do
     withTransaction (deleteRosterWeekSlotDefinition slotDefinition)
@@ -135,15 +127,13 @@ saveRosterSlotMutation rosterGroupId rosterWeek rosterDay existingSlot newSlot =
 moveRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> RosterDay -> RosterSlot -> RosterSlot -> IO (LiveMutationResult RosterSlotMutationResult)
 moveRosterSlotMutation rosterGroupId rosterWeek sourceRosterDay targetRosterDay originalSlot updatedSlot = do
     let previousStaffId = originalSlot.staffId
-    sourceTimesheetExists <- rosterSlotHasGeneratedTimesheet originalSlot
     when (updatedSlot.rowIndex >= targetRosterDay.rowCount) do
         _ <- targetRosterDay
             |> set #rowCount (updatedSlot.rowIndex + 1)
             |> updateRecord
         pure ()
     persistedSlot <- updateRecord updatedSlot
-    let shouldWarnSourceTimesheetUnchanged =
-            sourceTimesheetExists && rosterSlotTimesheetSourceChanged originalSlot updatedSlot
+    shouldWarnSourceTimesheetUnchanged <- rosterSlotTimesheetSourceChangeRequiresWarning originalSlot updatedSlot
     invalidateTouchedResources "roster.slot.move" $
         liveMutationResult
             RosterSlotMutationResult
@@ -156,10 +146,8 @@ moveRosterSlotMutation rosterGroupId rosterWeek sourceRosterDay targetRosterDay 
 updateRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> RosterSlot -> RosterSlot -> IO (LiveMutationResult RosterSlotMutationResult)
 updateRosterSlotMutation rosterGroupId rosterWeek rosterDay originalSlot updatedSlot = do
     let previousStaffId = originalSlot.staffId
-    sourceTimesheetExists <- rosterSlotHasGeneratedTimesheet originalSlot
     persistedSlot <- updateRecord updatedSlot
-    let shouldWarnSourceTimesheetUnchanged =
-            sourceTimesheetExists && rosterSlotTimesheetSourceChanged originalSlot updatedSlot
+    shouldWarnSourceTimesheetUnchanged <- rosterSlotTimesheetSourceChangeRequiresWarning originalSlot updatedSlot
     invalidateTouchedResources "roster.slot.update" $
         liveMutationResult
             RosterSlotMutationResult
@@ -201,9 +189,13 @@ rosterSlotTouchedResources :: Id RosterGroup -> Int -> RosterDay -> Maybe Roster
 rosterSlotTouchedResources rosterGroupId weekOffset rosterDay maybeSlot =
     rosterDayTouchedResources rosterGroupId weekOffset rosterDay
 
-rosterSlotTimesheetSourceChanged :: RosterSlot -> RosterSlot -> Bool
-rosterSlotTimesheetSourceChanged previous next =
-    previous.staffId /= next.staffId
-        || previous.startTime /= next.startTime
-        || previous.endTime /= next.endTime
-        || previous.shiftTypeId /= next.shiftTypeId
+rosterSlotTimesheetSourceChangeRequiresWarning :: (?modelContext :: ModelContext) => RosterSlot -> RosterSlot -> IO Bool
+rosterSlotTimesheetSourceChangeRequiresWarning previous next
+    | rosterSlotTimesheetSourceChanged previous next = rosterSlotHasGeneratedTimesheet previous
+    | otherwise = pure False
+  where
+    rosterSlotTimesheetSourceChanged left right =
+        left.staffId /= right.staffId
+            || left.startTime /= right.startTime
+            || left.endTime /= right.endTime
+            || left.shiftTypeId /= right.shiftTypeId

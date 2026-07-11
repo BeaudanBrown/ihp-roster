@@ -960,8 +960,12 @@ fragmentKeyToJson :: FrontendSurfaceFragmentKey -> Aeson.Value
 fragmentKeyToJson fragmentKey =
     Aeson.object
         [ "kind" Aeson..= fragmentKey.fragmentKind
-        , "params" Aeson..= fragmentKey.fragmentParams
+        , "params" Aeson..= canonicalMountedFragmentParams fragmentKey.fragmentParams
         ]
+
+canonicalMountedFragmentParams :: Aeson.Value -> Aeson.Value
+canonicalMountedFragmentParams Aeson.Null = Aeson.object []
+canonicalMountedFragmentParams value      = value
 
 liveProtectionDefers :: FrontendSurfaceProtection -> Bool
 liveProtectionDefers = \case

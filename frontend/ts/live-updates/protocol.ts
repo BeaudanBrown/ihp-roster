@@ -50,7 +50,9 @@ export function liveUpdateFragmentMergeKey(fragment: Pick<SurfaceWireFragment, "
 }
 
 function liveUpdateFragmentSemanticKey(fragment: Pick<SurfaceWireFragment, "fragmentKey"> | null | undefined): string | null {
-    return fragment && fragment.fragmentKey ? JSON.stringify(fragment.fragmentKey) : null;
+    const fragmentKey = fragment?.fragmentKey;
+    if (!fragmentKey) return null;
+    return JSON.stringify([fragmentKey.surface, fragmentKey.kind, fragmentKey.params]);
 }
 
 export function liveUpdateInvalidationIsOwnEcho(sourceClientId: string | null | undefined, activeClientId: string | null | undefined): boolean {
@@ -64,6 +66,7 @@ export function resolveMountedFragmentsForInvalidation(
 ): SurfaceWireFragment[] {
     if (scopeKey === null || scopeKey.length === 0) return [];
 
+    const mountedSubscriptions = Array.from(subscriptions);
     const resolved: SurfaceWireFragment[] = [];
     const seen = new Set<string>();
 
@@ -71,7 +74,7 @@ export function resolveMountedFragmentsForInvalidation(
         const semanticKey = liveUpdateFragmentSemanticKey(fragment);
         const matches: SurfaceWireFragment[] = [];
 
-        for (const subscription of subscriptions) {
+        for (const subscription of mountedSubscriptions) {
             if (subscription.scopeKey !== scopeKey) continue;
             subscription.resyncFragments.forEach((mountedFragment) => {
                 if (semanticKey !== null && liveUpdateFragmentSemanticKey(mountedFragment) === semanticKey) {

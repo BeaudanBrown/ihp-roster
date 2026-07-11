@@ -883,19 +883,22 @@
     return `${fragmentKey}:${fragment.targetId}`;
   }
   function liveUpdateFragmentSemanticKey(fragment) {
-    return fragment && fragment.fragmentKey ? JSON.stringify(fragment.fragmentKey) : null;
+    const fragmentKey = fragment?.fragmentKey;
+    if (!fragmentKey) return null;
+    return JSON.stringify([fragmentKey.surface, fragmentKey.kind, fragmentKey.params]);
   }
   function liveUpdateInvalidationIsOwnEcho(sourceClientId, activeClientId) {
     return Boolean(sourceClientId && activeClientId && sourceClientId === activeClientId);
   }
   function resolveMountedFragmentsForInvalidation(subscriptions, fragments, scopeKey = null) {
     if (scopeKey === null || scopeKey.length === 0) return [];
+    const mountedSubscriptions = Array.from(subscriptions);
     const resolved = [];
     const seen = /* @__PURE__ */ new Set();
     fragments.forEach((fragment) => {
       const semanticKey = liveUpdateFragmentSemanticKey(fragment);
       const matches = [];
-      for (const subscription of subscriptions) {
+      for (const subscription of mountedSubscriptions) {
         if (subscription.scopeKey !== scopeKey) continue;
         subscription.resyncFragments.forEach((mountedFragment) => {
           if (semanticKey !== null && liveUpdateFragmentSemanticKey(mountedFragment) === semanticKey) {

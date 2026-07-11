@@ -611,7 +611,7 @@ rosterStaffPanelMountedFragment scope =
 
 rosterStaffSelfServiceLeaveFormMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterStaffSelfServiceLeaveFormMountedFragment scope =
-    rosterMountedFragment "roster-staff-self-service-leave-form-fragment" Aeson.Null "roster-staff-self-service-leave-form-fragment" (rosterStaffSelfServiceLeaveFormFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
+    rosterMountedFragment "roster-staff-self-service-leave-form" Aeson.Null "roster-staff-self-service-leave-form-fragment" (rosterStaffSelfServiceLeaveFormFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId)
 
 rosterWeekOverviewMountedFragment :: RosterWeekScopeValue -> FrontendSurfaceMountedFragment
 rosterWeekOverviewMountedFragment scope =

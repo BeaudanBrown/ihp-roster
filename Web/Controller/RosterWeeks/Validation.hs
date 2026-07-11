@@ -164,12 +164,11 @@ firstAvailableDefaultName existingNames =
     candidateNames =
         "New column" : map (\index -> "New column " <> tshow index) [2 :: Int ..]
 
-activeRosterWeekSlotDefinitionWithName :: (?modelContext :: ModelContext) => RosterWeek -> Text -> Maybe (Id RosterWeekSlotDefinition) -> IO (Maybe RosterWeekSlotDefinition)
-activeRosterWeekSlotDefinitionWithName rosterWeek slotName maybeExceptId = do
-    matches <- query @RosterWeekSlotDefinition
+activeRosterWeekSlotDefinitionWithName :: (?modelContext :: ModelContext) => RosterWeek -> Text -> IO (Maybe RosterWeekSlotDefinition)
+activeRosterWeekSlotDefinitionWithName rosterWeek slotName =
+    query @RosterWeekSlotDefinition
         |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
         |> filterWhere (#name, slotName)
         |> filterWhere (#deletedAt, Nothing)
-        |> fetch
-    pure (find (\slotDefinition -> Just slotDefinition.id /= maybeExceptId) matches)
+        |> fetchOneOrNothing
 

@@ -1,8 +1,5 @@
 module Web.RosterWeeks.Projection
     ( actorRosterRowFragments
-    , assignmentRefreshFragments
-    , buildRosterProjectionScope
-    , buildRosterWeekScope
     , rosterContentAndStaffPanelFragments
     , rosterContentFragment
     , rosterGridFrameFragment
@@ -17,22 +14,9 @@ module Web.RosterWeeks.Projection
     , rosterStaffPanelFragment
     ) where
 
-import Application.Helper.LiveUpdate
-import Data.Coerce (coerce)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 import Web.RosterWeeks.Types
-
-buildRosterProjectionScope :: Id RosterGroup -> Int -> RosterProjectionScope
-buildRosterProjectionScope rosterGroupId weekOffset =
-    RosterProjectionScope
-        { rosterProjectionGroupId = rosterGroupId
-        , rosterProjectionWeekOffset = weekOffset
-        }
-
-buildRosterWeekScope :: (?context :: ControllerContext) => Id RosterGroup -> Int -> SurfaceScope
-buildRosterWeekScope rosterGroupId weekOffset =
-    rosterWeekLiveScope (unpackId currentVenueId) (unpackId rosterGroupId) weekOffset
 
 rosterContentFragment :: RosterProjectionFragment
 rosterContentFragment =
@@ -93,10 +77,6 @@ rosterRowFragments :: [(UUID.UUID, Int)] -> [RosterProjectionFragment]
 rosterRowFragments =
     map (uncurry rosterRowFragment) . nub
 
-actorRosterRowFragments :: Maybe Text -> [(UUID.UUID, Int)] -> [RosterProjectionFragment]
-actorRosterRowFragments _ =
+actorRosterRowFragments :: [(UUID.UUID, Int)] -> [RosterProjectionFragment]
+actorRosterRowFragments =
     rosterRowFragments
-
-assignmentRefreshFragments :: Maybe Text -> [RosterProjectionFragment]
-assignmentRefreshFragments _ =
-    []

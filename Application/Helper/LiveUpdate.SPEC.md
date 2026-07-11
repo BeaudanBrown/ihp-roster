@@ -213,6 +213,12 @@ that region only.
   local mount descriptor; its incoming URL, target id, and protection policy are
   never executed and there is no fallback when the fragment is not locally
   mounted.
+- Parameterless mounted fragment keys serialize `params` as `{}`, matching the
+  server wire normalization. Structural matching does not depend on top-level
+  JSON property order.
+- A single actor or websocket invalidation may carry multiple fragment keys;
+  every key resolves against the same mounted-subscription snapshot, including
+  when subscriptions originate from a one-shot iterator such as `Map.values()`.
 - Same-scope surface declarations should merge rather than clobber each other.
 - Fragment renderers should return exactly the DOM target owned by the fragment,
   not sibling live fragments. If a broad parent and a child are both selected,

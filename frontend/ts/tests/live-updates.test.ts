@@ -102,6 +102,10 @@ test("invalidations resolve only through exact descriptors on local mounts", () 
         targetId: "local-target",
         url: "/authorized-local-fragment",
     };
+    const reorderedIncomingDescriptor: SurfaceWireFragment = {
+        ...incomingDescriptor,
+        fragmentKey: { kind: "timesheet-day-section", params: { dayOffset: 1 }, surface: "timesheets" },
+    };
     const otherSurfaceDescriptor: SurfaceWireFragment = {
         ...fragment,
         fragmentKey: { surface: "roster", kind: "roster-content", params: {} },
@@ -113,6 +117,14 @@ test("invalidations resolve only through exact descriptors on local mounts", () 
         resolveMountedFragmentsForInvalidation(
             [{ scopeKey: "timesheets:v:0", resyncFragments: [localDescriptor] }],
             [incomingDescriptor],
+            "timesheets:v:0",
+        ),
+        [localDescriptor],
+    );
+    assertDeepEqual(
+        resolveMountedFragmentsForInvalidation(
+            [{ scopeKey: "timesheets:v:0", resyncFragments: [localDescriptor] }],
+            [reorderedIncomingDescriptor],
             "timesheets:v:0",
         ),
         [localDescriptor],
@@ -136,6 +148,32 @@ test("invalidations resolve only through exact descriptors on local mounts", () 
             null,
         ),
         [],
+    );
+});
+
+test("actor invalidation resolves every semantic key from one-shot subscription iterators", () => {
+    const firstLocal: SurfaceWireFragment = {
+        ...fragment,
+        targetId: "timesheet-day-local",
+        url: "/local-day",
+    };
+    const secondLocal: SurfaceWireFragment = {
+        ...fragment,
+        fragmentKey: { surface: "timesheets", kind: "timesheet-toolbar", params: {} },
+        targetId: "timesheet-toolbar-local",
+        url: "/local-toolbar",
+    };
+    const incomingFragments: SurfaceWireFragment[] = [
+        { ...firstLocal, targetId: "incoming-day", url: "/untrusted-day" },
+        { ...secondLocal, targetId: "incoming-toolbar", url: "/untrusted-toolbar" },
+    ];
+    const subscriptions = new Map([
+        ["timesheets:v:0", { scopeKey: "timesheets:v:0", resyncFragments: [firstLocal, secondLocal] }],
+    ]).values();
+
+    assertDeepEqual(
+        resolveMountedFragmentsForInvalidation(subscriptions, incomingFragments, "timesheets:v:0"),
+        [firstLocal, secondLocal],
     );
 });
 

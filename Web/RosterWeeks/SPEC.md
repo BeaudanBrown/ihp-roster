@@ -24,6 +24,9 @@ lands.
 - Staff-facing draft roster pages keep the week shell and day column mounted for
   live updates, but hide slot rows, closed-day state, and other draft roster
   details behind a non-live placeholder.
+- Full pages, standard rows, day columns, month overview, timeline URLs, and
+  roster fragment endpoints all use the canonical direct SQL read model. There
+  is no fallback projection query or alternate conflict evaluator.
 - Trial staff placeholders are active venue-scoped `staff` rows with no linked
   `user_id`. They are rosterable when active and not archived, can be assigned
   to selected roster groups, and appear beside linked staff in roster assignment

@@ -167,7 +167,7 @@ tests = beforeAll testContext do
                                , "roster-wage-rail"
                                , "roster-slots-grid"
                                , "roster-staff-panel"
-                               , "roster-staff-self-service-leave-form-fragment"
+                               , "roster-staff-self-service-leave-form"
                                , "roster-day-section"
                                , "roster-row"
                                , "roster-row"
