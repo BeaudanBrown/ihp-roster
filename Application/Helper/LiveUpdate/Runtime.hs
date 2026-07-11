@@ -43,7 +43,6 @@ module Application.Helper.LiveUpdate.Runtime
     , leaveRequestsContentLiveFragment
     , leaveRequestsLiveScope
     , profileContentLiveFragment
-    , profileLeaveRequestsContentLiveFragment
     , profileLiveScope
     , rosterContentLiveFragment
     , rosterDayColumnsLiveFragment

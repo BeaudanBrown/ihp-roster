@@ -25,8 +25,6 @@ import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
                                      profileSectionFragmentForSection,
                                      profileSurfaceScope,
                                      profileSurfaceWireFragments)
-import Web.Profiles.LeaveFragments
-import Web.Profiles.LiveUpdates
 import Web.Profiles.Mutations
 import Web.Staff.Mutations (updateStaffMember)
 import Web.View.Profiles.Edit
@@ -54,15 +52,6 @@ instance Controller ProfilesController where
             now <- getCurrentTime
             let today = utctDay now
             profileActionSpan "profile.page.render_response" (render EditView { .. })
-
-    action currentAction@ShowProfileleaveRequestsContentLiveFragmentAction = runBepis currentAction BepisFragmentAction $
-        profileActionSpan "profile.leave_fragment.respond" do
-            maybeExistingStaff <- profileActionSpan "profile.leave_fragment.fetch_staff" fetchCurrentUserStaff
-            case maybeExistingStaff of
-                Nothing -> accessDeniedUnless False
-                Just staff -> do
-                    model <- profileActionSpan "profile.leave_fragment.fetch_model" (fetchProfileLeaveFragmentModel staff)
-                    profileActionSpan "profile.leave_fragment.render_response" (respondHtml (renderProfileLeaveFragment FragmentPlain model profileLeaveRequestsFragment))
 
     action currentAction@ShowprofileContentLiveFragmentAction = runBepis currentAction BepisFragmentAction $
         profileActionSpan "profile.content_fragment.respond" do

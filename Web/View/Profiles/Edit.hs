@@ -10,7 +10,6 @@ import Application.Helper.StaffShiftPreferences
 import Data.List (sortOn)
 import Data.Ord (Down (..))
 import Web.Profiles.FrontendSurface
-import Web.Profiles.LiveUpdates
 import Web.View.LeaveRequests.Index (renderStatusBadge)
 import Web.View.LeaveRequests.New (renderLeaveRequestFormFields)
 import Web.View.Passkeys.Management (renderPasskeyManagement)
@@ -48,9 +47,6 @@ profileShiftPreferencesFormId = "profile-shift-preferences-form"
 
 profileSectionsAccordionId :: Text
 profileSectionsAccordionId = "profile-sections"
-
-profileleaveRequestsContentLiveFragmentId :: Text
-profileleaveRequestsContentLiveFragmentId = "profile-leave-requests-content"
 
 profileLeaveRequestFormFragmentId :: Text
 profileLeaveRequestFormFragmentId = "profile-leave-request-form-fragment"
@@ -168,7 +164,7 @@ profileAccordionSections staff currentUserEmail preferenceWeekdays selectedShift
     [ profileDetailsAccordionSection staff currentUserEmail staffManagementFields
     , profilePreferencesAccordionSection preferenceWeekdays selectedShiftPreferences
     , profileSecurityAccordionSection now passkeys
-    , profileLeaveAccordionSection staff leaveRequestForm leaveRequests
+    , profileLeaveAccordionSection leaveRequestForm leaveRequests
     ]
 
 profileDetailsAccordionSection :: Staff -> Text -> Maybe StaffManagementFieldData -> StaffProfileAccordionSection
@@ -198,13 +194,22 @@ profileSecurityAccordionSection now passkeys =
         , staffProfileSectionBody = renderPasskeyManagement now passkeys (appendQueryParams (pathTo EditProfileAction) [("section", "security")])
         }
 
-profileLeaveAccordionSection :: Staff -> LeaveRequest -> [LeaveRequest] -> StaffProfileAccordionSection
-profileLeaveAccordionSection staff leaveRequestForm leaveRequests =
+profileLeaveAccordionSection :: LeaveRequest -> [LeaveRequest] -> StaffProfileAccordionSection
+profileLeaveAccordionSection leaveRequestForm leaveRequests =
     StaffProfileAccordionSection
         { staffProfileSectionKey = "leave"
         , staffProfileSectionId = profileLeaveSectionId
         , staffProfileSectionTitle = "Unavailability"
-        , staffProfileSectionBody = renderProfileleaveRequestsContentLiveFragment staff leaveRequestForm leaveRequests
+        , staffProfileSectionBody = [hsx|
+            <div class="row g-4 align-items-start">
+                <div class="col-12 col-xl-5">
+                    {renderProfileLeaveRequestFormFragment leaveRequestForm}
+                </div>
+                <div class="col-12 col-xl-7">
+                    {renderProfileLeaveRequestsListFragment leaveRequests}
+                </div>
+            </div>
+        |]
         }
 
 profileRsaAccordionSection :: Staff -> Maybe StaffDocument -> Day -> StaffProfileAccordionSection
@@ -221,7 +226,7 @@ renderProfileSectionFragmentWithManagement staff currentUserEmail preferenceWeek
     let section = case normalizeProfileSectionForRender openSection of
             "preferences" -> profilePreferencesAccordionSection preferenceWeekdays selectedShiftPreferences
             "security"    -> profileSecurityAccordionSection now passkeys
-            "leave"       -> profileLeaveAccordionSection staff leaveRequestForm leaveRequests
+            "leave"       -> profileLeaveAccordionSection leaveRequestForm leaveRequests
             _             -> profileDetailsAccordionSection staff currentUserEmail staffManagementFields
      in renderStaffProfileAccordionSection profileSectionsAccordionId openSection section
 
@@ -321,25 +326,6 @@ renderProfileRsaSection staff staffRsaDocument today =
                 , rsaPanelCanReview = currentUserIsManager
                 , rsaPanelShowHeader = False
                 }
-
-renderProfileleaveRequestsContentLiveFragment :: Staff -> LeaveRequest -> [LeaveRequest] -> Html
-renderProfileleaveRequestsContentLiveFragment =
-    renderProfileleaveRequestsContentLiveFragmentWithSwap Nothing
-
-renderProfileleaveRequestsContentLiveFragmentWithSwap :: Maybe Text -> Staff -> LeaveRequest -> [LeaveRequest] -> Html
-renderProfileleaveRequestsContentLiveFragmentWithSwap maybeSwapOob staff leaveRequest leaveRequests = [hsx|
-    <div id={profileleaveRequestsContentLiveFragmentId}
-         hx-swap-oob={maybeSwapOob}>
-        <div class="row g-4 align-items-start">
-            <div class="col-12 col-xl-5">
-                {renderProfileLeaveRequestFormFragment leaveRequest}
-            </div>
-            <div class="col-12 col-xl-7">
-                {renderProfileLeaveRequestsListFragment leaveRequests}
-            </div>
-        </div>
-    </div>
-|]
 
 renderProfileLeaveRequestFormFragment :: LeaveRequest -> Html
 renderProfileLeaveRequestFormFragment leaveRequest = [hsx|

@@ -40,6 +40,10 @@ tests = describe "FrontendSurface strict API guard" do
         violations <- deadLeafCompatibilityViolations
         violations `shouldBe` []
 
+    it "keeps the duplicate profile leave fragment path deleted" do
+        violations <- duplicateProfileLeaveFragmentViolations
+        violations `shouldBe` []
+
     it "keeps migrated actor success paths off business OOB compatibility helpers" do
         violations <- actorBusinessOobCompatibilityViolations
         violations `shouldBe` []
@@ -95,6 +99,43 @@ deadLeafCompatibilityViolations = do
             <> ["README.md: obsolete static/app.js entrypoint should stay deleted" | "static/app.js" `Text.isInfixOf` readme]
             <> ["static/AGENTS.md: obsolete app.js asset should stay deleted from the runtime list" | "  - `app.js`" `Text.isInfixOf` staticGuide]
             <> ["bin/doc-drift-check: obsolete app.js requirement should stay deleted" | "    app.js" `Text.isInfixOf` docDriftCheck]
+
+duplicateProfileLeaveFragmentViolations :: IO [Text]
+duplicateProfileLeaveFragmentViolations = do
+    existingFiles <- fmap catMaybes $ forM obsoleteProfileLeaveFragmentFiles \path -> do
+        exists <- doesFileExist path
+        pure (if exists then Just path else Nothing)
+    profileTypes <- Text.readFile "Web/Types.hs"
+    profileController <- Text.readFile "Web/Controller/Profiles.hs"
+    profileView <- Text.readFile "Web/View/Profiles/Edit.hs"
+    profileSelfService <- Text.readFile "Web/LeaveRequests/ProfileSelfService.hs"
+    liveUpdateInternal <- Text.readFile "Application/Helper/LiveUpdate/Internal.hs"
+    seedProfile <- Text.readFile "Application/Script/SeedProfile.hs"
+    profileScenarios <- Text.readFile "e2e/profile-scenarios.json"
+    let runtimeSources =
+            [ ("Web/Types.hs", profileTypes)
+            , ("Web/Controller/Profiles.hs", profileController)
+            , ("Web/View/Profiles/Edit.hs", profileView)
+            , ("Web/LeaveRequests/ProfileSelfService.hs", profileSelfService)
+            , ("Application/Helper/LiveUpdate/Internal.hs", liveUpdateInternal)
+            ]
+        obsoleteNames =
+            [ "ShowProfileleaveRequestsContentLiveFragmentAction"
+            , "ProfileLeaveFragment"
+            , "renderProfileleaveRequestsContentLiveFragment"
+            , "profile-leave-requests-content"
+            ]
+    pure $
+        fmap (\path -> cs path <> ": duplicate profile leave fragment module should stay deleted") existingFiles
+            <> [path <> ": obsolete profile leave fragment name should stay deleted: " <> name | (path, source) <- runtimeSources, name <- obsoleteNames, name `Text.isInfixOf` source]
+            <> ["Application/Script/SeedProfile.hs: profile leave profiling route must use typed canonical section path" | not ("pathTo ShowprofileContentLiveFragmentAction" `Text.isInfixOf` seedProfile && "profileLeaveSectionFragment" `Text.isInfixOf` seedProfile)]
+            <> ["e2e/profile-scenarios.json: profile leave scenarios must target the canonical section route" | not ("profileLeaveSectionFragment" `Text.isInfixOf` profileScenarios && "/ShowprofileContentLiveFragment?section=leave" `Text.isInfixOf` profileScenarios)]
+
+obsoleteProfileLeaveFragmentFiles :: [FilePath]
+obsoleteProfileLeaveFragmentFiles =
+    [ "Web/Profiles/LeaveFragments.hs"
+    , "Web/Profiles/LiveUpdates.hs"
+    ]
 
 obsoleteDeadLeafFiles :: [FilePath]
 obsoleteDeadLeafFiles =

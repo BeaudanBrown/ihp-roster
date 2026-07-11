@@ -48,7 +48,6 @@ module Application.Helper.LiveUpdate.Internal
     , surfaceScopeKind
     , surfaceScopeToWire
     , profileContentLiveFragment
-    , profileLeaveRequestsContentLiveFragment
     , profileLiveScope
     , rosterContentLiveFragment
     , rosterDayColumnsLiveFragment
@@ -181,7 +180,7 @@ timesheetToolbarLiveFragment = simpleSurfaceFragmentKey "timesheets" "timesheet-
 timesheetDaySectionLiveFragment :: Int -> SurfaceFragmentKey
 timesheetDaySectionLiveFragment offset = frontendSurfaceSurfaceFragmentKey "timesheets" "timesheet-day-section" (Aeson.object ["dayOffset" Aeson..= offset])
 
-adminVenueConfigLiveFragment, adminInvitesLiveFragment, adminExportsLiveFragment, adminShiftTypesLiveFragment, adminRosterGroupsLiveFragment, adminXeroShellLiveFragment, adminXeroStaffMappingsLiveFragment, adminXeroPayItemsLiveFragment, adminXeroTimesheetsLiveFragment, billingStatusLiveFragment, profileContentLiveFragment, profileLeaveRequestsContentLiveFragment, supportAwardRatesSectionLiveFragment, supportPublicHolidaysSectionLiveFragment :: SurfaceFragmentKey
+adminVenueConfigLiveFragment, adminInvitesLiveFragment, adminExportsLiveFragment, adminShiftTypesLiveFragment, adminRosterGroupsLiveFragment, adminXeroShellLiveFragment, adminXeroStaffMappingsLiveFragment, adminXeroPayItemsLiveFragment, adminXeroTimesheetsLiveFragment, billingStatusLiveFragment, profileContentLiveFragment, supportAwardRatesSectionLiveFragment, supportPublicHolidaysSectionLiveFragment :: SurfaceFragmentKey
 adminVenueConfigLiveFragment = simpleSurfaceFragmentKey "admin-venue-config" "admin-venue-settings"
 adminInvitesLiveFragment = simpleSurfaceFragmentKey "admin-invites" "admin-invites"
 adminExportsLiveFragment = simpleSurfaceFragmentKey "admin-exports" "admin-exports"
@@ -193,7 +192,6 @@ adminXeroPayItemsLiveFragment = simpleSurfaceFragmentKey "admin-xero" "admin-xer
 adminXeroTimesheetsLiveFragment = simpleSurfaceFragmentKey "admin-xero" "admin-xero-timesheets"
 billingStatusLiveFragment = simpleSurfaceFragmentKey "billing" "billing-status"
 profileContentLiveFragment = simpleSurfaceFragmentKey "profile" "profile-details-section"
-profileLeaveRequestsContentLiveFragment = simpleSurfaceFragmentKey "profile" "profile-leave-section"
 supportAwardRatesSectionLiveFragment = simpleSurfaceFragmentKey "support" "support-award-rates"
 supportPublicHolidaysSectionLiveFragment = simpleSurfaceFragmentKey "support" "support-public-holidays"
 

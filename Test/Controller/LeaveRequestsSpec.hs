@@ -460,7 +460,7 @@ tests = beforeAll testContext do
                 body <- responseBody response
                 let bodyText = cs (LByteString.unpack body)
                 lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
-                bodyText `shouldNotContain` "id=\"profile-leave-requests-content\""
+                bodyText `shouldNotContain` "id=\"profile-leave\""
                 bodyText `shouldNotContain` "id=\"profile-leave-request-form-fragment\""
                 bodyText `shouldNotContain` "id=\"profile-leave-requests-list-fragment\""
                 bodyText `shouldContain` "Unavailable period submitted"
@@ -500,7 +500,7 @@ tests = beforeAll testContext do
                 bodyText `shouldContain` "Unavailable period submitted"
                 bodyText `shouldNotContain` "id=\"roster-staff-self-service-leave-form-fragment\" hx-swap-oob=\"outerHTML\""
                 bodyText `shouldNotContain` "id=\"roster-content\""
-                bodyText `shouldNotContain` "id=\"profile-leave-requests-content\""
+                bodyText `shouldNotContain` "id=\"profile-leave\""
                 bodyText `shouldNotContain` "id=\"leave-requests-content\""
                 let rosterLeaveTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 rosterLeaveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
@@ -529,7 +529,7 @@ tests = beforeAll testContext do
                 bodyText `shouldContain` "id=\"profile-leave-request-form-fragment\""
                 bodyText `shouldContain` "No staff record found. Contact an administrator."
                 bodyText `shouldNotContain` "id=\"profile-content-fragment\""
-                bodyText `shouldNotContain` "id=\"profile-leave-requests-content\""
+                bodyText `shouldNotContain` "id=\"profile-leave\""
 
         it "infers profile leave context from the HTMX target when responseContext is missing" $ withContext do
             withCleanDb do
@@ -553,7 +553,7 @@ tests = beforeAll testContext do
                 body <- responseBody response
                 let bodyText = cs (LByteString.unpack body)
                 lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
-                bodyText `shouldNotContain` "id=\"profile-leave-requests-content\""
+                bodyText `shouldNotContain` "id=\"profile-leave\""
                 bodyText `shouldNotContain` "id=\"profile-leave-request-form-fragment\""
                 bodyText `shouldNotContain` "id=\"profile-leave-requests-list-fragment\""
                 bodyText `shouldContain` "Unavailable period submitted"

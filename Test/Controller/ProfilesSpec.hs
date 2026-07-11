@@ -8,6 +8,7 @@ import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..),
                                                  shiftPreferenceEndHourParamName,
                                                  shiftPreferenceStartHourParamName)
 import Application.Helper.SurfaceResource
+import Application.Helper.Url (appendQueryParams)
 import Config
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -46,8 +47,8 @@ tests = beforeAll testContext do
                 ]
             response `responseStatusShouldBe` status302
 
-        it "redirects unauthenticated users away from profile leave fragments" $ withContext do
-            response <- callAction ShowProfileleaveRequestsContentLiveFragmentAction
+        it "redirects unauthenticated users away from profile leave section fragments" $ withContext do
+            response <- callActionWithParams ShowprofileContentLiveFragmentAction [("section", "leave")]
             response `responseStatusShouldBe` status302
 
         it "redirects unauthenticated users away from profile content fragments" $ withContext do
@@ -122,9 +123,9 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "ShowprofileContentLiveFragment"
                 response `responseBodyShouldContain` "profile-details-form"
                 response `responseBodyShouldContain` "profile:"
-                response `responseBodyShouldContain` "id=\"profile-leave-requests-content\""
+                response `responseBodyShouldContain` "id=\"profile-leave\""
                 response `responseBodyShouldNotContain` "data-live-update-surface=\""
-                response `responseBodyShouldContain` "profile-leave-requests-content"
+                response `responseBodyShouldContain` "profile-leave-section"
                 response `responseBodyShouldContain` "id=\"profile-leave-request-form-fragment\""
                 response `responseBodyShouldContain` "id=\"profile-leave-requests-list-fragment\""
                 response `responseBodyShouldContain` "responseContext\" value=\"profile\""
@@ -154,12 +155,17 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "Tick available days and choose the preferred shift start window"
                 response `responseBodyShouldNotContain` "Login email is read-only here for now."
 
-                fragmentResponse <- withUserAndCurrentVenue user venue.id do
-                    callAction ShowProfileleaveRequestsContentLiveFragmentAction
-                fragmentResponse `responseStatusShouldBe` status200
-                fragmentResponse `responseBodyShouldContain` "id=\"profile-leave-requests-content\""
-                fragmentResponse `responseBodyShouldNotContain` "data-live-update-surface=\""
-                fragmentResponse `responseBodyShouldNotContain` "id=\"app\""
+                let profileLeaveSectionPath =
+                        appendQueryParams (pathTo ShowprofileContentLiveFragmentAction) [("section", "leave")]
+                profileLeaveSectionPath `shouldBe` "/ShowprofileContentLiveFragment?section=leave"
+                leaveSectionResponse <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams ShowprofileContentLiveFragmentAction [("section", "leave")]
+                leaveSectionResponse `responseStatusShouldBe` status200
+                leaveSectionResponse `responseBodyShouldContain` "id=\"profile-leave\""
+                leaveSectionResponse `responseBodyShouldContain` "id=\"profile-leave-request-form-fragment\""
+                leaveSectionResponse `responseBodyShouldContain` "id=\"profile-leave-requests-list-fragment\""
+                leaveSectionResponse `responseBodyShouldNotContain` "data-live-update-surface=\""
+                leaveSectionResponse `responseBodyShouldNotContain` "id=\"app\""
 
                 profileFragmentResponse <- withUserAndCurrentVenue user venue.id do
                     callAction ShowprofileContentLiveFragmentAction
@@ -240,7 +246,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "<span>profile</span>"
                 response `responseBodyShouldContain` "href=\"/Timesheets\""
                 response `responseBodyShouldContain` "<span>timesheets</span>"
-                response `responseBodyShouldContain` "id=\"profile-leave-requests-content\""
+                response `responseBodyShouldContain` "id=\"profile-leave\""
                 response `responseBodyShouldNotContain` "href=\"/LeaveRequests\""
 
         it "shows the dedicated unavailability header link for managers" $ withContext do

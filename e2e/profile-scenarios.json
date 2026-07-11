@@ -18,7 +18,7 @@
       { "kind": "visit", "name": "leave.manager.full", "routeKey": "leaveRequests", "fallbackPath": "/LeaveRequests", "readySelector": "#leave-requests-shell" },
       { "kind": "visit", "name": "leave.manager.content_fragment", "routeKey": "leaveRequestsFragment", "fallbackPath": "/ShowLeaveRequestsContentFragment", "readySelector": "#leave-requests-content" },
       { "kind": "visit", "name": "leave.profile.full", "routeKey": "profileLeave", "fallbackPath": "/EditProfile?section=leave", "readySelector": "#profile-content-fragment" },
-      { "kind": "visit", "name": "leave.profile.content_fragment", "routeKey": "profileLeaveRequestsFragment", "fallbackPath": "/ShowProfileLeaveRequestsContentFragment", "readySelector": "#profile-leave-requests-content" }
+      { "kind": "visit", "name": "leave.profile.content_fragment", "routeKey": "profileLeaveSectionFragment", "fallbackPath": "/ShowprofileContentLiveFragment?section=leave", "readySelector": "#profile-leave" }
     ],
     "xero": [
       { "kind": "visit", "name": "xero.full", "routeKey": "xero", "fallbackPath": "/Xero", "readySelector": "#admin-xero-fragment" },
@@ -37,7 +37,7 @@
       { "kind": "visit", "name": "profile.full", "routeKey": "editProfile", "fallbackPath": "/EditProfile", "readySelector": "#profile-content-fragment" },
       { "kind": "visit", "name": "profile.security", "routeKey": "profileSecurity", "fallbackPath": "/EditProfile?section=security", "readySelector": "#profile-content-fragment" },
       { "kind": "visit", "name": "profile.rsa", "routeKey": "profileRsa", "fallbackPath": "/EditProfile?section=rsa", "readySelector": "#profile-content-fragment" },
-      { "kind": "visit", "name": "profile.leave.content_fragment", "routeKey": "profileLeaveRequestsFragment", "fallbackPath": "/ShowProfileLeaveRequestsContentFragment", "readySelector": "#profile-leave-requests-content" }
+      { "kind": "visit", "name": "profile.leave.content_fragment", "routeKey": "profileLeaveSectionFragment", "fallbackPath": "/ShowprofileContentLiveFragment?section=leave", "readySelector": "#profile-leave" }
     ],
     "writes": [
       { "kind": "exportGeneration", "name": "exports.generate.approved_timesheets" }
@@ -84,7 +84,7 @@
       { "name": "leave.manager.full", "routeKey": "leaveRequests", "fallbackPath": "/LeaveRequests" },
       { "name": "leave.manager.content_fragment", "routeKey": "leaveRequestsFragment", "fallbackPath": "/ShowLeaveRequestsContentFragment" },
       { "name": "leave.profile.full", "routeKey": "profileLeave", "fallbackPath": "/EditProfile?section=leave" },
-      { "name": "leave.profile.content_fragment", "routeKey": "profileLeaveRequestsFragment", "fallbackPath": "/ShowProfileLeaveRequestsContentFragment" }
+      { "name": "leave.profile.content_fragment", "routeKey": "profileLeaveSectionFragment", "fallbackPath": "/ShowprofileContentLiveFragment?section=leave" }
     ],
     "admin": [
       { "name": "admin.full", "routeKey": "admin", "fallbackPath": "/Admin" },
@@ -97,7 +97,7 @@
       { "name": "profile.full", "routeKey": "editProfile", "fallbackPath": "/EditProfile" },
       { "name": "profile.security", "routeKey": "profileSecurity", "fallbackPath": "/EditProfile?section=security" },
       { "name": "profile.rsa", "routeKey": "profileRsa", "fallbackPath": "/EditProfile?section=rsa" },
-      { "name": "profile.leave.content_fragment", "routeKey": "profileLeaveRequestsFragment", "fallbackPath": "/ShowProfileLeaveRequestsContentFragment" }
+      { "name": "profile.leave.content_fragment", "routeKey": "profileLeaveSectionFragment", "fallbackPath": "/ShowprofileContentLiveFragment?section=leave" }
     ],
     "mixed-app": [
       { "include": "roster-wide" },

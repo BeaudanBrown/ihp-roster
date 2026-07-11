@@ -1,5 +1,6 @@
 module Application.Script.SeedProfile where
 
+import Application.Helper.Url (appendQueryParams)
 import Application.Support.Seed.Calendar (currentWeekOffsetForDay,
                                           weekStartForOffset)
 import Control.Monad (foldM)
@@ -8,12 +9,15 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (Day, addDays)
 import Data.Time.Clock (getCurrentTime, utctDay)
+import IHP.ControllerPrelude (pathTo)
 import IHP.Prelude
 import System.Directory (createDirectoryIfMissing)
 import qualified System.Environment as Environment
 import System.Exit (exitSuccess)
 import System.FilePath ((</>))
 import qualified Text.Read as TextRead
+import Web.Routes ()
+import Web.Types (ProfilesController (ShowprofileContentLiveFragmentAction))
 
 run :: IO ()
 run = do
@@ -207,7 +211,7 @@ renderProfileSeedManifest plan =
         , "    \"profileSecurity\": \"/EditProfile?section=security\","
         , "    \"profileLeave\": \"/EditProfile?section=leave\","
         , "    \"profileRsa\": \"/EditProfile?section=rsa\","
-        , "    \"profileLeaveRequestsFragment\": \"/ShowProfileleaveRequestsContentLiveFragment\","
+        , "    \"profileLeaveSectionFragment\": " <> jsonString profileLeaveSectionFragmentPath <> ","
         , "    \"admin\": \"/Admin\","
         , "    \"adminExports\": \"/Admin#exports\","
         , "    \"adminInvitesFragment\": " <> jsonString (adminInvitesFragmentPath 1 1) <> ","
@@ -259,6 +263,10 @@ renderProfileSeedManifest plan =
                 <> ", \"name\": "
                 <> jsonString groupName
                 <> " }"
+
+profileLeaveSectionFragmentPath :: Text
+profileLeaveSectionFragmentPath =
+    appendQueryParams (pathTo ShowprofileContentLiveFragmentAction) [("section", "leave")]
 
 rosterWeekPath :: Int -> Int -> Int -> Text
 rosterWeekPath weekOffset venueIndex groupIndex =

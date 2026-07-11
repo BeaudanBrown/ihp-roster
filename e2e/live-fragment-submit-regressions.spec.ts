@@ -54,9 +54,9 @@ test.describe('HTMX submit regressions', () => {
         await expect(page.locator('#profile-leave-requests-list-fragment')).toContainText(note);
         await expect(page.locator('#profile-leave-requests-list-fragment .leave-request-row')).toHaveCount(initialCount + 1);
         await expect(page.locator('#profile-leave-request-form-fragment #profile-content-fragment')).toHaveCount(0);
-        await expect(page.locator('#profile-leave-request-form-fragment #profile-leave-requests-content')).toHaveCount(0);
+        await expect(page.locator('#profile-leave-request-form-fragment #profile-leave')).toHaveCount(0);
         expect(submitResponseText).not.toContain('id="profile-content-fragment"');
-        expect(submitResponseText).not.toContain('id="profile-leave-requests-content"');
+        expect(submitResponseText).not.toContain('id="profile-leave"');
     });
 
     test('unavailable-period modal date fields get flatpickr after HTMX swap', async ({ page }) => {

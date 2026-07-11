@@ -32,7 +32,7 @@ const DEFAULT_ROUTES = {
     leaveRequests: '/LeaveRequests',
     leaveRequestsFragment: '/ShowLeaveRequestsContentFragment',
     profileLeave: '/EditProfile?section=leave',
-    profileLeaveRequestsFragment: '/ShowProfileLeaveRequestsContentFragment',
+    profileLeaveSectionFragment: '/ShowprofileContentLiveFragment?section=leave',
     xero: '/Xero',
     adminXeroFragment: '/ShowAdminXeroFragment',
     admin: '/Admin',

@@ -120,7 +120,6 @@ tests = describe "LiveUpdate runtime types" do
                 , adminXeroTimesheetsLiveFragment
                 , billingStatusLiveFragment
                 , profileContentLiveFragment
-                , profileLeaveRequestsContentLiveFragment
                 , supportAwardRatesSectionLiveFragment
                 , supportPublicHolidaysSectionLiveFragment
                 ]

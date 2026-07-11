@@ -177,7 +177,8 @@ tests = describe "Mutation boundary guard" do
         sources <- mapM Text.readFile
             [ "Web/Billing/FrontendSurface.hs"
             , "Web/LeaveRequests/ReadModel.hs"
-            , "Web/Profiles/LiveUpdates.hs"
+            , "Web/Controller/LeaveRequests.hs"
+            , "Web/Controller/Profiles.hs"
             , "Web/Timesheets/Projection.hs"
             , "Web/Controller/Admin/Support.hs"
             , "Web/Controller/Admin/Xero/Responses.hs"

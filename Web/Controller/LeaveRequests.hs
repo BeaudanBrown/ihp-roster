@@ -28,8 +28,6 @@ import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
                                      staffSectionFragmentForSection,
                                      staffSurfaceScope,
                                      staffSurfaceWireFragments)
-import Web.Profiles.LeaveFragments
-import Web.Profiles.LiveUpdates (profileLeaveRequestsFragment)
 import Web.RosterWeeks.Responses (respondWithRosterFragments)
 import Web.RosterWeeks.StaffSelfServiceLeaveFragments (buildDefaultRosterStaffSelfServiceLeaveRequest)
 import Web.RosterWeeks.Types (RosterProjectionFragment (..))

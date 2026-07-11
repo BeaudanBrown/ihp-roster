@@ -25,7 +25,6 @@ module Application.Helper.LiveUpdate
     , leaveRequestsContentLiveFragment
     , leaveRequestsLiveScope
     , profileContentLiveFragment
-    , profileLeaveRequestsContentLiveFragment
     , profileLiveScope
     , rosterContentLiveFragment
     , rosterDayColumnsLiveFragment

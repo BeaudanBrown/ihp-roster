@@ -119,8 +119,7 @@ compatibility helpers move internal.
 
 | Area | Current entrypoint | Target ticket | Target state |
 | --- | --- | --- | --- |
-| Profile content | `ShowProfileContentFragmentAction` | `ir-auvz` | user/venue-scoped typed profile surface with focused-field protection |
-| Profile leave content | `ShowProfileLeaveRequestsContentFragmentAction` | `ir-auvz` | user-scoped typed profile leave surface |
+| Profile section content | `ShowprofileContentLiveFragmentAction?section=...` | `ir-auvz` | user/venue-scoped typed profile surface with canonical section fragments and focused-field protection |
 | Manager leave requests | `ShowLeaveRequestsContentFragmentAction` | `ir-auvz` | venue/admin-scoped typed leave projection surface |
 | Admin invites | `ShowAdminInvitesFragmentAction` | `ir-5m9m` | venue/admin-scoped typed admin invites surface |
 | Admin roster groups | `ShowAdminRosterGroupsFragmentAction` | `ir-5m9m` | venue/admin-scoped typed roster groups surface |
@@ -147,8 +146,7 @@ tests, and whether browser coverage is required.
 
 | Endpoint or owner | Classification | Typed scope | Auth rule | Target |
 | --- | --- | --- | --- | --- |
-| `ShowProfileContentFragmentAction` / profile shell | typed live surface | `ProfileScope` | current venue user | `profile-content-fragment` |
-| `ShowProfileLeaveRequestsContentFragmentAction` / profile leave shell | typed live surface | `ProfileScope` | current venue user | `profile-leave-requests-content` |
+| `ShowprofileContentLiveFragmentAction?section=...` / profile shell | typed live surface with canonical section fragments | `ProfileScope` | current venue user | `profile-details`, `profile-preferences`, `profile-security`, or `profile-leave` |
 | `ShowLeaveRequestsContentFragmentAction` / manager leave shell | typed projection surface | `LeaveRequestsScope` | current venue manager | `leave-requests-content` |
 | `ShowTimesheetDaySectionFragmentAction` / timesheet and roster quick-timesheet shells | typed projection surface | `TimesheetWeekScope` | current venue member | `timesheet-day-*` |
 | `ShowRosterWeekContentFragmentAction` / roster shell | typed projection surface | `RosterWeekScope` | current venue roster group | `roster-content` |
