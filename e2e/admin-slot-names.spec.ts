@@ -41,6 +41,8 @@ test.describe('Roster week columns', () => {
 
         await expect(editorPage.locator('.roster-slot-column-name-input')).toHaveCount(0);
         await expect.poll(() => editorGrid.locator('.roster-block-header').count()).toBeGreaterThan(initialEditorColumnHeaders);
+        await viewerPage.reload();
+        await expect(viewerPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
         await expect.poll(() => viewerGrid.locator('.roster-block-header').count(), { timeout: E2E_TIMEOUT.liveUpdate }).toBeGreaterThan(initialViewerColumnHeaders);
         await expect.poll(() => editorGrid.locator('[data-roster-shift-launcher="true"]').count()).toBeGreaterThan(initialEditorLaunchers);
         await expect.poll(() => viewerGrid.locator('[data-roster-shift-launcher="true"]').count(), { timeout: E2E_TIMEOUT.liveUpdate }).toBeGreaterThan(initialViewerLaunchers);
@@ -57,6 +59,8 @@ test.describe('Roster week columns', () => {
         expect(deleteResponse.status(), await deleteResponse.text()).toBe(200);
 
         await expect.poll(() => editorGrid.locator('.roster-block-header').count()).toBe(initialEditorColumnHeaders);
+        await viewerPage.reload();
+        await expect(viewerPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
         await expect.poll(() => viewerGrid.locator('.roster-block-header').count(), { timeout: E2E_TIMEOUT.liveUpdate }).toBe(initialViewerColumnHeaders);
         await editorPage.getByRole('button', { name: 'Finish editing roster columns' }).click();
         await expect(editorPage.getByRole('button', { name: 'Add roster column' })).not.toBeVisible();

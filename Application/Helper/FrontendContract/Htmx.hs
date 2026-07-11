@@ -140,7 +140,7 @@ htmxActionOptionAttrPairs metadata =
         <> maybePair "hx-sync" metadata.htmxSync
         <> maybePair "hx-indicator" metadata.htmxIndicator
         <> maybePair "hx-confirm" metadata.htmxConfirm
-        <> maybePair "hx-select" metadata.htmxSelect
+        <> maybePair "hx-select" (fmap ("#" <>) metadata.htmxSelect)
         <> maybePair "hx-target" (fmap ("#" <>) metadata.htmxTarget)
         <> maybePair "hx-swap" metadata.htmxSwap
         <> maybePair "hx-push-url" (fmap htmxPushUrlText metadata.htmxPushUrl)

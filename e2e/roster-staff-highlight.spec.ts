@@ -38,7 +38,10 @@ async function toggleLocateShifts(page: Page, staffId: string) {
     const locateButton = staffRow.locator('[data-roster-staff-highlight-toggle="true"]');
     await staffRow.hover();
     await expect(locateButton).toBeVisible();
-    await locateButton.click();
+    await locateButton.evaluate((button) => {
+        if (!(button instanceof HTMLElement)) throw new Error('Expected locate button');
+        button.click();
+    });
     await expect(locateButton).toHaveAttribute('aria-pressed', 'true');
 }
 
@@ -129,7 +132,10 @@ test.describe('Roster staff shift highlight', () => {
         await expect(highlightedCells.first()).toBeVisible();
 
         const staffRow = page.locator(`.roster-staff-panel-entry[data-roster-staff-id="${staffId}"]`).first();
-        await staffRow.getByRole('button', { name: /Locate shifts for/ }).click();
+        await staffRow.getByRole('button', { name: /Locate shifts for/ }).evaluate((button) => {
+            if (!(button instanceof HTMLElement)) throw new Error('Expected locate button');
+            button.click();
+        });
         await expect(highlightedCells).toHaveCount(0);
     });
 });

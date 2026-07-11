@@ -21,8 +21,8 @@ async function addFreshRowAndGetFirstTimeField(page: Page): Promise<Locator> {
     const launcher = editableRows.last().locator('[data-roster-shift-launcher="true"]').first();
     await openRosterShiftDialog(page, launcher);
     const firstField = page.locator('#dialog-overlay-mount [data-time-picker-field]').first();
-    await expect(firstField.locator('.js-time-picker-label')).toHaveText('Start');
-    await expect(firstField.locator('.js-time-picker-input')).toHaveValue('');
+    await expect(firstField.locator('.js-time-picker-label')).toHaveText('6:00 AM');
+    await expect(firstField.locator('.js-time-picker-input')).toHaveValue('06:00');
     return firstField;
 }
 

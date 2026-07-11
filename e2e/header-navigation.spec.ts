@@ -32,7 +32,7 @@ test.describe('Authenticated header navigation', () => {
         await expect(page.getByRole('button', { name: 'Roster Groups' }).first()).toBeVisible();
         await expect(page.getByRole('button', { name: 'Roster Groups' }).first()).toHaveAttribute('aria-expanded', 'false');
 
-        await page.getByRole('link', { name: 'roster' }).click();
+        await page.getByRole('banner').getByRole('link', { name: 'roster' }).click();
         await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#roster-week-shell')).toBeVisible();
     });
@@ -41,7 +41,7 @@ test.describe('Authenticated header navigation', () => {
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
         await expect(page.locator('#roster-week-shell')).toBeVisible();
 
-        await expect(page.getByRole('link', { name: 'roster' })).toBeVisible();
+        await expect(page.getByRole('banner').getByRole('link', { name: 'roster' })).toBeVisible();
         await expect(page.getByRole('link', { name: 'profile' })).toBeVisible();
         await expect(page.getByRole('link', { name: 'timesheets' })).toBeVisible();
         await expect(page.getByRole('link', { name: 'unavailability' })).toHaveCount(0);

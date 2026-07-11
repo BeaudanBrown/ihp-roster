@@ -1,5 +1,14 @@
 import { expect, Page, test } from '@playwright/test';
-import { UiRegionDom, UiRegionEvents } from '../frontend/ts/generated/contracts';
+import {
+    fragmentDomAttr,
+    lazyRetryDomAttr,
+    lazySurfaceDomAttr,
+    regionAfterSwapEvent,
+    regionBeforeSwapEvent,
+    regionRequestStartEvent,
+    regionSettleEvent,
+    regionTransitionDomAttr,
+} from '../frontend/ts/generated/contracts';
 import { gotoWhenReady } from './test-helpers';
 
 type RegionEventRecord = {
@@ -80,14 +89,27 @@ test.describe('Declarative UI region capabilities', () => {
                 afterSwapClasses,
                 settledClasses,
             };
-        }, { dom: UiRegionDom, events: UiRegionEvents });
+        }, {
+            dom: {
+                fragment: fragmentDomAttr,
+                lazyRetry: lazyRetryDomAttr,
+                lazySurface: lazySurfaceDomAttr,
+                transition: regionTransitionDomAttr,
+            },
+            events: {
+                requestStart: regionRequestStartEvent,
+                beforeSwap: regionBeforeSwapEvent,
+                afterSwap: regionAfterSwapEvent,
+                settle: regionSettleEvent,
+            },
+        });
 
         expect(result.afterPlainCount).toBe(0);
         expect(result.seen.map((event) => event.type)).toEqual([
-            UiRegionEvents.requestStart,
-            UiRegionEvents.beforeSwap,
-            UiRegionEvents.afterSwap,
-            UiRegionEvents.settle,
+            regionRequestStartEvent,
+            regionBeforeSwapEvent,
+            regionAfterSwapEvent,
+            regionSettleEvent,
         ]);
         expect(result.seen.every((event) => event.regionId === 'marked-region')).toBe(true);
         expect(result.seen.map((event) => event.htmxEventName)).toEqual([
@@ -136,7 +158,14 @@ test.describe('Declarative UI region capabilities', () => {
                 noRetryText: noRetryRegion.textContent,
                 noRetryHasButton: noRetryRegion.querySelector('.app-lazy-surface-retry') !== null,
             };
-        }, { dom: UiRegionDom });
+        }, {
+            dom: {
+                fragment: fragmentDomAttr,
+                lazyRetry: lazyRetryDomAttr,
+                lazySurface: lazySurfaceDomAttr,
+                transition: regionTransitionDomAttr,
+            },
+        });
 
         expect(result.retryBusy).toBe('false');
         expect(result.retryText).toContain('This section took too long to load.');

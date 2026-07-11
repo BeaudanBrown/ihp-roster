@@ -55,7 +55,7 @@ test.describe('unavailability archive pagination', () => {
             page.waitForResponse(
                 (response) => {
                     const url = new URL(response.url());
-                    return url.pathname === '/ShowLeaveRequestsContentFragment'
+                    return url.pathname === '/ShowleaveRequestsContentLiveFragment'
                         && url.searchParams.get('archivePage') === '2'
                         && url.searchParams.get('swapOob') === 'true'
                         && response.status() === 200;

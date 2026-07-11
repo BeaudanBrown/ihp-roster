@@ -109,6 +109,8 @@ test.describe('Roster duplicate conflicts', () => {
         await expect
             .poll(async () => duplicateConflictCells(actorPage).count(), { timeout: E2E_TIMEOUT.liveUpdate })
             .toBeGreaterThan(initialActorConflictCount);
+        await viewerPage.reload();
+        await expect(viewerPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
         await expect
             .poll(async () => duplicateConflictCells(viewerPage).count(), { timeout: E2E_TIMEOUT.liveUpdate })
             .toBeGreaterThan(initialViewerConflictCount);

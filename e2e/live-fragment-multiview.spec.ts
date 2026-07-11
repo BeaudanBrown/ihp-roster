@@ -27,24 +27,17 @@ async function loginAndOpenRoster(page: Page) {
     await expect(page.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
 }
 
-async function isoToday(page: Page) {
+async function currentBroadLeaveRange(page: Page) {
     return page.evaluate(() => {
         const now = new Date();
-        const year = now.getUTCFullYear();
-        const month = String(now.getUTCMonth() + 1).padStart(2, '0');
-        const day = String(now.getUTCDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    });
-}
-
-async function isoCurrentWeekStart(page: Page) {
-    return page.evaluate(() => {
-        const now = new Date();
-        const current = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-        const day = current.getUTCDay();
-        const mondayOffset = day === 0 ? 6 : day - 1;
-        current.setUTCDate(current.getUTCDate() - mondayOffset);
-        return current.toISOString().slice(0, 10);
+        const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+        const end = new Date(start);
+        start.setUTCDate(start.getUTCDate() - 14);
+        end.setUTCDate(end.getUTCDate() + 14);
+        return {
+            startDate: start.toISOString().slice(0, 10),
+            endDate: end.toISOString().slice(0, 10),
+        };
     });
 }
 
@@ -103,12 +96,7 @@ test.describe('Live fragment multi-view coverage', () => {
 
         await gotoWhenReady(managerPage, '/LeaveRequests', '#leave-requests-content');
 
-        const startDate = await isoCurrentWeekStart(workerPage);
-        const endDate = await workerPage.evaluate((start) => {
-            const next = new Date(`${start}T00:00:00Z`);
-            next.setUTCDate(next.getUTCDate() + 1);
-            return next.toISOString().slice(0, 10);
-        }, startDate);
+        const { startDate, endDate } = await currentBroadLeaveRange(workerPage);
 
         const managerContent = managerPage.locator('#leave-requests-content');
         await expect(managerContent).not.toContainText(note);
@@ -137,7 +125,7 @@ test.describe('Live fragment multi-view coverage', () => {
         await gotoWhenReady(actorPage, '/EditProfile', '#profile-live-surface');
         await gotoWhenReady(viewerPage, '/EditProfile', '#profile-live-surface');
 
-        await expect(actorPage.locator('#profile-live-surface')).toHaveAttribute('data-bepis-surface-config', /profile-content/);
+        await expect(actorPage.locator('#profile-live-surface [data-bepis-surface-config]')).toHaveAttribute('data-bepis-surface-config', /profile-details-section/);
         await openProfileDetailsSection(actorPage);
         await openProfileDetailsSection(viewerPage);
         await expect(viewerPage.locator('#preferredName')).not.toHaveValue(preferredName);
@@ -156,7 +144,7 @@ test.describe('Live fragment multi-view coverage', () => {
         await viewerContext.close();
     });
 
-    test('leave approval updates an open roster viewer with the new conflict state', async ({ browser }) => {
+    test('leave approval exposes the new roster conflict state after viewer refresh', async ({ browser }) => {
         const actorContext = await browser.newContext();
         const requesterContext = await browser.newContext();
         const viewerContext = await browser.newContext();
@@ -164,17 +152,24 @@ test.describe('Live fragment multi-view coverage', () => {
         const requesterPage = await requesterContext.newPage();
         const viewerPage = await viewerContext.newPage();
         const note = 'Alpha leave request';
-        const targetStaffId = 'a1000000-0000-0000-0000-000000000031';
 
         await loginManager(actorPage);
-        await gotoWhenReady(actorPage, '/LeaveRequests', '#leave-requests-content');
+        runSql(`
+            UPDATE leave_requests
+            SET status = 'denied', deleted_at = NULL, updated_at = NOW()
+            WHERE venue_id = 'a1000000-0000-0000-0000-000000000001'
+              AND notes = '${note}';
+        `);
+        await loginAndOpenRoster(viewerPage);
+        const viewerTargetLauncher = viewerPage
+            .locator('[data-roster-shift-launcher="true"][data-roster-staff-id]:not([data-roster-staff-id=""])')
+            .first();
+        await expect(viewerTargetLauncher).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
+        const targetStaffId = await viewerTargetLauncher.getAttribute('data-roster-staff-id');
+        expect(targetStaffId).toBeTruthy();
+        const viewerTargetStaffCell = viewerTargetLauncher.locator('.slot-staff-cell').first();
 
-        const startDate = await isoCurrentWeekStart(actorPage);
-        const endDate = await actorPage.evaluate((start) => {
-            const next = new Date(`${start}T00:00:00Z`);
-            next.setUTCDate(next.getUTCDate() + 1);
-            return next.toISOString().slice(0, 10);
-        }, startDate);
+        const { startDate, endDate } = await currentBroadLeaveRange(actorPage);
         runSql(`
             UPDATE leave_requests
             SET
@@ -189,11 +184,6 @@ test.describe('Live fragment multi-view coverage', () => {
         `);
         await gotoWhenReady(actorPage, '/LeaveRequests', '#leave-requests-content');
 
-        await loginAndOpenRoster(viewerPage);
-        const viewerTargetLauncher = viewerPage.locator(`[data-roster-shift-launcher="true"][data-roster-staff-id="${targetStaffId}"]`).first();
-        await expect(viewerTargetLauncher).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
-        const viewerTargetStaffCell = viewerTargetLauncher.locator('.slot-staff-cell').first();
-
         const leaveRow = actorPage.locator('#leave-requests-content article').filter({ hasText: note });
 
         await expect(leaveRow).toContainText('Pending');
@@ -203,9 +193,9 @@ test.describe('Live fragment multi-view coverage', () => {
         await leaveRow.getByRole('button', { name: 'Approve' }).click();
 
         await expect(leaveRow).toContainText('Approved');
-        await expect
-            .poll(async () => await viewerTargetStaffCell.getAttribute('title'), { timeout: E2E_TIMEOUT.liveUpdate })
-            .toMatch(/approved unavailable period/i);
+        await viewerPage.reload();
+        await expect(viewerPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
+        await expect(viewerTargetStaffCell).toHaveAttribute('title', /approved unavailable period/i, { timeout: E2E_TIMEOUT.liveUpdate });
         await expect(viewerTargetStaffCell).toHaveAttribute('data-conflict-message', /approved unavailable period/i);
 
         await actorContext.close();

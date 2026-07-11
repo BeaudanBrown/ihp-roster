@@ -1,6 +1,6 @@
 ---
 id: ir-v3wa
-status: open
+status: closed
 deps: [ir-jlm2]
 links: []
 created: 2026-07-10T05:32:28Z

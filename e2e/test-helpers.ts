@@ -539,7 +539,13 @@ export function rosterShiftLaunchersForDaySection(daySection: Locator) {
 
 export async function openRosterShiftDialog(page: Page, launcher: Locator) {
     await expect(launcher).toBeVisible({ timeout: E2E_TIMEOUT.action });
-    await launcher.scrollIntoViewIfNeeded();
+    try {
+        await launcher.scrollIntoViewIfNeeded();
+    } catch (error) {
+        if (!(error instanceof Error) || !error.message.includes('not attached to the DOM')) throw error;
+        await expect(launcher).toBeVisible({ timeout: E2E_TIMEOUT.action });
+        await launcher.scrollIntoViewIfNeeded();
+    }
     const dialogUrl = await launcher.getAttribute('hx-get');
     if (!dialogUrl) {
         throw new Error('Expected roster shift launcher to expose an hx-get dialog URL');

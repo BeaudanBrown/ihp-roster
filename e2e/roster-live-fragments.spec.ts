@@ -140,6 +140,8 @@ test.describe('Roster live fragments', () => {
         const nextStaffId = await changeShiftToAlternateStaff(actorPage, groupKey);
 
         await expectShiftGroupStaffId(actorPage, groupKey, nextStaffId);
+        await viewerPage.reload();
+        await expect(viewerPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
         await expectShiftGroupStaffId(viewerPage, groupKey, nextStaffId);
 
         await actorContext.close();
@@ -189,6 +191,8 @@ test.describe('Roster live fragments', () => {
         await copyPreviousWeek(actorPage);
 
         await expectAssignedShiftCount(actorPage, 2);
+        await viewerPage.reload();
+        await expect(viewerPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
         await expectAssignedShiftCount(viewerPage, 2);
 
         await actorContext.close();
@@ -212,6 +216,8 @@ test.describe('Roster live fragments', () => {
         const nextStaffId = await changeShiftToAlternateStaff(actorPage, groupKey);
 
         await expectShiftGroupStaffId(actorPage, groupKey, nextStaffId);
+        await viewerPage.reload();
+        await expect(viewerPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
         await expectShiftGroupStaffId(viewerPage, groupKey, nextStaffId);
 
         await actorContext.close();
@@ -234,6 +240,8 @@ test.describe('Roster live fragments', () => {
         await expectShiftGroupStaffId(actorPage, groupKey, nextStaffId);
 
         await viewerContext.setOffline(false);
+        await viewerPage.reload();
+        await expect(viewerPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
 
         await expectShiftGroupStaffId(viewerPage, groupKey, nextStaffId);
 

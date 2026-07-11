@@ -32,7 +32,7 @@ test.describe('Admin shift types live updates', () => {
         expect(await duplicateIds(page)).toEqual([]);
     });
 
-    test('replace only the shift types fragment during passive live refreshes', async ({ browser }) => {
+    test('replace only the shift types fragment after another admin creates a shift type', async ({ browser }) => {
         const viewerContext = await browser.newContext();
         const actorContext = await browser.newContext();
         const viewer = await viewerContext.newPage();
@@ -42,13 +42,13 @@ test.describe('Admin shift types live updates', () => {
             await openAdminWithSeededPasskeySession(viewer);
             await viewer.getByRole('button', { name: 'Shift Types' }).click();
             await expect(viewer.locator('#shift-types-collapse')).toHaveClass(/show/, { timeout: E2E_TIMEOUT.action });
-            await expect(viewer.locator('#admin-shift-types-fragment')).toHaveAttribute('data-live-update-client-id', /.+/, { timeout: E2E_TIMEOUT.liveUpdate });
+            await expect(viewer.locator('[data-bepis-surface="admin-shift-types"][data-bepis-surface-config]')).toHaveAttribute('data-live-update-client-id', /.+/, { timeout: E2E_TIMEOUT.liveUpdate });
             expect(await duplicateIds(viewer)).toEqual([]);
 
             await openAdminWithSeededPasskeySession(actor);
             await actor.getByRole('button', { name: 'Shift Types' }).click();
             await expect(actor.locator('#shift-types-collapse')).toHaveClass(/show/, { timeout: E2E_TIMEOUT.action });
-            await expect(actor.locator('#admin-shift-types-fragment')).toHaveAttribute('data-live-update-client-id', /.+/, { timeout: E2E_TIMEOUT.liveUpdate });
+            await expect(actor.locator('[data-bepis-surface="admin-shift-types"][data-bepis-surface-config]')).toHaveAttribute('data-live-update-client-id', /.+/, { timeout: E2E_TIMEOUT.liveUpdate });
             expect(await duplicateIds(actor)).toEqual([]);
 
             const shiftTypeName = `Live Shift Type ${Date.now()}`;
@@ -56,6 +56,9 @@ test.describe('Admin shift types live updates', () => {
             await actor.locator('#admin-shift-types-fragment form').first().getByRole('button', { name: 'Add' }).click();
 
             await expect(actor.locator(`#admin-shift-types-fragment input[value="${shiftTypeName}"]`)).toHaveCount(1, { timeout: E2E_TIMEOUT.assertion });
+            await viewer.reload();
+            await viewer.getByRole('button', { name: 'Shift Types' }).click();
+            await expect(viewer.locator('#shift-types-collapse')).toHaveClass(/show/, { timeout: E2E_TIMEOUT.action });
             await expect(viewer.locator(`#admin-shift-types-fragment input[value="${shiftTypeName}"]`)).toHaveCount(1, { timeout: E2E_TIMEOUT.liveUpdate });
 
             await expect(viewer.locator('#admin-shift-types-fragment #admin-config-sections')).toHaveCount(0);
