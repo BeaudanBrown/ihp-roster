@@ -51,12 +51,20 @@ fi
 [[ "$LEGACY_SCHEMA_REVIEW_EXPECTED_DATABASE" =~ ^[A-Za-z0-9_.-]+$ ]] \
     || fail "LEGACY_SCHEMA_REVIEW_EXPECTED_DATABASE contains unsupported characters"
 
-for command_name in psql pg_dump pg_restore sha256sum jq realpath git; do
+for command_name in psql pg_dump pg_restore sha256sum jq realpath; do
     command -v "$command_name" >/dev/null 2>&1 \
         || fail "required command is missing: $command_name"
 done
 
-repo_root="$(realpath -m "$(git rev-parse --show-toplevel)")"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source_root="$(realpath -m "$script_dir/..")"
+if command -v git >/dev/null 2>&1 && git -C "$source_root" rev-parse --show-toplevel >/dev/null 2>&1; then
+    repo_root="$(realpath -m "$(git -C "$source_root" rev-parse --show-toplevel)")"
+else
+    repo_root="$source_root"
+fi
+cd "$source_root"
+
 output_dir="$(realpath -m "$1")"
 case "$output_dir/" in
     "$repo_root/"*) fail "output directory must be outside the git checkout" ;;
