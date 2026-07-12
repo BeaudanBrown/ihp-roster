@@ -5,6 +5,8 @@
     return typeof value === "string" && ["name", "role", "shifts"].includes(value);
   }
   var pageReadyEvent = "bepis:page-ready";
+  var rosterContentDomToken = "roster-content";
+  var rosterWeekShellDomToken = "roster-week-shell";
 
   // frontend/ts/shared/lifecycle.ts
   function onAppPageReady(handler) {
@@ -73,7 +75,7 @@
   }
 
   // frontend/ts/roster/fullscreen-runtime.ts
-  var shellSelector = "#roster-week-shell";
+  var shellSelector = `#${rosterWeekShellDomToken}`;
   var toggleSelector = '[data-roster-fullscreen-toggle="true"]';
   var labelSelector = '[data-roster-fullscreen-toggle-label="true"]';
   function rosterShellFromToggle(toggle) {
@@ -341,7 +343,7 @@
     }
   }
   async function buildRosterExportBlob(formatConfig) {
-    const rosterTable = document.querySelector("#roster-content .roster-grid");
+    const rosterTable = document.querySelector(`#${rosterContentDomToken} .roster-grid`);
     if (!(rosterTable instanceof HTMLElement)) {
       throw new Error("Could not find the current roster grid.");
     }

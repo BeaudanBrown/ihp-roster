@@ -124,7 +124,7 @@ renderInvitedProfileDetailsForm NewAccountProfileFormConfig { .. } user staff em
             , staffProfileDetailsFormAction = newAccountProfileFormAction
             , staffProfileDetailsFormClass = ""
             , staffProfileDetailsFormRequestMode = Nothing
-            , staffProfileDetailsFormAttributes = [("data-disable-javascript-submission", "true")]
+            , staffProfileDetailsFormAttributes = []
             , staffProfileDetailsFormHiddenInputs = newAccountProfileFormHiddenInputs
             , staffProfileDetailsFormBeforeFields = [hsx|
                 {newAccountProfileFormBeforeAccountFields}

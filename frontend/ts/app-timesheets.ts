@@ -1,4 +1,4 @@
-import { dialogOverlayMountDomId } from "./generated/contracts";
+import { dialogOverlayMountDomId, timesheetWeekShellDomToken } from "./generated/contracts";
 import { type DomRoot } from "./shared/dom";
 import { detailRoot, onAppPageReady } from "./shared/lifecycle";
 
@@ -41,7 +41,7 @@ function enableBreakTimeToggle(): void {
 enableBreakTimeToggle();
 
 const dialogMountId = dialogOverlayMountDomId;
-const entryLinkSelector = ".timesheet-entry-card-link";
+const entryLinkSelector = `#${timesheetWeekShellDomToken} .timesheet-entry-card-link`;
 let pointerOpenedEntryLink: HTMLElement | null = null;
 let mountObserver: MutationObserver | null = null;
 

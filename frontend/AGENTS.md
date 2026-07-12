@@ -10,8 +10,8 @@ Read this before editing `frontend/ts/`.
   backend-owned. Do not hand-edit generated files. `frontend-contracts`, its
   drift check, and its watcher all render the same checked typeclass-reflected
   Haskell registry used by server runtime metadata.
-- Contracts are for browser boundary data only: JSON/data-* payloads, live-update config/messages, FrontendSurface metadata, interaction/static capability DTOs, roster UI config, overlay lanes, and capability/config objects. Do not generate broad database models for frontend use.
-- Generated contracts provide `type X`, `isX`, `parseX`, and `encodeX`. Unknown JSON boundaries should use `parseX`; outbound JSON-shaped DTOs should use `encodeX`; runtime code must not recreate generated validators/parsers/encoders by hand.
+- Contracts are for browser boundary data only: JSON/data-* payloads, live-update config/messages, exact FrontendSurface mounts, minimal fragment/interaction registries, shared DOM vocabulary, roster UI config, and overlay lanes. Do not generate broad database models, server-only Surface action/DTO/topology data, or omnibus registries for frontend use.
+- Each reflected root declares browser reachability. Server-only roots emit nothing; type-only roots emit only a type/constant; inbound roots add guards/parsers; outbound roots add encoders; bidirectional roots add both. Unknown JSON boundaries should use generated `parseX`; outbound JSON-shaped DTOs should use generated `encodeX`; runtime code must not recreate generated validators/parsers/encoders by hand.
 - Use Nix/devenv entrypoints, not developer-facing `npm`/`npx` commands.
 - Supported commands:
   - `bash ./bin/in-env frontend-build` regenerates checked-in `static/app*.js`.
@@ -83,9 +83,18 @@ Read this before editing `frontend/ts/`.
   `protection`, and subscriptions contain only `scope`. Derive resync keys from
   mounted descriptors plus the generated live-fragment set. Do not add browser
   mount state, load policy, duplicate fragment lists, or compatibility aliases.
-- Import the generated websocket path, client-id header, and surface DOM
-  attribute constants. Do not duplicate these backend-owned strings in runtime
-  code.
+- Import the generated websocket path, client-id header, Surface/interaction
+  DOM vocabulary, and semantic Surface DOM tokens. Do not duplicate these
+  backend-owned strings in runtime code. Live code imports only
+  `FrontendSurfaceFragmentRegistry`; interaction code imports only
+  `FrontendSurfaceInteractionRegistry`.
+- Keep `app-live-updates.ts` orchestration-only. `live-updates/mount.ts` owns
+  mount parsing/reconciliation, `subscription.ts` owns merge and request scope,
+  `connection.ts` owns websocket lifecycle/reconnect, `invalidation.ts` owns
+  actor/passive routing and versions, `refresh.ts` owns authorized fragment
+  fetch/swap, `request-decoration.ts` owns the HTMX client header, and `focus.ts`
+  is the sole focused-field protection owner. Do not collapse these concerns
+  back into the entrypoint or restore a DOM client-id readiness attribute.
 - Focused-field protection belongs to the live-update runtime. Consume the exact
   generated policy fields without `data-live-field-key` or selector fallbacks;
   do not add Morphdom/auto-refresh compatibility or feature-specific focus/blur

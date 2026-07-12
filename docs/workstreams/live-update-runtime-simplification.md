@@ -1,7 +1,8 @@
 # Live Update Runtime Simplification
 
 Status: implemented; compact-protocol decision superseded by GitHub #145;
-focused-field cleanup completed by GitHub #56
+focused-field cleanup completed by GitHub #56; browser runtime ownership split
+completed by GitHub #150
 
 Parent ticket:
 

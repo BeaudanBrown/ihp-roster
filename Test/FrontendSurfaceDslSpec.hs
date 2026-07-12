@@ -298,7 +298,8 @@ tests = describe "FrontendSurface DSL foundation" do
                 , contractSurfaces = reflected.contractSurfaces
                 }
         let rendered = either error id (renderFrontendContractTypeScript fixtureContract)
-        rendered `shouldContainText` "{ parentSurface: \"parent\", parentFragment: \"parent-content\", childSurface: \"child\" }"
+        rendered `shouldNotContainText` "parentSurface"
+        rendered `shouldNotContainText` "containedSurfaces"
 
     it "validates missing and cyclic contained Surface references after reflection" do
         let missingChild = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[MissingContainedSurface]))
@@ -317,6 +318,7 @@ tests = describe "FrontendSurface DSL foundation" do
         surface.surfaceSessions `shouldBe` ["drag"]
         surface.surfaceLayers `shouldBe` ["drag-preview"]
         surface.surfaceDomTokens `shouldBe` ["lab-root", "lab-dropzone", "lab-panel-target", "lab-panel-include"]
+        surface.surfaceBrowserDomTokens `shouldBe` []
         map (fst . schemaNameAndMarker) surface.surfaceDtos `shouldBe` ["LabPayload", "LabRelatedPayload"]
         surface.surfaceFragments
             |> find (\fragment -> fragment.fragmentName == "lab-panel")
@@ -341,6 +343,7 @@ tests = describe "FrontendSurface DSL foundation" do
         map (.scopeName) surface.surfaceScopes `shouldBe` ["timesheet-week"]
         map (.mountStateName) surface.surfaceMountStates `shouldBe` ["timesheets-mount-state"]
         map (.fragmentName) surface.surfaceFragments `shouldBe` ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"]
+        surface.surfaceBrowserDomTokens `shouldBe` ["timesheet-week-shell"]
         surface.surfaceFragments
             |> find (\fragment -> fragment.fragmentName == "timesheet-day-section")
             |> fmap (.fragmentParams)
@@ -361,32 +364,32 @@ tests = describe "FrontendSurface DSL foundation" do
         navigateAction.htmxActionOptions
             `shouldSatisfy` all (\case HtmxOption HtmxActionCustomHtmxIR {} -> False; _ -> True)
 
-    it "renders generated TypeScript contracts for every lab primitive family" do
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type SurfaceLabFragmentKey ="
+    it "renders only browser-reachable contracts for the Surface Lab fixture" do
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type SurfaceLabSurfaceFragmentKey ="
         frontendSurfaceContractsTypeScript `shouldContainText` "export type SurfaceLabMountConfig = { surface: \"surface-lab\"; scopeKey: string; mountKey: string; fragments: ReadonlyArray<SurfaceLabMountedFragmentConfig>; subscription: null };"
         frontendSurfaceContractsTypeScript `shouldContainText` "{ kind: \"lab-panel\"; params: SurfaceLabLabPanelFragmentParams }"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type RefreshPanelActionFields = SurfaceLabRefreshPanelActionFields;"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type FrontendSurfaceActionManifest ="
-        frontendSurfaceContractsTypeScript `shouldContainText` "\"htmxActions\":[{\"name\":\"refresh-panel\",\"fields\":[\"panelId\"],\"htmx\":{\"method\":\"post\""
-        frontendSurfaceContractsTypeScript `shouldContainText` "\"custom\":[{\"name\":\"lab-panel-custom-htmx\",\"reason\":\"lab fixture covers auditable custom HTMX metadata\"}]"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type MoveLabCardIntentFields = SurfaceLabMoveLabCardIntentFields;"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type LabPayload = { label: string; count?: number; note: string | null; tags: ReadonlyArray<string>; dueDay: FrontendContractDay; maybeRank: number | undefined; maybeMemo: string | null; relatedPayload: LabRelatedPayload };"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type LabRelatedPayload = { label: string };"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export const surfaceLabSurfaceManifest"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export function parseFrontendSurfaceName"
+        frontendSurfaceContractsTypeScript `shouldContainText` "\"surface-lab\":[]"
+        frontendSurfaceContractsTypeScript `shouldNotContainText` "RefreshPanelActionFields"
+        frontendSurfaceContractsTypeScript `shouldNotContainText` "FrontendSurfaceActionManifest"
+        frontendSurfaceContractsTypeScript `shouldNotContainText` "MoveLabCardIntentFields"
+        frontendSurfaceContractsTypeScript `shouldNotContainText` "export type LabPayload"
+        frontendSurfaceContractsTypeScript `shouldNotContainText` "surfaceLabSurfaceManifest"
+        frontendSurfaceContractsTypeScript `shouldNotContainText` "parseFrontendSurfaceName"
 
     it "renders generated TypeScript contracts for the timesheets surface" do
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type TimesheetsFragmentKey ="
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type TimesheetsSurfaceFragmentKey ="
         frontendSurfaceContractsTypeScript `shouldContainText` "{ kind: \"timesheet-day-section\"; params: TimesheetsTimesheetDaySectionFragmentParams }"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type TimesheetsMountConfig ="
         frontendSurfaceContractsTypeScript `shouldNotContainText` "TimesheetsTimesheetsMountStateMountState"
         frontendSurfaceContractsTypeScript `shouldNotContainText` "export type TimesheetsMountState ="
-        frontendSurfaceContractsTypeScript `shouldContainText` "export const timesheetsSurfaceManifest"
+        frontendSurfaceContractsTypeScript `shouldContainText` "\"timesheets\":[\"timesheet-toolbar\",\"timesheet-day-columns\",\"timesheet-day-section\"]"
+        frontendSurfaceContractsTypeScript `shouldNotContainText` "timesheetsSurfaceManifest"
 
     it "reflects the registered roster surface into checked contract IR" do
         let surface = expectSurface "roster" registeredFrontendSurfaceContractIR
 
         map (.scopeName) surface.surfaceScopes `shouldBe` ["roster-week"]
+        surface.surfaceBrowserDomTokens `shouldBe` ["roster-content", "roster-week-shell"]
         map (.fragmentName) surface.surfaceFragments
             `shouldBe` [ "roster-content"
                        , "roster-grid-toolbar"
@@ -437,23 +440,19 @@ tests = describe "FrontendSurface DSL foundation" do
         map (concatMap (map fst . (.modifierVariantEffects)) . (.sourceRefVariants)) surface.surfaceSourceRefs `shouldBe` [["clone-shadow-copy", "dropzone-highlight"], []]
         surface.surfacePolicies `shouldBe` []
 
-    it "renders generated TypeScript contracts for the roster surface" do
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterFragmentKey ="
+    it "renders minimal live, interaction, and DOM-token contracts for the roster surface" do
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterSurfaceFragmentKey ="
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterRosterWeekScope = { venueId: FrontendContractUuid; rosterGroupId: FrontendContractUuid; weekOffset: number };"
         frontendSurfaceContractsTypeScript `shouldContainText` "{ kind: \"roster-row\"; params: RosterRosterRowFragmentParams }"
-        frontendSurfaceContractsTypeScript `shouldContainText` "\"htmxActions\":[{\"name\":\"navigate-roster-week\""
-        frontendSurfaceContractsTypeScript `shouldContainText` "{\"name\":\"set-roster-layout-mode\",\"fields\":[\"rosterLayoutMode\"]"
-        frontendSurfaceContractsTypeScript `shouldContainText` "\"intents\":[\"set-roster-layout-mode\",\"move-roster-shift-to-slot\",\"duplicate-roster-shift-to-day\",\"drop-roster-staff\"]"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type MoveRosterShiftToSlotIntentFields = RosterMoveRosterShiftToSlotIntentFields;"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type DuplicateRosterShiftToDayIntentFields = RosterDuplicateRosterShiftToDayIntentFields;"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterSessionName = \"drag\";"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterSourceRef = \"shift-drag-source\" | \"staff-drag-source\";"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterDropzoneRef = \"shift-slot-dropzone\" | \"staff-create-dropzone\" | \"day-column-dropzone\" | \"existing-shift-dropzone\" | \"delete-shift-dropzone\";"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type RosterActivationRef = \"roster-layout-mode-activation\";"
-        frontendSurfaceContractsTypeScript `shouldContainText` "\"interaction\":{\"sourceRefs\":[{\"ref\":\"shift-drag-source\",\"session\":\"drag\",\"intent\":\"move-roster-shift-to-slot\",\"sourceField\":\"sourceItemKey\",\"compatibleDropzones\":[\"shift-slot-dropzone\",\"day-column-dropzone\",\"delete-shift-dropzone\"],\"modifierVariants\":[{\"semantic\":\"copy\",\"intent\":\"duplicate-roster-shift-to-day\""
+        frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterContentDomToken = \"roster-content\" as const;"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterWeekShellDomToken = \"roster-week-shell\" as const;"
+        frontendSurfaceContractsTypeScript `shouldContainText` "\"roster\":{\"sourceRefs\":[{\"ref\":\"shift-drag-source\",\"session\":\"drag\",\"intent\":\"move-roster-shift-to-slot\",\"sourceField\":\"sourceItemKey\",\"compatibleDropzones\":[\"shift-slot-dropzone\",\"day-column-dropzone\",\"delete-shift-dropzone\"],\"modifierVariants\":[{\"semantic\":\"copy\",\"intent\":\"duplicate-roster-shift-to-day\""
         frontendSurfaceContractsTypeScript `shouldContainText` "\"dropzoneRefs\":[{\"ref\":\"shift-slot-dropzone\",\"session\":\"drag\",\"targetField\":\"targetDropzoneKey\"},{\"ref\":\"staff-create-dropzone\",\"session\":\"drag\",\"targetField\":\"targetDropzoneKey\"}"
         frontendSurfaceContractsTypeScript `shouldContainText` "\"activationRefs\":[{\"ref\":\"roster-layout-mode-activation\",\"intent\":\"set-roster-layout-mode\",\"valueField\":\"rosterLayoutMode\",\"trigger\":\"click\"}]"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export const rosterSurfaceManifest"
+        frontendSurfaceContractsTypeScript `shouldContainText` "\"sessionKinds\":[{\"kind\":\"drag\",\"effects\":{\"global\":[{\"className\":\"bepis-pointer-clone-shadow\""
+        frontendSurfaceContractsTypeScript `shouldNotContainText` "MoveRosterShiftToSlotIntentFields"
+        frontendSurfaceContractsTypeScript `shouldNotContainText` "RosterSessionName"
+        frontendSurfaceContractsTypeScript `shouldNotContainText` "rosterSurfaceManifest"
 
     it "reports stable diagnostics for malformed reflected specs" do
         let duplicateFields = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[DuplicateFieldSurface]))
@@ -542,7 +541,7 @@ tests = describe "FrontendSurface DSL foundation" do
         formHtml `shouldContainText` "hx-push-url=\"false\""
         formHtml `shouldContainText` "hx-vals=\"{}\""
         formHtml `shouldContainText` "data-bepis-surface-action=\"refresh-panel\""
-        formHtml `shouldContainText` "data-bepis-surface-action-config="
+        formHtml `shouldNotContainText` "data-bepis-surface-action-config="
         linkHtml `shouldContainText` "href=\"/RefreshFrontendSurfaceLabPanel\""
         linkHtml `shouldContainText` "hx-post=\"/RefreshFrontendSurfaceLabPanel\""
         buttonHtml `shouldContainText` "formaction=\"/RefreshFrontendSurfaceLabPanel\""

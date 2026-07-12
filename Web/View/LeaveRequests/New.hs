@@ -51,7 +51,7 @@ renderLeaveRequestForm formMode leaveRequest =
                     , appShellActionRouteExtraAttrs =
                         [ ("id", leaveRequestFormId)
                         , ("class", "mt-3")
-                        , ("data-disable-javascript-submission", "true")
+
                         ]
                     }
                 (renderLeaveRequestFormFields leaveRequest)

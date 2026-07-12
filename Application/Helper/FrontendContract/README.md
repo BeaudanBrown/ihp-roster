@@ -18,6 +18,16 @@ through marker-indexed accessors and exact `SurfaceFields` in
 HTMX selectors, triggers, swaps, and sync recipes are typed and render their own
 deterministic punctuation; raw syntax requires a non-empty recorded reason.
 
+Every browser root declares explicit reachability: unreachable/server-only,
+type-only, guard-only, inbound (type/guard/parser), outbound (type/encoder), or
+bidirectional. The TypeScript renderer emits only the operations justified by
+that direction. `ServerSchema`, `ServerEvent`, `ServerDomId`, and
+`ServerDomAttr` keep Haskell runtime vocabulary in the reflected IR without
+creating browser exports. A Haskell-only schema or Surface declaration remains
+available to validation, rendering, and architecture facts without
+automatically becoming browser output. Wire primitive aliases are likewise
+emitted only when a reachable browser shape uses them.
+
 Roots are split by meaning:
 
 - **Global**: app-wide browser/runtime vocabulary such as DOM ids, event names,
@@ -26,7 +36,7 @@ Roots are split by meaning:
 - **Surface**: mounted feature UI semantics: scopes, fragments, actions,
   intents, server-side mount state, resources, and interaction metadata.
 
-`AppShellAction` is the generated lane for app-owned shell request initiators
+`AppShellAction` is the server-rendered lane for app-owned shell request initiators
 that are not owned by a mounted `FrontendSurface`, including dialog/overlay
 workflows targeting the shared dialog overlay mount (initially
 `#dialog-overlay-mount`). The DSL owns browser-visible HTMX metadata and
@@ -37,11 +47,12 @@ through actor-local/passive invalidation rather than returning authoritative
 business fragments OOB.
 
 `InteractionContract` is intentionally generic runtime vocabulary: activation
-triggers, field presence, conflict/effect shapes, DOM attrs, and generic
-capability/static-schema records. Feature-specific interaction vocabulary such
-as roster intent names, roster field names, sessions, disposable layers, and
-surface-family keys is derived from registered `FrontendSurface` declarations
-and rendered as `FrontendSurfaceInteraction*` TypeScript unions. Do not add
+triggers, field presence, conflict/effect shapes, DOM attrs, values, and pointer
+field names. Browser code consumes those names through the generated
+`InteractionDom` object. Feature-specific interaction runtime data is derived
+from registered `FrontendSurface` declarations into the minimal
+`FrontendSurfaceInteractionRegistry`; action metadata, DTO aliases, full static
+schemas, and other server-only Surface data are not emitted. Do not add
 compatibility shim aliases that resurrect global `Interaction*` roster enums.
 
 Haskell wire code must not re-declare browser shapes. Typed carrier modules may
@@ -64,10 +75,15 @@ import generated types/data.
 runtime/mount metadata for server-rendered UI, not a parallel contract
 authority. Reflection generates one exact per-surface mount type/guard and their
 `FrontendSurfaceMountConfig` union; handwritten aggregate mount parsers and
-compatibility aliases are forbidden. Subscriptions, websocket invalidations,
-and actor details use the generated `SurfaceScope` and semantic
-`SurfaceFragmentKey` contract types only. Server-only `MountState` declarations
-are deliberately absent from browser output.
+compatibility aliases are forbidden. The live bundle consumes only
+`FrontendSurfaceFragmentRegistry`; the interaction bundle consumes only
+`FrontendSurfaceInteractionRegistry`. Do not restore an omnibus registry or
+emit action manifests/contained-surface topology merely because Haskell owns
+those facts. Subscriptions, websocket invalidations, and actor details use the
+generated `SurfaceScope` and semantic `SurfaceFragmentKey` contract types only.
+Shared server/browser DOM ids and semantic tokens come from reflected global or
+Surface declarations, rather than copied string literals. Server-only
+`MountState` declarations are deliberately absent from browser output.
 
 The old `Application.Helper.Frontend` codec/DTO/schema-group tree has been
 removed. Guardrails fail if production Haskell modules or imports under that

@@ -20,9 +20,11 @@ module Application.Helper.FrontendContract.AppShell.Runtime
     , renderAppShellActionSubmitButton
     ) where
 
+import qualified Application.Helper.FrontendContract.AppShell as AppShell
 import qualified Application.Helper.FrontendContract.Htmx as Htmx
 import Application.Helper.FrontendContract.IR
 import Application.Helper.FrontendContract.Naming (FrontendSurfaceNameContext (ActionName),
+                                                   deriveDomAttributeTypeName,
                                                    deriveFrontendSurfaceTypeName)
 import Application.Helper.FrontendContract.Registry (registeredFrontendContractIR)
 import Data.Typeable (Typeable)
@@ -54,7 +56,7 @@ data AppShellActionRoute = AppShellActionRoute
     deriving (Eq, Show)
 
 appShellDialogAutoSubmitOnceAttr :: (Text, Text)
-appShellDialogAutoSubmitOnceAttr = ("data-bepis-dialog-auto-submit-once", "true")
+appShellDialogAutoSubmitOnceAttr = (deriveDomAttributeTypeName @AppShell.DialogAutoSubmitOnce, "true")
 
 appShellActionByMarker :: forall marker. Typeable marker => AppShellActionIR
 appShellActionByMarker = appShellActionByName (deriveFrontendSurfaceTypeName @marker ActionName)
@@ -107,8 +109,6 @@ renderAppShellActionHtmxControl action route body =
 appShellActionHtmxAttrPairs :: AppShellActionIR -> AppShellActionRoute -> [(Text, Text)]
 appShellActionHtmxAttrPairs action route =
     [ (Htmx.htmxMethodAttr method, route.appShellActionRouteUrl)
-    , ("data-bepis-app-shell-action", action.appShellActionName)
-    , ("data-bepis-app-shell-action-config", appShellActionConfigJson action)
     ]
         <> Htmx.htmxActionOptionAttrPairs metadata
         <> customHtmxAttrPairs action metadata route
@@ -141,14 +141,6 @@ customHtmxAttrPairs action metadata route =
     concatMap renderCustom route.appShellActionRouteCustomHtmx
     where
         renderCustom custom = Htmx.htmxCustomAttrPairs metadata action.appShellActionName custom.appShellCustomHtmxAttrMarker custom.appShellCustomHtmxAttrValues
-
-appShellActionConfigJson :: AppShellActionIR -> Text
-appShellActionConfigJson action =
-    Htmx.htmxActionConfigJson action.appShellActionName (fmap (.fieldName) action.appShellActionFields) metadataWithDefaultMethod
-    where
-        metadataWithDefaultMethod = (Htmx.htmxActionMetadataFromOptions action.appShellActionOptions)
-            { Htmx.htmxMethod = Just (appShellActionMethod action)
-            }
 
 renderHiddenField :: AppShellFieldValue -> Blaze.Html
 renderHiddenField (AppShellFieldValue (fieldName, fieldValue)) =

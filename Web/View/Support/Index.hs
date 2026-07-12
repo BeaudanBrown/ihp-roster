@@ -60,7 +60,7 @@ instance View IndexView where
                     "Invite Venue Owner"
                     (Just "Send a one-time onboarding link so the owner can create their account and configure their venue before it exists.")
                     [hsx|
-                        <form method="POST" action={CreateSupportVenueOnboardingInvitationAction} class="row g-3" data-disable-javascript-submission="true">
+                        <form method="POST" action={CreateSupportVenueOnboardingInvitationAction} class="row g-3">
                             <div class="col-12 col-lg-7">
                                 <label class="form-label" for="support-create-onboarding-email">Owner email</label>
                                 <input
@@ -144,7 +144,7 @@ renderMarkAllFeedbackReadForm :: Int -> Html
 renderMarkAllFeedbackReadForm unreadCount
     | unreadCount <= 0 = mempty
     | otherwise = [hsx|
-        <form method="POST" action={MarkAllFeedbackReadAction} data-disable-javascript-submission="true">
+        <form method="POST" action={MarkAllFeedbackReadAction}>
             <button type="submit" class="btn btn-outline-secondary btn-sm">Mark all read</button>
         </form>
     |]
@@ -214,7 +214,7 @@ feedbackTypeLabel feedbackType =
 
 renderFeedbackStatusForm :: UserFeedbackItem -> Html
 renderFeedbackStatusForm feedbackItem = [hsx|
-    <form method="POST" action={UpdateFeedbackStatusAction feedbackItem.id} data-disable-javascript-submission="true">
+    <form method="POST" action={UpdateFeedbackStatusAction feedbackItem.id}>
         <label class="visually-hidden" for={feedbackControlId "status" feedbackItem.id}>Status</label>
         <select id={feedbackControlId "status" feedbackItem.id} name="status" class="form-select form-select-sm" onchange="this.form.submit()">
             {forEach allowedFeedbackStatuses (renderFeedbackSelectOption feedbackItem.status)}
@@ -224,7 +224,7 @@ renderFeedbackStatusForm feedbackItem = [hsx|
 
 renderFeedbackPriorityForm :: UserFeedbackItem -> Html
 renderFeedbackPriorityForm feedbackItem = [hsx|
-    <form method="POST" action={UpdateFeedbackPriorityAction feedbackItem.id} data-disable-javascript-submission="true">
+    <form method="POST" action={UpdateFeedbackPriorityAction feedbackItem.id}>
         <label class="visually-hidden" for={feedbackControlId "priority" feedbackItem.id}>Priority</label>
         <select id={feedbackControlId "priority" feedbackItem.id} name="priority" class="form-select form-select-sm" onchange="this.form.submit()">
             {forEach allowedFeedbackPriorities (renderFeedbackSelectOption feedbackItem.priority)}
@@ -244,14 +244,14 @@ renderMarkFeedbackReadForm :: UserFeedbackItem -> Html
 renderMarkFeedbackReadForm feedbackItem
     | isJust feedbackItem.readAt = mempty
     | otherwise = [hsx|
-        <form method="POST" action={MarkFeedbackReadAction feedbackItem.id} data-disable-javascript-submission="true">
+        <form method="POST" action={MarkFeedbackReadAction feedbackItem.id}>
             <button type="submit" class="btn btn-outline-secondary btn-sm">Mark read</button>
         </form>
     |]
 
 renderSupportNoteForm :: UserFeedbackItem -> Html
 renderSupportNoteForm feedbackItem = [hsx|
-    <form method="POST" action={UpdateFeedbackSupportNoteAction feedbackItem.id} class="mt-3" data-disable-javascript-submission="true">
+    <form method="POST" action={UpdateFeedbackSupportNoteAction feedbackItem.id} class="mt-3">
         <label class="form-label small" for={feedbackControlId "note" feedbackItem.id}>Support note</label>
         <textarea id={feedbackControlId "note" feedbackItem.id} name="supportNote" rows="2" class="form-control form-control-sm">{fromMaybe "" feedbackItem.supportNote}</textarea>
         <button type="submit" class="btn btn-outline-secondary btn-sm mt-2">Save note</button>
@@ -355,7 +355,7 @@ renderPublicHolidayRefreshForm activeRefreshJob =
     renderFrontendSurfaceActionForm
         (surfaceActionValue @Surface.SupportSurface @Surface.CreatePublicHolidayRefreshJob)
         (supportActionRoute (pathTo CreatePublicHolidayRefreshJobAction))
-            { actionRouteExtraAttrs = [("class", "d-grid"), ("data-disable-javascript-submission", "true")]
+            { actionRouteExtraAttrs = [("class", "d-grid")]
             }
         [hsx|
             <button class={buttonClass} type="submit" disabled={isJust activeRefreshJob}>
@@ -387,7 +387,7 @@ renderAwardRefreshForm activeRefreshJob =
     renderFrontendSurfaceActionForm
         (surfaceActionValue @Surface.SupportSurface @Surface.CreateFwcMapdRefreshJob)
         (supportActionRoute (pathTo CreateFwcMapdRefreshJobAction))
-            { actionRouteExtraAttrs = [("class", "d-grid"), ("data-disable-javascript-submission", "true")]
+            { actionRouteExtraAttrs = [("class", "d-grid")]
             }
         [hsx|
             <button class={buttonClass} type="submit" disabled={isJust activeRefreshJob}>

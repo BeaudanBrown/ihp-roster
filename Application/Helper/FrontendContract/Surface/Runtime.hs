@@ -57,6 +57,7 @@ module Application.Helper.FrontendContract.Surface.Runtime
 
 import Application.Helper.FrontendContract.AppValues (interactionIntentSubmitHtmxTrigger)
 import qualified Application.Helper.FrontendContract.Htmx as Htmx
+import qualified Application.Helper.FrontendContract.Interaction as Interaction
 import Application.Helper.FrontendContract.LiveUpdateValues (surfaceActionDomAttribute,
                                                              surfaceConfigDomAttribute,
                                                              surfaceDomAttribute)
@@ -454,6 +455,9 @@ maybeAttr :: Text -> Maybe Text -> Blaze.Attribute
 maybeAttr _ Nothing         = mempty
 maybeAttr name (Just value) = attr name value
 
+interactionDomAttribute :: forall marker. Typeable marker => Text
+interactionDomAttribute = Naming.deriveDomAttributeTypeName @marker
+
 data FrontendSurfaceInteractionShellConfig = FrontendSurfaceInteractionShellConfig
     { interactionShellHtmxSync    :: !(Maybe Text)
     , interactionShellIntentForms :: ![FrontendSurfaceIntentForm]
@@ -465,10 +469,8 @@ renderFrontendSurfaceInteractionShell impl surface config serverHtml =
     Html5.div
         ! attr "id" mountId
         ! attr surfaceDomAttribute impl.surfaceImplName
-        ! attr "data-bepis-surface-family" impl.surfaceImplName
-        ! attr "data-bepis-scope-key" impl.surfaceImplMountConfig.mountScopeKey
-        ! attr "data-bepis-mount-key" impl.surfaceImplMountConfig.mountKey
-        ! attr "data-bepis-conflict-policies" (frontendSurfaceInteractionConflictPoliciesJson surface)
+        ! attr (interactionDomAttribute @Interaction.SurfaceFamily) impl.surfaceImplName
+        ! attr (interactionDomAttribute @Interaction.ConflictPolicies) (frontendSurfaceInteractionConflictPoliciesJson surface)
         $ do
             renderFrontendSurfaceInteractionServerLayer serverHtml
             mapM_ (renderFrontendSurfaceInteractionDisposableLayer mountId) surface.surfaceLayers
@@ -489,23 +491,20 @@ frontendSurfaceInteractionMountDomId impl =
 renderFrontendSurfaceInteractionServerLayer :: Blaze.Html -> Blaze.Html
 renderFrontendSurfaceInteractionServerLayer =
     Html5.div
-        ! attr "data-bepis-server-layer" "server"
-        ! attr "data-bepis-layer" "server"
 
 renderFrontendSurfaceInteractionDisposableLayer :: Text -> Text -> Blaze.Html
 renderFrontendSurfaceInteractionDisposableLayer mountId layerName =
     Html5.div
         ! attr "id" (mountId <> "--disposable-layer--" <> domIdSegment layerName)
-        ! attr "data-bepis-disposable-layer" layerName
-        ! attr "data-bepis-layer" layerName
+        ! attr (interactionDomAttribute @Interaction.DisposableLayer) layerName
         $ mempty
 
 renderFrontendSurfaceInteractionIntentForm :: SurfaceIR.SurfaceIR -> FrontendSurfaceInteractionShellConfig -> Text -> FrontendSurfaceIntentForm -> Blaze.Html
 renderFrontendSurfaceInteractionIntentForm surface config mountId FrontendSurfaceIntentForm { intentFormName, intentFormSubmit } =
     Html5.form
         ! attr "id" (mountId <> "--intent-form--" <> domIdSegment intentFormName)
-        ! attr "data-bepis-intent-form" intentFormName
-        ! attr "data-bepis-intent" intentFormName
+        ! attr (interactionDomAttribute @Interaction.IntentForm) intentFormName
+        ! attr (interactionDomAttribute @Interaction.Intent) intentFormName
         ! attr "action" intentFormSubmit.htmxRequestUrl
         ! attr (frontendSurfaceHtmxMethodAttr intentFormSubmit.htmxRequestMethod) intentFormSubmit.htmxRequestUrl
         ! attr "hx-trigger" interactionIntentSubmitHtmxTrigger
@@ -521,8 +520,8 @@ renderFrontendSurfaceInteractionIntentInput (field, value) =
         ! attr "type" "hidden"
         ! attr "name" field.fieldName
         ! attr "value" value.fieldValueValue
-        ! attr "data-bepis-intent-field" field.fieldName
-        ! attr "data-bepis-field-presence" (frontendSurfaceIntentFieldPresence field.fieldPresence)
+        ! attr (interactionDomAttribute @Interaction.IntentField) field.fieldName
+        ! attr (interactionDomAttribute @Interaction.FieldPresence) (frontendSurfaceIntentFieldPresence field.fieldPresence)
 
 frontendSurfaceInteractionIntentInputs :: SurfaceIR.SurfaceIR -> Text -> [FrontendSurfaceFieldValue] -> [(SurfaceIR.FieldIR, FrontendSurfaceFieldValue)]
 frontendSurfaceInteractionIntentInputs surface intentName values
@@ -646,7 +645,6 @@ frontendSurfaceActionHtmxAttrPairs :: SurfaceIR.HtmxActionIR -> FrontendSurfaceA
 frontendSurfaceActionHtmxAttrPairs action route =
     [ (Htmx.htmxMethodAttr sharedMethod, route.actionRouteUrl)
     , (surfaceActionDomAttribute, action.htmxActionName)
-    , ("data-bepis-surface-action-config", frontendSurfaceActionConfigJson action)
     ]
         <> Htmx.htmxActionOptionAttrPairs metadata
         <> customHtmxAttrPairs action metadata route
@@ -696,14 +694,6 @@ customHtmxAttrPairs action metadata route =
     where
         renderCustom custom = Htmx.htmxCustomAttrPairs metadata action.htmxActionName custom.customHtmxAttrMarker custom.customHtmxAttrValues
 
-frontendSurfaceActionConfigJson :: SurfaceIR.HtmxActionIR -> Text
-frontendSurfaceActionConfigJson action =
-    Htmx.htmxActionConfigJson action.htmxActionName (fmap (.fieldName) action.htmxActionFields) metadataWithDefaultMethod
-    where
-        metadataWithDefaultMethod = (Htmx.htmxActionMetadataFromSurfaceOptions action.htmxActionOptions)
-            { Htmx.htmxMethod = Just (frontendSurfaceMethodToHtmx (frontendSurfaceActionMethod action))
-            }
-
 frontendSurfaceHtmxMethodAttrSegment :: FrontendSurfaceHtmxMethod -> Text
 frontendSurfaceHtmxMethodAttrSegment = Htmx.htmxMethodAttrSegment . frontendSurfaceMethodToHtmx
 
@@ -727,7 +717,7 @@ renderFrontendSurfaceIntentForm intent body =
         ! attr (frontendSurfaceHtmxMethodAttr intent.intentFormSubmit.htmxRequestMethod) intent.intentFormSubmit.htmxRequestUrl
         ! attr "hx-target" intent.intentFormSubmit.htmxRequestTarget
         ! attr "hx-swap" intent.intentFormSubmit.htmxRequestSwap
-        ! attr "data-bepis-intent-form" intent.intentFormName
+        ! attr (interactionDomAttribute @Interaction.IntentForm) intent.intentFormName
         $ do
             forM_ intent.intentFormSubmit.htmxRequestFields renderHiddenField
             body

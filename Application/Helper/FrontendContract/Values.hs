@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 
@@ -46,7 +47,7 @@ lookupConstantValue =
 
 lookupDomAttrValue :: forall marker. Typeable marker => Either Text Text
 lookupDomAttrValue =
-    case [value | global <- registeredFrontendContractIR.contractGlobals, GlobalDomAttrIR marker value <- global.globalPrimitives, marker == markerName] of
+    case [value | global <- registeredFrontendContractIR.contractGlobals, primitive <- global.globalPrimitives, (marker, value) <- domAttrPrimitive primitive, marker == markerName] of
         value : _ -> Right value
         [] -> Left ("No FrontendContract DomAttr declaration for marker " <> markerName)
     where
@@ -54,7 +55,7 @@ lookupDomAttrValue =
 
 lookupDomIdValue :: forall marker. Typeable marker => Either Text Text
 lookupDomIdValue =
-    case [value | global <- registeredFrontendContractIR.contractGlobals, GlobalDomIdIR marker value <- global.globalPrimitives, marker == markerName] of
+    case [value | global <- registeredFrontendContractIR.contractGlobals, primitive <- global.globalPrimitives, (marker, value) <- domIdPrimitive primitive, marker == markerName] of
         value : _ -> Right value
         [] -> Left ("No FrontendContract DomId declaration for marker " <> markerName)
     where
@@ -62,7 +63,7 @@ lookupDomIdValue =
 
 lookupEventNameValue :: forall marker. Typeable marker => Either Text Text
 lookupEventNameValue =
-    case [value | global <- registeredFrontendContractIR.contractGlobals, GlobalEventIR marker value _ <- global.globalPrimitives, marker == markerName] of
+    case [value | global <- registeredFrontendContractIR.contractGlobals, GlobalEventIR _ marker value _ <- global.globalPrimitives, marker == markerName] of
         value : _ -> Right value
         [] -> Left ("No FrontendContract Event declaration for marker " <> markerName)
     where
@@ -77,13 +78,25 @@ lookupEnumLiteralValue =
         enumMarkerName = typeMarker @enumMarker
         caseMarkerName = typeMarker @caseMarker
         contractSchemas =
-            [ schema | global <- registeredFrontendContractIR.contractGlobals, GlobalSchemaIR schema <- global.globalPrimitives ]
+            [ schema | global <- registeredFrontendContractIR.contractGlobals, GlobalSchemaIR _ schema <- global.globalPrimitives ]
                 <> concatMap (.surfaceDtos) registeredFrontendContractIR.contractSurfaces
         matchingEnumCase = \case
             EnumIR marker _ values | marker == enumMarkerName -> filter (== kebabCaseMarker) values
             LiteralEnumIR marker _ values | marker == enumMarkerName -> [value | (caseMarker, value) <- values, caseMarker == caseMarkerName]
             _ -> []
         kebabCaseMarker = nameToKebab caseMarkerName
+
+domAttrPrimitive :: GlobalPrimitiveIR -> [(Text, Text)]
+domAttrPrimitive = \case
+    GlobalDomAttrIR marker value -> [(marker, value)]
+    GlobalServerDomAttrIR marker value -> [(marker, value)]
+    _ -> []
+
+domIdPrimitive :: GlobalPrimitiveIR -> [(Text, Text)]
+domIdPrimitive = \case
+    GlobalDomIdIR marker value -> [(marker, value)]
+    GlobalServerDomIdIR marker value -> [(marker, value)]
+    _ -> []
 
 typeMarker :: forall marker. Typeable marker => Text
 typeMarker = cs (tyConName (typeRepTyCon (typeRep (Proxy @marker))))

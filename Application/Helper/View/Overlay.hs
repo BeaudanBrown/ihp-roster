@@ -137,7 +137,7 @@ renderDialogOverlayButton button =
             <form method="POST"
                   action={targetUrl}
                   class="app-modal-footer-form"
-                  data-disable-javascript-submission="true"
+
                   onsubmit={confirmSubmitAttribute maybeConfirm}>
                 <input type="hidden" name="_method" value={method} />
                 {forEach fields renderOverlayFormHiddenField}
@@ -154,7 +154,7 @@ renderDialogOverlayButton button =
                     , appShellActionRouteExtraAttrs =
                         route.appShellActionRouteExtraAttrs
                             <> [ ("class", "app-modal-footer-form")
-                               , ("data-disable-javascript-submission", "true")
+
                                ]
                     }
                 [hsx|

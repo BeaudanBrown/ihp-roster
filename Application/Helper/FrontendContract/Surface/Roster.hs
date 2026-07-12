@@ -322,8 +322,8 @@ type RosterActionBundle =
          , 'HtmxSwap 'HtmxOuterHTML
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          ]
-     , DomToken RosterContent
-     , DomToken RosterWeekShell
+     , BrowserDomToken RosterContent
+     , BrowserDomToken RosterWeekShell
      , DomToken RosterDaySection
      , DomToken RosterStaffPanel
      , DomToken RosterStaffSelfServiceLeaveFormFragment

@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE PolyKinds           #-}
+{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE TypeOperators       #-}
 
@@ -52,6 +53,8 @@ module Application.Helper.FrontendContract.Surface.Interaction
     , withFrontendSurfaceSourceRef
     ) where
 
+import qualified Application.Helper.FrontendContract.Interaction as Interaction
+import Application.Helper.FrontendContract.Naming (deriveDomAttributeTypeName)
 import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Surface.DSL
 import Data.Kind (Type)
@@ -63,19 +66,19 @@ import Text.Blaze.Html5 ((!))
 type Html = Blaze.Html
 
 frontendSurfaceSourceRefAttribute :: Text
-frontendSurfaceSourceRefAttribute = "data-bepis-source-ref"
+frontendSurfaceSourceRefAttribute = deriveDomAttributeTypeName @Interaction.SourceRef
 
 frontendSurfaceSourceKeyAttribute :: Text
-frontendSurfaceSourceKeyAttribute = "data-bepis-source-key"
+frontendSurfaceSourceKeyAttribute = deriveDomAttributeTypeName @Interaction.SourceKey
 
 frontendSurfaceDropzoneRefAttribute :: Text
-frontendSurfaceDropzoneRefAttribute = "data-bepis-dropzone-ref"
+frontendSurfaceDropzoneRefAttribute = deriveDomAttributeTypeName @Interaction.DropzoneRef
 
 frontendSurfaceDropzoneKeyAttribute :: Text
-frontendSurfaceDropzoneKeyAttribute = "data-bepis-dropzone-key"
+frontendSurfaceDropzoneKeyAttribute = deriveDomAttributeTypeName @Interaction.DropzoneKey
 
 frontendSurfaceActivationRefAttribute :: Text
-frontendSurfaceActivationRefAttribute = "data-bepis-activation-ref"
+frontendSurfaceActivationRefAttribute = deriveDomAttributeTypeName @Interaction.ActivationRef
 
 renderFrontendSurfaceSourceRef :: InteractionSourceRefIR -> Text -> Html -> Html
 renderFrontendSurfaceSourceRef ref key =

@@ -7,6 +7,7 @@
 module Application.Helper.FrontendContract.DSL
     ( FrontendContract (..)
     , GlobalPrimitive (..)
+    , BrowserReachability (..)
     , AppShellActionOption (..)
     , AppShellRequestMethod (..)
     , AppShellPushUrlValue (..)
@@ -18,6 +19,12 @@ module Application.Helper.FrontendContract.DSL
     , FrontendContractSpec
     , Global
     , GlobalSchema
+    , ServerSchema
+    , BrowserTypeSchema
+    , BrowserGuardSchema
+    , BrowserInboundSchema
+    , BrowserOutboundSchema
+    , BrowserBidirectionalSchema
     , Record
     , Enum
     , TaggedUnion
@@ -29,8 +36,12 @@ module Application.Helper.FrontendContract.DSL
     , OptionalField
     , NullableField
     , Event
+    , ServerEvent
+    , InboundEvent
     , DomId
+    , ServerDomId
     , DomAttr
+    , ServerDomAttr
     , DomValue
     , FieldName
     , DomToken
@@ -113,12 +124,26 @@ data LiteralCaseSpec = Literal Type Symbol
 -- | Tagged unions use the fixed JSON discriminator @tag@ and kebab-case case tags.
 data UnionCaseSpec = Case Type [FieldSpec]
 
+-- | Browser code generation is explicit about which runtime capability reaches
+-- each declared schema or event detail. Unreachable declarations remain
+-- Haskell-only; reachable types, guards, parsers, and encoders are emitted only
+-- when requested.
+data BrowserReachability
+    = BrowserUnreachable
+    | BrowserTypeOnly
+    | BrowserGuard
+    | BrowserInbound
+    | BrowserOutbound
+    | BrowserBidirectional
+
 -- | App-wide/shared browser vocabulary.
 data GlobalPrimitive
-    = GlobalSchema SchemaPrimitive
-    | Event Type [FieldSpec]
+    = GlobalSchema BrowserReachability SchemaPrimitive
+    | Event BrowserReachability Type [FieldSpec]
     | DomId Type
+    | ServerDomId Type
     | DomAttr Type
+    | ServerDomAttr Type
     | DomValue Type Symbol
     | FieldName Type
     | DomToken Type
@@ -133,7 +158,15 @@ data FrontendContract
 
 type FrontendContractSpec = FrontendContract
 type Global name primitives = 'Global name primitives
-type GlobalSchema schema = 'GlobalSchema schema
+-- Compatibility alias for test-only/custom contracts; production contracts
+-- should choose an explicit Browser*Schema alias.
+type GlobalSchema schema = 'GlobalSchema 'BrowserBidirectional schema
+type ServerSchema schema = 'GlobalSchema 'BrowserUnreachable schema
+type BrowserTypeSchema schema = 'GlobalSchema 'BrowserTypeOnly schema
+type BrowserGuardSchema schema = 'GlobalSchema 'BrowserGuard schema
+type BrowserInboundSchema schema = 'GlobalSchema 'BrowserInbound schema
+type BrowserOutboundSchema schema = 'GlobalSchema 'BrowserOutbound schema
+type BrowserBidirectionalSchema schema = 'GlobalSchema 'BrowserBidirectional schema
 type Record name fields = 'Record name fields
 type Enum name cases = 'Enum name cases
 type LiteralEnum name cases = 'LiteralEnum name cases
@@ -144,9 +177,13 @@ type Case name fields = 'Case name fields
 type Field name wire = 'Field name wire
 type OptionalField name wire = 'OptionalField name wire
 type NullableField name wire = 'NullableField name wire
-type Event name detail = 'Event name detail
+type Event name detail = 'Event 'BrowserTypeOnly name detail
+type ServerEvent name detail = 'Event 'BrowserUnreachable name detail
+type InboundEvent name detail = 'Event 'BrowserInbound name detail
 type DomId name = 'DomId name
+type ServerDomId name = 'ServerDomId name
 type DomAttr name = 'DomAttr name
+type ServerDomAttr name = 'ServerDomAttr name
 type DomValue name value = 'DomValue name value
 type FieldName name = 'FieldName name
 type DomToken name = 'DomToken name

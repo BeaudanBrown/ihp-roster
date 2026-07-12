@@ -49,7 +49,7 @@ renderFeedbackForm formMode feedbackItem =
                     , appShellActionRouteStandardUrl = Nothing
                     , appShellActionRouteExtraAttrs =
                         [ ("id", feedbackFormId)
-                        , ("data-disable-javascript-submission", "true")
+
                         ]
                     }
                 (renderFeedbackFormFields feedbackItem)

@@ -49,12 +49,12 @@ type LiveUpdateContract =
          , Constant LiveUpdateClientIdHeader "X-Live-Update-Client-Id"
          , DomAttr SurfaceConfig
          , DomAttr SurfaceAction
-         , GlobalSchema (Record SurfaceSubscription
+         , BrowserTypeSchema (Record SurfaceSubscription
             '[ Field Scope 'WireSurfaceScope
              , Field ScopeKey 'WireText
              , Field Fragments ('WireList 'WireSurfaceFragmentKey)
              ])
-         , GlobalSchema (TaggedUnionWithTag LiveUpdateCommand "type"
+         , BrowserOutboundSchema (TaggedUnionWithTag LiveUpdateCommand "type"
             '[ Case Subscribe
                 '[ Field Subscription ('WireRef SurfaceSubscription)
                  , Field ClientId 'WireText
@@ -64,7 +64,7 @@ type LiveUpdateContract =
                 '[ Field Subscription ('WireRef SurfaceSubscription)
                  ]
              ])
-         , GlobalSchema (TaggedUnionWithTag LiveUpdateMessage "type"
+         , BrowserInboundSchema (TaggedUnionWithTag LiveUpdateMessage "type"
             '[ Case Subscribed
                 '[ Field Scope 'WireSurfaceScope
                  , Field ScopeKey 'WireText

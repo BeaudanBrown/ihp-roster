@@ -1,4 +1,4 @@
-import { FrontendSurfaceInteractionDom, FrontendSurfaceRegistry, InteractionDom, isFrontendSurfaceName, type InteractionActivationTrigger } from "../generated/contracts";
+import { FrontendSurfaceInteractionRegistry, InteractionDom, isFrontendSurfaceInteractionSurfaceName, type InteractionActivationTrigger } from "../generated/contracts";
 import type { InteractionIntentPayload } from "./intent-bus";
 import { defaultInteractionRuntime } from "./runtime";
 
@@ -21,7 +21,7 @@ type ElementLike = Element & {
 type ValueElement = ElementLike & { value: string };
 
 const attrs = InteractionDom.attributes;
-const surfaceActivationSelector = `[${FrontendSurfaceInteractionDom.activationRef}]`;
+const surfaceActivationSelector = `[${attrs.activationRef}]`;
 
 export function enableGenericInteractionActivations(options: InteractionActivationOptions = {}): () => void {
     if (typeof document === "undefined") return () => undefined;
@@ -51,10 +51,10 @@ export function readActivationIntentPayload(event: Event, expectedTrigger?: Inte
     if (!mount) return null;
 
     const surface = mount.getAttribute(attrs.surface);
-    if (!isFrontendSurfaceName(surface)) return null;
+    if (!isFrontendSurfaceInteractionSurfaceName(surface)) return null;
 
-    const ref = marker.getAttribute(FrontendSurfaceInteractionDom.activationRef);
-    const definition = FrontendSurfaceRegistry[surface].interaction.activationRefs.find((candidate) => candidate.ref === ref);
+    const ref = marker.getAttribute(attrs.activationRef);
+    const definition = FrontendSurfaceInteractionRegistry[surface].activationRefs.find((candidate) => candidate.ref === ref);
     if (!definition) return null;
     if (expectedTrigger && definition.trigger !== expectedTrigger) return null;
 

@@ -109,7 +109,7 @@ tests = beforeAll testContext do
                     callAction EditProfileAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
+                response `responseBodyShouldNotContain` "data-disable-javascript-submission"
                 response `responseBodyShouldContain` "hx-post=\"/UpdateProfile\""
                 response `responseBodyShouldContain` "hx-target=\"#profile-details\""
                 response `responseBodyShouldContain` "hx-target=\"#profile-preferences\""

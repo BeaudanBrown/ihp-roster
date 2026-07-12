@@ -99,7 +99,7 @@ renderRosterGroupCreateForm showInactive =
             , actionRouteFields = []
             , actionRouteCustomHtmx = []
             , actionRouteStandardUrl = Just (pathTo CreateRosterGroupAction)
-            , actionRouteExtraAttrs = [("class", appSurfaceClasses "p-3"), ("data-disable-javascript-submission", "true")]
+            , actionRouteExtraAttrs = [("class", appSurfaceClasses "p-3")]
             }
 
 renderRosterGroupRows :: [RosterGroup] -> Bool -> Html
@@ -128,7 +128,7 @@ renderRosterGroupRow showInactive activeCount (rosterGroupIndex, rosterGroup) = 
             , actionRouteFields = []
             , actionRouteCustomHtmx = []
             , actionRouteStandardUrl = Just updateUrl
-            , actionRouteExtraAttrs = [("data-disable-javascript-submission", "true")]
+            , actionRouteExtraAttrs = []
             }
         rowFormBody = [hsx|
             <input type="hidden" name="showInactiveRosterGroups" value={boolParam showInactive} />

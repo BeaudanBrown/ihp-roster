@@ -119,7 +119,7 @@ renderRsaUploadForm staff returnContext = [hsx|
           action={ScanStaffDocumentAction}
           enctype="multipart/form-data"
           class="rsa-upload-form"
-          data-disable-javascript-submission="true">
+         >
         <input type="hidden" name="staffId" value={tshow staff.id}/>
         {renderRsaReturnInputs returnContext}
         <div class="row g-3">
@@ -139,12 +139,12 @@ renderRsaReviewControls :: StaffDocument -> RsaReturnContext -> Html
 renderRsaReviewControls staffDocument returnContext = [hsx|
     <div class="rsa-review-controls mt-3 pt-3 border-top">
         <div class="d-flex flex-wrap gap-2">
-            <form method="POST" action={ReviewStaffDocumentAction staffDocument.id} data-disable-javascript-submission="true">
+            <form method="POST" action={ReviewStaffDocumentAction staffDocument.id}>
                 {renderRsaReturnInputs returnContext}
                 <input type="hidden" name="status" value="verified"/>
                 <button type="submit" class="btn btn-success btn-sm">Verify</button>
             </form>
-            <form method="POST" action={ReviewStaffDocumentAction staffDocument.id} class="d-flex flex-wrap gap-2" data-disable-javascript-submission="true">
+            <form method="POST" action={ReviewStaffDocumentAction staffDocument.id} class="d-flex flex-wrap gap-2">
                 {renderRsaReturnInputs returnContext}
                 <input type="hidden" name="status" value="rejected"/>
                 <input class="form-control form-control-sm rsa-rejection-input" name="rejectionReason" maxlength="500" placeholder="Rejection reason"/>

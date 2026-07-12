@@ -139,6 +139,7 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
 - Keep `support` link visibility founder-only via `currentUserIsSupportAdmin`; do not expose it to ordinary venue admins.
 - Do not duplicate primary nav in page-level views unless there is a specific workflow reason.
 - Logout and other destructive actions should be explicit forms, not `.js-delete` links. Prefer `method="POST"` plus hidden `_method="DELETE"` so the control works without `helpers.js`; add HTMX attributes only when the surrounding page already needs an in-place update.
+- Do not emit `data-disable-javascript-submission`. Bepis does not load IHP `helpers.js`, so the attribute is inert; use native form semantics, HTMX synchronization, or explicit disabled controls instead.
 - For low-frequency full-page forms, prefer plain native browser submission. If a form is only serving as a full-page workflow, do not turn it into HTMX or a custom AJAX path by default.
 
 ## Responsive Design Contract

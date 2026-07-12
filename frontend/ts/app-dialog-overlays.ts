@@ -1,4 +1,4 @@
-import { pageReadyEvent, dialogOverlayMountDomId, FrontendContractAppShellDom } from "./generated/contracts";
+import { pageReadyEvent, dialogAutoSubmitOnceDomAttr, dialogOverlayMountDomId } from "./generated/contracts";
 import { closestHTMLElement, isHTMLElement } from "./shared/dom";
 import { detailTarget } from "./shared/lifecycle";
 
@@ -45,7 +45,7 @@ export function dialogSubmitLoadingHtml(label: string): string {
     }
 
     function submitAutoFormsOnce(container: HTMLElement): void {
-        container.querySelectorAll(`form[${FrontendContractAppShellDom.dialogAutoSubmitOnce}="true"]`).forEach(function (form) {
+        container.querySelectorAll(`form[${dialogAutoSubmitOnceDomAttr}="true"]`).forEach(function (form) {
             if (!(form instanceof HTMLFormElement)) return;
             if (form.dataset.bepisDialogAutoSubmitted === "true") return;
 

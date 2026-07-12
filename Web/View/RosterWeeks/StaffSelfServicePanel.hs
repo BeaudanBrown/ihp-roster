@@ -96,7 +96,7 @@ renderRosterStaffSelfServiceLeaveForm maybeRosterScope leaveRequest =
             , actionRouteStandardUrl = Just rosterCreateLeaveRequestPath
             , actionRouteExtraAttrs =
                 [ ("id", "roster-staff-self-service-leave-form")
-                , ("data-disable-javascript-submission", "true")
+
                 ]
             }
         [hsx|

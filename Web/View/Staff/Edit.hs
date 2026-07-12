@@ -264,7 +264,7 @@ renderStaffLeaveRequestForm staffId leaveRequest =
             , actionRouteStandardUrl = Just (pathTo CreateLeaveRequestAction)
             , actionRouteExtraAttrs =
                 [ ("id", "staff-leave-request-form")
-                , ("data-disable-javascript-submission", "true")
+
                 ]
             }
         [hsx|

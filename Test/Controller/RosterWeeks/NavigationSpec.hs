@@ -278,7 +278,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Sort shifts"
                 response `responseBodyShouldContain` "hx-post=\"/SortRosterWeek?rosterWeekId="
                 response `responseBodyShouldNotContain` "Roster columns"
-                response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
+                response `responseBodyShouldNotContain` "data-disable-javascript-submission"
                 response `responseBodyShouldContain` "roster-live-toggle-"
                 response `responseBodyShouldContain` "app-toggle-button btn-outline-success"
                 response `responseBodyShouldContain` "aria-pressed=\"false\""

@@ -198,10 +198,10 @@ renderBillingStatusPanel BillingViewModel { maybeCustomer, maybeSubscription } =
                     </table>
                 </div>
                 <div class="d-flex flex-wrap gap-2">
-                    <form method="POST" action={CreateBillingCheckoutSessionAction} data-disable-javascript-submission="true">
+                    <form method="POST" action={CreateBillingCheckoutSessionAction}>
                         <button type="submit" class="btn btn-primary">Start Subscription</button>
                     </form>
-                    <form method="POST" action={CreateBillingPortalSessionAction} data-disable-javascript-submission="true">
+                    <form method="POST" action={CreateBillingPortalSessionAction}>
                         <button type="submit" class="btn btn-outline-primary" disabled={isNothing maybeCustomer}>Manage Billing</button>
                     </form>
                 </div>
@@ -224,7 +224,7 @@ renderBillingControlPanel maybeControl =
         "Manual Controls"
         (Just "Founder support can mark a venue read-only manually. Stripe status does not change this flag in v1.")
         [hsx|
-            <form method="POST" action={UpdateVenueBillingControlAction} class="d-flex flex-column gap-3" data-disable-javascript-submission="true">
+            <form method="POST" action={UpdateVenueBillingControlAction} class="d-flex flex-column gap-3">
                 <div>
                     {renderBillingManualReadOnlyToggle (maybe False (.manualReadOnly) maybeControl)}
                 </div>

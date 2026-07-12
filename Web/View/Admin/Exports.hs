@@ -81,7 +81,7 @@ createExportRoute = FrontendSurfaceActionRoute
     , actionRouteFields = []
     , actionRouteCustomHtmx = []
     , actionRouteStandardUrl = Just (pathTo CreateExportJobAction)
-    , actionRouteExtraAttrs = [("id", "admin-export-generation-form"), ("class", appSurfaceClasses "p-3"), ("data-disable-javascript-submission", "true")]
+    , actionRouteExtraAttrs = [("id", "admin-export-generation-form"), ("class", appSurfaceClasses "p-3")]
     }
 
 renderExportSummary :: [ExportJob] -> Html

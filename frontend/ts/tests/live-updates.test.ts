@@ -1,4 +1,8 @@
 import { surfaceFragmentKeyIdentity, surfaceFragmentKeysEqual, type FrontendSurfaceMountedFragmentConfig, type SurfaceScope } from "../generated/contracts";
+import { createLiveUpdateConnection } from "../live-updates/connection";
+import { createLiveUpdateInvalidationRuntime, type LiveUpdateVersionStore } from "../live-updates/invalidation";
+import type { LiveFragmentRefresher } from "../live-updates/refresh";
+import type { SurfaceSubscription } from "../live-updates/runtime-types";
 import {
     buildLiveUpdateSubscribeCommand,
     buildSurfaceSubscription,
@@ -33,6 +37,102 @@ const fragment: FrontendSurfaceMountedFragmentConfig = {
         containerSelector: "[data-timesheet-entry]",
     },
 };
+
+test("modular invalidation owner routes passive and actor keys through mounted descriptors", () => {
+    const requested: FrontendSurfaceMountedFragmentConfig[] = [];
+    let resyncCount = 0;
+    const subscription: SurfaceSubscription = {
+        scope,
+        scopeKey: "timesheets:v:0",
+        path: "/live-updates",
+        resyncFragments: [fragment],
+        decorateRequestsWithin: ["#timesheet-day-1"],
+        ownerEls: [],
+        resync: () => { resyncCount += 1; },
+    };
+    const activeSubscriptions = new Map([[subscription.scopeKey, subscription]]);
+    const refresher: LiveFragmentRefresher = {
+        request: (candidate) => { requested.push(candidate); },
+        flushInteractionDeferredFragmentsWithoutActiveSessions: () => undefined,
+        flushFocusedFragmentsWithoutActiveInputs: () => undefined,
+        stop: () => undefined,
+    };
+    const diagnostics = {
+        beginPerfSpan: () => null,
+        endPerfSpan: () => null,
+        emitDebugEvent: () => undefined,
+    };
+    const runtime = createLiveUpdateInvalidationRuntime({
+        activeSubscriptions,
+        activeClientId: () => "actor-client",
+        refresher,
+        diagnostics,
+    });
+
+    runtime.handleMessage({
+        type: "invalidate",
+        scope,
+        scopeKey: subscription.scopeKey,
+        version: 1,
+        fragments: [fragment.fragmentKey],
+        sourceClientId: "viewer-client",
+    });
+    runtime.handleMessage({
+        type: "invalidate",
+        scope,
+        scopeKey: subscription.scopeKey,
+        version: 2,
+        fragments: [fragment.fragmentKey],
+        sourceClientId: "actor-client",
+    });
+    runtime.handleActorEvent(new CustomEvent("actor-refresh", {
+        detail: { scope, scopeKey: subscription.scopeKey, fragments: [fragment.fragmentKey] },
+    }));
+
+    assertDeepEqual(requested, [fragment, fragment]);
+    assertEqual(resyncCount, 0);
+});
+
+test("connection cleanup resets versions when the mounted subscription set becomes empty", () => {
+    const subscription: SurfaceSubscription = {
+        scope,
+        scopeKey: "timesheets:v:0",
+        path: "/live-updates",
+        resyncFragments: [fragment],
+        decorateRequestsWithin: [],
+        ownerEls: [],
+        resync: () => undefined,
+    };
+    const activeSubscriptions = new Map([[subscription.scopeKey, subscription]]);
+    const cleared: string[] = [];
+    const versions: LiveUpdateVersionStore = {
+        get: () => 4,
+        set: () => undefined,
+        clear: (scopeKey) => { cleared.push(scopeKey); },
+    };
+    const targetWindow = {
+        crypto: { randomUUID: () => "client-id" },
+        setTimeout,
+        clearTimeout,
+    } as unknown as Window & typeof globalThis;
+    const connection = createLiveUpdateConnection({
+        targetWindow,
+        activeSubscriptions,
+        versions,
+        handleMessage: () => undefined,
+        requestSync: () => undefined,
+        diagnostics: {
+            beginPerfSpan: () => null,
+            endPerfSpan: () => null,
+            emitDebugEvent: () => undefined,
+        },
+    });
+
+    connection.sync(new Map());
+
+    assertDeepEqual(cleared, [subscription.scopeKey]);
+    assertEqual(activeSubscriptions.size, 0);
+});
 
 test("live update command builder preserves backend-owned surface subscription contract", () => {
     const subscription = buildSurfaceSubscription(scope, "timesheets:v:0", [fragment.fragmentKey]);

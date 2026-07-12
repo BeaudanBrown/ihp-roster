@@ -217,7 +217,7 @@ tests = beforeAll testContext do
                         callAction NewLeaveRequestAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
+                response `responseBodyShouldNotContain` "data-disable-javascript-submission"
 
         it "rejects missing required leave dates without creating a row" $ withContext do
             withCleanDb do

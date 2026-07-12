@@ -10,11 +10,11 @@ This workstream now tracks the generated `FrontendSurface` interaction architect
 
 - surface, scope, fragment, resource, intent, field, session, layer, effect, and conflict-policy names;
 - generated source, dropzone, and activation refs;
-- generated TypeScript manifests consumed by generic browser runtimes;
+- a minimal generated TypeScript interaction registry consumed by the generic browser runtime;
 - Haskell render helpers that attach role-specific refs plus opaque dynamic keys to server-rendered DOM;
 - server-rendered HTMX intent forms used for mutation transport.
 
-TypeScript remains generic and surface-instance-centric. It resolves refs through the generated manifest, manages disposable sessions/effects, validates payloads/forms, and dispatches generated HTMX triggers. It must not invent canonical `data-bepis-*` names, business rules, mutation URLs, fragment keys, layer names, intent names, field names, or target ids.
+TypeScript remains generic and surface-instance-centric. It resolves refs through the generated interaction registry, consumes shared generated DOM vocabulary, manages disposable sessions/effects, validates DOM-owned forms, and dispatches generated HTMX triggers. The registry retains only production-consumed source/dropzone/activation/session data; action catalogs, DTO aliases, and complete static schemas remain server-side. TypeScript must not invent canonical `data-bepis-*` names, business rules, mutation URLs, fragment keys, layer names, intent names, field names, or target ids.
 
 ## Current Contract
 

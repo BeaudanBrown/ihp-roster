@@ -58,8 +58,8 @@ data RegionTransition
 
 type UiRegionContract =
     Global UiRegion
-        '[ GlobalSchema (Enum UiRegionTransitionProfile '[None, Fade, FadeSlide, Panel])
-         , GlobalSchema (Enum UiRegionLifecycleEvent '[RequestStart, BeforeSwap, AfterSwap, Settle, Error])
+        '[ BrowserGuardSchema (Enum UiRegionTransitionProfile '[None, Fade, FadeSlide, Panel])
+         , BrowserGuardSchema (Enum UiRegionLifecycleEvent '[RequestStart, BeforeSwap, AfterSwap, Settle, Error])
          , Event RegionRequestStart '[]
          , Event RegionBeforeSwap '[]
          , Event RegionAfterSwap '[]
@@ -67,7 +67,7 @@ type UiRegionContract =
          , Event RegionError '[]
          , DomAttr Fragment
          , DomAttr LazySurface
-         , DomAttr LazyFragment
+         , ServerDomAttr LazyFragment
          , DomAttr LazyRetry
          , DomAttr RegionTransition
          ]

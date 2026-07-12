@@ -55,7 +55,7 @@ renderTimesheetForm appShellAction entry staffMembers shiftTypes weekOffset show
                     , appShellActionRouteExtraAttrs =
                         [ ("id", formId)
                         , ("class", "mt-3")
-                        , ("data-disable-javascript-submission", "true")
+
                         ]
                     }
                 (renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId pickerStart pickerEnd)

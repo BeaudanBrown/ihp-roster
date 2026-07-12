@@ -55,25 +55,26 @@ data SurfaceContractIR = SurfaceContractIR
     deriving (Eq, Show)
 
 data SurfaceIR = SurfaceIR
-    { surfaceMarker         :: !Text
-    , surfaceName           :: !Text
-    , surfaceScopes         :: ![ScopeIR]
-    , surfaceMountStates    :: ![MountStateIR]
-    , surfaceFragments      :: ![FragmentIR]
-    , surfaceHtmxActions    :: ![HtmxActionIR]
-    , surfaceIntents        :: ![IntentIR]
-    , surfaceSessions       :: ![Text]
-    , surfaceSourceRefs     :: ![InteractionSourceRefIR]
-    , surfaceDropzoneRefs   :: ![InteractionDropzoneRefIR]
-    , surfaceActivationRefs :: ![InteractionActivationRefIR]
-    , surfaceLayers         :: ![Text]
-    , surfaceEffects        :: ![(Text, [OptionIR])]
-    , surfacePolicies       :: ![ConflictPolicyIR]
-    , surfaceLoadPolicies   :: ![Text]
-    , surfaceOverlayLanes   :: ![Text]
-    , surfaceClientEvents   :: ![(Text, [FieldIR])]
-    , surfaceDomTokens      :: ![Text]
-    , surfaceDtos           :: ![SchemaIR]
+    { surfaceMarker           :: !Text
+    , surfaceName             :: !Text
+    , surfaceScopes           :: ![ScopeIR]
+    , surfaceMountStates      :: ![MountStateIR]
+    , surfaceFragments        :: ![FragmentIR]
+    , surfaceHtmxActions      :: ![HtmxActionIR]
+    , surfaceIntents          :: ![IntentIR]
+    , surfaceSessions         :: ![Text]
+    , surfaceSourceRefs       :: ![InteractionSourceRefIR]
+    , surfaceDropzoneRefs     :: ![InteractionDropzoneRefIR]
+    , surfaceActivationRefs   :: ![InteractionActivationRefIR]
+    , surfaceLayers           :: ![Text]
+    , surfaceEffects          :: ![(Text, [OptionIR])]
+    , surfacePolicies         :: ![ConflictPolicyIR]
+    , surfaceLoadPolicies     :: ![Text]
+    , surfaceOverlayLanes     :: ![Text]
+    , surfaceClientEvents     :: ![(Text, [FieldIR])]
+    , surfaceDomTokens        :: ![Text]
+    , surfaceBrowserDomTokens :: ![Text]
+    , surfaceDtos             :: ![SchemaIR]
     }
     deriving (Eq, Show)
 

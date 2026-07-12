@@ -71,7 +71,7 @@ type TimesheetScopeBundle =
      ]
 
 type TimesheetActionBundle =
-    '[ DomToken TimesheetWeekShell
+    '[ BrowserDomToken TimesheetWeekShell
      , Action NavigateTimesheetWeek
         '[ Field WeekOffset 'WireInt
          , Field ShowApproved 'WireBool

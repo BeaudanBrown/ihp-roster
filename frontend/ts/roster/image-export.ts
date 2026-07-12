@@ -1,3 +1,5 @@
+import { rosterContentDomToken } from "../generated/contracts";
+
 type RosterExportFormatConfig = {
     mimeType: string;
     extension: string;
@@ -277,7 +279,7 @@ async function exportSurfaceToBlob(surfaceEl: HTMLElement, tableEl: HTMLElement,
 }
 
 async function buildRosterExportBlob(formatConfig: RosterExportFormatConfig): Promise<Blob> {
-    const rosterTable = document.querySelector("#roster-content .roster-grid");
+    const rosterTable = document.querySelector(`#${rosterContentDomToken} .roster-grid`);
     if (!(rosterTable instanceof HTMLElement)) {
         throw new Error("Could not find the current roster grid.");
     }

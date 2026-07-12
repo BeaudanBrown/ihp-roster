@@ -94,7 +94,7 @@ renderStaffProfileDetailsFormWithSurfaceAction config@StaffProfileDetailsFormCon
             { actionRouteExtraAttrs =
                 [ ("id", staffProfileDetailsFormId)
                 , ("class", staffProfileDetailsFormClass)
-                , ("data-disable-javascript-submission", "true")
+
                 ]
                     <> staffProfileDetailsFormAttributes
                     <> route.actionRouteExtraAttrs
@@ -109,7 +109,7 @@ renderStaffProfileDetailsFormWithAppShellAction config@StaffProfileDetailsFormCo
             { appShellActionRouteExtraAttrs =
                 [ ("id", staffProfileDetailsFormId)
                 , ("class", staffProfileDetailsFormClass)
-                , ("data-disable-javascript-submission", "true")
+
                 ]
                     <> staffProfileDetailsFormAttributes
                     <> route.appShellActionRouteExtraAttrs
@@ -164,7 +164,7 @@ renderStaffShiftPreferencesFormWithSurfaceAction config@StaffShiftPreferencesFor
             { actionRouteExtraAttrs =
                 [ ("id", staffShiftPreferencesFormId)
                 , ("class", staffShiftPreferencesFormClass)
-                , ("data-disable-javascript-submission", "true")
+
                 ]
                     <> route.actionRouteExtraAttrs
             }
@@ -178,7 +178,7 @@ renderStaffShiftPreferencesFormWithAppShellAction config@StaffShiftPreferencesFo
             { appShellActionRouteExtraAttrs =
                 [ ("id", staffShiftPreferencesFormId)
                 , ("class", staffShiftPreferencesFormClass)
-                , ("data-disable-javascript-submission", "true")
+
                 ]
                     <> route.appShellActionRouteExtraAttrs
             }

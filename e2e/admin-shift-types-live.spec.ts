@@ -2,6 +2,27 @@ import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { E2E_TIMEOUT, openAdminWithSeededPasskeySession } from './test-helpers';
 
+type LiveSubscriptionWindow = Window & { __liveSubscriptionKeys?: string[] };
+
+async function installLiveSubscriptionObserver(page: Page) {
+    await page.addInitScript(() => {
+        const state = window as LiveSubscriptionWindow;
+        state.__liveSubscriptionKeys = [];
+        document.addEventListener('app:live-update-debug', (event) => {
+            const detail = (event as CustomEvent).detail;
+            if (detail?.name !== 'subscription_added' || typeof detail.scopeKey !== 'string') return;
+            state.__liveSubscriptionKeys?.push(detail.scopeKey);
+        });
+    });
+}
+
+async function waitForShiftTypesSubscription(page: Page) {
+    await expect.poll(
+        () => page.evaluate(() => (window as LiveSubscriptionWindow).__liveSubscriptionKeys?.some((scopeKey) => scopeKey.startsWith('admin-shift-types:')) ?? false),
+        { timeout: E2E_TIMEOUT.liveUpdate },
+    ).toBe(true);
+}
+
 async function duplicateIds(page: Page) {
     return page.evaluate(() => {
         const counts = new Map<string, number>();
@@ -37,12 +58,14 @@ test.describe('Admin shift types live updates', () => {
         const actorContext = await browser.newContext();
         const viewer = await viewerContext.newPage();
         const actor = await actorContext.newPage();
+        await installLiveSubscriptionObserver(viewer);
+        await installLiveSubscriptionObserver(actor);
 
         try {
             await openAdminWithSeededPasskeySession(viewer);
             await viewer.getByRole('button', { name: 'Shift Types' }).click();
             await expect(viewer.locator('#shift-types-collapse')).toHaveClass(/show/, { timeout: E2E_TIMEOUT.action });
-            await expect(viewer.locator('[data-bepis-surface="admin-shift-types"][data-bepis-surface-config]')).toHaveAttribute('data-live-update-client-id', /.+/, { timeout: E2E_TIMEOUT.liveUpdate });
+            await waitForShiftTypesSubscription(viewer);
 
             const focusedName = viewer.locator('#admin-shift-types-fragment input[data-admin-shift-type-field-key]').first();
             const originalName = await focusedName.inputValue();
@@ -62,7 +85,7 @@ test.describe('Admin shift types live updates', () => {
             await openAdminWithSeededPasskeySession(actor);
             await actor.getByRole('button', { name: 'Shift Types' }).click();
             await expect(actor.locator('#shift-types-collapse')).toHaveClass(/show/, { timeout: E2E_TIMEOUT.action });
-            await expect(actor.locator('[data-bepis-surface="admin-shift-types"][data-bepis-surface-config]')).toHaveAttribute('data-live-update-client-id', /.+/, { timeout: E2E_TIMEOUT.liveUpdate });
+            await waitForShiftTypesSubscription(actor);
 
             const shiftTypeName = `Focus Protected Shift Type ${Date.now()}`;
             await actor.locator('#new-shift-type-name').fill(shiftTypeName);
@@ -89,18 +112,20 @@ test.describe('Admin shift types live updates', () => {
         const actorContext = await browser.newContext();
         const viewer = await viewerContext.newPage();
         const actor = await actorContext.newPage();
+        await installLiveSubscriptionObserver(viewer);
+        await installLiveSubscriptionObserver(actor);
 
         try {
             await openAdminWithSeededPasskeySession(viewer);
             await viewer.getByRole('button', { name: 'Shift Types' }).click();
             await expect(viewer.locator('#shift-types-collapse')).toHaveClass(/show/, { timeout: E2E_TIMEOUT.action });
-            await expect(viewer.locator('[data-bepis-surface="admin-shift-types"][data-bepis-surface-config]')).toHaveAttribute('data-live-update-client-id', /.+/, { timeout: E2E_TIMEOUT.liveUpdate });
+            await waitForShiftTypesSubscription(viewer);
             expect(await duplicateIds(viewer)).toEqual([]);
 
             await openAdminWithSeededPasskeySession(actor);
             await actor.getByRole('button', { name: 'Shift Types' }).click();
             await expect(actor.locator('#shift-types-collapse')).toHaveClass(/show/, { timeout: E2E_TIMEOUT.action });
-            await expect(actor.locator('[data-bepis-surface="admin-shift-types"][data-bepis-surface-config]')).toHaveAttribute('data-live-update-client-id', /.+/, { timeout: E2E_TIMEOUT.liveUpdate });
+            await waitForShiftTypesSubscription(actor);
             expect(await duplicateIds(actor)).toEqual([]);
 
             const shiftTypeName = `Live Shift Type ${Date.now()}`;

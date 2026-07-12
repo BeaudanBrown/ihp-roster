@@ -86,15 +86,16 @@ disposable layer mounts, intent forms, HTMX intent attributes, or target ids onc
 helpers exist. Feature views should call typed Haskell helpers derived from
 closed `FrontendSurface` contracts.
 
-## Generated Interaction Manifest And DOM Refs
+## Generated Interaction Registry And DOM Refs
 
-The durable browser contract is a generated interaction manifest plus minimal
-role-specific DOM refs. `FrontendSurface` declarations own the static semantics:
-source refs, dropzone refs, activation refs, sessions, intents, intent fields,
-compatible source/dropzone/session/intent combinations, effects, layers, and
-conflict policies. `SurfaceImpl` and view helpers render the concrete mount-local
-HTML: ids, HTMX forms, hidden values, dynamic opaque keys, and the generated ref
-attributes.
+The durable browser contract is a minimal generated interaction registry plus
+role-specific DOM refs. `FrontendSurface` declarations own all static semantics,
+but browser output retains only production-consumed source refs, dropzone refs,
+activation refs, session definitions/effects, compatible refs, and modifier
+variants. Intent forms, field presence, layers, conflict policies, and dynamic
+keys remain concrete mount-local HTML rendered by `SurfaceImpl` and view helpers.
+The browser registry does not duplicate action catalogs, DTO aliases, complete
+static schemas, or server-only Surface metadata.
 
 Generated role-specific DOM refs are intentionally small and readable. The exact
 attribute names are backend-owned constants in generated/shared contracts, not
@@ -119,7 +120,7 @@ Legacy semantic marker attributes such as `data-bepis-marker`,
 `data-bepis-session-kind`, `data-bepis-session-intent`,
 `data-bepis-activation-intent`, and `data-bepis-activation-trigger` are deleted
 from the production interaction runtime and helpers. Current behavior derives
-from generated manifest entries and role-specific refs only; guardrails prevent
+from generated registry entries and role-specific refs only; guardrails prevent
 reintroducing the old semantic marker protocol.
 
 ## Surface Portability And Duplicate Mounts
@@ -138,28 +139,25 @@ or infer a singleton surface for a scope.
 
 1. Feature code declares closed Haskell types for disposable layers, intents,
    intent fields, and any interaction-specific markers.
-2. Haskell contracts attach a scope-free generated interaction manifest to the
-   same type-level `FrontendSurface` definition. The static manifest enumerates
-   layer names, session names, intent names, field schemas, source refs,
-   dropzone refs, activation refs, ref compatibility, effects, and default
-   conflict policy without constructing a fake scope. `SurfaceImpl` owns
-   concrete HTMX form actions, targets, sync selectors, hidden values, and any
-   fragment refs whose URLs depend on the mounted scope. Existing surfaces can
-   use empty static interaction metadata.
+2. Haskell contracts derive a scope-free minimal interaction registry from the
+   same type-level `FrontendSurface` definition. It enumerates only source,
+   dropzone, activation, session/effect, compatibility, and modifier data used
+   by the generic runtime, without constructing a fake scope. `SurfaceImpl`
+   owns concrete layers, conflict policies, HTMX form actions, targets, sync
+   selectors, hidden values, and any fragment refs whose URLs depend on the
+   mounted scope. Existing surfaces can use empty interaction metadata.
 3. Haskell helpers render surface mounts, server layers, disposable layers,
    generated source/dropzone/activation refs with dynamic opaque keys, and
    generated HTMX intent forms. Helpers are the only production feature-facing
    API for interaction attrs; raw semantic marker helpers are deleted.
-4. Haskell-generated TypeScript exposes narrow browser DTOs/unions for live
-   update payloads, registered surface families, static interaction schemas,
-   layers, session kinds, intents, fields, live fragments, and conflict policy.
-   Browser-facing interaction contracts live in the unified
-   `Application.Helper.FrontendContract` DSL registry. Static schema constants
-   are derived by the FrontendContract renderer from registered surface
-   interaction metadata, not from external DTO codecs, hand-authored TypeScript,
-   or `Aeson.Value` declarations.
+4. Haskell-generated TypeScript exposes explicit-reachability live payloads,
+   exact mounts, generated DOM vocabulary, a fragment registry for live code,
+   and an interaction registry for interaction code. Browser-facing contracts
+   come from the unified `Application.Helper.FrontendContract` DSL registry,
+   not external DTO codecs, hand-authored TypeScript, or `Aeson.Value`
+   declarations.
 5. Generic TypeScript discovers mounted contracts, manages disposable sessions,
-   emits normalized intents, validates fields against the generated schema,
+   emits normalized intents, validates fields against DOM-owned generated form metadata,
    fills the matching generated form in the same mount, and dispatches the
    generated custom event.
 6. IHP parses and validates params strictly, enforces authorization/scope,
@@ -223,7 +221,7 @@ intent path without feature-specific TypeScript. A helper-rendered activation re
 has a generated ref name, an activation trigger (`click`, `change`,
 `keydown-enter`, or `keydown-space`), and optionally one value field whose value
 is read from the event target/control. The browser runtime resolves the closest
-activation ref from the event target, looks up the generated manifest entry for
+activation ref from the event target, looks up the generated registry entry for
 that ref in the current mounted surface instance, and emits a committed intent;
 server submission still happens only through the matching generated intent form.
 Activation keys should be unique within a concrete mount for the ref kind unless
@@ -235,7 +233,7 @@ pen, or touch pointer events. Surface specs should use shared aliases such as
 `DragDropIntent` when declaring ordinary drag/drop behavior, so multi-source
 surfaces stay explicit without re-declaring pointer fields and session effects.
 A helper-rendered source ref declares only the static generated source ref plus
-an opaque source key; the generated manifest maps that source ref to the session
+an opaque source key; the generated registry maps that source ref to the session
 kind, compatible dropzone refs, eventual intent, submitted source/target field
 names, and effect metadata. Generated or
 helper-owned DOM attributes may disable/read-only a source, set a movement
@@ -246,13 +244,13 @@ same concrete mount on cancel, timeout, HTMX cleanup, explicit stop, or commit.
 Preview phases are local only; the server DOM remains authoritative until a
 committed intent submits through a generated intent form.
 
-Pointer-session effects are Haskell-owned static interaction-schema metadata,
-not frontend-only configuration. A `SessionKindDefinition` may declare a bounded
-set of generated effect DTOs. TypeScript resolves the mounted surface family,
-looks up `InteractionStaticSchemas.<family>.sessionKinds`, and constructs a
-generic effect runner for the active session kind. If no schema, session kind, or
-effects are present, the runner is a no-op and intent submission remains
-unchanged. Runtime code may switch only on the generated closed effect unions and
+Pointer-session effects are Haskell-owned interaction metadata, not
+frontend-only configuration. A `SessionKindDefinition` may declare a bounded
+set of generated effect values. TypeScript resolves the mounted surface, looks
+up `FrontendSurfaceInteractionRegistry[surface].sessionKinds`, and constructs a
+generic effect runner for the active session kind. If no registry entry, session
+kind, or effects are present, the runner is a no-op and intent submission remains
+unchanged. Runtime code may switch only on the generated closed effect union and
 must use exhaustive `assertNever` handling for new variants.
 
 Effects have two lifecycles:
@@ -296,8 +294,8 @@ On commit the generic bridge must:
 
 1. find the generated intent form for the intent type inside the same concrete
    mount;
-2. verify that every emitted field is declared in the generated schema and has a
-   matching hidden/input field;
+2. verify that every emitted field has matching generated intent-field metadata
+   and a hidden/input field in the DOM-owned form;
 3. verify required fields are present and encoded as strings accepted by the
    schema;
 4. refuse unknown fields or missing required fields before dispatch;
@@ -311,12 +309,11 @@ change HTMX routes/targets/swaps, or mutate server-owned business DOM.
 The standard Haskell helper output is intentionally ordinary HTML/HTMX. For a
 mount key `primary`, a helper-rendered shell includes the live-update surface
 metadata plus interaction metadata on the same owner, e.g.
-`data-bepis-surface="..."`, `data-bepis-surface-config="..."`, and
-`data-bepis-mount-key="primary"`. The `FrontendSurface` runtime renders the
-server-owned `action`, `hx-post`/`hx-patch`/etc., `hx-trigger`, `hx-target`,
-`hx-swap`, optional `hx-sync`/`hx-disabled-elt`, declared field inputs marked
-with `data-bepis-intent-field`, and fixed hidden inputs marked with
-`data-bepis-intent-hidden-field`.
+`data-bepis-surface="..."` and `data-bepis-surface-config="..."`; the config
+contains the mount key. The `FrontendSurface` runtime renders the server-owned
+`action`, `hx-post`/`hx-patch`/etc., `hx-trigger`, `hx-target`, `hx-swap`,
+optional `hx-sync`/`hx-disabled-elt`, and declared form inputs marked through
+the generated intent, intent-field, and field-presence DOM vocabulary.
 
 Use standard HTMX first: generated forms, custom event `hx-trigger`, lifecycle
 events for cleanup, `hx-sync`/`hx-disabled-elt` for request concurrency where

@@ -415,7 +415,7 @@ renderSlotDeleteForm slotCount slotName =
     renderFrontendSurfaceActionForm
         (surfaceActionValue @Surface.RosterSurface @Surface.DeleteRosterWeekSlotDefinition)
         (rosterGridActionRoute (pathTo (DeleteRosterWeekSlotDefinitionAction slotName.id)))
-            { actionRouteExtraAttrs = [("class", "mb-0"), ("data-disable-javascript-submission", "true")]
+            { actionRouteExtraAttrs = [("class", "mb-0")]
             }
         [hsx|
             <input type="hidden" name="_method" value="DELETE" />
@@ -437,7 +437,7 @@ renderSlotAddButton rosterWeek True =
     renderFrontendSurfaceActionForm
         (surfaceActionValue @Surface.RosterSurface @Surface.CreateRosterWeekSlotDefinition)
         (rosterGridActionRoute (pathTo (CreateRosterWeekSlotDefinitionAction rosterWeek.id)))
-            { actionRouteExtraAttrs = [("class", "mb-0 roster-slot-column-add-form"), ("data-disable-javascript-submission", "true")]
+            { actionRouteExtraAttrs = [("class", "mb-0 roster-slot-column-add-form")]
             }
         [hsx|
             <button type="submit"
@@ -850,7 +850,7 @@ renderRosterDayActionForm action actionUrl body =
     renderFrontendSurfaceActionForm
         action
         (rosterGridActionRoute actionUrl)
-            { actionRouteExtraAttrs = [("class", "d-inline"), ("data-disable-javascript-submission", "true")]
+            { actionRouteExtraAttrs = [("class", "d-inline")]
             }
         body
 

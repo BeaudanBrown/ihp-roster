@@ -10,10 +10,8 @@ import {
 } from "../generated/contracts";
 
 export type ParsedFrontendSurfaceSubscriptionConfig = {
-    surface: string;
     scope: SurfaceScope;
     scopeKey: string;
-    mountKey: string;
     socketPath: string;
     resyncFragments: FrontendSurfaceMountedFragmentConfig[];
     decorateRequestsWithin: string[];
@@ -24,7 +22,6 @@ export type FrontendSurfaceMountedInstance = {
     surface: string;
     scopeKey: string;
     mountKey: string;
-    ownerEl: HTMLElement;
     depth: number;
 };
 
@@ -49,10 +46,8 @@ export function parseFrontendSurfaceSubscriptionConfig(value: unknown): ParsedFr
     if (resyncFragments.length === 0) return null;
 
     return {
-        surface: config.surface,
         scope: config.subscription.scope,
         scopeKey: config.scopeKey,
-        mountKey: config.mountKey,
         socketPath: `/${liveUpdateSocketPath}`,
         resyncFragments,
         decorateRequestsWithin: resyncFragments.map((fragment) => `#${fragment.targetId}`),
@@ -108,7 +103,6 @@ export function scanFrontendSurfaceMountInstances(
             surface: config.surface,
             scopeKey: config.scopeKey,
             mountKey: config.mountKey,
-            ownerEl,
             depth: surfaceMountDepth(ownerEl),
         });
     });

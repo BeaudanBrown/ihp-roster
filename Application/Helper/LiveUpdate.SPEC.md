@@ -33,6 +33,9 @@ websocket controllers, and `static/app-live-updates.js`.
 - The websocket endpoint, client-id header, and surface mount/action/config DOM
   attributes are reflected global constants consumed by both Haskell and
   generated TypeScript. Runtime code must not duplicate their string values.
+  Live TypeScript imports the generated fragment registry only; interaction
+  TypeScript imports a separate interaction registry. Server-only action,
+  intent/DTO, and containment metadata does not enter either bundle.
 - Scope keys are server-owned and carried through surface config/messages. The
   websocket boundary derives the canonical key from the registered typed Surface
   scope fields and rejects browser-supplied scope or fragment keys whose Surface
@@ -91,8 +94,8 @@ new mounts initialize, removed mounts dispose, and websocket subscriptions remai
 the union of currently mounted surface scopes.
 
 Each live fragment declares invalidation intent in the type-level
-`FrontendSurface` spec with `DependsOn` or `ResyncOnly`. `SurfaceImpl` handlers
-materialize the mounted fragment target id, URL, and protection policy for the
+`FrontendSurface` spec with `DependsOn` or `ResyncOnly`. One-step `SurfaceImpl`
+runtime values materialize the mounted fragment target id, URL, and protection policy for the
 current request. Fragments are eager by default; `Lazy`, `Trigger`, and
 `Placeholder` options control server-rendered lazy placeholders without adding
 browser mount `loadPolicy` fields. Initial lazy placeholders are rendered through
@@ -256,12 +259,18 @@ that region only.
   `activeSelector`, `fieldKeyAttr`, `fieldNameFallback`, and nullable
   `containerSelector`; the browser must not recover missing values through old
   `data-live-field-key` or feature defaults.
-- `app-live-updates` is the single focused-field protection owner. It defers the
-  latest protected fragment while a matching field is focused, captures its
-  exact configured key/name/value, refetches on blur, and restores that value in
-  the replacement row/container. Do not wrap Morphdom or add IHP Auto Refresh
-  compatibility hooks. Fragments with `replace` protection, including roster
-  shift launchers, refresh immediately.
+- `frontend/ts/live-updates/focus.ts` is the single focused-field protection
+  owner. It defers the latest protected fragment while a matching field is
+  focused, captures its exact configured key/name/value, refetches on blur, and
+  restores that value in the replacement row/container. Do not wrap Morphdom or
+  add IHP Auto Refresh compatibility hooks. Fragments with `replace` protection,
+  including roster shift launchers, refresh immediately.
+- `frontend/ts/app-live-updates.ts` is orchestration-only. Mount parsing,
+  subscription merge/request scoping, websocket/reconnect lifecycle,
+  invalidation/version routing, authorized fragment fetch/swap, HTMX request
+  decoration, focus protection, and diagnostics each have one focused module
+  under `frontend/ts/live-updates/`. Subscription diagnostics, not a
+  `data-live-update-client-id` DOM write, are the readiness signal for E2E.
 - Reconnect/version gaps should trigger configured resync fragments through the
   same protection decision as ordinary actor/passive invalidations.
 - Lazy placeholders use the same target id and GET URL as the loaded fragment

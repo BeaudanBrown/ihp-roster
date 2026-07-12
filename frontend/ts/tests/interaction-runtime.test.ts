@@ -1,4 +1,4 @@
-import { FrontendSurfaceInteractionDom, InteractionDom, intentSubmitEvent } from "../generated/contracts";
+import { InteractionDom } from "../generated/contracts";
 import { readActivationIntentPayload } from "../interaction/activation";
 import { submitCommittedInteractionIntent } from "../interaction/form-bridge";
 import { resolveLiveFragmentInteractionConflict } from "../interaction/live-conflicts";
@@ -7,6 +7,8 @@ import { createActiveInteractionSessionTracker, dispatchInteractionSessionEnd, d
 import { createInteractionRuntime } from "../interaction/runtime";
 import { InteractionIntentBus } from "../interaction/intent-bus";
 import { assertEqual, test } from "./harness";
+
+const intentSubmitEvent = "bepis:intent-submit"; // frontend-contract-token-fixture
 
 class MiniElement extends EventTarget {
     readonly children: MiniElement[] = [];
@@ -180,7 +182,7 @@ function keyEvent(key: string, modifiers: Partial<Pick<KeyboardEvent, "ctrlKey" 
 }
 
 function buildMount(): { mount: MiniElement; form: MiniElement; required: MiniElement; optional: MiniElement; marker: MiniElement } {
-    const mount = new MiniElement({ [attrs.surface]: "roster", [attrs.mountKey]: "primary" });
+    const mount = new MiniElement({ [attrs.surface]: "roster" });
     const marker = mount.append(new MiniElement({ [attrs.intent]: "select-cell" }));
     const form = mount.append(new MiniElement({
         [attrs.intentForm]: "select-cell",
@@ -199,7 +201,7 @@ function buildMount(): { mount: MiniElement; form: MiniElement; required: MiniEl
         [attrs.intentField]: "mode",
         [attrs.fieldPresence]: "optional",
     }));
-    form.append(new MiniElement({ name: "intent", value: "select-cell", [attrs.intentHiddenField]: "intent" }));
+    form.append(new MiniElement({ name: "intent", value: "select-cell" }));
     return { mount, form, required, optional, marker };
 }
 
@@ -219,8 +221,8 @@ test("interaction intent bus emits cancelable normalized events", () => {
 });
 
 test("generated activation refs emit manifest-backed committed intent payloads", () => {
-    const mount = new MiniElement({ [attrs.surface]: "roster", [attrs.mountKey]: "primary" });
-    const marker = mount.append(new MiniElement({ [FrontendSurfaceInteractionDom.activationRef]: "roster-layout-mode-activation" }));
+    const mount = new MiniElement({ [attrs.surface]: "roster" });
+    const marker = mount.append(new MiniElement({ [attrs.activationRef]: "roster-layout-mode-activation" }));
     const input = marker.append(new MiniElement({ tag: "input", value: "day_columns" }));
 
     const payload = readActivationIntentPayload(eventWithTarget("click", input), "click");
@@ -233,8 +235,8 @@ test("generated activation refs emit manifest-backed committed intent payloads",
 });
 
 test("generated activation refs ignore non-matching triggers", () => {
-    const mount = new MiniElement({ [attrs.surface]: "roster", [attrs.mountKey]: "primary" });
-    const marker = mount.append(new MiniElement({ [FrontendSurfaceInteractionDom.activationRef]: "roster-layout-mode-activation" }));
+    const mount = new MiniElement({ [attrs.surface]: "roster" });
+    const marker = mount.append(new MiniElement({ [attrs.activationRef]: "roster-layout-mode-activation" }));
     const child = marker.append(new MiniElement({ tag: "input", value: "day_columns" }));
 
     assertEqual(readActivationIntentPayload(eventWithTarget("change", child), "change"), null);
@@ -281,8 +283,8 @@ test("bridge resolves the concrete mount from an activation marker", () => {
 });
 
 test("bridge resolves named nested FrontendSurface mounts from the closest owner", () => {
-    const parent = new MiniElement({ [attrs.surface]: "parent", [attrs.mountKey]: "primary" });
-    const child = parent.append(new MiniElement({ [attrs.surface]: "child", [attrs.mountKey]: "primary" }));
+    const parent = new MiniElement({ [attrs.surface]: "parent" });
+    const child = parent.append(new MiniElement({ [attrs.surface]: "child" }));
     const marker = child.append(new MiniElement({ [attrs.intent]: "select-cell" }));
     const parentForm = parent.append(new MiniElement({
         [attrs.intentForm]: "select-cell",
@@ -357,8 +359,8 @@ test("runtime submits uncanceled committed intents and does not submit canceled 
 test("generated source refs start manifest-backed pointer sessions", () => {
     const mount = new MiniElement({ [attrs.surface]: "roster" });
     const marker = mount.append(new MiniElement({
-        [FrontendSurfaceInteractionDom.sourceRef]: "shift-drag-source",
-        [FrontendSurfaceInteractionDom.sourceKey]: "shift:1",
+        [attrs.sourceRef]: "shift-drag-source",
+        [attrs.sourceKey]: "shift:1",
     }));
 
     const session = readPointerSessionStart(pointerEventWithTarget("pointerdown", marker, 7, 10, 20), 4);
@@ -374,13 +376,13 @@ test("generated pointer sessions emit manifest fields from compatible dropzones"
     const observed: string[] = [];
     const mount = new MiniElement({ [attrs.surface]: "roster", [attrs.surfaceFamily]: "roster" });
     const marker = mount.append(new MiniElement({
-        [FrontendSurfaceInteractionDom.sourceRef]: "shift-drag-source",
-        [FrontendSurfaceInteractionDom.sourceKey]: "shift:1",
+        [attrs.sourceRef]: "shift-drag-source",
+        [attrs.sourceKey]: "shift:1",
         [attrs.sessionThreshold]: "0",
     }));
     const dropzone = mount.append(new MiniElement({
-        [FrontendSurfaceInteractionDom.dropzoneRef]: "shift-slot-dropzone",
-        [FrontendSurfaceInteractionDom.dropzoneKey]: "slot:2",
+        [attrs.dropzoneRef]: "shift-slot-dropzone",
+        [attrs.dropzoneKey]: "slot:2",
     }));
     const layer = mount.append(new MiniElement({ [attrs.disposableLayer]: "drag-preview" }));
     const doc = { elementFromPoint: (_x: number, _y: number) => dropzone, createElement: (_tag: string) => new MiniElement() };
@@ -413,17 +415,17 @@ test("generated pointer sessions ignore incompatible dropzones for active source
     const observed: string[] = [];
     const mount = new MiniElement({ [attrs.surface]: "roster", [attrs.surfaceFamily]: "roster" });
     const marker = mount.append(new MiniElement({
-        [FrontendSurfaceInteractionDom.sourceRef]: "staff-drag-source",
-        [FrontendSurfaceInteractionDom.sourceKey]: "staff:1",
+        [attrs.sourceRef]: "staff-drag-source",
+        [attrs.sourceKey]: "staff:1",
         [attrs.sessionThreshold]: "0",
     }));
     const incompatibleDropzone = mount.append(new MiniElement({
-        [FrontendSurfaceInteractionDom.dropzoneRef]: "day-column-dropzone",
-        [FrontendSurfaceInteractionDom.dropzoneKey]: "day:1",
+        [attrs.dropzoneRef]: "day-column-dropzone",
+        [attrs.dropzoneKey]: "day:1",
     }));
     const compatibleDropzone = mount.append(new MiniElement({
-        [FrontendSurfaceInteractionDom.dropzoneRef]: "existing-shift-dropzone",
-        [FrontendSurfaceInteractionDom.dropzoneKey]: "existing:2",
+        [attrs.dropzoneRef]: "existing-shift-dropzone",
+        [attrs.dropzoneKey]: "existing:2",
     }));
     const layer = mount.append(new MiniElement({ [attrs.disposableLayer]: "drag-preview" }));
     let hitTarget: MiniElement | null = incompatibleDropzone;
@@ -459,8 +461,8 @@ test("generated pointer sessions ignore incompatible dropzones for active source
 test("generated pointer sessions start only from enabled mounted handles", () => {
     const mount = new MiniElement({ [attrs.surface]: "roster" });
     const marker = mount.append(new MiniElement({
-        [FrontendSurfaceInteractionDom.sourceRef]: "shift-drag-source",
-        [FrontendSurfaceInteractionDom.sourceKey]: "shift:1",
+        [attrs.sourceRef]: "shift-drag-source",
+        [attrs.sourceKey]: "shift:1",
     }));
 
     const session = readPointerSessionStart(pointerEventWithTarget("pointerdown", marker, 7, 10, 20), 4);
@@ -477,11 +479,11 @@ test("pointer sessions emit start preview commit and clean disposable layers", (
     const dropTargets: string[] = [];
     const mount = new MiniElement({ [attrs.surface]: "roster" });
     const marker = mount.append(new MiniElement({
-        [FrontendSurfaceInteractionDom.sourceRef]: "shift-drag-source",
-        [FrontendSurfaceInteractionDom.sourceKey]: "existing:source-slot",
+        [attrs.sourceRef]: "shift-drag-source",
+        [attrs.sourceKey]: "existing:source-slot",
         [attrs.sessionThreshold]: "3",
     }));
-    const dropzone = mount.append(new MiniElement({ [FrontendSurfaceInteractionDom.dropzoneRef]: "shift-slot-dropzone", [FrontendSurfaceInteractionDom.dropzoneKey]: "new:target-slot" }));
+    const dropzone = mount.append(new MiniElement({ [attrs.dropzoneRef]: "shift-slot-dropzone", [attrs.dropzoneKey]: "new:target-slot" }));
     const doc = {
         elementFromPoint: (_x: number, _y: number) => dropzone,
         createElement: (_tag: string) => new MiniElement(),
@@ -528,14 +530,14 @@ test("generated pointer session effects render proxy shadows and highlight dropz
         id: "source-id",
         class: "shift-card",
         "hx-post": "/Move",
-        [FrontendSurfaceInteractionDom.sourceRef]: "shift-drag-source",
-        [FrontendSurfaceInteractionDom.sourceKey]: "existing:source-slot",
+        [attrs.sourceRef]: "shift-drag-source",
+        [attrs.sourceKey]: "existing:source-slot",
         [attrs.sessionThreshold]: "4",
     }));
     marker.rect = { left: 10, top: 20, width: 80, height: 30 };
     marker.append(new MiniElement({ id: "child-id" }));
-    const firstDropzone = mount.append(new MiniElement({ [FrontendSurfaceInteractionDom.dropzoneRef]: "shift-slot-dropzone", [FrontendSurfaceInteractionDom.dropzoneKey]: "new:first-slot" }));
-    const secondDropzone = mount.append(new MiniElement({ [FrontendSurfaceInteractionDom.dropzoneRef]: "shift-slot-dropzone", [FrontendSurfaceInteractionDom.dropzoneKey]: "new:second-slot" }));
+    const firstDropzone = mount.append(new MiniElement({ [attrs.dropzoneRef]: "shift-slot-dropzone", [attrs.dropzoneKey]: "new:first-slot" }));
+    const secondDropzone = mount.append(new MiniElement({ [attrs.dropzoneRef]: "shift-slot-dropzone", [attrs.dropzoneKey]: "new:second-slot" }));
     const layer = mount.append(new MiniElement({ [attrs.disposableLayer]: "drag-preview" }));
     let hitTarget: MiniElement | null = firstDropzone;
     const doc = {
@@ -589,22 +591,22 @@ test("generated pointer session effects render proxy shadows and highlight dropz
 test("staff drag highlights only compatible roster drop targets", () => {
     const mount = new MiniElement({ [attrs.surface]: "roster", [attrs.surfaceFamily]: "roster" });
     const marker = mount.append(new MiniElement({
-        [FrontendSurfaceInteractionDom.sourceRef]: "staff-drag-source",
-        [FrontendSurfaceInteractionDom.sourceKey]: "staff:1",
+        [attrs.sourceRef]: "staff-drag-source",
+        [attrs.sourceKey]: "staff:1",
         [attrs.sessionThreshold]: "0",
     }));
     marker.rect = { left: 0, top: 0, width: 80, height: 30 };
     const dayColumn = mount.append(new MiniElement({
-        [FrontendSurfaceInteractionDom.dropzoneRef]: "day-column-dropzone",
-        [FrontendSurfaceInteractionDom.dropzoneKey]: "day:1",
+        [attrs.dropzoneRef]: "day-column-dropzone",
+        [attrs.dropzoneKey]: "day:1",
     }));
     const existingShift = mount.append(new MiniElement({
-        [FrontendSurfaceInteractionDom.dropzoneRef]: "existing-shift-dropzone",
-        [FrontendSurfaceInteractionDom.dropzoneKey]: "existing:1",
+        [attrs.dropzoneRef]: "existing-shift-dropzone",
+        [attrs.dropzoneKey]: "existing:1",
     }));
     const createTarget = mount.append(new MiniElement({
-        [FrontendSurfaceInteractionDom.dropzoneRef]: "staff-create-dropzone",
-        [FrontendSurfaceInteractionDom.dropzoneKey]: "new:1:2:0",
+        [attrs.dropzoneRef]: "staff-create-dropzone",
+        [attrs.dropzoneKey]: "new:1:2:0",
     }));
     const layer = mount.append(new MiniElement({ [attrs.disposableLayer]: "drag-preview" }));
     let hitTarget: MiniElement | null = dayColumn;
@@ -636,18 +638,18 @@ test("shift drag ignores staff create targets and highlights delete targets", ()
     const observed: string[] = [];
     const mount = new MiniElement({ [attrs.surface]: "roster", [attrs.surfaceFamily]: "roster" });
     const marker = mount.append(new MiniElement({
-        [FrontendSurfaceInteractionDom.sourceRef]: "shift-drag-source",
-        [FrontendSurfaceInteractionDom.sourceKey]: "existing:1",
+        [attrs.sourceRef]: "shift-drag-source",
+        [attrs.sourceKey]: "existing:1",
         [attrs.sessionThreshold]: "0",
     }));
     marker.rect = { left: 0, top: 0, width: 80, height: 30 };
     const staffCreateTarget = mount.append(new MiniElement({
-        [FrontendSurfaceInteractionDom.dropzoneRef]: "staff-create-dropzone",
-        [FrontendSurfaceInteractionDom.dropzoneKey]: "new:1:2:0",
+        [attrs.dropzoneRef]: "staff-create-dropzone",
+        [attrs.dropzoneKey]: "new:1:2:0",
     }));
     const deleteTarget = mount.append(new MiniElement({
-        [FrontendSurfaceInteractionDom.dropzoneRef]: "delete-shift-dropzone",
-        [FrontendSurfaceInteractionDom.dropzoneKey]: "delete",
+        [attrs.dropzoneRef]: "delete-shift-dropzone",
+        [attrs.dropzoneKey]: "delete",
     }));
     const layer = mount.append(new MiniElement({ [attrs.disposableLayer]: "drag-preview" }));
     let hitTarget: MiniElement | null = staffCreateTarget;
@@ -681,8 +683,8 @@ test("touch pointers do not start generic drag sessions", () => {
     const phases: string[] = [];
     const mount = new MiniElement({ [attrs.surface]: "roster", [attrs.surfaceFamily]: "roster" });
     const marker = mount.append(new MiniElement({
-        [FrontendSurfaceInteractionDom.sourceRef]: "shift-drag-source",
-        [FrontendSurfaceInteractionDom.sourceKey]: "existing:source-slot",
+        [attrs.sourceRef]: "shift-drag-source",
+        [attrs.sourceKey]: "existing:source-slot",
         [attrs.sessionThreshold]: "0",
     }));
     const controller = createPointerSessionController({ runtime: { emit: (payload) => { phases.push(payload.phase); return { canceled: false }; } } });
@@ -700,12 +702,12 @@ test("pointer modifier variants select copy intent and variant shadow on platfor
         const intents: string[] = [];
         const mount = new MiniElement({ [attrs.surface]: "roster", [attrs.surfaceFamily]: "roster" });
         const marker = mount.append(new MiniElement({
-            [FrontendSurfaceInteractionDom.sourceRef]: "shift-drag-source",
-            [FrontendSurfaceInteractionDom.sourceKey]: "existing:source-slot",
+            [attrs.sourceRef]: "shift-drag-source",
+            [attrs.sourceKey]: "existing:source-slot",
             [attrs.sessionThreshold]: "0",
         }));
         marker.rect = { left: 0, top: 0, width: 40, height: 20 };
-        const dropzone = mount.append(new MiniElement({ [FrontendSurfaceInteractionDom.dropzoneRef]: "shift-slot-dropzone", [FrontendSurfaceInteractionDom.dropzoneKey]: "day:target" }));
+        const dropzone = mount.append(new MiniElement({ [attrs.dropzoneRef]: "shift-slot-dropzone", [attrs.dropzoneKey]: "day:target" }));
         const layer = mount.append(new MiniElement({ [attrs.disposableLayer]: "drag-preview" }));
         const doc = { elementFromPoint: (_x: number, _y: number) => dropzone, createElement: (_tag: string) => new MiniElement() };
         mount.ownerDocument = doc;
@@ -730,9 +732,9 @@ test("pointer modifier variants select copy intent and variant shadow on platfor
     withNavigatorPlatform("MacIntel", () => {
         const committed: string[] = [];
         const mount = new MiniElement({ [attrs.surface]: "roster", [attrs.surfaceFamily]: "roster" });
-        const marker = mount.append(new MiniElement({ [FrontendSurfaceInteractionDom.sourceRef]: "shift-drag-source", [FrontendSurfaceInteractionDom.sourceKey]: "existing:source-slot", [attrs.sessionThreshold]: "0" }));
+        const marker = mount.append(new MiniElement({ [attrs.sourceRef]: "shift-drag-source", [attrs.sourceKey]: "existing:source-slot", [attrs.sessionThreshold]: "0" }));
         marker.rect = { left: 0, top: 0, width: 10, height: 10 };
-        const dropzone = mount.append(new MiniElement({ [FrontendSurfaceInteractionDom.dropzoneRef]: "shift-slot-dropzone", [FrontendSurfaceInteractionDom.dropzoneKey]: "day:target" }));
+        const dropzone = mount.append(new MiniElement({ [attrs.dropzoneRef]: "shift-slot-dropzone", [attrs.dropzoneKey]: "day:target" }));
         const layer = mount.append(new MiniElement({ [attrs.disposableLayer]: "drag-preview" }));
         const doc = { elementFromPoint: (_x: number, _y: number) => dropzone, createElement: (_tag: string) => new MiniElement() };
         mount.ownerDocument = doc;
@@ -758,12 +760,12 @@ test("pointer session effect cleanup runs on pointercancel Escape and external c
     const build = () => {
         const mount = new MiniElement({ [attrs.surface]: "roster", [attrs.surfaceFamily]: "roster" });
         const marker = mount.append(new MiniElement({
-            [FrontendSurfaceInteractionDom.sourceRef]: "shift-drag-source",
-            [FrontendSurfaceInteractionDom.sourceKey]: "existing:source-slot",
+            [attrs.sourceRef]: "shift-drag-source",
+            [attrs.sourceKey]: "existing:source-slot",
             [attrs.sessionThreshold]: "0",
         }));
         marker.rect = { left: 0, top: 0, width: 10, height: 10 };
-        const dropzone = mount.append(new MiniElement({ [FrontendSurfaceInteractionDom.dropzoneRef]: "shift-slot-dropzone", [FrontendSurfaceInteractionDom.dropzoneKey]: "slot" }));
+        const dropzone = mount.append(new MiniElement({ [attrs.dropzoneRef]: "shift-slot-dropzone", [attrs.dropzoneKey]: "slot" }));
         const layer = mount.append(new MiniElement({ [attrs.disposableLayer]: "drag-preview" }));
         const doc = { elementFromPoint: (_x: number, _y: number) => dropzone, createElement: (_tag: string) => new MiniElement() };
         mount.ownerDocument = doc;
@@ -798,8 +800,8 @@ test("pointer sessions cancel below threshold, on pointercancel, and on Escape",
     const phases: string[] = [];
     const mount = new MiniElement({ [attrs.surface]: "roster" });
     const marker = mount.append(new MiniElement({
-        [FrontendSurfaceInteractionDom.sourceRef]: "shift-drag-source",
-        [FrontendSurfaceInteractionDom.sourceKey]: "resize-source",
+        [attrs.sourceRef]: "shift-drag-source",
+        [attrs.sourceKey]: "resize-source",
         [attrs.sessionThreshold]: "5",
     }));
     const controller = createPointerSessionController({ runtime: { emit: (payload) => { phases.push(payload.phase); return { canceled: false }; } } });
@@ -818,17 +820,17 @@ test("pointer sessions cancel below threshold, on pointercancel, and on Escape",
 test("pointer sessions ignore disabled markers and hit-test under disposable overlays", () => {
     const mount = new MiniElement({ [attrs.surface]: "roster" });
     const disabled = mount.append(new MiniElement({
-        [FrontendSurfaceInteractionDom.sourceRef]: "shift-drag-source",
-        [FrontendSurfaceInteractionDom.sourceKey]: "shift:1",
+        [attrs.sourceRef]: "shift-drag-source",
+        [attrs.sourceKey]: "shift:1",
         [attrs.sessionDisabled]: "true",
     }));
-    const dropzone = new MiniElement({ [FrontendSurfaceInteractionDom.dropzoneRef]: "shift-slot-dropzone" });
+    const dropzone = new MiniElement({ [attrs.dropzoneRef]: "shift-slot-dropzone" });
     const doc = { elementFromPoint: (_x: number, _y: number) => dropzone };
     mount.ownerDocument = doc;
     dropzone.ownerDocument = doc;
 
     assertEqual(readPointerSessionStart(pointerEventWithTarget("pointerdown", disabled, 1, 0, 0)), null);
-    assertEqual(hitTestClosest(mount as unknown as Element, 12, 34, `[${FrontendSurfaceInteractionDom.dropzoneRef}=\"shift-slot-dropzone\"]`), dropzone as unknown as Element);
+    assertEqual(hitTestClosest(mount as unknown as Element, 12, 34, `[${attrs.dropzoneRef}=\"shift-slot-dropzone\"]`), dropzone as unknown as Element);
 });
 
 test("live fragment conflicts defer matching active interaction sessions and ignore unrelated mounts", () => {

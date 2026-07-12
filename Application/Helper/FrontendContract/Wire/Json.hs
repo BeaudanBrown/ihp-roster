@@ -43,10 +43,10 @@ schemaByName contract name =
 
 contractSchemas :: Contract.FrontendContractIR -> [Contract.SchemaIR]
 contractSchemas contract =
-    [ schema | global <- contract.contractGlobals, Contract.GlobalSchemaIR schema <- global.globalPrimitives ]
+    [ schema | global <- contract.contractGlobals, Contract.GlobalSchemaIR _ schema <- global.globalPrimitives ]
         <> [ Contract.RecordIR marker (marker <> "EventDetail") fields
            | global <- contract.contractGlobals
-           , Contract.GlobalEventIR marker _ fields <- global.globalPrimitives
+           , Contract.GlobalEventIR _ marker _ fields <- global.globalPrimitives
            ]
         <> concatMap (.surfaceDtos) contract.contractSurfaces
 

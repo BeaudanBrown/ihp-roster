@@ -75,9 +75,12 @@ tests :: Spec
 tests = describe "FrontendContract foundation" do
     it "reflects the production migration registry globals" do
         let source = either id id (renderFrontendContractTypeScript registeredFrontendContractIR)
-        source `shouldContainText` "export type OverlayLane ="
+        source `shouldNotContainText` "export type OverlayLane ="
         source `shouldContainText` "export const pageReadyEvent = \"bepis:page-ready\" as const;"
         source `shouldContainText` "export const dialogOverlayMountDomId = \"dialog-overlay-mount\" as const;"
+        source `shouldNotContainText` "intentSubmitEvent"
+        source `shouldNotContainText` "appContentMountDomId"
+        source `shouldNotContainText` "lazyFragmentDomAttr"
         source `shouldContainText` "export type UiRegionTransitionProfile ="
         source `shouldContainText` "export const lazySurfaceDomAttr = \"data-bepis-lazy-surface\" as const;"
         source `shouldContainText` "export type RosterStaffSortKey ="

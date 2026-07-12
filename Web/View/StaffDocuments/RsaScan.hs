@@ -53,7 +53,7 @@ renderScanConfirmation confirmation@RsaScanConfirmation { scanStaff, scanExtract
             </div>
             {renderNameCheck scanStaff scanExtractionResult.candidate.recipientName}
             {renderScanWarnings scanExtractionResult.warnings}
-            <form method="POST" action={CreateStaffDocumentAction} data-disable-javascript-submission="true">
+            <form method="POST" action={CreateStaffDocumentAction}>
                 <input type="hidden" name="staffId" value={tshow scanStaff.id}/>
                 {renderRsaReturnInputs confirmation.scanReturnContext}
                 <input type="hidden" name="confirmedFileName" value={confirmation.scanFileName}/>

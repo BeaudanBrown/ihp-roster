@@ -214,7 +214,7 @@ renderTimesheetFilterForm updateUrl weekOffset showApproved showAllStaff selecte
         (surfaceActionValue @Surface.TimesheetsSurface @Surface.UpdateTimesheetFilters)
         (timesheetsActionRoute updateUrl)
             { actionRouteStandardUrl = Just updateUrl
-            , actionRouteExtraAttrs = [("class", "px-1 py-1"), ("data-disable-javascript-submission", "true")]
+            , actionRouteExtraAttrs = [("class", "px-1 py-1")]
             }
         [hsx|
             <input type="hidden" name={surfaceActionFieldName @Surface.TimesheetsSurface @Surface.UpdateTimesheetFilters @Surface.WeekOffset} value={tshow weekOffset} />
@@ -461,7 +461,7 @@ renderTimesheetApprovalForm action actionFields actionUrl button =
         (timesheetsActionRoute actionUrl)
             { actionRouteFields = actionFields
             , actionRouteStandardUrl = Just actionUrl
-            , actionRouteExtraAttrs = [("class", "timesheet-entry-action-form"), ("data-disable-javascript-submission", "true")]
+            , actionRouteExtraAttrs = [("class", "timesheet-entry-action-form")]
             }
         [hsx|
             {button}

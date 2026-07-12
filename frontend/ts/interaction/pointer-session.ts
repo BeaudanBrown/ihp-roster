@@ -1,4 +1,4 @@
-import { FrontendSurfaceInteractionDom, FrontendSurfaceRegistry, InteractionDom, InteractionStaticSchemas, isFrontendSurfaceInteractionSurfaceName, isFrontendSurfaceName, type FrontendSurfaceName, type InteractionEffectSource, type InteractionSessionEffect } from "../generated/contracts";
+import { FrontendSurfaceInteractionRegistry, InteractionDom, isFrontendSurfaceInteractionSurfaceName, type FrontendSurfaceInteractionSurfaceName, type InteractionEffectSource, type InteractionSessionEffect } from "../generated/contracts";
 import { assertNever } from "../shared/exhaustive";
 import type { InteractionIntentPayload } from "./intent-bus";
 import { defaultInteractionRuntime } from "./runtime";
@@ -91,11 +91,11 @@ type ContextualEffectHandler = {
 
 const attrs = InteractionDom.attributes;
 const values = InteractionDom.values;
-const sourceRefSelector = `[${FrontendSurfaceInteractionDom.sourceRef}]`;
+const sourceRefSelector = `[${attrs.sourceRef}]`;
 const disposableLayerSelector = `[${attrs.disposableLayer}]`;
 const pointerFields = InteractionDom.pointerFields;
 const defaultThresholdPx = 4;
-const activeSourceRefAttribute = FrontendSurfaceInteractionDom.activeSourceRef;
+const activeSourceRefAttribute = attrs.activeSourceRef;
 const noOpEffectRunner: PointerSessionEffectRunner = {
     activate: () => undefined,
     update: () => undefined,
@@ -310,17 +310,17 @@ export function readPointerSessionStart(event: Event, fallbackThresholdPx = defa
     if (!mount) return null;
 
     const surface = mount.getAttribute(attrs.surface);
-    if (!isFrontendSurfaceName(surface)) return null;
+    if (!isFrontendSurfaceInteractionSurfaceName(surface)) return null;
 
-    const sourceRef = marker.getAttribute(FrontendSurfaceInteractionDom.sourceRef);
-    const source = FrontendSurfaceRegistry[surface].interaction.sourceRefs.find((candidate) => candidate.ref === sourceRef);
+    const sourceRef = marker.getAttribute(attrs.sourceRef);
+    const source = FrontendSurfaceInteractionRegistry[surface].sourceRefs.find((candidate) => candidate.ref === sourceRef);
     if (!source) return null;
 
-    const sourceKey = marker.getAttribute(FrontendSurfaceInteractionDom.sourceKey);
+    const sourceKey = marker.getAttribute(attrs.sourceKey);
     if (!sourceKey) return null;
 
     const compatibleDropzoneRefs = compatibleDropzoneRefsForSource(surface, source);
-    const targetField = FrontendSurfaceRegistry[surface].interaction.dropzoneRefs.find((candidate) => compatibleDropzoneRefs.includes(candidate.ref))?.targetField ?? null;
+    const targetField = FrontendSurfaceInteractionRegistry[surface].dropzoneRefs.find((candidate) => compatibleDropzoneRefs.includes(candidate.ref))?.targetField ?? null;
     return buildPointerSession({ event: pointerEvent, marker, mount, intent: source.intent, modifierVariants: source.modifierVariants ?? [], sessionKind: source.session, sourceRef: source.ref, compatibleDropzoneRefs, sourceField: source.sourceField, sourceKey, targetField, fallbackThresholdPx });
 }
 
@@ -461,7 +461,7 @@ function isMacPlatform(): boolean {
 function interactionSessionDefinitionFor(session: ActivePointerSession) {
     const family = session.mount.getAttribute(attrs.surfaceFamily);
     if (!isFrontendSurfaceInteractionSurfaceName(family)) return null;
-    return InteractionStaticSchemas[family].sessionKinds.find((candidate) => candidate.kind === session.sessionKind) ?? null;
+    return FrontendSurfaceInteractionRegistry[family].sessionKinds.find((candidate) => candidate.kind === session.sessionKind) ?? null;
 }
 
 function createGlobalEffectHandler(effect: InteractionSessionEffect): GlobalEffectHandler | null {
@@ -594,14 +594,14 @@ function activeDropzone(session: ActivePointerSession): Element | null {
 
 function surfaceDropzoneSelectorForSession(session: ActivePointerSession): string {
     const compatibleRefs = session.compatibleDropzoneRefs;
-    if (compatibleRefs.length === 0) return `[${FrontendSurfaceInteractionDom.dropzoneRef}]`;
-    return compatibleRefs.map((ref) => `[${FrontendSurfaceInteractionDom.dropzoneRef}="${cssString(ref)}"]`).join(",");
+    if (compatibleRefs.length === 0) return `[${attrs.dropzoneRef}]`;
+    return compatibleRefs.map((ref) => `[${attrs.dropzoneRef}="${cssString(ref)}"]`).join(",");
 }
 
-function compatibleDropzoneRefsForSource(surface: FrontendSurfaceName, source: { readonly session: string; readonly compatibleDropzones?: readonly string[] }): ReadonlyArray<string> {
+function compatibleDropzoneRefsForSource(surface: FrontendSurfaceInteractionSurfaceName, source: { readonly session: string; readonly compatibleDropzones?: readonly string[] }): ReadonlyArray<string> {
     const explicitRefs = source.compatibleDropzones ?? [];
     if (explicitRefs.length > 0) return explicitRefs;
-    return FrontendSurfaceRegistry[surface].interaction.dropzoneRefs
+    return FrontendSurfaceInteractionRegistry[surface].dropzoneRefs
         .filter((candidate) => candidate.session === source.session)
         .map((candidate) => candidate.ref);
 }
@@ -609,15 +609,15 @@ function compatibleDropzoneRefsForSource(surface: FrontendSurfaceName, source: {
 function targetDropzoneFieldForSession(session: ActivePointerSession, target: Element | null): string | null {
     if (!target) return null;
     const surface = session.mount.getAttribute(attrs.surface);
-    if (!isFrontendSurfaceName(surface)) return null;
-    const ref = target.getAttribute(FrontendSurfaceInteractionDom.dropzoneRef);
+    if (!isFrontendSurfaceInteractionSurfaceName(surface)) return null;
+    const ref = target.getAttribute(attrs.dropzoneRef);
     if (!ref) return null;
-    return FrontendSurfaceRegistry[surface].interaction.dropzoneRefs.find((candidate) => candidate.ref === ref)?.targetField ?? null;
+    return FrontendSurfaceInteractionRegistry[surface].dropzoneRefs.find((candidate) => candidate.ref === ref)?.targetField ?? null;
 }
 
 function targetDropzoneKeyForTarget(target: Element | null): string | null {
     if (!target) return null;
-    return target.getAttribute(FrontendSurfaceInteractionDom.dropzoneKey);
+    return target.getAttribute(attrs.dropzoneKey);
 }
 
 function cssString(value: string): string {

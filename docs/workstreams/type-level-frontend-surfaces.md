@@ -13,8 +13,13 @@ keys; GitHub #146 generated the exact per-surface local mount boundary, removed
 browser-only duplicate/state/load fields, and reflected shared live runtime
 constants. GitHub #147 added Surface-and-marker-indexed runtime values, exact
 declaration-ordered fields, typed common HTMX syntax, and the Timesheets pilot
-that removed protocol-name scans and required-field fallbacks. This workstream
-remains as architectural context until `ir-9ogo` closes.
+that removed protocol-name scans and required-field fallbacks. GitHub #148
+removed ceremonial handler/fake-value construction; GitHub #149 unified actor
+and passive dependency planning over exact resource keys. GitHub #150 then made
+browser reachability explicit, split minimal fragment and interaction
+registries, generated shared DOM vocabulary/tokens, and divided the live browser
+runtime into focused ownership modules behind an orchestration-only entrypoint.
+This workstream remains as architectural context until `ir-9ogo` closes.
 
 Tickets:
 

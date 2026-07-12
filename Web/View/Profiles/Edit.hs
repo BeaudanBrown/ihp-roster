@@ -342,7 +342,7 @@ renderProfileLeaveRequestActionForm leaveRequest =
     renderFrontendSurfaceActionForm
         (surfaceActionValue @Surface.ProfileSurface @Surface.CreateProfileLeaveRequest)
         (profileActionRoute profileCreateLeaveRequestPath)
-            { actionRouteExtraAttrs = [("id", "profile-leave-request-form"), ("data-disable-javascript-submission", "true")]
+            { actionRouteExtraAttrs = [("id", "profile-leave-request-form")]
             }
         [hsx|
             <input type="hidden" name="responseContext" value="profile"/>

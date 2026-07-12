@@ -6,7 +6,7 @@ import {
     reconcileFrontendSurfaceInstances,
     scanFrontendSurfaceMountInstances,
     type FrontendSurfaceMountedInstance,
-} from "../live-updates/frontend-surface";
+} from "../live-updates/mount";
 import { assertDeepEqual, assertEqual, test } from "./harness";
 
 const validFragmentKey = { surface: "timesheets", kind: "timesheet-toolbar", params: null } as const;
@@ -110,7 +110,6 @@ test("FrontendSurface config parser derives Timesheets live subscriptions from m
         }],
     }, { venueId: "venue-1", weekOffset: 3 }));
 
-    assertEqual(config?.surface, "timesheets");
     assertDeepEqual(config?.scope, { surface: "timesheets", scope: { venueId: "venue-1", weekOffset: 3 } });
     assertEqual(config?.scopeKey, "timesheets:venue-1:3");
     assertEqual(config?.resyncFragments[0]?.targetId, "timesheet-day-section-2");
@@ -140,7 +139,6 @@ test("FrontendSurface config parser derives Roster live subscriptions from mount
         ],
     }, { venueId: "venue-1", rosterGroupId: "group-1", weekOffset: -1 }));
 
-    assertEqual(config?.surface, "roster");
     assertDeepEqual(config?.scope, { surface: "roster", scope: { venueId: "venue-1", rosterGroupId: "group-1", weekOffset: -1 } });
     assertEqual(config?.scopeKey, "roster:venue-1:group-1:-1");
     assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { surface: "roster", kind: "roster-content", params: null });
@@ -170,7 +168,6 @@ test("FrontendSurface config parser derives Leave Requests live subscriptions fr
         ],
     }, { venueId: "venue-1" }));
 
-    assertEqual(config?.surface, "leave-requests");
     assertDeepEqual(config?.scope, { surface: "leave-requests", scope: { venueId: "venue-1" } });
     assertEqual(config?.scopeKey, "leave-requests:venue-1");
     assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { surface: "leave-requests", kind: "leave-section-count", params: { leaveSection: "pending" } });
@@ -225,7 +222,6 @@ test("FrontendSurface config parser derives Profile live subscriptions from moun
         }],
     }, { venueId: "venue-1", staffId: "staff-1" }));
 
-    assertEqual(config?.surface, "profile");
     assertDeepEqual(config?.scope, { surface: "profile", scope: { venueId: "venue-1", staffId: "staff-1" } });
     assertEqual(config?.scopeKey, "profile:venue-1:staff-1");
     assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { surface: "profile", kind: "profile-details-section", params: null });
@@ -297,12 +293,9 @@ test("FrontendSurface mount scanner is safe without a browser document", () => {
 });
 
 test("FrontendSurface instance reconciliation disposes removed children deepest first", () => {
-    const parentEl = {} as HTMLElement;
-    const childEl = {} as HTMLElement;
-    const grandchildEl = {} as HTMLElement;
-    const parent: FrontendSurfaceMountedInstance = { instanceId: "parent:scope:primary", surface: "parent", scopeKey: "parent:scope", mountKey: "primary", ownerEl: parentEl, depth: 0 };
-    const child: FrontendSurfaceMountedInstance = { instanceId: "child:scope:primary", surface: "child", scopeKey: "child:scope", mountKey: "primary", ownerEl: childEl, depth: 1 };
-    const grandchild: FrontendSurfaceMountedInstance = { instanceId: "grandchild:scope:primary", surface: "grandchild", scopeKey: "grandchild:scope", mountKey: "primary", ownerEl: grandchildEl, depth: 2 };
+    const parent: FrontendSurfaceMountedInstance = { instanceId: "parent:scope:primary", surface: "parent", scopeKey: "parent:scope", mountKey: "primary", depth: 0 };
+    const child: FrontendSurfaceMountedInstance = { instanceId: "child:scope:primary", surface: "child", scopeKey: "child:scope", mountKey: "primary", depth: 1 };
+    const grandchild: FrontendSurfaceMountedInstance = { instanceId: "grandchild:scope:primary", surface: "grandchild", scopeKey: "grandchild:scope", mountKey: "primary", depth: 2 };
     const active = new Map([
         [parent.instanceId, parent],
         [child.instanceId, child],
@@ -317,12 +310,9 @@ test("FrontendSurface instance reconciliation disposes removed children deepest 
 });
 
 test("FrontendSurface instance reconciliation handles same, removed, and newly scoped children", () => {
-    const parentEl = {} as HTMLElement;
-    const oldChildEl = {} as HTMLElement;
-    const newChildEl = {} as HTMLElement;
-    const parent: FrontendSurfaceMountedInstance = { instanceId: "parent:scope:primary", surface: "parent", scopeKey: "parent:scope", mountKey: "primary", ownerEl: parentEl, depth: 0 };
-    const oldChild: FrontendSurfaceMountedInstance = { instanceId: "child:old:primary", surface: "child", scopeKey: "child:old", mountKey: "primary", ownerEl: oldChildEl, depth: 1 };
-    const newChild: FrontendSurfaceMountedInstance = { instanceId: "child:new:primary", surface: "child", scopeKey: "child:new", mountKey: "primary", ownerEl: newChildEl, depth: 1 };
+    const parent: FrontendSurfaceMountedInstance = { instanceId: "parent:scope:primary", surface: "parent", scopeKey: "parent:scope", mountKey: "primary", depth: 0 };
+    const oldChild: FrontendSurfaceMountedInstance = { instanceId: "child:old:primary", surface: "child", scopeKey: "child:old", mountKey: "primary", depth: 1 };
+    const newChild: FrontendSurfaceMountedInstance = { instanceId: "child:new:primary", surface: "child", scopeKey: "child:new", mountKey: "primary", depth: 1 };
     const active = new Map([
         [parent.instanceId, parent],
         [oldChild.instanceId, oldChild],

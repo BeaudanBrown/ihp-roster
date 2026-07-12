@@ -488,7 +488,7 @@ renderReviewActionForm action buttonClass label =
                 actionContract
                 (leaveRequestsActionRoute (pathTo action))
                     { actionRouteStandardUrl = Just (pathTo action)
-                    , actionRouteExtraAttrs = [("class", "d-inline"), ("data-disable-javascript-submission", "true")]
+                    , actionRouteExtraAttrs = [("class", "d-inline")]
                     }
                 [hsx|<button type="submit" class={buttonClass}>{label}</button>|]
 

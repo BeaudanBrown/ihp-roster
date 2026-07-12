@@ -1,5 +1,4 @@
-import type { FrontendSurfaceFragmentProtection, FrontendSurfaceMountedFragmentConfig, LiveUpdateMessage, SurfaceScope } from "../generated/contracts";
-import type { FrontendSurfaceMountedInstance } from "./frontend-surface";
+import type { FrontendSurfaceFragmentProtection, FrontendSurfaceMountedFragmentConfig, SurfaceScope } from "../generated/contracts";
 
 export type LiveUpdateDebugDetail = Record<string, unknown>;
 
@@ -23,14 +22,12 @@ export type LiveUpdateFragmentWithState = FrontendSurfaceMountedFragmentConfig &
 };
 
 export type SurfaceSubscription = {
-    surface: string | null;
     scope: SurfaceScope;
     scopeKey: string;
     path: string;
     resyncFragments: LiveUpdateFragmentWithState[];
     decorateRequestsWithin: string[];
-    ownerEl?: HTMLElement;
-    ownerEls?: HTMLElement[];
+    ownerEls: HTMLElement[];
     resync: (subscription: SurfaceSubscription) => void;
 };
 
@@ -45,14 +42,9 @@ export type FragmentProtectionAdapter = {
 };
 
 export type FocusedFieldProtectionPolicy = Extract<FrontendSurfaceFragmentProtection, { kind: "focused-field" }>;
-export type LiveUpdateSubscribedMessage = Extract<LiveUpdateMessage, { type: "subscribed" }>;
-export type LiveUpdateInvalidateMessage = Extract<LiveUpdateMessage, { type: "invalidate" }>;
-
 export type HtmxConfigRequestEvent = Event & {
     detail?: {
         elt?: unknown;
         headers?: Record<string, string>;
     };
 };
-
-export type ActiveSurfaceInstances = Map<string, FrontendSurfaceMountedInstance>;

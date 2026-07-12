@@ -261,7 +261,7 @@ tests = beforeAll testContext do
                             ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
+                response `responseBodyShouldNotContain` "data-disable-javascript-submission"
                 response `responseBodyShouldContain` "Timesheet Tuesday 07/01"
                 response `responseBodyShouldContain` "name=\"startTime\" value=\"06:00\""
                 response `responseBodyShouldContain` "name=\"endTime\" value=\"14:00\""
@@ -392,7 +392,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "name=\"_method\" value=\"DELETE\""
                 response `responseBodyShouldContain` "hx-confirm=\"Delete this timesheet entry? This cannot be undone.\""
                 response `responseBodyShouldNotContain` "onsubmit=\"return window.confirm"
-                response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
+                response `responseBodyShouldNotContain` "data-disable-javascript-submission"
                 response `responseBodyShouldContain` "app-modal-footer-start"
                 response `responseBodyShouldNotContain` "js-delete"
 

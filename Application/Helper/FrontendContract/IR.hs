@@ -10,6 +10,7 @@ module Application.Helper.FrontendContract.IR
     , FrontendContractIR (..)
     , GlobalIR (..)
     , GlobalPrimitiveIR (..)
+    , BrowserReachabilityIR (..)
     , checkedFrontendContractIR
     , validateFrontendContractIR
     ) where
@@ -41,11 +42,22 @@ data GlobalIR = GlobalIR
     }
     deriving (Eq, Show)
 
+data BrowserReachabilityIR
+    = BrowserUnreachableIR
+    | BrowserTypeOnlyIR
+    | BrowserGuardIR
+    | BrowserInboundIR
+    | BrowserOutboundIR
+    | BrowserBidirectionalIR
+    deriving (Eq, Show)
+
 data GlobalPrimitiveIR
-    = GlobalSchemaIR !SchemaIR
-    | GlobalEventIR !Text !Text ![FieldIR]
+    = GlobalSchemaIR !BrowserReachabilityIR !SchemaIR
+    | GlobalEventIR !BrowserReachabilityIR !Text !Text ![FieldIR]
     | GlobalDomIdIR !Text !Text
+    | GlobalServerDomIdIR !Text !Text
     | GlobalDomAttrIR !Text !Text
+    | GlobalServerDomAttrIR !Text !Text
     | GlobalDomValueIR !Text !Text
     | GlobalFieldNameIR !Text !Text
     | GlobalDomTokenIR !Text !Text
@@ -87,10 +99,12 @@ validateGlobal global = concatMap validateGlobalPrimitive global.globalPrimitive
 
 validateGlobalPrimitive :: GlobalPrimitiveIR -> [ContractDiagnostic]
 validateGlobalPrimitive = \case
-    GlobalSchemaIR schema -> validateSchemaIR schema
-    GlobalEventIR _ _ fields -> validateFieldNames fields
+    GlobalSchemaIR _ schema -> validateSchemaIR schema
+    GlobalEventIR _ _ _ fields -> validateFieldNames fields
     GlobalDomIdIR _ _ -> []
+    GlobalServerDomIdIR _ _ -> []
     GlobalDomAttrIR _ _ -> []
+    GlobalServerDomAttrIR _ _ -> []
     GlobalDomValueIR _ _ -> []
     GlobalFieldNameIR _ _ -> []
     GlobalDomTokenIR _ _ -> []
@@ -100,7 +114,7 @@ validateGlobalPrimitive = \case
 globalSchemas :: GlobalIR -> [(Text, Text)]
 globalSchemas global =
     [ schemaNameAndMarker schema
-    | GlobalSchemaIR schema <- global.globalPrimitives
+    | GlobalSchemaIR _ schema <- global.globalPrimitives
     ]
 
 globalNamedPrimitives :: GlobalIR -> [(Text, Text)]
@@ -108,11 +122,13 @@ globalNamedPrimitives global =
     [ (name, marker)
     | primitive <- global.globalPrimitives
     , (marker, name) <- case primitive of
-        GlobalSchemaIR _              -> []
-        GlobalEventIR marker name _   -> [(marker, name)]
-        GlobalDomIdIR marker name     -> [(marker, name)]
-        GlobalDomAttrIR marker name   -> [(marker, name)]
-        GlobalDomValueIR marker name  -> [(marker, name)]
+        GlobalSchemaIR _ _                -> []
+        GlobalEventIR _ marker name _     -> [(marker, name)]
+        GlobalDomIdIR marker name         -> [(marker, name)]
+        GlobalServerDomIdIR marker name   -> [(marker, name)]
+        GlobalDomAttrIR marker name       -> [(marker, name)]
+        GlobalServerDomAttrIR marker name -> [(marker, name)]
+        GlobalDomValueIR marker name      -> [(marker, name)]
         GlobalFieldNameIR marker name -> [(marker, name)]
         GlobalDomTokenIR marker name  -> [(marker, name)]
         GlobalConstantIR marker value -> [(marker, "constant:" <> value)]
@@ -124,10 +140,12 @@ globalRefs global = concatMap globalPrimitiveRefs global.globalPrimitives
 
 globalPrimitiveRefs :: GlobalPrimitiveIR -> [Text]
 globalPrimitiveRefs = \case
-    GlobalSchemaIR schema -> schemaRefs schema
-    GlobalEventIR _ _ fields -> fieldRefs fields
+    GlobalSchemaIR _ schema -> schemaRefs schema
+    GlobalEventIR _ _ _ fields -> fieldRefs fields
     GlobalDomIdIR _ _ -> []
+    GlobalServerDomIdIR _ _ -> []
     GlobalDomAttrIR _ _ -> []
+    GlobalServerDomAttrIR _ _ -> []
     GlobalDomValueIR _ _ -> []
     GlobalFieldNameIR _ _ -> []
     GlobalDomTokenIR _ _ -> []

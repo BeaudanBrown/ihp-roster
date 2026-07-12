@@ -1,6 +1,7 @@
+import { rosterWeekShellDomToken } from "../generated/contracts";
 import { rosterFullscreenLabels } from "./fullscreen";
 
-const shellSelector = "#roster-week-shell";
+const shellSelector = `#${rosterWeekShellDomToken}`;
 const toggleSelector = '[data-roster-fullscreen-toggle="true"]';
 const labelSelector = '[data-roster-fullscreen-toggle-label="true"]';
 

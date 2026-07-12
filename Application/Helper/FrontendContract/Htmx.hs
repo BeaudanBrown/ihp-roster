@@ -9,7 +9,6 @@ module Application.Helper.FrontendContract.Htmx
     , HtmxMethod (..)
     , HtmxPushUrl (..)
     , defaultHtmxActionMetadata
-    , htmxActionConfigJson
     , htmxActionMetadataFromOptions
     , htmxActionMetadataFromSurfaceOptions
     , htmxActionOptionAttrPairs
@@ -22,10 +21,7 @@ module Application.Helper.FrontendContract.Htmx
     ) where
 
 import qualified Application.Helper.FrontendContract.IR as IR
-import qualified Data.Aeson as Aeson
-import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text.Encoding
 import IHP.Prelude
 
 -- | Shared generated HTMX request method vocabulary used by contract-owned
@@ -166,30 +162,6 @@ htmxStandardMethodText = \case
     HtmxPut -> "post"
     HtmxPatch -> "post"
     HtmxDelete -> "post"
-
-htmxActionConfigJson :: Text -> [Text] -> HtmxActionMetadata -> Text
-htmxActionConfigJson name fields metadata =
-    Text.Encoding.decodeUtf8 (LBS.toStrict (Aeson.encode (htmxActionConfigToJson name fields metadata)))
-
-htmxActionConfigToJson :: Text -> [Text] -> HtmxActionMetadata -> Aeson.Value
-htmxActionConfigToJson name fields metadata =
-    Aeson.object
-        [ "name" Aeson..= name
-        , "fields" Aeson..= fields
-        , "htmx" Aeson..= Aeson.object
-            [ "method" Aeson..= fmap htmxMethodAttrSegment metadata.htmxMethod
-            , "trigger" Aeson..= metadata.htmxTrigger
-            , "include" Aeson..= metadata.htmxInclude
-            , "sync" Aeson..= metadata.htmxSync
-            , "indicator" Aeson..= metadata.htmxIndicator
-            , "confirm" Aeson..= metadata.htmxConfirm
-            , "select" Aeson..= metadata.htmxSelect
-            , "target" Aeson..= metadata.htmxTarget
-            , "swap" Aeson..= metadata.htmxSwap
-            , "pushUrl" Aeson..= fmap (== HtmxPushUrlTrue) metadata.htmxPushUrl
-            , "custom" Aeson..= [Aeson.object ["name" Aeson..= custom.customMarker, "reason" Aeson..= custom.customReason] | custom <- metadata.htmxCustom]
-            ]
-        ]
 
 htmxPushUrlText :: HtmxPushUrl -> Text
 htmxPushUrlText = \case

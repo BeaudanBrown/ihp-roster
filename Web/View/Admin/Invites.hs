@@ -51,7 +51,7 @@ inviteCreateRoute rosterGroupId = FrontendSurfaceActionRoute
     , actionRouteFields = []
     , actionRouteCustomHtmx = []
     , actionRouteStandardUrl = Just (appendQueryParams (pathTo CreateVenueInvitationAction) [("rosterGroupId", tshow rosterGroupId)])
-    , actionRouteExtraAttrs = [("class", appSurfaceClasses "p-3"), ("data-disable-javascript-submission", "true")]
+    , actionRouteExtraAttrs = [("class", appSurfaceClasses "p-3")]
     }
 
 renderInvitesSectionFragment :: [VenueInvitation] -> Id RosterGroup -> Html
@@ -131,5 +131,5 @@ renderInviteRowActions rosterGroupId invitation
             , actionRouteFields = []
             , actionRouteCustomHtmx = []
             , actionRouteStandardUrl = Just revokeUrl
-            , actionRouteExtraAttrs = [("class", "d-inline"), ("data-disable-javascript-submission", "true")]
+            , actionRouteExtraAttrs = [("class", "d-inline")]
             }

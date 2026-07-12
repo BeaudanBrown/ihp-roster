@@ -111,7 +111,7 @@ renderXeroAutoSyncTrigger True (Just connection)
                 , actionRouteStandardUrl = Just (pathTo SyncXeroPayrollReferenceDataAction)
                 , actionRouteExtraAttrs =
                     [ ("id", "xero-auto-reference-sync")
-                    , ("data-disable-javascript-submission", "true")
+
                     ]
                 }
             mempty
@@ -168,7 +168,7 @@ renderXeroActionControls connection connectionActionsAllowed = [hsx|
         {renderOpenXeroTimesheetPreparationForm canRunXeroActions}
         {renderOpenXeroPayItemImportForm canRunXeroActions}
         {renderXeroReferenceSyncForm canRunXeroActions}
-        <form method="POST" action={DisconnectXeroConnectionAction} data-disable-javascript-submission="true">
+        <form method="POST" action={DisconnectXeroConnectionAction}>
             <button class="btn btn-outline-danger" type="submit" disabled={not connectionActionsAllowed}>Disconnect</button>
         </form>
     </div>

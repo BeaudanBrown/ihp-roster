@@ -10,15 +10,18 @@ Read this before editing `static/` assets.
 - Use `bash ./bin/in-env frontend-build` to regenerate JS, and
   `bash ./bin/in-env frontend-check` before committing frontend changes.
 - Generated TypeScript contracts live in `frontend/ts/generated/`, are owned by
-  Haskell DTOs/enums plus the type-level FrontendSurface registry, and must not
-  be hand-edited. Use generated contracts for backend-emitted JSON/data-*
-  boundaries where applicable; unknown JSON uses generated `parseX` helpers and
-  outbound DTOs use generated `encodeX` helpers.
+  Haskell declarations plus the type-level FrontendSurface registry, and must
+  not be hand-edited. Browser reachability is explicit: server-only roots emit
+  nothing, inbound roots generate guards/parsers, outbound roots generate
+  encoders, and type-only roots generate neither codec. Use generated contracts for backend-emitted JSON/data-* boundaries;
+  do not restore server-only action/DTO/topology manifests or an omnibus Surface
+  registry.
 - Keep app JavaScript split by concern:
   - `app-bootstrap.js`
   - `app-date-pickers.js`
   - `app-dialog-overlays.js`
   - `app-horizontal-scroll.js`
+  - `app-interactions.js`
   - `app-live-updates.js`
   - `app-passkeys.js`
   - `app-preferences.js`
@@ -67,7 +70,10 @@ Read this before editing `static/` assets.
 
 ## Live Runtime
 
-- Generic live-update behavior belongs in `app-live-updates.js`.
+- Generic live-update behavior belongs in `app-live-updates.js`; its TypeScript
+  entrypoint remains orchestration-only and delegates mount, subscription,
+  connection, invalidation, refresh, request-decoration, focus, and diagnostic
+  concerns to focused modules under `frontend/ts/live-updates/`.
 - Do not add feature-specific adapters for normal live-surface discovery,
   subscription, request decoration, version-gap resync, fragment fetching,
   swapping, or focused-field protection.
@@ -77,10 +83,12 @@ Read this before editing `static/` assets.
   definitions. FrontendSurface subscriptions, websocket invalidations, and actor
   events carry semantic fragment keys only; the browser resolves them against
   each matching local mount's URL, target, and protection policy. DOM/config
-  mismatches must be reported and skipped. Do not add browser mount state/load
-  policy/duplicated resync fields, raw live endpoint/header/DOM strings,
-  `data-live-update-surface` support, or feature-specific live transport
-  switches.
+  mismatches must be reported and skipped. Live code imports only the generated
+  fragment registry; interaction code imports only the generated interaction
+  registry. Do not add browser mount state/load policy/duplicated resync fields,
+  raw live endpoint/header/DOM strings, `data-live-update-surface` support,
+  feature-specific live transport switches, or a client-id DOM readiness
+  attribute. Observe subscription diagnostics when E2E needs readiness.
 - Focused-field protection is owned only by the live-update runtime and consumes
   the exact generated descriptor policy. Do not add Morphdom wrappers, IHP Auto
   Refresh compatibility, feature-local blur queues, or fallback field-key

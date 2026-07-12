@@ -1392,7 +1392,7 @@ respondWithRemoveRosterRowConfirmation rosterDay preview =
                     , appShellActionRouteStandardUrl = Nothing
                     , appShellActionRouteExtraAttrs =
                         [ ("id", confirmFormId)
-                        , ("data-disable-javascript-submission", "true")
+
                         ]
                     }
                 [hsx|<input type="hidden" name="confirmDeletePopulatedRow" value="true" />|]

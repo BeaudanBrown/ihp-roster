@@ -34,7 +34,7 @@ renderXeroConnectionDetails connection = [hsx|
 
 renderXeroConnectControl :: Bool -> Html
 renderXeroConnectControl True = [hsx|
-    <form method="POST" action={StartXeroConnectionAction} data-disable-javascript-submission="true">
+    <form method="POST" action={StartXeroConnectionAction}>
         <button class="btn btn-outline-primary" type="submit">Connect Xero</button>
     </form>
 |]

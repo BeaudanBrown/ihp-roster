@@ -25,7 +25,7 @@ tests = beforeAll testContext do
                         callAction NewFeedbackAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-bepis-app-shell-action=\"submit-feedback\""
+                response `responseBodyShouldNotContain` "data-bepis-app-shell-action="
                 response `responseBodyShouldContain` "hx-post=\"/CreateFeedback\""
                 response `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
 

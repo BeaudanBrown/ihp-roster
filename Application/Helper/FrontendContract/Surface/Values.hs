@@ -334,6 +334,7 @@ type family FindSurfaceActivationRef (spec :: SurfaceSpec) (marker :: Type) (pri
 
 type family FindSurfaceDomToken (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
     FindSurfaceDomToken spec marker (('DomToken marker) ': rest) = 'DomToken marker
+    FindSurfaceDomToken spec marker (('BrowserDomToken marker) ': rest) = 'BrowserDomToken marker
     FindSurfaceDomToken spec marker (primitive ': rest) = FindSurfaceDomToken spec marker rest
     FindSurfaceDomToken spec marker '[] = TypeError
         ( 'Text "FrontendSurface "
@@ -439,6 +440,7 @@ surfaceDomTokenValue :: forall spec marker. ReflectPrimitive (SurfaceDomTokenPri
 surfaceDomTokenValue =
     case reflectPrimitive @(SurfaceDomTokenPrimitive spec marker) of
         ReflectedDomToken token -> token
+        ReflectedBrowserDomToken token -> token
         _ -> error "impossible: DOM-token lookup reflected a different primitive"
 
 surfaceSourceRefValue :: forall spec marker. ReflectPrimitive (SurfaceSourceRefPrimitive spec marker) => InteractionSourceRefIR

@@ -4,10 +4,6 @@
 module Application.Helper.FrontendContract.App
     ( AppContract
     , App
-    , OverlayLane
-    , Dialog
-    , Picker
-    , Toast
     , RosterStaffSortKey
     , Name
     , Role
@@ -19,7 +15,6 @@ module Application.Helper.FrontendContract.App
     , InteractionSessionStart
     , InteractionSessionEnd
     , InteractionSessionCancelRequest
-    , AppContentMount
     , DialogOverlayMount
     , ToastOverlayMount
     , HtmxActionMethod
@@ -41,11 +36,6 @@ import Application.Helper.FrontendContract.DSL
 
 data App
 
-data OverlayLane
-data Dialog
-data Picker
-data Toast
-
 data RosterStaffSortKey
 data Name
 data Role
@@ -62,7 +52,6 @@ data InteractionSessionStart
 data InteractionSessionEnd
 data InteractionSessionCancelRequest
 
-data AppContentMount
 data DialogOverlayMount
 data ToastOverlayMount
 
@@ -83,35 +72,18 @@ data HtmxOuterHTMLDashed
 
 type AppContract =
     Global App
-        '[ GlobalSchema (Enum OverlayLane '[Dialog, Picker, Toast])
-         , GlobalSchema (Enum RosterStaffSortKey '[Name, Role, Shifts])
-         , GlobalSchema (LiteralEnum HtmxActionMethod
-            '[ Literal HtmxGet "get"
-             , Literal HtmxPost "post"
-             , Literal HtmxPut "put"
-             , Literal HtmxPatch "patch"
-             , Literal HtmxDelete "delete"
-             ])
-         , GlobalSchema (LiteralEnum HtmxActionSwap
-            '[ Literal HtmxInnerHTML "innerHTML"
-             , Literal HtmxOuterHTML "outerHTML"
-             , Literal HtmxOuterHTMLDashed "outer-html"
-             , Literal HtmxBeforeEnd "beforeend"
-             , Literal HtmxAfterBegin "afterbegin"
-             , Literal HtmxNoneSwap "none"
-             ])
+        '[ BrowserGuardSchema (Enum RosterStaffSortKey '[Name, Role, Shifts])
          , Event PageReady '[]
-         , Event LiveFragmentsRefresh
+         , InboundEvent LiveFragmentsRefresh
             '[ Field Scope 'WireSurfaceScope
              , Field ScopeKey 'WireText
              , Field Fragments ('WireList 'WireSurfaceFragmentKey)
              ]
          , Event InteractionIntent '[]
-         , Event IntentSubmit '[]
+         , ServerEvent IntentSubmit '[]
          , Event InteractionSessionStart '[]
          , Event InteractionSessionEnd '[]
          , Event InteractionSessionCancelRequest '[]
-         , DomId AppContentMount
          , DomId DialogOverlayMount
          , DomId ToastOverlayMount
          ]

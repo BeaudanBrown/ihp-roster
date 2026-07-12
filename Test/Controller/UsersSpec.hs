@@ -59,7 +59,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Accept Invitation"
                 response `responseBodyShouldContain` "invitee@example.com"
                 response `responseBodyShouldContain` "venue admin"
-                response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
+                response `responseBodyShouldNotContain` "data-disable-javascript-submission"
                 response `responseBodyShouldContain` "Account Details"
                 response `responseBodyShouldContain` "Confirm your staff details"
                 response `responseBodyShouldContain` "id=\"email\""

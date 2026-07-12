@@ -593,7 +593,7 @@ renderStaffEmployeeSelectionForm view row =
         (appShellActionByMarker @ApplyXeroTimesheetPreparationStaffDecisionOverlay)
         (pathTo (ApplyXeroTimesheetPreparationStaffDecisionAction view.preparationRun.id))
         [ ("class", "d-inline-flex gap-2")
-        , ("data-disable-javascript-submission", "true")
+
         ]
         [hsx|
             <input type="hidden" name="staffId" value={tshow staff.id} />

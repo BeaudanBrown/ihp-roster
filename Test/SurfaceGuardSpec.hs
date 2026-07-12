@@ -60,7 +60,7 @@ tests = describe "FrontendSurface strict API guard" do
         violations <- frontendSurfaceHiddenFieldOwnershipViolations
         violations `shouldBe` []
 
-    it "keeps migrated Admin Roster Groups actions generated" do
+    it "keeps migrated Admin Roster Groups actions reflected server-side" do
         violations <- adminRosterGroupsActionContractViolations
         violations `shouldBe` []
 
@@ -69,22 +69,22 @@ frontendSurfaceHiddenFieldOwnershipViolations = do
     rosterHeader <- Text.readFile "Web/View/RosterWeeks/Header.hs"
     timesheetsIndex <- Text.readFile "Web/View/Timesheets/Index.hs"
     runtime <- Text.readFile "Application/Helper/FrontendContract/Surface/Runtime.hs"
-    contracts <- Text.readFile "frontend/ts/generated/contracts.ts"
+    rosterContract <- Text.readFile "Application/Helper/FrontendContract/Surface/Roster.hs"
     let rosterWarningForm = sourceSlice "renderRosterWarningPreferenceForm" "renderRosterWageEstimatePreferenceForm" rosterHeader
         rosterWageForm = sourceSlice "renderRosterWageEstimatePreferenceForm" "renderRosterWarningToggle" rosterHeader
         rosterAssignmentFiltersForm = sourceSlice "renderRosterAssignmentFiltersMenuSection" "renderRosterAssignmentFilterToggle" rosterHeader
         timesheetFilterForm = sourceSlice "renderTimesheetFilterForm" "renderTimesheetStaffFilter" timesheetsIndex
         timesheetApprovalForm = sourceSlice "renderTimesheetApprovalForm" "renderBreakSummary" timesheetsIndex
-        staleAssignmentFields = ["showUnavailableStaff", "showIdealShiftMatches"]
-        currentAssignmentFields = ["hideStaffAtIdealShifts", "hideStaffUnavailable", "hideStaffOnApprovedLeave", "hideStaffAlreadyAssignedToday"]
+        staleAssignmentFields = ["ShowUnavailableStaff", "ShowIdealShiftMatches"]
+        currentAssignmentFields = ["HideStaffAtIdealShifts", "HideStaffUnavailable", "HideStaffOnApprovedLeave", "HideStaffAlreadyAssignedToday"]
     pure $ concat
         [ ["Web/View/RosterWeeks/Header.hs: roster warning preference form must not mirror mutable showRosterWarnings in actionRouteFields" | "actionRouteFields" `Text.isInfixOf` rosterWarningForm]
         , ["Web/View/RosterWeeks/Header.hs: roster wage preference form must not mirror mutable showWageEstimates in actionRouteFields" | "actionRouteFields" `Text.isInfixOf` rosterWageForm]
         , ["Web/View/RosterWeeks/Header.hs: roster assignment filter form must let body controls own mutable hideStaff* fields" | "actionRouteFields" `Text.isInfixOf` rosterAssignmentFiltersForm]
         , ["Web/View/Timesheets/Index.hs: timesheet filter form must not mirror mutable filter controls in actionRouteFields" | "actionRouteFields" `Text.isInfixOf` timesheetFilterForm]
         , ["Web/View/Timesheets/Index.hs: timesheet approval form should use actionRouteFields rather than duplicate body hidden state inputs" | "name=\"weekOffset\"" `Text.isInfixOf` timesheetApprovalForm || "name=\"showApproved\"" `Text.isInfixOf` timesheetApprovalForm || "name=\"showAllStaff\"" `Text.isInfixOf` timesheetApprovalForm || "name=\"staffFilterId\"" `Text.isInfixOf` timesheetApprovalForm]
-        , ["frontend/ts/generated/contracts.ts: stale roster assignment filter action field still generated: " <> field | field <- staleAssignmentFields, field `Text.isInfixOf` contracts]
-        , ["frontend/ts/generated/contracts.ts: missing roster assignment filter action field: " <> field | field <- currentAssignmentFields, not (field `Text.isInfixOf` contracts)]
+        , ["Application/Helper/FrontendContract/Surface/Roster.hs: stale roster assignment filter action field remains declared: " <> field | field <- staleAssignmentFields, field `Text.isInfixOf` rosterContract]
+        , ["Application/Helper/FrontendContract/Surface/Roster.hs: missing roster assignment filter action field: " <> field | field <- currentAssignmentFields, not (field `Text.isInfixOf` rosterContract)]
         , ["Application/Helper/FrontendContract/Surface/Runtime.hs: actionRouteFields must document hidden-field ownership and IHP first-param semantics" | not ("IHP reads the first scalar" `Text.isInfixOf` runtime && "stable route/context" `Text.isInfixOf` runtime)]
         ]
 
@@ -188,14 +188,14 @@ adminRosterGroupsActionContractViolations :: IO [Text]
 adminRosterGroupsActionContractViolations = do
     view <- Text.readFile "Web/View/Admin/RosterGroups.hs"
     support <- Text.readFile "Web/Controller/Admin/Support.hs"
-    contracts <- Text.readFile "frontend/ts/generated/contracts.ts"
+    contract <- Text.readFile "Application/Helper/FrontendContract/Surface/Admin.hs"
     let requestAttrs = ["hx-get=", "hx-post=", "hx-target=", "hx-swap=", "hx-trigger=", "hx-push-url="]
     pure $ concat
         [ ["Web/View/Admin/RosterGroups.hs: migrated request HTMX attr should be rendered by generated helpers: " <> attr | attr <- requestAttrs, attr `Text.isInfixOf` view]
         , ["Web/View/Admin/RosterGroups.hs: stale business OOB helper should stay deleted" | "renderRosterGroupsSectionFragmentWithSwap" `Text.isInfixOf` view || "hx-swap-oob" `Text.isInfixOf` view]
         , ["Web/Controller/Admin/Support.hs: roster groups actor success must not render business OOB" | "renderRosterGroupsSectionFragmentWithSwap" `Text.isInfixOf` support || "hx-swap-oob" `Text.isInfixOf` support]
-        , ["frontend/ts/generated/contracts.ts: missing Admin Roster Groups action manifest" | not ("adminRosterGroupsSurfaceManifest" `Text.isInfixOf` contracts && "create-roster-group" `Text.isInfixOf` contracts && "move-roster-group-up" `Text.isInfixOf` contracts)]
-        , ["frontend/ts/generated/contracts.ts: missing declared custom HTMX reason" | not ("move buttons submit the containing row form via hx-include=closest form" `Text.isInfixOf` contracts)]
+        , ["Application/Helper/FrontendContract/Surface/Admin.hs: missing Admin Roster Groups action declarations" | not ("CreateRosterGroup" `Text.isInfixOf` contract && "MoveRosterGroupUp" `Text.isInfixOf` contract)]
+        , ["Application/Helper/FrontendContract/Surface/Admin.hs: missing declared custom HTMX reason" | not ("move buttons submit the containing row form via hx-include=closest form" `Text.isInfixOf` contract)]
         ]
 
 lazyFragmentRenderingViolations :: IO [Text]

@@ -42,6 +42,7 @@ module Application.Helper.FrontendContract.Surface.DSL
     , ConflictPolicyFor
     , Event
     , DomToken
+    , BrowserDomToken
     , Dto
     , ContainsSurface
     , DependsOnFragment
@@ -202,6 +203,7 @@ data SurfacePrimitive
     | ConflictPolicy SessionSelector FragmentSelector ConflictResolution
     | Event Type [FieldSpec]
     | DomToken Type
+    | BrowserDomToken Type
     | Dto Type [FieldSpec]
 
 data SurfaceSpec
@@ -225,6 +227,7 @@ type ConflictPolicy session fragment resolution = 'ConflictPolicy ('SessionKind 
 type ConflictPolicyFor sessionSelector fragmentSelector resolution = 'ConflictPolicy sessionSelector fragmentSelector resolution
 type Event name detail = 'Event name detail
 type DomToken name = 'DomToken name
+type BrowserDomToken name = 'BrowserDomToken name
 type Dto name fields = 'Dto name fields
 type ContainsSurface name = 'ContainsSurface name
 type DependsOnFragment name = 'DependsOnFragment name

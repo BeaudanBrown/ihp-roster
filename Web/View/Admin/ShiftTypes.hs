@@ -111,7 +111,7 @@ renderShiftTypeCreateForm _shiftTypes showInactive awardLevels awardLevelBaseRat
             , actionRouteFields = []
             , actionRouteCustomHtmx = []
             , actionRouteStandardUrl = Just (pathTo CreateShiftTypeAction)
-            , actionRouteExtraAttrs = [("class", appSurfaceClasses "p-3"), ("data-disable-javascript-submission", "true")]
+            , actionRouteExtraAttrs = [("class", appSurfaceClasses "p-3")]
             }
 
 renderShiftTypeRows :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Html
@@ -189,7 +189,7 @@ renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates impor
                 [ ("class", appSurfaceClasses "p-3 mb-2")
                 , ("id", shiftTypeRowId shiftType.id)
                 , ("data-admin-shift-type-row", "true")
-                , ("data-disable-javascript-submission", "true")
+
                 ]
             }
 

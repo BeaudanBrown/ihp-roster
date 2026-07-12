@@ -1,140 +1,57 @@
 import {
-    FrontendSurfaceContainmentTopology,
-    FrontendSurfaceRegistry,
-    adminPageSurfaceManifest,
-    isAppShellActionManifest,
-    openFeedbackDialogAppShellActionManifest,
-    submitFeedbackAppShellActionManifest,
-    isFrontendSurfaceActionManifest,
-    isFrontendSurfaceContainmentEdge,
+    FrontendSurfaceFragmentRegistry,
+    FrontendSurfaceInteractionRegistry,
+    isFrontendSurfaceLiveFragmentName,
     isFrontendSurfaceName,
-    parseFrontendSurfaceActionManifest,
-    parseFrontendSurfaceName,
-    parseAppShellActionManifest,
-    surfaceLabSurfaceManifest,
-    timesheetsSurfaceManifest,
-    type FrontendSurfaceContainmentEdge,
-    type FrontendContractDay,
-    type LabPayload,
-    type LabRelatedPayload,
-    type MoveLabCardIntentFields,
-    type PanelId,
-    type RefreshPanelActionFields,
-    type SurfaceLabFragmentKey,
-    type TimesheetsFragmentKey,
+    rosterContentDomToken,
+    rosterWeekShellDomToken,
+    timesheetWeekShellDomToken,
+    type SurfaceLabSurfaceFragmentKey,
+    type TimesheetsSurfaceFragmentKey,
 } from "../generated/contracts";
-import { assertDeepEqual, assertEqual, assertThrows, test } from "./harness";
+import { assertDeepEqual, assertEqual, test } from "./harness";
 
-test("generated AppShell action manifests expose dialog request contracts", () => {
-    assertEqual(isAppShellActionManifest(openFeedbackDialogAppShellActionManifest), true);
-    assertEqual(parseAppShellActionManifest(openFeedbackDialogAppShellActionManifest).name, "open-feedback-dialog");
-    assertDeepEqual(openFeedbackDialogAppShellActionManifest, {
-        name: "open-feedback-dialog",
-        fields: [],
-        htmx: {
-            method: "get",
-            trigger: null,
-            include: null,
-            sync: null,
-            indicator: null,
-            confirm: null,
-            select: null,
-            target: "#dialog-overlay-mount",
-            swap: "innerHTML",
-            pushUrl: false,
-            custom: [],
-        },
-    });
-    assertEqual(isAppShellActionManifest(submitFeedbackAppShellActionManifest), true);
-    assertEqual(parseAppShellActionManifest(submitFeedbackAppShellActionManifest).name, "submit-feedback");
-    assertDeepEqual(submitFeedbackAppShellActionManifest.fields, ["feedbackType", "content"]);
-    assertEqual(submitFeedbackAppShellActionManifest.htmx.method, "post");
-});
-
-test("generated FrontendSurface registry exposes lab surface primitives", () => {
+test("generated live fragment registry contains only semantic live fragment names", () => {
     assertEqual(isFrontendSurfaceName("surface-lab"), true);
     assertEqual(isFrontendSurfaceName("timesheets"), true);
     assertEqual(isFrontendSurfaceName("legacy-roster"), false);
-    assertEqual(parseFrontendSurfaceName("surface-lab"), "surface-lab");
-    assertThrows(() => parseFrontendSurfaceName("legacy-roster"), "Invalid FrontendSurfaceName");
 
-    assertDeepEqual(FrontendSurfaceRegistry["surface-lab"], surfaceLabSurfaceManifest);
-    assertDeepEqual(FrontendSurfaceRegistry.timesheets, timesheetsSurfaceManifest);
-    assertDeepEqual(surfaceLabSurfaceManifest.fragments, ["lab-shell", "lab-panel"]);
-    assertEqual(surfaceLabSurfaceManifest.htmxActions[0].name, "refresh-panel");
-    assertDeepEqual(surfaceLabSurfaceManifest.htmxActions[0].fields, ["panelId"]);
-    assertDeepEqual(surfaceLabSurfaceManifest.htmxActions[0].htmx, {
-        method: "post",
-        trigger: null,
-        include: "#lab-panel-include",
-        sync: null,
-        indicator: null,
-        confirm: null,
-        select: null,
-        target: "#lab-panel-target",
-        swap: "outerHTML",
-        pushUrl: false,
-        custom: [{ name: "lab-panel-custom-htmx", reason: "lab fixture covers auditable custom HTMX metadata" }],
-    });
-    assertEqual(isFrontendSurfaceActionManifest(surfaceLabSurfaceManifest.htmxActions[0]), true);
-    assertEqual(parseFrontendSurfaceActionManifest(surfaceLabSurfaceManifest.htmxActions[0]).name, "refresh-panel");
-    assertDeepEqual(surfaceLabSurfaceManifest.intents, ["move-lab-card"]);
-    assertDeepEqual(surfaceLabSurfaceManifest.sessions, ["drag"]);
-    assertDeepEqual(surfaceLabSurfaceManifest.layers, ["drag-preview"]);
-    assertDeepEqual(surfaceLabSurfaceManifest.domTokens, ["lab-root", "lab-dropzone", "lab-panel-target", "lab-panel-include"]);
-});
-
-test("generated FrontendSurface registry exposes Admin page containment topology", () => {
-    assertDeepEqual(adminPageSurfaceManifest.containedSurfaces["admin-page-content"], [
-        "admin-invites",
-        "admin-venue-config",
-        "admin-exports",
-        "admin-shift-types",
-        "admin-roster-groups",
+    assertDeepEqual(FrontendSurfaceFragmentRegistry["surface-lab"], []);
+    assertDeepEqual(FrontendSurfaceFragmentRegistry.timesheets, [
+        "timesheet-toolbar",
+        "timesheet-day-columns",
+        "timesheet-day-section",
     ]);
-    assertDeepEqual(FrontendSurfaceRegistry["admin-page"], adminPageSurfaceManifest);
-    const topology: ReadonlyArray<FrontendSurfaceContainmentEdge> = FrontendSurfaceContainmentTopology;
-    assertEqual(isFrontendSurfaceContainmentEdge(topology[0]), true);
-    assertDeepEqual(topology.filter((edge) => String(edge.parentSurface) === "admin-page").map((edge) => edge.childSurface), [
-        "admin-invites",
-        "admin-venue-config",
-        "admin-exports",
-        "admin-shift-types",
-        "admin-roster-groups",
+    assertEqual(isFrontendSurfaceLiveFragmentName("timesheets", "timesheet-day-section"), true);
+    assertEqual(isFrontendSurfaceLiveFragmentName("timesheets", "missing"), false);
+});
+
+test("generated interaction registry contains only runtime-consumed interaction fields", () => {
+    const roster = FrontendSurfaceInteractionRegistry.roster;
+    assertDeepEqual(roster.sourceRefs.map((source) => source.ref), ["shift-drag-source", "staff-drag-source"]);
+    assertDeepEqual(roster.dropzoneRefs.map((dropzone) => dropzone.ref), [
+        "shift-slot-dropzone",
+        "staff-create-dropzone",
+        "day-column-dropzone",
+        "existing-shift-dropzone",
+        "delete-shift-dropzone",
     ]);
-    assertDeepEqual(topology.filter((edge) => String(edge.parentSurface) === "admin-xero-page").map((edge) => edge.childSurface), ["admin-xero"]);
+    assertDeepEqual(roster.activationRefs.map((activation) => activation.ref), ["roster-layout-mode-activation"]);
+    assertDeepEqual(roster.sessionKinds.map((session) => session.kind), ["drag"]);
+    assertDeepEqual(Object.keys(roster).sort(), ["activationRefs", "dropzoneRefs", "sessionKinds", "sourceRefs"]);
 });
 
-test("generated FrontendSurface registry exposes timesheets surface primitives", () => {
-    const daySection: TimesheetsFragmentKey = { kind: "timesheet-day-section", params: { dayOffset: 2 } };
-
-    assertDeepEqual(timesheetsSurfaceManifest.scopes, ["timesheet-week"]);
-    assertDeepEqual(timesheetsSurfaceManifest.fragments, ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"]);
-    assertEqual(timesheetsSurfaceManifest.htmxActions[0].name, "navigate-timesheet-week");
-    assertEqual(timesheetsSurfaceManifest.htmxActions[0].htmx.sync, "closest #timesheet-week-shell:replace");
-    assertDeepEqual(timesheetsSurfaceManifest.htmxActions[0].htmx.custom, []);
-    assertDeepEqual(timesheetsSurfaceManifest.domTokens, ["timesheet-week-shell"]);
-    assertEqual(daySection.params.dayOffset, 2);
+test("surface DOM tokens are generated as tree-shakeable feature constants", () => {
+    assertEqual(rosterContentDomToken, "roster-content");
+    assertEqual(rosterWeekShellDomToken, "roster-week-shell");
+    assertEqual(timesheetWeekShellDomToken, "timesheet-week-shell");
 });
 
-test("generated FrontendSurface lab DTOs are consumable by TypeScript", () => {
-    const panelId = "00000000-0000-0000-0000-000000000001" as PanelId;
-    const fragmentKey: SurfaceLabFragmentKey = { kind: "lab-panel", params: { panelId } };
-    const actionFields: RefreshPanelActionFields = fragmentKey.params;
-    const intentFields: MoveLabCardIntentFields = { sourceItemKey: "card:a", targetDropzoneKey: "slot:b" };
-    const relatedPayload: LabRelatedPayload = { label: "Related" };
-    const payload: LabPayload = {
-        label: "Lab",
-        note: null,
-        tags: ["alpha"],
-        dueDay: "2026-07-02" as FrontendContractDay,
-        maybeRank: undefined,
-        maybeMemo: null,
-        relatedPayload,
-    };
+test("browser-reachable surface fragment types remain consumable", () => {
+    const panelId = "00000000-0000-0000-0000-000000000001";
+    const labFragment: SurfaceLabSurfaceFragmentKey = { kind: "lab-panel", params: { panelId } };
+    const timesheetFragment: TimesheetsSurfaceFragmentKey = { kind: "timesheet-day-section", params: { dayOffset: 2 } };
 
-    assertEqual(fragmentKey.kind, "lab-panel");
-    assertEqual(actionFields.panelId, fragmentKey.params.panelId);
-    assertEqual(intentFields.targetDropzoneKey, "slot:b");
-    assertEqual(payload.count, undefined);
+    assertEqual(labFragment.kind, "lab-panel");
+    assertEqual(timesheetFragment.params.dayOffset, 2);
 });

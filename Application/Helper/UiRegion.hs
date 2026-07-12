@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Application.Helper.UiRegion
     ( UiRegionDomAttributes (..)
     , UiRegionLifecycleEvent (..)
@@ -9,6 +11,8 @@ module Application.Helper.UiRegion
     , uiRegionTransitionProfileText
     ) where
 
+import qualified Application.Helper.FrontendContract.UiRegion as Contract
+import Application.Helper.FrontendContract.Values
 import GHC.Generics (Generic)
 import IHP.Prelude
 
@@ -42,11 +46,11 @@ data UiRegionLifecycleEvent
 canonicalUiRegionDomAttributes :: UiRegionDomAttributes
 canonicalUiRegionDomAttributes =
     UiRegionDomAttributes
-        { uiRegionFragmentAttribute = "data-bepis-fragment"
-        , uiRegionLazySurfaceAttribute = "data-bepis-lazy-surface"
-        , uiRegionLazyFragmentAttribute = "data-bepis-lazy-fragment"
-        , uiRegionLazyRetryAttribute = "data-bepis-lazy-retry"
-        , uiRegionTransitionAttribute = "data-bepis-region-transition"
+        { uiRegionFragmentAttribute = domAttrValue @Contract.Fragment
+        , uiRegionLazySurfaceAttribute = domAttrValue @Contract.LazySurface
+        , uiRegionLazyFragmentAttribute = domAttrValue @Contract.LazyFragment
+        , uiRegionLazyRetryAttribute = domAttrValue @Contract.LazyRetry
+        , uiRegionTransitionAttribute = domAttrValue @Contract.RegionTransition
         }
 
 uiRegionFragmentEnabledValue :: Text
@@ -54,18 +58,18 @@ uiRegionFragmentEnabledValue = "true"
 
 uiRegionTransitionProfileText :: UiRegionTransitionProfile -> Text
 uiRegionTransitionProfileText = \case
-    UiRegionTransitionNone -> "none"
-    UiRegionTransitionFade -> "fade"
-    UiRegionTransitionFadeSlide -> "fade-slide"
-    UiRegionTransitionPanel -> "panel"
+    UiRegionTransitionNone -> enumLiteralValue @Contract.UiRegionTransitionProfile @Contract.None
+    UiRegionTransitionFade -> enumLiteralValue @Contract.UiRegionTransitionProfile @Contract.Fade
+    UiRegionTransitionFadeSlide -> enumLiteralValue @Contract.UiRegionTransitionProfile @Contract.FadeSlide
+    UiRegionTransitionPanel -> enumLiteralValue @Contract.UiRegionTransitionProfile @Contract.Panel
 
 canonicalUiRegionLifecycleEvents :: [(UiRegionLifecycleEvent, Text)]
 canonicalUiRegionLifecycleEvents =
-    [ (UiRegionRequestStart, "bepis:region-request-start")
-    , (UiRegionBeforeSwap, "bepis:region-before-swap")
-    , (UiRegionAfterSwap, "bepis:region-after-swap")
-    , (UiRegionSettle, "bepis:region-settle")
-    , (UiRegionError, "bepis:region-error")
+    [ (UiRegionRequestStart, eventNameValue @Contract.RegionRequestStart)
+    , (UiRegionBeforeSwap, eventNameValue @Contract.RegionBeforeSwap)
+    , (UiRegionAfterSwap, eventNameValue @Contract.RegionAfterSwap)
+    , (UiRegionSettle, eventNameValue @Contract.RegionSettle)
+    , (UiRegionError, eventNameValue @Contract.RegionError)
     ]
 
 uiRegionLifecycleEventName :: UiRegionLifecycleEvent -> Text

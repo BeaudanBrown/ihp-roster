@@ -271,7 +271,7 @@ renderRosterWarningPreferenceForm weekOffset rosterGroupId showRosterWarnings =
         (surfaceActionValue @Surface.RosterSurface @Surface.ToggleRosterWarnings)
         (rosterWeekShellSyncRoute (rosterWarningPreferenceUrl weekOffset rosterGroupId))
             { actionRouteStandardUrl = Just (rosterWarningPreferenceUrl weekOffset rosterGroupId)
-            , actionRouteExtraAttrs = [("class", "col-6 mb-0"), ("data-disable-javascript-submission", "true")]
+            , actionRouteExtraAttrs = [("class", "col-6 mb-0")]
             }
         [hsx|
             <div class="roster-display-toggle">
@@ -287,7 +287,7 @@ renderRosterWageEstimatePreferenceForm weekOffset rosterGroupId viewCapabilities
             (surfaceActionValue @Surface.RosterSurface @Surface.ToggleRosterWageEstimates)
             (rosterWeekShellSyncRoute (rosterWageEstimatePreferenceUrl weekOffset rosterGroupId))
                 { actionRouteStandardUrl = Just (rosterWageEstimatePreferenceUrl weekOffset rosterGroupId)
-                , actionRouteExtraAttrs = [("class", "col-6 mb-0"), ("data-disable-javascript-submission", "true")]
+                , actionRouteExtraAttrs = [("class", "col-6 mb-0")]
                 }
             [hsx|
                 <div class="roster-display-toggle">
@@ -324,7 +324,7 @@ renderRosterSortForm (Just rosterWeek) viewCapabilities
             (surfaceActionValue @Surface.RosterSurface @Surface.SortRosterWeek)
             (rosterWeekShellSyncRoute (pathTo (SortRosterWeekAction rosterWeek.id)))
                 { actionRouteStandardUrl = Just (pathTo (SortRosterWeekAction rosterWeek.id))
-                , actionRouteExtraAttrs = [("class", "mb-0 roster-week-action-form"), ("data-disable-javascript-submission", "true")]
+                , actionRouteExtraAttrs = [("class", "mb-0 roster-week-action-form")]
                 }
             [hsx|
                 <button type="submit" class="btn btn-outline-secondary btn-sm w-100 h-100 text-center roster-week-action-button">
@@ -372,7 +372,7 @@ renderRosterAssignmentFiltersMenuSection weekOffset rosterGroupId menuTriggerId 
                     [ ("class", "px-1 py-1")
                     , ("data-roster-filter-form", "true")
                     , ("data-roster-filter-menu-trigger-id", menuTriggerId)
-                    , ("data-disable-javascript-submission", "true")
+
                     ]
                 }
             [hsx|
@@ -411,7 +411,7 @@ renderCopyPreviousWeekForm weekOffset rosterGroupId =
                 [ FrontendSurfaceCustomHtmxAttrs "copy-roster-week-custom-htmx" [("hx-confirm", "This will overwrite the current week with the previous week's roster. Continue?")]
                 ]
             , actionRouteStandardUrl = Just (rosterCopyWeekUrl (weekOffset - 1) weekOffset rosterGroupId)
-            , actionRouteExtraAttrs = [("class", "mb-0 roster-week-action-form"), ("data-disable-javascript-submission", "true")]
+            , actionRouteExtraAttrs = [("class", "mb-0 roster-week-action-form")]
             }
         [hsx|
             <button type="submit" class="btn btn-outline-primary btn-sm w-100 h-100 text-center roster-week-action-button">

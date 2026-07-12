@@ -3,6 +3,7 @@
   // frontend/ts/generated/contracts.ts
   var pageReadyEvent = "bepis:page-ready";
   var dialogOverlayMountDomId = "dialog-overlay-mount";
+  var timesheetWeekShellDomToken = "timesheet-week-shell";
 
   // frontend/ts/shared/dom.ts
   function isElement(value) {
@@ -69,7 +70,7 @@
   }
   enableBreakTimeToggle();
   var dialogMountId = dialogOverlayMountDomId;
-  var entryLinkSelector = ".timesheet-entry-card-link";
+  var entryLinkSelector = `#${timesheetWeekShellDomToken} .timesheet-entry-card-link`;
   var pointerOpenedEntryLink = null;
   var mountObserver = null;
   function getDialogMount() {

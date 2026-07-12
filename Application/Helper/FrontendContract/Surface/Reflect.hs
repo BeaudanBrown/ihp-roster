@@ -78,6 +78,7 @@ data ReflectedPrimitive
     | ReflectedOverlayLane !Text
     | ReflectedClientEvent !Text ![FieldIR]
     | ReflectedDomToken !Text
+    | ReflectedBrowserDomToken !Text
     | ReflectedDto !Text ![FieldIR]
 
 class ReflectPrimitive (primitive :: SurfacePrimitive) where
@@ -171,6 +172,9 @@ instance (Typeable marker, ReflectFieldList fields) => ReflectPrimitive ('Event 
 
 instance Typeable marker => ReflectPrimitive ('DomToken marker) where
     reflectPrimitive = ReflectedDomToken (protocolName @marker DomTokenName)
+
+instance Typeable marker => ReflectPrimitive ('BrowserDomToken marker) where
+    reflectPrimitive = ReflectedBrowserDomToken (protocolName @marker DomTokenName)
 
 instance (Typeable marker, ReflectFieldList fields) => ReflectPrimitive ('Dto marker fields) where
     reflectPrimitive = ReflectedDto (typeMarker @marker) (reflectFieldList @fields)
@@ -483,6 +487,10 @@ addPrimitives primitives surface =
             ReflectedOverlayLane name -> current { surfaceOverlayLanes = current.surfaceOverlayLanes <> [name] }
             ReflectedClientEvent name fields -> current { surfaceClientEvents = current.surfaceClientEvents <> [(name, fields)] }
             ReflectedDomToken name -> current { surfaceDomTokens = current.surfaceDomTokens <> [name] }
+            ReflectedBrowserDomToken name -> current
+                { surfaceDomTokens = current.surfaceDomTokens <> [name]
+                , surfaceBrowserDomTokens = current.surfaceBrowserDomTokens <> [name]
+                }
             ReflectedDto marker fields -> current { surfaceDtos = current.surfaceDtos <> [RecordIR marker marker fields] }
 
 addOptionMetadata :: [OptionIR] -> SurfaceIR -> SurfaceIR
@@ -527,6 +535,7 @@ emptySurface = SurfaceIR
     , surfaceOverlayLanes = []
     , surfaceClientEvents = []
     , surfaceDomTokens = []
+    , surfaceBrowserDomTokens = []
     , surfaceDtos = []
     }
 

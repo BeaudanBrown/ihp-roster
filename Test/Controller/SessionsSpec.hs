@@ -30,7 +30,7 @@ tests = beforeAll testContext do
             response <- callAction NewSessionAction
             response `responseStatusShouldBe` status200
             response `responseBodyShouldContain` "Sign In"
-            response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
+            response `responseBodyShouldNotContain` "data-disable-javascript-submission"
             response `responseBodyShouldNotContain` "Need venue access?"
             response `responseBodyShouldNotContain` "Request an invitation"
             response `responseBodyShouldNotContain` "/helpers.js"

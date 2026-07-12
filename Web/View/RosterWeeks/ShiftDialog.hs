@@ -133,7 +133,7 @@ renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShift
         (rosterAppShellActionRoute (pathTo (rosterShiftFormAction rosterShiftDialogMode)))
             { appShellActionRouteExtraAttrs =
                 [ ("id", rosterShiftFormId rosterShiftDialogMode)
-                , ("data-disable-javascript-submission", "true")
+
                 ]
             }
         [hsx|

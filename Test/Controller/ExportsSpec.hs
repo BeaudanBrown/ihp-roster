@@ -469,7 +469,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Exports"
                 response `responseBodyShouldContain` "Approved Timesheets CSV"
-                response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
+                response `responseBodyShouldNotContain` "data-disable-javascript-submission"
                 response `responseBodyShouldContain` "venue-b.csv"
                 response `responseBodyShouldNotContain` "venue-a.csv"
 

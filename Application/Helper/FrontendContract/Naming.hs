@@ -9,6 +9,7 @@ module Application.Helper.FrontendContract.Naming
     , FrontendSurfaceNameError (..)
     , NameCollision (..)
     , deriveDomAttributeName
+    , deriveDomAttributeTypeName
     , deriveEventName
     , deriveFrontendSurfaceName
     , deriveFrontendSurfaceTypeName
@@ -98,6 +99,9 @@ deriveJsonFieldName = deriveFrontendSurfaceName FieldName
 deriveDomAttributeName :: Text -> Text
 deriveDomAttributeName marker =
     "data-bepis-" <> deriveFrontendSurfaceName DomTokenName marker
+
+deriveDomAttributeTypeName :: forall marker. Typeable marker => Text
+deriveDomAttributeTypeName = deriveDomAttributeName (markerTypeName @marker)
 
 deriveEventName :: Text -> Text -> Text
 deriveEventName namespace marker =

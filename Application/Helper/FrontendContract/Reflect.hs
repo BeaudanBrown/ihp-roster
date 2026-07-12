@@ -72,17 +72,33 @@ instance (ReflectGlobalPrimitive primitive, ReflectGlobalPrimitiveList rest) => 
 class ReflectGlobalPrimitive (primitive :: GlobalPrimitive) where
     reflectGlobalPrimitive :: GlobalPrimitiveIR
 
-instance ReflectSchemaPrimitive schema => ReflectGlobalPrimitive ('GlobalSchema schema) where
-    reflectGlobalPrimitive = GlobalSchemaIR (reflectSchemaPrimitive @schema)
+instance (ReflectBrowserReachability reachability, ReflectSchemaPrimitive schema) => ReflectGlobalPrimitive ('GlobalSchema reachability schema) where
+    reflectGlobalPrimitive = GlobalSchemaIR (reflectBrowserReachability @reachability) (reflectSchemaPrimitive @schema)
 
-instance (Typeable marker, ReflectFieldList fields) => ReflectGlobalPrimitive ('Event marker fields) where
-    reflectGlobalPrimitive = GlobalEventIR (typeMarker @marker) (deriveEventName "bepis" (typeMarker @marker)) (reflectFieldList @fields)
+instance (ReflectBrowserReachability reachability, Typeable marker, ReflectFieldList fields) => ReflectGlobalPrimitive ('Event reachability marker fields) where
+    reflectGlobalPrimitive = GlobalEventIR (reflectBrowserReachability @reachability) (typeMarker @marker) (deriveEventName "bepis" (typeMarker @marker)) (reflectFieldList @fields)
+
+class ReflectBrowserReachability (reachability :: BrowserReachability) where
+    reflectBrowserReachability :: BrowserReachabilityIR
+
+instance ReflectBrowserReachability 'BrowserUnreachable where reflectBrowserReachability = BrowserUnreachableIR
+instance ReflectBrowserReachability 'BrowserTypeOnly where reflectBrowserReachability = BrowserTypeOnlyIR
+instance ReflectBrowserReachability 'BrowserGuard where reflectBrowserReachability = BrowserGuardIR
+instance ReflectBrowserReachability 'BrowserInbound where reflectBrowserReachability = BrowserInboundIR
+instance ReflectBrowserReachability 'BrowserOutbound where reflectBrowserReachability = BrowserOutboundIR
+instance ReflectBrowserReachability 'BrowserBidirectional where reflectBrowserReachability = BrowserBidirectionalIR
 
 instance Typeable marker => ReflectGlobalPrimitive ('DomId marker) where
     reflectGlobalPrimitive = GlobalDomIdIR (typeMarker @marker) (nameToKebab (typeMarker @marker))
 
+instance Typeable marker => ReflectGlobalPrimitive ('ServerDomId marker) where
+    reflectGlobalPrimitive = GlobalServerDomIdIR (typeMarker @marker) (nameToKebab (typeMarker @marker))
+
 instance Typeable marker => ReflectGlobalPrimitive ('DomAttr marker) where
     reflectGlobalPrimitive = GlobalDomAttrIR (typeMarker @marker) (deriveDomAttributeName (typeMarker @marker))
+
+instance Typeable marker => ReflectGlobalPrimitive ('ServerDomAttr marker) where
+    reflectGlobalPrimitive = GlobalServerDomAttrIR (typeMarker @marker) (deriveDomAttributeName (typeMarker @marker))
 
 instance (Typeable marker, KnownSymbol value) => ReflectGlobalPrimitive ('DomValue marker value) where
     reflectGlobalPrimitive = GlobalDomValueIR (typeMarker @marker) (cs (symbolVal (Proxy @value)))

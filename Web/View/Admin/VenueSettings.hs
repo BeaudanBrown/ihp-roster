@@ -127,6 +127,6 @@ venueSettingRoute = FrontendSurfaceActionRoute
     , actionRouteFields = []
     , actionRouteCustomHtmx = [FrontendSurfaceCustomHtmxAttrs "change-autosave-custom-htmx" [("hx-trigger", "change")]]
     , actionRouteStandardUrl = Just (pathTo UpdateVenueConfigAction)
-    , actionRouteExtraAttrs = [("class", "admin-setting-row"), ("data-disable-javascript-submission", "true")]
+    , actionRouteExtraAttrs = [("class", "admin-setting-row")]
     }
 

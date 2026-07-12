@@ -60,7 +60,8 @@ implement the same declared spec through `SurfaceImpl`.
 ## Composition Terminology
 
 - **Surface**: an independently mounted, typed UI owner with a scope,
-  subscription metadata, generated contract, and `SurfaceImpl` handlers.
+  subscription metadata, generated contract, and one-step `SurfaceImpl` runtime
+  values.
 - **Fragment** or **region**: a surface-owned server-rendered DOM target that can
   be refetched and swapped. The current DSL name is `Fragment`; documentation may
   use "region" when discussing DOM lifecycle.
@@ -111,7 +112,10 @@ Available primitives include:
 - generated source, dropzone, and activation refs for generic browser
   interactions;
 - `ConflictPolicy` for session/fragment conflict behavior;
-- `Event`, `DomToken`, and `Dto` for narrow browser-boundary metadata.
+- `Event`, `DomToken`, and `Dto` for checked Surface metadata. `DomToken` is
+  server-only; use `BrowserDomToken` only when production TypeScript also
+  imports the semantic token. Guardrails require every emitted browser token to
+  have a production consumer.
 
 Wire fields use the closed browser wire universe: `WireText`, `WireInt`,
 `WireBool`, `WireUUID`, `WireDay`, `WireList`, `WireOptional`, `WireNullable`,
@@ -131,17 +135,20 @@ and acronym handling. Prefer descriptive marker names and avoid exact-name
 overrides unless the naming guardrails require them. Run the naming and surface
 checks after adding markers.
 
-## Generated Interaction Manifest
+## Generated Interaction Registry
 
 `FrontendContract Surface` is also the source of truth for feature-specific
 browser interaction names. `InteractionContract` keeps only generic runtime
-shapes and DOM attrs; surface names, sessions, intents, intent fields,
-disposable layers, effects, and conflict policies are derived from registered
-surfaces and emitted as `FrontendSurfaceInteraction*` unions plus static schema
-manifests. TypeScript consumes those generated manifests to interpret mounted
-surface instances; it must not invent feature-local interaction names, depend on
-old global `Interaction*` roster enums, or infer business behavior from ad-hoc
-DOM strings.
+shapes and generated DOM vocabulary. Reflection emits one minimal
+`FrontendSurfaceInteractionRegistry` containing only production-consumed source,
+dropzone, activation, and session runtime definitions. It does not emit the
+server-only action catalog, intent/DTO aliases, contained-surface topology, or a
+second static-schema copy. TypeScript consumes that registry to interpret
+mounted surface instances; it must not invent feature-local interaction names,
+depend on old global `Interaction*` roster enums, or infer business behavior
+from ad-hoc DOM strings. Live-update code separately imports the minimal
+`FrontendSurfaceFragmentRegistry`, so either bundle can tree-shake the other
+feature lane.
 
 Feature views still own ordinary HTML layout. They attach minimal role-specific
 refs through generated Haskell helpers:
@@ -196,8 +203,9 @@ Use standard HTMX options for stable request metadata:
   when the closed recipes cannot express the value. Every raw node carries a
   non-empty reason and validation rejects an empty reason;
 - `CustomHtmx Marker "reason"` only for extra HTMX attributes that a standard
-  option does not describe. The reason is emitted into generated manifests and
-  guardrails should make it visible.
+  option does not describe. The reason remains in the checked Haskell IR for
+  validation and architecture review; it does not force a browser action
+  manifest to be generated.
 
 Reflection renders common punctuation deterministically: an ID selector owns its
 `#`, class selectors own `.`, traversal recipes own their separating space, and

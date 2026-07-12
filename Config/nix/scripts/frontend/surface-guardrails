@@ -96,6 +96,67 @@ expect_no_match_including_generated \
     '"export (type|function) (FrontendSurface(UUID|Day)|HtmxActionOptions|FrontendSurfaceActionManifest|AppShellActionManifest|FrontendSurfaceLiveSubscription|FrontendSurfaceLiveWireFragment|FrontendSurfaceSurfaceFragmentProtection)' \
     Application/Helper/FrontendContract/TypeScript.hs
 
+expect_no_match_including_generated \
+    "generated browser contracts must not restore action manifests or the omnibus Surface registry" \
+    'FrontendSurfaceRegistry|InteractionStaticSchemas|SurfaceManifest|AppShellActionManifest|FrontendSurfaceActionManifest|htmxActions|containedSurfaces' \
+    frontend/ts/generated/contracts.ts
+
+mapfile -t generated_runtime_constants < <(sed -n 's/^export const \([A-Za-z0-9_]*\).*$/\1/p' frontend/ts/generated/contracts.ts)
+for constant in "${generated_runtime_constants[@]}"; do
+    production_uses="$( (rg --glob '!frontend/ts/generated/**' --glob '!frontend/ts/tests/**' -o "\\b${constant}\\b" frontend/ts 2>/dev/null || true) | wc -l)"
+    generated_uses="$( (rg -o "\\b${constant}\\b" frontend/ts/generated/contracts.ts 2>/dev/null || true) | wc -l)"
+    if [ "$production_uses" -eq 0 ] && [ "$generated_uses" -lt 2 ]; then
+        report_failure "generated runtime constant has no production consumer: $constant"
+    fi
+done
+
+expect_no_match \
+    "the live entrypoint must remain orchestration-only" \
+    'new window\.WebSocket|window\.fetch|querySelectorAll|function syncConnection' \
+    frontend/ts/app-live-updates.ts
+
+for owner in mount subscription connection invalidation refresh request-decoration focus diagnostics; do
+    if [ ! -f "frontend/ts/live-updates/$owner.ts" ]; then
+        report_failure "live runtime owner is missing: frontend/ts/live-updates/$owner.ts"
+    fi
+done
+
+expect_no_match \
+    "inert IHP helper submission attributes must stay deleted" \
+    'data-disable-javascript-submission' \
+    Application \
+    Web
+
+expect_no_match \
+    "dead live client-id DOM compatibility writes must stay deleted" \
+    'dataset\.liveUpdateClientId|data-live-update-client-id' \
+    frontend/ts \
+    Application \
+    Web
+
+expect_no_match_including_generated \
+    "live bundle must not carry the interaction registry" \
+    'FrontendSurfaceInteractionRegistry|htmxActions|containedSurfaces' \
+    static/app-live-updates.js
+
+expect_no_match_including_generated \
+    "interaction bundle must not carry the live fragment registry" \
+    'FrontendSurfaceFragmentRegistry|htmxActions|containedSurfaces' \
+    static/app-interactions.js
+
+expect_no_match \
+    "roster browser code must consume generated semantic DOM tokens" \
+    '#roster-(content|week-shell)' \
+    frontend/ts/roster
+
+mapfile -t browser_dom_tokens < <(sed -n 's/^export const \([A-Za-z0-9_]*DomToken\) = .*$/\1/p' frontend/ts/generated/contracts.ts)
+for token in "${browser_dom_tokens[@]}"; do
+    token_uses="$( (rg --glob '!frontend/ts/generated/**' --glob '!frontend/ts/tests/**' -o "\\b${token}\\b" frontend/ts 2>/dev/null || true) | wc -l)"
+    if [ "$token_uses" -lt 2 ]; then
+        report_failure "generated browser DOM token has no production import and use: $token"
+    fi
+done
+
 expect_no_match \
     "migrated FrontendSurface lab must not author old frontend codec/DTO/schema groups" \
     'Application\.Helper\.Frontend\.(Codec|Generic|ContractGroup|Options|Contracts|TypeScript|Dto\.|.*Schema)|FrontendCodec|HasFrontendCodec|someFrontendCodec|genericFrontendCodec' \
@@ -239,43 +300,13 @@ expect_no_match_including_generated \
     frontend/ts/generated/contracts.ts
 
 expect_match \
-    "generated contracts must expose the reflected lab surface manifest" \
-    'surfaceLabSurfaceManifest' \
+    "generated contracts must expose the browser-reachable lab fragment key union" \
+    'SurfaceLabSurfaceFragmentKey' \
     frontend/ts/generated/contracts.ts
 
 expect_match \
-    "generated contracts must expose the lab fragment key union" \
-    'SurfaceLabFragmentKey' \
-    frontend/ts/generated/contracts.ts
-
-expect_match \
-    "generated contracts must expose Admin page contained surface topology" \
-    'parentSurface: "admin-page", parentFragment: "admin-page-content", childSurface: "admin-venue-config"' \
-    frontend/ts/generated/contracts.ts
-
-expect_match \
-    "generated contracts must expose Admin Xero page contained surface topology" \
-    'parentSurface: "admin-xero-page", parentFragment: "admin-xero-page-content", childSurface: "admin-xero"' \
-    frontend/ts/generated/contracts.ts
-
-expect_match \
-    "generated contracts must expose Admin Roster Groups action manifests" \
-    'adminRosterGroupsSurfaceManifest.*create-roster-group.*move-roster-group-up' \
-    frontend/ts/generated/contracts.ts
-
-expect_match \
-    "generated contracts must expose declared Admin Roster Groups custom HTMX reason" \
-    'move buttons submit the containing row form via hx-include=closest form' \
-    frontend/ts/generated/contracts.ts
-
-expect_match \
-    "generated contracts must expose migrated feedback overlay opener action" \
-    'open-feedback-dialog' \
-    frontend/ts/generated/contracts.ts
-
-expect_match \
-    "generated contracts must expose migrated feedback overlay submit action" \
-    'submit-feedback' \
+    "generated fragment registry must retain the lab as a non-live diagnostic fixture" \
+    'FrontendSurfaceFragmentRegistry = \{"surface-lab":\[\]' \
     frontend/ts/generated/contracts.ts
 
 expect_no_match \
@@ -363,7 +394,7 @@ expect_no_match \
 
 expect_no_match \
     "interaction runtime must not keep legacy semantic marker fallback paths" \
-    'readLegacy|legacyActivation|legacyDropzone|attrs\.(marker|item|dropzone|pointerSession|sessionKind|sessionIntent|activationIntent|activationTrigger|activationValueField)' \
+    'readLegacy|legacyActivation|legacyDropzone|attrs\.(marker|item|dropzone|pointerSession|sessionKind|sessionIntent|activationIntent|activationTrigger|activationValueField)([^A-Za-z]|$)' \
     frontend/ts/interaction
 
 expect_no_match \
@@ -387,8 +418,8 @@ expect_match \
     frontend/ts/generated/contracts.ts
 
 expect_match \
-    "generated contracts expose surface-derived roster interaction intents" \
-    'FrontendSurfaceInteractionIntentName = "set-roster-layout-mode" \| "move-roster-shift-to-slot"' \
+    "generated interaction registry exposes the roster source intent used by the runtime" \
+    'FrontendSurfaceInteractionRegistry = .*"intent":"move-roster-shift-to-slot"' \
     frontend/ts/generated/contracts.ts
 
 expect_no_match \
