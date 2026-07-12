@@ -46,6 +46,7 @@ restart/wait for the dev server after applying locally so IHP sees the final
 
 GitHub #151's approved read-only inventory/export procedure is documented in
 `legacy-schema-retirement-151-runbook.md` and implemented by
-`bin/legacy-schema-retirement-review`. Its Stage A approval does not authorize a
-destructive migration; the runbook defines the evidence and separate approval
-required before any table drop.
+`bin/legacy-schema-retirement-review`. Migration `1783899114.sql` and its
+operator rollback DDL are prepared and verified, but must not be deployed until
+the runbook's separate Stage B approval record explicitly authorizes the
+production table drop.

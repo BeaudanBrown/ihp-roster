@@ -10,7 +10,6 @@
 -- - schema-nav: staff-documents - private venue-scoped staff compliance
 --   documents such as RSA evidence.
 -- - schema-nav: venue-config - shift types and venue-level defaults.
--- - schema-nav: reporting-config - report definitions and shift-type filters.
 -- - schema-nav: roster-group-config - roster groups, staff group assignments,
 --   and slot/day names.
 -- - schema-nav: pay-reference - relational pay config versions, FWC MAPD
@@ -22,8 +21,8 @@
 --   export jobs.
 -- - schema-nav: billing - venue-scoped Stripe customer/subscription mirrors,
 --   webhook event idempotency, and manual billing controls.
--- - schema-nav: xero - OAuth connections, reference sync rows, mappings, and
---   pay item setup.
+-- - schema-nav: xero - OAuth connections, retained reference rows, mappings,
+--   preparation choices, and pay item setup.
 -- - schema-nav: timesheets - timesheet entries and version history.
 -- - schema-nav: xero-submissions - Xero submission runs and submitted entries.
 -- - schema-nav: indexes - composite, partial, uniqueness, and lookup indexes.
@@ -306,39 +305,6 @@ CREATE TABLE shift_types (
     FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK ((char_length(btrim(name)) > 0) AND (char_length(name) <= 120)),
     CHECK (colour_key = '' OR colour_key = 'palette-1' OR colour_key = 'palette-2' OR colour_key = 'palette-3' OR colour_key = 'palette-4' OR colour_key = 'palette-5' OR colour_key = 'palette-6' OR colour_key = 'palette-7' OR colour_key = 'palette-8' OR colour_key = 'palette-9' OR colour_key = 'palette-10')
-);
-
--- schema-nav: reporting-config
-CREATE TABLE report_definitions (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
-    venue_id UUID NOT NULL,
-    slug TEXT NOT NULL,
-    name TEXT NOT NULL,
-    description TEXT,
-    engine TEXT NOT NULL,
-    sort_order INT DEFAULT 0 NOT NULL,
-    is_active BOOLEAN DEFAULT TRUE NOT NULL,
-    archived_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
-    archived_by_user_id UUID DEFAULT NULL,
-    archive_reason TEXT DEFAULT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
-    FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
-    CHECK ((engine = 'staff_pay_csv') OR (engine = 'hourly_breakdown_zip') OR (engine = 'payroll_earnings_csv'))
-);
-CREATE TABLE report_definition_shift_type_filters (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
-    report_definition_id UUID NOT NULL,
-    shift_type_id UUID NOT NULL,
-    deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
-    deleted_by_user_id UUID DEFAULT NULL,
-    delete_reason TEXT DEFAULT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (report_definition_id) REFERENCES report_definitions (id) ON DELETE RESTRICT,
-    FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE RESTRICT,
-    FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 
 -- schema-nav: roster-group-config
@@ -1218,23 +1184,6 @@ CREATE TABLE xero_earnings_rate_mappings (
     FOREIGN KEY (updated_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK ((mapping_status = 'unmapped') OR (mapping_status = 'verified') OR (mapping_status = 'stale'))
 );
-CREATE TABLE xero_payroll_calendar_selections (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
-    venue_id UUID NOT NULL,
-    xero_connection_id UUID NOT NULL,
-    xero_payroll_calendar_id TEXT,
-    xero_payroll_calendar_name TEXT,
-    calendar_status TEXT DEFAULT 'none' NOT NULL,
-    last_verified_at TIMESTAMP WITH TIME ZONE,
-    created_by_user_id UUID,
-    updated_by_user_id UUID,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
-    FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
-    FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
-    FOREIGN KEY (updated_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
-);
 CREATE TABLE xero_pay_item_account_code_selections (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
@@ -1518,10 +1467,6 @@ CREATE INDEX idx_staff_imported_xero_pay_item ON staff (imported_xero_pay_item_i
 CREATE UNIQUE INDEX idx_staff_linked_user_per_venue ON staff (venue_id, user_id) WHERE user_id IS NOT NULL AND is_active = TRUE AND archived_at IS NULL;
 CREATE INDEX idx_staff_documents_venue_staff_type_created ON staff_documents (venue_id, staff_id, document_type, created_at DESC);
 CREATE INDEX idx_staff_documents_rsa_expiry ON staff_documents (venue_id, expiry_date) WHERE document_type = 'rsa_statement_of_attainment' AND status <> 'rejected';
-CREATE INDEX idx_report_definitions_venue_sort ON report_definitions (venue_id, sort_order ASC, created_at ASC);
-CREATE UNIQUE INDEX idx_report_definitions_active_slug ON report_definitions (venue_id, slug) WHERE is_active = TRUE AND archived_at IS NULL;
-CREATE INDEX idx_report_definition_shift_type_filters_definition ON report_definition_shift_type_filters (report_definition_id);
-CREATE UNIQUE INDEX idx_report_definition_shift_type_filters_active ON report_definition_shift_type_filters (report_definition_id, shift_type_id) WHERE deleted_at IS NULL;
 CREATE UNIQUE INDEX idx_roster_groups_active_name ON roster_groups (venue_id, name) WHERE is_active = TRUE AND archived_at IS NULL;
 CREATE UNIQUE INDEX idx_roster_groups_one_active_default ON roster_groups (venue_id) WHERE is_default = TRUE AND is_active = TRUE AND archived_at IS NULL;
 CREATE UNIQUE INDEX idx_staff_roster_groups_active_assignment ON staff_roster_groups (staff_id, roster_group_id) WHERE deleted_at IS NULL;
@@ -1615,8 +1560,6 @@ CREATE UNIQUE INDEX idx_xero_staff_mappings_verified_employee ON xero_staff_mapp
 CREATE INDEX idx_xero_staff_mappings_venue_status ON xero_staff_mappings (venue_id, mapping_status);
 CREATE UNIQUE INDEX idx_xero_earnings_rate_mappings_bucket_connection ON xero_earnings_rate_mappings (xero_connection_id, local_bucket_key);
 CREATE INDEX idx_xero_earnings_rate_mappings_venue_status ON xero_earnings_rate_mappings (venue_id, mapping_status);
-CREATE UNIQUE INDEX idx_xero_payroll_calendar_selections_connection ON xero_payroll_calendar_selections (xero_connection_id);
-CREATE INDEX idx_xero_payroll_calendar_selections_venue_status ON xero_payroll_calendar_selections (venue_id, calendar_status);
 CREATE UNIQUE INDEX idx_xero_pay_item_account_code_selections_connection ON xero_pay_item_account_code_selections (xero_connection_id);
 CREATE UNIQUE INDEX idx_xero_pay_item_requirement_records_connection_key ON xero_pay_item_requirement_records (xero_connection_id, requirement_key);
 CREATE INDEX idx_xero_pay_item_requirement_records_venue_status ON xero_pay_item_requirement_records (venue_id, requirement_status);
@@ -1661,8 +1604,6 @@ CREATE TRIGGER prevent_hard_delete_roster_groups BEFORE DELETE ON roster_groups 
 CREATE TRIGGER prevent_hard_delete_slot_names BEFORE DELETE ON slot_names FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_day_names BEFORE DELETE ON day_names FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_shift_types BEFORE DELETE ON shift_types FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
-CREATE TRIGGER prevent_hard_delete_report_definitions BEFORE DELETE ON report_definitions FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
-CREATE TRIGGER prevent_hard_delete_report_definition_shift_type_filters BEFORE DELETE ON report_definition_shift_type_filters FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_venue_config BEFORE DELETE ON venue_config FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_staff_pay_versions BEFORE DELETE ON staff_pay_versions FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_shift_type_pay_versions BEFORE DELETE ON shift_type_pay_versions FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
@@ -1688,7 +1629,6 @@ CREATE TRIGGER prevent_hard_delete_xero_payroll_calendars BEFORE DELETE ON xero_
 CREATE TRIGGER prevent_hard_delete_xero_pay_runs BEFORE DELETE ON xero_pay_runs FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_staff_mappings BEFORE DELETE ON xero_staff_mappings FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_earnings_rate_mappings BEFORE DELETE ON xero_earnings_rate_mappings FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
-CREATE TRIGGER prevent_hard_delete_xero_payroll_calendar_selections BEFORE DELETE ON xero_payroll_calendar_selections FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_pay_item_account_code_selections BEFORE DELETE ON xero_pay_item_account_code_selections FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_pay_item_requirement_records BEFORE DELETE ON xero_pay_item_requirement_records FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_submission_runs BEFORE DELETE ON xero_submission_runs FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
@@ -1912,24 +1852,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION enforce_report_definition_filter_venue_integrity()
-RETURNS TRIGGER
-AS $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1
-        FROM report_definitions rd
-        JOIN shift_types st ON st.id = NEW.shift_type_id
-        WHERE rd.id = NEW.report_definition_id
-            AND rd.venue_id = st.venue_id
-    ) THEN
-        RAISE EXCEPTION 'report definition shift type filter must stay within one venue';
-    END IF;
-
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
 CREATE OR REPLACE FUNCTION enforce_xero_connection_venue_integrity()
 RETURNS TRIGGER
 AS $$
@@ -2037,7 +1959,6 @@ CREATE TRIGGER enforce_staff_shift_preference_venue_integrity BEFORE INSERT OR U
 CREATE TRIGGER enforce_staff_document_venue_integrity BEFORE INSERT OR UPDATE ON staff_documents FOR EACH ROW EXECUTE FUNCTION enforce_staff_document_venue_integrity();
 CREATE TRIGGER enforce_leave_request_venue_integrity BEFORE INSERT OR UPDATE ON leave_requests FOR EACH ROW EXECUTE FUNCTION enforce_leave_request_venue_integrity();
 CREATE TRIGGER enforce_timesheet_entry_venue_integrity BEFORE INSERT OR UPDATE ON timesheet_entries FOR EACH ROW EXECUTE FUNCTION enforce_timesheet_entry_venue_integrity();
-CREATE TRIGGER enforce_report_definition_filter_venue_integrity BEFORE INSERT OR UPDATE ON report_definition_shift_type_filters FOR EACH ROW EXECUTE FUNCTION enforce_report_definition_filter_venue_integrity();
 CREATE TRIGGER enforce_xero_sync_runs_venue_integrity BEFORE INSERT OR UPDATE ON xero_sync_runs FOR EACH ROW EXECUTE FUNCTION enforce_xero_connection_venue_integrity();
 CREATE TRIGGER enforce_xero_employees_venue_integrity BEFORE INSERT OR UPDATE ON xero_employees FOR EACH ROW EXECUTE FUNCTION enforce_xero_connection_venue_integrity();
 CREATE TRIGGER enforce_staff_xero_pay_item_venue BEFORE INSERT OR UPDATE ON staff FOR EACH ROW EXECUTE FUNCTION enforce_imported_xero_pay_item_venue_integrity();
@@ -2051,7 +1972,6 @@ CREATE TRIGGER enforce_xero_payroll_calendars_venue_integrity BEFORE INSERT OR U
 CREATE TRIGGER enforce_xero_pay_runs_venue_integrity BEFORE INSERT OR UPDATE ON xero_pay_runs FOR EACH ROW EXECUTE FUNCTION enforce_xero_connection_venue_integrity();
 CREATE TRIGGER enforce_xero_staff_mappings_venue_integrity BEFORE INSERT OR UPDATE ON xero_staff_mappings FOR EACH ROW EXECUTE FUNCTION enforce_xero_staff_mapping_venue_integrity();
 CREATE TRIGGER enforce_xero_earnings_rate_mappings_venue_integrity BEFORE INSERT OR UPDATE ON xero_earnings_rate_mappings FOR EACH ROW EXECUTE FUNCTION enforce_xero_connection_venue_integrity();
-CREATE TRIGGER enforce_xero_payroll_calendar_selections_venue_integrity BEFORE INSERT OR UPDATE ON xero_payroll_calendar_selections FOR EACH ROW EXECUTE FUNCTION enforce_xero_connection_venue_integrity();
 CREATE TRIGGER enforce_xero_pay_item_account_code_selections_venue_integrity BEFORE INSERT OR UPDATE ON xero_pay_item_account_code_selections FOR EACH ROW EXECUTE FUNCTION enforce_xero_connection_venue_integrity();
 CREATE TRIGGER enforce_xero_pay_item_requirement_records_venue_integrity BEFORE INSERT OR UPDATE ON xero_pay_item_requirement_records FOR EACH ROW EXECUTE FUNCTION enforce_xero_connection_venue_integrity();
 CREATE TRIGGER enforce_xero_timesheet_preparation_runs_venue_integrity BEFORE INSERT OR UPDATE ON xero_timesheet_preparation_runs FOR EACH ROW EXECUTE FUNCTION enforce_xero_connection_venue_integrity();

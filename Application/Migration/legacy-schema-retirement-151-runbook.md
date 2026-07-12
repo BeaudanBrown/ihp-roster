@@ -9,9 +9,15 @@ export only** for:
 - `report_definition_shift_type_filters`
 - `xero_payroll_calendar_selections`
 
-This approval does not authorize a production `DROP TABLE`, schema migration, or
-row mutation. Stage B requires a separate recorded approval after the evidence
-and restore rehearsal below are reviewed.
+The operator subsequently accepted the successful staging capture at
+`20260712T231520Z` as sufficient Stage A row-review evidence and waived a direct
+production capture, accepting the residual staging-versus-production snapshot
+risk. All three staging table counts and all five integrity-anomaly counts were
+zero; every artifact in `manifest.sha256` verified successfully.
+
+This acceptance does not authorize a production `DROP TABLE`, schema migration,
+or row mutation. Stage B requires a separate recorded approval after the forward
+and rollback SQL, normal backup identity, and deployment window are reviewed.
 
 The retained system includes fixed `export_jobs` exports and all active Xero
 connection, payroll-calendar reference, mapping, preparation, submission, sync,
@@ -115,14 +121,16 @@ review. Do not infer business meaning from names or silently translate it.
 ## Restore Rehearsal
 
 Use an isolated database restored from the normal full production backup. Never
-perform this rehearsal against production.
+perform this rehearsal against production. The reviewed forward migration is
+`Application/Migration/1783899114.sql`; the corresponding structural rollback is
+`scripts/operations/legacy-schema-retirement-151-rollback.sql`.
 
 1. Record the clone's fingerprints with
    `scripts/operations/legacy-schema-retirement-151-fingerprints.sql`.
 2. Apply the proposed Stage B drop migration to the clone only.
-3. Apply the separately reviewed rollback DDL that recreates the parent tables,
-   child table, indexes, constraints, and table-specific triggers/functions.
-   Do not apply all of `public-schema.sql`.
+3. Apply `scripts/operations/legacy-schema-retirement-151-rollback.sql`, which
+   recreates the parent tables, child table, indexes, constraints, and
+   table-specific triggers/functions. Do not apply all of `public-schema.sql`.
 4. Decrypt and verify the table archive when applicable:
 
    ```bash
@@ -148,29 +156,45 @@ perform this rehearsal against production.
    be zero, and application/schema startup checks must pass.
 7. Delete rehearsal plaintext according to the approved retention procedure.
 
-## Stage B Migration Constraints
+A populated synthetic isolated rehearsal completed on 2026-07-12 against the
+pre-retirement schema. It proved that the migration stops before any drop when a
+reviewed table is non-empty, the empty forward migration removes only the three
+reviewed tables, retained export/current-Xero tables remain, rollback recreates
+all structures, privileged archive restore reproduces all three exact content
+fingerprints, and every integrity-anomaly count remains zero. This supplements,
+but does not replace, the normal full-backup restore evidence required for the
+production approval record.
 
-The future destructive migration must be a new, separately reviewed change. It
-must:
+## Prepared Stage B Migration
 
-- drop `report_definition_shift_type_filters` before `report_definitions`;
-- avoid `CASCADE` so unexpected dependencies stop the migration;
-- remove the report-filter-specific
+Deploy the runtime-only caller removal (`dee55136`) while the legacy tables still
+exist, and verify the retained guided Xero preparation flow before scheduling the
+migration release. Do not promote a release containing `1783899114.sql` in the
+same step as that runtime-only rollout.
+
+`1783899114.sql`:
+
+- takes access-exclusive locks before its final row check;
+- fails closed if any reviewed table contains a row;
+- drops `report_definition_shift_type_filters` before `report_definitions`;
+- avoids `CASCADE` so unexpected dependencies stop the migration;
+- removes the report-filter-specific
   `enforce_report_definition_filter_venue_integrity()` function;
-- remove table-owned indexes and triggers;
-- retain shared `prevent_hard_delete()` and
+- relies on table drops to remove table-owned indexes and triggers;
+- retains shared `prevent_hard_delete()` and
   `enforce_xero_connection_venue_integrity()` functions because retained tables
   still use them;
-- preserve `export_jobs`, fixed exports, `xero_payroll_calendars`, mappings,
-  preparation/submission records, sync rows, and audit rows;
-- update `Application/Schema.sql`, add an IHP migration, regenerate types, and
-  pass schema/parser/startup verification.
+- preserves `export_jobs`, fixed exports, `xero_payroll_calendars`, mappings,
+  preparation/submission records, sync rows, and audit rows; and
+- is paired with the updated fresh schema, clean type regeneration, rollback
+  DDL, and schema/runtime tests.
 
 ## Separate Stage B Approval Record
 
 Stage B remains **not approved** until GitHub #151 records:
 
-- aggregate production counts and explicit data disposition;
+- the operator-accepted staging counts, direct-production-capture waiver, and
+  explicit empty-table disposition;
 - secure archive location identifier and checksums;
 - normal full-backup identifier;
 - successful isolated restore-rehearsal evidence;

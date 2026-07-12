@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+rm -rf build/Generated
 mkdir -p build/Generated
 build-generated-code
 echo "Types regenerated in build/Generated/"

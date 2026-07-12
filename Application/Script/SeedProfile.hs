@@ -113,7 +113,6 @@ writeProfileSeed dir plan = do
     writeCsv dir "day_names.csv" dayNameColumns (dayNameRows plan)
     writeCsv dir "staff_pay_versions.csv" staffPayVersionColumns (staffPayVersionRows plan)
     writeCsv dir "shift_type_pay_versions.csv" shiftTypePayVersionColumns (shiftTypePayVersionRows plan)
-    writeCsv dir "report_definitions.csv" reportDefinitionColumns (reportDefinitionRows plan)
     writeCsv dir "roster_groups.csv" rosterGroupColumns (rosterGroupRows plan)
     writeCsv dir "slot_names.csv" slotNameColumns (slotNameRows plan)
     writeCsv dir "staff_roster_groups.csv" staffRosterGroupColumns (staffRosterGroupRows plan)
@@ -317,7 +316,6 @@ tableLoads =
     , ("day_names", dayNameColumns, "day_names.csv")
     , ("staff_pay_versions", staffPayVersionColumns, "staff_pay_versions.csv")
     , ("shift_type_pay_versions", shiftTypePayVersionColumns, "shift_type_pay_versions.csv")
-    , ("report_definitions", reportDefinitionColumns, "report_definitions.csv")
     , ("roster_groups", rosterGroupColumns, "roster_groups.csv")
     , ("slot_names", slotNameColumns, "slot_names.csv")
     , ("staff_roster_groups", staffRosterGroupColumns, "staff_roster_groups.csv")
@@ -349,8 +347,7 @@ dayNameColumns = ["id", "venue_id", "weekday_index", "name", "is_active"]
 staffPayVersionColumns = ["id", "venue_id", "staff_id", "default_award_level_id", "employment_basis", "effective_from", "created_by_user_id", "locked_at", "locked_by_user_id"]
 shiftTypePayVersionColumns = ["id", "venue_id", "shift_type_id", "override_award_level_id", "payroll_label", "effective_from", "created_by_user_id", "locked_at", "locked_by_user_id"]
 
-reportDefinitionColumns, rosterGroupColumns, slotNameColumns, staffRosterGroupColumns :: [Text]
-reportDefinitionColumns = ["id", "venue_id", "slug", "name", "description", "engine", "sort_order", "is_active"]
+rosterGroupColumns, slotNameColumns, staffRosterGroupColumns :: [Text]
 rosterGroupColumns = ["id", "venue_id", "name", "sort_order", "is_active", "is_default"]
 slotNameColumns = ["id", "venue_id", "roster_group_id", "name", "sort_order", "is_active"]
 staffRosterGroupColumns = ["id", "staff_id", "roster_group_id"]
@@ -508,13 +505,6 @@ shiftTypePayVersionRows plan =
     [ row [shiftTypePayVersionId venueIndex shiftIndex, venueId venueIndex, shiftTypeId venueIndex shiftIndex, nullText, shiftName, dateText (weekStartForOffset (minimum (weekOffsets plan))), adminUserId venueIndex, timestampText, adminUserId venueIndex]
     | venueIndex <- venueIndexes plan
     , (shiftIndex, shiftName, _) <- shiftTypeTemplates
-    ]
-
-reportDefinitionRows :: ProfileSeedPlan -> [[Maybe Text]]
-reportDefinitionRows plan =
-    [ row [uuidText 11 venueIndex reportIndex 0, venueId venueIndex, slug, name, description, engine, tshow (reportIndex * 10), "true"]
-    | venueIndex <- venueIndexes plan
-    , (reportIndex, slug, name, description, engine) <- reportDefinitions
     ]
 
 rosterGroupRows :: ProfileSeedPlan -> [[Maybe Text]]
@@ -960,12 +950,6 @@ dayNameTemplates =
     , (5, "Friday")
     , (6, "Saturday")
     , (0, "Sunday")
-    ]
-
-reportDefinitions :: [(Int, Text, Text, Text, Text)]
-reportDefinitions =
-    [ (1, "staff_hours", "Staff Hours", "All approved staff hours", "staff_pay_csv")
-    , (2, "hourly_breakdown", "Hourly Breakdown", "Hourly ZIP export", "hourly_breakdown_zip")
     ]
 
 rosterGroupTemplates :: [(Int, Text)]

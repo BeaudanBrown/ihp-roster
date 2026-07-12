@@ -13,6 +13,7 @@ import Application.Helper.View (formatDateDisplay,
                                 quarterHourTimeOptions,
                                 quarterHourTimeOptionsInRange,
                                 storageTimeToDisplayLabel)
+import Control.Monad (filterM)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (fromGregorian)
@@ -92,8 +93,6 @@ tests = describe "Schema" do
         let _ = (Nothing :: Maybe PublicHoliday)
         let _ = (Nothing :: Maybe StaffPayVersion)
         let _ = (Nothing :: Maybe ShiftType)
-        let _ = (Nothing :: Maybe ReportDefinition)
-        let _ = (Nothing :: Maybe ReportDefinitionShiftTypeFilter)
         let _ = (Nothing :: Maybe RosterGroup)
         let _ = (Nothing :: Maybe SlotName)
         let _ = (Nothing :: Maybe RosterWeekSlotDefinition)
@@ -157,7 +156,6 @@ tests = describe "Schema" do
         let _shiftPreferenceStartHour = get #preferredStartHour (newRecord @StaffShiftPreference)
         let _shiftPreferenceEndHour = get #preferredEndHour (newRecord @StaffShiftPreference)
         let _shiftTypeVenueId = get #venueId (newRecord @ShiftType)
-        let _reportDefinitionVenueId = get #venueId (newRecord @ReportDefinition)
         let _slotNameVenueId = get #venueId (newRecord @SlotName)
         let _slotNameRosterGroupId = get #rosterGroupId (newRecord @SlotName)
         let _dayNameVenueId = get #venueId (newRecord @DayName)
@@ -374,7 +372,6 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_roster_week_venue_integrity BEFORE INSERT OR UPDATE ON roster_weeks"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_staff_roster_group_venue_integrity BEFORE INSERT OR UPDATE ON staff_roster_groups"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_timesheet_entry_venue_integrity BEFORE INSERT OR UPDATE ON timesheet_entries"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_report_definition_filter_venue_integrity BEFORE INSERT OR UPDATE ON report_definition_shift_type_filters"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_xero_staff_mappings_venue_integrity BEFORE INSERT OR UPDATE ON xero_staff_mappings"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "roster slot shift_type_id must stay within roster week venue"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "timesheet entry source_roster_slot_id must stay within entry venue"
@@ -385,6 +382,35 @@ tests = describe "Schema" do
         rosterFoundationMigrationSqlText `shouldSatisfy` Text.isInfixOf "roster slot shift_type_id must stay within roster week venue"
         automationMigrationSqlText <- readHistoricalMigrationText "Application/Migration/1777600700.sql"
         automationMigrationSqlText `shouldSatisfy` Text.isInfixOf "timesheet entry source_roster_slot_id must stay within entry venue"
+
+    it "retires approved legacy configuration tables without cascading into retained export or Xero data" do
+        schemaSqlText <- TextIO.readFile "Application/Schema.sql"
+        migrationSqlText <- TextIO.readFile "Application/Migration/1783899114.sql"
+        rollbackSqlText <- TextIO.readFile "scripts/operations/legacy-schema-retirement-151-rollback.sql"
+        let retiredSchemaTokens =
+                [ "CREATE TABLE report_definitions"
+                , "CREATE TABLE report_definition_shift_type_filters"
+                , "CREATE TABLE xero_payroll_calendar_selections"
+                , "CREATE OR REPLACE FUNCTION enforce_report_definition_filter_venue_integrity()"
+                ]
+        filter (`Text.isInfixOf` schemaSqlText) retiredSchemaTokens `shouldBe` []
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "DROP TABLE report_definition_shift_type_filters;\nDROP FUNCTION enforce_report_definition_filter_venue_integrity();\nDROP TABLE report_definitions;\nDROP TABLE xero_payroll_calendar_selections;"
+        migrationSqlText `shouldNotSatisfy` Text.isInfixOf "CASCADE"
+        rollbackSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE report_definitions"
+        rollbackSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE report_definition_shift_type_filters"
+        rollbackSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE xero_payroll_calendar_selections"
+        staleGeneratedModules <-
+            filterM
+                Directory.doesFileExist
+                [ "build/Generated/ReportDefinition.hs"
+                , "build/Generated/ReportDefinitionShiftTypeFilter.hs"
+                , "build/Generated/XeroPayrollCalendarSelection.hs"
+                ]
+        staleGeneratedModules `shouldBe` []
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE export_jobs"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE xero_payroll_calendars"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE xero_timesheet_preparation_runs"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE xero_timesheet_submissions"
 
     it "stores passkeys as user-owned credential records" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
