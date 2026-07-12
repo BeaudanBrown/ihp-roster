@@ -348,6 +348,21 @@ tests = do
                 readiness.xeroTimesheetReady `shouldBe` False
                 readinessBlockerCodes readiness `shouldSatisfy` elem "missing_approved_entries"
 
+        it "requires the preparation request to identify its selected payroll calendar" $ withContext do
+            withCleanDb do
+                fixture <- createReadyMappedFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
+                let request =
+                        fixture.request
+                            { readinessPayrollCalendarId = Nothing
+                            , readinessPayrollCalendarName = Nothing
+                            , readinessSelectedPeriodKey = Nothing
+                            }
+
+                readiness <- validateXeroTimesheetReadiness request
+
+                readinessBlockerCodes readiness `shouldSatisfy` elem "missing_payroll_calendar_selection"
+                readiness.xeroTimesheetReady `shouldBe` False
+
         it "keeps a mapped employee on the selected payroll calendar ready" $ withContext do
             withCleanDb do
                 fixture <- createReadyMappedFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)

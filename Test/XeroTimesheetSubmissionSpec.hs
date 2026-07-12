@@ -68,9 +68,6 @@ tests =
                     let historicalStart = fromGregorian 2026 1 5
                     fixture <- createPreviewFixtureAtPeriod "weekly" historicalStart [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                     prepareConnectionForStrictMock fixture.connection
-                    selectionCount <- query @XeroPayrollCalendarSelection |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetchCount
-                    selectionCount `shouldBe` 0
-
                     result <-
                         XeroMock.withStrictXeroMock identitySpec payrollSpec \urls ->
                             withXeroRequestBaseUrlsForTest urls do

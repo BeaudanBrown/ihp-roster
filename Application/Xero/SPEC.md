@@ -22,6 +22,9 @@ lands.
   and retry endpoints are retired.
 - Manual reference sync and preparation use the same application service and
   persistence/reconciliation path.
+- Synced payroll calendars are retained reference data. Calendar and period
+  choice is explicit on each guided preparation run; no global
+  `xero_payroll_calendar_selections` fallback is read or written.
 - Managed Xero earnings-rate names put human payroll details first, e.g. `Saturday Penalty - Level 1 - CAS - Bepis - 1-July-2025`; legacy `Bepis - HIGA - ...` managed names remain matchable to avoid duplicate pay items.
 - Managed award pay-item effective-date keys/names use the Bepis venue-effective
   rate date from the pay engine, not necessarily the raw FWC/MAPD operative

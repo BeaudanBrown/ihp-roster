@@ -155,7 +155,6 @@ loadXeroTimesheetPreparationView runId = do
             xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
             payItemRequirements <- fetchPreparationPayItemRequirements run connection xeroEarningsRates
             payrollCalendars <- fetchCurrentVenueXeroPayrollCalendars (Just connection)
-            payrollCalendarSelection <- fetchCurrentVenueXeroPayrollCalendarSelection (Just connection)
             accountCodeOptions <- fetchCurrentVenueXeroPayItemAccountCodeOptions (Just connection)
             accountCodeSelection <- fetchCurrentVenueXeroPayItemAccountCodeSelection (Just connection)
             maybeSubmissionRun <-
@@ -202,7 +201,6 @@ loadXeroTimesheetPreparationView runId = do
                         , preparationPeriodOptions = periodOptions
                         , preparationReadiness = readinessView
                         , preparationPayrollCalendars = payrollCalendars
-                        , preparationPayrollCalendarSelection = payrollCalendarSelection
                         , preparationStaffRows = staffDecisionRows
                         , preparationEmployees = xeroEmployees
                         , preparationPayItemRows = payItemRows

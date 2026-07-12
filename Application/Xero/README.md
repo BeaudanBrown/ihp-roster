@@ -21,7 +21,10 @@ preparation/submission workflow.
 
 Web request/response behavior belongs under `Web/Controller/Admin/Xero/`. The
 ordinary Xero page loads connection state only; operational mapping, readiness,
-calendar, pay-item, and timesheet panels are not separate page surfaces.
+calendar, pay-item, and timesheet panels are not separate page surfaces. Synced
+payroll calendars remain reference data, while each guided preparation run owns
+its explicit selected calendar and period; there is no venue-global calendar
+selection.
 
 ## Related Docs
 

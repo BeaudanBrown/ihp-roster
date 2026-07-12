@@ -160,9 +160,6 @@ tests =
                 withCleanDb do
                     let historicalStart = fromGregorian 2026 1 5
                     fixture <- createPreviewFixtureAtPeriod "weekly" historicalStart [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
-                    selectionCount <- query @XeroPayrollCalendarSelection |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetchCount
-                    selectionCount `shouldBe` 0
-
                     readiness <- validateXeroTimesheetReadiness fixture.request
                     result <- createPersistedXeroTimesheetPreview fixture.owner.id fixture.request readiness (Aeson.object [])
 
@@ -210,7 +207,6 @@ createPreviewFixture calendarType entrySpecs = do
         periodsElapsed = diffDays today anchorStart `div` periodLength
         periodStart = addDays (periodsElapsed * periodLength) anchorStart
     fixture <- createPreviewFixtureAtPeriod calendarType periodStart entrySpecs
-    createPreviewPayrollCalendarSelection fixture.venue fixture.connection fixture.owner
     _ <- createPreviewPayRun fixture "DRAFT"
     pure fixture
 
@@ -323,18 +319,6 @@ createPreviewPayrollCalendar venue connection calendarType periodStart = do
             |> set #rawPayload (Aeson.object ["PayrollCalendarID" Aeson..= ("calendar-preview" :: Text)])
             |> createRecord
     pure calendar
-
-createPreviewPayrollCalendarSelection :: (?modelContext :: ModelContext) => Venue -> XeroConnection -> User -> IO XeroPayrollCalendarSelection
-createPreviewPayrollCalendarSelection venue connection owner =
-    newRecord @XeroPayrollCalendarSelection
-        |> set #venueId (unpackId venue.id)
-        |> set #xeroConnectionId (unpackId connection.id)
-        |> set #xeroPayrollCalendarId (Just ("calendar-preview" :: Text))
-        |> set #xeroPayrollCalendarName (Just ("Preview Calendar" :: Text))
-        |> set #calendarStatus ("verified" :: Text)
-        |> set #createdByUserId (Just (unpackId owner.id))
-        |> set #updatedByUserId (Just (unpackId owner.id))
-        |> createRecord
 
 createPreviewMappings :: (?modelContext :: ModelContext) => Venue -> XeroConnection -> Day -> Staff -> Staff -> [XeroLocalEarningsBucket] -> IO ()
 createPreviewMappings venue connection periodStart staffA staffB buckets = do

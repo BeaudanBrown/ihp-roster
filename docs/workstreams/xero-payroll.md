@@ -56,9 +56,11 @@ continues inside a workflow modal mounted in the shared dialog overlay lane.
 There is no standalone timesheet or readiness panel.
 
 The modal owns period selection, connection checks, token refresh/reconnect handoff,
-reference-data sync, payroll-calendar/account-code deduction, staff mapping
-resolution, managed pay-item approval/creation, remote pay-run/timesheet
-checks, readiness validation, preview, and final draft submission.
+reference-data sync, explicit preparation-run payroll-calendar/period choice,
+account-code deduction, staff mapping resolution, managed pay-item
+approval/creation, remote pay-run/timesheet checks, readiness validation,
+preview, and final draft submission. Synced calendars remain reference rows;
+there is no venue-global payroll-calendar selection.
 
 Staff matching is automated by default, but proposed matches must be shown for
 approval before they persist. The modal must also allow manual Xero employee

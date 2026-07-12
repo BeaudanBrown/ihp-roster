@@ -95,15 +95,14 @@ validateXeroTimesheetReadiness request = do
     allPayItemRequirements <- maybe (pure []) fetchPayItemRequirements maybeConnection
     let bucketKeys = map (.localBucketKey) buckets
         payItemRequirements = filter (\requirement -> requirement.requirementKey `elem` bucketKeys) allPayItemRequirements
-    maybeCalendarSelection <- maybe (pure Nothing) fetchVerifiedPayrollCalendarSelection maybeConnection
-    maybeCalendar <- fetchRequestPayrollCalendar request maybeConnection maybeCalendarSelection
+    maybeCalendar <- fetchRequestPayrollCalendar request maybeConnection
     maybeAccountCodeSelection <- maybe (pure Nothing) fetchVerifiedPayItemAccountCodeSelection maybeConnection
 
     let blockers =
             concat
                 [ connectionBlockers maybeConnection
                 , referenceSyncBlockers latestSync
-                , calendarBlockers request maybeCalendarSelection maybeCalendar
+                , calendarBlockers request maybeCalendar
                 , entryBlockers entries
                 , earningsMappingBlockers buckets earningsMappings payItemRequirements
                 , payItemRequirementBlockers earningsMappings payItemRequirements maybeAccountCodeSelection
@@ -189,37 +188,16 @@ fetchPayItemRequirements connection =
         |> filterWhere (#xeroConnectionId, unpackId connection.id)
         |> fetch
 
-fetchVerifiedPayrollCalendarSelection :: (?modelContext :: ModelContext) => XeroConnection -> IO (Maybe XeroPayrollCalendarSelection)
-fetchVerifiedPayrollCalendarSelection connection =
-    query @XeroPayrollCalendarSelection
-        |> filterWhere (#xeroConnectionId, unpackId connection.id)
-        |> filterWhere (#calendarStatus, "verified" :: Text)
-        |> fetchOneOrNothing
-
-fetchRequestPayrollCalendar :: (?modelContext :: ModelContext) => XeroTimesheetReadinessRequest -> Maybe XeroConnection -> Maybe XeroPayrollCalendarSelection -> IO (Maybe XeroPayrollCalendar)
-fetchRequestPayrollCalendar request maybeConnection maybeSelection =
-    case request.readinessPayrollCalendarId of
-        Just calendarId ->
-            case maybeConnection of
-                Nothing -> pure Nothing
-                Just connection ->
-                    query @XeroPayrollCalendar
-                        |> filterWhere (#venueId, unpackId request.readinessVenueId)
-                        |> filterWhere (#xeroConnectionId, unpackId connection.id)
-                        |> filterWhere (#xeroPayrollCalendarId, calendarId)
-                        |> fetchOneOrNothing
-        Nothing -> fetchSelectedPayrollCalendar maybeSelection
-
-fetchSelectedPayrollCalendar :: (?modelContext :: ModelContext) => Maybe XeroPayrollCalendarSelection -> IO (Maybe XeroPayrollCalendar)
-fetchSelectedPayrollCalendar Nothing = pure Nothing
-fetchSelectedPayrollCalendar (Just selection) =
-    case selection.xeroPayrollCalendarId of
-        Nothing -> pure Nothing
-        Just calendarId ->
+fetchRequestPayrollCalendar :: (?modelContext :: ModelContext) => XeroTimesheetReadinessRequest -> Maybe XeroConnection -> IO (Maybe XeroPayrollCalendar)
+fetchRequestPayrollCalendar request maybeConnection =
+    case (request.readinessPayrollCalendarId, maybeConnection) of
+        (Just calendarId, Just connection) ->
             query @XeroPayrollCalendar
-                |> filterWhere (#xeroConnectionId, selection.xeroConnectionId)
+                |> filterWhere (#venueId, unpackId request.readinessVenueId)
+                |> filterWhere (#xeroConnectionId, unpackId connection.id)
                 |> filterWhere (#xeroPayrollCalendarId, calendarId)
                 |> fetchOneOrNothing
+        _ -> pure Nothing
 
 fetchVerifiedPayItemAccountCodeSelection :: (?modelContext :: ModelContext) => XeroConnection -> IO (Maybe XeroPayItemAccountCodeSelection)
 fetchVerifiedPayItemAccountCodeSelection connection =
@@ -258,12 +236,12 @@ referenceSyncBlockers (Just syncRun)
     | otherwise = [blocker "latest_reference_sync_not_successful" "Run a successful Xero payroll reference sync before preparing timesheets."]
 referenceSyncBlockers Nothing = [blocker "missing_reference_sync" "Sync Xero payroll reference data before preparing timesheets."]
 
-calendarBlockers :: XeroTimesheetReadinessRequest -> Maybe XeroPayrollCalendarSelection -> Maybe XeroPayrollCalendar -> [XeroReadinessBlocker]
-calendarBlockers request maybeSelection maybeCalendar =
-    case (request.readinessPayrollCalendarId, maybeSelection, maybeCalendar) of
-        (Nothing, Nothing, _) -> [blocker "missing_payroll_calendar_selection" "Select and verify a Xero payroll calendar."]
-        (_, _, Nothing) -> [blocker "missing_selected_payroll_calendar" "The selected Xero payroll calendar has not been synced."]
-        (_, _, Just calendar) -> selectedCalendarBlockers request calendar
+calendarBlockers :: XeroTimesheetReadinessRequest -> Maybe XeroPayrollCalendar -> [XeroReadinessBlocker]
+calendarBlockers request maybeCalendar =
+    case (request.readinessPayrollCalendarId, maybeCalendar) of
+        (Nothing, _) -> [blocker "missing_payroll_calendar_selection" "Select a Xero payroll calendar period."]
+        (_, Nothing) -> [blocker "missing_selected_payroll_calendar" "The selected Xero payroll calendar has not been synced."]
+        (_, Just calendar) -> selectedCalendarBlockers request calendar
 
 selectedCalendarBlockers :: XeroTimesheetReadinessRequest -> XeroPayrollCalendar -> [XeroReadinessBlocker]
 selectedCalendarBlockers request calendar =

@@ -7,7 +7,6 @@ module Application.Xero.Admin.ReadModel
     , fetchCurrentVenueXeroPayItemAccountCodeOptions
     , fetchCurrentVenueXeroPayItemAccountCodeSelection
     , fetchCurrentVenueXeroPayItemRequirements
-    , fetchCurrentVenueXeroPayrollCalendarSelection
     , fetchCurrentVenueXeroPayrollCalendars
     , fetchCurrentVenueXeroStaffMappingRows
     , fetchCurrentVenueXeroTimesheetPeriodOptions
@@ -100,16 +99,6 @@ fetchCurrentVenueXeroPayrollCalendars maybeConnection =
                 |> filterWhere (#xeroConnectionId, unpackId connection.id)
                 |> orderBy #name
                 |> fetch
-
-fetchCurrentVenueXeroPayrollCalendarSelection :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO (Maybe XeroPayrollCalendarSelection)
-fetchCurrentVenueXeroPayrollCalendarSelection maybeConnection =
-    case maybeConnection of
-        Nothing -> pure Nothing
-        Just connection ->
-            query @XeroPayrollCalendarSelection
-                |> filterWhere (#venueId, unpackId currentVenueId)
-                |> filterWhere (#xeroConnectionId, unpackId connection.id)
-                |> fetchOneOrNothing
 
 fetchCurrentVenueXeroPayItemAccountCodeSelection :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO (Maybe XeroPayItemAccountCodeSelection)
 fetchCurrentVenueXeroPayItemAccountCodeSelection maybeConnection =

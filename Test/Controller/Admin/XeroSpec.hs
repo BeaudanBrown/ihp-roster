@@ -456,10 +456,6 @@ tests = beforeAll testContext do
                 accountCodeSelection <- query @XeroPayItemAccountCodeSelection |> fetchOne
                 accountCodeSelection.selectionStatus `shouldBe` "verified"
                 accountCodeSelection.accountCode `shouldBe` Just "477"
-                calendarSelection <- query @XeroPayrollCalendarSelection |> fetchOne
-                calendarSelection.calendarStatus `shouldBe` "verified"
-                calendarSelection.xeroPayrollCalendarId `shouldBe` Just "calendar-1"
-                calendarSelection.xeroPayrollCalendarName `shouldBe` Just "Weekly"
                 syncRun <- query @XeroSyncRun |> fetchOne
                 syncRun.syncStatus `shouldBe` "succeeded"
                 syncRun.employeesCount `shouldBe` 1
@@ -494,7 +490,7 @@ tests = beforeAll testContext do
                 triggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "/ShowadminXeroShellLiveFragment")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf ("admin-xero:" <> tshow (unpackId venue.id)))
 
-        it "preselects the Xero wages expense account but not ambiguous payroll calendars" $ withContext do
+        it "preselects the Xero wages expense account while retaining ambiguous payroll calendars" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Multiple Defaults Venue"
                 admin <- createUserRecord "xero-multiple-defaults@example.com" "staff" True
@@ -550,8 +546,8 @@ tests = beforeAll testContext do
                 accountCodeSelection <- query @XeroPayItemAccountCodeSelection |> fetchOne
                 accountCodeSelection.selectionStatus `shouldBe` "verified"
                 accountCodeSelection.accountCode `shouldBe` Just "477"
-                calendarSelectionCount <- query @XeroPayrollCalendarSelection |> fetchCount
-                calendarSelectionCount `shouldBe` 0
+                payrollCalendarCount <- query @XeroPayrollCalendar |> fetchCount
+                payrollCalendarCount `shouldBe` 2
 
         it "syncs Xero payroll reference data through the strict localhost Xero mock" $ withContext do
             withCleanDb do
@@ -1057,15 +1053,10 @@ tests = beforeAll testContext do
                 refreshedRun <- fetch run.id
                 refreshedRun.status `shouldNotBe` "submitted"
 
-        it "keeps stale Xero payroll calendar selections out of the guided preparation path" $ withContext do
+        it "uses the preparation period without a global payroll-calendar selection" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                 markOtherFixtureStaffNotPaid fixture
-                existingSelection <- query @XeroPayrollCalendarSelection |> fetchOne
-                _ <-
-                    existingSelection
-                        |> set #calendarStatus ("stale" :: Text)
-                        |> updateRecord
                 encryptedRefreshToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
                 _ <-
                     fixture.connection
@@ -1097,8 +1088,6 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "Setup"
                 response `responseBodyShouldNotContain` "name=\"xeroPayrollCalendarSelection\""
-                calendarSelection <- query @XeroPayrollCalendarSelection |> fetchOne
-                calendarSelection.calendarStatus `shouldBe` "verified"
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
                 preparationRun.selectedPayrollCalendarId `shouldBe` Just "calendar-preview"
                 preparationRun.status `shouldBe` "ready_for_preview"

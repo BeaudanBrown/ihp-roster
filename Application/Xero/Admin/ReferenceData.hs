@@ -2,7 +2,6 @@ module Application.Xero.Admin.ReferenceData
     ( XeroReferenceDataSyncResult (..)
     , markStaleXeroEarningsRateMappings
     , reconcileXeroPayItemAccountCodeSelection
-    , reconcileXeroPayrollCalendarSelection
     , markStaleXeroStaffMappings
     , upsertXeroAccount
     , upsertXeroEarningsRate
@@ -105,7 +104,6 @@ completeReferenceDataSync syncRun connection employees earningsRates payrollCale
         markStaleXeroStaffMappings connection employees
         markStaleXeroEarningsRateMappings connection earningsRates
         reconcileXeroPayItemAccountCodeSelection connection accounts payrollSettingsAccounts
-        reconcileXeroPayrollCalendarSelection connection payrollCalendars
         updatedSyncRun <-
             syncRun
                 |> set #syncStatus ("succeeded" :: Text)
@@ -273,36 +271,6 @@ activeExpenseAccountCodes accounts =
         |> List.nub
         |> List.sort
 
-reconcileXeroPayrollCalendarSelection ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    XeroConnection ->
-    [XeroPayrollCalendarRef] ->
-    IO ()
-reconcileXeroPayrollCalendarSelection connection payrollCalendars = do
-    let activePayrollCalendars = List.sortOn (.xeroPayrollCalendarName) payrollCalendars
-        activePayrollCalendarIds = map (.xeroPayrollCalendarId) activePayrollCalendars
-    maybeSelection <-
-        query @XeroPayrollCalendarSelection
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> fetchOneOrNothing
-    case (maybeSelection, activePayrollCalendars) of
-        (Just selection, _)
-            | selection.calendarStatus == "verified"
-            , maybe False (`elem` activePayrollCalendarIds) selection.xeroPayrollCalendarId ->
-                pure ()
-        (_, [payrollCalendar]) ->
-            upsertXeroPayrollCalendarSelection connection "verified" payrollCalendar
-        (Just selection, _)
-            | selection.calendarStatus == "verified" ->
-                selection
-                    |> set #calendarStatus ("stale" :: Text)
-                    |> set #lastVerifiedAt Nothing
-                    |> set #updatedByUserId (Just (unpackId currentUser.id))
-                    |> updateRecord
-                    |> void
-        _ -> pure ()
-
 upsertXeroPayItemAccountCodeSelection ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroConnection ->
@@ -327,35 +295,6 @@ upsertXeroPayItemAccountCodeSelection connection selectionStatus maybeAccountCod
         Just existing -> prepared existing |> updateRecord |> void
         Nothing ->
             prepared (newRecord @XeroPayItemAccountCodeSelection)
-                |> set #createdByUserId (Just (unpackId currentUser.id))
-                |> createRecord
-                |> void
-
-upsertXeroPayrollCalendarSelection ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    XeroConnection ->
-    Text ->
-    XeroPayrollCalendarRef ->
-    IO ()
-upsertXeroPayrollCalendarSelection connection calendarStatus payrollCalendar = do
-    now <- getCurrentTime
-    existingSelection <-
-        query @XeroPayrollCalendarSelection
-            |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> fetchOneOrNothing
-    let prepared record =
-            record
-                |> set #venueId (unpackId currentVenueId)
-                |> set #xeroConnectionId (unpackId connection.id)
-                |> set #xeroPayrollCalendarId (Just payrollCalendar.xeroPayrollCalendarId)
-                |> set #xeroPayrollCalendarName (Just payrollCalendar.xeroPayrollCalendarName)
-                |> set #calendarStatus calendarStatus
-                |> set #lastVerifiedAt (if calendarStatus == "verified" then Just now else Nothing)
-                |> set #updatedByUserId (Just (unpackId currentUser.id))
-    case existingSelection of
-        Just existing -> prepared existing |> updateRecord |> void
-        Nothing ->
-            prepared (newRecord @XeroPayrollCalendarSelection)
                 |> set #createdByUserId (Just (unpackId currentUser.id))
                 |> createRecord
                 |> void
