@@ -1,0 +1,224 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Usage:
+  LEGACY_SCHEMA_REVIEW_APPROVAL=read-only-stage-a \
+  LEGACY_SCHEMA_REVIEW_OPERATOR='operator name' \
+  LEGACY_SCHEMA_REVIEW_EXPECTED_DATABASE='database_name' \
+  LEGACY_SCHEMA_REVIEW_AGE_RECIPIENT='age1...' \
+  bash ./bin/in-env ./bin/legacy-schema-retirement-review /secure/output/directory
+
+Captures a read-only inventory and table-specific backup for GitHub #151.
+The output directory must be empty, outside the git checkout, and stored in an
+operator-approved secure location.
+
+Connection settings use standard libpq variables. Set
+LEGACY_SCHEMA_REVIEW_DATABASE_URL to override DATABASE_URL without printing the
+connection string. Exactly one backup protection mode is required:
+
+  LEGACY_SCHEMA_REVIEW_AGE_RECIPIENT='age1...'
+      Encrypt the data archive with age and remove the plaintext archive.
+
+  LEGACY_SCHEMA_REVIEW_PLAINTEXT_APPROVED=encrypted-volume
+      Keep the archive plaintext only on an operator-confirmed encrypted volume.
+
+This command cannot drop tables or modify database rows. PostgreSQL sessions are
+forced read-only and use bounded statement/lock timeouts.
+EOF
+}
+
+fail() {
+    echo "legacy-schema-retirement-review: $*" >&2
+    exit 1
+}
+
+if [[ "${1:-}" == "--help" ]]; then
+    usage
+    exit 0
+fi
+
+[[ "$#" -eq 1 ]] || { usage >&2; exit 1; }
+[[ "${LEGACY_SCHEMA_REVIEW_APPROVAL:-}" == "read-only-stage-a" ]] \
+    || fail "LEGACY_SCHEMA_REVIEW_APPROVAL must equal read-only-stage-a"
+[[ -n "${LEGACY_SCHEMA_REVIEW_OPERATOR:-}" ]] \
+    || fail "LEGACY_SCHEMA_REVIEW_OPERATOR is required"
+[[ "$LEGACY_SCHEMA_REVIEW_OPERATOR" != *$'\n'* && ${#LEGACY_SCHEMA_REVIEW_OPERATOR} -le 200 ]] \
+    || fail "LEGACY_SCHEMA_REVIEW_OPERATOR must be a single line of at most 200 characters"
+[[ -n "${LEGACY_SCHEMA_REVIEW_EXPECTED_DATABASE:-}" ]] \
+    || fail "LEGACY_SCHEMA_REVIEW_EXPECTED_DATABASE is required"
+[[ "$LEGACY_SCHEMA_REVIEW_EXPECTED_DATABASE" =~ ^[A-Za-z0-9_.-]+$ ]] \
+    || fail "LEGACY_SCHEMA_REVIEW_EXPECTED_DATABASE contains unsupported characters"
+
+for command_name in psql pg_dump pg_restore sha256sum jq realpath git; do
+    command -v "$command_name" >/dev/null 2>&1 \
+        || fail "required command is missing: $command_name"
+done
+
+repo_root="$(realpath -m "$(git rev-parse --show-toplevel)")"
+output_dir="$(realpath -m "$1")"
+case "$output_dir/" in
+    "$repo_root/"*) fail "output directory must be outside the git checkout" ;;
+esac
+
+mkdir -p "$output_dir"
+[[ -d "$output_dir" ]] || fail "could not create output directory"
+if find "$output_dir" -mindepth 1 -maxdepth 1 -print -quit | grep -q .; then
+    fail "output directory must be empty: $output_dir"
+fi
+chmod 700 "$output_dir"
+umask 077
+
+age_recipient="${LEGACY_SCHEMA_REVIEW_AGE_RECIPIENT:-}"
+plaintext_approval="${LEGACY_SCHEMA_REVIEW_PLAINTEXT_APPROVED:-}"
+if [[ -n "$age_recipient" ]]; then
+    command -v age >/dev/null 2>&1 \
+        || fail "age is required when LEGACY_SCHEMA_REVIEW_AGE_RECIPIENT is set"
+    backup_mode="age-encrypted"
+elif [[ "$plaintext_approval" == "encrypted-volume" ]]; then
+    backup_mode="plaintext-on-operator-approved-encrypted-volume"
+else
+    fail "set an age recipient or explicitly approve plaintext on an encrypted volume"
+fi
+
+connection_url="${LEGACY_SCHEMA_REVIEW_DATABASE_URL:-${DATABASE_URL:-}}"
+connection_args=()
+if [[ -n "$connection_url" ]]; then
+    connection_args+=("--dbname=$connection_url")
+fi
+
+export PGAPPNAME="bepis-legacy-schema-review-151"
+export PGOPTIONS="${PGOPTIONS:+$PGOPTIONS }-c default_transaction_read_only=on -c statement_timeout=60000 -c lock_timeout=5000"
+
+psql_base=(psql -X -v ON_ERROR_STOP=1 "${connection_args[@]}")
+pg_dump_base=(pg_dump --no-owner --no-privileges --lock-wait-timeout=5s "${connection_args[@]}")
+
+actual_database="$("${psql_base[@]}" -Atc 'SELECT current_database()')"
+[[ "$actual_database" == "$LEGACY_SCHEMA_REVIEW_EXPECTED_DATABASE" ]] \
+    || fail "connected database '$actual_database' does not match expected database"
+case "$actual_database" in
+    postgres|template0|template1) fail "refusing system database target: $actual_database" ;;
+esac
+
+transaction_read_only="$("${psql_base[@]}" -Atc "SELECT current_setting('transaction_read_only')")"
+[[ "$transaction_read_only" == "on" ]] \
+    || fail "database session is not read-only"
+
+missing_tables="$("${psql_base[@]}" -Atc "
+    SELECT STRING_AGG(table_name, ', ' ORDER BY table_name)
+    FROM (VALUES
+        ('report_definitions'),
+        ('report_definition_shift_type_filters'),
+        ('xero_payroll_calendar_selections')
+    ) AS required(table_name)
+    WHERE TO_REGCLASS('public.' || table_name) IS NULL
+")"
+[[ -z "$missing_tables" ]] || fail "required tables are missing: $missing_tables"
+
+capture_dir="$(mktemp -d "$output_dir/.capture.XXXXXX")"
+manifest_tmp=""
+cleanup() {
+    rm -rf "$capture_dir"
+    [[ -z "$manifest_tmp" ]] || rm -f "$manifest_tmp"
+}
+trap cleanup EXIT INT TERM
+
+"${psql_base[@]}" --csv \
+    -f scripts/operations/legacy-schema-retirement-151-fingerprints.sql \
+    > "$capture_dir/fingerprints-before.csv"
+
+"${psql_base[@]}" -At \
+    -f scripts/operations/legacy-schema-retirement-151-inventory.sql \
+    > "$capture_dir/inventory.json"
+jq -e '.capture.transactionReadOnly == "on"' "$capture_dir/inventory.json" >/dev/null \
+    || fail "inventory did not confirm a read-only transaction"
+
+"${pg_dump_base[@]}" \
+    --format=custom \
+    --data-only \
+    --strict-names \
+    --table=public.report_definitions \
+    --table=public.report_definition_shift_type_filters \
+    --table=public.xero_payroll_calendar_selections \
+    --file="$capture_dir/table-data.dump"
+
+pg_restore --list "$capture_dir/table-data.dump" > "$capture_dir/table-data.archive-list.txt"
+for table_name in report_definitions report_definition_shift_type_filters xero_payroll_calendar_selections; do
+    grep -Eq "TABLE DATA[[:space:]]+public[[:space:]]+$table_name([[:space:]]|$)" "$capture_dir/table-data.archive-list.txt" \
+        || fail "data archive is missing TABLE DATA entry for $table_name"
+done
+
+"${pg_dump_base[@]}" \
+    --format=plain \
+    --schema-only \
+    --schema=public \
+    --file="$capture_dir/public-schema.sql"
+
+"${psql_base[@]}" --csv \
+    -f scripts/operations/legacy-schema-retirement-151-fingerprints.sql \
+    > "$capture_dir/fingerprints-after.csv"
+cmp -s "$capture_dir/fingerprints-before.csv" "$capture_dir/fingerprints-after.csv" \
+    || fail "reviewed tables changed during capture; discard artifacts and retry in a quiet window"
+
+(
+    cd "$capture_dir"
+    sha256sum table-data.dump > table-data.dump.plaintext.sha256
+)
+
+if [[ "$backup_mode" == "age-encrypted" ]]; then
+    age --recipient "$age_recipient" \
+        --output "$capture_dir/table-data.dump.age" \
+        "$capture_dir/table-data.dump"
+    rm -f "$capture_dir/table-data.dump"
+fi
+
+connection_metadata="$("${psql_base[@]}" -AtF '|' -c "
+    SELECT
+        current_database(),
+        current_user,
+        COALESCE(inet_server_addr()::TEXT, 'local-socket'),
+        COALESCE(inet_server_port()::TEXT, 'local-socket'),
+        current_setting('server_version')
+")"
+IFS='|' read -r metadata_database metadata_user metadata_address metadata_port metadata_version <<< "$connection_metadata"
+cat > "$capture_dir/capture-metadata.txt" <<EOF
+issue=151
+approval=read-only-stage-a
+operator=${LEGACY_SCHEMA_REVIEW_OPERATOR}
+captured_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+database=${metadata_database}
+database_user=${metadata_user}
+server_address=${metadata_address}
+server_port=${metadata_port}
+server_version=${metadata_version}
+backup_mode=${backup_mode}
+EOF
+
+manifest_tmp="$(mktemp "$output_dir/.manifest.XXXXXX")"
+(
+    cd "$capture_dir"
+    find . -maxdepth 1 -type f -printf '%f\0' \
+        | sort -z \
+        | xargs -0 sha256sum
+) > "$manifest_tmp"
+mv "$manifest_tmp" "$capture_dir/manifest.sha256"
+manifest_tmp=""
+(
+    cd "$capture_dir"
+    sha256sum --check manifest.sha256 >/dev/null
+)
+
+find "$capture_dir" -mindepth 1 -maxdepth 1 -exec mv -t "$output_dir" -- {} +
+rmdir "$capture_dir"
+trap - EXIT INT TERM
+
+cat <<EOF
+legacy-schema-retirement-review: capture complete
+  database: $actual_database
+  output:   $output_dir
+  mode:     $backup_mode
+
+No database rows or schema objects were modified.
+Review inventory.json and complete a restore rehearsal before requesting Stage B approval.
+EOF

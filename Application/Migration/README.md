@@ -41,3 +41,11 @@ migration for live/staging/production databases.
 When enum, constraint, trigger, or parser-sensitive SQL changes are involved,
 restart/wait for the dev server after applying locally so IHP sees the final
 `pg_dump` shape.
+
+## Operator-Gated Retirements
+
+GitHub #151's approved read-only inventory/export procedure is documented in
+`legacy-schema-retirement-151-runbook.md` and implemented by
+`bin/legacy-schema-retirement-review`. Its Stage A approval does not authorize a
+destructive migration; the runbook defines the evidence and separate approval
+required before any table drop.
