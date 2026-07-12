@@ -6,7 +6,7 @@ import { architectureResult, dotId, dotQuote, ensureDir, queryDir, readJsonFile,
 function ensureFacts() {
   const factsPath = path.join(repoRoot, "output/architecture/facts.json");
   if (fs.existsSync(factsPath)) return;
-  const result = spawnSync(process.execPath, ["scripts/architecture/facts.mjs"], { cwd: repoRoot, encoding: "utf8" });
+  const result = spawnSync("bash", ["Config/nix/scripts/architecture/facts"], { cwd: repoRoot, encoding: "utf8" });
   if (result.status !== 0) throw new Error(`failed to generate facts: ${result.stderr || result.stdout}`);
 }
 
@@ -488,39 +488,108 @@ function contractConsumerGroup(consumerPath) {
 
 function generatedContractsQuery(facts, args) {
   const contracts = facts.frontend.contracts;
+  const reflected = contracts.reflectedSurfaceContracts || {};
+  const surfaces = Array.isArray(reflected.surfaces) ? reflected.surfaces : [];
+  const target = String(args.target || "all").toLowerCase();
+  const selectedSurfaces = target === "all"
+    ? surfaces
+    : surfaces.filter((surface) => surface.name?.toLowerCase() === target || surface.marker?.toLowerCase() === target);
+  const includeConsumers = args.includeConsumers !== false;
   const consumerGroups = new Map();
   for (const consumer of contracts.consumers) {
     const group = contractConsumerGroup(consumer.path);
     if (!consumerGroups.has(group)) consumerGroups.set(group, []);
     consumerGroups.get(group).push(consumer);
   }
+
   const lines = graphHeader("generated_contracts", "LR");
   lines.push(nodeLine("haskell", `Haskell contract sources\n${contracts.sources.length}`, { fillcolor: "#dcfce7", shape: "folder" }));
+  lines.push(nodeLine("reflection", "typeclass reflection\nSurface.Reflect", { fillcolor: "#dcfce7", shape: "component" }));
+  lines.push(nodeLine("checked-ir", `checked SurfaceContractIR\n${surfaces.length} surfaces`, { fillcolor: "#e0e7ff", highlight: true }));
   lines.push(nodeLine("generator", "GenerateFrontendContracts\nscript", { fillcolor: "#fef3c7", shape: "component" }));
   lines.push(nodeLine("generated", `generated TypeScript\n${contracts.generated.length} files`, { fillcolor: "#dbeafe", highlight: true }));
-  lines.push(nodeLine("consumers", `frontend consumers\n${contracts.consumers.length} files\n${consumerGroups.size} groups`, { fillcolor: "#ffedd5" }));
-  lines.push(edgeLine("haskell", "generator"));
+  lines.push(edgeLine("haskell", "reflection", { label: "registered DSL" }));
+  lines.push(edgeLine("reflection", "checked-ir", { label: "evaluate + validate" }));
+  lines.push(edgeLine("checked-ir", "generator"));
   lines.push(edgeLine("generator", "generated"));
-  lines.push(edgeLine("generated", "consumers"));
+
+  if (includeConsumers) {
+    lines.push(nodeLine("consumers", `frontend consumers\n${contracts.consumers.length} files\n${consumerGroups.size} groups`, { fillcolor: "#ffedd5" }));
+    lines.push(edgeLine("generated", "consumers"));
+  }
   for (const source of contracts.sources) lines.push(nodeLine(`source:${source}`, source, { fillcolor: "#ecfccb" }));
   for (const source of contracts.sources) lines.push(edgeLine(`source:${source}`, "haskell"));
-  for (const [group, consumers] of [...consumerGroups.entries()].sort()) {
-    lines.push(nodeLine(`consumer-group:${group}`, `${group}\n${consumers.length} files`, { fillcolor: group === "tests" ? "#f5f5f4" : "#fff7e6", shape: "folder" }));
-    lines.push(edgeLine("consumers", `consumer-group:${group}`));
-    for (const consumer of consumers.slice(0, 4)) {
-      lines.push(nodeLine(`consumer:${consumer.path}`, `${consumer.path}\n${consumer.imports.slice(0, 3).join(", ")}`, { fillcolor: "#fffaf0" }));
-      lines.push(edgeLine(`consumer-group:${group}`, `consumer:${consumer.path}`));
+
+  for (const surface of selectedSurfaces) {
+    const surfaceId = `surface:${surface.name}`;
+    lines.push(nodeLine(surfaceId, `${surface.name}\nSurface`, { fillcolor: "#ede9fe", highlight: target !== "all" }));
+    lines.push(edgeLine("checked-ir", surfaceId, { label: "contains" }));
+    if (target === "all") continue;
+
+    for (const scope of surface.scopes || []) {
+      const policies = (scope.authorization || []).map((auth) => auth.policy || auth.kind).join(", ");
+      const scopeId = `${surfaceId}:scope:${scope.name}`;
+      lines.push(nodeLine(scopeId, `${scope.name}\nscope\n${policies}`, { fillcolor: "#dbeafe" }));
+      lines.push(edgeLine(surfaceId, scopeId, { label: "authorized by" }));
+    }
+    for (const fragment of surface.fragments || []) {
+      const fragmentId = `${surfaceId}:fragment:${fragment.name}`;
+      const mode = fragment.live ? (fragment.resyncOnly ? "live / resync" : "live") : "fragment";
+      lines.push(nodeLine(fragmentId, `${fragment.name}\n${mode}`, { fillcolor: "#cffafe" }));
+      lines.push(edgeLine(surfaceId, fragmentId, { label: "fragment" }));
+      for (const dependency of fragment.resources || []) {
+        const resourceId = `${surfaceId}:resource:${dependency.resource}`;
+        lines.push(nodeLine(resourceId, `${dependency.resource}\nresource`, { fillcolor: "#fef3c7" }));
+        lines.push(edgeLine(fragmentId, resourceId, { label: "depends on" }));
+      }
+      for (const parentFragment of fragment.dependsOnFragments || []) {
+        lines.push(edgeLine(fragmentId, `${surfaceId}:fragment:${parentFragment}`, { label: "loads after", style: "dashed" }));
+      }
+      for (const childSurface of fragment.containsSurfaces || []) {
+        const childId = `contained-surface:${childSurface}`;
+        lines.push(nodeLine(childId, `${childSurface}\ncontained Surface`, { fillcolor: "#f3e8ff" }));
+        lines.push(edgeLine(fragmentId, childId, { label: "contains" }));
+      }
+    }
+    for (const action of surface.actions || []) {
+      const actionId = `${surfaceId}:action:${action.name}`;
+      lines.push(nodeLine(actionId, `${action.name}\n${action.method || "action"}`, { fillcolor: "#fee2e2" }));
+      lines.push(edgeLine(surfaceId, actionId, { label: "action" }));
+      if (action.targetFragment) lines.push(edgeLine(actionId, `${surfaceId}:fragment:${action.targetFragment}`, { label: "targets" }));
+    }
+    for (const intent of surface.intents || []) {
+      const intentId = `${surfaceId}:intent:${intent.name}`;
+      lines.push(nodeLine(intentId, `${intent.name}\nintent`, { fillcolor: "#ffedd5" }));
+      lines.push(edgeLine(surfaceId, intentId, { label: "intent" }));
+      if (intent.backedBy) lines.push(edgeLine(intentId, `${surfaceId}:action:${intent.backedBy}`, { label: "backed by" }));
+    }
+  }
+
+  if (includeConsumers) {
+    for (const [group, consumers] of [...consumerGroups.entries()].sort()) {
+      lines.push(nodeLine(`consumer-group:${group}`, `${group}\n${consumers.length} files`, { fillcolor: group === "tests" ? "#f5f5f4" : "#fff7e6", shape: "folder" }));
+      lines.push(edgeLine("consumers", `consumer-group:${group}`));
+      for (const consumer of consumers.slice(0, 4)) {
+        lines.push(nodeLine(`consumer:${consumer.path}`, `${consumer.path}\n${consumer.imports.slice(0, 3).join(", ")}`, { fillcolor: "#fffaf0" }));
+        lines.push(edgeLine(`consumer-group:${group}`, `consumer:${consumer.path}`));
+      }
     }
   }
   lines.push("}");
-  const stem = "generated-contracts";
+
+  const stem = target === "all" ? "generated-contracts" : `generated-contracts-${slug(target)}`;
   const { dotRel, svgRel } = writeDot(stem, lines);
-  architectureResult("Generated contract/codecs pipeline report.", [
+  const warnings = [];
+  if (surfaces.length === 0) warnings.push("No reflected Surface facts were found; regenerate architecture contracts and facts.");
+  if (target !== "all" && selectedSurfaces.length === 0) warnings.push(`No reflected Surface matched ${args.target}.`);
+  architectureResult("Generated reflection-backed contract and Surface architecture report.", [
     { path: svgRel, kind: "diagram", language: "svg" },
     { path: dotRel, kind: "source", language: "dot" },
-  ], { generatedFrom: "output/architecture/facts.json", sources: contracts.sources }, {
-    metrics: { sources: contracts.sources.length, generatedFiles: contracts.generated.length, exports: contracts.generated.reduce((n, file) => n + file.exports.length, 0), dataAttributes: unique(contracts.generated.flatMap((file) => file.dataAttributes)).length, consumers: contracts.consumers.length, consumerGroups: consumerGroups.size },
+  ], { generatedFrom: "output/architecture/facts.json", sources: contracts.sources, evaluator: reflected.evaluator }, {
+    warnings,
+    metrics: { sources: contracts.sources.length, reflectedSurfaces: surfaces.length, selectedSurfaces: selectedSurfaces.length, generatedFiles: contracts.generated.length, exports: contracts.generated.reduce((n, file) => n + file.exports.length, 0), dataAttributes: unique(contracts.generated.flatMap((file) => file.dataAttributes)).length, consumers: contracts.consumers.length, consumerGroups: consumerGroups.size },
     tables: [
+      { title: "reflected surfaces", rows: surfaces.map((surface) => ({ surface: surface.name, scope: (surface.scopes || []).map((scope) => scope.name).join(", "), fragments: surface.fragments?.length || 0, actions: surface.actions?.length || 0, intents: surface.intents?.length || 0, resources: surface.resources?.length || 0 })) },
       { title: "generated files", rows: contracts.generated.map((file) => ({ path: file.path, exports: file.exports.length, dataAttributes: file.dataAttributes.length, majorExports: file.exports.slice(0, 12).join(", ") })) },
       { title: "consumer groups", rows: [...consumerGroups.entries()].sort().map(([group, consumers]) => ({ group, files: consumers.length, imports: unique(consumers.flatMap((consumer) => consumer.imports)).slice(0, 16).join(", ") })) },
       { title: "consumer files", rows: contracts.consumers.map((consumer) => ({ group: contractConsumerGroup(consumer.path), path: consumer.path, imports: consumer.imports.join(", ") })) },

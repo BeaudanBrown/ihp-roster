@@ -54,10 +54,10 @@ for forward-looking design.
   as an implementation guide.
 - `generic-frontend-contracts.md` - historical/superseded DTO-codec history;
   current browser contracts live under `Application.Helper.FrontendContract`.
-- `type-level-frontend-surfaces.md` - fully type-level FrontendSurface specs,
-  GHC API extraction/generation, `SurfaceImpl` runtime replacement for typed
-  live-surface authoring, and migration away from old surface-related
-  schema registry paths.
+- `type-level-frontend-surfaces.md` - implementation record for fully type-level
+  FrontendSurface specs, the current single reflection evaluator/generator,
+  `SurfaceImpl` runtime replacement for typed live-surface authoring, and the
+  retired GHC API extraction path.
 - `opentelemetry-observability.md` - OpenTelemetry traces, agent profile
   artifacts, production trace/log capture, and tailnet Grafana viewing.
 - `backlog.md` - smaller open streams that do not yet need dedicated files.

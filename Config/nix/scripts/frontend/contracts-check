@@ -21,16 +21,15 @@ actual="$tmp_dir/contracts.ts"
 build_dir="${FRONTEND_CONTRACTS_BUILD_DIR:-$PWD/build/FrontendContracts}"
 
 GHC_OPTS="$(ihp_roster_ghc_opts)"
-ihp_roster_prepare_ghc_build_dir "$build_dir" "$GHC_OPTS -package ghc"
-echo "frontend-contracts-check: compiling GHC FrontendSurface contract generator" >&2
-ghc $GHC_OPTS -package ghc Application/Script/GenerateFrontendContractsGhc.hs \
-    -main-is Application.Script.GenerateFrontendContractsGhc \
+ihp_roster_prepare_ghc_build_dir "$build_dir" "$GHC_OPTS"
+echo "frontend-contracts-check: compiling reflected FrontendContract generator" >&2
+ghc $GHC_OPTS Application/Script/GenerateFrontendContracts.hs \
+    -main-is Application.Script.GenerateFrontendContracts \
     -odir "$build_dir/obj" \
     -hidir "$build_dir/hi" \
     -o "$build_dir/generate-frontend-contracts" >/dev/null
-echo "frontend-contracts-check: extracting FrontendSurface registry with GHC API" >&2
-FRONTEND_SURFACE_GHC_API_BUILD_DIR="$build_dir/ghc-api" \
-    "$build_dir/generate-frontend-contracts" "$(ghc --print-libdir)" "$actual"
+echo "frontend-contracts-check: rendering checked reflected registry" >&2
+"$build_dir/generate-frontend-contracts" "$actual"
 
 if [ ! -f "$expected" ]; then
     echo "frontend-contracts-check: missing generated file $expected" >&2

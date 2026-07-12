@@ -126,7 +126,7 @@ expect_no_match \
     Web/View/Timesheets/Index.hs
 
 expect_match \
-    "generated contracts must expose the GHC-generated lab surface manifest" \
+    "generated contracts must expose the reflected lab surface manifest" \
     'surfaceLabSurfaceManifest' \
     frontend/ts/generated/contracts.ts
 

@@ -1,6 +1,6 @@
 module Application.Script.GenerateBepisArchitectureContracts where
 
-import Application.Bepis.Architecture (bepisArchitectureContractsJson)
+import Application.Architecture.Contracts (architectureContractsJson)
 import Application.Script.Prelude (Script)
 import qualified Data.ByteString.Lazy as LBS
 import IHP.Prelude
@@ -16,10 +16,10 @@ main :: IO ()
 main = do
     args <- Environment.getArgs
     case args of
-        [] -> LBS.putStr bepisArchitectureContractsJson
+        [] -> LBS.putStr architectureContractsJson
         [outputPath] -> do
             Directory.createDirectoryIfMissing True (takeDirectory outputPath)
-            LBS.writeFile outputPath bepisArchitectureContractsJson
+            LBS.writeFile outputPath architectureContractsJson
         _ -> do
             putStrLn "usage: GenerateBepisArchitectureContracts [output-path]" :: IO ()
             exitFailure

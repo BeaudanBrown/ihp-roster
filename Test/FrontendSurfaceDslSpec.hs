@@ -31,6 +31,49 @@ import qualified Text.Blaze.Html5 as Html5
 
 data TestLoad
 data TestPanel
+data Parent
+data ParentScope
+data ParentContent
+data Child
+data ChildScope
+data MissingContained
+data MissingContainedScope
+data MissingContainedContent
+data CycleA
+data CycleAScope
+data CycleAContent
+data CycleB
+data CycleBScope
+data CycleBContent
+
+type ParentSurface =
+    Surface Parent
+        '[ Scope ParentScope '[] '[ 'NoAuth ]
+         , Fragment ParentContent '[] '[ 'ContainsSurface Child ]
+         ]
+
+type ChildSurface =
+    Surface Child
+        '[ Scope ChildScope '[] '[ 'NoAuth ]
+         ]
+
+type MissingContainedSurface =
+    Surface MissingContained
+        '[ Scope MissingContainedScope '[] '[ 'NoAuth ]
+         , Fragment MissingContainedContent '[] '[ 'ContainsSurface Child ]
+         ]
+
+type CycleASurface =
+    Surface CycleA
+        '[ Scope CycleAScope '[] '[ 'NoAuth ]
+         , Fragment CycleAContent '[] '[ 'ContainsSurface CycleB ]
+         ]
+
+type CycleBSurface =
+    Surface CycleB
+        '[ Scope CycleBScope '[] '[ 'NoAuth ]
+         , Fragment CycleBContent '[] '[ 'ContainsSurface CycleA ]
+         ]
 
 frontendSurfaceContractsTypeScript :: Text
 frontendSurfaceContractsTypeScript =
@@ -180,7 +223,45 @@ tests = describe "FrontendSurface DSL foundation" do
         fragment.mountedFragmentUrl `shouldBe` "/lab/panel?panelId=panel-1"
         fragment.mountedFragmentLoadPolicy `shouldBe` "eager"
 
-    it "extracts the registered lab surface into checked contract IR" do
+    it "reflects the complete production Surface registry in declared order" do
+        map (.surfaceName) registeredFrontendSurfaceContractIR.contractSurfaces
+            `shouldBe` [ "surface-lab"
+                       , "timesheets"
+                       , "roster"
+                       , "roster-day-timeline"
+                       , "leave-requests"
+                       , "billing"
+                       , "support"
+                       , "profile"
+                       , "staff"
+                       , "admin-page"
+                       , "admin-xero-page"
+                       , "admin-venue-config"
+                       , "admin-invites"
+                       , "admin-exports"
+                       , "admin-shift-types"
+                       , "admin-roster-groups"
+                       , "admin-xero"
+                       ]
+
+    it "reflects and renders contained Surface topology from real DSL specs" do
+        let reflected = SurfaceContractIR (reflectSurfaceRegistry @'[ParentSurface, ChildSurface])
+        checkedSurfaceContractIR reflected `shouldBe` Right reflected
+        let parent = expectSurface "parent" reflected
+        parent.surfaceFragments
+            |> listToMaybe
+            |> fmap (.fragmentOptions)
+            `shouldBe` Just [ContainsSurfaceOption "child"]
+        let rendered = either error id (renderFrontendContractTypeScript (registeredFrontendContractIRForSurfaceContract reflected))
+        rendered `shouldContainText` "{ parentSurface: \"parent\", parentFragment: \"parent-content\", childSurface: \"child\" }"
+
+    it "validates missing and cyclic contained Surface references after reflection" do
+        let missingChild = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[MissingContainedSurface]))
+        let cycle = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[CycleASurface, CycleBSurface]))
+        diagnosticMessages missingChild `shouldContain` ["surface missing-contained fragment missing-contained-content contains missing surface child"]
+        diagnosticMessages cycle `shouldContain` ["surface containment cycle includes cycle-a"]
+
+    it "reflects the registered lab surface into checked contract IR" do
         let surface = expectSurface "surface-lab" registeredFrontendSurfaceContractIR
 
         surface.surfaceName `shouldBe` "surface-lab"
@@ -209,7 +290,7 @@ tests = describe "FrontendSurface DSL foundation" do
                 , CustomHtmxOption "lab-panel-custom-htmx" "lab fixture covers auditable custom HTMX metadata"
                 ]
 
-    it "extracts the registered timesheets surface into checked contract IR" do
+    it "reflects the registered timesheets surface into checked contract IR" do
         let surface = expectSurface "timesheets" registeredFrontendSurfaceContractIR
 
         map (.scopeName) surface.surfaceScopes `shouldBe` ["timesheet-week"]
@@ -249,7 +330,7 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export type TimesheetsMountState = TimesheetsTimesheetsMountStateMountState;"
         frontendSurfaceContractsTypeScript `shouldContainText` "export const timesheetsSurfaceManifest"
 
-    it "extracts the registered roster surface into checked contract IR" do
+    it "reflects the registered roster surface into checked contract IR" do
         let surface = expectSurface "roster" registeredFrontendSurfaceContractIR
 
         map (.scopeName) surface.surfaceScopes `shouldBe` ["roster-week"]

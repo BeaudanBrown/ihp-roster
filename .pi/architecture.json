@@ -117,9 +117,9 @@
       }
     },
     "generated-contracts": {
-      "description": "Generate Haskell contract/codecs to generated TypeScript report.",
-      "intent": "Show backend-owned frontend contract sources, generated TypeScript, data attributes, and frontend consumers.",
-      "capabilities": ["contract-sources", "generated-typescript", "frontend-consumers", "data-bepis-attributes", "metrics", "diagram"],
+      "description": "Generate a reflection-backed Surface contract and generated TypeScript report.",
+      "intent": "Show the checked reflected Surface IR pipeline, optional per-Surface semantic topology, generated TypeScript, data attributes, and frontend consumers.",
+      "capabilities": ["reflected-surface-contracts", "surface-topology", "contract-sources", "generated-typescript", "frontend-consumers", "data-bepis-attributes", "metrics", "diagram"],
       "command": ["bash", "./bin/in-env", "architecture-query"],
       "parameters": {
         "target": { "type": "string", "default": "all" },

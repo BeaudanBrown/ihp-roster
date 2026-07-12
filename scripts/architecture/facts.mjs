@@ -350,7 +350,16 @@ function parseFrontendContracts() {
       consumers.push({ path: relPath, imports: [...text.matchAll(/import\s+(?:type\s+)?\{([^}]+)\}\s+from\s+["'][^"']*generated\/contracts["']/g)].flatMap((m) => m[1].split(",").map((x) => x.trim().replace(/^type\s+/, ""))).filter(Boolean) });
     }
   }
-  const sources = ["Application/Helper/FrontendContract/Contracts.hs", "Application/Helper/FrontendContract/TypeScript.hs", "Application/Script/GenerateFrontendContracts.hs"].filter((file) => fs.existsSync(path.join(repoRoot, file)));
+  const sources = [
+    "Application/Architecture/Contracts.hs",
+    "Application/Helper/FrontendContract/Surface/Registry.hs",
+    "Application/Helper/FrontendContract/Surface/Reflect.hs",
+    "Application/Helper/FrontendContract/Surface/Contracts.hs",
+    "Application/Helper/FrontendContract/Surface/Architecture.hs",
+    "Application/Helper/FrontendContract/Contracts.hs",
+    "Application/Helper/FrontendContract/TypeScript.hs",
+    "Application/Script/GenerateFrontendContracts.hs",
+  ].filter((file) => fs.existsSync(path.join(repoRoot, file)));
   const generated = generatedFiles.map((relPath) => {
     const text = readText(relPath);
     return {
@@ -398,7 +407,10 @@ const facts = {
   modules: parseHaskellModules(),
   realtime: parseRealtime(allReferenceFiles),
   frontend: {
-    contracts: parseFrontendContracts(),
+    contracts: {
+      ...parseFrontendContracts(),
+      reflectedSurfaceContracts: bepisArchitectureContracts?.frontendSurfaceContracts,
+    },
   },
 };
 

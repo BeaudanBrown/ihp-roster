@@ -32,6 +32,10 @@ tests = describe "FrontendSurface strict API guard" do
         violations <- frontendContractWatcherViolations
         violations `shouldBe` []
 
+    it "keeps Surface contract generation reflection-only" do
+        violations <- reflectionOnlySurfaceGeneratorViolations
+        violations `shouldBe` []
+
     it "keeps final FrontendSurface cleanup seams deleted" do
         violations <- finalFrontendSurfaceCleanupViolations
         violations `shouldBe` []
@@ -247,6 +251,40 @@ finalFrontendSurfaceCleanupViolations = do
         , ["Web/View/RosterWeeks/Grid.hs: roster must render through generic FrontendSurface interaction shell" | not ("renderFrontendSurfaceInteractionShell" `Text.isInfixOf` rosterGrid)]
         ]
 
+reflectionOnlySurfaceGeneratorViolations :: IO [Text]
+reflectionOnlySurfaceGeneratorViolations = do
+    existingFiles <- fmap catMaybes $ forM obsoleteGhcSurfaceGeneratorFiles \path -> do
+        exists <- doesFileExist path
+        pure (if exists then Just path else Nothing)
+    contractsScript <- Text.readFile "Config/nix/scripts/frontend/contracts"
+    contractsCheckScript <- Text.readFile "Config/nix/scripts/frontend/contracts-check"
+    let commandSources =
+            [ ("Config/nix/scripts/frontend/contracts", contractsScript)
+            , ("Config/nix/scripts/frontend/contracts-check", contractsCheckScript)
+            ]
+        forbiddenCompilerApiTokens =
+            [ "GenerateFrontendContractsGhc"
+            , "-package ghc"
+            , "ghc --print-libdir"
+            , "FRONTEND_SURFACE_GHC"
+            , "GHC API"
+            ]
+    pure $
+        fmap (\path -> cs path <> ": obsolete GHC Surface generator file should stay deleted") existingFiles
+            <> [path <> ": reflection generator entrypoint is missing" | (path, source) <- commandSources, not ("Application/Script/GenerateFrontendContracts.hs" `Text.isInfixOf` source && "Application.Script.GenerateFrontendContracts" `Text.isInfixOf` source)]
+            <> [path <> ": compiler API generation token should stay deleted: " <> token | (path, source) <- commandSources, token <- forbiddenCompilerApiTokens, token `Text.isInfixOf` source]
+
+obsoleteGhcSurfaceGeneratorFiles :: [FilePath]
+obsoleteGhcSurfaceGeneratorFiles =
+    [ "Application/Helper/FrontendContract/Surface/Ghc/Extract.hs"
+    , "Application/Helper/FrontendContract/Surface/Ghc/Lower.hs"
+    , "Application/Helper/FrontendContract/Surface/Ghc/Raw.hs"
+    , "Application/Script/FrontendSurfaceGhcProbe.hs"
+    , "Application/Script/GenerateFrontendContractsGhc.hs"
+    , "Config/nix/scripts/frontend/surface-ghc-probe"
+    , "Test/FrontendSurfaceGhcSpec.hs"
+    ]
+
 frontendContractWatcherViolations :: IO [Text]
 frontendContractWatcherViolations = do
     scripts <- Text.readFile "Config/nix/flake/scripts.nix"
@@ -402,9 +440,6 @@ isAllowedInfrastructureFile path =
             , "Application/Helper/FrontendContract/Reflect.hs"
             , "Application/Helper/FrontendContract/Registry.hs"
             , "Application/Helper/FrontendContract/Surface/ContractIR.hs"
-            , "Application/Helper/FrontendContract/Surface/Ghc/Extract.hs"
-            , "Application/Helper/FrontendContract/Surface/Ghc/Lower.hs"
-            , "Application/Helper/FrontendContract/Surface/Ghc/Raw.hs"
             , "Application/Helper/FrontendContract/Surface/Naming.hs"
             , "Application/Helper/FrontendContract/Surface/DSL.hs"
             , "Application/Helper/FrontendContract/Surface/Interaction.hs"

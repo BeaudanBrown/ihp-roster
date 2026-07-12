@@ -1,9 +1,14 @@
 # FrontendContract
 
 `Application.Helper.FrontendContract` is the source of truth for browser-visible
-contracts. Contracts are declared in the project DSL, collected by
-`RegisteredFrontendContracts`, lowered to `FrontendContract.IR`, and rendered to
-`frontend/ts/generated/contracts.ts`.
+contracts. Contracts are declared in the project DSL, evaluated through explicit
+typeclass reflection, checked as contract IR, and rendered to
+`frontend/ts/generated/contracts.ts`. Global roots come from
+`RegisteredFrontendContracts`; Surface roots come from
+`RegisteredFrontendSurfaces` through the single checked reflected
+`SurfaceContractIR`. Generation, server runtime metadata, and semantic Surface
+architecture facts must consume that same reflected value rather than a second
+compiler-backed evaluator.
 
 Roots are split by meaning:
 

@@ -1,8 +1,10 @@
 # Type-Level FrontendSurface Contracts
 
-Status: implementation record. The DSL, GHC extraction/generation,
+Status: implementation record. The DSL, reflection-backed generation,
 `SurfaceImpl` runtime bridge, support lab, Timesheets migration, Roster
-migration, and SurfaceProjection removal have landed. Durable authoring rules now
+migration, and SurfaceProjection removal have landed. The former GHC API
+extractor/generator was retired by GitHub #143 after full production-registry IR
+and rendered-output parity. Durable authoring rules now
 live in `Application/Helper/FrontendContract/Surface/README.md` and the subsystem
 README/SPEC/AGENTS files; this workstream remains as architectural context until
 `ir-9ogo` closes.
@@ -15,7 +17,8 @@ Tickets:
 - `ir-p3c3` - Define legacy and FrontendSurface registry coexistence
 - `ir-g6z3` - Draft FrontendSurface architecture contract docs
 - `ir-ennr` - Build type-level FrontendSurface lab
-- `ir-xopg` - Generate surface TypeScript and DTO contracts from GHC API
+- `ir-xopg` - Historical GHC API generation implementation, superseded by the
+  single reflection evaluator in GitHub #143
 - `ir-4hu6` - Prove typed SurfaceImpl completeness
 - `ir-yupd` - Wire FrontendSurface generator into Nix/dev scripts
 - `ir-ycec` - Add FrontendSurface guardrails and compile-failure checks
@@ -49,22 +52,37 @@ by `ir-ds06`; this workstream records the architecture and migration decisions.
 
 Generation starts from a single explicit type-level registry containing only
 surfaces. The registry module is
-`Application.Helper.FrontendContract.Surface.Registry`; the current migrated surface specs
-live under `Application.Helper.FrontendContract.Surface` as `Lab`, `Timesheets`, and
-`Roster`, with runtime/view helpers in the relevant feature modules where useful.
+`Application.Helper.FrontendContract.Surface.Registry`; registered type-level
+specs live under `Application.Helper.FrontendContract.Surface`, with runtime/view
+implementations in feature-local `Web/*/FrontendSurface` modules where useful.
 
 ```haskell
 type RegisteredFrontendSurfaces =
     '[ SurfaceLabSurface
      , TimesheetsSurface
      , RosterSurface
+     , RosterDayTimelineSurface
+     , LeaveRequestsSurface
+     , BillingSurface
+     , SupportSurface
+     , ProfileSurface
+     , StaffSurface
+     , AdminPageSurface
+     , AdminXeroPageSurface
+     , AdminVenueSettingsSurface
+     , AdminInvitesSurface
+     , AdminExportsSurface
+     , AdminShiftTypesSurface
+     , AdminRosterGroupsSurface
+     , AdminXeroSurface
      ]
 ```
 
 Do not introduce a separate top-level scope registry initially. Shared scopes,
 DTOs, events, DOM tokens, sessions, layers, field aliases, and helper bundles are
-included by type aliases inside surface specs. After helper expansion, the
-extractor merges identical shared declarations and rejects conflicting ones.
+included by type aliases inside surface specs. After concrete helper reduction,
+the reflection evaluator builds the normalized declarations and checked-IR
+validation merges identical shared declarations or rejects conflicting ones.
 
 Example shared declaration reuse:
 
@@ -333,30 +351,35 @@ diagnostic metadata. Shared declarations with the same marker/name are allowed
 only when their normalized declarations are identical and the namespace is
 shareable.
 
-## GHC API Extractor
+## Reflection Evaluator
 
-The extractor is Nix/devenv-owned and starts from the explicit registry module.
-It loads/types the registry using the same project package set as canonical
-checks, exposing the GHC API package only through the generator command path.
-Normal app builds may import the lightweight registry and type-level specs for
-runtime enumeration, but GHC API use is script-only and must not be an app
-runtime dependency.
+`Application.Helper.FrontendContract.Surface.Reflect` is the single evaluator.
+It starts from the explicit `RegisteredFrontendSurfaces` type-level registry and
+recursively interprets the closed DSL through `Typeable`, `KnownSymbol`, and
+constructor-specific reflection instances. Concrete type synonyms and approved
+`Append`/`Concat` compositions reduce during normal typeclass resolution.
 
 Pipeline:
 
-1. Load `RegisteredFrontendSurfaces`.
-2. Resolve and normalize type synonyms, helper aliases, required type families,
-   list append/flattening, and nested options to primitive normal form.
-3. Build raw extracted surfaces close to the type syntax.
-4. Derive protocol names from markers.
-5. Merge identical shared declarations and reject conflicts.
-6. Lower to `SurfaceContractIR`.
-7. Validate the graph.
-8. Render generated TypeScript and runtime metadata.
+1. Compile `RegisteredFrontendSurfaces` through the normal project package set.
+2. Recursively reflect each registered `Surface`, primitive, field, wire type,
+   option, selector, and authorization marker.
+3. Derive protocol names from marker types.
+4. Build `SurfaceContractIR` directly, without a compiler-type AST or raw
+   lowering interpreter.
+5. Merge identical shared declarations and reject conflicts while checking the
+   complete graph.
+6. Feed that one checked reflected IR to server runtime consumers, the unified
+   frontend-contract adapter/renderer, and semantic architecture facts.
+7. Render generated TypeScript deterministically through
+   `Application.Script.GenerateFrontendContracts`.
 
-The extractor must support all lab, Timesheets, and Roster needs without
-feature-specific special cases. It must support parametrized fragment shapes
-without sample IDs.
+The deleted GHC API path is not retained as a fallback, probe, diagram backend,
+or parity oracle. The cutover accepted loss of raw compiler-tree/source-span and
+alias-expansion inspection after proving exact full-registry checked-IR and
+rendered-TypeScript parity. Future source/type-expansion tooling must be a narrow,
+non-authoritative architecture integration rather than a second contract
+evaluator.
 
 ### SurfaceContractIR
 
@@ -393,9 +416,10 @@ optional brand name.
 Validation covers malformed specs, unsupported wire types, duplicate/conflicting
 shared declarations, duplicate field names, one normalized scope per surface,
 invalid cross references, invalid exact-name usage, and namespace collisions.
-Diagnostics should include marker/type name, declaration or reference kind,
-derived protocol name, source module/span when available, and suggested fix;
-tests should assert stable diagnostic substrings rather than exact spans.
+Diagnostics include marker/type name, declaration or reference kind, derived
+protocol name, and a suggested fix where the checked IR can provide one. Tests
+assert stable diagnostic substrings. Source module/span and as-authored alias
+expansion are intentionally outside the reflection contract.
 
 ## Generated TypeScript
 
@@ -762,7 +786,8 @@ when browser/HTMX/live behavior is part of the contract.
 3. Legacy/new registry coexistence design (`ir-p3c3`).
 4. Draft architecture contract docs (`ir-g6z3`).
 5. DSL, minimal `SurfaceImpl` scaffold, and support lab (`ir-ennr`).
-6. GHC API extractor and generated TypeScript/runtime metadata (`ir-xopg`).
+6. Historical GHC API extractor and generated TypeScript/runtime metadata
+   (`ir-xopg`), later replaced by the single reflection evaluator in GitHub #143.
 7. `SurfaceImpl` completeness (`ir-4hu6`).
 8. Nix/dev script integration (`ir-yupd`).
 9. Guardrails and compile-failure checks (`ir-ycec`).

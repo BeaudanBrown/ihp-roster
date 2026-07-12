@@ -1,6 +1,6 @@
 module Test.MutationBoundarySpec where
 
-import Application.Bepis.Architecture (bepisArchitectureContractsJson)
+import Application.Architecture.Contracts (architectureContractsJson)
 import Application.Bepis.Fact
 import Application.Bepis.Response
 import Control.Monad (filterM)
@@ -69,13 +69,18 @@ tests = describe "Mutation boundary guard" do
         scopeFactLabels outerFacts `shouldBe` ["outer-before", "outer-after"]
         factSetFacts outerFacts `shouldSatisfy` all (\case BepisResponseFactValue _ -> False; _ -> True)
 
-    it "generates Bepis runtime fact contracts from Haskell" do
-        case Aeson.decode bepisArchitectureContractsJson of
+    it "generates typed runtime and reflected Surface architecture contracts from Haskell" do
+        case Aeson.decode architectureContractsJson of
             Just (Aeson.Object object) -> do
                 object KeyMap.!? "version" `shouldBe` Just (Aeson.Number 2)
                 object KeyMap.!? "runner" `shouldSatisfy` isJust
                 object KeyMap.!? "factKinds" `shouldSatisfy` hasNonEmptyArray
                 object KeyMap.!? "operationKinds" `shouldSatisfy` hasNonEmptyArray
+                case object KeyMap.!? "frontendSurfaceContracts" of
+                    Just (Aeson.Object surfaceContracts) -> do
+                        surfaceContracts KeyMap.!? "evaluator" `shouldBe` Just (Aeson.String "typeclass-reflection")
+                        surfaceContracts KeyMap.!? "surfaces" `shouldSatisfy` hasNonEmptyArray
+                    _ -> expectationFailure "architecture contracts should expose reflected FrontendSurface facts"
             _ -> expectationFailure "Bepis architecture contracts should decode as an object"
 
     it "does not keep legacy descriptive Bepis mutation APIs in runtime or architecture code" do

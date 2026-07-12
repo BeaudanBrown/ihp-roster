@@ -6,7 +6,10 @@ Read this before editing `frontend/ts/`.
 
 - App-owned JavaScript source lives in `frontend/ts/`.
 - Generated browser assets live in `static/app*.js` and are still loaded by IHP through `assetPath`.
-- Generated TypeScript contracts live in `frontend/ts/generated/` and are backend-owned. Do not hand-edit generated files.
+- Generated TypeScript contracts live in `frontend/ts/generated/` and are
+  backend-owned. Do not hand-edit generated files. `frontend-contracts`, its
+  drift check, and its watcher all render the same checked typeclass-reflected
+  Haskell registry used by server runtime metadata.
 - Contracts are for browser boundary data only: JSON/data-* payloads, live-update config/messages, FrontendSurface metadata, interaction/static capability DTOs, roster UI config, overlay lanes, and capability/config objects. Do not generate broad database models for frontend use.
 - Generated contracts provide `type X`, `isX`, `parseX`, and `encodeX`. Unknown JSON boundaries should use `parseX`; outbound JSON-shaped DTOs should use `encodeX`; runtime code must not recreate generated validators/parsers/encoders by hand.
 - Use Nix/devenv entrypoints, not developer-facing `npm`/`npx` commands.

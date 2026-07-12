@@ -1,3 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
+if [ -f "@scriptsRoot@/architecture/contracts" ]; then
+    bash "@scriptsRoot@/architecture/contracts" >/dev/null
+else
+    bash "Config/nix/scripts/architecture/contracts" >/dev/null
+fi
+
 node scripts/architecture/facts.mjs "$@"

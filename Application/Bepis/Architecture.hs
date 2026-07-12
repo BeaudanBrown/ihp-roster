@@ -1,6 +1,7 @@
 module Application.Bepis.Architecture
     ( BepisArchitectureFactSource (..)
     , bepisArchitectureContractsJson
+    , bepisArchitectureContractsValue
     , bepisArchitectureFactSourceText
     ) where
 

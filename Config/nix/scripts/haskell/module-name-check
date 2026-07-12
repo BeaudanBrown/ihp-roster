@@ -8,7 +8,7 @@ status=0
 
 haskell_files() {
     if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        git ls-files '*.hs'
+        git ls-files --cached --others --exclude-standard -- '*.hs'
     else
         find . -type f -name '*.hs' \
             ! -path './build/*' \
@@ -26,6 +26,8 @@ expected_module_for_path() {
 }
 
 while IFS= read -r file; do
+    [ -f "$file" ] || continue
+
     case "$file" in
         Setup.hs)
             continue

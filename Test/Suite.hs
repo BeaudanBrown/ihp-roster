@@ -51,7 +51,6 @@ import qualified Test.DevSeedSpec
 import qualified Test.FrontendContractSpec
 import qualified Test.FrontendContractsSpec
 import qualified Test.FrontendSurfaceDslSpec
-import qualified Test.FrontendSurfaceGhcSpec
 import qualified Test.FrontendSurfaceNamingSpec
 import qualified Test.FwcMapdSyncSpec
 import qualified Test.LiveUpdateSpec
@@ -275,7 +274,6 @@ allSuites =
     , pureSuite "FrontendContracts" 15 Test.FrontendContractsSpec.tests
     , pureSuite "FrontendSurfaceNaming" 5 Test.FrontendSurfaceNamingSpec.tests
     , pureSuite "FrontendSurfaceDSL" 15 Test.FrontendSurfaceDslSpec.tests
-    , pureSuite "FrontendSurfaceGHC" 25 Test.FrontendSurfaceGhcSpec.tests
     , pureSuite "LiveUpdate" 20 Test.LiveUpdateSpec.tests
     , pureSuite "SurfaceResource" 5 Test.SurfaceResourceSpec.tests
     , pureSuite "SurfaceInvalidation" 5 Test.SurfaceInvalidationSpec.tests

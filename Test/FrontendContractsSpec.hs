@@ -40,12 +40,12 @@ import Application.Helper.FrontendContract.Wire.Json (validateContractValue,
                                                       validateSurfaceScopeValue,
                                                       validateWireValue)
 import qualified Application.Helper.FrontendContract.Wire.LiveUpdate as Live
+import Control.Monad (filterM)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.ByteString.Lazy as LBS
-import Control.Monad (filterM)
 import Data.Char (isSpace)
 import Data.Either (isLeft, isRight)
 import qualified Data.List as List
@@ -70,6 +70,10 @@ tests = describe "Frontend contract generator foundation" do
     it "registers one generated FrontendContract declaration block" do
         [(declaration.name, declaration.origin) | declaration <- frontendContractDeclarations]
             `shouldBe` [("FrontendContractGlobals", HaskellSchemaGenerated)]
+
+    it "keeps checked-in contracts byte-identical to the reflection-backed generator" do
+        checkedIn <- Text.readFile "frontend/ts/generated/contracts.ts"
+        checkedIn `shouldBe` frontendContractsTypeScript
 
     it "keeps the composition root free of handwritten protocol blocks" do
         source <- Text.readFile "Application/Helper/FrontendContract/Contracts.hs"

@@ -16,6 +16,7 @@ type RegisteredFrontendSurfaces =
     '[ SurfaceLabSurface
      , TimesheetsSurface
      , RosterSurface
+     , RosterDayTimelineSurface
      , LeaveRequestsSurface
      , BillingSurface
      , SupportSurface
@@ -33,10 +34,19 @@ type RegisteredFrontendSurfaces =
 ```
 
 A surface is added by defining a type-level spec with the primitives from
-`Application.Helper.FrontendContract.Surface.DSL`, then adding it to this list. The GHC
-extractor loads this registry, expands approved helper aliases, normalizes the
-primitive declarations, validates names/conflicts, and emits the browser
-contracts in `frontend/ts/generated/contracts.ts`.
+`Application.Helper.FrontendContract.Surface.DSL`, then adding it to this list.
+`Application.Helper.FrontendContract.Surface.Reflect` recursively evaluates the
+closed type-level DSL with typeclass instances, and
+`Application.Helper.FrontendContract.Surface.Contracts` validates that reflected
+value into the single checked `SurfaceContractIR`. The same checked reflected
+IR is the authority for runtime behavior, browser contracts in
+`frontend/ts/generated/contracts.ts`, and semantic Surface architecture facts.
+
+Contract generation does not inspect GHC compiler internals. Concrete type
+synonyms and approved `Append`/`Concat` helpers reduce before reflection; every
+supported DSL constructor has an explicit reflection instance. Add new DSL
+vocabulary to the reflection and checked-IR path rather than introducing another
+evaluator.
 
 Feature specs normally live beside this directory as focused modules such as
 `Lab.hs`, `Timesheets.hs`, and `Roster.hs`. Runtime feature behavior may live in
@@ -51,8 +61,7 @@ implement the same declared spec through `SurfaceImpl`.
   be refetched and swapped. The current DSL name is `Fragment`; documentation may
   use "region" when discussing DOM lifecycle.
 - **Contained child surface**: a nested surface mount rendered inside a parent
-  fragment/region and declared by that parent fragment through `ContainsSurface`
-  once composition support is available.
+  fragment/region and declared by that parent fragment through `ContainsSurface`.
 - **Runtime reconciliation**: the browser lifecycle pass that treats the current
   DOM as the source of truth for mounted surface instances, initializes newly
   inserted mounts, and disposes removed mounts recursively so websocket
@@ -357,6 +366,25 @@ For a new surface or migration:
    mounts, actor-local invalidation, passive invalidation, lazy fragments, and
    interaction behavior as applicable.
 8. Add guardrails if the migration removes a legacy path that should not return.
+
+## Architecture Facts And Diagrams
+
+`Application.Helper.FrontendContract.Surface.Architecture` renders deterministic
+semantic facts from `registeredFrontendSurfaceContractIR`; it is a renderer of
+the checked reflected value, not another evaluator. `architecture-facts` embeds
+those facts in the project architecture model, and the `generated-contracts`
+architecture query can render the whole reflection/generation pipeline or a
+focused Surface topology:
+
+```bash
+bash ./bin/in-env architecture-facts
+printf '%s\n' '{"name":"generated-contracts","args":{"target":"roster"}}' \
+  | bash ./bin/in-env architecture-query
+```
+
+Module imports, routes, schema relationships, and runtime traces continue to use
+their dedicated source scanners or telemetry. Do not reintroduce compiler-type
+inspection as Surface contract authority for those diagrams.
 
 ## Verification
 

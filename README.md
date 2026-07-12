@@ -97,9 +97,11 @@ Do not hand-edit generated app JS.
   `static/app-time-picker.js`, `static/app-timesheets.js`,
   `static/app-toasts.js`, `static/app-toggle-buttons.js`, and
   `static/app-xero.js`
-- Frontend contracts: Haskell-owned DTOs/enums generate TypeScript under
-  `frontend/ts/generated/`; use them for backend-emitted JSON/data boundaries
-  instead of duplicating broad backend or database models in browser code.
+- Frontend contracts: Haskell-owned DTOs/enums and registered Surface specs are
+  evaluated through the single checked reflection path and generate TypeScript
+  under `frontend/ts/generated/`; use them for backend-emitted JSON/data
+  boundaries instead of duplicating broad backend or database models in browser
+  code.
   Planned typed interaction-surface work should also derive surface, disposable
   layer, intent, intent-field, and conflict-policy browser contracts from
   Haskell instead of hand-defining canonical strings in TypeScript.
