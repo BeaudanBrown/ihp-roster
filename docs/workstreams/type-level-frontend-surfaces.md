@@ -462,8 +462,9 @@ V1 uses reusable typeclass/reflection machinery over the closed DSL/wire-type
 universe. `Surface.Values` now derives exact declaration-ordered Haskell JSON and
 text field encoding for scopes, fragment params, action fields, resources, and
 mount state without per-surface `ToJSON` instances. Surface-and-marker-indexed
-accessors expose action, fragment, resource, scope, source-ref, dropzone-ref,
-and DOM-token metadata without reflected-registry scans.
+accessors expose action, intent, fragment, resource, scope, source-ref,
+dropzone-ref, activation-ref, and DOM-token metadata without reflected-registry
+scans.
 
 This is not universal arbitrary Haskell serialization. Unsupported field/domain
 types should fail at compile time or generator validation. V1 should not generate
@@ -474,33 +475,19 @@ ergonomics become painful, especially during Roster.
 ## SurfaceImpl Runtime Bridge
 
 `SurfaceImpl spec` replaces `TypedLiveSurfaceDefinition` as the feature-facing
-runtime bridge. `mkSurfaceImplFromValues` is the preferred path when normal IHP
-controllers/views already own rendering and routes: it derives identity, exact
-scope/mount JSON, descriptors, and subscriptions without ceremonial action or
-intent handlers. The indexed handler-list path remains for surfaces that need a
-full runtime handler catalog, where missing required handlers are compile-time
-errors.
+runtime bridge. `mkSurfaceImplFromValues` is the sole production construction
+path: one marker-indexed call derives identity, exact scope/mount JSON, the
+concrete descriptor set, and subscriptions. `SurfaceImpl` intentionally owns
+only the complete local mount name/config value; server rendering, authorization,
+routes, and feature behavior remain in their normal IHP modules.
 
-`SurfaceImpl` owns dynamic behavior:
-
-- concrete scope values and wire/scope key conversion;
-- authorization;
-- current version/freshness;
-- fragment URL builders;
-- fragment target id builders;
-- fragment renderers;
-- concrete live-resource dependencies;
-- HTMX method/action/target/swap details;
-- intent/action behavior;
-- mount key and metadata;
-- mount-state backend behavior;
-- role-dependent visibility/rendering.
-
-Parametrized fragments/actions require one handler per marker accepting typed
-params, not one handler per concrete instance. Authors fill typed handler records
-or builders indexed by the spec and expose them through a `HasSurfaceImpl spec`
-instance/value. Type families compute the required handler slots from the
-normalized spec so missing required handlers fail compilation.
+Parameterized fragments are constructed from exact marker-indexed
+`SurfaceFields` and passed to the constructor as concrete local descriptors.
+Actions are retrieved by owning Surface and marker at their view route. Real
+interaction intent forms are likewise built from exact intent fields and passed
+to the interaction shell rather than stored in a generic catalog. Compile-fail
+fixtures enforce Surface/marker/field ownership; inert callbacks, fake routes,
+handler-count obligations, and post-construction mount patching are deleted.
 
 First implementation uses direct DB/read-model rendering only. The removed generic
 server render cache is not part of the new core and must not be used by lab,

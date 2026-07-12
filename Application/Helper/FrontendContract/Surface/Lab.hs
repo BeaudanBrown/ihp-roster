@@ -6,6 +6,10 @@ module Application.Helper.FrontendContract.Surface.Lab
     , LabScope
     , LabShell
     , LabViewState
+    , ShowArchived
+    , StaffFilterId
+    , VenueId
+    , WeekOffset
     , MoveLabCard
     , PanelId
     , RefreshPanel

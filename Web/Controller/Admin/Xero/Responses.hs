@@ -44,7 +44,7 @@ respondWithXeroSectionActorInvalidationAndToast ::
     Maybe ToastOverlayConfig ->
     IO ()
 respondWithXeroSectionActorInvalidationAndToast maybeToast = do
-    setActorLiveFragmentsRefresh (adminXeroLiveScope (unpackId currentVenueId)) (AdminSurface.adminSurfaceFragmentKeys [AdminSurface.adminXeroShellFragment])
+    setActorLiveFragmentsRefresh (adminXeroLiveScope (unpackId currentVenueId)) (AdminSurface.adminXeroFragmentKeys [AdminSurface.adminXeroShellFragment])
     respondHtmlProfiled $
         maybe mempty (renderToastOverlayHostOob ToastBottomCenter . pure) maybeToast
 

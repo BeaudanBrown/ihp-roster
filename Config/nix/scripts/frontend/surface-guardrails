@@ -146,10 +146,25 @@ expect_no_match \
     Web/View/Timesheets/Index.hs
 
 expect_no_match \
-    "feature mount overrides must recompute subscriptions through surfaceImplWithMountedFragments" \
+    "feature mounts must not patch descriptor lists after construction" \
     'surfaceImplMountConfig[[:space:]]*=.*mountFragments[[:space:]]*=' \
     Application \
     Web
+
+expect_no_match \
+    "production Surface mounts must use one marker-indexed construction step without ceremonial handlers" \
+    '\b(mkSurfaceImpl|surfaceImplWithMountedFragments|SurfaceImplHandlers|FrontendSurface(Scope|MountState|Fragment|Action|Intent)Handler|fragmentHandlerRender|surfaceImplActions)\b' \
+    Application \
+    Web
+
+expect_no_match \
+    "production Surface mounts must not construct fake nil-id action routes" \
+    'Id[[:space:]]+UUID\.nil|placeholderRosterDayId' \
+    Application/Support/LiveUpdates.hs \
+    Web/Admin/FrontendSurface.hs \
+    Web/LeaveRequests/FrontendSurface.hs \
+    Web/Profiles/FrontendSurface.hs \
+    Web/RosterWeeks/FrontendSurface.hs
 
 expect_no_match \
     "FrontendSurface mount parsing must remain generated" \

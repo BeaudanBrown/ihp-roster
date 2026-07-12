@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Web.View.RosterWeeks.StaffSelfServicePanel
     ( renderRosterStaffSelfServicePanelFragment
     , renderRosterStaffSelfServiceLeaveFormFragment
@@ -8,22 +10,19 @@ module Web.View.RosterWeeks.StaffSelfServicePanel
     , rosterStaffSelfServiceTimesheetSurfaceId
     ) where
 
+import qualified Application.Helper.FrontendContract.Surface.Roster as RosterSurface
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
-                                                            FrontendSurfaceMountConfig (..),
-                                                            FrontendSurfaceMountedFragment (..),
-                                                            SurfaceImpl (..),
+                                                            SurfaceImpl,
                                                             renderFrontendSurfaceActionForm,
-                                                            renderFrontendSurfaceMount,
-                                                            surfaceImplWithMountedFragments)
+                                                            renderFrontendSurfaceMount)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
+import Application.Helper.FrontendContract.Surface.Values (surfaceActionValue)
 import Application.Helper.Url (appendQueryParams)
 import Data.Time.Calendar (diffDays)
-import Web.RosterWeeks.FrontendSurface (rosterSurfaceAction)
 import Web.RosterWeeks.Types (RosterStaffSelfServicePanel (..))
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
                                        TimesheetsMountStateValue (..),
-                                       timesheetsCandidateMountedFragments,
-                                       timesheetsSurfaceImpl)
+                                       timesheetsDaySurfaceImpl)
 import Web.View.LeaveRequests.New (renderLeaveRequestFormFields)
 import Web.View.Prelude
 import Web.View.Timesheets.Index (TimesheetDayRenderModel (..),
@@ -89,7 +88,7 @@ renderRosterStaffSelfServiceLeaveFormFragmentWithSwap maybeSwapOob maybeRosterSc
 renderRosterStaffSelfServiceLeaveForm :: (?context :: ControllerContext) => Maybe (Id RosterGroup, Int) -> LeaveRequest -> Html
 renderRosterStaffSelfServiceLeaveForm maybeRosterScope leaveRequest =
     renderFrontendSurfaceActionForm
-        (rosterSurfaceAction "create-roster-self-service-leave-request")
+        (surfaceActionValue @RosterSurface.RosterSurface @RosterSurface.CreateRosterSelfServiceLeaveRequest)
         FrontendSurfaceActionRoute
             { actionRouteUrl = rosterCreateLeaveRequestPath
             , actionRouteFields = []
@@ -151,10 +150,7 @@ timesheetSurface panel =
             , timesheetsMountShowAllStaff = False
             , timesheetsMountStaffFilterId = Nothing
             }
-        dayTargetId = "timesheet-day-section-" <> tshow (quickToolsTimesheetDayOffset panel)
-        dayFragment = filter (\fragment -> fragment.mountedFragmentTargetId == dayTargetId) (timesheetsCandidateMountedFragments scope mountState)
-     in timesheetsSurfaceImpl scope mountState
-            |> surfaceImplWithMountedFragments dayFragment
+     in timesheetsDaySurfaceImpl scope mountState (quickToolsTimesheetDayOffset panel)
 
 quickToolsTimesheetDayOffset :: RosterStaffSelfServicePanel -> Int
 quickToolsTimesheetDayOffset panel =

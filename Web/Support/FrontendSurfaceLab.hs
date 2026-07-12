@@ -1,4 +1,6 @@
+{-# LANGUAGE DataKinds        #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeOperators    #-}
 
 module Web.Support.FrontendSurfaceLab
     ( frontendSurfaceLabPanelId
@@ -7,99 +9,41 @@ module Web.Support.FrontendSurfaceLab
     , surfaceLabImpl
     ) where
 
-import Application.Helper.FrontendContract.Surface.Lab (LabPanel, LabScope,
-                                                        LabShell, LabViewState,
-                                                        MoveLabCard, PanelId,
-                                                        RefreshPanel,
-                                                        SourceItemKey,
-                                                        SurfaceLabSurface,
-                                                        TargetDropzoneKey)
+import qualified Application.Helper.FrontendContract.Surface.Lab as Surface
 import Application.Helper.FrontendContract.Surface.Runtime
-import qualified Data.Aeson as Aeson
+import Application.Helper.FrontendContract.Surface.Values
+import qualified Data.UUID as UUID
 import Web.View.Prelude
 
 frontendSurfaceLabPanelId :: Text
 frontendSurfaceLabPanelId = "surface-lab-panel"
 
-surfaceLabImpl :: (?context :: ControllerContext) => SurfaceImpl SurfaceLabSurface
+surfaceLabImpl :: (?context :: ControllerContext) => SurfaceImpl Surface.SurfaceLabSurface
 surfaceLabImpl =
-    mkSurfaceImpl "surface-lab" surfaceLabMountConfig surfaceLabHandlers
+    mkSurfaceImplFromValues @Surface.SurfaceLabSurface @Surface.LabScope
+        "primary"
+        labScopeFields
+        labMountStateFields
+        [ surfaceLabShellFragment
+        , surfaceLabPanelFragment
+        ]
 
-surfaceLabHandlers :: (?context :: ControllerContext) => SurfaceImplHandlers SurfaceLabSurface
-surfaceLabHandlers =
-    SurfaceImplHandlers
-        { surfaceScopeHandlers =
-            FrontendSurfaceScopeHandler
-                { scopeHandlerDefaultValue = frontendSurfaceFieldValuesFromPairs
-                    [ "venueId" Aeson..= ("current-support-venue" :: Text)
-                    , "weekOffset" Aeson..= (0 :: Int)
-                    ]
-                , scopeHandlerKey = const "surface-lab:current-support-venue:0"
-                }
-                `HandlerCons` HandlerNil
-        , surfaceMountStateHandlers =
-            FrontendSurfaceMountStateHandler
-                { mountStateHandlerDefaultValue = frontendSurfaceFieldValuesFromPairs
-                    [ "showArchived" Aeson..= False
-                    ]
-                }
-                `HandlerCons` HandlerNil
-        , surfaceFragmentHandlers =
-            FrontendSurfaceFragmentHandler
-                { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
-                , fragmentHandlerMountedFragment = const surfaceLabShellFragment
-                , fragmentHandlerRender = const mempty
-                }
-                `HandlerCons` FrontendSurfaceFragmentHandler
-                    { fragmentHandlerDefaultParams = frontendSurfaceFieldValuesFromPairs ["panelId" Aeson..= labPanelUuid]
-                    , fragmentHandlerMountedFragment = \params ->
-                        surfaceLabPanelFragmentFor (fromMaybe labPanelUuid (getSurfaceField @PanelId params))
-                    , fragmentHandlerRender = const mempty
-                    }
-                `HandlerCons` HandlerNil
-        , surfaceActionHandlers =
-            FrontendSurfaceActionHandler
-                { actionHandlerDefaultFields = frontendSurfaceFieldValuesFromPairs ["panelId" Aeson..= labPanelUuid]
-                , actionHandlerRequest = \fields ->
-                    refreshPanelActionFor (fromMaybe labPanelUuid (getSurfaceField @PanelId fields))
-                }
-                `HandlerCons` HandlerNil
-        , surfaceIntentHandlers =
-            FrontendSurfaceIntentHandler
-                { intentHandlerDefaultFields = frontendSurfaceFieldValuesFromPairs
-                    [ "sourceItemKey" Aeson..= ("card-a" :: Text)
-                    , "targetDropzoneKey" Aeson..= ("dropzone-b" :: Text)
-                    ]
-                , intentHandlerForm = \fields ->
-                    moveCardIntentFor
-                        (fromMaybe "card-a" (getSurfaceField @SourceItemKey fields))
-                        (fromMaybe "dropzone-b" (getSurfaceField @TargetDropzoneKey fields))
-                }
-                `HandlerCons` HandlerNil
-        }
+labScopeFields :: SurfaceFields (SurfaceScopeFieldSpecs Surface.SurfaceLabSurface Surface.LabScope)
+labScopeFields =
+    surfaceField @Surface.VenueId labScopeVenueId
+        :& surfaceField @Surface.WeekOffset (0 :: Int)
+        :& NoSurfaceFields
 
-surfaceLabMountConfig :: (?context :: ControllerContext) => FrontendSurfaceMountConfig
-surfaceLabMountConfig =
-    FrontendSurfaceMountConfig
-        { mountSurfaceName = "surface-lab"
-        , mountScopeKey = "surface-lab:current-support-venue:0"
-        , mountKey = "primary"
-        , mountScope = Aeson.Null
-        , mountSubscription = Nothing
-        , mountState = Aeson.object
-            [ "showArchived" Aeson..= False
-            ]
-        , mountFragments =
-            [ surfaceLabShellFragment
-            , surfaceLabPanelFragment
-            ]
-        }
+labMountStateFields :: SurfaceFields (SurfaceMountStateFieldSpecs Surface.SurfaceLabSurface)
+labMountStateFields =
+    surfaceField @Surface.ShowArchived False
+        :& surfaceOptionalField @Surface.StaffFilterId Nothing
+        :& NoSurfaceFields
 
 surfaceLabShellFragment :: (?context :: ControllerContext) => FrontendSurfaceMountedFragment
 surfaceLabShellFragment =
-    frontendSurfaceMountedFragment
-        "lab-shell"
-        Aeson.Null
+    frontendSurfaceMountedFragmentFor @Surface.SurfaceLabSurface @Surface.LabShell
+        NoSurfaceFields
         "surface-lab-shell"
         (pathTo FrontendSurfaceLabAction)
         FrontendSurfaceReplace
@@ -108,28 +52,28 @@ surfaceLabPanelFragment :: (?context :: ControllerContext) => FrontendSurfaceMou
 surfaceLabPanelFragment =
     surfaceLabPanelFragmentFor labPanelUuid
 
-surfaceLabPanelFragmentFor :: (?context :: ControllerContext) => Text -> FrontendSurfaceMountedFragment
+surfaceLabPanelFragmentFor :: (?context :: ControllerContext) => UUID.UUID -> FrontendSurfaceMountedFragment
 surfaceLabPanelFragmentFor panelIdValue =
-    frontendSurfaceMountedFragment
-        "lab-panel"
-        (Aeson.object ["panelId" Aeson..= panelIdValue])
+    frontendSurfaceMountedFragmentFor @Surface.SurfaceLabSurface @Surface.LabPanel
+        (surfaceField @Surface.PanelId panelIdValue :& NoSurfaceFields)
         frontendSurfaceLabPanelId
-        (pathTo ShowFrontendSurfaceLabPanelFragmentAction { panelId = panelIdValue })
+        (pathTo ShowFrontendSurfaceLabPanelFragmentAction { panelId = UUID.toText panelIdValue })
         FrontendSurfaceReplace
 
 refreshPanelAction :: (?context :: ControllerContext) => FrontendSurfaceHtmxRequest
 refreshPanelAction =
     refreshPanelActionFor labPanelUuid
 
-refreshPanelActionFor :: (?context :: ControllerContext) => Text -> FrontendSurfaceHtmxRequest
+refreshPanelActionFor :: (?context :: ControllerContext) => UUID.UUID -> FrontendSurfaceHtmxRequest
 refreshPanelActionFor panelIdValue =
     FrontendSurfaceHtmxRequest
-        { htmxRequestName = "refresh-panel"
+        { htmxRequestName = surfaceActionNameValue @Surface.SurfaceLabSurface @Surface.RefreshPanel
         , htmxRequestMethod = FrontendSurfacePost
         , htmxRequestUrl = pathTo RefreshFrontendSurfaceLabPanelAction
         , htmxRequestTarget = "#" <> frontendSurfaceLabPanelId
         , htmxRequestSwap = "outerHTML"
-        , htmxRequestFields = [FrontendSurfaceFieldValue "panelId" panelIdValue]
+        , htmxRequestFields = frontendSurfaceActionFields @Surface.SurfaceLabSurface @Surface.RefreshPanel
+            (surfaceField @Surface.PanelId panelIdValue :& NoSurfaceFields)
         }
 
 moveCardIntent :: (?context :: ControllerContext) => FrontendSurfaceIntentForm
@@ -139,17 +83,18 @@ moveCardIntent =
 moveCardIntentFor :: (?context :: ControllerContext) => Text -> Text -> FrontendSurfaceIntentForm
 moveCardIntentFor sourceItemKey targetDropzoneKey =
     FrontendSurfaceIntentForm
-        { intentFormName = "move-lab-card"
+        { intentFormName = surfaceIntentNameValue @Surface.SurfaceLabSurface @Surface.MoveLabCard
         , intentFormSubmit = FrontendSurfaceHtmxRequest
-            { htmxRequestName = "move-lab-card"
+            { htmxRequestName = surfaceIntentNameValue @Surface.SurfaceLabSurface @Surface.MoveLabCard
             , htmxRequestMethod = FrontendSurfacePost
             , htmxRequestUrl = pathTo MoveFrontendSurfaceLabCardAction
             , htmxRequestTarget = "#" <> frontendSurfaceLabPanelId
             , htmxRequestSwap = "outerHTML"
-            , htmxRequestFields =
-                [ FrontendSurfaceFieldValue "sourceItemKey" sourceItemKey
-                , FrontendSurfaceFieldValue "targetDropzoneKey" targetDropzoneKey
-                ]
+            , htmxRequestFields = frontendSurfaceIntentFieldValues @Surface.SurfaceLabSurface @Surface.MoveLabCard
+                ( surfaceField @Surface.SourceItemKey sourceItemKey
+                    :& surfaceField @Surface.TargetDropzoneKey targetDropzoneKey
+                    :& NoSurfaceFields
+                )
             }
         }
 
@@ -193,5 +138,12 @@ renderSurfaceLabPanelFragment panelId statusMessage = [hsx|
     </section>
 |]
 
-labPanelUuid :: Text
-labPanelUuid = "11111111-1111-1111-1111-111111111111"
+labScopeVenueId :: UUID.UUID
+labScopeVenueId = expectLabUuid "22222222-2222-2222-2222-222222222222"
+
+labPanelUuid :: UUID.UUID
+labPanelUuid = expectLabUuid "11111111-1111-1111-1111-111111111111"
+
+expectLabUuid :: Text -> UUID.UUID
+expectLabUuid value =
+    fromMaybe (error ("Invalid FrontendSurface lab UUID: " <> value)) (UUID.fromText value)

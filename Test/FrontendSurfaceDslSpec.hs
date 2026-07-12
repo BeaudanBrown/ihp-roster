@@ -13,7 +13,7 @@ import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import Application.Helper.FrontendContract.Surface.DSL
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
-import Application.Helper.FrontendContract.Surface.Lab (SurfaceLabSurface)
+import qualified Application.Helper.FrontendContract.Surface.Lab as LabSurface
 import Application.Helper.FrontendContract.Surface.Reflect
 import Application.Helper.FrontendContract.Surface.Registry (RegisteredFrontendSurfaces)
 import Application.Helper.FrontendContract.Surface.Resource
@@ -106,7 +106,7 @@ frontendSurfaceContractsTypeScript =
 tests :: Spec
 tests = describe "FrontendSurface DSL foundation" do
     it "kind-checks the support lab surface and root registry" do
-        let _lab = Proxy @SurfaceLabSurface
+        let _lab = Proxy @LabSurface.SurfaceLabSurface
         let _timesheets = Proxy @TimesheetsSurface.TimesheetsSurface
         let _roster = Proxy @RosterSurface.RosterSurface
         let _registry = Proxy @RegisteredFrontendSurfaces
@@ -163,66 +163,33 @@ tests = describe "FrontendSurface DSL foundation" do
             `shouldBe` "weekOffset"
 
     it "renders minimal mount-local runtime metadata without legacy live-surface config" do
-        let fragment = FrontendSurfaceMountedFragment
-                { mountedFragmentKey = FrontendSurfaceFragmentKey "lab-panel" (Aeson.object ["panelId" Aeson..= ("panel-1" :: Text)])
-                , mountedFragmentTargetId = "surface-lab-panel"
-                , mountedFragmentUrl = "/ShowFrontendSurfaceLabPanelFragment?panelId=panel-1"
-                , mountedFragmentProtection = FrontendSurfaceFocusedFieldConfig FrontendSurfaceFocusedFieldProtectionConfig
-                    { focusedProtectionActiveSelector = "input[data-lab-field]:focus"
-                    , focusedProtectionFieldKeyAttr = "data-lab-field"
-                    , focusedProtectionFieldNameFallback = True
-                    , focusedProtectionContainerSelector = Just "form[data-lab-row]"
-                    }
-                , mountedFragmentLazyTrigger = Nothing
-                , mountedFragmentPlaceholderKind = Nothing
-                }
-        let config = FrontendSurfaceMountConfig
-                { mountSurfaceName = "surface-lab"
-                , mountScopeKey = "surface-lab:scope"
-                , mountKey = "primary"
-                , mountScope = Aeson.Null
-                , mountSubscription = Nothing
-                , mountState = Aeson.object ["showArchived" Aeson..= False]
-                , mountFragments = [fragment]
-                }
-        let minimalRequest = FrontendSurfaceHtmxRequest
-                { htmxRequestName = "refresh-panel"
-                , htmxRequestMethod = FrontendSurfacePost
-                , htmxRequestUrl = "/RefreshFrontendSurfaceLabPanel"
-                , htmxRequestTarget = "#surface-lab-panel"
-                , htmxRequestSwap = "outerHTML"
-                , htmxRequestFields = []
-                }
-        let handlers = SurfaceImplHandlers
-                { surfaceScopeHandlers = FrontendSurfaceScopeHandler
-                    { scopeHandlerDefaultValue = frontendSurfaceFieldValues (Aeson.object ["venueId" Aeson..= ("venue-1" :: Text), "weekOffset" Aeson..= (0 :: Int)])
-                    , scopeHandlerKey = const "surface-lab:scope"
-                    } `HandlerCons` HandlerNil
-                , surfaceMountStateHandlers = FrontendSurfaceMountStateHandler
-                    { mountStateHandlerDefaultValue = frontendSurfaceFieldValues (Aeson.object ["showArchived" Aeson..= False])
-                    } `HandlerCons` HandlerNil
-                , surfaceFragmentHandlers =
-                    FrontendSurfaceFragmentHandler
-                        { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
-                        , fragmentHandlerMountedFragment = const fragment
-                        , fragmentHandlerRender = const mempty
+        let venueId = fromMaybe (error "invalid Lab venue UUID") (UUID.fromString "22222222-2222-2222-2222-222222222222")
+        let panelId = fromMaybe (error "invalid Lab panel UUID") (UUID.fromString "11111111-1111-1111-1111-111111111111")
+        let fragment =
+                frontendSurfaceMountedFragmentFor @LabSurface.SurfaceLabSurface @LabSurface.LabPanel
+                    (surfaceField @LabSurface.PanelId panelId :& NoSurfaceFields)
+                    "surface-lab-panel"
+                    "/ShowFrontendSurfaceLabPanelFragment?panelId=11111111-1111-1111-1111-111111111111"
+                    ( FrontendSurfaceFocusedFieldConfig FrontendSurfaceFocusedFieldProtectionConfig
+                        { focusedProtectionActiveSelector = "input[data-lab-field]:focus"
+                        , focusedProtectionFieldKeyAttr = "data-lab-field"
+                        , focusedProtectionFieldNameFallback = True
+                        , focusedProtectionContainerSelector = Just "form[data-lab-row]"
                         }
-                        `HandlerCons` FrontendSurfaceFragmentHandler
-                            { fragmentHandlerDefaultParams = frontendSurfaceFieldValues (Aeson.object ["panelId" Aeson..= ("panel-1" :: Text)])
-                            , fragmentHandlerMountedFragment = const fragment
-                            , fragmentHandlerRender = const mempty
-                            }
-                        `HandlerCons` HandlerNil
-                , surfaceActionHandlers = FrontendSurfaceActionHandler
-                    { actionHandlerDefaultFields = frontendSurfaceFieldValues (Aeson.object ["panelId" Aeson..= ("panel-1" :: Text)])
-                    , actionHandlerRequest = const minimalRequest
-                    } `HandlerCons` HandlerNil
-                , surfaceIntentHandlers = FrontendSurfaceIntentHandler
-                    { intentHandlerDefaultFields = frontendSurfaceFieldValues (Aeson.object ["sourceItemKey" Aeson..= ("card-a" :: Text), "targetDropzoneKey" Aeson..= ("dropzone-b" :: Text)])
-                    , intentHandlerForm = const (FrontendSurfaceIntentForm "move-lab-card" minimalRequest)
-                    } `HandlerCons` HandlerNil
-                }
-        let impl = (mkSurfaceImpl "surface-lab" config handlers :: SurfaceImpl SurfaceLabSurface)
+                    )
+        let impl =
+                mkSurfaceImplFromValues @LabSurface.SurfaceLabSurface @LabSurface.LabScope
+                    "primary"
+                    ( surfaceField @LabSurface.VenueId venueId
+                        :& surfaceField @LabSurface.WeekOffset (0 :: Int)
+                        :& NoSurfaceFields
+                    )
+                    ( surfaceField @LabSurface.ShowArchived False
+                        :& surfaceOptionalField @LabSurface.StaffFilterId Nothing
+                        :& NoSurfaceFields
+                    )
+                    [fragment]
+        let config = impl.surfaceImplMountConfig
         let html = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceMount impl (Html5.toHtml ("body" :: Text))))
         let parameterlessConfig = config
                 { mountFragments =
@@ -232,8 +199,9 @@ tests = describe "FrontendSurface DSL foundation" do
                     ]
                 }
 
-        impl.surfaceImplActions |> map (.htmxRequestName) `shouldBe` ["refresh-panel"]
-        impl.surfaceImplIntents |> map (.intentFormName) `shouldBe` ["move-lab-card"]
+        impl.surfaceImplName `shouldBe` "surface-lab"
+        surfaceActionNameValue @LabSurface.SurfaceLabSurface @LabSurface.RefreshPanel `shouldBe` "refresh-panel"
+        surfaceIntentNameValue @LabSurface.SurfaceLabSurface @LabSurface.MoveLabCard `shouldBe` "move-lab-card"
         html `shouldContainText` "data-bepis-surface=\"surface-lab\""
         html `shouldContainText` "data-bepis-surface-config="
         html `shouldNotContainText` "data-live-update-surface"
@@ -242,14 +210,14 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceMountConfigJson config `shouldContainText` "\"kind\":\"focused-field\""
         frontendSurfaceMountConfigJson config `shouldContainText` "\"activeSelector\":\"input[data-lab-field]:focus\""
         frontendSurfaceMountConfigJson parameterlessConfig `shouldContainText` "\"fragmentKey\":{\"kind\":\"lab-shell\",\"params\":{},\"surface\":\"surface-lab\"}"
-        let mountConfigJson = frontendSurfaceMountConfigJson impl.surfaceImplMountConfig
+        let mountConfigJson = frontendSurfaceMountConfigJson config
         mountConfigJson `shouldContainText` "\"fragmentKey\""
         mountConfigJson `shouldNotContainText` "\"mountState\""
         mountConfigJson `shouldNotContainText` "\"loadPolicy\""
         mountConfigJson `shouldNotContainText` "\"resyncFragments\""
         mountConfigJson `shouldNotContainText` "\"deferUntilBlur\""
         mountConfigJson `shouldNotContainText` "\"protectionPolicy\""
-        Text.count "\"url\":" mountConfigJson `shouldBe` length impl.surfaceImplMountConfig.mountFragments
+        Text.count "\"url\":" mountConfigJson `shouldBe` length config.mountFragments
 
     it "renders lazy fragments with canonical UI-region attrs and feature slot classes" do
         let fragment = FrontendSurfaceMountedFragment
@@ -279,27 +247,22 @@ tests = describe "FrontendSurface DSL foundation" do
         defaults.lazyFragmentDefaultTrigger `shouldBe` Just "test-load"
         defaults.lazyFragmentDefaultPlaceholderKind `shouldBe` Just "test-panel"
 
-    it "parses typed handler field values from declared field lists" do
-        let panelParams = frontendSurfaceFieldValues (Aeson.object ["panelId" Aeson..= ("panel-1" :: Text)]) :: FrontendSurfaceFieldValues '[Field PanelId 'WireUUID]
-        let optionalParams = frontendSurfaceFieldValues (Aeson.object []) :: FrontendSurfaceFieldValues '[OptionalField StaffFilterId 'WireUUID]
-        let badParams = frontendSurfaceFieldValues (Aeson.object ["panelId" Aeson..= (123 :: Int)]) :: FrontendSurfaceFieldValues '[Field PanelId 'WireUUID]
+    it "builds mounted parameterized fragment keys from exact marker-indexed values" do
+        let panelId = fromMaybe (error "invalid Lab panel UUID") (UUID.fromString "11111111-1111-1111-1111-111111111111")
+        let fields = surfaceField @LabSurface.PanelId panelId :& NoSurfaceFields
+        let key = frontendSurfaceFragmentKeyFor @LabSurface.SurfaceLabSurface @LabSurface.LabPanel fields
+        let fragment =
+                frontendSurfaceMountedFragmentFor @LabSurface.SurfaceLabSurface @LabSurface.LabPanel
+                    fields
+                    "surface-lab-panel-11111111-1111-1111-1111-111111111111"
+                    "/lab/panel?panelId=11111111-1111-1111-1111-111111111111"
+                    FrontendSurfaceReplace
 
-        getSurfaceField @PanelId panelParams `shouldBe` Just ("panel-1" :: Text)
-        requireSurfaceField @StaffFilterId optionalParams `shouldBe` Right (Nothing :: Maybe Text)
-        requireSurfaceField @PanelId badParams `shouldSatisfy` \case
-            Left (FrontendSurfaceFieldParseFailed "panelId" _) -> True
-            _ -> False
-
-    it "builds mounted parameterized fragment keys from canonical params" do
-        let fields = frontendSurfaceFieldValuesFromPairs ["panelId" Aeson..= ("panel-1" :: Text)] :: FrontendSurfaceFieldValues '[Field PanelId 'WireUUID]
-        let key = frontendSurfaceFragmentKeyFromPairs "lab-panel" ["panelId" Aeson..= ("panel-1" :: Text)]
-        let fragment = frontendSurfaceMountedFragment "lab-panel" key.fragmentParams "surface-lab-panel-panel-1" "/lab/panel?panelId=panel-1" FrontendSurfaceReplace
-
-        getSurfaceField @PanelId fields `shouldBe` Just ("panel-1" :: Text)
-        key `shouldBe` FrontendSurfaceFragmentKey "lab-panel" (Aeson.object ["panelId" Aeson..= ("panel-1" :: Text)])
+        surfaceFieldsText fields `shouldBe` [("panelId", "11111111-1111-1111-1111-111111111111")]
+        key `shouldBe` FrontendSurfaceFragmentKey "lab-panel" (Aeson.object ["panelId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text)])
         fragment.mountedFragmentKey `shouldBe` key
-        fragment.mountedFragmentTargetId `shouldBe` "surface-lab-panel-panel-1"
-        fragment.mountedFragmentUrl `shouldBe` "/lab/panel?panelId=panel-1"
+        fragment.mountedFragmentTargetId `shouldBe` "surface-lab-panel-11111111-1111-1111-1111-111111111111"
+        fragment.mountedFragmentUrl `shouldBe` "/lab/panel?panelId=11111111-1111-1111-1111-111111111111"
 
     it "reflects the complete production Surface registry in declared order" do
         map (.surfaceName) registeredFrontendSurfaceContractIR.contractSurfaces

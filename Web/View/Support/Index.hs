@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Web.View.Support.Index where
 
 import Application.Helper.Feedback (allowedFeedbackPriorities,
@@ -5,12 +7,14 @@ import Application.Helper.Feedback (allowedFeedbackPriorities,
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
+import qualified Application.Helper.FrontendContract.Surface.Support as Surface
+import Application.Helper.FrontendContract.Surface.Values (surfaceActionValue)
 import Application.Helper.FwcMapd (FwcMapdAdminData (..),
                                    FwcMapdDisplayPayRate (..))
 import Application.PublicHolidays.Coverage (PublicHolidayCoverageStatus (..),
                                             PublicHolidayCoverageYear (..),
                                             publicHolidayCoverageHasWarning)
-import Application.Support.LiveUpdates (supportSurface, supportSurfaceAction)
+import Application.Support.LiveUpdates (supportSurface)
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
@@ -349,7 +353,7 @@ renderPublicHolidayCoverageStatus status =
 renderPublicHolidayRefreshForm :: Maybe AppJob -> Html
 renderPublicHolidayRefreshForm activeRefreshJob =
     renderFrontendSurfaceActionForm
-        (supportSurfaceAction "create-public-holiday-refresh-job")
+        (surfaceActionValue @Surface.SupportSurface @Surface.CreatePublicHolidayRefreshJob)
         (supportActionRoute (pathTo CreatePublicHolidayRefreshJobAction))
             { actionRouteExtraAttrs = [("class", "d-grid"), ("data-disable-javascript-submission", "true")]
             }
@@ -381,7 +385,7 @@ renderPublicHolidayRefreshJobStatus maybeJob =
 renderAwardRefreshForm :: Maybe AppJob -> Html
 renderAwardRefreshForm activeRefreshJob =
     renderFrontendSurfaceActionForm
-        (supportSurfaceAction "create-fwc-mapd-refresh-job")
+        (surfaceActionValue @Surface.SupportSurface @Surface.CreateFwcMapdRefreshJob)
         (supportActionRoute (pathTo CreateFwcMapdRefreshJobAction))
             { actionRouteExtraAttrs = [("class", "d-grid"), ("data-disable-javascript-submission", "true")]
             }

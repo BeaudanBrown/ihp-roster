@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Web.View.RosterWeeks.StaffPanel
     ( renderrosterStaffPanelLiveFragment
     , renderrosterStaffPanelLiveFragmentOob
@@ -14,8 +16,10 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
 import Application.Helper.FrontendContract.RosterValues (RosterStaffSortKey (..),
                                                          rosterStaffSortKeyAttribute)
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
+import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             frontendSurfaceActionHtmxAttrPairs)
+import Application.Helper.FrontendContract.Surface.Values (surfaceActionValue)
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
 import Application.Helper.Staff (isAdoptableTrialStaff)
 import Application.Helper.View (staffDisplayName)
@@ -23,8 +27,7 @@ import Data.List (sortBy)
 import qualified Data.Text as Text
 import Web.RosterWeeks.Dom (rosterStaffPanelFragmentClasses,
                             rosterStaffPanelFragmentId)
-import Web.RosterWeeks.FrontendSurface (rosterStaffDragSourceRef,
-                                        rosterSurfaceAction)
+import Web.RosterWeeks.FrontendSurface (rosterStaffDragSourceRef)
 import Web.RosterWeeks.Types (RosterStaffPanelEntry (..),
                               RosterStaffPanelScope (..))
 import Web.View.Prelude
@@ -272,7 +275,7 @@ renderStaffScopeToggleButton weekOffset currentRosterGroupId panelScope =
         , appToggleRoleSwitch = True
         , appToggleInputExtraAttrs =
             frontendSurfaceActionHtmxAttrPairs
-                (rosterSurfaceAction "toggle-roster-staff-scope")
+                (surfaceActionValue @Surface.RosterSurface @Surface.ToggleRosterStaffScope)
                 FrontendSurfaceActionRoute
                     { actionRouteUrl = pathTo (ShowRosterWeekStaffPanelFragmentAction weekOffset)
                     , actionRouteFields = []

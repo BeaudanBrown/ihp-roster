@@ -112,14 +112,14 @@ tests = do
         it "keeps the retained Admin Xero refetch descriptor local to the mount" do
             let mountedFragments = [AdminSurface.adminXeroShellFragment]
 
-            AdminSurface.adminSurfaceFragmentKeys mountedFragments `shouldBe` [adminXeroShellLiveFragment]
+            AdminSurface.adminXeroFragmentKeys mountedFragments `shouldBe` [adminXeroShellLiveFragment]
             map (.mountedFragmentTargetId) mountedFragments `shouldBe` ["admin-xero-fragment"]
             map (.mountedFragmentUrl) mountedFragments `shouldBe` [pathTo ShowadminXeroShellLiveFragmentAction]
 
         it "maps only Xero connection changes to the retained shell" do
             let venueId = fromWords 3 0 0 0
             let scope = adminXeroLiveScope venueId
-            let fragmentKeys = AdminSurface.adminSurfaceFragmentKeys [AdminSurface.adminXeroShellFragment]
+            let fragmentKeys = AdminSurface.adminXeroFragmentKeys [AdminSurface.adminXeroShellFragment]
             let subscription = liveTestSubscription scope fragmentKeys
             let plannedFor resource = map (.targetFragments) (planSurfaceInvalidationsWithoutContext (Set.fromList [resource venueId]) [subscription])
 

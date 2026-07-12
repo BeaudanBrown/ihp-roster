@@ -1,14 +1,18 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Web.View.RosterWeeks.Header
     ( renderRosterGridHeader
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
+import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
                                                             FrontendSurfaceFieldValue (..),
                                                             frontendSurfaceActionHtmxAttrPairs,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceActionLink)
+import Application.Helper.FrontendContract.Surface.Values (surfaceActionValue)
 import Application.Helper.RosterWagePrediction (RosterWagePrediction (..),
                                                 formatMoneyAmount)
 import Application.Helper.Url (appendQueryParams)
@@ -20,8 +24,7 @@ import Data.Time.Calendar (Day)
 import qualified Data.Time.Calendar as Calendar
 import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterWeekShellId)
 import Web.RosterWeeks.FrontendSurface (rosterDeleteShiftDropzoneRef,
-                                        rosterLayoutModeActivationRef,
-                                        rosterSurfaceAction)
+                                        rosterLayoutModeActivationRef)
 import Web.RosterWeeks.Paths (rosterAssignmentFiltersUrl, rosterCopyWeekUrl,
                               rosterDayTimelineUrl,
                               rosterWageEstimatePreferenceUrl,
@@ -42,21 +45,8 @@ rosterActionRoute actionUrl =
         , actionRouteExtraAttrs = []
         }
 
-rosterWeekShellSync :: FrontendSurfaceCustomHtmxAttrs
-rosterWeekShellSync =
-    FrontendSurfaceCustomHtmxAttrs
-        { customHtmxAttrMarker = "roster-week-shell-sync-custom-htmx"
-        , customHtmxAttrValues =
-            [ ("hx-sync", "#" <> rosterWeekShellId <> ":replace")
-            , ("hx-swap", "outerHTML")
-            ]
-        }
-
 rosterWeekShellSyncRoute :: Text -> FrontendSurfaceActionRoute
-rosterWeekShellSyncRoute actionUrl =
-    (rosterActionRoute actionUrl)
-        { actionRouteCustomHtmx = [rosterWeekShellSync]
-        }
+rosterWeekShellSyncRoute = rosterActionRoute
 
 renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> Day -> RosterViewCapabilities -> RosterLayoutModeEnum -> Bool -> Maybe RosterWagePrediction -> Bool -> Bool -> Bool -> RosterGridViewMode -> Maybe Text -> Html
 renderRosterGridHeader maybeRosterWeek rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters weekStartDate viewCapabilities rosterLayoutMode _rosterEndTimesEnabled rosterWagePrediction showWageEstimates showRosterWarnings canToggleFullscreen gridViewMode timelineTodayUrl =
@@ -155,7 +145,7 @@ renderRosterGroupSwitchOption selectedRosterGroupId rosterGroup = [hsx|
 renderWeekNavigationLink :: Text -> Text -> Text -> Int -> Id RosterGroup -> Html
 renderWeekNavigationLink iconClass ariaLabel url targetWeekOffset rosterGroupId =
     renderFrontendSurfaceActionLink
-        (rosterSurfaceAction "navigate-roster-week")
+        (surfaceActionValue @Surface.RosterSurface @Surface.NavigateRosterWeek)
         (rosterWeekShellSyncRoute url)
             { actionRouteFields =
                 [ FrontendSurfaceFieldValue "weekOffset" (tshow targetWeekOffset)
@@ -278,7 +268,7 @@ renderRosterDisplayPreferencesMenuSection weekOffset rosterGroupId viewCapabilit
 renderRosterWarningPreferenceForm :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Bool -> Html
 renderRosterWarningPreferenceForm weekOffset rosterGroupId showRosterWarnings =
     renderFrontendSurfaceActionForm
-        (rosterSurfaceAction "toggle-roster-warnings")
+        (surfaceActionValue @Surface.RosterSurface @Surface.ToggleRosterWarnings)
         (rosterWeekShellSyncRoute (rosterWarningPreferenceUrl weekOffset rosterGroupId))
             { actionRouteStandardUrl = Just (rosterWarningPreferenceUrl weekOffset rosterGroupId)
             , actionRouteExtraAttrs = [("class", "col-6 mb-0"), ("data-disable-javascript-submission", "true")]
@@ -294,7 +284,7 @@ renderRosterWageEstimatePreferenceForm weekOffset rosterGroupId viewCapabilities
     | not viewCapabilities.canViewWageEstimates = mempty
     | otherwise =
         renderFrontendSurfaceActionForm
-            (rosterSurfaceAction "toggle-roster-wage-estimates")
+            (surfaceActionValue @Surface.RosterSurface @Surface.ToggleRosterWageEstimates)
             (rosterWeekShellSyncRoute (rosterWageEstimatePreferenceUrl weekOffset rosterGroupId))
                 { actionRouteStandardUrl = Just (rosterWageEstimatePreferenceUrl weekOffset rosterGroupId)
                 , actionRouteExtraAttrs = [("class", "col-6 mb-0"), ("data-disable-javascript-submission", "true")]
@@ -331,7 +321,7 @@ renderRosterSortForm :: (?context :: ControllerContext) => Maybe RosterWeek -> R
 renderRosterSortForm (Just rosterWeek) viewCapabilities
     | shouldShowRosterSortForm (Just rosterWeek) viewCapabilities =
         renderFrontendSurfaceActionForm
-            (rosterSurfaceAction "sort-roster-week")
+            (surfaceActionValue @Surface.RosterSurface @Surface.SortRosterWeek)
             (rosterWeekShellSyncRoute (pathTo (SortRosterWeekAction rosterWeek.id)))
                 { actionRouteStandardUrl = Just (pathTo (SortRosterWeekAction rosterWeek.id))
                 , actionRouteExtraAttrs = [("class", "mb-0 roster-week-action-form"), ("data-disable-javascript-submission", "true")]
@@ -375,7 +365,7 @@ renderRosterAssignmentFiltersMenuSection :: (?context :: ControllerContext) => I
 renderRosterAssignmentFiltersMenuSection weekOffset rosterGroupId menuTriggerId filters viewCapabilities =
     if viewCapabilities.canManageAssignmentFilter
         then renderFrontendSurfaceActionForm
-            (rosterSurfaceAction "toggle-roster-assignment-filters")
+            (surfaceActionValue @Surface.RosterSurface @Surface.ToggleRosterAssignmentFilters)
             (rosterWeekShellSyncRoute (rosterAssignmentFiltersUrl weekOffset rosterGroupId))
                 { actionRouteStandardUrl = Just (rosterAssignmentFiltersUrl weekOffset rosterGroupId)
                 , actionRouteExtraAttrs =
@@ -415,11 +405,10 @@ renderRosterAssignmentFilterToggleButton inputId fieldName isChecked label =
 renderCopyPreviousWeekForm :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Html
 renderCopyPreviousWeekForm weekOffset rosterGroupId =
     renderFrontendSurfaceActionForm
-        (rosterSurfaceAction "copy-roster-week")
+        (surfaceActionValue @Surface.RosterSurface @Surface.CopyRosterWeek)
         (rosterWeekShellSyncRoute (rosterCopyWeekUrl (weekOffset - 1) weekOffset rosterGroupId))
             { actionRouteCustomHtmx =
-                [ rosterWeekShellSync
-                , FrontendSurfaceCustomHtmxAttrs "copy-roster-week-custom-htmx" [("hx-confirm", "This will overwrite the current week with the previous week's roster. Continue?")]
+                [ FrontendSurfaceCustomHtmxAttrs "copy-roster-week-custom-htmx" [("hx-confirm", "This will overwrite the current week with the previous week's roster. Continue?")]
                 ]
             , actionRouteStandardUrl = Just (rosterCopyWeekUrl (weekOffset - 1) weekOffset rosterGroupId)
             , actionRouteExtraAttrs = [("class", "mb-0 roster-week-action-form"), ("data-disable-javascript-submission", "true")]
@@ -449,10 +438,9 @@ renderLiveToggleButton rosterWeek =
         , appToggleRoleSwitch = True
         , appToggleInputExtraAttrs =
             frontendSurfaceActionHtmxAttrPairs
-                (rosterSurfaceAction "toggle-roster-week-live-status")
+                (surfaceActionValue @Surface.RosterSurface @Surface.ToggleRosterWeekLiveStatus)
                 (rosterWeekShellSyncRoute (pathTo (ToggleRosterWeekLiveStatusAction rosterWeek.id)))
                     { actionRouteFields = [FrontendSurfaceFieldValue "isLive" (boolParam rosterWeek.isLive)]
-                    , actionRouteCustomHtmx = [rosterWeekShellSync]
                     }
                 <> [("hx-trigger", "change"), ("hx-include", "closest form")]
         }

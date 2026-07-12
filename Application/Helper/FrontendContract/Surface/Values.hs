@@ -14,12 +14,15 @@
 module Application.Helper.FrontendContract.Surface.Values
     ( SurfaceActionFieldSpecs
     , SurfaceActionPrimitive
+    , SurfaceActivationRefPrimitive
     , SurfaceFields (..)
     , SurfaceFragmentFieldSpecs
     , SurfaceFragmentOptionSpecs
     , SurfaceDomTokenPrimitive
     , SurfaceDropzoneRefPrimitive
     , SurfaceFragmentPrimitive
+    , SurfaceIntentFieldSpecs
+    , SurfaceIntentPrimitive
     , SurfaceMountStateFieldSpecs
     , SurfaceResourceFieldSpecs
     , SurfaceResourceSpec
@@ -27,17 +30,25 @@ module Application.Helper.FrontendContract.Surface.Values
     , SurfaceScopePrimitive
     , SurfaceSourceRefPrimitive
     , surfaceActionFieldName
+    , surfaceActionNameValue
     , surfaceField
     , surfaceFieldsJson
     , surfaceFieldsText
     , surfaceNullableField
     , surfaceOptionalField
     , surfaceActionValue
+    , surfaceActivationRefValue
     , surfaceDomTokenValue
     , surfaceDropzoneRefValue
+    , surfaceFragmentFieldName
+    , surfaceFragmentNameValue
     , surfaceFragmentValue
+    , surfaceIntentFieldName
+    , surfaceIntentNameValue
+    , surfaceIntentValue
     , surfaceNameValue
     , surfaceResourceValue
+    , surfaceScopeFieldName
     , surfaceScopeValue
     , surfaceSourceRefValue
     ) where
@@ -184,6 +195,8 @@ type family SurfacePrimitives (spec :: SurfaceSpec) :: [SurfacePrimitive] where
 type SurfaceScopePrimitive spec marker = FindSurfaceScope spec marker (SurfacePrimitives spec)
 type SurfaceFragmentPrimitive spec marker = FindSurfaceFragment spec marker (SurfacePrimitives spec)
 type SurfaceActionPrimitive spec marker = FindSurfaceAction spec marker (SurfacePrimitives spec)
+type SurfaceIntentPrimitive spec marker = FindSurfaceIntent spec marker (SurfacePrimitives spec)
+type SurfaceActivationRefPrimitive spec marker = FindSurfaceActivationRef spec marker (SurfacePrimitives spec)
 type SurfaceDomTokenPrimitive spec marker = FindSurfaceDomToken spec marker (SurfacePrimitives spec)
 type SurfaceSourceRefPrimitive spec marker = FindSurfaceSourceRef spec marker (SurfacePrimitives spec)
 type SurfaceDropzoneRefPrimitive spec marker = FindSurfaceDropzoneRef spec marker (SurfacePrimitives spec)
@@ -193,6 +206,7 @@ type SurfaceScopeFieldSpecs spec marker = PrimitiveFieldSpecs (SurfaceScopePrimi
 type SurfaceFragmentFieldSpecs spec marker = PrimitiveFieldSpecs (SurfaceFragmentPrimitive spec marker)
 type SurfaceFragmentOptionSpecs spec marker = FragmentOptionSpecs (SurfaceFragmentPrimitive spec marker)
 type SurfaceActionFieldSpecs spec marker = PrimitiveFieldSpecs (SurfaceActionPrimitive spec marker)
+type SurfaceIntentFieldSpecs spec marker = PrimitiveFieldSpecs (SurfaceIntentPrimitive spec marker)
 type SurfaceResourceFieldSpecs spec marker = ResourceFieldSpecs (SurfaceResourceSpec spec marker)
 type SurfaceMountStateFieldSpecs spec = FindMountStateFields (SurfacePrimitives spec)
 
@@ -226,6 +240,22 @@ type family RequireSurfaceField (owner :: Type) (marker :: Type) (fields :: [Fie
             ':<>: 'ShowType marker
         )
 
+surfaceScopeFieldName ::
+    forall spec scope marker.
+    ( Typeable marker
+    , RequireSurfaceField scope marker (SurfaceScopeFieldSpecs spec scope)
+    ) =>
+    Text
+surfaceScopeFieldName = surfaceFieldName @marker
+
+surfaceFragmentFieldName ::
+    forall spec fragment marker.
+    ( Typeable marker
+    , RequireSurfaceField fragment marker (SurfaceFragmentFieldSpecs spec fragment)
+    ) =>
+    Text
+surfaceFragmentFieldName = surfaceFieldName @marker
+
 surfaceActionFieldName ::
     forall spec action marker.
     ( Typeable marker
@@ -233,6 +263,14 @@ surfaceActionFieldName ::
     ) =>
     Text
 surfaceActionFieldName = surfaceFieldName @marker
+
+surfaceIntentFieldName ::
+    forall spec intent marker.
+    ( Typeable marker
+    , RequireSurfaceField intent marker (SurfaceIntentFieldSpecs spec intent)
+    ) =>
+    Text
+surfaceIntentFieldName = surfaceFieldName @marker
 
 type family FindSurfaceScope (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
     FindSurfaceScope spec marker (('Scope marker fields options) ': rest) = 'Scope marker fields options
@@ -261,6 +299,26 @@ type family FindSurfaceAction (spec :: SurfaceSpec) (marker :: Type) (primitives
         ( 'Text "FrontendSurface "
             ':<>: 'ShowType spec
             ':<>: 'Text " does not declare action marker "
+            ':<>: 'ShowType marker
+        )
+
+type family FindSurfaceIntent (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
+    FindSurfaceIntent spec marker (('Intent marker fields options) ': rest) = 'Intent marker fields options
+    FindSurfaceIntent spec marker (primitive ': rest) = FindSurfaceIntent spec marker rest
+    FindSurfaceIntent spec marker '[] = TypeError
+        ( 'Text "FrontendSurface "
+            ':<>: 'ShowType spec
+            ':<>: 'Text " does not declare intent marker "
+            ':<>: 'ShowType marker
+        )
+
+type family FindSurfaceActivationRef (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
+    FindSurfaceActivationRef spec marker (('ActivationRef marker options) ': rest) = 'ActivationRef marker options
+    FindSurfaceActivationRef spec marker (primitive ': rest) = FindSurfaceActivationRef spec marker rest
+    FindSurfaceActivationRef spec marker '[] = TypeError
+        ( 'Text "FrontendSurface "
+            ':<>: 'ShowType spec
+            ':<>: 'Text " does not declare activation-ref marker "
             ':<>: 'ShowType marker
         )
 
@@ -331,11 +389,17 @@ surfaceScopeValue =
         ReflectedScope scope -> scope
         _ -> error "impossible: scope lookup reflected a different primitive"
 
+surfaceFragmentNameValue :: forall spec marker. ReflectPrimitive (SurfaceFragmentPrimitive spec marker) => Text
+surfaceFragmentNameValue = (surfaceFragmentValue @spec @marker).fragmentName
+
 surfaceFragmentValue :: forall spec marker. ReflectPrimitive (SurfaceFragmentPrimitive spec marker) => FragmentIR
 surfaceFragmentValue =
     case reflectPrimitive @(SurfaceFragmentPrimitive spec marker) of
         ReflectedFragment fragment -> fragment
         _ -> error "impossible: fragment lookup reflected a different primitive"
+
+surfaceActionNameValue :: forall spec marker. ReflectPrimitive (SurfaceActionPrimitive spec marker) => Text
+surfaceActionNameValue = (surfaceActionValue @spec @marker).htmxActionName
 
 surfaceActionValue :: forall spec marker. ReflectPrimitive (SurfaceActionPrimitive spec marker) => HtmxActionIR
 surfaceActionValue =
@@ -343,8 +407,23 @@ surfaceActionValue =
         ReflectedHtmxAction action -> action
         _ -> error "impossible: action lookup reflected a different primitive"
 
+surfaceIntentNameValue :: forall spec marker. ReflectPrimitive (SurfaceIntentPrimitive spec marker) => Text
+surfaceIntentNameValue = (surfaceIntentValue @spec @marker).intentName
+
+surfaceIntentValue :: forall spec marker. ReflectPrimitive (SurfaceIntentPrimitive spec marker) => IntentIR
+surfaceIntentValue =
+    case reflectPrimitive @(SurfaceIntentPrimitive spec marker) of
+        ReflectedIntent intent -> intent
+        _ -> error "impossible: intent lookup reflected a different primitive"
+
 surfaceResourceValue :: forall spec marker. ReflectResource (SurfaceResourceSpec spec marker) => ResourceIR
 surfaceResourceValue = reflectResource @(SurfaceResourceSpec spec marker)
+
+surfaceActivationRefValue :: forall spec marker. ReflectPrimitive (SurfaceActivationRefPrimitive spec marker) => InteractionActivationRefIR
+surfaceActivationRefValue =
+    case reflectPrimitive @(SurfaceActivationRefPrimitive spec marker) of
+        ReflectedActivationRef ref -> ref
+        _ -> error "impossible: activation-ref lookup reflected a different primitive"
 
 surfaceDomTokenValue :: forall spec marker. ReflectPrimitive (SurfaceDomTokenPrimitive spec marker) => Text
 surfaceDomTokenValue =

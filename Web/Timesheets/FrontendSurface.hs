@@ -7,6 +7,7 @@ module Web.Timesheets.FrontendSurface
     , TimesheetsMountStateValue (..)
     , timesheetsCandidateMountedFragments
     , timesheetsSurfaceScope
+    , timesheetsDaySurfaceImpl
     , timesheetsSurfaceImpl
     , timesheetsSurfaceMountConfig
     , timesheetsSurfaceScopeKey
@@ -45,11 +46,19 @@ data TimesheetsMountStateValue = TimesheetsMountStateValue
 
 timesheetsSurfaceImpl :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> SurfaceImpl Surface.TimesheetsSurface
 timesheetsSurfaceImpl scope mountState =
+    timesheetsSurfaceImplWithFragments scope mountState (timesheetsCandidateMountedFragments scope mountState)
+
+timesheetsDaySurfaceImpl :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> Int -> SurfaceImpl Surface.TimesheetsSurface
+timesheetsDaySurfaceImpl scope mountState dayOffset =
+    timesheetsSurfaceImplWithFragments scope mountState [timesheetDaySectionMountedFragment mountState scope.timesheetWeekWeekOffset dayOffset]
+
+timesheetsSurfaceImplWithFragments :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> [FrontendSurfaceMountedFragment] -> SurfaceImpl Surface.TimesheetsSurface
+timesheetsSurfaceImplWithFragments scope mountState fragments =
     mkSurfaceImplFromValues @Surface.TimesheetsSurface @Surface.TimesheetWeek
         "primary"
         (timesheetWeekScopeFields scope)
         (timesheetsMountStateFields mountState)
-        (timesheetsCandidateMountedFragments scope mountState)
+        fragments
 
 timesheetsSurfaceMountConfig :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> FrontendSurfaceMountConfig
 timesheetsSurfaceMountConfig scope mountState =

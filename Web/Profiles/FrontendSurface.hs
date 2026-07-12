@@ -8,8 +8,6 @@ module Web.Profiles.FrontendSurface
     , profileSurfaceScope
     , profileSectionFragmentForSection
     , profileSurfaceImpl
-    , profileSurfaceAction
-    , staffSurfaceAction
     , profileSurfaceMountConfig
     , profileSurfaceScopeKey
     , profileSurfaceFragmentKeys
@@ -21,15 +19,13 @@ module Web.Profiles.FrontendSurface
     , staffSurfaceFragmentKeys
     ) where
 
-import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
-import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
-import Application.Helper.FrontendContract.Surface.DSL
 import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
 import Application.Helper.FrontendContract.Surface.Runtime
+import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.Url (appendQueryParams)
-import qualified Data.Aeson as Aeson
 import qualified Data.UUID as UUID
+import qualified IHP.Prelude as Prelude
 import Web.Controller.Prelude
 
 data ProfileScopeValue = ProfileScopeValue
@@ -42,24 +38,20 @@ type StaffScopeValue = ProfileScopeValue
 
 profileSurfaceImpl :: ProfileScopeValue -> SurfaceImpl Surface.ProfileSurface
 profileSurfaceImpl scope =
-    mkSurfaceImpl "profile" (profileSurfaceMountConfig scope) (profileSurfaceHandlers scope)
-        |> surfaceImplWithMountedFragments (profileCandidateMountedFragments scope)
+    mkSurfaceImplFromValues @Surface.ProfileSurface @Surface.ProfileScope
+        "primary"
+        (profileScopeFields scope)
+        NoSurfaceFields
+        (profileCandidateMountedFragments scope)
 
 profileSurfaceMountConfig :: ProfileScopeValue -> FrontendSurfaceMountConfig
 profileSurfaceMountConfig scope =
-    FrontendSurfaceMountConfig
-        { mountSurfaceName = "profile"
-        , mountScopeKey = profileSurfaceScopeKey scope
-        , mountKey = "primary"
-        , mountScope = Aeson.Null
-        , mountSubscription = Nothing
-        , mountState = Aeson.Null
-        , mountFragments = profileCandidateMountedFragments scope
-        }
+    (profileSurfaceImpl scope).surfaceImplMountConfig
 
 profileSurfaceScopeKey :: ProfileScopeValue -> Text
 profileSurfaceScopeKey scope =
-    "profile:" <> tshow scope.profileVenueId <> ":" <> tshow scope.profileStaffId
+    frontendSurfaceScopeKeyFor @Surface.ProfileSurface @Surface.ProfileScope (profileScopeFields scope)
+        |> either (error . ("Typed Profile scope invariant failed: " <>)) Prelude.id
 
 profileSurfaceScope :: ProfileScopeValue -> SurfaceScope
 profileSurfaceScope scope =
@@ -76,34 +68,31 @@ profileCandidateMountedFragments _ =
 
 profileSurfaceFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
 profileSurfaceFragmentKeys =
-    frontendSurfaceMountedFragmentsToKeys "profile"
+    frontendSurfaceMountedFragmentsToKeysFor @Surface.ProfileSurface
 
 staffSurfaceImpl :: StaffScopeValue -> SurfaceImpl Surface.StaffSurface
 staffSurfaceImpl scope =
-    mkSurfaceImpl "staff" (staffSurfaceMountConfig scope) (staffSurfaceHandlers scope)
-        |> surfaceImplWithMountedFragments (staffCandidateMountedFragments scope)
+    mkSurfaceImplFromValues @Surface.StaffSurface @Surface.StaffScope
+        ("staff-" <> tshow scope.profileStaffId)
+        (staffScopeFields scope)
+        NoSurfaceFields
+        (staffCandidateMountedFragments scope)
 
 staffSurfaceMountConfig :: StaffScopeValue -> FrontendSurfaceMountConfig
 staffSurfaceMountConfig scope =
-    FrontendSurfaceMountConfig
-        { mountSurfaceName = "staff"
-        , mountScopeKey = staffSurfaceScopeKey scope
-        , mountKey = "staff-" <> tshow scope.profileStaffId
-        , mountScope = Aeson.Null
-        , mountSubscription = Nothing
-        , mountState = Aeson.Null
-        , mountFragments = staffCandidateMountedFragments scope
-        }
+    (staffSurfaceImpl scope).surfaceImplMountConfig
 
 staffSurfaceScopeKey :: StaffScopeValue -> Text
 staffSurfaceScopeKey scope =
-    "staff:" <> tshow scope.profileVenueId <> ":" <> tshow scope.profileStaffId
+    frontendSurfaceScopeKeyFor @Surface.StaffSurface @Surface.StaffScope (staffScopeFields scope)
+        |> either (error . ("Typed Staff scope invariant failed: " <>)) Prelude.id
 
 staffSurfaceScope :: StaffScopeValue -> SurfaceScope
 staffSurfaceScope scope =
-    frontendSurfaceLiveScope "staff" payload (staffSurfaceScopeKey scope)
-    where
-        payload = Aeson.object ["venueId" Aeson..= tshow scope.profileVenueId, "staffId" Aeson..= tshow scope.profileStaffId]
+    frontendSurfaceLiveScope
+        (surfaceNameValue @Surface.StaffSurface)
+        (surfaceFieldsJson (staffScopeFields scope))
+        (staffSurfaceScopeKey scope)
 
 staffCandidateMountedFragments :: StaffScopeValue -> [FrontendSurfaceMountedFragment]
 staffCandidateMountedFragments scope =
@@ -114,45 +103,7 @@ staffCandidateMountedFragments scope =
 
 staffSurfaceFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
 staffSurfaceFragmentKeys =
-    frontendSurfaceMountedFragmentsToKeys "staff"
-
-staffSurfaceHandlers :: StaffScopeValue -> SurfaceImplHandlers Surface.StaffSurface
-staffSurfaceHandlers scope =
-    SurfaceImplHandlers
-        { surfaceScopeHandlers =
-            FrontendSurfaceScopeHandler
-                { scopeHandlerDefaultValue = profileScopeFields scope
-                , scopeHandlerKey = \fields ->
-                    let venueId = fromMaybe (tshow scope.profileVenueId) (getSurfaceField @Surface.VenueId fields)
-                        staffId = fromMaybe (tshow scope.profileStaffId) (getSurfaceField @Surface.StaffId fields)
-                     in "staff:" <> venueId <> ":" <> staffId
-                }
-                `HandlerCons` HandlerNil
-        , surfaceMountStateHandlers = HandlerNil
-        , surfaceFragmentHandlers =
-            FrontendSurfaceFragmentHandler
-                { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
-                , fragmentHandlerMountedFragment = const (staffDetailsMountedFragment scope)
-                , fragmentHandlerRender = const mempty
-                }
-                `HandlerCons` FrontendSurfaceFragmentHandler
-                    { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
-                    , fragmentHandlerMountedFragment = const (staffPreferencesMountedFragment scope)
-                    , fragmentHandlerRender = const mempty
-                    }
-                `HandlerCons` FrontendSurfaceFragmentHandler
-                    { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
-                    , fragmentHandlerMountedFragment = const (staffLeaveMountedFragment scope)
-                    , fragmentHandlerRender = const mempty
-                    }
-                `HandlerCons` HandlerNil
-        , surfaceActionHandlers =
-            profileActionHandler "update-staff-profile" (pathTo (UpdateStaffAction (Id scope.profileStaffId))) "#staff-profile-details" "outerHTML show:none" `HandlerCons`
-            profileActionHandler "update-staff-shift-preferences" (pathTo (UpdateStaffAction (Id scope.profileStaffId))) "#staff-profile-preferences" "outerHTML show:none" `HandlerCons`
-            profileActionHandler "create-staff-leave-request" (pathTo CreateLeaveRequestAction) "#staff-leave-request-form-fragment" "outerHTML" `HandlerCons`
-            HandlerNil
-        , surfaceIntentHandlers = HandlerNil
-        }
+    frontendSurfaceMountedFragmentsToKeysFor @Surface.StaffSurface
 
 staffSectionFragmentForSection :: StaffScopeValue -> Text -> FrontendSurfaceMountedFragment
 staffSectionFragmentForSection scope = \case
@@ -161,104 +112,46 @@ staffSectionFragmentForSection scope = \case
     _ -> staffDetailsMountedFragment scope
 
 staffDetailsMountedFragment :: StaffScopeValue -> FrontendSurfaceMountedFragment
-staffDetailsMountedFragment =
-    staffSectionMountedFragment "staff-details-section" "staff-profile-details" "profile"
+staffDetailsMountedFragment scope =
+    frontendSurfaceMountedFragmentFor @Surface.StaffSurface @Surface.StaffDetailsSection
+        NoSurfaceFields
+        "staff-profile-details"
+        (staffSectionFragmentUrl scope "profile")
+        FrontendSurfaceReplace
 
 staffPreferencesMountedFragment :: StaffScopeValue -> FrontendSurfaceMountedFragment
-staffPreferencesMountedFragment =
-    staffSectionMountedFragment "staff-preferences-section" "staff-profile-preferences" "preferences"
+staffPreferencesMountedFragment scope =
+    frontendSurfaceMountedFragmentFor @Surface.StaffSurface @Surface.StaffPreferencesSection
+        NoSurfaceFields
+        "staff-profile-preferences"
+        (staffSectionFragmentUrl scope "preferences")
+        FrontendSurfaceReplace
 
 staffLeaveMountedFragment :: StaffScopeValue -> FrontendSurfaceMountedFragment
-staffLeaveMountedFragment =
-    staffSectionMountedFragment "staff-leave-section" "staff-profile-leave" "leave"
+staffLeaveMountedFragment scope =
+    frontendSurfaceMountedFragmentFor @Surface.StaffSurface @Surface.StaffLeaveSection
+        NoSurfaceFields
+        "staff-profile-leave"
+        (staffSectionFragmentUrl scope "leave")
+        FrontendSurfaceReplace
 
-staffSectionMountedFragment :: Text -> Text -> Text -> StaffScopeValue -> FrontendSurfaceMountedFragment
-staffSectionMountedFragment keyName targetId section scope =
-    FrontendSurfaceMountedFragment
-        { mountedFragmentKey = FrontendSurfaceFragmentKey keyName Aeson.Null
-        , mountedFragmentTargetId = targetId
-        , mountedFragmentUrl = appendQueryParams (pathTo (ShowStaffContentLiveFragmentAction (Id scope.profileStaffId))) [ ("section", section) ]
-        , mountedFragmentProtection = FrontendSurfaceReplace
-        , mountedFragmentLazyTrigger = Nothing
-        , mountedFragmentPlaceholderKind = Nothing
-        }
+staffSectionFragmentUrl :: StaffScopeValue -> Text -> Text
+staffSectionFragmentUrl scope section =
+    appendQueryParams
+        (pathTo (ShowStaffContentLiveFragmentAction (Id scope.profileStaffId)))
+        [("section", section)]
 
-profileSurfaceHandlers :: ProfileScopeValue -> SurfaceImplHandlers Surface.ProfileSurface
-profileSurfaceHandlers scope =
-    SurfaceImplHandlers
-        { surfaceScopeHandlers =
-            FrontendSurfaceScopeHandler
-                { scopeHandlerDefaultValue = profileScopeFields scope
-                , scopeHandlerKey = \fields ->
-                    let venueId = fromMaybe (tshow scope.profileVenueId) (getSurfaceField @Surface.VenueId fields)
-                        staffId = fromMaybe (tshow scope.profileStaffId) (getSurfaceField @Surface.StaffId fields)
-                     in "profile:" <> venueId <> ":" <> staffId
-                }
-                `HandlerCons` HandlerNil
-        , surfaceMountStateHandlers = HandlerNil
-        , surfaceFragmentHandlers =
-            FrontendSurfaceFragmentHandler
-                { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
-                , fragmentHandlerMountedFragment = const profileDetailsMountedFragment
-                , fragmentHandlerRender = const mempty
-                }
-                `HandlerCons` FrontendSurfaceFragmentHandler
-                    { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
-                    , fragmentHandlerMountedFragment = const profilePreferencesMountedFragment
-                    , fragmentHandlerRender = const mempty
-                    }
-                `HandlerCons` FrontendSurfaceFragmentHandler
-                    { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
-                    , fragmentHandlerMountedFragment = const profileSecurityMountedFragment
-                    , fragmentHandlerRender = const mempty
-                    }
-                `HandlerCons` FrontendSurfaceFragmentHandler
-                    { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
-                    , fragmentHandlerMountedFragment = const profileLeaveMountedFragment
-                    , fragmentHandlerRender = const mempty
-                    }
-                `HandlerCons` FrontendSurfaceFragmentHandler
-                    { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
-                    , fragmentHandlerMountedFragment = const profileRsaMountedFragment
-                    , fragmentHandlerRender = const mempty
-                    }
-                `HandlerCons` HandlerNil
-        , surfaceActionHandlers =
-            profileActionHandler "update-profile-details" (pathTo UpdateProfileAction) "#profile-details" "outerHTML show:none" `HandlerCons`
-            profileActionHandler "update-profile-shift-preferences" (pathTo UpdateProfileAction) "#profile-preferences" "outerHTML show:none" `HandlerCons`
-            profileActionHandler "create-profile-leave-request" (appendQueryParams (pathTo CreateLeaveRequestAction) [("responseContext", "profile"), ("section", "leave")]) "#profile-leave-request-form-fragment" "outerHTML" `HandlerCons`
-            HandlerNil
-        , surfaceIntentHandlers = HandlerNil
-        }
-
-profileActionHandler :: Text -> Text -> Text -> Text -> FrontendSurfaceActionHandler ('Action marker fields options)
-profileActionHandler actionName actionUrl target swap = FrontendSurfaceActionHandler
-    { actionHandlerDefaultFields = frontendSurfaceFieldValues Aeson.Null
-    , actionHandlerRequest = const FrontendSurfaceHtmxRequest
-        { htmxRequestName = actionName
-        , htmxRequestMethod = FrontendSurfacePost
-        , htmxRequestUrl = actionUrl
-        , htmxRequestTarget = target
-        , htmxRequestSwap = swap
-        , htmxRequestFields = []
-        }
-    }
-
-profileSurfaceAction :: Text -> SurfaceIR.HtmxActionIR
-profileSurfaceAction = surfaceAction "profile"
-
-staffSurfaceAction :: Text -> SurfaceIR.HtmxActionIR
-staffSurfaceAction = surfaceAction "staff"
-
-surfaceAction :: Text -> Text -> SurfaceIR.HtmxActionIR
-surfaceAction surfaceName actionName =
-    case [action | surface <- registeredFrontendSurfaceContractIR.contractSurfaces, surface.surfaceName == surfaceName, action <- surface.surfaceHtmxActions, action.htmxActionName == actionName] of
-        action : _ -> action
-        [] -> error ("missing " <> cs surfaceName <> " surface action: " <> cs actionName)
-
-profileScopeFields :: ProfileScopeValue -> FrontendSurfaceFieldValues '[ 'Field Surface.VenueId 'WireUUID, 'Field Surface.StaffId 'WireUUID]
+profileScopeFields :: ProfileScopeValue -> SurfaceFields (SurfaceScopeFieldSpecs Surface.ProfileSurface Surface.ProfileScope)
 profileScopeFields scope =
-    frontendSurfaceFieldValues (Aeson.object ["venueId" Aeson..= tshow scope.profileVenueId, "staffId" Aeson..= tshow scope.profileStaffId])
+    surfaceField @Surface.VenueId scope.profileVenueId
+        :& surfaceField @Surface.StaffId scope.profileStaffId
+        :& NoSurfaceFields
+
+staffScopeFields :: StaffScopeValue -> SurfaceFields (SurfaceScopeFieldSpecs Surface.StaffSurface Surface.StaffScope)
+staffScopeFields scope =
+    surfaceField @Surface.VenueId scope.profileVenueId
+        :& surfaceField @Surface.StaffId scope.profileStaffId
+        :& NoSurfaceFields
 
 profileSectionFragmentForSection :: Text -> FrontendSurfaceMountedFragment
 profileSectionFragmentForSection = \case
@@ -270,31 +163,44 @@ profileSectionFragmentForSection = \case
 
 profileDetailsMountedFragment :: FrontendSurfaceMountedFragment
 profileDetailsMountedFragment =
-    profileSectionMountedFragment "profile-details-section" "profile-details" "profile"
+    frontendSurfaceMountedFragmentFor @Surface.ProfileSurface @Surface.ProfileDetailsSection
+        NoSurfaceFields
+        "profile-details"
+        (profileSectionFragmentUrl "profile")
+        FrontendSurfaceReplace
 
 profilePreferencesMountedFragment :: FrontendSurfaceMountedFragment
 profilePreferencesMountedFragment =
-    profileSectionMountedFragment "profile-preferences-section" "profile-preferences" "preferences"
+    frontendSurfaceMountedFragmentFor @Surface.ProfileSurface @Surface.ProfilePreferencesSection
+        NoSurfaceFields
+        "profile-preferences"
+        (profileSectionFragmentUrl "preferences")
+        FrontendSurfaceReplace
 
 profileSecurityMountedFragment :: FrontendSurfaceMountedFragment
 profileSecurityMountedFragment =
-    profileSectionMountedFragment "profile-security-section" "profile-security" "security"
+    frontendSurfaceMountedFragmentFor @Surface.ProfileSurface @Surface.ProfileSecuritySection
+        NoSurfaceFields
+        "profile-security"
+        (profileSectionFragmentUrl "security")
+        FrontendSurfaceReplace
 
 profileLeaveMountedFragment :: FrontendSurfaceMountedFragment
 profileLeaveMountedFragment =
-    profileSectionMountedFragment "profile-leave-section" "profile-leave" "leave"
+    frontendSurfaceMountedFragmentFor @Surface.ProfileSurface @Surface.ProfileLeaveSection
+        NoSurfaceFields
+        "profile-leave"
+        (profileSectionFragmentUrl "leave")
+        FrontendSurfaceReplace
 
 profileRsaMountedFragment :: FrontendSurfaceMountedFragment
 profileRsaMountedFragment =
-    profileSectionMountedFragment "profile-rsa-section" "profile-rsa" "rsa"
+    frontendSurfaceMountedFragmentFor @Surface.ProfileSurface @Surface.ProfileRsaSection
+        NoSurfaceFields
+        "profile-rsa"
+        (profileSectionFragmentUrl "rsa")
+        FrontendSurfaceReplace
 
-profileSectionMountedFragment :: Text -> Text -> Text -> FrontendSurfaceMountedFragment
-profileSectionMountedFragment keyName targetId section =
-    FrontendSurfaceMountedFragment
-        { mountedFragmentKey = FrontendSurfaceFragmentKey keyName Aeson.Null
-        , mountedFragmentTargetId = targetId
-        , mountedFragmentUrl = appendQueryParams (pathTo ShowprofileContentLiveFragmentAction) [("section", section)]
-        , mountedFragmentProtection = FrontendSurfaceReplace
-        , mountedFragmentLazyTrigger = Nothing
-        , mountedFragmentPlaceholderKind = Nothing
-        }
+profileSectionFragmentUrl :: Text -> Text
+profileSectionFragmentUrl section =
+    appendQueryParams (pathTo ShowprofileContentLiveFragmentAction) [("section", section)]

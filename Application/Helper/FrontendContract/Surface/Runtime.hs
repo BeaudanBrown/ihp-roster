@@ -13,9 +13,7 @@
 {-# LANGUAGE UndecidableInstances  #-}
 
 module Application.Helper.FrontendContract.Surface.Runtime
-    ( FrontendSurfaceFieldError (..)
-    , FrontendSurfaceFieldValue (..)
-    , FrontendSurfaceFieldValues (..)
+    ( FrontendSurfaceFieldValue (..)
     , FrontendSurfaceFocusedFieldProtectionConfig (..)
     , FrontendSurfaceFragmentKey (..)
     , FrontendSurfaceHtmxMethod (..)
@@ -29,28 +27,19 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , FrontendSurfaceMountConfig (..)
     , FrontendSurfaceMountedFragment (..)
     , FrontendSurfaceProtection (..)
-    , FrontendSurfaceActionHandler (..)
-    , FrontendSurfaceFragmentHandler (..)
-    , FrontendSurfaceIntentHandler (..)
-    , FrontendSurfaceMountStateHandler (..)
-    , FrontendSurfaceScopeHandler (..)
-    , HandlerList (..)
     , KnownFragmentOptions (..)
     , SurfaceImpl (..)
-    , SurfaceImplHandlers (..)
-    , frontendSurfaceFieldValues
-    , frontendSurfaceFieldValuesFromPairs
     , frontendSurfaceFragmentKeyFor
     , frontendSurfaceFragmentKeyFromPairs
     , frontendSurfaceMountedFragment
     , frontendSurfaceMountedFragmentFor
-    , getSurfaceField
     , defaultFrontendSurfaceLazyFragmentConfig
     , customPlaceholderFrontendSurfaceLazyFragmentConfig
     , frontendSurfaceMountConfigJson
     , frontendSurfaceMountedFragmentsToKeys
     , frontendSurfaceMountedFragmentsToKeysFor
     , frontendSurfaceActionFields
+    , frontendSurfaceIntentFieldValues
     , frontendSurfaceScopeKeyFor
     , applyFrontendSurfaceActionAttrs
     , frontendSurfaceActionHtmxAttrPairs
@@ -62,10 +51,7 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , renderFrontendSurfaceIntentForm
     , renderFrontendSurfaceLazyFragment
     , renderFrontendSurfaceLazyFragmentWithConfig
-    , requireSurfaceField
-    , mkSurfaceImpl
     , mkSurfaceImplFromValues
-    , surfaceImplWithMountedFragments
     , renderFrontendSurfaceMount
     ) where
 
@@ -86,20 +72,14 @@ import Application.Helper.UiRegion (UiRegionDomAttributes (..),
                                     canonicalUiRegionDomAttributes,
                                     uiRegionFragmentEnabledValue)
 import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Key as Aeson.Key
-import qualified Data.Aeson.KeyMap as Aeson.KeyMap
 import qualified Data.Aeson.Types as Aeson.Types
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Char as Char
 import Data.Kind (Type)
-import qualified Data.Scientific as Scientific
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.Encoding
-import Data.Time (Day, defaultTimeLocale, parseTimeM)
 import Data.Type.Bool (type (||))
 import Data.Typeable (Typeable)
-import qualified Data.Vector as Vector
-import GHC.TypeLits (ErrorMessage (..), TypeError)
 import IHP.ViewPrelude
 import Text.Blaze (toValue)
 import qualified Text.Blaze.Html as Blaze
@@ -110,173 +90,7 @@ import Text.Blaze.Internal (customAttribute, textTag)
 data SurfaceImpl spec = SurfaceImpl
     { surfaceImplName        :: !Text
     , surfaceImplMountConfig :: !FrontendSurfaceMountConfig
-    , surfaceImplActions     :: ![FrontendSurfaceHtmxRequest]
-    , surfaceImplIntents     :: ![FrontendSurfaceIntentForm]
     }
-
-data HandlerList (handler :: k -> Type) (requirements :: [k]) where
-    HandlerNil :: HandlerList handler '[]
-    HandlerCons :: handler requirement -> HandlerList handler requirements -> HandlerList handler (requirement ': requirements)
-
-infixr 5 `HandlerCons`
-
-newtype FrontendSurfaceFieldValues (fields :: [FieldSpec]) = FrontendSurfaceFieldValues
-    { fieldValuesJson :: Aeson.Value
-    }
-    deriving (Eq, Show)
-
-frontendSurfaceFieldValues :: Aeson.Value -> FrontendSurfaceFieldValues fields
-frontendSurfaceFieldValues = FrontendSurfaceFieldValues
-
-frontendSurfaceFieldValuesFromPairs :: [Aeson.Types.Pair] -> FrontendSurfaceFieldValues fields
-frontendSurfaceFieldValuesFromPairs = FrontendSurfaceFieldValues . Aeson.object
-
-data FrontendSurfaceFieldError
-    = FrontendSurfaceFieldContainerNotObject !Text
-    | FrontendSurfaceFieldMissing !Text
-    | FrontendSurfaceFieldParseFailed !Text !Text
-    deriving (Eq, Show)
-
-data SurfaceFieldLookup
-    = SurfaceRequired WireType
-    | SurfaceOptional WireType
-    | SurfaceNullable WireType
-
-type family LookupSurfaceField (marker :: Type) (fields :: [FieldSpec]) :: SurfaceFieldLookup where
-    LookupSurfaceField marker ('Field marker wire ': rest) = 'SurfaceRequired wire
-    LookupSurfaceField marker ('OptionalField marker wire ': rest) = 'SurfaceOptional wire
-    LookupSurfaceField marker ('NullableField marker wire ': rest) = 'SurfaceNullable wire
-    LookupSurfaceField marker (field ': rest) = LookupSurfaceField marker rest
-    LookupSurfaceField marker '[] = TypeError
-        ( 'Text "FrontendSurface field "
-            ':<>: 'ShowType marker
-            ':<>: 'Text " is not declared in this handler field list"
-        )
-
-type family SurfaceFieldValue (marker :: Type) (fields :: [FieldSpec]) :: Type where
-    SurfaceFieldValue marker fields = SurfaceFieldLookupValue (LookupSurfaceField marker fields)
-
-type family SurfaceFieldLookupValue (lookup :: SurfaceFieldLookup) :: Type where
-    SurfaceFieldLookupValue ('SurfaceRequired wire) = SurfaceWireValue wire
-    SurfaceFieldLookupValue ('SurfaceOptional wire) = Maybe (SurfaceWireValue wire)
-    SurfaceFieldLookupValue ('SurfaceNullable wire) = Maybe (SurfaceWireValue wire)
-
-type family SurfaceWireValue (wire :: WireType) :: Type where
-    SurfaceWireValue 'WireText = Text
-    SurfaceWireValue 'WireInt = Int
-    SurfaceWireValue 'WireBool = Bool
-    SurfaceWireValue 'WireUUID = Text
-    SurfaceWireValue 'WireDay = Day
-    SurfaceWireValue ('WireList inner) = [SurfaceWireValue inner]
-    SurfaceWireValue ('WireOptional inner) = Maybe (SurfaceWireValue inner)
-    SurfaceWireValue ('WireNullable inner) = Maybe (SurfaceWireValue inner)
-    SurfaceWireValue ('WireRef dto) = Aeson.Value
-
-getSurfaceField ::
-    forall marker fields.
-    ( Typeable marker
-    , KnownSurfaceFieldLookup (LookupSurfaceField marker fields)
-    ) =>
-    FrontendSurfaceFieldValues fields -> Maybe (SurfaceFieldValue marker fields)
-getSurfaceField values =
-    either (const Nothing) Just (requireSurfaceField @marker values)
-
-requireSurfaceField ::
-    forall marker fields.
-    ( Typeable marker
-    , KnownSurfaceFieldLookup (LookupSurfaceField marker fields)
-    ) =>
-    FrontendSurfaceFieldValues fields -> Either FrontendSurfaceFieldError (SurfaceFieldValue marker fields)
-requireSurfaceField (FrontendSurfaceFieldValues value) =
-    case value of
-        Aeson.Object object ->
-            let fieldName = Naming.deriveFrontendSurfaceTypeName @marker Naming.FieldName
-             in parseSurfaceFieldLookup @(LookupSurfaceField marker fields) fieldName (Aeson.KeyMap.lookup (Aeson.Key.fromText fieldName) object)
-        _ -> Left (FrontendSurfaceFieldContainerNotObject "expected surface field values to be a JSON object")
-
-class KnownSurfaceFieldLookup (lookup :: SurfaceFieldLookup) where
-    parseSurfaceFieldLookup :: Text -> Maybe Aeson.Value -> Either FrontendSurfaceFieldError (SurfaceFieldLookupValue lookup)
-
-instance KnownSurfaceWire wire => KnownSurfaceFieldLookup ('SurfaceRequired wire) where
-    parseSurfaceFieldLookup fieldName = \case
-        Nothing -> Left (FrontendSurfaceFieldMissing fieldName)
-        Just rawValue -> parseWireValue @wire fieldName rawValue
-
-instance KnownSurfaceWire wire => KnownSurfaceFieldLookup ('SurfaceOptional wire) where
-    parseSurfaceFieldLookup fieldName = \case
-        Nothing -> Right Nothing
-        Just Aeson.Null -> Right Nothing
-        Just rawValue -> Just <$> parseWireValue @wire fieldName rawValue
-
-instance KnownSurfaceWire wire => KnownSurfaceFieldLookup ('SurfaceNullable wire) where
-    parseSurfaceFieldLookup fieldName = \case
-        Nothing -> Right Nothing
-        Just Aeson.Null -> Right Nothing
-        Just rawValue -> Just <$> parseWireValue @wire fieldName rawValue
-
-parseWireValue :: forall wire. KnownSurfaceWire wire => Text -> Aeson.Value -> Either FrontendSurfaceFieldError (SurfaceWireValue wire)
-parseWireValue fieldName rawValue =
-    case Aeson.Types.parseEither (parseSurfaceWire @wire) rawValue of
-        Right parsed -> Right parsed
-        Left message -> Left (FrontendSurfaceFieldParseFailed fieldName (Text.pack message))
-
-class KnownSurfaceWire (wire :: WireType) where
-    parseSurfaceWire :: Aeson.Value -> Aeson.Types.Parser (SurfaceWireValue wire)
-
-instance KnownSurfaceWire 'WireText where
-    parseSurfaceWire = Aeson.withText "WireText" pure
-
-instance KnownSurfaceWire 'WireInt where
-    parseSurfaceWire = Aeson.withScientific "WireInt" \number ->
-        case Scientific.floatingOrInteger number of
-            Right int          -> pure int
-            Left (_ :: Double) -> fail "expected integer"
-
-instance KnownSurfaceWire 'WireBool where
-    parseSurfaceWire = Aeson.withBool "WireBool" pure
-
-instance KnownSurfaceWire 'WireUUID where
-    parseSurfaceWire = Aeson.withText "WireUUID" pure
-
-instance KnownSurfaceWire 'WireDay where
-    parseSurfaceWire = Aeson.withText "WireDay" \value ->
-        parseTimeM True defaultTimeLocale "%F" (Text.unpack value)
-
-instance KnownSurfaceWire inner => KnownSurfaceWire ('WireList inner) where
-    parseSurfaceWire = Aeson.withArray "WireList" \values ->
-        mapM (parseSurfaceWire @inner) (Vector.toList values)
-
-instance KnownSurfaceWire inner => KnownSurfaceWire ('WireOptional inner) where
-    parseSurfaceWire = \case
-        Aeson.Null -> pure Nothing
-        value -> Just <$> parseSurfaceWire @inner value
-
-instance KnownSurfaceWire inner => KnownSurfaceWire ('WireNullable inner) where
-    parseSurfaceWire = \case
-        Aeson.Null -> pure Nothing
-        value -> Just <$> parseSurfaceWire @inner value
-
-instance KnownSurfaceWire ('WireRef dto) where
-    parseSurfaceWire = pure
-
-data FrontendSurfaceScopeHandler (requirement :: SurfacePrimitive) where
-    FrontendSurfaceScopeHandler ::
-        { scopeHandlerDefaultValue :: !(FrontendSurfaceFieldValues fields)
-        , scopeHandlerKey          :: !(FrontendSurfaceFieldValues fields -> Text)
-        } -> FrontendSurfaceScopeHandler ('Scope marker fields options)
-
-data FrontendSurfaceMountStateHandler (requirement :: SurfacePrimitive) where
-    FrontendSurfaceMountStateHandler ::
-        { mountStateHandlerDefaultValue :: !(FrontendSurfaceFieldValues fields)
-        } -> FrontendSurfaceMountStateHandler ('MountState marker fields)
-
-data FrontendSurfaceFragmentHandler (requirement :: SurfacePrimitive) where
-    FrontendSurfaceFragmentHandler ::
-        KnownFragmentOptions options =>
-        { fragmentHandlerDefaultParams  :: !(FrontendSurfaceFieldValues fields)
-        , fragmentHandlerMountedFragment :: !(FrontendSurfaceFieldValues fields -> FrontendSurfaceMountedFragment)
-        , fragmentHandlerRender          :: !(FrontendSurfaceFieldValues fields -> Blaze.Html)
-        } -> FrontendSurfaceFragmentHandler ('Fragment marker fields options)
 
 data FrontendSurfaceLazyFragmentDefaults = FrontendSurfaceLazyFragmentDefaults
     { lazyFragmentDefaultTrigger         :: !(Maybe Text)
@@ -320,81 +134,6 @@ instance (Typeable marker, KnownLazyOptions rest) => KnownLazyOptions ('Placehol
 instance {-# OVERLAPPABLE #-} KnownLazyOptions rest => KnownLazyOptions (option ': rest) where
     knownLazyOptions = knownLazyOptions @rest
 
-data FrontendSurfaceActionHandler (requirement :: SurfacePrimitive) where
-    FrontendSurfaceActionHandler ::
-        { actionHandlerDefaultFields :: !(FrontendSurfaceFieldValues fields)
-        , actionHandlerRequest       :: !(FrontendSurfaceFieldValues fields -> FrontendSurfaceHtmxRequest)
-        } -> FrontendSurfaceActionHandler ('Action marker fields options)
-
-data FrontendSurfaceIntentHandler (requirement :: SurfacePrimitive) where
-    FrontendSurfaceIntentHandler ::
-        { intentHandlerDefaultFields :: !(FrontendSurfaceFieldValues fields)
-        , intentHandlerForm          :: !(FrontendSurfaceFieldValues fields -> FrontendSurfaceIntentForm)
-        } -> FrontendSurfaceIntentHandler ('Intent marker fields options)
-
-data SurfaceImplHandlers spec = SurfaceImplHandlers
-    { surfaceScopeHandlers      :: !(HandlerList FrontendSurfaceScopeHandler (SurfaceScopeRequirements spec))
-    , surfaceMountStateHandlers :: !(HandlerList FrontendSurfaceMountStateHandler (SurfaceMountStateRequirements spec))
-    , surfaceFragmentHandlers   :: !(HandlerList FrontendSurfaceFragmentHandler (SurfaceFragmentRequirements spec))
-    , surfaceActionHandlers     :: !(HandlerList FrontendSurfaceActionHandler (SurfaceActionRequirements spec))
-    , surfaceIntentHandlers     :: !(HandlerList FrontendSurfaceIntentHandler (SurfaceIntentRequirements spec))
-    }
-
-type family SurfaceScopeRequirements (spec :: SurfaceSpec) :: [SurfacePrimitive] where
-    SurfaceScopeRequirements ('Surface name primitives) = PrimitiveScopeRequirements primitives
-
-type family SurfaceMountStateRequirements (spec :: SurfaceSpec) :: [SurfacePrimitive] where
-    SurfaceMountStateRequirements ('Surface name primitives) = PrimitiveMountStateRequirements primitives
-
-type family SurfaceFragmentRequirements (spec :: SurfaceSpec) :: [SurfacePrimitive] where
-    SurfaceFragmentRequirements ('Surface name primitives) = PrimitiveFragmentRequirements primitives
-
-type family SurfaceActionRequirements (spec :: SurfaceSpec) :: [SurfacePrimitive] where
-    SurfaceActionRequirements ('Surface name primitives) = PrimitiveActionRequirements primitives
-
-type family SurfaceIntentRequirements (spec :: SurfaceSpec) :: [SurfacePrimitive] where
-    SurfaceIntentRequirements ('Surface name primitives) = PrimitiveIntentRequirements primitives
-
-type family PrimitiveScopeRequirements (primitives :: [SurfacePrimitive]) :: [SurfacePrimitive] where
-    PrimitiveScopeRequirements '[] = '[]
-    PrimitiveScopeRequirements (('Scope marker fields options) ': rest) = ('Scope marker fields options) ': PrimitiveScopeRequirements rest
-    PrimitiveScopeRequirements (primitive ': rest) = PrimitiveScopeRequirements rest
-
-type family PrimitiveMountStateRequirements (primitives :: [SurfacePrimitive]) :: [SurfacePrimitive] where
-    PrimitiveMountStateRequirements '[] = '[]
-    PrimitiveMountStateRequirements (('MountState marker fields) ': rest) = ('MountState marker fields) ': PrimitiveMountStateRequirements rest
-    PrimitiveMountStateRequirements (primitive ': rest) = PrimitiveMountStateRequirements rest
-
-type family PrimitiveFragmentRequirements (primitives :: [SurfacePrimitive]) :: [SurfacePrimitive] where
-    PrimitiveFragmentRequirements '[] = '[]
-    PrimitiveFragmentRequirements (('Fragment marker fields options) ': rest) = ('Fragment marker fields options) ': PrimitiveFragmentRequirements rest
-    PrimitiveFragmentRequirements (primitive ': rest) = PrimitiveFragmentRequirements rest
-
-type family PrimitiveActionRequirements (primitives :: [SurfacePrimitive]) :: [SurfacePrimitive] where
-    PrimitiveActionRequirements '[] = '[]
-    PrimitiveActionRequirements (('Action marker fields options) ': rest) = ('Action marker fields options) ': PrimitiveActionRequirements rest
-    PrimitiveActionRequirements (primitive ': rest) = PrimitiveActionRequirements rest
-
-type family PrimitiveIntentRequirements (primitives :: [SurfacePrimitive]) :: [SurfacePrimitive] where
-    PrimitiveIntentRequirements '[] = '[]
-    PrimitiveIntentRequirements (('Intent marker fields options) ': rest) = ('Intent marker fields options) ': PrimitiveIntentRequirements rest
-    PrimitiveIntentRequirements (primitive ': rest) = PrimitiveIntentRequirements rest
-
-mkSurfaceImpl :: forall spec. KnownLiveFragments spec => Text -> FrontendSurfaceMountConfig -> SurfaceImplHandlers spec -> SurfaceImpl spec
-mkSurfaceImpl name mountConfig handlers =
-    SurfaceImpl
-        { surfaceImplName = name
-        , surfaceImplMountConfig = mountConfig
-            { mountScopeKey = firstOr mountConfig.mountScopeKey (handlerListToList defaultScopeKey handlers.surfaceScopeHandlers)
-            , mountScope = firstOr mountConfig.mountScope (handlerListToList defaultScopeValue handlers.surfaceScopeHandlers)
-            , mountState = firstOr mountConfig.mountState (handlerListToList defaultMountState handlers.surfaceMountStateHandlers)
-            , mountFragments = handlerListToList defaultMountedFragment handlers.surfaceFragmentHandlers
-            , mountSubscription = frontendSurfaceLiveSubscription name (liveFragmentNames @spec) (mountConfig { mountScopeKey = firstOr mountConfig.mountScopeKey (handlerListToList defaultScopeKey handlers.surfaceScopeHandlers), mountScope = firstOr mountConfig.mountScope (handlerListToList defaultScopeValue handlers.surfaceScopeHandlers), mountFragments = handlerListToList defaultMountedFragment handlers.surfaceFragmentHandlers })
-            }
-        , surfaceImplActions = handlerListToList defaultActionRequest handlers.surfaceActionHandlers
-        , surfaceImplIntents = handlerListToList defaultIntentForm handlers.surfaceIntentHandlers
-        }
-
 -- | Construct the complete runtime mount from marker-indexed values. Scope
 -- identity, exact JSON fields, live subscription metadata, and Surface name all
 -- come from the owning type-level declaration; callers provide only local
@@ -414,8 +153,6 @@ mkSurfaceImplFromValues mountKey scopeFields mountStateFields fragments =
     SurfaceImpl
         { surfaceImplName = surfaceName
         , surfaceImplMountConfig = mountConfig
-        , surfaceImplActions = []
-        , surfaceImplIntents = []
         }
   where
     surfaceName = surfaceNameValue @spec
@@ -452,53 +189,12 @@ frontendSurfaceScopeKeyFor fields =
         Left message   -> Left (cs message)
         Right scopeKey -> Right scopeKey
 
-surfaceImplWithMountedFragments :: forall spec. KnownLiveFragments spec => [FrontendSurfaceMountedFragment] -> SurfaceImpl spec -> SurfaceImpl spec
-surfaceImplWithMountedFragments fragments impl =
-    impl
-        { surfaceImplMountConfig = nextConfig
-        }
-    where
-        previousConfig = impl.surfaceImplMountConfig
-        nextConfig = previousConfig
-            { mountFragments = fragments
-            , mountSubscription = frontendSurfaceLiveSubscription impl.surfaceImplName (liveFragmentNames @spec) (previousConfig { mountFragments = fragments })
-            }
-
-handlerListToList :: (forall requirement. handler requirement -> value) -> HandlerList handler requirements -> [value]
-handlerListToList toValue = \case
-    HandlerNil -> []
-    HandlerCons handler rest -> toValue handler : handlerListToList toValue rest
-
-defaultScopeKey :: FrontendSurfaceScopeHandler requirement -> Text
-defaultScopeKey FrontendSurfaceScopeHandler { scopeHandlerDefaultValue, scopeHandlerKey } =
-    scopeHandlerKey scopeHandlerDefaultValue
-
-defaultScopeValue :: FrontendSurfaceScopeHandler requirement -> Aeson.Value
-defaultScopeValue FrontendSurfaceScopeHandler { scopeHandlerDefaultValue } =
-    scopeHandlerDefaultValue.fieldValuesJson
-
-defaultMountState :: FrontendSurfaceMountStateHandler requirement -> Aeson.Value
-defaultMountState FrontendSurfaceMountStateHandler { mountStateHandlerDefaultValue } =
-    mountStateHandlerDefaultValue.fieldValuesJson
-
-defaultMountedFragment :: FrontendSurfaceFragmentHandler requirement -> FrontendSurfaceMountedFragment
-defaultMountedFragment (FrontendSurfaceFragmentHandler @options fragmentHandlerDefaultParams fragmentHandlerMountedFragment _) =
-    applyFrontendSurfaceLazyFragmentDefaults (knownFragmentOptions @options) (fragmentHandlerMountedFragment fragmentHandlerDefaultParams)
-
 applyFrontendSurfaceLazyFragmentDefaults :: FrontendSurfaceLazyFragmentDefaults -> FrontendSurfaceMountedFragment -> FrontendSurfaceMountedFragment
 applyFrontendSurfaceLazyFragmentDefaults defaults fragment =
     fragment
         { mountedFragmentLazyTrigger = defaults.lazyFragmentDefaultTrigger
         , mountedFragmentPlaceholderKind = defaults.lazyFragmentDefaultPlaceholderKind
         }
-
-defaultActionRequest :: FrontendSurfaceActionHandler requirement -> FrontendSurfaceHtmxRequest
-defaultActionRequest FrontendSurfaceActionHandler { actionHandlerDefaultFields, actionHandlerRequest } =
-    actionHandlerRequest actionHandlerDefaultFields
-
-defaultIntentForm :: FrontendSurfaceIntentHandler requirement -> FrontendSurfaceIntentForm
-defaultIntentForm FrontendSurfaceIntentHandler { intentHandlerDefaultFields, intentHandlerForm } =
-    intentHandlerForm intentHandlerDefaultFields
 
 class KnownLiveFragments (spec :: SurfaceSpec) where
     liveFragmentNames :: [Text]
@@ -530,11 +226,6 @@ instance KnownLiveFragmentMarkers '[] where
 
 instance (Typeable marker, KnownLiveFragmentMarkers rest) => KnownLiveFragmentMarkers (marker ': rest) where
     liveFragmentMarkerNames = Naming.deriveFrontendSurfaceTypeName @marker Naming.FragmentName : liveFragmentMarkerNames @rest
-
-firstOr :: value -> [value] -> value
-firstOr fallback = \case
-    [] -> fallback
-    value : _ -> value
 
 data FrontendSurfaceMountConfig = FrontendSurfaceMountConfig
     { mountSurfaceName  :: !Text
@@ -648,6 +339,15 @@ frontendSurfaceActionFields fields =
     | (name, value) <- surfaceFieldsText fields
     ]
 
+frontendSurfaceIntentFieldValues ::
+    forall spec marker.
+    SurfaceFields (SurfaceIntentFieldSpecs spec marker) ->
+    [FrontendSurfaceFieldValue]
+frontendSurfaceIntentFieldValues fields =
+    [ FrontendSurfaceFieldValue name value
+    | (name, value) <- surfaceFieldsText fields
+    ]
+
 data FrontendSurfaceHtmxRequest = FrontendSurfaceHtmxRequest
     { htmxRequestName   :: !Text
     , htmxRequestMethod :: !FrontendSurfaceHtmxMethod
@@ -755,7 +455,8 @@ maybeAttr _ Nothing         = mempty
 maybeAttr name (Just value) = attr name value
 
 data FrontendSurfaceInteractionShellConfig = FrontendSurfaceInteractionShellConfig
-    { interactionShellHtmxSync :: !(Maybe Text)
+    { interactionShellHtmxSync    :: !(Maybe Text)
+    , interactionShellIntentForms :: ![FrontendSurfaceIntentForm]
     }
     deriving (Eq, Show)
 
@@ -771,7 +472,7 @@ renderFrontendSurfaceInteractionShell impl surface config serverHtml =
         $ do
             renderFrontendSurfaceInteractionServerLayer serverHtml
             mapM_ (renderFrontendSurfaceInteractionDisposableLayer mountId) surface.surfaceLayers
-            mapM_ (renderFrontendSurfaceInteractionIntentForm surface config mountId) impl.surfaceImplIntents
+            mapM_ (renderFrontendSurfaceInteractionIntentForm surface config mountId) config.interactionShellIntentForms
     where
         mountId = frontendSurfaceInteractionMountDomId impl
 
@@ -811,16 +512,40 @@ renderFrontendSurfaceInteractionIntentForm surface config mountId FrontendSurfac
         ! attr "hx-target" intentFormSubmit.htmxRequestTarget
         ! attr "hx-swap" intentFormSubmit.htmxRequestSwap
         ! maybe mempty (attr "hx-sync") config.interactionShellHtmxSync
-        $ mapM_ (renderFrontendSurfaceInteractionIntentInput intentFormSubmit) (frontendSurfaceIntentFields surface intentFormName)
+        $ mapM_ renderFrontendSurfaceInteractionIntentInput
+            (frontendSurfaceInteractionIntentInputs surface intentFormName intentFormSubmit.htmxRequestFields)
 
-renderFrontendSurfaceInteractionIntentInput :: FrontendSurfaceHtmxRequest -> SurfaceIR.FieldIR -> Blaze.Html
-renderFrontendSurfaceInteractionIntentInput request field =
+renderFrontendSurfaceInteractionIntentInput :: (SurfaceIR.FieldIR, FrontendSurfaceFieldValue) -> Blaze.Html
+renderFrontendSurfaceInteractionIntentInput (field, value) =
     Html5.input
         ! attr "type" "hidden"
         ! attr "name" field.fieldName
-        ! attr "value" (fromMaybe "" (lookup field.fieldName [(value.fieldValueName, value.fieldValueValue) | value <- request.htmxRequestFields]))
+        ! attr "value" value.fieldValueValue
         ! attr "data-bepis-intent-field" field.fieldName
         ! attr "data-bepis-field-presence" (frontendSurfaceIntentFieldPresence field.fieldPresence)
+
+frontendSurfaceInteractionIntentInputs :: SurfaceIR.SurfaceIR -> Text -> [FrontendSurfaceFieldValue] -> [(SurfaceIR.FieldIR, FrontendSurfaceFieldValue)]
+frontendSurfaceInteractionIntentInputs surface intentName values
+    | providedNames /= resolvedNames =
+        error ("FrontendSurface intent field order/ownership mismatch for " <> intentName)
+    | not (null missingRequiredNames) =
+        error ("FrontendSurface intent missing required fields for " <> intentName <> ": " <> Text.intercalate ", " missingRequiredNames)
+    | otherwise = resolved
+  where
+    declaredFields = frontendSurfaceIntentFields surface intentName
+    providedNames = map (.fieldValueName) values
+    resolved =
+        [ (field, value)
+        | field <- declaredFields
+        , value <- maybeToList (find ((== field.fieldName) . (.fieldValueName)) values)
+        ]
+    resolvedNames = map ((.fieldValueName) . snd) resolved
+    missingRequiredNames =
+        [ field.fieldName
+        | field <- declaredFields
+        , field.fieldPresence == SurfaceIR.RequiredField
+        , field.fieldName `notElem` providedNames
+        ]
 
 frontendSurfaceIntentFields :: SurfaceIR.SurfaceIR -> Text -> [SurfaceIR.FieldIR]
 frontendSurfaceIntentFields surface intentName =

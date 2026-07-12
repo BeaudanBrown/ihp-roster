@@ -21,8 +21,10 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              appShellActionByMarker,
                                                              renderAppShellActionForm)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
+import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             renderFrontendSurfaceActionForm)
+import Application.Helper.FrontendContract.Surface.Values (surfaceActionValue)
 import Application.Helper.View.Overlay
 import Application.Helper.XeroAdminTypes
 import Application.Xero.Admin.ReadModel (xeroEmployeeAvailableForStaff)
@@ -30,7 +32,6 @@ import Control.Monad (guard)
 import Data.Scientific (FPFormat (Fixed), Scientific, formatScientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, diffDays)
-import Web.Admin.FrontendSurface (adminXeroAction)
 import Web.View.Prelude
 
 xeroPreparationAppShellActionRoute :: Text -> AppShellActionRoute
@@ -556,7 +557,7 @@ renderStaffEmployeeReadOnly view row = [hsx|
 renderStaffEmployeeEditForm :: XeroTimesheetPreparationView -> XeroPreparationStaffRow -> Html
 renderStaffEmployeeEditForm view row =
     renderFrontendSurfaceActionForm
-        (adminXeroAction "show-xero-timesheet-preparation-staff-mappings")
+        (surfaceActionValue @Surface.AdminXeroSurface @Surface.ShowXeroTimesheetPreparationStaffMappings)
         FrontendSurfaceActionRoute
             { actionRouteUrl = pathTo (ShowXeroTimesheetPreparationStaffMappingsFragmentAction view.preparationRun.id)
             , actionRouteFields = []

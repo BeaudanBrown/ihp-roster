@@ -136,27 +136,8 @@ tests = beforeAll testContext do
                 let fragmentKeys = rosterSurfaceFragmentKeys mountConfig.mountFragments
 
                 impl.surfaceImplName `shouldBe` "roster"
-                map (.htmxRequestName) impl.surfaceImplActions
-                    `shouldBe` [ "navigate-roster-week"
-                               , "toggle-roster-warnings"
-                               , "toggle-roster-wage-estimates"
-                               , "sort-roster-week"
-                               , "toggle-roster-week-live-status"
-                               , "toggle-roster-assignment-filters"
-                               , "copy-roster-week"
-                               , "create-roster-self-service-leave-request"
-                               , "create-roster-week-slot-definition"
-                               , "delete-roster-week-slot-definition"
-                               , "toggle-roster-day-closed"
-                               , "add-roster-row"
-                               , "remove-roster-row"
-                               , "toggle-roster-staff-scope"
-                               , "set-roster-layout-mode"
-                               , "move-roster-shift-to-slot"
-                               , "duplicate-roster-shift-to-day"
-                               , "drop-roster-staff"
-                               ]
-                map (.intentFormName) impl.surfaceImplIntents `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot", "duplicate-roster-shift-to-day", "drop-roster-staff"]
+                map (.intentFormName) (rosterIntentForms scope)
+                    `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot", "duplicate-roster-shift-to-day", "drop-roster-staff"]
                 mountConfig.mountSurfaceName `shouldBe` "roster"
                 mountConfig.mountScopeKey `shouldBe` "roster:00000000-0000-0000-0000-000000000111:00000000-0000-0000-0000-000000000222:3"
                 fragmentKinds
@@ -933,6 +914,8 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-bepis-intent-form=\"drop-roster-staff\""
                 response `responseBodyShouldContain` "name=\"sourceItemKey\" value=\"\" data-bepis-intent-field=\"sourceItemKey\" data-bepis-field-presence=\"required\""
                 response `responseBodyShouldContain` "name=\"targetDropzoneKey\" value=\"\" data-bepis-intent-field=\"targetDropzoneKey\" data-bepis-field-presence=\"required\""
+                response `responseBodyShouldContain` "name=\"sessionKind\" value=\"\" data-bepis-intent-field=\"sessionKind\" data-bepis-field-presence=\"optional\""
+                response `responseBodyShouldContain` "name=\"pointerId\" value=\"\" data-bepis-intent-field=\"pointerId\" data-bepis-field-presence=\"optional\""
                 response `responseBodyShouldContain` "data-bepis-source-ref=\"shift-drag-source\""
                 response `responseBodyShouldContain` "data-bepis-source-key=\"existing:"
                 response `responseBodyShouldContain` "data-bepis-dropzone-ref=\"existing-shift-dropzone\""

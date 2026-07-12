@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 
 module Web.View.Admin.Exports
@@ -8,10 +9,12 @@ module Web.View.Admin.Exports
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.Export
+import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
-import Web.Admin.FrontendSurface (AdminVenueScopeValue (..), adminExportsAction,
+import Application.Helper.FrontendContract.Surface.Values (surfaceActionValue)
+import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminExportsSurfaceImpl)
 import Web.View.Admin.Common
 import Web.View.Prelude
@@ -54,7 +57,7 @@ renderExportsSection defaultRangeStart defaultRangeEnd exportJobs =
 
 renderExportGenerationForm :: Day -> Day -> Html
 renderExportGenerationForm defaultRangeStart defaultRangeEnd =
-    renderFrontendSurfaceActionForm (adminExportsAction "create-export-job") createExportRoute [hsx|
+    renderFrontendSurfaceActionForm (surfaceActionValue @Surface.AdminExportsSurface @Surface.CreateExportJob) createExportRoute [hsx|
         <div class="row g-3 align-items-end">
             <div class="col-12 col-md-4 col-lg-3">
                 <label class="form-label" for="admin-export-range-start">From</label>

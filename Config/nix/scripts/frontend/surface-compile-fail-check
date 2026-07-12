@@ -45,25 +45,24 @@ expect_compile_failure() {
 }
 
 expect_compile_failure \
-    "Test/CompileFail/FrontendSurfaceMissingFragmentHandler.hs" \
-    "LabPanel" \
-    "HandlerList"
+    "Test/CompileFail/FrontendSurfaceWrongFragmentMarker.hs" \
+    "does not declare fragment marker" \
+    "RosterContent"
 
 expect_compile_failure \
-    "Test/CompileFail/FrontendSurfaceMissingActionHandler.hs" \
-    "RefreshPanel" \
-    "HandlerList"
+    "Test/CompileFail/FrontendSurfaceWrongFragmentField.hs" \
+    "does not declare field marker" \
+    "RowIndex"
 
 expect_compile_failure \
-    "Test/CompileFail/FrontendSurfaceMissingIntentHandler.hs" \
-    "MoveLabCard" \
-    "HandlerList"
+    "Test/CompileFail/FrontendSurfaceWrongIntentField.hs" \
+    "does not declare field marker" \
+    "PanelId"
 
 expect_compile_failure \
-    "Test/CompileFail/FrontendSurfaceUndeclaredFieldAccessor.hs" \
-    "FrontendSurface field" \
-    "WeekOffset" \
-    "not declared"
+    "Test/CompileFail/FrontendSurfaceWrongScopeField.hs" \
+    "does not declare field marker" \
+    "PanelId"
 
 expect_compile_failure \
     "Test/CompileFail/FrontendSurfaceWrongActionMarker.hs" \

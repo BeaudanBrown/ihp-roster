@@ -26,6 +26,7 @@ import Web.RosterWeeks.Dom (rosterDayTimelineContentFragmentId,
 import Web.RosterWeeks.FrontendSurface (RosterDayTimelineScopeValue (..),
                                         rosterDayTimelineDropzoneRef,
                                         rosterDayTimelineFrontendSurfaceIR,
+                                        rosterDayTimelineIntentForms,
                                         rosterDayTimelineSourceRef,
                                         rosterDayTimelineSurfaceImpl)
 import Web.RosterWeeks.Types
@@ -73,7 +74,10 @@ renderRosterDayTimelineMounted RosterRenderData { rosterWeek, currentRosterGroup
             }
         timelineSurface = rosterDayTimelineSurfaceImpl timelineSurfaceScope
      in renderFrontendSurfaceMount timelineSurface $
-            renderFrontendSurfaceInteractionShell timelineSurface rosterDayTimelineFrontendSurfaceIR FrontendSurfaceInteractionShellConfig { interactionShellHtmxSync = Just ("#" <> rosterWeekShellId <> ":replace") } body
+            renderFrontendSurfaceInteractionShell timelineSurface rosterDayTimelineFrontendSurfaceIR FrontendSurfaceInteractionShellConfig
+                { interactionShellHtmxSync = Just ("#" <> rosterWeekShellId <> ":replace")
+                , interactionShellIntentForms = rosterDayTimelineIntentForms timelineSurfaceScope
+                } body
 
 data TimelineShift = TimelineShift
     { timelineShiftSlot     :: !RosterSlot

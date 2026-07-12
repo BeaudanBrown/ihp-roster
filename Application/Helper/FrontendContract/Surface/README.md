@@ -237,8 +237,9 @@ reintroducing the old semantic marker protocol.
 
 Use `Application.Helper.FrontendContract.Surface.Values` instead of scanning the
 reflected registry by protocol strings. `surfaceNameValue`, `surfaceScopeValue`,
-`surfaceFragmentValue`, `surfaceActionValue`, `surfaceResourceValue`,
-`surfaceSourceRefValue`, `surfaceDropzoneRefValue`, and `surfaceDomTokenValue`
+`surfaceFragmentValue`, `surfaceActionValue`, `surfaceIntentValue`,
+`surfaceResourceValue`, `surfaceSourceRefValue`, `surfaceDropzoneRefValue`,
+`surfaceActivationRefValue`, and `surfaceDomTokenValue`
 are indexed by both the owning `Surface` and marker. A marker owned by another
 surface is a compile error.
 
@@ -258,37 +259,20 @@ Migrated surfaces expose mount behavior through
 `SurfaceImpl` is the feature-facing runtime value.
 
 For a server-rendered mount whose controllers/views already own fragment
-rendering and action routes, prefer `mkSurfaceImplFromValues`. It derives the
-surface name, canonical scope key, exact scope/mount-state JSON, live
-subscription, and empty ceremonial action/intent catalogs from marker-indexed
-values. Build descriptors with `frontendSurfaceMountedFragmentFor`; it derives
+rendering and action routes, use `mkSurfaceImplFromValues`. It is the sole
+production constructor and derives the surface name, canonical scope key, exact
+scope/mount-state JSON, and live subscription from marker-indexed values in one
+step. Build descriptors with `frontendSurfaceMountedFragmentFor`; it derives
 fragment identity and lazy defaults from the owning Surface declaration while
 URLs, target IDs, and protection remain mount-local.
 
-Use `mkSurfaceImpl` with typed handler lists only when a feature needs the full
-runtime handler catalog:
-
-- `FrontendContract SurfaceScopeHandler` supplies the concrete scope value and scope key;
-- `FrontendContract SurfaceMountStateHandler` supplies typed view state defaults;
-- `FrontendContract SurfaceFragmentHandler` supplies mount-local target id, GET URL,
-  protection policy, and server rendering for each fragment. The runtime derives
-  server-side eager/lazy placeholder behavior plus trigger/placeholder metadata
-  from the fragment's existing `Eager`, `Lazy`, `Trigger`, and `Placeholder`
-  options;
-- `FrontendContract SurfaceActionHandler` supplies generated HTMX request metadata;
-- `FrontendContract SurfaceIntentHandler` supplies generated intent form metadata.
-
-The handler lists are indexed by the declared spec. Missing fragment, action,
-intent, scope, or mount-state handlers fail the focused compile-failure tests
-rather than becoming runtime validation gaps.
-
-When a concrete mount uses a dynamic or repeated fragment set that differs from
-the handler defaults, pass the implementation through
-`surfaceImplWithMountedFragments`. This replaces the local descriptors and
-recomputes local live-fragment membership plus the scope-only subscription
-atomically. Never update `surfaceImplMountConfig.mountFragments` directly; that
-can make subscription presence disagree with the descriptors and cause valid
-actor/websocket invalidations to be ignored.
+Pass each concrete dynamic or repeated fragment set directly to that constructor
+(or a feature helper that calls it). There is no post-construction descriptor
+patching and no generic handler/action/intent catalog on `SurfaceImpl`. Real
+interaction intent forms are feature-owned marker-indexed values supplied to the
+interaction shell; ordinary action routes remain next to their server-rendered
+views. Compile-failure tests enforce Surface, marker, and field ownership rather
+than ceremonial handler counts.
 
 Render mounts with `renderFrontendContract SurfaceMount impl body`. This emits
 `data-bepis-surface` and `data-bepis-surface-config`. Do not handwrite these

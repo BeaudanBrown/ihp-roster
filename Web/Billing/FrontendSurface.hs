@@ -17,12 +17,12 @@ module Web.Billing.FrontendSurface
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import qualified Application.Helper.FrontendContract.Surface.Billing as Surface
-import Application.Helper.FrontendContract.Surface.DSL
 import Application.Helper.FrontendContract.Surface.Runtime
+import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.Url (appendQueryParams)
-import qualified Data.Aeson as Aeson
 import qualified Data.UUID as UUID
+import qualified IHP.Prelude as Prelude
 import Web.Controller.Prelude
 
 data BillingScopeValue = BillingScopeValue
@@ -49,24 +49,20 @@ currentBillingScopeValue =
 
 billingSurfaceImpl :: BillingScopeValue -> BillingCheckoutReturnState -> SurfaceImpl Surface.BillingSurface
 billingSurfaceImpl scope checkoutReturnState =
-    mkSurfaceImpl "billing" (billingSurfaceMountConfig scope checkoutReturnState) (billingSurfaceHandlers scope checkoutReturnState)
-        |> surfaceImplWithMountedFragments (billingCandidateMountedFragments checkoutReturnState)
+    mkSurfaceImplFromValues @Surface.BillingSurface @Surface.BillingVenue
+        "primary"
+        (billingScopeFields scope)
+        (billingMountStateFields checkoutReturnState)
+        (billingCandidateMountedFragments checkoutReturnState)
 
 billingSurfaceMountConfig :: BillingScopeValue -> BillingCheckoutReturnState -> FrontendSurfaceMountConfig
 billingSurfaceMountConfig scope checkoutReturnState =
-    FrontendSurfaceMountConfig
-        { mountSurfaceName = "billing"
-        , mountScopeKey = billingSurfaceScopeKey scope
-        , mountKey = "primary"
-        , mountScope = Aeson.Null
-        , mountSubscription = Nothing
-        , mountState = (billingMountStateFields checkoutReturnState).fieldValuesJson
-        , mountFragments = billingCandidateMountedFragments checkoutReturnState
-        }
+    (billingSurfaceImpl scope checkoutReturnState).surfaceImplMountConfig
 
 billingSurfaceScopeKey :: BillingScopeValue -> Text
 billingSurfaceScopeKey scope =
-    "billing:" <> tshow scope.billingVenueId
+    frontendSurfaceScopeKeyFor @Surface.BillingSurface @Surface.BillingVenue (billingScopeFields scope)
+        |> either (error . ("Typed Billing scope invariant failed: " <>)) Prelude.id
 
 billingSurfaceScope :: BillingScopeValue -> SurfaceScope
 billingSurfaceScope scope =
@@ -78,45 +74,17 @@ billingCandidateMountedFragments checkoutReturnState =
 
 billingSurfaceFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
 billingSurfaceFragmentKeys =
-    frontendSurfaceMountedFragmentsToKeys "billing"
+    frontendSurfaceMountedFragmentsToKeysFor @Surface.BillingSurface
 
-billingSurfaceHandlers :: BillingScopeValue -> BillingCheckoutReturnState -> SurfaceImplHandlers Surface.BillingSurface
-billingSurfaceHandlers scope checkoutReturnState =
-    SurfaceImplHandlers
-        { surfaceScopeHandlers =
-            FrontendSurfaceScopeHandler
-                { scopeHandlerDefaultValue = billingScopeFields scope
-                , scopeHandlerKey = \fields ->
-                    let venueId = fromMaybe (tshow scope.billingVenueId) (getSurfaceField @Surface.VenueId fields)
-                     in "billing:" <> venueId
-                }
-                `HandlerCons` HandlerNil
-        , surfaceMountStateHandlers =
-            FrontendSurfaceMountStateHandler
-                { mountStateHandlerDefaultValue = billingMountStateFields checkoutReturnState
-                }
-                `HandlerCons` HandlerNil
-        , surfaceFragmentHandlers =
-            FrontendSurfaceFragmentHandler
-                { fragmentHandlerDefaultParams = frontendSurfaceFieldValues Aeson.Null
-                , fragmentHandlerMountedFragment = const (billingStatusMountedFragment (billingStatusFragmentUrl checkoutReturnState))
-                , fragmentHandlerRender = const mempty
-                }
-                `HandlerCons` HandlerNil
-        , surfaceActionHandlers = HandlerNil
-        , surfaceIntentHandlers = HandlerNil
-        }
-
-billingScopeFields :: BillingScopeValue -> FrontendSurfaceFieldValues '[ 'Field Surface.VenueId 'WireUUID]
+billingScopeFields :: BillingScopeValue -> SurfaceFields (SurfaceScopeFieldSpecs Surface.BillingSurface Surface.BillingVenue)
 billingScopeFields scope =
-    frontendSurfaceFieldValues (Aeson.object ["venueId" Aeson..= tshow scope.billingVenueId])
+    surfaceField @Surface.VenueId scope.billingVenueId :& NoSurfaceFields
 
-billingMountStateFields :: BillingCheckoutReturnState -> FrontendSurfaceFieldValues '[ 'Field Surface.CheckoutReturned 'WireBool, 'Field Surface.CheckoutSessionId ('WireOptional 'WireText)]
+billingMountStateFields :: BillingCheckoutReturnState -> SurfaceFields (SurfaceMountStateFieldSpecs Surface.BillingSurface)
 billingMountStateFields checkoutReturnState =
-    frontendSurfaceFieldValues (Aeson.object
-        [ "checkoutReturned" Aeson..= checkoutReturnState.billingCheckoutReturned
-        , "checkoutSessionId" Aeson..= checkoutReturnState.billingCheckoutSessionId
-        ])
+    surfaceField @Surface.CheckoutReturned checkoutReturnState.billingCheckoutReturned
+        :& surfaceField @Surface.CheckoutSessionId checkoutReturnState.billingCheckoutSessionId
+        :& NoSurfaceFields
 
 billingStatusFragmentUrl :: BillingCheckoutReturnState -> Text
 billingStatusFragmentUrl BillingCheckoutReturnState { billingCheckoutReturned = False } =
@@ -127,14 +95,11 @@ billingStatusFragmentUrl BillingCheckoutReturnState { billingCheckoutReturned = 
 
 billingStatusMountedFragment :: Text -> FrontendSurfaceMountedFragment
 billingStatusMountedFragment statusUrl =
-    FrontendSurfaceMountedFragment
-        { mountedFragmentKey = FrontendSurfaceFragmentKey "billing-status" Aeson.Null
-        , mountedFragmentTargetId = "billing-status-fragment"
-        , mountedFragmentUrl = statusUrl
-        , mountedFragmentProtection = FrontendSurfaceReplace
-        , mountedFragmentLazyTrigger = Nothing
-        , mountedFragmentPlaceholderKind = Nothing
-        }
+    frontendSurfaceMountedFragmentFor @Surface.BillingSurface @Surface.BillingStatus
+        NoSurfaceFields
+        "billing-status-fragment"
+        statusUrl
+        FrontendSurfaceReplace
 
 currentVenueScopeId :: (?context :: ControllerContext) => UUID.UUID
 currentVenueScopeId =

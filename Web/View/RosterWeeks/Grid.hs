@@ -31,14 +31,16 @@ import Application.Helper.FrontendContract.AppShell (OpenRosterShiftDialog)
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
                                                              applyAppShellActionAttrs)
+import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import qualified Application.Helper.FrontendContract.Surface.Interaction as SurfaceInteraction
+import qualified Application.Helper.FrontendContract.Surface.Roster as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
-                                                            FrontendSurfaceCustomHtmxAttrs (..),
                                                             FrontendSurfaceFragmentKey (..),
                                                             FrontendSurfaceInteractionShellConfig (..),
                                                             FrontendSurfaceMountConfig (..),
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceInteractionShell)
+import Application.Helper.FrontendContract.Surface.Values (surfaceActionValue)
 import Application.Helper.Profiling (profileHtmlComponent, profileRenderCounter)
 import Application.Helper.RosterWagePrediction
 import Application.Helper.ShiftTypeColours (shiftTypeColourPaletteKeys)
@@ -61,8 +63,9 @@ import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
                                         rosterDayColumnDropzoneRef,
                                         rosterDragSourceRef,
                                         rosterFrontendSurfaceIR,
+                                        rosterIntentForms,
                                         rosterMountedFragmentPlanFromRenderData,
-                                        rosterSurfaceAction, rosterSurfaceImpl)
+                                        rosterSurfaceImpl)
 import Web.RosterWeeks.Types
 import Web.View.Prelude
 import Web.View.RosterWeeks.Grid.Cells
@@ -76,18 +79,10 @@ rosterGridActionRoute actionUrl =
     FrontendSurfaceActionRoute
         { actionRouteUrl = actionUrl
         , actionRouteFields = []
-        , actionRouteCustomHtmx = [rosterGridWeekShellSync]
+        , actionRouteCustomHtmx = []
         , actionRouteStandardUrl = Just actionUrl
         , actionRouteExtraAttrs = []
         }
-
-rosterGridWeekShellSync :: FrontendSurfaceCustomHtmxAttrs
-rosterGridWeekShellSync =
-    FrontendSurfaceCustomHtmxAttrs
-        { customHtmxAttrMarker = "roster-week-shell-sync-custom-htmx"
-        , customHtmxAttrValues = [("hx-sync", "#" <> rosterWeekShellId <> ":replace")]
-        }
-
 
 renderrosterContentLiveFragment :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
 renderrosterContentLiveFragment =
@@ -123,7 +118,10 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridRosterD
                 then renderrosterStaffPanelLiveFragment rosterWeek.weekOffset gridCurrentRosterGroup.id (length gridRosterGroups > 1) RosterStaffPanelCurrentGroup gridPanelStaff
                 else mempty
      in profileHtmlComponent "render.roster.layout" do
-        renderFrontendSurfaceInteractionShell rosterSurface rosterFrontendSurfaceIR FrontendSurfaceInteractionShellConfig { interactionShellHtmxSync = Just ("#" <> rosterWeekShellId <> ":replace") } [hsx|
+        renderFrontendSurfaceInteractionShell rosterSurface rosterFrontendSurfaceIR FrontendSurfaceInteractionShellConfig
+            { interactionShellHtmxSync = Just ("#" <> rosterWeekShellId <> ":replace")
+            , interactionShellIntentForms = rosterIntentForms rosterSurfaceScope
+            } [hsx|
             <div class="row g-4 align-items-start roster-layout">
                 {renderrosterContentLiveFragment gridModel}
                 {forEach gridRosterWeek renderStaffPanelMount}
@@ -415,7 +413,7 @@ renderSlotHeaderGroup endTimesEnabled _ _ _ (slotIndex, _) = [hsx|
 renderSlotDeleteForm :: Int -> RosterWeekSlotDefinition -> Html
 renderSlotDeleteForm slotCount slotName =
     renderFrontendSurfaceActionForm
-        (rosterSurfaceAction "delete-roster-week-slot-definition")
+        (surfaceActionValue @Surface.RosterSurface @Surface.DeleteRosterWeekSlotDefinition)
         (rosterGridActionRoute (pathTo (DeleteRosterWeekSlotDefinitionAction slotName.id)))
             { actionRouteExtraAttrs = [("class", "mb-0"), ("data-disable-javascript-submission", "true")]
             }
@@ -437,7 +435,7 @@ slotHeaderGridColumnStyle endTimesEnabled =
 renderSlotAddButton :: (?context :: ControllerContext) => RosterWeek -> Bool -> Html
 renderSlotAddButton rosterWeek True =
     renderFrontendSurfaceActionForm
-        (rosterSurfaceAction "create-roster-week-slot-definition")
+        (surfaceActionValue @Surface.RosterSurface @Surface.CreateRosterWeekSlotDefinition)
         (rosterGridActionRoute (pathTo (CreateRosterWeekSlotDefinitionAction rosterWeek.id)))
             { actionRouteExtraAttrs = [("class", "mb-0 roster-slot-column-add-form"), ("data-disable-javascript-submission", "true")]
             }
@@ -804,7 +802,7 @@ renderToggleClosedButton rosterDay =
             let buttonLabel = if rosterDay.isClosed then ("Reopen day" :: Text) else ("Mark day closed" :: Text)
                 iconClass = if rosterDay.isClosed then ("bi bi-lock-fill" :: Text) else ("bi bi-unlock" :: Text)
                 closedLabel = if rosterDay.isClosed then [hsx|<span class="roster-day-action-label">CLOSED</span>|] else mempty
-             in renderRosterDayActionForm "toggle-roster-day-closed" (pathTo (ToggleRosterDayClosedAction rosterDay.id)) [hsx|
+             in renderRosterDayActionForm (surfaceActionValue @Surface.RosterSurface @Surface.ToggleRosterDayClosed) (pathTo (ToggleRosterDayClosedAction rosterDay.id)) [hsx|
                 <button type="submit"
                         class={classes [("btn btn-sm app-compact-action-button roster-day-action roster-day-action-toggle", True), ("is-active", rosterDay.isClosed)]}
                         aria-label={buttonLabel}
@@ -819,7 +817,7 @@ renderToggleClosedButton rosterDay =
 renderAddRowButton :: (?context :: ControllerContext) => RosterDay -> Html
 renderAddRowButton rosterDay =
     if currentUserIsManager
-        then renderRosterDayActionForm "add-roster-row" (pathTo (AddRosterRowAction rosterDay.id)) [hsx|
+        then renderRosterDayActionForm (surfaceActionValue @Surface.RosterSurface @Surface.AddRosterRow) (pathTo (AddRosterRowAction rosterDay.id)) [hsx|
             <button type="submit"
                     class="btn btn-sm app-compact-action-button roster-day-action roster-day-action-add"
                     aria-label="Add shift row"
@@ -835,7 +833,7 @@ renderDeleteLastRowButton rosterDay rowIndex =
     if currentUserIsManager
         then
             let canDelete = rowIndex >= minimumOpenRosterRows
-             in renderRosterDayActionForm "remove-roster-row" (pathTo (RemoveRosterRowAction rosterDay.id)) [hsx|
+             in renderRosterDayActionForm (surfaceActionValue @Surface.RosterSurface @Surface.RemoveRosterRow) (pathTo (RemoveRosterRowAction rosterDay.id)) [hsx|
                 <button type="submit"
                         class="btn btn-sm app-compact-action-button roster-day-action roster-day-action-remove"
                         aria-label={if canDelete then ("Delete last shift row" :: Text) else ("Minimum day size reached" :: Text)}
@@ -847,10 +845,10 @@ renderDeleteLastRowButton rosterDay rowIndex =
             |]
         else [hsx|<span></span>|]
 
-renderRosterDayActionForm :: Text -> Text -> Html -> Html
-renderRosterDayActionForm actionName actionUrl body =
+renderRosterDayActionForm :: SurfaceIR.HtmxActionIR -> Text -> Html -> Html
+renderRosterDayActionForm action actionUrl body =
     renderFrontendSurfaceActionForm
-        (rosterSurfaceAction actionName)
+        action
         (rosterGridActionRoute actionUrl)
             { actionRouteExtraAttrs = [("class", "d-inline"), ("data-disable-javascript-submission", "true")]
             }

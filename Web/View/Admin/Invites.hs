@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 
 module Web.View.Admin.Invites
@@ -6,14 +7,16 @@ module Web.View.Admin.Invites
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
+import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
+import Application.Helper.FrontendContract.Surface.Values (surfaceActionValue)
 import Application.Helper.UiRegion (UiRegionTransitionProfile (..))
 import qualified Text.Blaze.Html as Blaze
 import Text.Blaze.Html ((!))
 import qualified Text.Blaze.Html5 as Html5
-import Web.Admin.FrontendSurface (AdminVenueScopeValue (..), adminInvitesAction,
+import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminInvitesSurfaceImpl)
 import Web.View.Admin.Common
 import Web.View.Prelude
@@ -30,7 +33,7 @@ renderInvitesSection invitations rosterGroupId =
 
 renderInviteCreateForm :: Id RosterGroup -> Html
 renderInviteCreateForm rosterGroupId =
-    renderFrontendSurfaceActionForm (adminInvitesAction "create-venue-invitation") (inviteCreateRoute rosterGroupId) [hsx|
+    renderFrontendSurfaceActionForm (surfaceActionValue @Surface.AdminInvitesSurface @Surface.CreateVenueInvitation) (inviteCreateRoute rosterGroupId) [hsx|
         <div class="row g-2 align-items-end">
             <div class="col-12 col-md-9">
                 <label class="form-label" for="new-invite-email">Email</label>
@@ -118,7 +121,7 @@ renderInviteRowActions :: Id RosterGroup -> VenueInvitation -> Html
 renderInviteRowActions rosterGroupId invitation
     | inputValue invitation.status /= "pending" = mempty
     | otherwise =
-        renderFrontendSurfaceActionForm (adminInvitesAction "revoke-venue-invitation") revokeRoute [hsx|
+        renderFrontendSurfaceActionForm (surfaceActionValue @Surface.AdminInvitesSurface @Surface.RevokeVenueInvitation) revokeRoute [hsx|
             <button class="btn btn-sm btn-outline-danger" type="submit">Revoke</button>
         |]
     where

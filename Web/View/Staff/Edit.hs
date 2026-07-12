@@ -13,13 +13,14 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              appShellActionByMarker,
                                                              applyAppShellActionAttrs)
 import Application.Helper.FrontendContract.IR (AppShellActionIR)
+import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
+import Application.Helper.FrontendContract.Surface.Values (surfaceActionValue)
 import Application.Helper.StaffShiftPreferences
-import Web.Profiles.FrontendSurface (ProfileScopeValue (..), staffSurfaceAction,
-                                     staffSurfaceImpl)
+import Web.Profiles.FrontendSurface (ProfileScopeValue (..), staffSurfaceImpl)
 import Web.View.LeaveRequests.New (renderLeaveRequestFormFields)
 import Web.View.Prelude
 import Web.View.Profiles.Edit (renderProfileLeaveRequestsList)
@@ -255,7 +256,7 @@ renderStaffLeaveRequestFormFragment staffId leaveRequest = [hsx|
 renderStaffLeaveRequestForm :: Id Staff -> LeaveRequest -> Html
 renderStaffLeaveRequestForm staffId leaveRequest =
     renderFrontendSurfaceActionForm
-        (staffSurfaceAction "create-staff-leave-request")
+        (surfaceActionValue @Surface.StaffSurface @Surface.CreateStaffLeaveRequest)
         FrontendSurfaceActionRoute
             { actionRouteUrl = pathTo CreateLeaveRequestAction
             , actionRouteFields = []
@@ -567,7 +568,7 @@ staffDetailsFormRequestMode :: OverlayFormMode -> Text -> StaffDetailsOverlayMar
 staffDetailsFormRequestMode HtmxOverlayForm actionUrl marker =
     case marker of
         UpdateStaffProfileOverlayMarker ->
-            Just (StaffProfileSurfaceAction (staffSurfaceAction "update-staff-profile") (staffSectionActionRoute actionUrl "#staff-profile-details" "outerHTML show:none"))
+            Just (StaffProfileSurfaceAction (surfaceActionValue @Surface.StaffSurface @Surface.UpdateStaffProfile) (staffSectionActionRoute actionUrl "#staff-profile-details" "outerHTML show:none"))
         CreateTrialStaffOverlayMarker ->
             Just (StaffProfileAppShellAction (staffDetailsAppShellAction marker) (staffAppShellActionRoute actionUrl))
 staffDetailsFormRequestMode PageOverlayForm _ _ = Nothing
@@ -578,7 +579,7 @@ staffDetailsAppShellAction UpdateStaffProfileOverlayMarker = appShellActionByMar
 
 staffShiftPreferencesOverlayRequestMode :: OverlayFormMode -> Text -> Maybe StaffProfileFormRequestMode
 staffShiftPreferencesOverlayRequestMode HtmxOverlayForm actionUrl =
-    Just (StaffProfileSurfaceAction (staffSurfaceAction "update-staff-shift-preferences") (staffSectionActionRoute actionUrl "#staff-profile-preferences" "outerHTML show:none"))
+    Just (StaffProfileSurfaceAction (surfaceActionValue @Surface.StaffSurface @Surface.UpdateStaffShiftPreferences) (staffSectionActionRoute actionUrl "#staff-profile-preferences" "outerHTML show:none"))
 staffShiftPreferencesOverlayRequestMode PageOverlayForm _ = Nothing
 
 staffAppShellActionRoute :: Text -> AppShellActionRoute

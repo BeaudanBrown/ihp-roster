@@ -10,6 +10,7 @@ module Application.Helper.FrontendContract.Surface.LeaveRequests
     , LeaveRequestsSurface
     , LeaveRequestsScope
     , ArchiveLeaveRequestsPage
+    , ArchivePage
     , ApproveLeaveRequest
     , DenyLeaveRequest
     , VenueId

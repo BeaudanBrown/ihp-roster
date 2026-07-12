@@ -1,27 +1,28 @@
-{-# LANGUAGE DataKinds        #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeOperators    #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE TypeApplications    #-}
+{-# LANGUAGE TypeOperators       #-}
 
 module Web.LeaveRequests.FrontendSurface
     ( LeaveRequestsScopeValue (..)
     , leaveRequestsCandidateMountedFragments
     , leaveRequestsSurfaceScope
-    , leaveRequestsSurfaceAction
     , leaveRequestsSurfaceImpl
     , leaveRequestsSurfaceMountConfig
     , leaveRequestsSurfaceScopeKey
     , leaveRequestsSurfaceFragmentKeys
     ) where
 
-import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
-import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
-import Application.Helper.FrontendContract.Surface.DSL
+import Application.Helper.FrontendContract.Surface.DSL (FieldSpec (..),
+                                                        WireType (..))
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
+import Application.Helper.FrontendContract.Surface.Reflect (ReflectPrimitive)
 import Application.Helper.FrontendContract.Surface.Runtime
+import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.Url (appendQueryParams)
-import qualified Data.Aeson as Aeson
 import qualified Data.UUID as UUID
+import qualified IHP.Prelude as Prelude
 import Web.Controller.Prelude
 import Web.View.LeaveRequests.Index (leaveApprovedSection, leaveArchiveSection,
                                      leaveDeniedSection, leavePendingSection,
@@ -38,24 +39,20 @@ data LeaveRequestsScopeValue = LeaveRequestsScopeValue
 
 leaveRequestsSurfaceImpl :: LeaveRequestsScopeValue -> SurfaceImpl Surface.LeaveRequestsSurface
 leaveRequestsSurfaceImpl scope =
-    mkSurfaceImpl "leave-requests" (leaveRequestsSurfaceMountConfig scope) (leaveRequestsSurfaceHandlers scope)
-        |> surfaceImplWithMountedFragments (leaveRequestsCandidateMountedFragments scope)
+    mkSurfaceImplFromValues @Surface.LeaveRequestsSurface @Surface.LeaveRequestsScope
+        "primary"
+        (leaveRequestsScopeFields scope)
+        NoSurfaceFields
+        (leaveRequestsCandidateMountedFragments scope)
 
 leaveRequestsSurfaceMountConfig :: LeaveRequestsScopeValue -> FrontendSurfaceMountConfig
 leaveRequestsSurfaceMountConfig scope =
-    FrontendSurfaceMountConfig
-        { mountSurfaceName = "leave-requests"
-        , mountScopeKey = leaveRequestsSurfaceScopeKey scope
-        , mountKey = "primary"
-        , mountScope = Aeson.Null
-        , mountSubscription = Nothing
-        , mountState = Aeson.Null
-        , mountFragments = leaveRequestsCandidateMountedFragments scope
-        }
+    (leaveRequestsSurfaceImpl scope).surfaceImplMountConfig
 
 leaveRequestsSurfaceScopeKey :: LeaveRequestsScopeValue -> Text
 leaveRequestsSurfaceScopeKey scope =
-    "leave-requests:" <> tshow scope.leaveRequestsVenueId
+    frontendSurfaceScopeKeyFor @Surface.LeaveRequestsSurface @Surface.LeaveRequestsScope (leaveRequestsScopeFields scope)
+        |> either (error . ("Typed Leave Requests scope invariant failed: " <>)) Prelude.id
 
 leaveRequestsSurfaceScope :: LeaveRequestsScopeValue -> SurfaceScope
 leaveRequestsSurfaceScope scope =
@@ -67,88 +64,43 @@ leaveRequestsCandidateMountedFragments _ =
 
 leaveRequestsSurfaceFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
 leaveRequestsSurfaceFragmentKeys =
-    frontendSurfaceMountedFragmentsToKeys "leave-requests"
+    frontendSurfaceMountedFragmentsToKeysFor @Surface.LeaveRequestsSurface
 
-leaveRequestsSurfaceHandlers :: LeaveRequestsScopeValue -> SurfaceImplHandlers Surface.LeaveRequestsSurface
-leaveRequestsSurfaceHandlers scope =
-    SurfaceImplHandlers
-        { surfaceScopeHandlers =
-            FrontendSurfaceScopeHandler
-                { scopeHandlerDefaultValue = leaveRequestsScopeFields scope
-                , scopeHandlerKey = \fields ->
-                    let venueId = fromMaybe (tshow scope.leaveRequestsVenueId) (getSurfaceField @Surface.VenueId fields)
-                     in "leave-requests:" <> venueId
-                }
-                `HandlerCons` HandlerNil
-        , surfaceMountStateHandlers = HandlerNil
-        , surfaceFragmentHandlers =
-            leaveRequestsFragmentHandler leaveSectionCountFragmentKind leavePendingSection `HandlerCons`
-            leaveRequestsFragmentHandler leaveSectionListFragmentKind leavePendingSection `HandlerCons`
-            HandlerNil
-        , surfaceActionHandlers =
-            leaveRequestsActionHandler "archive-leave-requests-page" (pathTo ShowleaveRequestsContentLiveFragmentAction) `HandlerCons`
-            leaveRequestsActionHandler "approve-leave-request" (pathTo (ApproveLeaveRequestAction (Id UUID.nil))) `HandlerCons`
-            leaveRequestsActionHandler "deny-leave-request" (pathTo (DenyLeaveRequestAction (Id UUID.nil))) `HandlerCons`
-            HandlerNil
-        , surfaceIntentHandlers = HandlerNil
-        }
-
-leaveRequestsActionHandler :: Text -> Text -> FrontendSurfaceActionHandler ('Action marker fields options)
-leaveRequestsActionHandler actionName actionUrl = FrontendSurfaceActionHandler
-    { actionHandlerDefaultFields = frontendSurfaceFieldValues Aeson.Null
-    , actionHandlerRequest = const FrontendSurfaceHtmxRequest
-        { htmxRequestName = actionName
-        , htmxRequestMethod = FrontendSurfacePost
-        , htmxRequestUrl = actionUrl
-        , htmxRequestTarget = "#" <> leaveRequestsContentFragmentId
-        , htmxRequestSwap = "none"
-        , htmxRequestFields = []
-        }
-    }
-
-leaveRequestsSurfaceAction :: Text -> SurfaceIR.HtmxActionIR
-leaveRequestsSurfaceAction actionName =
-    case [action | surface <- registeredFrontendSurfaceContractIR.contractSurfaces, surface.surfaceName == "leave-requests", action <- surface.surfaceHtmxActions, action.htmxActionName == actionName] of
-        action : _ -> action
-        [] -> error ("missing leave requests surface action: " <> cs actionName)
-
-leaveRequestsScopeFields :: LeaveRequestsScopeValue -> FrontendSurfaceFieldValues '[ 'Field Surface.VenueId 'WireUUID]
+leaveRequestsScopeFields :: LeaveRequestsScopeValue -> SurfaceFields (SurfaceScopeFieldSpecs Surface.LeaveRequestsSurface Surface.LeaveRequestsScope)
 leaveRequestsScopeFields scope =
-    frontendSurfaceFieldValuesFromPairs ["venueId" Aeson..= tshow scope.leaveRequestsVenueId]
+    surfaceField @Surface.VenueId scope.leaveRequestsVenueId :& NoSurfaceFields
 
-leaveRequestsFragmentHandler :: KnownFragmentOptions options => Text -> Text -> FrontendSurfaceFragmentHandler ('Fragment marker '[ 'Field Surface.LeaveSection 'WireText] options)
-leaveRequestsFragmentHandler kind section =
-    FrontendSurfaceFragmentHandler
-        { fragmentHandlerDefaultParams = leaveRequestsSectionFields section
-        , fragmentHandlerMountedFragment = const (leaveRequestsMountedFragment kind section)
-        , fragmentHandlerRender = const mempty
-        }
-
-leaveRequestsSectionFields :: Text -> FrontendSurfaceFieldValues '[ 'Field Surface.LeaveSection 'WireText]
+leaveRequestsSectionFields :: Text -> SurfaceFields '[ 'Field Surface.LeaveSection 'WireText]
 leaveRequestsSectionFields section =
-    frontendSurfaceFieldValuesFromPairs ["leaveSection" Aeson..= section]
+    surfaceField @Surface.LeaveSection section :& NoSurfaceFields
 
 leaveRequestsSectionMountedFragments :: [FrontendSurfaceMountedFragment]
 leaveRequestsSectionMountedFragments =
-    [ leaveRequestsMountedFragment leaveSectionCountFragmentKind leavePendingSection
-    , leaveRequestsMountedFragment leaveSectionListFragmentKind leavePendingSection
-    , leaveRequestsMountedFragment leaveSectionCountFragmentKind leaveApprovedSection
-    , leaveRequestsMountedFragment leaveSectionListFragmentKind leaveApprovedSection
-    , leaveRequestsMountedFragment leaveSectionCountFragmentKind leaveDeniedSection
-    , leaveRequestsMountedFragment leaveSectionListFragmentKind leaveDeniedSection
-    , leaveRequestsMountedFragment leaveSectionCountFragmentKind leaveArchiveSection
-    , leaveRequestsMountedFragment leaveSectionListFragmentKind leaveArchiveSection
+    concatMap leaveRequestsSectionMountedFragmentsFor
+        [ leavePendingSection
+        , leaveApprovedSection
+        , leaveDeniedSection
+        , leaveArchiveSection
+        ]
+
+leaveRequestsSectionMountedFragmentsFor :: Text -> [FrontendSurfaceMountedFragment]
+leaveRequestsSectionMountedFragmentsFor section =
+    [ frontendSurfaceMountedFragmentFor @Surface.LeaveRequestsSurface @Surface.LeaveSectionCount
+        (leaveRequestsSectionFields section)
+        (leaveSectionCountFragmentId section)
+        (leaveRequestsFragmentUrl @Surface.LeaveSectionCount section)
+        FrontendSurfaceReplace
+    , frontendSurfaceMountedFragmentFor @Surface.LeaveRequestsSurface @Surface.LeaveSectionList
+        (leaveRequestsSectionFields section)
+        (leaveSectionListFragmentId section)
+        (leaveRequestsFragmentUrl @Surface.LeaveSectionList section)
+        FrontendSurfaceReplace
     ]
 
-leaveRequestsMountedFragment :: Text -> Text -> FrontendSurfaceMountedFragment
-leaveRequestsMountedFragment kind section =
-    frontendSurfaceMountedFragment
-        kind
-        (Aeson.object ["leaveSection" Aeson..= section])
-        targetId
-        (appendQueryParams (pathTo ShowleaveRequestsContentLiveFragmentAction) [ ("fragment", kind), ("section", section) ])
-        FrontendSurfaceReplace
-    where
-        targetId
-            | kind == leaveSectionCountFragmentKind = leaveSectionCountFragmentId section
-            | otherwise = leaveSectionListFragmentId section
+leaveRequestsFragmentUrl :: forall marker. ReflectPrimitive (SurfaceFragmentPrimitive Surface.LeaveRequestsSurface marker) => Text -> Text
+leaveRequestsFragmentUrl section =
+    appendQueryParams
+        (pathTo ShowleaveRequestsContentLiveFragmentAction)
+        [ ("fragment", surfaceFragmentNameValue @Surface.LeaveRequestsSurface @marker)
+        , ("section", section)
+        ]

@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 
 module Web.View.Admin.VenueSettings
@@ -7,14 +8,15 @@ module Web.View.Admin.VenueSettings
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
+import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
+import Application.Helper.FrontendContract.Surface.Values (surfaceActionValue)
 import Application.Helper.TimeRules (venueTimePickerFinalSelectableTimeText,
                                      venueTimePickerStartTimeText)
 import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
-                                  adminVenueSettingsAction,
                                   adminVenueSettingsSurfaceImpl)
 import Web.View.Admin.Common
 import Web.View.Prelude
@@ -57,7 +59,7 @@ renderVenueSettingsSection venueConfig =
 
 renderRosterTimePickerWindowForm :: VenueConfig -> Html
 renderRosterTimePickerWindowForm venueConfig =
-    renderFrontendSurfaceActionForm (adminVenueSettingsAction "update-venue-config") venueSettingRoute [hsx|
+    renderFrontendSurfaceActionForm (surfaceActionValue @Surface.AdminVenueSettingsSurface @Surface.UpdateVenueConfig) venueSettingRoute [hsx|
         <input type="hidden" name="configField" value="timePickerWindow" />
         <div class="admin-setting-row-copy">
             <div class="fw-semibold">Valid shift window</div>
@@ -85,7 +87,7 @@ renderRosterTimePickerWindowForm venueConfig =
 
 renderRosterEndTimesForm :: VenueConfig -> Html
 renderRosterEndTimesForm venueConfig =
-    renderFrontendSurfaceActionForm (adminVenueSettingsAction "update-venue-config") venueSettingRoute [hsx|
+    renderFrontendSurfaceActionForm (surfaceActionValue @Surface.AdminVenueSettingsSurface @Surface.UpdateVenueConfig) venueSettingRoute [hsx|
         <input type="hidden" name="configField" value="rosterEndTimesEnabled" />
         <div class="admin-setting-row-copy">
             <div class="fw-semibold">Show shift end times in roster</div>
@@ -98,7 +100,7 @@ renderRosterEndTimesForm venueConfig =
 
 renderAutoTimesheetCreationForm :: VenueConfig -> Html
 renderAutoTimesheetCreationForm venueConfig =
-    renderFrontendSurfaceActionForm (adminVenueSettingsAction "update-venue-config") venueSettingRoute [hsx|
+    renderFrontendSurfaceActionForm (surfaceActionValue @Surface.AdminVenueSettingsSurface @Surface.UpdateVenueConfig) venueSettingRoute [hsx|
         <input type="hidden" name="configField" value="autoTimesheetCreationEnabled" />
         <div class="admin-setting-row-copy">
             <div class="fw-semibold">Auto-create pending timesheets</div>

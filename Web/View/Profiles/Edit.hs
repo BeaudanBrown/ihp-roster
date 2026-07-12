@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+
 module Web.View.Profiles.Edit where
 
 import qualified Application.Helper.FrontendContract.Surface.Profile as Surface
@@ -6,6 +8,7 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             SurfaceImpl,
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
+import Application.Helper.FrontendContract.Surface.Values (surfaceActionValue)
 import Application.Helper.StaffShiftPreferences
 import Data.List (sortOn)
 import Data.Ord (Down (..))
@@ -261,7 +264,7 @@ renderProfileForm staff currentUserEmail staffManagementFields =
             , staffProfileDetailsFormAction = pathTo UpdateProfileAction
             , staffProfileDetailsFormClass = ""
             , staffProfileDetailsFormRequestMode =
-                Just (StaffProfileSurfaceAction (profileSurfaceAction "update-profile-details") (profileSectionActionRoute (pathTo UpdateProfileAction) profileDetailsSectionId "outerHTML show:none"))
+                Just (StaffProfileSurfaceAction (surfaceActionValue @Surface.ProfileSurface @Surface.UpdateProfileDetails) (profileSectionActionRoute (pathTo UpdateProfileAction) profileDetailsSectionId "outerHTML show:none"))
             , staffProfileDetailsFormAttributes = []
             , staffProfileDetailsFormHiddenInputs = [hsx|<input type="hidden" name="section" value="profile"/>|]
             , staffProfileDetailsFormBeforeFields = mempty
@@ -283,7 +286,7 @@ renderProfileShiftPreferencesForm preferenceWeekdays selectedShiftPreferences =
             , staffShiftPreferencesFormAction = pathTo UpdateProfileAction
             , staffShiftPreferencesFormClass = ""
             , staffShiftPreferencesFormRequestMode =
-                Just (StaffProfileSurfaceAction (profileSurfaceAction "update-profile-shift-preferences") (profileSectionActionRoute (pathTo UpdateProfileAction) profilePreferencesSectionId "outerHTML show:none"))
+                Just (StaffProfileSurfaceAction (surfaceActionValue @Surface.ProfileSurface @Surface.UpdateProfileShiftPreferences) (profileSectionActionRoute (pathTo UpdateProfileAction) profilePreferencesSectionId "outerHTML show:none"))
             , staffShiftPreferencesFormHiddenInputs = [hsx|<input type="hidden" name="section" value="preferences"/>|]
             , staffShiftPreferencesFormSubmitLabel = "Save shift preferences"
             }
@@ -337,7 +340,7 @@ renderProfileLeaveRequestFormFragment leaveRequest = [hsx|
 renderProfileLeaveRequestActionForm :: LeaveRequest -> Html
 renderProfileLeaveRequestActionForm leaveRequest =
     renderFrontendSurfaceActionForm
-        (profileSurfaceAction "create-profile-leave-request")
+        (surfaceActionValue @Surface.ProfileSurface @Surface.CreateProfileLeaveRequest)
         (profileActionRoute profileCreateLeaveRequestPath)
             { actionRouteExtraAttrs = [("id", "profile-leave-request-form"), ("data-disable-javascript-submission", "true")]
             }

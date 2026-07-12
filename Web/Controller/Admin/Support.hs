@@ -136,7 +136,7 @@ respondToRosterGroupsSectionMutation maybeRosterGroupId =
         , adminSectionRedirectGroup = maybeRosterGroupId
         , adminSectionRenderFragment = do
             setHeader ("HX-Reswap", "none")
-            setActorLiveFragmentsRefresh (adminRosterGroupsLiveScope (unpackId currentVenueId)) (AdminSurface.adminSurfaceFragmentKeys [AdminSurface.adminRosterGroupsFragment])
+            setActorLiveFragmentsRefresh (adminRosterGroupsLiveScope (unpackId currentVenueId)) (AdminSurface.adminRosterGroupsFragmentKeys [AdminSurface.adminRosterGroupsFragment])
             pure mempty
         }
 

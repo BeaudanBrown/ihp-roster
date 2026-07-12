@@ -14,12 +14,14 @@ import Application.Helper.FrontendContract.AppShell (OpenXeroPayItemImportOverla
 import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute (..),
                                                              appShellActionByMarker,
                                                              renderAppShellActionForm)
+import qualified Application.Helper.FrontendContract.Surface.Admin as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
                                                             FrontendSurfaceCustomHtmxAttrs (..),
                                                             renderFrontendSurfaceActionForm,
                                                             renderFrontendSurfaceMount)
+import Application.Helper.FrontendContract.Surface.Values (surfaceActionValue)
 import Application.Helper.XeroAdminTypes
-import Web.Admin.FrontendSurface (AdminVenueScopeValue (..), adminXeroAction,
+import Web.Admin.FrontendSurface (AdminVenueScopeValue (..),
                                   adminXeroPageSurfaceImpl,
                                   adminXeroSurfaceImpl)
 import Web.View.Admin.Common
@@ -94,7 +96,7 @@ renderXeroAutoSyncTrigger :: Bool -> Maybe XeroConnection -> Html
 renderXeroAutoSyncTrigger True (Just connection)
     | connection.connectionStatus == "active" =
         renderFrontendSurfaceActionForm
-            (adminXeroAction "sync-xero-payroll-reference-data")
+            (surfaceActionValue @Surface.AdminXeroSurface @Surface.SyncXeroPayrollReferenceData)
             xeroReferenceSyncActionRoute
                 { actionRouteCustomHtmx =
                     [ FrontendSurfaceCustomHtmxAttrs
@@ -177,7 +179,7 @@ renderXeroActionControls connection connectionActionsAllowed = [hsx|
 renderXeroReferenceSyncForm :: Bool -> Html
 renderXeroReferenceSyncForm actionsAllowed =
     renderFrontendSurfaceActionForm
-        (adminXeroAction "sync-xero-payroll-reference-data")
+        (surfaceActionValue @Surface.AdminXeroSurface @Surface.SyncXeroPayrollReferenceData)
         xeroReferenceSyncActionRoute
         [hsx|<button type="submit" class="btn btn-outline-primary" disabled={not actionsAllowed}>Sync Xero data</button>|]
 
