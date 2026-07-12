@@ -34,8 +34,6 @@ tests = beforeAll testContext do
             response `responseBodyShouldNotContain` "Need venue access?"
             response `responseBodyShouldNotContain` "Request an invitation"
             response `responseBodyShouldNotContain` "/helpers.js"
-            response `responseBodyShouldNotContain` "/ihp-auto-refresh.js"
-            response `responseBodyShouldNotContain` "ihp-auto-refresh-id"
 
         it "redirects successful logins to the roster week flow" $ withContext do
             Sessions.afterLoginRedirectPath @User `shouldBe` pathTo RosterWeeksAction

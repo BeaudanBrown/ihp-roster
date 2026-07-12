@@ -32,6 +32,58 @@ test.describe('Admin shift types live updates', () => {
         expect(await duplicateIds(page)).toEqual([]);
     });
 
+    test('defers a protected shift-types refresh until the focused field blurs', async ({ browser }) => {
+        const viewerContext = await browser.newContext();
+        const actorContext = await browser.newContext();
+        const viewer = await viewerContext.newPage();
+        const actor = await actorContext.newPage();
+
+        try {
+            await openAdminWithSeededPasskeySession(viewer);
+            await viewer.getByRole('button', { name: 'Shift Types' }).click();
+            await expect(viewer.locator('#shift-types-collapse')).toHaveClass(/show/, { timeout: E2E_TIMEOUT.action });
+            await expect(viewer.locator('[data-bepis-surface="admin-shift-types"][data-bepis-surface-config]')).toHaveAttribute('data-live-update-client-id', /.+/, { timeout: E2E_TIMEOUT.liveUpdate });
+
+            const focusedName = viewer.locator('#admin-shift-types-fragment input[data-admin-shift-type-field-key]').first();
+            const originalName = await focusedName.inputValue();
+            await focusedName.focus();
+            await expect(focusedName).toBeFocused();
+            await viewer.evaluate(() => {
+                (window as Window & { __focusedFieldDeferrals?: number }).__focusedFieldDeferrals = 0;
+                document.addEventListener('app:live-update-performance', (event) => {
+                    const detail = (event as CustomEvent).detail;
+                    if (detail?.name === 'live_updates.defer_fragment' && detail?.reason === 'active_input') {
+                        const state = window as Window & { __focusedFieldDeferrals?: number };
+                        state.__focusedFieldDeferrals = (state.__focusedFieldDeferrals ?? 0) + 1;
+                    }
+                });
+            });
+
+            await openAdminWithSeededPasskeySession(actor);
+            await actor.getByRole('button', { name: 'Shift Types' }).click();
+            await expect(actor.locator('#shift-types-collapse')).toHaveClass(/show/, { timeout: E2E_TIMEOUT.action });
+            await expect(actor.locator('[data-bepis-surface="admin-shift-types"][data-bepis-surface-config]')).toHaveAttribute('data-live-update-client-id', /.+/, { timeout: E2E_TIMEOUT.liveUpdate });
+
+            const shiftTypeName = `Focus Protected Shift Type ${Date.now()}`;
+            await actor.locator('#new-shift-type-name').fill(shiftTypeName);
+            await actor.locator('#admin-shift-types-fragment form').first().getByRole('button', { name: 'Add' }).click();
+            await expect(actor.locator(`#admin-shift-types-fragment input[value="${shiftTypeName}"]`)).toHaveCount(1, { timeout: E2E_TIMEOUT.assertion });
+
+            await expect.poll(() => viewer.evaluate(() => (window as Window & { __focusedFieldDeferrals?: number }).__focusedFieldDeferrals ?? 0), { timeout: E2E_TIMEOUT.liveUpdate }).toBeGreaterThan(0);
+            await expect(viewer.locator(`#admin-shift-types-fragment input[value="${shiftTypeName}"]`)).toHaveCount(0);
+            await expect(focusedName).toBeFocused();
+            await expect(focusedName).toHaveValue(originalName);
+
+            await focusedName.blur();
+
+            await expect(viewer.locator(`#admin-shift-types-fragment input[value="${shiftTypeName}"]`)).toHaveCount(1, { timeout: E2E_TIMEOUT.liveUpdate });
+            await expect(viewer.locator('#admin-shift-types-fragment input[data-admin-shift-type-field-key]').first()).toHaveValue(originalName);
+        } finally {
+            await actorContext.close();
+            await viewerContext.close();
+        }
+    });
+
     test('replace only the shift types fragment after another admin creates a shift type', async ({ browser }) => {
         const viewerContext = await browser.newContext();
         const actorContext = await browser.newContext();

@@ -1,6 +1,7 @@
 # Live Update Runtime Simplification
 
-Status: implemented; compact-protocol decision superseded by GitHub #145
+Status: implemented; compact-protocol decision superseded by GitHub #145;
+focused-field cleanup completed by GitHub #56
 
 Parent ticket:
 
@@ -19,7 +20,7 @@ Related tickets/workstreams:
 
 - `ir-3pnb` - strict typed live-surface overhaul, implemented in `2ed1918`
 - `docs/workstreams/strict-live-surface-overhaul.md`
-- `ir-f2p4` - focused-field protection cleanup
+- `ir-f2p4` / GitHub #56 - focused-field protection cleanup (completed)
 
 Living docs to update as slices land:
 
@@ -136,6 +137,17 @@ Canonical generated fragment-key identity/equality handles property order.
 Unknown or unmounted keys are ignored, duplicate mounts resolve to their own
 local URLs and targets, and source-client echo, version-gap, and resync behavior
 is unchanged.
+
+## Focus Protection Decision
+
+GitHub #56 confirmed `app-live-updates` as the only focused-field protection
+owner and removed the remaining IHP Auto Refresh/Morphdom runtime compatibility.
+The browser consumes the exact generated protection policy, with no legacy
+field-key or selector defaults. Protected invalidations retain only the latest
+fragment while a matching field is focused, then refetch on blur and restore the
+captured value by configured field key/name and optional container. The
+`replace` policy never defers for arbitrary focused controls, so roster shift
+launchers remain immediately refreshable.
 
 ## Verification
 

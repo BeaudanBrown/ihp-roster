@@ -250,8 +250,18 @@ that region only.
   the typed surface should rely on containment normalization instead of emitting
   overlapping swaps.
 - Focused-field protection is policy-driven. Do not hard-code feature selectors
-  in the shared runtime.
-- Reconnect/version gaps should trigger configured resync fragments.
+  in the shared runtime. The generated local descriptor supplies an exact
+  `activeSelector`, `fieldKeyAttr`, `fieldNameFallback`, and nullable
+  `containerSelector`; the browser must not recover missing values through old
+  `data-live-field-key` or feature defaults.
+- `app-live-updates` is the single focused-field protection owner. It defers the
+  latest protected fragment while a matching field is focused, captures its
+  exact configured key/name/value, refetches on blur, and restores that value in
+  the replacement row/container. Do not wrap Morphdom or add IHP Auto Refresh
+  compatibility hooks. Fragments with `replace` protection, including roster
+  shift launchers, refresh immediately.
+- Reconnect/version gaps should trigger configured resync fragments through the
+  same protection decision as ordinary actor/passive invalidations.
 - Lazy placeholders use the same target id and GET URL as the loaded fragment
   and carry any feature-owned root slot classes needed to match final layout
   geometry, so live invalidations before the lazy trigger may safely replace the

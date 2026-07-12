@@ -65,11 +65,11 @@ enableLazySurfaceErrorHandling();
     const { beginPerfSpan, endPerfSpan, emitDebugEvent } = createLiveUpdateDiagnostics(window, document);
 
     // Focus protection and deferred refresh state.
-    function findPreservedField(root: HTMLElement | null, preserveField: LiveUpdatePreservedField | undefined): HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null {
-        if (!(root instanceof HTMLElement) || !preserveField) return null;
+    function findPreservedField(root: HTMLElement | null, preserveField: LiveUpdatePreservedField): HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null {
+        if (!(root instanceof HTMLElement)) return null;
 
         const fieldKey = preserveField.fieldKey;
-        const fieldKeyAttr = preserveField.fieldKeyAttr || 'data-live-field-key';
+        const fieldKeyAttr = preserveField.fieldKeyAttr;
         if (fieldKey) {
             const escapedKey = window.CSS && typeof window.CSS.escape === 'function'
                 ? window.CSS.escape(fieldKey)
@@ -192,7 +192,7 @@ enableLazySurfaceErrorHandling();
         const perfSpan = beginPerfSpan('live_updates.refetch_fragment', {
             targetId: fragment && fragment.targetId ? fragment.targetId : null,
             url: fragment && fragment.url ? fragment.url : null,
-            deferUntilBlur: fragment.protection.kind === 'focused-field',
+            focusProtected: fragment.protection.kind === 'focused-field',
         });
         const response = await window.fetch(fragment.url, {
             credentials: 'same-origin',
@@ -260,10 +260,7 @@ enableLazySurfaceErrorHandling();
     }
 
     function focusedFieldProtection(policy: FocusedFieldProtectionPolicy): FragmentProtectionAdapter {
-        const activeSelector = policy && policy.activeSelector ? policy.activeSelector : 'input:focus, select:focus, textarea:focus';
-        const fieldKeyAttr = policy && policy.fieldKeyAttr ? policy.fieldKeyAttr : 'data-live-field-key';
-        const fieldNameFallback = !policy || policy.fieldNameFallback !== false;
-        const containerSelector = policy && policy.containerSelector ? policy.containerSelector : null;
+        const { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector } = policy;
 
         function findActiveInput(target: HTMLElement): HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | null {
             if (!(target instanceof HTMLElement)) return null;
@@ -277,12 +274,6 @@ enableLazySurfaceErrorHandling();
         }
 
         return {
-            matches: function (fragment: LiveUpdateFragmentWithState, target: HTMLElement): boolean {
-                return Boolean(
-                    fragment &&
-                    target instanceof HTMLElement
-                );
-            },
             hasActiveInput: function (target: HTMLElement): boolean {
                 return Boolean(findActiveInput(target));
             },
@@ -321,7 +312,7 @@ enableLazySurfaceErrorHandling();
         };
     }
 
-    function matchingFragmentProtection(fragment: LiveUpdateFragmentWithState | undefined, _target: HTMLElement): FragmentProtectionAdapter | null {
+    function matchingFragmentProtection(fragment: LiveUpdateFragmentWithState | undefined): FragmentProtectionAdapter | null {
         if (!fragment) return null;
 
         switch (fragment.protection.kind) {
@@ -335,12 +326,12 @@ enableLazySurfaceErrorHandling();
     }
 
     function hasProtectedActiveInput(target: HTMLElement, fragment: LiveUpdateFragmentWithState | undefined): boolean {
-        const adapter = matchingFragmentProtection(fragment, target);
+        const adapter = matchingFragmentProtection(fragment);
         return Boolean(adapter && adapter.hasActiveInput(target));
     }
 
     function captureDeferredState(target: HTMLElement, fragment: LiveUpdateFragmentWithState): LiveUpdateFragmentWithState {
-        const adapter = matchingFragmentProtection(fragment, target);
+        const adapter = matchingFragmentProtection(fragment);
         if (!adapter) return fragment;
         return adapter.captureState(target, fragment);
     }
@@ -351,7 +342,7 @@ enableLazySurfaceErrorHandling();
         const target = document.getElementById(fragment.targetId);
         if (!(target instanceof HTMLElement)) return;
 
-        const adapter = matchingFragmentProtection(fragment, target);
+        const adapter = matchingFragmentProtection(fragment);
         if (!adapter) return;
         adapter.restoreState(target, fragment);
     }

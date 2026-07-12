@@ -169,8 +169,6 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "rosterGroupId"
                 response `responseBodyShouldContain` "weekOffset"
                 response `responseBodyShouldNotContain` "/helpers.js"
-                response `responseBodyShouldNotContain` "/ihp-auto-refresh.js"
-                response `responseBodyShouldNotContain` "ihp-auto-refresh-id"
 
         it "staff on hidden draft pages still expose FrontendSurface live metadata" $ withContext do
             withCleanDb do

@@ -18,7 +18,6 @@ components used by Bepis. It is an attribution aid, not a complete SBOM.
 | Bootstrap Icons 1.11.3 | MIT | The Bootstrap Authors | Vendored under `static/vendor/bootstrap-icons-1.11.3/`. |
 | HTMX 1.9.12 | BSD-2-Clause | Big Sky Software | Vendored under `static/vendor/htmx-1.9.12/`. |
 | Flatpickr | MIT | Gregory Vopros | Vendored from the pinned IHP checkout. |
-| Morphdom | MIT | Patrick Steele-Idem | Vendored from the pinned IHP checkout. |
 
 ## Vendored API Contracts
 

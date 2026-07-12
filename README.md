@@ -83,7 +83,7 @@ Do not hand-edit generated app JS.
 - Bootstrap `5.3.8`
 - Bootstrap Icons `1.11.3`
 - HTMX `1.9.12`
-- IHP-provided Flatpickr and Morphdom assets
+- IHP-provided Flatpickr asset
 - App CSS files: split under `static/css/` and linked directly from
   `Web/View/Layout.hs` with `assetPath`
 - Do not recreate a catch-all `static/app.css` unless a compatibility ticket

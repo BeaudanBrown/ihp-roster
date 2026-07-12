@@ -588,7 +588,6 @@ data FrontendSurfaceFocusedFieldProtectionConfig = FrontendSurfaceFocusedFieldPr
 
 data FrontendSurfaceProtection
     = FrontendSurfaceReplace
-    | FrontendSurfaceFocusedField
     | FrontendSurfaceFocusedFieldConfig !FrontendSurfaceFocusedFieldProtectionConfig
     deriving (Eq, Show)
 
@@ -1078,13 +1077,6 @@ frontendSurfaceMountedFragmentsToKeysFor =
 protectionToJson :: FrontendSurfaceProtection -> Aeson.Value
 protectionToJson = \case
     FrontendSurfaceReplace -> Aeson.object ["kind" Aeson..= ("replace" :: Text)]
-    FrontendSurfaceFocusedField -> Aeson.object
-        [ "kind" Aeson..= ("focused-field" :: Text)
-        , "activeSelector" Aeson..= ("input, textarea, select, [contenteditable=\"true\"]" :: Text)
-        , "fieldKeyAttr" Aeson..= ("data-bepis-field-key" :: Text)
-        , "fieldNameFallback" Aeson..= True
-        , "containerSelector" Aeson..= (Nothing :: Maybe Text)
-        ]
     FrontendSurfaceFocusedFieldConfig config ->
         Aeson.object
             [ "kind" Aeson..= ("focused-field" :: Text)

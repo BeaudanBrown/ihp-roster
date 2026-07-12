@@ -86,6 +86,11 @@ Read this before editing `frontend/ts/`.
 - Import the generated websocket path, client-id header, and surface DOM
   attribute constants. Do not duplicate these backend-owned strings in runtime
   code.
+- Focused-field protection belongs to the live-update runtime. Consume the exact
+  generated policy fields without `data-live-field-key` or selector fallbacks;
+  do not add Morphdom/auto-refresh compatibility or feature-specific focus/blur
+  queues. The `replace` protection variant always remains immediately
+  replaceable.
 - Nested/composable FrontendSurface behavior must stay generic. If a parent
   fragment/region contains child surface mounts, TypeScript should reconcile
   lifecycle from current DOM mounts after swaps: initialize new child mounts,

@@ -24,7 +24,7 @@ Child tickets:
 Related tickets:
 
 - `ir-nnfx` - completed typed live-surface architecture workstream
-- `ir-f2p4` - focused-field protection cleanup
+- `ir-f2p4` / GitHub #56 - focused-field protection cleanup (completed)
 
 Living docs to update:
 

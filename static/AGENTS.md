@@ -81,6 +81,11 @@ Read this before editing `static/` assets.
   policy/duplicated resync fields, raw live endpoint/header/DOM strings,
   `data-live-update-surface` support, or feature-specific live transport
   switches.
+- Focused-field protection is owned only by the live-update runtime and consumes
+  the exact generated descriptor policy. Do not add Morphdom wrappers, IHP Auto
+  Refresh compatibility, feature-local blur queues, or fallback field-key
+  attributes. `replace` fragments must not be delayed merely because a control
+  inside them has focus.
 - Feature scripts may handle genuinely feature-specific UI behavior.
 
 ## Typed Interaction Runtime

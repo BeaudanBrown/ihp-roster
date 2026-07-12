@@ -115,6 +115,10 @@ if [ -e Web/LiveSurfaceRegistry.hs ]; then
     report_failure "legacy Web.LiveSurfaceRegistry adapter module must stay deleted"
 fi
 
+if [ -e static/vendor/morphdom-umd.min.js ]; then
+    report_failure "retired IHP auto-refresh Morphdom asset must stay deleted"
+fi
+
 expect_no_match \
     "migrated Timesheets FrontendSurface must not author old TypedLiveSurfaceDefinition paths" \
     'TypedLiveSurfaceDefinition|descriptorToTypedLiveSurfaceDefinition|mkTypedDefinedLiveSurface|serveTypedLiveFragment|timesheetLiveSurfaceDefinition|timesheetProjectionDefinition|respondWithTypedLiveSurfaceFragments' \
@@ -303,6 +307,16 @@ expect_no_match \
     "production/browser code must not resurrect legacy declarative live-surface attributes" \
     'data-live-update-(surface|url)|parseLiveUpdateSurfaceConfig|liveUpdateUrl' \
     Application Web frontend/ts e2e static
+
+expect_no_match \
+    "app-live-updates must remain the sole focus-protection owner without IHP auto-refresh compatibility" \
+    'ihp-auto-refresh|enableRosterGridAutoRefreshDeferral|data-live-field-key|morphdom' \
+    Application Web frontend/ts static
+
+expect_no_match \
+    "focused-field descriptors must provide an exact policy instead of a compatibility default" \
+    '\bFrontendSurfaceFocusedField\b' \
+    Application Web Test
 
 expect_no_match \
     "production Web code must not author legacy semantic interaction helpers or attrs" \

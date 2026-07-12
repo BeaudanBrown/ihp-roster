@@ -11,11 +11,11 @@ export type LiveUpdatePerfSpan = {
 };
 
 export type LiveUpdatePreservedField = {
-    rowId?: string | null;
-    fieldKey?: string | null;
-    fieldKeyAttr?: string | null;
-    name?: string | null;
-    value?: string;
+    rowId: string | null;
+    fieldKey: string | null;
+    fieldKeyAttr: string;
+    name: string | null;
+    value: string;
 };
 
 export type LiveUpdateFragmentWithState = FrontendSurfaceMountedFragmentConfig & {
@@ -39,7 +39,6 @@ export type InFlightFragmentState = {
 };
 
 export type FragmentProtectionAdapter = {
-    matches: (fragment: LiveUpdateFragmentWithState, target: HTMLElement) => boolean;
     hasActiveInput: (target: HTMLElement) => boolean;
     captureState: (target: HTMLElement, fragment: LiveUpdateFragmentWithState) => LiveUpdateFragmentWithState;
     restoreState: (target: HTMLElement, fragment: LiveUpdateFragmentWithState) => void;

@@ -16,7 +16,7 @@ Tickets:
 
 Related tickets:
 
-- `ir-f2p4` - focused-field protection cleanup
+- `ir-f2p4` / GitHub #56 - focused-field protection cleanup (completed)
 - `ir-3pnb` - strict typed live-surface overhaul
 
 Follow-up workstream:

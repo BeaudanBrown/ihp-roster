@@ -97,7 +97,6 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "Pay Level Day Rules"
                 response `responseBodyShouldNotContain` "slot-names-heading"
                 response `responseBodyShouldNotContain` "/helpers.js"
-                response `responseBodyShouldNotContain` "/ihp-auto-refresh.js"
                 response `responseBodyShouldContain` "Kitchen"
                 response `responseBodyShouldContain` "Level A"
                 response `responseBodyShouldContain` "Award rates"
