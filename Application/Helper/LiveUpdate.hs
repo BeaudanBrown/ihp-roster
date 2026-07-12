@@ -42,13 +42,14 @@ module Application.Helper.LiveUpdate
     , currentLiveUpdateVersion
     , surfaceScopeKey
     , surfaceScopeKind
-    , setActorLiveFragmentsRefresh
+    , setActorLocalFragmentsRefresh
     , setActorLiveResourcesRefresh
     ) where
 
 import Application.Helper.FrontendContract.AppValues (AppEvents (..),
                                                       canonicalAppEvents)
-import Application.Helper.FrontendContract.Surface.DependencyPlanner (planFrontendSurfaceInvalidation)
+import Application.Helper.FrontendContract.Surface.DependencyPlanner (SurfaceInvalidationTarget (..),
+                                                                      planFrontendSurfaceInvalidations)
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment,
                                                             frontendSurfaceMountedFragmentsToKeys)
@@ -59,22 +60,32 @@ import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Set as Set
 import IHP.ControllerPrelude
 
-setActorLiveFragmentsRefresh :: (?context :: ControllerContext, ?request :: Request) => SurfaceScope -> [SurfaceFragmentKey] -> IO ()
-setActorLiveFragmentsRefresh scope fragments =
+-- | Emit an explicit actor-only workflow refresh when no shared resource
+-- changed (for example, viewer-local preference navigation). Mutations with
+-- touched resources must use 'setActorLiveResourcesRefresh'.
+setActorLocalFragmentsRefresh :: (?context :: ControllerContext, ?request :: Request) => SurfaceScope -> [SurfaceFragmentKey] -> IO ()
+setActorLocalFragmentsRefresh scope fragments =
     setHeader
         ( "HX-Trigger"
         , cs (Aeson.encode (actorLiveFragmentsRefreshTriggerPayload scope fragments))
         )
 
 setActorLiveResourcesRefresh :: (?context :: ControllerContext, ?request :: Request) => SurfaceScope -> Set.Set SurfaceResourceValue -> [FrontendSurfaceMountedFragment] -> IO ()
-setActorLiveResourcesRefresh scope touchedResources candidates =
-    setActorLiveFragmentsRefresh scope (actorLiveFragmentsRefreshKeys scope touchedResources candidates)
+setActorLiveResourcesRefresh scope touchedResources mountedFragments = do
+    let fragmentKeys = actorLiveFragmentsRefreshKeys scope touchedResources mountedFragments
+    unless (null fragmentKeys) do
+        setActorLocalFragmentsRefresh scope fragmentKeys
 
 actorLiveFragmentsRefreshKeys :: SurfaceScope -> Set.Set SurfaceResourceValue -> [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
-actorLiveFragmentsRefreshKeys scope touchedResources candidates =
-    candidates
-        |> planFrontendSurfaceInvalidation touchedResources scope
-        |> frontendSurfaceMountedFragmentsToKeys (surfaceScopeKind scope)
+actorLiveFragmentsRefreshKeys scope touchedResources mountedFragments =
+    planFrontendSurfaceInvalidations touchedResources [mountSubscription]
+        |> concatMap (.targetFragments)
+  where
+    mountSubscription = SurfaceSubscription
+        { subscriptionScope = scope
+        , subscriptionScopeKey = surfaceScopeKey scope
+        , subscriptionFragmentKeys = frontendSurfaceMountedFragmentsToKeys (surfaceScopeKind scope) mountedFragments
+        }
 
 actorLiveFragmentsRefreshTriggerPayload :: SurfaceScope -> [SurfaceFragmentKey] -> Aeson.Value
 actorLiveFragmentsRefreshTriggerPayload scope fragmentKeys =

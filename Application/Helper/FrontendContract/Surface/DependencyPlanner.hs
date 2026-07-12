@@ -1,14 +1,12 @@
 module Application.Helper.FrontendContract.Surface.DependencyPlanner
-    ( planFrontendSurfaceInvalidation
-    , planFrontendSurfaceKeyInvalidation
-    , frontendSurfaceFragmentDependsOnTouchedResource
+    ( SurfaceInvalidationTarget (..)
+    , planFrontendSurfaceInvalidations
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.Reflect (reflectRegisteredFrontendSurfaces)
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue (..))
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceFragmentKey (..),
-                                                            FrontendSurfaceMountedFragment (..))
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceFragmentKey (..))
 import qualified Application.Helper.FrontendContract.Wire.LiveUpdate as Wire
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
@@ -16,39 +14,40 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Aeson.Key
 import qualified Data.Aeson.KeyMap as Aeson.KeyMap
 import qualified Data.List as List
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import IHP.Prelude
 
-planFrontendSurfaceInvalidation :: Set.Set SurfaceResourceValue -> SurfaceScope -> [FrontendSurfaceMountedFragment] -> [FrontendSurfaceMountedFragment]
-planFrontendSurfaceInvalidation touchedResources scope candidates =
-    filter (frontendSurfaceFragmentDependsOnTouchedResource touchedValues scope) candidates
-    where
-        touchedValues = touchedResources
+data SurfaceInvalidationTarget = SurfaceInvalidationTarget
+    { targetScope     :: !SurfaceScope
+    , targetFragments :: ![SurfaceFragmentKey]
+    }
+    deriving (Eq, Show)
 
-planFrontendSurfaceKeyInvalidation :: Set.Set SurfaceResourceValue -> SurfaceScope -> [SurfaceFragmentKey] -> [SurfaceFragmentKey]
-planFrontendSurfaceKeyInvalidation touchedResources scope fragmentKeys =
-    filter (frontendSurfaceFragmentKeyDependsOnTouchedResource touchedResources scope) fragmentKeys
-
-frontendSurfaceFragmentDependsOnTouchedResource :: Set.Set SurfaceResourceValue -> SurfaceScope -> FrontendSurfaceMountedFragment -> Bool
-frontendSurfaceFragmentDependsOnTouchedResource touchedValues scope mountedFragment =
-    case mountedFragmentDependencies scope mountedFragment of
-        [] -> False
-        dependencies -> not (Set.null (Set.intersection touchedValues (Set.fromList dependencies)))
+-- | The singular actor/passive dependency-planning seam. Callers provide the
+-- exact semantic keys currently mounted or subscribed; the reflected Surface
+-- dependency graph selects and coalesces concrete refresh targets.
+planFrontendSurfaceInvalidations :: Set.Set SurfaceResourceValue -> [SurfaceSubscription] -> [SurfaceInvalidationTarget]
+planFrontendSurfaceInvalidations touchedResources subscriptions =
+    [ SurfaceInvalidationTarget scope (coalesceSurfaceFragmentKeys fragments)
+    | (scope, fragments) <- Map.toAscList grouped
+    ]
+  where
+    grouped = Map.fromListWith (<>)
+        [ (subscription.subscriptionScope, affectedFragments)
+        | subscription <- subscriptions
+        , let affectedFragments =
+                filter
+                    (frontendSurfaceFragmentKeyDependsOnTouchedResource touchedResources subscription.subscriptionScope)
+                    subscription.subscriptionFragmentKeys
+        , not (null affectedFragments)
+        ]
 
 frontendSurfaceFragmentKeyDependsOnTouchedResource :: Set.Set SurfaceResourceValue -> SurfaceScope -> SurfaceFragmentKey -> Bool
 frontendSurfaceFragmentKeyDependsOnTouchedResource touchedValues scope fragmentKey =
     case fragmentKeyDependencies scope fragmentKey of
         [] -> False
         dependencies -> not (Set.null (Set.intersection touchedValues (Set.fromList dependencies)))
-
-mountedFragmentDependencies :: SurfaceScope -> FrontendSurfaceMountedFragment -> [SurfaceResourceValue]
-mountedFragmentDependencies scope mountedFragment = do
-    surface <- maybeToList (findSurface scopeSurface)
-    fragment <- maybeToList (findFragment mountedFragment.mountedFragmentKey.fragmentKind surface)
-    dependency <- SurfaceIR.optionResourceDependencies fragment.fragmentOptions
-    maybeToList (resourceValueFromDependency scopePayload mountedFragment.mountedFragmentKey.fragmentParams dependency)
-  where
-    Wire.SurfaceScope { surface = scopeSurface, scope = scopePayload } = surfaceScopeToWire scope
 
 fragmentKeyDependencies :: SurfaceScope -> SurfaceFragmentKey -> [SurfaceResourceValue]
 fragmentKeyDependencies scope fragmentKey = do

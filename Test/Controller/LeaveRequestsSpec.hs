@@ -126,13 +126,15 @@ tests = beforeAll testContext do
                 _ <- createVenueMembershipRecord venue manager "manager"
                 staff <- createStaffRecord venue Nothing "Touched" "Staff"
                 leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 8) (fromGregorian 2025 1 15) "pending"
-                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-
-                Set.fromList (leaveReviewTouchedResources venueConfig ApproveLeave (Just LeavePending) leaveRequest)
+                Set.fromList (leaveReviewTouchedResources (fromGregorian 2025 1 10) ApproveLeave (Just LeavePending) leaveRequest)
                     `shouldBe` Set.fromList
-                        [ leaveRequestsResource (unpackId venue.id)
-                        , pendingLeaveRequestsResource (unpackId venue.id)
+                        [ pendingLeaveRequestsResource (unpackId venue.id)
                         , approvedLeaveRequestsResource (unpackId venue.id)
+                        , staffLeaveRequestsResource leaveRequest.staffId
+                        ]
+                Set.fromList (leaveReviewTouchedResources (fromGregorian 2025 1 16) ApproveLeave (Just LeavePending) leaveRequest)
+                    `shouldBe` Set.fromList
+                        [ archivedLeaveRequestsResource (unpackId venue.id)
                         , staffLeaveRequestsResource leaveRequest.staffId
                         ]
 
@@ -434,6 +436,29 @@ tests = beforeAll testContext do
                 versionAfter <- currentLiveUpdateVersion (rosterWeekLiveScope (unpackId venue.id) (unpackId rosterGroup.id) 0)
                 versionAfter `shouldBe` versionBefore
 
+        it "plans manager leave-page actor keys from the same rendered-section resource as passive viewers" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Leave Manager Actor Venue"
+                manager <- createUserRecord "leave-manager-actor@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createStaffRecord venue (Just manager) "Mara" "Manager"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateLeaveRequestAction
+                            [ ("startDate", "2025-01-13")
+                            , ("endDate", "2025-01-14")
+                            , ("notes", "Manager actor dependency")
+                            ]
+
+                response `responseStatusShouldBe` status200
+                let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "leave-section-count")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "leave-section-list")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"leaveSection\":\"archive\"")
+                triggerHeader `shouldSatisfy` maybe True (not . Text.isInfixOf "\"leaveSection\":\"pending\"")
+
         it "creating leave via HTMX updates the actor fragment and bumps the leave scope version" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"
@@ -474,7 +499,7 @@ tests = beforeAll testContext do
                 versionAfter <- currentLiveUpdateVersion (leaveRequestsLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` versionBefore
 
-        it "creating leave from roster self-service actor-invalidates roster content without form OOB" $ withContext do
+        it "resets the roster self-service form OOB without inventing a roster dependency target" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Roster Leave Venue"
                 rosterGroup <- ensureVenueDefaultRosterGroup venue
@@ -498,14 +523,11 @@ tests = beforeAll testContext do
                 body <- responseBody response
                 let bodyText = cs (LByteString.unpack body)
                 bodyText `shouldContain` "Unavailable period submitted"
-                bodyText `shouldNotContain` "id=\"roster-staff-self-service-leave-form-fragment\" hx-swap-oob=\"outerHTML\""
+                bodyText `shouldContain` "id=\"roster-staff-self-service-leave-form-fragment\" hx-swap-oob=\"outerHTML\""
                 bodyText `shouldNotContain` "id=\"roster-content\""
                 bodyText `shouldNotContain` "id=\"profile-leave\""
                 bodyText `shouldNotContain` "id=\"leave-requests-content\""
-                let rosterLeaveTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
-                rosterLeaveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
-                rosterLeaveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "roster-content")
-                rosterLeaveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "weekOffset")
+                lookup "HX-Trigger" (responseHeaders response) `shouldBe` Nothing
 
         it "returns the profile leave fragment instead of redirecting when no staff record exists on profile leave submit" $ withContext do
             withCleanDb do

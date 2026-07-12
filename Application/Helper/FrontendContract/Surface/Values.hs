@@ -12,7 +12,8 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Application.Helper.FrontendContract.Surface.Values
-    ( SurfaceActionFieldSpecs
+    ( RequireSurfaceField
+    , SurfaceActionFieldSpecs
     , SurfaceActionPrimitive
     , SurfaceActivationRefPrimitive
     , SurfaceFields (..)
@@ -47,6 +48,7 @@ module Application.Helper.FrontendContract.Surface.Values
     , surfaceIntentNameValue
     , surfaceIntentValue
     , surfaceNameValue
+    , surfaceResourceFieldName
     , surfaceResourceValue
     , surfaceScopeFieldName
     , surfaceScopeValue
@@ -239,6 +241,14 @@ type family RequireSurfaceField (owner :: Type) (marker :: Type) (fields :: [Fie
             ':<>: 'Text " does not declare field marker "
             ':<>: 'ShowType marker
         )
+
+surfaceResourceFieldName ::
+    forall spec resource marker.
+    ( Typeable marker
+    , RequireSurfaceField resource marker (SurfaceResourceFieldSpecs spec resource)
+    ) =>
+    Text
+surfaceResourceFieldName = surfaceFieldName @marker
 
 surfaceScopeFieldName ::
     forall spec scope marker.

@@ -4,14 +4,16 @@ module Web.Controller.Admin.Xero.Responses
     , requireCurrentVenueOwnerForXero
     , respondWithXeroSectionActorInvalidationAndToast
     , respondWithXeroSectionFragment
+    , respondWithXeroToast
     , respondWithXeroTimesheetMutationAndCloseDialog
     , xeroErrorToast
     , xeroSuccessToast
     ) where
 
 import Application.Helper.LiveUpdate (adminXeroLiveScope,
-                                      setActorLiveFragmentsRefresh)
+                                      setActorLiveResourcesRefresh)
 import Application.Helper.Profiling
+import Application.Helper.SurfaceResource (SurfaceResourceValue)
 import Application.Helper.View (ToastOverlayConfig,
                                 ToastOverlayPosition (ToastBottomCenter),
                                 dialogOverlayMountId, errorToast,
@@ -20,6 +22,7 @@ import Application.Helper.XeroAdminTypes
 import Application.Xero.Admin.ReadModel hiding
                                         (fetchCurrentVenueXeroAdminSectionData)
 import qualified Application.Xero.Admin.ReadModel as XeroReadModel
+import qualified Data.Set as Set
 import qualified Web.Admin.FrontendSurface as AdminSurface
 import Web.Controller.Prelude
 import Web.View.Admin.Xero
@@ -41,10 +44,18 @@ fetchCurrentVenueXeroAdminSectionData =
 
 respondWithXeroSectionActorInvalidationAndToast ::
     (?context :: ControllerContext, ?request :: Request) =>
+    Set.Set SurfaceResourceValue ->
     Maybe ToastOverlayConfig ->
     IO ()
-respondWithXeroSectionActorInvalidationAndToast maybeToast = do
-    setActorLiveFragmentsRefresh (adminXeroLiveScope (unpackId currentVenueId)) (AdminSurface.adminXeroFragmentKeys [AdminSurface.adminXeroShellFragment])
+respondWithXeroSectionActorInvalidationAndToast touchedResources maybeToast = do
+    setActorLiveResourcesRefresh (adminXeroLiveScope (unpackId currentVenueId)) touchedResources [AdminSurface.adminXeroShellFragment]
+    respondWithXeroToast maybeToast
+
+respondWithXeroToast ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    Maybe ToastOverlayConfig ->
+    IO ()
+respondWithXeroToast maybeToast =
     respondHtmlProfiled $
         maybe mempty (renderToastOverlayHostOob ToastBottomCenter . pure) maybeToast
 

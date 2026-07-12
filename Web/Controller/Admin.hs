@@ -2,7 +2,7 @@ module Web.Controller.Admin where
 
 import Application.Helper.Export
 import Application.Helper.LiveUpdate (adminShiftTypesLiveScope,
-                                      setActorLiveFragmentsRefresh)
+                                      setActorLiveResourcesRefresh)
 import Application.Helper.PasskeySetupTokens
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
@@ -62,7 +62,6 @@ profileSurfaceResourcesFor resourceName = do
         "xero-timesheets" -> [xeroTimesheetsResource venueUuid]
         "timesheet-week" -> [timesheetWeekResource venueUuid weekOffset]
         "timesheet-day" -> [timesheetDayResource venueUuid weekOffset dayOffset]
-        "leave-requests" -> [leaveRequestsResource venueUuid]
         "roster-week" -> maybe [] (\value -> [rosterWeekResource value weekOffset]) rosterGroupId
         "staff-leave" -> maybe [] (\value -> [staffLeaveRequestsResource value]) staffId
         "staff-profile" -> maybe [] (\value -> [staffProfileResource value]) staffId
@@ -81,14 +80,14 @@ respondToVenueSettingsMutation =
         else redirectToAdminFor (paramOrNothing "rosterGroupId")
 
 respondToShiftTypesSectionMutationWithXeroRefresh ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Bool ->
+    (?context :: ControllerContext, ?request :: Request) =>
+    LiveMutationResult value ->
     IO ()
-respondToShiftTypesSectionMutationWithXeroRefresh _shouldRefreshXero =
+respondToShiftTypesSectionMutationWithXeroRefresh mutationResult =
     if isHtmxRequest
         then do
             setHeader ("HX-Reswap", "none")
-            setActorLiveFragmentsRefresh (adminShiftTypesLiveScope (unpackId currentVenueId)) (AdminSurface.adminShiftTypesFragmentKeys [AdminSurface.adminShiftTypesFragment])
+            setActorLiveResourcesRefresh (adminShiftTypesLiveScope (unpackId currentVenueId)) mutationResult.liveMutationTouchedResources [AdminSurface.adminShiftTypesFragment]
             respondHtml mempty
         else redirectToAdminFor (paramOrNothing "rosterGroupId")
 
@@ -363,9 +362,10 @@ instance Controller AdminController where
             Nothing -> respondToRosterGroupsSectionMutation Nothing
             Just name -> do
                 let isActive = parseIsActiveParam
-                LiveMutationResult { liveMutationValue = rosterGroup } <- createRosterGroupMutation venue name isActive
+                mutationResult <- createRosterGroupMutation venue name isActive
+                let rosterGroup = mutationResult.liveMutationValue
                 setSuccessMessage "Roster group added"
-                respondToRosterGroupsSectionMutation (Just rosterGroup.id)
+                respondToRosterGroupsResourceMutation mutationResult (Just rosterGroup.id)
 
     action currentAction@UpdateRosterGroupAction { rosterGroupId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
@@ -384,25 +384,26 @@ instance Controller AdminController where
                         setErrorMessage "Each venue needs at least one active roster group."
                         respondToRosterGroupsSectionMutation (Just rosterGroup.id)
                     else do
-                        LiveMutationResult { liveMutationValue = updatedRosterGroup } <- updateRosterGroupMutation venue rosterGroup name isActive
+                        mutationResult <- updateRosterGroupMutation venue rosterGroup name isActive
+                        let updatedRosterGroup = mutationResult.liveMutationValue
                         setSuccessMessage "Roster group updated"
-                        respondToRosterGroupsSectionMutation (Just updatedRosterGroup.id)
+                        respondToRosterGroupsResourceMutation mutationResult (Just updatedRosterGroup.id)
 
     action currentAction@MoveRosterGroupUpAction { rosterGroupId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         rosterGroup <- fetch rosterGroupId
         ensureRecordInCurrentVenue rosterGroup.venueId
-        _ <- moveRosterGroupMutation rosterGroup (-1)
+        mutationResult <- moveRosterGroupMutation rosterGroup (-1)
         setSuccessMessage "Roster group order updated"
-        respondToRosterGroupsSectionMutation (Just rosterGroup.id)
+        respondToRosterGroupsResourceMutation mutationResult (Just rosterGroup.id)
 
     action currentAction@MoveRosterGroupDownAction { rosterGroupId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         rosterGroup <- fetch rosterGroupId
         ensureRecordInCurrentVenue rosterGroup.venueId
-        _ <- moveRosterGroupMutation rosterGroup 1
+        mutationResult <- moveRosterGroupMutation rosterGroup 1
         setSuccessMessage "Roster group order updated"
-        respondToRosterGroupsSectionMutation (Just rosterGroup.id)
+        respondToRosterGroupsResourceMutation mutationResult (Just rosterGroup.id)
 
     action currentAction@CreateShiftTypeAction = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
@@ -415,9 +416,9 @@ instance Controller AdminController where
                 case maybePayRateSelection of
                     Just payRateSelection -> do
                         let maybeColourKey = parseSubmittedShiftTypeColourKey
-                        LiveMutationResult { liveMutationValue = AdminShiftTypeMutationResult { adminShiftTypeMutationShouldRefreshXero = shouldRefreshXero } } <- createShiftTypeMutation name isActive payRateSelection.submittedAwardLevelId payRateSelection.submittedImportedXeroPayItemId maybeColourKey
+                        mutationResult <- createShiftTypeMutation name isActive payRateSelection.submittedAwardLevelId payRateSelection.submittedImportedXeroPayItemId maybeColourKey
                         setSuccessMessage "Shift type added"
-                        respondToShiftTypesSectionMutationWithXeroRefresh shouldRefreshXero
+                        respondToShiftTypesSectionMutationWithXeroRefresh mutationResult
                     Nothing -> respondToShiftTypesSectionMutation
 
     action currentAction@UpdateShiftTypeAction { shiftTypeId } = runBepis currentAction BepisMutationAction do
@@ -433,24 +434,24 @@ instance Controller AdminController where
                 case maybePayRateSelection of
                     Just payRateSelection -> do
                         let maybeColourKey = parseSubmittedShiftTypeColourKey
-                        LiveMutationResult { liveMutationValue = AdminShiftTypeMutationResult { adminShiftTypeMutationShouldRefreshXero = shouldRefreshXero } } <- updateShiftTypeMutation shiftType name isActive payRateSelection.submittedAwardLevelId payRateSelection.submittedImportedXeroPayItemId maybeColourKey
+                        mutationResult <- updateShiftTypeMutation shiftType name isActive payRateSelection.submittedAwardLevelId payRateSelection.submittedImportedXeroPayItemId maybeColourKey
                         unless isHtmxRequest do
                             setSuccessMessage "Shift type updated"
-                        respondToShiftTypesSectionMutationWithXeroRefresh shouldRefreshXero
+                        respondToShiftTypesSectionMutationWithXeroRefresh mutationResult
                     Nothing -> respondToShiftTypesSectionMutation
 
     action currentAction@MoveShiftTypeUpAction { shiftTypeId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         shiftType <- fetch shiftTypeId
         ensureRecordInCurrentVenue shiftType.venueId
-        _ <- moveShiftTypeMutation shiftType (-1)
+        mutationResult <- moveShiftTypeMutation shiftType (-1)
         setSuccessMessage "Shift type order updated"
-        respondToShiftTypesSectionMutationWithXeroRefresh False
+        respondToShiftTypesSectionMutationWithXeroRefresh mutationResult
 
     action currentAction@MoveShiftTypeDownAction { shiftTypeId } = runBepis currentAction BepisMutationAction do
         ensureVenueWritable
         shiftType <- fetch shiftTypeId
         ensureRecordInCurrentVenue shiftType.venueId
-        _ <- moveShiftTypeMutation shiftType 1
+        mutationResult <- moveShiftTypeMutation shiftType 1
         setSuccessMessage "Shift type order updated"
-        respondToShiftTypesSectionMutationWithXeroRefresh False
+        respondToShiftTypesSectionMutationWithXeroRefresh mutationResult

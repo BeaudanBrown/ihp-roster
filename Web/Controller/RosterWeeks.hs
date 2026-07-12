@@ -13,13 +13,9 @@ import Application.Helper.FrontendContract.AppShell.Runtime (AppShellActionRoute
                                                              appShellActionByMarker,
                                                              appShellDialogAutoSubmitOnceAttr,
                                                              renderAppShellActionForm)
-import Application.Helper.FrontendContract.Surface.DependencyPlanner (planFrontendSurfaceInvalidation)
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment (..))
-import Application.Helper.LiveUpdate
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
-import Application.Helper.SurfaceResource (LiveMutationResult (..),
-                                           SurfaceResourceValue)
+import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.TimeRules (defaultShiftTimesForVenueConfig,
                                      isQuarterHourMinutes,
                                      minuteOfDayToTimeOfDay,
@@ -53,10 +49,6 @@ import Web.Controller.Sessions (passkeySetupPromptSessionKey)
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Filters
-import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
-                                        rosterMountedFragmentForProjection,
-                                        rosterSurfaceFragmentKeys,
-                                        rosterSurfaceScope)
 import Web.RosterWeeks.Mutations
 import Web.RosterWeeks.Overview
 import Web.RosterWeeks.Paths (rosterDayTimelineUrl, rosterWeekUrl)
@@ -66,6 +58,7 @@ import Web.RosterWeeks.Responses (respondWithRosterContent,
                                   respondWithRosterContentError,
                                   respondWithRosterContentUpdate,
                                   respondWithRosterFragmentsUpdate,
+                                  respondWithRosterResourceInvalidation,
                                   respondWithRosterToast)
 import Web.RosterWeeks.Rows
 import Web.RosterWeeks.Service
@@ -222,7 +215,8 @@ instance Controller RosterWeeksController where
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
-        LiveMutationResult { liveMutationValue = (rosterWeek, wasCreated) } <- ensureRosterWeekExistsMutation rosterGroup.id weekOffset
+        mutationResult <- ensureRosterWeekExistsMutation rosterGroup.id weekOffset
+        let (rosterWeek, wasCreated) = mutationResult.liveMutationValue
 
         let successMessage =
                 if wasCreated
@@ -232,7 +226,7 @@ instance Controller RosterWeeksController where
         if isHtmxRequest
             then do
                 setHtmxPushUrl targetPath
-                respondWithRosterContentUpdate rosterGroup.id rosterWeek.weekOffset successMessage
+                respondWithRosterContentUpdate rosterGroup.id rosterWeek.weekOffset mutationResult.liveMutationTouchedResources successMessage
             else do
                 setSuccessMessage successMessage
                 redirectToPath targetPath
@@ -264,13 +258,13 @@ instance Controller RosterWeeksController where
                                 setErrorMessage errorMessage
                                 redirectToPath (rosterWeekUrl targetWeekOffset rosterGroup.id)
                     Just sourceWeek -> do
-                        _ <- copyRosterWeekFromSourceMutation rosterGroup.id sourceWeek targetWeekOffset
+                        mutationResult <- copyRosterWeekFromSourceMutation rosterGroup.id sourceWeek targetWeekOffset
                         let successMessage = "Roster week copied from the previous week."
                         let targetPath = rosterWeekUrl targetWeekOffset rosterGroup.id
                         if isHtmxRequest
                             then do
                                 setHtmxPushUrl targetPath
-                                respondWithRosterContentUpdate rosterGroup.id targetWeekOffset successMessage
+                                respondWithRosterContentUpdate rosterGroup.id targetWeekOffset mutationResult.liveMutationTouchedResources successMessage
                             else do
                                 setSuccessMessage successMessage
                                 redirectToPath targetPath
@@ -291,7 +285,8 @@ instance Controller RosterWeeksController where
                         setErrorMessage errorMessage
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
             Nothing -> do
-                LiveMutationResult { liveMutationValue = (updatedRosterWeek, queuedTimesheetJobCount) } <- toggleRosterWeekLiveStatusMutation rosterGroupId rosterWeek nextLiveStatus
+                mutationResult <- toggleRosterWeekLiveStatusMutation rosterGroupId rosterWeek nextLiveStatus
+                let (_, queuedTimesheetJobCount) = mutationResult.liveMutationValue
                 let successMessage =
                         if nextLiveStatus
                             then
@@ -303,7 +298,7 @@ instance Controller RosterWeeksController where
                 if isHtmxRequest
                     then do
                         setHtmxPushUrl targetPath
-                        respondWithRosterContentUpdate rosterGroupId rosterWeek.weekOffset successMessage
+                        respondWithRosterContentUpdate rosterGroupId rosterWeek.weekOffset mutationResult.liveMutationTouchedResources successMessage
                     else do
                         setSuccessMessage successMessage
                         redirectToPath targetPath
@@ -324,8 +319,8 @@ instance Controller RosterWeeksController where
                 case duplicate of
                     Just _ -> respondToRosterSlotDefinitionError rosterWeek "A column with that name already exists for this week."
                     Nothing -> do
-                        _ <- appendRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotName
-                        respondToRosterSlotDefinitionSuccess rosterWeek "Roster column added."
+                        mutationResult <- appendRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotName
+                        respondToRosterSlotDefinitionSuccess rosterWeek mutationResult "Roster column added."
 
     action currentAction@DeleteRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -343,8 +338,8 @@ instance Controller RosterWeeksController where
             then respondToRosterSlotDefinitionError rosterWeek "Roster weeks need at least one column."
             else do
                 let rosterGroupId = coerce rosterWeek.rosterGroupId
-                _ <- removeRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotDefinition
-                respondToRosterSlotDefinitionSuccess rosterWeek "Roster column removed."
+                mutationResult <- removeRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotDefinition
+                respondToRosterSlotDefinitionSuccess rosterWeek mutationResult "Roster column removed."
 
     action currentAction@SortRosterWeekAction { rosterWeekId } = runBepis currentAction BepisMutationAction do
         ensureManagerRole
@@ -354,14 +349,16 @@ instance Controller RosterWeeksController where
         ensureRosterWeekIsDraftForEdit rosterWeek
 
         let rosterGroupId = coerce rosterWeek.rosterGroupId
-        _ <- repackRosterWeekMutation rosterWeek
+        mutationResult <- repackRosterWeekMutation rosterWeek
 
         if isHtmxRequest
             then
-                respondWithRosterActorRefresh
+                respondWithRosterResourceInvalidation
                     rosterGroupId
                     rosterWeek.weekOffset
+                    mutationResult.liveMutationTouchedResources
                     rosterGridInnerAndStaffPanelFragments
+                    clearDialogOverlayOob
             else do
                 setSuccessMessage "Roster sorted."
                 redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
@@ -379,7 +376,7 @@ instance Controller RosterWeeksController where
         let rosterGroupId = coerce rosterWeek.rosterGroupId
         let nextClosedState = not rosterDay.isClosed
 
-        _ <- toggleRosterDayClosedMutation rosterGroupId rosterWeek rosterDay nextClosedState closedRosterDayRows
+        mutationResult <- toggleRosterDayClosedMutation rosterGroupId rosterWeek rosterDay nextClosedState closedRosterDayRows
 
         let successMessage =
                 if nextClosedState
@@ -389,10 +386,12 @@ instance Controller RosterWeeksController where
         if isHtmxRequest
             then do
                 setHtmxPushUrl targetPath
-                respondWithRosterActorRefresh
+                respondWithRosterResourceInvalidation
                     rosterGroupId
                     rosterWeek.weekOffset
+                    mutationResult.liveMutationTouchedResources
                     rosterGridInnerAndStaffPanelFragments
+                    clearDialogOverlayOob
             else do
                 setSuccessMessage successMessage
                 redirectToPath targetPath
@@ -428,14 +427,16 @@ instance Controller RosterWeeksController where
                         setErrorMessage errorMessage
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
             else do
-                _ <- addRosterDayRowMutation rosterGroupId rosterWeek rosterDay
+                mutationResult <- addRosterDayRowMutation rosterGroupId rosterWeek rosterDay
 
                 if isHtmxRequest
                     then
-                        respondWithRosterActorRefresh
+                        respondWithRosterResourceInvalidation
                             rosterGroupId
                             rosterWeek.weekOffset
+                            mutationResult.liveMutationTouchedResources
                             rosterGridInnerAndStaffPanelFragments
+                            clearDialogOverlayOob
                     else do
                         setSuccessMessage "Roster row added."
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
@@ -477,14 +478,16 @@ instance Controller RosterWeeksController where
         if preview.removeRosterRowOverflowCount > 0 && not confirmDeletePopulatedRow
             then respondWithRemoveRosterRowConfirmation rosterDay preview
             else do
-                _ <- removeRosterDayRowMutation rosterGroupId rosterWeek rosterDay activeDefinitions
+                mutationResult <- removeRosterDayRowMutation rosterGroupId rosterWeek rosterDay activeDefinitions
 
                 if isHtmxRequest
                     then
-                        respondWithRosterActorRefresh
+                        respondWithRosterResourceInvalidation
                             rosterGroupId
                             rosterWeek.weekOffset
+                            mutationResult.liveMutationTouchedResources
                             rosterGridInnerAndStaffPanelFragments
+                            clearDialogOverlayOob
                     else do
                         setSuccessMessage "Roster row removed."
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
@@ -1032,7 +1035,9 @@ rosterSlotCellExists rosterDayId targetSlotDefinitionId targetRowIndex =
 respondWithMoveRosterShiftFailure :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO ()
 respondWithMoveRosterShiftFailure rosterGroupId weekOffset message =
     if isHtmxRequest
-        then respondWithRosterActorRefreshWithToast rosterGroupId weekOffset [] (Just message)
+        then do
+            setHeader ("HX-Reswap", "none")
+            respondHtmlProfiled (clearDialogOverlayOob <> renderToastOob ToastBottomCenter (errorToast message))
         else do
             setErrorMessage message
             redirectToPath (rosterWeekUrl weekOffset rosterGroupId)
@@ -1040,7 +1045,9 @@ respondWithMoveRosterShiftFailure rosterGroupId weekOffset message =
 respondWithSilentRosterNoOp :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO ()
 respondWithSilentRosterNoOp rosterGroupId weekOffset =
     if isHtmxRequest
-        then respondWithRosterActorRefresh rosterGroupId weekOffset []
+        then do
+            setHeader ("HX-Reswap", "none")
+            respondHtmlProfiled mempty
         else redirectToPath (rosterWeekUrl weekOffset rosterGroupId)
 
 fetchRosterSlotCreateContext :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterDay -> Id RosterWeekSlotDefinition -> Int -> IO (RosterDay, RosterWeek, RosterWeekSlotDefinition)
@@ -1253,19 +1260,19 @@ applyValidatedRosterShift valid slot =
 respondToRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> Int -> LiveMutationResult RosterSlotMutationResult -> Text -> IO ()
 respondToRosterSlotMutation rosterGroupId rosterWeek rosterDay rowIndex mutationResult successMessage = do
     layoutMode <- fetchCurrentRosterLayoutMode
-    let actorFragmentCandidates =
+    let mountedProjections =
             rosterGridInnerAndStaffPanelFragments
                 <> case rosterLayoutModeValue layoutMode of
                     "day_columns" -> []
                     _ -> actorRosterRowFragments [(unpackId rosterDay.id, rowIndex)]
-    let actorFragments =
-            rosterActorFragmentsForTouchedResources
+    if isHtmxRequest
+        then
+            respondWithRosterResourceInvalidation
                 rosterGroupId
                 rosterWeek.weekOffset
                 mutationResult.liveMutationTouchedResources
-                actorFragmentCandidates
-    if isHtmxRequest
-        then respondWithRosterActorRefreshWithSuccess rosterGroupId rosterWeek.weekOffset actorFragments successMessage
+                mountedProjections
+                (clearDialogOverlayOob <> renderToastOob ToastBottomCenter (successToast successMessage))
         else do
             setSuccessMessage successMessage
             redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
@@ -1273,72 +1280,50 @@ respondToRosterSlotMutation rosterGroupId rosterWeek rosterDay rowIndex mutation
 respondToRosterSlotMove :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> LiveMutationResult RosterSlotMutationResult -> [(UUID.UUID, Int)] -> Bool -> IO ()
 respondToRosterSlotMove rosterGroupId rosterWeek mutationResult impactedRowKeys shouldWarnSourceTimesheetUnchanged = do
     layoutMode <- fetchCurrentRosterLayoutMode
-    let actorFragmentCandidates =
+    let mountedProjections =
             rosterGridInnerAndStaffPanelFragments
                 <> case rosterLayoutModeValue layoutMode of
                     "day_columns" -> []
                     _             -> actorRosterRowFragments impactedRowKeys
-    let actorFragments =
-            rosterActorFragmentsForTouchedResources
-                rosterGroupId
-                rosterWeek.weekOffset
-                mutationResult.liveMutationTouchedResources
-                actorFragmentCandidates
-    let warningHtml =
-            if shouldWarnSourceTimesheetUnchanged
-                then renderToastOob ToastBottomCenter (errorToast "A pending timesheet already exists for this roster slot, so the timesheet was not changed. Edit the timesheet entry directly.")
-                else mempty
-    respondWithRosterActorFragments
+    respondWithRosterResourceInvalidation
         rosterGroupId
         rosterWeek.weekOffset
-        actorFragments
-        (clearDialogOverlayOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> warningHtml)
+        mutationResult.liveMutationTouchedResources
+        mountedProjections
+        (clearDialogOverlayOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> sourceTimesheetWarningToast shouldWarnSourceTimesheetUnchanged)
 
 respondToRosterTimelineSlotMove :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> LiveMutationResult RosterSlotMutationResult -> Bool -> IO ()
-respondToRosterTimelineSlotMove rosterGroupId rosterWeek mutationResult shouldWarnSourceTimesheetUnchanged = do
-    let actorFragmentCandidates =
-            [ RosterProjectionGridToolbar
-            , RosterProjectionGridFrame
-            , RosterProjectionStaffPanel
-            ]
-    let actorFragments =
-            rosterActorFragmentsForTouchedResources
-                rosterGroupId
-                rosterWeek.weekOffset
-                mutationResult.liveMutationTouchedResources
-                actorFragmentCandidates
-    let warningHtml =
-            if shouldWarnSourceTimesheetUnchanged
-                then renderToastOob ToastBottomCenter (errorToast "A pending timesheet already exists for this roster slot, so the timesheet was not changed. Edit the timesheet entry directly.")
-                else mempty
-    respondWithRosterActorFragments
+respondToRosterTimelineSlotMove rosterGroupId rosterWeek mutationResult shouldWarnSourceTimesheetUnchanged =
+    respondWithRosterResourceInvalidation
         rosterGroupId
         rosterWeek.weekOffset
-        actorFragments
-        (clearDialogOverlayOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> warningHtml)
+        mutationResult.liveMutationTouchedResources
+        [ RosterProjectionGridToolbar
+        , RosterProjectionGridFrame
+        , RosterProjectionStaffPanel
+        ]
+        (clearDialogOverlayOob <> renderToastOob ToastBottomCenter (successToast "Roster shift moved.") <> sourceTimesheetWarningToast shouldWarnSourceTimesheetUnchanged)
 
 respondToRosterSlotUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> LiveMutationResult RosterSlotMutationResult -> [(UUID.UUID, Int)] -> Bool -> IO ()
 respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult impactedRowKeys shouldWarnSourceTimesheetUnchanged = do
     layoutMode <- fetchCurrentRosterLayoutMode
-    let actorFragmentCandidates =
+    let mountedProjections =
             rosterGridInnerAndStaffPanelFragments
                 <> case rosterLayoutModeValue layoutMode of
                     "day_columns" -> []
                     _             -> actorRosterRowFragments impactedRowKeys
-    let actorFragments =
-            rosterActorFragmentsForTouchedResources
-                rosterGroupId
-                rosterWeek.weekOffset
-                mutationResult.liveMutationTouchedResources
-                actorFragmentCandidates
-    respondWithRosterActorRefreshWithToast
+    respondWithRosterResourceInvalidation
         rosterGroupId
         rosterWeek.weekOffset
-        actorFragments
-        ( if shouldWarnSourceTimesheetUnchanged
-            then Just "A pending timesheet already exists for this roster slot, so the timesheet was not changed. Edit the timesheet entry directly."
-            else Nothing
-        )
+        mutationResult.liveMutationTouchedResources
+        mountedProjections
+        (clearDialogOverlayOob <> sourceTimesheetWarningToast shouldWarnSourceTimesheetUnchanged)
+
+sourceTimesheetWarningToast :: (?context :: ControllerContext, ?request :: Request) => Bool -> Blaze.Html
+sourceTimesheetWarningToast shouldWarn =
+    if shouldWarn
+        then renderToastOob ToastBottomCenter (errorToast "A pending timesheet already exists for this roster slot, so the timesheet was not changed. Edit the timesheet entry directly.")
+        else mempty
 
 resolveRequestedRosterGroup :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO RosterGroup
 resolveRequestedRosterGroup =
@@ -1438,60 +1423,8 @@ respondWithRemoveRosterRowConfirmation rosterDay preview =
                 , dialogOverlayDialogClass = ""
                 }
 
-rosterActorFragmentsForTouchedResources :: (?context :: ControllerContext, ?request :: Request) => Id RosterGroup -> Int -> Set.Set SurfaceResourceValue -> [RosterProjectionFragment] -> [RosterProjectionFragment]
-rosterActorFragmentsForTouchedResources rosterGroupId weekOffset touchedResources candidates =
-    map fst affectedPairs
-    where
-        scope = RosterWeekScopeValue
-            { rosterWeekVenueId = unpackId currentVenueId
-            , rosterWeekGroupId = rosterGroupId
-            , rosterWeekWeekOffset = weekOffset
-            , rosterWeekTimelineDayOffset = currentRosterTimelineDayOffset
-            }
-        candidatePairs = [(fragment, rosterMountedFragmentForProjection scope fragment) | fragment <- candidates]
-        affectedMounted = planFrontendSurfaceInvalidation touchedResources (rosterSurfaceScope scope) (map snd candidatePairs)
-        affectedTargets :: Set.Set Text
-        affectedTargets = Set.fromList (map (\(fragment :: FrontendSurfaceMountedFragment) -> fragment.mountedFragmentTargetId) affectedMounted)
-        affectedPairs = filter (\(_, mountedFragment) -> Set.member mountedFragment.mountedFragmentTargetId affectedTargets) candidatePairs
-
-respondWithRosterActorRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> IO ()
-respondWithRosterActorRefresh rosterGroupId weekOffset fragments =
-    respondWithRosterActorRefreshWithToast rosterGroupId weekOffset fragments Nothing
-
-respondWithRosterActorRefreshWithToast :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> Maybe Text -> IO ()
-respondWithRosterActorRefreshWithToast rosterGroupId weekOffset fragments maybeWarningMessage =
-    respondWithRosterActorFragments
-        rosterGroupId
-        weekOffset
-        fragments
-        (clearDialogOverlayOob <> maybe mempty (renderToastOob ToastBottomCenter . errorToast) maybeWarningMessage)
-
-respondWithRosterActorRefreshWithSuccess :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> Text -> IO ()
-respondWithRosterActorRefreshWithSuccess rosterGroupId weekOffset fragments successMessage =
-    respondWithRosterActorFragments
-        rosterGroupId
-        weekOffset
-        fragments
-        (clearDialogOverlayOob <> renderToastOob ToastBottomCenter (successToast successMessage))
-
-respondWithRosterActorFragments :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
-respondWithRosterActorFragments rosterGroupId weekOffset fragments extraHtml = do
-    let scope = RosterWeekScopeValue
-            { rosterWeekVenueId = unpackId currentVenueId
-            , rosterWeekGroupId = rosterGroupId
-            , rosterWeekWeekOffset = weekOffset
-            , rosterWeekTimelineDayOffset = currentRosterTimelineDayOffset
-            }
-    setHeader ("HX-Reswap", "none")
-    setActorLiveFragmentsRefresh (rosterSurfaceScope scope) (rosterSurfaceFragmentKeys (map (rosterMountedFragmentForProjection scope) (nub fragments)))
-    respondHtmlProfiled extraHtml
-
 clearDialogOverlayOob :: Blaze.Html
 clearDialogOverlayOob = [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
-
-respondWithActorRosterFragmentRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> IO ()
-respondWithActorRosterFragmentRefresh rosterGroupId weekOffset fragments =
-    respondWithRosterActorFragments rosterGroupId weekOffset fragments mempty
 
 currentRosterGridViewMode :: (?request :: Request) => RosterGridViewMode
 currentRosterGridViewMode =
@@ -1616,14 +1549,16 @@ respondToRosterSlotDefinitionError rosterWeek errorMessage =
             setErrorMessage errorMessage
             redirectToPath (rosterWeekUrl rosterWeek.weekOffset (coerce rosterWeek.rosterGroupId :: Id RosterGroup))
 
-respondToRosterSlotDefinitionSuccess :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWeek -> Text -> IO ()
-respondToRosterSlotDefinitionSuccess rosterWeek successMessage =
+respondToRosterSlotDefinitionSuccess :: (?context :: ControllerContext, ?request :: Request) => RosterWeek -> LiveMutationResult value -> Text -> IO ()
+respondToRosterSlotDefinitionSuccess rosterWeek mutationResult successMessage =
     if isHtmxRequest
         then
-            respondWithActorRosterFragmentRefresh
+            respondWithRosterResourceInvalidation
                 rosterGroupId
                 rosterWeek.weekOffset
+                mutationResult.liveMutationTouchedResources
                 rosterGridFrameAndStaffPanelFragments
+                mempty
         else do
             setSuccessMessage successMessage
             redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)

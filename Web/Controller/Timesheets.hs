@@ -115,7 +115,7 @@ instance Controller TimesheetsController where
                     mutationResult <- createTimesheetEntryMutation weekOffset timesheetEntry
                     let createdEntry = mutationResult.liveMutationValue
                     if isHtmxRequest
-                        then respondWithTimesheetDaySectionUpdate weekOffset createdEntry.workedOn showApproved showAllStaff selectedStaffFilterId "Timesheet entry created" True
+                        then respondWithTimesheetMutationUpdate weekOffset showApproved showAllStaff selectedStaffFilterId mutationResult.liveMutationTouchedResources "Timesheet entry created" True
                         else do
                             setSuccessMessage "Timesheet entry created"
                             redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
@@ -170,15 +170,13 @@ instance Controller TimesheetsController where
                     let coreChanged = timesheetCoreChanged existingEntry timesheetEntry
                     when (wasApproved && coreChanged) do
                         ensureTimesheetEntryNotPayrollLocked existingEntry weekOffset showApproved showAllStaff selectedStaffFilterId
-                    let oldWorkedOn = existingEntry.workedOn
                     let successMessage =
                             if wasApproved && coreChanged
                                 then "Timesheet entry updated (approval reset)"
                                 else "Timesheet entry updated"
                     mutationResult <- updateTimesheetEntryMutation weekOffset existingEntry timesheetEntry (wasApproved && coreChanged)
-                    let updatedEntry = mutationResult.liveMutationValue
                     if isHtmxRequest
-                        then respondWithTimesheetDateMoveUpdate weekOffset oldWorkedOn updatedEntry.workedOn showApproved showAllStaff selectedStaffFilterId successMessage
+                        then respondWithTimesheetMutationUpdate weekOffset showApproved showAllStaff selectedStaffFilterId mutationResult.liveMutationTouchedResources successMessage True
                         else do
                             setSuccessMessage successMessage
                             redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
@@ -193,9 +191,9 @@ instance Controller TimesheetsController where
         weekOffset <- weekOffsetFromParamOrEntry timesheetEntry.workedOn
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset showApproved showAllStaff selectedStaffFilterId
-        _ <- deleteTimesheetEntryMutation weekOffset timesheetEntry
+        mutationResult <- deleteTimesheetEntryMutation weekOffset timesheetEntry
         if isHtmxRequest
-            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff selectedStaffFilterId "Timesheet entry removed" True
+            then respondWithTimesheetMutationUpdate weekOffset showApproved showAllStaff selectedStaffFilterId mutationResult.liveMutationTouchedResources "Timesheet entry removed" True
             else setSuccessMessage "Timesheet entry removed"
         unless isHtmxRequest do
             redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
@@ -209,9 +207,9 @@ instance Controller TimesheetsController where
         weekOffset <- weekOffsetFromParamOrEntry timesheetEntry.workedOn
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
 
-        _ <- approveTimesheetEntryMutation weekOffset timesheetEntry
+        mutationResult <- approveTimesheetEntryMutation weekOffset timesheetEntry
         if isHtmxRequest
-            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff selectedStaffFilterId "Timesheet entry approved" False
+            then respondWithTimesheetMutationUpdate weekOffset showApproved showAllStaff selectedStaffFilterId mutationResult.liveMutationTouchedResources "Timesheet entry approved" False
             else do
                 setSuccessMessage "Timesheet entry approved"
                 redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
@@ -226,9 +224,9 @@ instance Controller TimesheetsController where
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset showApproved showAllStaff selectedStaffFilterId
 
-        _ <- unapproveTimesheetEntryMutation weekOffset timesheetEntry
+        mutationResult <- unapproveTimesheetEntryMutation weekOffset timesheetEntry
         if isHtmxRequest
-            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff selectedStaffFilterId "Timesheet entry unapproved" False
+            then respondWithTimesheetMutationUpdate weekOffset showApproved showAllStaff selectedStaffFilterId mutationResult.liveMutationTouchedResources "Timesheet entry unapproved" False
             else do
                 setSuccessMessage "Timesheet entry unapproved"
                 redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)

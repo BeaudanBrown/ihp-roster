@@ -2,7 +2,7 @@ module Web.Controller.Staff where
 
 import Application.Helper.Controller (VenueRole (..), parseVenueRole,
                                       venueRoleToEnum)
-import Application.Helper.LiveUpdate (setActorLiveFragmentsRefresh)
+import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh)
 import Application.Helper.Pay (rateEffectiveOn)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchStaffLeaveRequests)
@@ -26,8 +26,7 @@ import Web.Controller.Admin.Support (SubmittedPayRateSelection (..),
                                      parseSubmittedPayRateSelection)
 import Web.Controller.Prelude
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
-                                     staffSectionFragmentForSection,
-                                     staffSurfaceFragmentKeys,
+                                     staffCandidateMountedFragments,
                                      staffSurfaceScope)
 import Web.RosterWeeks.Responses (respondWithRosterContentOob)
 import Web.Staff.Mutations
@@ -177,9 +176,9 @@ instance Controller StaffController where
                         let selectedRosterGroupIds = renderedRosterGroupIds
                         let selectedShiftPreferences = renderedPreferences
                         render EditView { staff = renderedStaff, .. }
-        let respondStaffUpdateSuccess updatedStaff successMessage =
+        let respondStaffUpdateSuccess mutationResult successMessage =
                 if isHtmxRequest
-                    then respondWithStaffActorInvalidation updatedStaff openSection successMessage
+                    then respondWithStaffActorInvalidation mutationResult successMessage
                     else do
                         setSuccessMessage successMessage
                         redirectToPath $
@@ -194,7 +193,7 @@ instance Controller StaffController where
                     renderStaffEditResponse staff currentSelectedRosterGroupIds selectedShiftPreferences
                 Right submittedSelections -> do
                     mutationResult <- updateStaffMember originalStaff staff currentSelectedRosterGroupIds submittedSelections Nothing Nothing
-                    respondStaffUpdateSuccess mutationResult.liveMutationValue "Shift preferences updated"
+                    respondStaffUpdateSuccess mutationResult "Shift preferences updated"
             else do
                 maybeSelectedRosterGroupIds <- parseStaffRosterGroupIds
                 maybeSubmittedVenueRole <- if canManageStaffPay then parseSubmittedStaffVenueRole staff maybeVenueMembership else pure (Just Nothing)
@@ -209,7 +208,7 @@ instance Controller StaffController where
                             case (maybeSelectedRosterGroupIds, maybeSubmittedVenueRole, maybeSubmittedDefaultAwardLevelId, maybeSubmittedImportedXeroPayItemId) of
                                 (Just selectedRosterGroupIds, Just submittedVenueRole, Just _, Just _) -> do
                                     mutationResult <- updateStaffMember originalStaff validStaff selectedRosterGroupIds selectedShiftPreferences maybeVenueMembership submittedVenueRole
-                                    respondStaffUpdateSuccess mutationResult.liveMutationValue "Staff member updated"
+                                    respondStaffUpdateSuccess mutationResult "Staff member updated"
                                 _ -> renderStaffEditResponse validStaff submittedRosterGroupIds selectedShiftPreferences
 
     action currentAction@NewTrialStaffInvitationAction { staffId } = runBepis currentAction BepisDialogAction do
@@ -268,11 +267,12 @@ buildNewTrialStaff =
             |> set #employmentBasis Casual
             |> set #isActive True
 
-respondWithStaffActorInvalidation :: (?context :: ControllerContext, ?request :: Request) => Staff -> Text -> Text -> IO ()
-respondWithStaffActorInvalidation staff openSection successMessage = do
+respondWithStaffActorInvalidation :: (?context :: ControllerContext, ?request :: Request) => LiveMutationResult Staff -> Text -> IO ()
+respondWithStaffActorInvalidation mutationResult successMessage = do
+    let staff = mutationResult.liveMutationValue
     let scope = ProfileScopeValue (unpackId currentVenueId) (unpackId staff.id)
     setHeader ("HX-Reswap", "none")
-    setActorLiveFragmentsRefresh (staffSurfaceScope scope) (staffSurfaceFragmentKeys [staffSectionFragmentForSection scope openSection])
+    setActorLiveResourcesRefresh (staffSurfaceScope scope) mutationResult.liveMutationTouchedResources (staffCandidateMountedFragments scope)
     respondHtml (renderToastOob ToastBottomCenter (successToast successMessage))
 
 renderNewStaffResponse :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Staff -> [Id RosterGroup] -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Int -> Maybe (Id RosterGroup) -> IO ()

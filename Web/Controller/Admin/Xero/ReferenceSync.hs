@@ -2,9 +2,11 @@ module Web.Controller.Admin.Xero.ReferenceSync
     ( syncXeroPayrollReferenceDataAction
     ) where
 
-import Application.Helper.SurfaceResource (LiveMutationResult (..))
+import Application.Helper.SurfaceResource (LiveMutationResult (..),
+                                           SurfaceResourceValue)
 import Application.Xero.Admin.ReadModel (fetchCurrentVenueXeroConnection)
 import Application.Xero.Admin.ReferenceData (XeroReferenceDataSyncResult (..))
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Web.Admin.Xero.Mutations (syncXeroReferenceDataMutation)
 import Web.Controller.Admin.Xero.Connection (redirectToXeroAuthorizationForReferenceSync)
@@ -26,7 +28,7 @@ syncXeroPayrollReferenceDataAction = do
                         redirectToXeroAuthorizationForReferenceSync
                     | otherwise -> respondReferenceSyncFailure message
                 Right result ->
-                    respondReferenceSyncSuccess $
+                    respondReferenceSyncSuccess syncResult.liveMutationTouchedResources $
                         "Synced Xero payroll reference data: "
                             <> tshow result.referenceDataSyncEmployeeCount
                             <> " employees, "
@@ -47,11 +49,12 @@ shouldStartReconnectAfterSyncFailure message =
 
 respondReferenceSyncSuccess ::
     (?context :: ControllerContext, ?request :: Request) =>
+    Set.Set SurfaceResourceValue ->
     Text ->
     IO ()
-respondReferenceSyncSuccess message =
+respondReferenceSyncSuccess touchedResources message =
     if isHtmxRequest
-        then respondWithXeroSectionActorInvalidationAndToast (Just (xeroSuccessToast message))
+        then respondWithXeroSectionActorInvalidationAndToast touchedResources (Just (xeroSuccessToast message))
         else do
             setSuccessMessage message
             redirectTo XeroAction
@@ -62,7 +65,7 @@ respondReferenceSyncFailure ::
     IO ()
 respondReferenceSyncFailure message =
     if isHtmxRequest
-        then respondWithXeroSectionActorInvalidationAndToast (Just (xeroErrorToast message))
+        then respondWithXeroToast (Just (xeroErrorToast message))
         else do
             setErrorMessage message
             redirectTo XeroAction

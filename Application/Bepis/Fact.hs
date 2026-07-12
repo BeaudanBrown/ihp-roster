@@ -114,8 +114,8 @@ data BepisLiveFact = BepisLiveFact
     { liveFactLabel                 :: !Text
     , liveFactTouchedResourceCount  :: !Int
     , liveFactExpandedResourceCount :: !Int
-    , liveFactPlannedScopeCount     :: !Int
-    , liveFactPlannedFragmentCount  :: !Int
+    , liveFactTargetCount           :: !Int
+    , liveFactTargetFragmentCount   :: !Int
     , liveFactMechanism             :: !BepisLiveMechanism
     }
     deriving (Eq, Show, Generic)
@@ -247,8 +247,8 @@ bepisFactAttributes fact =
                 [ ("bepis.live.label", toAttribute liveFact.liveFactLabel)
                 , ("bepis.live.touched_resource_count", toAttribute (tshow liveFact.liveFactTouchedResourceCount))
                 , ("bepis.live.expanded_resource_count", toAttribute (tshow liveFact.liveFactExpandedResourceCount))
-                , ("bepis.live.planned_scope_count", toAttribute (tshow liveFact.liveFactPlannedScopeCount))
-                , ("bepis.live.planned_fragment_count", toAttribute (tshow liveFact.liveFactPlannedFragmentCount))
+                , ("bepis.live.target_count", toAttribute (tshow liveFact.liveFactTargetCount))
+                , ("bepis.live.target_fragment_count", toAttribute (tshow liveFact.liveFactTargetFragmentCount))
                 , ("bepis.live.mechanism", toAttribute (bepisLiveMechanismText liveFact.liveFactMechanism))
                 ]
             BepisResponseFactValue responseFact ->

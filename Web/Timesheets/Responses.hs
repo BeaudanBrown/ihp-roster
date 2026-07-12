@@ -1,6 +1,6 @@
 module Web.Timesheets.Responses
     ( renderTimesheetWeekPage
-    , respondWithTimesheetDateMoveUpdate
+    , respondWithTimesheetMutationUpdate
     , respondWithTimesheetFragment
     , respondWithTimesheetFragments
     , respondWithTimesheetDaySectionUpdate
@@ -10,14 +10,17 @@ module Web.Timesheets.Responses
 
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment (..))
-import Application.Helper.LiveUpdate (setActorLiveFragmentsRefresh)
+import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh,
+                                      setActorLocalFragmentsRefresh)
 import Application.Helper.Profiling
+import Application.Helper.SurfaceResource (SurfaceResourceValue)
 import Application.Helper.View (ToastOverlayPosition (..), dialogOverlayMountId,
                                 renderToastOob, successToast)
 import Application.Helper.View.Oob (outerHtmlOobSwap)
 import Data.List (nub)
+import qualified Data.Set as Set
 import qualified Data.Text.IO as TextIO
-import Data.Time.Calendar (Day, addDays)
+import Data.Time.Calendar (Day)
 import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
@@ -44,12 +47,19 @@ respondWithTimesheetFragments requestKey fragments extraHtml = do
     respondHtmlProfiled $
         mconcat (mapMaybe (renderTimesheetProjectionFragmentFromProjection (FragmentOob outerHtmlOobSwap) projection) (normalizeTimesheetFragments fragments)) <> extraHtml
 
-respondWithTimesheetActorInvalidation :: (?context :: ControllerContext, ?request :: Request) => TimesheetProjectionRequest -> [TimesheetProjectionFragment] -> Blaze.Html -> IO ()
-respondWithTimesheetActorInvalidation requestKey fragments extraHtml = do
+respondWithTimesheetActorFragments :: (?context :: ControllerContext, ?request :: Request) => TimesheetProjectionRequest -> [TimesheetProjectionFragment] -> Blaze.Html -> IO ()
+respondWithTimesheetActorFragments requestKey fragments extraHtml = do
     let scope = TimesheetWeekScopeValue (unpackId currentVenueId) requestKey.projectionWeekOffset
     let mountState = TimesheetsMountStateValue requestKey.projectionShowApproved requestKey.projectionShowAllStaff requestKey.projectionStaffFilterId
     let selectedMountedFragments = selectTimesheetMountedFragments requestKey (normalizeTimesheetFragments fragments) (timesheetsCandidateMountedFragments scope mountState)
-    setActorLiveFragmentsRefresh (timesheetsSurfaceScope scope) (timesheetsSurfaceFragmentKeys selectedMountedFragments)
+    setActorLocalFragmentsRefresh (timesheetsSurfaceScope scope) (timesheetsSurfaceFragmentKeys selectedMountedFragments)
+    respondHtmlProfiled extraHtml
+
+respondWithTimesheetResourceInvalidation :: (?context :: ControllerContext, ?request :: Request) => TimesheetProjectionRequest -> Set.Set SurfaceResourceValue -> Blaze.Html -> IO ()
+respondWithTimesheetResourceInvalidation requestKey touchedResources extraHtml = do
+    let scope = TimesheetWeekScopeValue (unpackId currentVenueId) requestKey.projectionWeekOffset
+    let mountState = TimesheetsMountStateValue requestKey.projectionShowApproved requestKey.projectionShowAllStaff requestKey.projectionStaffFilterId
+    setActorLiveResourcesRefresh (timesheetsSurfaceScope scope) touchedResources (timesheetsCandidateMountedFragments scope mountState)
     respondHtmlProfiled extraHtml
 
 selectTimesheetMountedFragments :: TimesheetProjectionRequest -> [TimesheetProjectionFragment] -> [FrontendSurfaceMountedFragment] -> [FrontendSurfaceMountedFragment]
@@ -85,7 +95,7 @@ respondWithTimesheetDaySectionUpdate weekOffset workedOn showApproved showAllSta
     venueConfig <- fetchVenueConfig
     let weekStartDate = venueWeekStartDate venueConfig weekOffset
     let dayOffset = timesheetDayOffset weekStartDate workedOn
-    respondWithTimesheetActorInvalidation
+    respondWithTimesheetActorFragments
         requestKey
         [TimesheetProjectionDaySection dayOffset]
         ( when closeDialog [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
@@ -94,21 +104,16 @@ respondWithTimesheetDaySectionUpdate weekOffset workedOn showApproved showAllSta
     where
         requestKey = TimesheetProjectionRequest weekOffset showApproved showAllStaff staffFilterId
 
-respondWithTimesheetDateMoveUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Day -> Day -> Bool -> Bool -> Maybe UUID.UUID -> Text -> IO ()
-respondWithTimesheetDateMoveUpdate weekOffset oldWorkedOn newWorkedOn showApproved showAllStaff staffFilterId successMessage = do
-    venueConfig <- fetchVenueConfig
-    let weekStartDate = venueWeekStartDate venueConfig weekOffset
-    let weekEndDate = addDays 6 weekStartDate
-    let daysInVisibleWeek = filter (\day -> day >= weekStartDate && day <= weekEndDate) (nub [oldWorkedOn, newWorkedOn])
-    let fragments = map (TimesheetProjectionDaySection . timesheetDayOffset weekStartDate) daysInVisibleWeek
-    respondWithTimesheetActorInvalidation
+respondWithTimesheetMutationUpdate :: (?context :: ControllerContext, ?request :: Request) => Int -> Bool -> Bool -> Maybe UUID.UUID -> Set.Set SurfaceResourceValue -> Text -> Bool -> IO ()
+respondWithTimesheetMutationUpdate weekOffset showApproved showAllStaff staffFilterId touchedResources successMessage closeDialog =
+    respondWithTimesheetResourceInvalidation
         requestKey
-        fragments
-        ( [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
+        touchedResources
+        ( when closeDialog [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
             <> renderToastOob ToastBottomCenter (successToast successMessage)
         )
-    where
-        requestKey = TimesheetProjectionRequest weekOffset showApproved showAllStaff staffFilterId
+  where
+    requestKey = TimesheetProjectionRequest weekOffset showApproved showAllStaff staffFilterId
 
 renderTimesheetWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Int -> Bool -> Bool -> Maybe UUID.UUID -> IO ()
 renderTimesheetWeekPage weekOffset showApproved showAllStaff staffFilterId =

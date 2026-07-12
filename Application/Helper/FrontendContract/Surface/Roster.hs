@@ -4,6 +4,7 @@
 module Application.Helper.FrontendContract.Surface.Roster
     ( RosterContent
     , RosterDayColumns
+    , RosterDay
     , RosterDayId
     , RosterDayTimeline
     , RosterDayTimelineContent

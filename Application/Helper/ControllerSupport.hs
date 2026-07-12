@@ -30,6 +30,10 @@ data LeaveRequestStatus
     | LeaveDenied
     deriving (Eq, Show)
 
+leaveRequestIsArchivedOn :: Day -> LeaveRequest -> Bool
+leaveRequestIsArchivedOn today leaveRequest =
+    leaveRequest.endDate < today
+
 allUserRoleValues :: [Text]
 allUserRoleValues = ["staff", "manager", "admin"]
 

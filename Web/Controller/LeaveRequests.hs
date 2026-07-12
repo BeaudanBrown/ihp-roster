@@ -1,7 +1,6 @@
 module Web.Controller.LeaveRequests where
 
-import Application.Helper.LiveUpdate (setActorLiveFragmentsRefresh,
-                                      setActorLiveResourcesRefresh)
+import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchStaffLeaveRequests)
 import Application.Helper.Profiling
@@ -16,25 +15,23 @@ import qualified Data.Text.IO as TextIO
 import Web.Controller.Prelude
 import Web.LeaveRequests.FrontendSurface (LeaveRequestsScopeValue (..),
                                           leaveRequestsCandidateMountedFragments,
-                                          leaveRequestsSurfaceFragmentKeys,
                                           leaveRequestsSurfaceScope)
 import Web.LeaveRequests.Mutations
 import Web.LeaveRequests.ProfileSelfService
 import Web.LeaveRequests.ReadModel
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
-                                     profileSectionFragmentForSection,
-                                     profileSurfaceFragmentKeys,
+                                     profileCandidateMountedFragments,
                                      profileSurfaceScope,
-                                     staffSectionFragmentForSection,
-                                     staffSurfaceFragmentKeys,
+                                     staffCandidateMountedFragments,
                                      staffSurfaceScope)
-import Web.RosterWeeks.Responses (respondWithRosterFragments)
+import Web.RosterWeeks.Responses (respondWithRosterResourceInvalidation)
 import Web.RosterWeeks.StaffSelfServiceLeaveFragments (buildDefaultRosterStaffSelfServiceLeaveRequest)
 import Web.RosterWeeks.Types (RosterProjectionFragment (..))
 import Web.View.LeaveRequests.Index
 import Web.View.LeaveRequests.New
 import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServiceLeaveFormFragment,
-                                                   renderRosterStaffSelfServiceLeaveFormFragmentForRoster)
+                                                   renderRosterStaffSelfServiceLeaveFormFragmentForRoster,
+                                                   renderRosterStaffSelfServiceLeaveFormFragmentWithSwap)
 import Web.View.Staff.Edit (renderStaffLeaveRequestFormFragment)
 
 instance Controller LeaveRequestsController where
@@ -109,9 +106,9 @@ instance Controller LeaveRequestsController where
                                 then respondWithLeaveRequestValidationFailure responseContext leaveRequest
                                 else render NewView { .. }
                         Right leaveRequest -> do
-                            _ <- submitLeaveRequest leaveRequest
+                            mutationResult <- submitLeaveRequest leaveRequest
                             if isHtmxRequest
-                                then respondWithLeaveMutationSuccess responseContext "Unavailable period submitted"
+                                then respondWithLeaveMutationSuccess responseContext mutationResult.liveMutationTouchedResources "Unavailable period submitted"
                                 else do
                                     setSuccessMessage "Unavailable period submitted"
                                     redirectToPath (leaveFallbackPath responseContext)
@@ -157,17 +154,8 @@ requestedLeaveSection =
         section | section `elem` [leavePendingSection, leaveApprovedSection, leaveDeniedSection, leaveArchiveSection] -> section
         _ -> leavePendingSection
 
-respondWithLeaveRequestsContent :: (?context :: ControllerContext, ?request :: Request) => Text -> IO ()
-respondWithLeaveRequestsContent successMessage = do
-    let scope = LeaveRequestsScopeValue (unpackId currentVenueId)
-    setHeader ("HX-Reswap", "none")
-    setActorLiveFragmentsRefresh (leaveRequestsSurfaceScope scope) (leaveRequestsSurfaceFragmentKeys (leaveRequestsCandidateMountedFragments scope))
-    respondHtmlProfiled $
-        [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
-            <> renderToastOob ToastBottomCenter (successToast successMessage)
-
-respondWithLeaveRequestsContentForReview :: (?context :: ControllerContext, ?request :: Request) => Set.Set SurfaceResourceValue -> Text -> IO ()
-respondWithLeaveRequestsContentForReview touchedResources successMessage = do
+respondWithLeaveRequestsContent :: (?context :: ControllerContext, ?request :: Request) => Set.Set SurfaceResourceValue -> Text -> IO ()
+respondWithLeaveRequestsContent touchedResources successMessage = do
     let scope = LeaveRequestsScopeValue (unpackId currentVenueId)
     setHeader ("HX-Reswap", "none")
     setActorLiveResourcesRefresh (leaveRequestsSurfaceScope scope) touchedResources (leaveRequestsCandidateMountedFragments scope)
@@ -175,18 +163,21 @@ respondWithLeaveRequestsContentForReview touchedResources successMessage = do
         [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
             <> renderToastOob ToastBottomCenter (successToast successMessage)
 
-respondWithProfileLeaveActorInvalidation :: (?context :: ControllerContext, ?request :: Request) => Staff -> Text -> IO ()
-respondWithProfileLeaveActorInvalidation staff successMessage = do
+respondWithLeaveRequestsContentForReview :: (?context :: ControllerContext, ?request :: Request) => Set.Set SurfaceResourceValue -> Text -> IO ()
+respondWithLeaveRequestsContentForReview = respondWithLeaveRequestsContent
+
+respondWithProfileLeaveActorInvalidation :: (?context :: ControllerContext, ?request :: Request) => Staff -> Set.Set SurfaceResourceValue -> Text -> IO ()
+respondWithProfileLeaveActorInvalidation staff touchedResources successMessage = do
     let scope = ProfileScopeValue (unpackId currentVenueId) (unpackId staff.id)
     setHeader ("HX-Reswap", "none")
-    setActorLiveFragmentsRefresh (profileSurfaceScope scope) (profileSurfaceFragmentKeys [profileSectionFragmentForSection "leave"])
+    setActorLiveResourcesRefresh (profileSurfaceScope scope) touchedResources (profileCandidateMountedFragments scope)
     respondHtmlProfiled (renderToastOob ToastBottomCenter (successToast successMessage))
 
-respondWithStaffLeaveActorInvalidation :: (?context :: ControllerContext, ?request :: Request) => Staff -> Text -> IO ()
-respondWithStaffLeaveActorInvalidation staff successMessage = do
+respondWithStaffLeaveActorInvalidation :: (?context :: ControllerContext, ?request :: Request) => Staff -> Set.Set SurfaceResourceValue -> Text -> IO ()
+respondWithStaffLeaveActorInvalidation staff touchedResources successMessage = do
     let scope = ProfileScopeValue (unpackId currentVenueId) (unpackId staff.id)
     setHeader ("HX-Reswap", "none")
-    setActorLiveFragmentsRefresh (staffSurfaceScope scope) (staffSurfaceFragmentKeys [staffSectionFragmentForSection scope "leave"])
+    setActorLiveResourcesRefresh (staffSurfaceScope scope) touchedResources (staffCandidateMountedFragments scope)
     respondHtmlProfiled (renderToastOob ToastBottomCenter (successToast successMessage))
 
 resolveRosterLeaveScope :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Id RosterGroup, Int)
@@ -246,30 +237,34 @@ respondWithLeaveRequestValidationFailure responseContext leaveRequest =
         LeaveStaffResponseContext ->
             respondHtml (renderStaffLeaveRequestFormFragment (Id leaveRequest.staffId) leaveRequest)
 
-respondWithLeaveMutationSuccess :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => LeaveResponseContext -> Text -> IO ()
-respondWithLeaveMutationSuccess responseContext successMessage =
+respondWithLeaveMutationSuccess :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => LeaveResponseContext -> Set.Set SurfaceResourceValue -> Text -> IO ()
+respondWithLeaveMutationSuccess responseContext touchedResources successMessage =
     case responseContext of
         LeavePageResponseContext ->
-            respondWithLeaveRequestsContent successMessage
+            respondWithLeaveRequestsContent touchedResources successMessage
         LeaveProfileResponseContext -> do
             maybeStaff <- fetchCurrentUserStaff
             case maybeStaff of
                 Nothing -> respondWithLeaveContextError LeaveProfileResponseContext "No staff record found. Contact an administrator."
                 Just staff ->
-                    respondWithProfileLeaveActorInvalidation staff successMessage
+                    respondWithProfileLeaveActorInvalidation staff touchedResources successMessage
         LeaveRosterResponseContext -> do
             (rosterGroupId, weekOffset) <- resolveRosterLeaveScope
-            respondWithRosterFragments
+            leaveRequest <- buildDefaultRosterStaffSelfServiceLeaveRequest
+            respondWithRosterResourceInvalidation
                 rosterGroupId
                 weekOffset
-                [RosterProjectionContent, RosterProjectionStaffSelfServiceLeaveForm]
-                (renderToastOob ToastBottomCenter (successToast successMessage))
+                touchedResources
+                [RosterProjectionContent]
+                ( renderRosterStaffSelfServiceLeaveFormFragmentWithSwap (Just "outerHTML") (Just (rosterGroupId, weekOffset)) leaveRequest
+                    <> renderToastOob ToastBottomCenter (successToast successMessage)
+                )
         LeaveStaffResponseContext -> do
             maybeStaff <- fetchLeaveRequestTargetStaff LeaveStaffResponseContext
             case maybeStaff of
                 Nothing -> respondWithLeaveContextError LeaveStaffResponseContext "No staff record found. Contact an administrator."
                 Just staff ->
-                    respondWithStaffLeaveActorInvalidation staff successMessage
+                    respondWithStaffLeaveActorInvalidation staff touchedResources successMessage
 
 ensureLeaveProfileAccess :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveResponseContext -> IO ()
 ensureLeaveProfileAccess responseContext =

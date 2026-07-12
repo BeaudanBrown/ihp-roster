@@ -12,10 +12,11 @@ websocket controllers, and `static/app-live-updates.js`.
 - Passive viewers receive websocket invalidation messages and refetch
   authorized fragments over HTTP.
 - Server-mutating UI that can leave another mounted copy stale should use this
-  live-fragment path by default: commit data, report touched resources, broadcast
-  semantic fragment keys with the actor `sourceClientId`, then return the same
-  key shape in the actor-local invalidation for the requester. The browser resolves
-  both actor-local and websocket invalidations through mounted surface metadata.
+  live-fragment path by default: commit data, report touched resources, and run
+  actor mount keys plus passive subscription keys through the same dependency
+  planner. Passive broadcasts carry the actor `sourceClientId`; actor responses
+  emit only their coalesced non-empty target keys. The browser resolves both
+  actor-local and websocket invalidations through mounted surface metadata.
 - A browser tab should use one websocket connection with many scope
   subscriptions.
 - A scope is an authorized logical data slice, not a page.
@@ -37,10 +38,9 @@ websocket controllers, and `static/app-live-updates.js`.
   scope fields and rejects browser-supplied scope or fragment keys whose Surface
   identity disagrees; browser keys are assertions, not authority.
 - Bepis live facts are emitted by `invalidateTouchedResources*` after actual
-  touched-resource expansion/planning/broadcast. This does not replace
-  `SurfaceResourceValue` or FrontendSurface dependency planning; it records that the
-  same invalidation helper consumed the touched-resource set used by passive
-  invalidation.
+  touched-resource expansion/planning/broadcast. Their target and target-fragment
+  counts describe coalesced executable targets, not hypothetical candidate or
+  planning scopes.
 
 ## Surface Declaration
 
@@ -149,9 +149,11 @@ Actor responses and passive live updates should use one semantic fragment model
 with multiple delivery triggers. A feature-local fragment enum and `SurfaceImpl`
 name the fragments once. For migrated `FrontendSurface` successful mutations,
 the actor response emits selected semantic fragment refs as an actor-local
-invalidation instruction; prefer `setActorLiveResourcesRefresh` when the mutation
-already reports touched `SurfaceResourceValue`s so actor-local refresh and
-passive websocket invalidation use the same dependency planner. The browser
+invalidation instruction. Successful resource-backed mutations use
+`setActorLiveResourcesRefresh`, which submits their exact mounted keys to the same
+planner used for passive subscription keys. `setActorLocalFragmentsRefresh` is
+reserved for explicit requester-local workflows where no shared resource changed.
+Empty dependency plans emit no actor trigger. The browser
 resolves those refs against every matching mounted surface instance in the
 current tab and refetches each mount's own plain fragment GET URL. Passive
 viewers receive the same semantic keys over websocket and refetch through their
@@ -305,13 +307,14 @@ extras such as toasts and dialog updates; authoritative business OOB fragments
 must stay out of success responses. Validation-local direct fragments and
 legacy/non-FrontendSurface exceptions must be explicit.
 
-`Web.SurfaceInvalidation` is the planner/orchestration layer. It receives
-concrete generated `SurfaceResourceValue`s, applies the small set of approved
-active-scope-bounded domain expansions, then matches those resources against
-generated `FrontendSurface` dependency metadata. The planner derives affected
-fragments from active mounted fragments plus each fragment's declared
-`DependsOn` fields; it owns passive broadcast emission for matched
-scope/fragment targets. Feature
+`Application.Helper.FrontendContract.Surface.DependencyPlanner` is the singular
+pure actor/passive planning seam. It receives concrete generated
+`SurfaceResourceValue`s plus exact mounted/subscribed semantic keys, evaluates
+reflected `DependsOn` metadata, and returns coalesced scope/fragment targets.
+`Web.SurfaceInvalidation` observes active subscriptions and owns passive broadcast
+orchestration. Domain expansion stays in feature modules such as
+`Web.RosterWeeks.SurfaceInvalidation`; the generic planner contains no feature
+resource-name switch. Feature
 mutation modules must not call or recreate legacy feature refresh helpers such as
 `refreshRosterFragments`, `refreshProfileContent`, `refreshAdminXero`,
 `refreshTimesheetFragments`, or removed `broadcastSurface*` pathways.
@@ -336,12 +339,12 @@ concrete generated resources before the planner boundary.
 Allowed direct live calls after migration are limited to the passive planner,
 transport runtime, and actor-only response helpers:
 
-- `Web.SurfaceInvalidation` is the passive planner that turns matched active
-  fragment keys into key-only transport invalidations
+- `Web.SurfaceInvalidation` orchestrates active passive subscriptions and turns
+  shared planner targets into key-only transport invalidations
 - `Application.Helper.LiveUpdate.Runtime` owns the transport bus and raw
   websocket invalidation primitives
-- controllers may call FrontendSurface actor-local invalidation helpers that
-  only set semantic refresh instructions for the requester
+- controllers use `setActorLiveResourcesRefresh` for successful mutations;
+  `setActorLocalFragmentsRefresh` is limited to requester-local, non-resource workflows
 - background jobs should call the touched-resource invalidation boundary, such
   as `invalidateTouchedResourcesWithoutContext`, when passive viewers need updates
 - controllers and mutation modules must not call typed broadcast/mutation
@@ -387,9 +390,10 @@ Live-update profiling has three layers:
 1. Request-scoped instrumentation in `Web.SurfaceInvalidation` records the
    `surface_resources.invalidate` span and emits `[live-invalidation]` diagnostics
    when `LIVE_INVALIDATION_PROFILING=1` is enabled.
-2. `profile-live-invalidation` is a synthetic benchmark for resource expansion,
-   candidate-scope derivation, dependency planning, and target coalescing without
-   websocket clients.
+2. `profile-live-invalidation` remains the synthetic benchmark for resource
+   expansion, dependency planning over active subscriptions, and actual target
+   coalescing without websocket clients. Its eventual retention/removal belongs
+   to the profiling workstream rather than this runtime contract.
 3. `profile-live-load` is a k6 websocket profile that starts an isolated profile
    server and DB by default, subscribes live clients, performs mutations, and
    records invalidation delivery latency.

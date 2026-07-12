@@ -1,9 +1,11 @@
 module Web.Controller.Admin.Support where
 
 import Application.Helper.LiveUpdate (adminRosterGroupsLiveScope,
-                                      setActorLiveFragmentsRefresh)
+                                      setActorLiveResourcesRefresh,
+                                      setActorLocalFragmentsRefresh)
 import Application.Helper.Pay
 import Application.Helper.RosterGroups
+import Application.Helper.SurfaceResource (LiveMutationResult (..))
 import Application.Helper.VenueInvitation
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay,
                                           sortDayNamesForVenueWeek,
@@ -136,7 +138,25 @@ respondToRosterGroupsSectionMutation maybeRosterGroupId =
         , adminSectionRedirectGroup = maybeRosterGroupId
         , adminSectionRenderFragment = do
             setHeader ("HX-Reswap", "none")
-            setActorLiveFragmentsRefresh (adminRosterGroupsLiveScope (unpackId currentVenueId)) (AdminSurface.adminRosterGroupsFragmentKeys [AdminSurface.adminRosterGroupsFragment])
+            setActorLocalFragmentsRefresh (adminRosterGroupsLiveScope (unpackId currentVenueId)) (AdminSurface.adminRosterGroupsFragmentKeys [AdminSurface.adminRosterGroupsFragment])
+            pure mempty
+        }
+
+respondToRosterGroupsResourceMutation ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    LiveMutationResult value ->
+    Maybe (Id RosterGroup) ->
+    IO ()
+respondToRosterGroupsResourceMutation mutationResult maybeRosterGroupId =
+    respondToAdminSectionMutation AdminSectionMutationResponse
+        { adminSectionSuccessMessage = Nothing
+        , adminSectionRedirectGroup = maybeRosterGroupId
+        , adminSectionRenderFragment = do
+            setHeader ("HX-Reswap", "none")
+            setActorLiveResourcesRefresh
+                (adminRosterGroupsLiveScope (unpackId currentVenueId))
+                mutationResult.liveMutationTouchedResources
+                [AdminSurface.adminRosterGroupsFragment]
             pure mempty
         }
 

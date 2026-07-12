@@ -5,18 +5,22 @@ module Web.RosterWeeks.Responses
     , respondWithRosterContentUpdate
     , respondWithRosterFragments
     , respondWithRosterFragmentsUpdate
+    , respondWithRosterResourceInvalidation
     , respondWithRosterToast
     ) where
 
 import Application.Helper.FrontendContract.Surface.FragmentRender (FragmentRenderMode (..))
-import Application.Helper.LiveUpdate (setActorLiveFragmentsRefresh)
+import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh,
+                                      setActorLocalFragmentsRefresh)
 import Application.Helper.Profiling (respondHtmlProfiled)
 import Application.Helper.RosterGroups (fetchCurrentVenueRosterGroupOrDefault,
                                         fetchCurrentVenueRosterGroups)
+import Application.Helper.SurfaceResource (SurfaceResourceValue)
 import Application.Helper.View (ToastOverlayConfig,
                                 ToastOverlayPosition (ToastBottomCenter),
                                 errorToast, renderToastOob, successToast)
 import Application.Helper.View.Oob (outerHtmlOobSwap)
+import qualified Data.Set as Set
 import qualified Data.Text.IO as TextIO
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
@@ -59,7 +63,20 @@ respondWithRosterActorInvalidation rosterGroupId weekOffset fragments extraHtml 
             , rosterWeekTimelineDayOffset = currentRosterTimelineDayOffset
             }
     setHeader ("HX-Reswap", "none")
-    setActorLiveFragmentsRefresh (rosterSurfaceScope scope) (rosterSurfaceFragmentKeys (map (rosterMountedFragmentForProjection scope) (nub fragments)))
+    setActorLocalFragmentsRefresh (rosterSurfaceScope scope) (rosterSurfaceFragmentKeys (map (rosterMountedFragmentForProjection scope) (nub fragments)))
+    respondHtmlProfiled extraHtml
+
+respondWithRosterResourceInvalidation :: (?context :: ControllerContext, ?request :: Request) => Id RosterGroup -> Int -> Set.Set SurfaceResourceValue -> [RosterProjectionFragment] -> Blaze.Html -> IO ()
+respondWithRosterResourceInvalidation rosterGroupId weekOffset touchedResources fragments extraHtml = do
+    let scope = RosterWeekScopeValue
+            { rosterWeekVenueId = unpackId currentVenueId
+            , rosterWeekGroupId = rosterGroupId
+            , rosterWeekWeekOffset = weekOffset
+            , rosterWeekTimelineDayOffset = currentRosterTimelineDayOffset
+            }
+    let mountedFragments = map (rosterMountedFragmentForProjection scope) (nub fragments)
+    setHeader ("HX-Reswap", "none")
+    setActorLiveResourcesRefresh (rosterSurfaceScope scope) touchedResources mountedFragments
     respondHtmlProfiled extraHtml
 
 respondWithRosterContentOob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO ()
@@ -105,9 +122,14 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
                             , gridTimelineTodayUrl = Nothing
                             }
 
-respondWithRosterContentUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO ()
-respondWithRosterContentUpdate rosterGroupId weekOffset successMessage = do
-    respondWithRosterActorInvalidation rosterGroupId weekOffset [RosterProjectionContent] (renderToastOob ToastBottomCenter (successToast successMessage))
+respondWithRosterContentUpdate :: (?context :: ControllerContext, ?request :: Request) => Id RosterGroup -> Int -> Set.Set SurfaceResourceValue -> Text -> IO ()
+respondWithRosterContentUpdate rosterGroupId weekOffset touchedResources successMessage =
+    respondWithRosterResourceInvalidation
+        rosterGroupId
+        weekOffset
+        touchedResources
+        [RosterProjectionContent]
+        (renderToastOob ToastBottomCenter (successToast successMessage))
 
 respondWithRosterContentError :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO ()
 respondWithRosterContentError rosterGroupId weekOffset errorMessage = do

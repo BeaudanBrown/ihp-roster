@@ -158,6 +158,29 @@ expect_no_match \
     Web
 
 expect_no_match \
+    "generic live dependency planning must not embed feature resource names or field strings" \
+    'resource(Matches|FieldUuid|FieldInt|FieldText)[[:space:]]+"' \
+    Application/Helper/FrontendContract/Surface/DependencyPlanner.hs \
+    Web/SurfaceInvalidation.hs
+
+expect_no_match \
+    "retired live candidate-scope planning and misleading metrics must stay deleted" \
+    'candidateLiveScopes|candidate(Duration|Scope|_ms|_scopes)|planningScope|planning_scopes|liveFactPlanned|planned_(scope|fragment)_count' \
+    Application \
+    Web \
+    Test
+
+expect_no_match \
+    "resource-backed actor mutation responses must use the shared dependency planner" \
+    'setActorLocalFragmentsRefresh' \
+    Web/Controller/LeaveRequests.hs \
+    Web/Controller/Profiles.hs \
+    Web/Controller/Staff.hs \
+    Web/Controller/Timesheets.hs \
+    Web/Controller/Admin.hs \
+    Web/Controller/Admin/Xero
+
+expect_no_match \
     "production Surface mounts must not construct fake nil-id action routes" \
     'Id[[:space:]]+UUID\.nil|placeholderRosterDayId' \
     Application/Support/LiveUpdates.hs \
@@ -426,9 +449,14 @@ expect_match \
     Web/SurfaceInvalidation.hs
 
 expect_match \
-    "surface invalidation planning delegates dependency matching to generated FrontendSurface planner" \
-    'planFrontendSurfaceKeyInvalidation resources subscription\.subscriptionScope subscription\.subscriptionFragmentKeys' \
+    "passive invalidation delegates to the singular generated FrontendSurface planner" \
+    'planSurfaceInvalidationsWithoutContext = planFrontendSurfaceInvalidations' \
     Web/SurfaceInvalidation.hs
+
+expect_match \
+    "actor resource invalidation delegates to the same generated FrontendSurface planner" \
+    'planFrontendSurfaceInvalidations touchedResources \[mountSubscription\]' \
+    Application/Helper/LiveUpdate.hs
 
 expect_no_match \
     "app views/helpers must not hand-author request-side HTMX attrs" \

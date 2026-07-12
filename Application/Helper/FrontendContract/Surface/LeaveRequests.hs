@@ -6,6 +6,7 @@ module Application.Helper.FrontendContract.Surface.LeaveRequests
     , LeaveSection
     , LeaveSectionCount
     , LeaveSectionList
+    , LeaveRequestsSection
     , LeaveRequestsSectionResource
     , LeaveRequestsSurface
     , LeaveRequestsScope

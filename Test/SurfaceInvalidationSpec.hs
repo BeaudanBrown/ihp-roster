@@ -1,5 +1,6 @@
 module Test.SurfaceInvalidationSpec where
 
+import Application.Bepis.Fact (BepisLiveFact (..), BepisLiveMechanism (..))
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
 import qualified Data.Set as Set
@@ -7,7 +8,6 @@ import Data.UUID (fromWords)
 import IHP.Prelude
 import Test.Hspec
 import Web.SurfaceInvalidation
-import Web.SurfaceInvalidation (SurfaceInvalidationTarget (..))
 
 tests :: Spec
 tests = do
@@ -38,8 +38,7 @@ tests = do
             let rosterGroupId = fromWords 4 0 0 0
             let directResources =
                     Set.fromList
-                        [ leaveRequestsResource venueId
-                        , staffLeaveRequestsResource staffId
+                        [ staffLeaveRequestsResource staffId
                         , rosterWeekResource rosterGroupId 0
                         , timesheetWeekResource venueId 0
                         , timesheetDayResource venueId 0 2
@@ -84,18 +83,18 @@ tests = do
                         (Set.fromList [billingResource venueId])
                         [scope]
                         (Set.fromList [billingResource venueId])
-                        [scope]
-                        [scope]
                         [target]
                         [broadcastResult]
                         LiveInvalidationStageDurations
                             { observeDurationMs = 0.1
                             , activeDurationMs = 0.2
                             , expandDurationMs = 0.3
-                            , candidateDurationMs = 0.4
                             , planDurationMs = 0.5
                             , broadcastDurationMs = 0.6
                             }
 
             renderLiveInvalidationProfile profile
-                `shouldBe` "label=billing.update touched=1 active_scopes=1 expanded=1 candidate_scopes=1 planning_scopes=1 targets=1 target_fragments=1 broadcasts=1 subscribers=7 total_ms=12.3 observe_ms=0.1 active_ms=0.2 expand_ms=0.3 candidate_ms=0.4 plan_ms=0.5 broadcast_ms=0.6"
+                `shouldBe` "label=billing.update touched=1 active_scopes=1 expanded=1 targets=1 target_fragments=1 broadcasts=1 subscribers=7 total_ms=12.3 observe_ms=0.1 active_ms=0.2 expand_ms=0.3 plan_ms=0.5 broadcast_ms=0.6"
+            let liveFact = bepisLiveFactFromProfile BepisWebSocketFragmentRefetch profile
+            liveFact.liveFactTargetCount `shouldBe` 1
+            liveFact.liveFactTargetFragmentCount `shouldBe` 1

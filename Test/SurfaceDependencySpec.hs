@@ -1,10 +1,10 @@
 module Test.SurfaceDependencySpec where
 
-import Application.Helper.FrontendContract.Surface.DependencyPlanner (planFrontendSurfaceInvalidation)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountConfig (..),
                                                             FrontendSurfaceMountedFragment (..),
                                                             SurfaceImpl (..),
-                                                            frontendSurfaceMountConfigJson)
+                                                            frontendSurfaceMountConfigJson,
+                                                            frontendSurfaceMountedFragmentsToKeys)
 import Application.Helper.LiveUpdate (actorLiveFragmentsRefreshKeys)
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
@@ -41,6 +41,7 @@ import Web.SurfaceInvalidation (SurfaceInvalidationTarget (..),
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
                                        TimesheetsMountStateValue (..),
                                        timesheetsCandidateMountedFragments,
+                                       timesheetsSurfaceFragmentKeys,
                                        timesheetsSurfaceScope)
 import Web.Types
 
@@ -52,29 +53,42 @@ tests = do
             let scopeValue = TimesheetWeekScopeValue venueId 2
             let mountState = TimesheetsMountStateValue True True Nothing
             let candidates = timesheetsCandidateMountedFragments scopeValue mountState
-            let affectedByDay = planFrontendSurfaceInvalidation (Set.fromList [timesheetDayResource venueId 2 4]) (timesheetsSurfaceScope scopeValue) candidates
-            let affectedByWeek = planFrontendSurfaceInvalidation (Set.fromList [timesheetWeekResource venueId 2]) (timesheetsSurfaceScope scopeValue) candidates
+            let affectedByDay = planMountedFragments (Set.fromList [timesheetDayResource venueId 2 4]) (timesheetsSurfaceScope scopeValue) candidates
+            let affectedByWeek = planMountedFragments (Set.fromList [timesheetWeekResource venueId 2]) (timesheetsSurfaceScope scopeValue) candidates
 
             map (.mountedFragmentTargetId) affectedByDay `shouldBe` ["timesheet-day-section-4"]
             map (.mountedFragmentTargetId) affectedByWeek `shouldBe` ["timesheet-week-toolbar", "timesheet-day-columns"]
 
-        it "uses the same dependency planner for actor-local resource refreshes" do
+        it "coalesces actor mount keys through the same dependency plan as passive subscriptions" do
             let venueId = fromWords 1 0 0 0
             let scopeValue = TimesheetWeekScopeValue venueId 2
             let mountState = TimesheetsMountStateValue True True Nothing
             let scope = timesheetsSurfaceScope scopeValue
-            let candidates = timesheetsCandidateMountedFragments scopeValue mountState
-            let fragmentKeys = actorLiveFragmentsRefreshKeys scope (Set.fromList [timesheetDayResource venueId 2 4]) candidates
+            let mountedFragments = timesheetsCandidateMountedFragments scopeValue mountState
+            let duplicatedMount = mountedFragments <> mountedFragments
+            let resources = Set.fromList [timesheetDayResource venueId 2 4]
+            let actorFragmentKeys = actorLiveFragmentsRefreshKeys scope resources duplicatedMount
+            let passiveTargets =
+                    planSurfaceInvalidationsWithoutContext
+                        resources
+                        [liveTestSubscription scope (timesheetsSurfaceFragmentKeys duplicatedMount)]
 
-            fragmentKeys `shouldBe` [timesheetDaySectionLiveFragment 4]
+            actorFragmentKeys `shouldBe` concatMap (.targetFragments) passiveTargets
+            actorFragmentKeys `shouldBe` [timesheetDaySectionLiveFragment 4]
 
         it "selects parameterized leave section fragments from generated dependencies" do
             let venueId = fromWords 10 0 0 0
             let scopeValue = LeaveRequestsScopeValue venueId
             let candidates = leaveRequestsCandidateMountedFragments scopeValue
-            let affectedByPending = planFrontendSurfaceInvalidation (Set.fromList [leaveRequestsSectionResource venueId "pending"]) (leaveRequestsSurfaceScope scopeValue) candidates
-            let affectedByApproved = planFrontendSurfaceInvalidation (Set.fromList [leaveRequestsSectionResource venueId "approved"]) (leaveRequestsSurfaceScope scopeValue) candidates
+            let pendingResources = Set.fromList [leaveRequestsSectionResource venueId "pending"]
+            let approvedResources = Set.fromList [leaveRequestsSectionResource venueId "approved"]
+            let affectedByPending = planMountedFragments pendingResources (leaveRequestsSurfaceScope scopeValue) candidates
+            let affectedByApproved = planMountedFragments approvedResources (leaveRequestsSurfaceScope scopeValue) candidates
 
+            actorLiveFragmentsRefreshKeys (leaveRequestsSurfaceScope scopeValue) pendingResources candidates
+                `shouldBe` passiveFragmentKeys pendingResources (leaveRequestsSurfaceScope scopeValue) candidates
+            actorLiveFragmentsRefreshKeys (leaveRequestsSurfaceScope scopeValue) approvedResources candidates
+                `shouldBe` passiveFragmentKeys approvedResources (leaveRequestsSurfaceScope scopeValue) candidates
             map (.mountedFragmentTargetId) affectedByPending `shouldBe` ["leave-pending-count", "leave-pending-list"]
             map (.mountedFragmentTargetId) affectedByApproved `shouldBe` ["leave-approved-count", "leave-approved-list"]
 
@@ -158,8 +172,8 @@ tests = do
                     ]
 
         it "selects support fragments through generated dependencies" do
-            let awardRatesFragments = planFrontendSurfaceInvalidation (Set.fromList [supportAwardRatesResource]) supportSurfaceScope supportCandidateMountedFragments
-            let publicHolidayFragments = planFrontendSurfaceInvalidation (Set.fromList [supportPublicHolidaysResource]) supportSurfaceScope supportCandidateMountedFragments
+            let awardRatesFragments = planMountedFragments (Set.fromList [supportAwardRatesResource]) supportSurfaceScope supportCandidateMountedFragments
+            let publicHolidayFragments = planMountedFragments (Set.fromList [supportPublicHolidaysResource]) supportSurfaceScope supportCandidateMountedFragments
 
             map (.mountedFragmentTargetId) awardRatesFragments `shouldBe` ["support-award-rates-section"]
             map (.mountedFragmentTargetId) publicHolidayFragments `shouldBe` ["support-public-holidays-section"]
@@ -168,7 +182,7 @@ tests = do
             let venueId = fromWords 6 0 0 0
             let scopeValue = BillingScopeValue venueId
             let checkoutState = BillingCheckoutReturnState False Nothing
-            let fragments = planFrontendSurfaceInvalidation (Set.fromList [billingResource venueId]) (billingSurfaceScope scopeValue) (billingCandidateMountedFragments checkoutState)
+            let fragments = planMountedFragments (Set.fromList [billingResource venueId]) (billingSurfaceScope scopeValue) (billingCandidateMountedFragments checkoutState)
 
             map (.mountedFragmentTargetId) fragments `shouldBe` ["billing-status-fragment"]
 
@@ -177,13 +191,30 @@ tests = do
             let staffId = fromWords 5 0 0 0
             let scopeValue = ProfileScopeValue venueId staffId
             let candidates = profileCandidateMountedFragments scopeValue
-            let affectedByProfile = planFrontendSurfaceInvalidation (Set.fromList [staffProfileResource staffId]) (profileSurfaceScope scopeValue) candidates
-            let affectedByRsa = planFrontendSurfaceInvalidation (Set.fromList [staffRsaDocumentsResource staffId]) (profileSurfaceScope scopeValue) candidates
-            let affectedByLeave = planFrontendSurfaceInvalidation (Set.fromList [staffLeaveRequestsResource staffId]) (profileSurfaceScope scopeValue) candidates
+            let affectedByProfile = planMountedFragments (Set.fromList [staffProfileResource staffId]) (profileSurfaceScope scopeValue) candidates
+            let affectedByRsa = planMountedFragments (Set.fromList [staffRsaDocumentsResource staffId]) (profileSurfaceScope scopeValue) candidates
+            let affectedByLeave = planMountedFragments (Set.fromList [staffLeaveRequestsResource staffId]) (profileSurfaceScope scopeValue) candidates
 
             map (.mountedFragmentTargetId) affectedByProfile `shouldBe` ["profile-details"]
             map (.mountedFragmentTargetId) affectedByRsa `shouldBe` ["profile-rsa"]
             map (.mountedFragmentTargetId) affectedByLeave `shouldBe` ["profile-leave"]
+
+planMountedFragments :: Set.Set SurfaceResourceValue -> SurfaceScope -> [FrontendSurfaceMountedFragment] -> [FrontendSurfaceMountedFragment]
+planMountedFragments resources scope mountedFragments =
+    [ mountedFragment
+    | (mountedFragment, fragmentKey) <- zip mountedFragments mountedKeys
+    , fragmentKey `Set.member` affectedKeys
+    ]
+  where
+    mountedKeys = frontendSurfaceMountedFragmentsToKeys (surfaceScopeKind scope) mountedFragments
+    affectedKeys = Set.fromList (actorLiveFragmentsRefreshKeys scope resources mountedFragments)
+
+passiveFragmentKeys :: Set.Set SurfaceResourceValue -> SurfaceScope -> [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
+passiveFragmentKeys resources scope mountedFragments =
+    planSurfaceInvalidationsWithoutContext
+        resources
+        [liveTestSubscription scope (frontendSurfaceMountedFragmentsToKeys (surfaceScopeKind scope) mountedFragments)]
+        |> concatMap (.targetFragments)
 
 liveTestSubscription :: SurfaceScope -> [SurfaceFragmentKey] -> SurfaceSubscription
 liveTestSubscription scope fragmentKeys =

@@ -3,6 +3,7 @@
 module Web.View.LeaveRequests.Index where
 
 import Application.Helper.Controller (LeaveRequestStatus (..),
+                                      leaveRequestIsArchivedOn,
                                       parseLeaveRequestStatus)
 import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as Surface
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActionRoute (..),
@@ -153,8 +154,8 @@ renderManagerLeaveRequests leaveRequests staffMembers currentViewerStaffId today
     </div>
 |]
     where
-        activeRequests = filter (not . leaveRequestIsArchived today) leaveRequests
-        archivedRequests = sortOn (Down . (.endDate)) (filter (leaveRequestIsArchived today) leaveRequests)
+        activeRequests = filter (not . leaveRequestIsArchivedOn today) leaveRequests
+        archivedRequests = sortOn (Down . (.endDate)) (filter (leaveRequestIsArchivedOn today) leaveRequests)
         archivePagination = buildArchivePagination archivePage archivedRequests
         archivedPageRequests = archivePageItems archivePagination archivedRequests
         pendingRequests = sortOn (Down . (.startDate)) (filter ((== Just LeavePending) . parseLeaveRequestStatus . (.status)) activeRequests)
@@ -191,12 +192,8 @@ approvedLeaveRequests leaveRequests today = sortOn (Down . (.startDate)) (filter
 deniedLeaveRequests leaveRequests today = sortOn (Down . (.startDate)) (filter ((== Just LeaveDenied) . parseLeaveRequestStatus . (.status)) (activeLeaveRequests leaveRequests today))
 
 activeLeaveRequests, archivedLeaveRequests :: [LeaveRequest] -> Day -> [LeaveRequest]
-activeLeaveRequests leaveRequests today = filter (not . leaveRequestIsArchived today) leaveRequests
-archivedLeaveRequests leaveRequests today = sortOn (Down . (.endDate)) (filter (leaveRequestIsArchived today) leaveRequests)
-
-leaveRequestIsArchived :: Day -> LeaveRequest -> Bool
-leaveRequestIsArchived today leaveRequest =
-    leaveRequest.endDate < today
+activeLeaveRequests leaveRequests today = filter (not . leaveRequestIsArchivedOn today) leaveRequests
+archivedLeaveRequests leaveRequests today = sortOn (Down . (.endDate)) (filter (leaveRequestIsArchivedOn today) leaveRequests)
 
 archivePageSize :: Int
 archivePageSize = 10
@@ -256,7 +253,7 @@ renderArchivePageContentOob :: (?context :: ControllerContext) => [LeaveRequest]
 renderArchivePageContentOob leaveRequests staffMembers currentViewerStaffId today archivePage =
     renderArchivePageContent (Just "outerHTML") archivePagination archivedPageRequests staffMembers currentViewerStaffId
     where
-        archivedRequests = sortOn (Down . (.endDate)) (filter (leaveRequestIsArchived today) leaveRequests)
+        archivedRequests = sortOn (Down . (.endDate)) (filter (leaveRequestIsArchivedOn today) leaveRequests)
         archivePagination = buildArchivePagination archivePage archivedRequests
         archivedPageRequests = archivePageItems archivePagination archivedRequests
 

@@ -1,6 +1,6 @@
 module Web.Controller.Profiles where
 
-import Application.Helper.LiveUpdate (setActorLiveFragmentsRefresh)
+import Application.Helper.LiveUpdate (setActorLiveResourcesRefresh)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchCurrentUserLeaveRequests)
 import Application.Helper.Profiling (profileActionSpan)
@@ -22,8 +22,7 @@ import Web.Controller.Staff (buildStaff, emptyStaffPayRateSelection,
                              parseRosterGroupIdText, parseStaffRosterGroupIds)
 import Web.Controller.StaffProfileValidation (buildRequiredPersonalProfileStaff)
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
-                                     profileSectionFragmentForSection,
-                                     profileSurfaceFragmentKeys,
+                                     profileCandidateMountedFragments,
                                      profileSurfaceScope)
 import Web.Profiles.Mutations
 import Web.Staff.Mutations (updateStaffMember)
@@ -129,7 +128,7 @@ instance Controller ProfilesController where
                                         mutationResult <- updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections Nothing Nothing
                                         let updatedStaff = mutationResult.liveMutationValue
                                         if isHtmxRequest
-                                            then respondWithProfileActorInvalidation updatedStaff openSection "Profile updated"
+                                            then respondWithProfileActorInvalidation updatedStaff mutationResult "Profile updated"
                                             else do
                                                 setSuccessMessage "Profile updated"
                                                 redirectTo EditProfileAction
@@ -151,16 +150,16 @@ instance Controller ProfilesController where
                                         if not preferencesWereSubmitted && not profileUpdate.profileWasCompletedBefore && profileUpdate.profileIsCompletedNow
                                             then redirectTo RosterWeeksAction
                                             else if isHtmxRequest
-                                                then respondWithProfileActorInvalidation updatedStaff openSection successMessage
+                                                then respondWithProfileActorInvalidation updatedStaff mutationResult successMessage
                                                 else do
                                                     setSuccessMessage successMessage
                                                     redirectTo EditProfileAction
 
-respondWithProfileActorInvalidation :: (?context :: ControllerContext, ?request :: Request) => Staff -> Text -> Text -> IO ()
-respondWithProfileActorInvalidation staff openSection successMessage = do
+respondWithProfileActorInvalidation :: (?context :: ControllerContext, ?request :: Request) => Staff -> LiveMutationResult value -> Text -> IO ()
+respondWithProfileActorInvalidation staff mutationResult successMessage = do
     let scope = ProfileScopeValue (unpackId currentVenueId) (unpackId staff.id)
     setHeader ("HX-Reswap", "none")
-    setActorLiveFragmentsRefresh (profileSurfaceScope scope) (profileSurfaceFragmentKeys [profileSectionFragmentForSection openSection])
+    setActorLiveResourcesRefresh (profileSurfaceScope scope) mutationResult.liveMutationTouchedResources (profileCandidateMountedFragments scope)
     respondHtml (renderToastOob ToastBottomCenter (successToast successMessage))
 
 buildNewCurrentUserStaff :: (?context :: ControllerContext) => User -> Staff

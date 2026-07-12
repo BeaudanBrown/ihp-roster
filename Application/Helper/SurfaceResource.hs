@@ -10,15 +10,18 @@ module Application.Helper.SurfaceResource
     , adminVenueSettingsResource
     , billingResource
     , deniedLeaveRequestsResource
-    , leaveRequestsResource
     , leaveRequestsSectionResource
     , pendingLeaveRequestsResource
     , liveMutationResult
     , recordLiveMutationDiagnostics
     , resourceFieldInt
+    , resourceFieldIntFor
     , resourceFieldText
     , resourceFieldUuid
+    , resourceFieldUuidFor
+    , resourceForSurface
     , resourceMatches
+    , resourceMatchesFor
     , rosterDayResource
     , rosterEndTimesConfigResource
     , rosterWeekBoundaryConfigResource

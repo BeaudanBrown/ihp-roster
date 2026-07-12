@@ -12,6 +12,7 @@ import Application.Helper.WeekBoundaries (affectedVenueWeekOffsetsForDateRange)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Set as Set
+import Data.Time.Clock (getCurrentTime, utctDay)
 import Data.UUID (UUID)
 import Web.Controller.Prelude
 import Web.SurfaceInvalidation (invalidateTouchedResources)
@@ -39,7 +40,10 @@ submitLeaveRequest leaveRequest = do
                 (Just createdLeaveRequest.status)
                 Aeson.Null
         pure createdLeaveRequest
-    invalidateTouchedResources "leave.submit" (liveMutationResult createdLeaveRequest (baseLeaveTouchedResources createdLeaveRequest <> [pendingLeaveRequestsResource createdLeaveRequest.venueId]))
+    today <- utctDay <$> getCurrentTime
+    let createdStatus = fromMaybe LeavePending (parseLeaveRequestStatus createdLeaveRequest.status)
+    let sectionResource = leaveRequestVisibleSectionResource today createdStatus createdLeaveRequest
+    invalidateTouchedResources "leave.submit" (liveMutationResult createdLeaveRequest (baseLeaveTouchedResources createdLeaveRequest <> [sectionResource]))
 
 reviewLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveReviewDecision -> LeaveRequest -> IO (LiveMutationResult ReviewedLeaveRequest)
 reviewLeaveRequest decision leaveRequest = do
@@ -73,7 +77,8 @@ reviewLeaveRequest decision leaveRequest = do
 
     venueConfig <- fetchVenueConfig
     activeRosterScopes <- activeRosterWeekScopes
-    let touchedResources = leaveReviewTouchedResources venueConfig decision previousStatus updatedLeaveRequest <> leaveReviewRosterWeekResources activeRosterScopes venueConfig decision wasApproved updatedLeaveRequest
+    today <- utctDay <$> getCurrentTime
+    let touchedResources = leaveReviewTouchedResources today decision previousStatus updatedLeaveRequest <> leaveReviewRosterWeekResources activeRosterScopes venueConfig decision wasApproved updatedLeaveRequest
     invalidateTouchedResources "leave.review" $
         liveMutationResult
             ReviewedLeaveRequest
@@ -84,20 +89,23 @@ reviewLeaveRequest decision leaveRequest = do
 
 baseLeaveTouchedResources :: LeaveRequest -> [SurfaceResourceValue]
 baseLeaveTouchedResources leaveRequest =
-    [ leaveRequestsResource leaveRequest.venueId
-    , staffLeaveRequestsResource leaveRequest.staffId
-    ]
+    [staffLeaveRequestsResource leaveRequest.staffId]
 
-leaveReviewTouchedResources :: VenueConfig -> LeaveReviewDecision -> Maybe LeaveRequestStatus -> LeaveRequest -> [SurfaceResourceValue]
-leaveReviewTouchedResources _venueConfig _decision previousStatus leaveRequest =
-    baseLeaveTouchedResources leaveRequest <> map (leaveRequestSectionResource leaveRequest.venueId) affectedSections
+leaveReviewTouchedResources :: Day -> LeaveReviewDecision -> Maybe LeaveRequestStatus -> LeaveRequest -> [SurfaceResourceValue]
+leaveReviewTouchedResources today decision previousStatus leaveRequest =
+    baseLeaveTouchedResources leaveRequest <> map (\status -> leaveRequestVisibleSectionResource today status leaveRequest) affectedStatuses
     where
-        affectedSections = nub [fromMaybe LeavePending previousStatus, reviewDecisionStatus _decision]
+        affectedStatuses = nub [fromMaybe LeavePending previousStatus, reviewDecisionStatus decision]
 
-leaveRequestSectionResource :: UUID -> LeaveRequestStatus -> SurfaceResourceValue
-leaveRequestSectionResource venueId LeaveApproved = approvedLeaveRequestsResource venueId
-leaveRequestSectionResource venueId LeaveDenied = deniedLeaveRequestsResource venueId
-leaveRequestSectionResource venueId LeavePending = pendingLeaveRequestsResource venueId
+leaveRequestVisibleSectionResource :: Day -> LeaveRequestStatus -> LeaveRequest -> SurfaceResourceValue
+leaveRequestVisibleSectionResource today status leaveRequest
+    | leaveRequestIsArchivedOn today leaveRequest = archivedLeaveRequestsResource leaveRequest.venueId
+    | otherwise = leaveRequestStatusSectionResource leaveRequest.venueId status
+
+leaveRequestStatusSectionResource :: UUID -> LeaveRequestStatus -> SurfaceResourceValue
+leaveRequestStatusSectionResource venueId LeaveApproved = approvedLeaveRequestsResource venueId
+leaveRequestStatusSectionResource venueId LeaveDenied = deniedLeaveRequestsResource venueId
+leaveRequestStatusSectionResource venueId LeavePending = pendingLeaveRequestsResource venueId
 
 leaveReviewRosterWeekResources :: [(UUID, UUID, Int)] -> VenueConfig -> LeaveReviewDecision -> Bool -> LeaveRequest -> [SurfaceResourceValue]
 leaveReviewRosterWeekResources activeScopes venueConfig decision wasApproved leaveRequest

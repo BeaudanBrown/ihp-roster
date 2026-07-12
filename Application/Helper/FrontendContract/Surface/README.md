@@ -213,8 +213,11 @@ controller returns full-page or redirect fallbacks.
 
 Successful migrated mutations must not return authoritative business fragment
 HTML/OOB for the same surface. They should set `HX-Reswap: none`, emit
-actor-local live-fragment refresh metadata through `setActorLiveFragmentsRefresh`,
-or prefer `setActorLiveResourcesRefresh` when the mutation already reports touched
+actor-local live-fragment refresh metadata through
+`setActorLocalFragmentsRefresh` only for requester-local workflows where no
+shared resource changed. Mutations reporting touched resources use
+`setActorLiveResourcesRefresh`, so actor mount keys and passive subscription keys
+are evaluated by the same planner over the same
 `SurfaceResourceValue`s. Passive invalidation handles other tabs/viewers. OOB
 remains valid for extras such as dialog clears, toasts, disposable-layer cleanup,
 focus/scroll hints, and validation-local responses. Plain fragment GET/refetch
@@ -354,12 +357,12 @@ construct concrete `SurfaceResourceValue`s such as `rosterWeekResource`,
 those concrete generated values; it must not introduce legacy sentinel resources,
 custom dependency hooks, or bridge conversions.
 
-The passive planner is generated-data driven:
+The singular actor/passive planner is generated-data driven:
 
-1. collect semantic fragment keys from active surface-native subscriptions;
+1. accept exact semantic keys from an actor mount or active subscription;
 2. evaluate each key's fragment `DependsOn` declarations from scope/fragment params;
 3. intersect those concrete dependency values with touched generated resources;
-4. broadcast the affected canonical fragment keys.
+4. coalesce affected scope/fragment targets before actor delivery or passive broadcast.
 
 Runtime/domain expansion is separate from static fragment dependency planning.
 When a mutation has broad semantic effects, expand it in the producer or a small

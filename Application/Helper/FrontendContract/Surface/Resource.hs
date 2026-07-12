@@ -1,3 +1,7 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications    #-}
+
 module Application.Helper.FrontendContract.Surface.Resource
     ( FrontendSurfaceResourceDefinition (..)
     , SurfaceResourceValue (..)
@@ -11,11 +15,14 @@ module Application.Helper.FrontendContract.Surface.Resource
     , archivedLeaveRequestsResource
     , approvedLeaveRequestsResource
     , deniedLeaveRequestsResource
-    , leaveRequestsResource
     , leaveRequestsSectionResource
     , pendingLeaveRequestsResource
     , resource
     , resourceFieldInt
+    , resourceFieldIntFor
+    , resourceFieldUuidFor
+    , resourceForSurface
+    , resourceMatchesFor
     , resourceFieldText
     , resourceFieldUuid
     , resourceMatches
@@ -40,13 +47,21 @@ module Application.Helper.FrontendContract.Surface.Resource
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
-import Application.Helper.FrontendContract.Surface.Reflect (reflectRegisteredFrontendSurfaces)
+import qualified Application.Helper.FrontendContract.Surface.LeaveRequests as LeaveRequestsSurface
+import qualified Application.Helper.FrontendContract.Surface.Profile as ProfileSurface
+import Application.Helper.FrontendContract.Surface.Reflect (ReflectResource,
+                                                            reflectRegisteredFrontendSurfaces)
+import qualified Application.Helper.FrontendContract.Surface.Roster as RosterSurface
+import qualified Application.Helper.FrontendContract.Surface.Support as SupportSurface
+import qualified Application.Helper.FrontendContract.Surface.Timesheets as TimesheetsSurface
+import Application.Helper.FrontendContract.Surface.Values
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Aeson.Key
 import qualified Data.Aeson.KeyMap as Aeson.KeyMap
 import qualified Data.Aeson.Types as Aeson.Types
 import qualified Data.List as List
 import qualified Data.Scientific as Scientific
+import Data.Typeable (Typeable)
 import qualified Data.UUID as UUID
 import IHP.Prelude
 
@@ -82,20 +97,33 @@ frontendSurfaceResourceDefinitions =
             , resourceFields = resourceDefinition.resourceFields
             }
 
-leaveRequestsResource, pendingLeaveRequestsResource, approvedLeaveRequestsResource, deniedLeaveRequestsResource, archivedLeaveRequestsResource, staffLeaveRequestsResource, staffProfileResource, staffPreferencesResource, staffRsaDocumentsResource, rosterDayResource, adminVenueSettingsResource, rosterEndTimesConfigResource, rosterWeekBoundaryConfigResource, timesheetWeekBoundaryConfigResource, timePickerConfigResource, adminRosterGroupsResource, adminShiftTypesResource, adminInvitesResource, adminExportsResource, billingResource, xeroConnectionResource, xeroMappingsResource, xeroPayItemsResource, xeroTimesheetsResource :: UUID.UUID -> SurfaceResourceValue
-leaveRequestsResource venueId = resource "leave-requests" ["venueId" Aeson..= uuid venueId]
+pendingLeaveRequestsResource, approvedLeaveRequestsResource, deniedLeaveRequestsResource, archivedLeaveRequestsResource, staffLeaveRequestsResource, staffProfileResource, staffPreferencesResource, staffRsaDocumentsResource, rosterDayResource, adminVenueSettingsResource, rosterEndTimesConfigResource, rosterWeekBoundaryConfigResource, timesheetWeekBoundaryConfigResource, timePickerConfigResource, adminRosterGroupsResource, adminShiftTypesResource, adminInvitesResource, adminExportsResource, billingResource, xeroConnectionResource, xeroMappingsResource, xeroPayItemsResource, xeroTimesheetsResource :: UUID.UUID -> SurfaceResourceValue
 pendingLeaveRequestsResource venueId = leaveRequestsSectionResource venueId "pending"
 approvedLeaveRequestsResource venueId = leaveRequestsSectionResource venueId "approved"
 deniedLeaveRequestsResource venueId = leaveRequestsSectionResource venueId "denied"
 archivedLeaveRequestsResource venueId = leaveRequestsSectionResource venueId "archive"
-staffLeaveRequestsResource staffId = resource "staff-leave-requests" ["staffId" Aeson..= uuid staffId]
-staffProfileResource staffId = resource "staff-profile" ["staffId" Aeson..= uuid staffId]
-staffPreferencesResource staffId = resource "staff-preferences" ["staffId" Aeson..= uuid staffId]
-staffRsaDocumentsResource staffId = resource "staff-rsa-documents" ["staffId" Aeson..= uuid staffId]
-rosterDayResource rosterDayId = resource "roster-day" ["rosterDayId" Aeson..= uuid rosterDayId]
+staffLeaveRequestsResource staffId =
+    resourceForSurface @ProfileSurface.ProfileSurface @ProfileSurface.StaffLeaveRequests
+        (surfaceField @ProfileSurface.StaffId staffId :& NoSurfaceFields)
+staffProfileResource staffId =
+    resourceForSurface @ProfileSurface.ProfileSurface @ProfileSurface.StaffProfile
+        (surfaceField @ProfileSurface.StaffId staffId :& NoSurfaceFields)
+staffPreferencesResource staffId =
+    resourceForSurface @ProfileSurface.ProfileSurface @ProfileSurface.StaffPreferences
+        (surfaceField @ProfileSurface.StaffId staffId :& NoSurfaceFields)
+staffRsaDocumentsResource staffId =
+    resourceForSurface @ProfileSurface.ProfileSurface @ProfileSurface.StaffRsaDocuments
+        (surfaceField @ProfileSurface.StaffId staffId :& NoSurfaceFields)
+rosterDayResource rosterDayId =
+    resourceForSurface @RosterSurface.RosterSurface @RosterSurface.RosterDay
+        (surfaceField @RosterSurface.RosterDayId rosterDayId :& NoSurfaceFields)
 adminVenueSettingsResource venueId = resource "admin-venue-settings" ["venueId" Aeson..= uuid venueId]
-rosterEndTimesConfigResource venueId = resource "roster-end-times-config" ["venueId" Aeson..= uuid venueId]
-rosterWeekBoundaryConfigResource venueId = resource "roster-week-boundary-config" ["venueId" Aeson..= uuid venueId]
+rosterEndTimesConfigResource venueId =
+    resourceForSurface @RosterSurface.RosterSurface @RosterSurface.RosterEndTimesConfig
+        (surfaceField @RosterSurface.VenueId venueId :& NoSurfaceFields)
+rosterWeekBoundaryConfigResource venueId =
+    resourceForSurface @RosterSurface.RosterSurface @RosterSurface.RosterWeekBoundaryConfig
+        (surfaceField @RosterSurface.VenueId venueId :& NoSurfaceFields)
 timesheetWeekBoundaryConfigResource venueId = resource "timesheet-week-boundary-config" ["venueId" Aeson..= uuid venueId]
 timePickerConfigResource venueId = resource "time-picker-config" ["venueId" Aeson..= uuid venueId]
 adminRosterGroupsResource venueId = resource "admin-roster-groups" ["venueId" Aeson..= uuid venueId]
@@ -109,20 +137,82 @@ xeroPayItemsResource venueId = resource "xero-pay-items" ["venueId" Aeson..= uui
 xeroTimesheetsResource venueId = resource "xero-timesheets" ["venueId" Aeson..= uuid venueId]
 
 timesheetWeekResource :: UUID.UUID -> Int -> SurfaceResourceValue
-timesheetWeekResource venueId weekOffset = resource "timesheet-week" ["venueId" Aeson..= uuid venueId, "weekOffset" Aeson..= weekOffset]
+timesheetWeekResource venueId weekOffset =
+    resourceForSurface @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetWeek
+        ( surfaceField @TimesheetsSurface.VenueId venueId
+            :& surfaceField @TimesheetsSurface.WeekOffset weekOffset
+            :& NoSurfaceFields
+        )
 
 timesheetDayResource :: UUID.UUID -> Int -> Int -> SurfaceResourceValue
-timesheetDayResource venueId weekOffset dayOffset = resource "timesheet-day" ["venueId" Aeson..= uuid venueId, "weekOffset" Aeson..= weekOffset, "dayOffset" Aeson..= dayOffset]
+timesheetDayResource venueId weekOffset dayOffset =
+    resourceForSurface @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetDay
+        ( surfaceField @TimesheetsSurface.VenueId venueId
+            :& surfaceField @TimesheetsSurface.WeekOffset weekOffset
+            :& surfaceField @TimesheetsSurface.DayOffset dayOffset
+            :& NoSurfaceFields
+        )
 
 leaveRequestsSectionResource :: UUID.UUID -> Text -> SurfaceResourceValue
-leaveRequestsSectionResource venueId section = resource "leave-requests-section" ["venueId" Aeson..= uuid venueId, "leaveSection" Aeson..= section]
+leaveRequestsSectionResource venueId section =
+    resourceForSurface @LeaveRequestsSurface.LeaveRequestsSurface @LeaveRequestsSurface.LeaveRequestsSection
+        ( surfaceField @LeaveRequestsSurface.VenueId venueId
+            :& surfaceField @LeaveRequestsSurface.LeaveSection section
+            :& NoSurfaceFields
+        )
 
 rosterWeekResource :: UUID.UUID -> Int -> SurfaceResourceValue
-rosterWeekResource rosterGroupId weekOffset = resource "roster-week" ["rosterGroupId" Aeson..= uuid rosterGroupId, "weekOffset" Aeson..= weekOffset]
+rosterWeekResource rosterGroupId weekOffset =
+    resourceForSurface @RosterSurface.RosterSurface @RosterSurface.RosterWeek
+        ( surfaceField @RosterSurface.RosterGroupId rosterGroupId
+            :& surfaceField @RosterSurface.WeekOffset weekOffset
+            :& NoSurfaceFields
+        )
 
 supportAwardRatesResource, supportPublicHolidaysResource :: SurfaceResourceValue
-supportAwardRatesResource = resource "support-award-rates" []
-supportPublicHolidaysResource = resource "support-public-holidays" []
+supportAwardRatesResource =
+    resourceForSurface @SupportSurface.SupportSurface @SupportSurface.SupportAwardRates NoSurfaceFields
+supportPublicHolidaysResource =
+    resourceForSurface @SupportSurface.SupportSurface @SupportSurface.SupportPublicHolidays NoSurfaceFields
+
+resourceForSurface ::
+    forall spec marker.
+    ReflectResource (SurfaceResourceSpec spec marker) =>
+    SurfaceFields (SurfaceResourceFieldSpecs spec marker) ->
+    SurfaceResourceValue
+resourceForSurface fields =
+    SurfaceResourceValue
+        { resourceValueName = (surfaceResourceValue @spec @marker).resourceName
+        , resourceValueFields = surfaceFieldsJson fields
+        }
+
+resourceMatchesFor ::
+    forall spec marker.
+    ReflectResource (SurfaceResourceSpec spec marker) =>
+    SurfaceResourceValue ->
+    Bool
+resourceMatchesFor value =
+    value.resourceValueName == (surfaceResourceValue @spec @marker).resourceName
+
+resourceFieldUuidFor ::
+    forall spec resourceMarker fieldMarker.
+    ( Typeable fieldMarker
+    , RequireSurfaceField resourceMarker fieldMarker (SurfaceResourceFieldSpecs spec resourceMarker)
+    ) =>
+    SurfaceResourceValue ->
+    Maybe UUID.UUID
+resourceFieldUuidFor =
+    resourceFieldUuid (surfaceResourceFieldName @spec @resourceMarker @fieldMarker)
+
+resourceFieldIntFor ::
+    forall spec resourceMarker fieldMarker.
+    ( Typeable fieldMarker
+    , RequireSurfaceField resourceMarker fieldMarker (SurfaceResourceFieldSpecs spec resourceMarker)
+    ) =>
+    SurfaceResourceValue ->
+    Maybe Int
+resourceFieldIntFor =
+    resourceFieldInt (surfaceResourceFieldName @spec @resourceMarker @fieldMarker)
 
 resourceMatches :: Text -> SurfaceResourceValue -> Bool
 resourceMatches name value = value.resourceValueName == name

@@ -16,7 +16,6 @@ import System.Exit (exitSuccess)
 import System.FilePath ((</>))
 import qualified Text.Read as TextRead
 import Web.SurfaceInvalidation (SurfaceInvalidationTarget (..),
-                                candidateLiveScopesForSurfaceResourcesWithoutContext,
                                 expandSurfaceResourcesWithoutContext,
                                 performSurfaceInvalidationTargetWithoutContext,
                                 planSurfaceInvalidationsWithoutContext)
@@ -92,14 +91,11 @@ data BenchmarkResult = BenchmarkResult
     , resultTouchedResourceCount  :: !Int
     , resultActiveScopeCount      :: !Int
     , resultExpandedResourceCount :: !Int
-    , resultCandidateScopeCount   :: !Int
-    , resultPlanningScopeCount    :: !Int
     , resultTargetCount           :: !Int
     , resultTargetFragmentCount   :: !Int
     , resultBroadcastCount        :: !Int
     , resultSubscriberCount       :: !Int
     , resultExpandMs              :: !Double
-    , resultCandidateMs           :: !Double
     , resultPlanMs                :: !Double
     , resultBroadcastMs           :: !Double
     , resultTotalMs               :: !Double
@@ -118,9 +114,6 @@ runOne scenario requestedScopeCount = do
     startedAtNs <- getMonotonicTimeNSec
     (expandedResources, expandMs) <- measureDuration do
         pure (expandSurfaceResourcesWithoutContext benchmarkPlan.planActiveRosterScopes benchmarkPlan.planResources)
-    (candidateScopes, candidateMs) <- measureDuration do
-        pure (candidateLiveScopesForSurfaceResourcesWithoutContext expandedResources)
-    let planningScopes = coalesceScopes (benchmarkPlan.planActiveScopes <> candidateScopes)
     let activeSubscriptions = map benchmarkSubscription benchmarkPlan.planActiveScopes
     (targets, planMs) <- measureDuration do
         pure (planSurfaceInvalidationsWithoutContext expandedResources activeSubscriptions)
@@ -135,14 +128,11 @@ runOne scenario requestedScopeCount = do
             , resultTouchedResourceCount = Set.size benchmarkPlan.planResources
             , resultActiveScopeCount = length benchmarkPlan.planActiveScopes
             , resultExpandedResourceCount = Set.size expandedResources
-            , resultCandidateScopeCount = length candidateScopes
-            , resultPlanningScopeCount = length planningScopes
             , resultTargetCount = length targets
             , resultTargetFragmentCount = sum (map (length . targetFragments) targets)
             , resultBroadcastCount = length broadcastResults
             , resultSubscriberCount = sum (map broadcastSubscriberCount broadcastResults)
             , resultExpandMs = expandMs
-            , resultCandidateMs = candidateMs
             , resultPlanMs = planMs
             , resultBroadcastMs = broadcastMs
             , resultTotalMs = durationBetweenMs startedAtNs completedAtNs
@@ -157,14 +147,11 @@ combineSamples scenario requestedScopeCount iterations samples =
         , resultTouchedResourceCount = stable resultTouchedResourceCount
         , resultActiveScopeCount = stable resultActiveScopeCount
         , resultExpandedResourceCount = stable resultExpandedResourceCount
-        , resultCandidateScopeCount = stable resultCandidateScopeCount
-        , resultPlanningScopeCount = stable resultPlanningScopeCount
         , resultTargetCount = stable resultTargetCount
         , resultTargetFragmentCount = stable resultTargetFragmentCount
         , resultBroadcastCount = stable resultBroadcastCount
         , resultSubscriberCount = stable resultSubscriberCount
         , resultExpandMs = average resultExpandMs
-        , resultCandidateMs = average resultCandidateMs
         , resultPlanMs = average resultPlanMs
         , resultBroadcastMs = average resultBroadcastMs
         , resultTotalMs = average resultTotalMs
@@ -259,10 +246,6 @@ venueIdFor index =
 rosterGroupIdFor :: Int -> UUID
 rosterGroupIdFor index =
     fromWords 0x20000000 0 0 (fromIntegral (index + 1))
-
-coalesceScopes :: [SurfaceScope] -> [SurfaceScope]
-coalesceScopes =
-    Set.toList . Set.fromList
 
 measureDuration :: IO a -> IO (a, Double)
 measureDuration action = do
@@ -369,14 +352,11 @@ resultJson result =
         , "touchedResourceCount" Aeson..= result.resultTouchedResourceCount
         , "activeScopeCount" Aeson..= result.resultActiveScopeCount
         , "expandedResourceCount" Aeson..= result.resultExpandedResourceCount
-        , "candidateScopeCount" Aeson..= result.resultCandidateScopeCount
-        , "planningScopeCount" Aeson..= result.resultPlanningScopeCount
         , "targetCount" Aeson..= result.resultTargetCount
         , "targetFragmentCount" Aeson..= result.resultTargetFragmentCount
         , "broadcastCount" Aeson..= result.resultBroadcastCount
         , "subscriberCount" Aeson..= result.resultSubscriberCount
         , "avgExpandMs" Aeson..= result.resultExpandMs
-        , "avgCandidateMs" Aeson..= result.resultCandidateMs
         , "avgPlanMs" Aeson..= result.resultPlanMs
         , "avgBroadcastMs" Aeson..= result.resultBroadcastMs
         , "avgTotalMs" Aeson..= result.resultTotalMs
@@ -390,8 +370,8 @@ markdownSummary options results =
         , "Iterations per row: `" <> tshow options.iterations <> "`"
         , "Scope counts: `" <> Text.intercalate ", " (map tshow options.scopeCounts) <> "`"
         , ""
-        , "| Scenario | Scopes | Touched | Expanded | Candidates | Planning Scopes | Targets | Fragments | Broadcasts | Subscribers | Expand ms | Candidate ms | Plan ms | Broadcast ms | Total ms |"
-        , "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"
+        , "| Scenario | Scopes | Touched | Expanded | Targets | Fragments | Broadcasts | Subscribers | Expand ms | Plan ms | Broadcast ms | Total ms |"
+        , "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"
         ]
             <> map resultRow results
 
@@ -403,14 +383,11 @@ resultRow result =
         , tshow result.resultScopeCount
         , tshow result.resultTouchedResourceCount
         , tshow result.resultExpandedResourceCount
-        , tshow result.resultCandidateScopeCount
-        , tshow result.resultPlanningScopeCount
         , tshow result.resultTargetCount
         , tshow result.resultTargetFragmentCount
         , tshow result.resultBroadcastCount
         , tshow result.resultSubscriberCount
         , renderDuration result.resultExpandMs
-        , renderDuration result.resultCandidateMs
         , renderDuration result.resultPlanMs
         , renderDuration result.resultBroadcastMs
         , renderDuration result.resultTotalMs <> " |"
