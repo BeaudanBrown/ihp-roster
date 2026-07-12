@@ -16,6 +16,7 @@ module Application.Helper.FrontendContract.Surface.ContractIR
     , HtmxActionOptionIR (..)
     , HtmxMethodIR (..)
     , HtmxPushUrlIR (..)
+    , HtmxSyntaxIR (..)
     , InteractionActivationRefIR (..)
     , InteractionDropzoneRefIR (..)
     , InteractionModifierVariantIR (..)
@@ -35,6 +36,9 @@ module Application.Helper.FrontendContract.Surface.ContractIR
     , SurfaceIR (..)
     , WireIR (..)
     , checkedSurfaceContractIR
+    , htmxSyntaxRawReason
+    , htmxSyntaxReferences
+    , htmxSyntaxText
     , optionHtmxActionOptions
     , optionResourceDependencies
     , validateSurfaceContractIR
@@ -395,7 +399,7 @@ validateActionRequestOptions surface =
             validateAtMostOne "htmx-method" "method" isHtmxMethod action
                 <> validateAtMostOne "htmx-push-url" "push-url" isHtmxPushUrl action
                 <> validateAtMostOne "htmx-target" "target" isHtmxTarget action
-                <> concatMap validateCustomHtmx action.htmxActionOptions
+                <> concatMap validateHtmxEscape action.htmxActionOptions
 
         validateAtMostOne code label predicate action =
             let matches = filter predicate action.htmxActionOptions
@@ -403,15 +407,31 @@ validateActionRequestOptions surface =
                     then []
                     else [diagnostic ("duplicate-" <> code) ("surface " <> surface.surfaceName <> " htmx action " <> action.htmxActionName <> " declares " <> label <> " more than once")]
 
-        validateCustomHtmx = \case
+        validateHtmxEscape = \case
             HtmxOption (HtmxActionCustomHtmxIR marker reason)
                 | Text.strip marker == "" -> [diagnostic "invalid-custom-htmx" ("surface " <> surface.surfaceName <> " declares custom HTMX with an empty marker")]
                 | Text.strip reason == "" -> [diagnostic "invalid-custom-htmx" ("surface " <> surface.surfaceName <> " custom HTMX " <> marker <> " must include a non-empty reason")]
                 | otherwise -> []
-            LazyOption options -> concatMap validateCustomHtmx options
-            EffectOption _ options -> concatMap validateCustomHtmx options
-            ModifierVariantOption variant -> concatMap validateCustomHtmx (concatMap snd variant.modifierVariantEffects)
+            HtmxOption option -> maybe [] validateRawReason (htmxOptionSyntax option)
+            LazyOption options -> concatMap validateHtmxEscape options
+            EffectOption _ options -> concatMap validateHtmxEscape options
+            ModifierVariantOption variant -> concatMap validateHtmxEscape (concatMap snd variant.modifierVariantEffects)
             _ -> []
+
+        validateRawReason syntax =
+            case htmxSyntaxRawReason syntax of
+                Just reason | Text.strip reason == "" -> [diagnostic "invalid-raw-htmx" ("surface " <> surface.surfaceName <> " raw HTMX syntax must include a non-empty reason")]
+                _ -> []
+
+        htmxOptionSyntax = \case
+            HtmxActionTriggerIR syntax -> Just syntax
+            HtmxActionIncludeIR syntax -> Just syntax
+            HtmxActionSyncIR syntax -> Just syntax
+            HtmxActionIndicatorIR syntax -> Just syntax
+            HtmxActionSelectIR syntax -> Just syntax
+            HtmxActionTargetIR syntax -> Just syntax
+            HtmxActionSwapIR syntax -> Just syntax
+            _ -> Nothing
 
         isHtmxMethod = \case
             HtmxOption (HtmxActionMethodIR _) -> True
@@ -525,11 +545,11 @@ validateCrossReferences surface =
             ValueFieldOption name -> requireAnyIntentField owner name
             EmitsOption name -> requireRef owner RefClientEvent eventNames name
             UsesDtoOption name -> requireRef owner RefDto dtoNames name
-            HtmxOption (HtmxActionTargetIR name) -> requireRef owner RefDomToken domTokenNames name
-            HtmxOption (HtmxActionIncludeIR name) -> requireRef owner RefDomToken domTokenNames name
-            HtmxOption (HtmxActionIndicatorIR name) -> requireRef owner RefDomToken domTokenNames name
-            HtmxOption (HtmxActionSyncIR name) -> requireRef owner RefDomToken domTokenNames name
-            HtmxOption (HtmxActionSelectIR name) -> requireRef owner RefDomToken domTokenNames name
+            HtmxOption (HtmxActionTargetIR syntax) -> requireDomTokenRefs owner syntax
+            HtmxOption (HtmxActionIncludeIR syntax) -> requireDomTokenRefs owner syntax
+            HtmxOption (HtmxActionIndicatorIR syntax) -> requireDomTokenRefs owner syntax
+            HtmxOption (HtmxActionSyncIR syntax) -> requireDomTokenRefs owner syntax
+            HtmxOption (HtmxActionSelectIR syntax) -> requireDomTokenRefs owner syntax
             _ -> []
 
         validateInteractionRefs =
@@ -567,6 +587,9 @@ validateCrossReferences surface =
             AnyFragmentIR -> []
             FragmentKindIR name -> requireRef "conflict policy" RefFragment fragmentNames name
             FragmentSubtreeIR name -> requireRef "conflict policy" RefFragment fragmentNames name
+
+        requireDomTokenRefs owner syntax =
+            concatMap (requireRef owner RefDomToken domTokenNames) (htmxSyntaxReferences syntax)
 
         requireRef owner refKind available name =
             if name `elem` available

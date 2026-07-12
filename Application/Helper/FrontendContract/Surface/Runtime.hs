@@ -1,5 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes   #-}
 {-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -39,13 +40,18 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , SurfaceImplHandlers (..)
     , frontendSurfaceFieldValues
     , frontendSurfaceFieldValuesFromPairs
+    , frontendSurfaceFragmentKeyFor
     , frontendSurfaceFragmentKeyFromPairs
     , frontendSurfaceMountedFragment
+    , frontendSurfaceMountedFragmentFor
     , getSurfaceField
     , defaultFrontendSurfaceLazyFragmentConfig
     , customPlaceholderFrontendSurfaceLazyFragmentConfig
     , frontendSurfaceMountConfigJson
     , frontendSurfaceMountedFragmentsToKeys
+    , frontendSurfaceMountedFragmentsToKeysFor
+    , frontendSurfaceActionFields
+    , frontendSurfaceScopeKeyFor
     , applyFrontendSurfaceActionAttrs
     , frontendSurfaceActionHtmxAttrPairs
     , renderFrontendSurfaceActionForm
@@ -58,6 +64,7 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , renderFrontendSurfaceLazyFragmentWithConfig
     , requireSurfaceField
     , mkSurfaceImpl
+    , mkSurfaceImplFromValues
     , surfaceImplWithMountedFragments
     , renderFrontendSurfaceMount
     ) where
@@ -70,6 +77,10 @@ import Application.Helper.FrontendContract.LiveUpdateValues (surfaceActionDomAtt
 import qualified Application.Helper.FrontendContract.Naming as Naming
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.DSL
+import Application.Helper.FrontendContract.Surface.Identity (canonicalFrontendSurfaceScopeKey)
+import Application.Helper.FrontendContract.Surface.Reflect (ReflectPrimitive,
+                                                            ReflectSurfaceSpec)
+import Application.Helper.FrontendContract.Surface.Values
 import qualified Application.Helper.LiveUpdate.Runtime as LiveUpdate
 import Application.Helper.UiRegion (UiRegionDomAttributes (..),
                                     canonicalUiRegionDomAttributes,
@@ -384,6 +395,63 @@ mkSurfaceImpl name mountConfig handlers =
         , surfaceImplIntents = handlerListToList defaultIntentForm handlers.surfaceIntentHandlers
         }
 
+-- | Construct the complete runtime mount from marker-indexed values. Scope
+-- identity, exact JSON fields, live subscription metadata, and Surface name all
+-- come from the owning type-level declaration; callers provide only local
+-- fragment URLs/targets and the mount instance key.
+mkSurfaceImplFromValues ::
+    forall spec scopeMarker.
+    ( KnownLiveFragments spec
+    , ReflectSurfaceSpec spec
+    , ReflectPrimitive (SurfaceScopePrimitive spec scopeMarker)
+    ) =>
+    Text ->
+    SurfaceFields (SurfaceScopeFieldSpecs spec scopeMarker) ->
+    SurfaceFields (SurfaceMountStateFieldSpecs spec) ->
+    [FrontendSurfaceMountedFragment] ->
+    SurfaceImpl spec
+mkSurfaceImplFromValues mountKey scopeFields mountStateFields fragments =
+    SurfaceImpl
+        { surfaceImplName = surfaceName
+        , surfaceImplMountConfig = mountConfig
+        , surfaceImplActions = []
+        , surfaceImplIntents = []
+        }
+  where
+    surfaceName = surfaceNameValue @spec
+    scopeValue = surfaceFieldsJson scopeFields
+    scopeKey =
+        either
+            (\message -> error ("Typed Surface scope invariant failed: " <> message))
+            id
+            (frontendSurfaceScopeKeyFor @spec @scopeMarker scopeFields)
+    baseMountConfig = FrontendSurfaceMountConfig
+        { mountSurfaceName = surfaceName
+        , mountScopeKey = scopeKey
+        , mountKey
+        , mountScope = scopeValue
+        , mountState = surfaceFieldsJson mountStateFields
+        , mountFragments = fragments
+        , mountSubscription = Nothing
+        }
+    mountConfig = baseMountConfig
+        { mountSubscription = frontendSurfaceLiveSubscription surfaceName (liveFragmentNames @spec) baseMountConfig
+        }
+
+frontendSurfaceScopeKeyFor ::
+    forall spec marker.
+    ( ReflectSurfaceSpec spec
+    , ReflectPrimitive (SurfaceScopePrimitive spec marker)
+    ) =>
+    SurfaceFields (SurfaceScopeFieldSpecs spec marker) ->
+    Either Text Text
+frontendSurfaceScopeKeyFor fields =
+    case Aeson.Types.parseEither
+        (canonicalFrontendSurfaceScopeKey (surfaceNameValue @spec))
+        (surfaceFieldsJson fields) of
+        Left message   -> Left (cs message)
+        Right scopeKey -> Right scopeKey
+
 surfaceImplWithMountedFragments :: forall spec. KnownLiveFragments spec => [FrontendSurfaceMountedFragment] -> SurfaceImpl spec -> SurfaceImpl spec
 surfaceImplWithMountedFragments fragments impl =
     impl
@@ -485,6 +553,17 @@ data FrontendSurfaceFragmentKey = FrontendSurfaceFragmentKey
     }
     deriving (Eq, Show)
 
+frontendSurfaceFragmentKeyFor ::
+    forall spec marker.
+    ReflectPrimitive (SurfaceFragmentPrimitive spec marker) =>
+    SurfaceFields (SurfaceFragmentFieldSpecs spec marker) ->
+    FrontendSurfaceFragmentKey
+frontendSurfaceFragmentKeyFor fields =
+    FrontendSurfaceFragmentKey
+        { fragmentKind = (surfaceFragmentValue @spec @marker).fragmentName
+        , fragmentParams = surfaceFieldsJson fields
+        }
+
 frontendSurfaceFragmentKeyFromPairs :: Text -> [Aeson.Types.Pair] -> FrontendSurfaceFragmentKey
 frontendSurfaceFragmentKeyFromPairs kind params =
     FrontendSurfaceFragmentKey kind (Aeson.object params)
@@ -524,6 +603,29 @@ frontendSurfaceMountedFragment kind params targetId url protection =
         , mountedFragmentPlaceholderKind = Nothing
         }
 
+frontendSurfaceMountedFragmentFor ::
+    forall spec marker.
+    ( ReflectPrimitive (SurfaceFragmentPrimitive spec marker)
+    , KnownFragmentOptions (SurfaceFragmentOptionSpecs spec marker)
+    ) =>
+    SurfaceFields (SurfaceFragmentFieldSpecs spec marker) ->
+    Text ->
+    Text ->
+    FrontendSurfaceProtection ->
+    FrontendSurfaceMountedFragment
+frontendSurfaceMountedFragmentFor fields targetId url protection =
+    applyFrontendSurfaceLazyFragmentDefaults
+        (knownFragmentOptions @(SurfaceFragmentOptionSpecs spec marker))
+        ( FrontendSurfaceMountedFragment
+            { mountedFragmentKey = frontendSurfaceFragmentKeyFor @spec @marker fields
+            , mountedFragmentTargetId = targetId
+            , mountedFragmentUrl = url
+            , mountedFragmentProtection = protection
+            , mountedFragmentLazyTrigger = Nothing
+            , mountedFragmentPlaceholderKind = Nothing
+            }
+        )
+
 data FrontendSurfaceHtmxMethod
     = FrontendSurfaceGet
     | FrontendSurfacePost
@@ -537,6 +639,15 @@ data FrontendSurfaceFieldValue = FrontendSurfaceFieldValue
     , fieldValueValue :: !Text
     }
     deriving (Eq, Show)
+
+frontendSurfaceActionFields ::
+    forall spec marker.
+    SurfaceFields (SurfaceActionFieldSpecs spec marker) ->
+    [FrontendSurfaceFieldValue]
+frontendSurfaceActionFields fields =
+    [ FrontendSurfaceFieldValue name value
+    | (name, value) <- surfaceFieldsText fields
+    ]
 
 data FrontendSurfaceHtmxRequest = FrontendSurfaceHtmxRequest
     { htmxRequestName   :: !Text
@@ -955,6 +1066,14 @@ frontendSurfaceMountedFragmentsToKeys surfaceName =
             , surfaceFragmentWireKind = fragment.mountedFragmentKey.fragmentKind
             , surfaceFragmentParams = canonicalMountedFragmentParams fragment.mountedFragmentKey.fragmentParams
             }
+
+frontendSurfaceMountedFragmentsToKeysFor ::
+    forall spec.
+    ReflectSurfaceSpec spec =>
+    [FrontendSurfaceMountedFragment] ->
+    [LiveUpdate.SurfaceFragmentKey]
+frontendSurfaceMountedFragmentsToKeysFor =
+    frontendSurfaceMountedFragmentsToKeys (surfaceNameValue @spec)
 
 protectionToJson :: FrontendSurfaceProtection -> Aeson.Value
 protectionToJson = \case

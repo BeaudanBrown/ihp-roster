@@ -64,3 +64,13 @@ expect_compile_failure \
     "FrontendSurface field" \
     "WeekOffset" \
     "not declared"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceWrongActionMarker.hs" \
+    "does not declare action marker" \
+    "NavigateRosterWeek"
+
+expect_compile_failure \
+    "Test/CompileFail/FrontendSurfaceWrongActionField.hs" \
+    "does not declare field marker" \
+    "RosterGroupId"

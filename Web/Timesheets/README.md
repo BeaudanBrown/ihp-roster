@@ -17,6 +17,20 @@ redirects/fragments.
 - `Web/Timesheets/Validation.hs` - input validation helpers.
 - `Web/View/Timesheets/` - HSX rendering.
 
+## FrontendSurface Boundary
+
+Timesheets is the marker-indexed runtime pilot. `Web/Timesheets/FrontendSurface.hs`
+builds its scope, mount state, fragment params, and canonical scope key through
+exact `SurfaceFields`; it must not use phantom JSON field carriers or required
+field fallbacks. Views resolve action and field metadata with owning Surface and
+marker type applications rather than scanning the reflected registry by names.
+
+Week navigation and filter requests declare the typed HTMX sync recipe
+`closest #timesheet-week-shell:replace` in the Surface spec. The shell DOM ID and
+action metadata come from marker-indexed accessors; views do not hand-author the
+sync attribute or a custom-HTMX substitute. Fragment URL, target, and protection
+values remain local server-rendered mount data.
+
 ## Related Docs
 
 - `SPEC.md`

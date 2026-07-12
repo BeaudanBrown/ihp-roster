@@ -8,7 +8,10 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Application.Helper.FrontendContract.Surface.Reflect
-    ( ReflectSurfaceRegistry (..)
+    ( ReflectedPrimitive (..)
+    , ReflectPrimitive (..)
+    , ReflectResource (..)
+    , ReflectSurfaceRegistry (..)
     , ReflectSurfaceSpec (..)
     , reflectRegisteredFrontendSurfaces
     ) where
@@ -319,14 +322,14 @@ instance Typeable marker => ReflectOption ('Contains marker) where reflectOption
 instance Typeable marker => ReflectOption ('ContainsSurface marker) where reflectOption = ContainsSurfaceOption (protocolName @marker SurfaceName)
 instance Typeable marker => ReflectOption ('UsesDto marker) where reflectOption = UsesDtoOption (typeMarker @marker)
 instance ReflectHtmxMethod method => ReflectOption ('HtmxMethod method) where reflectOption = HtmxOption (HtmxActionMethodIR (reflectHtmxMethod @method))
-instance Typeable marker => ReflectOption ('HtmxTrigger marker) where reflectOption = HtmxOption (HtmxActionTriggerIR (protocolName @marker DomTokenName))
-instance Typeable marker => ReflectOption ('HtmxInclude marker) where reflectOption = HtmxOption (HtmxActionIncludeIR (protocolName @marker DomTokenName))
-instance Typeable marker => ReflectOption ('HtmxSync marker) where reflectOption = HtmxOption (HtmxActionSyncIR (protocolName @marker DomTokenName))
-instance Typeable marker => ReflectOption ('HtmxIndicator marker) where reflectOption = HtmxOption (HtmxActionIndicatorIR (protocolName @marker DomTokenName))
+instance ReflectHtmxTrigger trigger => ReflectOption ('HtmxTrigger trigger) where reflectOption = HtmxOption (HtmxActionTriggerIR (reflectHtmxTrigger @trigger))
+instance ReflectHtmxSelector selector => ReflectOption ('HtmxInclude selector) where reflectOption = HtmxOption (HtmxActionIncludeIR (reflectHtmxSelector @selector))
+instance ReflectHtmxSync sync => ReflectOption ('HtmxSync sync) where reflectOption = HtmxOption (HtmxActionSyncIR (reflectHtmxSync @sync))
+instance ReflectHtmxSelector selector => ReflectOption ('HtmxIndicator selector) where reflectOption = HtmxOption (HtmxActionIndicatorIR (reflectHtmxSelector @selector))
 instance Typeable marker => ReflectOption ('HtmxConfirm marker) where reflectOption = HtmxOption (HtmxActionConfirmIR (protocolName @marker DomTokenName))
-instance Typeable marker => ReflectOption ('HtmxSelect marker) where reflectOption = HtmxOption (HtmxActionSelectIR (protocolName @marker DomTokenName))
-instance Typeable marker => ReflectOption ('HtmxTarget marker) where reflectOption = HtmxOption (HtmxActionTargetIR (protocolName @marker DomTokenName))
-instance Typeable marker => ReflectOption ('HtmxSwap marker) where reflectOption = HtmxOption (HtmxActionSwapIR (reflectHtmxSwapMarker (typeMarker @marker)))
+instance ReflectHtmxSelector selector => ReflectOption ('HtmxSelect selector) where reflectOption = HtmxOption (HtmxActionSelectIR (reflectHtmxSelector @selector))
+instance ReflectHtmxSelector selector => ReflectOption ('HtmxTarget selector) where reflectOption = HtmxOption (HtmxActionTargetIR (reflectHtmxSelector @selector))
+instance ReflectHtmxSwap swap => ReflectOption ('HtmxSwap swap) where reflectOption = HtmxOption (HtmxActionSwapIR (reflectHtmxSwap @swap))
 instance ReflectHtmxPushUrl value => ReflectOption ('HtmxPushUrl value) where reflectOption = HtmxOption (HtmxActionPushUrlIR (reflectHtmxPushUrl @value))
 instance (Typeable marker, KnownSymbol reason) => ReflectOption ('CustomHtmx marker reason) where
     reflectOption = HtmxOption (HtmxActionCustomHtmxIR (protocolName @marker DomTokenName) (cs (symbolVal (Proxy @reason))))
@@ -346,17 +349,76 @@ class ReflectHtmxPushUrl (value :: HtmxPushUrl) where
 instance ReflectHtmxPushUrl 'HtmxPushUrlTrue where reflectHtmxPushUrl = HtmxPushUrlTrueIR
 instance ReflectHtmxPushUrl 'HtmxPushUrlFalse where reflectHtmxPushUrl = HtmxPushUrlFalseIR
 
-reflectHtmxSwapMarker :: Text -> Text
-reflectHtmxSwapMarker = \case
-    "InnerHTML" -> "innerHTML"
-    "InnerHtml" -> "innerHTML"
-    "OuterHTML" -> "outerHTML"
-    "OuterHtml" -> "outerHTML"
-    "BeforeEnd" -> "beforeend"
-    "AfterBegin" -> "afterbegin"
-    "None" -> "none"
-    "NoneSwap" -> "none"
-    other -> error (cs ("unsupported HTMX swap marker " <> other <> "; use InnerHTML, OuterHTML, BeforeEnd, AfterBegin, or None"))
+class ReflectHtmxSelector (selector :: HtmxSelectorSpec) where
+    reflectHtmxSelector :: HtmxSyntaxIR
+
+instance Typeable marker => ReflectHtmxSelector ('HtmxId marker) where
+    reflectHtmxSelector = HtmxTypedSyntaxIR ("#" <> name) [name]
+      where
+        name = protocolName @marker DomTokenName
+
+instance Typeable marker => ReflectHtmxSelector ('HtmxClass marker) where
+    reflectHtmxSelector = HtmxTypedSyntaxIR ("." <> name) [name]
+      where
+        name = protocolName @marker DomTokenName
+
+instance ReflectHtmxSelector selector => ReflectHtmxSelector ('HtmxClosest selector) where
+    reflectHtmxSelector = mapHtmxSyntax ("closest " <>) (reflectHtmxSelector @selector)
+
+instance ReflectHtmxSelector selector => ReflectHtmxSelector ('HtmxFind selector) where
+    reflectHtmxSelector = mapHtmxSyntax ("find " <>) (reflectHtmxSelector @selector)
+
+instance ReflectHtmxSelector 'HtmxThis where reflectHtmxSelector = HtmxTypedSyntaxIR "this" []
+instance ReflectHtmxSelector 'HtmxDocument where reflectHtmxSelector = HtmxTypedSyntaxIR "document" []
+instance ReflectHtmxSelector 'HtmxWindow where reflectHtmxSelector = HtmxTypedSyntaxIR "window" []
+instance ReflectHtmxSelector 'HtmxBody where reflectHtmxSelector = HtmxTypedSyntaxIR "body" []
+instance (KnownSymbol value, KnownSymbol reason) => ReflectHtmxSelector ('HtmxRawSelector value reason) where
+    reflectHtmxSelector = HtmxRawSyntaxIR (cs (symbolVal (Proxy @value))) (cs (symbolVal (Proxy @reason)))
+
+class ReflectHtmxTrigger (trigger :: HtmxTriggerSpec) where
+    reflectHtmxTrigger :: HtmxSyntaxIR
+
+instance ReflectHtmxTrigger 'HtmxClick where reflectHtmxTrigger = HtmxTypedSyntaxIR "click" []
+instance ReflectHtmxTrigger 'HtmxChange where reflectHtmxTrigger = HtmxTypedSyntaxIR "change" []
+instance ReflectHtmxTrigger 'HtmxLoad where reflectHtmxTrigger = HtmxTypedSyntaxIR "load" []
+instance Typeable marker => ReflectHtmxTrigger ('HtmxCustomEvent marker) where
+    reflectHtmxTrigger = HtmxTypedSyntaxIR (protocolName @marker EventName) []
+instance (KnownSymbol value, KnownSymbol reason) => ReflectHtmxTrigger ('HtmxRawTrigger value reason) where
+    reflectHtmxTrigger = HtmxRawSyntaxIR (cs (symbolVal (Proxy @value))) (cs (symbolVal (Proxy @reason)))
+
+class ReflectHtmxSwap (swap :: HtmxSwapSpec) where
+    reflectHtmxSwap :: HtmxSyntaxIR
+
+instance ReflectHtmxSwap 'HtmxInnerHTML where reflectHtmxSwap = HtmxTypedSyntaxIR "innerHTML" []
+instance ReflectHtmxSwap 'HtmxOuterHTML where reflectHtmxSwap = HtmxTypedSyntaxIR "outerHTML" []
+instance ReflectHtmxSwap 'HtmxBeforeEnd where reflectHtmxSwap = HtmxTypedSyntaxIR "beforeend" []
+instance ReflectHtmxSwap 'HtmxAfterBegin where reflectHtmxSwap = HtmxTypedSyntaxIR "afterbegin" []
+instance ReflectHtmxSwap 'HtmxNoSwap where reflectHtmxSwap = HtmxTypedSyntaxIR "none" []
+instance (KnownSymbol value, KnownSymbol reason) => ReflectHtmxSwap ('HtmxRawSwap value reason) where
+    reflectHtmxSwap = HtmxRawSyntaxIR (cs (symbolVal (Proxy @value))) (cs (symbolVal (Proxy @reason)))
+
+class ReflectHtmxSync (sync :: HtmxSyncSpec) where
+    reflectHtmxSync :: HtmxSyntaxIR
+
+instance (ReflectHtmxSelector selector, ReflectHtmxSyncStrategy strategy) => ReflectHtmxSync ('HtmxSyncOn selector strategy) where
+    reflectHtmxSync = mapHtmxSyntax (<> ":" <> reflectHtmxSyncStrategy @strategy) (reflectHtmxSelector @selector)
+instance (KnownSymbol value, KnownSymbol reason) => ReflectHtmxSync ('HtmxRawSync value reason) where
+    reflectHtmxSync = HtmxRawSyntaxIR (cs (symbolVal (Proxy @value))) (cs (symbolVal (Proxy @reason)))
+
+class ReflectHtmxSyncStrategy (strategy :: HtmxSyncStrategy) where
+    reflectHtmxSyncStrategy :: Text
+
+instance ReflectHtmxSyncStrategy 'HtmxSyncDrop where reflectHtmxSyncStrategy = "drop"
+instance ReflectHtmxSyncStrategy 'HtmxSyncAbort where reflectHtmxSyncStrategy = "abort"
+instance ReflectHtmxSyncStrategy 'HtmxSyncReplace where reflectHtmxSyncStrategy = "replace"
+instance ReflectHtmxSyncStrategy 'HtmxSyncQueueFirst where reflectHtmxSyncStrategy = "queue first"
+instance ReflectHtmxSyncStrategy 'HtmxSyncQueueAll where reflectHtmxSyncStrategy = "queue all"
+instance ReflectHtmxSyncStrategy 'HtmxSyncQueueLast where reflectHtmxSyncStrategy = "queue last"
+
+mapHtmxSyntax :: (Text -> Text) -> HtmxSyntaxIR -> HtmxSyntaxIR
+mapHtmxSyntax transform = \case
+    HtmxTypedSyntaxIR value references -> HtmxTypedSyntaxIR (transform value) references
+    HtmxRawSyntaxIR value reason -> HtmxRawSyntaxIR (transform value) reason
 
 requiredOption :: Text -> Text -> Text -> [Text] -> Text
 requiredOption kind marker optionName values =

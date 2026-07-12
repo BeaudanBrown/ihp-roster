@@ -35,14 +35,14 @@ type SupportSurface =
          , Action CreatePublicHolidayRefreshJob
             '[]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget SupportPublicHolidays
-             , 'HtmxSwap OuterHTML
+             , 'HtmxTarget ('HtmxId SupportPublicHolidays)
+             , 'HtmxSwap 'HtmxOuterHTML
              ]
          , Action CreateFwcMapdRefreshJob
             '[]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget SupportAwardRates
-             , 'HtmxSwap OuterHTML
+             , 'HtmxTarget ('HtmxId SupportAwardRates)
+             , 'HtmxSwap 'HtmxOuterHTML
              ]
          , DomToken SupportPublicHolidays
          , DomToken SupportAwardRates

@@ -120,28 +120,30 @@ instance ReflectAppShellHtmxMethod method => ReflectAppShellActionOption ('AppSh
     reflectAppShellActionOption = HtmxActionMethodIR (reflectAppShellHtmxMethod @method)
 
 instance KnownSymbol value => ReflectAppShellActionOption ('AppShellHtmxTrigger value) where
-    reflectAppShellActionOption = HtmxActionTriggerIR (cs (symbolVal (Proxy @value)))
+    reflectAppShellActionOption = HtmxActionTriggerIR (HtmxTypedSyntaxIR (cs (symbolVal (Proxy @value))) [])
 
 instance KnownSymbol value => ReflectAppShellActionOption ('AppShellHtmxInclude value) where
-    reflectAppShellActionOption = HtmxActionIncludeIR (cs (symbolVal (Proxy @value)))
+    reflectAppShellActionOption = HtmxActionIncludeIR (HtmxTypedSyntaxIR (cs (symbolVal (Proxy @value))) [])
 
 instance KnownSymbol value => ReflectAppShellActionOption ('AppShellHtmxSync value) where
-    reflectAppShellActionOption = HtmxActionSyncIR (cs (symbolVal (Proxy @value)))
+    reflectAppShellActionOption = HtmxActionSyncIR (HtmxTypedSyntaxIR (cs (symbolVal (Proxy @value))) [])
 
 instance KnownSymbol value => ReflectAppShellActionOption ('AppShellHtmxIndicator value) where
-    reflectAppShellActionOption = HtmxActionIndicatorIR (cs (symbolVal (Proxy @value)))
+    reflectAppShellActionOption = HtmxActionIndicatorIR (HtmxTypedSyntaxIR (cs (symbolVal (Proxy @value))) [])
 
 instance KnownSymbol value => ReflectAppShellActionOption ('AppShellHtmxConfirm value) where
     reflectAppShellActionOption = HtmxActionConfirmIR (cs (symbolVal (Proxy @value)))
 
 instance KnownSymbol value => ReflectAppShellActionOption ('AppShellHtmxSelect value) where
-    reflectAppShellActionOption = HtmxActionSelectIR (cs (symbolVal (Proxy @value)))
+    reflectAppShellActionOption = HtmxActionSelectIR (HtmxTypedSyntaxIR (cs (symbolVal (Proxy @value))) [])
 
 instance Typeable marker => ReflectAppShellActionOption ('AppShellHtmxTarget marker) where
-    reflectAppShellActionOption = HtmxActionTargetIR (nameToKebab (typeMarker @marker))
+    reflectAppShellActionOption = HtmxActionTargetIR (HtmxTypedSyntaxIR ("#" <> name) [name])
+      where
+        name = nameToKebab (typeMarker @marker)
 
 instance KnownSymbol value => ReflectAppShellActionOption ('AppShellHtmxSwap value) where
-    reflectAppShellActionOption = HtmxActionSwapIR (cs (symbolVal (Proxy @value)))
+    reflectAppShellActionOption = HtmxActionSwapIR (HtmxTypedSyntaxIR (cs (symbolVal (Proxy @value))) [])
 
 instance ReflectAppShellHtmxPushUrl value => ReflectAppShellActionOption ('AppShellHtmxPushUrl value) where
     reflectAppShellActionOption = HtmxActionPushUrlIR (reflectAppShellHtmxPushUrl @value)

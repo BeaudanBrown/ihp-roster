@@ -11,6 +11,7 @@ module Application.Helper.FrontendContract.Core
     , HtmxActionOptionIR (..)
     , HtmxMethodIR (..)
     , HtmxPushUrlIR (..)
+    , HtmxSyntaxIR (..)
     , SchemaIR (..)
     , UnionCaseIR (..)
     , WireIR (..)
@@ -18,6 +19,9 @@ module Application.Helper.FrontendContract.Core
     , fieldRefs
     , htmxMethodText
     , htmxPushUrlBool
+    , htmxSyntaxRawReason
+    , htmxSyntaxReferences
+    , htmxSyntaxText
     , schemaFields
     , schemaNameAndMarker
     , schemaRefs
@@ -89,16 +93,36 @@ htmxPushUrlBool = \case
     HtmxPushUrlTrueIR -> True
     HtmxPushUrlFalseIR -> False
 
+data HtmxSyntaxIR
+    = HtmxTypedSyntaxIR !Text ![Text]
+    | HtmxRawSyntaxIR !Text !Text
+    deriving (Eq, Show)
+
+htmxSyntaxText :: HtmxSyntaxIR -> Text
+htmxSyntaxText = \case
+    HtmxTypedSyntaxIR value _ -> value
+    HtmxRawSyntaxIR value _ -> value
+
+htmxSyntaxReferences :: HtmxSyntaxIR -> [Text]
+htmxSyntaxReferences = \case
+    HtmxTypedSyntaxIR _ references -> references
+    HtmxRawSyntaxIR _ _ -> []
+
+htmxSyntaxRawReason :: HtmxSyntaxIR -> Maybe Text
+htmxSyntaxRawReason = \case
+    HtmxTypedSyntaxIR _ _ -> Nothing
+    HtmxRawSyntaxIR _ reason -> Just reason
+
 data HtmxActionOptionIR
     = HtmxActionMethodIR !HtmxMethodIR
-    | HtmxActionTriggerIR !Text
-    | HtmxActionIncludeIR !Text
-    | HtmxActionSyncIR !Text
-    | HtmxActionIndicatorIR !Text
+    | HtmxActionTriggerIR !HtmxSyntaxIR
+    | HtmxActionIncludeIR !HtmxSyntaxIR
+    | HtmxActionSyncIR !HtmxSyntaxIR
+    | HtmxActionIndicatorIR !HtmxSyntaxIR
     | HtmxActionConfirmIR !Text
-    | HtmxActionSelectIR !Text
-    | HtmxActionTargetIR !Text
-    | HtmxActionSwapIR !Text
+    | HtmxActionSelectIR !HtmxSyntaxIR
+    | HtmxActionTargetIR !HtmxSyntaxIR
+    | HtmxActionSwapIR !HtmxSyntaxIR
     | HtmxActionPushUrlIR !HtmxPushUrlIR
     | HtmxActionCustomHtmxIR !Text !Text
     deriving (Eq, Show)

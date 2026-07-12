@@ -207,37 +207,37 @@ type RosterActionBundle =
          , Field RosterGroupId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxGet
-         , 'HtmxTarget RosterWeekShell
+         , 'HtmxTarget ('HtmxId RosterWeekShell)
          , 'HtmxPushUrl 'HtmxPushUrlTrue
          , 'CustomHtmx RosterWeekShellSyncCustomHtmx "roster week navigation serializes through the stable roster week shell"
          ]
      , Action ToggleRosterWarnings
         '[ Field ShowRosterWarnings 'WireBool ]
         '[ 'HtmxMethod 'HtmxPost
-         , 'HtmxSwap None
+         , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          , 'CustomHtmx RosterWeekShellSyncCustomHtmx "preference toggles serialize through the stable roster week shell"
          ]
      , Action ToggleRosterWageEstimates
         '[ Field ShowWageEstimates 'WireBool ]
         '[ 'HtmxMethod 'HtmxPost
-         , 'HtmxSwap None
+         , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          , 'CustomHtmx RosterWeekShellSyncCustomHtmx "preference toggles serialize through the stable roster week shell"
          ]
      , Action SortRosterWeek
         '[]
         '[ 'HtmxMethod 'HtmxPost
-         , 'HtmxTarget RosterContent
-         , 'HtmxSwap None
+         , 'HtmxTarget ('HtmxId RosterContent)
+         , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          , 'CustomHtmx RosterWeekShellSyncCustomHtmx "sort mutations serialize through the stable roster week shell"
          ]
      , Action ToggleRosterWeekLiveStatus
         '[ Field IsLive 'WireBool ]
         '[ 'HtmxMethod 'HtmxPost
-         , 'HtmxTarget RosterContent
-         , 'HtmxSwap OuterHTML
+         , 'HtmxTarget ('HtmxId RosterContent)
+         , 'HtmxSwap 'HtmxOuterHTML
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          , 'CustomHtmx RosterWeekShellSyncCustomHtmx "live toggle serializes through the stable roster week shell"
          ]
@@ -248,15 +248,15 @@ type RosterActionBundle =
          , Field HideStaffAlreadyAssignedToday 'WireBool
          ]
         '[ 'HtmxMethod 'HtmxPost
-         , 'HtmxSwap None
+         , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          , 'CustomHtmx RosterWeekShellSyncCustomHtmx "assignment filter toggles serialize through the stable roster week shell"
          ]
      , Action CopyRosterWeek
         '[]
         '[ 'HtmxMethod 'HtmxPost
-         , 'HtmxTarget RosterContent
-         , 'HtmxSwap OuterHTML
+         , 'HtmxTarget ('HtmxId RosterContent)
+         , 'HtmxSwap 'HtmxOuterHTML
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          , 'CustomHtmx RosterWeekShellSyncCustomHtmx "copy mutations serialize through the stable roster week shell"
          , 'CustomHtmx CopyRosterWeekCustomHtmx "copy previous week requires a destructive overwrite confirmation"
@@ -267,52 +267,52 @@ type RosterActionBundle =
          , Field Reason 'WireText
          ]
         '[ 'HtmxMethod 'HtmxPost
-         , 'HtmxTarget RosterStaffSelfServiceLeaveFormFragment
-         , 'HtmxSwap OuterHTML
+         , 'HtmxTarget ('HtmxId RosterStaffSelfServiceLeaveFormFragment)
+         , 'HtmxSwap 'HtmxOuterHTML
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          ]
      , Action CreateRosterWeekSlotDefinition
         '[]
         '[ 'HtmxMethod 'HtmxPost
-         , 'HtmxTarget RosterContent
-         , 'HtmxSwap None
+         , 'HtmxTarget ('HtmxId RosterContent)
+         , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          , 'CustomHtmx RosterWeekShellSyncCustomHtmx "slot-definition mutations serialize through the stable roster week shell"
          ]
      , Action DeleteRosterWeekSlotDefinition
         '[]
         '[ 'HtmxMethod 'HtmxDelete
-         , 'HtmxTarget RosterContent
-         , 'HtmxSwap None
+         , 'HtmxTarget ('HtmxId RosterContent)
+         , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          , 'CustomHtmx RosterWeekShellSyncCustomHtmx "slot-definition mutations serialize through the stable roster week shell"
          ]
      , Action ToggleRosterDayClosed
         '[]
         '[ 'HtmxMethod 'HtmxPost
-         , 'HtmxSwap None
+         , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          , 'CustomHtmx RosterWeekShellSyncCustomHtmx "day row mutations serialize through the stable roster week shell"
          ]
      , Action AddRosterRow
         '[]
         '[ 'HtmxMethod 'HtmxPost
-         , 'HtmxSwap None
+         , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          , 'CustomHtmx RosterWeekShellSyncCustomHtmx "day row mutations serialize through the stable roster week shell"
          ]
      , Action RemoveRosterRow
         '[]
         '[ 'HtmxMethod 'HtmxPost
-         , 'HtmxSwap None
+         , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          , 'CustomHtmx RosterWeekShellSyncCustomHtmx "day row mutations serialize through the stable roster week shell"
          ]
      , Action ToggleRosterStaffScope
         '[ Field StaffScope 'WireText ]
         '[ 'HtmxMethod 'HtmxGet
-         , 'HtmxTarget RosterStaffPanel
-         , 'HtmxSwap OuterHTML
+         , 'HtmxTarget ('HtmxId RosterStaffPanel)
+         , 'HtmxSwap 'HtmxOuterHTML
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          ]
      , DomToken RosterContent

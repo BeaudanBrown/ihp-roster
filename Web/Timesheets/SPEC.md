@@ -39,6 +39,11 @@ lands.
 
 - Timesheet week pages use declarative live surfaces when open pages can become
   stale from another actor, another tab, or an async job.
+- The Timesheets mount is built from exact marker-indexed scope, mount-state, and
+  fragment values. Required scope fields have no runtime fallback, and action
+  metadata is not discovered through protocol-name scans.
+- Week navigation and filter actions serialize through the closest
+  `#timesheet-week-shell` with the typed HTMX `replace` sync strategy.
 - Actor-local mutations should return the smallest practical updated fragment.
 - Date moves must refresh both old and new day/week fragments when both can be
   mounted.

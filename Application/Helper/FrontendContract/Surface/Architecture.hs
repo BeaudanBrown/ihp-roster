@@ -183,12 +183,12 @@ targetFragmentName = \case
 
 targetDomTokenName :: OptionIR -> Maybe Text
 targetDomTokenName = \case
-    HtmxOption (HtmxActionTargetIR name) -> Just name
+    HtmxOption (HtmxActionTargetIR syntax) -> Just (htmxSyntaxText syntax)
     _ -> Nothing
 
 swapName :: OptionIR -> Maybe Text
 swapName = \case
-    HtmxOption (HtmxActionSwapIR name) -> Just name
+    HtmxOption (HtmxActionSwapIR syntax) -> Just (htmxSyntaxText syntax)
     _ -> Nothing
 
 backedByActionName :: OptionIR -> Maybe Text

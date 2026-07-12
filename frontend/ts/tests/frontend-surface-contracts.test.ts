@@ -39,7 +39,7 @@ test("generated AppShell action manifests expose dialog request contracts", () =
             indicator: null,
             confirm: null,
             select: null,
-            target: "dialog-overlay-mount",
+            target: "#dialog-overlay-mount",
             swap: "innerHTML",
             pushUrl: false,
             custom: [],
@@ -66,12 +66,12 @@ test("generated FrontendSurface registry exposes lab surface primitives", () => 
     assertDeepEqual(surfaceLabSurfaceManifest.htmxActions[0].htmx, {
         method: "post",
         trigger: null,
-        include: "lab-panel-include",
+        include: "#lab-panel-include",
         sync: null,
         indicator: null,
         confirm: null,
         select: null,
-        target: "lab-panel-target",
+        target: "#lab-panel-target",
         swap: "outerHTML",
         pushUrl: false,
         custom: [{ name: "lab-panel-custom-htmx", reason: "lab fixture covers auditable custom HTMX metadata" }],
@@ -110,6 +110,10 @@ test("generated FrontendSurface registry exposes timesheets surface primitives",
 
     assertDeepEqual(timesheetsSurfaceManifest.scopes, ["timesheet-week"]);
     assertDeepEqual(timesheetsSurfaceManifest.fragments, ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"]);
+    assertEqual(timesheetsSurfaceManifest.htmxActions[0].name, "navigate-timesheet-week");
+    assertEqual(timesheetsSurfaceManifest.htmxActions[0].htmx.sync, "closest #timesheet-week-shell:replace");
+    assertDeepEqual(timesheetsSurfaceManifest.htmxActions[0].htmx.custom, []);
+    assertDeepEqual(timesheetsSurfaceManifest.domTokens, ["timesheet-week-shell"]);
     assertEqual(daySection.params.dayOffset, 2);
 });
 

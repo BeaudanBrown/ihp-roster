@@ -126,6 +126,22 @@ expect_no_match \
     Web/View/Timesheets/Index.hs
 
 expect_no_match \
+    "Timesheets pilot must use marker-indexed action access instead of reflected protocol-name scans" \
+    'registeredFrontendSurfaceContractIR|surfaceHtmxActions|timesheetsAction[[:space:]]*::[[:space:]]*Text' \
+    Web/View/Timesheets/Index.hs
+
+expect_no_match \
+    "Timesheets pilot must use exact typed values without phantom JSON carriers or required-field fallbacks" \
+    'frontendSurfaceFieldValues|getSurfaceField|fromMaybe' \
+    Web/Timesheets/FrontendSurface.hs
+
+expect_no_match \
+    "Timesheets pilot must use typed HTMX sync syntax without custom or raw escape hatches" \
+    "TimesheetWeekShellSyncCustomHtmx|'CustomHtmx|'HtmxRaw" \
+    Application/Helper/FrontendContract/Surface/Timesheets.hs \
+    Web/View/Timesheets/Index.hs
+
+expect_no_match \
     "feature mount overrides must recompute subscriptions through surfaceImplWithMountedFragments" \
     'surfaceImplMountConfig[[:space:]]*=.*mountFragments[[:space:]]*=' \
     Application \

@@ -83,9 +83,9 @@ type LabFragmentBundle =
         '[ Field PanelId 'WireUUID ]
         '[ 'Target LabPanel
          , 'HtmxMethod 'HtmxPost
-         , 'HtmxTarget LabPanelTarget
-         , 'HtmxSwap OuterHtml
-         , 'HtmxInclude LabPanelInclude
+         , 'HtmxTarget ('HtmxId LabPanelTarget)
+         , 'HtmxSwap 'HtmxOuterHTML
+         , 'HtmxInclude ('HtmxId LabPanelInclude)
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          , 'CustomHtmx LabPanelCustomHtmx "lab fixture covers auditable custom HTMX metadata"
          ]

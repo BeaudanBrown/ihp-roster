@@ -187,11 +187,22 @@ the type-level DSL.
 Use standard HTMX options for stable request metadata:
 
 - `HtmxMethod` for `hx-get`, `hx-post`, `hx-put`, `hx-patch`, or `hx-delete`;
-- `HtmxTarget`, `HtmxSwap`, `HtmxTrigger`, `HtmxPushUrl`, and the other closed
-  request options when the value is part of the generated contract;
-- `CustomHtmx Marker "reason"` only when a standard option is not expressive
-  enough or a surface needs a deliberate temporary escape hatch. The reason is
-  emitted into generated manifests and guardrails should make it visible.
+- typed selectors such as `HtmxId`, `HtmxClass`, `HtmxClosest`, and `HtmxFind`;
+- typed triggers such as `HtmxClick`, `HtmxChange`, and `HtmxLoad`;
+- typed swaps such as `HtmxInnerHTML`, `HtmxOuterHTML`, and `HtmxNoSwap`;
+- typed synchronization such as
+  `HtmxSyncOn (HtmxClosest (HtmxId Shell)) HtmxSyncReplace`;
+- `HtmxRawSelector`, `HtmxRawTrigger`, `HtmxRawSwap`, or `HtmxRawSync` only
+  when the closed recipes cannot express the value. Every raw node carries a
+  non-empty reason and validation rejects an empty reason;
+- `CustomHtmx Marker "reason"` only for extra HTMX attributes that a standard
+  option does not describe. The reason is emitted into generated manifests and
+  guardrails should make it visible.
+
+Reflection renders common punctuation deterministically: an ID selector owns its
+`#`, class selectors own `.`, traversal recipes own their separating space, and
+sync recipes own their `:` strategy delimiter. Views must not add or strip this
+punctuation.
 
 Runtime views combine the generated action IR with a `FrontendSurfaceActionRoute`
 using the form, submit-button, link, or HTMX-only render helper. These helpers
@@ -222,13 +233,40 @@ browser runtime. Production feature views author generated refs through
 `Application.Helper.FrontendContract.Surface.Interaction`; guardrails prevent
 reintroducing the old semantic marker protocol.
 
+## Marker-Indexed Runtime Values
+
+Use `Application.Helper.FrontendContract.Surface.Values` instead of scanning the
+reflected registry by protocol strings. `surfaceNameValue`, `surfaceScopeValue`,
+`surfaceFragmentValue`, `surfaceActionValue`, `surfaceResourceValue`,
+`surfaceSourceRefValue`, `surfaceDropzoneRefValue`, and `surfaceDomTokenValue`
+are indexed by both the owning `Surface` and marker. A marker owned by another
+surface is a compile error.
+
+Build scope, mount-state, fragment, and action payloads with declaration-ordered
+`SurfaceFields`, `surfaceField`, `surfaceOptionalField`, and
+`surfaceNullableField`. The field marker, presence, wire type, and Haskell value
+must match the owning declaration. `WireUUID` values are `UUID`, not unchecked
+text; an absent `OptionalField` is omitted, while `NullableField` retains its
+explicit null. Use `surfaceFieldsJson` only at the JSON boundary and
+`frontendSurfaceActionFields` for hidden/query fields; do not introduce phantom
+`Aeson.Value` carriers or recover required fields with runtime fallbacks.
+
 ## Runtime Implementation
 
-Every migrated surface supplies runtime behavior through
-`Application.Helper.FrontendContract.Surface.Runtime.SurfaceImpl spec`. `SurfaceImpl`
-is the feature-facing runtime for surfaces.
+Migrated surfaces expose mount behavior through
+`Application.Helper.FrontendContract.Surface.Runtime.SurfaceImpl spec`.
+`SurfaceImpl` is the feature-facing runtime value.
 
-Use `mkSurfaceImpl` with typed handler lists:
+For a server-rendered mount whose controllers/views already own fragment
+rendering and action routes, prefer `mkSurfaceImplFromValues`. It derives the
+surface name, canonical scope key, exact scope/mount-state JSON, live
+subscription, and empty ceremonial action/intent catalogs from marker-indexed
+values. Build descriptors with `frontendSurfaceMountedFragmentFor`; it derives
+fragment identity and lazy defaults from the owning Surface declaration while
+URLs, target IDs, and protection remain mount-local.
+
+Use `mkSurfaceImpl` with typed handler lists only when a feature needs the full
+runtime handler catalog:
 
 - `FrontendContract SurfaceScopeHandler` supplies the concrete scope value and scope key;
 - `FrontendContract SurfaceMountStateHandler` supplies typed view state defaults;

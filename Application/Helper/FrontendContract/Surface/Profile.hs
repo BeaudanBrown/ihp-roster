@@ -150,8 +150,8 @@ type ProfileSurface =
              , Field Reason 'WireText
              ]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget ProfileLeaveRequestFormFragment
-             , 'HtmxSwap OuterHTML
+             , 'HtmxTarget ('HtmxId ProfileLeaveRequestFormFragment)
+             , 'HtmxSwap 'HtmxOuterHTML
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]
          , DomToken ProfileDetails
@@ -183,8 +183,8 @@ type StaffSurface =
              , Field Reason 'WireText
              ]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget StaffLeaveRequestFormFragment
-             , 'HtmxSwap OuterHTML
+             , 'HtmxTarget ('HtmxId StaffLeaveRequestFormFragment)
+             , 'HtmxSwap 'HtmxOuterHTML
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]
          , DomToken StaffDetailsTarget

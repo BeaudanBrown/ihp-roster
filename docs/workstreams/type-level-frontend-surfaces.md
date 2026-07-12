@@ -11,8 +11,10 @@ live in `Application/Helper/FrontendContract/Surface/README.md` and the subsyste
 README/SPEC/AGENTS files. GitHub #145 reduced invalidation transport to semantic
 keys; GitHub #146 generated the exact per-surface local mount boundary, removed
 browser-only duplicate/state/load fields, and reflected shared live runtime
-constants. This workstream remains as architectural context until `ir-9ogo`
-closes.
+constants. GitHub #147 added Surface-and-marker-indexed runtime values, exact
+declaration-ordered fields, typed common HTMX syntax, and the Timesheets pilot
+that removed protocol-name scans and required-field fallbacks. This workstream
+remains as architectural context until `ir-9ogo` closes.
 
 Tickets:
 
@@ -31,6 +33,8 @@ Tickets:
 - `ir-ypt5` - Migrate Roster to FrontendSurface spec
 - `ir-ds06` - Document FrontendSurface authoring workflow
 - `ir-s7la` - Remove replaced DTO/schema and old live-surface contract paths
+- GitHub #147 - Add marker-indexed Surface values and typed HTMX syntax with a
+  Timesheets pilot
 
 ## Intent
 
@@ -455,10 +459,11 @@ it becomes a valuable drift gate.
 ## Haskell Encoding And Parsing
 
 V1 uses reusable typeclass/reflection machinery over the closed DSL/wire-type
-universe. It should derive Haskell JSON, URL/query, and field encode/decode
-behavior for scopes, fragment params, DTOs, event details, intent/action fields,
-and mount state without writing per-surface `ToJSON`/`FromJSON` instances by
-hand.
+universe. `Surface.Values` now derives exact declaration-ordered Haskell JSON and
+text field encoding for scopes, fragment params, action fields, resources, and
+mount state without per-surface `ToJSON` instances. Surface-and-marker-indexed
+accessors expose action, fragment, resource, scope, source-ref, dropzone-ref,
+and DOM-token metadata without reflected-registry scans.
 
 This is not universal arbitrary Haskell serialization. Unsupported field/domain
 types should fail at compile time or generator validation. V1 should not generate
@@ -469,8 +474,12 @@ ergonomics become painful, especially during Roster.
 ## SurfaceImpl Runtime Bridge
 
 `SurfaceImpl spec` replaces `TypedLiveSurfaceDefinition` as the feature-facing
-runtime bridge. Missing required handlers should be compile-time errors where
-practical.
+runtime bridge. `mkSurfaceImplFromValues` is the preferred path when normal IHP
+controllers/views already own rendering and routes: it derives identity, exact
+scope/mount JSON, descriptors, and subscriptions without ceremonial action or
+intent handlers. The indexed handler-list path remains for surfaces that need a
+full runtime handler catalog, where missing required handlers are compile-time
+errors.
 
 `SurfaceImpl` owns dynamic behavior:
 
@@ -741,11 +750,14 @@ Timesheets is the first production migration.
 
 Timesheets splits the old request-key shape into a logical scope
 value (`venueId`, `weekOffset`) and `TimesheetsMountState` (`showApproved`,
-`showAllStaff`, `staffFilterId`). The current passive-planning workaround that
-reconstructs default filters and relies on mounted `data-live-update-url` should
-be removed for the migrated surface; each mount resolves its own refetch URL from
-mount-local config/state. Acceptance includes removal of old Timesheets
-legacy live-surface authoring paths.
+`showAllStaff`, `staffFilterId`). Its runtime now builds those values and fragment
+params with exact marker-indexed `SurfaceFields`; no phantom JSON carrier,
+required-field fallback, or action protocol-name scan remains. Views resolve
+actions and fields by owning Surface/marker. Navigation and filters use the typed
+`HtmxSyncOn (HtmxClosest (HtmxId TimesheetWeekShell)) HtmxSyncReplace` recipe,
+which deterministically renders `closest #timesheet-week-shell:replace` without a
+custom-HTMX escape. Each mount resolves its own refetch URL from mount-local
+config/state, and the old Timesheets live-surface authoring paths remain removed.
 
 ## Roster Migration
 

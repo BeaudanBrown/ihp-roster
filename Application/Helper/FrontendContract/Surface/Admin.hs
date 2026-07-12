@@ -184,8 +184,8 @@ type AdminVenueSettingsSurface =
              , OptionalField AutoTimesheetCreationEnabled 'WireBool
              ]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget AdminVenueSettingsFragment
-             , 'HtmxSwap None
+             , 'HtmxTarget ('HtmxId AdminVenueSettingsFragment)
+             , 'HtmxSwap 'HtmxNoSwap
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              , 'CustomHtmx ChangeAutosaveCustomHtmx "venue setting toggles submit the containing form on change"
              ]
@@ -199,14 +199,14 @@ type AdminInvitesSurface =
          , Action CreateVenueInvitation
             '[ Field Email 'WireText ]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget AdminInvitesFragment
-             , 'HtmxSwap None
+             , 'HtmxTarget ('HtmxId AdminInvitesFragment)
+             , 'HtmxSwap 'HtmxNoSwap
              ]
          , Action RevokeVenueInvitation
             '[]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget AdminInvitesFragment
-             , 'HtmxSwap None
+             , 'HtmxTarget ('HtmxId AdminInvitesFragment)
+             , 'HtmxSwap 'HtmxNoSwap
              ]
          , DomToken AdminInvitesFragment
          ]
@@ -221,8 +221,8 @@ type AdminExportsSurface =
              , Field ExportType 'WireText
              ]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget AdminExportsFragment
-             , 'HtmxSwap None
+             , 'HtmxTarget ('HtmxId AdminExportsFragment)
+             , 'HtmxSwap 'HtmxNoSwap
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]
          , DomToken AdminExportsFragment
@@ -240,8 +240,8 @@ type AdminShiftTypesSurface =
              , Field IsActive 'WireBool
              ]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget AdminShiftTypesFragment
-             , 'HtmxSwap OuterHTML
+             , 'HtmxTarget ('HtmxId AdminShiftTypesFragment)
+             , 'HtmxSwap 'HtmxOuterHTML
              ]
          , Action UpdateShiftType
             '[ Field ShowInactiveShiftTypes 'WireBool
@@ -251,24 +251,24 @@ type AdminShiftTypesSurface =
              , Field IsActive 'WireBool
              ]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget AdminShiftTypesFragment
-             , 'HtmxSwap OuterHTML
+             , 'HtmxTarget ('HtmxId AdminShiftTypesFragment)
+             , 'HtmxSwap 'HtmxOuterHTML
              ]
          , Action MoveShiftTypeUp
             '[ Field ShowInactiveShiftTypes 'WireBool ]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTrigger Click
-             , 'HtmxTarget AdminShiftTypesFragment
-             , 'HtmxSwap OuterHTML
+             , 'HtmxTrigger 'HtmxClick
+             , 'HtmxTarget ('HtmxId AdminShiftTypesFragment)
+             , 'HtmxSwap 'HtmxOuterHTML
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              , 'CustomHtmx ClosestFormCustomHtmx "move buttons submit the containing row form via hx-include=closest form"
              ]
          , Action MoveShiftTypeDown
             '[ Field ShowInactiveShiftTypes 'WireBool ]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTrigger Click
-             , 'HtmxTarget AdminShiftTypesFragment
-             , 'HtmxSwap OuterHTML
+             , 'HtmxTrigger 'HtmxClick
+             , 'HtmxTarget ('HtmxId AdminShiftTypesFragment)
+             , 'HtmxSwap 'HtmxOuterHTML
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              , 'CustomHtmx ClosestFormCustomHtmx "move buttons submit the containing row form via hx-include=closest form"
              ]
@@ -280,8 +280,8 @@ type AdminShiftTypesSurface =
              , Field IsActive 'WireBool
              ]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget AdminShiftTypesFragment
-             , 'HtmxSwap OuterHTML
+             , 'HtmxTarget ('HtmxId AdminShiftTypesFragment)
+             , 'HtmxSwap 'HtmxOuterHTML
              , 'CustomHtmx InputChangedAutosaveCustomHtmx "name input autosave uses HTMX input changed delay:600ms, blur changed trigger and hx-include=closest form"
              ]
          , Action AutosaveShiftTypeSelection
@@ -292,15 +292,15 @@ type AdminShiftTypesSurface =
              , Field IsActive 'WireBool
              ]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget AdminShiftTypesFragment
-             , 'HtmxSwap OuterHTML
+             , 'HtmxTarget ('HtmxId AdminShiftTypesFragment)
+             , 'HtmxSwap 'HtmxOuterHTML
              , 'CustomHtmx ChangeAutosaveCustomHtmx "select autosave uses HTMX change trigger and hx-include=closest form"
              ]
          , Action ToggleInactiveShiftTypes
             '[ Field ShowInactiveShiftTypes 'WireBool ]
             '[ 'HtmxMethod 'HtmxGet
-             , 'HtmxTarget AdminShiftTypesFragment
-             , 'HtmxSwap OuterHTML
+             , 'HtmxTarget ('HtmxId AdminShiftTypesFragment)
+             , 'HtmxSwap 'HtmxOuterHTML
              ]
          , DomToken AdminShiftTypesFragment
          ]
@@ -315,8 +315,8 @@ type AdminRosterGroupsSurface =
              , Field IsActive 'WireBool
              ]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget AdminRosterGroupsFragment
-             , 'HtmxSwap None
+             , 'HtmxTarget ('HtmxId AdminRosterGroupsFragment)
+             , 'HtmxSwap 'HtmxNoSwap
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]
          , Action UpdateRosterGroup
@@ -325,33 +325,33 @@ type AdminRosterGroupsSurface =
              , Field IsActive 'WireBool
              ]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget AdminRosterGroupsFragment
-             , 'HtmxSwap None
+             , 'HtmxTarget ('HtmxId AdminRosterGroupsFragment)
+             , 'HtmxSwap 'HtmxNoSwap
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]
          , Action MoveRosterGroupUp
             '[ Field ShowInactiveRosterGroups 'WireBool ]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTrigger Click
-             , 'HtmxTarget AdminRosterGroupsFragment
-             , 'HtmxSwap None
+             , 'HtmxTrigger 'HtmxClick
+             , 'HtmxTarget ('HtmxId AdminRosterGroupsFragment)
+             , 'HtmxSwap 'HtmxNoSwap
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              , 'CustomHtmx ClosestFormCustomHtmx "move buttons submit the containing row form via hx-include=closest form"
              ]
          , Action MoveRosterGroupDown
             '[ Field ShowInactiveRosterGroups 'WireBool ]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTrigger Click
-             , 'HtmxTarget AdminRosterGroupsFragment
-             , 'HtmxSwap None
+             , 'HtmxTrigger 'HtmxClick
+             , 'HtmxTarget ('HtmxId AdminRosterGroupsFragment)
+             , 'HtmxSwap 'HtmxNoSwap
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              , 'CustomHtmx ClosestFormCustomHtmx "move buttons submit the containing row form via hx-include=closest form"
              ]
          , Action ToggleInactiveRosterGroups
             '[ Field ShowInactiveRosterGroups 'WireBool ]
             '[ 'HtmxMethod 'HtmxGet
-             , 'HtmxTarget AdminRosterGroupsFragment
-             , 'HtmxSwap OuterHTML
+             , 'HtmxTarget ('HtmxId AdminRosterGroupsFragment)
+             , 'HtmxSwap 'HtmxOuterHTML
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]
          , DomToken AdminRosterGroupsFragment
@@ -364,8 +364,8 @@ type AdminXeroSurface =
          , Action SyncXeroPayrollReferenceData
             '[]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget AdminXeroFragment
-             , 'HtmxSwap None
+             , 'HtmxTarget ('HtmxId AdminXeroFragment)
+             , 'HtmxSwap 'HtmxNoSwap
              , 'CustomHtmx LoadReferenceSyncCustomHtmx "automatic post-connect sync supplies load/push-url/indicator attributes; the manual shell action supplies this marker with no extra attributes"
              ]
          , Action ShowXeroTimesheetPreparationStaffMappings
@@ -373,8 +373,8 @@ type AdminXeroSurface =
              , Field EditStaffId 'WireText
              ]
             '[ 'HtmxMethod 'HtmxGet
-             , 'HtmxTarget XeroPreparationStaffMappings
-             , 'HtmxSwap OuterHTML
+             , 'HtmxTarget ('HtmxId XeroPreparationStaffMappings)
+             , 'HtmxSwap 'HtmxOuterHTML
              ]
          , DomToken AdminXeroFragment
          , DomToken XeroPreparationStaffMappings

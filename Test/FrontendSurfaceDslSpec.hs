@@ -20,6 +20,7 @@ import Application.Helper.FrontendContract.Surface.Resource
 import qualified Application.Helper.FrontendContract.Surface.Roster as RosterSurface
 import Application.Helper.FrontendContract.Surface.Runtime
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as TimesheetsSurface
+import Application.Helper.FrontendContract.Surface.Values
 import Application.Helper.FrontendContract.TypeScript (renderFrontendContractTypeScript)
 import Application.Helper.SurfaceResource
 import qualified Data.Aeson as Aeson
@@ -47,6 +48,27 @@ data CycleAContent
 data CycleB
 data CycleBScope
 data CycleBContent
+data TypedHtmx
+data TypedHtmxScope
+data TypedHtmxAction
+data RawHtmxAction
+data TypedHtmxShell
+
+type TypedHtmxSurface =
+    Surface TypedHtmx
+        '[ Scope TypedHtmxScope '[] '[ 'NoAuth ]
+         , DomToken TypedHtmxShell
+         , Action TypedHtmxAction '[]
+            '[ 'HtmxMethod 'HtmxGet
+             , 'HtmxTrigger 'HtmxClick
+             , 'HtmxTarget ('HtmxId TypedHtmxShell)
+             , 'HtmxSwap 'HtmxNoSwap
+             , 'HtmxSync ('HtmxSyncOn ('HtmxClosest ('HtmxId TypedHtmxShell)) 'HtmxSyncReplace)
+             ]
+         , Action RawHtmxAction '[]
+            '[ 'HtmxTarget ('HtmxRawSelector "[data-fixture]" "fixture proves the reason-bearing raw selector escape")
+             ]
+         ]
 
 type ParentSurface =
     Surface Parent
@@ -89,6 +111,56 @@ tests = describe "FrontendSurface DSL foundation" do
         let _roster = Proxy @RosterSurface.RosterSurface
         let _registry = Proxy @RegisteredFrontendSurfaces
         True `shouldBe` True
+
+    it "resolves Surface values by owning surface and marker without registry scans" do
+        (surfaceNameValue @TimesheetsSurface.TimesheetsSurface) `shouldBe` "timesheets"
+        (surfaceScopeValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetWeek).scopeName `shouldBe` "timesheet-week"
+        (surfaceFragmentValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetDaySection).fragmentName `shouldBe` "timesheet-day-section"
+        (surfaceActionValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.NavigateTimesheetWeek).htmxActionName `shouldBe` "navigate-timesheet-week"
+        (surfaceResourceValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetDay).resourceName `shouldBe` "timesheet-day"
+        (surfaceDomTokenValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.TimesheetWeekShell) `shouldBe` "timesheet-week-shell"
+        (surfaceSourceRefValue @RosterSurface.RosterDayTimelineSurface @SurfaceInteraction.DragSourceRef).sourceRefName `shouldBe` "drag-source"
+        (surfaceDropzoneRefValue @RosterSurface.RosterDayTimelineSurface @SurfaceInteraction.DragDropzoneRef).dropzoneRefName `shouldBe` "drag-dropzone"
+
+    it "renders typed HTMX selector, trigger, swap, and sync syntax deterministically" do
+        let surface = reflectSurfaceSpec @TypedHtmxSurface
+        let typedAction = surface.surfaceHtmxActions |> find ((== "typed-htmx") . (.htmxActionName))
+        let rawAction = surface.surfaceHtmxActions |> find ((== "raw-htmx") . (.htmxActionName))
+
+        fmap (.htmxActionOptions) typedAction
+            `shouldBe` Just
+                [ HtmxOption (HtmxActionMethodIR HtmxGetIR)
+                , HtmxOption (HtmxActionTriggerIR (HtmxTypedSyntaxIR "click" []))
+                , HtmxOption (HtmxActionTargetIR (HtmxTypedSyntaxIR "#typed-htmx-shell" ["typed-htmx-shell"]))
+                , HtmxOption (HtmxActionSwapIR (HtmxTypedSyntaxIR "none" []))
+                , HtmxOption (HtmxActionSyncIR (HtmxTypedSyntaxIR "closest #typed-htmx-shell:replace" ["typed-htmx-shell"]))
+                ]
+        fmap (.htmxActionOptions) rawAction
+            `shouldBe` Just
+                [ HtmxOption (HtmxActionTargetIR (HtmxRawSyntaxIR "[data-fixture]" "fixture proves the reason-bearing raw selector escape"))
+                ]
+
+    it "builds exact typed Surface fields without phantom JSON" do
+        let fields =
+                surfaceField @TimesheetsSurface.VenueId
+                    (fromMaybe (error "invalid fixture UUID") (UUID.fromString "11111111-1111-1111-1111-111111111111"))
+                    :& surfaceField @TimesheetsSurface.WeekOffset (2 :: Int)
+                    :& NoSurfaceFields
+        let scopeFields = fields :: SurfaceFields (SurfaceScopeFieldSpecs TimesheetsSurface.TimesheetsSurface TimesheetsSurface.TimesheetWeek)
+
+        surfaceFieldsJson scopeFields
+            `shouldBe` Aeson.object
+                [ "venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text)
+                , "weekOffset" Aeson..= (2 :: Int)
+                ]
+        surfaceFieldsText scopeFields
+            `shouldBe` [("venueId", "11111111-1111-1111-1111-111111111111"), ("weekOffset", "2")]
+        let absentOptionalFields :: SurfaceFields '[ 'OptionalField TimesheetsSurface.StaffFilterId 'WireUUID]
+            absentOptionalFields = surfaceOptionalField @TimesheetsSurface.StaffFilterId Nothing :& NoSurfaceFields
+        surfaceFieldsJson absentOptionalFields `shouldBe` Aeson.object []
+        surfaceFieldsText absentOptionalFields `shouldBe` []
+        (surfaceActionFieldName @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.NavigateTimesheetWeek @TimesheetsSurface.WeekOffset)
+            `shouldBe` "weekOffset"
 
     it "renders minimal mount-local runtime metadata without legacy live-surface config" do
         let fragment = FrontendSurfaceMountedFragment
@@ -293,9 +365,9 @@ tests = describe "FrontendSurface DSL foundation" do
             `shouldBe` Just
                 [ TargetOption "lab-panel"
                 , HtmxOption (HtmxActionMethodIR HtmxPostIR)
-                , HtmxOption (HtmxActionTargetIR "lab-panel-target")
-                , HtmxOption (HtmxActionSwapIR "outerHTML")
-                , HtmxOption (HtmxActionIncludeIR "lab-panel-include")
+                , HtmxOption (HtmxActionTargetIR (HtmxTypedSyntaxIR "#lab-panel-target" ["lab-panel-target"]))
+                , HtmxOption (HtmxActionSwapIR (HtmxTypedSyntaxIR "outerHTML" []))
+                , HtmxOption (HtmxActionIncludeIR (HtmxTypedSyntaxIR "#lab-panel-include" ["lab-panel-include"]))
                 , HtmxOption (HtmxActionPushUrlIR HtmxPushUrlFalseIR)
                 , HtmxOption (HtmxActionCustomHtmxIR "lab-panel-custom-htmx" "lab fixture covers auditable custom HTMX metadata")
                 ]
@@ -320,6 +392,11 @@ tests = describe "FrontendSurface DSL foundation" do
                 , ("showAllStaff", WireBoolIR)
                 , ("staffFilterId", WireOptionalIR WireUuidIR)
                 ]
+        let navigateAction = surfaceActionValue @TimesheetsSurface.TimesheetsSurface @TimesheetsSurface.NavigateTimesheetWeek
+        navigateAction.htmxActionOptions
+            `shouldContain` [HtmxOption (HtmxActionSyncIR (HtmxTypedSyntaxIR "closest #timesheet-week-shell:replace" ["timesheet-week-shell"]))]
+        navigateAction.htmxActionOptions
+            `shouldSatisfy` all (\case HtmxOption HtmxActionCustomHtmxIR {} -> False; _ -> True)
 
     it "renders generated TypeScript contracts for every lab primitive family" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export type SurfaceLabFragmentKey ="
@@ -432,6 +509,7 @@ tests = describe "FrontendSurface DSL foundation" do
         let invalidHtmxTargetRef = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[InvalidHtmxTargetRefSurface]))
         let duplicateHtmxMethod = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[DuplicateHtmxMethodSurface]))
         let emptyCustomHtmxReason = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[EmptyCustomHtmxReasonSurface]))
+        let emptyRawHtmxReason = checkedSurfaceContractIR (SurfaceContractIR (reflectSurfaceRegistry @'[EmptyRawHtmxReasonSurface]))
 
         diagnosticMessages duplicateFields `shouldContain` ["surface duplicate has duplicate scope field panelId"]
         diagnosticMessages missingReference `shouldContain` ["htmx action bad references missing fragment missing on surface missing-reference"]
@@ -450,6 +528,7 @@ tests = describe "FrontendSurface DSL foundation" do
         diagnosticMessages invalidHtmxTargetRef `shouldContain` ["htmx action bad references missing dom token missing-fragment on surface invalid-htmx-target-ref"]
         diagnosticMessages duplicateHtmxMethod `shouldContain` ["surface duplicate-htmx-method htmx action bad declares method more than once"]
         diagnosticMessages emptyCustomHtmxReason `shouldContain` ["surface empty-custom-htmx-reason custom HTMX missing-fragment must include a non-empty reason"]
+        diagnosticMessages emptyRawHtmxReason `shouldContain` ["surface empty-raw-htmx-reason raw HTMX syntax must include a non-empty reason"]
 
     it "constructs generated FrontendSurface resource values" do
         let venueId = fromMaybe (error "invalid UUID") (UUID.fromString "11111111-1111-1111-1111-111111111111")
@@ -496,7 +575,7 @@ tests = describe "FrontendSurface DSL foundation" do
         formHtml `shouldContainText` "hx-post=\"/RefreshFrontendSurfaceLabPanel\""
         formHtml `shouldContainText` "hx-target=\"#lab-panel-target\""
         formHtml `shouldContainText` "hx-swap=\"outerHTML\""
-        formHtml `shouldContainText` "hx-include=\"lab-panel-include\""
+        formHtml `shouldContainText` "hx-include=\"#lab-panel-include\""
         formHtml `shouldContainText` "hx-push-url=\"false\""
         formHtml `shouldContainText` "hx-vals=\"{}\""
         formHtml `shouldContainText` "data-bepis-surface-action=\"refresh-panel\""
@@ -679,7 +758,7 @@ type InvalidInteractionRefSurface =
 type InvalidHtmxTargetRefSurface =
     Surface InvalidHtmxTargetRef
         '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
-         , Action Bad '[] '[ 'HtmxTarget MissingFragment ]
+         , Action Bad '[] '[ 'HtmxTarget ('HtmxId MissingFragment) ]
          ]
 
 type DuplicateHtmxMethodSurface =
@@ -692,6 +771,14 @@ type EmptyCustomHtmxReasonSurface =
     Surface EmptyCustomHtmxReason
         '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
          , Action Bad '[] '[ 'CustomHtmx MissingFragment "" ]
+         ]
+
+data EmptyRawHtmxReason
+
+type EmptyRawHtmxReasonSurface =
+    Surface EmptyRawHtmxReason
+        '[ Scope LabScope '[ Field VenueId 'WireUUID ] '[ 'NoAuth ]
+         , Action Bad '[] '[ 'HtmxTarget ('HtmxRawSelector "[data-fixture]" "") ]
          ]
 
 type SharedScopeA =

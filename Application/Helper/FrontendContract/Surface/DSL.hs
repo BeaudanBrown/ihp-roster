@@ -16,6 +16,11 @@ module Application.Helper.FrontendContract.Surface.DSL
     , PrimitiveOption (..)
     , HtmxMethod (..)
     , HtmxPushUrl (..)
+    , HtmxSelectorSpec (..)
+    , HtmxSwapSpec (..)
+    , HtmxSyncSpec (..)
+    , HtmxSyncStrategy (..)
+    , HtmxTriggerSpec (..)
     , ConflictResolution (..)
     , FragmentSelector (..)
     , SessionSelector (..)
@@ -77,6 +82,44 @@ data HtmxPushUrl
     = HtmxPushUrlTrue
     | HtmxPushUrlFalse
 
+data HtmxSelectorSpec
+    = HtmxId Type
+    | HtmxClass Type
+    | HtmxClosest HtmxSelectorSpec
+    | HtmxFind HtmxSelectorSpec
+    | HtmxThis
+    | HtmxDocument
+    | HtmxWindow
+    | HtmxBody
+    | HtmxRawSelector Symbol Symbol
+
+data HtmxTriggerSpec
+    = HtmxClick
+    | HtmxChange
+    | HtmxLoad
+    | HtmxCustomEvent Type
+    | HtmxRawTrigger Symbol Symbol
+
+data HtmxSwapSpec
+    = HtmxInnerHTML
+    | HtmxOuterHTML
+    | HtmxBeforeEnd
+    | HtmxAfterBegin
+    | HtmxNoSwap
+    | HtmxRawSwap Symbol Symbol
+
+data HtmxSyncStrategy
+    = HtmxSyncDrop
+    | HtmxSyncAbort
+    | HtmxSyncReplace
+    | HtmxSyncQueueFirst
+    | HtmxSyncQueueAll
+    | HtmxSyncQueueLast
+
+data HtmxSyncSpec
+    = HtmxSyncOn HtmxSelectorSpec HtmxSyncStrategy
+    | HtmxRawSync Symbol Symbol
+
 data DependencySource
     = FromScope Type
     | FromFragment Type
@@ -121,14 +164,14 @@ data PrimitiveOption
     | ContainsSurface Type
     | UsesDto Type
     | HtmxMethod HtmxMethod
-    | HtmxTrigger Type
-    | HtmxInclude Type
-    | HtmxSync Type
-    | HtmxIndicator Type
+    | HtmxTrigger HtmxTriggerSpec
+    | HtmxInclude HtmxSelectorSpec
+    | HtmxSync HtmxSyncSpec
+    | HtmxIndicator HtmxSelectorSpec
     | HtmxConfirm Type
-    | HtmxSelect Type
-    | HtmxTarget Type
-    | HtmxSwap Type
+    | HtmxSelect HtmxSelectorSpec
+    | HtmxTarget HtmxSelectorSpec
+    | HtmxSwap HtmxSwapSpec
     | HtmxPushUrl HtmxPushUrl
     | CustomHtmx Type Symbol
 

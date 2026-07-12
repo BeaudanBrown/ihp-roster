@@ -106,6 +106,8 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "data-live-update-surface="
                 response `responseBodyShouldContain` "timesheets:"
                 response `responseBodyShouldContain` "data-timesheet-day-offset=\"0\""
+                response `responseBodyShouldContain` "hx-sync=\"closest #timesheet-week-shell:replace\""
+                response `responseBodyShouldNotContain` "timesheet-week-shell-sync-custom-htmx"
 
         it "builds typed FrontendSurface mount metadata for the current timesheet query state" $ withContext do
             withCurrentControllerContext do
@@ -119,6 +121,8 @@ tests = beforeAll testContext do
                 let fragmentUrls = map (.mountedFragmentUrl) mountConfig.mountFragments
 
                 impl.surfaceImplName `shouldBe` "timesheets"
+                impl.surfaceImplActions `shouldBe` []
+                impl.surfaceImplIntents `shouldBe` []
                 mountConfig.mountSurfaceName `shouldBe` "timesheets"
                 mountConfig.mountScopeKey `shouldBe` "timesheets:00000000-0000-0000-0000-000000000123:2"
                 mountConfig.mountState `shouldBe` Aeson.object

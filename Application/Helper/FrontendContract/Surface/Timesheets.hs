@@ -10,6 +10,7 @@ module Application.Helper.FrontendContract.Surface.Timesheets
     , TimesheetDayColumns
     , TimesheetDaySection
     , TimesheetWeekBoundaryConfig
+    , TimesheetWeekShell
     , TimesheetToolbar
     , NavigateTimesheetWeek
     , UpdateTimesheetFilters
@@ -47,8 +48,7 @@ data NavigateTimesheetWeek
 data UpdateTimesheetFilters
 data ApproveTimesheetEntry
 data UnapproveTimesheetEntry
-data None
-data TimesheetWeekShellSyncCustomHtmx
+data TimesheetWeekShell
 
 type TimesheetDayResource = Resource TimesheetDay '[ Field VenueId 'WireUUID, Field WeekOffset 'WireInt, Field DayOffset 'WireInt ]
 type TimesheetWeekResource = Resource TimesheetWeek '[ Field VenueId 'WireUUID, Field WeekOffset 'WireInt ]
@@ -71,16 +71,17 @@ type TimesheetScopeBundle =
      ]
 
 type TimesheetActionBundle =
-    '[ Action NavigateTimesheetWeek
+    '[ DomToken TimesheetWeekShell
+     , Action NavigateTimesheetWeek
         '[ Field WeekOffset 'WireInt
          , Field ShowApproved 'WireBool
          , Field ShowAllStaff 'WireBool
          , OptionalField StaffFilterId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxGet
-         , 'HtmxSwap None
+         , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlTrue
-         , 'CustomHtmx TimesheetWeekShellSyncCustomHtmx "week navigation serializes through the timesheet week shell with hx-sync=closest shell:replace"
+         , 'HtmxSync ('HtmxSyncOn ('HtmxClosest ('HtmxId TimesheetWeekShell)) 'HtmxSyncReplace)
          ]
      , Action UpdateTimesheetFilters
         '[ Field WeekOffset 'WireInt
@@ -89,9 +90,9 @@ type TimesheetActionBundle =
          , OptionalField StaffFilterId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxGet
-         , 'HtmxSwap None
+         , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlTrue
-         , 'CustomHtmx TimesheetWeekShellSyncCustomHtmx "filter changes serialize through the timesheet week shell with hx-sync=closest shell:replace"
+         , 'HtmxSync ('HtmxSyncOn ('HtmxClosest ('HtmxId TimesheetWeekShell)) 'HtmxSyncReplace)
          ]
      , Action ApproveTimesheetEntry
         '[ Field WeekOffset 'WireInt
@@ -100,7 +101,7 @@ type TimesheetActionBundle =
          , OptionalField StaffFilterId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxPost
-         , 'HtmxSwap None
+         , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          ]
      , Action UnapproveTimesheetEntry
@@ -110,7 +111,7 @@ type TimesheetActionBundle =
          , OptionalField StaffFilterId 'WireUUID
          ]
         '[ 'HtmxMethod 'HtmxPost
-         , 'HtmxSwap None
+         , 'HtmxSwap 'HtmxNoSwap
          , 'HtmxPushUrl 'HtmxPushUrlFalse
          ]
      ]

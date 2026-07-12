@@ -57,22 +57,22 @@ type LeaveRequestsSurface =
          , Action ArchiveLeaveRequestsPage
             '[ Field ArchivePage 'WireInt ]
             '[ 'HtmxMethod 'HtmxGet
-             , 'HtmxTarget LeaveArchivePageContent
-             , 'HtmxSwap None
+             , 'HtmxTarget ('HtmxId LeaveArchivePageContent)
+             , 'HtmxSwap 'HtmxNoSwap
              , 'HtmxPushUrl 'HtmxPushUrlTrue
              ]
          , Action ApproveLeaveRequest
             '[]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget LeaveRequestsContent
-             , 'HtmxSwap None
+             , 'HtmxTarget ('HtmxId LeaveRequestsContent)
+             , 'HtmxSwap 'HtmxNoSwap
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]
          , Action DenyLeaveRequest
             '[]
             '[ 'HtmxMethod 'HtmxPost
-             , 'HtmxTarget LeaveRequestsContent
-             , 'HtmxSwap None
+             , 'HtmxTarget ('HtmxId LeaveRequestsContent)
+             , 'HtmxSwap 'HtmxNoSwap
              , 'HtmxPushUrl 'HtmxPushUrlFalse
              ]
          , DomToken LeaveRequestsContent

@@ -132,14 +132,14 @@ tests = describe "Frontend contract generator foundation" do
     it "uses one shared HTMX metadata model for generated request primitives" do
         let genericOptions =
                 [ Contract.HtmxActionMethodIR Contract.HtmxPostIR
-                , Contract.HtmxActionTriggerIR "change"
-                , Contract.HtmxActionIncludeIR "#filters"
-                , Contract.HtmxActionSyncIR "closest form:queue"
-                , Contract.HtmxActionIndicatorIR "#spinner"
+                , Contract.HtmxActionTriggerIR (Contract.HtmxTypedSyntaxIR "change" [])
+                , Contract.HtmxActionIncludeIR (Contract.HtmxTypedSyntaxIR "#filters" [])
+                , Contract.HtmxActionSyncIR (Contract.HtmxTypedSyntaxIR "closest form:queue" [])
+                , Contract.HtmxActionIndicatorIR (Contract.HtmxTypedSyntaxIR "#spinner" [])
                 , Contract.HtmxActionConfirmIR "Continue?"
-                , Contract.HtmxActionSelectIR "#fragment"
-                , Contract.HtmxActionTargetIR "target"
-                , Contract.HtmxActionSwapIR "outerHTML"
+                , Contract.HtmxActionSelectIR (Contract.HtmxTypedSyntaxIR "#fragment" [])
+                , Contract.HtmxActionTargetIR (Contract.HtmxTypedSyntaxIR "#target" [])
+                , Contract.HtmxActionSwapIR (Contract.HtmxTypedSyntaxIR "outerHTML" [])
                 , Contract.HtmxActionPushUrlIR Contract.HtmxPushUrlFalseIR
                 , Contract.HtmxActionCustomHtmxIR "custom-marker" "fixture escape hatch"
                 ]
@@ -177,8 +177,8 @@ tests = describe "Frontend contract generator foundation" do
                        ]
         openFeedbackDialogAction.appShellActionOptions
             `shouldBe` [ Contract.HtmxActionMethodIR Contract.HtmxGetIR
-                       , Contract.HtmxActionTargetIR "dialog-overlay-mount"
-                       , Contract.HtmxActionSwapIR "innerHTML"
+                       , Contract.HtmxActionTargetIR (Contract.HtmxTypedSyntaxIR "#dialog-overlay-mount" ["dialog-overlay-mount"])
+                       , Contract.HtmxActionSwapIR (Contract.HtmxTypedSyntaxIR "innerHTML" [])
                        , Contract.HtmxActionPushUrlIR Contract.HtmxPushUrlFalseIR
                        ]
         appShellActionHtmxAttrPairs partialNavigateAction AppShellActionRoute
@@ -204,8 +204,8 @@ tests = describe "Frontend contract generator foundation" do
         fmap (.appShellActionOptions) openFeedbackAction
             `shouldBe` Just
                 [ Contract.HtmxActionMethodIR Contract.HtmxGetIR
-                , Contract.HtmxActionTargetIR "dialog-overlay-mount"
-                , Contract.HtmxActionSwapIR "innerHTML"
+                , Contract.HtmxActionTargetIR (Contract.HtmxTypedSyntaxIR "#dialog-overlay-mount" ["dialog-overlay-mount"])
+                , Contract.HtmxActionSwapIR (Contract.HtmxTypedSyntaxIR "innerHTML" [])
                 , Contract.HtmxActionPushUrlIR Contract.HtmxPushUrlFalseIR
                 ]
         let submitFeedbackAction = find ((== "submit-feedback") . (.appShellActionName)) appShellActions
@@ -213,8 +213,8 @@ tests = describe "Frontend contract generator foundation" do
         fmap (.appShellActionOptions) submitFeedbackAction
             `shouldBe` Just
                 [ Contract.HtmxActionMethodIR Contract.HtmxPostIR
-                , Contract.HtmxActionTargetIR "dialog-overlay-mount"
-                , Contract.HtmxActionSwapIR "innerHTML"
+                , Contract.HtmxActionTargetIR (Contract.HtmxTypedSyntaxIR "#dialog-overlay-mount" ["dialog-overlay-mount"])
+                , Contract.HtmxActionSwapIR (Contract.HtmxTypedSyntaxIR "innerHTML" [])
                 , Contract.HtmxActionPushUrlIR Contract.HtmxPushUrlFalseIR
                 ]
 

@@ -1,0 +1,365 @@
+{-# LANGUAGE AllowAmbiguousTypes  #-}
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE GADTs                #-}
+{-# LANGUAGE LambdaCase           #-}
+{-# LANGUAGE PolyKinds            #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE TypeApplications     #-}
+{-# LANGUAGE TypeFamilies         #-}
+{-# LANGUAGE TypeOperators        #-}
+{-# LANGUAGE UndecidableInstances #-}
+
+module Application.Helper.FrontendContract.Surface.Values
+    ( SurfaceActionFieldSpecs
+    , SurfaceActionPrimitive
+    , SurfaceFields (..)
+    , SurfaceFragmentFieldSpecs
+    , SurfaceFragmentOptionSpecs
+    , SurfaceDomTokenPrimitive
+    , SurfaceDropzoneRefPrimitive
+    , SurfaceFragmentPrimitive
+    , SurfaceMountStateFieldSpecs
+    , SurfaceResourceFieldSpecs
+    , SurfaceResourceSpec
+    , SurfaceScopeFieldSpecs
+    , SurfaceScopePrimitive
+    , SurfaceSourceRefPrimitive
+    , surfaceActionFieldName
+    , surfaceField
+    , surfaceFieldsJson
+    , surfaceFieldsText
+    , surfaceNullableField
+    , surfaceOptionalField
+    , surfaceActionValue
+    , surfaceDomTokenValue
+    , surfaceDropzoneRefValue
+    , surfaceFragmentValue
+    , surfaceNameValue
+    , surfaceResourceValue
+    , surfaceScopeValue
+    , surfaceSourceRefValue
+    ) where
+
+import qualified Application.Helper.FrontendContract.Naming as Naming
+import Application.Helper.FrontendContract.Surface.ContractIR
+import Application.Helper.FrontendContract.Surface.DSL
+import Application.Helper.FrontendContract.Surface.Reflect
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Key as Aeson.Key
+import qualified Data.Aeson.Types as Aeson.Types
+import qualified Data.ByteString.Lazy as LBS
+import Data.Kind (Constraint, Type)
+import qualified Data.Text.Encoding as Text.Encoding
+import Data.Time (Day, defaultTimeLocale, formatTime)
+import Data.Typeable (Typeable)
+import qualified Data.UUID as UUID
+import GHC.TypeLits (ErrorMessage (..), TypeError)
+import IHP.Prelude
+
+-- | Exact, declaration-ordered values for one Surface field list. Unlike the
+-- legacy phantom JSON carrier, values can only be constructed with the field
+-- marker, presence, and Haskell type declared by the Surface DSL.
+data SurfaceField (field :: FieldSpec) where
+    RequiredSurfaceField ::
+        (Typeable marker, KnownSurfaceWireValue wire) =>
+        SurfaceWireValue wire -> SurfaceField ('Field marker wire)
+    OptionalSurfaceField ::
+        (Typeable marker, KnownSurfaceWireValue wire) =>
+        Maybe (SurfaceWireValue wire) -> SurfaceField ('OptionalField marker wire)
+    NullableSurfaceField ::
+        (Typeable marker, KnownSurfaceWireValue wire) =>
+        Maybe (SurfaceWireValue wire) -> SurfaceField ('NullableField marker wire)
+
+data SurfaceFields (fields :: [FieldSpec]) where
+    NoSurfaceFields :: SurfaceFields '[]
+    (:&) :: SurfaceField field -> SurfaceFields rest -> SurfaceFields (field ': rest)
+
+infixr 5 :&
+
+type family SurfaceWireValue (wire :: WireType) :: Type where
+    SurfaceWireValue 'WireText = Text
+    SurfaceWireValue 'WireInt = Int
+    SurfaceWireValue 'WireBool = Bool
+    SurfaceWireValue 'WireUUID = UUID.UUID
+    SurfaceWireValue 'WireDay = Day
+    SurfaceWireValue ('WireList inner) = [SurfaceWireValue inner]
+    SurfaceWireValue ('WireOptional inner) = Maybe (SurfaceWireValue inner)
+    SurfaceWireValue ('WireNullable inner) = Maybe (SurfaceWireValue inner)
+    SurfaceWireValue ('WireRef dto) = Aeson.Value
+
+class KnownSurfaceWireValue (wire :: WireType) where
+    surfaceWireJson :: SurfaceWireValue wire -> Aeson.Value
+    surfaceWireText :: SurfaceWireValue wire -> Text
+
+instance KnownSurfaceWireValue 'WireText where
+    surfaceWireJson = Aeson.String
+    surfaceWireText = id
+
+instance KnownSurfaceWireValue 'WireInt where
+    surfaceWireJson = Aeson.toJSON
+    surfaceWireText = tshow
+
+instance KnownSurfaceWireValue 'WireBool where
+    surfaceWireJson = Aeson.Bool
+    surfaceWireText value = if value then "true" else "false"
+
+instance KnownSurfaceWireValue 'WireUUID where
+    surfaceWireJson = Aeson.String . UUID.toText
+    surfaceWireText = UUID.toText
+
+instance KnownSurfaceWireValue 'WireDay where
+    surfaceWireJson = Aeson.String . surfaceWireText @'WireDay
+    surfaceWireText = cs . formatTime defaultTimeLocale "%F"
+
+instance KnownSurfaceWireValue inner => KnownSurfaceWireValue ('WireList inner) where
+    surfaceWireJson = Aeson.toJSON . fmap (surfaceWireJson @inner)
+    surfaceWireText = jsonText . surfaceWireJson @('WireList inner)
+
+instance KnownSurfaceWireValue inner => KnownSurfaceWireValue ('WireOptional inner) where
+    surfaceWireJson = maybe Aeson.Null (surfaceWireJson @inner)
+    surfaceWireText = maybe "" (surfaceWireText @inner)
+
+instance KnownSurfaceWireValue inner => KnownSurfaceWireValue ('WireNullable inner) where
+    surfaceWireJson = maybe Aeson.Null (surfaceWireJson @inner)
+    surfaceWireText = maybe "" (surfaceWireText @inner)
+
+instance KnownSurfaceWireValue ('WireRef dto) where
+    surfaceWireJson = id
+    surfaceWireText = jsonText
+
+surfaceField ::
+    forall marker wire.
+    (Typeable marker, KnownSurfaceWireValue wire) =>
+    SurfaceWireValue wire -> SurfaceField ('Field marker wire)
+surfaceField = RequiredSurfaceField
+
+surfaceOptionalField ::
+    forall marker wire.
+    (Typeable marker, KnownSurfaceWireValue wire) =>
+    Maybe (SurfaceWireValue wire) -> SurfaceField ('OptionalField marker wire)
+surfaceOptionalField = OptionalSurfaceField
+
+surfaceNullableField ::
+    forall marker wire.
+    (Typeable marker, KnownSurfaceWireValue wire) =>
+    Maybe (SurfaceWireValue wire) -> SurfaceField ('NullableField marker wire)
+surfaceNullableField = NullableSurfaceField
+
+surfaceFieldsJson :: SurfaceFields fields -> Aeson.Value
+surfaceFieldsJson = Aeson.object . surfaceFieldJsonPairs
+
+surfaceFieldsText :: SurfaceFields fields -> [(Text, Text)]
+surfaceFieldsText = \case
+    NoSurfaceFields -> []
+    RequiredSurfaceField @marker @wire value :& rest ->
+        (surfaceFieldName @marker, surfaceWireText @wire value) : surfaceFieldsText rest
+    OptionalSurfaceField @marker @wire (Just value) :& rest ->
+        (surfaceFieldName @marker, surfaceWireText @wire value) : surfaceFieldsText rest
+    OptionalSurfaceField Nothing :& rest -> surfaceFieldsText rest
+    NullableSurfaceField @marker @wire value :& rest ->
+        (surfaceFieldName @marker, maybe "" (surfaceWireText @wire) value) : surfaceFieldsText rest
+
+surfaceFieldJsonPairs :: SurfaceFields fields -> [Aeson.Types.Pair]
+surfaceFieldJsonPairs = \case
+    NoSurfaceFields -> []
+    RequiredSurfaceField @marker @wire value :& rest ->
+        Aeson.Key.fromText (surfaceFieldName @marker) Aeson..= surfaceWireJson @wire value : surfaceFieldJsonPairs rest
+    OptionalSurfaceField @marker @wire (Just value) :& rest ->
+        Aeson.Key.fromText (surfaceFieldName @marker) Aeson..= surfaceWireJson @wire value : surfaceFieldJsonPairs rest
+    OptionalSurfaceField Nothing :& rest -> surfaceFieldJsonPairs rest
+    NullableSurfaceField @marker @wire value :& rest ->
+        Aeson.Key.fromText (surfaceFieldName @marker) Aeson..= maybe Aeson.Null (surfaceWireJson @wire) value : surfaceFieldJsonPairs rest
+
+surfaceFieldName :: forall marker. Typeable marker => Text
+surfaceFieldName = Naming.deriveFrontendSurfaceTypeName @marker Naming.FieldName
+
+jsonText :: Aeson.Value -> Text
+jsonText = Text.Encoding.decodeUtf8 . LBS.toStrict . Aeson.encode
+
+type family SurfacePrimitives (spec :: SurfaceSpec) :: [SurfacePrimitive] where
+    SurfacePrimitives ('Surface name primitives) = primitives
+
+type SurfaceScopePrimitive spec marker = FindSurfaceScope spec marker (SurfacePrimitives spec)
+type SurfaceFragmentPrimitive spec marker = FindSurfaceFragment spec marker (SurfacePrimitives spec)
+type SurfaceActionPrimitive spec marker = FindSurfaceAction spec marker (SurfacePrimitives spec)
+type SurfaceDomTokenPrimitive spec marker = FindSurfaceDomToken spec marker (SurfacePrimitives spec)
+type SurfaceSourceRefPrimitive spec marker = FindSurfaceSourceRef spec marker (SurfacePrimitives spec)
+type SurfaceDropzoneRefPrimitive spec marker = FindSurfaceDropzoneRef spec marker (SurfacePrimitives spec)
+type SurfaceResourceSpec spec marker = RequireSurfaceResource spec marker (FindSurfaceResource marker (SurfacePrimitives spec))
+
+type SurfaceScopeFieldSpecs spec marker = PrimitiveFieldSpecs (SurfaceScopePrimitive spec marker)
+type SurfaceFragmentFieldSpecs spec marker = PrimitiveFieldSpecs (SurfaceFragmentPrimitive spec marker)
+type SurfaceFragmentOptionSpecs spec marker = FragmentOptionSpecs (SurfaceFragmentPrimitive spec marker)
+type SurfaceActionFieldSpecs spec marker = PrimitiveFieldSpecs (SurfaceActionPrimitive spec marker)
+type SurfaceResourceFieldSpecs spec marker = ResourceFieldSpecs (SurfaceResourceSpec spec marker)
+type SurfaceMountStateFieldSpecs spec = FindMountStateFields (SurfacePrimitives spec)
+
+type family PrimitiveFieldSpecs (primitive :: SurfacePrimitive) :: [FieldSpec] where
+    PrimitiveFieldSpecs ('Scope marker fields options) = fields
+    PrimitiveFieldSpecs ('Fragment marker fields options) = fields
+    PrimitiveFieldSpecs ('Action marker fields options) = fields
+    PrimitiveFieldSpecs ('Intent marker fields options) = fields
+    PrimitiveFieldSpecs ('MountState marker fields) = fields
+
+type family FragmentOptionSpecs (primitive :: SurfacePrimitive) :: [PrimitiveOption] where
+    FragmentOptionSpecs ('Fragment marker fields options) = options
+
+type family ResourceFieldSpecs (resource :: ResourceSpec) :: [FieldSpec] where
+    ResourceFieldSpecs ('Resource marker fields) = fields
+
+type family FindMountStateFields (primitives :: [SurfacePrimitive]) :: [FieldSpec] where
+    FindMountStateFields '[] = '[]
+    FindMountStateFields (('MountState marker fields) ': rest) = fields
+    FindMountStateFields (primitive ': rest) = FindMountStateFields rest
+
+type family RequireSurfaceField (owner :: Type) (marker :: Type) (fields :: [FieldSpec]) :: Constraint where
+    RequireSurfaceField owner marker (('Field marker wire) ': rest) = ()
+    RequireSurfaceField owner marker (('OptionalField marker wire) ': rest) = ()
+    RequireSurfaceField owner marker (('NullableField marker wire) ': rest) = ()
+    RequireSurfaceField owner marker (field ': rest) = RequireSurfaceField owner marker rest
+    RequireSurfaceField owner marker '[] = TypeError
+        ( 'Text "FrontendSurface owner "
+            ':<>: 'ShowType owner
+            ':<>: 'Text " does not declare field marker "
+            ':<>: 'ShowType marker
+        )
+
+surfaceActionFieldName ::
+    forall spec action marker.
+    ( Typeable marker
+    , RequireSurfaceField action marker (SurfaceActionFieldSpecs spec action)
+    ) =>
+    Text
+surfaceActionFieldName = surfaceFieldName @marker
+
+type family FindSurfaceScope (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
+    FindSurfaceScope spec marker (('Scope marker fields options) ': rest) = 'Scope marker fields options
+    FindSurfaceScope spec marker (primitive ': rest) = FindSurfaceScope spec marker rest
+    FindSurfaceScope spec marker '[] = TypeError
+        ( 'Text "FrontendSurface "
+            ':<>: 'ShowType spec
+            ':<>: 'Text " does not declare scope marker "
+            ':<>: 'ShowType marker
+        )
+
+type family FindSurfaceFragment (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
+    FindSurfaceFragment spec marker (('Fragment marker fields options) ': rest) = 'Fragment marker fields options
+    FindSurfaceFragment spec marker (primitive ': rest) = FindSurfaceFragment spec marker rest
+    FindSurfaceFragment spec marker '[] = TypeError
+        ( 'Text "FrontendSurface "
+            ':<>: 'ShowType spec
+            ':<>: 'Text " does not declare fragment marker "
+            ':<>: 'ShowType marker
+        )
+
+type family FindSurfaceAction (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
+    FindSurfaceAction spec marker (('Action marker fields options) ': rest) = 'Action marker fields options
+    FindSurfaceAction spec marker (primitive ': rest) = FindSurfaceAction spec marker rest
+    FindSurfaceAction spec marker '[] = TypeError
+        ( 'Text "FrontendSurface "
+            ':<>: 'ShowType spec
+            ':<>: 'Text " does not declare action marker "
+            ':<>: 'ShowType marker
+        )
+
+type family FindSurfaceDomToken (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
+    FindSurfaceDomToken spec marker (('DomToken marker) ': rest) = 'DomToken marker
+    FindSurfaceDomToken spec marker (primitive ': rest) = FindSurfaceDomToken spec marker rest
+    FindSurfaceDomToken spec marker '[] = TypeError
+        ( 'Text "FrontendSurface "
+            ':<>: 'ShowType spec
+            ':<>: 'Text " does not declare DOM token marker "
+            ':<>: 'ShowType marker
+        )
+
+type family FindSurfaceSourceRef (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
+    FindSurfaceSourceRef spec marker (('SourceRef marker options) ': rest) = 'SourceRef marker options
+    FindSurfaceSourceRef spec marker (primitive ': rest) = FindSurfaceSourceRef spec marker rest
+    FindSurfaceSourceRef spec marker '[] = TypeError
+        ( 'Text "FrontendSurface "
+            ':<>: 'ShowType spec
+            ':<>: 'Text " does not declare source-ref marker "
+            ':<>: 'ShowType marker
+        )
+
+type family FindSurfaceDropzoneRef (spec :: SurfaceSpec) (marker :: Type) (primitives :: [SurfacePrimitive]) :: SurfacePrimitive where
+    FindSurfaceDropzoneRef spec marker (('DropzoneRef marker options) ': rest) = 'DropzoneRef marker options
+    FindSurfaceDropzoneRef spec marker (primitive ': rest) = FindSurfaceDropzoneRef spec marker rest
+    FindSurfaceDropzoneRef spec marker '[] = TypeError
+        ( 'Text "FrontendSurface "
+            ':<>: 'ShowType spec
+            ':<>: 'Text " does not declare dropzone-ref marker "
+            ':<>: 'ShowType marker
+        )
+
+type family FindSurfaceResource (marker :: Type) (primitives :: [SurfacePrimitive]) :: Maybe ResourceSpec where
+    FindSurfaceResource marker '[] = 'Nothing
+    FindSurfaceResource marker (('Fragment fragment fields options) ': rest) =
+        FirstResource (FindResourceInOptions marker options) (FindSurfaceResource marker rest)
+    FindSurfaceResource marker (primitive ': rest) = FindSurfaceResource marker rest
+
+type family FindResourceInOptions (marker :: Type) (options :: [PrimitiveOption]) :: Maybe ResourceSpec where
+    FindResourceInOptions marker '[] = 'Nothing
+    FindResourceInOptions marker (('DependsOn ('Resource marker fields) sources) ': rest) = 'Just ('Resource marker fields)
+    FindResourceInOptions marker (('Lazy nested) ': rest) =
+        FirstResource (FindResourceInOptions marker nested) (FindResourceInOptions marker rest)
+    FindResourceInOptions marker (('Effect effect nested) ': rest) =
+        FirstResource (FindResourceInOptions marker nested) (FindResourceInOptions marker rest)
+    FindResourceInOptions marker (option ': rest) = FindResourceInOptions marker rest
+
+type family FirstResource (left :: Maybe ResourceSpec) (right :: Maybe ResourceSpec) :: Maybe ResourceSpec where
+    FirstResource ('Just resource) right = 'Just resource
+    FirstResource 'Nothing right = right
+
+type family RequireSurfaceResource (spec :: SurfaceSpec) (marker :: Type) (result :: Maybe ResourceSpec) :: ResourceSpec where
+    RequireSurfaceResource spec marker ('Just resource) = resource
+    RequireSurfaceResource spec marker 'Nothing = TypeError
+        ( 'Text "FrontendSurface "
+            ':<>: 'ShowType spec
+            ':<>: 'Text " does not declare resource marker "
+            ':<>: 'ShowType marker
+        )
+
+surfaceNameValue :: forall spec. ReflectSurfaceSpec spec => Text
+surfaceNameValue = (reflectSurfaceSpec @spec).surfaceName
+
+surfaceScopeValue :: forall spec marker. ReflectPrimitive (SurfaceScopePrimitive spec marker) => ScopeIR
+surfaceScopeValue =
+    case reflectPrimitive @(SurfaceScopePrimitive spec marker) of
+        ReflectedScope scope -> scope
+        _ -> error "impossible: scope lookup reflected a different primitive"
+
+surfaceFragmentValue :: forall spec marker. ReflectPrimitive (SurfaceFragmentPrimitive spec marker) => FragmentIR
+surfaceFragmentValue =
+    case reflectPrimitive @(SurfaceFragmentPrimitive spec marker) of
+        ReflectedFragment fragment -> fragment
+        _ -> error "impossible: fragment lookup reflected a different primitive"
+
+surfaceActionValue :: forall spec marker. ReflectPrimitive (SurfaceActionPrimitive spec marker) => HtmxActionIR
+surfaceActionValue =
+    case reflectPrimitive @(SurfaceActionPrimitive spec marker) of
+        ReflectedHtmxAction action -> action
+        _ -> error "impossible: action lookup reflected a different primitive"
+
+surfaceResourceValue :: forall spec marker. ReflectResource (SurfaceResourceSpec spec marker) => ResourceIR
+surfaceResourceValue = reflectResource @(SurfaceResourceSpec spec marker)
+
+surfaceDomTokenValue :: forall spec marker. ReflectPrimitive (SurfaceDomTokenPrimitive spec marker) => Text
+surfaceDomTokenValue =
+    case reflectPrimitive @(SurfaceDomTokenPrimitive spec marker) of
+        ReflectedDomToken token -> token
+        _ -> error "impossible: DOM-token lookup reflected a different primitive"
+
+surfaceSourceRefValue :: forall spec marker. ReflectPrimitive (SurfaceSourceRefPrimitive spec marker) => InteractionSourceRefIR
+surfaceSourceRefValue =
+    case reflectPrimitive @(SurfaceSourceRefPrimitive spec marker) of
+        ReflectedSourceRef ref -> ref
+        _ -> error "impossible: source-ref lookup reflected a different primitive"
+
+surfaceDropzoneRefValue :: forall spec marker. ReflectPrimitive (SurfaceDropzoneRefPrimitive spec marker) => InteractionDropzoneRefIR
+surfaceDropzoneRefValue =
+    case reflectPrimitive @(SurfaceDropzoneRefPrimitive spec marker) of
+        ReflectedDropzoneRef ref -> ref
+        _ -> error "impossible: dropzone-ref lookup reflected a different primitive"
