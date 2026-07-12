@@ -22,7 +22,6 @@ module Application.Helper.FrontendContract.Htmx
     ) where
 
 import qualified Application.Helper.FrontendContract.IR as IR
-import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as Text
@@ -93,45 +92,30 @@ htmxActionMetadataFromOptions options = HtmxActionMetadata
     , htmxSelect = listToMaybe [value | IR.HtmxActionSelectIR value <- options]
     , htmxTarget = listToMaybe [value | IR.HtmxActionTargetIR value <- options]
     , htmxSwap = listToMaybe [value | IR.HtmxActionSwapIR value <- options]
-    , htmxPushUrl = listToMaybe [if value then HtmxPushUrlTrue else HtmxPushUrlFalse | IR.HtmxActionPushUrlIR value <- options]
+    , htmxPushUrl = listToMaybe [convertPushUrl value | IR.HtmxActionPushUrlIR value <- options]
     , htmxCustom = [HtmxActionCustom marker reason | IR.HtmxActionCustomHtmxIR marker reason <- options]
     }
     where
         method = \case
-            IR.HtmxActionMethodIR value -> htmxMethodFromText value
+            IR.HtmxActionMethodIR value -> Just (convertMethod value)
             _ -> Nothing
 
-htmxActionMetadataFromSurfaceOptions :: [SurfaceIR.OptionIR] -> HtmxActionMetadata
-htmxActionMetadataFromSurfaceOptions options = HtmxActionMetadata
-    { htmxMethod = listToMaybe (mapMaybe method options)
-    , htmxTrigger = listToMaybe [value | SurfaceIR.HtmxTriggerOption value <- options]
-    , htmxInclude = listToMaybe [value | SurfaceIR.HtmxIncludeOption value <- options]
-    , htmxSync = listToMaybe [value | SurfaceIR.HtmxSyncOption value <- options]
-    , htmxIndicator = listToMaybe [value | SurfaceIR.HtmxIndicatorOption value <- options]
-    , htmxConfirm = listToMaybe [value | SurfaceIR.HtmxConfirmOption value <- options]
-    , htmxSelect = listToMaybe [value | SurfaceIR.HtmxSelectOption value <- options]
-    , htmxTarget = listToMaybe [value | SurfaceIR.HtmxTargetOption value <- options]
-    , htmxSwap = listToMaybe [value | SurfaceIR.HtmxSwapOption value <- options]
-    , htmxPushUrl = listToMaybe [convertPushUrl value | SurfaceIR.HtmxPushUrlOption value <- options]
-    , htmxCustom = [HtmxActionCustom marker reason | SurfaceIR.CustomHtmxOption marker reason <- options]
-    }
-    where
-        method = \case
-            SurfaceIR.HtmxMethodOption value -> Just (convertMethod value)
-            _ -> Nothing
+htmxActionMetadataFromSurfaceOptions :: [IR.OptionIR] -> HtmxActionMetadata
+htmxActionMetadataFromSurfaceOptions =
+    htmxActionMetadataFromOptions . IR.optionHtmxActionOptions
 
-convertMethod :: SurfaceIR.HtmxMethodIR -> HtmxMethod
+convertMethod :: IR.HtmxMethodIR -> HtmxMethod
 convertMethod = \case
-    SurfaceIR.HtmxGetIR -> HtmxGet
-    SurfaceIR.HtmxPostIR -> HtmxPost
-    SurfaceIR.HtmxPutIR -> HtmxPut
-    SurfaceIR.HtmxPatchIR -> HtmxPatch
-    SurfaceIR.HtmxDeleteIR -> HtmxDelete
+    IR.HtmxGetIR -> HtmxGet
+    IR.HtmxPostIR -> HtmxPost
+    IR.HtmxPutIR -> HtmxPut
+    IR.HtmxPatchIR -> HtmxPatch
+    IR.HtmxDeleteIR -> HtmxDelete
 
-convertPushUrl :: SurfaceIR.HtmxPushUrlIR -> HtmxPushUrl
+convertPushUrl :: IR.HtmxPushUrlIR -> HtmxPushUrl
 convertPushUrl = \case
-    SurfaceIR.HtmxPushUrlTrueIR -> HtmxPushUrlTrue
-    SurfaceIR.HtmxPushUrlFalseIR -> HtmxPushUrlFalse
+    IR.HtmxPushUrlTrueIR -> HtmxPushUrlTrue
+    IR.HtmxPushUrlFalseIR -> HtmxPushUrlFalse
 
 htmxActionOptionAttrPairs :: HtmxActionMetadata -> [(Text, Text)]
 htmxActionOptionAttrPairs metadata =

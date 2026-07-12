@@ -16,7 +16,6 @@ import Test.Hspec
 
 -- Fixture markers
 data App
-data FixtureSurface
 
 data UserId
 data StaffName
@@ -32,8 +31,6 @@ data DeletedCase
 data StaffEvent
 data OpenDialog
 data OverlayRoot
-data SurfaceScope
-data SurfacePanelFragment
 
 type FixtureContracts =
     '[ Global App
@@ -53,12 +50,6 @@ type FixtureContracts =
              ])
          , Event OpenDialog '[Field UserId 'WireUUID]
          , DomAttr OverlayRoot
-         ]
-     , Surface FixtureSurface
-        '[ SurfaceSchema (Record SurfaceScope '[Field UserId 'WireUUID])
-         , Scope SurfaceScope '[Field UserId 'WireUUID]
-         , Fragment SurfacePanelFragment '[Field UserId 'WireUUID]
-         , Dto DraftStaffRecord '[Field StaffName 'WireText]
          ]
      ]
 
@@ -97,14 +88,14 @@ tests = describe "FrontendContract foundation" do
         let Right source = renderFrontendContractTypeScript (reflectFrontendContracts @FixtureContracts)
         source `shouldContainText` "export type FrontendContractUuid = string;"
         source `shouldContainText` "export type FrontendContractDay = string;"
-        source `shouldContainText` "export type UserId = FrontendContractUuid;"
+        source `shouldContainText` "userId: FrontendContractUuid"
         source `shouldNotContainText` "FrontendSurfaceUUID"
         source `shouldNotContainText` "FrontendSurfaceDay"
 
-    it "reflects a mixed Global and Surface registry" do
+    it "reflects global roots without a parallel Surface authoring model" do
         let contract = reflectFrontendContracts @FixtureContracts
         fmap (.globalName) contract.contractGlobals `shouldBe` ["app"]
-        fmap (.surfaceName) contract.contractSurfaces `shouldBe` ["fixture"]
+        contract.contractSurfaces `shouldBe` []
         case checkedFrontendContractIR contract of
             Right _          -> pure ()
             Left diagnostics -> expectationFailure (cs (show diagnostics))
@@ -128,7 +119,6 @@ tests = describe "FrontendContract foundation" do
         source `shouldContainText` "export const overlayRootDomAttr = \"data-bepis-overlay-root\" as const;"
         source `shouldContainText` "export function parseStaffRecord(value: unknown): StaffRecord"
         source `shouldContainText` "export function encodeStaffRecord(value: StaffRecord): StaffRecord"
-        source `shouldContainText` "export type FixtureSurfaceSurfaceScopeScope = { userId: FrontendContractUuid };"
 
 shouldContainText :: Text -> Text -> Expectation
 shouldContainText haystack needle = haystack `shouldSatisfy` (needle `isInfixOf`)

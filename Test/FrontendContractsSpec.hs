@@ -29,6 +29,7 @@ import Application.Helper.FrontendContract.RosterValues (RosterStaffSortKey (..)
                                                          rosterStaffSortKeyAttribute,
                                                          rosterStaffSortKeyValues)
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
+import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import Application.Helper.FrontendContract.Values (domIdValue, enumLiteralValue,
                                                    eventNameValue,
                                                    lookupDomIdValue,
@@ -75,6 +76,22 @@ tests = describe "Frontend contract generator foundation" do
         checkedIn <- Text.readFile "frontend/ts/generated/contracts.ts"
         checkedIn `shouldBe` frontendContractsTypeScript
 
+    it "embeds the checked Surface topology directly in the unified registry" do
+        registeredFrontendContractIR.contractSurfaces
+            `shouldBe` registeredFrontendSurfaceContractIR.contractSurfaces
+
+    it "uses the canonical field, wire, schema, and HTMX core inside Surface topology" do
+        let lab = fromMaybe (error "missing reflected lab Surface") (find ((== "surface-lab") . (.surfaceName)) registeredFrontendContractIR.contractSurfaces)
+        let scopeFields :: [Contract.FieldIR] = concatMap (.scopeFields) lab.surfaceScopes
+        let dtoSchemas :: [Contract.SchemaIR] = lab.surfaceDtos
+        let actionOptions :: [Contract.HtmxActionOptionIR] = concatMap (Contract.optionHtmxActionOptions . (.htmxActionOptions)) lab.surfaceHtmxActions
+
+        map (\field -> (field.fieldName, field.fieldWire)) scopeFields
+            `shouldBe` [("venueId", Contract.WireUuidIR), ("weekOffset", Contract.WireIntIR)]
+        map Contract.schemaNameAndMarker dtoSchemas
+            `shouldBe` [("LabPayload", "LabPayload"), ("LabRelatedPayload", "LabRelatedPayload")]
+        actionOptions `shouldContain` [Contract.HtmxActionMethodIR Contract.HtmxPostIR]
+
     it "keeps the composition root free of handwritten protocol blocks" do
         source <- Text.readFile "Application/Helper/FrontendContract/Contracts.hs"
         source `shouldNotSatisfy` Text.isInfixOf "export type SurfaceScope"
@@ -88,7 +105,7 @@ tests = describe "Frontend contract generator foundation" do
 
     it "uses one shared HTMX metadata model for generated request primitives" do
         let genericOptions =
-                [ Contract.HtmxActionMethodIR "post"
+                [ Contract.HtmxActionMethodIR Contract.HtmxPostIR
                 , Contract.HtmxActionTriggerIR "change"
                 , Contract.HtmxActionIncludeIR "#filters"
                 , Contract.HtmxActionSyncIR "closest form:queue"
@@ -97,22 +114,12 @@ tests = describe "Frontend contract generator foundation" do
                 , Contract.HtmxActionSelectIR "#fragment"
                 , Contract.HtmxActionTargetIR "target"
                 , Contract.HtmxActionSwapIR "outerHTML"
-                , Contract.HtmxActionPushUrlIR False
+                , Contract.HtmxActionPushUrlIR Contract.HtmxPushUrlFalseIR
                 , Contract.HtmxActionCustomHtmxIR "custom-marker" "fixture escape hatch"
                 ]
         let surfaceOptions =
-                [ SurfaceIR.HtmxMethodOption SurfaceIR.HtmxPostIR
-                , SurfaceIR.HtmxTriggerOption "change"
-                , SurfaceIR.HtmxIncludeOption "#filters"
-                , SurfaceIR.HtmxSyncOption "closest form:queue"
-                , SurfaceIR.HtmxIndicatorOption "#spinner"
-                , SurfaceIR.HtmxConfirmOption "Continue?"
-                , SurfaceIR.HtmxSelectOption "#fragment"
-                , SurfaceIR.HtmxTargetOption "target"
-                , SurfaceIR.HtmxSwapOption "outerHTML"
-                , SurfaceIR.HtmxPushUrlOption SurfaceIR.HtmxPushUrlFalseIR
-                , SurfaceIR.CustomHtmxOption "custom-marker" "fixture escape hatch"
-                ]
+                map SurfaceIR.HtmxOption genericOptions
+        Contract.optionHtmxActionOptions surfaceOptions `shouldBe` genericOptions
         let metadata = Htmx.htmxActionMetadataFromOptions genericOptions
         metadata `shouldBe` Htmx.htmxActionMetadataFromSurfaceOptions surfaceOptions
         Htmx.htmxActionOptionAttrPairs metadata
@@ -139,14 +146,14 @@ tests = describe "Frontend contract generator foundation" do
         let openFeedbackDialogAction = appShellActionByMarker @AppShell.OpenFeedbackDialog
         fmap (.appShellActionName) (find ((== "partial-navigate") . (.appShellActionName)) appShellActions) `shouldBe` Just "partial-navigate"
         partialNavigateAction.appShellActionOptions
-            `shouldBe` [ Contract.HtmxActionMethodIR "get"
+            `shouldBe` [ Contract.HtmxActionMethodIR Contract.HtmxGetIR
                        , Contract.HtmxActionCustomHtmxIR "partial-navigation-htmx-attrs" "partial navigation supplies route-specific target, swap, select, push-url, and sync attrs"
                        ]
         openFeedbackDialogAction.appShellActionOptions
-            `shouldBe` [ Contract.HtmxActionMethodIR "get"
+            `shouldBe` [ Contract.HtmxActionMethodIR Contract.HtmxGetIR
                        , Contract.HtmxActionTargetIR "dialog-overlay-mount"
                        , Contract.HtmxActionSwapIR "innerHTML"
-                       , Contract.HtmxActionPushUrlIR False
+                       , Contract.HtmxActionPushUrlIR Contract.HtmxPushUrlFalseIR
                        ]
         appShellActionHtmxAttrPairs partialNavigateAction AppShellActionRoute
             { appShellActionRouteUrl = "/next"
@@ -170,35 +177,35 @@ tests = describe "Frontend contract generator foundation" do
         fmap (.appShellActionFields) openFeedbackAction `shouldBe` Just []
         fmap (.appShellActionOptions) openFeedbackAction
             `shouldBe` Just
-                [ Contract.HtmxActionMethodIR "get"
+                [ Contract.HtmxActionMethodIR Contract.HtmxGetIR
                 , Contract.HtmxActionTargetIR "dialog-overlay-mount"
                 , Contract.HtmxActionSwapIR "innerHTML"
-                , Contract.HtmxActionPushUrlIR False
+                , Contract.HtmxActionPushUrlIR Contract.HtmxPushUrlFalseIR
                 ]
         let submitFeedbackAction = find ((== "submit-feedback") . (.appShellActionName)) appShellActions
         fmap (fmap (.fieldName) . (.appShellActionFields)) submitFeedbackAction `shouldBe` Just ["feedbackType", "content"]
         fmap (.appShellActionOptions) submitFeedbackAction
             `shouldBe` Just
-                [ Contract.HtmxActionMethodIR "post"
+                [ Contract.HtmxActionMethodIR Contract.HtmxPostIR
                 , Contract.HtmxActionTargetIR "dialog-overlay-mount"
                 , Contract.HtmxActionSwapIR "innerHTML"
-                , Contract.HtmxActionPushUrlIR False
+                , Contract.HtmxActionPushUrlIR Contract.HtmxPushUrlFalseIR
                 ]
 
     it "exposes consistent Profile and Staff surface profile action field sets" do
         let surfaceActions surfaceName actionName =
-                [ action
+                [ action.htmxActionName
                 | surface <- registeredFrontendContractIR.contractSurfaces
                 , surface.surfaceName == surfaceName
-                , Contract.SurfaceActionIR _ action _ _ <- surface.surfacePrimitives
-                , action == actionName
+                , action <- surface.surfaceHtmxActions
+                , action.htmxActionName == actionName
                 ]
         let actionFields surfaceName actionName =
-                [ fields
+                [ action.htmxActionFields
                 | surface <- registeredFrontendContractIR.contractSurfaces
                 , surface.surfaceName == surfaceName
-                , Contract.SurfaceActionIR _ action fields _ <- surface.surfacePrimitives
-                , action == actionName
+                , action <- surface.surfaceHtmxActions
+                , action.htmxActionName == actionName
                 ]
         surfaceActions "staff" "update-staff-profile" `shouldBe` ["update-staff-profile"]
         actionFields "profile" "update-profile-details" `shouldBe` actionFields "staff" "update-staff-profile"

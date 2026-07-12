@@ -64,9 +64,9 @@ module Application.Helper.FrontendContract.Surface.Runtime
 
 import Application.Helper.FrontendContract.AppValues (interactionIntentSubmitHtmxTrigger)
 import qualified Application.Helper.FrontendContract.Htmx as Htmx
+import qualified Application.Helper.FrontendContract.Naming as Naming
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.DSL
-import qualified Application.Helper.FrontendContract.Surface.Naming as Naming
 import qualified Application.Helper.LiveUpdate.Runtime as LiveUpdate
 import Application.Helper.UiRegion (UiRegionDomAttributes (..),
                                     canonicalUiRegionDomAttributes,

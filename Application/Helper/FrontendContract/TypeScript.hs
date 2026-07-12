@@ -77,7 +77,7 @@ renderSurfaceScopeUnion surface =
         <> renderNamedUnion scopeTypes
         <> renderCodec (surfaceScopeUnionName surface) (orExpression ["is" <> scopeType <> "(value)" | scopeType <- scopeTypes])
     where
-        scopeTypes = [surfaceScopeTypeName surface marker | SurfaceScopeIR marker _ _ <- surface.surfacePrimitives]
+        scopeTypes = [surfaceScopeTypeName surface scope.scopeMarker | scope <- surface.surfaceScopes]
 
 renderSurfaceFragmentKeyUnion :: SurfaceIR -> [Text]
 renderSurfaceFragmentKeyUnion surface =
@@ -85,7 +85,7 @@ renderSurfaceFragmentKeyUnion surface =
         <> renderFragmentKeyCases surface fragments
         <> renderCodec (surfaceFragmentKeyUnionName surface) (orExpression (fmap (fragmentKeyGuard surface) fragments))
     where
-        fragments = [(marker, name, fields) | SurfaceFragmentIR marker name fields <- surface.surfacePrimitives]
+        fragments = [(fragment.fragmentMarker, fragment.fragmentName, fragment.fragmentParams) | fragment <- surface.surfaceFragments]
 
 renderTopLevelSurfaceScopeUnion :: [SurfaceIR] -> [Text]
 renderTopLevelSurfaceScopeUnion surfaces =
@@ -102,10 +102,10 @@ renderTopLevelSurfaceFragmentKeyUnion surfaces =
 renderTopLevelInteractionSurfaceVocabulary :: [SurfaceIR] -> [Text]
 renderTopLevelInteractionSurfaceVocabulary surfaces =
     renderTopLevelStringUnion "FrontendSurfaceInteractionSurfaceName" (fmap (.surfaceName) interactionSurfaces)
-        <> renderTopLevelStringUnion "FrontendSurfaceInteractionSessionKindName" (concatMap (.surfaceInteractionSessions) interactionSurfaces)
-        <> renderTopLevelStringUnion "FrontendSurfaceInteractionDisposableLayerName" (concatMap (.surfaceInteractionLayers) interactionSurfaces)
-        <> renderTopLevelStringUnion "FrontendSurfaceInteractionIntentName" [name | surface <- interactionSurfaces, SurfaceIntentIR _ name _ <- surface.surfacePrimitives]
-        <> renderTopLevelStringUnion "FrontendSurfaceInteractionIntentFieldName" [field.fieldName | surface <- interactionSurfaces, SurfaceIntentIR _ _ fields <- surface.surfacePrimitives, field <- fields]
+        <> renderTopLevelStringUnion "FrontendSurfaceInteractionSessionKindName" (concatMap (.surfaceSessions) interactionSurfaces)
+        <> renderTopLevelStringUnion "FrontendSurfaceInteractionDisposableLayerName" (concatMap (.surfaceLayers) interactionSurfaces)
+        <> renderTopLevelStringUnion "FrontendSurfaceInteractionIntentName" [intent.intentName | surface <- interactionSurfaces, intent <- surface.surfaceIntents]
+        <> renderTopLevelStringUnion "FrontendSurfaceInteractionIntentFieldName" [field.fieldName | surface <- interactionSurfaces, intent <- surface.surfaceIntents, field <- intent.intentFields]
     where
         interactionSurfaces = filter (\surface -> surface.surfaceName /= "surface-lab" && surfaceHasInteractionSchema surface) surfaces
 
@@ -234,18 +234,18 @@ renderInteractionStaticSchemas surfaces =
 
 surfaceHasInteractionSchema :: SurfaceIR -> Bool
 surfaceHasInteractionSchema surface =
-    not (null surface.surfaceInteractionLayers)
-        || not (null surface.surfaceInteractionSessions)
-        || not (null (surfaceIntentPrimitives surface))
-        || not (null surface.surfaceInteractionPolicies)
+    not (null surface.surfaceLayers)
+        || not (null surface.surfaceSessions)
+        || not (null surface.surfaceIntents)
+        || not (null surface.surfacePolicies)
 
 renderStaticSchema :: SurfaceIR -> Text
 renderStaticSchema surface = objectLiteral
     [ ("serverLayers", arrayLiteral [])
-    , ("disposableLayers", arrayLiteral (fmap renderDisposableLayer surface.surfaceInteractionLayers))
-    , ("sessionKinds", arrayLiteral (fmap (renderSessionKind surface) surface.surfaceInteractionSessions))
+    , ("disposableLayers", arrayLiteral (fmap renderDisposableLayer surface.surfaceLayers))
+    , ("sessionKinds", arrayLiteral (fmap (renderSessionKind surface) surface.surfaceSessions))
     , ("intents", arrayLiteral (fmap renderStaticIntent (surfaceIntentPrimitives surface)))
-    , ("conflictPolicies", arrayLiteral (fmap renderConflictPolicy surface.surfaceInteractionPolicies))
+    , ("conflictPolicies", arrayLiteral (fmap renderConflictPolicy surface.surfacePolicies))
     ]
 
 renderDisposableLayer :: Text -> Text
@@ -255,22 +255,22 @@ renderSessionKind :: SurfaceIR -> Text -> Text
 renderSessionKind surface session = objectLiteral
     [ ("kind", quote session)
     , ("description", quote (surfaceSessionDescription surface.surfaceName session))
-    , ("effects", renderSessionEffects surface.surfaceInteractionEffects)
+    , ("effects", renderSessionEffects surface.surfaceEffects)
     ]
 
 surfaceSessionDescription :: Text -> Text -> Text
 surfaceSessionDescription "roster" "drag" = "Roster drag/drop prototype"
 surfaceSessionDescription surfaceName sessionName = surfaceName <> " " <> sessionName <> " interaction session"
 
-renderSessionEffects :: [(Text, [Text])] -> Text
+renderSessionEffects :: [(Text, [OptionIR])] -> Text
 renderSessionEffects effects = objectLiteral
     [ ("global", arrayLiteral (mapMaybe renderGlobalEffect effects))
     , ("contextual", arrayLiteral (mapMaybe renderContextualEffect effects))
     ]
 
-renderGlobalEffect :: (Text, [Text]) -> Maybe Text
-renderGlobalEffect ("clone-shadow", layers) = Just $ renderCloneShadowEffect "bepis-pointer-clone-shadow" layers
-renderGlobalEffect ("clone-shadow-copy", layers) = Just $ renderCloneShadowEffect "bepis-pointer-clone-shadow bepis-pointer-clone-shadow-copy" layers
+renderGlobalEffect :: (Text, [OptionIR]) -> Maybe Text
+renderGlobalEffect ("clone-shadow", options) = Just $ renderCloneShadowEffect "bepis-pointer-clone-shadow" (optionLayerNames options)
+renderGlobalEffect ("clone-shadow-copy", options) = Just $ renderCloneShadowEffect "bepis-pointer-clone-shadow bepis-pointer-clone-shadow-copy" (optionLayerNames options)
 renderGlobalEffect _ = Nothing
 
 renderCloneShadowEffect :: Text -> [Text] -> Text
@@ -282,15 +282,23 @@ renderCloneShadowEffect className layers = objectLiteral
     , ("source", quote "pointer-marker")
     ]
 
-renderContextualEffect :: (Text, [Text]) -> Maybe Text
+renderContextualEffect :: (Text, [OptionIR]) -> Maybe Text
 renderContextualEffect ("dropzone-highlight", _) = Just $ objectLiteral
     [ ("className", quote "bepis-dropzone-highlight")
     , ("kind", quote "dropzone-highlight")
     ]
 renderContextualEffect _ = Nothing
 
+optionLayerNames :: [OptionIR] -> [Text]
+optionLayerNames = concatMap \case
+    LayerOption name -> [name]
+    LazyOption options -> optionLayerNames options
+    EffectOption _ options -> optionLayerNames options
+    ModifierVariantOption variant -> concatMap (optionLayerNames . snd) variant.modifierVariantEffects
+    _ -> []
+
 surfaceIntentPrimitives :: SurfaceIR -> [(Text, [FieldIR])]
-surfaceIntentPrimitives surface = [(name, fields) | SurfaceIntentIR _ name fields <- surface.surfacePrimitives]
+surfaceIntentPrimitives surface = [(intent.intentName, intent.intentFields) | intent <- surface.surfaceIntents]
 
 renderStaticIntent :: (Text, [FieldIR]) -> Text
 renderStaticIntent (name, fields) = objectLiteral
@@ -310,15 +318,22 @@ fieldPresenceValue RequiredField         = "required"
 fieldPresenceValue OptionalFieldPresence = "optional"
 fieldPresenceValue NullableFieldPresence = "optional"
 
-renderConflictPolicy :: SurfaceInteractionPolicyIR -> Text
+renderConflictPolicy :: ConflictPolicyIR -> Text
 renderConflictPolicy policy = objectLiteral $ baseFields <> timeoutField
     where
+        session = case policy.conflictPolicySession of
+            AnySessionIR -> objectLiteral [("kind", quote "any")]
+            SessionKindIR name -> objectLiteral [("kind", quote "session"), ("session", quote name)]
+        resolution = case policy.conflictPolicyResolution of
+            ApplyIR  -> "apply"
+            DeferIR  -> "defer"
+            CancelIR -> "cancel"
         baseFields =
-            [ ("session", maybe (objectLiteral [("kind", quote "any")]) (\session -> objectLiteral [("kind", quote "session"), ("session", quote session)]) policy.interactionPolicySession)
+            [ ("session", session)
             , ("fragment", objectLiteral [("kind", quote "any")])
-            , ("resolution", quote policy.interactionPolicyResolution)
+            , ("resolution", quote resolution)
             ]
-        timeoutField = if policy.interactionPolicyResolution == "defer" then [("timeoutMs", "5000")] else []
+        timeoutField = if resolution == "defer" then [("timeoutMs", "5000")] else []
 
 objectLiteral :: [(Text, Text)] -> Text
 objectLiteral fields = "{" <> Text.intercalate "," [quote key <> ":" <> value | (key, value) <- fields] <> "}"
@@ -360,7 +375,13 @@ renderInteractionDomGroup primitives =
         renderFieldValue (marker, _) = constName marker <> ": " <> constName marker <> "FieldName"
 
 renderSurface :: SurfaceIR -> [Text]
-renderSurface surface = concatMap (renderSurfacePrimitive surface) surface.surfacePrimitives
+renderSurface surface =
+    concatMap (renderScope surface) surface.surfaceScopes
+        <> concatMap (renderMountState surface) surface.surfaceMountStates
+        <> concatMap (renderFragment surface) surface.surfaceFragments
+        <> concatMap (renderAction surface) surface.surfaceHtmxActions
+        <> concatMap (renderIntent surface) surface.surfaceIntents
+        <> concatMap renderSchema surface.surfaceDtos
 
 renderFrontendSurfaceRuntime :: [SurfaceIR] -> [Text]
 renderFrontendSurfaceRuntime surfaces =
@@ -379,20 +400,19 @@ renderFrontendSurfaceBrandAliases surfaces =
 surfaceUuidAliases :: SurfaceIR -> [Text]
 surfaceUuidAliases surface =
     [ typeNameFromMarker field.fieldMarker
-    | primitive <- surface.surfacePrimitives
-    , field <- surfacePrimitiveFields primitive
+    | field <- surfaceFields surface
     , isUuidWire field.fieldWire
     ]
 
-surfacePrimitiveFields :: SurfacePrimitiveIR -> [FieldIR]
-surfacePrimitiveFields = \case
-    SurfaceSchemaIR _ -> []
-    SurfaceScopeIR _ _ fields -> fields
-    SurfaceFragmentIR _ _ fields -> fields
-    SurfaceActionIR _ _ fields _ -> fields
-    SurfaceIntentIR _ _ fields -> fields
-    SurfaceMountStateIR _ _ fields -> fields
-    SurfaceDtoIR _ _ fields -> fields
+surfaceFields :: SurfaceIR -> [FieldIR]
+surfaceFields surface =
+    concatMap (.scopeFields) surface.surfaceScopes
+        <> concatMap (.mountStateFields) surface.surfaceMountStates
+        <> concatMap (.fragmentParams) surface.surfaceFragments
+        <> concatMap (.htmxActionFields) surface.surfaceHtmxActions
+        <> concatMap (.intentFields) surface.surfaceIntents
+        <> concatMap snd surface.surfaceClientEvents
+        <> concatMap schemaFields surface.surfaceDtos
 
 isUuidWire :: WireIR -> Bool
 isUuidWire = \case
@@ -405,15 +425,15 @@ isUuidWire = \case
 renderFrontendSurfaceAliases :: SurfaceIR -> [Text]
 renderFrontendSurfaceAliases surface =
     [ "export type " <> prefix <> "SurfaceName = " <> quote surface.surfaceName <> ";" ]
-        <> ["export type " <> prefix <> "FragmentKey = " <> surfaceFragmentKeyUnionName surface <> ";" | hasFragments]
-        <> concatMap renderMountStateAlias surface.surfacePrimitives
-        <> concatMap renderActionAlias surface.surfacePrimitives
-        <> concatMap renderIntentAlias surface.surfacePrimitives
-        <> renderVocabulary (prefix <> "SessionName") surface.surfaceInteractionSessions
-        <> renderVocabulary (prefix <> "SourceRef") [ref.interactionSourceRefName | ref <- surface.surfaceSourceRefs]
-        <> renderVocabulary (prefix <> "DropzoneRef") [ref | (ref, _, _) <- surface.surfaceDropzoneRefs]
-        <> renderVocabulary (prefix <> "ActivationRef") [ref | (ref, _, _, _) <- surface.surfaceActivationRefs]
-        <> renderVocabulary (prefix <> "DisposableLayerName") surface.surfaceInteractionLayers
+        <> ["export type " <> prefix <> "FragmentKey = " <> surfaceFragmentKeyUnionName surface <> ";" | not (null surface.surfaceFragments)]
+        <> concatMap renderMountStateAlias surface.surfaceMountStates
+        <> concatMap renderActionAlias surface.surfaceHtmxActions
+        <> concatMap renderIntentAlias surface.surfaceIntents
+        <> renderVocabulary (prefix <> "SessionName") surface.surfaceSessions
+        <> renderVocabulary (prefix <> "SourceRef") [ref.sourceRefName | ref <- surface.surfaceSourceRefs]
+        <> renderVocabulary (prefix <> "DropzoneRef") [ref.dropzoneRefName | ref <- surface.surfaceDropzoneRefs]
+        <> renderVocabulary (prefix <> "ActivationRef") [ref.activationRefName | ref <- surface.surfaceActivationRefs]
+        <> renderVocabulary (prefix <> "DisposableLayerName") surface.surfaceLayers
         <> renderVocabulary (prefix <> "DomToken") surface.surfaceDomTokens
         <> renderVocabulary (prefix <> "OverlayLane") surface.surfaceOverlayLanes
         <> [ "export const " <> constName surface.surfaceName <> "SurfaceManifest = " <> renderFrontendSurfaceManifest surface <> " as const;"
@@ -421,18 +441,9 @@ renderFrontendSurfaceAliases surface =
            ]
     where
         prefix = protocolTypeName surface.surfaceName
-        hasFragments = any isFragment surface.surfacePrimitives
-        isFragment SurfaceFragmentIR {} = True
-        isFragment _                    = False
-        renderMountStateAlias = \case
-            SurfaceMountStateIR marker name _ -> ["export type " <> mountStateAliasName name <> " = " <> surfaceTypePrefix surface <> typeNameFromMarker marker <> "MountState;"]
-            _ -> []
-        renderActionAlias = \case
-            SurfaceActionIR marker name _ _ -> ["export type " <> typeNameFromMarker name <> "ActionFields = " <> surfaceTypePrefix surface <> typeNameFromMarker marker <> "ActionFields;"]
-            _ -> []
-        renderIntentAlias = \case
-            SurfaceIntentIR marker name _ -> ["export type " <> typeNameFromMarker name <> "IntentFields = " <> surfaceTypePrefix surface <> typeNameFromMarker marker <> "IntentFields;"]
-            _ -> []
+        renderMountStateAlias mountState = ["export type " <> mountStateAliasName mountState.mountStateName <> " = " <> surfaceTypePrefix surface <> typeNameFromMarker mountState.mountStateMarker <> "MountState;"]
+        renderActionAlias action = ["export type " <> typeNameFromMarker action.htmxActionName <> "ActionFields = " <> surfaceTypePrefix surface <> typeNameFromMarker action.htmxActionMarker <> "ActionFields;"]
+        renderIntentAlias intent = ["export type " <> typeNameFromMarker intent.intentName <> "IntentFields = " <> surfaceTypePrefix surface <> typeNameFromMarker intent.intentMarker <> "IntentFields;"]
         mountStateAliasName name =
             let base = typeNameFromMarker name
              in if "MountState" `Text.isSuffixOf` base then base else base <> "MountState"
@@ -451,31 +462,29 @@ renderFrontendSurfaceManifest :: SurfaceIR -> Text
 renderFrontendSurfaceManifest surface =
     objectLiteral
         [ ("surface", quote surface.surfaceName)
-        , ("scopes", arrayLiteral (fmap quote [name | SurfaceScopeIR _ name _ <- surface.surfacePrimitives]))
-        , ("fragments", arrayLiteral (fmap quote [name | SurfaceFragmentIR _ name _ <- surface.surfacePrimitives]))
-        , ("liveFragments", arrayLiteral (fmap quote surface.surfaceLiveFragments))
-        , ("htmxActions", arrayLiteral (fmap renderSurfaceActionManifest [action | action@SurfaceActionIR {} <- surface.surfacePrimitives]))
-        , ("intents", arrayLiteral (fmap quote [name | SurfaceIntentIR _ name _ <- surface.surfacePrimitives]))
-        , ("sessions", arrayLiteral (fmap quote surface.surfaceInteractionSessions))
+        , ("scopes", arrayLiteral (fmap (quote . (.scopeName)) surface.surfaceScopes))
+        , ("fragments", arrayLiteral (fmap (quote . (.fragmentName)) surface.surfaceFragments))
+        , ("liveFragments", arrayLiteral (fmap quote (surfaceLiveFragmentNames surface)))
+        , ("htmxActions", arrayLiteral (fmap renderSurfaceActionManifest surface.surfaceHtmxActions))
+        , ("intents", arrayLiteral (fmap (quote . (.intentName)) surface.surfaceIntents))
+        , ("sessions", arrayLiteral (fmap quote surface.surfaceSessions))
         , ("interaction", renderFrontendSurfaceInteractionManifest surface)
-        , ("layers", arrayLiteral (fmap quote surface.surfaceInteractionLayers))
+        , ("layers", arrayLiteral (fmap quote surface.surfaceLayers))
         , ("domTokens", arrayLiteral (fmap quote surface.surfaceDomTokens))
         , ("overlayLanes", arrayLiteral (fmap quote surface.surfaceOverlayLanes))
         , ("containedSurfaces", renderContainedSurfaceMap surface)
         ]
 
-renderSurfaceActionManifest :: SurfacePrimitiveIR -> Text
-renderSurfaceActionManifest = \case
-    SurfaceActionIR _ name fields options -> objectLiteral
-        [ ("name", quote name)
-        , ("fields", arrayLiteral (fmap (quote . (.fieldName)) fields))
-        , ("htmx", renderSurfaceActionHtmxOptions options)
-        ]
-    _ -> objectLiteral []
+renderSurfaceActionManifest :: HtmxActionIR -> Text
+renderSurfaceActionManifest action = objectLiteral
+    [ ("name", quote action.htmxActionName)
+    , ("fields", arrayLiteral (fmap (quote . (.fieldName)) action.htmxActionFields))
+    , ("htmx", renderSurfaceActionHtmxOptions (optionHtmxActionOptions action.htmxActionOptions))
+    ]
 
 renderSurfaceActionHtmxOptions :: [HtmxActionOptionIR] -> Text
 renderSurfaceActionHtmxOptions options = objectLiteral
-    [ ("method", maybe "null" quote (listToMaybe [value | HtmxActionMethodIR value <- options]))
+    [ ("method", maybe "null" (quote . htmxMethodText) (listToMaybe [value | HtmxActionMethodIR value <- options]))
     , ("trigger", maybe "null" quote (listToMaybe [value | HtmxActionTriggerIR value <- options]))
     , ("include", maybe "null" quote (listToMaybe [value | HtmxActionIncludeIR value <- options]))
     , ("sync", maybe "null" quote (listToMaybe [value | HtmxActionSyncIR value <- options]))
@@ -484,7 +493,7 @@ renderSurfaceActionHtmxOptions options = objectLiteral
     , ("select", maybe "null" quote (listToMaybe [value | HtmxActionSelectIR value <- options]))
     , ("target", maybe "null" quote (listToMaybe [value | HtmxActionTargetIR value <- options]))
     , ("swap", maybe "null" quote (listToMaybe [value | HtmxActionSwapIR value <- options]))
-    , ("pushUrl", maybe "null" boolLiteral (listToMaybe [value | HtmxActionPushUrlIR value <- options]))
+    , ("pushUrl", maybe "null" (boolLiteral . htmxPushUrlBool) (listToMaybe [value | HtmxActionPushUrlIR value <- options]))
     , ("custom", arrayLiteral [objectLiteral [("name", quote marker), ("reason", quote reason)] | HtmxActionCustomHtmxIR marker reason <- options])
     ]
 
@@ -501,30 +510,57 @@ renderFrontendSurfaceInteractionManifest surface = objectLiteral
 
 renderSourceRef :: InteractionSourceRefIR -> Text
 renderSourceRef ref = objectLiteral
-    [ ("ref", quote ref.interactionSourceRefName)
-    , ("session", quote ref.interactionSourceRefSession)
-    , ("intent", quote ref.interactionSourceRefIntent)
-    , ("sourceField", quote ref.interactionSourceRefSourceField)
-    , ("compatibleDropzones", arrayLiteral (fmap quote ref.interactionSourceRefCompatibleDropzones))
-    , ("modifierVariants", arrayLiteral (fmap renderModifierVariant ref.interactionSourceRefVariants))
+    [ ("ref", quote ref.sourceRefName)
+    , ("session", quote ref.sourceRefSession)
+    , ("intent", quote ref.sourceRefIntent)
+    , ("sourceField", quote ref.sourceRefSourceField)
+    , ("compatibleDropzones", arrayLiteral (fmap quote ref.sourceRefCompatibleDropzones))
+    , ("modifierVariants", arrayLiteral (fmap renderModifierVariant ref.sourceRefVariants))
     ]
 
 renderModifierVariant :: InteractionModifierVariantIR -> Text
 renderModifierVariant variant = objectLiteral
-    [ ("semantic", quote variant.interactionModifierSemantic)
-    , ("intent", quote variant.interactionModifierIntent)
-    , ("effects", renderSessionEffects variant.interactionModifierEffects)
+    [ ("semantic", quote variant.modifierVariantSemantic)
+    , ("intent", quote variant.modifierVariantIntent)
+    , ("effects", renderSessionEffects variant.modifierVariantEffects)
     ]
 
-renderDropzoneRef :: (Text, Text, Text) -> Text
-renderDropzoneRef (ref, session, targetField) = objectLiteral [("ref", quote ref), ("session", quote session), ("targetField", quote targetField)]
+renderDropzoneRef :: InteractionDropzoneRefIR -> Text
+renderDropzoneRef ref = objectLiteral [("ref", quote ref.dropzoneRefName), ("session", quote ref.dropzoneRefSession), ("targetField", quote ref.dropzoneRefTargetField)]
 
-renderActivationRef :: (Text, Text, Maybe Text, Text) -> Text
-renderActivationRef (ref, intent, valueField, trigger) = objectLiteral [("ref", quote ref), ("intent", quote intent), ("valueField", maybe "null" quote valueField), ("trigger", quote trigger)]
+renderActivationRef :: InteractionActivationRefIR -> Text
+renderActivationRef ref = objectLiteral [("ref", quote ref.activationRefName), ("intent", quote ref.activationRefIntent), ("valueField", maybe "null" quote ref.activationRefValueField), ("trigger", quote ref.activationRefTrigger)]
 
 renderContainedSurfaceMap :: SurfaceIR -> Text
 renderContainedSurfaceMap surface =
-    objectLiteral [(fragment, arrayLiteral (fmap quote children)) | (fragment, children) <- surface.surfaceContainedSurfaces]
+    objectLiteral
+        [ (fragment.fragmentName, arrayLiteral (fmap quote (containedSurfaceNames fragment.fragmentOptions)))
+        | fragment <- surface.surfaceFragments
+        , not (null (containedSurfaceNames fragment.fragmentOptions))
+        ]
+
+surfaceLiveFragmentNames :: SurfaceIR -> [Text]
+surfaceLiveFragmentNames surface =
+    [ fragment.fragmentName
+    | fragment <- surface.surfaceFragments
+    , optionsContainLive fragment.fragmentOptions
+    ]
+
+optionsContainLive :: [OptionIR] -> Bool
+optionsContainLive = any \case
+    LiveOption -> True
+    LazyOption options -> optionsContainLive options
+    EffectOption _ options -> optionsContainLive options
+    ModifierVariantOption variant -> any (optionsContainLive . snd) variant.modifierVariantEffects
+    _ -> False
+
+containedSurfaceNames :: [OptionIR] -> [Text]
+containedSurfaceNames = concatMap \case
+    ContainsSurfaceOption name -> [name]
+    LazyOption options -> containedSurfaceNames options
+    EffectOption _ options -> containedSurfaceNames options
+    ModifierVariantOption variant -> concatMap (containedSurfaceNames . snd) variant.modifierVariantEffects
+    _ -> []
 
 renderFrontendSurfaceLiveTransport :: [SurfaceIR] -> [Text]
 renderFrontendSurfaceLiveTransport surfaces =
@@ -562,14 +598,14 @@ renderFrontendSurfaceLiveTransport surfaces =
            , ""
            ]
     where
-        liveSurfaces = filter (not . null . (.surfaceLiveFragments)) surfaces
+        liveSurfaces = filter (not . null . surfaceLiveFragmentNames) surfaces
 
 renderFrontendSurfaceScopeCases :: [SurfaceIR] -> [Text]
 renderFrontendSurfaceScopeCases [] = ["    never;"]
 renderFrontendSurfaceScopeCases surfaces = zipWith render surfaces [0 :: Int ..]
     where
         render surface index =
-            case [surfaceScopeTypeName surface marker | SurfaceScopeIR marker _ _ <- surface.surfacePrimitives] of
+            case [surfaceScopeTypeName surface scope.scopeMarker | scope <- surface.surfaceScopes] of
                 scopeType : _ -> (if index == 0 then "    " else "  | ") <> "{ surface: " <> quote surface.surfaceName <> "; scope: " <> scopeType <> " }" <> if index == length surfaces - 1 then ";" else ""
                 [] -> ""
 
@@ -713,20 +749,30 @@ renderFrontendSurfaceRegistry surfaces =
 
 renderContainmentEdges :: SurfaceIR -> [Text]
 renderContainmentEdges surface =
-    [ "    { parentSurface: " <> quote surface.surfaceName <> ", parentFragment: " <> quote fragment <> ", childSurface: " <> quote child <> " },"
-    | (fragment, children) <- surface.surfaceContainedSurfaces
-    , child <- children
+    [ "    { parentSurface: " <> quote surface.surfaceName <> ", parentFragment: " <> quote fragment.fragmentName <> ", childSurface: " <> quote child <> " },"
+    | fragment <- surface.surfaceFragments
+    , child <- containedSurfaceNames fragment.fragmentOptions
     ]
 
-renderSurfacePrimitive :: SurfaceIR -> SurfacePrimitiveIR -> [Text]
-renderSurfacePrimitive surface = \case
-    SurfaceSchemaIR schema -> renderSchema schema
-    SurfaceScopeIR marker _ fields -> renderRecordAlias (surfaceTypePrefix surface <> typeNameFromMarker marker <> "Scope") fields
-    SurfaceFragmentIR marker _ fields -> renderRecordAlias (surfaceTypePrefix surface <> typeNameFromMarker marker <> "FragmentParams") fields
-    SurfaceActionIR marker _ fields _ -> renderRecordAlias (surfaceTypePrefix surface <> typeNameFromMarker marker <> "ActionFields") fields
-    SurfaceIntentIR marker _ fields -> renderRecordAlias (surfaceTypePrefix surface <> typeNameFromMarker marker <> "IntentFields") fields
-    SurfaceMountStateIR marker _ fields -> renderRecordAlias (surfaceTypePrefix surface <> typeNameFromMarker marker <> "MountState") fields
-    SurfaceDtoIR marker _ fields -> renderRecordAlias (typeNameFromMarker marker) fields
+renderScope :: SurfaceIR -> ScopeIR -> [Text]
+renderScope surface scope =
+    renderRecordAlias (surfaceTypePrefix surface <> typeNameFromMarker scope.scopeMarker <> "Scope") scope.scopeFields
+
+renderFragment :: SurfaceIR -> FragmentIR -> [Text]
+renderFragment surface fragment =
+    renderRecordAlias (surfaceTypePrefix surface <> typeNameFromMarker fragment.fragmentMarker <> "FragmentParams") fragment.fragmentParams
+
+renderAction :: SurfaceIR -> HtmxActionIR -> [Text]
+renderAction surface action =
+    renderRecordAlias (surfaceTypePrefix surface <> typeNameFromMarker action.htmxActionMarker <> "ActionFields") action.htmxActionFields
+
+renderIntent :: SurfaceIR -> IntentIR -> [Text]
+renderIntent surface intent =
+    renderRecordAlias (surfaceTypePrefix surface <> typeNameFromMarker intent.intentMarker <> "IntentFields") intent.intentFields
+
+renderMountState :: SurfaceIR -> MountStateIR -> [Text]
+renderMountState surface mountState =
+    renderRecordAlias (surfaceTypePrefix surface <> typeNameFromMarker mountState.mountStateMarker <> "MountState") mountState.mountStateFields
 
 renderSchema :: SchemaIR -> [Text]
 renderSchema = \case

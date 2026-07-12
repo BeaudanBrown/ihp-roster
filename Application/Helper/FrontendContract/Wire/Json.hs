@@ -44,8 +44,7 @@ schemaByName contract name =
 contractSchemas :: Contract.FrontendContractIR -> [Contract.SchemaIR]
 contractSchemas contract =
     [ schema | global <- contract.contractGlobals, Contract.GlobalSchemaIR schema <- global.globalPrimitives ]
-        <> [ schema | surface <- contract.contractSurfaces, Contract.SurfaceSchemaIR schema <- surface.surfacePrimitives ]
-        <> [ Contract.RecordIR marker name fields | surface <- contract.contractSurfaces, Contract.SurfaceDtoIR marker name fields <- surface.surfacePrimitives ]
+        <> concatMap (.surfaceDtos) contract.contractSurfaces
 
 schemaName :: Contract.SchemaIR -> Text
 schemaName = \case
@@ -91,8 +90,8 @@ validateSurfaceScopeValueWith contract = \case
         case find ((== surfaceName) . (.surfaceName)) contract.contractSurfaces of
             Nothing -> fail ("unknown surface scope " <> cs surfaceName)
             Just surfaceIR ->
-                case [fields | Contract.SurfaceScopeIR _ _ fields <- surfaceIR.surfacePrimitives] of
-                    [fields] -> validateFieldObject contract ("surface scope " <> surfaceName) fields scope
+                case surfaceIR.surfaceScopes of
+                    [scopeIR] -> validateFieldObject contract ("surface scope " <> surfaceName) scopeIR.scopeFields scope
                     [] -> fail ("surface " <> cs surfaceName <> " has no registered scope")
                     _ -> fail ("surface " <> cs surfaceName <> " has multiple registered scopes")
         rejectUnknownKeys "SurfaceScope" (fmap AesonKey.fromText ["surface", "scope"]) object
@@ -110,7 +109,7 @@ validateSurfaceFragmentKeyValueWith contract = \case
         case find ((== surfaceName) . (.surfaceName)) contract.contractSurfaces of
             Nothing -> fail ("unknown surface fragment " <> cs surfaceName)
             Just surfaceIR ->
-                case [fields | Contract.SurfaceFragmentIR _ fragmentName fields <- surfaceIR.surfacePrimitives, fragmentName == kind] of
+                case [fragment.fragmentParams | fragment <- surfaceIR.surfaceFragments, fragment.fragmentName == kind] of
                     [fields] -> validateFieldObject contract ("surface fragment " <> surfaceName <> ":" <> kind) fields params
                     [] -> fail ("unknown fragment " <> cs kind <> " on surface " <> cs surfaceName)
                     _ -> fail ("duplicate fragment " <> cs kind <> " on surface " <> cs surfaceName)

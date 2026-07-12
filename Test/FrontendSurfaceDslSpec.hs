@@ -6,7 +6,9 @@ module Test.FrontendSurfaceDslSpec
     ( tests
     ) where
 
-import Application.Helper.FrontendContract.Registry (registeredFrontendContractIRForSurfaceContract)
+import Application.Helper.FrontendContract.Core (schemaNameAndMarker)
+import Application.Helper.FrontendContract.IR (FrontendContractIR (..))
+import Application.Helper.FrontendContract.Registry (registeredFrontendContractIR)
 import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import Application.Helper.FrontendContract.Surface.DSL
@@ -77,7 +79,7 @@ type CycleBSurface =
 
 frontendSurfaceContractsTypeScript :: Text
 frontendSurfaceContractsTypeScript =
-    either error id (renderFrontendContractTypeScript (registeredFrontendContractIRForSurfaceContract registeredFrontendSurfaceContractIR))
+    either error id (renderFrontendContractTypeScript registeredFrontendContractIR)
 
 tests :: Spec
 tests = describe "FrontendSurface DSL foundation" do
@@ -252,7 +254,11 @@ tests = describe "FrontendSurface DSL foundation" do
             |> listToMaybe
             |> fmap (.fragmentOptions)
             `shouldBe` Just [ContainsSurfaceOption "child"]
-        let rendered = either error id (renderFrontendContractTypeScript (registeredFrontendContractIRForSurfaceContract reflected))
+        let fixtureContract = FrontendContractIR
+                { contractGlobals = registeredFrontendContractIR.contractGlobals
+                , contractSurfaces = reflected.contractSurfaces
+                }
+        let rendered = either error id (renderFrontendContractTypeScript fixtureContract)
         rendered `shouldContainText` "{ parentSurface: \"parent\", parentFragment: \"parent-content\", childSurface: \"child\" }"
 
     it "validates missing and cyclic contained Surface references after reflection" do
@@ -272,7 +278,7 @@ tests = describe "FrontendSurface DSL foundation" do
         surface.surfaceSessions `shouldBe` ["drag"]
         surface.surfaceLayers `shouldBe` ["drag-preview"]
         surface.surfaceDomTokens `shouldBe` ["lab-root", "lab-dropzone", "lab-panel-target", "lab-panel-include"]
-        map fst surface.surfaceDtos `shouldBe` ["lab-payload", "lab-related-payload"]
+        map (fst . schemaNameAndMarker) surface.surfaceDtos `shouldBe` ["LabPayload", "LabRelatedPayload"]
         surface.surfaceFragments
             |> find (\fragment -> fragment.fragmentName == "lab-panel")
             |> fmap (.fragmentOptions)
@@ -282,12 +288,12 @@ tests = describe "FrontendSurface DSL foundation" do
             |> fmap (.htmxActionOptions)
             `shouldBe` Just
                 [ TargetOption "lab-panel"
-                , HtmxMethodOption HtmxPostIR
-                , HtmxTargetOption "lab-panel-target"
-                , HtmxSwapOption "outerHTML"
-                , HtmxIncludeOption "lab-panel-include"
-                , HtmxPushUrlOption HtmxPushUrlFalseIR
-                , CustomHtmxOption "lab-panel-custom-htmx" "lab fixture covers auditable custom HTMX metadata"
+                , HtmxOption (HtmxActionMethodIR HtmxPostIR)
+                , HtmxOption (HtmxActionTargetIR "lab-panel-target")
+                , HtmxOption (HtmxActionSwapIR "outerHTML")
+                , HtmxOption (HtmxActionIncludeIR "lab-panel-include")
+                , HtmxOption (HtmxActionPushUrlIR HtmxPushUrlFalseIR)
+                , HtmxOption (HtmxActionCustomHtmxIR "lab-panel-custom-htmx" "lab fixture covers auditable custom HTMX metadata")
                 ]
 
     it "reflects the registered timesheets surface into checked contract IR" do
@@ -423,7 +429,7 @@ tests = describe "FrontendSurface DSL foundation" do
         diagnosticMessages duplicateFields `shouldContain` ["surface duplicate has duplicate scope field panelId"]
         diagnosticMessages missingReference `shouldContain` ["htmx action bad references missing fragment missing on surface missing-reference"]
         diagnosticMessages conflictingShared `shouldContain` ["conflicting shared declaration: scope shared"]
-        diagnosticMessages missingDtoRef `shouldContain` ["field missingPayload references missing dto missing-payload on surface missing-dto-ref"]
+        diagnosticMessages missingDtoRef `shouldContain` ["field missingPayload references missing dto MissingPayload on surface missing-dto-ref"]
         diagnosticMessages missingAuth `shouldContain` ["surface missing-auth scope lab must declare exactly one authorization policy"]
         diagnosticMessages missingLiveInvalidation `shouldContain` ["surface missing-live-invalidation live fragment bad must declare DependsOn or ResyncOnly"]
         diagnosticMessages missingResourceSource `shouldContain` ["surface missing-resource-source fragment bad dependency test-resource missing source for resource field weekOffset"]

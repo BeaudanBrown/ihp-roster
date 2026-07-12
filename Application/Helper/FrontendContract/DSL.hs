@@ -7,7 +7,6 @@
 module Application.Helper.FrontendContract.DSL
     ( FrontendContract (..)
     , GlobalPrimitive (..)
-    , SurfacePrimitive (..)
     , AppShellActionOption (..)
     , AppShellRequestMethod (..)
     , AppShellPushUrlValue (..)
@@ -18,9 +17,7 @@ module Application.Helper.FrontendContract.DSL
     , WireType (..)
     , FrontendContractSpec
     , Global
-    , Surface
     , GlobalSchema
-    , SurfaceSchema
     , Record
     , Enum
     , TaggedUnion
@@ -49,12 +46,6 @@ module Application.Helper.FrontendContract.DSL
     , AppShellHtmxSwap
     , AppShellHtmxPushUrl
     , AppShellCustomHtmx
-    , Scope
-    , Fragment
-    , Action
-    , Intent
-    , MountState
-    , Dto
     , Append
     , Concat
     ) where
@@ -133,28 +124,15 @@ data GlobalPrimitive
     | DomToken Type
     | AppShellAction Type [FieldSpec] [AppShellActionOption]
 
--- | Mounted feature UI semantics. This starts intentionally small; later tickets
--- port the full FrontendSurface primitive family here.
-data SurfacePrimitive
-    = SurfaceSchema SchemaPrimitive
-    | Scope Type [FieldSpec]
-    | Fragment Type [FieldSpec]
-    | Action Type [FieldSpec]
-    | Intent Type [FieldSpec]
-    | MountState Type [FieldSpec]
-    | Dto Type [FieldSpec]
-
--- | Registry root. Globals may be referenced by surfaces; globals should not
--- depend on concrete surfaces except through generated semantic wire forms.
+-- | Registry root for app-wide browser vocabulary. Mounted feature topology is
+-- declared through the richer FrontendContract.Surface DSL and joins this root
+-- only after both domain-specific registries have produced checked IR.
 data FrontendContract
     = Global Type [GlobalPrimitive]
-    | Surface Type [SurfacePrimitive]
 
 type FrontendContractSpec = FrontendContract
 type Global name primitives = 'Global name primitives
-type Surface name primitives = 'Surface name primitives
 type GlobalSchema schema = 'GlobalSchema schema
-type SurfaceSchema schema = 'SurfaceSchema schema
 type Record name fields = 'Record name fields
 type Enum name cases = 'Enum name cases
 type LiteralEnum name cases = 'LiteralEnum name cases
@@ -183,12 +161,6 @@ type AppShellHtmxTarget target = 'AppShellHtmxTarget target
 type AppShellHtmxSwap value = 'AppShellHtmxSwap value
 type AppShellHtmxPushUrl value = 'AppShellHtmxPushUrl value
 type AppShellCustomHtmx marker reason = 'AppShellCustomHtmx marker reason
-type Scope name fields = 'Scope name fields
-type Fragment name fields = 'Fragment name fields
-type Action name fields = 'Action name fields
-type Intent name fields = 'Intent name fields
-type MountState name fields = 'MountState name fields
-type Dto name fields = 'Dto name fields
 
 type family Append (left :: [kind]) (right :: [kind]) :: [kind] where
     Append '[] right = right

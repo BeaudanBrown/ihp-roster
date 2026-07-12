@@ -4,7 +4,6 @@
 module Application.Helper.FrontendContract.Registry
     ( RegisteredFrontendContracts
     , registeredFrontendContractIR
-    , registeredFrontendContractIRForSurfaceContract
     ) where
 
 import Application.Helper.FrontendContract.App
@@ -14,8 +13,6 @@ import Application.Helper.FrontendContract.Interaction
 import Application.Helper.FrontendContract.IR
 import Application.Helper.FrontendContract.LiveUpdate
 import Application.Helper.FrontendContract.Reflect
-import Application.Helper.FrontendContract.Surface.Adapter
-import qualified Application.Helper.FrontendContract.Surface.ContractIR as Surface
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import Application.Helper.FrontendContract.UiRegion
 import IHP.Prelude
@@ -31,15 +28,9 @@ type RegisteredFrontendContracts =
      ] :: [FrontendContractSpec]
 
 registeredFrontendContractIR :: FrontendContractIR
-registeredFrontendContractIR = registeredFrontendContractIRForSurfaceContract registeredFrontendSurfaceContractIR
-
-registeredFrontendContractIRForSurfaceContract :: Surface.SurfaceContractIR -> FrontendContractIR
-registeredFrontendContractIRForSurfaceContract surfaceContract = appendFrontendContractIR
-    (reflectFrontendContracts @RegisteredFrontendContracts)
-    (frontendSurfaceContractToFrontendContractIR surfaceContract)
-
-appendFrontendContractIR :: FrontendContractIR -> FrontendContractIR -> FrontendContractIR
-appendFrontendContractIR left right = FrontendContractIR
-    { contractGlobals = left.contractGlobals <> right.contractGlobals
-    , contractSurfaces = left.contractSurfaces <> right.contractSurfaces
+registeredFrontendContractIR = FrontendContractIR
+    { contractGlobals = reflectedGlobals.contractGlobals
+    , contractSurfaces = registeredFrontendSurfaceContractIR.contractSurfaces
     }
+  where
+    reflectedGlobals = reflectFrontendContracts @RegisteredFrontendContracts

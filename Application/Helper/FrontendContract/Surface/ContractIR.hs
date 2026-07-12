@@ -13,6 +13,7 @@ module Application.Helper.FrontendContract.Surface.ContractIR
     , FragmentIR (..)
     , FragmentSelectorIR (..)
     , HtmxActionIR (..)
+    , HtmxActionOptionIR (..)
     , HtmxMethodIR (..)
     , HtmxPushUrlIR (..)
     , InteractionActivationRefIR (..)
@@ -28,15 +29,18 @@ module Application.Helper.FrontendContract.Surface.ContractIR
     , PrimitiveRefKind (..)
     , ScopeAuthIR (..)
     , ScopeIR (..)
+    , SchemaIR (..)
     , SessionSelectorIR (..)
     , SurfaceContractIR (..)
     , SurfaceIR (..)
     , WireIR (..)
     , checkedSurfaceContractIR
+    , optionHtmxActionOptions
     , optionResourceDependencies
     , validateSurfaceContractIR
     ) where
 
+import Application.Helper.FrontendContract.Core
 import qualified Data.List as List
 import qualified Data.Text as Text
 import IHP.Prelude
@@ -65,7 +69,7 @@ data SurfaceIR = SurfaceIR
     , surfaceOverlayLanes   :: ![Text]
     , surfaceClientEvents   :: ![(Text, [FieldIR])]
     , surfaceDomTokens      :: ![Text]
-    , surfaceDtos           :: ![(Text, [FieldIR])]
+    , surfaceDtos           :: ![SchemaIR]
     }
     deriving (Eq, Show)
 
@@ -148,21 +152,6 @@ data InteractionActivationRefIR = InteractionActivationRefIR
     }
     deriving (Eq, Show)
 
-data FieldIR = FieldIR
-    { fieldMarker   :: !Text
-    , fieldName     :: !Text
-    , fieldWire     :: !WireIR
-    , fieldPresence :: !FieldPresence
-    , fieldBrand    :: !(Maybe Text)
-    }
-    deriving (Eq, Show)
-
-data FieldPresence
-    = RequiredField
-    | OptionalFieldPresence
-    | NullableFieldPresence
-    deriving (Eq, Show)
-
 data ResourceIR = ResourceIR
     { resourceMarker :: !Text
     , resourceName   :: !Text
@@ -179,31 +168,6 @@ data ResourceDependencyIR = ResourceDependencyIR
     { dependencyResource :: !ResourceIR
     , dependencySources  :: ![ResourceSourceIR]
     }
-    deriving (Eq, Show)
-
-data WireIR
-    = WireTextIR
-    | WireIntIR
-    | WireBoolIR
-    | WireUuidIR
-    | WireDayIR
-    | WireListIR !WireIR
-    | WireOptionalIR !WireIR
-    | WireNullableIR !WireIR
-    | WireRefIR !Text
-    deriving (Eq, Show)
-
-data HtmxMethodIR
-    = HtmxGetIR
-    | HtmxPostIR
-    | HtmxPutIR
-    | HtmxPatchIR
-    | HtmxDeleteIR
-    deriving (Eq, Show)
-
-data HtmxPushUrlIR
-    = HtmxPushUrlTrueIR
-    | HtmxPushUrlFalseIR
     deriving (Eq, Show)
 
 data OptionIR
@@ -230,18 +194,16 @@ data OptionIR
     | ContainsOption !Text
     | ContainsSurfaceOption !Text
     | UsesDtoOption !Text
-    | HtmxMethodOption !HtmxMethodIR
-    | HtmxTriggerOption !Text
-    | HtmxIncludeOption !Text
-    | HtmxSyncOption !Text
-    | HtmxIndicatorOption !Text
-    | HtmxConfirmOption !Text
-    | HtmxSelectOption !Text
-    | HtmxTargetOption !Text
-    | HtmxSwapOption !Text
-    | HtmxPushUrlOption !HtmxPushUrlIR
-    | CustomHtmxOption !Text !Text
+    | HtmxOption !HtmxActionOptionIR
     deriving (Eq, Show)
+
+optionHtmxActionOptions :: [OptionIR] -> [HtmxActionOptionIR]
+optionHtmxActionOptions = concatMap \case
+    HtmxOption option -> [option]
+    LazyOption options -> optionHtmxActionOptions options
+    EffectOption _ options -> optionHtmxActionOptions options
+    ModifierVariantOption variant -> concatMap (optionHtmxActionOptions . snd) variant.modifierVariantEffects
+    _ -> []
 
 data SessionSelectorIR
     = AnySessionIR
@@ -279,12 +241,6 @@ data PrimitiveRefKind
     | RefDomToken
     deriving (Eq, Show)
 
-data ContractDiagnostic = ContractDiagnostic
-    { diagnosticCode    :: !Text
-    , diagnosticMessage :: !Text
-    }
-    deriving (Eq, Show)
-
 checkedSurfaceContractIR :: SurfaceContractIR -> Either [ContractDiagnostic] SurfaceContractIR
 checkedSurfaceContractIR contract =
     case validateSurfaceContractIR contract of
@@ -310,7 +266,7 @@ validateSurface surface =
         <> concatMap (validateDuplicateFields surface.surfaceName "htmx action" . htmxActionFields) surface.surfaceHtmxActions
         <> concatMap (validateDuplicateFields surface.surfaceName "intent" . intentFields) surface.surfaceIntents
         <> concatMap (validateDuplicateFields surface.surfaceName "event" . snd) surface.surfaceClientEvents
-        <> concatMap (validateDuplicateFields surface.surfaceName "dto" . snd) surface.surfaceDtos
+        <> concatMap (validateDuplicateFields surface.surfaceName "dto" . schemaFields) surface.surfaceDtos
         <> validateWireReferences surface
         <> validateUnique surface.surfaceName "fragment" (map (.fragmentName) surface.surfaceFragments)
         <> validateUnique surface.surfaceName "htmx action" (map (.htmxActionName) surface.surfaceHtmxActions)
@@ -321,7 +277,7 @@ validateSurface surface =
         <> validateUnique surface.surfaceName "activation ref" (map (.activationRefName) surface.surfaceActivationRefs)
         <> validateUnique surface.surfaceName "layer" surface.surfaceLayers
         <> validateUnique surface.surfaceName "dom token" surface.surfaceDomTokens
-        <> validateUnique surface.surfaceName "dto" (map fst surface.surfaceDtos)
+        <> validateUnique surface.surfaceName "dto" (map (fst . schemaNameAndMarker) surface.surfaceDtos)
         <> validateScopeAuthorization surface
         <> validateLiveFragmentInvalidation surface
         <> validateResourceDependencies surface
@@ -448,7 +404,7 @@ validateActionRequestOptions surface =
                     else [diagnostic ("duplicate-" <> code) ("surface " <> surface.surfaceName <> " htmx action " <> action.htmxActionName <> " declares " <> label <> " more than once")]
 
         validateCustomHtmx = \case
-            CustomHtmxOption marker reason
+            HtmxOption (HtmxActionCustomHtmxIR marker reason)
                 | Text.strip marker == "" -> [diagnostic "invalid-custom-htmx" ("surface " <> surface.surfaceName <> " declares custom HTMX with an empty marker")]
                 | Text.strip reason == "" -> [diagnostic "invalid-custom-htmx" ("surface " <> surface.surfaceName <> " custom HTMX " <> marker <> " must include a non-empty reason")]
                 | otherwise -> []
@@ -458,20 +414,20 @@ validateActionRequestOptions surface =
             _ -> []
 
         isHtmxMethod = \case
-            HtmxMethodOption _ -> True
+            HtmxOption (HtmxActionMethodIR _) -> True
             _ -> False
         isHtmxPushUrl = \case
-            HtmxPushUrlOption _ -> True
+            HtmxOption (HtmxActionPushUrlIR _) -> True
             _ -> False
         isHtmxTarget = \case
-            HtmxTargetOption _ -> True
+            HtmxOption (HtmxActionTargetIR _) -> True
             _ -> False
 
 validateWireReferences :: SurfaceIR -> [ContractDiagnostic]
 validateWireReferences surface =
     concatMap validateFieldWire allFields
     where
-        dtoNames = map fst surface.surfaceDtos
+        dtoNames = map (fst . schemaNameAndMarker) surface.surfaceDtos
         allFields =
             concatMap scopeFields surface.surfaceScopes
                 <> concatMap mountStateFields surface.surfaceMountStates
@@ -480,7 +436,7 @@ validateWireReferences surface =
                 <> concatMap htmxActionFields surface.surfaceHtmxActions
                 <> concatMap intentFields surface.surfaceIntents
                 <> concatMap snd surface.surfaceClientEvents
-                <> concatMap snd surface.surfaceDtos
+                <> concatMap schemaFields surface.surfaceDtos
 
         validateFieldWire field =
             validateWire field.fieldName field.fieldWire
@@ -490,9 +446,18 @@ validateWireReferences surface =
                 | name `elem` dtoNames -> []
                 | otherwise -> [diagnostic "invalid-wire-ref" ("field " <> fieldName <> " references missing dto " <> name <> " on surface " <> surface.surfaceName)]
             WireListIR inner -> validateWire fieldName inner
+            WireMapIR key value -> validateWire fieldName key <> validateWire fieldName value
             WireOptionalIR inner -> validateWire fieldName inner
             WireNullableIR inner -> validateWire fieldName inner
-            _ -> []
+            WireTextIR -> []
+            WireIntIR -> []
+            WireBoolIR -> []
+            WireUuidIR -> []
+            WireDayIR -> []
+            WireUnknownIR -> []
+            WireSurfaceScopeIR -> []
+            WireSurfaceFragmentKeyIR -> []
+            WireSurfaceWireFragmentIR -> []
 
 optionsContainLive :: [OptionIR] -> Bool
 optionsContainLive = any \case
@@ -535,7 +500,7 @@ validateCrossReferences surface =
         sessionNames = surface.surfaceSessions
         dropzoneNames = map (.dropzoneRefName) surface.surfaceDropzoneRefs
         eventNames = map fst surface.surfaceClientEvents
-        dtoNames = map fst surface.surfaceDtos
+        dtoNames = map (fst . schemaNameAndMarker) surface.surfaceDtos
         domTokenNames = surface.surfaceDomTokens
         intentFields = [(intent.intentName, map (.fieldName) intent.intentFields) | intent <- surface.surfaceIntents]
 
@@ -561,11 +526,11 @@ validateCrossReferences surface =
             ValueFieldOption name -> requireAnyIntentField owner name
             EmitsOption name -> requireRef owner RefClientEvent eventNames name
             UsesDtoOption name -> requireRef owner RefDto dtoNames name
-            HtmxTargetOption name -> requireRef owner RefDomToken domTokenNames name
-            HtmxIncludeOption name -> requireRef owner RefDomToken domTokenNames name
-            HtmxIndicatorOption name -> requireRef owner RefDomToken domTokenNames name
-            HtmxSyncOption name -> requireRef owner RefDomToken domTokenNames name
-            HtmxSelectOption name -> requireRef owner RefDomToken domTokenNames name
+            HtmxOption (HtmxActionTargetIR name) -> requireRef owner RefDomToken domTokenNames name
+            HtmxOption (HtmxActionIncludeIR name) -> requireRef owner RefDomToken domTokenNames name
+            HtmxOption (HtmxActionIndicatorIR name) -> requireRef owner RefDomToken domTokenNames name
+            HtmxOption (HtmxActionSyncIR name) -> requireRef owner RefDomToken domTokenNames name
+            HtmxOption (HtmxActionSelectIR name) -> requireRef owner RefDomToken domTokenNames name
             _ -> []
 
         validateInteractionRefs =
@@ -672,7 +637,7 @@ containedSurfaceNames = concatMap \case
 validateSharedDeclarations :: SurfaceContractIR -> [ContractDiagnostic]
 validateSharedDeclarations contract =
     validateShared "scope" scopeName scopeFields allScopes
-        <> validateShared "dto" fst snd allDtos
+        <> validateShared "dto" (fst . schemaNameAndMarker) schemaFields allDtos
     where
         allScopes = concatMap (.surfaceScopes) contract.contractSurfaces
         allDtos = concatMap (.surfaceDtos) contract.contractSurfaces

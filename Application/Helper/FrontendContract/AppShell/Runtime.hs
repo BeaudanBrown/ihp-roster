@@ -22,9 +22,9 @@ module Application.Helper.FrontendContract.AppShell.Runtime
 
 import qualified Application.Helper.FrontendContract.Htmx as Htmx
 import Application.Helper.FrontendContract.IR
+import Application.Helper.FrontendContract.Naming (FrontendSurfaceNameContext (ActionName),
+                                                   deriveFrontendSurfaceTypeName)
 import Application.Helper.FrontendContract.Registry (registeredFrontendContractIR)
-import Application.Helper.FrontendContract.Surface.Naming (FrontendSurfaceNameContext (ActionName),
-                                                           deriveFrontendSurfaceTypeName)
 import Data.Typeable (Typeable)
 import IHP.ViewPrelude
 import Text.Blaze (toValue)

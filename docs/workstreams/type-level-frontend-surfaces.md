@@ -4,7 +4,9 @@ Status: implementation record. The DSL, reflection-backed generation,
 `SurfaceImpl` runtime bridge, support lab, Timesheets migration, Roster
 migration, and SurfaceProjection removal have landed. The former GHC API
 extractor/generator was retired by GitHub #143 after full production-registry IR
-and rendered-output parity. Durable authoring rules now
+and rendered-output parity. GitHub #144 then embedded checked `SurfaceIR` values
+directly in the unified frontend contract registry and centralized the shared
+field, wire, schema, diagnostic, naming, and HTMX model. Durable authoring rules now
 live in `Application/Helper/FrontendContract/Surface/README.md` and the subsystem
 README/SPEC/AGENTS files; this workstream remains as architectural context until
 `ir-9ogo` closes.
@@ -369,8 +371,9 @@ Pipeline:
    lowering interpreter.
 5. Merge identical shared declarations and reject conflicts while checking the
    complete graph.
-6. Feed that one checked reflected IR to server runtime consumers, the unified
-   frontend-contract adapter/renderer, and semantic architecture facts.
+6. Embed those checked `SurfaceIR` values directly in the unified
+   `FrontendContractIR`, whose shared core is consumed by server runtime code,
+   the TypeScript renderer, validation, and semantic architecture facts.
 7. Render generated TypeScript deterministically through
    `Application.Script.GenerateFrontendContracts`.
 

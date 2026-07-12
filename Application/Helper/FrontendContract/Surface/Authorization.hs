@@ -104,9 +104,16 @@ validateWire wire value =
         SurfaceIR.WireListIR inner -> case value of
             Aeson.Array values -> all (validateWire inner) values
             _                  -> False
+        SurfaceIR.WireMapIR _ valueWire -> case value of
+            Aeson.Object object -> all (validateWire valueWire) (Aeson.KeyMap.elems object)
+            _ -> False
         SurfaceIR.WireOptionalIR inner -> validateWire inner value
         SurfaceIR.WireNullableIR inner -> value == Aeson.Null || validateWire inner value
         SurfaceIR.WireRefIR _ -> True
+        SurfaceIR.WireUnknownIR -> True
+        SurfaceIR.WireSurfaceScopeIR -> False
+        SurfaceIR.WireSurfaceFragmentKeyIR -> False
+        SurfaceIR.WireSurfaceWireFragmentIR -> False
     where
         isString = \case
             Aeson.String _ -> True

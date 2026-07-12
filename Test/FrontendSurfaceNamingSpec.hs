@@ -5,7 +5,7 @@ module Test.FrontendSurfaceNamingSpec
     ( tests
     ) where
 
-import Application.Helper.FrontendContract.Surface.Naming
+import Application.Helper.FrontendContract.Naming
 import IHP.Prelude
 import Test.Hspec
 

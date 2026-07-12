@@ -13,10 +13,10 @@ module Application.Helper.FrontendContract.Surface.Reflect
     , reflectRegisteredFrontendSurfaces
     ) where
 
+import Application.Helper.FrontendContract.Naming (FrontendSurfaceNameContext (..),
+                                                   deriveFrontendSurfaceName)
 import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Surface.DSL
-import Application.Helper.FrontendContract.Surface.Naming (FrontendSurfaceNameContext (..),
-                                                           deriveFrontendSurfaceName)
 import Application.Helper.FrontendContract.Surface.Registry (RegisteredFrontendSurfaces)
 import Data.Kind (Type)
 import qualified Data.List as List
@@ -170,7 +170,7 @@ instance Typeable marker => ReflectPrimitive ('DomToken marker) where
     reflectPrimitive = ReflectedDomToken (protocolName @marker DomTokenName)
 
 instance (Typeable marker, ReflectFieldList fields) => ReflectPrimitive ('Dto marker fields) where
-    reflectPrimitive = ReflectedDto (protocolName @marker ScopeName) (reflectFieldList @fields)
+    reflectPrimitive = ReflectedDto (typeMarker @marker) (reflectFieldList @fields)
 
 class ReflectFieldList (fields :: [FieldSpec]) where
     reflectFieldList :: [FieldIR]
@@ -204,7 +204,7 @@ instance ReflectWire 'WireDay where reflectWire = WireDayIR
 instance ReflectWire inner => ReflectWire ('WireList inner) where reflectWire = WireListIR (reflectWire @inner)
 instance ReflectWire inner => ReflectWire ('WireOptional inner) where reflectWire = WireOptionalIR (reflectWire @inner)
 instance ReflectWire inner => ReflectWire ('WireNullable inner) where reflectWire = WireNullableIR (reflectWire @inner)
-instance Typeable marker => ReflectWire ('WireRef marker) where reflectWire = WireRefIR (protocolName @marker ScopeName)
+instance Typeable marker => ReflectWire ('WireRef marker) where reflectWire = WireRefIR (typeMarker @marker)
 
 class ReflectScopeOptionList (options :: [ScopeOption]) where
     reflectScopeOptionList :: [ScopeAuthIR]
@@ -317,19 +317,19 @@ instance Typeable marker => ReflectOption ('ValueField marker) where reflectOpti
 instance Typeable marker => ReflectOption ('Emits marker) where reflectOption = EmitsOption (protocolName @marker EventName)
 instance Typeable marker => ReflectOption ('Contains marker) where reflectOption = ContainsOption (protocolName @marker DomTokenName)
 instance Typeable marker => ReflectOption ('ContainsSurface marker) where reflectOption = ContainsSurfaceOption (protocolName @marker SurfaceName)
-instance Typeable marker => ReflectOption ('UsesDto marker) where reflectOption = UsesDtoOption (protocolName @marker ScopeName)
-instance ReflectHtmxMethod method => ReflectOption ('HtmxMethod method) where reflectOption = HtmxMethodOption (reflectHtmxMethod @method)
-instance Typeable marker => ReflectOption ('HtmxTrigger marker) where reflectOption = HtmxTriggerOption (protocolName @marker DomTokenName)
-instance Typeable marker => ReflectOption ('HtmxInclude marker) where reflectOption = HtmxIncludeOption (protocolName @marker DomTokenName)
-instance Typeable marker => ReflectOption ('HtmxSync marker) where reflectOption = HtmxSyncOption (protocolName @marker DomTokenName)
-instance Typeable marker => ReflectOption ('HtmxIndicator marker) where reflectOption = HtmxIndicatorOption (protocolName @marker DomTokenName)
-instance Typeable marker => ReflectOption ('HtmxConfirm marker) where reflectOption = HtmxConfirmOption (protocolName @marker DomTokenName)
-instance Typeable marker => ReflectOption ('HtmxSelect marker) where reflectOption = HtmxSelectOption (protocolName @marker DomTokenName)
-instance Typeable marker => ReflectOption ('HtmxTarget marker) where reflectOption = HtmxTargetOption (protocolName @marker DomTokenName)
-instance Typeable marker => ReflectOption ('HtmxSwap marker) where reflectOption = HtmxSwapOption (reflectHtmxSwapMarker (typeMarker @marker))
-instance ReflectHtmxPushUrl value => ReflectOption ('HtmxPushUrl value) where reflectOption = HtmxPushUrlOption (reflectHtmxPushUrl @value)
+instance Typeable marker => ReflectOption ('UsesDto marker) where reflectOption = UsesDtoOption (typeMarker @marker)
+instance ReflectHtmxMethod method => ReflectOption ('HtmxMethod method) where reflectOption = HtmxOption (HtmxActionMethodIR (reflectHtmxMethod @method))
+instance Typeable marker => ReflectOption ('HtmxTrigger marker) where reflectOption = HtmxOption (HtmxActionTriggerIR (protocolName @marker DomTokenName))
+instance Typeable marker => ReflectOption ('HtmxInclude marker) where reflectOption = HtmxOption (HtmxActionIncludeIR (protocolName @marker DomTokenName))
+instance Typeable marker => ReflectOption ('HtmxSync marker) where reflectOption = HtmxOption (HtmxActionSyncIR (protocolName @marker DomTokenName))
+instance Typeable marker => ReflectOption ('HtmxIndicator marker) where reflectOption = HtmxOption (HtmxActionIndicatorIR (protocolName @marker DomTokenName))
+instance Typeable marker => ReflectOption ('HtmxConfirm marker) where reflectOption = HtmxOption (HtmxActionConfirmIR (protocolName @marker DomTokenName))
+instance Typeable marker => ReflectOption ('HtmxSelect marker) where reflectOption = HtmxOption (HtmxActionSelectIR (protocolName @marker DomTokenName))
+instance Typeable marker => ReflectOption ('HtmxTarget marker) where reflectOption = HtmxOption (HtmxActionTargetIR (protocolName @marker DomTokenName))
+instance Typeable marker => ReflectOption ('HtmxSwap marker) where reflectOption = HtmxOption (HtmxActionSwapIR (reflectHtmxSwapMarker (typeMarker @marker)))
+instance ReflectHtmxPushUrl value => ReflectOption ('HtmxPushUrl value) where reflectOption = HtmxOption (HtmxActionPushUrlIR (reflectHtmxPushUrl @value))
 instance (Typeable marker, KnownSymbol reason) => ReflectOption ('CustomHtmx marker reason) where
-    reflectOption = CustomHtmxOption (protocolName @marker DomTokenName) (cs (symbolVal (Proxy @reason)))
+    reflectOption = HtmxOption (HtmxActionCustomHtmxIR (protocolName @marker DomTokenName) (cs (symbolVal (Proxy @reason))))
 
 class ReflectHtmxMethod (method :: HtmxMethod) where
     reflectHtmxMethod :: HtmxMethodIR
@@ -421,7 +421,7 @@ addPrimitives primitives surface =
             ReflectedOverlayLane name -> current { surfaceOverlayLanes = current.surfaceOverlayLanes <> [name] }
             ReflectedClientEvent name fields -> current { surfaceClientEvents = current.surfaceClientEvents <> [(name, fields)] }
             ReflectedDomToken name -> current { surfaceDomTokens = current.surfaceDomTokens <> [name] }
-            ReflectedDto name fields -> current { surfaceDtos = current.surfaceDtos <> [(name, fields)] }
+            ReflectedDto marker fields -> current { surfaceDtos = current.surfaceDtos <> [RecordIR marker marker fields] }
 
 addOptionMetadata :: [OptionIR] -> SurfaceIR -> SurfaceIR
 addOptionMetadata options surface =
@@ -475,15 +475,9 @@ reflectedField presence =
         , fieldName = deriveFrontendSurfaceName FieldName marker
         , fieldWire = reflectWire @wire
         , fieldPresence = presence
-        , fieldBrand = brandName marker
         }
     where
         marker = typeMarker @marker
-
-brandName :: Text -> Maybe Text
-brandName marker
-    | "Id" `Text.isSuffixOf` marker = Just marker
-    | otherwise = Nothing
 
 typeMarker :: forall marker. Typeable marker => Text
 typeMarker = cs (tyConName (typeRepTyCon (typeRep (Proxy @marker))))

@@ -3,7 +3,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 
-module Application.Helper.FrontendContract.Surface.Naming
+module Application.Helper.FrontendContract.Naming
     ( ExactNameAllowlistEntry (..)
     , FrontendSurfaceNameContext (..)
     , FrontendSurfaceNameError (..)

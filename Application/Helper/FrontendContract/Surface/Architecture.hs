@@ -2,10 +2,12 @@ module Application.Helper.FrontendContract.Surface.Architecture
     ( frontendSurfaceArchitectureContractsValue
     ) where
 
+import Application.Helper.FrontendContract.Core (htmxMethodText)
 import Application.Helper.FrontendContract.Surface.ContractIR
 import Application.Helper.FrontendContract.Surface.Contracts (registeredFrontendSurfaceContractIR)
 import qualified Data.Aeson as Aeson
 import qualified Data.List as List
+import qualified Data.Text as Text
 import IHP.Prelude
 
 -- | Deterministic architecture facts rendered from the same checked reflected
@@ -97,8 +99,13 @@ fieldValue field = Aeson.object
     , "name" Aeson..= field.fieldName
     , "wire" Aeson..= wireName field.fieldWire
     , "presence" Aeson..= fieldPresenceName field.fieldPresence
-    , "brand" Aeson..= field.fieldBrand
+    , "brand" Aeson..= fieldBrandName field
     ]
+
+fieldBrandName :: FieldIR -> Maybe Text
+fieldBrandName field
+    | "Id" `Text.isSuffixOf` field.fieldMarker = Just field.fieldMarker
+    | otherwise = Nothing
 
 resourceDependencyValue :: ResourceDependencyIR -> Aeson.Value
 resourceDependencyValue dependency = Aeson.object
@@ -176,12 +183,12 @@ targetFragmentName = \case
 
 targetDomTokenName :: OptionIR -> Maybe Text
 targetDomTokenName = \case
-    HtmxTargetOption name -> Just name
+    HtmxOption (HtmxActionTargetIR name) -> Just name
     _ -> Nothing
 
 swapName :: OptionIR -> Maybe Text
 swapName = \case
-    HtmxSwapOption name -> Just name
+    HtmxOption (HtmxActionSwapIR name) -> Just name
     _ -> Nothing
 
 backedByActionName :: OptionIR -> Maybe Text
@@ -196,16 +203,8 @@ sessionName = \case
 
 actionMethod :: OptionIR -> Maybe Text
 actionMethod = \case
-    HtmxMethodOption method -> Just (htmxMethodName method)
+    HtmxOption (HtmxActionMethodIR method) -> Just (htmxMethodText method)
     _ -> Nothing
-
-htmxMethodName :: HtmxMethodIR -> Text
-htmxMethodName = \case
-    HtmxGetIR -> "get"
-    HtmxPostIR -> "post"
-    HtmxPutIR -> "put"
-    HtmxPatchIR -> "patch"
-    HtmxDeleteIR -> "delete"
 
 fieldPresenceName :: FieldPresence -> Text
 fieldPresenceName = \case
@@ -220,7 +219,12 @@ wireName = \case
     WireBoolIR -> "bool"
     WireUuidIR -> "uuid"
     WireDayIR -> "day"
+    WireUnknownIR -> "unknown"
     WireListIR wire -> "list<" <> wireName wire <> ">"
+    WireMapIR key value -> "map<" <> wireName key <> "," <> wireName value <> ">"
     WireOptionalIR wire -> "optional<" <> wireName wire <> ">"
     WireNullableIR wire -> "nullable<" <> wireName wire <> ">"
     WireRefIR name -> "ref<" <> name <> ">"
+    WireSurfaceScopeIR -> "surface-scope"
+    WireSurfaceFragmentKeyIR -> "surface-fragment-key"
+    WireSurfaceWireFragmentIR -> "surface-wire-fragment"

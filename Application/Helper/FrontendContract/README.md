@@ -6,9 +6,13 @@ typeclass reflection, checked as contract IR, and rendered to
 `frontend/ts/generated/contracts.ts`. Global roots come from
 `RegisteredFrontendContracts`; Surface roots come from
 `RegisteredFrontendSurfaces` through the single checked reflected
-`SurfaceContractIR`. Generation, server runtime metadata, and semantic Surface
-architecture facts must consume that same reflected value rather than a second
-compiler-backed evaluator.
+`SurfaceContractIR`. The unified `FrontendContractIR` embeds those checked
+`SurfaceIR` values directly. `Application.Helper.FrontendContract.Core` owns the
+shared field, wire, schema, diagnostic, and HTMX model, while
+`Application.Helper.FrontendContract.Naming` owns naming for both roots.
+Generation, server runtime metadata, validation, and semantic Surface
+architecture facts consume that model directly; there is no shallow Surface
+copy or conversion layer.
 
 Roots are split by meaning:
 
@@ -53,7 +57,7 @@ query generated data should live in handwritten `frontend/ts` runtime modules an
 import generated types/data.
 
 `FrontendSurface*` TypeScript names that remain in generated output are
-runtime/mount metadata adapters for server-rendered UI, not a parallel contract
+runtime/mount metadata for server-rendered UI, not a parallel contract
 authority; websocket/browser wire shapes remain the generated `Surface*` and
 live-update contract types.
 

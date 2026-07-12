@@ -38,8 +38,12 @@ A surface is added by defining a type-level spec with the primitives from
 `Application.Helper.FrontendContract.Surface.Reflect` recursively evaluates the
 closed type-level DSL with typeclass instances, and
 `Application.Helper.FrontendContract.Surface.Contracts` validates that reflected
-value into the single checked `SurfaceContractIR`. The same checked reflected
-IR is the authority for runtime behavior, browser contracts in
+value into the single checked `SurfaceContractIR`. Its `SurfaceIR` values are
+embedded directly in the unified `FrontendContractIR`; no compact Surface copy
+or conversion layer exists. Field, wire, schema, diagnostic, and HTMX values come
+from `Application.Helper.FrontendContract.Core`, and both global and Surface
+reflection use `Application.Helper.FrontendContract.Naming`. The same checked
+model is the authority for runtime behavior, browser contracts in
 `frontend/ts/generated/contracts.ts`, and semantic Surface architecture facts.
 
 Contract generation does not inspect GHC compiler internals. Concrete type
@@ -121,7 +125,7 @@ and rejects conflicting normalized declarations with the same marker/name.
 ## Naming Policy
 
 Generated names are derived from marker type names by
-`Application.Helper.FrontendContract.Surface.Naming` using context-aware suffix stripping
+`Application.Helper.FrontendContract.Naming` using context-aware suffix stripping
 and acronym handling. Prefer descriptive marker names and avoid exact-name
 overrides unless the naming guardrails require them. Run the naming and surface
 checks after adding markers.

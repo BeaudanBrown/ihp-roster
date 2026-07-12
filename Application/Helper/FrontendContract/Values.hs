@@ -12,8 +12,8 @@ module Application.Helper.FrontendContract.Values
     ) where
 
 import Application.Helper.FrontendContract.IR
+import Application.Helper.FrontendContract.Naming (nameToKebab)
 import Application.Helper.FrontendContract.Registry (registeredFrontendContractIR)
-import Application.Helper.FrontendContract.Surface.Naming (nameToKebab)
 import Data.Typeable (Proxy (..), Typeable, tyConName, typeRep, typeRepTyCon)
 import IHP.Prelude
 
@@ -52,7 +52,7 @@ lookupEnumLiteralValue =
         caseMarkerName = typeMarker @caseMarker
         contractSchemas =
             [ schema | global <- registeredFrontendContractIR.contractGlobals, GlobalSchemaIR schema <- global.globalPrimitives ]
-                <> [ schema | surface <- registeredFrontendContractIR.contractSurfaces, SurfaceSchemaIR schema <- surface.surfacePrimitives ]
+                <> concatMap (.surfaceDtos) registeredFrontendContractIR.contractSurfaces
         matchingEnumCase = \case
             EnumIR marker _ values | marker == enumMarkerName -> filter (== kebabCaseMarker) values
             LiteralEnumIR marker _ values | marker == enumMarkerName -> [value | (caseMarker, value) <- values, caseMarker == caseMarkerName]

@@ -32,8 +32,8 @@ canonicalFrontendSurfaceScopeKey surfaceName scopePayload = do
             pure
             (find ((== surfaceName) . (.surfaceName)) registeredFrontendContractIR.contractSurfaces)
     fields <-
-        case [scopeFields | Contract.SurfaceScopeIR _ _ scopeFields <- surface.surfacePrimitives] of
-            [scopeFields] -> pure scopeFields
+        case surface.surfaceScopes of
+            [scope] -> pure scope.scopeFields
             [] -> fail ("Frontend Surface has no registered scope: " <> cs surfaceName)
             _ -> fail ("Frontend Surface has multiple registered scopes: " <> cs surfaceName)
     object <-

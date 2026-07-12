@@ -15,12 +15,12 @@ module Application.Helper.FrontendContract.Reflect
 
 import Application.Helper.FrontendContract.DSL
 import Application.Helper.FrontendContract.IR
-import Application.Helper.FrontendContract.Surface.Naming (deriveDomAttributeName,
-                                                           deriveEventName,
-                                                           deriveFrontendSurfaceName,
-                                                           deriveJsonFieldName,
-                                                           nameToKebab)
-import qualified Application.Helper.FrontendContract.Surface.Naming as Naming
+import Application.Helper.FrontendContract.Naming (deriveDomAttributeName,
+                                                   deriveEventName,
+                                                   deriveFrontendSurfaceName,
+                                                   deriveJsonFieldName,
+                                                   nameToKebab)
+import qualified Application.Helper.FrontendContract.Naming as Naming
 import Data.Kind (Type)
 import Data.Typeable (Proxy (..), Typeable, tyConName, typeRep, typeRepTyCon)
 import GHC.TypeLits (KnownSymbol, symbolVal)
@@ -54,29 +54,6 @@ instance (Typeable marker, ReflectGlobalPrimitiveList primitives) => ReflectFron
         , contractSurfaces = []
         }
 
-instance (Typeable marker, ReflectSurfacePrimitiveList primitives) => ReflectFrontendContractSpec ('Surface marker primitives) where
-    reflectFrontendContractSpec = FrontendContractIR
-        { contractGlobals = []
-        , contractSurfaces =
-            [ SurfaceIR
-                { surfaceMarker = typeMarker @marker
-                , surfaceName = protocolName @marker Naming.SurfaceName
-                , surfacePrimitives = reflectSurfacePrimitiveList @primitives
-                , surfaceInteractionSessions = []
-                , surfaceInteractionLayers = []
-                , surfaceInteractionEffects = []
-                , surfaceInteractionPolicies = []
-                , surfaceSourceRefs = []
-                , surfaceDropzoneRefs = []
-                , surfaceActivationRefs = []
-                , surfaceDomTokens = []
-                , surfaceOverlayLanes = []
-                , surfaceLiveFragments = []
-                , surfaceContainedSurfaces = []
-                }
-            ]
-        }
-
 appendContract :: FrontendContractIR -> FrontendContractIR -> FrontendContractIR
 appendContract left right = FrontendContractIR
     { contractGlobals = left.contractGlobals <> right.contractGlobals
@@ -91,15 +68,6 @@ instance ReflectGlobalPrimitiveList '[] where
 
 instance (ReflectGlobalPrimitive primitive, ReflectGlobalPrimitiveList rest) => ReflectGlobalPrimitiveList (primitive ': rest) where
     reflectGlobalPrimitiveList = reflectGlobalPrimitive @primitive : reflectGlobalPrimitiveList @rest
-
-class ReflectSurfacePrimitiveList (primitives :: [SurfacePrimitive]) where
-    reflectSurfacePrimitiveList :: [SurfacePrimitiveIR]
-
-instance ReflectSurfacePrimitiveList '[] where
-    reflectSurfacePrimitiveList = []
-
-instance (ReflectSurfacePrimitive primitive, ReflectSurfacePrimitiveList rest) => ReflectSurfacePrimitiveList (primitive ': rest) where
-    reflectSurfacePrimitiveList = reflectSurfacePrimitive @primitive : reflectSurfacePrimitiveList @rest
 
 class ReflectGlobalPrimitive (primitive :: GlobalPrimitive) where
     reflectGlobalPrimitive :: GlobalPrimitiveIR
@@ -179,43 +147,19 @@ instance (Typeable marker, KnownSymbol reason) => ReflectAppShellActionOption ('
     reflectAppShellActionOption = HtmxActionCustomHtmxIR (nameToKebab (typeMarker @marker)) (cs (symbolVal (Proxy @reason)))
 
 class ReflectAppShellHtmxMethod (method :: AppShellRequestMethod) where
-    reflectAppShellHtmxMethod :: Text
+    reflectAppShellHtmxMethod :: HtmxMethodIR
 
-instance ReflectAppShellHtmxMethod 'AppShellGet where reflectAppShellHtmxMethod = "get"
-instance ReflectAppShellHtmxMethod 'AppShellPost where reflectAppShellHtmxMethod = "post"
-instance ReflectAppShellHtmxMethod 'AppShellPut where reflectAppShellHtmxMethod = "put"
-instance ReflectAppShellHtmxMethod 'AppShellPatch where reflectAppShellHtmxMethod = "patch"
-instance ReflectAppShellHtmxMethod 'AppShellDelete where reflectAppShellHtmxMethod = "delete"
+instance ReflectAppShellHtmxMethod 'AppShellGet where reflectAppShellHtmxMethod = HtmxGetIR
+instance ReflectAppShellHtmxMethod 'AppShellPost where reflectAppShellHtmxMethod = HtmxPostIR
+instance ReflectAppShellHtmxMethod 'AppShellPut where reflectAppShellHtmxMethod = HtmxPutIR
+instance ReflectAppShellHtmxMethod 'AppShellPatch where reflectAppShellHtmxMethod = HtmxPatchIR
+instance ReflectAppShellHtmxMethod 'AppShellDelete where reflectAppShellHtmxMethod = HtmxDeleteIR
 
 class ReflectAppShellHtmxPushUrl (value :: AppShellPushUrlValue) where
-    reflectAppShellHtmxPushUrl :: Bool
+    reflectAppShellHtmxPushUrl :: HtmxPushUrlIR
 
-instance ReflectAppShellHtmxPushUrl 'AppShellPushUrlTrue where reflectAppShellHtmxPushUrl = True
-instance ReflectAppShellHtmxPushUrl 'AppShellPushUrlFalse where reflectAppShellHtmxPushUrl = False
-
-class ReflectSurfacePrimitive (primitive :: SurfacePrimitive) where
-    reflectSurfacePrimitive :: SurfacePrimitiveIR
-
-instance ReflectSchemaPrimitive schema => ReflectSurfacePrimitive ('SurfaceSchema schema) where
-    reflectSurfacePrimitive = SurfaceSchemaIR (reflectSchemaPrimitive @schema)
-
-instance (Typeable marker, ReflectFieldList fields) => ReflectSurfacePrimitive ('Scope marker fields) where
-    reflectSurfacePrimitive = SurfaceScopeIR (typeMarker @marker) (protocolName @marker Naming.ScopeName) (reflectFieldList @fields)
-
-instance (Typeable marker, ReflectFieldList fields) => ReflectSurfacePrimitive ('Fragment marker fields) where
-    reflectSurfacePrimitive = SurfaceFragmentIR (typeMarker @marker) (protocolName @marker Naming.FragmentName) (reflectFieldList @fields)
-
-instance (Typeable marker, ReflectFieldList fields) => ReflectSurfacePrimitive ('Action marker fields) where
-    reflectSurfacePrimitive = SurfaceActionIR (typeMarker @marker) (protocolName @marker Naming.ActionName) (reflectFieldList @fields) []
-
-instance (Typeable marker, ReflectFieldList fields) => ReflectSurfacePrimitive ('Intent marker fields) where
-    reflectSurfacePrimitive = SurfaceIntentIR (typeMarker @marker) (protocolName @marker Naming.IntentName) (reflectFieldList @fields)
-
-instance (Typeable marker, ReflectFieldList fields) => ReflectSurfacePrimitive ('MountState marker fields) where
-    reflectSurfacePrimitive = SurfaceMountStateIR (typeMarker @marker) (protocolName @marker Naming.ScopeName) (reflectFieldList @fields)
-
-instance (Typeable marker, ReflectFieldList fields) => ReflectSurfacePrimitive ('Dto marker fields) where
-    reflectSurfacePrimitive = SurfaceDtoIR (typeMarker @marker) (typeName @marker) (reflectFieldList @fields)
+instance ReflectAppShellHtmxPushUrl 'AppShellPushUrlTrue where reflectAppShellHtmxPushUrl = HtmxPushUrlTrueIR
+instance ReflectAppShellHtmxPushUrl 'AppShellPushUrlFalse where reflectAppShellHtmxPushUrl = HtmxPushUrlFalseIR
 
 class ReflectSchemaPrimitive (schema :: SchemaPrimitive) where
     reflectSchemaPrimitive :: SchemaIR
