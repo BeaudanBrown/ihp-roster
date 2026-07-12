@@ -60,6 +60,9 @@ header =
            , "function isRecord(value: unknown): value is Record<string, unknown> {"
            , "    return typeof value === \"object\" && value !== null && !Array.isArray(value);"
            , "}"
+           , "function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {"
+           , "    return Object.keys(value).every((key) => keys.includes(key));"
+           , "}"
            , ""
            ]
 
@@ -165,14 +168,19 @@ renderTopLevelFragmentKeyCases surfaces = zipWith render surfaces [0 :: Int ..]
             (if index == 0 then "    " else "  | ") <> "({ surface: " <> quote surface.surfaceName <> " } & " <> surfaceFragmentKeyUnionName surface <> ")" <> if index == length surfaces - 1 then ";" else ""
 
 surfaceScopeCaseGuard :: SurfaceIR -> Text
-surfaceScopeCaseGuard surface = "(isRecord(value) && value.surface === " <> quote surface.surfaceName <> " && is" <> surfaceScopeUnionName surface <> "(value.scope))"
+surfaceScopeCaseGuard surface = "(isRecord(value) && hasExactKeys(value, [\"surface\", \"scope\"]) && value.surface === " <> quote surface.surfaceName <> " && is" <> surfaceScopeUnionName surface <> "(value.scope))"
 
 surfaceFragmentKeyCaseGuard :: SurfaceIR -> Text
-surfaceFragmentKeyCaseGuard surface = "(isRecord(value) && value.surface === " <> quote surface.surfaceName <> " && is" <> surfaceFragmentKeyUnionName surface <> "(value))"
+surfaceFragmentKeyCaseGuard surface =
+    "(isRecord(value) && hasExactKeys(value, [\"surface\", \"kind\", \"params\"]) && value.surface === "
+        <> quote surface.surfaceName
+        <> " && is"
+        <> surfaceFragmentKeyUnionName surface
+        <> "({ kind: value.kind, params: value.params }))"
 
 fragmentKeyGuard :: SurfaceIR -> (Text, Text, [FieldIR]) -> Text
 fragmentKeyGuard surface (marker, fragmentName, fields) =
-    "(isRecord(value) && value.kind === " <> quote fragmentName <> " && (" <> paramsGuard <> "))"
+    "(isRecord(value) && hasExactKeys(value, [\"kind\", \"params\"]) && value.kind === " <> quote fragmentName <> " && (" <> paramsGuard <> "))"
     where
         paramsAccess = "value[\"params\"]"
         paramsGuard
@@ -217,6 +225,7 @@ renderGlobalPrimitive = \case
     GlobalDomValueIR marker value -> ["export const " <> constName marker <> "DomValue = " <> quote value <> " as const;", ""]
     GlobalFieldNameIR marker name -> ["export const " <> constName marker <> "FieldName = " <> quote name <> " as const;", ""]
     GlobalDomTokenIR marker token -> ["export const " <> constName marker <> "DomToken = " <> quote token <> " as const;", ""]
+    GlobalConstantIR marker value -> ["export const " <> constName marker <> " = " <> quote value <> " as const;", ""]
     GlobalAppShellActionIR action -> renderAppShellActionAlias action <> ["export const " <> constName action.appShellActionMarker <> "AppShellActionManifest = " <> renderAppShellActionManifest action <> " as const;", ""]
 
 renderAppShellActionAlias :: AppShellActionIR -> [Text]
@@ -390,7 +399,6 @@ renderInteractionDomGroup primitives =
 renderSurface :: SurfaceIR -> [Text]
 renderSurface surface =
     concatMap (renderScope surface) surface.surfaceScopes
-        <> concatMap (renderMountState surface) surface.surfaceMountStates
         <> concatMap (renderFragment surface) surface.surfaceFragments
         <> concatMap (renderAction surface) surface.surfaceHtmxActions
         <> concatMap (renderIntent surface) surface.surfaceIntents
@@ -400,8 +408,7 @@ renderFrontendSurfaceRuntime :: [SurfaceIR] -> [Text]
 renderFrontendSurfaceRuntime surfaces =
     renderFrontendSurfaceBrandAliases surfaces
         <> concatMap renderFrontendSurfaceAliases surfaces
-        <> renderFrontendSurfaceLiveTransport surfaces
-        <> renderFrontendSurfaceMountConfigTypes
+        <> renderFrontendSurfaceMountConfigTypes surfaces
         <> renderFrontendSurfaceRegistry surfaces
 
 renderFrontendSurfaceBrandAliases :: [SurfaceIR] -> [Text]
@@ -420,7 +427,6 @@ surfaceUuidAliases surface =
 surfaceFields :: SurfaceIR -> [FieldIR]
 surfaceFields surface =
     concatMap (.scopeFields) surface.surfaceScopes
-        <> concatMap (.mountStateFields) surface.surfaceMountStates
         <> concatMap (.fragmentParams) surface.surfaceFragments
         <> concatMap (.htmxActionFields) surface.surfaceHtmxActions
         <> concatMap (.intentFields) surface.surfaceIntents
@@ -439,7 +445,6 @@ renderFrontendSurfaceAliases :: SurfaceIR -> [Text]
 renderFrontendSurfaceAliases surface =
     [ "export type " <> prefix <> "SurfaceName = " <> quote surface.surfaceName <> ";" ]
         <> ["export type " <> prefix <> "FragmentKey = " <> surfaceFragmentKeyUnionName surface <> ";" | not (null surface.surfaceFragments)]
-        <> concatMap renderMountStateAlias surface.surfaceMountStates
         <> concatMap renderActionAlias surface.surfaceHtmxActions
         <> concatMap renderIntentAlias surface.surfaceIntents
         <> renderVocabulary (prefix <> "SessionName") surface.surfaceSessions
@@ -454,12 +459,8 @@ renderFrontendSurfaceAliases surface =
            ]
     where
         prefix = protocolTypeName surface.surfaceName
-        renderMountStateAlias mountState = ["export type " <> mountStateAliasName mountState.mountStateName <> " = " <> surfaceTypePrefix surface <> typeNameFromMarker mountState.mountStateMarker <> "MountState;"]
         renderActionAlias action = ["export type " <> typeNameFromMarker action.htmxActionName <> "ActionFields = " <> surfaceTypePrefix surface <> typeNameFromMarker action.htmxActionMarker <> "ActionFields;"]
         renderIntentAlias intent = ["export type " <> typeNameFromMarker intent.intentName <> "IntentFields = " <> surfaceTypePrefix surface <> typeNameFromMarker intent.intentMarker <> "IntentFields;"]
-        mountStateAliasName name =
-            let base = typeNameFromMarker name
-             in if "MountState" `Text.isSuffixOf` base then base else base <> "MountState"
 
 renderVocabulary :: Text -> [Text] -> [Text]
 renderVocabulary typeName values =
@@ -575,45 +576,9 @@ containedSurfaceNames = concatMap \case
     ModifierVariantOption variant -> concatMap (containedSurfaceNames . snd) variant.modifierVariantEffects
     _ -> []
 
-renderFrontendSurfaceLiveTransport :: [SurfaceIR] -> [Text]
-renderFrontendSurfaceLiveTransport surfaces =
-    -- FrontendSurface* live types model server-rendered mount metadata.
-    -- They intentionally bridge from HTML data attributes into the canonical
-    -- SurfaceScope/SurfaceFragmentKey live protocol types above; they are
-    -- runtime convenience views, not a second contract
-    -- authority.
-    [ "// FrontendSurface* live types are server-rendered mount metadata adapters."
-    , "// Canonical websocket and actor invalidations carry SurfaceScope and SurfaceFragmentKey only."
-    , "export type FrontendSurfaceScope ="
-    ]
-        <> renderFrontendSurfaceScopeCases liveSurfaces
-        <> [ "export function isFrontendSurfaceScope(value: unknown): value is FrontendSurfaceScope {"
-           , "    if (!isRecord(value)) return false;"
-           , "    if (!isFrontendSurfaceName(value.surface)) return false;"
-           , "    return isRecord(value.scope);"
-           , "}"
-           , "export function parseFrontendSurfaceScope(value: unknown): FrontendSurfaceScope {"
-           , "    if (isFrontendSurfaceScope(value)) return value;"
-           , "    throw new Error(\"Invalid FrontendSurfaceScope\");"
-           , "}"
-           , ""
-           ]
-    where
-        liveSurfaces = filter (not . null . surfaceLiveFragmentNames) surfaces
-
-renderFrontendSurfaceScopeCases :: [SurfaceIR] -> [Text]
-renderFrontendSurfaceScopeCases [] = ["    never;"]
-renderFrontendSurfaceScopeCases surfaces = zipWith render surfaces [0 :: Int ..]
-    where
-        render surface index =
-            case [surfaceScopeTypeName surface scope.scopeMarker | scope <- surface.surfaceScopes] of
-                scopeType : _ -> (if index == 0 then "    " else "  | ") <> "{ surface: " <> quote surface.surfaceName <> "; scope: " <> scopeType <> " }" <> if index == length surfaces - 1 then ";" else ""
-                [] -> ""
-
 renderFrontendSurfaceSupportSchemas :: [Text]
 renderFrontendSurfaceSupportSchemas =
     concatMap renderSchema generatedSchemas
-        <> concatMap renderSchemaTypeOnly adapterTypeOnlySchemas
     where
         generatedSchemas =
             [ RecordIR "HtmxCustomHtmxAttribute" "HtmxCustomHtmxAttribute"
@@ -643,8 +608,8 @@ renderFrontendSurfaceSupportSchemas =
                 , required "Fields" "fields" (WireListIR WireTextIR)
                 , required "Htmx" "htmx" (WireRefIR "HtmxActionOptions")
                 ]
-            , TaggedUnionIR "FrontendSurfaceSurfaceFragmentProtection" "FrontendSurfaceSurfaceFragmentProtection" "kind"
-                [ UnionCaseIR "None" "none" []
+            , TaggedUnionIR "FrontendSurfaceFragmentProtection" "FrontendSurfaceFragmentProtection" "kind"
+                [ UnionCaseIR "Replace" "replace" []
                 , UnionCaseIR "FocusedField" "focused-field"
                     [ required "ActiveSelector" "activeSelector" WireTextIR
                     , required "FieldKeyAttr" "fieldKeyAttr" WireTextIR
@@ -652,49 +617,105 @@ renderFrontendSurfaceSupportSchemas =
                     , nullable "ContainerSelector" "containerSelector" WireTextIR
                     ]
                 ]
-            , RecordIR "FrontendSurfaceLiveSubscription" "FrontendSurfaceLiveSubscription"
-                [ required "Scope" "scope" (WireRefIR "FrontendSurfaceScope")
-                , required "ScopeKey" "scopeKey" WireTextIR
-                , required "ResyncFragments" "resyncFragments" (WireListIR WireSurfaceFragmentKeyIR)
-                ]
-            ]
-        adapterTypeOnlySchemas =
-            [ RecordIR "FrontendSurfaceMountedFragmentKeyConfig" "FrontendSurfaceMountedFragmentKeyConfig"
-                [ required "Kind" "kind" WireTextIR
-                , required "Params" "params" WireUnknownIR
-                ]
-            , RecordIR "FrontendSurfaceMountedFragmentConfig" "FrontendSurfaceMountedFragmentConfig"
-                [ required "Key" "key" (WireRefIR "FrontendSurfaceMountedFragmentKeyConfig")
-                , required "TargetId" "targetId" WireTextIR
-                , required "Url" "url" WireTextIR
-                , nullable "Protection" "protection" WireUnknownIR
-                , nullable "LoadPolicy" "loadPolicy" WireTextIR
-                ]
-            , RecordIR "FrontendSurfaceMountConfig" "FrontendSurfaceMountConfig"
-                [ required "Surface" "surface" (WireRefIR "FrontendSurfaceName")
-                , required "ScopeKey" "scopeKey" WireTextIR
-                , required "MountKey" "mountKey" WireTextIR
-                , required "MountState" "mountState" WireUnknownIR
-                , required "Fragments" "fragments" (WireListIR (WireRefIR "FrontendSurfaceMountedFragmentConfig"))
-                , nullable "Subscription" "subscription" (WireRefIR "FrontendSurfaceLiveSubscription")
-                ]
             ]
         required marker name wire = FieldIR marker name wire RequiredField
         nullable marker name wire = FieldIR marker name wire NullableFieldPresence
 
-renderSchemaTypeOnly :: SchemaIR -> [Text]
-renderSchemaTypeOnly = \case
-    RecordIR _ name fields -> ["export type " <> name <> " = " <> recordType fields <> ";"]
-    EnumIR _ name values -> ["export type " <> name <> " ="] <> renderUnionValues values
-    LiteralEnumIR _ name values -> ["export type " <> name <> " ="] <> renderUnionValues (fmap snd values)
-    TaggedUnionIR _ name discriminator cases -> ["export type " <> name <> " ="] <> renderUnionCases discriminator cases
-
-renderFrontendSurfaceMountConfigTypes :: [Text]
-renderFrontendSurfaceMountConfigTypes =
+renderFrontendSurfaceMountConfigTypes :: [SurfaceIR] -> [Text]
+renderFrontendSurfaceMountConfigTypes surfaces =
     renderFrontendSurfaceSupportSchemas
-        <> [ "// FrontendSurfaceMountConfig is the HTML data attribute shape emitted by Haskell views."
-           , "// Runtime parsing/normalization lives in frontend/ts/live-updates/frontend-surface.ts."
+        <> [ "// FrontendSurface mount metadata is an exact surface-discriminated local envelope."
+           , "// Executable URL/target/protection values exist only on these local fragment descriptors."
            ]
+        <> concatMap renderFrontendSurfaceMountedFragmentConfig surfaces
+        <> concatMap renderFrontendSurfaceMountConfig surfaces
+        <> [ "export type FrontendSurfaceMountedFragmentConfig =" ]
+        <> renderNamedUnion (fmap frontendSurfaceMountedFragmentConfigName surfaces)
+        <> [ "export type FrontendSurfaceMountConfig =" ]
+        <> renderNamedUnion (fmap frontendSurfaceMountConfigName surfaces)
+        <> renderCodec "FrontendSurfaceMountConfig" (orExpression ["is" <> frontendSurfaceMountConfigName surface <> "(value)" | surface <- surfaces])
+
+renderFrontendSurfaceMountedFragmentConfig :: SurfaceIR -> [Text]
+renderFrontendSurfaceMountedFragmentConfig surface =
+    [ "export type "
+        <> name
+        <> " = { fragmentKey: ({ surface: "
+        <> quote surface.surfaceName
+        <> " } & "
+        <> surfaceFragmentKeyUnionName surface
+        <> "); targetId: string; url: string; protection: FrontendSurfaceFragmentProtection };"
+    ]
+        <> renderCodec name guardExpression
+    where
+        name = frontendSurfaceMountedFragmentConfigName surface
+        guardExpression =
+            "isRecord(value)"
+                <> " && hasExactKeys(value, [\"fragmentKey\", \"targetId\", \"url\", \"protection\"])"
+                <> " && isSurfaceFragmentKey(value[\"fragmentKey\"])"
+                <> " && value[\"fragmentKey\"].surface === "
+                <> quote surface.surfaceName
+                <> " && typeof value[\"targetId\"] === \"string\" && value[\"targetId\"].length > 0"
+                <> " && typeof value[\"url\"] === \"string\" && value[\"url\"].length > 0"
+                <> " && isFrontendSurfaceFragmentProtection(value[\"protection\"])"
+
+renderFrontendSurfaceMountConfig :: SurfaceIR -> [Text]
+renderFrontendSurfaceMountConfig surface =
+    [ "export type "
+        <> name
+        <> " = { surface: "
+        <> quote surface.surfaceName
+        <> "; scopeKey: string; mountKey: string; fragments: ReadonlyArray<"
+        <> frontendSurfaceMountedFragmentConfigName surface
+        <> ">; subscription: "
+        <> subscriptionType
+        <> " };"
+    ]
+        <> renderCodec name guardExpression
+    where
+        name = frontendSurfaceMountConfigName surface
+        liveFragmentNames = surfaceLiveFragmentNames surface
+        subscriptionType
+            | null liveFragmentNames = "null"
+            | otherwise = "{ scope: Extract<SurfaceScope, { surface: " <> quote surface.surfaceName <> " }> } | null"
+        liveFragmentTest =
+            "value[\"fragments\"].some((fragment) => ["
+                <> Text.intercalate ", " (fmap quote liveFragmentNames)
+                <> "].includes(fragment.fragmentKey.kind))"
+        validSubscription =
+            "isRecord(value[\"subscription\"])"
+                <> " && hasExactKeys(value[\"subscription\"], [\"scope\"])"
+                <> " && isSurfaceScope(value[\"subscription\"].scope)"
+                <> " && value[\"subscription\"].scope.surface === "
+                <> quote surface.surfaceName
+        subscriptionGuard
+            | null liveFragmentNames = "value[\"subscription\"] === null"
+            | otherwise =
+                "((value[\"subscription\"] === null && !("
+                    <> liveFragmentTest
+                    <> ")) || (("
+                    <> validSubscription
+                    <> ") && ("
+                    <> liveFragmentTest
+                    <> ")))"
+        guardExpression =
+            "isRecord(value)"
+                <> " && hasExactKeys(value, [\"surface\", \"scopeKey\", \"mountKey\", \"fragments\", \"subscription\"])"
+                <> " && value[\"surface\"] === "
+                <> quote surface.surfaceName
+                <> " && typeof value[\"scopeKey\"] === \"string\" && value[\"scopeKey\"].length > 0"
+                <> " && typeof value[\"mountKey\"] === \"string\" && value[\"mountKey\"].length > 0"
+                <> " && Array.isArray(value[\"fragments\"]) && value[\"fragments\"].every((fragment) => is"
+                <> frontendSurfaceMountedFragmentConfigName surface
+                <> "(fragment))"
+                <> " && ("
+                <> subscriptionGuard
+                <> ")"
+
+frontendSurfaceMountedFragmentConfigName :: SurfaceIR -> Text
+frontendSurfaceMountedFragmentConfigName surface = surfaceTypePrefix surface <> "MountedFragmentConfig"
+
+frontendSurfaceMountConfigName :: SurfaceIR -> Text
+frontendSurfaceMountConfigName surface = surfaceTypePrefix surface <> "MountConfig"
 
 renderFrontendSurfaceRegistry :: [SurfaceIR] -> [Text]
 renderFrontendSurfaceRegistry surfaces =
@@ -709,6 +730,9 @@ renderFrontendSurfaceRegistry surfaces =
            , "export function parseFrontendSurfaceName(value: unknown): FrontendSurfaceName {"
            , "    if (isFrontendSurfaceName(value)) return value;"
            , "    throw new Error(\"Invalid FrontendSurfaceName\");"
+           , "}"
+           , "export function isFrontendSurfaceLiveFragmentName(surface: FrontendSurfaceName, value: unknown): value is string {"
+           , "    return typeof value === \"string\" && FrontendSurfaceRegistry[surface].liveFragments.some((fragment) => fragment === value);"
            , "}"
            , "export type FrontendSurfaceContainmentEdge = { parentSurface: FrontendSurfaceName; parentFragment: string; childSurface: FrontendSurfaceName };"
            , "export const FrontendSurfaceContainmentTopology = ["
@@ -753,10 +777,6 @@ renderAction surface action =
 renderIntent :: SurfaceIR -> IntentIR -> [Text]
 renderIntent surface intent =
     renderRecordAlias (surfaceTypePrefix surface <> typeNameFromMarker intent.intentMarker <> "IntentFields") intent.intentFields
-
-renderMountState :: SurfaceIR -> MountStateIR -> [Text]
-renderMountState surface mountState =
-    renderRecordAlias (surfaceTypePrefix surface <> typeNameFromMarker mountState.mountStateMarker <> "MountState") mountState.mountStateFields
 
 renderSchema :: SchemaIR -> [Text]
 renderSchema = \case
@@ -853,7 +873,7 @@ nullableSuffix = \case
 
 recordGuardExpression :: [FieldIR] -> Text
 recordGuardExpression fields =
-    "isRecord(value)" <> mconcat (fmap fieldGuard fields)
+    "isRecord(value) && hasExactKeys(value, [" <> Text.intercalate ", " (fmap (quote . (.fieldName)) fields) <> "])" <> mconcat (fmap fieldGuard fields)
     where
         fieldGuard field =
             let access = "value[" <> quote field.fieldName <> "]"
@@ -886,7 +906,11 @@ isEnumExpression :: [Text] -> Text
 isEnumExpression values = "typeof value === \"string\" && [" <> Text.intercalate ", " (fmap quote values) <> "].includes(value)"
 
 caseGuard :: Text -> UnionCaseIR -> Text
-caseGuard discriminator caseIR = "(isRecord(value) && value[" <> quote discriminator <> "] === " <> quote caseIR.unionCaseTag <> Text.drop (Text.length "isRecord(value)") (recordGuardExpression caseIR.unionCaseFields) <> ")"
+caseGuard discriminator caseIR =
+    "("
+        <> recordGuardExpression
+            (FieldIR "Discriminator" discriminator (WireRefIR (quote caseIR.unionCaseTag)) RequiredField : caseIR.unionCaseFields)
+        <> ")"
 
 surfaceTypePrefix :: SurfaceIR -> Text
 surfaceTypePrefix surface = typeNameFromMarker surface.surfaceMarker

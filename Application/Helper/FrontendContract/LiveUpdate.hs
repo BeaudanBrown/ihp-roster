@@ -2,6 +2,10 @@
 
 module Application.Helper.FrontendContract.LiveUpdate
     ( LiveUpdateContract
+    , LiveUpdateClientIdHeader
+    , LiveUpdateSocketPath
+    , SurfaceAction
+    , SurfaceConfig
     ) where
 
 import Application.Helper.FrontendContract.DSL hiding (Scope)
@@ -11,6 +15,11 @@ import Application.Helper.FrontendContract.DSL hiding (Scope)
 -- declarations. Executable mount descriptors are deliberately not part of
 -- this contract.
 data LiveUpdate
+
+data LiveUpdateSocketPath
+data LiveUpdateClientIdHeader
+data SurfaceConfig
+data SurfaceAction
 
 data SurfaceSubscription
 data Scope
@@ -36,7 +45,11 @@ data Message
 
 type LiveUpdateContract =
     Global LiveUpdate
-        '[ GlobalSchema (Record SurfaceSubscription
+        '[ Constant LiveUpdateSocketPath "live-updates"
+         , Constant LiveUpdateClientIdHeader "X-Live-Update-Client-Id"
+         , DomAttr SurfaceConfig
+         , DomAttr SurfaceAction
+         , GlobalSchema (Record SurfaceSubscription
             '[ Field Scope 'WireSurfaceScope
              , Field ScopeKey 'WireText
              , Field Fragments ('WireList 'WireSurfaceFragmentKey)

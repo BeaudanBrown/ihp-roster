@@ -24,6 +24,14 @@ websocket controllers, and `static/app-live-updates.js`.
   defer flags, or protection policies.
 - Fragment GET endpoints must enforce the same authorization and visibility as
   full-page routes.
+- Each `data-bepis-surface-config` value is parsed through the generated exact
+  per-surface `FrontendSurfaceMountConfig` union. Unknown properties, malformed
+  scope/fragment/protection values, or a mismatch with the owner element's
+  generated `data-bepis-surface` value are rejected and reported; they never
+  fall back to a handwritten aggregate parser.
+- The websocket endpoint, client-id header, and surface mount/action/config DOM
+  attributes are reflected global constants consumed by both Haskell and
+  generated TypeScript. Runtime code must not duplicate their string values.
 - Scope keys are server-owned and carried through surface config/messages. The
   websocket boundary derives the canonical key from the registered typed Surface
   scope fields and rejects browser-supplied scope or fragment keys whose Surface
@@ -59,7 +67,7 @@ legacy `data-live-update-surface` mount format have been removed.
 A surface owns:
 
 - feature/surface name
-- websocket path or generated live-update transport family
+- the shared generated live-update transport constants
 - scope and scope key
 - wire-scope conversion
 - authorization rule
@@ -72,8 +80,8 @@ A surface owns:
 - semantic dependency intent for each rendered fragment
 - server-side fragment containment paths used to avoid overlapping DOM swaps
 - optional contained child-surface topology declared on fragments/regions
-- optional mount state, interaction sessions/layers/effects, intents, and
-  conflict policies
+- optional server-side mount state, interaction sessions/layers/effects,
+  intents, and conflict policies
 
 A fragment/region may contain child surface mounts. Containment is static
 surface topology; it does not make the child part of the parent subscription.
@@ -85,9 +93,9 @@ the union of currently mounted surface scopes.
 Each live fragment declares invalidation intent in the type-level
 `FrontendSurface` spec with `DependsOn` or `ResyncOnly`. `SurfaceImpl` handlers
 materialize the mounted fragment target id, URL, and protection policy for the
-current request. Fragments are eager by default; lazy fragments derive their load
-policy, trigger, and placeholder kind from the existing `Lazy`, `Trigger`, and
-`Placeholder` primitive options. Initial lazy placeholders are rendered through
+current request. Fragments are eager by default; `Lazy`, `Trigger`, and
+`Placeholder` options control server-rendered lazy placeholders without adding
+browser mount `loadPolicy` fields. Initial lazy placeholders are rendered through
 the canonical `FrontendSurface` lazy-fragment runtime helper, which emits the
 same target id and GET URL as the loaded fragment plus generated UI-region attrs
 such as `data-bepis-fragment` and `data-bepis-lazy-surface`. Feature views own
@@ -122,7 +130,15 @@ the runtime. The Haskell carrier types live in
 `Application.Helper.FrontendContract.Wire.LiveUpdate`; their Aeson parse/render
 validates against `registeredFrontendContractIR` through
 `Application.Helper.FrontendContract.Wire.Json`, so the DSL/IR remains the only
-browser-visible wire authority.
+browser-visible wire authority. The same reflected Surface IR generates the
+exact mount envelope for every registered surface: `{ surface, scopeKey,
+mountKey, fragments, subscription }`. Each local descriptor is exactly `{
+fragmentKey, targetId, url, protection }`; the optional subscription contains
+only the typed `scope`. Live/resync keys are derived from the mounted descriptors
+and reflected `Live` fragment set, so configs do not duplicate key lists.
+Server-side `MountState` remains available to Haskell renderers and route
+builders but is not emitted as a browser contract when the browser has no
+consumer.
 Feature modules should keep fragment enums feature-local and cross the
 typed-to-wire boundary only through strict helpers. Feature modules cross the
 surface-to-key boundary through `SurfaceImpl`/`renderFrontendSurfaceMount` and
@@ -203,7 +219,7 @@ When a current HTMX interaction should become a region, migrate it through the
 Haskell contract first: closed fragment/region identity, stable target id,
 authoritative GET URL, optional lazy/retry/transition attrs, and focused-field
 or interaction conflict policy if needed. TypeScript may read the generated
-the generated UI-region DOM attribute constants, event constants, and `UiRegionTransitionProfile` contract, but
+generated UI-region DOM attribute constants, event constants, and the `UiRegionTransitionProfile` contract, but
 it must not invent attribute names, fragment names, routes, target ids, or
 business semantics. After that, the generic adapter may
 emit `bepis:region-request-start`, `bepis:region-before-swap`,
@@ -216,7 +232,12 @@ that region only.
   is resolved by exact scope key and canonical fragment-key equality to every
   matching local mount descriptor. Only that local descriptor's URL, target id,
   and protection policy are used; there is no fallback when the key is not
-  locally mounted.
+  locally mounted. Transport messages and actor details are also parsed by the
+  generated exact scope/fragment guards, so extra descriptor-shaped fields are
+  rejected rather than ignored. HTMX injects an `elt` carrier property when it
+  dispatches an `HX-Trigger` event; the browser removes only that property after
+  verifying it equals the event target, then submits the untouched server
+  payload to the exact generated actor parser.
 - Parameterless mounted fragment keys serialize `params` as `{}`, matching the
   server wire normalization. Structural matching does not depend on top-level
   JSON property order.

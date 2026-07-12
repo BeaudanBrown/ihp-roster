@@ -1,6 +1,7 @@
-import { isLiveUpdateMessage, isSurfaceFragmentKey } from "../generated/contracts";
+import { isFrontendSurfaceMountConfig as isGeneratedFrontendSurfaceMountConfig, isLiveFragmentsRefreshEventDetail, isLiveUpdateMessage, isSurfaceFragmentKey } from "../generated/contracts";
 import {
     frontendSurfaceInstanceId,
+    frontendSurfaceMountMatchesOwnerSurface,
     parseFrontendSurfaceSubscriptionConfig,
     reconcileFrontendSurfaceInstances,
     scanFrontendSurfaceMountInstances,
@@ -19,17 +20,78 @@ const executableDescriptor = {
 
 const validScope = { surface: "timesheets", scope: { venueId: "venue-1", weekOffset: 0 } };
 
-function withSurfaceSubscription(config: any, scopeFields: unknown) {
+const exactTimesheetsMount = {
+    surface: "timesheets",
+    scopeKey: "timesheets:venue-1:3",
+    mountKey: "primary",
+    fragments: [
+        {
+            fragmentKey: { surface: "timesheets", kind: "timesheet-day-section", params: { dayOffset: 2 } },
+            targetId: "timesheet-day-section-2",
+            url: "/ShowTimesheetDaySectionFragment?weekOffset=3&dayOffset=2",
+            protection: { kind: "replace" },
+        },
+    ],
+    subscription: {
+        scope: { surface: "timesheets", scope: { venueId: "venue-1", weekOffset: 3 } },
+    },
+};
+
+test("generated FrontendSurface mount parser is exact and surface-discriminated", () => {
+    assertEqual(isGeneratedFrontendSurfaceMountConfig(exactTimesheetsMount), true);
+    assertEqual(isGeneratedFrontendSurfaceMountConfig({ ...exactTimesheetsMount, mountState: {} }), false);
+    assertEqual(isGeneratedFrontendSurfaceMountConfig({ ...exactTimesheetsMount, fragments: [{ ...exactTimesheetsMount.fragments[0], loadPolicy: "eager" }] }), false);
+    assertEqual(isGeneratedFrontendSurfaceMountConfig({ ...exactTimesheetsMount, subscription: { scope: { surface: "timesheets", scope: { venueId: "venue-1", weekOffset: "3" } } } }), false);
+    assertEqual(isGeneratedFrontendSurfaceMountConfig({ ...exactTimesheetsMount, fragments: [{ ...exactTimesheetsMount.fragments[0], fragmentKey: { surface: "timesheets", kind: "timesheet-day-section", params: { dayOffset: "2" } } }] }), false);
+    assertEqual(isGeneratedFrontendSurfaceMountConfig({ ...exactTimesheetsMount, fragments: [{ ...exactTimesheetsMount.fragments[0], fragmentKey: { surface: "roster", kind: "roster-content", params: {} } }] }), false);
+    assertEqual(isGeneratedFrontendSurfaceMountConfig({ ...exactTimesheetsMount, fragments: [{ ...exactTimesheetsMount.fragments[0], protection: { kind: "focused-field" } }] }), false);
+    assertEqual(isGeneratedFrontendSurfaceMountConfig({ ...exactTimesheetsMount, subscription: { scope: { surface: "roster", scope: { venueId: "venue-1", rosterGroupId: "group-1", weekOffset: 3 } } } }), false);
+    assertEqual(isGeneratedFrontendSurfaceMountConfig({ ...exactTimesheetsMount, subscription: null }), false);
+    if (!isGeneratedFrontendSurfaceMountConfig(exactTimesheetsMount)) throw new Error("expected exact Timesheets mount fixture");
+    assertEqual(frontendSurfaceMountMatchesOwnerSurface(exactTimesheetsMount, "timesheets"), true);
+    assertEqual(frontendSurfaceMountMatchesOwnerSurface(exactTimesheetsMount, "roster"), false);
+    assertEqual(frontendSurfaceMountMatchesOwnerSurface(exactTimesheetsMount, null), false);
+});
+
+type LocalFragmentFixture = {
+    kind: string;
+    params: unknown;
+    targetId: string;
+    url: string;
+    protection: unknown;
+};
+
+type SurfaceMountFixture = {
+    surface: string;
+    scopeKey: string;
+    mountKey: string;
+    fragments: LocalFragmentFixture[];
+};
+
+function exactMountConfig(config: SurfaceMountFixture) {
     return {
-        ...config,
+        surface: config.surface,
+        scopeKey: config.scopeKey,
+        mountKey: config.mountKey,
+        fragments: config.fragments.map((fragment) => ({
+            fragmentKey: {
+                surface: config.surface,
+                kind: fragment.kind,
+                params: fragment.params,
+            },
+            targetId: fragment.targetId,
+            url: fragment.url,
+            protection: fragment.protection,
+        })),
+        subscription: null,
+    };
+}
+
+function withSurfaceSubscription(config: SurfaceMountFixture, scopeFields: unknown) {
+    return {
+        ...exactMountConfig(config),
         subscription: {
             scope: { surface: config.surface, scope: scopeFields },
-            scopeKey: config.scopeKey,
-            resyncFragments: config.fragments.map((fragment: any) => ({
-                surface: config.surface,
-                kind: fragment.key.kind,
-                params: fragment.key.params,
-            })),
         },
     };
 }
@@ -39,19 +101,16 @@ test("FrontendSurface config parser derives Timesheets live subscriptions from m
         surface: "timesheets",
         scopeKey: "timesheets:venue-1:3",
         mountKey: "primary",
-        mountState: { showApproved: false, showAllStaff: true, staffFilterId: null },
-        fragments: [
-            {
-                key: { kind: "timesheet-day-section", params: { dayOffset: 2 } },
-                targetId: "timesheet-day-section-2",
-                url: "/ShowTimesheetDaySectionFragment?weekOffset=3&dayOffset=2&showApproved=false&showAllStaff=true",
-                protection: { kind: "replace" },
-                loadPolicy: "eager",
-            },
-        ],
+        fragments: [{
+            kind: "timesheet-day-section",
+            params: { dayOffset: 2 },
+            targetId: "timesheet-day-section-2",
+            url: "/ShowTimesheetDaySectionFragment?weekOffset=3&dayOffset=2&showApproved=false&showAllStaff=true",
+            protection: { kind: "replace" },
+        }],
     }, { venueId: "venue-1", weekOffset: 3 }));
 
-    assertEqual(config?.feature, "timesheets");
+    assertEqual(config?.surface, "timesheets");
     assertDeepEqual(config?.scope, { surface: "timesheets", scope: { venueId: "venue-1", weekOffset: 3 } });
     assertEqual(config?.scopeKey, "timesheets:venue-1:3");
     assertEqual(config?.resyncFragments[0]?.targetId, "timesheet-day-section-2");
@@ -63,26 +122,25 @@ test("FrontendSurface config parser derives Roster live subscriptions from mount
         surface: "roster",
         scopeKey: "roster:venue-1:group-1:-1",
         mountKey: "primary",
-        mountState: {},
         fragments: [
             {
-                key: { kind: "roster-content", params: null },
+                kind: "roster-content",
+                params: null,
                 targetId: "roster-content",
                 url: "/ShowRosterWeekContentFragment?weekOffset=-1&rosterGroupId=group-1",
                 protection: { kind: "replace" },
-                loadPolicy: "eager",
             },
             {
-                key: { kind: "roster-row", params: { rosterDayId: "day-1", rowIndex: 3 } },
+                kind: "roster-row",
+                params: { rosterDayId: "day-1", rowIndex: 3 },
                 targetId: "roster-row-day-1-3",
                 url: "/ShowRosterWeekRowFragment?weekOffset=-1&rosterGroupId=group-1&rosterDayId=day-1&rowIndex=3",
                 protection: { kind: "replace" },
-                loadPolicy: "lazy",
             },
         ],
     }, { venueId: "venue-1", rosterGroupId: "group-1", weekOffset: -1 }));
 
-    assertEqual(config?.feature, "roster");
+    assertEqual(config?.surface, "roster");
     assertDeepEqual(config?.scope, { surface: "roster", scope: { venueId: "venue-1", rosterGroupId: "group-1", weekOffset: -1 } });
     assertEqual(config?.scopeKey, "roster:venue-1:group-1:-1");
     assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { surface: "roster", kind: "roster-content", params: null });
@@ -94,26 +152,25 @@ test("FrontendSurface config parser derives Leave Requests live subscriptions fr
         surface: "leave-requests",
         scopeKey: "leave-requests:venue-1",
         mountKey: "primary",
-        mountState: null,
         fragments: [
             {
-                key: { kind: "leave-section-count", params: { leaveSection: "pending" } },
+                kind: "leave-section-count",
+                params: { leaveSection: "pending" },
                 targetId: "leave-pending-count",
                 url: "/ShowLeaveRequestsContentFragment?fragment=leave-section-count&section=pending",
                 protection: { kind: "replace" },
-                loadPolicy: "eager",
             },
             {
-                key: { kind: "leave-section-list", params: { leaveSection: "pending" } },
+                kind: "leave-section-list",
+                params: { leaveSection: "pending" },
                 targetId: "leave-pending-list",
                 url: "/ShowLeaveRequestsContentFragment?fragment=leave-section-list&section=pending",
                 protection: { kind: "replace" },
-                loadPolicy: "eager",
             },
         ],
     }, { venueId: "venue-1" }));
 
-    assertEqual(config?.feature, "leave-requests");
+    assertEqual(config?.surface, "leave-requests");
     assertDeepEqual(config?.scope, { surface: "leave-requests", scope: { venueId: "venue-1" } });
     assertEqual(config?.scopeKey, "leave-requests:venue-1");
     assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { surface: "leave-requests", kind: "leave-section-count", params: { leaveSection: "pending" } });
@@ -125,16 +182,13 @@ test("FrontendSurface config parser derives Billing and Support live subscriptio
         surface: "billing",
         scopeKey: "billing:venue-1",
         mountKey: "primary",
-        mountState: null,
-        fragments: [
-            {
-                key: { kind: "billing-status", params: null },
-                targetId: "billing-status-fragment",
-                url: "/ShowBillingStatusFragment",
-                protection: { kind: "replace" },
-                loadPolicy: "eager",
-            },
-        ],
+        fragments: [{
+            kind: "billing-status",
+            params: null,
+            targetId: "billing-status-fragment",
+            url: "/ShowBillingStatusFragment",
+            protection: { kind: "replace" },
+        }],
     }, { venueId: "venue-1" }));
 
     assertDeepEqual(billing?.scope, { surface: "billing", scope: { venueId: "venue-1" } });
@@ -144,16 +198,13 @@ test("FrontendSurface config parser derives Billing and Support live subscriptio
         surface: "support",
         scopeKey: "support",
         mountKey: "primary",
-        mountState: null,
-        fragments: [
-            {
-                key: { kind: "support-public-holidays", params: null },
-                targetId: "support-public-holidays-section",
-                url: "/ShowPublicHolidaysSection",
-                protection: { kind: "replace" },
-                loadPolicy: "eager",
-            },
-        ],
+        fragments: [{
+            kind: "support-public-holidays",
+            params: null,
+            targetId: "support-public-holidays-section",
+            url: "/ShowPublicHolidaysSection",
+            protection: { kind: "replace" },
+        }],
     }, {}));
 
     assertDeepEqual(support?.scope, { surface: "support", scope: {} });
@@ -165,58 +216,49 @@ test("FrontendSurface config parser derives Profile live subscriptions from moun
         surface: "profile",
         scopeKey: "profile:venue-1:staff-1",
         mountKey: "primary",
-        mountState: null,
-        fragments: [
-            {
-                key: { kind: "profile-details-section", params: null },
-                targetId: "profile-details",
-                url: "/ShowProfileContentFragment?section=profile",
-                protection: { kind: "replace" },
-                loadPolicy: "eager",
-            },
-        ],
+        fragments: [{
+            kind: "profile-details-section",
+            params: null,
+            targetId: "profile-details",
+            url: "/ShowProfileContentFragment?section=profile",
+            protection: { kind: "replace" },
+        }],
     }, { venueId: "venue-1", staffId: "staff-1" }));
 
-    assertEqual(config?.feature, "profile");
+    assertEqual(config?.surface, "profile");
     assertDeepEqual(config?.scope, { surface: "profile", scope: { venueId: "venue-1", staffId: "staff-1" } });
     assertEqual(config?.scopeKey, "profile:venue-1:staff-1");
     assertDeepEqual(config?.resyncFragments[0]?.fragmentKey, { surface: "profile", kind: "profile-details-section", params: null });
 });
 
 test("FrontendSurface config parser treats Admin page composition mount as non-subscribing", () => {
-    const config = parseFrontendSurfaceSubscriptionConfig({
+    const config = parseFrontendSurfaceSubscriptionConfig(exactMountConfig({
         surface: "admin-page",
         scopeKey: "admin-page:venue-1",
         mountKey: "primary",
-        mountState: null,
-        fragments: [
-            {
-                key: { kind: "admin-page-content", params: null },
-                targetId: "admin-page-content-fragment",
-                url: "/Admin",
-                protection: { kind: "replace" },
-                loadPolicy: "eager",
-            },
-        ],
-    });
+        fragments: [{
+            kind: "admin-page-content",
+            params: null,
+            targetId: "admin-page-content-fragment",
+            url: "/Admin",
+            protection: { kind: "replace" },
+        }],
+    }));
 
     assertEqual(config, null);
 
-    const xeroConfig = parseFrontendSurfaceSubscriptionConfig({
+    const xeroConfig = parseFrontendSurfaceSubscriptionConfig(exactMountConfig({
         surface: "admin-xero-page",
         scopeKey: "admin-xero-page:venue-1",
         mountKey: "primary",
-        mountState: null,
-        fragments: [
-            {
-                key: { kind: "admin-xero-page-content", params: null },
-                targetId: "admin-xero-page-content-fragment",
-                url: "/Xero",
-                protection: { kind: "replace" },
-                loadPolicy: "eager",
-            },
-        ],
-    });
+        fragments: [{
+            kind: "admin-xero-page-content",
+            params: null,
+            targetId: "admin-xero-page-content-fragment",
+            url: "/Xero",
+            protection: { kind: "replace" },
+        }],
+    }));
     assertEqual(xeroConfig, null);
 });
 
@@ -225,25 +267,22 @@ test("FrontendSurface config parser preserves reusable focused-field protection"
         surface: "profile",
         scopeKey: "profile:venue-1:staff-1",
         mountKey: "primary",
-        mountState: null,
-        fragments: [
-            {
-                key: { kind: "profile-details-section", params: null },
-                targetId: "profile-details",
-                url: "/ShowProfileContentFragment?section=profile",
-                protection: {
-                    kind: "focused-field",
-                    activeSelector: "input[data-profile-field]:focus",
-                    fieldKeyAttr: "data-profile-field",
-                    fieldNameFallback: true,
-                    containerSelector: "form",
-                },
-                loadPolicy: "eager",
+        fragments: [{
+            kind: "profile-details-section",
+            params: null,
+            targetId: "profile-details",
+            url: "/ShowProfileContentFragment?section=profile",
+            protection: {
+                kind: "focused-field",
+                activeSelector: "input[data-profile-field]:focus",
+                fieldKeyAttr: "data-profile-field",
+                fieldNameFallback: true,
+                containerSelector: "form",
             },
-        ],
+        }],
     }, { venueId: "venue-1", staffId: "staff-1" }));
 
-    assertDeepEqual(config?.resyncFragments[0]?.protectionPolicy, {
+    assertDeepEqual(config?.resyncFragments[0]?.protection, {
         kind: "focused-field",
         activeSelector: "input[data-profile-field]:focus",
         fieldKeyAttr: "data-profile-field",
@@ -300,6 +339,19 @@ test("generated live protocol accepts semantic keys and rejects executable descr
     assertEqual(isSurfaceFragmentKey(validFragmentKey), true);
     assertEqual(isSurfaceFragmentKey({ kind: "timesheet_day_section" }), false);
     assertEqual(isSurfaceFragmentKey(executableDescriptor), false);
+});
+
+test("generated actor refresh parser is exact and uses per-surface scope and fragment guards", () => {
+    const detail = {
+        scope: validScope,
+        scopeKey: "timesheets:venue-1:0",
+        fragments: [validFragmentKey],
+    };
+    assertEqual(isLiveFragmentsRefreshEventDetail(detail), true);
+    assertEqual(isLiveFragmentsRefreshEventDetail({ ...detail, elt: {} }), false);
+    assertEqual(isLiveFragmentsRefreshEventDetail({ ...detail, executableUrl: "/unsafe" }), false);
+    assertEqual(isLiveFragmentsRefreshEventDetail({ ...detail, scope: { surface: "timesheets", scope: { venueId: "venue-1", weekOffset: "0" } } }), false);
+    assertEqual(isLiveFragmentsRefreshEventDetail({ ...detail, fragments: [{ surface: "timesheets", kind: "timesheet-day-section", params: { dayOffset: "1" } }] }), false);
 });
 
 test("generated live update message guard checks websocket payload discriminants and primitives", () => {

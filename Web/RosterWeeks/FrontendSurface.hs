@@ -620,7 +620,6 @@ rosterWeekOverviewMountedFragment scope =
         , mountedFragmentTargetId = "roster-week-overview-mount-" <> tshow scope.rosterWeekGroupId <> "-" <> tshow scope.rosterWeekWeekOffset
         , mountedFragmentUrl = rosterOverviewFragmentUrl scope.rosterWeekWeekOffset scope.rosterWeekGroupId
         , mountedFragmentProtection = FrontendSurfaceReplace
-        , mountedFragmentLoadPolicy = "lazy"
         , mountedFragmentLazyTrigger = Just "load"
         , mountedFragmentPlaceholderKind = Nothing
         }
@@ -648,4 +647,4 @@ rosterMountedFragment kind params targetId url =
 
 rosterLazyMountedFragment :: Text -> Aeson.Value -> Text -> Text -> FrontendSurfaceMountedFragment
 rosterLazyMountedFragment kind params targetId url =
-    (rosterMountedFragment kind params targetId url) { mountedFragmentLoadPolicy = "lazy" }
+    rosterMountedFragment kind params targetId url

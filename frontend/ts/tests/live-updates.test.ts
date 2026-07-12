@@ -1,5 +1,4 @@
-import { surfaceFragmentKeyIdentity, surfaceFragmentKeysEqual, type SurfaceScope } from "../generated/contracts";
-import type { LiveUpdateMountedFragment } from "../live-updates/frontend-surface";
+import { surfaceFragmentKeyIdentity, surfaceFragmentKeysEqual, type FrontendSurfaceMountedFragmentConfig, type SurfaceScope } from "../generated/contracts";
 import {
     buildLiveUpdateSubscribeCommand,
     buildSurfaceSubscription,
@@ -10,6 +9,7 @@ import {
     liveUpdateMessageScopeKey,
     normalizeLiveUpdateVersion,
     resolveMountedFragmentsForInvalidation,
+    serverPayloadFromHtmxTriggeredEvent,
 } from "../live-updates/protocol";
 import { assertDeepEqual, assertEqual, test } from "./harness";
 
@@ -21,12 +21,11 @@ const scope: SurfaceScope = {
     },
 };
 
-const fragment: LiveUpdateMountedFragment = {
+const fragment: FrontendSurfaceMountedFragmentConfig = {
     fragmentKey: { surface: "timesheets", kind: "timesheet-day-section", params: { dayOffset: 1 } },
     targetId: "timesheet-day-1",
     url: "/ShowTimesheetDay?dayOffset=1",
-    deferUntilBlur: true,
-    protectionPolicy: {
+    protection: {
         kind: "focused-field",
         activeSelector: "input:focus",
         fieldKeyAttr: "data-live-field-key",
@@ -87,6 +86,18 @@ test("live update message helpers normalize scope keys and versions", () => {
     assertEqual(normalizeLiveUpdateVersion(1.5), null);
 });
 
+test("HTMX actor event adaptation strips only its verified dispatch element", () => {
+    const target = new EventTarget();
+    const detail = { scopeKey: "timesheets:v:0", executableUrl: "/must-remain-for-exact-rejection", elt: target };
+
+    assertDeepEqual(serverPayloadFromHtmxTriggeredEvent(detail, target), {
+        scopeKey: "timesheets:v:0",
+        executableUrl: "/must-remain-for-exact-rejection",
+    });
+    assertEqual(serverPayloadFromHtmxTriggeredEvent(detail, new EventTarget()), null);
+    assertEqual(serverPayloadFromHtmxTriggeredEvent([], target), null);
+});
+
 test("live update fragment merge key includes structural fragment key and target", () => {
     assertEqual(
         liveUpdateFragmentMergeKey(fragment),
@@ -111,7 +122,7 @@ test("live update invalidations suppress same-client websocket echoes only", () 
 
 test("semantic invalidation keys resolve only through descriptors on local mounts", () => {
     const incomingKey = fragment.fragmentKey;
-    const localDescriptor: LiveUpdateMountedFragment = {
+    const localDescriptor: FrontendSurfaceMountedFragmentConfig = {
         ...fragment,
         targetId: "local-target",
         url: "/authorized-local-fragment",
@@ -162,12 +173,12 @@ test("semantic invalidation keys resolve only through descriptors on local mount
 });
 
 test("actor invalidation resolves every semantic key from one-shot subscription iterators", () => {
-    const firstLocal: LiveUpdateMountedFragment = {
+    const firstLocal: FrontendSurfaceMountedFragmentConfig = {
         ...fragment,
         targetId: "timesheet-day-local",
         url: "/local-day",
     };
-    const secondLocal: LiveUpdateMountedFragment = {
+    const secondLocal: FrontendSurfaceMountedFragmentConfig = {
         ...fragment,
         fragmentKey: { surface: "timesheets", kind: "timesheet-toolbar", params: {} },
         targetId: "timesheet-toolbar-local",
@@ -186,17 +197,17 @@ test("actor invalidation resolves every semantic key from one-shot subscription 
 
 test("actor-local invalidation resolves through every duplicate mounted fragment in scope", () => {
     const actorFragmentKey = fragment.fragmentKey;
-    const firstMount: LiveUpdateMountedFragment = {
+    const firstMount: FrontendSurfaceMountedFragmentConfig = {
         ...fragment,
         targetId: "timesheet-day-primary",
         url: "/primary-day",
     };
-    const duplicateMount: LiveUpdateMountedFragment = {
+    const duplicateMount: FrontendSurfaceMountedFragmentConfig = {
         ...fragment,
         targetId: "timesheet-day-duplicate",
         url: "/duplicate-day",
     };
-    const otherScopeMount: LiveUpdateMountedFragment = {
+    const otherScopeMount: FrontendSurfaceMountedFragmentConfig = {
         ...fragment,
         targetId: "timesheet-day-other-week",
         url: "/other-week-day",

@@ -16,6 +16,7 @@ import Web.Controller.Prelude
 import Web.View.Layout (defaultLayout)
 
 -- Controller Imports
+import Application.Helper.FrontendContract.LiveUpdateValues (liveUpdateSocketPathSegment)
 import Web.Controller.Admin
 import Web.Controller.Auth
 import Web.Controller.Billing
@@ -59,7 +60,7 @@ instance FrontController WebApplication where
         , parseRoute @SupportController
         , parseRoute @StaffController
         , parseRoute @RosterWeeksController
-        , webSocketAppWithCustomPath @LiveUpdatesWSApp "live-updates"
+        , webSocketAppWithCustomPath @LiveUpdatesWSApp (cs liveUpdateSocketPathSegment)
         -- Generator Marker
         ]
 

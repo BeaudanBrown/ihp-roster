@@ -179,7 +179,6 @@ staffSectionMountedFragment keyName targetId section scope =
         , mountedFragmentTargetId = targetId
         , mountedFragmentUrl = appendQueryParams (pathTo (ShowStaffContentLiveFragmentAction (Id scope.profileStaffId))) [ ("section", section) ]
         , mountedFragmentProtection = FrontendSurfaceReplace
-        , mountedFragmentLoadPolicy = "eager"
         , mountedFragmentLazyTrigger = Nothing
         , mountedFragmentPlaceholderKind = Nothing
         }
@@ -296,7 +295,6 @@ profileSectionMountedFragment keyName targetId section =
         , mountedFragmentTargetId = targetId
         , mountedFragmentUrl = appendQueryParams (pathTo ShowprofileContentLiveFragmentAction) [("section", section)]
         , mountedFragmentProtection = FrontendSurfaceReplace
-        , mountedFragmentLoadPolicy = "eager"
         , mountedFragmentLazyTrigger = Nothing
         , mountedFragmentPlaceholderKind = Nothing
         }

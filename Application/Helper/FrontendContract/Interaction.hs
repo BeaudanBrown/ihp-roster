@@ -4,6 +4,7 @@
 module Application.Helper.FrontendContract.Interaction
     ( InteractionContract
     , Interaction
+    , Surface
     ) where
 
 import qualified Application.Helper.FrontendContract.App as App

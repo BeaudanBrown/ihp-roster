@@ -110,13 +110,12 @@ surfaceLabPanelFragment =
 
 surfaceLabPanelFragmentFor :: (?context :: ControllerContext) => Text -> FrontendSurfaceMountedFragment
 surfaceLabPanelFragmentFor panelIdValue =
-    (frontendSurfaceMountedFragment
+    frontendSurfaceMountedFragment
         "lab-panel"
         (Aeson.object ["panelId" Aeson..= panelIdValue])
         frontendSurfaceLabPanelId
         (pathTo ShowFrontendSurfaceLabPanelFragmentAction { panelId = panelIdValue })
-        FrontendSurfaceReplace)
-        { mountedFragmentLoadPolicy = "lazy" }
+        FrontendSurfaceReplace
 
 refreshPanelAction :: (?context :: ControllerContext) => FrontendSurfaceHtmxRequest
 refreshPanelAction =

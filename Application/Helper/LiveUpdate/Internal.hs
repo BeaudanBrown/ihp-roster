@@ -82,6 +82,7 @@ import IHP.Prelude
 import qualified Network.WebSockets as WebSocket
 import System.IO.Unsafe (unsafePerformIO)
 
+import Application.Helper.FrontendContract.LiveUpdateValues (liveUpdateClientIdHeaderName)
 import Application.Helper.FrontendContract.Surface.Identity (canonicalFrontendSurfaceScopeKey)
 import qualified Application.Helper.FrontendContract.Wire.LiveUpdate as Wire
 import Application.Helper.Profiling (profileActionSpan,
@@ -237,7 +238,7 @@ surfaceScopeKey = (.surfaceScopeStableKey)
 
 liveUpdateSourceClientId :: (?request :: Request) => Maybe Text
 liveUpdateSourceClientId =
-    cs <$> getHeader "X-Live-Update-Client-Id"
+    cs <$> getHeader (cs liveUpdateClientIdHeaderName)
 
 instance Aeson.ToJSON SurfaceScope where
     toJSON = Aeson.toJSON . surfaceScopeToWire

@@ -112,7 +112,6 @@ supportAwardRatesMountedFragment =
         , mountedFragmentTargetId = "support-award-rates-section"
         , mountedFragmentUrl = "/ShowFwcMapdAwardRatesSection"
         , mountedFragmentProtection = FrontendSurfaceReplace
-        , mountedFragmentLoadPolicy = "eager"
         , mountedFragmentLazyTrigger = Nothing
         , mountedFragmentPlaceholderKind = Nothing
         }
@@ -124,7 +123,6 @@ supportPublicHolidaysMountedFragment =
         , mountedFragmentTargetId = "support-public-holidays-section"
         , mountedFragmentUrl = "/ShowPublicHolidaysSection"
         , mountedFragmentProtection = FrontendSurfaceReplace
-        , mountedFragmentLoadPolicy = "eager"
         , mountedFragmentLazyTrigger = Nothing
         , mountedFragmentPlaceholderKind = Nothing
         }

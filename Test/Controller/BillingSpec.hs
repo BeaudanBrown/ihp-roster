@@ -168,7 +168,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "data-billing-checkout-modal-backdrop"
                 response `responseBodyShouldNotContain` "data-live-update-url="
                 response `responseBodyShouldContain` "&quot;url&quot;:&quot;/ShowbillingStatusLiveFragment?checkout=success&amp;session_id=cs_test_123&quot;"
-                response `responseBodyShouldContain` "&quot;mountState&quot;:{&quot;checkoutReturned&quot;:true,&quot;checkoutSessionId&quot;:&quot;cs_test_123&quot;}"
+                response `responseBodyShouldNotContain` "&quot;mountState&quot;"
 
         it "updates the Checkout modal to confirmed once the subscription webhook is processed" $ withContext do
             withCleanDb do

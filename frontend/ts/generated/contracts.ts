@@ -10,6 +10,9 @@ export const FrontendContractAppShellDom = { dialogAutoSubmitOnce: "data-bepis-d
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+    return Object.keys(value).every((key) => keys.includes(key));
+}
 
 export type SurfaceLabSurfaceScope =
     SurfaceLabLabScopeScope;
@@ -202,7 +205,7 @@ export type SurfaceLabSurfaceFragmentKey =
     { kind: "lab-shell"; params: SurfaceLabLabShellFragmentParams | null }
   | { kind: "lab-panel"; params: SurfaceLabLabPanelFragmentParams };
 export function isSurfaceLabSurfaceFragmentKey(value: unknown): value is SurfaceLabSurfaceFragmentKey {
-    return ((isRecord(value) && value.kind === "lab-shell" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "lab-panel" && (isRecord(value["params"]) && (typeof value["params"]["panelId"] === "string"))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "lab-shell" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "lab-panel" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["panelId"]) && (typeof value["params"]["panelId"] === "string"))));
 }
 export function parseSurfaceLabSurfaceFragmentKey(value: unknown): SurfaceLabSurfaceFragmentKey {
     if (isSurfaceLabSurfaceFragmentKey(value)) return value;
@@ -215,7 +218,7 @@ export type TimesheetsSurfaceFragmentKey =
   | { kind: "timesheet-day-columns"; params: TimesheetsTimesheetDayColumnsFragmentParams | null }
   | { kind: "timesheet-day-section"; params: TimesheetsTimesheetDaySectionFragmentParams };
 export function isTimesheetsSurfaceFragmentKey(value: unknown): value is TimesheetsSurfaceFragmentKey {
-    return ((isRecord(value) && value.kind === "timesheet-toolbar" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "timesheet-day-columns" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "timesheet-day-section" && (isRecord(value["params"]) && (typeof value["params"]["dayOffset"] === "number" && Number.isInteger(value["params"]["dayOffset"])))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "timesheet-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["dayOffset"]) && (typeof value["params"]["dayOffset"] === "number" && Number.isInteger(value["params"]["dayOffset"])))));
 }
 export function parseTimesheetsSurfaceFragmentKey(value: unknown): TimesheetsSurfaceFragmentKey {
     if (isTimesheetsSurfaceFragmentKey(value)) return value;
@@ -237,7 +240,7 @@ export type RosterSurfaceFragmentKey =
   | { kind: "roster-day-section"; params: RosterRosterDaySectionFragmentParams }
   | { kind: "roster-row"; params: RosterRosterRowFragmentParams };
 export function isRosterSurfaceFragmentKey(value: unknown): value is RosterSurfaceFragmentKey {
-    return ((isRecord(value) && value.kind === "roster-content" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "roster-grid-toolbar" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "roster-grid-frame" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "roster-day-columns" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "roster-day-rail" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "roster-wage-rail" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "roster-slots-grid" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "roster-staff-panel" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "roster-staff-self-service-leave-form" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "roster-week-overview" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "roster-day-section" && (isRecord(value["params"]) && (typeof value["params"]["rosterDayId"] === "string"))) || (isRecord(value) && value.kind === "roster-row" && (isRecord(value["params"]) && (typeof value["params"]["rosterDayId"] === "string") && (typeof value["params"]["rowIndex"] === "number" && Number.isInteger(value["params"]["rowIndex"])))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-toolbar" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-grid-frame" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-columns" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-wage-rail" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-slots-grid" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-staff-panel" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-staff-self-service-leave-form" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-week-overview" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-section" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"]) && (typeof value["params"]["rosterDayId"] === "string"))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-row" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId", "rowIndex"]) && (typeof value["params"]["rosterDayId"] === "string") && (typeof value["params"]["rowIndex"] === "number" && Number.isInteger(value["params"]["rowIndex"])))));
 }
 export function parseRosterSurfaceFragmentKey(value: unknown): RosterSurfaceFragmentKey {
     if (isRosterSurfaceFragmentKey(value)) return value;
@@ -248,7 +251,7 @@ export function encodeRosterSurfaceFragmentKey(value: RosterSurfaceFragmentKey):
 export type RosterDayTimelineSurfaceFragmentKey =
     { kind: "roster-day-timeline-content"; params: RosterDayTimelineRosterDayTimelineContentFragmentParams };
 export function isRosterDayTimelineSurfaceFragmentKey(value: unknown): value is RosterDayTimelineSurfaceFragmentKey {
-    return ((isRecord(value) && value.kind === "roster-day-timeline-content" && (isRecord(value["params"]) && (typeof value["params"]["rosterDayId"] === "string"))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "roster-day-timeline-content" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["rosterDayId"]) && (typeof value["params"]["rosterDayId"] === "string"))));
 }
 export function parseRosterDayTimelineSurfaceFragmentKey(value: unknown): RosterDayTimelineSurfaceFragmentKey {
     if (isRosterDayTimelineSurfaceFragmentKey(value)) return value;
@@ -260,7 +263,7 @@ export type LeaveRequestsSurfaceFragmentKey =
     { kind: "leave-section-count"; params: LeaveRequestsLeaveSectionCountFragmentParams }
   | { kind: "leave-section-list"; params: LeaveRequestsLeaveSectionListFragmentParams };
 export function isLeaveRequestsSurfaceFragmentKey(value: unknown): value is LeaveRequestsSurfaceFragmentKey {
-    return ((isRecord(value) && value.kind === "leave-section-count" && (isRecord(value["params"]) && (typeof value["params"]["leaveSection"] === "string"))) || (isRecord(value) && value.kind === "leave-section-list" && (isRecord(value["params"]) && (typeof value["params"]["leaveSection"] === "string"))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-count" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"]) && (typeof value["params"]["leaveSection"] === "string"))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "leave-section-list" && (isRecord(value["params"]) && hasExactKeys(value["params"], ["leaveSection"]) && (typeof value["params"]["leaveSection"] === "string"))));
 }
 export function parseLeaveRequestsSurfaceFragmentKey(value: unknown): LeaveRequestsSurfaceFragmentKey {
     if (isLeaveRequestsSurfaceFragmentKey(value)) return value;
@@ -271,7 +274,7 @@ export function encodeLeaveRequestsSurfaceFragmentKey(value: LeaveRequestsSurfac
 export type BillingSurfaceFragmentKey =
     { kind: "billing-status"; params: BillingBillingStatusFragmentParams | null };
 export function isBillingSurfaceFragmentKey(value: unknown): value is BillingSurfaceFragmentKey {
-    return ((isRecord(value) && value.kind === "billing-status" && (value["params"] === null || isRecord(value["params"]))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "billing-status" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))));
 }
 export function parseBillingSurfaceFragmentKey(value: unknown): BillingSurfaceFragmentKey {
     if (isBillingSurfaceFragmentKey(value)) return value;
@@ -283,7 +286,7 @@ export type SupportSurfaceFragmentKey =
     { kind: "support-award-rates"; params: SupportSupportAwardRatesFragmentParams | null }
   | { kind: "support-public-holidays"; params: SupportSupportPublicHolidaysFragmentParams | null };
 export function isSupportSurfaceFragmentKey(value: unknown): value is SupportSurfaceFragmentKey {
-    return ((isRecord(value) && value.kind === "support-award-rates" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "support-public-holidays" && (value["params"] === null || isRecord(value["params"]))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "support-award-rates" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "support-public-holidays" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))));
 }
 export function parseSupportSurfaceFragmentKey(value: unknown): SupportSurfaceFragmentKey {
     if (isSupportSurfaceFragmentKey(value)) return value;
@@ -298,7 +301,7 @@ export type ProfileSurfaceFragmentKey =
   | { kind: "profile-leave-section"; params: ProfileProfileLeaveSectionFragmentParams | null }
   | { kind: "profile-rsa-section"; params: ProfileProfileRsaSectionFragmentParams | null };
 export function isProfileSurfaceFragmentKey(value: unknown): value is ProfileSurfaceFragmentKey {
-    return ((isRecord(value) && value.kind === "profile-details-section" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "profile-preferences-section" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "profile-security-section" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "profile-leave-section" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "profile-rsa-section" && (value["params"] === null || isRecord(value["params"]))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-details-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-preferences-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-security-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-leave-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "profile-rsa-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))));
 }
 export function parseProfileSurfaceFragmentKey(value: unknown): ProfileSurfaceFragmentKey {
     if (isProfileSurfaceFragmentKey(value)) return value;
@@ -311,7 +314,7 @@ export type StaffSurfaceFragmentKey =
   | { kind: "staff-preferences-section"; params: StaffStaffPreferencesSectionFragmentParams | null }
   | { kind: "staff-leave-section"; params: StaffStaffLeaveSectionFragmentParams | null };
 export function isStaffSurfaceFragmentKey(value: unknown): value is StaffSurfaceFragmentKey {
-    return ((isRecord(value) && value.kind === "staff-details-section" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "staff-preferences-section" && (value["params"] === null || isRecord(value["params"]))) || (isRecord(value) && value.kind === "staff-leave-section" && (value["params"] === null || isRecord(value["params"]))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-details-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-preferences-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))) || (isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "staff-leave-section" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))));
 }
 export function parseStaffSurfaceFragmentKey(value: unknown): StaffSurfaceFragmentKey {
     if (isStaffSurfaceFragmentKey(value)) return value;
@@ -322,7 +325,7 @@ export function encodeStaffSurfaceFragmentKey(value: StaffSurfaceFragmentKey): S
 export type AdminPageSurfaceFragmentKey =
     { kind: "admin-page-content"; params: AdminPageAdminPageContentFragmentFragmentParams | null };
 export function isAdminPageSurfaceFragmentKey(value: unknown): value is AdminPageSurfaceFragmentKey {
-    return ((isRecord(value) && value.kind === "admin-page-content" && (value["params"] === null || isRecord(value["params"]))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-page-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))));
 }
 export function parseAdminPageSurfaceFragmentKey(value: unknown): AdminPageSurfaceFragmentKey {
     if (isAdminPageSurfaceFragmentKey(value)) return value;
@@ -333,7 +336,7 @@ export function encodeAdminPageSurfaceFragmentKey(value: AdminPageSurfaceFragmen
 export type AdminXeroPageSurfaceFragmentKey =
     { kind: "admin-xero-page-content"; params: AdminXeroPageAdminXeroPageContentFragmentFragmentParams | null };
 export function isAdminXeroPageSurfaceFragmentKey(value: unknown): value is AdminXeroPageSurfaceFragmentKey {
-    return ((isRecord(value) && value.kind === "admin-xero-page-content" && (value["params"] === null || isRecord(value["params"]))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-xero-page-content" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))));
 }
 export function parseAdminXeroPageSurfaceFragmentKey(value: unknown): AdminXeroPageSurfaceFragmentKey {
     if (isAdminXeroPageSurfaceFragmentKey(value)) return value;
@@ -344,7 +347,7 @@ export function encodeAdminXeroPageSurfaceFragmentKey(value: AdminXeroPageSurfac
 export type AdminVenueConfigSurfaceFragmentKey =
     { kind: "admin-venue-settings"; params: AdminVenueConfigAdminVenueSettingsFragmentFragmentParams | null };
 export function isAdminVenueConfigSurfaceFragmentKey(value: unknown): value is AdminVenueConfigSurfaceFragmentKey {
-    return ((isRecord(value) && value.kind === "admin-venue-settings" && (value["params"] === null || isRecord(value["params"]))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-venue-settings" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))));
 }
 export function parseAdminVenueConfigSurfaceFragmentKey(value: unknown): AdminVenueConfigSurfaceFragmentKey {
     if (isAdminVenueConfigSurfaceFragmentKey(value)) return value;
@@ -355,7 +358,7 @@ export function encodeAdminVenueConfigSurfaceFragmentKey(value: AdminVenueConfig
 export type AdminInvitesSurfaceFragmentKey =
     { kind: "admin-invites"; params: AdminInvitesAdminInvitesFragmentFragmentParams | null };
 export function isAdminInvitesSurfaceFragmentKey(value: unknown): value is AdminInvitesSurfaceFragmentKey {
-    return ((isRecord(value) && value.kind === "admin-invites" && (value["params"] === null || isRecord(value["params"]))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-invites" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))));
 }
 export function parseAdminInvitesSurfaceFragmentKey(value: unknown): AdminInvitesSurfaceFragmentKey {
     if (isAdminInvitesSurfaceFragmentKey(value)) return value;
@@ -366,7 +369,7 @@ export function encodeAdminInvitesSurfaceFragmentKey(value: AdminInvitesSurfaceF
 export type AdminExportsSurfaceFragmentKey =
     { kind: "admin-exports"; params: AdminExportsAdminExportsFragmentFragmentParams | null };
 export function isAdminExportsSurfaceFragmentKey(value: unknown): value is AdminExportsSurfaceFragmentKey {
-    return ((isRecord(value) && value.kind === "admin-exports" && (value["params"] === null || isRecord(value["params"]))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-exports" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))));
 }
 export function parseAdminExportsSurfaceFragmentKey(value: unknown): AdminExportsSurfaceFragmentKey {
     if (isAdminExportsSurfaceFragmentKey(value)) return value;
@@ -377,7 +380,7 @@ export function encodeAdminExportsSurfaceFragmentKey(value: AdminExportsSurfaceF
 export type AdminShiftTypesSurfaceFragmentKey =
     { kind: "admin-shift-types"; params: AdminShiftTypesAdminShiftTypesFragmentFragmentParams | null };
 export function isAdminShiftTypesSurfaceFragmentKey(value: unknown): value is AdminShiftTypesSurfaceFragmentKey {
-    return ((isRecord(value) && value.kind === "admin-shift-types" && (value["params"] === null || isRecord(value["params"]))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-shift-types" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))));
 }
 export function parseAdminShiftTypesSurfaceFragmentKey(value: unknown): AdminShiftTypesSurfaceFragmentKey {
     if (isAdminShiftTypesSurfaceFragmentKey(value)) return value;
@@ -388,7 +391,7 @@ export function encodeAdminShiftTypesSurfaceFragmentKey(value: AdminShiftTypesSu
 export type AdminRosterGroupsSurfaceFragmentKey =
     { kind: "admin-roster-groups"; params: AdminRosterGroupsAdminRosterGroupsFragmentFragmentParams | null };
 export function isAdminRosterGroupsSurfaceFragmentKey(value: unknown): value is AdminRosterGroupsSurfaceFragmentKey {
-    return ((isRecord(value) && value.kind === "admin-roster-groups" && (value["params"] === null || isRecord(value["params"]))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-roster-groups" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))));
 }
 export function parseAdminRosterGroupsSurfaceFragmentKey(value: unknown): AdminRosterGroupsSurfaceFragmentKey {
     if (isAdminRosterGroupsSurfaceFragmentKey(value)) return value;
@@ -399,7 +402,7 @@ export function encodeAdminRosterGroupsSurfaceFragmentKey(value: AdminRosterGrou
 export type AdminXeroSurfaceFragmentKey =
     { kind: "admin-xero-shell"; params: AdminXeroAdminXeroShellFragmentFragmentParams | null };
 export function isAdminXeroSurfaceFragmentKey(value: unknown): value is AdminXeroSurfaceFragmentKey {
-    return ((isRecord(value) && value.kind === "admin-xero-shell" && (value["params"] === null || isRecord(value["params"]))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "params"]) && value.kind === "admin-xero-shell" && (value["params"] === null || isRecord(value["params"]) && hasExactKeys(value["params"], []))));
 }
 export function parseAdminXeroSurfaceFragmentKey(value: unknown): AdminXeroSurfaceFragmentKey {
     if (isAdminXeroSurfaceFragmentKey(value)) return value;
@@ -426,7 +429,7 @@ export type SurfaceScope =
   | { surface: "admin-roster-groups"; scope: AdminRosterGroupsSurfaceScope }
   | { surface: "admin-xero"; scope: AdminXeroSurfaceScope };
 export function isSurfaceScope(value: unknown): value is SurfaceScope {
-    return ((isRecord(value) && value.surface === "surface-lab" && isSurfaceLabSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "timesheets" && isTimesheetsSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "roster" && isRosterSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "roster-day-timeline" && isRosterDayTimelineSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "leave-requests" && isLeaveRequestsSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "billing" && isBillingSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "support" && isSupportSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "profile" && isProfileSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "staff" && isStaffSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-page" && isAdminPageSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-xero-page" && isAdminXeroPageSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-venue-config" && isAdminVenueConfigSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-invites" && isAdminInvitesSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-exports" && isAdminExportsSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-shift-types" && isAdminShiftTypesSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-roster-groups" && isAdminRosterGroupsSurfaceScope(value.scope)) || (isRecord(value) && value.surface === "admin-xero" && isAdminXeroSurfaceScope(value.scope)));
+    return ((isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "surface-lab" && isSurfaceLabSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "timesheets" && isTimesheetsSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "roster" && isRosterSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "roster-day-timeline" && isRosterDayTimelineSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "leave-requests" && isLeaveRequestsSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "billing" && isBillingSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "support" && isSupportSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "profile" && isProfileSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "staff" && isStaffSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-page" && isAdminPageSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-xero-page" && isAdminXeroPageSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-venue-config" && isAdminVenueConfigSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-invites" && isAdminInvitesSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-exports" && isAdminExportsSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-shift-types" && isAdminShiftTypesSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-roster-groups" && isAdminRosterGroupsSurfaceScope(value.scope)) || (isRecord(value) && hasExactKeys(value, ["surface", "scope"]) && value.surface === "admin-xero" && isAdminXeroSurfaceScope(value.scope)));
 }
 export function parseSurfaceScope(value: unknown): SurfaceScope {
     if (isSurfaceScope(value)) return value;
@@ -453,7 +456,7 @@ export type SurfaceFragmentKey =
   | ({ surface: "admin-roster-groups" } & AdminRosterGroupsSurfaceFragmentKey)
   | ({ surface: "admin-xero" } & AdminXeroSurfaceFragmentKey);
 export function isSurfaceFragmentKey(value: unknown): value is SurfaceFragmentKey {
-    return ((isRecord(value) && value.surface === "surface-lab" && isSurfaceLabSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "timesheets" && isTimesheetsSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "roster" && isRosterSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "roster-day-timeline" && isRosterDayTimelineSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "leave-requests" && isLeaveRequestsSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "billing" && isBillingSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "support" && isSupportSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "profile" && isProfileSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "staff" && isStaffSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-page" && isAdminPageSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-xero-page" && isAdminXeroPageSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-venue-config" && isAdminVenueConfigSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-invites" && isAdminInvitesSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-exports" && isAdminExportsSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-shift-types" && isAdminShiftTypesSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-roster-groups" && isAdminRosterGroupsSurfaceFragmentKey(value)) || (isRecord(value) && value.surface === "admin-xero" && isAdminXeroSurfaceFragmentKey(value)));
+    return ((isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "surface-lab" && isSurfaceLabSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "timesheets" && isTimesheetsSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "roster" && isRosterSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "roster-day-timeline" && isRosterDayTimelineSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "leave-requests" && isLeaveRequestsSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "billing" && isBillingSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "support" && isSupportSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "profile" && isProfileSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "staff" && isStaffSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-page" && isAdminPageSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-xero-page" && isAdminXeroPageSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-venue-config" && isAdminVenueConfigSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-invites" && isAdminInvitesSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-exports" && isAdminExportsSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-shift-types" && isAdminShiftTypesSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-roster-groups" && isAdminRosterGroupsSurfaceFragmentKey({ kind: value.kind, params: value.params })) || (isRecord(value) && hasExactKeys(value, ["surface", "kind", "params"]) && value.surface === "admin-xero" && isAdminXeroSurfaceFragmentKey({ kind: value.kind, params: value.params })));
 }
 export function parseSurfaceFragmentKey(value: unknown): SurfaceFragmentKey {
     if (isSurfaceFragmentKey(value)) return value;
@@ -557,7 +560,7 @@ export function encodeHtmxActionSwap(value: HtmxActionSwap): HtmxActionSwap { re
 
 export type PageReadyEventDetail = {  };
 export function isPageReadyEventDetail(value: unknown): value is PageReadyEventDetail {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parsePageReadyEventDetail(value: unknown): PageReadyEventDetail {
     if (isPageReadyEventDetail(value)) return value;
@@ -569,7 +572,7 @@ export const pageReadyEvent = "bepis:page-ready" as const;
 
 export type LiveFragmentsRefreshEventDetail = { scope: SurfaceScope; scopeKey: string; fragments: ReadonlyArray<SurfaceFragmentKey> };
 export function isLiveFragmentsRefreshEventDetail(value: unknown): value is LiveFragmentsRefreshEventDetail {
-    return isRecord(value) && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item)));
+    return isRecord(value) && hasExactKeys(value, ["scope", "scopeKey", "fragments"]) && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item)));
 }
 export function parseLiveFragmentsRefreshEventDetail(value: unknown): LiveFragmentsRefreshEventDetail {
     if (isLiveFragmentsRefreshEventDetail(value)) return value;
@@ -581,7 +584,7 @@ export const liveFragmentsRefreshEvent = "bepis:live-fragments-refresh" as const
 
 export type InteractionIntentEventDetail = {  };
 export function isInteractionIntentEventDetail(value: unknown): value is InteractionIntentEventDetail {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseInteractionIntentEventDetail(value: unknown): InteractionIntentEventDetail {
     if (isInteractionIntentEventDetail(value)) return value;
@@ -593,7 +596,7 @@ export const interactionIntentEvent = "bepis:interaction-intent" as const;
 
 export type IntentSubmitEventDetail = {  };
 export function isIntentSubmitEventDetail(value: unknown): value is IntentSubmitEventDetail {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseIntentSubmitEventDetail(value: unknown): IntentSubmitEventDetail {
     if (isIntentSubmitEventDetail(value)) return value;
@@ -605,7 +608,7 @@ export const intentSubmitEvent = "bepis:intent-submit" as const;
 
 export type InteractionSessionStartEventDetail = {  };
 export function isInteractionSessionStartEventDetail(value: unknown): value is InteractionSessionStartEventDetail {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseInteractionSessionStartEventDetail(value: unknown): InteractionSessionStartEventDetail {
     if (isInteractionSessionStartEventDetail(value)) return value;
@@ -617,7 +620,7 @@ export const interactionSessionStartEvent = "bepis:interaction-session-start" as
 
 export type InteractionSessionEndEventDetail = {  };
 export function isInteractionSessionEndEventDetail(value: unknown): value is InteractionSessionEndEventDetail {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseInteractionSessionEndEventDetail(value: unknown): InteractionSessionEndEventDetail {
     if (isInteractionSessionEndEventDetail(value)) return value;
@@ -629,7 +632,7 @@ export const interactionSessionEndEvent = "bepis:interaction-session-end" as con
 
 export type InteractionSessionCancelRequestEventDetail = {  };
 export function isInteractionSessionCancelRequestEventDetail(value: unknown): value is InteractionSessionCancelRequestEventDetail {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseInteractionSessionCancelRequestEventDetail(value: unknown): InteractionSessionCancelRequestEventDetail {
     if (isInteractionSessionCancelRequestEventDetail(value)) return value;
@@ -647,7 +650,7 @@ export const toastOverlayMountDomId = "toast-overlay-mount" as const;
 
 export type PartialNavigateAppShellActionFields = {  };
 export function isPartialNavigateAppShellActionFields(value: unknown): value is PartialNavigateAppShellActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parsePartialNavigateAppShellActionFields(value: unknown): PartialNavigateAppShellActionFields {
     if (isPartialNavigateAppShellActionFields(value)) return value;
@@ -659,7 +662,7 @@ export const partialNavigateAppShellActionManifest = {"name":"partial-navigate",
 
 export type OpenFeedbackDialogAppShellActionFields = {  };
 export function isOpenFeedbackDialogAppShellActionFields(value: unknown): value is OpenFeedbackDialogAppShellActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseOpenFeedbackDialogAppShellActionFields(value: unknown): OpenFeedbackDialogAppShellActionFields {
     if (isOpenFeedbackDialogAppShellActionFields(value)) return value;
@@ -671,7 +674,7 @@ export const openFeedbackDialogAppShellActionManifest = {"name":"open-feedback-d
 
 export type OpenPageHelpDialogAppShellActionFields = {  };
 export function isOpenPageHelpDialogAppShellActionFields(value: unknown): value is OpenPageHelpDialogAppShellActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseOpenPageHelpDialogAppShellActionFields(value: unknown): OpenPageHelpDialogAppShellActionFields {
     if (isOpenPageHelpDialogAppShellActionFields(value)) return value;
@@ -683,7 +686,7 @@ export const openPageHelpDialogAppShellActionManifest = {"name":"open-page-help-
 
 export type SubmitFeedbackAppShellActionFields = { feedbackType: string; content: string };
 export function isSubmitFeedbackAppShellActionFields(value: unknown): value is SubmitFeedbackAppShellActionFields {
-    return isRecord(value) && (typeof value["feedbackType"] === "string") && (typeof value["content"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["feedbackType", "content"]) && (typeof value["feedbackType"] === "string") && (typeof value["content"] === "string");
 }
 export function parseSubmitFeedbackAppShellActionFields(value: unknown): SubmitFeedbackAppShellActionFields {
     if (isSubmitFeedbackAppShellActionFields(value)) return value;
@@ -695,7 +698,7 @@ export const submitFeedbackAppShellActionManifest = {"name":"submit-feedback","f
 
 export type OpenTimesheetEntryDialogAppShellActionFields = {  };
 export function isOpenTimesheetEntryDialogAppShellActionFields(value: unknown): value is OpenTimesheetEntryDialogAppShellActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseOpenTimesheetEntryDialogAppShellActionFields(value: unknown): OpenTimesheetEntryDialogAppShellActionFields {
     if (isOpenTimesheetEntryDialogAppShellActionFields(value)) return value;
@@ -707,7 +710,7 @@ export const openTimesheetEntryDialogAppShellActionManifest = {"name":"open-time
 
 export type EditTimesheetEntryDialogAppShellActionFields = {  };
 export function isEditTimesheetEntryDialogAppShellActionFields(value: unknown): value is EditTimesheetEntryDialogAppShellActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseEditTimesheetEntryDialogAppShellActionFields(value: unknown): EditTimesheetEntryDialogAppShellActionFields {
     if (isEditTimesheetEntryDialogAppShellActionFields(value)) return value;
@@ -719,7 +722,7 @@ export const editTimesheetEntryDialogAppShellActionManifest = {"name":"edit-time
 
 export type CreateTimesheetEntryOverlayAppShellActionFields = { weekOffset: string; showApproved: string; showAllStaff: string; staffFilterId: string; staffId: string; shiftTypeId: string; workedOn: string; startTime: string; endTime: string; hadBreak: string; breakStartTime: string; breakEndTime: string; staffComment: string; managerNote: string };
 export function isCreateTimesheetEntryOverlayAppShellActionFields(value: unknown): value is CreateTimesheetEntryOverlayAppShellActionFields {
-    return isRecord(value) && (typeof value["weekOffset"] === "string") && (typeof value["showApproved"] === "string") && (typeof value["showAllStaff"] === "string") && (typeof value["staffFilterId"] === "string") && (typeof value["staffId"] === "string") && (typeof value["shiftTypeId"] === "string") && (typeof value["workedOn"] === "string") && (typeof value["startTime"] === "string") && (typeof value["endTime"] === "string") && (typeof value["hadBreak"] === "string") && (typeof value["breakStartTime"] === "string") && (typeof value["breakEndTime"] === "string") && (typeof value["staffComment"] === "string") && (typeof value["managerNote"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["weekOffset", "showApproved", "showAllStaff", "staffFilterId", "staffId", "shiftTypeId", "workedOn", "startTime", "endTime", "hadBreak", "breakStartTime", "breakEndTime", "staffComment", "managerNote"]) && (typeof value["weekOffset"] === "string") && (typeof value["showApproved"] === "string") && (typeof value["showAllStaff"] === "string") && (typeof value["staffFilterId"] === "string") && (typeof value["staffId"] === "string") && (typeof value["shiftTypeId"] === "string") && (typeof value["workedOn"] === "string") && (typeof value["startTime"] === "string") && (typeof value["endTime"] === "string") && (typeof value["hadBreak"] === "string") && (typeof value["breakStartTime"] === "string") && (typeof value["breakEndTime"] === "string") && (typeof value["staffComment"] === "string") && (typeof value["managerNote"] === "string");
 }
 export function parseCreateTimesheetEntryOverlayAppShellActionFields(value: unknown): CreateTimesheetEntryOverlayAppShellActionFields {
     if (isCreateTimesheetEntryOverlayAppShellActionFields(value)) return value;
@@ -731,7 +734,7 @@ export const createTimesheetEntryOverlayAppShellActionManifest = {"name":"create
 
 export type UpdateTimesheetEntryOverlayAppShellActionFields = { weekOffset: string; showApproved: string; showAllStaff: string; staffFilterId: string; staffId: string; shiftTypeId: string; workedOn: string; startTime: string; endTime: string; hadBreak: string; breakStartTime: string; breakEndTime: string; staffComment: string; managerNote: string };
 export function isUpdateTimesheetEntryOverlayAppShellActionFields(value: unknown): value is UpdateTimesheetEntryOverlayAppShellActionFields {
-    return isRecord(value) && (typeof value["weekOffset"] === "string") && (typeof value["showApproved"] === "string") && (typeof value["showAllStaff"] === "string") && (typeof value["staffFilterId"] === "string") && (typeof value["staffId"] === "string") && (typeof value["shiftTypeId"] === "string") && (typeof value["workedOn"] === "string") && (typeof value["startTime"] === "string") && (typeof value["endTime"] === "string") && (typeof value["hadBreak"] === "string") && (typeof value["breakStartTime"] === "string") && (typeof value["breakEndTime"] === "string") && (typeof value["staffComment"] === "string") && (typeof value["managerNote"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["weekOffset", "showApproved", "showAllStaff", "staffFilterId", "staffId", "shiftTypeId", "workedOn", "startTime", "endTime", "hadBreak", "breakStartTime", "breakEndTime", "staffComment", "managerNote"]) && (typeof value["weekOffset"] === "string") && (typeof value["showApproved"] === "string") && (typeof value["showAllStaff"] === "string") && (typeof value["staffFilterId"] === "string") && (typeof value["staffId"] === "string") && (typeof value["shiftTypeId"] === "string") && (typeof value["workedOn"] === "string") && (typeof value["startTime"] === "string") && (typeof value["endTime"] === "string") && (typeof value["hadBreak"] === "string") && (typeof value["breakStartTime"] === "string") && (typeof value["breakEndTime"] === "string") && (typeof value["staffComment"] === "string") && (typeof value["managerNote"] === "string");
 }
 export function parseUpdateTimesheetEntryOverlayAppShellActionFields(value: unknown): UpdateTimesheetEntryOverlayAppShellActionFields {
     if (isUpdateTimesheetEntryOverlayAppShellActionFields(value)) return value;
@@ -743,7 +746,7 @@ export const updateTimesheetEntryOverlayAppShellActionManifest = {"name":"update
 
 export type DeleteTimesheetEntryOverlayAppShellActionFields = { weekOffset: string; showApproved: string; showAllStaff: string; staffFilterId: string };
 export function isDeleteTimesheetEntryOverlayAppShellActionFields(value: unknown): value is DeleteTimesheetEntryOverlayAppShellActionFields {
-    return isRecord(value) && (typeof value["weekOffset"] === "string") && (typeof value["showApproved"] === "string") && (typeof value["showAllStaff"] === "string") && (typeof value["staffFilterId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["weekOffset", "showApproved", "showAllStaff", "staffFilterId"]) && (typeof value["weekOffset"] === "string") && (typeof value["showApproved"] === "string") && (typeof value["showAllStaff"] === "string") && (typeof value["staffFilterId"] === "string");
 }
 export function parseDeleteTimesheetEntryOverlayAppShellActionFields(value: unknown): DeleteTimesheetEntryOverlayAppShellActionFields {
     if (isDeleteTimesheetEntryOverlayAppShellActionFields(value)) return value;
@@ -755,7 +758,7 @@ export const deleteTimesheetEntryOverlayAppShellActionManifest = {"name":"delete
 
 export type OpenPasskeySetupDialogAppShellActionFields = {  };
 export function isOpenPasskeySetupDialogAppShellActionFields(value: unknown): value is OpenPasskeySetupDialogAppShellActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseOpenPasskeySetupDialogAppShellActionFields(value: unknown): OpenPasskeySetupDialogAppShellActionFields {
     if (isOpenPasskeySetupDialogAppShellActionFields(value)) return value;
@@ -767,7 +770,7 @@ export const openPasskeySetupDialogAppShellActionManifest = {"name":"open-passke
 
 export type OpenPasskeyRecoveryCodeDialogAppShellActionFields = {  };
 export function isOpenPasskeyRecoveryCodeDialogAppShellActionFields(value: unknown): value is OpenPasskeyRecoveryCodeDialogAppShellActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseOpenPasskeyRecoveryCodeDialogAppShellActionFields(value: unknown): OpenPasskeyRecoveryCodeDialogAppShellActionFields {
     if (isOpenPasskeyRecoveryCodeDialogAppShellActionFields(value)) return value;
@@ -779,7 +782,7 @@ export const openPasskeyRecoveryCodeDialogAppShellActionManifest = {"name":"open
 
 export type CreateLeaveRequestOverlayAppShellActionFields = { startDate: string; endDate: string; reason: string };
 export function isCreateLeaveRequestOverlayAppShellActionFields(value: unknown): value is CreateLeaveRequestOverlayAppShellActionFields {
-    return isRecord(value) && (typeof value["startDate"] === "string") && (typeof value["endDate"] === "string") && (typeof value["reason"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["startDate", "endDate", "reason"]) && (typeof value["startDate"] === "string") && (typeof value["endDate"] === "string") && (typeof value["reason"] === "string");
 }
 export function parseCreateLeaveRequestOverlayAppShellActionFields(value: unknown): CreateLeaveRequestOverlayAppShellActionFields {
     if (isCreateLeaveRequestOverlayAppShellActionFields(value)) return value;
@@ -791,7 +794,7 @@ export const createLeaveRequestOverlayAppShellActionManifest = {"name":"create-l
 
 export type OpenXeroTimesheetPreparationOverlayAppShellActionFields = {  };
 export function isOpenXeroTimesheetPreparationOverlayAppShellActionFields(value: unknown): value is OpenXeroTimesheetPreparationOverlayAppShellActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseOpenXeroTimesheetPreparationOverlayAppShellActionFields(value: unknown): OpenXeroTimesheetPreparationOverlayAppShellActionFields {
     if (isOpenXeroTimesheetPreparationOverlayAppShellActionFields(value)) return value;
@@ -803,7 +806,7 @@ export const openXeroTimesheetPreparationOverlayAppShellActionManifest = {"name"
 
 export type RunXeroTimesheetPreparationOverlayAppShellActionFields = {  };
 export function isRunXeroTimesheetPreparationOverlayAppShellActionFields(value: unknown): value is RunXeroTimesheetPreparationOverlayAppShellActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseRunXeroTimesheetPreparationOverlayAppShellActionFields(value: unknown): RunXeroTimesheetPreparationOverlayAppShellActionFields {
     if (isRunXeroTimesheetPreparationOverlayAppShellActionFields(value)) return value;
@@ -815,7 +818,7 @@ export const runXeroTimesheetPreparationOverlayAppShellActionManifest = {"name":
 
 export type ContinueXeroTimesheetPreparationStaffOverlayAppShellActionFields = {  };
 export function isContinueXeroTimesheetPreparationStaffOverlayAppShellActionFields(value: unknown): value is ContinueXeroTimesheetPreparationStaffOverlayAppShellActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseContinueXeroTimesheetPreparationStaffOverlayAppShellActionFields(value: unknown): ContinueXeroTimesheetPreparationStaffOverlayAppShellActionFields {
     if (isContinueXeroTimesheetPreparationStaffOverlayAppShellActionFields(value)) return value;
@@ -827,7 +830,7 @@ export const continueXeroTimesheetPreparationStaffOverlayAppShellActionManifest 
 
 export type SelectXeroTimesheetPreparationPeriodOverlayAppShellActionFields = { periodKey: string };
 export function isSelectXeroTimesheetPreparationPeriodOverlayAppShellActionFields(value: unknown): value is SelectXeroTimesheetPreparationPeriodOverlayAppShellActionFields {
-    return isRecord(value) && (typeof value["periodKey"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["periodKey"]) && (typeof value["periodKey"] === "string");
 }
 export function parseSelectXeroTimesheetPreparationPeriodOverlayAppShellActionFields(value: unknown): SelectXeroTimesheetPreparationPeriodOverlayAppShellActionFields {
     if (isSelectXeroTimesheetPreparationPeriodOverlayAppShellActionFields(value)) return value;
@@ -839,7 +842,7 @@ export const selectXeroTimesheetPreparationPeriodOverlayAppShellActionManifest =
 
 export type ApproveXeroTimesheetPreparationPayItemsOverlayAppShellActionFields = {  };
 export function isApproveXeroTimesheetPreparationPayItemsOverlayAppShellActionFields(value: unknown): value is ApproveXeroTimesheetPreparationPayItemsOverlayAppShellActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseApproveXeroTimesheetPreparationPayItemsOverlayAppShellActionFields(value: unknown): ApproveXeroTimesheetPreparationPayItemsOverlayAppShellActionFields {
     if (isApproveXeroTimesheetPreparationPayItemsOverlayAppShellActionFields(value)) return value;
@@ -851,7 +854,7 @@ export const approveXeroTimesheetPreparationPayItemsOverlayAppShellActionManifes
 
 export type ConfirmXeroTimesheetPreparationSubmissionOverlayAppShellActionFields = {  };
 export function isConfirmXeroTimesheetPreparationSubmissionOverlayAppShellActionFields(value: unknown): value is ConfirmXeroTimesheetPreparationSubmissionOverlayAppShellActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseConfirmXeroTimesheetPreparationSubmissionOverlayAppShellActionFields(value: unknown): ConfirmXeroTimesheetPreparationSubmissionOverlayAppShellActionFields {
     if (isConfirmXeroTimesheetPreparationSubmissionOverlayAppShellActionFields(value)) return value;
@@ -863,7 +866,7 @@ export const confirmXeroTimesheetPreparationSubmissionOverlayAppShellActionManif
 
 export type RunXeroTimesheetPreparationSubmissionOverlayAppShellActionFields = {  };
 export function isRunXeroTimesheetPreparationSubmissionOverlayAppShellActionFields(value: unknown): value is RunXeroTimesheetPreparationSubmissionOverlayAppShellActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseRunXeroTimesheetPreparationSubmissionOverlayAppShellActionFields(value: unknown): RunXeroTimesheetPreparationSubmissionOverlayAppShellActionFields {
     if (isRunXeroTimesheetPreparationSubmissionOverlayAppShellActionFields(value)) return value;
@@ -875,7 +878,7 @@ export const runXeroTimesheetPreparationSubmissionOverlayAppShellActionManifest 
 
 export type ApplyXeroTimesheetPreparationStaffDecisionOverlayAppShellActionFields = { staffId: string; decision: string; xeroEmployeeSelection: string };
 export function isApplyXeroTimesheetPreparationStaffDecisionOverlayAppShellActionFields(value: unknown): value is ApplyXeroTimesheetPreparationStaffDecisionOverlayAppShellActionFields {
-    return isRecord(value) && (typeof value["staffId"] === "string") && (typeof value["decision"] === "string") && (typeof value["xeroEmployeeSelection"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["staffId", "decision", "xeroEmployeeSelection"]) && (typeof value["staffId"] === "string") && (typeof value["decision"] === "string") && (typeof value["xeroEmployeeSelection"] === "string");
 }
 export function parseApplyXeroTimesheetPreparationStaffDecisionOverlayAppShellActionFields(value: unknown): ApplyXeroTimesheetPreparationStaffDecisionOverlayAppShellActionFields {
     if (isApplyXeroTimesheetPreparationStaffDecisionOverlayAppShellActionFields(value)) return value;
@@ -887,7 +890,7 @@ export const applyXeroTimesheetPreparationStaffDecisionOverlayAppShellActionMani
 
 export type RefreshXeroTimesheetPreparationOverlayAppShellActionFields = {  };
 export function isRefreshXeroTimesheetPreparationOverlayAppShellActionFields(value: unknown): value is RefreshXeroTimesheetPreparationOverlayAppShellActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseRefreshXeroTimesheetPreparationOverlayAppShellActionFields(value: unknown): RefreshXeroTimesheetPreparationOverlayAppShellActionFields {
     if (isRefreshXeroTimesheetPreparationOverlayAppShellActionFields(value)) return value;
@@ -899,7 +902,7 @@ export const refreshXeroTimesheetPreparationOverlayAppShellActionManifest = {"na
 
 export type SubmitXeroTimesheetPreparationOverlayAppShellActionFields = {  };
 export function isSubmitXeroTimesheetPreparationOverlayAppShellActionFields(value: unknown): value is SubmitXeroTimesheetPreparationOverlayAppShellActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseSubmitXeroTimesheetPreparationOverlayAppShellActionFields(value: unknown): SubmitXeroTimesheetPreparationOverlayAppShellActionFields {
     if (isSubmitXeroTimesheetPreparationOverlayAppShellActionFields(value)) return value;
@@ -911,7 +914,7 @@ export const submitXeroTimesheetPreparationOverlayAppShellActionManifest = {"nam
 
 export type OpenXeroPayItemImportOverlayAppShellActionFields = {  };
 export function isOpenXeroPayItemImportOverlayAppShellActionFields(value: unknown): value is OpenXeroPayItemImportOverlayAppShellActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseOpenXeroPayItemImportOverlayAppShellActionFields(value: unknown): OpenXeroPayItemImportOverlayAppShellActionFields {
     if (isOpenXeroPayItemImportOverlayAppShellActionFields(value)) return value;
@@ -923,7 +926,7 @@ export const openXeroPayItemImportOverlayAppShellActionManifest = {"name":"open-
 
 export type LoadXeroPayItemImportOverlayAppShellActionFields = { loadCandidates: string };
 export function isLoadXeroPayItemImportOverlayAppShellActionFields(value: unknown): value is LoadXeroPayItemImportOverlayAppShellActionFields {
-    return isRecord(value) && (typeof value["loadCandidates"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["loadCandidates"]) && (typeof value["loadCandidates"] === "string");
 }
 export function parseLoadXeroPayItemImportOverlayAppShellActionFields(value: unknown): LoadXeroPayItemImportOverlayAppShellActionFields {
     if (isLoadXeroPayItemImportOverlayAppShellActionFields(value)) return value;
@@ -935,7 +938,7 @@ export const loadXeroPayItemImportOverlayAppShellActionManifest = {"name":"load-
 
 export type ImportXeroPayItemsOverlayAppShellActionFields = { xeroEarningsRateId: string };
 export function isImportXeroPayItemsOverlayAppShellActionFields(value: unknown): value is ImportXeroPayItemsOverlayAppShellActionFields {
-    return isRecord(value) && (typeof value["xeroEarningsRateId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["xeroEarningsRateId"]) && (typeof value["xeroEarningsRateId"] === "string");
 }
 export function parseImportXeroPayItemsOverlayAppShellActionFields(value: unknown): ImportXeroPayItemsOverlayAppShellActionFields {
     if (isImportXeroPayItemsOverlayAppShellActionFields(value)) return value;
@@ -947,7 +950,7 @@ export const importXeroPayItemsOverlayAppShellActionManifest = {"name":"import-x
 
 export type OpenRosterShiftDialogAppShellActionFields = {  };
 export function isOpenRosterShiftDialogAppShellActionFields(value: unknown): value is OpenRosterShiftDialogAppShellActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseOpenRosterShiftDialogAppShellActionFields(value: unknown): OpenRosterShiftDialogAppShellActionFields {
     if (isOpenRosterShiftDialogAppShellActionFields(value)) return value;
@@ -959,7 +962,7 @@ export const openRosterShiftDialogAppShellActionManifest = {"name":"open-roster-
 
 export type OpenRosterStaffCreateDialogAppShellActionFields = {  };
 export function isOpenRosterStaffCreateDialogAppShellActionFields(value: unknown): value is OpenRosterStaffCreateDialogAppShellActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseOpenRosterStaffCreateDialogAppShellActionFields(value: unknown): OpenRosterStaffCreateDialogAppShellActionFields {
     if (isOpenRosterStaffCreateDialogAppShellActionFields(value)) return value;
@@ -971,7 +974,7 @@ export const openRosterStaffCreateDialogAppShellActionManifest = {"name":"open-r
 
 export type OpenRosterStaffEditDialogAppShellActionFields = {  };
 export function isOpenRosterStaffEditDialogAppShellActionFields(value: unknown): value is OpenRosterStaffEditDialogAppShellActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseOpenRosterStaffEditDialogAppShellActionFields(value: unknown): OpenRosterStaffEditDialogAppShellActionFields {
     if (isOpenRosterStaffEditDialogAppShellActionFields(value)) return value;
@@ -983,7 +986,7 @@ export const openRosterStaffEditDialogAppShellActionManifest = {"name":"open-ros
 
 export type CreateRosterShiftOverlayAppShellActionFields = { staffId: string; shiftTypeId: string; startTime: string; endTime: string };
 export function isCreateRosterShiftOverlayAppShellActionFields(value: unknown): value is CreateRosterShiftOverlayAppShellActionFields {
-    return isRecord(value) && (typeof value["staffId"] === "string") && (typeof value["shiftTypeId"] === "string") && (typeof value["startTime"] === "string") && (typeof value["endTime"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["staffId", "shiftTypeId", "startTime", "endTime"]) && (typeof value["staffId"] === "string") && (typeof value["shiftTypeId"] === "string") && (typeof value["startTime"] === "string") && (typeof value["endTime"] === "string");
 }
 export function parseCreateRosterShiftOverlayAppShellActionFields(value: unknown): CreateRosterShiftOverlayAppShellActionFields {
     if (isCreateRosterShiftOverlayAppShellActionFields(value)) return value;
@@ -995,7 +998,7 @@ export const createRosterShiftOverlayAppShellActionManifest = {"name":"create-ro
 
 export type UpdateRosterShiftOverlayAppShellActionFields = { staffId: string; shiftTypeId: string; startTime: string; endTime: string };
 export function isUpdateRosterShiftOverlayAppShellActionFields(value: unknown): value is UpdateRosterShiftOverlayAppShellActionFields {
-    return isRecord(value) && (typeof value["staffId"] === "string") && (typeof value["shiftTypeId"] === "string") && (typeof value["startTime"] === "string") && (typeof value["endTime"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["staffId", "shiftTypeId", "startTime", "endTime"]) && (typeof value["staffId"] === "string") && (typeof value["shiftTypeId"] === "string") && (typeof value["startTime"] === "string") && (typeof value["endTime"] === "string");
 }
 export function parseUpdateRosterShiftOverlayAppShellActionFields(value: unknown): UpdateRosterShiftOverlayAppShellActionFields {
     if (isUpdateRosterShiftOverlayAppShellActionFields(value)) return value;
@@ -1007,7 +1010,7 @@ export const updateRosterShiftOverlayAppShellActionManifest = {"name":"update-ro
 
 export type DeleteRosterSlotOverlayAppShellActionFields = {  };
 export function isDeleteRosterSlotOverlayAppShellActionFields(value: unknown): value is DeleteRosterSlotOverlayAppShellActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseDeleteRosterSlotOverlayAppShellActionFields(value: unknown): DeleteRosterSlotOverlayAppShellActionFields {
     if (isDeleteRosterSlotOverlayAppShellActionFields(value)) return value;
@@ -1019,7 +1022,7 @@ export const deleteRosterSlotOverlayAppShellActionManifest = {"name":"delete-ros
 
 export type ConfirmRemoveRosterRowOverlayAppShellActionFields = { confirmDeletePopulatedRow: string };
 export function isConfirmRemoveRosterRowOverlayAppShellActionFields(value: unknown): value is ConfirmRemoveRosterRowOverlayAppShellActionFields {
-    return isRecord(value) && (typeof value["confirmDeletePopulatedRow"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["confirmDeletePopulatedRow"]) && (typeof value["confirmDeletePopulatedRow"] === "string");
 }
 export function parseConfirmRemoveRosterRowOverlayAppShellActionFields(value: unknown): ConfirmRemoveRosterRowOverlayAppShellActionFields {
     if (isConfirmRemoveRosterRowOverlayAppShellActionFields(value)) return value;
@@ -1031,7 +1034,7 @@ export const confirmRemoveRosterRowOverlayAppShellActionManifest = {"name":"conf
 
 export type CreateTrialStaffOverlayAppShellActionFields = { firstName: string; lastName: string; preferredName: string; phone: string; idealShiftsPerWeek: string; emergencyContactName: string; emergencyContactPhone: string; section: string; weekOffset: string; rosterGroupId: string; venueRole: string; employmentBasis: string; payRateSelection: string; isActive: string; rosterGroupIds: string };
 export function isCreateTrialStaffOverlayAppShellActionFields(value: unknown): value is CreateTrialStaffOverlayAppShellActionFields {
-    return isRecord(value) && (typeof value["firstName"] === "string") && (typeof value["lastName"] === "string") && (typeof value["preferredName"] === "string") && (typeof value["phone"] === "string") && (typeof value["idealShiftsPerWeek"] === "string") && (typeof value["emergencyContactName"] === "string") && (typeof value["emergencyContactPhone"] === "string") && (typeof value["section"] === "string") && (typeof value["weekOffset"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["venueRole"] === "string") && (typeof value["employmentBasis"] === "string") && (typeof value["payRateSelection"] === "string") && (typeof value["isActive"] === "string") && (typeof value["rosterGroupIds"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["firstName", "lastName", "preferredName", "phone", "idealShiftsPerWeek", "emergencyContactName", "emergencyContactPhone", "section", "weekOffset", "rosterGroupId", "venueRole", "employmentBasis", "payRateSelection", "isActive", "rosterGroupIds"]) && (typeof value["firstName"] === "string") && (typeof value["lastName"] === "string") && (typeof value["preferredName"] === "string") && (typeof value["phone"] === "string") && (typeof value["idealShiftsPerWeek"] === "string") && (typeof value["emergencyContactName"] === "string") && (typeof value["emergencyContactPhone"] === "string") && (typeof value["section"] === "string") && (typeof value["weekOffset"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["venueRole"] === "string") && (typeof value["employmentBasis"] === "string") && (typeof value["payRateSelection"] === "string") && (typeof value["isActive"] === "string") && (typeof value["rosterGroupIds"] === "string");
 }
 export function parseCreateTrialStaffOverlayAppShellActionFields(value: unknown): CreateTrialStaffOverlayAppShellActionFields {
     if (isCreateTrialStaffOverlayAppShellActionFields(value)) return value;
@@ -1043,7 +1046,7 @@ export const createTrialStaffOverlayAppShellActionManifest = {"name":"create-tri
 
 export type UpdateStaffProfileOverlayAppShellActionFields = { firstName: string; lastName: string; preferredName: string; phone: string; idealShiftsPerWeek: string; emergencyContactName: string; emergencyContactPhone: string; section: string; weekOffset: string; rosterGroupId: string; venueRole: string; employmentBasis: string; payRateSelection: string; isActive: string; rosterGroupIds: string };
 export function isUpdateStaffProfileOverlayAppShellActionFields(value: unknown): value is UpdateStaffProfileOverlayAppShellActionFields {
-    return isRecord(value) && (typeof value["firstName"] === "string") && (typeof value["lastName"] === "string") && (typeof value["preferredName"] === "string") && (typeof value["phone"] === "string") && (typeof value["idealShiftsPerWeek"] === "string") && (typeof value["emergencyContactName"] === "string") && (typeof value["emergencyContactPhone"] === "string") && (typeof value["section"] === "string") && (typeof value["weekOffset"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["venueRole"] === "string") && (typeof value["employmentBasis"] === "string") && (typeof value["payRateSelection"] === "string") && (typeof value["isActive"] === "string") && (typeof value["rosterGroupIds"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["firstName", "lastName", "preferredName", "phone", "idealShiftsPerWeek", "emergencyContactName", "emergencyContactPhone", "section", "weekOffset", "rosterGroupId", "venueRole", "employmentBasis", "payRateSelection", "isActive", "rosterGroupIds"]) && (typeof value["firstName"] === "string") && (typeof value["lastName"] === "string") && (typeof value["preferredName"] === "string") && (typeof value["phone"] === "string") && (typeof value["idealShiftsPerWeek"] === "string") && (typeof value["emergencyContactName"] === "string") && (typeof value["emergencyContactPhone"] === "string") && (typeof value["section"] === "string") && (typeof value["weekOffset"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["venueRole"] === "string") && (typeof value["employmentBasis"] === "string") && (typeof value["payRateSelection"] === "string") && (typeof value["isActive"] === "string") && (typeof value["rosterGroupIds"] === "string");
 }
 export function parseUpdateStaffProfileOverlayAppShellActionFields(value: unknown): UpdateStaffProfileOverlayAppShellActionFields {
     if (isUpdateStaffProfileOverlayAppShellActionFields(value)) return value;
@@ -1055,7 +1058,7 @@ export const updateStaffProfileOverlayAppShellActionManifest = {"name":"update-s
 
 export type UpdateStaffShiftPreferencesOverlayAppShellActionFields = { section: string; weekOffset: string; rosterGroupId: string; shiftPreferenceKeys: string };
 export function isUpdateStaffShiftPreferencesOverlayAppShellActionFields(value: unknown): value is UpdateStaffShiftPreferencesOverlayAppShellActionFields {
-    return isRecord(value) && (typeof value["section"] === "string") && (typeof value["weekOffset"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["shiftPreferenceKeys"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["section", "weekOffset", "rosterGroupId", "shiftPreferenceKeys"]) && (typeof value["section"] === "string") && (typeof value["weekOffset"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["shiftPreferenceKeys"] === "string");
 }
 export function parseUpdateStaffShiftPreferencesOverlayAppShellActionFields(value: unknown): UpdateStaffShiftPreferencesOverlayAppShellActionFields {
     if (isUpdateStaffShiftPreferencesOverlayAppShellActionFields(value)) return value;
@@ -1067,7 +1070,7 @@ export const updateStaffShiftPreferencesOverlayAppShellActionManifest = {"name":
 
 export type CreateTrialStaffInvitationOverlayAppShellActionFields = { invitationEmail: string };
 export function isCreateTrialStaffInvitationOverlayAppShellActionFields(value: unknown): value is CreateTrialStaffInvitationOverlayAppShellActionFields {
-    return isRecord(value) && (typeof value["invitationEmail"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["invitationEmail"]) && (typeof value["invitationEmail"] === "string");
 }
 export function parseCreateTrialStaffInvitationOverlayAppShellActionFields(value: unknown): CreateTrialStaffInvitationOverlayAppShellActionFields {
     if (isCreateTrialStaffInvitationOverlayAppShellActionFields(value)) return value;
@@ -1108,7 +1111,7 @@ export function encodeUiRegionLifecycleEvent(value: UiRegionLifecycleEvent): UiR
 
 export type RegionRequestStartEventDetail = {  };
 export function isRegionRequestStartEventDetail(value: unknown): value is RegionRequestStartEventDetail {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseRegionRequestStartEventDetail(value: unknown): RegionRequestStartEventDetail {
     if (isRegionRequestStartEventDetail(value)) return value;
@@ -1120,7 +1123,7 @@ export const regionRequestStartEvent = "bepis:region-request-start" as const;
 
 export type RegionBeforeSwapEventDetail = {  };
 export function isRegionBeforeSwapEventDetail(value: unknown): value is RegionBeforeSwapEventDetail {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseRegionBeforeSwapEventDetail(value: unknown): RegionBeforeSwapEventDetail {
     if (isRegionBeforeSwapEventDetail(value)) return value;
@@ -1132,7 +1135,7 @@ export const regionBeforeSwapEvent = "bepis:region-before-swap" as const;
 
 export type RegionAfterSwapEventDetail = {  };
 export function isRegionAfterSwapEventDetail(value: unknown): value is RegionAfterSwapEventDetail {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseRegionAfterSwapEventDetail(value: unknown): RegionAfterSwapEventDetail {
     if (isRegionAfterSwapEventDetail(value)) return value;
@@ -1144,7 +1147,7 @@ export const regionAfterSwapEvent = "bepis:region-after-swap" as const;
 
 export type RegionSettleEventDetail = {  };
 export function isRegionSettleEventDetail(value: unknown): value is RegionSettleEventDetail {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseRegionSettleEventDetail(value: unknown): RegionSettleEventDetail {
     if (isRegionSettleEventDetail(value)) return value;
@@ -1156,7 +1159,7 @@ export const regionSettleEvent = "bepis:region-settle" as const;
 
 export type RegionErrorEventDetail = {  };
 export function isRegionErrorEventDetail(value: unknown): value is RegionErrorEventDetail {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseRegionErrorEventDetail(value: unknown): RegionErrorEventDetail {
     if (isRegionErrorEventDetail(value)) return value;
@@ -1230,7 +1233,7 @@ export type InteractionSessionEffect =
     { kind: "clone-shadow"; layer: string; source: InteractionEffectSource; className: string; preserveGrabOffset: boolean }
   | { kind: "dropzone-highlight"; className: string };
 export function isInteractionSessionEffect(value: unknown): value is InteractionSessionEffect {
-    return ((isRecord(value) && value["kind"] === "clone-shadow" && (typeof value["layer"] === "string") && (isInteractionEffectSource(value["source"])) && (typeof value["className"] === "string") && (typeof value["preserveGrabOffset"] === "boolean")) || (isRecord(value) && value["kind"] === "dropzone-highlight" && (typeof value["className"] === "string")));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "layer", "source", "className", "preserveGrabOffset"]) && (value["kind"] === "clone-shadow") && (typeof value["layer"] === "string") && (isInteractionEffectSource(value["source"])) && (typeof value["className"] === "string") && (typeof value["preserveGrabOffset"] === "boolean")) || (isRecord(value) && hasExactKeys(value, ["kind", "className"]) && (value["kind"] === "dropzone-highlight") && (typeof value["className"] === "string")));
 }
 export function parseInteractionSessionEffect(value: unknown): InteractionSessionEffect {
     if (isInteractionSessionEffect(value)) return value;
@@ -1240,7 +1243,7 @@ export function encodeInteractionSessionEffect(value: InteractionSessionEffect):
 
 export type InteractionSessionEffects = { global: ReadonlyArray<InteractionSessionEffect>; contextual: ReadonlyArray<InteractionSessionEffect> };
 export function isInteractionSessionEffects(value: unknown): value is InteractionSessionEffects {
-    return isRecord(value) && (Array.isArray(value["global"]) && value["global"].every((item) => isInteractionSessionEffect(item))) && (Array.isArray(value["contextual"]) && value["contextual"].every((item) => isInteractionSessionEffect(item)));
+    return isRecord(value) && hasExactKeys(value, ["global", "contextual"]) && (Array.isArray(value["global"]) && value["global"].every((item) => isInteractionSessionEffect(item))) && (Array.isArray(value["contextual"]) && value["contextual"].every((item) => isInteractionSessionEffect(item)));
 }
 export function parseInteractionSessionEffects(value: unknown): InteractionSessionEffects {
     if (isInteractionSessionEffects(value)) return value;
@@ -1252,7 +1255,7 @@ export type InteractionSessionSelector =
     { kind: "any" }
   | { kind: "session"; session: string };
 export function isInteractionSessionSelector(value: unknown): value is InteractionSessionSelector {
-    return ((isRecord(value) && value["kind"] === "any") || (isRecord(value) && value["kind"] === "session" && (typeof value["session"] === "string")));
+    return ((isRecord(value) && hasExactKeys(value, ["kind"]) && (value["kind"] === "any")) || (isRecord(value) && hasExactKeys(value, ["kind", "session"]) && (value["kind"] === "session") && (typeof value["session"] === "string")));
 }
 export function parseInteractionSessionSelector(value: unknown): InteractionSessionSelector {
     if (isInteractionSessionSelector(value)) return value;
@@ -1264,7 +1267,7 @@ export type InteractionFragmentSelector =
     { kind: "any" }
   | { kind: "live-fragment"; fragment: SurfaceFragmentKey };
 export function isInteractionFragmentSelector(value: unknown): value is InteractionFragmentSelector {
-    return ((isRecord(value) && value["kind"] === "any") || (isRecord(value) && value["kind"] === "live-fragment" && (isSurfaceFragmentKey(value["fragment"]))));
+    return ((isRecord(value) && hasExactKeys(value, ["kind"]) && (value["kind"] === "any")) || (isRecord(value) && hasExactKeys(value, ["kind", "fragment"]) && (value["kind"] === "live-fragment") && (isSurfaceFragmentKey(value["fragment"]))));
 }
 export function parseInteractionFragmentSelector(value: unknown): InteractionFragmentSelector {
     if (isInteractionFragmentSelector(value)) return value;
@@ -1274,7 +1277,7 @@ export function encodeInteractionFragmentSelector(value: InteractionFragmentSele
 
 export type InteractionMountMetadata = { surfaceFamily: string; scopeKey: string; mountKey: string; mountId: string };
 export function isInteractionMountMetadata(value: unknown): value is InteractionMountMetadata {
-    return isRecord(value) && (typeof value["surfaceFamily"] === "string") && (typeof value["scopeKey"] === "string") && (typeof value["mountKey"] === "string") && (typeof value["mountId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["surfaceFamily", "scopeKey", "mountKey", "mountId"]) && (typeof value["surfaceFamily"] === "string") && (typeof value["scopeKey"] === "string") && (typeof value["mountKey"] === "string") && (typeof value["mountId"] === "string");
 }
 export function parseInteractionMountMetadata(value: unknown): InteractionMountMetadata {
     if (isInteractionMountMetadata(value)) return value;
@@ -1284,7 +1287,7 @@ export function encodeInteractionMountMetadata(value: InteractionMountMetadata):
 
 export type ServerLayerContract = { name: string; domId: string };
 export function isServerLayerContract(value: unknown): value is ServerLayerContract {
-    return isRecord(value) && (typeof value["name"] === "string") && (typeof value["domId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["name", "domId"]) && (typeof value["name"] === "string") && (typeof value["domId"] === "string");
 }
 export function parseServerLayerContract(value: unknown): ServerLayerContract {
     if (isServerLayerContract(value)) return value;
@@ -1294,7 +1297,7 @@ export function encodeServerLayerContract(value: ServerLayerContract): ServerLay
 
 export type DisposableLayerContract = { kind: string; name: string; domId: string };
 export function isDisposableLayerContract(value: unknown): value is DisposableLayerContract {
-    return isRecord(value) && (typeof value["kind"] === "string") && (typeof value["name"] === "string") && (typeof value["domId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["kind", "name", "domId"]) && (typeof value["kind"] === "string") && (typeof value["name"] === "string") && (typeof value["domId"] === "string");
 }
 export function parseDisposableLayerContract(value: unknown): DisposableLayerContract {
     if (isDisposableLayerContract(value)) return value;
@@ -1304,7 +1307,7 @@ export function encodeDisposableLayerContract(value: DisposableLayerContract): D
 
 export type SessionKindContract = { kind: string; description: string };
 export function isSessionKindContract(value: unknown): value is SessionKindContract {
-    return isRecord(value) && (typeof value["kind"] === "string") && (typeof value["description"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["kind", "description"]) && (typeof value["kind"] === "string") && (typeof value["description"] === "string");
 }
 export function parseSessionKindContract(value: unknown): SessionKindContract {
     if (isSessionKindContract(value)) return value;
@@ -1314,7 +1317,7 @@ export function encodeSessionKindContract(value: SessionKindContract): SessionKi
 
 export type IntentFieldSchema = { name: string; presence: InteractionFieldPresence; defaultValue?: string | null };
 export function isIntentFieldSchema(value: unknown): value is IntentFieldSchema {
-    return isRecord(value) && (typeof value["name"] === "string") && (isInteractionFieldPresence(value["presence"])) && (!("defaultValue" in value) || (value["defaultValue"] === null || typeof value["defaultValue"] === "string"));
+    return isRecord(value) && hasExactKeys(value, ["name", "presence", "defaultValue"]) && (typeof value["name"] === "string") && (isInteractionFieldPresence(value["presence"])) && (!("defaultValue" in value) || (value["defaultValue"] === null || typeof value["defaultValue"] === "string"));
 }
 export function parseIntentFieldSchema(value: unknown): IntentFieldSchema {
     if (isIntentFieldSchema(value)) return value;
@@ -1324,7 +1327,7 @@ export function encodeIntentFieldSchema(value: IntentFieldSchema): IntentFieldSc
 
 export type IntentHiddenField = { name: string; value: string };
 export function isIntentHiddenField(value: unknown): value is IntentHiddenField {
-    return isRecord(value) && (typeof value["name"] === "string") && (typeof value["value"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["name", "value"]) && (typeof value["name"] === "string") && (typeof value["value"] === "string");
 }
 export function parseIntentHiddenField(value: unknown): IntentHiddenField {
     if (isIntentHiddenField(value)) return value;
@@ -1336,7 +1339,7 @@ export type InteractionIntentTarget =
     { kind: "live-fragment"; fragment: SurfaceFragmentKey }
   | { kind: "mount-local"; target: string };
 export function isInteractionIntentTarget(value: unknown): value is InteractionIntentTarget {
-    return ((isRecord(value) && value["kind"] === "live-fragment" && (isSurfaceFragmentKey(value["fragment"]))) || (isRecord(value) && value["kind"] === "mount-local" && (typeof value["target"] === "string")));
+    return ((isRecord(value) && hasExactKeys(value, ["kind", "fragment"]) && (value["kind"] === "live-fragment") && (isSurfaceFragmentKey(value["fragment"]))) || (isRecord(value) && hasExactKeys(value, ["kind", "target"]) && (value["kind"] === "mount-local") && (typeof value["target"] === "string")));
 }
 export function parseInteractionIntentTarget(value: unknown): InteractionIntentTarget {
     if (isInteractionIntentTarget(value)) return value;
@@ -1346,7 +1349,7 @@ export function encodeInteractionIntentTarget(value: InteractionIntentTarget): I
 
 export type IntentFormContract = { intent: string; name: string; action: string; method: HtmxActionMethod; trigger: string; target: InteractionIntentTarget; swap: HtmxActionSwap; fields: ReadonlyArray<IntentFieldSchema>; hiddenFields: ReadonlyArray<IntentHiddenField>; sync?: string | null; disabledElement?: string | null };
 export function isIntentFormContract(value: unknown): value is IntentFormContract {
-    return isRecord(value) && (typeof value["intent"] === "string") && (typeof value["name"] === "string") && (typeof value["action"] === "string") && (isHtmxActionMethod(value["method"])) && (typeof value["trigger"] === "string") && (isInteractionIntentTarget(value["target"])) && (isHtmxActionSwap(value["swap"])) && (Array.isArray(value["fields"]) && value["fields"].every((item) => isIntentFieldSchema(item))) && (Array.isArray(value["hiddenFields"]) && value["hiddenFields"].every((item) => isIntentHiddenField(item))) && (!("sync" in value) || (value["sync"] === null || typeof value["sync"] === "string")) && (!("disabledElement" in value) || (value["disabledElement"] === null || typeof value["disabledElement"] === "string"));
+    return isRecord(value) && hasExactKeys(value, ["intent", "name", "action", "method", "trigger", "target", "swap", "fields", "hiddenFields", "sync", "disabledElement"]) && (typeof value["intent"] === "string") && (typeof value["name"] === "string") && (typeof value["action"] === "string") && (isHtmxActionMethod(value["method"])) && (typeof value["trigger"] === "string") && (isInteractionIntentTarget(value["target"])) && (isHtmxActionSwap(value["swap"])) && (Array.isArray(value["fields"]) && value["fields"].every((item) => isIntentFieldSchema(item))) && (Array.isArray(value["hiddenFields"]) && value["hiddenFields"].every((item) => isIntentHiddenField(item))) && (!("sync" in value) || (value["sync"] === null || typeof value["sync"] === "string")) && (!("disabledElement" in value) || (value["disabledElement"] === null || typeof value["disabledElement"] === "string"));
 }
 export function parseIntentFormContract(value: unknown): IntentFormContract {
     if (isIntentFormContract(value)) return value;
@@ -1356,7 +1359,7 @@ export function encodeIntentFormContract(value: IntentFormContract): IntentFormC
 
 export type InteractionConflictPolicy = { session: InteractionSessionSelector; fragment: InteractionFragmentSelector; resolution: InteractionConflictResolution; timeoutMs?: number | null };
 export function isInteractionConflictPolicy(value: unknown): value is InteractionConflictPolicy {
-    return isRecord(value) && (isInteractionSessionSelector(value["session"])) && (isInteractionFragmentSelector(value["fragment"])) && (isInteractionConflictResolution(value["resolution"])) && (!("timeoutMs" in value) || (value["timeoutMs"] === null || typeof value["timeoutMs"] === "number" && Number.isInteger(value["timeoutMs"])));
+    return isRecord(value) && hasExactKeys(value, ["session", "fragment", "resolution", "timeoutMs"]) && (isInteractionSessionSelector(value["session"])) && (isInteractionFragmentSelector(value["fragment"])) && (isInteractionConflictResolution(value["resolution"])) && (!("timeoutMs" in value) || (value["timeoutMs"] === null || typeof value["timeoutMs"] === "number" && Number.isInteger(value["timeoutMs"])));
 }
 export function parseInteractionConflictPolicy(value: unknown): InteractionConflictPolicy {
     if (isInteractionConflictPolicy(value)) return value;
@@ -1366,7 +1369,7 @@ export function encodeInteractionConflictPolicy(value: InteractionConflictPolicy
 
 export type InteractionCapabilityContract = { mount: InteractionMountMetadata; serverLayers: ReadonlyArray<ServerLayerContract>; disposableLayers: ReadonlyArray<DisposableLayerContract>; sessionKinds: ReadonlyArray<SessionKindContract>; intentForms: ReadonlyArray<IntentFormContract>; conflictPolicies: ReadonlyArray<InteractionConflictPolicy> };
 export function isInteractionCapabilityContract(value: unknown): value is InteractionCapabilityContract {
-    return isRecord(value) && (isInteractionMountMetadata(value["mount"])) && (Array.isArray(value["serverLayers"]) && value["serverLayers"].every((item) => isServerLayerContract(item))) && (Array.isArray(value["disposableLayers"]) && value["disposableLayers"].every((item) => isDisposableLayerContract(item))) && (Array.isArray(value["sessionKinds"]) && value["sessionKinds"].every((item) => isSessionKindContract(item))) && (Array.isArray(value["intentForms"]) && value["intentForms"].every((item) => isIntentFormContract(item))) && (Array.isArray(value["conflictPolicies"]) && value["conflictPolicies"].every((item) => isInteractionConflictPolicy(item)));
+    return isRecord(value) && hasExactKeys(value, ["mount", "serverLayers", "disposableLayers", "sessionKinds", "intentForms", "conflictPolicies"]) && (isInteractionMountMetadata(value["mount"])) && (Array.isArray(value["serverLayers"]) && value["serverLayers"].every((item) => isServerLayerContract(item))) && (Array.isArray(value["disposableLayers"]) && value["disposableLayers"].every((item) => isDisposableLayerContract(item))) && (Array.isArray(value["sessionKinds"]) && value["sessionKinds"].every((item) => isSessionKindContract(item))) && (Array.isArray(value["intentForms"]) && value["intentForms"].every((item) => isIntentFormContract(item))) && (Array.isArray(value["conflictPolicies"]) && value["conflictPolicies"].every((item) => isInteractionConflictPolicy(item)));
 }
 export function parseInteractionCapabilityContract(value: unknown): InteractionCapabilityContract {
     if (isInteractionCapabilityContract(value)) return value;
@@ -1376,7 +1379,7 @@ export function encodeInteractionCapabilityContract(value: InteractionCapability
 
 export type InteractionStaticServerLayer = { name: string; domIdSuffix: string };
 export function isInteractionStaticServerLayer(value: unknown): value is InteractionStaticServerLayer {
-    return isRecord(value) && (typeof value["name"] === "string") && (typeof value["domIdSuffix"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["name", "domIdSuffix"]) && (typeof value["name"] === "string") && (typeof value["domIdSuffix"] === "string");
 }
 export function parseInteractionStaticServerLayer(value: unknown): InteractionStaticServerLayer {
     if (isInteractionStaticServerLayer(value)) return value;
@@ -1386,7 +1389,7 @@ export function encodeInteractionStaticServerLayer(value: InteractionStaticServe
 
 export type InteractionStaticDisposableLayer = { name: string; domIdSuffix: string };
 export function isInteractionStaticDisposableLayer(value: unknown): value is InteractionStaticDisposableLayer {
-    return isRecord(value) && (typeof value["name"] === "string") && (typeof value["domIdSuffix"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["name", "domIdSuffix"]) && (typeof value["name"] === "string") && (typeof value["domIdSuffix"] === "string");
 }
 export function parseInteractionStaticDisposableLayer(value: unknown): InteractionStaticDisposableLayer {
     if (isInteractionStaticDisposableLayer(value)) return value;
@@ -1396,7 +1399,7 @@ export function encodeInteractionStaticDisposableLayer(value: InteractionStaticD
 
 export type InteractionStaticSessionKind = { kind: string; description: string; effects: InteractionSessionEffects };
 export function isInteractionStaticSessionKind(value: unknown): value is InteractionStaticSessionKind {
-    return isRecord(value) && (typeof value["kind"] === "string") && (typeof value["description"] === "string") && (isInteractionSessionEffects(value["effects"]));
+    return isRecord(value) && hasExactKeys(value, ["kind", "description", "effects"]) && (typeof value["kind"] === "string") && (typeof value["description"] === "string") && (isInteractionSessionEffects(value["effects"]));
 }
 export function parseInteractionStaticSessionKind(value: unknown): InteractionStaticSessionKind {
     if (isInteractionStaticSessionKind(value)) return value;
@@ -1406,7 +1409,7 @@ export function encodeInteractionStaticSessionKind(value: InteractionStaticSessi
 
 export type InteractionStaticIntent = { name: string; fields: ReadonlyArray<IntentFieldSchema> };
 export function isInteractionStaticIntent(value: unknown): value is InteractionStaticIntent {
-    return isRecord(value) && (typeof value["name"] === "string") && (Array.isArray(value["fields"]) && value["fields"].every((item) => isIntentFieldSchema(item)));
+    return isRecord(value) && hasExactKeys(value, ["name", "fields"]) && (typeof value["name"] === "string") && (Array.isArray(value["fields"]) && value["fields"].every((item) => isIntentFieldSchema(item)));
 }
 export function parseInteractionStaticIntent(value: unknown): InteractionStaticIntent {
     if (isInteractionStaticIntent(value)) return value;
@@ -1416,7 +1419,7 @@ export function encodeInteractionStaticIntent(value: InteractionStaticIntent): I
 
 export type InteractionStaticSchema = { serverLayers: ReadonlyArray<InteractionStaticServerLayer>; disposableLayers: ReadonlyArray<InteractionStaticDisposableLayer>; sessionKinds: ReadonlyArray<InteractionStaticSessionKind>; intents: ReadonlyArray<InteractionStaticIntent>; conflictPolicies: ReadonlyArray<InteractionConflictPolicy> };
 export function isInteractionStaticSchema(value: unknown): value is InteractionStaticSchema {
-    return isRecord(value) && (Array.isArray(value["serverLayers"]) && value["serverLayers"].every((item) => isInteractionStaticServerLayer(item))) && (Array.isArray(value["disposableLayers"]) && value["disposableLayers"].every((item) => isInteractionStaticDisposableLayer(item))) && (Array.isArray(value["sessionKinds"]) && value["sessionKinds"].every((item) => isInteractionStaticSessionKind(item))) && (Array.isArray(value["intents"]) && value["intents"].every((item) => isInteractionStaticIntent(item))) && (Array.isArray(value["conflictPolicies"]) && value["conflictPolicies"].every((item) => isInteractionConflictPolicy(item)));
+    return isRecord(value) && hasExactKeys(value, ["serverLayers", "disposableLayers", "sessionKinds", "intents", "conflictPolicies"]) && (Array.isArray(value["serverLayers"]) && value["serverLayers"].every((item) => isInteractionStaticServerLayer(item))) && (Array.isArray(value["disposableLayers"]) && value["disposableLayers"].every((item) => isInteractionStaticDisposableLayer(item))) && (Array.isArray(value["sessionKinds"]) && value["sessionKinds"].every((item) => isInteractionStaticSessionKind(item))) && (Array.isArray(value["intents"]) && value["intents"].every((item) => isInteractionStaticIntent(item))) && (Array.isArray(value["conflictPolicies"]) && value["conflictPolicies"].every((item) => isInteractionConflictPolicy(item)));
 }
 export function parseInteractionStaticSchema(value: unknown): InteractionStaticSchema {
     if (isInteractionStaticSchema(value)) return value;
@@ -1539,9 +1542,17 @@ export function encodeInteractionStaticSchemaRegistry(value: InteractionStaticSc
 
 export const InteractionStaticSchemas: InteractionStaticSchemaRegistry = {"roster":{"serverLayers":[],"disposableLayers":[{"name":"drag-preview","domIdSuffix":"drag-preview"}],"sessionKinds":[{"kind":"drag","description":"Roster drag/drop prototype","effects":{"global":[{"className":"bepis-pointer-clone-shadow","kind":"clone-shadow","layer":"drag-preview","preserveGrabOffset":true,"source":"pointer-marker"}],"contextual":[{"className":"bepis-dropzone-highlight","kind":"dropzone-highlight"}]}}],"intents":[{"name":"set-roster-layout-mode","fields":[{"name":"rosterLayoutMode","presence":"required","defaultValue":null}]},{"name":"move-roster-shift-to-slot","fields":[{"name":"sourceItemKey","presence":"required","defaultValue":null},{"name":"targetDropzoneKey","presence":"required","defaultValue":null},{"name":"sessionKind","presence":"optional","defaultValue":null},{"name":"pointerId","presence":"optional","defaultValue":null},{"name":"pointerType","presence":"optional","defaultValue":null},{"name":"startClientX","presence":"optional","defaultValue":null},{"name":"startClientY","presence":"optional","defaultValue":null},{"name":"currentClientX","presence":"optional","defaultValue":null},{"name":"currentClientY","presence":"optional","defaultValue":null},{"name":"deltaX","presence":"optional","defaultValue":null},{"name":"deltaY","presence":"optional","defaultValue":null}]},{"name":"duplicate-roster-shift-to-day","fields":[{"name":"sourceItemKey","presence":"required","defaultValue":null},{"name":"targetDropzoneKey","presence":"required","defaultValue":null},{"name":"sessionKind","presence":"optional","defaultValue":null},{"name":"pointerId","presence":"optional","defaultValue":null},{"name":"pointerType","presence":"optional","defaultValue":null},{"name":"startClientX","presence":"optional","defaultValue":null},{"name":"startClientY","presence":"optional","defaultValue":null},{"name":"currentClientX","presence":"optional","defaultValue":null},{"name":"currentClientY","presence":"optional","defaultValue":null},{"name":"deltaX","presence":"optional","defaultValue":null},{"name":"deltaY","presence":"optional","defaultValue":null}]},{"name":"drop-roster-staff","fields":[{"name":"sourceItemKey","presence":"required","defaultValue":null},{"name":"targetDropzoneKey","presence":"required","defaultValue":null},{"name":"sessionKind","presence":"optional","defaultValue":null},{"name":"pointerId","presence":"optional","defaultValue":null},{"name":"pointerType","presence":"optional","defaultValue":null},{"name":"startClientX","presence":"optional","defaultValue":null},{"name":"startClientY","presence":"optional","defaultValue":null},{"name":"currentClientX","presence":"optional","defaultValue":null},{"name":"currentClientY","presence":"optional","defaultValue":null},{"name":"deltaX","presence":"optional","defaultValue":null},{"name":"deltaY","presence":"optional","defaultValue":null}]}],"conflictPolicies":[]},"roster-day-timeline":{"serverLayers":[],"disposableLayers":[{"name":"drag-preview","domIdSuffix":"drag-preview"}],"sessionKinds":[{"kind":"drag","description":"roster-day-timeline drag interaction session","effects":{"global":[{"className":"bepis-pointer-clone-shadow","kind":"clone-shadow","layer":"drag-preview","preserveGrabOffset":true,"source":"pointer-marker"}],"contextual":[{"className":"bepis-dropzone-highlight","kind":"dropzone-highlight"}]}}],"intents":[{"name":"move-roster-timeline-shift","fields":[{"name":"sourceItemKey","presence":"required","defaultValue":null},{"name":"targetDropzoneKey","presence":"required","defaultValue":null},{"name":"sessionKind","presence":"optional","defaultValue":null},{"name":"pointerId","presence":"optional","defaultValue":null},{"name":"pointerType","presence":"optional","defaultValue":null},{"name":"startClientX","presence":"optional","defaultValue":null},{"name":"startClientY","presence":"optional","defaultValue":null},{"name":"currentClientX","presence":"optional","defaultValue":null},{"name":"currentClientY","presence":"optional","defaultValue":null},{"name":"deltaX","presence":"optional","defaultValue":null},{"name":"deltaY","presence":"optional","defaultValue":null}]}],"conflictPolicies":[{"session":{"kind":"session","session":"drag"},"fragment":{"kind":"any"},"resolution":"defer","timeoutMs":5000}]}};
 
+export const liveUpdateSocketPath = "live-updates" as const;
+
+export const liveUpdateClientIdHeader = "X-Live-Update-Client-Id" as const;
+
+export const surfaceConfigDomAttr = "data-bepis-surface-config" as const;
+
+export const surfaceActionDomAttr = "data-bepis-surface-action" as const;
+
 export type SurfaceSubscription = { scope: SurfaceScope; scopeKey: string; fragments: ReadonlyArray<SurfaceFragmentKey> };
 export function isSurfaceSubscription(value: unknown): value is SurfaceSubscription {
-    return isRecord(value) && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item)));
+    return isRecord(value) && hasExactKeys(value, ["scope", "scopeKey", "fragments"]) && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item)));
 }
 export function parseSurfaceSubscription(value: unknown): SurfaceSubscription {
     if (isSurfaceSubscription(value)) return value;
@@ -1553,7 +1564,7 @@ export type LiveUpdateCommand =
     { type: "subscribe"; subscription: SurfaceSubscription; clientId: string; lastSeenVersion: number | null }
   | { type: "unsubscribe"; subscription: SurfaceSubscription };
 export function isLiveUpdateCommand(value: unknown): value is LiveUpdateCommand {
-    return ((isRecord(value) && value["type"] === "subscribe" && (isSurfaceSubscription(value["subscription"])) && (typeof value["clientId"] === "string") && (value["lastSeenVersion"] === null || (typeof value["lastSeenVersion"] === "number" && Number.isInteger(value["lastSeenVersion"])))) || (isRecord(value) && value["type"] === "unsubscribe" && (isSurfaceSubscription(value["subscription"]))));
+    return ((isRecord(value) && hasExactKeys(value, ["type", "subscription", "clientId", "lastSeenVersion"]) && (value["type"] === "subscribe") && (isSurfaceSubscription(value["subscription"])) && (typeof value["clientId"] === "string") && (value["lastSeenVersion"] === null || (typeof value["lastSeenVersion"] === "number" && Number.isInteger(value["lastSeenVersion"])))) || (isRecord(value) && hasExactKeys(value, ["type", "subscription"]) && (value["type"] === "unsubscribe") && (isSurfaceSubscription(value["subscription"]))));
 }
 export function parseLiveUpdateCommand(value: unknown): LiveUpdateCommand {
     if (isLiveUpdateCommand(value)) return value;
@@ -1566,7 +1577,7 @@ export type LiveUpdateMessage =
   | { type: "invalidate"; scope: SurfaceScope; scopeKey: string; version: number; fragments: ReadonlyArray<SurfaceFragmentKey>; sourceClientId: string | null }
   | { type: "error"; message: string };
 export function isLiveUpdateMessage(value: unknown): value is LiveUpdateMessage {
-    return ((isRecord(value) && value["type"] === "subscribed" && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && (typeof value["resync"] === "boolean")) || (isRecord(value) && value["type"] === "invalidate" && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item))) && (value["sourceClientId"] === null || (typeof value["sourceClientId"] === "string"))) || (isRecord(value) && value["type"] === "error" && (typeof value["message"] === "string")));
+    return ((isRecord(value) && hasExactKeys(value, ["type", "scope", "scopeKey", "currentVersion", "resync"]) && (value["type"] === "subscribed") && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && (typeof value["resync"] === "boolean")) || (isRecord(value) && hasExactKeys(value, ["type", "scope", "scopeKey", "version", "fragments", "sourceClientId"]) && (value["type"] === "invalidate") && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item))) && (value["sourceClientId"] === null || (typeof value["sourceClientId"] === "string"))) || (isRecord(value) && hasExactKeys(value, ["type", "message"]) && (value["type"] === "error") && (typeof value["message"] === "string")));
 }
 export function parseLiveUpdateMessage(value: unknown): LiveUpdateMessage {
     if (isLiveUpdateMessage(value)) return value;
@@ -1576,7 +1587,7 @@ export function encodeLiveUpdateMessage(value: LiveUpdateMessage): LiveUpdateMes
 
 export type SurfaceLabLabScopeScope = { venueId: FrontendContractUuid; weekOffset: number };
 export function isSurfaceLabLabScopeScope(value: unknown): value is SurfaceLabLabScopeScope {
-    return isRecord(value) && (typeof value["venueId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
+    return isRecord(value) && hasExactKeys(value, ["venueId", "weekOffset"]) && (typeof value["venueId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
 }
 export function parseSurfaceLabLabScopeScope(value: unknown): SurfaceLabLabScopeScope {
     if (isSurfaceLabLabScopeScope(value)) return value;
@@ -1584,19 +1595,9 @@ export function parseSurfaceLabLabScopeScope(value: unknown): SurfaceLabLabScope
 }
 export function encodeSurfaceLabLabScopeScope(value: SurfaceLabLabScopeScope): SurfaceLabLabScopeScope { return value; }
 
-export type SurfaceLabLabViewStateMountState = { showArchived: boolean; staffFilterId?: FrontendContractUuid };
-export function isSurfaceLabLabViewStateMountState(value: unknown): value is SurfaceLabLabViewStateMountState {
-    return isRecord(value) && (typeof value["showArchived"] === "boolean") && (!("staffFilterId" in value) || (typeof value["staffFilterId"] === "string"));
-}
-export function parseSurfaceLabLabViewStateMountState(value: unknown): SurfaceLabLabViewStateMountState {
-    if (isSurfaceLabLabViewStateMountState(value)) return value;
-    throw new Error("Invalid SurfaceLabLabViewStateMountState");
-}
-export function encodeSurfaceLabLabViewStateMountState(value: SurfaceLabLabViewStateMountState): SurfaceLabLabViewStateMountState { return value; }
-
 export type SurfaceLabLabShellFragmentParams = {  };
 export function isSurfaceLabLabShellFragmentParams(value: unknown): value is SurfaceLabLabShellFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseSurfaceLabLabShellFragmentParams(value: unknown): SurfaceLabLabShellFragmentParams {
     if (isSurfaceLabLabShellFragmentParams(value)) return value;
@@ -1606,7 +1607,7 @@ export function encodeSurfaceLabLabShellFragmentParams(value: SurfaceLabLabShell
 
 export type SurfaceLabLabPanelFragmentParams = { panelId: FrontendContractUuid };
 export function isSurfaceLabLabPanelFragmentParams(value: unknown): value is SurfaceLabLabPanelFragmentParams {
-    return isRecord(value) && (typeof value["panelId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["panelId"]) && (typeof value["panelId"] === "string");
 }
 export function parseSurfaceLabLabPanelFragmentParams(value: unknown): SurfaceLabLabPanelFragmentParams {
     if (isSurfaceLabLabPanelFragmentParams(value)) return value;
@@ -1616,7 +1617,7 @@ export function encodeSurfaceLabLabPanelFragmentParams(value: SurfaceLabLabPanel
 
 export type SurfaceLabRefreshPanelActionFields = { panelId: FrontendContractUuid };
 export function isSurfaceLabRefreshPanelActionFields(value: unknown): value is SurfaceLabRefreshPanelActionFields {
-    return isRecord(value) && (typeof value["panelId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["panelId"]) && (typeof value["panelId"] === "string");
 }
 export function parseSurfaceLabRefreshPanelActionFields(value: unknown): SurfaceLabRefreshPanelActionFields {
     if (isSurfaceLabRefreshPanelActionFields(value)) return value;
@@ -1626,7 +1627,7 @@ export function encodeSurfaceLabRefreshPanelActionFields(value: SurfaceLabRefres
 
 export type SurfaceLabMoveLabCardIntentFields = { sourceItemKey: string; targetDropzoneKey: string };
 export function isSurfaceLabMoveLabCardIntentFields(value: unknown): value is SurfaceLabMoveLabCardIntentFields {
-    return isRecord(value) && (typeof value["sourceItemKey"] === "string") && (typeof value["targetDropzoneKey"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["sourceItemKey", "targetDropzoneKey"]) && (typeof value["sourceItemKey"] === "string") && (typeof value["targetDropzoneKey"] === "string");
 }
 export function parseSurfaceLabMoveLabCardIntentFields(value: unknown): SurfaceLabMoveLabCardIntentFields {
     if (isSurfaceLabMoveLabCardIntentFields(value)) return value;
@@ -1636,7 +1637,7 @@ export function encodeSurfaceLabMoveLabCardIntentFields(value: SurfaceLabMoveLab
 
 export type LabPayload = { label: string; count?: number; note: string | null; tags: ReadonlyArray<string>; dueDay: FrontendContractDay; maybeRank: number | undefined; maybeMemo: string | null; relatedPayload: LabRelatedPayload };
 export function isLabPayload(value: unknown): value is LabPayload {
-    return isRecord(value) && (typeof value["label"] === "string") && (!("count" in value) || (typeof value["count"] === "number" && Number.isInteger(value["count"]))) && (value["note"] === null || (typeof value["note"] === "string")) && (Array.isArray(value["tags"]) && value["tags"].every((item) => typeof item === "string")) && (typeof value["dueDay"] === "string") && (value["maybeRank"] === undefined || typeof value["maybeRank"] === "number" && Number.isInteger(value["maybeRank"])) && (value["maybeMemo"] === null || typeof value["maybeMemo"] === "string") && (isLabRelatedPayload(value["relatedPayload"]));
+    return isRecord(value) && hasExactKeys(value, ["label", "count", "note", "tags", "dueDay", "maybeRank", "maybeMemo", "relatedPayload"]) && (typeof value["label"] === "string") && (!("count" in value) || (typeof value["count"] === "number" && Number.isInteger(value["count"]))) && (value["note"] === null || (typeof value["note"] === "string")) && (Array.isArray(value["tags"]) && value["tags"].every((item) => typeof item === "string")) && (typeof value["dueDay"] === "string") && (value["maybeRank"] === undefined || typeof value["maybeRank"] === "number" && Number.isInteger(value["maybeRank"])) && (value["maybeMemo"] === null || typeof value["maybeMemo"] === "string") && (isLabRelatedPayload(value["relatedPayload"]));
 }
 export function parseLabPayload(value: unknown): LabPayload {
     if (isLabPayload(value)) return value;
@@ -1646,7 +1647,7 @@ export function encodeLabPayload(value: LabPayload): LabPayload { return value; 
 
 export type LabRelatedPayload = { label: string };
 export function isLabRelatedPayload(value: unknown): value is LabRelatedPayload {
-    return isRecord(value) && (typeof value["label"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["label"]) && (typeof value["label"] === "string");
 }
 export function parseLabRelatedPayload(value: unknown): LabRelatedPayload {
     if (isLabRelatedPayload(value)) return value;
@@ -1656,7 +1657,7 @@ export function encodeLabRelatedPayload(value: LabRelatedPayload): LabRelatedPay
 
 export type TimesheetsTimesheetWeekScope = { venueId: FrontendContractUuid; weekOffset: number };
 export function isTimesheetsTimesheetWeekScope(value: unknown): value is TimesheetsTimesheetWeekScope {
-    return isRecord(value) && (typeof value["venueId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
+    return isRecord(value) && hasExactKeys(value, ["venueId", "weekOffset"]) && (typeof value["venueId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
 }
 export function parseTimesheetsTimesheetWeekScope(value: unknown): TimesheetsTimesheetWeekScope {
     if (isTimesheetsTimesheetWeekScope(value)) return value;
@@ -1664,19 +1665,9 @@ export function parseTimesheetsTimesheetWeekScope(value: unknown): TimesheetsTim
 }
 export function encodeTimesheetsTimesheetWeekScope(value: TimesheetsTimesheetWeekScope): TimesheetsTimesheetWeekScope { return value; }
 
-export type TimesheetsTimesheetsMountStateMountState = { showApproved: boolean; showAllStaff: boolean; staffFilterId: FrontendContractUuid | undefined };
-export function isTimesheetsTimesheetsMountStateMountState(value: unknown): value is TimesheetsTimesheetsMountStateMountState {
-    return isRecord(value) && (typeof value["showApproved"] === "boolean") && (typeof value["showAllStaff"] === "boolean") && (value["staffFilterId"] === undefined || typeof value["staffFilterId"] === "string");
-}
-export function parseTimesheetsTimesheetsMountStateMountState(value: unknown): TimesheetsTimesheetsMountStateMountState {
-    if (isTimesheetsTimesheetsMountStateMountState(value)) return value;
-    throw new Error("Invalid TimesheetsTimesheetsMountStateMountState");
-}
-export function encodeTimesheetsTimesheetsMountStateMountState(value: TimesheetsTimesheetsMountStateMountState): TimesheetsTimesheetsMountStateMountState { return value; }
-
 export type TimesheetsTimesheetToolbarFragmentParams = {  };
 export function isTimesheetsTimesheetToolbarFragmentParams(value: unknown): value is TimesheetsTimesheetToolbarFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseTimesheetsTimesheetToolbarFragmentParams(value: unknown): TimesheetsTimesheetToolbarFragmentParams {
     if (isTimesheetsTimesheetToolbarFragmentParams(value)) return value;
@@ -1686,7 +1677,7 @@ export function encodeTimesheetsTimesheetToolbarFragmentParams(value: Timesheets
 
 export type TimesheetsTimesheetDayColumnsFragmentParams = {  };
 export function isTimesheetsTimesheetDayColumnsFragmentParams(value: unknown): value is TimesheetsTimesheetDayColumnsFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseTimesheetsTimesheetDayColumnsFragmentParams(value: unknown): TimesheetsTimesheetDayColumnsFragmentParams {
     if (isTimesheetsTimesheetDayColumnsFragmentParams(value)) return value;
@@ -1696,7 +1687,7 @@ export function encodeTimesheetsTimesheetDayColumnsFragmentParams(value: Timeshe
 
 export type TimesheetsTimesheetDaySectionFragmentParams = { dayOffset: number };
 export function isTimesheetsTimesheetDaySectionFragmentParams(value: unknown): value is TimesheetsTimesheetDaySectionFragmentParams {
-    return isRecord(value) && (typeof value["dayOffset"] === "number" && Number.isInteger(value["dayOffset"]));
+    return isRecord(value) && hasExactKeys(value, ["dayOffset"]) && (typeof value["dayOffset"] === "number" && Number.isInteger(value["dayOffset"]));
 }
 export function parseTimesheetsTimesheetDaySectionFragmentParams(value: unknown): TimesheetsTimesheetDaySectionFragmentParams {
     if (isTimesheetsTimesheetDaySectionFragmentParams(value)) return value;
@@ -1706,7 +1697,7 @@ export function encodeTimesheetsTimesheetDaySectionFragmentParams(value: Timeshe
 
 export type TimesheetsNavigateTimesheetWeekActionFields = { weekOffset: number; showApproved: boolean; showAllStaff: boolean; staffFilterId?: FrontendContractUuid };
 export function isTimesheetsNavigateTimesheetWeekActionFields(value: unknown): value is TimesheetsNavigateTimesheetWeekActionFields {
-    return isRecord(value) && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) && (typeof value["showApproved"] === "boolean") && (typeof value["showAllStaff"] === "boolean") && (!("staffFilterId" in value) || (typeof value["staffFilterId"] === "string"));
+    return isRecord(value) && hasExactKeys(value, ["weekOffset", "showApproved", "showAllStaff", "staffFilterId"]) && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) && (typeof value["showApproved"] === "boolean") && (typeof value["showAllStaff"] === "boolean") && (!("staffFilterId" in value) || (typeof value["staffFilterId"] === "string"));
 }
 export function parseTimesheetsNavigateTimesheetWeekActionFields(value: unknown): TimesheetsNavigateTimesheetWeekActionFields {
     if (isTimesheetsNavigateTimesheetWeekActionFields(value)) return value;
@@ -1716,7 +1707,7 @@ export function encodeTimesheetsNavigateTimesheetWeekActionFields(value: Timeshe
 
 export type TimesheetsUpdateTimesheetFiltersActionFields = { weekOffset: number; showApproved: boolean; showAllStaff: boolean; staffFilterId?: FrontendContractUuid };
 export function isTimesheetsUpdateTimesheetFiltersActionFields(value: unknown): value is TimesheetsUpdateTimesheetFiltersActionFields {
-    return isRecord(value) && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) && (typeof value["showApproved"] === "boolean") && (typeof value["showAllStaff"] === "boolean") && (!("staffFilterId" in value) || (typeof value["staffFilterId"] === "string"));
+    return isRecord(value) && hasExactKeys(value, ["weekOffset", "showApproved", "showAllStaff", "staffFilterId"]) && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) && (typeof value["showApproved"] === "boolean") && (typeof value["showAllStaff"] === "boolean") && (!("staffFilterId" in value) || (typeof value["staffFilterId"] === "string"));
 }
 export function parseTimesheetsUpdateTimesheetFiltersActionFields(value: unknown): TimesheetsUpdateTimesheetFiltersActionFields {
     if (isTimesheetsUpdateTimesheetFiltersActionFields(value)) return value;
@@ -1726,7 +1717,7 @@ export function encodeTimesheetsUpdateTimesheetFiltersActionFields(value: Timesh
 
 export type TimesheetsApproveTimesheetEntryActionFields = { weekOffset: number; showApproved: boolean; showAllStaff: boolean; staffFilterId?: FrontendContractUuid };
 export function isTimesheetsApproveTimesheetEntryActionFields(value: unknown): value is TimesheetsApproveTimesheetEntryActionFields {
-    return isRecord(value) && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) && (typeof value["showApproved"] === "boolean") && (typeof value["showAllStaff"] === "boolean") && (!("staffFilterId" in value) || (typeof value["staffFilterId"] === "string"));
+    return isRecord(value) && hasExactKeys(value, ["weekOffset", "showApproved", "showAllStaff", "staffFilterId"]) && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) && (typeof value["showApproved"] === "boolean") && (typeof value["showAllStaff"] === "boolean") && (!("staffFilterId" in value) || (typeof value["staffFilterId"] === "string"));
 }
 export function parseTimesheetsApproveTimesheetEntryActionFields(value: unknown): TimesheetsApproveTimesheetEntryActionFields {
     if (isTimesheetsApproveTimesheetEntryActionFields(value)) return value;
@@ -1736,7 +1727,7 @@ export function encodeTimesheetsApproveTimesheetEntryActionFields(value: Timeshe
 
 export type TimesheetsUnapproveTimesheetEntryActionFields = { weekOffset: number; showApproved: boolean; showAllStaff: boolean; staffFilterId?: FrontendContractUuid };
 export function isTimesheetsUnapproveTimesheetEntryActionFields(value: unknown): value is TimesheetsUnapproveTimesheetEntryActionFields {
-    return isRecord(value) && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) && (typeof value["showApproved"] === "boolean") && (typeof value["showAllStaff"] === "boolean") && (!("staffFilterId" in value) || (typeof value["staffFilterId"] === "string"));
+    return isRecord(value) && hasExactKeys(value, ["weekOffset", "showApproved", "showAllStaff", "staffFilterId"]) && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) && (typeof value["showApproved"] === "boolean") && (typeof value["showAllStaff"] === "boolean") && (!("staffFilterId" in value) || (typeof value["staffFilterId"] === "string"));
 }
 export function parseTimesheetsUnapproveTimesheetEntryActionFields(value: unknown): TimesheetsUnapproveTimesheetEntryActionFields {
     if (isTimesheetsUnapproveTimesheetEntryActionFields(value)) return value;
@@ -1746,7 +1737,7 @@ export function encodeTimesheetsUnapproveTimesheetEntryActionFields(value: Times
 
 export type RosterRosterWeekScope = { venueId: FrontendContractUuid; rosterGroupId: FrontendContractUuid; weekOffset: number };
 export function isRosterRosterWeekScope(value: unknown): value is RosterRosterWeekScope {
-    return isRecord(value) && (typeof value["venueId"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
+    return isRecord(value) && hasExactKeys(value, ["venueId", "rosterGroupId", "weekOffset"]) && (typeof value["venueId"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"]));
 }
 export function parseRosterRosterWeekScope(value: unknown): RosterRosterWeekScope {
     if (isRosterRosterWeekScope(value)) return value;
@@ -1756,7 +1747,7 @@ export function encodeRosterRosterWeekScope(value: RosterRosterWeekScope): Roste
 
 export type RosterRosterContentFragmentParams = {  };
 export function isRosterRosterContentFragmentParams(value: unknown): value is RosterRosterContentFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseRosterRosterContentFragmentParams(value: unknown): RosterRosterContentFragmentParams {
     if (isRosterRosterContentFragmentParams(value)) return value;
@@ -1766,7 +1757,7 @@ export function encodeRosterRosterContentFragmentParams(value: RosterRosterConte
 
 export type RosterRosterGridToolbarFragmentParams = {  };
 export function isRosterRosterGridToolbarFragmentParams(value: unknown): value is RosterRosterGridToolbarFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseRosterRosterGridToolbarFragmentParams(value: unknown): RosterRosterGridToolbarFragmentParams {
     if (isRosterRosterGridToolbarFragmentParams(value)) return value;
@@ -1776,7 +1767,7 @@ export function encodeRosterRosterGridToolbarFragmentParams(value: RosterRosterG
 
 export type RosterRosterGridFrameFragmentParams = {  };
 export function isRosterRosterGridFrameFragmentParams(value: unknown): value is RosterRosterGridFrameFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseRosterRosterGridFrameFragmentParams(value: unknown): RosterRosterGridFrameFragmentParams {
     if (isRosterRosterGridFrameFragmentParams(value)) return value;
@@ -1786,7 +1777,7 @@ export function encodeRosterRosterGridFrameFragmentParams(value: RosterRosterGri
 
 export type RosterRosterDayColumnsFragmentParams = {  };
 export function isRosterRosterDayColumnsFragmentParams(value: unknown): value is RosterRosterDayColumnsFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseRosterRosterDayColumnsFragmentParams(value: unknown): RosterRosterDayColumnsFragmentParams {
     if (isRosterRosterDayColumnsFragmentParams(value)) return value;
@@ -1796,7 +1787,7 @@ export function encodeRosterRosterDayColumnsFragmentParams(value: RosterRosterDa
 
 export type RosterRosterDayRailFragmentParams = {  };
 export function isRosterRosterDayRailFragmentParams(value: unknown): value is RosterRosterDayRailFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseRosterRosterDayRailFragmentParams(value: unknown): RosterRosterDayRailFragmentParams {
     if (isRosterRosterDayRailFragmentParams(value)) return value;
@@ -1806,7 +1797,7 @@ export function encodeRosterRosterDayRailFragmentParams(value: RosterRosterDayRa
 
 export type RosterRosterWageRailFragmentParams = {  };
 export function isRosterRosterWageRailFragmentParams(value: unknown): value is RosterRosterWageRailFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseRosterRosterWageRailFragmentParams(value: unknown): RosterRosterWageRailFragmentParams {
     if (isRosterRosterWageRailFragmentParams(value)) return value;
@@ -1816,7 +1807,7 @@ export function encodeRosterRosterWageRailFragmentParams(value: RosterRosterWage
 
 export type RosterRosterSlotsGridFragmentParams = {  };
 export function isRosterRosterSlotsGridFragmentParams(value: unknown): value is RosterRosterSlotsGridFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseRosterRosterSlotsGridFragmentParams(value: unknown): RosterRosterSlotsGridFragmentParams {
     if (isRosterRosterSlotsGridFragmentParams(value)) return value;
@@ -1826,7 +1817,7 @@ export function encodeRosterRosterSlotsGridFragmentParams(value: RosterRosterSlo
 
 export type RosterRosterStaffPanelFragmentParams = {  };
 export function isRosterRosterStaffPanelFragmentParams(value: unknown): value is RosterRosterStaffPanelFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseRosterRosterStaffPanelFragmentParams(value: unknown): RosterRosterStaffPanelFragmentParams {
     if (isRosterRosterStaffPanelFragmentParams(value)) return value;
@@ -1836,7 +1827,7 @@ export function encodeRosterRosterStaffPanelFragmentParams(value: RosterRosterSt
 
 export type RosterRosterStaffSelfServiceLeaveFormFragmentFragmentParams = {  };
 export function isRosterRosterStaffSelfServiceLeaveFormFragmentFragmentParams(value: unknown): value is RosterRosterStaffSelfServiceLeaveFormFragmentFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseRosterRosterStaffSelfServiceLeaveFormFragmentFragmentParams(value: unknown): RosterRosterStaffSelfServiceLeaveFormFragmentFragmentParams {
     if (isRosterRosterStaffSelfServiceLeaveFormFragmentFragmentParams(value)) return value;
@@ -1846,7 +1837,7 @@ export function encodeRosterRosterStaffSelfServiceLeaveFormFragmentFragmentParam
 
 export type RosterRosterWeekOverviewFragmentParams = {  };
 export function isRosterRosterWeekOverviewFragmentParams(value: unknown): value is RosterRosterWeekOverviewFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseRosterRosterWeekOverviewFragmentParams(value: unknown): RosterRosterWeekOverviewFragmentParams {
     if (isRosterRosterWeekOverviewFragmentParams(value)) return value;
@@ -1856,7 +1847,7 @@ export function encodeRosterRosterWeekOverviewFragmentParams(value: RosterRoster
 
 export type RosterRosterDaySectionFragmentParams = { rosterDayId: FrontendContractUuid };
 export function isRosterRosterDaySectionFragmentParams(value: unknown): value is RosterRosterDaySectionFragmentParams {
-    return isRecord(value) && (typeof value["rosterDayId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["rosterDayId"]) && (typeof value["rosterDayId"] === "string");
 }
 export function parseRosterRosterDaySectionFragmentParams(value: unknown): RosterRosterDaySectionFragmentParams {
     if (isRosterRosterDaySectionFragmentParams(value)) return value;
@@ -1866,7 +1857,7 @@ export function encodeRosterRosterDaySectionFragmentParams(value: RosterRosterDa
 
 export type RosterRosterRowFragmentParams = { rosterDayId: FrontendContractUuid; rowIndex: number };
 export function isRosterRosterRowFragmentParams(value: unknown): value is RosterRosterRowFragmentParams {
-    return isRecord(value) && (typeof value["rosterDayId"] === "string") && (typeof value["rowIndex"] === "number" && Number.isInteger(value["rowIndex"]));
+    return isRecord(value) && hasExactKeys(value, ["rosterDayId", "rowIndex"]) && (typeof value["rosterDayId"] === "string") && (typeof value["rowIndex"] === "number" && Number.isInteger(value["rowIndex"]));
 }
 export function parseRosterRosterRowFragmentParams(value: unknown): RosterRosterRowFragmentParams {
     if (isRosterRosterRowFragmentParams(value)) return value;
@@ -1876,7 +1867,7 @@ export function encodeRosterRosterRowFragmentParams(value: RosterRosterRowFragme
 
 export type RosterNavigateRosterWeekActionFields = { weekOffset: number; rosterGroupId: FrontendContractUuid };
 export function isRosterNavigateRosterWeekActionFields(value: unknown): value is RosterNavigateRosterWeekActionFields {
-    return isRecord(value) && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) && (typeof value["rosterGroupId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["weekOffset", "rosterGroupId"]) && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) && (typeof value["rosterGroupId"] === "string");
 }
 export function parseRosterNavigateRosterWeekActionFields(value: unknown): RosterNavigateRosterWeekActionFields {
     if (isRosterNavigateRosterWeekActionFields(value)) return value;
@@ -1886,7 +1877,7 @@ export function encodeRosterNavigateRosterWeekActionFields(value: RosterNavigate
 
 export type RosterToggleRosterWarningsActionFields = { showRosterWarnings: boolean };
 export function isRosterToggleRosterWarningsActionFields(value: unknown): value is RosterToggleRosterWarningsActionFields {
-    return isRecord(value) && (typeof value["showRosterWarnings"] === "boolean");
+    return isRecord(value) && hasExactKeys(value, ["showRosterWarnings"]) && (typeof value["showRosterWarnings"] === "boolean");
 }
 export function parseRosterToggleRosterWarningsActionFields(value: unknown): RosterToggleRosterWarningsActionFields {
     if (isRosterToggleRosterWarningsActionFields(value)) return value;
@@ -1896,7 +1887,7 @@ export function encodeRosterToggleRosterWarningsActionFields(value: RosterToggle
 
 export type RosterToggleRosterWageEstimatesActionFields = { showWageEstimates: boolean };
 export function isRosterToggleRosterWageEstimatesActionFields(value: unknown): value is RosterToggleRosterWageEstimatesActionFields {
-    return isRecord(value) && (typeof value["showWageEstimates"] === "boolean");
+    return isRecord(value) && hasExactKeys(value, ["showWageEstimates"]) && (typeof value["showWageEstimates"] === "boolean");
 }
 export function parseRosterToggleRosterWageEstimatesActionFields(value: unknown): RosterToggleRosterWageEstimatesActionFields {
     if (isRosterToggleRosterWageEstimatesActionFields(value)) return value;
@@ -1906,7 +1897,7 @@ export function encodeRosterToggleRosterWageEstimatesActionFields(value: RosterT
 
 export type RosterSortRosterWeekActionFields = {  };
 export function isRosterSortRosterWeekActionFields(value: unknown): value is RosterSortRosterWeekActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseRosterSortRosterWeekActionFields(value: unknown): RosterSortRosterWeekActionFields {
     if (isRosterSortRosterWeekActionFields(value)) return value;
@@ -1916,7 +1907,7 @@ export function encodeRosterSortRosterWeekActionFields(value: RosterSortRosterWe
 
 export type RosterToggleRosterWeekLiveStatusActionFields = { isLive: boolean };
 export function isRosterToggleRosterWeekLiveStatusActionFields(value: unknown): value is RosterToggleRosterWeekLiveStatusActionFields {
-    return isRecord(value) && (typeof value["isLive"] === "boolean");
+    return isRecord(value) && hasExactKeys(value, ["isLive"]) && (typeof value["isLive"] === "boolean");
 }
 export function parseRosterToggleRosterWeekLiveStatusActionFields(value: unknown): RosterToggleRosterWeekLiveStatusActionFields {
     if (isRosterToggleRosterWeekLiveStatusActionFields(value)) return value;
@@ -1926,7 +1917,7 @@ export function encodeRosterToggleRosterWeekLiveStatusActionFields(value: Roster
 
 export type RosterToggleRosterAssignmentFiltersActionFields = { hideStaffAtIdealShifts: boolean; hideStaffUnavailable: boolean; hideStaffOnApprovedLeave: boolean; hideStaffAlreadyAssignedToday: boolean };
 export function isRosterToggleRosterAssignmentFiltersActionFields(value: unknown): value is RosterToggleRosterAssignmentFiltersActionFields {
-    return isRecord(value) && (typeof value["hideStaffAtIdealShifts"] === "boolean") && (typeof value["hideStaffUnavailable"] === "boolean") && (typeof value["hideStaffOnApprovedLeave"] === "boolean") && (typeof value["hideStaffAlreadyAssignedToday"] === "boolean");
+    return isRecord(value) && hasExactKeys(value, ["hideStaffAtIdealShifts", "hideStaffUnavailable", "hideStaffOnApprovedLeave", "hideStaffAlreadyAssignedToday"]) && (typeof value["hideStaffAtIdealShifts"] === "boolean") && (typeof value["hideStaffUnavailable"] === "boolean") && (typeof value["hideStaffOnApprovedLeave"] === "boolean") && (typeof value["hideStaffAlreadyAssignedToday"] === "boolean");
 }
 export function parseRosterToggleRosterAssignmentFiltersActionFields(value: unknown): RosterToggleRosterAssignmentFiltersActionFields {
     if (isRosterToggleRosterAssignmentFiltersActionFields(value)) return value;
@@ -1936,7 +1927,7 @@ export function encodeRosterToggleRosterAssignmentFiltersActionFields(value: Ros
 
 export type RosterCopyRosterWeekActionFields = {  };
 export function isRosterCopyRosterWeekActionFields(value: unknown): value is RosterCopyRosterWeekActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseRosterCopyRosterWeekActionFields(value: unknown): RosterCopyRosterWeekActionFields {
     if (isRosterCopyRosterWeekActionFields(value)) return value;
@@ -1946,7 +1937,7 @@ export function encodeRosterCopyRosterWeekActionFields(value: RosterCopyRosterWe
 
 export type RosterCreateRosterSelfServiceLeaveRequestActionFields = { startDate: FrontendContractDay; endDate: FrontendContractDay; reason: string };
 export function isRosterCreateRosterSelfServiceLeaveRequestActionFields(value: unknown): value is RosterCreateRosterSelfServiceLeaveRequestActionFields {
-    return isRecord(value) && (typeof value["startDate"] === "string") && (typeof value["endDate"] === "string") && (typeof value["reason"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["startDate", "endDate", "reason"]) && (typeof value["startDate"] === "string") && (typeof value["endDate"] === "string") && (typeof value["reason"] === "string");
 }
 export function parseRosterCreateRosterSelfServiceLeaveRequestActionFields(value: unknown): RosterCreateRosterSelfServiceLeaveRequestActionFields {
     if (isRosterCreateRosterSelfServiceLeaveRequestActionFields(value)) return value;
@@ -1956,7 +1947,7 @@ export function encodeRosterCreateRosterSelfServiceLeaveRequestActionFields(valu
 
 export type RosterCreateRosterWeekSlotDefinitionActionFields = {  };
 export function isRosterCreateRosterWeekSlotDefinitionActionFields(value: unknown): value is RosterCreateRosterWeekSlotDefinitionActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseRosterCreateRosterWeekSlotDefinitionActionFields(value: unknown): RosterCreateRosterWeekSlotDefinitionActionFields {
     if (isRosterCreateRosterWeekSlotDefinitionActionFields(value)) return value;
@@ -1966,7 +1957,7 @@ export function encodeRosterCreateRosterWeekSlotDefinitionActionFields(value: Ro
 
 export type RosterDeleteRosterWeekSlotDefinitionActionFields = {  };
 export function isRosterDeleteRosterWeekSlotDefinitionActionFields(value: unknown): value is RosterDeleteRosterWeekSlotDefinitionActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseRosterDeleteRosterWeekSlotDefinitionActionFields(value: unknown): RosterDeleteRosterWeekSlotDefinitionActionFields {
     if (isRosterDeleteRosterWeekSlotDefinitionActionFields(value)) return value;
@@ -1976,7 +1967,7 @@ export function encodeRosterDeleteRosterWeekSlotDefinitionActionFields(value: Ro
 
 export type RosterToggleRosterDayClosedActionFields = {  };
 export function isRosterToggleRosterDayClosedActionFields(value: unknown): value is RosterToggleRosterDayClosedActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseRosterToggleRosterDayClosedActionFields(value: unknown): RosterToggleRosterDayClosedActionFields {
     if (isRosterToggleRosterDayClosedActionFields(value)) return value;
@@ -1986,7 +1977,7 @@ export function encodeRosterToggleRosterDayClosedActionFields(value: RosterToggl
 
 export type RosterAddRosterRowActionFields = {  };
 export function isRosterAddRosterRowActionFields(value: unknown): value is RosterAddRosterRowActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseRosterAddRosterRowActionFields(value: unknown): RosterAddRosterRowActionFields {
     if (isRosterAddRosterRowActionFields(value)) return value;
@@ -1996,7 +1987,7 @@ export function encodeRosterAddRosterRowActionFields(value: RosterAddRosterRowAc
 
 export type RosterRemoveRosterRowActionFields = {  };
 export function isRosterRemoveRosterRowActionFields(value: unknown): value is RosterRemoveRosterRowActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseRosterRemoveRosterRowActionFields(value: unknown): RosterRemoveRosterRowActionFields {
     if (isRosterRemoveRosterRowActionFields(value)) return value;
@@ -2006,7 +1997,7 @@ export function encodeRosterRemoveRosterRowActionFields(value: RosterRemoveRoste
 
 export type RosterToggleRosterStaffScopeActionFields = { staffScope: string };
 export function isRosterToggleRosterStaffScopeActionFields(value: unknown): value is RosterToggleRosterStaffScopeActionFields {
-    return isRecord(value) && (typeof value["staffScope"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["staffScope"]) && (typeof value["staffScope"] === "string");
 }
 export function parseRosterToggleRosterStaffScopeActionFields(value: unknown): RosterToggleRosterStaffScopeActionFields {
     if (isRosterToggleRosterStaffScopeActionFields(value)) return value;
@@ -2016,7 +2007,7 @@ export function encodeRosterToggleRosterStaffScopeActionFields(value: RosterTogg
 
 export type RosterSetRosterLayoutModeActionFields = { rosterLayoutMode: string };
 export function isRosterSetRosterLayoutModeActionFields(value: unknown): value is RosterSetRosterLayoutModeActionFields {
-    return isRecord(value) && (typeof value["rosterLayoutMode"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["rosterLayoutMode"]) && (typeof value["rosterLayoutMode"] === "string");
 }
 export function parseRosterSetRosterLayoutModeActionFields(value: unknown): RosterSetRosterLayoutModeActionFields {
     if (isRosterSetRosterLayoutModeActionFields(value)) return value;
@@ -2026,7 +2017,7 @@ export function encodeRosterSetRosterLayoutModeActionFields(value: RosterSetRost
 
 export type RosterMoveRosterShiftToSlotActionFields = { sourceItemKey: string; targetDropzoneKey: string; sessionKind?: string; pointerId?: string; pointerType?: string; startClientX?: string; startClientY?: string; currentClientX?: string; currentClientY?: string; deltaX?: string; deltaY?: string };
 export function isRosterMoveRosterShiftToSlotActionFields(value: unknown): value is RosterMoveRosterShiftToSlotActionFields {
-    return isRecord(value) && (typeof value["sourceItemKey"] === "string") && (typeof value["targetDropzoneKey"] === "string") && (!("sessionKind" in value) || (typeof value["sessionKind"] === "string")) && (!("pointerId" in value) || (typeof value["pointerId"] === "string")) && (!("pointerType" in value) || (typeof value["pointerType"] === "string")) && (!("startClientX" in value) || (typeof value["startClientX"] === "string")) && (!("startClientY" in value) || (typeof value["startClientY"] === "string")) && (!("currentClientX" in value) || (typeof value["currentClientX"] === "string")) && (!("currentClientY" in value) || (typeof value["currentClientY"] === "string")) && (!("deltaX" in value) || (typeof value["deltaX"] === "string")) && (!("deltaY" in value) || (typeof value["deltaY"] === "string"));
+    return isRecord(value) && hasExactKeys(value, ["sourceItemKey", "targetDropzoneKey", "sessionKind", "pointerId", "pointerType", "startClientX", "startClientY", "currentClientX", "currentClientY", "deltaX", "deltaY"]) && (typeof value["sourceItemKey"] === "string") && (typeof value["targetDropzoneKey"] === "string") && (!("sessionKind" in value) || (typeof value["sessionKind"] === "string")) && (!("pointerId" in value) || (typeof value["pointerId"] === "string")) && (!("pointerType" in value) || (typeof value["pointerType"] === "string")) && (!("startClientX" in value) || (typeof value["startClientX"] === "string")) && (!("startClientY" in value) || (typeof value["startClientY"] === "string")) && (!("currentClientX" in value) || (typeof value["currentClientX"] === "string")) && (!("currentClientY" in value) || (typeof value["currentClientY"] === "string")) && (!("deltaX" in value) || (typeof value["deltaX"] === "string")) && (!("deltaY" in value) || (typeof value["deltaY"] === "string"));
 }
 export function parseRosterMoveRosterShiftToSlotActionFields(value: unknown): RosterMoveRosterShiftToSlotActionFields {
     if (isRosterMoveRosterShiftToSlotActionFields(value)) return value;
@@ -2036,7 +2027,7 @@ export function encodeRosterMoveRosterShiftToSlotActionFields(value: RosterMoveR
 
 export type RosterDuplicateRosterShiftToDayActionFields = { sourceItemKey: string; targetDropzoneKey: string; sessionKind?: string; pointerId?: string; pointerType?: string; startClientX?: string; startClientY?: string; currentClientX?: string; currentClientY?: string; deltaX?: string; deltaY?: string };
 export function isRosterDuplicateRosterShiftToDayActionFields(value: unknown): value is RosterDuplicateRosterShiftToDayActionFields {
-    return isRecord(value) && (typeof value["sourceItemKey"] === "string") && (typeof value["targetDropzoneKey"] === "string") && (!("sessionKind" in value) || (typeof value["sessionKind"] === "string")) && (!("pointerId" in value) || (typeof value["pointerId"] === "string")) && (!("pointerType" in value) || (typeof value["pointerType"] === "string")) && (!("startClientX" in value) || (typeof value["startClientX"] === "string")) && (!("startClientY" in value) || (typeof value["startClientY"] === "string")) && (!("currentClientX" in value) || (typeof value["currentClientX"] === "string")) && (!("currentClientY" in value) || (typeof value["currentClientY"] === "string")) && (!("deltaX" in value) || (typeof value["deltaX"] === "string")) && (!("deltaY" in value) || (typeof value["deltaY"] === "string"));
+    return isRecord(value) && hasExactKeys(value, ["sourceItemKey", "targetDropzoneKey", "sessionKind", "pointerId", "pointerType", "startClientX", "startClientY", "currentClientX", "currentClientY", "deltaX", "deltaY"]) && (typeof value["sourceItemKey"] === "string") && (typeof value["targetDropzoneKey"] === "string") && (!("sessionKind" in value) || (typeof value["sessionKind"] === "string")) && (!("pointerId" in value) || (typeof value["pointerId"] === "string")) && (!("pointerType" in value) || (typeof value["pointerType"] === "string")) && (!("startClientX" in value) || (typeof value["startClientX"] === "string")) && (!("startClientY" in value) || (typeof value["startClientY"] === "string")) && (!("currentClientX" in value) || (typeof value["currentClientX"] === "string")) && (!("currentClientY" in value) || (typeof value["currentClientY"] === "string")) && (!("deltaX" in value) || (typeof value["deltaX"] === "string")) && (!("deltaY" in value) || (typeof value["deltaY"] === "string"));
 }
 export function parseRosterDuplicateRosterShiftToDayActionFields(value: unknown): RosterDuplicateRosterShiftToDayActionFields {
     if (isRosterDuplicateRosterShiftToDayActionFields(value)) return value;
@@ -2046,7 +2037,7 @@ export function encodeRosterDuplicateRosterShiftToDayActionFields(value: RosterD
 
 export type RosterDropRosterStaffActionFields = { sourceItemKey: string; targetDropzoneKey: string; sessionKind?: string; pointerId?: string; pointerType?: string; startClientX?: string; startClientY?: string; currentClientX?: string; currentClientY?: string; deltaX?: string; deltaY?: string };
 export function isRosterDropRosterStaffActionFields(value: unknown): value is RosterDropRosterStaffActionFields {
-    return isRecord(value) && (typeof value["sourceItemKey"] === "string") && (typeof value["targetDropzoneKey"] === "string") && (!("sessionKind" in value) || (typeof value["sessionKind"] === "string")) && (!("pointerId" in value) || (typeof value["pointerId"] === "string")) && (!("pointerType" in value) || (typeof value["pointerType"] === "string")) && (!("startClientX" in value) || (typeof value["startClientX"] === "string")) && (!("startClientY" in value) || (typeof value["startClientY"] === "string")) && (!("currentClientX" in value) || (typeof value["currentClientX"] === "string")) && (!("currentClientY" in value) || (typeof value["currentClientY"] === "string")) && (!("deltaX" in value) || (typeof value["deltaX"] === "string")) && (!("deltaY" in value) || (typeof value["deltaY"] === "string"));
+    return isRecord(value) && hasExactKeys(value, ["sourceItemKey", "targetDropzoneKey", "sessionKind", "pointerId", "pointerType", "startClientX", "startClientY", "currentClientX", "currentClientY", "deltaX", "deltaY"]) && (typeof value["sourceItemKey"] === "string") && (typeof value["targetDropzoneKey"] === "string") && (!("sessionKind" in value) || (typeof value["sessionKind"] === "string")) && (!("pointerId" in value) || (typeof value["pointerId"] === "string")) && (!("pointerType" in value) || (typeof value["pointerType"] === "string")) && (!("startClientX" in value) || (typeof value["startClientX"] === "string")) && (!("startClientY" in value) || (typeof value["startClientY"] === "string")) && (!("currentClientX" in value) || (typeof value["currentClientX"] === "string")) && (!("currentClientY" in value) || (typeof value["currentClientY"] === "string")) && (!("deltaX" in value) || (typeof value["deltaX"] === "string")) && (!("deltaY" in value) || (typeof value["deltaY"] === "string"));
 }
 export function parseRosterDropRosterStaffActionFields(value: unknown): RosterDropRosterStaffActionFields {
     if (isRosterDropRosterStaffActionFields(value)) return value;
@@ -2056,7 +2047,7 @@ export function encodeRosterDropRosterStaffActionFields(value: RosterDropRosterS
 
 export type RosterSetRosterLayoutModeIntentFields = { rosterLayoutMode: string };
 export function isRosterSetRosterLayoutModeIntentFields(value: unknown): value is RosterSetRosterLayoutModeIntentFields {
-    return isRecord(value) && (typeof value["rosterLayoutMode"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["rosterLayoutMode"]) && (typeof value["rosterLayoutMode"] === "string");
 }
 export function parseRosterSetRosterLayoutModeIntentFields(value: unknown): RosterSetRosterLayoutModeIntentFields {
     if (isRosterSetRosterLayoutModeIntentFields(value)) return value;
@@ -2066,7 +2057,7 @@ export function encodeRosterSetRosterLayoutModeIntentFields(value: RosterSetRost
 
 export type RosterMoveRosterShiftToSlotIntentFields = { sourceItemKey: string; targetDropzoneKey: string; sessionKind?: string; pointerId?: string; pointerType?: string; startClientX?: string; startClientY?: string; currentClientX?: string; currentClientY?: string; deltaX?: string; deltaY?: string };
 export function isRosterMoveRosterShiftToSlotIntentFields(value: unknown): value is RosterMoveRosterShiftToSlotIntentFields {
-    return isRecord(value) && (typeof value["sourceItemKey"] === "string") && (typeof value["targetDropzoneKey"] === "string") && (!("sessionKind" in value) || (typeof value["sessionKind"] === "string")) && (!("pointerId" in value) || (typeof value["pointerId"] === "string")) && (!("pointerType" in value) || (typeof value["pointerType"] === "string")) && (!("startClientX" in value) || (typeof value["startClientX"] === "string")) && (!("startClientY" in value) || (typeof value["startClientY"] === "string")) && (!("currentClientX" in value) || (typeof value["currentClientX"] === "string")) && (!("currentClientY" in value) || (typeof value["currentClientY"] === "string")) && (!("deltaX" in value) || (typeof value["deltaX"] === "string")) && (!("deltaY" in value) || (typeof value["deltaY"] === "string"));
+    return isRecord(value) && hasExactKeys(value, ["sourceItemKey", "targetDropzoneKey", "sessionKind", "pointerId", "pointerType", "startClientX", "startClientY", "currentClientX", "currentClientY", "deltaX", "deltaY"]) && (typeof value["sourceItemKey"] === "string") && (typeof value["targetDropzoneKey"] === "string") && (!("sessionKind" in value) || (typeof value["sessionKind"] === "string")) && (!("pointerId" in value) || (typeof value["pointerId"] === "string")) && (!("pointerType" in value) || (typeof value["pointerType"] === "string")) && (!("startClientX" in value) || (typeof value["startClientX"] === "string")) && (!("startClientY" in value) || (typeof value["startClientY"] === "string")) && (!("currentClientX" in value) || (typeof value["currentClientX"] === "string")) && (!("currentClientY" in value) || (typeof value["currentClientY"] === "string")) && (!("deltaX" in value) || (typeof value["deltaX"] === "string")) && (!("deltaY" in value) || (typeof value["deltaY"] === "string"));
 }
 export function parseRosterMoveRosterShiftToSlotIntentFields(value: unknown): RosterMoveRosterShiftToSlotIntentFields {
     if (isRosterMoveRosterShiftToSlotIntentFields(value)) return value;
@@ -2076,7 +2067,7 @@ export function encodeRosterMoveRosterShiftToSlotIntentFields(value: RosterMoveR
 
 export type RosterDuplicateRosterShiftToDayIntentFields = { sourceItemKey: string; targetDropzoneKey: string; sessionKind?: string; pointerId?: string; pointerType?: string; startClientX?: string; startClientY?: string; currentClientX?: string; currentClientY?: string; deltaX?: string; deltaY?: string };
 export function isRosterDuplicateRosterShiftToDayIntentFields(value: unknown): value is RosterDuplicateRosterShiftToDayIntentFields {
-    return isRecord(value) && (typeof value["sourceItemKey"] === "string") && (typeof value["targetDropzoneKey"] === "string") && (!("sessionKind" in value) || (typeof value["sessionKind"] === "string")) && (!("pointerId" in value) || (typeof value["pointerId"] === "string")) && (!("pointerType" in value) || (typeof value["pointerType"] === "string")) && (!("startClientX" in value) || (typeof value["startClientX"] === "string")) && (!("startClientY" in value) || (typeof value["startClientY"] === "string")) && (!("currentClientX" in value) || (typeof value["currentClientX"] === "string")) && (!("currentClientY" in value) || (typeof value["currentClientY"] === "string")) && (!("deltaX" in value) || (typeof value["deltaX"] === "string")) && (!("deltaY" in value) || (typeof value["deltaY"] === "string"));
+    return isRecord(value) && hasExactKeys(value, ["sourceItemKey", "targetDropzoneKey", "sessionKind", "pointerId", "pointerType", "startClientX", "startClientY", "currentClientX", "currentClientY", "deltaX", "deltaY"]) && (typeof value["sourceItemKey"] === "string") && (typeof value["targetDropzoneKey"] === "string") && (!("sessionKind" in value) || (typeof value["sessionKind"] === "string")) && (!("pointerId" in value) || (typeof value["pointerId"] === "string")) && (!("pointerType" in value) || (typeof value["pointerType"] === "string")) && (!("startClientX" in value) || (typeof value["startClientX"] === "string")) && (!("startClientY" in value) || (typeof value["startClientY"] === "string")) && (!("currentClientX" in value) || (typeof value["currentClientX"] === "string")) && (!("currentClientY" in value) || (typeof value["currentClientY"] === "string")) && (!("deltaX" in value) || (typeof value["deltaX"] === "string")) && (!("deltaY" in value) || (typeof value["deltaY"] === "string"));
 }
 export function parseRosterDuplicateRosterShiftToDayIntentFields(value: unknown): RosterDuplicateRosterShiftToDayIntentFields {
     if (isRosterDuplicateRosterShiftToDayIntentFields(value)) return value;
@@ -2086,7 +2077,7 @@ export function encodeRosterDuplicateRosterShiftToDayIntentFields(value: RosterD
 
 export type RosterDropRosterStaffIntentFields = { sourceItemKey: string; targetDropzoneKey: string; sessionKind?: string; pointerId?: string; pointerType?: string; startClientX?: string; startClientY?: string; currentClientX?: string; currentClientY?: string; deltaX?: string; deltaY?: string };
 export function isRosterDropRosterStaffIntentFields(value: unknown): value is RosterDropRosterStaffIntentFields {
-    return isRecord(value) && (typeof value["sourceItemKey"] === "string") && (typeof value["targetDropzoneKey"] === "string") && (!("sessionKind" in value) || (typeof value["sessionKind"] === "string")) && (!("pointerId" in value) || (typeof value["pointerId"] === "string")) && (!("pointerType" in value) || (typeof value["pointerType"] === "string")) && (!("startClientX" in value) || (typeof value["startClientX"] === "string")) && (!("startClientY" in value) || (typeof value["startClientY"] === "string")) && (!("currentClientX" in value) || (typeof value["currentClientX"] === "string")) && (!("currentClientY" in value) || (typeof value["currentClientY"] === "string")) && (!("deltaX" in value) || (typeof value["deltaX"] === "string")) && (!("deltaY" in value) || (typeof value["deltaY"] === "string"));
+    return isRecord(value) && hasExactKeys(value, ["sourceItemKey", "targetDropzoneKey", "sessionKind", "pointerId", "pointerType", "startClientX", "startClientY", "currentClientX", "currentClientY", "deltaX", "deltaY"]) && (typeof value["sourceItemKey"] === "string") && (typeof value["targetDropzoneKey"] === "string") && (!("sessionKind" in value) || (typeof value["sessionKind"] === "string")) && (!("pointerId" in value) || (typeof value["pointerId"] === "string")) && (!("pointerType" in value) || (typeof value["pointerType"] === "string")) && (!("startClientX" in value) || (typeof value["startClientX"] === "string")) && (!("startClientY" in value) || (typeof value["startClientY"] === "string")) && (!("currentClientX" in value) || (typeof value["currentClientX"] === "string")) && (!("currentClientY" in value) || (typeof value["currentClientY"] === "string")) && (!("deltaX" in value) || (typeof value["deltaX"] === "string")) && (!("deltaY" in value) || (typeof value["deltaY"] === "string"));
 }
 export function parseRosterDropRosterStaffIntentFields(value: unknown): RosterDropRosterStaffIntentFields {
     if (isRosterDropRosterStaffIntentFields(value)) return value;
@@ -2096,7 +2087,7 @@ export function encodeRosterDropRosterStaffIntentFields(value: RosterDropRosterS
 
 export type RosterDayTimelineRosterDayTimelineScope = { venueId: FrontendContractUuid; rosterGroupId: FrontendContractUuid; weekOffset: number; rosterDayId: FrontendContractUuid };
 export function isRosterDayTimelineRosterDayTimelineScope(value: unknown): value is RosterDayTimelineRosterDayTimelineScope {
-    return isRecord(value) && (typeof value["venueId"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) && (typeof value["rosterDayId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId", "rosterGroupId", "weekOffset", "rosterDayId"]) && (typeof value["venueId"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["weekOffset"] === "number" && Number.isInteger(value["weekOffset"])) && (typeof value["rosterDayId"] === "string");
 }
 export function parseRosterDayTimelineRosterDayTimelineScope(value: unknown): RosterDayTimelineRosterDayTimelineScope {
     if (isRosterDayTimelineRosterDayTimelineScope(value)) return value;
@@ -2106,7 +2097,7 @@ export function encodeRosterDayTimelineRosterDayTimelineScope(value: RosterDayTi
 
 export type RosterDayTimelineRosterDayTimelineContentFragmentParams = { rosterDayId: FrontendContractUuid };
 export function isRosterDayTimelineRosterDayTimelineContentFragmentParams(value: unknown): value is RosterDayTimelineRosterDayTimelineContentFragmentParams {
-    return isRecord(value) && (typeof value["rosterDayId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["rosterDayId"]) && (typeof value["rosterDayId"] === "string");
 }
 export function parseRosterDayTimelineRosterDayTimelineContentFragmentParams(value: unknown): RosterDayTimelineRosterDayTimelineContentFragmentParams {
     if (isRosterDayTimelineRosterDayTimelineContentFragmentParams(value)) return value;
@@ -2116,7 +2107,7 @@ export function encodeRosterDayTimelineRosterDayTimelineContentFragmentParams(va
 
 export type RosterDayTimelineMoveRosterTimelineShiftActionFields = { sourceItemKey: string; targetDropzoneKey: string; sessionKind?: string; pointerId?: string; pointerType?: string; startClientX?: string; startClientY?: string; currentClientX?: string; currentClientY?: string; deltaX?: string; deltaY?: string };
 export function isRosterDayTimelineMoveRosterTimelineShiftActionFields(value: unknown): value is RosterDayTimelineMoveRosterTimelineShiftActionFields {
-    return isRecord(value) && (typeof value["sourceItemKey"] === "string") && (typeof value["targetDropzoneKey"] === "string") && (!("sessionKind" in value) || (typeof value["sessionKind"] === "string")) && (!("pointerId" in value) || (typeof value["pointerId"] === "string")) && (!("pointerType" in value) || (typeof value["pointerType"] === "string")) && (!("startClientX" in value) || (typeof value["startClientX"] === "string")) && (!("startClientY" in value) || (typeof value["startClientY"] === "string")) && (!("currentClientX" in value) || (typeof value["currentClientX"] === "string")) && (!("currentClientY" in value) || (typeof value["currentClientY"] === "string")) && (!("deltaX" in value) || (typeof value["deltaX"] === "string")) && (!("deltaY" in value) || (typeof value["deltaY"] === "string"));
+    return isRecord(value) && hasExactKeys(value, ["sourceItemKey", "targetDropzoneKey", "sessionKind", "pointerId", "pointerType", "startClientX", "startClientY", "currentClientX", "currentClientY", "deltaX", "deltaY"]) && (typeof value["sourceItemKey"] === "string") && (typeof value["targetDropzoneKey"] === "string") && (!("sessionKind" in value) || (typeof value["sessionKind"] === "string")) && (!("pointerId" in value) || (typeof value["pointerId"] === "string")) && (!("pointerType" in value) || (typeof value["pointerType"] === "string")) && (!("startClientX" in value) || (typeof value["startClientX"] === "string")) && (!("startClientY" in value) || (typeof value["startClientY"] === "string")) && (!("currentClientX" in value) || (typeof value["currentClientX"] === "string")) && (!("currentClientY" in value) || (typeof value["currentClientY"] === "string")) && (!("deltaX" in value) || (typeof value["deltaX"] === "string")) && (!("deltaY" in value) || (typeof value["deltaY"] === "string"));
 }
 export function parseRosterDayTimelineMoveRosterTimelineShiftActionFields(value: unknown): RosterDayTimelineMoveRosterTimelineShiftActionFields {
     if (isRosterDayTimelineMoveRosterTimelineShiftActionFields(value)) return value;
@@ -2126,7 +2117,7 @@ export function encodeRosterDayTimelineMoveRosterTimelineShiftActionFields(value
 
 export type RosterDayTimelineMoveRosterTimelineShiftIntentFields = { sourceItemKey: string; targetDropzoneKey: string; sessionKind?: string; pointerId?: string; pointerType?: string; startClientX?: string; startClientY?: string; currentClientX?: string; currentClientY?: string; deltaX?: string; deltaY?: string };
 export function isRosterDayTimelineMoveRosterTimelineShiftIntentFields(value: unknown): value is RosterDayTimelineMoveRosterTimelineShiftIntentFields {
-    return isRecord(value) && (typeof value["sourceItemKey"] === "string") && (typeof value["targetDropzoneKey"] === "string") && (!("sessionKind" in value) || (typeof value["sessionKind"] === "string")) && (!("pointerId" in value) || (typeof value["pointerId"] === "string")) && (!("pointerType" in value) || (typeof value["pointerType"] === "string")) && (!("startClientX" in value) || (typeof value["startClientX"] === "string")) && (!("startClientY" in value) || (typeof value["startClientY"] === "string")) && (!("currentClientX" in value) || (typeof value["currentClientX"] === "string")) && (!("currentClientY" in value) || (typeof value["currentClientY"] === "string")) && (!("deltaX" in value) || (typeof value["deltaX"] === "string")) && (!("deltaY" in value) || (typeof value["deltaY"] === "string"));
+    return isRecord(value) && hasExactKeys(value, ["sourceItemKey", "targetDropzoneKey", "sessionKind", "pointerId", "pointerType", "startClientX", "startClientY", "currentClientX", "currentClientY", "deltaX", "deltaY"]) && (typeof value["sourceItemKey"] === "string") && (typeof value["targetDropzoneKey"] === "string") && (!("sessionKind" in value) || (typeof value["sessionKind"] === "string")) && (!("pointerId" in value) || (typeof value["pointerId"] === "string")) && (!("pointerType" in value) || (typeof value["pointerType"] === "string")) && (!("startClientX" in value) || (typeof value["startClientX"] === "string")) && (!("startClientY" in value) || (typeof value["startClientY"] === "string")) && (!("currentClientX" in value) || (typeof value["currentClientX"] === "string")) && (!("currentClientY" in value) || (typeof value["currentClientY"] === "string")) && (!("deltaX" in value) || (typeof value["deltaX"] === "string")) && (!("deltaY" in value) || (typeof value["deltaY"] === "string"));
 }
 export function parseRosterDayTimelineMoveRosterTimelineShiftIntentFields(value: unknown): RosterDayTimelineMoveRosterTimelineShiftIntentFields {
     if (isRosterDayTimelineMoveRosterTimelineShiftIntentFields(value)) return value;
@@ -2136,7 +2127,7 @@ export function encodeRosterDayTimelineMoveRosterTimelineShiftIntentFields(value
 
 export type LeaveRequestsLeaveRequestsScopeScope = { venueId: FrontendContractUuid };
 export function isLeaveRequestsLeaveRequestsScopeScope(value: unknown): value is LeaveRequestsLeaveRequestsScopeScope {
-    return isRecord(value) && (typeof value["venueId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId"]) && (typeof value["venueId"] === "string");
 }
 export function parseLeaveRequestsLeaveRequestsScopeScope(value: unknown): LeaveRequestsLeaveRequestsScopeScope {
     if (isLeaveRequestsLeaveRequestsScopeScope(value)) return value;
@@ -2146,7 +2137,7 @@ export function encodeLeaveRequestsLeaveRequestsScopeScope(value: LeaveRequestsL
 
 export type LeaveRequestsLeaveSectionCountFragmentParams = { leaveSection: string };
 export function isLeaveRequestsLeaveSectionCountFragmentParams(value: unknown): value is LeaveRequestsLeaveSectionCountFragmentParams {
-    return isRecord(value) && (typeof value["leaveSection"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["leaveSection"]) && (typeof value["leaveSection"] === "string");
 }
 export function parseLeaveRequestsLeaveSectionCountFragmentParams(value: unknown): LeaveRequestsLeaveSectionCountFragmentParams {
     if (isLeaveRequestsLeaveSectionCountFragmentParams(value)) return value;
@@ -2156,7 +2147,7 @@ export function encodeLeaveRequestsLeaveSectionCountFragmentParams(value: LeaveR
 
 export type LeaveRequestsLeaveSectionListFragmentParams = { leaveSection: string };
 export function isLeaveRequestsLeaveSectionListFragmentParams(value: unknown): value is LeaveRequestsLeaveSectionListFragmentParams {
-    return isRecord(value) && (typeof value["leaveSection"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["leaveSection"]) && (typeof value["leaveSection"] === "string");
 }
 export function parseLeaveRequestsLeaveSectionListFragmentParams(value: unknown): LeaveRequestsLeaveSectionListFragmentParams {
     if (isLeaveRequestsLeaveSectionListFragmentParams(value)) return value;
@@ -2166,7 +2157,7 @@ export function encodeLeaveRequestsLeaveSectionListFragmentParams(value: LeaveRe
 
 export type LeaveRequestsArchiveLeaveRequestsPageActionFields = { archivePage: number };
 export function isLeaveRequestsArchiveLeaveRequestsPageActionFields(value: unknown): value is LeaveRequestsArchiveLeaveRequestsPageActionFields {
-    return isRecord(value) && (typeof value["archivePage"] === "number" && Number.isInteger(value["archivePage"]));
+    return isRecord(value) && hasExactKeys(value, ["archivePage"]) && (typeof value["archivePage"] === "number" && Number.isInteger(value["archivePage"]));
 }
 export function parseLeaveRequestsArchiveLeaveRequestsPageActionFields(value: unknown): LeaveRequestsArchiveLeaveRequestsPageActionFields {
     if (isLeaveRequestsArchiveLeaveRequestsPageActionFields(value)) return value;
@@ -2176,7 +2167,7 @@ export function encodeLeaveRequestsArchiveLeaveRequestsPageActionFields(value: L
 
 export type LeaveRequestsApproveLeaveRequestActionFields = {  };
 export function isLeaveRequestsApproveLeaveRequestActionFields(value: unknown): value is LeaveRequestsApproveLeaveRequestActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseLeaveRequestsApproveLeaveRequestActionFields(value: unknown): LeaveRequestsApproveLeaveRequestActionFields {
     if (isLeaveRequestsApproveLeaveRequestActionFields(value)) return value;
@@ -2186,7 +2177,7 @@ export function encodeLeaveRequestsApproveLeaveRequestActionFields(value: LeaveR
 
 export type LeaveRequestsDenyLeaveRequestActionFields = {  };
 export function isLeaveRequestsDenyLeaveRequestActionFields(value: unknown): value is LeaveRequestsDenyLeaveRequestActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseLeaveRequestsDenyLeaveRequestActionFields(value: unknown): LeaveRequestsDenyLeaveRequestActionFields {
     if (isLeaveRequestsDenyLeaveRequestActionFields(value)) return value;
@@ -2196,7 +2187,7 @@ export function encodeLeaveRequestsDenyLeaveRequestActionFields(value: LeaveRequ
 
 export type BillingBillingVenueScope = { venueId: FrontendContractUuid };
 export function isBillingBillingVenueScope(value: unknown): value is BillingBillingVenueScope {
-    return isRecord(value) && (typeof value["venueId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId"]) && (typeof value["venueId"] === "string");
 }
 export function parseBillingBillingVenueScope(value: unknown): BillingBillingVenueScope {
     if (isBillingBillingVenueScope(value)) return value;
@@ -2204,19 +2195,9 @@ export function parseBillingBillingVenueScope(value: unknown): BillingBillingVen
 }
 export function encodeBillingBillingVenueScope(value: BillingBillingVenueScope): BillingBillingVenueScope { return value; }
 
-export type BillingBillingMountStateMountState = { checkoutReturned: boolean; checkoutSessionId: string | undefined };
-export function isBillingBillingMountStateMountState(value: unknown): value is BillingBillingMountStateMountState {
-    return isRecord(value) && (typeof value["checkoutReturned"] === "boolean") && (value["checkoutSessionId"] === undefined || typeof value["checkoutSessionId"] === "string");
-}
-export function parseBillingBillingMountStateMountState(value: unknown): BillingBillingMountStateMountState {
-    if (isBillingBillingMountStateMountState(value)) return value;
-    throw new Error("Invalid BillingBillingMountStateMountState");
-}
-export function encodeBillingBillingMountStateMountState(value: BillingBillingMountStateMountState): BillingBillingMountStateMountState { return value; }
-
 export type BillingBillingStatusFragmentParams = {  };
 export function isBillingBillingStatusFragmentParams(value: unknown): value is BillingBillingStatusFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseBillingBillingStatusFragmentParams(value: unknown): BillingBillingStatusFragmentParams {
     if (isBillingBillingStatusFragmentParams(value)) return value;
@@ -2226,7 +2207,7 @@ export function encodeBillingBillingStatusFragmentParams(value: BillingBillingSt
 
 export type SupportSupportPlatformScope = {  };
 export function isSupportSupportPlatformScope(value: unknown): value is SupportSupportPlatformScope {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseSupportSupportPlatformScope(value: unknown): SupportSupportPlatformScope {
     if (isSupportSupportPlatformScope(value)) return value;
@@ -2236,7 +2217,7 @@ export function encodeSupportSupportPlatformScope(value: SupportSupportPlatformS
 
 export type SupportSupportAwardRatesFragmentParams = {  };
 export function isSupportSupportAwardRatesFragmentParams(value: unknown): value is SupportSupportAwardRatesFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseSupportSupportAwardRatesFragmentParams(value: unknown): SupportSupportAwardRatesFragmentParams {
     if (isSupportSupportAwardRatesFragmentParams(value)) return value;
@@ -2246,7 +2227,7 @@ export function encodeSupportSupportAwardRatesFragmentParams(value: SupportSuppo
 
 export type SupportSupportPublicHolidaysFragmentParams = {  };
 export function isSupportSupportPublicHolidaysFragmentParams(value: unknown): value is SupportSupportPublicHolidaysFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseSupportSupportPublicHolidaysFragmentParams(value: unknown): SupportSupportPublicHolidaysFragmentParams {
     if (isSupportSupportPublicHolidaysFragmentParams(value)) return value;
@@ -2256,7 +2237,7 @@ export function encodeSupportSupportPublicHolidaysFragmentParams(value: SupportS
 
 export type SupportCreatePublicHolidayRefreshJobActionFields = {  };
 export function isSupportCreatePublicHolidayRefreshJobActionFields(value: unknown): value is SupportCreatePublicHolidayRefreshJobActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseSupportCreatePublicHolidayRefreshJobActionFields(value: unknown): SupportCreatePublicHolidayRefreshJobActionFields {
     if (isSupportCreatePublicHolidayRefreshJobActionFields(value)) return value;
@@ -2266,7 +2247,7 @@ export function encodeSupportCreatePublicHolidayRefreshJobActionFields(value: Su
 
 export type SupportCreateFwcMapdRefreshJobActionFields = {  };
 export function isSupportCreateFwcMapdRefreshJobActionFields(value: unknown): value is SupportCreateFwcMapdRefreshJobActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseSupportCreateFwcMapdRefreshJobActionFields(value: unknown): SupportCreateFwcMapdRefreshJobActionFields {
     if (isSupportCreateFwcMapdRefreshJobActionFields(value)) return value;
@@ -2276,7 +2257,7 @@ export function encodeSupportCreateFwcMapdRefreshJobActionFields(value: SupportC
 
 export type ProfileProfileScopeScope = { venueId: FrontendContractUuid; staffId: FrontendContractUuid };
 export function isProfileProfileScopeScope(value: unknown): value is ProfileProfileScopeScope {
-    return isRecord(value) && (typeof value["venueId"] === "string") && (typeof value["staffId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId", "staffId"]) && (typeof value["venueId"] === "string") && (typeof value["staffId"] === "string");
 }
 export function parseProfileProfileScopeScope(value: unknown): ProfileProfileScopeScope {
     if (isProfileProfileScopeScope(value)) return value;
@@ -2286,7 +2267,7 @@ export function encodeProfileProfileScopeScope(value: ProfileProfileScopeScope):
 
 export type ProfileProfileDetailsSectionFragmentParams = {  };
 export function isProfileProfileDetailsSectionFragmentParams(value: unknown): value is ProfileProfileDetailsSectionFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseProfileProfileDetailsSectionFragmentParams(value: unknown): ProfileProfileDetailsSectionFragmentParams {
     if (isProfileProfileDetailsSectionFragmentParams(value)) return value;
@@ -2296,7 +2277,7 @@ export function encodeProfileProfileDetailsSectionFragmentParams(value: ProfileP
 
 export type ProfileProfilePreferencesSectionFragmentParams = {  };
 export function isProfileProfilePreferencesSectionFragmentParams(value: unknown): value is ProfileProfilePreferencesSectionFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseProfileProfilePreferencesSectionFragmentParams(value: unknown): ProfileProfilePreferencesSectionFragmentParams {
     if (isProfileProfilePreferencesSectionFragmentParams(value)) return value;
@@ -2306,7 +2287,7 @@ export function encodeProfileProfilePreferencesSectionFragmentParams(value: Prof
 
 export type ProfileProfileSecuritySectionFragmentParams = {  };
 export function isProfileProfileSecuritySectionFragmentParams(value: unknown): value is ProfileProfileSecuritySectionFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseProfileProfileSecuritySectionFragmentParams(value: unknown): ProfileProfileSecuritySectionFragmentParams {
     if (isProfileProfileSecuritySectionFragmentParams(value)) return value;
@@ -2316,7 +2297,7 @@ export function encodeProfileProfileSecuritySectionFragmentParams(value: Profile
 
 export type ProfileProfileLeaveSectionFragmentParams = {  };
 export function isProfileProfileLeaveSectionFragmentParams(value: unknown): value is ProfileProfileLeaveSectionFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseProfileProfileLeaveSectionFragmentParams(value: unknown): ProfileProfileLeaveSectionFragmentParams {
     if (isProfileProfileLeaveSectionFragmentParams(value)) return value;
@@ -2326,7 +2307,7 @@ export function encodeProfileProfileLeaveSectionFragmentParams(value: ProfilePro
 
 export type ProfileProfileRsaSectionFragmentParams = {  };
 export function isProfileProfileRsaSectionFragmentParams(value: unknown): value is ProfileProfileRsaSectionFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseProfileProfileRsaSectionFragmentParams(value: unknown): ProfileProfileRsaSectionFragmentParams {
     if (isProfileProfileRsaSectionFragmentParams(value)) return value;
@@ -2336,7 +2317,7 @@ export function encodeProfileProfileRsaSectionFragmentParams(value: ProfileProfi
 
 export type ProfileUpdateProfileDetailsActionFields = { firstName: string; lastName: string; preferredName: string; phone: string; idealShiftsPerWeek: string; emergencyContactName: string; emergencyContactPhone: string; section: string; weekOffset: string; rosterGroupId: string; venueRole: string; employmentBasis: string; payRateSelection: string; isActive: string; rosterGroupIds: string };
 export function isProfileUpdateProfileDetailsActionFields(value: unknown): value is ProfileUpdateProfileDetailsActionFields {
-    return isRecord(value) && (typeof value["firstName"] === "string") && (typeof value["lastName"] === "string") && (typeof value["preferredName"] === "string") && (typeof value["phone"] === "string") && (typeof value["idealShiftsPerWeek"] === "string") && (typeof value["emergencyContactName"] === "string") && (typeof value["emergencyContactPhone"] === "string") && (typeof value["section"] === "string") && (typeof value["weekOffset"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["venueRole"] === "string") && (typeof value["employmentBasis"] === "string") && (typeof value["payRateSelection"] === "string") && (typeof value["isActive"] === "string") && (typeof value["rosterGroupIds"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["firstName", "lastName", "preferredName", "phone", "idealShiftsPerWeek", "emergencyContactName", "emergencyContactPhone", "section", "weekOffset", "rosterGroupId", "venueRole", "employmentBasis", "payRateSelection", "isActive", "rosterGroupIds"]) && (typeof value["firstName"] === "string") && (typeof value["lastName"] === "string") && (typeof value["preferredName"] === "string") && (typeof value["phone"] === "string") && (typeof value["idealShiftsPerWeek"] === "string") && (typeof value["emergencyContactName"] === "string") && (typeof value["emergencyContactPhone"] === "string") && (typeof value["section"] === "string") && (typeof value["weekOffset"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["venueRole"] === "string") && (typeof value["employmentBasis"] === "string") && (typeof value["payRateSelection"] === "string") && (typeof value["isActive"] === "string") && (typeof value["rosterGroupIds"] === "string");
 }
 export function parseProfileUpdateProfileDetailsActionFields(value: unknown): ProfileUpdateProfileDetailsActionFields {
     if (isProfileUpdateProfileDetailsActionFields(value)) return value;
@@ -2346,7 +2327,7 @@ export function encodeProfileUpdateProfileDetailsActionFields(value: ProfileUpda
 
 export type ProfileUpdateProfileShiftPreferencesActionFields = { section: string; weekOffset: string; rosterGroupId: string; shiftPreferenceKeys: string };
 export function isProfileUpdateProfileShiftPreferencesActionFields(value: unknown): value is ProfileUpdateProfileShiftPreferencesActionFields {
-    return isRecord(value) && (typeof value["section"] === "string") && (typeof value["weekOffset"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["shiftPreferenceKeys"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["section", "weekOffset", "rosterGroupId", "shiftPreferenceKeys"]) && (typeof value["section"] === "string") && (typeof value["weekOffset"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["shiftPreferenceKeys"] === "string");
 }
 export function parseProfileUpdateProfileShiftPreferencesActionFields(value: unknown): ProfileUpdateProfileShiftPreferencesActionFields {
     if (isProfileUpdateProfileShiftPreferencesActionFields(value)) return value;
@@ -2356,7 +2337,7 @@ export function encodeProfileUpdateProfileShiftPreferencesActionFields(value: Pr
 
 export type ProfileCreateProfileLeaveRequestActionFields = { startDate: FrontendContractDay; endDate: FrontendContractDay; reason: string };
 export function isProfileCreateProfileLeaveRequestActionFields(value: unknown): value is ProfileCreateProfileLeaveRequestActionFields {
-    return isRecord(value) && (typeof value["startDate"] === "string") && (typeof value["endDate"] === "string") && (typeof value["reason"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["startDate", "endDate", "reason"]) && (typeof value["startDate"] === "string") && (typeof value["endDate"] === "string") && (typeof value["reason"] === "string");
 }
 export function parseProfileCreateProfileLeaveRequestActionFields(value: unknown): ProfileCreateProfileLeaveRequestActionFields {
     if (isProfileCreateProfileLeaveRequestActionFields(value)) return value;
@@ -2366,7 +2347,7 @@ export function encodeProfileCreateProfileLeaveRequestActionFields(value: Profil
 
 export type StaffStaffScopeScope = { venueId: FrontendContractUuid; staffId: FrontendContractUuid };
 export function isStaffStaffScopeScope(value: unknown): value is StaffStaffScopeScope {
-    return isRecord(value) && (typeof value["venueId"] === "string") && (typeof value["staffId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId", "staffId"]) && (typeof value["venueId"] === "string") && (typeof value["staffId"] === "string");
 }
 export function parseStaffStaffScopeScope(value: unknown): StaffStaffScopeScope {
     if (isStaffStaffScopeScope(value)) return value;
@@ -2376,7 +2357,7 @@ export function encodeStaffStaffScopeScope(value: StaffStaffScopeScope): StaffSt
 
 export type StaffStaffDetailsSectionFragmentParams = {  };
 export function isStaffStaffDetailsSectionFragmentParams(value: unknown): value is StaffStaffDetailsSectionFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseStaffStaffDetailsSectionFragmentParams(value: unknown): StaffStaffDetailsSectionFragmentParams {
     if (isStaffStaffDetailsSectionFragmentParams(value)) return value;
@@ -2386,7 +2367,7 @@ export function encodeStaffStaffDetailsSectionFragmentParams(value: StaffStaffDe
 
 export type StaffStaffPreferencesSectionFragmentParams = {  };
 export function isStaffStaffPreferencesSectionFragmentParams(value: unknown): value is StaffStaffPreferencesSectionFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseStaffStaffPreferencesSectionFragmentParams(value: unknown): StaffStaffPreferencesSectionFragmentParams {
     if (isStaffStaffPreferencesSectionFragmentParams(value)) return value;
@@ -2396,7 +2377,7 @@ export function encodeStaffStaffPreferencesSectionFragmentParams(value: StaffSta
 
 export type StaffStaffLeaveSectionFragmentParams = {  };
 export function isStaffStaffLeaveSectionFragmentParams(value: unknown): value is StaffStaffLeaveSectionFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseStaffStaffLeaveSectionFragmentParams(value: unknown): StaffStaffLeaveSectionFragmentParams {
     if (isStaffStaffLeaveSectionFragmentParams(value)) return value;
@@ -2406,7 +2387,7 @@ export function encodeStaffStaffLeaveSectionFragmentParams(value: StaffStaffLeav
 
 export type StaffUpdateStaffProfileActionFields = { firstName: string; lastName: string; preferredName: string; phone: string; idealShiftsPerWeek: string; emergencyContactName: string; emergencyContactPhone: string; section: string; weekOffset: string; rosterGroupId: string; venueRole: string; employmentBasis: string; payRateSelection: string; isActive: string; rosterGroupIds: string };
 export function isStaffUpdateStaffProfileActionFields(value: unknown): value is StaffUpdateStaffProfileActionFields {
-    return isRecord(value) && (typeof value["firstName"] === "string") && (typeof value["lastName"] === "string") && (typeof value["preferredName"] === "string") && (typeof value["phone"] === "string") && (typeof value["idealShiftsPerWeek"] === "string") && (typeof value["emergencyContactName"] === "string") && (typeof value["emergencyContactPhone"] === "string") && (typeof value["section"] === "string") && (typeof value["weekOffset"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["venueRole"] === "string") && (typeof value["employmentBasis"] === "string") && (typeof value["payRateSelection"] === "string") && (typeof value["isActive"] === "string") && (typeof value["rosterGroupIds"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["firstName", "lastName", "preferredName", "phone", "idealShiftsPerWeek", "emergencyContactName", "emergencyContactPhone", "section", "weekOffset", "rosterGroupId", "venueRole", "employmentBasis", "payRateSelection", "isActive", "rosterGroupIds"]) && (typeof value["firstName"] === "string") && (typeof value["lastName"] === "string") && (typeof value["preferredName"] === "string") && (typeof value["phone"] === "string") && (typeof value["idealShiftsPerWeek"] === "string") && (typeof value["emergencyContactName"] === "string") && (typeof value["emergencyContactPhone"] === "string") && (typeof value["section"] === "string") && (typeof value["weekOffset"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["venueRole"] === "string") && (typeof value["employmentBasis"] === "string") && (typeof value["payRateSelection"] === "string") && (typeof value["isActive"] === "string") && (typeof value["rosterGroupIds"] === "string");
 }
 export function parseStaffUpdateStaffProfileActionFields(value: unknown): StaffUpdateStaffProfileActionFields {
     if (isStaffUpdateStaffProfileActionFields(value)) return value;
@@ -2416,7 +2397,7 @@ export function encodeStaffUpdateStaffProfileActionFields(value: StaffUpdateStaf
 
 export type StaffUpdateStaffShiftPreferencesActionFields = { section: string; weekOffset: string; rosterGroupId: string; shiftPreferenceKeys: string };
 export function isStaffUpdateStaffShiftPreferencesActionFields(value: unknown): value is StaffUpdateStaffShiftPreferencesActionFields {
-    return isRecord(value) && (typeof value["section"] === "string") && (typeof value["weekOffset"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["shiftPreferenceKeys"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["section", "weekOffset", "rosterGroupId", "shiftPreferenceKeys"]) && (typeof value["section"] === "string") && (typeof value["weekOffset"] === "string") && (typeof value["rosterGroupId"] === "string") && (typeof value["shiftPreferenceKeys"] === "string");
 }
 export function parseStaffUpdateStaffShiftPreferencesActionFields(value: unknown): StaffUpdateStaffShiftPreferencesActionFields {
     if (isStaffUpdateStaffShiftPreferencesActionFields(value)) return value;
@@ -2426,7 +2407,7 @@ export function encodeStaffUpdateStaffShiftPreferencesActionFields(value: StaffU
 
 export type StaffCreateStaffLeaveRequestActionFields = { startDate: FrontendContractDay; endDate: FrontendContractDay; reason: string };
 export function isStaffCreateStaffLeaveRequestActionFields(value: unknown): value is StaffCreateStaffLeaveRequestActionFields {
-    return isRecord(value) && (typeof value["startDate"] === "string") && (typeof value["endDate"] === "string") && (typeof value["reason"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["startDate", "endDate", "reason"]) && (typeof value["startDate"] === "string") && (typeof value["endDate"] === "string") && (typeof value["reason"] === "string");
 }
 export function parseStaffCreateStaffLeaveRequestActionFields(value: unknown): StaffCreateStaffLeaveRequestActionFields {
     if (isStaffCreateStaffLeaveRequestActionFields(value)) return value;
@@ -2436,7 +2417,7 @@ export function encodeStaffCreateStaffLeaveRequestActionFields(value: StaffCreat
 
 export type AdminPageAdminPageScopeScope = { venueId: FrontendContractUuid };
 export function isAdminPageAdminPageScopeScope(value: unknown): value is AdminPageAdminPageScopeScope {
-    return isRecord(value) && (typeof value["venueId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId"]) && (typeof value["venueId"] === "string");
 }
 export function parseAdminPageAdminPageScopeScope(value: unknown): AdminPageAdminPageScopeScope {
     if (isAdminPageAdminPageScopeScope(value)) return value;
@@ -2446,7 +2427,7 @@ export function encodeAdminPageAdminPageScopeScope(value: AdminPageAdminPageScop
 
 export type AdminPageAdminPageContentFragmentFragmentParams = {  };
 export function isAdminPageAdminPageContentFragmentFragmentParams(value: unknown): value is AdminPageAdminPageContentFragmentFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseAdminPageAdminPageContentFragmentFragmentParams(value: unknown): AdminPageAdminPageContentFragmentFragmentParams {
     if (isAdminPageAdminPageContentFragmentFragmentParams(value)) return value;
@@ -2456,7 +2437,7 @@ export function encodeAdminPageAdminPageContentFragmentFragmentParams(value: Adm
 
 export type AdminXeroPageAdminXeroPageScopeScope = { venueId: FrontendContractUuid };
 export function isAdminXeroPageAdminXeroPageScopeScope(value: unknown): value is AdminXeroPageAdminXeroPageScopeScope {
-    return isRecord(value) && (typeof value["venueId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId"]) && (typeof value["venueId"] === "string");
 }
 export function parseAdminXeroPageAdminXeroPageScopeScope(value: unknown): AdminXeroPageAdminXeroPageScopeScope {
     if (isAdminXeroPageAdminXeroPageScopeScope(value)) return value;
@@ -2466,7 +2447,7 @@ export function encodeAdminXeroPageAdminXeroPageScopeScope(value: AdminXeroPageA
 
 export type AdminXeroPageAdminXeroPageContentFragmentFragmentParams = {  };
 export function isAdminXeroPageAdminXeroPageContentFragmentFragmentParams(value: unknown): value is AdminXeroPageAdminXeroPageContentFragmentFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseAdminXeroPageAdminXeroPageContentFragmentFragmentParams(value: unknown): AdminXeroPageAdminXeroPageContentFragmentFragmentParams {
     if (isAdminXeroPageAdminXeroPageContentFragmentFragmentParams(value)) return value;
@@ -2476,7 +2457,7 @@ export function encodeAdminXeroPageAdminXeroPageContentFragmentFragmentParams(va
 
 export type AdminVenueConfigAdminVenueConfigScopeScope = { venueId: FrontendContractUuid };
 export function isAdminVenueConfigAdminVenueConfigScopeScope(value: unknown): value is AdminVenueConfigAdminVenueConfigScopeScope {
-    return isRecord(value) && (typeof value["venueId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId"]) && (typeof value["venueId"] === "string");
 }
 export function parseAdminVenueConfigAdminVenueConfigScopeScope(value: unknown): AdminVenueConfigAdminVenueConfigScopeScope {
     if (isAdminVenueConfigAdminVenueConfigScopeScope(value)) return value;
@@ -2486,7 +2467,7 @@ export function encodeAdminVenueConfigAdminVenueConfigScopeScope(value: AdminVen
 
 export type AdminVenueConfigAdminVenueSettingsFragmentFragmentParams = {  };
 export function isAdminVenueConfigAdminVenueSettingsFragmentFragmentParams(value: unknown): value is AdminVenueConfigAdminVenueSettingsFragmentFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseAdminVenueConfigAdminVenueSettingsFragmentFragmentParams(value: unknown): AdminVenueConfigAdminVenueSettingsFragmentFragmentParams {
     if (isAdminVenueConfigAdminVenueSettingsFragmentFragmentParams(value)) return value;
@@ -2496,7 +2477,7 @@ export function encodeAdminVenueConfigAdminVenueSettingsFragmentFragmentParams(v
 
 export type AdminVenueConfigUpdateVenueConfigActionFields = { configField: string; rosterEndTimesEnabled?: boolean; autoTimesheetCreationEnabled?: boolean };
 export function isAdminVenueConfigUpdateVenueConfigActionFields(value: unknown): value is AdminVenueConfigUpdateVenueConfigActionFields {
-    return isRecord(value) && (typeof value["configField"] === "string") && (!("rosterEndTimesEnabled" in value) || (typeof value["rosterEndTimesEnabled"] === "boolean")) && (!("autoTimesheetCreationEnabled" in value) || (typeof value["autoTimesheetCreationEnabled"] === "boolean"));
+    return isRecord(value) && hasExactKeys(value, ["configField", "rosterEndTimesEnabled", "autoTimesheetCreationEnabled"]) && (typeof value["configField"] === "string") && (!("rosterEndTimesEnabled" in value) || (typeof value["rosterEndTimesEnabled"] === "boolean")) && (!("autoTimesheetCreationEnabled" in value) || (typeof value["autoTimesheetCreationEnabled"] === "boolean"));
 }
 export function parseAdminVenueConfigUpdateVenueConfigActionFields(value: unknown): AdminVenueConfigUpdateVenueConfigActionFields {
     if (isAdminVenueConfigUpdateVenueConfigActionFields(value)) return value;
@@ -2506,7 +2487,7 @@ export function encodeAdminVenueConfigUpdateVenueConfigActionFields(value: Admin
 
 export type AdminInvitesAdminInvitesScopeScope = { venueId: FrontendContractUuid };
 export function isAdminInvitesAdminInvitesScopeScope(value: unknown): value is AdminInvitesAdminInvitesScopeScope {
-    return isRecord(value) && (typeof value["venueId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId"]) && (typeof value["venueId"] === "string");
 }
 export function parseAdminInvitesAdminInvitesScopeScope(value: unknown): AdminInvitesAdminInvitesScopeScope {
     if (isAdminInvitesAdminInvitesScopeScope(value)) return value;
@@ -2516,7 +2497,7 @@ export function encodeAdminInvitesAdminInvitesScopeScope(value: AdminInvitesAdmi
 
 export type AdminInvitesAdminInvitesFragmentFragmentParams = {  };
 export function isAdminInvitesAdminInvitesFragmentFragmentParams(value: unknown): value is AdminInvitesAdminInvitesFragmentFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseAdminInvitesAdminInvitesFragmentFragmentParams(value: unknown): AdminInvitesAdminInvitesFragmentFragmentParams {
     if (isAdminInvitesAdminInvitesFragmentFragmentParams(value)) return value;
@@ -2526,7 +2507,7 @@ export function encodeAdminInvitesAdminInvitesFragmentFragmentParams(value: Admi
 
 export type AdminInvitesCreateVenueInvitationActionFields = { email: string };
 export function isAdminInvitesCreateVenueInvitationActionFields(value: unknown): value is AdminInvitesCreateVenueInvitationActionFields {
-    return isRecord(value) && (typeof value["email"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["email"]) && (typeof value["email"] === "string");
 }
 export function parseAdminInvitesCreateVenueInvitationActionFields(value: unknown): AdminInvitesCreateVenueInvitationActionFields {
     if (isAdminInvitesCreateVenueInvitationActionFields(value)) return value;
@@ -2536,7 +2517,7 @@ export function encodeAdminInvitesCreateVenueInvitationActionFields(value: Admin
 
 export type AdminInvitesRevokeVenueInvitationActionFields = {  };
 export function isAdminInvitesRevokeVenueInvitationActionFields(value: unknown): value is AdminInvitesRevokeVenueInvitationActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseAdminInvitesRevokeVenueInvitationActionFields(value: unknown): AdminInvitesRevokeVenueInvitationActionFields {
     if (isAdminInvitesRevokeVenueInvitationActionFields(value)) return value;
@@ -2546,7 +2527,7 @@ export function encodeAdminInvitesRevokeVenueInvitationActionFields(value: Admin
 
 export type AdminExportsAdminExportsScopeScope = { venueId: FrontendContractUuid };
 export function isAdminExportsAdminExportsScopeScope(value: unknown): value is AdminExportsAdminExportsScopeScope {
-    return isRecord(value) && (typeof value["venueId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId"]) && (typeof value["venueId"] === "string");
 }
 export function parseAdminExportsAdminExportsScopeScope(value: unknown): AdminExportsAdminExportsScopeScope {
     if (isAdminExportsAdminExportsScopeScope(value)) return value;
@@ -2556,7 +2537,7 @@ export function encodeAdminExportsAdminExportsScopeScope(value: AdminExportsAdmi
 
 export type AdminExportsAdminExportsFragmentFragmentParams = {  };
 export function isAdminExportsAdminExportsFragmentFragmentParams(value: unknown): value is AdminExportsAdminExportsFragmentFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseAdminExportsAdminExportsFragmentFragmentParams(value: unknown): AdminExportsAdminExportsFragmentFragmentParams {
     if (isAdminExportsAdminExportsFragmentFragmentParams(value)) return value;
@@ -2566,7 +2547,7 @@ export function encodeAdminExportsAdminExportsFragmentFragmentParams(value: Admi
 
 export type AdminExportsCreateExportJobActionFields = { rangeStart: FrontendContractDay; rangeEnd: FrontendContractDay; exportType: string };
 export function isAdminExportsCreateExportJobActionFields(value: unknown): value is AdminExportsCreateExportJobActionFields {
-    return isRecord(value) && (typeof value["rangeStart"] === "string") && (typeof value["rangeEnd"] === "string") && (typeof value["exportType"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["rangeStart", "rangeEnd", "exportType"]) && (typeof value["rangeStart"] === "string") && (typeof value["rangeEnd"] === "string") && (typeof value["exportType"] === "string");
 }
 export function parseAdminExportsCreateExportJobActionFields(value: unknown): AdminExportsCreateExportJobActionFields {
     if (isAdminExportsCreateExportJobActionFields(value)) return value;
@@ -2576,7 +2557,7 @@ export function encodeAdminExportsCreateExportJobActionFields(value: AdminExport
 
 export type AdminShiftTypesAdminShiftTypesScopeScope = { venueId: FrontendContractUuid };
 export function isAdminShiftTypesAdminShiftTypesScopeScope(value: unknown): value is AdminShiftTypesAdminShiftTypesScopeScope {
-    return isRecord(value) && (typeof value["venueId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId"]) && (typeof value["venueId"] === "string");
 }
 export function parseAdminShiftTypesAdminShiftTypesScopeScope(value: unknown): AdminShiftTypesAdminShiftTypesScopeScope {
     if (isAdminShiftTypesAdminShiftTypesScopeScope(value)) return value;
@@ -2586,7 +2567,7 @@ export function encodeAdminShiftTypesAdminShiftTypesScopeScope(value: AdminShift
 
 export type AdminShiftTypesAdminShiftTypesFragmentFragmentParams = {  };
 export function isAdminShiftTypesAdminShiftTypesFragmentFragmentParams(value: unknown): value is AdminShiftTypesAdminShiftTypesFragmentFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseAdminShiftTypesAdminShiftTypesFragmentFragmentParams(value: unknown): AdminShiftTypesAdminShiftTypesFragmentFragmentParams {
     if (isAdminShiftTypesAdminShiftTypesFragmentFragmentParams(value)) return value;
@@ -2596,7 +2577,7 @@ export function encodeAdminShiftTypesAdminShiftTypesFragmentFragmentParams(value
 
 export type AdminShiftTypesCreateShiftTypeActionFields = { showInactiveShiftTypes: boolean; name: string; payRateSelection: string; colourKey: string; isActive: boolean };
 export function isAdminShiftTypesCreateShiftTypeActionFields(value: unknown): value is AdminShiftTypesCreateShiftTypeActionFields {
-    return isRecord(value) && (typeof value["showInactiveShiftTypes"] === "boolean") && (typeof value["name"] === "string") && (typeof value["payRateSelection"] === "string") && (typeof value["colourKey"] === "string") && (typeof value["isActive"] === "boolean");
+    return isRecord(value) && hasExactKeys(value, ["showInactiveShiftTypes", "name", "payRateSelection", "colourKey", "isActive"]) && (typeof value["showInactiveShiftTypes"] === "boolean") && (typeof value["name"] === "string") && (typeof value["payRateSelection"] === "string") && (typeof value["colourKey"] === "string") && (typeof value["isActive"] === "boolean");
 }
 export function parseAdminShiftTypesCreateShiftTypeActionFields(value: unknown): AdminShiftTypesCreateShiftTypeActionFields {
     if (isAdminShiftTypesCreateShiftTypeActionFields(value)) return value;
@@ -2606,7 +2587,7 @@ export function encodeAdminShiftTypesCreateShiftTypeActionFields(value: AdminShi
 
 export type AdminShiftTypesUpdateShiftTypeActionFields = { showInactiveShiftTypes: boolean; name: string; payRateSelection: string; colourKey: string; isActive: boolean };
 export function isAdminShiftTypesUpdateShiftTypeActionFields(value: unknown): value is AdminShiftTypesUpdateShiftTypeActionFields {
-    return isRecord(value) && (typeof value["showInactiveShiftTypes"] === "boolean") && (typeof value["name"] === "string") && (typeof value["payRateSelection"] === "string") && (typeof value["colourKey"] === "string") && (typeof value["isActive"] === "boolean");
+    return isRecord(value) && hasExactKeys(value, ["showInactiveShiftTypes", "name", "payRateSelection", "colourKey", "isActive"]) && (typeof value["showInactiveShiftTypes"] === "boolean") && (typeof value["name"] === "string") && (typeof value["payRateSelection"] === "string") && (typeof value["colourKey"] === "string") && (typeof value["isActive"] === "boolean");
 }
 export function parseAdminShiftTypesUpdateShiftTypeActionFields(value: unknown): AdminShiftTypesUpdateShiftTypeActionFields {
     if (isAdminShiftTypesUpdateShiftTypeActionFields(value)) return value;
@@ -2616,7 +2597,7 @@ export function encodeAdminShiftTypesUpdateShiftTypeActionFields(value: AdminShi
 
 export type AdminShiftTypesMoveShiftTypeUpActionFields = { showInactiveShiftTypes: boolean };
 export function isAdminShiftTypesMoveShiftTypeUpActionFields(value: unknown): value is AdminShiftTypesMoveShiftTypeUpActionFields {
-    return isRecord(value) && (typeof value["showInactiveShiftTypes"] === "boolean");
+    return isRecord(value) && hasExactKeys(value, ["showInactiveShiftTypes"]) && (typeof value["showInactiveShiftTypes"] === "boolean");
 }
 export function parseAdminShiftTypesMoveShiftTypeUpActionFields(value: unknown): AdminShiftTypesMoveShiftTypeUpActionFields {
     if (isAdminShiftTypesMoveShiftTypeUpActionFields(value)) return value;
@@ -2626,7 +2607,7 @@ export function encodeAdminShiftTypesMoveShiftTypeUpActionFields(value: AdminShi
 
 export type AdminShiftTypesMoveShiftTypeDownActionFields = { showInactiveShiftTypes: boolean };
 export function isAdminShiftTypesMoveShiftTypeDownActionFields(value: unknown): value is AdminShiftTypesMoveShiftTypeDownActionFields {
-    return isRecord(value) && (typeof value["showInactiveShiftTypes"] === "boolean");
+    return isRecord(value) && hasExactKeys(value, ["showInactiveShiftTypes"]) && (typeof value["showInactiveShiftTypes"] === "boolean");
 }
 export function parseAdminShiftTypesMoveShiftTypeDownActionFields(value: unknown): AdminShiftTypesMoveShiftTypeDownActionFields {
     if (isAdminShiftTypesMoveShiftTypeDownActionFields(value)) return value;
@@ -2636,7 +2617,7 @@ export function encodeAdminShiftTypesMoveShiftTypeDownActionFields(value: AdminS
 
 export type AdminShiftTypesAutosaveShiftTypeNameActionFields = { showInactiveShiftTypes: boolean; name: string; payRateSelection: string; colourKey: string; isActive: boolean };
 export function isAdminShiftTypesAutosaveShiftTypeNameActionFields(value: unknown): value is AdminShiftTypesAutosaveShiftTypeNameActionFields {
-    return isRecord(value) && (typeof value["showInactiveShiftTypes"] === "boolean") && (typeof value["name"] === "string") && (typeof value["payRateSelection"] === "string") && (typeof value["colourKey"] === "string") && (typeof value["isActive"] === "boolean");
+    return isRecord(value) && hasExactKeys(value, ["showInactiveShiftTypes", "name", "payRateSelection", "colourKey", "isActive"]) && (typeof value["showInactiveShiftTypes"] === "boolean") && (typeof value["name"] === "string") && (typeof value["payRateSelection"] === "string") && (typeof value["colourKey"] === "string") && (typeof value["isActive"] === "boolean");
 }
 export function parseAdminShiftTypesAutosaveShiftTypeNameActionFields(value: unknown): AdminShiftTypesAutosaveShiftTypeNameActionFields {
     if (isAdminShiftTypesAutosaveShiftTypeNameActionFields(value)) return value;
@@ -2646,7 +2627,7 @@ export function encodeAdminShiftTypesAutosaveShiftTypeNameActionFields(value: Ad
 
 export type AdminShiftTypesAutosaveShiftTypeSelectionActionFields = { showInactiveShiftTypes: boolean; name: string; payRateSelection: string; colourKey: string; isActive: boolean };
 export function isAdminShiftTypesAutosaveShiftTypeSelectionActionFields(value: unknown): value is AdminShiftTypesAutosaveShiftTypeSelectionActionFields {
-    return isRecord(value) && (typeof value["showInactiveShiftTypes"] === "boolean") && (typeof value["name"] === "string") && (typeof value["payRateSelection"] === "string") && (typeof value["colourKey"] === "string") && (typeof value["isActive"] === "boolean");
+    return isRecord(value) && hasExactKeys(value, ["showInactiveShiftTypes", "name", "payRateSelection", "colourKey", "isActive"]) && (typeof value["showInactiveShiftTypes"] === "boolean") && (typeof value["name"] === "string") && (typeof value["payRateSelection"] === "string") && (typeof value["colourKey"] === "string") && (typeof value["isActive"] === "boolean");
 }
 export function parseAdminShiftTypesAutosaveShiftTypeSelectionActionFields(value: unknown): AdminShiftTypesAutosaveShiftTypeSelectionActionFields {
     if (isAdminShiftTypesAutosaveShiftTypeSelectionActionFields(value)) return value;
@@ -2656,7 +2637,7 @@ export function encodeAdminShiftTypesAutosaveShiftTypeSelectionActionFields(valu
 
 export type AdminShiftTypesToggleInactiveShiftTypesActionFields = { showInactiveShiftTypes: boolean };
 export function isAdminShiftTypesToggleInactiveShiftTypesActionFields(value: unknown): value is AdminShiftTypesToggleInactiveShiftTypesActionFields {
-    return isRecord(value) && (typeof value["showInactiveShiftTypes"] === "boolean");
+    return isRecord(value) && hasExactKeys(value, ["showInactiveShiftTypes"]) && (typeof value["showInactiveShiftTypes"] === "boolean");
 }
 export function parseAdminShiftTypesToggleInactiveShiftTypesActionFields(value: unknown): AdminShiftTypesToggleInactiveShiftTypesActionFields {
     if (isAdminShiftTypesToggleInactiveShiftTypesActionFields(value)) return value;
@@ -2666,7 +2647,7 @@ export function encodeAdminShiftTypesToggleInactiveShiftTypesActionFields(value:
 
 export type AdminRosterGroupsAdminRosterGroupsScopeScope = { venueId: FrontendContractUuid };
 export function isAdminRosterGroupsAdminRosterGroupsScopeScope(value: unknown): value is AdminRosterGroupsAdminRosterGroupsScopeScope {
-    return isRecord(value) && (typeof value["venueId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId"]) && (typeof value["venueId"] === "string");
 }
 export function parseAdminRosterGroupsAdminRosterGroupsScopeScope(value: unknown): AdminRosterGroupsAdminRosterGroupsScopeScope {
     if (isAdminRosterGroupsAdminRosterGroupsScopeScope(value)) return value;
@@ -2676,7 +2657,7 @@ export function encodeAdminRosterGroupsAdminRosterGroupsScopeScope(value: AdminR
 
 export type AdminRosterGroupsAdminRosterGroupsFragmentFragmentParams = {  };
 export function isAdminRosterGroupsAdminRosterGroupsFragmentFragmentParams(value: unknown): value is AdminRosterGroupsAdminRosterGroupsFragmentFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseAdminRosterGroupsAdminRosterGroupsFragmentFragmentParams(value: unknown): AdminRosterGroupsAdminRosterGroupsFragmentFragmentParams {
     if (isAdminRosterGroupsAdminRosterGroupsFragmentFragmentParams(value)) return value;
@@ -2686,7 +2667,7 @@ export function encodeAdminRosterGroupsAdminRosterGroupsFragmentFragmentParams(v
 
 export type AdminRosterGroupsCreateRosterGroupActionFields = { showInactiveRosterGroups: boolean; name: string; isActive: boolean };
 export function isAdminRosterGroupsCreateRosterGroupActionFields(value: unknown): value is AdminRosterGroupsCreateRosterGroupActionFields {
-    return isRecord(value) && (typeof value["showInactiveRosterGroups"] === "boolean") && (typeof value["name"] === "string") && (typeof value["isActive"] === "boolean");
+    return isRecord(value) && hasExactKeys(value, ["showInactiveRosterGroups", "name", "isActive"]) && (typeof value["showInactiveRosterGroups"] === "boolean") && (typeof value["name"] === "string") && (typeof value["isActive"] === "boolean");
 }
 export function parseAdminRosterGroupsCreateRosterGroupActionFields(value: unknown): AdminRosterGroupsCreateRosterGroupActionFields {
     if (isAdminRosterGroupsCreateRosterGroupActionFields(value)) return value;
@@ -2696,7 +2677,7 @@ export function encodeAdminRosterGroupsCreateRosterGroupActionFields(value: Admi
 
 export type AdminRosterGroupsUpdateRosterGroupActionFields = { showInactiveRosterGroups: boolean; name: string; isActive: boolean };
 export function isAdminRosterGroupsUpdateRosterGroupActionFields(value: unknown): value is AdminRosterGroupsUpdateRosterGroupActionFields {
-    return isRecord(value) && (typeof value["showInactiveRosterGroups"] === "boolean") && (typeof value["name"] === "string") && (typeof value["isActive"] === "boolean");
+    return isRecord(value) && hasExactKeys(value, ["showInactiveRosterGroups", "name", "isActive"]) && (typeof value["showInactiveRosterGroups"] === "boolean") && (typeof value["name"] === "string") && (typeof value["isActive"] === "boolean");
 }
 export function parseAdminRosterGroupsUpdateRosterGroupActionFields(value: unknown): AdminRosterGroupsUpdateRosterGroupActionFields {
     if (isAdminRosterGroupsUpdateRosterGroupActionFields(value)) return value;
@@ -2706,7 +2687,7 @@ export function encodeAdminRosterGroupsUpdateRosterGroupActionFields(value: Admi
 
 export type AdminRosterGroupsMoveRosterGroupUpActionFields = { showInactiveRosterGroups: boolean };
 export function isAdminRosterGroupsMoveRosterGroupUpActionFields(value: unknown): value is AdminRosterGroupsMoveRosterGroupUpActionFields {
-    return isRecord(value) && (typeof value["showInactiveRosterGroups"] === "boolean");
+    return isRecord(value) && hasExactKeys(value, ["showInactiveRosterGroups"]) && (typeof value["showInactiveRosterGroups"] === "boolean");
 }
 export function parseAdminRosterGroupsMoveRosterGroupUpActionFields(value: unknown): AdminRosterGroupsMoveRosterGroupUpActionFields {
     if (isAdminRosterGroupsMoveRosterGroupUpActionFields(value)) return value;
@@ -2716,7 +2697,7 @@ export function encodeAdminRosterGroupsMoveRosterGroupUpActionFields(value: Admi
 
 export type AdminRosterGroupsMoveRosterGroupDownActionFields = { showInactiveRosterGroups: boolean };
 export function isAdminRosterGroupsMoveRosterGroupDownActionFields(value: unknown): value is AdminRosterGroupsMoveRosterGroupDownActionFields {
-    return isRecord(value) && (typeof value["showInactiveRosterGroups"] === "boolean");
+    return isRecord(value) && hasExactKeys(value, ["showInactiveRosterGroups"]) && (typeof value["showInactiveRosterGroups"] === "boolean");
 }
 export function parseAdminRosterGroupsMoveRosterGroupDownActionFields(value: unknown): AdminRosterGroupsMoveRosterGroupDownActionFields {
     if (isAdminRosterGroupsMoveRosterGroupDownActionFields(value)) return value;
@@ -2726,7 +2707,7 @@ export function encodeAdminRosterGroupsMoveRosterGroupDownActionFields(value: Ad
 
 export type AdminRosterGroupsToggleInactiveRosterGroupsActionFields = { showInactiveRosterGroups: boolean };
 export function isAdminRosterGroupsToggleInactiveRosterGroupsActionFields(value: unknown): value is AdminRosterGroupsToggleInactiveRosterGroupsActionFields {
-    return isRecord(value) && (typeof value["showInactiveRosterGroups"] === "boolean");
+    return isRecord(value) && hasExactKeys(value, ["showInactiveRosterGroups"]) && (typeof value["showInactiveRosterGroups"] === "boolean");
 }
 export function parseAdminRosterGroupsToggleInactiveRosterGroupsActionFields(value: unknown): AdminRosterGroupsToggleInactiveRosterGroupsActionFields {
     if (isAdminRosterGroupsToggleInactiveRosterGroupsActionFields(value)) return value;
@@ -2736,7 +2717,7 @@ export function encodeAdminRosterGroupsToggleInactiveRosterGroupsActionFields(va
 
 export type AdminXeroAdminXeroScopeScope = { venueId: FrontendContractUuid };
 export function isAdminXeroAdminXeroScopeScope(value: unknown): value is AdminXeroAdminXeroScopeScope {
-    return isRecord(value) && (typeof value["venueId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["venueId"]) && (typeof value["venueId"] === "string");
 }
 export function parseAdminXeroAdminXeroScopeScope(value: unknown): AdminXeroAdminXeroScopeScope {
     if (isAdminXeroAdminXeroScopeScope(value)) return value;
@@ -2746,7 +2727,7 @@ export function encodeAdminXeroAdminXeroScopeScope(value: AdminXeroAdminXeroScop
 
 export type AdminXeroAdminXeroShellFragmentFragmentParams = {  };
 export function isAdminXeroAdminXeroShellFragmentFragmentParams(value: unknown): value is AdminXeroAdminXeroShellFragmentFragmentParams {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseAdminXeroAdminXeroShellFragmentFragmentParams(value: unknown): AdminXeroAdminXeroShellFragmentFragmentParams {
     if (isAdminXeroAdminXeroShellFragmentFragmentParams(value)) return value;
@@ -2756,7 +2737,7 @@ export function encodeAdminXeroAdminXeroShellFragmentFragmentParams(value: Admin
 
 export type AdminXeroSyncXeroPayrollReferenceDataActionFields = {  };
 export function isAdminXeroSyncXeroPayrollReferenceDataActionFields(value: unknown): value is AdminXeroSyncXeroPayrollReferenceDataActionFields {
-    return isRecord(value);
+    return isRecord(value) && hasExactKeys(value, []);
 }
 export function parseAdminXeroSyncXeroPayrollReferenceDataActionFields(value: unknown): AdminXeroSyncXeroPayrollReferenceDataActionFields {
     if (isAdminXeroSyncXeroPayrollReferenceDataActionFields(value)) return value;
@@ -2766,7 +2747,7 @@ export function encodeAdminXeroSyncXeroPayrollReferenceDataActionFields(value: A
 
 export type AdminXeroShowXeroTimesheetPreparationStaffMappingsActionFields = { showMatched: string; editStaffId: string };
 export function isAdminXeroShowXeroTimesheetPreparationStaffMappingsActionFields(value: unknown): value is AdminXeroShowXeroTimesheetPreparationStaffMappingsActionFields {
-    return isRecord(value) && (typeof value["showMatched"] === "string") && (typeof value["editStaffId"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["showMatched", "editStaffId"]) && (typeof value["showMatched"] === "string") && (typeof value["editStaffId"] === "string");
 }
 export function parseAdminXeroShowXeroTimesheetPreparationStaffMappingsActionFields(value: unknown): AdminXeroShowXeroTimesheetPreparationStaffMappingsActionFields {
     if (isAdminXeroShowXeroTimesheetPreparationStaffMappingsActionFields(value)) return value;
@@ -2775,15 +2756,14 @@ export function parseAdminXeroShowXeroTimesheetPreparationStaffMappingsActionFie
 export function encodeAdminXeroShowXeroTimesheetPreparationStaffMappingsActionFields(value: AdminXeroShowXeroTimesheetPreparationStaffMappingsActionFields): AdminXeroShowXeroTimesheetPreparationStaffMappingsActionFields { return value; }
 
 export type VenueId = FrontendContractUuid;
-export type StaffFilterId = FrontendContractUuid;
 export type PanelId = FrontendContractUuid;
+export type StaffFilterId = FrontendContractUuid;
 export type RosterGroupId = FrontendContractUuid;
 export type RosterDayId = FrontendContractUuid;
 export type StaffId = FrontendContractUuid;
 
 export type SurfaceLabSurfaceName = "surface-lab";
 export type SurfaceLabFragmentKey = SurfaceLabSurfaceFragmentKey;
-export type LabViewStateMountState = SurfaceLabLabViewStateMountState;
 export type RefreshPanelActionFields = SurfaceLabRefreshPanelActionFields;
 export type MoveLabCardIntentFields = SurfaceLabMoveLabCardIntentFields;
 export type SurfaceLabSessionName = "drag";
@@ -2793,7 +2773,6 @@ export const surfaceLabSurfaceManifest = {"surface":"surface-lab","scopes":["lab
 
 export type TimesheetsSurfaceName = "timesheets";
 export type TimesheetsFragmentKey = TimesheetsSurfaceFragmentKey;
-export type TimesheetsMountState = TimesheetsTimesheetsMountStateMountState;
 export type NavigateTimesheetWeekActionFields = TimesheetsNavigateTimesheetWeekActionFields;
 export type UpdateTimesheetFiltersActionFields = TimesheetsUpdateTimesheetFiltersActionFields;
 export type ApproveTimesheetEntryActionFields = TimesheetsApproveTimesheetEntryActionFields;
@@ -2853,7 +2832,6 @@ export const leaveRequestsSurfaceManifest = {"surface":"leave-requests","scopes"
 
 export type BillingSurfaceName = "billing";
 export type BillingFragmentKey = BillingSurfaceFragmentKey;
-export type BillingMountState = BillingBillingMountStateMountState;
 export const billingSurfaceManifest = {"surface":"billing","scopes":["billing-venue"],"fragments":["billing-status"],"liveFragments":["billing-status"],"htmxActions":[],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":[],"overlayLanes":[],"containedSurfaces":{}} as const;
 
 export type SupportSurfaceName = "support";
@@ -2935,36 +2913,9 @@ export type ShowXeroTimesheetPreparationStaffMappingsActionFields = AdminXeroSho
 export type AdminXeroDomToken = "admin-xero-fragment" | "xero-preparation-staff-mappings";
 export const adminXeroSurfaceManifest = {"surface":"admin-xero","scopes":["admin-xero"],"fragments":["admin-xero-shell"],"liveFragments":["admin-xero-shell"],"htmxActions":[{"name":"sync-xero-payroll-reference-data","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"admin-xero-fragment","swap":"none","pushUrl":null,"custom":[{"name":"load-reference-sync-custom-htmx","reason":"automatic post-connect sync supplies load/push-url/indicator attributes; the manual shell action supplies this marker with no extra attributes"}]}},{"name":"show-xero-timesheet-preparation-staff-mappings","fields":["showMatched","editStaffId"],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"xero-preparation-staff-mappings","swap":"outerHTML","pushUrl":null,"custom":[]}}],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":["admin-xero-fragment","xero-preparation-staff-mappings"],"overlayLanes":[],"containedSurfaces":{}} as const;
 
-// FrontendSurface* live types are server-rendered mount metadata adapters.
-// Canonical websocket and actor invalidations carry SurfaceScope and SurfaceFragmentKey only.
-export type FrontendSurfaceScope =
-    { surface: "timesheets"; scope: TimesheetsTimesheetWeekScope }
-  | { surface: "roster"; scope: RosterRosterWeekScope }
-  | { surface: "roster-day-timeline"; scope: RosterDayTimelineRosterDayTimelineScope }
-  | { surface: "leave-requests"; scope: LeaveRequestsLeaveRequestsScopeScope }
-  | { surface: "billing"; scope: BillingBillingVenueScope }
-  | { surface: "support"; scope: SupportSupportPlatformScope }
-  | { surface: "profile"; scope: ProfileProfileScopeScope }
-  | { surface: "staff"; scope: StaffStaffScopeScope }
-  | { surface: "admin-venue-config"; scope: AdminVenueConfigAdminVenueConfigScopeScope }
-  | { surface: "admin-invites"; scope: AdminInvitesAdminInvitesScopeScope }
-  | { surface: "admin-exports"; scope: AdminExportsAdminExportsScopeScope }
-  | { surface: "admin-shift-types"; scope: AdminShiftTypesAdminShiftTypesScopeScope }
-  | { surface: "admin-roster-groups"; scope: AdminRosterGroupsAdminRosterGroupsScopeScope }
-  | { surface: "admin-xero"; scope: AdminXeroAdminXeroScopeScope };
-export function isFrontendSurfaceScope(value: unknown): value is FrontendSurfaceScope {
-    if (!isRecord(value)) return false;
-    if (!isFrontendSurfaceName(value.surface)) return false;
-    return isRecord(value.scope);
-}
-export function parseFrontendSurfaceScope(value: unknown): FrontendSurfaceScope {
-    if (isFrontendSurfaceScope(value)) return value;
-    throw new Error("Invalid FrontendSurfaceScope");
-}
-
 export type HtmxCustomHtmxAttribute = { name: string; reason: string };
 export function isHtmxCustomHtmxAttribute(value: unknown): value is HtmxCustomHtmxAttribute {
-    return isRecord(value) && (typeof value["name"] === "string") && (typeof value["reason"] === "string");
+    return isRecord(value) && hasExactKeys(value, ["name", "reason"]) && (typeof value["name"] === "string") && (typeof value["reason"] === "string");
 }
 export function parseHtmxCustomHtmxAttribute(value: unknown): HtmxCustomHtmxAttribute {
     if (isHtmxCustomHtmxAttribute(value)) return value;
@@ -2974,7 +2925,7 @@ export function encodeHtmxCustomHtmxAttribute(value: HtmxCustomHtmxAttribute): H
 
 export type HtmxActionOptions = { method: HtmxActionMethod | null; trigger: string | null; include: string | null; sync: string | null; indicator: string | null; confirm: string | null; select: string | null; target: string | null; swap: HtmxActionSwap | null; pushUrl: boolean | null; custom: ReadonlyArray<HtmxCustomHtmxAttribute> };
 export function isHtmxActionOptions(value: unknown): value is HtmxActionOptions {
-    return isRecord(value) && (value["method"] === null || (isHtmxActionMethod(value["method"]))) && (value["trigger"] === null || (typeof value["trigger"] === "string")) && (value["include"] === null || (typeof value["include"] === "string")) && (value["sync"] === null || (typeof value["sync"] === "string")) && (value["indicator"] === null || (typeof value["indicator"] === "string")) && (value["confirm"] === null || (typeof value["confirm"] === "string")) && (value["select"] === null || (typeof value["select"] === "string")) && (value["target"] === null || (typeof value["target"] === "string")) && (value["swap"] === null || (isHtmxActionSwap(value["swap"]))) && (value["pushUrl"] === null || (typeof value["pushUrl"] === "boolean")) && (Array.isArray(value["custom"]) && value["custom"].every((item) => isHtmxCustomHtmxAttribute(item)));
+    return isRecord(value) && hasExactKeys(value, ["method", "trigger", "include", "sync", "indicator", "confirm", "select", "target", "swap", "pushUrl", "custom"]) && (value["method"] === null || (isHtmxActionMethod(value["method"]))) && (value["trigger"] === null || (typeof value["trigger"] === "string")) && (value["include"] === null || (typeof value["include"] === "string")) && (value["sync"] === null || (typeof value["sync"] === "string")) && (value["indicator"] === null || (typeof value["indicator"] === "string")) && (value["confirm"] === null || (typeof value["confirm"] === "string")) && (value["select"] === null || (typeof value["select"] === "string")) && (value["target"] === null || (typeof value["target"] === "string")) && (value["swap"] === null || (isHtmxActionSwap(value["swap"]))) && (value["pushUrl"] === null || (typeof value["pushUrl"] === "boolean")) && (Array.isArray(value["custom"]) && value["custom"].every((item) => isHtmxCustomHtmxAttribute(item)));
 }
 export function parseHtmxActionOptions(value: unknown): HtmxActionOptions {
     if (isHtmxActionOptions(value)) return value;
@@ -2984,7 +2935,7 @@ export function encodeHtmxActionOptions(value: HtmxActionOptions): HtmxActionOpt
 
 export type FrontendSurfaceActionManifest = { name: string; fields: ReadonlyArray<string>; htmx: HtmxActionOptions };
 export function isFrontendSurfaceActionManifest(value: unknown): value is FrontendSurfaceActionManifest {
-    return isRecord(value) && (typeof value["name"] === "string") && (Array.isArray(value["fields"]) && value["fields"].every((item) => typeof item === "string")) && (isHtmxActionOptions(value["htmx"]));
+    return isRecord(value) && hasExactKeys(value, ["name", "fields", "htmx"]) && (typeof value["name"] === "string") && (Array.isArray(value["fields"]) && value["fields"].every((item) => typeof item === "string")) && (isHtmxActionOptions(value["htmx"]));
 }
 export function parseFrontendSurfaceActionManifest(value: unknown): FrontendSurfaceActionManifest {
     if (isFrontendSurfaceActionManifest(value)) return value;
@@ -2994,7 +2945,7 @@ export function encodeFrontendSurfaceActionManifest(value: FrontendSurfaceAction
 
 export type AppShellActionManifest = { name: string; fields: ReadonlyArray<string>; htmx: HtmxActionOptions };
 export function isAppShellActionManifest(value: unknown): value is AppShellActionManifest {
-    return isRecord(value) && (typeof value["name"] === "string") && (Array.isArray(value["fields"]) && value["fields"].every((item) => typeof item === "string")) && (isHtmxActionOptions(value["htmx"]));
+    return isRecord(value) && hasExactKeys(value, ["name", "fields", "htmx"]) && (typeof value["name"] === "string") && (Array.isArray(value["fields"]) && value["fields"].every((item) => typeof item === "string")) && (isHtmxActionOptions(value["htmx"]));
 }
 export function parseAppShellActionManifest(value: unknown): AppShellActionManifest {
     if (isAppShellActionManifest(value)) return value;
@@ -3002,33 +2953,405 @@ export function parseAppShellActionManifest(value: unknown): AppShellActionManif
 }
 export function encodeAppShellActionManifest(value: AppShellActionManifest): AppShellActionManifest { return value; }
 
-export type FrontendSurfaceSurfaceFragmentProtection =
-    { kind: "none" }
+export type FrontendSurfaceFragmentProtection =
+    { kind: "replace" }
   | { kind: "focused-field"; activeSelector: string; fieldKeyAttr: string; fieldNameFallback: boolean; containerSelector: string | null };
-export function isFrontendSurfaceSurfaceFragmentProtection(value: unknown): value is FrontendSurfaceSurfaceFragmentProtection {
-    return ((isRecord(value) && value["kind"] === "none") || (isRecord(value) && value["kind"] === "focused-field" && (typeof value["activeSelector"] === "string") && (typeof value["fieldKeyAttr"] === "string") && (typeof value["fieldNameFallback"] === "boolean") && (value["containerSelector"] === null || (typeof value["containerSelector"] === "string"))));
+export function isFrontendSurfaceFragmentProtection(value: unknown): value is FrontendSurfaceFragmentProtection {
+    return ((isRecord(value) && hasExactKeys(value, ["kind"]) && (value["kind"] === "replace")) || (isRecord(value) && hasExactKeys(value, ["kind", "activeSelector", "fieldKeyAttr", "fieldNameFallback", "containerSelector"]) && (value["kind"] === "focused-field") && (typeof value["activeSelector"] === "string") && (typeof value["fieldKeyAttr"] === "string") && (typeof value["fieldNameFallback"] === "boolean") && (value["containerSelector"] === null || (typeof value["containerSelector"] === "string"))));
 }
-export function parseFrontendSurfaceSurfaceFragmentProtection(value: unknown): FrontendSurfaceSurfaceFragmentProtection {
-    if (isFrontendSurfaceSurfaceFragmentProtection(value)) return value;
-    throw new Error("Invalid FrontendSurfaceSurfaceFragmentProtection");
+export function parseFrontendSurfaceFragmentProtection(value: unknown): FrontendSurfaceFragmentProtection {
+    if (isFrontendSurfaceFragmentProtection(value)) return value;
+    throw new Error("Invalid FrontendSurfaceFragmentProtection");
 }
-export function encodeFrontendSurfaceSurfaceFragmentProtection(value: FrontendSurfaceSurfaceFragmentProtection): FrontendSurfaceSurfaceFragmentProtection { return value; }
+export function encodeFrontendSurfaceFragmentProtection(value: FrontendSurfaceFragmentProtection): FrontendSurfaceFragmentProtection { return value; }
 
-export type FrontendSurfaceLiveSubscription = { scope: FrontendSurfaceScope; scopeKey: string; resyncFragments: ReadonlyArray<SurfaceFragmentKey> };
-export function isFrontendSurfaceLiveSubscription(value: unknown): value is FrontendSurfaceLiveSubscription {
-    return isRecord(value) && (isFrontendSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (Array.isArray(value["resyncFragments"]) && value["resyncFragments"].every((item) => isSurfaceFragmentKey(item)));
+// FrontendSurface mount metadata is an exact surface-discriminated local envelope.
+// Executable URL/target/protection values exist only on these local fragment descriptors.
+export type SurfaceLabMountedFragmentConfig = { fragmentKey: ({ surface: "surface-lab" } & SurfaceLabSurfaceFragmentKey); targetId: string; url: string; protection: FrontendSurfaceFragmentProtection };
+export function isSurfaceLabMountedFragmentConfig(value: unknown): value is SurfaceLabMountedFragmentConfig {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "surface-lab" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
 }
-export function parseFrontendSurfaceLiveSubscription(value: unknown): FrontendSurfaceLiveSubscription {
-    if (isFrontendSurfaceLiveSubscription(value)) return value;
-    throw new Error("Invalid FrontendSurfaceLiveSubscription");
+export function parseSurfaceLabMountedFragmentConfig(value: unknown): SurfaceLabMountedFragmentConfig {
+    if (isSurfaceLabMountedFragmentConfig(value)) return value;
+    throw new Error("Invalid SurfaceLabMountedFragmentConfig");
 }
-export function encodeFrontendSurfaceLiveSubscription(value: FrontendSurfaceLiveSubscription): FrontendSurfaceLiveSubscription { return value; }
+export function encodeSurfaceLabMountedFragmentConfig(value: SurfaceLabMountedFragmentConfig): SurfaceLabMountedFragmentConfig { return value; }
 
-export type FrontendSurfaceMountedFragmentKeyConfig = { kind: string; params: unknown };
-export type FrontendSurfaceMountedFragmentConfig = { key: FrontendSurfaceMountedFragmentKeyConfig; targetId: string; url: string; protection: unknown | null; loadPolicy: string | null };
-export type FrontendSurfaceMountConfig = { surface: FrontendSurfaceName; scopeKey: string; mountKey: string; mountState: unknown; fragments: ReadonlyArray<FrontendSurfaceMountedFragmentConfig>; subscription: FrontendSurfaceLiveSubscription | null };
-// FrontendSurfaceMountConfig is the HTML data attribute shape emitted by Haskell views.
-// Runtime parsing/normalization lives in frontend/ts/live-updates/frontend-surface.ts.
+export type TimesheetsMountedFragmentConfig = { fragmentKey: ({ surface: "timesheets" } & TimesheetsSurfaceFragmentKey); targetId: string; url: string; protection: FrontendSurfaceFragmentProtection };
+export function isTimesheetsMountedFragmentConfig(value: unknown): value is TimesheetsMountedFragmentConfig {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "timesheets" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+}
+export function parseTimesheetsMountedFragmentConfig(value: unknown): TimesheetsMountedFragmentConfig {
+    if (isTimesheetsMountedFragmentConfig(value)) return value;
+    throw new Error("Invalid TimesheetsMountedFragmentConfig");
+}
+export function encodeTimesheetsMountedFragmentConfig(value: TimesheetsMountedFragmentConfig): TimesheetsMountedFragmentConfig { return value; }
+
+export type RosterMountedFragmentConfig = { fragmentKey: ({ surface: "roster" } & RosterSurfaceFragmentKey); targetId: string; url: string; protection: FrontendSurfaceFragmentProtection };
+export function isRosterMountedFragmentConfig(value: unknown): value is RosterMountedFragmentConfig {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "roster" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+}
+export function parseRosterMountedFragmentConfig(value: unknown): RosterMountedFragmentConfig {
+    if (isRosterMountedFragmentConfig(value)) return value;
+    throw new Error("Invalid RosterMountedFragmentConfig");
+}
+export function encodeRosterMountedFragmentConfig(value: RosterMountedFragmentConfig): RosterMountedFragmentConfig { return value; }
+
+export type RosterDayTimelineMountedFragmentConfig = { fragmentKey: ({ surface: "roster-day-timeline" } & RosterDayTimelineSurfaceFragmentKey); targetId: string; url: string; protection: FrontendSurfaceFragmentProtection };
+export function isRosterDayTimelineMountedFragmentConfig(value: unknown): value is RosterDayTimelineMountedFragmentConfig {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "roster-day-timeline" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+}
+export function parseRosterDayTimelineMountedFragmentConfig(value: unknown): RosterDayTimelineMountedFragmentConfig {
+    if (isRosterDayTimelineMountedFragmentConfig(value)) return value;
+    throw new Error("Invalid RosterDayTimelineMountedFragmentConfig");
+}
+export function encodeRosterDayTimelineMountedFragmentConfig(value: RosterDayTimelineMountedFragmentConfig): RosterDayTimelineMountedFragmentConfig { return value; }
+
+export type LeaveRequestsMountedFragmentConfig = { fragmentKey: ({ surface: "leave-requests" } & LeaveRequestsSurfaceFragmentKey); targetId: string; url: string; protection: FrontendSurfaceFragmentProtection };
+export function isLeaveRequestsMountedFragmentConfig(value: unknown): value is LeaveRequestsMountedFragmentConfig {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "leave-requests" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+}
+export function parseLeaveRequestsMountedFragmentConfig(value: unknown): LeaveRequestsMountedFragmentConfig {
+    if (isLeaveRequestsMountedFragmentConfig(value)) return value;
+    throw new Error("Invalid LeaveRequestsMountedFragmentConfig");
+}
+export function encodeLeaveRequestsMountedFragmentConfig(value: LeaveRequestsMountedFragmentConfig): LeaveRequestsMountedFragmentConfig { return value; }
+
+export type BillingMountedFragmentConfig = { fragmentKey: ({ surface: "billing" } & BillingSurfaceFragmentKey); targetId: string; url: string; protection: FrontendSurfaceFragmentProtection };
+export function isBillingMountedFragmentConfig(value: unknown): value is BillingMountedFragmentConfig {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "billing" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+}
+export function parseBillingMountedFragmentConfig(value: unknown): BillingMountedFragmentConfig {
+    if (isBillingMountedFragmentConfig(value)) return value;
+    throw new Error("Invalid BillingMountedFragmentConfig");
+}
+export function encodeBillingMountedFragmentConfig(value: BillingMountedFragmentConfig): BillingMountedFragmentConfig { return value; }
+
+export type SupportMountedFragmentConfig = { fragmentKey: ({ surface: "support" } & SupportSurfaceFragmentKey); targetId: string; url: string; protection: FrontendSurfaceFragmentProtection };
+export function isSupportMountedFragmentConfig(value: unknown): value is SupportMountedFragmentConfig {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "support" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+}
+export function parseSupportMountedFragmentConfig(value: unknown): SupportMountedFragmentConfig {
+    if (isSupportMountedFragmentConfig(value)) return value;
+    throw new Error("Invalid SupportMountedFragmentConfig");
+}
+export function encodeSupportMountedFragmentConfig(value: SupportMountedFragmentConfig): SupportMountedFragmentConfig { return value; }
+
+export type ProfileMountedFragmentConfig = { fragmentKey: ({ surface: "profile" } & ProfileSurfaceFragmentKey); targetId: string; url: string; protection: FrontendSurfaceFragmentProtection };
+export function isProfileMountedFragmentConfig(value: unknown): value is ProfileMountedFragmentConfig {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "profile" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+}
+export function parseProfileMountedFragmentConfig(value: unknown): ProfileMountedFragmentConfig {
+    if (isProfileMountedFragmentConfig(value)) return value;
+    throw new Error("Invalid ProfileMountedFragmentConfig");
+}
+export function encodeProfileMountedFragmentConfig(value: ProfileMountedFragmentConfig): ProfileMountedFragmentConfig { return value; }
+
+export type StaffMountedFragmentConfig = { fragmentKey: ({ surface: "staff" } & StaffSurfaceFragmentKey); targetId: string; url: string; protection: FrontendSurfaceFragmentProtection };
+export function isStaffMountedFragmentConfig(value: unknown): value is StaffMountedFragmentConfig {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "staff" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+}
+export function parseStaffMountedFragmentConfig(value: unknown): StaffMountedFragmentConfig {
+    if (isStaffMountedFragmentConfig(value)) return value;
+    throw new Error("Invalid StaffMountedFragmentConfig");
+}
+export function encodeStaffMountedFragmentConfig(value: StaffMountedFragmentConfig): StaffMountedFragmentConfig { return value; }
+
+export type AdminPageMountedFragmentConfig = { fragmentKey: ({ surface: "admin-page" } & AdminPageSurfaceFragmentKey); targetId: string; url: string; protection: FrontendSurfaceFragmentProtection };
+export function isAdminPageMountedFragmentConfig(value: unknown): value is AdminPageMountedFragmentConfig {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "admin-page" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+}
+export function parseAdminPageMountedFragmentConfig(value: unknown): AdminPageMountedFragmentConfig {
+    if (isAdminPageMountedFragmentConfig(value)) return value;
+    throw new Error("Invalid AdminPageMountedFragmentConfig");
+}
+export function encodeAdminPageMountedFragmentConfig(value: AdminPageMountedFragmentConfig): AdminPageMountedFragmentConfig { return value; }
+
+export type AdminXeroPageMountedFragmentConfig = { fragmentKey: ({ surface: "admin-xero-page" } & AdminXeroPageSurfaceFragmentKey); targetId: string; url: string; protection: FrontendSurfaceFragmentProtection };
+export function isAdminXeroPageMountedFragmentConfig(value: unknown): value is AdminXeroPageMountedFragmentConfig {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "admin-xero-page" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+}
+export function parseAdminXeroPageMountedFragmentConfig(value: unknown): AdminXeroPageMountedFragmentConfig {
+    if (isAdminXeroPageMountedFragmentConfig(value)) return value;
+    throw new Error("Invalid AdminXeroPageMountedFragmentConfig");
+}
+export function encodeAdminXeroPageMountedFragmentConfig(value: AdminXeroPageMountedFragmentConfig): AdminXeroPageMountedFragmentConfig { return value; }
+
+export type AdminVenueConfigMountedFragmentConfig = { fragmentKey: ({ surface: "admin-venue-config" } & AdminVenueConfigSurfaceFragmentKey); targetId: string; url: string; protection: FrontendSurfaceFragmentProtection };
+export function isAdminVenueConfigMountedFragmentConfig(value: unknown): value is AdminVenueConfigMountedFragmentConfig {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "admin-venue-config" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+}
+export function parseAdminVenueConfigMountedFragmentConfig(value: unknown): AdminVenueConfigMountedFragmentConfig {
+    if (isAdminVenueConfigMountedFragmentConfig(value)) return value;
+    throw new Error("Invalid AdminVenueConfigMountedFragmentConfig");
+}
+export function encodeAdminVenueConfigMountedFragmentConfig(value: AdminVenueConfigMountedFragmentConfig): AdminVenueConfigMountedFragmentConfig { return value; }
+
+export type AdminInvitesMountedFragmentConfig = { fragmentKey: ({ surface: "admin-invites" } & AdminInvitesSurfaceFragmentKey); targetId: string; url: string; protection: FrontendSurfaceFragmentProtection };
+export function isAdminInvitesMountedFragmentConfig(value: unknown): value is AdminInvitesMountedFragmentConfig {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "admin-invites" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+}
+export function parseAdminInvitesMountedFragmentConfig(value: unknown): AdminInvitesMountedFragmentConfig {
+    if (isAdminInvitesMountedFragmentConfig(value)) return value;
+    throw new Error("Invalid AdminInvitesMountedFragmentConfig");
+}
+export function encodeAdminInvitesMountedFragmentConfig(value: AdminInvitesMountedFragmentConfig): AdminInvitesMountedFragmentConfig { return value; }
+
+export type AdminExportsMountedFragmentConfig = { fragmentKey: ({ surface: "admin-exports" } & AdminExportsSurfaceFragmentKey); targetId: string; url: string; protection: FrontendSurfaceFragmentProtection };
+export function isAdminExportsMountedFragmentConfig(value: unknown): value is AdminExportsMountedFragmentConfig {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "admin-exports" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+}
+export function parseAdminExportsMountedFragmentConfig(value: unknown): AdminExportsMountedFragmentConfig {
+    if (isAdminExportsMountedFragmentConfig(value)) return value;
+    throw new Error("Invalid AdminExportsMountedFragmentConfig");
+}
+export function encodeAdminExportsMountedFragmentConfig(value: AdminExportsMountedFragmentConfig): AdminExportsMountedFragmentConfig { return value; }
+
+export type AdminShiftTypesMountedFragmentConfig = { fragmentKey: ({ surface: "admin-shift-types" } & AdminShiftTypesSurfaceFragmentKey); targetId: string; url: string; protection: FrontendSurfaceFragmentProtection };
+export function isAdminShiftTypesMountedFragmentConfig(value: unknown): value is AdminShiftTypesMountedFragmentConfig {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "admin-shift-types" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+}
+export function parseAdminShiftTypesMountedFragmentConfig(value: unknown): AdminShiftTypesMountedFragmentConfig {
+    if (isAdminShiftTypesMountedFragmentConfig(value)) return value;
+    throw new Error("Invalid AdminShiftTypesMountedFragmentConfig");
+}
+export function encodeAdminShiftTypesMountedFragmentConfig(value: AdminShiftTypesMountedFragmentConfig): AdminShiftTypesMountedFragmentConfig { return value; }
+
+export type AdminRosterGroupsMountedFragmentConfig = { fragmentKey: ({ surface: "admin-roster-groups" } & AdminRosterGroupsSurfaceFragmentKey); targetId: string; url: string; protection: FrontendSurfaceFragmentProtection };
+export function isAdminRosterGroupsMountedFragmentConfig(value: unknown): value is AdminRosterGroupsMountedFragmentConfig {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "admin-roster-groups" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+}
+export function parseAdminRosterGroupsMountedFragmentConfig(value: unknown): AdminRosterGroupsMountedFragmentConfig {
+    if (isAdminRosterGroupsMountedFragmentConfig(value)) return value;
+    throw new Error("Invalid AdminRosterGroupsMountedFragmentConfig");
+}
+export function encodeAdminRosterGroupsMountedFragmentConfig(value: AdminRosterGroupsMountedFragmentConfig): AdminRosterGroupsMountedFragmentConfig { return value; }
+
+export type AdminXeroMountedFragmentConfig = { fragmentKey: ({ surface: "admin-xero" } & AdminXeroSurfaceFragmentKey); targetId: string; url: string; protection: FrontendSurfaceFragmentProtection };
+export function isAdminXeroMountedFragmentConfig(value: unknown): value is AdminXeroMountedFragmentConfig {
+    return isRecord(value) && hasExactKeys(value, ["fragmentKey", "targetId", "url", "protection"]) && isSurfaceFragmentKey(value["fragmentKey"]) && value["fragmentKey"].surface === "admin-xero" && typeof value["targetId"] === "string" && value["targetId"].length > 0 && typeof value["url"] === "string" && value["url"].length > 0 && isFrontendSurfaceFragmentProtection(value["protection"]);
+}
+export function parseAdminXeroMountedFragmentConfig(value: unknown): AdminXeroMountedFragmentConfig {
+    if (isAdminXeroMountedFragmentConfig(value)) return value;
+    throw new Error("Invalid AdminXeroMountedFragmentConfig");
+}
+export function encodeAdminXeroMountedFragmentConfig(value: AdminXeroMountedFragmentConfig): AdminXeroMountedFragmentConfig { return value; }
+
+export type SurfaceLabMountConfig = { surface: "surface-lab"; scopeKey: string; mountKey: string; fragments: ReadonlyArray<SurfaceLabMountedFragmentConfig>; subscription: null };
+export function isSurfaceLabMountConfig(value: unknown): value is SurfaceLabMountConfig {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "surface-lab" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isSurfaceLabMountedFragmentConfig(fragment)) && (value["subscription"] === null);
+}
+export function parseSurfaceLabMountConfig(value: unknown): SurfaceLabMountConfig {
+    if (isSurfaceLabMountConfig(value)) return value;
+    throw new Error("Invalid SurfaceLabMountConfig");
+}
+export function encodeSurfaceLabMountConfig(value: SurfaceLabMountConfig): SurfaceLabMountConfig { return value; }
+
+export type TimesheetsMountConfig = { surface: "timesheets"; scopeKey: string; mountKey: string; fragments: ReadonlyArray<TimesheetsMountedFragmentConfig>; subscription: { scope: Extract<SurfaceScope, { surface: "timesheets" }> } | null };
+export function isTimesheetsMountConfig(value: unknown): value is TimesheetsMountConfig {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "timesheets" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isTimesheetsMountedFragmentConfig(fragment)) && (((value["subscription"] === null && !(value["fragments"].some((fragment) => ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"].includes(fragment.fragmentKey.kind)))) || ((isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "timesheets") && (value["fragments"].some((fragment) => ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"].includes(fragment.fragmentKey.kind))))));
+}
+export function parseTimesheetsMountConfig(value: unknown): TimesheetsMountConfig {
+    if (isTimesheetsMountConfig(value)) return value;
+    throw new Error("Invalid TimesheetsMountConfig");
+}
+export function encodeTimesheetsMountConfig(value: TimesheetsMountConfig): TimesheetsMountConfig { return value; }
+
+export type RosterMountConfig = { surface: "roster"; scopeKey: string; mountKey: string; fragments: ReadonlyArray<RosterMountedFragmentConfig>; subscription: { scope: Extract<SurfaceScope, { surface: "roster" }> } | null };
+export function isRosterMountConfig(value: unknown): value is RosterMountConfig {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "roster" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isRosterMountedFragmentConfig(fragment)) && (((value["subscription"] === null && !(value["fragments"].some((fragment) => ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-staff-self-service-leave-form", "roster-day-section", "roster-row"].includes(fragment.fragmentKey.kind)))) || ((isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "roster") && (value["fragments"].some((fragment) => ["roster-content", "roster-grid-toolbar", "roster-grid-frame", "roster-day-columns", "roster-day-rail", "roster-wage-rail", "roster-slots-grid", "roster-staff-panel", "roster-staff-self-service-leave-form", "roster-day-section", "roster-row"].includes(fragment.fragmentKey.kind))))));
+}
+export function parseRosterMountConfig(value: unknown): RosterMountConfig {
+    if (isRosterMountConfig(value)) return value;
+    throw new Error("Invalid RosterMountConfig");
+}
+export function encodeRosterMountConfig(value: RosterMountConfig): RosterMountConfig { return value; }
+
+export type RosterDayTimelineMountConfig = { surface: "roster-day-timeline"; scopeKey: string; mountKey: string; fragments: ReadonlyArray<RosterDayTimelineMountedFragmentConfig>; subscription: { scope: Extract<SurfaceScope, { surface: "roster-day-timeline" }> } | null };
+export function isRosterDayTimelineMountConfig(value: unknown): value is RosterDayTimelineMountConfig {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "roster-day-timeline" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isRosterDayTimelineMountedFragmentConfig(fragment)) && (((value["subscription"] === null && !(value["fragments"].some((fragment) => ["roster-day-timeline-content"].includes(fragment.fragmentKey.kind)))) || ((isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "roster-day-timeline") && (value["fragments"].some((fragment) => ["roster-day-timeline-content"].includes(fragment.fragmentKey.kind))))));
+}
+export function parseRosterDayTimelineMountConfig(value: unknown): RosterDayTimelineMountConfig {
+    if (isRosterDayTimelineMountConfig(value)) return value;
+    throw new Error("Invalid RosterDayTimelineMountConfig");
+}
+export function encodeRosterDayTimelineMountConfig(value: RosterDayTimelineMountConfig): RosterDayTimelineMountConfig { return value; }
+
+export type LeaveRequestsMountConfig = { surface: "leave-requests"; scopeKey: string; mountKey: string; fragments: ReadonlyArray<LeaveRequestsMountedFragmentConfig>; subscription: { scope: Extract<SurfaceScope, { surface: "leave-requests" }> } | null };
+export function isLeaveRequestsMountConfig(value: unknown): value is LeaveRequestsMountConfig {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "leave-requests" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isLeaveRequestsMountedFragmentConfig(fragment)) && (((value["subscription"] === null && !(value["fragments"].some((fragment) => ["leave-section-count", "leave-section-list"].includes(fragment.fragmentKey.kind)))) || ((isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "leave-requests") && (value["fragments"].some((fragment) => ["leave-section-count", "leave-section-list"].includes(fragment.fragmentKey.kind))))));
+}
+export function parseLeaveRequestsMountConfig(value: unknown): LeaveRequestsMountConfig {
+    if (isLeaveRequestsMountConfig(value)) return value;
+    throw new Error("Invalid LeaveRequestsMountConfig");
+}
+export function encodeLeaveRequestsMountConfig(value: LeaveRequestsMountConfig): LeaveRequestsMountConfig { return value; }
+
+export type BillingMountConfig = { surface: "billing"; scopeKey: string; mountKey: string; fragments: ReadonlyArray<BillingMountedFragmentConfig>; subscription: { scope: Extract<SurfaceScope, { surface: "billing" }> } | null };
+export function isBillingMountConfig(value: unknown): value is BillingMountConfig {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "billing" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isBillingMountedFragmentConfig(fragment)) && (((value["subscription"] === null && !(value["fragments"].some((fragment) => ["billing-status"].includes(fragment.fragmentKey.kind)))) || ((isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "billing") && (value["fragments"].some((fragment) => ["billing-status"].includes(fragment.fragmentKey.kind))))));
+}
+export function parseBillingMountConfig(value: unknown): BillingMountConfig {
+    if (isBillingMountConfig(value)) return value;
+    throw new Error("Invalid BillingMountConfig");
+}
+export function encodeBillingMountConfig(value: BillingMountConfig): BillingMountConfig { return value; }
+
+export type SupportMountConfig = { surface: "support"; scopeKey: string; mountKey: string; fragments: ReadonlyArray<SupportMountedFragmentConfig>; subscription: { scope: Extract<SurfaceScope, { surface: "support" }> } | null };
+export function isSupportMountConfig(value: unknown): value is SupportMountConfig {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "support" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isSupportMountedFragmentConfig(fragment)) && (((value["subscription"] === null && !(value["fragments"].some((fragment) => ["support-award-rates", "support-public-holidays"].includes(fragment.fragmentKey.kind)))) || ((isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "support") && (value["fragments"].some((fragment) => ["support-award-rates", "support-public-holidays"].includes(fragment.fragmentKey.kind))))));
+}
+export function parseSupportMountConfig(value: unknown): SupportMountConfig {
+    if (isSupportMountConfig(value)) return value;
+    throw new Error("Invalid SupportMountConfig");
+}
+export function encodeSupportMountConfig(value: SupportMountConfig): SupportMountConfig { return value; }
+
+export type ProfileMountConfig = { surface: "profile"; scopeKey: string; mountKey: string; fragments: ReadonlyArray<ProfileMountedFragmentConfig>; subscription: { scope: Extract<SurfaceScope, { surface: "profile" }> } | null };
+export function isProfileMountConfig(value: unknown): value is ProfileMountConfig {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "profile" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isProfileMountedFragmentConfig(fragment)) && (((value["subscription"] === null && !(value["fragments"].some((fragment) => ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section", "profile-rsa-section"].includes(fragment.fragmentKey.kind)))) || ((isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "profile") && (value["fragments"].some((fragment) => ["profile-details-section", "profile-preferences-section", "profile-security-section", "profile-leave-section", "profile-rsa-section"].includes(fragment.fragmentKey.kind))))));
+}
+export function parseProfileMountConfig(value: unknown): ProfileMountConfig {
+    if (isProfileMountConfig(value)) return value;
+    throw new Error("Invalid ProfileMountConfig");
+}
+export function encodeProfileMountConfig(value: ProfileMountConfig): ProfileMountConfig { return value; }
+
+export type StaffMountConfig = { surface: "staff"; scopeKey: string; mountKey: string; fragments: ReadonlyArray<StaffMountedFragmentConfig>; subscription: { scope: Extract<SurfaceScope, { surface: "staff" }> } | null };
+export function isStaffMountConfig(value: unknown): value is StaffMountConfig {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "staff" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isStaffMountedFragmentConfig(fragment)) && (((value["subscription"] === null && !(value["fragments"].some((fragment) => ["staff-details-section", "staff-preferences-section", "staff-leave-section"].includes(fragment.fragmentKey.kind)))) || ((isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "staff") && (value["fragments"].some((fragment) => ["staff-details-section", "staff-preferences-section", "staff-leave-section"].includes(fragment.fragmentKey.kind))))));
+}
+export function parseStaffMountConfig(value: unknown): StaffMountConfig {
+    if (isStaffMountConfig(value)) return value;
+    throw new Error("Invalid StaffMountConfig");
+}
+export function encodeStaffMountConfig(value: StaffMountConfig): StaffMountConfig { return value; }
+
+export type AdminPageMountConfig = { surface: "admin-page"; scopeKey: string; mountKey: string; fragments: ReadonlyArray<AdminPageMountedFragmentConfig>; subscription: null };
+export function isAdminPageMountConfig(value: unknown): value is AdminPageMountConfig {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-page" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminPageMountedFragmentConfig(fragment)) && (value["subscription"] === null);
+}
+export function parseAdminPageMountConfig(value: unknown): AdminPageMountConfig {
+    if (isAdminPageMountConfig(value)) return value;
+    throw new Error("Invalid AdminPageMountConfig");
+}
+export function encodeAdminPageMountConfig(value: AdminPageMountConfig): AdminPageMountConfig { return value; }
+
+export type AdminXeroPageMountConfig = { surface: "admin-xero-page"; scopeKey: string; mountKey: string; fragments: ReadonlyArray<AdminXeroPageMountedFragmentConfig>; subscription: null };
+export function isAdminXeroPageMountConfig(value: unknown): value is AdminXeroPageMountConfig {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-xero-page" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminXeroPageMountedFragmentConfig(fragment)) && (value["subscription"] === null);
+}
+export function parseAdminXeroPageMountConfig(value: unknown): AdminXeroPageMountConfig {
+    if (isAdminXeroPageMountConfig(value)) return value;
+    throw new Error("Invalid AdminXeroPageMountConfig");
+}
+export function encodeAdminXeroPageMountConfig(value: AdminXeroPageMountConfig): AdminXeroPageMountConfig { return value; }
+
+export type AdminVenueConfigMountConfig = { surface: "admin-venue-config"; scopeKey: string; mountKey: string; fragments: ReadonlyArray<AdminVenueConfigMountedFragmentConfig>; subscription: { scope: Extract<SurfaceScope, { surface: "admin-venue-config" }> } | null };
+export function isAdminVenueConfigMountConfig(value: unknown): value is AdminVenueConfigMountConfig {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-venue-config" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminVenueConfigMountedFragmentConfig(fragment)) && (((value["subscription"] === null && !(value["fragments"].some((fragment) => ["admin-venue-settings"].includes(fragment.fragmentKey.kind)))) || ((isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "admin-venue-config") && (value["fragments"].some((fragment) => ["admin-venue-settings"].includes(fragment.fragmentKey.kind))))));
+}
+export function parseAdminVenueConfigMountConfig(value: unknown): AdminVenueConfigMountConfig {
+    if (isAdminVenueConfigMountConfig(value)) return value;
+    throw new Error("Invalid AdminVenueConfigMountConfig");
+}
+export function encodeAdminVenueConfigMountConfig(value: AdminVenueConfigMountConfig): AdminVenueConfigMountConfig { return value; }
+
+export type AdminInvitesMountConfig = { surface: "admin-invites"; scopeKey: string; mountKey: string; fragments: ReadonlyArray<AdminInvitesMountedFragmentConfig>; subscription: { scope: Extract<SurfaceScope, { surface: "admin-invites" }> } | null };
+export function isAdminInvitesMountConfig(value: unknown): value is AdminInvitesMountConfig {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-invites" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminInvitesMountedFragmentConfig(fragment)) && (((value["subscription"] === null && !(value["fragments"].some((fragment) => ["admin-invites"].includes(fragment.fragmentKey.kind)))) || ((isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "admin-invites") && (value["fragments"].some((fragment) => ["admin-invites"].includes(fragment.fragmentKey.kind))))));
+}
+export function parseAdminInvitesMountConfig(value: unknown): AdminInvitesMountConfig {
+    if (isAdminInvitesMountConfig(value)) return value;
+    throw new Error("Invalid AdminInvitesMountConfig");
+}
+export function encodeAdminInvitesMountConfig(value: AdminInvitesMountConfig): AdminInvitesMountConfig { return value; }
+
+export type AdminExportsMountConfig = { surface: "admin-exports"; scopeKey: string; mountKey: string; fragments: ReadonlyArray<AdminExportsMountedFragmentConfig>; subscription: { scope: Extract<SurfaceScope, { surface: "admin-exports" }> } | null };
+export function isAdminExportsMountConfig(value: unknown): value is AdminExportsMountConfig {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-exports" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminExportsMountedFragmentConfig(fragment)) && (((value["subscription"] === null && !(value["fragments"].some((fragment) => ["admin-exports"].includes(fragment.fragmentKey.kind)))) || ((isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "admin-exports") && (value["fragments"].some((fragment) => ["admin-exports"].includes(fragment.fragmentKey.kind))))));
+}
+export function parseAdminExportsMountConfig(value: unknown): AdminExportsMountConfig {
+    if (isAdminExportsMountConfig(value)) return value;
+    throw new Error("Invalid AdminExportsMountConfig");
+}
+export function encodeAdminExportsMountConfig(value: AdminExportsMountConfig): AdminExportsMountConfig { return value; }
+
+export type AdminShiftTypesMountConfig = { surface: "admin-shift-types"; scopeKey: string; mountKey: string; fragments: ReadonlyArray<AdminShiftTypesMountedFragmentConfig>; subscription: { scope: Extract<SurfaceScope, { surface: "admin-shift-types" }> } | null };
+export function isAdminShiftTypesMountConfig(value: unknown): value is AdminShiftTypesMountConfig {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-shift-types" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminShiftTypesMountedFragmentConfig(fragment)) && (((value["subscription"] === null && !(value["fragments"].some((fragment) => ["admin-shift-types"].includes(fragment.fragmentKey.kind)))) || ((isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "admin-shift-types") && (value["fragments"].some((fragment) => ["admin-shift-types"].includes(fragment.fragmentKey.kind))))));
+}
+export function parseAdminShiftTypesMountConfig(value: unknown): AdminShiftTypesMountConfig {
+    if (isAdminShiftTypesMountConfig(value)) return value;
+    throw new Error("Invalid AdminShiftTypesMountConfig");
+}
+export function encodeAdminShiftTypesMountConfig(value: AdminShiftTypesMountConfig): AdminShiftTypesMountConfig { return value; }
+
+export type AdminRosterGroupsMountConfig = { surface: "admin-roster-groups"; scopeKey: string; mountKey: string; fragments: ReadonlyArray<AdminRosterGroupsMountedFragmentConfig>; subscription: { scope: Extract<SurfaceScope, { surface: "admin-roster-groups" }> } | null };
+export function isAdminRosterGroupsMountConfig(value: unknown): value is AdminRosterGroupsMountConfig {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-roster-groups" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminRosterGroupsMountedFragmentConfig(fragment)) && (((value["subscription"] === null && !(value["fragments"].some((fragment) => ["admin-roster-groups"].includes(fragment.fragmentKey.kind)))) || ((isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "admin-roster-groups") && (value["fragments"].some((fragment) => ["admin-roster-groups"].includes(fragment.fragmentKey.kind))))));
+}
+export function parseAdminRosterGroupsMountConfig(value: unknown): AdminRosterGroupsMountConfig {
+    if (isAdminRosterGroupsMountConfig(value)) return value;
+    throw new Error("Invalid AdminRosterGroupsMountConfig");
+}
+export function encodeAdminRosterGroupsMountConfig(value: AdminRosterGroupsMountConfig): AdminRosterGroupsMountConfig { return value; }
+
+export type AdminXeroMountConfig = { surface: "admin-xero"; scopeKey: string; mountKey: string; fragments: ReadonlyArray<AdminXeroMountedFragmentConfig>; subscription: { scope: Extract<SurfaceScope, { surface: "admin-xero" }> } | null };
+export function isAdminXeroMountConfig(value: unknown): value is AdminXeroMountConfig {
+    return isRecord(value) && hasExactKeys(value, ["surface", "scopeKey", "mountKey", "fragments", "subscription"]) && value["surface"] === "admin-xero" && typeof value["scopeKey"] === "string" && value["scopeKey"].length > 0 && typeof value["mountKey"] === "string" && value["mountKey"].length > 0 && Array.isArray(value["fragments"]) && value["fragments"].every((fragment) => isAdminXeroMountedFragmentConfig(fragment)) && (((value["subscription"] === null && !(value["fragments"].some((fragment) => ["admin-xero-shell"].includes(fragment.fragmentKey.kind)))) || ((isRecord(value["subscription"]) && hasExactKeys(value["subscription"], ["scope"]) && isSurfaceScope(value["subscription"].scope) && value["subscription"].scope.surface === "admin-xero") && (value["fragments"].some((fragment) => ["admin-xero-shell"].includes(fragment.fragmentKey.kind))))));
+}
+export function parseAdminXeroMountConfig(value: unknown): AdminXeroMountConfig {
+    if (isAdminXeroMountConfig(value)) return value;
+    throw new Error("Invalid AdminXeroMountConfig");
+}
+export function encodeAdminXeroMountConfig(value: AdminXeroMountConfig): AdminXeroMountConfig { return value; }
+
+export type FrontendSurfaceMountedFragmentConfig =
+    SurfaceLabMountedFragmentConfig
+  | TimesheetsMountedFragmentConfig
+  | RosterMountedFragmentConfig
+  | RosterDayTimelineMountedFragmentConfig
+  | LeaveRequestsMountedFragmentConfig
+  | BillingMountedFragmentConfig
+  | SupportMountedFragmentConfig
+  | ProfileMountedFragmentConfig
+  | StaffMountedFragmentConfig
+  | AdminPageMountedFragmentConfig
+  | AdminXeroPageMountedFragmentConfig
+  | AdminVenueConfigMountedFragmentConfig
+  | AdminInvitesMountedFragmentConfig
+  | AdminExportsMountedFragmentConfig
+  | AdminShiftTypesMountedFragmentConfig
+  | AdminRosterGroupsMountedFragmentConfig
+  | AdminXeroMountedFragmentConfig;
+export type FrontendSurfaceMountConfig =
+    SurfaceLabMountConfig
+  | TimesheetsMountConfig
+  | RosterMountConfig
+  | RosterDayTimelineMountConfig
+  | LeaveRequestsMountConfig
+  | BillingMountConfig
+  | SupportMountConfig
+  | ProfileMountConfig
+  | StaffMountConfig
+  | AdminPageMountConfig
+  | AdminXeroPageMountConfig
+  | AdminVenueConfigMountConfig
+  | AdminInvitesMountConfig
+  | AdminExportsMountConfig
+  | AdminShiftTypesMountConfig
+  | AdminRosterGroupsMountConfig
+  | AdminXeroMountConfig;
+export function isFrontendSurfaceMountConfig(value: unknown): value is FrontendSurfaceMountConfig {
+    return (isSurfaceLabMountConfig(value) || isTimesheetsMountConfig(value) || isRosterMountConfig(value) || isRosterDayTimelineMountConfig(value) || isLeaveRequestsMountConfig(value) || isBillingMountConfig(value) || isSupportMountConfig(value) || isProfileMountConfig(value) || isStaffMountConfig(value) || isAdminPageMountConfig(value) || isAdminXeroPageMountConfig(value) || isAdminVenueConfigMountConfig(value) || isAdminInvitesMountConfig(value) || isAdminExportsMountConfig(value) || isAdminShiftTypesMountConfig(value) || isAdminRosterGroupsMountConfig(value) || isAdminXeroMountConfig(value));
+}
+export function parseFrontendSurfaceMountConfig(value: unknown): FrontendSurfaceMountConfig {
+    if (isFrontendSurfaceMountConfig(value)) return value;
+    throw new Error("Invalid FrontendSurfaceMountConfig");
+}
+export function encodeFrontendSurfaceMountConfig(value: FrontendSurfaceMountConfig): FrontendSurfaceMountConfig { return value; }
+
 export type FrontendSurfaceName = "surface-lab" | "timesheets" | "roster" | "roster-day-timeline" | "leave-requests" | "billing" | "support" | "profile" | "staff" | "admin-page" | "admin-xero-page" | "admin-venue-config" | "admin-invites" | "admin-exports" | "admin-shift-types" | "admin-roster-groups" | "admin-xero";
 export const FrontendSurfaceRegistry = {
     "surface-lab": surfaceLabSurfaceManifest,
@@ -3055,6 +3378,9 @@ export function isFrontendSurfaceName(value: unknown): value is FrontendSurfaceN
 export function parseFrontendSurfaceName(value: unknown): FrontendSurfaceName {
     if (isFrontendSurfaceName(value)) return value;
     throw new Error("Invalid FrontendSurfaceName");
+}
+export function isFrontendSurfaceLiveFragmentName(surface: FrontendSurfaceName, value: unknown): value is string {
+    return typeof value === "string" && FrontendSurfaceRegistry[surface].liveFragments.some((fragment) => fragment === value);
 }
 export type FrontendSurfaceContainmentEdge = { parentSurface: FrontendSurfaceName; parentFragment: string; childSurface: FrontendSurfaceName };
 export const FrontendSurfaceContainmentTopology = [

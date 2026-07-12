@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
 import { writeFile } from 'node:fs/promises';
+import { pageReadyEvent, surfaceConfigDomAttr, surfaceDomAttr } from '../frontend/ts/generated/contracts';
 import { defaultE2ERosterGroupId, gotoWhenReady, loginAs, openNewLeaveRequestDialog, openProfileLeaveSection, setFlatpickrDate } from './test-helpers';
 
 async function login(page) {
@@ -73,6 +74,32 @@ test.describe('HTMX submit regressions', () => {
         await expect.poll(async () => {
             return page.locator('#endDate').evaluate((input) => Boolean((input as HTMLInputElement & { _flatpickr?: unknown })._flatpickr));
         }).toBe(true);
+    });
+
+    test('reports and rejects a FrontendSurface DOM/config mismatch', async ({ page }) => {
+        await login(page);
+        await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
+
+        const errorDetail = await page.evaluate(({ configAttr, ownerAttr, readyEvent }) => new Promise<{ error: string }>((resolve, reject) => {
+            const owner = document.querySelector(`[${configAttr}]`);
+            if (!(owner instanceof HTMLElement)) {
+                reject(new Error('Expected a FrontendSurface mount'));
+                return;
+            }
+
+            document.addEventListener('app:live-update-surface-config-failed', (event) => {
+                resolve((event as CustomEvent<{ error: string }>).detail);
+            }, { once: true });
+            owner.setAttribute(ownerAttr, 'roster');
+            document.dispatchEvent(new CustomEvent(readyEvent));
+        }), {
+            configAttr: surfaceConfigDomAttr,
+            ownerAttr: surfaceDomAttr,
+            readyEvent: pageReadyEvent,
+        });
+
+        expect(errorDetail.error).toContain('FrontendSurface DOM/config mismatch');
+        await expect(page.locator('#timesheet-week-shell')).toBeVisible();
     });
 
     test('unavailable-period submit creates one request', async ({ page }, testInfo) => {

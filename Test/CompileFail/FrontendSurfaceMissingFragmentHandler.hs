@@ -40,7 +40,6 @@ dummyFragment = FrontendSurfaceMountedFragment
     , mountedFragmentTargetId = "surface-lab-shell"
     , mountedFragmentUrl = "/frontend-surface-lab"
     , mountedFragmentProtection = FrontendSurfaceReplace
-    , mountedFragmentLoadPolicy = "eager"
     , mountedFragmentLazyTrigger = Nothing
     , mountedFragmentPlaceholderKind = Nothing
     }

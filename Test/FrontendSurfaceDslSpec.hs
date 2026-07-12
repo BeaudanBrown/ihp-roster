@@ -101,7 +101,6 @@ tests = describe "FrontendSurface DSL foundation" do
                     , focusedProtectionFieldNameFallback = True
                     , focusedProtectionContainerSelector = Just "form[data-lab-row]"
                     }
-                , mountedFragmentLoadPolicy = "lazy"
                 , mountedFragmentLazyTrigger = Nothing
                 , mountedFragmentPlaceholderKind = Nothing
                 }
@@ -170,9 +169,12 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceMountConfigJson config `shouldContainText` "\"targetId\":\"surface-lab-panel\""
         frontendSurfaceMountConfigJson config `shouldContainText` "\"kind\":\"focused-field\""
         frontendSurfaceMountConfigJson config `shouldContainText` "\"activeSelector\":\"input[data-lab-field]:focus\""
-        frontendSurfaceMountConfigJson parameterlessConfig `shouldContainText` "\"key\":{\"kind\":\"lab-shell\",\"params\":{}}"
+        frontendSurfaceMountConfigJson parameterlessConfig `shouldContainText` "\"fragmentKey\":{\"kind\":\"lab-shell\",\"params\":{},\"surface\":\"surface-lab\"}"
         let mountConfigJson = frontendSurfaceMountConfigJson impl.surfaceImplMountConfig
-        mountConfigJson `shouldNotContainText` "\"fragmentKey\""
+        mountConfigJson `shouldContainText` "\"fragmentKey\""
+        mountConfigJson `shouldNotContainText` "\"mountState\""
+        mountConfigJson `shouldNotContainText` "\"loadPolicy\""
+        mountConfigJson `shouldNotContainText` "\"resyncFragments\""
         mountConfigJson `shouldNotContainText` "\"deferUntilBlur\""
         mountConfigJson `shouldNotContainText` "\"protectionPolicy\""
         Text.count "\"url\":" mountConfigJson `shouldBe` length impl.surfaceImplMountConfig.mountFragments
@@ -183,7 +185,6 @@ tests = describe "FrontendSurface DSL foundation" do
                 , mountedFragmentTargetId = "surface-lab-panel"
                 , mountedFragmentUrl = "/ShowFrontendSurfaceLabPanelFragment"
                 , mountedFragmentProtection = FrontendSurfaceReplace
-                , mountedFragmentLoadPolicy = "lazy"
                 , mountedFragmentLazyTrigger = Just "load"
                 , mountedFragmentPlaceholderKind = Just "panel"
                 }
@@ -201,9 +202,8 @@ tests = describe "FrontendSurface DSL foundation" do
         let customPlaceholderHtml = cs (HtmlRenderer.renderHtml (renderFrontendSurfaceLazyFragmentWithConfig customPlaceholderFrontendSurfaceLazyFragmentConfig { lazyFragmentRootClasses = ["col-12", "col-xl-4", "surface-lab-side"] } fragment (Html5.toHtml ("Loading" :: Text))))
         customPlaceholderHtml `shouldContainText` "class=\"col-12 col-xl-4 surface-lab-side app-lazy-surface app-lazy-surface-custom app-lazy-surface-panel\""
 
-    it "derives lazy render defaults from existing primitive options" do
+    it "derives lazy trigger and placeholder defaults from existing primitive options" do
         let defaults = knownFragmentOptions @'[ 'Lazy '[ 'Trigger TestLoad, 'Placeholder TestPanel ]]
-        defaults.lazyFragmentDefaultLoadPolicy `shouldBe` "lazy"
         defaults.lazyFragmentDefaultTrigger `shouldBe` Just "test-load"
         defaults.lazyFragmentDefaultPlaceholderKind `shouldBe` Just "test-panel"
 
@@ -228,7 +228,6 @@ tests = describe "FrontendSurface DSL foundation" do
         fragment.mountedFragmentKey `shouldBe` key
         fragment.mountedFragmentTargetId `shouldBe` "surface-lab-panel-panel-1"
         fragment.mountedFragmentUrl `shouldBe` "/lab/panel?panelId=panel-1"
-        fragment.mountedFragmentLoadPolicy `shouldBe` "eager"
 
     it "reflects the complete production Surface registry in declared order" do
         map (.surfaceName) registeredFrontendSurfaceContractIR.contractSurfaces
@@ -324,6 +323,7 @@ tests = describe "FrontendSurface DSL foundation" do
 
     it "renders generated TypeScript contracts for every lab primitive family" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export type SurfaceLabFragmentKey ="
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type SurfaceLabMountConfig = { surface: \"surface-lab\"; scopeKey: string; mountKey: string; fragments: ReadonlyArray<SurfaceLabMountedFragmentConfig>; subscription: null };"
         frontendSurfaceContractsTypeScript `shouldContainText` "{ kind: \"lab-panel\"; params: SurfaceLabLabPanelFragmentParams }"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type RefreshPanelActionFields = SurfaceLabRefreshPanelActionFields;"
         frontendSurfaceContractsTypeScript `shouldContainText` "export type FrontendSurfaceActionManifest ="
@@ -338,7 +338,9 @@ tests = describe "FrontendSurface DSL foundation" do
     it "renders generated TypeScript contracts for the timesheets surface" do
         frontendSurfaceContractsTypeScript `shouldContainText` "export type TimesheetsFragmentKey ="
         frontendSurfaceContractsTypeScript `shouldContainText` "{ kind: \"timesheet-day-section\"; params: TimesheetsTimesheetDaySectionFragmentParams }"
-        frontendSurfaceContractsTypeScript `shouldContainText` "export type TimesheetsMountState = TimesheetsTimesheetsMountStateMountState;"
+        frontendSurfaceContractsTypeScript `shouldContainText` "export type TimesheetsMountConfig ="
+        frontendSurfaceContractsTypeScript `shouldNotContainText` "TimesheetsTimesheetsMountStateMountState"
+        frontendSurfaceContractsTypeScript `shouldNotContainText` "export type TimesheetsMountState ="
         frontendSurfaceContractsTypeScript `shouldContainText` "export const timesheetsSurfaceManifest"
 
     it "reflects the registered roster surface into checked contract IR" do

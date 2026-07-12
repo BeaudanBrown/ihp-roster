@@ -8,8 +8,11 @@ and rendered-output parity. GitHub #144 then embedded checked `SurfaceIR` values
 directly in the unified frontend contract registry and centralized the shared
 field, wire, schema, diagnostic, naming, and HTMX model. Durable authoring rules now
 live in `Application/Helper/FrontendContract/Surface/README.md` and the subsystem
-README/SPEC/AGENTS files; this workstream remains as architectural context until
-`ir-9ogo` closes.
+README/SPEC/AGENTS files. GitHub #145 reduced invalidation transport to semantic
+keys; GitHub #146 generated the exact per-surface local mount boundary, removed
+browser-only duplicate/state/load fields, and reflected shared live runtime
+constants. This workstream remains as architectural context until `ir-9ogo`
+closes.
 
 Tickets:
 
@@ -526,7 +529,7 @@ semantic invalidation through two request-correlated channels:
 6. Each browser mount resolves the invalidation against its own mount-local
    metadata and refetches authorized server-rendered HTML. If the same
    surface/scope is mounted twice in one tab, both mounts refetch using their own
-   target ids, URLs, protection policy, and mount state.
+   target ids, URLs, and protection policy.
 
 Type-level specs declare dependency kinds/intents. `SurfaceImpl` resolves
 concrete resources from scope/fragment params. Example:
@@ -548,7 +551,7 @@ Shared scopes are allowed across surfaces. Scope answers “what data slice is
 mounted?” Surface answers “which UI/fragments should refetch for that data
 slice?” Fragment keys are surface-local; migrated transport envelopes carry
 surface, scope, and fragment identity so each mount can resolve its own target
-ids, URLs, protection, and mount state.
+ids, URLs, and protection.
 
 ### Mount-Resolved Transport Contract
 
@@ -591,46 +594,41 @@ boundaries:
 
 Each mounted surface renders a mount-local config, generated from `SurfaceImpl`,
 that lets the browser resolve semantic fragment keys into concrete request and
-swap metadata:
+swap metadata. Reflection generates an exact type/guard for every registered
+surface plus the discriminated `FrontendSurfaceMountConfig` union; unknown
+properties and cross-surface values are rejected:
 
 ```json
 {
   "surface": "timesheets",
   "scopeKey": "timesheets:...:0",
   "mountKey": "primary",
-  "scope": { "venueId": "...", "weekOffset": 0 },
-  "subscription": {
-    "scope": {
-      "surface": "timesheets",
-      "scope": { "venueId": "...", "weekOffset": 0 }
-    },
-    "scopeKey": "timesheets:...:0",
-    "resyncFragments": [
-      {
-        "surface": "timesheets",
-        "kind": "timesheet-day-section",
-        "params": { "dayOffset": 2 }
-      }
-    ]
-  },
-  "mountState": { "showApproved": false, "showAllStaff": true },
   "fragments": [
     {
-      "key": {
+      "fragmentKey": {
+        "surface": "timesheets",
         "kind": "timesheet-day-section",
         "params": { "dayOffset": 2 }
       },
       "targetId": "timesheets-primary-day-2",
       "url": "/Timesheets/day-section?...",
-      "protection": { "kind": "replace" },
-      "loadPolicy": "eager"
+      "protection": { "kind": "replace" }
     }
-  ]
+  ],
+  "subscription": {
+    "scope": {
+      "surface": "timesheets",
+      "scope": { "venueId": "...", "weekOffset": 0 }
+    }
+  }
 }
 ```
 
 The runtime compares generated fragment-key values canonically and author code
-must not hand-build string lookup keys.
+must not hand-build string lookup keys. Mounted descriptors plus the reflected
+`Live` fragment set determine initial/reconnect resync keys; the subscription
+must not duplicate them. Server-side mount state and lazy/load decisions remain
+in Haskell and are not browser fields without a concrete browser consumer.
 
 ### Actor, Duplicate-Mount, And Passive Request Flow
 
@@ -640,9 +638,10 @@ For a page with two mounts of the same surface/scope:
    `scopeKey` but different `mountKey` values and different target ids/URLs.
 2. The browser subscribes once per logical scope, while retaining both mount
    records locally.
-3. An HTMX mutation from mount A is decorated from the closest mount. The server
-   receives the client id, surface, scope key, mount key, and any mount-state
-   metadata needed by the action.
+3. An HTMX mutation from mount A is decorated with the generated client-id
+   header when it originates inside a live descriptor. Surface action/intent
+   fields remain on server-rendered forms rather than being synthesized from
+   mount config.
 4. On success, the server returns extras plus an actor-local invalidation; it
    also broadcasts the websocket invalidation for the same scope/fragments.
 5. The actor tab suppresses the websocket echo but resolves the actor-local
@@ -677,26 +676,23 @@ HTMX hook decorates requests from the closest surface mount by default. Duplicat
 and nested mounts resolve through `closest(...)`, so a control inside mount B
 uses mount B metadata even when mount A has the same surface/scope.
 
-Use generated headers for generic live metadata:
-
-- `X-Bepis-Client-Id`: browser tab/client id used for websocket echo
-  suppression;
-- `X-Bepis-Surface`: generated surface name;
-- `X-Bepis-Scope-Key`: server-generated scope key from the closest mount;
-- `X-Bepis-Mount-Key`: mount-local key;
-- `X-Bepis-Mount-State`: optional generated/encoded mount-state payload or
-  fingerprint when the action needs view state.
+The generic live decorator adds only the generated live-update client-id header
+for browser echo suppression. Its header name, websocket path, and surface
+owner/config/action DOM attribute names are reflected once in Haskell and emitted
+as generated TypeScript constants. Do not duplicate those string values.
 
 Generated hidden inputs remain the source for intent/action fields. Query params
-are used only for explicitly query-backed mount state such as the initial
-Timesheets filters. Opt-out or explicit-only decoration should be added only if a
-concrete request requires it. This replaces current `decorateRequestsWithin`
-string lists for migrated surfaces.
+are used only for explicitly query-backed server mount state such as the initial
+Timesheets filters. The browser does not receive a generic mount-state header or
+mount-state JSON field. Add another request field only when a concrete generated
+action/intent contract needs it.
 
 ## Mount State
 
 Mount/view state is distinct from live subscription scope. Type-level
-`MountState` declares state shape. `SurfaceImpl` supplies the backend.
+`MountState` declares a server-side state shape and `SurfaceImpl` supplies the
+backend. The TypeScript generator omits mount-state aliases/codecs because the
+browser mount runtime has no consumer.
 
 Timesheets will initially preserve current query-param behavior behind a typed
 query-backed mount-state backend. Defaults stay `ShowApproved = False`,

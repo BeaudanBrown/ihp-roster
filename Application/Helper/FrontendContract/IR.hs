@@ -49,6 +49,7 @@ data GlobalPrimitiveIR
     | GlobalDomValueIR !Text !Text
     | GlobalFieldNameIR !Text !Text
     | GlobalDomTokenIR !Text !Text
+    | GlobalConstantIR !Text !Text
     | GlobalAppShellActionIR !AppShellActionIR
     deriving (Eq, Show)
 
@@ -93,6 +94,7 @@ validateGlobalPrimitive = \case
     GlobalDomValueIR _ _ -> []
     GlobalFieldNameIR _ _ -> []
     GlobalDomTokenIR _ _ -> []
+    GlobalConstantIR _ _ -> []
     GlobalAppShellActionIR action -> validateFieldNames action.appShellActionFields
 
 globalSchemas :: GlobalIR -> [(Text, Text)]
@@ -113,6 +115,7 @@ globalNamedPrimitives global =
         GlobalDomValueIR marker name  -> [(marker, name)]
         GlobalFieldNameIR marker name -> [(marker, name)]
         GlobalDomTokenIR marker name  -> [(marker, name)]
+        GlobalConstantIR marker value -> [(marker, "constant:" <> value)]
         GlobalAppShellActionIR action -> [(action.appShellActionMarker, "app-shell-action:" <> action.appShellActionName)]
     ]
 
@@ -128,6 +131,7 @@ globalPrimitiveRefs = \case
     GlobalDomValueIR _ _ -> []
     GlobalFieldNameIR _ _ -> []
     GlobalDomTokenIR _ _ -> []
+    GlobalConstantIR _ _ -> []
     GlobalAppShellActionIR action -> fieldRefs action.appShellActionFields
 
 surfaceRefs :: SurfaceIR -> [Text]

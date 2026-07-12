@@ -1,5 +1,4 @@
-import { InteractionDom, isInteractionConflictResolution, type InteractionConflictResolution } from "../generated/contracts";
-import type { LiveUpdateMountedFragment } from "../live-updates/frontend-surface";
+import { InteractionDom, isInteractionConflictResolution, type FrontendSurfaceMountedFragmentConfig, type InteractionConflictResolution } from "../generated/contracts";
 import type { InteractionSessionSnapshot } from "./session-state";
 
 export type ActiveInteractionSessionTracker = {
@@ -27,7 +26,7 @@ const attrs = InteractionDom.attributes;
 const defaultInteractionDeferFallbackTimeoutMs = 5000;
 
 export function resolveLiveFragmentInteractionConflict(
-    fragment: Pick<LiveUpdateMountedFragment, "targetId">,
+    fragment: Pick<FrontendSurfaceMountedFragmentConfig, "targetId">,
     target: Element,
     tracker: ActiveInteractionSessionTracker
 ): LiveFragmentInteractionConflict | null {
@@ -54,7 +53,7 @@ export function readInteractionConflictPolicies(mount: Element): WireConflictPol
     }
 }
 
-function matchingConflictPolicy(session: InteractionSessionSnapshot, fragment: Pick<LiveUpdateMountedFragment, "targetId">, target: Element): WireConflictPolicy | null {
+function matchingConflictPolicy(session: InteractionSessionSnapshot, fragment: Pick<FrontendSurfaceMountedFragmentConfig, "targetId">, target: Element): WireConflictPolicy | null {
     const mount = target.closest(`[${attrs.surface}]`);
     if (!mount) return null;
 

@@ -3,9 +3,13 @@
 {-# LANGUAGE TypeApplications    #-}
 
 module Application.Helper.FrontendContract.Values
-    ( domIdValue
+    ( constantValue
+    , domAttrValue
+    , domIdValue
     , eventNameValue
     , enumLiteralValue
+    , lookupConstantValue
+    , lookupDomAttrValue
     , lookupDomIdValue
     , lookupEventNameValue
     , lookupEnumLiteralValue
@@ -17,6 +21,12 @@ import Application.Helper.FrontendContract.Registry (registeredFrontendContractI
 import Data.Typeable (Proxy (..), Typeable, tyConName, typeRep, typeRepTyCon)
 import IHP.Prelude
 
+constantValue :: forall marker. Typeable marker => Text
+constantValue = either (error . cs) id (lookupConstantValue @marker)
+
+domAttrValue :: forall marker. Typeable marker => Text
+domAttrValue = either (error . cs) id (lookupDomAttrValue @marker)
+
 domIdValue :: forall marker. Typeable marker => Text
 domIdValue = either (error . cs) id (lookupDomIdValue @marker)
 
@@ -25,6 +35,22 @@ eventNameValue = either (error . cs) id (lookupEventNameValue @marker)
 
 enumLiteralValue :: forall enumMarker caseMarker. (Typeable enumMarker, Typeable caseMarker) => Text
 enumLiteralValue = either (error . cs) id (lookupEnumLiteralValue @enumMarker @caseMarker)
+
+lookupConstantValue :: forall marker. Typeable marker => Either Text Text
+lookupConstantValue =
+    case [value | global <- registeredFrontendContractIR.contractGlobals, GlobalConstantIR marker value <- global.globalPrimitives, marker == markerName] of
+        value : _ -> Right value
+        [] -> Left ("No FrontendContract Constant declaration for marker " <> markerName)
+    where
+        markerName = typeMarker @marker
+
+lookupDomAttrValue :: forall marker. Typeable marker => Either Text Text
+lookupDomAttrValue =
+    case [value | global <- registeredFrontendContractIR.contractGlobals, GlobalDomAttrIR marker value <- global.globalPrimitives, marker == markerName] of
+        value : _ -> Right value
+        [] -> Left ("No FrontendContract DomAttr declaration for marker " <> markerName)
+    where
+        markerName = typeMarker @marker
 
 lookupDomIdValue :: forall marker. Typeable marker => Either Text Text
 lookupDomIdValue =

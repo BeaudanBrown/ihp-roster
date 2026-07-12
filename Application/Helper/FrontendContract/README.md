@@ -20,7 +20,7 @@ Roots are split by meaning:
   closed enums, UI-region data, generic interaction runtime shapes,
   live-update wire schemas, and app-shell/dialog request contracts.
 - **Surface**: mounted feature UI semantics: scopes, fragments, actions,
-  intents, mount state, resources, and interaction metadata.
+  intents, server-side mount state, resources, and interaction metadata.
 
 `AppShellAction` is the generated lane for app-owned shell request initiators
 that are not owned by a mounted `FrontendSurface`, including dialog/overlay
@@ -58,8 +58,12 @@ import generated types/data.
 
 `FrontendSurface*` TypeScript names that remain in generated output are
 runtime/mount metadata for server-rendered UI, not a parallel contract
-authority; subscriptions, websocket invalidations, and actor details use the
-generated `SurfaceScope` and semantic `SurfaceFragmentKey` contract types only.
+authority. Reflection generates one exact per-surface mount type/guard and their
+`FrontendSurfaceMountConfig` union; handwritten aggregate mount parsers and
+compatibility aliases are forbidden. Subscriptions, websocket invalidations,
+and actor details use the generated `SurfaceScope` and semantic
+`SurfaceFragmentKey` contract types only. Server-only `MountState` declarations
+are deliberately absent from browser output.
 
 The old `Application.Helper.Frontend` codec/DTO/schema-group tree has been
 removed. Guardrails fail if production Haskell modules or imports under that

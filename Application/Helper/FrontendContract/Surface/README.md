@@ -104,7 +104,8 @@ Available primitives include:
 - `Fragment` for refreshable server-rendered DOM targets. Add the `Live`
   fragment option when the fragment participates in websocket invalidation;
 - `Action` and `Intent` for Haskell-owned HTMX action/form metadata;
-- `MountState` for view state that is not part of the live subscription scope;
+- `MountState` for server-side view state that is not part of the live
+  subscription scope or emitted browser mount contract;
 - `Session` plus session options such as `Layer` and `Effect` for typed
   interaction runtime coordination;
 - generated source, dropzone, and activation refs for generic browser
@@ -233,8 +234,9 @@ Use `mkSurfaceImpl` with typed handler lists:
 - `FrontendContract SurfaceMountStateHandler` supplies typed view state defaults;
 - `FrontendContract SurfaceFragmentHandler` supplies mount-local target id, GET URL,
   protection policy, and server rendering for each fragment. The runtime derives
-  eager/lazy load defaults plus lazy trigger/placeholder metadata from the
-  fragment's existing `Eager`, `Lazy`, `Trigger`, and `Placeholder` options;
+  server-side eager/lazy placeholder behavior plus trigger/placeholder metadata
+  from the fragment's existing `Eager`, `Lazy`, `Trigger`, and `Placeholder`
+  options;
 - `FrontendContract SurfaceActionHandler` supplies generated HTMX request metadata;
 - `FrontendContract SurfaceIntentHandler` supplies generated intent form metadata.
 
@@ -245,16 +247,31 @@ rather than becoming runtime validation gaps.
 When a concrete mount uses a dynamic or repeated fragment set that differs from
 the handler defaults, pass the implementation through
 `surfaceImplWithMountedFragments`. This replaces the local descriptors and
-recomputes the key-only subscription atomically. Never update
-`surfaceImplMountConfig.mountFragments` directly; that leaves stale subscription
-keys and causes valid actor/websocket invalidations to be ignored.
+recomputes local live-fragment membership plus the scope-only subscription
+atomically. Never update `surfaceImplMountConfig.mountFragments` directly; that
+can make subscription presence disagree with the descriptors and cause valid
+actor/websocket invalidations to be ignored.
 
 Render mounts with `renderFrontendContract SurfaceMount impl body`. This emits
 `data-bepis-surface` and `data-bepis-surface-config`. Do not handwrite these
-attributes in feature views except in guardrail fixtures. Lazy placeholders must
+attributes in feature views except in guardrail fixtures. Reflection generates a
+surface-discriminated exact `FrontendSurfaceMountConfig` parser. The only mount
+properties are `surface`, `scopeKey`, `mountKey`, `fragments`, and
+`subscription`; each descriptor contains only `fragmentKey`, `targetId`, `url`,
+and `protection`, while a non-null subscription contains only the typed `scope`.
+Server `MountState`, load behavior, and derived resync lists must not be added to
+the browser envelope without a browser consumer. DOM/config surface disagreement
+is an invalid mount and must be reported rather than coerced.
+
+The websocket endpoint, client-id header, and surface config/action/owner DOM
+attribute names come from reflected global constants shared by Haskell and
+TypeScript. Add or change those values in the frontend contract registry, not as
+runtime string literals.
+
+Lazy placeholders must
 use the `renderFrontendSurfaceLazyFragmentWithConfig` runtime helper (or its
 plain default wrapper) so canonical UI-region attrs, HTMX swap attrs, retry
-metadata, and primitive-derived lazy defaults stay Haskell-owned. Use
+metadata, and primitive-derived lazy behavior stay Haskell-owned. Use
 `customPlaceholderFrontendSurfaceLazyFragmentConfig` when the placeholder markup
 already renders its own panel/card chrome, so the outer lazy region stays a
 transparent HTMX/region shell instead of visually nesting surfaces. Feature views
@@ -277,10 +294,12 @@ successful actor responses must not carry authoritative business OOB HTML.
 Migrated `FrontendContract Surface` invalidations are semantic and surface-native:
 transport identifies generated kebab-case surface names, generated scope DTOs,
 and generated fragment names plus typed params. Haskell emits ready-to-use mount
-subscription JSON from `Scope` plus `Fragment ... Live`; composition-only parent
-surfaces omit `Live` fragments and therefore do not subscribe. The browser
-runtime reads the generated subscription payload and must not parse scope keys or
-switch on app-specific surface/fragment names.
+subscription JSON from `Scope` plus mounted `Fragment ... Live` values;
+composition-only parent surfaces omit `Live` fragments and therefore do not
+subscribe. The emitted subscription contains the typed scope only. The browser
+uses mounted descriptors plus the generated reflected `Live` fragment set for
+initial/reconnect resync keys; it must not parse scope keys or switch on
+app-specific surface/fragment names.
 
 `Scope` owns websocket subscription identity and authorization. Every scope must
 carry exactly one auth marker: `Authorize SomePolicy` for server-checked scopes,
@@ -332,9 +351,11 @@ Use direct database/read-model rendering first. There is no shared
 is needed, add an explicit feature-owned read-model/cache seam or `SurfaceImpl`
 backend with viewer-aware keys, dependency versions, and tests.
 
-`MountState` models view state separately from the live subscription scope. Keep
-query-param or future persisted state behind a small backend seam so changing
-storage does not change the type-level surface spec.
+`MountState` models Haskell/server view state separately from the live
+subscription scope. Keep query-param or future persisted state behind a small
+backend seam so changing storage does not change the type-level surface spec.
+The generator does not emit browser `MountState` types or mount JSON unless a
+future contract adds an actual browser consumer.
 
 ## Generated TypeScript Consumption
 

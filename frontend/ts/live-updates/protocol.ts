@@ -1,11 +1,10 @@
-import type { LiveUpdateCommand, SurfaceFragmentKey, SurfaceScope, SurfaceSubscription } from "../generated/contracts";
+import type { FrontendSurfaceMountedFragmentConfig, LiveUpdateCommand, SurfaceFragmentKey, SurfaceScope, SurfaceSubscription } from "../generated/contracts";
 import { encodeLiveUpdateCommand, surfaceFragmentKeyIdentity } from "../generated/contracts";
-import type { LiveUpdateMountedFragment } from "./frontend-surface";
 
 type MessageWithScopeKey = { scopeKey?: unknown };
 export type MountedFragmentSubscription = {
     scopeKey: string;
-    resyncFragments: LiveUpdateMountedFragment[];
+    resyncFragments: FrontendSurfaceMountedFragmentConfig[];
 };
 
 export function liveUpdateMessageScopeKey(message: MessageWithScopeKey | null | undefined): string | null {
@@ -17,7 +16,20 @@ export function liveUpdateMessageScopeKey(message: MessageWithScopeKey | null | 
 }
 
 export function normalizeLiveUpdateVersion(value: unknown): number | null {
-    return Number.isInteger(value) && (value as number) >= 0 ? value as number : null;
+    return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : null;
+}
+
+export function serverPayloadFromHtmxTriggeredEvent(detail: unknown, eventTarget: EventTarget | null): Record<string, unknown> | null {
+    if (!isRecord(detail)) return null;
+    if ("elt" in detail && detail.elt !== eventTarget) return null;
+
+    const serverPayload = Object.assign({}, detail);
+    Reflect.deleteProperty(serverPayload, "elt");
+    return serverPayload;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 export function buildSurfaceSubscription(scope: SurfaceScope, scopeKey: string, fragments: SurfaceFragmentKey[]): SurfaceSubscription {
@@ -44,7 +56,7 @@ export function buildLiveUpdateUnsubscribeCommand(subscription: SurfaceSubscript
     });
 }
 
-export function liveUpdateFragmentMergeKey(fragment: Pick<LiveUpdateMountedFragment, "fragmentKey" | "targetId"> | null | undefined): string | null {
+export function liveUpdateFragmentMergeKey(fragment: Pick<FrontendSurfaceMountedFragmentConfig, "fragmentKey" | "targetId"> | null | undefined): string | null {
     if (!fragment || !fragment.targetId) return null;
     return `${surfaceFragmentKeyIdentity(fragment.fragmentKey)}:${fragment.targetId}`;
 }
@@ -57,16 +69,16 @@ export function resolveMountedFragmentsForInvalidation(
     subscriptions: Iterable<MountedFragmentSubscription>,
     fragments: readonly SurfaceFragmentKey[],
     scopeKey: string | null = null,
-): LiveUpdateMountedFragment[] {
+): FrontendSurfaceMountedFragmentConfig[] {
     if (scopeKey === null || scopeKey.length === 0) return [];
 
     const mountedSubscriptions = Array.from(subscriptions);
-    const resolved: LiveUpdateMountedFragment[] = [];
+    const resolved: FrontendSurfaceMountedFragmentConfig[] = [];
     const seen = new Set<string>();
 
     fragments.forEach((fragmentKey) => {
         const semanticKey = surfaceFragmentKeyIdentity(fragmentKey);
-        const matches: LiveUpdateMountedFragment[] = [];
+        const matches: FrontendSurfaceMountedFragmentConfig[] = [];
 
         for (const subscription of mountedSubscriptions) {
             if (subscription.scopeKey !== scopeKey) continue;

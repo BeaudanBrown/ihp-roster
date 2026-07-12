@@ -93,7 +93,7 @@ expect_no_match \
 
 expect_no_match_including_generated \
     "frontend contract generator must not reintroduce raw TypeScript support contract exports" \
-    '"export (type|function) (FrontendSurface(UUID|Day)|HtmxActionOptions|FrontendSurfaceActionManifest|AppShellActionManifest|FrontendSurfaceMountConfig|FrontendSurfaceMountedFragmentConfig|FrontendSurfaceLiveSubscription|FrontendSurfaceLiveWireFragment|FrontendSurfaceSurfaceFragmentProtection)' \
+    '"export (type|function) (FrontendSurface(UUID|Day)|HtmxActionOptions|FrontendSurfaceActionManifest|AppShellActionManifest|FrontendSurfaceLiveSubscription|FrontendSurfaceLiveWireFragment|FrontendSurfaceSurfaceFragmentProtection)' \
     Application/Helper/FrontendContract/TypeScript.hs
 
 expect_no_match \
@@ -130,6 +130,48 @@ expect_no_match \
     'surfaceImplMountConfig[[:space:]]*=.*mountFragments[[:space:]]*=' \
     Application \
     Web
+
+expect_no_match \
+    "FrontendSurface mount parsing must remain generated" \
+    'function[[:space:]]+(is|parse)FrontendSurfaceMountConfig' \
+    frontend/ts/app-live-updates.ts \
+    frontend/ts/live-updates
+
+expect_no_match \
+    "live mount parsing must not recover authority through unsafe double casts" \
+    'as[[:space:]]+unknown[[:space:]]+as' \
+    frontend/ts/app-live-updates.ts \
+    frontend/ts/live-updates
+
+expect_no_match \
+    "live mount runtime must consume generated descriptor types without compatibility aliases" \
+    '\bLiveUpdateMountedFragment\b' \
+    frontend/ts
+
+expect_no_match_including_generated \
+    "obsolete aggregate mount aliases must stay deleted" \
+    '\b(FrontendSurfaceLiveSubscription|FrontendSurfaceScope|FrontendSurfaceMountedFragmentKeyConfig|FrontendSurfaceSurfaceFragmentProtection)\b' \
+    Application/Helper/FrontendContract \
+    frontend/ts/generated/contracts.ts \
+    frontend/ts/live-updates
+
+expect_no_match \
+    "Haskell live consumers must use reflected endpoint, header, and mount DOM constants" \
+    '"/?live-updates"|"X-Live-Update-Client-Id"|"data-bepis-surface"|"data-bepis-surface-config"|"data-bepis-surface-action"' \
+    Application/Helper/LiveUpdate \
+    Application/Helper/FrontendContract/Surface/Runtime.hs \
+    Web
+
+expect_no_match \
+    "retired browser load-policy fields must stay deleted" \
+    'mountedFragmentLoadPolicy|lazyFragmentDefaultLoadPolicy' \
+    Application \
+    Web
+
+expect_no_match_including_generated \
+    "server-only mount state and load policy must stay out of generated browser contracts" \
+    'MountStateMountState|export type [A-Za-z]+MountState[[:space:]]*=|"mountState"|"loadPolicy"' \
+    frontend/ts/generated/contracts.ts
 
 expect_no_match_including_generated \
     "live wire contracts must not expose executable fragment descriptor types" \

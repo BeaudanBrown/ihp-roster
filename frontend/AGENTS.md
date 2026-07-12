@@ -69,6 +69,23 @@ Read this before editing `frontend/ts/`.
   generated `SurfaceFragmentKey` values only. Resolve keys through local mount
   descriptors; never accept a transport URL, target id, selector, defer flag, or
   protection policy as refetch authority.
+- Parse `data-bepis-surface-config` only with the generated exact
+  `parseFrontendSurfaceMountConfig` boundary. The generated per-surface union
+  must reject unknown properties, wrong-surface scope/fragment values, malformed
+  protection, and disagreement with the owner element's generated surface attr;
+  report the mount error and skip it instead of casting or falling back.
+- Actor `HX-Trigger` details also use the generated exact parser. HTMX adds an
+  `elt` carrier property at dispatch time; remove only a verified `elt ===
+  event.target` before parsing, and preserve every other property so unknown
+  server fields still fail exact validation.
+- Mount JSON contains only `surface`, `scopeKey`, `mountKey`, `fragments`, and
+  `subscription`; descriptors contain only `fragmentKey`, `targetId`, `url`, and
+  `protection`, and subscriptions contain only `scope`. Derive resync keys from
+  mounted descriptors plus the generated live-fragment set. Do not add browser
+  mount state, load policy, duplicate fragment lists, or compatibility aliases.
+- Import the generated websocket path, client-id header, and surface DOM
+  attribute constants. Do not duplicate these backend-owned strings in runtime
+  code.
 - Nested/composable FrontendSurface behavior must stay generic. If a parent
   fragment/region contains child surface mounts, TypeScript should reconcile
   lifecycle from current DOM mounts after swaps: initialize new child mounts,

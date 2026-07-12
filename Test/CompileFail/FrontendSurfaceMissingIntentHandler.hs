@@ -40,7 +40,6 @@ dummyFragment kind = FrontendSurfaceMountedFragment
     , mountedFragmentTargetId = "surface-lab-fragment"
     , mountedFragmentUrl = "/frontend-surface-lab"
     , mountedFragmentProtection = FrontendSurfaceReplace
-    , mountedFragmentLoadPolicy = "eager"
     , mountedFragmentLazyTrigger = Nothing
     , mountedFragmentPlaceholderKind = Nothing
     }

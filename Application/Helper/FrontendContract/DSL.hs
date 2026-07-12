@@ -34,6 +34,7 @@ module Application.Helper.FrontendContract.DSL
     , DomValue
     , FieldName
     , DomToken
+    , Constant
     , AppShellAction
     , AppShellHtmxMethod
     , AppShellHtmxTrigger
@@ -121,6 +122,7 @@ data GlobalPrimitive
     | DomValue Type Symbol
     | FieldName Type
     | DomToken Type
+    | Constant Type Symbol
     | AppShellAction Type [FieldSpec] [AppShellActionOption]
 
 -- | Registry root for app-wide browser vocabulary. Mounted feature topology is
@@ -148,6 +150,7 @@ type DomAttr name = 'DomAttr name
 type DomValue name value = 'DomValue name value
 type FieldName name = 'FieldName name
 type DomToken name = 'DomToken name
+type Constant name value = 'Constant name value
 type AppShellAction name fields options = 'AppShellAction name fields options
 type AppShellHtmxMethod method = 'AppShellHtmxMethod method
 type AppShellHtmxTrigger value = 'AppShellHtmxTrigger value

@@ -3,15 +3,15 @@ module Test.SurfaceDependencySpec where
 import Application.Helper.FrontendContract.Surface.DependencyPlanner (planFrontendSurfaceInvalidation)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountConfig (..),
                                                             FrontendSurfaceMountedFragment (..),
-                                                            SurfaceImpl (..))
+                                                            SurfaceImpl (..),
+                                                            frontendSurfaceMountConfigJson)
 import Application.Helper.LiveUpdate (actorLiveFragmentsRefreshKeys)
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
 import Application.Support.LiveUpdates (supportCandidateMountedFragments,
                                         supportSurfaceScope)
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import Data.UUID (fromWords)
 import Generated.Types (RosterDay, RosterGroup)
 import IHP.ControllerPrelude (pathTo)
@@ -25,7 +25,6 @@ import Web.Billing.FrontendSurface (BillingCheckoutReturnState (..),
                                     billingSurfaceScope)
 import Web.LeaveRequests.FrontendSurface (LeaveRequestsScopeValue (..),
                                           leaveRequestsCandidateMountedFragments,
-                                          leaveRequestsSurfaceFragmentKeys,
                                           leaveRequestsSurfaceImpl,
                                           leaveRequestsSurfaceScope)
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
@@ -79,14 +78,15 @@ tests = do
             map (.mountedFragmentTargetId) affectedByPending `shouldBe` ["leave-pending-count", "leave-pending-list"]
             map (.mountedFragmentTargetId) affectedByApproved `shouldBe` ["leave-approved-count", "leave-approved-list"]
 
-        it "derives subscription keys from the exact local mounted-fragment set" do
+        it "keeps subscription scope singular and executable descriptors local" do
             let scopeValue = LeaveRequestsScopeValue (fromWords 10 0 0 0)
-            let impl = leaveRequestsSurfaceImpl scopeValue
-            let candidates = leaveRequestsCandidateMountedFragments scopeValue
-            let expectedKeys = map (Aeson.toJSON . surfaceFragmentKeyToWire) (leaveRequestsSurfaceFragmentKeys candidates)
-            let subscriptionKeys = impl.surfaceImplMountConfig.mountSubscription >>= AesonTypes.parseMaybe (Aeson.withObject "FrontendSurfaceLiveSubscription" (Aeson..: "resyncFragments"))
+            let configJson = frontendSurfaceMountConfigJson (leaveRequestsSurfaceImpl scopeValue).surfaceImplMountConfig
 
-            subscriptionKeys `shouldBe` Just expectedKeys
+            Text.count "\"fragmentKey\":" configJson `shouldBe` 8
+            configJson `shouldSatisfy` Text.isInfixOf "\"subscription\":{\"scope\":{"
+            configJson `shouldSatisfy` (not . Text.isInfixOf "\"resyncFragments\"")
+            configJson `shouldSatisfy` (not . Text.isInfixOf "\"mountState\"")
+            configJson `shouldSatisfy` (not . Text.isInfixOf "\"loadPolicy\"")
 
         it "plans affected semantic fragment keys from generated dependencies" do
             let venueId = fromWords 1 0 0 0

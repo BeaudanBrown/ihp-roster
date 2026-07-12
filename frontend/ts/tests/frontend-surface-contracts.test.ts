@@ -22,7 +22,6 @@ import {
     type RefreshPanelActionFields,
     type SurfaceLabFragmentKey,
     type TimesheetsFragmentKey,
-    type TimesheetsMountState,
 } from "../generated/contracts";
 import { assertDeepEqual, assertEqual, assertThrows, test } from "./harness";
 
@@ -107,13 +106,10 @@ test("generated FrontendSurface registry exposes Admin page containment topology
 });
 
 test("generated FrontendSurface registry exposes timesheets surface primitives", () => {
-    const staffFilterId = "00000000-0000-0000-0000-000000000002" as unknown as TimesheetsMountState["staffFilterId"];
-    const mountState: TimesheetsMountState = { showApproved: false, showAllStaff: true, staffFilterId };
     const daySection: TimesheetsFragmentKey = { kind: "timesheet-day-section", params: { dayOffset: 2 } };
 
     assertDeepEqual(timesheetsSurfaceManifest.scopes, ["timesheet-week"]);
     assertDeepEqual(timesheetsSurfaceManifest.fragments, ["timesheet-toolbar", "timesheet-day-columns", "timesheet-day-section"]);
-    assertEqual(mountState.showAllStaff, true);
     assertEqual(daySection.params.dayOffset, 2);
 });
 

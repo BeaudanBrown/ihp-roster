@@ -174,10 +174,9 @@ timesheetDayColumnsMountedFragment mountState weekOffset =
 
 timesheetDaySectionMountedFragment :: TimesheetsMountStateValue -> Int -> Int -> FrontendSurfaceMountedFragment
 timesheetDaySectionMountedFragment mountState weekOffset dayOffset =
-    (frontendSurfaceMountedFragment
+    frontendSurfaceMountedFragment
         "timesheet-day-section"
         (Aeson.object ["dayOffset" Aeson..= dayOffset])
         (timesheetDaySectionDomId dayOffset)
         (timesheetDaySectionFragmentUrl weekOffset dayOffset mountState.timesheetsMountShowApproved mountState.timesheetsMountShowAllStaff mountState.timesheetsMountStaffFilterId)
-        FrontendSurfaceReplace)
-        { mountedFragmentLoadPolicy = "lazy" }
+        FrontendSurfaceReplace

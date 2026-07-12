@@ -361,7 +361,6 @@ fragment kind targetId url prot = FrontendSurfaceMountedFragment
     , mountedFragmentTargetId = targetId
     , mountedFragmentUrl = url
     , mountedFragmentProtection = prot
-    , mountedFragmentLoadPolicy = "eager"
     , mountedFragmentLazyTrigger = Nothing
     , mountedFragmentPlaceholderKind = Nothing
     }

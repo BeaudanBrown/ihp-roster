@@ -1,5 +1,5 @@
 import type { LiveUpdateCommand, LiveUpdateMessage } from "./generated/contracts";
-import { parseLiveFragmentsRefreshEventDetail, parseLiveUpdateMessage, pageReadyEvent, liveFragmentsRefreshEvent, interactionSessionEndEvent } from "./generated/contracts";
+import { interactionSessionEndEvent, intentFormDomAttr, liveFragmentsRefreshEvent, liveUpdateClientIdHeader, pageReadyEvent, parseLiveFragmentsRefreshEventDetail, parseLiveUpdateMessage, surfaceActionDomAttr, surfaceConfigDomAttr, surfaceDomAttr } from "./generated/contracts";
 import { enableHtmxUiRegionEventAdapter } from "./fragments/htmx-adapter";
 import { enableUiRegionTransitions } from "./fragments/transitions";
 import { resolveLiveFragmentInteractionConflict } from "./interaction/live-conflicts";
@@ -8,8 +8,8 @@ import {
     reconcileFrontendSurfaceInstances,
     scanFrontendSurfaceMountInstances,
     type FrontendSurfaceMountedInstance,
-    parseFrontendSurfaceMountConfig,
     parseFrontendSurfaceSubscriptionConfig,
+    readFrontendSurfaceMountElement,
 } from "./live-updates/frontend-surface";
 import { createLiveUpdateDiagnostics } from "./live-updates/diagnostics";
 import { enableLazySurfaceErrorHandling } from "./live-updates/lazy-surface";
@@ -22,6 +22,7 @@ import {
     liveUpdateMessageScopeKey,
     normalizeLiveUpdateVersion,
     resolveMountedFragmentsForInvalidation,
+    serverPayloadFromHtmxTriggeredEvent,
 } from "./live-updates/protocol";
 import { assertNever } from "./shared/exhaustive";
 import type {
@@ -46,6 +47,8 @@ enableLazySurfaceErrorHandling();
     if (typeof window === 'undefined') return;
 
     const actorFragmentRefreshEventName = liveFragmentsRefreshEvent;
+    const surfaceConfigSelector = `[${surfaceConfigDomAttr}]`;
+    const surfaceOwnedControlSelector = `[${surfaceActionDomAttr}], [${intentFormDomAttr}]`;
     const pendingDeferredFragments = new Map<string, LiveUpdateFragmentWithState>();
     const pendingInteractionDeferredFragments = new Map<string, LiveUpdateFragmentWithState>();
     const pendingInteractionTimers = new Map<string, ReturnType<typeof window.setTimeout>>();
@@ -104,7 +107,7 @@ enableLazySurfaceErrorHandling();
             activeClientId = makeClientId();
         }
 
-        document.querySelectorAll('[data-bepis-surface-config]').forEach(function (ownerEl) {
+        document.querySelectorAll(surfaceConfigSelector).forEach(function (ownerEl) {
             if (ownerEl instanceof HTMLElement) {
                 ownerEl.dataset.liveUpdateClientId = activeClientId ?? "";
             }
@@ -156,8 +159,8 @@ enableLazySurfaceErrorHandling();
         template.innerHTML = trimmed;
 
         let nextNode = template.content.firstElementChild;
-        if (nextNode && nextNode.tagName === 'TEMPLATE') {
-            nextNode = (nextNode as HTMLTemplateElement).content.firstElementChild;
+        if (nextNode instanceof HTMLTemplateElement) {
+            nextNode = nextNode.content.firstElementChild;
         }
 
         if (!(nextNode instanceof Element)) {
@@ -189,7 +192,7 @@ enableLazySurfaceErrorHandling();
         const perfSpan = beginPerfSpan('live_updates.refetch_fragment', {
             targetId: fragment && fragment.targetId ? fragment.targetId : null,
             url: fragment && fragment.url ? fragment.url : null,
-            deferUntilBlur: Boolean(fragment && fragment.deferUntilBlur),
+            deferUntilBlur: fragment.protection.kind === 'focused-field',
         });
         const response = await window.fetch(fragment.url, {
             credentials: 'same-origin',
@@ -277,7 +280,6 @@ enableLazySurfaceErrorHandling();
             matches: function (fragment: LiveUpdateFragmentWithState, target: HTMLElement): boolean {
                 return Boolean(
                     fragment &&
-                    fragment.deferUntilBlur &&
                     target instanceof HTMLElement
                 );
             },
@@ -322,13 +324,13 @@ enableLazySurfaceErrorHandling();
     function matchingFragmentProtection(fragment: LiveUpdateFragmentWithState | undefined, _target: HTMLElement): FragmentProtectionAdapter | null {
         if (!fragment) return null;
 
-        switch (fragment.protectionPolicy.kind) {
+        switch (fragment.protection.kind) {
             case 'focused-field':
-                return focusedFieldProtection(fragment.protectionPolicy);
-            case 'none':
+                return focusedFieldProtection(fragment.protection);
+            case 'replace':
                 return null;
             default:
-                return assertNever(fragment.protectionPolicy);
+                return assertNever(fragment.protection);
         }
     }
 
@@ -380,7 +382,7 @@ enableLazySurfaceErrorHandling();
 
         clearInteractionDeferredFragment(resolvedFragment.targetId);
 
-        if (resolvedFragment.deferUntilBlur && hasProtectedActiveInput(target, resolvedFragment)) {
+        if (resolvedFragment.protection.kind === 'focused-field' && hasProtectedActiveInput(target, resolvedFragment)) {
             pendingDeferredFragments.set(resolvedFragment.targetId, captureDeferredState(target, resolvedFragment));
             document.dispatchEvent(new CustomEvent('app:live-update-performance', {
                 detail: {
@@ -500,8 +502,8 @@ enableLazySurfaceErrorHandling();
     }
 
     function setScopeVersion(scopeKey: string, version: unknown): void {
-        if (!Number.isInteger(version) || (version as number) < 0) return;
-        scopeVersions.set(scopeKey, version as number);
+        if (typeof version !== 'number' || !Number.isInteger(version) || version < 0) return;
+        scopeVersions.set(scopeKey, version);
     }
 
     function clearScopeVersion(scopeKey: string): void {
@@ -512,8 +514,8 @@ enableLazySurfaceErrorHandling();
         return normalizeLiveUpdateVersion(value);
     }
 
-    function messageScopeKey(message: unknown): string | null {
-        return liveUpdateMessageScopeKey(message as { scopeKey?: unknown } | null | undefined);
+    function messageScopeKey(message: { scopeKey?: unknown } | null | undefined): string | null {
+        return liveUpdateMessageScopeKey(message);
     }
 
     function wireSubscription(subscription: SurfaceSubscription) {
@@ -533,26 +535,14 @@ enableLazySurfaceErrorHandling();
     function readFrontendSurface(ownerEl: Element): SurfaceSubscription | null {
         if (!(ownerEl instanceof HTMLElement)) return null;
 
-        const rawConfig = ownerEl.getAttribute('data-bepis-surface-config');
-        if (!rawConfig) return null;
-
-        let config = null;
-        try {
-            config = JSON.parse(rawConfig);
-        } catch (error) {
-            reportSurfaceConfigError(ownerEl, error);
-            return null;
-        }
+        const config = readFrontendSurfaceMountElement(ownerEl, reportSurfaceConfigError);
+        if (!config) return null;
 
         const parsedConfig = parseFrontendSurfaceSubscriptionConfig(config);
-        if (parsedConfig === null) {
-            if (parseFrontendSurfaceMountConfig(config) !== null) return null;
-            reportSurfaceConfigError(ownerEl, new Error('Invalid FrontendSurface config'));
-            return null;
-        }
+        if (!parsedConfig) return null;
 
         return {
-            feature: parsedConfig.feature,
+            surface: parsedConfig.surface,
             scope: parsedConfig.scope,
             scopeKey: parsedConfig.scopeKey,
             path: parsedConfig.socketPath,
@@ -568,7 +558,7 @@ enableLazySurfaceErrorHandling();
     function reportSurfaceConfigError(ownerEl: HTMLElement, error: unknown): void {
         const detail = {
             id: ownerEl && ownerEl.id ? ownerEl.id : null,
-            feature: null,
+            surface: ownerEl.getAttribute(surfaceDomAttr),
             error: error instanceof Error ? error.message : String(error),
         };
 
@@ -583,7 +573,7 @@ enableLazySurfaceErrorHandling();
 
     function collectDeclarativeSubscriptions(): SurfaceSubscription[] {
         const subscriptions: SurfaceSubscription[] = [];
-        document.querySelectorAll('[data-bepis-surface-config]').forEach(function (ownerEl) {
+        document.querySelectorAll(surfaceConfigSelector).forEach(function (ownerEl) {
             if (!(ownerEl instanceof HTMLElement)) return;
             const scopeInfo = readFrontendSurface(ownerEl);
             if (!scopeInfo || !scopeInfo.scopeKey) return;
@@ -596,7 +586,7 @@ enableLazySurfaceErrorHandling();
         const sourceEl = event.detail && event.detail.elt;
         if (!(sourceEl instanceof HTMLElement)) return false;
 
-        const ownerEl = sourceEl.closest('[data-bepis-surface-config]');
+        const ownerEl = sourceEl.closest(surfaceConfigSelector);
         if (!(ownerEl instanceof HTMLElement)) return false;
 
         const scopeInfo = readFrontendSurface(ownerEl);
@@ -610,9 +600,9 @@ enableLazySurfaceErrorHandling();
     }
 
     function isSurfaceOwnedHtmxRequest(sourceEl: HTMLElement, ownerEl: HTMLElement): boolean {
-        const surfaceOwnedControl = sourceEl.closest('[data-bepis-surface-action], [data-bepis-intent-form]');
+        const surfaceOwnedControl = sourceEl.closest(surfaceOwnedControlSelector);
         if (!(surfaceOwnedControl instanceof HTMLElement)) return false;
-        return surfaceOwnedControl.closest('[data-bepis-surface-config]') === ownerEl;
+        return surfaceOwnedControl.closest(surfaceConfigSelector) === ownerEl;
     }
 
     function fragmentMergeKey(fragment: LiveUpdateFragmentWithState): string | null {
@@ -651,7 +641,7 @@ enableLazySurfaceErrorHandling();
 
         return {
             ...existing,
-            feature: existing.feature || next.feature,
+            surface: existing.surface || next.surface,
             resyncFragments: mergeFragments(existing.resyncFragments, next.resyncFragments),
             decorateRequestsWithin: mergeStringLists(existing.decorateRequestsWithin, next.decorateRequestsWithin),
             ownerEls: (existing.ownerEls || []).concat(next.ownerEl ? [next.ownerEl] : next.ownerEls || []),
@@ -692,7 +682,7 @@ enableLazySurfaceErrorHandling();
         if (liveUpdateInvalidationIsOwnEcho(message.sourceClientId, activeClientId)) return;
         const perfSpan = beginPerfSpan('live_updates.handle_invalidate', {
             fragmentCount: message.fragments.length,
-            scopeKind: message.scope && typeof (message.scope as unknown as { surface?: unknown }).surface === 'string' ? (message.scope as unknown as { surface: string }).surface : null,
+            scopeKind: message.scope.surface,
             version: normalizeVersion(message.version),
         });
 
@@ -817,7 +807,7 @@ enableLazySurfaceErrorHandling();
     }
 
     function reconcileSurfaceMountInstances(): void {
-        const reconciliation = reconcileFrontendSurfaceInstances(activeSurfaceInstances, scanFrontendSurfaceMountInstances(document));
+        const reconciliation = reconcileFrontendSurfaceInstances(activeSurfaceInstances, scanFrontendSurfaceMountInstances(document, reportSurfaceConfigError));
 
         reconciliation.removed.forEach(function (instance) {
             activeSurfaceInstances.delete(instance.instanceId);
@@ -863,7 +853,7 @@ enableLazySurfaceErrorHandling();
         reconcileSurfaceMountInstances();
 
         const desired = desiredSubscriptions();
-        const firstDesired = desired.values().next().value as SurfaceSubscription | undefined;
+        const firstDesired: SurfaceSubscription | undefined = desired.values().next().value;
         const nextPath = firstDesired?.path ?? null;
 
         if (desired.size === 0 || !nextPath) {
@@ -941,16 +931,23 @@ enableLazySurfaceErrorHandling();
         if (!shouldDecorateDeclarativeRequest(htmxEvent)) return;
         const clientId = ensureClientId();
         if (htmxEvent.detail?.headers !== undefined) {
-            htmxEvent.detail.headers['X-Live-Update-Client-Id'] = clientId;
+            htmxEvent.detail.headers[liveUpdateClientIdHeader] = clientId;
         }
     });
 
     function handleActorFragmentRefreshEvent(event: Event): void {
         if (!(event instanceof CustomEvent)) return;
+
+        // HTMX adds its dispatch element to every response-triggered event.
+        // Remove only that verified carrier field; the generated parser remains
+        // exact for the complete server-emitted actor payload.
+        const actorDetail = serverPayloadFromHtmxTriggeredEvent(event.detail, event.target);
+        if (!actorDetail) return;
+
         let detail;
         try {
-            detail = parseLiveFragmentsRefreshEventDetail(event.detail);
-        } catch (_error) {
+            detail = parseLiveFragmentsRefreshEventDetail(actorDetail);
+        } catch {
             return;
         }
         resolveMountedFragmentsForInvalidation(activeSubscriptions.values(), detail.fragments, detail.scopeKey)

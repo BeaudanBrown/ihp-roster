@@ -64,6 +64,9 @@ module Application.Helper.FrontendContract.Surface.Runtime
 
 import Application.Helper.FrontendContract.AppValues (interactionIntentSubmitHtmxTrigger)
 import qualified Application.Helper.FrontendContract.Htmx as Htmx
+import Application.Helper.FrontendContract.LiveUpdateValues (surfaceActionDomAttribute,
+                                                             surfaceConfigDomAttribute,
+                                                             surfaceDomAttribute)
 import qualified Application.Helper.FrontendContract.Naming as Naming
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
 import Application.Helper.FrontendContract.Surface.DSL
@@ -265,8 +268,7 @@ data FrontendSurfaceFragmentHandler (requirement :: SurfacePrimitive) where
         } -> FrontendSurfaceFragmentHandler ('Fragment marker fields options)
 
 data FrontendSurfaceLazyFragmentDefaults = FrontendSurfaceLazyFragmentDefaults
-    { lazyFragmentDefaultLoadPolicy      :: !Text
-    , lazyFragmentDefaultTrigger         :: !(Maybe Text)
+    { lazyFragmentDefaultTrigger         :: !(Maybe Text)
     , lazyFragmentDefaultPlaceholderKind :: !(Maybe Text)
     }
     deriving (Eq, Show)
@@ -275,18 +277,17 @@ class KnownFragmentOptions (options :: [PrimitiveOption]) where
     knownFragmentOptions :: FrontendSurfaceLazyFragmentDefaults
 
 instance KnownFragmentOptions '[] where
-    knownFragmentOptions = FrontendSurfaceLazyFragmentDefaults "eager" Nothing Nothing
+    knownFragmentOptions = FrontendSurfaceLazyFragmentDefaults Nothing Nothing
 
 instance KnownFragmentOptions rest => KnownFragmentOptions ('Eager ': rest) where
-    knownFragmentOptions = (knownFragmentOptions @rest) { lazyFragmentDefaultLoadPolicy = "eager" }
+    knownFragmentOptions = knownFragmentOptions @rest
 
 instance (KnownLazyOptions nested, KnownFragmentOptions rest) => KnownFragmentOptions ('Lazy nested ': rest) where
     knownFragmentOptions =
         let restDefaults = knownFragmentOptions @rest
             lazyDefaults = knownLazyOptions @nested
          in restDefaults
-                { lazyFragmentDefaultLoadPolicy = "lazy"
-                , lazyFragmentDefaultTrigger = lazyFragmentDefaultTrigger lazyDefaults <|> lazyFragmentDefaultTrigger restDefaults
+                { lazyFragmentDefaultTrigger = lazyFragmentDefaultTrigger lazyDefaults <|> lazyFragmentDefaultTrigger restDefaults
                 , lazyFragmentDefaultPlaceholderKind = lazyFragmentDefaultPlaceholderKind lazyDefaults <|> lazyFragmentDefaultPlaceholderKind restDefaults
                 }
 
@@ -297,7 +298,7 @@ class KnownLazyOptions (options :: [PrimitiveOption]) where
     knownLazyOptions :: FrontendSurfaceLazyFragmentDefaults
 
 instance KnownLazyOptions '[] where
-    knownLazyOptions = FrontendSurfaceLazyFragmentDefaults "lazy" Nothing Nothing
+    knownLazyOptions = FrontendSurfaceLazyFragmentDefaults Nothing Nothing
 
 instance (Typeable marker, KnownLazyOptions rest) => KnownLazyOptions ('Trigger marker ': rest) where
     knownLazyOptions = (knownLazyOptions @rest) { lazyFragmentDefaultTrigger = Just (Naming.deriveFrontendSurfaceTypeName @marker Naming.DomTokenName) }
@@ -419,8 +420,7 @@ defaultMountedFragment (FrontendSurfaceFragmentHandler @options fragmentHandlerD
 applyFrontendSurfaceLazyFragmentDefaults :: FrontendSurfaceLazyFragmentDefaults -> FrontendSurfaceMountedFragment -> FrontendSurfaceMountedFragment
 applyFrontendSurfaceLazyFragmentDefaults defaults fragment =
     fragment
-        { mountedFragmentLoadPolicy = defaults.lazyFragmentDefaultLoadPolicy
-        , mountedFragmentLazyTrigger = defaults.lazyFragmentDefaultTrigger
+        { mountedFragmentLazyTrigger = defaults.lazyFragmentDefaultTrigger
         , mountedFragmentPlaceholderKind = defaults.lazyFragmentDefaultPlaceholderKind
         }
 
@@ -494,7 +494,6 @@ data FrontendSurfaceMountedFragment = FrontendSurfaceMountedFragment
     , mountedFragmentTargetId        :: !Text
     , mountedFragmentUrl             :: !Text
     , mountedFragmentProtection      :: !FrontendSurfaceProtection
-    , mountedFragmentLoadPolicy      :: !Text
     , mountedFragmentLazyTrigger     :: !(Maybe Text)
     , mountedFragmentPlaceholderKind :: !(Maybe Text)
     }
@@ -521,7 +520,6 @@ frontendSurfaceMountedFragment kind params targetId url protection =
         , mountedFragmentTargetId = targetId
         , mountedFragmentUrl = url
         , mountedFragmentProtection = protection
-        , mountedFragmentLoadPolicy = "eager"
         , mountedFragmentLazyTrigger = Nothing
         , mountedFragmentPlaceholderKind = Nothing
         }
@@ -583,8 +581,8 @@ frontendSurfaceMountConfigJson =
 renderFrontendSurfaceMount :: SurfaceImpl spec -> Blaze.Html -> Blaze.Html
 renderFrontendSurfaceMount impl body =
     Html5.div
-        ! attr "data-bepis-surface" impl.surfaceImplName
-        ! attr "data-bepis-surface-config" (frontendSurfaceMountConfigJson impl.surfaceImplMountConfig)
+        ! attr surfaceDomAttribute impl.surfaceImplName
+        ! attr surfaceConfigDomAttribute (frontendSurfaceMountConfigJson impl.surfaceImplMountConfig)
         $ body
 
 data FrontendSurfaceLazyFragmentConfig = FrontendSurfaceLazyFragmentConfig
@@ -655,7 +653,7 @@ renderFrontendSurfaceInteractionShell :: SurfaceImpl spec -> SurfaceIR.SurfaceIR
 renderFrontendSurfaceInteractionShell impl surface config serverHtml =
     Html5.div
         ! attr "id" mountId
-        ! attr "data-bepis-surface" impl.surfaceImplName
+        ! attr surfaceDomAttribute impl.surfaceImplName
         ! attr "data-bepis-surface-family" impl.surfaceImplName
         ! attr "data-bepis-scope-key" impl.surfaceImplMountConfig.mountScopeKey
         ! attr "data-bepis-mount-key" impl.surfaceImplMountConfig.mountKey
@@ -812,7 +810,7 @@ frontendSurfaceActionHtmxAttrs action route =
 frontendSurfaceActionHtmxAttrPairs :: SurfaceIR.HtmxActionIR -> FrontendSurfaceActionRoute -> [(Text, Text)]
 frontendSurfaceActionHtmxAttrPairs action route =
     [ (Htmx.htmxMethodAttr sharedMethod, route.actionRouteUrl)
-    , ("data-bepis-surface-action", action.htmxActionName)
+    , (surfaceActionDomAttribute, action.htmxActionName)
     , ("data-bepis-surface-action-config", frontendSurfaceActionConfigJson action)
     ]
         <> Htmx.htmxActionOptionAttrPairs metadata
@@ -883,7 +881,7 @@ renderFrontendSurfaceHtmxForm request body =
         ! attr (frontendSurfaceHtmxMethodAttr request.htmxRequestMethod) request.htmxRequestUrl
         ! attr "hx-target" request.htmxRequestTarget
         ! attr "hx-swap" request.htmxRequestSwap
-        ! attr "data-bepis-surface-action" request.htmxRequestName
+        ! attr surfaceActionDomAttribute request.htmxRequestName
         $ do
             forM_ request.htmxRequestFields renderHiddenField
             body
@@ -915,8 +913,7 @@ mountConfigToJson config =
         [ "surface" Aeson..= config.mountSurfaceName
         , "scopeKey" Aeson..= config.mountScopeKey
         , "mountKey" Aeson..= config.mountKey
-        , "mountState" Aeson..= config.mountState
-        , "fragments" Aeson..= fmap mountedFragmentToJson config.mountFragments
+        , "fragments" Aeson..= fmap (mountedFragmentToJson config.mountSurfaceName) config.mountFragments
         , "subscription" Aeson..= config.mountSubscription
         ]
 
@@ -929,33 +926,21 @@ frontendSurfaceLiveSubscription surfaceName liveFragmentNamesForSurface config =
                 [ "surface" Aeson..= surfaceName
                 , "scope" Aeson..= config.mountScope
                 ]
-            , "scopeKey" Aeson..= config.mountScopeKey
-            , "resyncFragments" Aeson..= fmap liveMountedFragmentKeyToJson liveMountedFragments
             ])
     where
         liveMountedFragments = filter (\fragment -> fragment.mountedFragmentKey.fragmentKind `elem` liveFragmentNamesForSurface) config.mountFragments
-        liveMountedFragmentKeyToJson fragment =
-            Aeson.object
-                [ "surface" Aeson..= surfaceName
-                , "kind" Aeson..= fragment.mountedFragmentKey.fragmentKind
-                , "params" Aeson..= canonicalMountedFragmentParams fragment.mountedFragmentKey.fragmentParams
-                ]
 
-mountedFragmentToJson :: FrontendSurfaceMountedFragment -> Aeson.Value
-mountedFragmentToJson fragment =
+mountedFragmentToJson :: Text -> FrontendSurfaceMountedFragment -> Aeson.Value
+mountedFragmentToJson surfaceName fragment =
     Aeson.object
-        [ "key" Aeson..= fragmentKeyToJson fragment.mountedFragmentKey
+        [ "fragmentKey" Aeson..= Aeson.object
+            [ "surface" Aeson..= surfaceName
+            , "kind" Aeson..= fragment.mountedFragmentKey.fragmentKind
+            , "params" Aeson..= canonicalMountedFragmentParams fragment.mountedFragmentKey.fragmentParams
+            ]
         , "targetId" Aeson..= fragment.mountedFragmentTargetId
         , "url" Aeson..= fragment.mountedFragmentUrl
         , "protection" Aeson..= protectionToJson fragment.mountedFragmentProtection
-        , "loadPolicy" Aeson..= fragment.mountedFragmentLoadPolicy
-        ]
-
-fragmentKeyToJson :: FrontendSurfaceFragmentKey -> Aeson.Value
-fragmentKeyToJson fragmentKey =
-    Aeson.object
-        [ "kind" Aeson..= fragmentKey.fragmentKind
-        , "params" Aeson..= canonicalMountedFragmentParams fragmentKey.fragmentParams
         ]
 
 canonicalMountedFragmentParams :: Aeson.Value -> Aeson.Value

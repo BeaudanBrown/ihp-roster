@@ -132,7 +132,6 @@ billingStatusMountedFragment statusUrl =
         , mountedFragmentTargetId = "billing-status-fragment"
         , mountedFragmentUrl = statusUrl
         , mountedFragmentProtection = FrontendSurfaceReplace
-        , mountedFragmentLoadPolicy = "eager"
         , mountedFragmentLazyTrigger = Nothing
         , mountedFragmentPlaceholderKind = Nothing
         }

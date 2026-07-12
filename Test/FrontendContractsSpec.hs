@@ -24,6 +24,11 @@ import Application.Helper.FrontendContract.Contracts (TypeScriptDeclaration (..)
                                                       frontendContractsTypeScript)
 import qualified Application.Helper.FrontendContract.Htmx as Htmx
 import qualified Application.Helper.FrontendContract.IR as Contract
+import Application.Helper.FrontendContract.LiveUpdateValues (liveUpdateClientIdHeaderName,
+                                                             liveUpdateSocketPathSegment,
+                                                             surfaceActionDomAttribute,
+                                                             surfaceConfigDomAttribute,
+                                                             surfaceDomAttribute)
 import Application.Helper.FrontendContract.Registry (registeredFrontendContractIR)
 import Application.Helper.FrontendContract.RosterValues (RosterStaffSortKey (..),
                                                          rosterStaffSortKeyAttribute,
@@ -67,6 +72,18 @@ tests = describe "Frontend contract generator foundation" do
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export type LiveUpdateCommand"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export type UiRegionTransitionProfile"
         frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export type InteractionSessionEffect"
+
+    it "shares reflected live endpoint, header, and mount DOM constants across Haskell and TypeScript" do
+        liveUpdateSocketPathSegment `shouldBe` "live-updates"
+        liveUpdateClientIdHeaderName `shouldBe` "X-Live-Update-Client-Id"
+        surfaceDomAttribute `shouldBe` "data-bepis-surface"
+        surfaceConfigDomAttribute `shouldBe` "data-bepis-surface-config"
+        surfaceActionDomAttribute `shouldBe` "data-bepis-surface-action"
+        frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const liveUpdateSocketPath = \"live-updates\" as const;"
+        frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const liveUpdateClientIdHeader = \"X-Live-Update-Client-Id\" as const;"
+        frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const surfaceDomAttr = \"data-bepis-surface\" as const;"
+        frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const surfaceConfigDomAttr = \"data-bepis-surface-config\" as const;"
+        frontendContractsTypeScript `shouldSatisfy` Text.isInfixOf "export const surfaceActionDomAttr = \"data-bepis-surface-action\" as const;"
 
     it "registers one generated FrontendContract declaration block" do
         [(declaration.name, declaration.origin) | declaration <- frontendContractDeclarations]
@@ -322,10 +339,7 @@ tests = describe "Frontend contract generator foundation" do
     it "keeps canonical generated strings out of handwritten frontend runtime" do
         offenders <- canonicalStringOffendersWithAllowedPrefixes
             ["frontend/ts"]
-            [ "frontend/ts/generated/contracts.ts"
-            , "frontend/ts/app-live-updates.ts"
-            , "frontend/ts/live-updates/frontend-surface.ts"
-            ]
+            ["frontend/ts/generated/contracts.ts"]
             ["frontend/ts/tests/"]
             [".ts"]
             frontendRuntimeGeneratedOnlyStrings
@@ -360,7 +374,7 @@ frontendGeneratedHelperOffenders :: [Text] -> IO [(FilePath, Text)]
 frontendGeneratedHelperOffenders typeNames = do
     files <- collectSourceFiles "frontend/ts"
     fmap concat $ forM files \path -> do
-        if path `elem` ["frontend/ts/generated/contracts.ts", "frontend/ts/live-updates/frontend-surface.ts"]
+        if path == "frontend/ts/generated/contracts.ts"
             then pure []
             else do
                 source <- Text.readFile path

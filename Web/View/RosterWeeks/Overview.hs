@@ -68,7 +68,6 @@ renderWeekOverviewLazyMount mountId fragmentUrl =
             , mountedFragmentTargetId = mountId
             , mountedFragmentUrl = fragmentUrl
             , mountedFragmentProtection = FrontendSurfaceReplace
-            , mountedFragmentLoadPolicy = "lazy"
             , mountedFragmentLazyTrigger = Just "load"
             , mountedFragmentPlaceholderKind = Nothing
             }
