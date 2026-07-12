@@ -27,8 +27,8 @@ This file describes implemented leave/availability behavior.
 
 - Leave pages can use declarative live surfaces for manager/worker visibility.
 - Actor responses should update the current fragment locally.
-- Passive viewers should receive structural invalidations and refetch authorized
-  fragments.
+- Passive viewers receive semantic fragment-key invalidations and refetch
+  authorized fragments through their own local mount descriptors.
 
 ## Extension Rules
 

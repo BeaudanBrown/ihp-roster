@@ -24,8 +24,8 @@ import Web.Controller.Prelude
 import Web.Timesheets.FrontendSurface (TimesheetWeekScopeValue (..),
                                        TimesheetsMountStateValue (..),
                                        timesheetsCandidateMountedFragments,
-                                       timesheetsSurfaceScope,
-                                       timesheetsSurfaceWireFragments)
+                                       timesheetsSurfaceFragmentKeys,
+                                       timesheetsSurfaceScope)
 import Web.Timesheets.Paths (timesheetWeekUrl)
 import Web.Timesheets.Projection
 import Web.View.Timesheets.Index
@@ -49,7 +49,7 @@ respondWithTimesheetActorInvalidation requestKey fragments extraHtml = do
     let scope = TimesheetWeekScopeValue (unpackId currentVenueId) requestKey.projectionWeekOffset
     let mountState = TimesheetsMountStateValue requestKey.projectionShowApproved requestKey.projectionShowAllStaff requestKey.projectionStaffFilterId
     let selectedMountedFragments = selectTimesheetMountedFragments requestKey (normalizeTimesheetFragments fragments) (timesheetsCandidateMountedFragments scope mountState)
-    setActorLiveFragmentsRefresh (timesheetsSurfaceScope scope) (timesheetsSurfaceWireFragments selectedMountedFragments)
+    setActorLiveFragmentsRefresh (timesheetsSurfaceScope scope) (timesheetsSurfaceFragmentKeys selectedMountedFragments)
     respondHtmlProfiled extraHtml
 
 selectTimesheetMountedFragments :: TimesheetProjectionRequest -> [TimesheetProjectionFragment] -> [FrontendSurfaceMountedFragment] -> [FrontendSurfaceMountedFragment]

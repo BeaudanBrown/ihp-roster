@@ -53,6 +53,9 @@ data Shifts
 
 data PageReady
 data LiveFragmentsRefresh
+data Scope
+data ScopeKey
+data Fragments
 data InteractionIntent
 data IntentSubmit
 data InteractionSessionStart
@@ -98,7 +101,11 @@ type AppContract =
              , Literal HtmxNoneSwap "none"
              ])
          , Event PageReady '[]
-         , Event LiveFragmentsRefresh '[]
+         , Event LiveFragmentsRefresh
+            '[ Field Scope 'WireSurfaceScope
+             , Field ScopeKey 'WireText
+             , Field Fragments ('WireList 'WireSurfaceFragmentKey)
+             ]
          , Event InteractionIntent '[]
          , Event IntentSubmit '[]
          , Event InteractionSessionStart '[]

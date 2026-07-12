@@ -61,7 +61,6 @@ data WireIR
     | WireRefIR !Text
     | WireSurfaceScopeIR
     | WireSurfaceFragmentKeyIR
-    | WireSurfaceWireFragmentIR
     deriving (Eq, Show)
 
 data HtmxMethodIR
@@ -194,4 +193,3 @@ wireRefs = \case
     WireUnknownIR -> []
     WireSurfaceScopeIR -> []
     WireSurfaceFragmentKeyIR -> []
-    WireSurfaceWireFragmentIR -> []

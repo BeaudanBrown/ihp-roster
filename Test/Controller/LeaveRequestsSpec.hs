@@ -585,10 +585,10 @@ tests = beforeAll testContext do
                 bodyText `shouldContain` "id=\"dialog-overlay-mount\" hx-swap-oob=\"innerHTML\""
                 let leaveReviewTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 leaveReviewTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
-                leaveReviewTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "leave-pending-count")
-                leaveReviewTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "leave-pending-list")
-                leaveReviewTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "leave-approved-count")
-                leaveReviewTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "leave-approved-list")
+                leaveReviewTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"leave-section-count\"")
+                leaveReviewTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"leave-section-list\"")
+                leaveReviewTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"leaveSection\":\"pending\"")
+                leaveReviewTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"leaveSection\":\"approved\"")
                 leaveReviewTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "leave-requests-content")
                 versionAfter <- currentLiveUpdateVersion (leaveRequestsLiveScope (unpackId venue.id))
                 versionAfter `shouldBe` versionBefore

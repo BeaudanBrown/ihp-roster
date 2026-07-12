@@ -2,22 +2,18 @@
 {-# LANGUAGE TypeApplications    #-}
 
 module Application.Helper.FrontendContract.Wire.LiveUpdate
-    ( FocusedFieldProtectionConfig (..)
-    , SurfaceFragmentKey (..)
-    , SurfaceFragmentProtection (..)
+    ( LiveFragmentsRefreshEventDetail (..)
     , LiveUpdateCommand (..)
     , LiveUpdateMessage (..)
+    , SurfaceFragmentKey (..)
     , SurfaceScope (..)
     , SurfaceSubscription (..)
-    , SurfaceWireFragment (..)
     ) where
 
 import Application.Helper.FrontendContract.Wire.Json (validateContractValue,
                                                       validateSurfaceFragmentKeyValue,
                                                       validateSurfaceScopeValue)
 import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Key as AesonKey
-import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as AesonTypes
 import IHP.Prelude
 
@@ -38,37 +34,17 @@ data SurfaceFragmentKey = SurfaceFragmentKey
     }
     deriving (Eq, Show)
 
-data FocusedFieldProtectionConfig = FocusedFieldProtectionConfig
-    { activeSelector    :: !Text
-    , fieldKeyAttr      :: !Text
-    , fieldNameFallback :: !Bool
-    , containerSelector :: !(Maybe Text)
-    }
-    deriving (Eq, Show)
-
-data SurfaceFragmentProtection
-    = NoProtection
-    | FocusedFieldProtection
-        { activeSelector    :: !Text
-        , fieldKeyAttr      :: !Text
-        , fieldNameFallback :: !Bool
-        , containerSelector :: !(Maybe Text)
-        }
-    deriving (Eq, Show)
-
-data SurfaceWireFragment = SurfaceWireFragment
-    { fragmentKey      :: !SurfaceFragmentKey
-    , targetId         :: !Text
-    , url              :: !Text
-    , deferUntilBlur   :: !Bool
-    , protectionPolicy :: !SurfaceFragmentProtection
-    }
-    deriving (Eq, Show)
-
 data SurfaceSubscription = SurfaceSubscription
-    { scope            :: !SurfaceScope
-    , scopeKey         :: !Text
-    , mountedFragments :: ![SurfaceWireFragment]
+    { scope     :: !SurfaceScope
+    , scopeKey  :: !Text
+    , fragments :: ![SurfaceFragmentKey]
+    }
+    deriving (Eq, Show)
+
+data LiveFragmentsRefreshEventDetail = LiveFragmentsRefreshEventDetail
+    { scope     :: !SurfaceScope
+    , scopeKey  :: !Text
+    , fragments :: ![SurfaceFragmentKey]
     }
     deriving (Eq, Show)
 
@@ -94,7 +70,7 @@ data LiveUpdateMessage
         { scope          :: !SurfaceScope
         , scopeKey       :: !Text
         , version        :: !Int
-        , fragments      :: ![SurfaceWireFragment]
+        , fragments      :: ![SurfaceFragmentKey]
         , sourceClientId :: !(Maybe Text)
         }
     | Error
@@ -125,82 +101,11 @@ instance Aeson.FromJSON SurfaceFragmentKey where
         validateSurfaceFragmentKeyValue raw
         Aeson.withObject "SurfaceFragmentKey" (\object -> SurfaceFragmentKey <$> object Aeson..: "surface" <*> object Aeson..: "kind" <*> object Aeson..: "params") raw
 
-instance Aeson.ToJSON FocusedFieldProtectionConfig where
-    toJSON FocusedFieldProtectionConfig { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector } = Aeson.object
-        [ "activeSelector" Aeson..= activeSelector
-        , "fieldKeyAttr" Aeson..= fieldKeyAttr
-        , "fieldNameFallback" Aeson..= fieldNameFallback
-        , "containerSelector" Aeson..= containerSelector
-        ]
-
-instance Aeson.FromJSON FocusedFieldProtectionConfig where
-    parseJSON raw = do
-        validateFocusedFieldProtectionConfigValue raw
-        Aeson.withObject "FocusedFieldProtectionConfig"
-            ( \object ->
-                FocusedFieldProtectionConfig
-                    <$> object Aeson..: "activeSelector"
-                    <*> object Aeson..: "fieldKeyAttr"
-                    <*> object Aeson..: "fieldNameFallback"
-                    <*> object Aeson..: "containerSelector"
-            )
-            raw
-
-instance Aeson.ToJSON SurfaceFragmentProtection where
-    toJSON NoProtection = Aeson.object ["kind" Aeson..= ("none" :: Text)]
-    toJSON FocusedFieldProtection { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector } = Aeson.object
-        [ "kind" Aeson..= ("focused-field" :: Text)
-        , "activeSelector" Aeson..= activeSelector
-        , "fieldKeyAttr" Aeson..= fieldKeyAttr
-        , "fieldNameFallback" Aeson..= fieldNameFallback
-        , "containerSelector" Aeson..= containerSelector
-        ]
-
-instance Aeson.FromJSON SurfaceFragmentProtection where
-    parseJSON raw = do
-        validateContractValue "SurfaceFragmentProtection" raw
-        Aeson.withObject "SurfaceFragmentProtection"
-            ( \object -> do
-                kind <- object Aeson..: "kind" :: AesonTypes.Parser Text
-                case kind of
-                    "none" -> pure NoProtection
-                    "focused-field" -> FocusedFieldProtection
-                        <$> object Aeson..: "activeSelector"
-                        <*> object Aeson..: "fieldKeyAttr"
-                        <*> object Aeson..: "fieldNameFallback"
-                        <*> object Aeson..: "containerSelector"
-                    other -> fail ("unsupported SurfaceFragmentProtection kind " <> cs other)
-            )
-            raw
-
-instance Aeson.ToJSON SurfaceWireFragment where
-    toJSON SurfaceWireFragment { fragmentKey, targetId, url, deferUntilBlur, protectionPolicy } = Aeson.object
-        [ "fragmentKey" Aeson..= fragmentKey
-        , "targetId" Aeson..= targetId
-        , "url" Aeson..= url
-        , "deferUntilBlur" Aeson..= deferUntilBlur
-        , "protectionPolicy" Aeson..= protectionPolicy
-        ]
-
-instance Aeson.FromJSON SurfaceWireFragment where
-    parseJSON raw = do
-        validateContractValue "SurfaceWireFragment" raw
-        Aeson.withObject "SurfaceWireFragment"
-            ( \object ->
-                SurfaceWireFragment
-                    <$> object Aeson..: "fragmentKey"
-                    <*> object Aeson..: "targetId"
-                    <*> object Aeson..: "url"
-                    <*> object Aeson..: "deferUntilBlur"
-                    <*> object Aeson..: "protectionPolicy"
-            )
-            raw
-
 instance Aeson.ToJSON SurfaceSubscription where
-    toJSON SurfaceSubscription { scope, scopeKey, mountedFragments } = Aeson.object
+    toJSON SurfaceSubscription { scope, scopeKey, fragments } = Aeson.object
         [ "scope" Aeson..= scope
         , "scopeKey" Aeson..= scopeKey
-        , "mountedFragments" Aeson..= mountedFragments
+        , "fragments" Aeson..= fragments
         ]
 
 instance Aeson.FromJSON SurfaceSubscription where
@@ -211,7 +116,26 @@ instance Aeson.FromJSON SurfaceSubscription where
                 SurfaceSubscription
                     <$> object Aeson..: "scope"
                     <*> object Aeson..: "scopeKey"
-                    <*> object Aeson..: "mountedFragments"
+                    <*> object Aeson..: "fragments"
+            )
+            raw
+
+instance Aeson.ToJSON LiveFragmentsRefreshEventDetail where
+    toJSON LiveFragmentsRefreshEventDetail { scope, scopeKey, fragments } = Aeson.object
+        [ "scope" Aeson..= scope
+        , "scopeKey" Aeson..= scopeKey
+        , "fragments" Aeson..= fragments
+        ]
+
+instance Aeson.FromJSON LiveFragmentsRefreshEventDetail where
+    parseJSON raw = do
+        validateContractValue "LiveFragmentsRefreshEventDetail" raw
+        Aeson.withObject "LiveFragmentsRefreshEventDetail"
+            ( \object ->
+                LiveFragmentsRefreshEventDetail
+                    <$> object Aeson..: "scope"
+                    <*> object Aeson..: "scopeKey"
+                    <*> object Aeson..: "fragments"
             )
             raw
 
@@ -286,9 +210,3 @@ instance Aeson.FromJSON LiveUpdateMessage where
                     other -> fail ("unsupported LiveUpdateMessage type " <> cs other)
             )
             raw
-
-validateFocusedFieldProtectionConfigValue :: Aeson.Value -> AesonTypes.Parser ()
-validateFocusedFieldProtectionConfigValue raw =
-    case raw of
-        Aeson.Object object -> validateContractValue "SurfaceFragmentProtection" (Aeson.Object (KeyMap.insert (AesonKey.fromText "kind") (Aeson.String "focused-field") object))
-        _ -> fail "FocusedFieldProtectionConfig must be an object"

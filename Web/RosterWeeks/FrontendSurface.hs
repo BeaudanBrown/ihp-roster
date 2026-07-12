@@ -36,7 +36,7 @@ module Web.RosterWeeks.FrontendSurface
     , rosterSurfaceMountConfig
     , rosterSurfaceAction
     , rosterSurfaceScopeKey
-    , rosterSurfaceWireFragments
+    , rosterSurfaceFragmentKeys
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
@@ -246,9 +246,9 @@ rosterSurfaceScope :: RosterWeekScopeValue -> SurfaceScope
 rosterSurfaceScope scope =
     rosterWeekLiveScope scope.rosterWeekVenueId (unpackId scope.rosterWeekGroupId) scope.rosterWeekWeekOffset
 
-rosterSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [SurfaceWireFragment]
-rosterSurfaceWireFragments =
-    frontendSurfaceMountedFragmentsToWire "roster"
+rosterSurfaceFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
+rosterSurfaceFragmentKeys =
+    frontendSurfaceMountedFragmentsToKeys "roster"
 
 rosterCandidateMountedFragments :: RosterWeekScopeValue -> RosterMountedFragmentPlan -> [FrontendSurfaceMountedFragment]
 rosterCandidateMountedFragments scope plan =

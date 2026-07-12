@@ -227,4 +227,3 @@ wireName = \case
     WireRefIR name -> "ref<" <> name <> ">"
     WireSurfaceScopeIR -> "surface-scope"
     WireSurfaceFragmentKeyIR -> "surface-fragment-key"
-    WireSurfaceWireFragmentIR -> "surface-wire-fragment"

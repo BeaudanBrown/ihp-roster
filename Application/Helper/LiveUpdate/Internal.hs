@@ -1,9 +1,6 @@
 module Application.Helper.LiveUpdate.Internal
     ( SurfaceFragmentKey (..)
-    , SurfaceFragmentProtection (..)
-    , SurfaceWireFragment (..)
     , LiveBus
-    , FocusedFieldProtectionConfig (..)
     , LiveUpdateBroadcastResult (..)
     , LiveUpdateCommand (..)
     , LiveUpdateMessage (..)
@@ -18,7 +15,7 @@ module Application.Helper.LiveUpdate.Internal
     , broadcastLiveInvalidationDetailed
     , broadcastLiveInvalidationDetailedWithBus
     , broadcastLiveInvalidationDetailedWithoutContext
-    , coalesceSurfaceWireFragments
+    , coalesceSurfaceFragmentKeys
     , currentLiveUpdateVersion
     , currentLiveUpdateVersionWithBus
     , incrementLiveUpdateVersionWithBus
@@ -62,9 +59,8 @@ module Application.Helper.LiveUpdate.Internal
     , timesheetDaySectionLiveFragment
     , timesheetToolbarLiveFragment
     , timesheetWeekLiveScope
-    , surfaceWireFragmentFromWire
-    , surfaceWireFragmentFromSurface
-    , surfaceWireFragmentToWire
+    , surfaceFragmentKeyFromWire
+    , surfaceFragmentKeyToWire
     , newInMemoryLiveBus
     , registerSurfaceSubscription
     , registerSurfaceSubscriptionWithBus
@@ -189,36 +185,10 @@ profileContentLiveFragment = simpleSurfaceFragmentKey "profile" "profile-details
 supportAwardRatesSectionLiveFragment = simpleSurfaceFragmentKey "support" "support-award-rates"
 supportPublicHolidaysSectionLiveFragment = simpleSurfaceFragmentKey "support" "support-public-holidays"
 
-data FocusedFieldProtectionConfig = FocusedFieldProtectionConfig
-    { activeSelector    :: !Text
-    , fieldKeyAttr      :: !Text
-    , fieldNameFallback :: !Bool
-    , containerSelector :: !(Maybe Text)
-    }
-    deriving (Eq, Show)
-
-data SurfaceFragmentProtection
-    = NoProtection
-    | FocusedFieldProtection FocusedFieldProtectionConfig
-    deriving (Eq, Show)
-
-data SurfaceWireFragment = SurfaceWireFragment
-    { fragmentKey      :: !SurfaceFragmentKey
-    , targetId         :: !Text
-    , url              :: !Text
-    , deferUntilBlur   :: !Bool
-    , protectionPolicy :: !SurfaceFragmentProtection
-    }
-    deriving (Eq, Show)
-
-surfaceWireFragmentFromSurface :: Text -> Text -> Aeson.Value -> Text -> Text -> Bool -> SurfaceFragmentProtection -> Maybe SurfaceWireFragment
-surfaceWireFragmentFromSurface surface kind params targetId url deferUntilBlur protectionPolicy =
-    Just SurfaceWireFragment { fragmentKey = frontendSurfaceSurfaceFragmentKey surface kind params, targetId, url, deferUntilBlur, protectionPolicy }
-
 data SurfaceSubscription = SurfaceSubscription
-    { subscriptionScope            :: !SurfaceScope
-    , subscriptionScopeKey         :: !Text
-    , subscriptionMountedFragments :: ![SurfaceWireFragment]
+    { subscriptionScope        :: !SurfaceScope
+    , subscriptionScopeKey     :: !Text
+    , subscriptionFragmentKeys :: ![SurfaceFragmentKey]
     }
     deriving (Eq, Show)
 
@@ -244,7 +214,7 @@ data LiveUpdateMessage
         { scope          :: !SurfaceScope
         , scopeKey       :: !Text
         , version        :: !Int
-        , fragments      :: ![SurfaceWireFragment]
+        , fragments      :: ![SurfaceFragmentKey]
         , sourceClientId :: !(Maybe Text)
         }
     | LiveUpdatesError
@@ -281,24 +251,6 @@ instance Aeson.ToJSON SurfaceFragmentKey where
 instance Aeson.FromJSON SurfaceFragmentKey where
     parseJSON value = surfaceFragmentKeyFromWire =<< Aeson.parseJSON value
 
-instance Aeson.ToJSON FocusedFieldProtectionConfig where
-    toJSON = Aeson.toJSON . focusedFieldProtectionConfigToWire
-
-instance Aeson.FromJSON FocusedFieldProtectionConfig where
-    parseJSON value = focusedFieldProtectionConfigFromWire <$> Aeson.parseJSON value
-
-instance Aeson.ToJSON SurfaceFragmentProtection where
-    toJSON = Aeson.toJSON . surfaceFragmentProtectionToWire
-
-instance Aeson.FromJSON SurfaceFragmentProtection where
-    parseJSON value = surfaceFragmentProtectionFromWire <$> Aeson.parseJSON value
-
-instance Aeson.ToJSON SurfaceWireFragment where
-    toJSON = Aeson.toJSON . surfaceWireFragmentToWire
-
-instance Aeson.FromJSON SurfaceWireFragment where
-    parseJSON value = surfaceWireFragmentFromWire =<< Aeson.parseJSON value
-
 instance Aeson.ToJSON LiveUpdateCommand where
     toJSON = Aeson.toJSON . liveUpdateCommandToWire
 
@@ -320,7 +272,7 @@ data LiveBus = LiveBus
     , liveBusActiveSubscriptions      :: IO [SurfaceSubscription]
     , liveBusCurrentVersion           :: SurfaceScope -> IO Int
     , liveBusIncrementVersion         :: SurfaceScope -> IO Int
-    , liveBusBroadcastInvalidation    :: SurfaceScope -> Maybe Text -> [SurfaceWireFragment] -> IO LiveUpdateBroadcastResult
+    , liveBusBroadcastInvalidation    :: SurfaceScope -> Maybe Text -> [SurfaceFragmentKey] -> IO LiveUpdateBroadcastResult
     }
 
 data InMemoryLiveBusState = InMemoryLiveBusState
@@ -450,23 +402,23 @@ incrementInMemoryVersion state scope =
             nextVersion = Map.findWithDefault 0 scopeKey versions + 1
          in (Map.insert scopeKey nextVersion versions, nextVersion)
 
-broadcastLiveInvalidationDetailed :: (?context :: ControllerContext) => SurfaceScope -> Maybe Text -> [SurfaceWireFragment] -> IO LiveUpdateBroadcastResult
+broadcastLiveInvalidationDetailed :: (?context :: ControllerContext) => SurfaceScope -> Maybe Text -> [SurfaceFragmentKey] -> IO LiveUpdateBroadcastResult
 broadcastLiveInvalidationDetailed scope sourceClientId fragments =
     profileActionSpanWithDetail "live_updates.broadcast_invalidation" do
         result <- broadcastLiveInvalidationDetailedWithoutContext scope sourceClientId fragments
         pure (result, Just (liveUpdateBroadcastDetail result))
 
-broadcastLiveInvalidationDetailedWithoutContext :: SurfaceScope -> Maybe Text -> [SurfaceWireFragment] -> IO LiveUpdateBroadcastResult
+broadcastLiveInvalidationDetailedWithoutContext :: SurfaceScope -> Maybe Text -> [SurfaceFragmentKey] -> IO LiveUpdateBroadcastResult
 broadcastLiveInvalidationDetailedWithoutContext =
     broadcastLiveInvalidationDetailedWithBus defaultLiveBus
 
-broadcastLiveInvalidationDetailedWithBus :: LiveBus -> SurfaceScope -> Maybe Text -> [SurfaceWireFragment] -> IO LiveUpdateBroadcastResult
+broadcastLiveInvalidationDetailedWithBus :: LiveBus -> SurfaceScope -> Maybe Text -> [SurfaceFragmentKey] -> IO LiveUpdateBroadcastResult
 broadcastLiveInvalidationDetailedWithBus =
     liveBusBroadcastInvalidation
 
-broadcastInMemoryInvalidation :: InMemoryLiveBusState -> SurfaceScope -> Maybe Text -> [SurfaceWireFragment] -> IO LiveUpdateBroadcastResult
+broadcastInMemoryInvalidation :: InMemoryLiveBusState -> SurfaceScope -> Maybe Text -> [SurfaceFragmentKey] -> IO LiveUpdateBroadcastResult
 broadcastInMemoryInvalidation state scope sourceClientId fragments = do
-    let coalescedFragments = coalesceSurfaceWireFragments fragments
+    let coalescedFragments = coalesceSurfaceFragmentKeys fragments
     version <- incrementInMemoryVersion state scope
     subscriptions <- readIORef state.inMemorySubscriptionsRef
     let scopeKey = surfaceScopeKey scope
@@ -487,19 +439,13 @@ broadcastInMemoryInvalidation state scope sourceClientId fragments = do
             , broadcastDroppedSubscriptions = length staleIds
             }
 
-coalesceSurfaceWireFragments :: [SurfaceWireFragment] -> [SurfaceWireFragment]
-coalesceSurfaceWireFragments fragments =
+coalesceSurfaceFragmentKeys :: [SurfaceFragmentKey] -> [SurfaceFragmentKey]
+coalesceSurfaceFragmentKeys fragments =
     reverse (fst (foldl' step ([], Set.empty) fragments))
-    where
-        step (kept, seen) fragment =
-            let key = surfaceWireFragmentMergeKey fragment
-             in if Set.member key seen
-                    then (kept, seen)
-                    else (fragment : kept, Set.insert key seen)
-
-surfaceWireFragmentMergeKey :: SurfaceWireFragment -> (SurfaceFragmentKey, Text, Text)
-surfaceWireFragmentMergeKey fragment =
-    (fragment.fragmentKey, fragment.targetId, fragment.url)
+  where
+    step (kept, seen) fragmentKey
+        | Set.member fragmentKey seen = (kept, seen)
+        | otherwise = (fragmentKey : kept, Set.insert fragmentKey seen)
 
 liveUpdateBroadcastDetail :: LiveUpdateBroadcastResult -> Text
 liveUpdateBroadcastDetail result =
@@ -512,7 +458,7 @@ liveUpdateBroadcastDetail result =
         , "dropped=" <> tshow result.broadcastDroppedSubscriptions
         ]
 
-sendInvalidation :: SurfaceScope -> Int -> Maybe Text -> [SurfaceWireFragment] -> ActiveLiveSubscription -> IO (Maybe UUID.UUID)
+sendInvalidation :: SurfaceScope -> Int -> Maybe Text -> [SurfaceFragmentKey] -> ActiveLiveSubscription -> IO (Maybe UUID.UUID)
 sendInvalidation scope version sourceClientId fragments subscription = do
     result <-
         Exception.tryAny $
@@ -556,52 +502,25 @@ surfaceFragmentKeyFromWire :: Wire.SurfaceFragmentKey -> Aeson.Parser SurfaceFra
 surfaceFragmentKeyFromWire Wire.SurfaceFragmentKey { surface, kind, params } =
     pure (frontendSurfaceSurfaceFragmentKey surface kind params)
 
-focusedFieldProtectionConfigToWire :: FocusedFieldProtectionConfig -> Wire.FocusedFieldProtectionConfig
-focusedFieldProtectionConfigToWire FocusedFieldProtectionConfig { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector } =
-    Wire.FocusedFieldProtectionConfig { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector }
-
-focusedFieldProtectionConfigFromWire :: Wire.FocusedFieldProtectionConfig -> FocusedFieldProtectionConfig
-focusedFieldProtectionConfigFromWire Wire.FocusedFieldProtectionConfig { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector } =
-    FocusedFieldProtectionConfig { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector }
-
-surfaceFragmentProtectionToWire :: SurfaceFragmentProtection -> Wire.SurfaceFragmentProtection
-surfaceFragmentProtectionToWire NoProtection = Wire.NoProtection
-surfaceFragmentProtectionToWire (FocusedFieldProtection FocusedFieldProtectionConfig { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector }) =
-    Wire.FocusedFieldProtection { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector }
-
-surfaceFragmentProtectionFromWire :: Wire.SurfaceFragmentProtection -> SurfaceFragmentProtection
-surfaceFragmentProtectionFromWire Wire.NoProtection = NoProtection
-surfaceFragmentProtectionFromWire Wire.FocusedFieldProtection { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector } =
-    FocusedFieldProtection FocusedFieldProtectionConfig { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector }
-
-surfaceWireFragmentToWire :: SurfaceWireFragment -> Wire.SurfaceWireFragment
-surfaceWireFragmentToWire SurfaceWireFragment { fragmentKey, targetId, url, deferUntilBlur, protectionPolicy } =
-    Wire.SurfaceWireFragment (surfaceFragmentKeyToWire fragmentKey) targetId url deferUntilBlur (surfaceFragmentProtectionToWire protectionPolicy)
-
-surfaceWireFragmentFromWire :: Wire.SurfaceWireFragment -> Aeson.Parser SurfaceWireFragment
-surfaceWireFragmentFromWire Wire.SurfaceWireFragment { fragmentKey, targetId, url, deferUntilBlur, protectionPolicy } = do
-    parsedFragmentKey <- surfaceFragmentKeyFromWire fragmentKey
-    pure SurfaceWireFragment { fragmentKey = parsedFragmentKey, targetId, url, deferUntilBlur, protectionPolicy = surfaceFragmentProtectionFromWire protectionPolicy }
-
 liveUpdateSubscriptionToWire :: SurfaceSubscription -> Wire.SurfaceSubscription
-liveUpdateSubscriptionToWire SurfaceSubscription { subscriptionScope, subscriptionScopeKey, subscriptionMountedFragments } =
+liveUpdateSubscriptionToWire SurfaceSubscription { subscriptionScope, subscriptionScopeKey, subscriptionFragmentKeys } =
     Wire.SurfaceSubscription
         { Wire.scope = surfaceScopeToWire subscriptionScope
         , Wire.scopeKey = subscriptionScopeKey
-        , Wire.mountedFragments = map surfaceWireFragmentToWire subscriptionMountedFragments
+        , Wire.fragments = map surfaceFragmentKeyToWire subscriptionFragmentKeys
         }
 
 liveUpdateSubscriptionFromWire :: Wire.SurfaceSubscription -> Aeson.Parser SurfaceSubscription
-liveUpdateSubscriptionFromWire Wire.SurfaceSubscription { scope, scopeKey, mountedFragments } = do
+liveUpdateSubscriptionFromWire Wire.SurfaceSubscription { scope, scopeKey, fragments } = do
     subscriptionScope <- surfaceScopeFromWire scope
     let canonicalScopeKey = surfaceScopeKey subscriptionScope
     unless (scopeKey == canonicalScopeKey) do
         fail "Live update subscription scope key does not match its canonical Surface scope"
-    forM_ mountedFragments \Wire.SurfaceWireFragment { fragmentKey = Wire.SurfaceFragmentKey { surface = fragmentSurface } } ->
+    forM_ fragments \Wire.SurfaceFragmentKey { surface = fragmentSurface } ->
         unless (fragmentSurface == scope.surface) do
-            fail "Live update subscription fragment descriptor does not belong to its Surface scope"
-    subscriptionMountedFragments <- mapM surfaceWireFragmentFromWire mountedFragments
-    pure SurfaceSubscription { subscriptionScope, subscriptionScopeKey = canonicalScopeKey, subscriptionMountedFragments }
+            fail "Live update subscription fragment key does not belong to its Surface scope"
+    subscriptionFragmentKeys <- mapM surfaceFragmentKeyFromWire fragments
+    pure SurfaceSubscription { subscriptionScope, subscriptionScopeKey = canonicalScopeKey, subscriptionFragmentKeys }
 
 liveUpdateCommandToWire :: LiveUpdateCommand -> Wire.LiveUpdateCommand
 liveUpdateCommandToWire SubscribeLiveUpdates { subscription, clientId, lastSeenVersion } = Wire.Subscribe (liveUpdateSubscriptionToWire subscription) clientId lastSeenVersion
@@ -615,7 +534,7 @@ liveUpdateMessageToWire :: LiveUpdateMessage -> Wire.LiveUpdateMessage
 liveUpdateMessageToWire LiveUpdatesSubscribed { scope, scopeKey, currentVersion, resync } =
     Wire.Subscribed (surfaceScopeToWire scope) scopeKey currentVersion resync
 liveUpdateMessageToWire LiveUpdatesInvalidated { scope, scopeKey, version, fragments, sourceClientId } =
-    Wire.Invalidate (surfaceScopeToWire scope) scopeKey version (map surfaceWireFragmentToWire fragments) sourceClientId
+    Wire.Invalidate (surfaceScopeToWire scope) scopeKey version (map surfaceFragmentKeyToWire fragments) sourceClientId
 liveUpdateMessageToWire LiveUpdatesError { message } = Wire.Error message
 
 parseUuid :: Text -> Aeson.Parser UUID.UUID

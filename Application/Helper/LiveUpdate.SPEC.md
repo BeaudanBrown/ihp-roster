@@ -13,19 +13,21 @@ websocket controllers, and `static/app-live-updates.js`.
   authorized fragments over HTTP.
 - Server-mutating UI that can leave another mounted copy stale should use this
   live-fragment path by default: commit data, report touched resources, broadcast
-  structural invalidations with the actor `sourceClientId`, then return an
-  actor-local semantic invalidation for the requester. The browser resolves both
-  actor-local and websocket invalidations through mounted surface metadata.
+  semantic fragment keys with the actor `sourceClientId`, then return the same
+  key shape in the actor-local invalidation for the requester. The browser resolves
+  both actor-local and websocket invalidations through mounted surface metadata.
 - A browser tab should use one websocket connection with many scope
   subscriptions.
 - A scope is an authorized logical data slice, not a page.
-- Invalidation payloads are structural fragment refs, not rendered HTML.
+- Subscription, websocket invalidation, and actor-event payloads carry canonical
+  `SurfaceFragmentKey` values only, never executable URLs, targets, selectors,
+  defer flags, or protection policies.
 - Fragment GET endpoints must enforce the same authorization and visibility as
   full-page routes.
 - Scope keys are server-owned and carried through surface config/messages. The
   websocket boundary derives the canonical key from the registered typed Surface
-  scope fields and rejects a browser-supplied key or fragment descriptor whose
-  Surface identity disagrees; browser keys are assertions, not authority.
+  scope fields and rejects browser-supplied scope or fragment keys whose Surface
+  identity disagrees; browser keys are assertions, not authority.
 - Bepis live facts are emitted by `invalidateTouchedResources*` after actual
   touched-resource expansion/planning/broadcast. This does not replace
   `SurfaceResourceValue` or FrontendSurface dependency planning; it records that the
@@ -62,7 +64,7 @@ A surface owns:
 - wire-scope conversion
 - authorization rule
 - default resync fragments
-- feature-local fragment enum to structural fragment refs
+- feature-local fragment enum to canonical semantic fragment keys
 - mount-local target ids and refetch URLs
 - request decoration from the closest mount
 - optional focused-field protection policies
@@ -104,24 +106,26 @@ ref is dropped when an ancestor ref is present, and sibling refs are preserved.
 
 Containment metadata is server-only. It complements, but does not replace,
 `SurfaceResourceValue`: resources describe data semantics; containment paths describe DOM
-ownership among already-selected fragments; structural fragment refs still
-describe how the browser refetches and swaps HTML.
+ownership among already-selected fragments. Semantic fragment keys cross the
+transport boundary; each browser's local mount descriptor alone determines how
+that browser refetches and swaps HTML.
 
-The wire-fragment transport boundary is isolated behind
+The semantic-key transport boundary is isolated behind
 `Application.Helper.LiveUpdate.Runtime`, `Application.Helper.LiveUpdate.Internal`,
 and `Application.Helper.FrontendContract.Surface.Runtime`. Browser-visible live-update
 contracts are owned by `Application.Helper.FrontendContract.LiveUpdate` and the
 registered surface contracts: generated TypeScript exposes closed `SurfaceScope`
 and `SurfaceFragmentKey` unions derived from the registered surface scope and
-fragment payloads, plus generated live command/message guards, `parseX`, and
-`encodeX` helpers consumed by the runtime. The Haskell carrier types live in
+fragment payloads, generated canonical fragment-key identity/equality, and live
+command/message/actor-detail guards, `parseX`, and `encodeX` helpers consumed by
+the runtime. The Haskell carrier types live in
 `Application.Helper.FrontendContract.Wire.LiveUpdate`; their Aeson parse/render
 validates against `registeredFrontendContractIR` through
 `Application.Helper.FrontendContract.Wire.Json`, so the DSL/IR remains the only
 browser-visible wire authority.
 Feature modules should keep fragment enums feature-local and cross the
 typed-to-wire boundary only through strict helpers. Feature modules cross the
-surface-to-wire boundary through `SurfaceImpl`/`renderFrontendSurfaceMount` and
+surface-to-key boundary through `SurfaceImpl`/`renderFrontendSurfaceMount` and
 mount-local fragment/action/intent handlers. The runtime no longer keeps
 feature-facing broadcast, typed-live compatibility, or typed mutation helpers.
 
@@ -134,8 +138,8 @@ already reports touched `SurfaceResourceValue`s so actor-local refresh and
 passive websocket invalidation use the same dependency planner. The browser
 resolves those refs against every matching mounted surface instance in the
 current tab and refetches each mount's own plain fragment GET URL. Passive
-viewers receive the same structural invalidations over websocket and refetch
-through their mounted GET endpoints. Actor responses may append extras such as
+viewers receive the same semantic keys over websocket and refetch through their
+own mounted GET endpoints. Actor responses may append extras such as
 toasts or dialog clears, but successful actor responses must not include
 authoritative business OOB HTML for the refreshed fragments.
 
@@ -167,7 +171,7 @@ helpers.
 
 Feature-facing code must not use compatibility/manual authoring helpers such as
 `mkLiveSurface`, `mkDefinedLiveSurface`, `mkLiveFragmentRef`, raw
-`LiveFragmentRef` constructors, internal `SurfaceWireFragment` constructors,
+`LiveFragmentRef` constructors, executable transport-fragment descriptors,
 raw live broadcasts, raw actor-refresh payloads, or fallback
 `authorizeSurfaceScope` checks. The `SurfaceGuard` Hspec coverage
 enforces this across `Web/` and feature `Application/` modules.
@@ -208,11 +212,11 @@ that region only.
 
 ## Refetch And Protection
 
-- Clients refetch only mounted invalidated fragments. An invalidation descriptor
-  is resolved by exact scope key and structural fragment key to each matching
-  local mount descriptor; its incoming URL, target id, and protection policy are
-  never executed and there is no fallback when the fragment is not locally
-  mounted.
+- Clients refetch only mounted invalidated fragments. An incoming semantic key
+  is resolved by exact scope key and canonical fragment-key equality to every
+  matching local mount descriptor. Only that local descriptor's URL, target id,
+  and protection policy are used; there is no fallback when the key is not
+  locally mounted.
 - Parameterless mounted fragment keys serialize `params` as `{}`, matching the
   server wire normalization. Structural matching does not depend on top-level
   JSON property order.
@@ -239,13 +243,13 @@ subscriptions, scope versions, active-scope discovery, and invalidation
 broadcasts. The default implementation is the single-process in-memory bus.
 
 Feature callers should use the safe `Application.Helper.LiveUpdate` facade for
-scope/key/protection types and version reads. Runtime, registry, websocket, and
-transport tests use `Application.Helper.LiveUpdate.Runtime` for raw wire
-fragments, broadcasts, subscriptions, and isolated `LiveBus` helpers.
+scope/key types and version reads. Runtime, registry, websocket, and transport
+tests use `Application.Helper.LiveUpdate.Runtime` for semantic fragment keys,
+broadcasts, subscriptions, and isolated `LiveBus` helpers.
 
 Future distributed implementations, such as Postgres `LISTEN`/`NOTIFY` or
-Redis pub/sub, must preserve the public `LiveBus` contract: structural
-`SurfaceWireFragment` invalidations, monotonically increasing versions per
+Redis pub/sub, must preserve the public `LiveBus` contract: semantic
+`SurfaceFragmentKey` invalidations, monotonically increasing versions per
 `SurfaceScope`, and server-side authorization before websocket
 subscription.
 
@@ -301,8 +305,8 @@ concrete generated resources before the planner boundary.
 Allowed direct live calls after migration are limited to the passive planner,
 transport runtime, and actor-only response helpers:
 
-- `Web.SurfaceInvalidation` is the passive planner that turns matched mounted
-  fragments into raw transport invalidations
+- `Web.SurfaceInvalidation` is the passive planner that turns matched active
+  fragment keys into key-only transport invalidations
 - `Application.Helper.LiveUpdate.Runtime` owns the transport bus and raw
   websocket invalidation primitives
 - controllers may call FrontendSurface actor-local invalidation helpers that

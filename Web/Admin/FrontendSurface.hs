@@ -20,7 +20,7 @@ module Web.Admin.FrontendSurface
     , adminExportsFragment
     , adminShiftTypesFragment
     , adminRosterGroupsFragment
-    , adminSurfaceWireFragments
+    , adminSurfaceFragmentKeys
     , adminXeroShellFragment
     , adminShiftTypesAction
     , adminRosterGroupsAction
@@ -304,8 +304,8 @@ invitesScopeHandler surfaceName scope = FrontendSurfaceScopeHandler
     , scopeHandlerKey = \fields -> surfaceName <> ":" <> fromMaybe (tshow scope.adminVenueId) (getSurfaceField @Surface.VenueId fields)
     }
 
-adminSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [SurfaceWireFragment]
-adminSurfaceWireFragments fragments =
+adminSurfaceFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
+adminSurfaceFragmentKeys fragments =
     concatMap fragmentsForSurface groupedFragments
     where
         groupedFragments =
@@ -316,7 +316,7 @@ adminSurfaceWireFragments fragments =
             , ("admin-roster-groups", [fragment | fragment <- fragments, fragment.mountedFragmentKey.fragmentKind == "admin-roster-groups"])
             , ("admin-xero", [fragment | fragment <- fragments, Text.isPrefixOf "admin-xero" fragment.mountedFragmentKey.fragmentKind])
             ]
-        fragmentsForSurface (surfaceName, surfaceFragments) = frontendSurfaceMountedFragmentsToWire surfaceName surfaceFragments
+        fragmentsForSurface (surfaceName, surfaceFragments) = frontendSurfaceMountedFragmentsToKeys surfaceName surfaceFragments
 
 adminPageContentFragment, adminXeroPageContentFragment, adminVenueSettingsFragment, adminExportsFragment, adminShiftTypesFragment, adminRosterGroupsFragment, adminXeroShellFragment :: FrontendSurfaceMountedFragment
 adminPageContentFragment = fragment "admin-page-content" "admin-page-content-fragment" (pathTo AdminAction) FrontendSurfaceReplace

@@ -6,7 +6,6 @@ import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceFragmentKey (..),
                                                             FrontendSurfaceMountedFragment (..))
 import Application.Helper.LiveUpdate
-import Application.Helper.LiveUpdate.Runtime
 import Application.Support.LiveUpdates
 import Config
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar)
@@ -24,11 +23,11 @@ import Web.Controller.Support ()
 import Web.FrontController ()
 import Web.Types
 
-supportFragmentRef :: SupportLiveFragment -> SurfaceWireFragment
+supportFragmentRef :: SupportLiveFragment -> FrontendSurfaceMountedFragment
 supportFragmentRef fragment =
-    case supportSurfaceWireFragments (filter matchesFragment supportCandidateMountedFragments) of
+    case filter matchesFragment supportCandidateMountedFragments of
         [fragmentRef] -> fragmentRef
-        _             -> error "Expected one support fragment ref"
+        _             -> error "Expected one support mounted fragment"
     where
         matchesFragment mountedFragment =
             case (fragment, mountedFragment.mountedFragmentKey.fragmentKind) of

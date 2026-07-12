@@ -3,17 +3,17 @@ module Test.Support.SurfaceContract
     , liveFragmentResponseShouldRenderTarget
     ) where
 
-import Application.Helper.LiveUpdate.Runtime
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment (..))
 import IHP.Prelude
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status (Status, status200)
 import Network.Wai (Response)
 import Test.Hspec
 
-liveFragmentResponseShouldRenderTarget :: Response -> SurfaceWireFragment -> Expectation
+liveFragmentResponseShouldRenderTarget :: Response -> FrontendSurfaceMountedFragment -> Expectation
 liveFragmentResponseShouldRenderTarget response fragment = do
     response `responseStatusShouldBe` status200
-    response `responseBodyShouldContain` ("id=\"" <> fragment.targetId <> "\"")
+    response `responseBodyShouldContain` ("id=\"" <> fragment.mountedFragmentTargetId <> "\"")
     response `responseBodyShouldNotContain` "id=\"app\""
 
 liveFragmentResponseShouldBeDenied :: Status -> Response -> Expectation

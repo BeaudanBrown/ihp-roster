@@ -457,7 +457,6 @@ validateWireReferences surface =
             WireUnknownIR -> []
             WireSurfaceScopeIR -> []
             WireSurfaceFragmentKeyIR -> []
-            WireSurfaceWireFragmentIR -> []
 
 optionsContainLive :: [OptionIR] -> Bool
 optionsContainLive = any \case

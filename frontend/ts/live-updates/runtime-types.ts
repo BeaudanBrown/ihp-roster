@@ -1,5 +1,5 @@
-import type { LiveUpdateMessage, SurfaceScope, SurfaceWireFragment } from "../generated/contracts";
-import type { FrontendSurfaceMountedInstance } from "./frontend-surface";
+import type { FrontendSurfaceSurfaceFragmentProtection, LiveUpdateMessage, SurfaceScope } from "../generated/contracts";
+import type { FrontendSurfaceMountedInstance, LiveUpdateMountedFragment } from "./frontend-surface";
 
 export type LiveUpdateDebugDetail = Record<string, unknown>;
 
@@ -18,7 +18,7 @@ export type LiveUpdatePreservedField = {
     value?: string;
 };
 
-export type LiveUpdateFragmentWithState = SurfaceWireFragment & {
+export type LiveUpdateFragmentWithState = LiveUpdateMountedFragment & {
     preserveField?: LiveUpdatePreservedField;
 };
 
@@ -45,7 +45,7 @@ export type FragmentProtectionAdapter = {
     restoreState: (target: HTMLElement, fragment: LiveUpdateFragmentWithState) => void;
 };
 
-export type FocusedFieldProtectionPolicy = Extract<SurfaceWireFragment["protectionPolicy"], { kind: "focused-field" }>;
+export type FocusedFieldProtectionPolicy = Extract<FrontendSurfaceSurfaceFragmentProtection, { kind: "focused-field" }>;
 export type LiveUpdateSubscribedMessage = Extract<LiveUpdateMessage, { type: "subscribed" }>;
 export type LiveUpdateInvalidateMessage = Extract<LiveUpdateMessage, { type: "invalidate" }>;
 

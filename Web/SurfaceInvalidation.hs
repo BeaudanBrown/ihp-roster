@@ -19,7 +19,7 @@ module Web.SurfaceInvalidation
 import Application.Bepis.Fact (BepisFact (..), BepisLiveFact (..),
                                BepisLiveMechanism (..), emitBepisFact)
 import Application.Helper.FrontendContract.Surface.Authorization (authorizeFrontendSurfaceScope)
-import Application.Helper.FrontendContract.Surface.DependencyPlanner (planFrontendSurfaceWireInvalidation)
+import Application.Helper.FrontendContract.Surface.DependencyPlanner (planFrontendSurfaceKeyInvalidation)
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.Profiling (profileActionSpanWithDetail)
 import Application.Helper.RosterGroups (fetchStaffRosterGroupIds)
@@ -35,7 +35,7 @@ import Web.Controller.Prelude
 
 data SurfaceInvalidationTarget = SurfaceInvalidationTarget
     { targetScope     :: !SurfaceScope
-    , targetFragments :: ![SurfaceWireFragment]
+    , targetFragments :: ![SurfaceFragmentKey]
     }
     deriving (Eq, Show)
 
@@ -57,12 +57,12 @@ performSurfaceInvalidationTargetWithoutContext target = broadcastLiveInvalidatio
 
 planSubscriptionInvalidation :: Set.Set SurfaceResourceValue -> SurfaceSubscription -> Maybe SurfaceInvalidationTarget
 planSubscriptionInvalidation resources subscription = do
-    let fragments = planFrontendSurfaceWireInvalidation resources subscription.subscriptionScope subscription.subscriptionMountedFragments
+    let fragments = planFrontendSurfaceKeyInvalidation resources subscription.subscriptionScope subscription.subscriptionFragmentKeys
     if null fragments then Nothing else Just SurfaceInvalidationTarget { targetScope = subscription.subscriptionScope, targetFragments = fragments }
 
 coalesceTargets :: [SurfaceInvalidationTarget] -> [SurfaceInvalidationTarget]
 coalesceTargets targets =
-    [ SurfaceInvalidationTarget scope (coalesceSurfaceWireFragments fragments)
+    [ SurfaceInvalidationTarget scope (coalesceSurfaceFragmentKeys fragments)
     | (scope, fragments) <- Map.toAscList grouped
     ]
     where

@@ -73,9 +73,10 @@ Read this before editing `static/` assets.
   swapping, or focused-field protection.
 - Treat `data-bepis-surface-config` JSON as server-owned surface output.
   Static JS should not infer feature scopes, target ids, or URLs that belong in
-  Haskell surface definitions. FrontendSurface invalidations are surface-native
-  and mount-resolved: Haskell emits the subscription payload, and the browser
-  runtime consumes it generically. Do not add `data-live-update-surface` support
+  Haskell surface definitions. FrontendSurface subscriptions, websocket
+  invalidations, and actor events carry semantic fragment keys only; the browser
+  resolves them against each matching local mount's URL, target, and protection
+  policy. Do not add `data-live-update-surface` support
   or feature-specific live transport switches.
 - Feature scripts may handle genuinely feature-specific UI behavior.
 

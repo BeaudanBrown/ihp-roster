@@ -27,8 +27,8 @@ import Web.Controller.Admin.Support (SubmittedPayRateSelection (..),
 import Web.Controller.Prelude
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
                                      staffSectionFragmentForSection,
-                                     staffSurfaceScope,
-                                     staffSurfaceWireFragments)
+                                     staffSurfaceFragmentKeys,
+                                     staffSurfaceScope)
 import Web.RosterWeeks.Responses (respondWithRosterContentOob)
 import Web.Staff.Mutations
 import Web.View.Staff.Edit
@@ -272,7 +272,7 @@ respondWithStaffActorInvalidation :: (?context :: ControllerContext, ?request ::
 respondWithStaffActorInvalidation staff openSection successMessage = do
     let scope = ProfileScopeValue (unpackId currentVenueId) (unpackId staff.id)
     setHeader ("HX-Reswap", "none")
-    setActorLiveFragmentsRefresh (staffSurfaceScope scope) (staffSurfaceWireFragments [staffSectionFragmentForSection scope openSection])
+    setActorLiveFragmentsRefresh (staffSurfaceScope scope) (staffSurfaceFragmentKeys [staffSectionFragmentForSection scope openSection])
     respondHtml (renderToastOob ToastBottomCenter (successToast successMessage))
 
 renderNewStaffResponse :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => Staff -> [Id RosterGroup] -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Int -> Maybe (Id RosterGroup) -> IO ()

@@ -32,51 +32,41 @@ import qualified Web.Admin.FrontendSurface as AdminSurface
 
 tests :: Spec
 tests = describe "LiveUpdate runtime types" do
-    it "encodes runtime values through the generated live-update wire schema" do
+    it "encodes websocket invalidations with semantic fragment keys only" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
         let scope = rosterWeekLiveScope venueId rosterGroupId 0
-        let fragment =
-                SurfaceWireFragment
-                    { fragmentKey = rosterStaffPanelLiveFragment
-                    , targetId = "roster-staff-panel"
-                    , url = "/ShowrosterStaffPanelLiveFragment?weekOffset=0"
-                    , deferUntilBlur = False
-                    , protectionPolicy = NoProtection
-                    }
+        let fragmentKey = rosterStaffPanelLiveFragment
         let message =
                 LiveUpdatesInvalidated
                     { scope
                     , scopeKey = surfaceScopeKey scope
                     , version = 6
-                    , fragments = [fragment]
+                    , fragments = [fragmentKey]
                     , sourceClientId = Just "client-1"
                     }
+        let encoded = Aeson.toJSON message
         Aeson.toJSON scope `shouldBe` Aeson.toJSON (surfaceScopeToWire scope)
-        Aeson.toJSON fragment `shouldBe` Aeson.toJSON (surfaceWireFragmentToWire fragment)
-        Aeson.toJSON message
+        encoded
             `shouldBe`
                 Aeson.toJSON
-                    (Wire.Invalidate (surfaceScopeToWire scope) (surfaceScopeKey scope) 6 [surfaceWireFragmentToWire fragment] (Just "client-1"))
+                    (Wire.Invalidate (surfaceScopeToWire scope) (surfaceScopeKey scope) 6 [surfaceFragmentKeyToWire fragmentKey] (Just "client-1"))
+        let encodedText = cs (LBS.toStrict (Aeson.encode encoded)) :: Text
+        encodedText `shouldNotSatisfy` Text.isInfixOf "targetId"
+        encodedText `shouldNotSatisfy` Text.isInfixOf "url"
+        encodedText `shouldNotSatisfy` Text.isInfixOf "protectionPolicy"
 
-    it "encodes actor-local refresh instructions in the shared HTMX trigger payload" do
-        let fragment =
-                SurfaceWireFragment
-                    { fragmentKey = adminXeroShellLiveFragment
-                    , targetId = "admin-xero-fragment"
-                    , url = "/ShowadminXeroShellLiveFragment"
-                    , deferUntilBlur = False
-                    , protectionPolicy = NoProtection
-                    }
+    it "encodes actor-local refresh instructions with the websocket fragment-key type" do
+        let fragmentKey = adminXeroShellLiveFragment
         let scope = adminXeroLiveScope (expectUuid "11111111-1111-1111-1111-111111111111")
-        actorLiveFragmentsRefreshTriggerPayload scope [fragment, fragment]
+        actorLiveFragmentsRefreshTriggerPayload scope [fragmentKey, fragmentKey]
             `shouldBe`
                 Aeson.object
-                    [ AesonKey.fromText canonicalAppEvents.appLiveFragmentsRefreshEventName Aeson..= Aeson.object
-                        [ "scope" Aeson..= scope
-                        , "scopeKey" Aeson..= surfaceScopeKey scope
-                        , "fragments" Aeson..= [fragment]
-                        ]
+                    [ AesonKey.fromText canonicalAppEvents.appLiveFragmentsRefreshEventName Aeson..= Wire.LiveFragmentsRefreshEventDetail
+                        { Wire.scope = surfaceScopeToWire scope
+                        , Wire.scopeKey = surfaceScopeKey scope
+                        , Wire.fragments = [surfaceFragmentKeyToWire fragmentKey]
+                        }
                     ]
 
     it "round-trips roster, admin, leave, timesheet, and support scopes through JSON" do
@@ -124,32 +114,19 @@ tests = describe "LiveUpdate runtime types" do
         forM_ fragmentKeys \fragmentKey ->
             Aeson.decode (Aeson.encode fragmentKey) `shouldBe` Just fragmentKey
 
-    it "keeps wire fragment payloads self-describing for the browser" do
+    it "keeps wire fragment payloads semantic and non-executable" do
         let rosterDayId = expectUuid "22222222-2222-2222-2222-222222222222"
-        let fragment =
-                SurfaceWireFragment
-                    { fragmentKey = rosterRowLiveFragment rosterDayId 2
-                    , targetId = "roster-row-2"
-                    , url = "/ShowRosterWeekRowFragment?weekOffset=0&rowIndex=2"
-                    , deferUntilBlur = True
-                    , protectionPolicy = NoProtection
-                    }
+        let fragmentKey = rosterRowLiveFragment rosterDayId 2
 
-        Aeson.toJSON fragment
+        Aeson.toJSON fragmentKey
             `shouldBe`
                 Aeson.object
-                    [ "fragmentKey" Aeson..= Aeson.object
-                        [ "surface" Aeson..= ("roster" :: Text)
-                        , "kind" Aeson..= ("roster-row" :: Text)
-                        , "params" Aeson..= Aeson.object
-                            [ "rosterDayId" Aeson..= UUID.toText rosterDayId
-                            , "rowIndex" Aeson..= (2 :: Int)
-                            ]
+                    [ "surface" Aeson..= ("roster" :: Text)
+                    , "kind" Aeson..= ("roster-row" :: Text)
+                    , "params" Aeson..= Aeson.object
+                        [ "rosterDayId" Aeson..= UUID.toText rosterDayId
+                        , "rowIndex" Aeson..= (2 :: Int)
                         ]
-                    , "targetId" Aeson..= ("roster-row-2" :: Text)
-                    , "url" Aeson..= ("/ShowRosterWeekRowFragment?weekOffset=0&rowIndex=2" :: Text)
-                    , "deferUntilBlur" Aeson..= True
-                    , "protectionPolicy" Aeson..= NoProtection
                     ]
 
     it "uses stable live scope keys for client/server subscription matching" do
@@ -229,60 +206,63 @@ tests = describe "LiveUpdate runtime types" do
         let venueId = "11111111-1111-1111-1111-111111111111"
         let otherVenueId = "99999999-9999-9999-9999-999999999999"
         let scope = Wire.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= venueId, "weekOffset" Aeson..= (0 :: Int)])
-        let fragment = Wire.SurfaceWireFragment (Wire.SurfaceFragmentKey "timesheets" "timesheet-toolbar" (Aeson.object [])) "timesheet-toolbar" "/ShowTimesheetToolbar" False Wire.NoProtection
-        let command key descriptor = Wire.Subscribe (Wire.SurfaceSubscription scope key [descriptor]) "client-1" Nothing
+        let fragmentKey = Wire.SurfaceFragmentKey "timesheets" "timesheet-toolbar" (Aeson.object [])
+        let command key keyValue = Wire.Subscribe (Wire.SurfaceSubscription scope key [keyValue]) "client-1" Nothing
 
-        decodeValueAs @LiveUpdateCommand (Aeson.toJSON (command ("timesheets:" <> venueId <> ":0") fragment)) `shouldSatisfy` isRight
-        decodeValueAs @LiveUpdateCommand (Aeson.toJSON (command ("timesheets:" <> otherVenueId <> ":0") fragment)) `shouldSatisfy` isLeft
-        decodeValueAs @LiveUpdateCommand (Aeson.toJSON (command ("roster:" <> venueId <> ":0") fragment)) `shouldSatisfy` isLeft
-        decodeValueAs @LiveUpdateCommand (Aeson.toJSON (command ("timesheets:" <> venueId <> ":0") (fragment { Wire.fragmentKey = Wire.SurfaceFragmentKey "leave-requests" "leave-section-count" (Aeson.object ["leaveSection" Aeson..= ("pending" :: Text)]) }))) `shouldSatisfy` isLeft
+        decodeValueAs @LiveUpdateCommand (Aeson.toJSON (command ("timesheets:" <> venueId <> ":0") fragmentKey)) `shouldSatisfy` isRight
+        decodeValueAs @LiveUpdateCommand (Aeson.toJSON (command ("timesheets:" <> otherVenueId <> ":0") fragmentKey)) `shouldSatisfy` isLeft
+        decodeValueAs @LiveUpdateCommand (Aeson.toJSON (command ("roster:" <> venueId <> ":0") fragmentKey)) `shouldSatisfy` isLeft
+        decodeValueAs @LiveUpdateCommand (Aeson.toJSON (command ("timesheets:" <> venueId <> ":0") (Wire.SurfaceFragmentKey "leave-requests" "leave-section-count" (Aeson.object ["leaveSection" Aeson..= ("pending" :: Text)])))) `shouldSatisfy` isLeft
 
         let malformedScope = Wire.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= ("not-a-uuid" :: Text), "weekOffset" Aeson..= (0 :: Int)])
-        let malformedCommand = Wire.Subscribe (Wire.SurfaceSubscription malformedScope "timesheets:not-a-uuid:0" [fragment]) "client-1" Nothing
+        let malformedCommand = Wire.Subscribe (Wire.SurfaceSubscription malformedScope "timesheets:not-a-uuid:0" [fragmentKey]) "client-1" Nothing
         decodeValueAs @LiveUpdateCommand (Aeson.toJSON malformedCommand) `shouldSatisfy` isLeft
 
     it "rejects unknown fields when decoding live-update wire carrier types directly" do
         let scope = Wire.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "weekOffset" Aeson..= (4 :: Int)])
         let fragmentKey = Wire.SurfaceFragmentKey "timesheets" "timesheet-day-section" (Aeson.object ["dayOffset" Aeson..= (2 :: Int)])
-        let protection = Wire.FocusedFieldProtection ".timesheet-input:focus" "data-field-key" True (Just ".timesheet-row")
-        let focusedConfig = Wire.FocusedFieldProtectionConfig ".timesheet-input:focus" "data-field-key" True (Just ".timesheet-row")
-        let fragment = Wire.SurfaceWireFragment fragmentKey "timesheet-day-2" "/TimesheetDay?offset=2" True protection
-        let subscription = Wire.SurfaceSubscription scope "timesheets:11111111-1111-1111-1111-111111111111:4" [fragment]
+        let subscription = Wire.SurfaceSubscription scope "timesheets:11111111-1111-1111-1111-111111111111:4" [fragmentKey]
+        let refreshDetail = Wire.LiveFragmentsRefreshEventDetail scope subscription.scopeKey [fragmentKey]
         let command = Wire.Subscribe subscription "client-1" (Just 9)
-        let message = Wire.Invalidate scope subscription.scopeKey 10 [fragment] (Just "client-2")
+        let message = Wire.Invalidate scope subscription.scopeKey 10 [fragmentKey] (Just "client-2")
+        let executableDescriptor = Aeson.object
+                [ "fragmentKey" Aeson..= fragmentKey
+                , "targetId" Aeson..= ("timesheet-day-2" :: Text)
+                , "url" Aeson..= ("https://attacker.invalid/fragment" :: Text)
+                , "deferUntilBlur" Aeson..= False
+                , "protectionPolicy" Aeson..= Aeson.object ["kind" Aeson..= ("none" :: Text)]
+                ]
+        let descriptorSubscription = Aeson.object ["scope" Aeson..= scope, "scopeKey" Aeson..= subscription.scopeKey, "fragments" Aeson..= [executableDescriptor]]
+        let descriptorMessage = Aeson.object ["type" Aeson..= ("invalidate" :: Text), "scope" Aeson..= scope, "scopeKey" Aeson..= subscription.scopeKey, "version" Aeson..= (10 :: Int), "fragments" Aeson..= [executableDescriptor], "sourceClientId" Aeson..= (Nothing :: Maybe Text)]
 
         decodeValueAs @Wire.SurfaceScope (addJsonField "extra" (Aeson.Bool True) (Aeson.toJSON scope)) `shouldSatisfy` isLeft
         decodeValueAs @Wire.SurfaceFragmentKey (addJsonField "extra" (Aeson.Bool True) (Aeson.toJSON fragmentKey)) `shouldSatisfy` isLeft
-        decodeValueAs @Wire.FocusedFieldProtectionConfig (addJsonField "extra" (Aeson.Bool True) (Aeson.toJSON focusedConfig)) `shouldSatisfy` isLeft
-        decodeValueAs @Wire.SurfaceFragmentProtection (addJsonField "extra" (Aeson.Bool True) (Aeson.toJSON protection)) `shouldSatisfy` isLeft
-        decodeValueAs @Wire.SurfaceWireFragment (addJsonField "extra" (Aeson.Bool True) (Aeson.toJSON fragment)) `shouldSatisfy` isLeft
         decodeValueAs @Wire.SurfaceSubscription (addJsonField "extra" (Aeson.Bool True) (Aeson.toJSON subscription)) `shouldSatisfy` isLeft
+        decodeValueAs @Wire.LiveFragmentsRefreshEventDetail (addJsonField "extra" (Aeson.Bool True) (Aeson.toJSON refreshDetail)) `shouldSatisfy` isLeft
         decodeValueAs @Wire.LiveUpdateCommand (addJsonField "extra" (Aeson.Bool True) (Aeson.toJSON command)) `shouldSatisfy` isLeft
         decodeValueAs @Wire.LiveUpdateMessage (addJsonField "extra" (Aeson.Bool True) (Aeson.toJSON message)) `shouldSatisfy` isLeft
+        decodeValueAs @Wire.SurfaceSubscription descriptorSubscription `shouldSatisfy` isLeft
+        decodeValueAs @Wire.LiveUpdateMessage descriptorMessage `shouldSatisfy` isLeft
 
     it "validates every live-update wire carrier constructor against FrontendContract IR on encode" do
         let scope = Wire.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "weekOffset" Aeson..= (4 :: Int)])
         let fragmentKey = Wire.SurfaceFragmentKey "timesheets" "timesheet-day-section" (Aeson.object ["dayOffset" Aeson..= (2 :: Int)])
-        let noProtection = Wire.NoProtection
-        let focusedProtection = Wire.FocusedFieldProtection ".timesheet-input:focus" "data-field-key" True (Just ".timesheet-row")
-        let fragment protection = Wire.SurfaceWireFragment fragmentKey "timesheet-day-2" "/TimesheetDay?offset=2" True protection
-        let subscription protection = Wire.SurfaceSubscription scope "timesheets:11111111-1111-1111-1111-111111111111:4" [fragment protection]
+        let subscription = Wire.SurfaceSubscription scope "timesheets:11111111-1111-1111-1111-111111111111:4" [fragmentKey]
         let commands =
-                [ Wire.Subscribe (subscription noProtection) "client-1" Nothing
-                , Wire.Subscribe (subscription focusedProtection) "client-1" (Just 9)
-                , Wire.Unsubscribe (subscription noProtection)
+                [ Wire.Subscribe subscription "client-1" Nothing
+                , Wire.Subscribe subscription "client-1" (Just 9)
+                , Wire.Unsubscribe subscription
                 ]
         let messages =
                 [ Wire.Subscribed scope "timesheets:11111111-1111-1111-1111-111111111111:4" 10 False
-                , Wire.Invalidate scope "timesheets:11111111-1111-1111-1111-111111111111:4" 11 [fragment noProtection, fragment focusedProtection] (Just "client-2")
+                , Wire.Invalidate scope "timesheets:11111111-1111-1111-1111-111111111111:4" 11 [fragmentKey] (Just "client-2")
                 , Wire.Error "Not authorized"
                 ]
 
         AesonTypes.parseEither validateSurfaceScopeValue (Aeson.toJSON scope) `shouldSatisfy` isRight
         AesonTypes.parseEither validateSurfaceFragmentKeyValue (Aeson.toJSON fragmentKey) `shouldSatisfy` isRight
-        forM_ [noProtection, focusedProtection] \value -> AesonTypes.parseEither (validateContractValue "SurfaceFragmentProtection") (Aeson.toJSON value) `shouldSatisfy` isRight
-        forM_ [fragment noProtection, fragment focusedProtection] \value -> AesonTypes.parseEither (validateContractValue "SurfaceWireFragment") (Aeson.toJSON value) `shouldSatisfy` isRight
-        forM_ [subscription noProtection, subscription focusedProtection] \value -> AesonTypes.parseEither (validateContractValue "SurfaceSubscription") (Aeson.toJSON value) `shouldSatisfy` isRight
+        AesonTypes.parseEither (validateContractValue "SurfaceSubscription") (Aeson.toJSON subscription) `shouldSatisfy` isRight
+        AesonTypes.parseEither (validateContractValue "LiveFragmentsRefreshEventDetail") (Aeson.toJSON (Wire.LiveFragmentsRefreshEventDetail scope subscription.scopeKey [fragmentKey])) `shouldSatisfy` isRight
         forM_ commands \value -> AesonTypes.parseEither (validateContractValue "LiveUpdateCommand") (Aeson.toJSON value) `shouldSatisfy` isRight
         forM_ messages \value -> AesonTypes.parseEither (validateContractValue "LiveUpdateMessage") (Aeson.toJSON value) `shouldSatisfy` isRight
 
@@ -290,19 +270,12 @@ tests = describe "LiveUpdate runtime types" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
         let scope = rosterWeekLiveScope venueId rosterGroupId 0
-        let fragment =
-                SurfaceWireFragment
-                    { fragmentKey = rosterStaffPanelLiveFragment
-                    , targetId = "roster-staff-panel"
-                    , url = "/ShowrosterStaffPanelLiveFragment?weekOffset=0"
-                    , deferUntilBlur = False
-                    , protectionPolicy = NoProtection
-                    }
+        let fragmentKey = rosterStaffPanelLiveFragment
         let subscription =
                 SurfaceSubscription
                     { subscriptionScope = scope
                     , subscriptionScopeKey = surfaceScopeKey scope
-                    , subscriptionMountedFragments = [fragment]
+                    , subscriptionFragmentKeys = [fragmentKey]
                     }
         let commands =
                 [ SubscribeLiveUpdates { subscription, clientId = "client-1", lastSeenVersion = Nothing }
@@ -312,7 +285,7 @@ tests = describe "LiveUpdate runtime types" do
         let messages =
                 [ LiveUpdatesSubscribed { scope, scopeKey = surfaceScopeKey scope, currentVersion = 4, resync = False }
                 , LiveUpdatesSubscribed { scope, scopeKey = surfaceScopeKey scope, currentVersion = 5, resync = True }
-                , LiveUpdatesInvalidated { scope, scopeKey = surfaceScopeKey scope, version = 6, fragments = [fragment], sourceClientId = Just "client-1" }
+                , LiveUpdatesInvalidated { scope, scopeKey = surfaceScopeKey scope, version = 6, fragments = [fragmentKey], sourceClientId = Just "client-1" }
                 , LiveUpdatesInvalidated { scope, scopeKey = surfaceScopeKey scope, version = 7, fragments = [], sourceClientId = Nothing }
                 , LiveUpdatesError { message = "Not authorized for requested live update scope" }
                 ]
@@ -323,7 +296,7 @@ tests = describe "LiveUpdate runtime types" do
             (Aeson.decode (Aeson.encode message) :: Maybe Aeson.Value) `shouldSatisfy` isJust
 
         let encodedSubscribed = cs (LBS.toStrict (Aeson.encode (LiveUpdatesSubscribed { scope, scopeKey = surfaceScopeKey scope, currentVersion = 4, resync = False }))) :: Text
-        let encodedInvalidated = cs (LBS.toStrict (Aeson.encode (LiveUpdatesInvalidated { scope, scopeKey = surfaceScopeKey scope, version = 6, fragments = [fragment], sourceClientId = Nothing }))) :: Text
+        let encodedInvalidated = cs (LBS.toStrict (Aeson.encode (LiveUpdatesInvalidated { scope, scopeKey = surfaceScopeKey scope, version = 6, fragments = [fragmentKey], sourceClientId = Nothing }))) :: Text
         encodedSubscribed `shouldSatisfy` Text.isInfixOf "\"scopeKey\":\"roster:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333:0\""
         encodedInvalidated `shouldSatisfy` Text.isInfixOf "\"scopeKey\":\"roster:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333:0\""
 
@@ -333,14 +306,7 @@ tests = describe "LiveUpdate runtime types" do
     it "exercises isolated in-memory live buses without global state leakage" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let scope = leaveRequestsLiveScope venueId
-        let fragment =
-                SurfaceWireFragment
-                    { fragmentKey = leavePendingCountLiveFragment
-                    , targetId = "leave-pending-count"
-                    , url = "/ShowleaveRequestsContentLiveFragment?fragment=leave-section-count&section=pending"
-                    , deferUntilBlur = False
-                    , protectionPolicy = NoProtection
-                    }
+        let fragmentKey = leavePendingCountLiveFragment
         firstBus <- newInMemoryLiveBus
         secondBus <- newInMemoryLiveBus
 
@@ -353,7 +319,7 @@ tests = describe "LiveUpdate runtime types" do
                 SurfaceSubscription
                     { subscriptionScope = scope
                     , subscriptionScopeKey = surfaceScopeKey scope
-                    , subscriptionMountedFragments = [fragment]
+                    , subscriptionFragmentKeys = [fragmentKey]
                     }
         registerSurfaceSubscriptionWithBus firstBus venueId subscription (error "unused websocket connection")
         activeSurfaceSubscriptionsWithBus firstBus `shouldReturn` [subscription]
@@ -365,7 +331,7 @@ tests = describe "LiveUpdate runtime types" do
         currentLiveUpdateVersionWithBus firstBus scope `shouldReturn` 1
         currentLiveUpdateVersionWithBus secondBus scope `shouldReturn` 0
 
-        result <- broadcastLiveInvalidationDetailedWithBus firstBus scope Nothing [fragment, fragment]
+        result <- broadcastLiveInvalidationDetailedWithBus firstBus scope Nothing [fragmentKey, fragmentKey]
 
         result.broadcastVersion `shouldBe` 2
         result.broadcastSubscriberCount `shouldBe` 0
@@ -377,16 +343,7 @@ tests = describe "LiveUpdate runtime types" do
     it "reports broadcast fanout counts for profiling hooks" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let scope = leaveRequestsLiveScope venueId
-        let fragment =
-                SurfaceWireFragment
-                    { fragmentKey = leavePendingCountLiveFragment
-                    , targetId = "leave-pending-count"
-                    , url = "/ShowleaveRequestsContentLiveFragment?fragment=leave-section-count&section=pending"
-                    , deferUntilBlur = False
-                    , protectionPolicy = NoProtection
-                    }
-
-        result <- broadcastLiveInvalidationDetailedWithoutContext scope Nothing [fragment]
+        result <- broadcastLiveInvalidationDetailedWithoutContext scope Nothing [leavePendingCountLiveFragment]
 
         result.broadcastVersion `shouldSatisfy` (> 0)
         result.broadcastSubscriberCount `shouldBe` 0
@@ -395,54 +352,45 @@ tests = describe "LiveUpdate runtime types" do
         result.broadcastCoalescedFragmentCount `shouldBe` 0
         result.broadcastDroppedSubscriptions `shouldBe` 0
 
-    it "coalesces duplicate fragment refs before broadcasting" do
+    it "coalesces semantic fragment keys independently of parameter property order" do
+        let first = FrontendSurfaceSurfaceFragmentKey "fixture" "row" (Aeson.object ["itemId" Aeson..= ("one" :: Text), "rowIndex" Aeson..= (2 :: Int)])
+        let reordered = FrontendSurfaceSurfaceFragmentKey "fixture" "row" (Aeson.object ["rowIndex" Aeson..= (2 :: Int), "itemId" Aeson..= ("one" :: Text)])
+        first `shouldBe` reordered
+        coalesceSurfaceFragmentKeys [first, reordered] `shouldBe` [first]
+
+    it "coalesces duplicate semantic fragment keys before broadcasting" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let scope = leaveRequestsLiveScope venueId
-        let fragment =
-                SurfaceWireFragment
-                    { fragmentKey = leavePendingCountLiveFragment
-                    , targetId = "leave-pending-count"
-                    , url = "/ShowleaveRequestsContentLiveFragment?fragment=leave-section-count&section=pending"
-                    , deferUntilBlur = False
-                    , protectionPolicy = NoProtection
-                    }
+        let fragmentKey = leavePendingCountLiveFragment
 
-        coalesceSurfaceWireFragments [fragment, fragment] `shouldBe` [fragment]
-        result <- broadcastLiveInvalidationDetailedWithoutContext scope Nothing [fragment, fragment]
+        coalesceSurfaceFragmentKeys [fragmentKey, fragmentKey] `shouldBe` [fragmentKey]
+        result <- broadcastLiveInvalidationDetailedWithoutContext scope Nothing [fragmentKey, fragmentKey]
 
         result.broadcastFragmentCount `shouldBe` 2
         result.broadcastRefetchFragmentCount `shouldBe` 1
         result.broadcastCoalescedFragmentCount `shouldBe` 1
 
-    it "keeps FrontendSurface support refs at the live-update compatibility boundary" do
-        supportSurfaceWireFragments supportCandidateMountedFragments
+    it "projects FrontendSurface support mounts to semantic fragment keys" do
+        supportSurfaceFragmentKeys supportCandidateMountedFragments
             `shouldBe`
-                [ supportAwardRatesSectionFragmentRef
-                , supportPublicHolidaysSectionFragmentRef
+                [ supportAwardRatesSectionLiveFragment
+                , supportPublicHolidaysSectionLiveFragment
                 ]
 
     it "validates live subscriptions from generated FrontendSurface metadata" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let scope = timesheetWeekLiveScope venueId 0
-        let fragment =
-                SurfaceWireFragment
-                    { fragmentKey = timesheetDaySectionLiveFragment 1
-                    , targetId = "timesheet-day-1"
-                    , url = "/ShowTimesheetDaySectionFragment?weekOffset=0&dayOffset=1"
-                    , deferUntilBlur = False
-                    , protectionPolicy = NoProtection
-                    }
         let subscription =
                 SurfaceSubscription
                     { subscriptionScope = scope
                     , subscriptionScopeKey = surfaceScopeKey scope
-                    , subscriptionMountedFragments = [fragment]
+                    , subscriptionFragmentKeys = [timesheetDaySectionLiveFragment 1]
                     }
 
         validateFrontendSurfaceLiveSubscription subscription `shouldBe` True
         validateFrontendSurfaceLiveSubscription subscription { subscriptionScopeKey = "timesheets:wrong" } `shouldBe` False
-        validateFrontendSurfaceLiveSubscription subscription { subscriptionMountedFragments = [fragment { fragmentKey = leavePendingCountLiveFragment }] } `shouldBe` False
-        validateFrontendSurfaceLiveSubscription subscription { subscriptionMountedFragments = [fragment { fragmentKey = timesheetToolbarLiveFragment }] } `shouldBe` True
+        validateFrontendSurfaceLiveSubscription subscription { subscriptionFragmentKeys = [leavePendingCountLiveFragment] } `shouldBe` False
+        validateFrontendSurfaceLiveSubscription subscription { subscriptionFragmentKeys = [timesheetToolbarLiveFragment] } `shouldBe` True
 
     it "declares live authorization requirements at the surface boundary" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
@@ -457,26 +405,6 @@ leavePendingCountLiveFragment =
         { surfaceFragmentSurface = "leave-requests"
         , surfaceFragmentWireKind = "leave-section-count"
         , surfaceFragmentParams = Aeson.object ["leaveSection" Aeson..= ("pending" :: Text)]
-        }
-
-supportAwardRatesSectionFragmentRef :: SurfaceWireFragment
-supportAwardRatesSectionFragmentRef =
-    SurfaceWireFragment
-        { fragmentKey = supportAwardRatesSectionLiveFragment
-        , targetId = "support-award-rates-section"
-        , url = "/ShowFwcMapdAwardRatesSection"
-        , deferUntilBlur = False
-        , protectionPolicy = NoProtection
-        }
-
-supportPublicHolidaysSectionFragmentRef :: SurfaceWireFragment
-supportPublicHolidaysSectionFragmentRef =
-    SurfaceWireFragment
-        { fragmentKey = supportPublicHolidaysSectionLiveFragment
-        , targetId = "support-public-holidays-section"
-        , url = "/ShowPublicHolidaysSection"
-        , deferUntilBlur = False
-        , protectionPolicy = NoProtection
         }
 
 decodeValueAs :: forall value. Aeson.FromJSON value => Aeson.Value -> Either String value

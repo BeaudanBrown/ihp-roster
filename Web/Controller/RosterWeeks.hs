@@ -55,8 +55,8 @@ import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
                                         rosterMountedFragmentForProjection,
-                                        rosterSurfaceScope,
-                                        rosterSurfaceWireFragments)
+                                        rosterSurfaceFragmentKeys,
+                                        rosterSurfaceScope)
 import Web.RosterWeeks.Mutations
 import Web.RosterWeeks.Overview
 import Web.RosterWeeks.Paths (rosterDayTimelineUrl, rosterWeekUrl)
@@ -1483,7 +1483,7 @@ respondWithRosterActorFragments rosterGroupId weekOffset fragments extraHtml = d
             , rosterWeekTimelineDayOffset = currentRosterTimelineDayOffset
             }
     setHeader ("HX-Reswap", "none")
-    setActorLiveFragmentsRefresh (rosterSurfaceScope scope) (rosterSurfaceWireFragments (map (rosterMountedFragmentForProjection scope) (nub fragments)))
+    setActorLiveFragmentsRefresh (rosterSurfaceScope scope) (rosterSurfaceFragmentKeys (map (rosterMountedFragmentForProjection scope) (nub fragments)))
     respondHtmlProfiled extraHtml
 
 clearDialogOverlayOob :: Blaze.Html

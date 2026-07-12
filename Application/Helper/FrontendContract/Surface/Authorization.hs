@@ -46,25 +46,24 @@ frontendSurfaceScopeAuthorizationRequirement scope = do
         SurfaceIR.AuthorizeIR policy fields -> Just <$> requirementFor policy fields scopePayload
 
 validateFrontendSurfaceLiveSubscription :: SurfaceSubscription -> Bool
-validateFrontendSurfaceLiveSubscription SurfaceSubscription { subscriptionScope, subscriptionScopeKey, subscriptionMountedFragments } =
+validateFrontendSurfaceLiveSubscription SurfaceSubscription { subscriptionScope, subscriptionScopeKey, subscriptionFragmentKeys } =
     fromMaybe False do
         let Wire.SurfaceScope { surface = scopeSurface, scope = scopePayload } = surfaceScopeToWire subscriptionScope
         surface <- find ((== scopeSurface) . (.surfaceName)) reflectRegisteredFrontendSurfaces.contractSurfaces
         scopeIR <- listToMaybe surface.surfaceScopes
         guard (subscriptionScopeKey == surfaceScopeKey subscriptionScope)
         guard (validateFields scopeIR.scopeFields scopePayload)
-        guard (all (validateMountedFragment surface scopeSurface) subscriptionMountedFragments)
+        guard (all (validateFragmentKey surface scopeSurface) subscriptionFragmentKeys)
         pure True
 
-validateMountedFragment :: SurfaceIR.SurfaceIR -> Text -> SurfaceWireFragment -> Bool
-validateMountedFragment surface expectedSurface fragment =
-    let Wire.SurfaceWireFragment { fragmentKey = Wire.SurfaceFragmentKey { surface = fragmentSurface, kind = fragmentKind, params = fragmentParams } } = surfaceWireFragmentToWire fragment
-     in fragmentSurface == expectedSurface
-            && fromMaybe False do
-                fragmentIR <- List.find ((== fragmentKind) . (.fragmentName)) surface.surfaceFragments
-                guard (SurfaceIR.LiveOption `elem` fragmentIR.fragmentOptions)
-                guard (validateFields fragmentIR.fragmentParams fragmentParams)
-                pure True
+validateFragmentKey :: SurfaceIR.SurfaceIR -> Text -> SurfaceFragmentKey -> Bool
+validateFragmentKey surface expectedSurface fragmentKey =
+    fragmentKey.surfaceFragmentSurface == expectedSurface
+        && fromMaybe False do
+            fragmentIR <- List.find ((== fragmentKey.surfaceFragmentWireKind) . (.fragmentName)) surface.surfaceFragments
+            guard (SurfaceIR.LiveOption `elem` fragmentIR.fragmentOptions)
+            guard (validateFields fragmentIR.fragmentParams fragmentKey.surfaceFragmentParams)
+            pure True
 
 validateFields :: [SurfaceIR.FieldIR] -> Aeson.Value -> Bool
 validateFields fields = \case
@@ -113,7 +112,6 @@ validateWire wire value =
         SurfaceIR.WireUnknownIR -> True
         SurfaceIR.WireSurfaceScopeIR -> False
         SurfaceIR.WireSurfaceFragmentKeyIR -> False
-        SurfaceIR.WireSurfaceWireFragmentIR -> False
     where
         isString = \case
             Aeson.String _ -> True

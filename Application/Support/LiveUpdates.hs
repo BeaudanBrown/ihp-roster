@@ -9,7 +9,7 @@ module Application.Support.LiveUpdates
     , supportSurface
     , supportSurfaceAction
     , supportSurfaceScope
-    , supportSurfaceWireFragments
+    , supportSurfaceFragmentKeys
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
@@ -32,8 +32,8 @@ supportSurfaceScope = supportPlatformLiveScope
 
 supportSurface :: SurfaceImpl Surface.SupportSurface
 supportSurface =
-    let impl = mkSurfaceImpl "support" supportSurfaceMountConfig supportSurfaceHandlers
-     in impl { surfaceImplMountConfig = impl.surfaceImplMountConfig { mountFragments = supportCandidateMountedFragments } }
+    mkSurfaceImpl "support" supportSurfaceMountConfig supportSurfaceHandlers
+        |> surfaceImplWithMountedFragments supportCandidateMountedFragments
 
 supportSurfaceMountConfig :: FrontendSurfaceMountConfig
 supportSurfaceMountConfig =
@@ -53,9 +53,9 @@ supportCandidateMountedFragments =
     , supportPublicHolidaysMountedFragment
     ]
 
-supportSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [SurfaceWireFragment]
-supportSurfaceWireFragments =
-    frontendSurfaceMountedFragmentsToWire "support"
+supportSurfaceFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
+supportSurfaceFragmentKeys =
+    frontendSurfaceMountedFragmentsToKeys "support"
 
 supportSurfaceHandlers :: SurfaceImplHandlers Surface.SupportSurface
 supportSurfaceHandlers =

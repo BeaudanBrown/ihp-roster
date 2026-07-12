@@ -250,7 +250,6 @@ instance ReflectWire inner => ReflectWire ('WireNullable inner) where reflectWir
 instance Typeable marker => ReflectWire ('WireRef marker) where reflectWire = WireRefIR (typeName @marker)
 instance ReflectWire 'WireSurfaceScope where reflectWire = WireSurfaceScopeIR
 instance ReflectWire 'WireSurfaceFragmentKey where reflectWire = WireSurfaceFragmentKeyIR
-instance ReflectWire 'WireSurfaceWireFragment where reflectWire = WireSurfaceWireFragmentIR
 
 class ReflectTypeList (markers :: [Type]) where
     reflectTypeListKebab :: [Text]

@@ -242,6 +242,13 @@ The handler lists are indexed by the declared spec. Missing fragment, action,
 intent, scope, or mount-state handlers fail the focused compile-failure tests
 rather than becoming runtime validation gaps.
 
+When a concrete mount uses a dynamic or repeated fragment set that differs from
+the handler defaults, pass the implementation through
+`surfaceImplWithMountedFragments`. This replaces the local descriptors and
+recomputes the key-only subscription atomically. Never update
+`surfaceImplMountConfig.mountFragments` directly; that leaves stale subscription
+keys and causes valid actor/websocket invalidations to be ignored.
+
 Render mounts with `renderFrontendContract SurfaceMount impl body`. This emits
 `data-bepis-surface` and `data-bepis-surface-config`. Do not handwrite these
 attributes in feature views except in guardrail fixtures. Lazy placeholders must
@@ -261,7 +268,7 @@ failures or successful actor extras. Successful migrated `FrontendSurface`
 mutations should report typed `SurfaceResourceValue` touches using the generated
 smart constructors exported from `Application.Helper.SurfaceResource`, then return
 actor-local semantic invalidation instructions plus extras. The actor tab and
-passive viewers both refresh by resolving semantic surface/scope/fragment refs
+passive viewers both refresh by resolving semantic scope and fragment keys
 through mounted surface metadata and each mount's plain fragment GET URL, so
 successful actor responses must not carry authoritative business OOB HTML.
 
@@ -299,7 +306,7 @@ dependency. The generator validates that live fragments have one mode and that
 resource field sources are concrete and non-conflicting.
 
 `Resource` declarations live in the type-level surface specs and are discovered
-by walking `RegisteredFrontendContract Surfaces`. Generated Haskell smart constructors in
+by walking `RegisteredFrontendSurfaces`. Generated Haskell smart constructors in
 `Application.Helper.FrontendContract.Surface.Resource` / `Application.Helper.SurfaceResource`
 construct concrete `SurfaceResourceValue`s such as `rosterWeekResource`,
 `timesheetDayResource`, or `xeroMappingsResource`. Mutation/domain code emits
@@ -308,10 +315,10 @@ custom dependency hooks, or bridge conversions.
 
 The passive planner is generated-data driven:
 
-1. collect mounted fragments from active surface-native subscriptions;
-2. evaluate each fragment's `DependsOn` declarations from scope/fragment params;
+1. collect semantic fragment keys from active surface-native subscriptions;
+2. evaluate each key's fragment `DependsOn` declarations from scope/fragment params;
 3. intersect those concrete dependency values with touched generated resources;
-4. broadcast the affected generated wire fragments.
+4. broadcast the affected canonical fragment keys.
 
 Runtime/domain expansion is separate from static fragment dependency planning.
 When a mutation has broad semantic effects, expand it in the producer or a small

@@ -23,8 +23,8 @@ import Web.Controller.Staff (buildStaff, emptyStaffPayRateSelection,
 import Web.Controller.StaffProfileValidation (buildRequiredPersonalProfileStaff)
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
                                      profileSectionFragmentForSection,
-                                     profileSurfaceScope,
-                                     profileSurfaceWireFragments)
+                                     profileSurfaceFragmentKeys,
+                                     profileSurfaceScope)
 import Web.Profiles.Mutations
 import Web.Staff.Mutations (updateStaffMember)
 import Web.View.Profiles.Edit
@@ -160,7 +160,7 @@ respondWithProfileActorInvalidation :: (?context :: ControllerContext, ?request 
 respondWithProfileActorInvalidation staff openSection successMessage = do
     let scope = ProfileScopeValue (unpackId currentVenueId) (unpackId staff.id)
     setHeader ("HX-Reswap", "none")
-    setActorLiveFragmentsRefresh (profileSurfaceScope scope) (profileSurfaceWireFragments [profileSectionFragmentForSection openSection])
+    setActorLiveFragmentsRefresh (profileSurfaceScope scope) (profileSurfaceFragmentKeys [profileSectionFragmentForSection openSection])
     respondHtml (renderToastOob ToastBottomCenter (successToast successMessage))
 
 buildNewCurrentUserStaff :: (?context :: ControllerContext) => User -> Staff

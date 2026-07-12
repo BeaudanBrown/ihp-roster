@@ -1,4 +1,4 @@
-import { isLiveUpdateMessage, isSurfaceWireFragment } from "../generated/contracts";
+import { isLiveUpdateMessage, isSurfaceFragmentKey } from "../generated/contracts";
 import {
     frontendSurfaceInstanceId,
     parseFrontendSurfaceSubscriptionConfig,
@@ -8,8 +8,9 @@ import {
 } from "../live-updates/frontend-surface";
 import { assertDeepEqual, assertEqual, test } from "./harness";
 
-const validFragment = {
-    fragmentKey: { surface: "timesheets", kind: "timesheet-toolbar", params: null },
+const validFragmentKey = { surface: "timesheets", kind: "timesheet-toolbar", params: null } as const;
+const executableDescriptor = {
+    fragmentKey: validFragmentKey,
     targetId: "timesheet-toolbar",
     url: "/TimesheetToolbar",
     deferUntilBlur: false,
@@ -25,13 +26,9 @@ function withSurfaceSubscription(config: any, scopeFields: unknown) {
             scope: { surface: config.surface, scope: scopeFields },
             scopeKey: config.scopeKey,
             resyncFragments: config.fragments.map((fragment: any) => ({
-                fragment: { surface: config.surface, fragment: fragment.key },
-                targetId: fragment.targetId,
-                url: fragment.url,
-                deferUntilBlur: fragment.protection?.kind === "focused-field",
-                protectionPolicy: fragment.protection?.kind === "focused-field"
-                    ? fragment.protection
-                    : { kind: "none" },
+                surface: config.surface,
+                kind: fragment.key.kind,
+                params: fragment.key.params,
             })),
         },
     };
@@ -299,11 +296,10 @@ test("FrontendSurface instance reconciliation handles same, removed, and newly s
     assertDeepEqual(reconciliation.added.map((instance) => instance.instanceId), [newChild.instanceId]);
 });
 
-test("generated live update wire fragment guard rejects malformed fragment keys and fields", () => {
-    assertEqual(isSurfaceWireFragment(validFragment), true);
-    assertEqual(isSurfaceWireFragment({ ...validFragment, fragmentKey: { kind: "timesheet_day_section" } }), false);
-    assertEqual(isSurfaceWireFragment({ ...validFragment, deferUntilBlur: "false" }), false);
-    assertEqual(isSurfaceWireFragment({ ...validFragment, protectionPolicy: undefined }), false);
+test("generated live protocol accepts semantic keys and rejects executable descriptors", () => {
+    assertEqual(isSurfaceFragmentKey(validFragmentKey), true);
+    assertEqual(isSurfaceFragmentKey({ kind: "timesheet_day_section" }), false);
+    assertEqual(isSurfaceFragmentKey(executableDescriptor), false);
 });
 
 test("generated live update message guard checks websocket payload discriminants and primitives", () => {
@@ -319,11 +315,11 @@ test("generated live update message guard checks websocket payload discriminants
         scope: validScope,
         scopeKey: "timesheets:venue-1:0",
         version: 2,
-        fragments: [validFragment],
+        fragments: [validFragmentKey],
         sourceClientId: null,
     }), true);
     assertEqual(isLiveUpdateMessage({ type: "unknown", message: "nope" }), false);
     assertEqual(isLiveUpdateMessage({ type: "subscribed", scope: validScope, scopeKey: "x", currentVersion: "1", resync: false }), false);
-    assertEqual(isLiveUpdateMessage({ type: "invalidate", scope: validScope, scopeKey: "x", version: 1, fragments: [{ ...validFragment, targetId: 7 }], sourceClientId: null }), false);
+    assertEqual(isLiveUpdateMessage({ type: "invalidate", scope: validScope, scopeKey: "x", version: 1, fragments: [executableDescriptor], sourceClientId: null }), false);
     assertEqual(isLiveUpdateMessage({ type: "error", message: 500 }), false);
 });

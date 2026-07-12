@@ -1,6 +1,6 @@
 # Live Update Runtime Simplification
 
-Status: implemented
+Status: implemented; compact-protocol decision superseded by GitHub #145
 
 Parent ticket:
 
@@ -123,34 +123,19 @@ not expose names that read like supported authoring primitives.
      mounted surface config, with browser migration tests.
 6. `ir-cavr`: update docs, guards, and final checks.
 
-## Compact Protocol Decision Notes
+## Compact Protocol Decision
 
-Decision for `ir-mxsn`: defer compact browser payloads and keep the current
-self-describing JSON protocol. The Haskell runtime cleanup now names structural
-fragment refs as internal wire fragments, but the browser still receives the
-same `fragments[].fragmentKey`, `targetId`, `url`, `deferUntilBlur`, and
-`protectionPolicy` fields. A compact protocol should only be revisited with a
-separate migration ticket after proving stale-config, multi-surface,
-actor-refresh, reconnect-resync, and focused-field behavior in browser tests.
+GitHub #145 superseded the earlier deferral after canonical server scope binding
+and local-mount resolution were proven. The implemented protocol now carries
+only canonical `SurfaceScope` identity and `SurfaceFragmentKey` values through
+subscriptions, websocket invalidations, and actor event details. URL, target,
+selector, defer, and protection metadata exists once in each browser's local
+mount descriptor and never crosses the invalidation boundary.
 
-The current protocol is self-describing: an invalidation contains fragment key,
-target id, URL, focus/defer protection, and source client id. This keeps passive
-refetches robust even when multiple surfaces share a scope or fragment URLs
-carry query/viewer context.
-
-A compact protocol could send only scope key plus fragment identifiers, then
-resolve target/URL/protection from currently mounted surface config. That would
-reduce payload size but must handle:
-
-- multiple mounted surfaces for the same scope with different fragment sets
-- dynamic URLs with query params and viewer filters
-- actor refresh events where the actor may not have the passive surface mounted
-- stale or invalid surface config after deploy/reconnect
-- focused-field protection and deferred refresh semantics
-- resync after missed versions
-
-Changing the browser JSON shape should be treated as a protocol migration, not
-part of the internal cleanup.
+Canonical generated fragment-key identity/equality handles property order.
+Unknown or unmounted keys are ignored, duplicate mounts resolve to their own
+local URLs and targets, and source-client echo, version-gap, and resync behavior
+is unchanged.
 
 ## Verification
 

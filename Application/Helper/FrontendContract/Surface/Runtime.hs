@@ -45,7 +45,7 @@ module Application.Helper.FrontendContract.Surface.Runtime
     , defaultFrontendSurfaceLazyFragmentConfig
     , customPlaceholderFrontendSurfaceLazyFragmentConfig
     , frontendSurfaceMountConfigJson
-    , frontendSurfaceMountedFragmentsToWire
+    , frontendSurfaceMountedFragmentsToKeys
     , applyFrontendSurfaceActionAttrs
     , frontendSurfaceActionHtmxAttrPairs
     , renderFrontendSurfaceActionForm
@@ -930,20 +930,15 @@ frontendSurfaceLiveSubscription surfaceName liveFragmentNamesForSurface config =
                 , "scope" Aeson..= config.mountScope
                 ]
             , "scopeKey" Aeson..= config.mountScopeKey
-            , "resyncFragments" Aeson..= fmap liveMountedFragmentToJson liveMountedFragments
+            , "resyncFragments" Aeson..= fmap liveMountedFragmentKeyToJson liveMountedFragments
             ])
     where
         liveMountedFragments = filter (\fragment -> fragment.mountedFragmentKey.fragmentKind `elem` liveFragmentNamesForSurface) config.mountFragments
-        liveMountedFragmentToJson fragment =
+        liveMountedFragmentKeyToJson fragment =
             Aeson.object
-                [ "fragment" Aeson..= Aeson.object
-                    [ "surface" Aeson..= surfaceName
-                    , "fragment" Aeson..= fragmentKeyToJson fragment.mountedFragmentKey
-                    ]
-                , "targetId" Aeson..= fragment.mountedFragmentTargetId
-                , "url" Aeson..= fragment.mountedFragmentUrl
-                , "deferUntilBlur" Aeson..= liveProtectionDefers fragment.mountedFragmentProtection
-                , "protectionPolicy" Aeson..= liveProtectionToJson fragment.mountedFragmentProtection
+                [ "surface" Aeson..= surfaceName
+                , "kind" Aeson..= fragment.mountedFragmentKey.fragmentKind
+                , "params" Aeson..= canonicalMountedFragmentParams fragment.mountedFragmentKey.fragmentParams
                 ]
 
 mountedFragmentToJson :: FrontendSurfaceMountedFragment -> Aeson.Value
@@ -967,30 +962,18 @@ canonicalMountedFragmentParams :: Aeson.Value -> Aeson.Value
 canonicalMountedFragmentParams Aeson.Null = Aeson.object []
 canonicalMountedFragmentParams value      = value
 
-liveProtectionDefers :: FrontendSurfaceProtection -> Bool
-liveProtectionDefers = \case
-    FrontendSurfaceReplace -> False
-    FrontendSurfaceFocusedField -> True
-    FrontendSurfaceFocusedFieldConfig {} -> True
+frontendSurfaceMountedFragmentsToKeys :: Text -> [FrontendSurfaceMountedFragment] -> [LiveUpdate.SurfaceFragmentKey]
+frontendSurfaceMountedFragmentsToKeys surfaceName =
+    fmap \fragment ->
+        LiveUpdate.FrontendSurfaceSurfaceFragmentKey
+            { surfaceFragmentSurface = surfaceName
+            , surfaceFragmentWireKind = fragment.mountedFragmentKey.fragmentKind
+            , surfaceFragmentParams = canonicalMountedFragmentParams fragment.mountedFragmentKey.fragmentParams
+            }
 
-frontendSurfaceMountedFragmentsToWire :: Text -> [FrontendSurfaceMountedFragment] -> [LiveUpdate.SurfaceWireFragment]
-frontendSurfaceMountedFragmentsToWire surfaceName =
-    mapMaybe (frontendSurfaceMountedFragmentToWire surfaceName)
-
-frontendSurfaceMountedFragmentToWire :: Text -> FrontendSurfaceMountedFragment -> Maybe LiveUpdate.SurfaceWireFragment
-frontendSurfaceMountedFragmentToWire surfaceName fragment =
-    LiveUpdate.surfaceWireFragmentFromSurface
-        surfaceName
-        fragment.mountedFragmentKey.fragmentKind
-        fragment.mountedFragmentKey.fragmentParams
-        fragment.mountedFragmentTargetId
-        fragment.mountedFragmentUrl
-        (liveProtectionDefers fragment.mountedFragmentProtection)
-        (liveProtectionToWire fragment.mountedFragmentProtection)
-
-liveProtectionToJson :: FrontendSurfaceProtection -> Aeson.Value
-liveProtectionToJson = \case
-    FrontendSurfaceReplace -> Aeson.object ["kind" Aeson..= ("none" :: Text)]
+protectionToJson :: FrontendSurfaceProtection -> Aeson.Value
+protectionToJson = \case
+    FrontendSurfaceReplace -> Aeson.object ["kind" Aeson..= ("replace" :: Text)]
     FrontendSurfaceFocusedField -> Aeson.object
         [ "kind" Aeson..= ("focused-field" :: Text)
         , "activeSelector" Aeson..= ("input, textarea, select, [contenteditable=\"true\"]" :: Text)
@@ -998,34 +981,6 @@ liveProtectionToJson = \case
         , "fieldNameFallback" Aeson..= True
         , "containerSelector" Aeson..= (Nothing :: Maybe Text)
         ]
-    FrontendSurfaceFocusedFieldConfig config -> Aeson.object
-        [ "kind" Aeson..= ("focused-field" :: Text)
-        , "activeSelector" Aeson..= config.focusedProtectionActiveSelector
-        , "fieldKeyAttr" Aeson..= config.focusedProtectionFieldKeyAttr
-        , "fieldNameFallback" Aeson..= config.focusedProtectionFieldNameFallback
-        , "containerSelector" Aeson..= config.focusedProtectionContainerSelector
-        ]
-
-liveProtectionToWire :: FrontendSurfaceProtection -> LiveUpdate.SurfaceFragmentProtection
-liveProtectionToWire = \case
-    FrontendSurfaceReplace -> LiveUpdate.NoProtection
-    FrontendSurfaceFocusedField -> LiveUpdate.FocusedFieldProtection LiveUpdate.FocusedFieldProtectionConfig
-        { activeSelector = "input, textarea, select, [contenteditable=\"true\"]"
-        , fieldKeyAttr = "data-bepis-field-key"
-        , fieldNameFallback = True
-        , containerSelector = Nothing
-        }
-    FrontendSurfaceFocusedFieldConfig config -> LiveUpdate.FocusedFieldProtection LiveUpdate.FocusedFieldProtectionConfig
-        { activeSelector = config.focusedProtectionActiveSelector
-        , fieldKeyAttr = config.focusedProtectionFieldKeyAttr
-        , fieldNameFallback = config.focusedProtectionFieldNameFallback
-        , containerSelector = config.focusedProtectionContainerSelector
-        }
-
-protectionToJson :: FrontendSurfaceProtection -> Aeson.Value
-protectionToJson = \case
-    FrontendSurfaceReplace -> Aeson.object ["kind" Aeson..= ("replace" :: Text)]
-    FrontendSurfaceFocusedField -> Aeson.object ["kind" Aeson..= ("focused-field" :: Text)]
     FrontendSurfaceFocusedFieldConfig config ->
         Aeson.object
             [ "kind" Aeson..= ("focused-field" :: Text)

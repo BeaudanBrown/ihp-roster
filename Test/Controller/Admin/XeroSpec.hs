@@ -490,8 +490,8 @@ tests = beforeAll testContext do
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-xero-shell")
-                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-xero-fragment")
-                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "/ShowadminXeroShellLiveFragment")
+                triggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "admin-xero-fragment")
+                triggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "/ShowadminXeroShellLiveFragment")
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf ("admin-xero:" <> tshow (unpackId venue.id)))
 
         it "preselects the Xero wages expense account but not ambiguous payroll calendars" $ withContext do

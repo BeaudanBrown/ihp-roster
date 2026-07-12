@@ -98,6 +98,19 @@ renderTopLevelSurfaceFragmentKeyUnion surfaces =
     [ "export type SurfaceFragmentKey =" ]
         <> renderTopLevelFragmentKeyCases surfaces
         <> renderCodec "SurfaceFragmentKey" (orExpression (fmap surfaceFragmentKeyCaseGuard surfaces))
+        <> [ "function __canonicalFrontendContractJson(value: unknown): string {"
+           , "    if (Array.isArray(value)) return `[${value.map(__canonicalFrontendContractJson).join(\",\")}]`;"
+           , "    if (isRecord(value)) return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${__canonicalFrontendContractJson(value[key])}`).join(\",\")}}`;"
+           , "    return JSON.stringify(value) ?? \"null\";"
+           , "}"
+           , "export function surfaceFragmentKeyIdentity(value: SurfaceFragmentKey): string {"
+           , "    return __canonicalFrontendContractJson([value.surface, value.kind, value.params]);"
+           , "}"
+           , "export function surfaceFragmentKeysEqual(left: SurfaceFragmentKey, right: SurfaceFragmentKey): boolean {"
+           , "    return surfaceFragmentKeyIdentity(left) === surfaceFragmentKeyIdentity(right);"
+           , "}"
+           , ""
+           ]
 
 renderTopLevelInteractionSurfaceVocabulary :: [SurfaceIR] -> [Text]
 renderTopLevelInteractionSurfaceVocabulary surfaces =
@@ -566,16 +579,14 @@ renderFrontendSurfaceLiveTransport :: [SurfaceIR] -> [Text]
 renderFrontendSurfaceLiveTransport surfaces =
     -- FrontendSurface* live types model server-rendered mount metadata.
     -- They intentionally bridge from HTML data attributes into the canonical
-    -- SurfaceScope/SurfaceFragmentKey/SurfaceWireFragment websocket contract
-    -- types above; they are runtime convenience views, not a second contract
+    -- SurfaceScope/SurfaceFragmentKey live protocol types above; they are
+    -- runtime convenience views, not a second contract
     -- authority.
     [ "// FrontendSurface* live types are server-rendered mount metadata adapters."
-    , "// Canonical websocket wire contracts remain SurfaceScope, SurfaceFragmentKey, and SurfaceWireFragment."
+    , "// Canonical websocket and actor invalidations carry SurfaceScope and SurfaceFragmentKey only."
     , "export type FrontendSurfaceScope ="
     ]
         <> renderFrontendSurfaceScopeCases liveSurfaces
-        <> [ "export type FrontendSurfaceLiveFragment =" ]
-        <> renderFrontendSurfaceLiveFragmentCases liveSurfaces
         <> [ "export function isFrontendSurfaceScope(value: unknown): value is FrontendSurfaceScope {"
            , "    if (!isRecord(value)) return false;"
            , "    if (!isFrontendSurfaceName(value.surface)) return false;"
@@ -584,16 +595,6 @@ renderFrontendSurfaceLiveTransport surfaces =
            , "export function parseFrontendSurfaceScope(value: unknown): FrontendSurfaceScope {"
            , "    if (isFrontendSurfaceScope(value)) return value;"
            , "    throw new Error(\"Invalid FrontendSurfaceScope\");"
-           , "}"
-           , "export function isFrontendSurfaceLiveFragment(value: unknown): value is FrontendSurfaceLiveFragment {"
-           , "    if (!isRecord(value)) return false;"
-           , "    if (!isFrontendSurfaceName(value.surface)) return false;"
-           , "    if (!isRecord(value.fragment)) return false;"
-           , "    return typeof value.fragment.kind === \"string\" && __surfaceHasFragment(value.surface, value.fragment.kind);"
-           , "}"
-           , "export function parseFrontendSurfaceLiveFragment(value: unknown): FrontendSurfaceLiveFragment {"
-           , "    if (isFrontendSurfaceLiveFragment(value)) return value;"
-           , "    throw new Error(\"Invalid FrontendSurfaceLiveFragment\");"
            , "}"
            , ""
            ]
@@ -608,12 +609,6 @@ renderFrontendSurfaceScopeCases surfaces = zipWith render surfaces [0 :: Int ..]
             case [surfaceScopeTypeName surface scope.scopeMarker | scope <- surface.surfaceScopes] of
                 scopeType : _ -> (if index == 0 then "    " else "  | ") <> "{ surface: " <> quote surface.surfaceName <> "; scope: " <> scopeType <> " }" <> if index == length surfaces - 1 then ";" else ""
                 [] -> ""
-
-renderFrontendSurfaceLiveFragmentCases :: [SurfaceIR] -> [Text]
-renderFrontendSurfaceLiveFragmentCases [] = ["    never;"]
-renderFrontendSurfaceLiveFragmentCases surfaces = zipWith render surfaces [0 :: Int ..]
-    where
-        render surface index = (if index == 0 then "    " else "  | ") <> "{ surface: " <> quote surface.surfaceName <> "; fragment: " <> surfaceFragmentKeyUnionName surface <> " }" <> if index == length surfaces - 1 then ";" else ""
 
 renderFrontendSurfaceSupportSchemas :: [Text]
 renderFrontendSurfaceSupportSchemas =
@@ -657,17 +652,10 @@ renderFrontendSurfaceSupportSchemas =
                     , nullable "ContainerSelector" "containerSelector" WireTextIR
                     ]
                 ]
-            , RecordIR "FrontendSurfaceLiveWireFragment" "FrontendSurfaceLiveWireFragment"
-                [ required "Fragment" "fragment" (WireRefIR "FrontendSurfaceLiveFragment")
-                , required "TargetId" "targetId" WireTextIR
-                , required "Url" "url" WireTextIR
-                , required "DeferUntilBlur" "deferUntilBlur" WireBoolIR
-                , required "ProtectionPolicy" "protectionPolicy" (WireRefIR "FrontendSurfaceSurfaceFragmentProtection")
-                ]
             , RecordIR "FrontendSurfaceLiveSubscription" "FrontendSurfaceLiveSubscription"
                 [ required "Scope" "scope" (WireRefIR "FrontendSurfaceScope")
                 , required "ScopeKey" "scopeKey" WireTextIR
-                , required "ResyncFragments" "resyncFragments" (WireListIR (WireRefIR "FrontendSurfaceLiveWireFragment"))
+                , required "ResyncFragments" "resyncFragments" (WireListIR WireSurfaceFragmentKeyIR)
                 ]
             ]
         adapterTypeOnlySchemas =
@@ -706,11 +694,7 @@ renderFrontendSurfaceMountConfigTypes =
     renderFrontendSurfaceSupportSchemas
         <> [ "// FrontendSurfaceMountConfig is the HTML data attribute shape emitted by Haskell views."
            , "// Runtime parsing/normalization lives in frontend/ts/live-updates/frontend-surface.ts."
-           , "function __surfaceHasFragment(surface: FrontendSurfaceName, fragment: string): boolean {"
-    , "    return (FrontendSurfaceRegistry[surface].fragments as readonly string[]).includes(fragment);"
-    , "}"
-    , ""
-    ]
+           ]
 
 renderFrontendSurfaceRegistry :: [SurfaceIR] -> [Text]
 renderFrontendSurfaceRegistry surfaces =
@@ -854,7 +838,6 @@ wireType = \case
     WireRefIR name -> name
     WireSurfaceScopeIR -> "SurfaceScope"
     WireSurfaceFragmentKeyIR -> "SurfaceFragmentKey"
-    WireSurfaceWireFragmentIR -> "SurfaceWireFragment"
 
 optionalMarker :: FieldPresence -> Text
 optionalMarker = \case
@@ -895,7 +878,6 @@ valueGuard access = \case
     WireRefIR name -> "is" <> name <> "(" <> access <> ")"
     WireSurfaceScopeIR -> "isSurfaceScope(" <> access <> ")"
     WireSurfaceFragmentKeyIR -> "isSurfaceFragmentKey(" <> access <> ")"
-    WireSurfaceWireFragmentIR -> "isSurfaceWireFragment(" <> access <> ")"
 
 primitiveValueGuard :: Text -> WireIR -> Text
 primitiveValueGuard access wire = "typeof " <> access <> " === " <> quote (wirePrimitiveRuntimeType wire)

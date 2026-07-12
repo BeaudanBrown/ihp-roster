@@ -2,13 +2,13 @@ import {
     FrontendSurfaceRegistry,
     isFrontendSurfaceLiveSubscription,
     isFrontendSurfaceName,
-    type FrontendSurfaceLiveWireFragment,
+    surfaceFragmentKeysEqual,
     type FrontendSurfaceMountConfig,
     type FrontendSurfaceMountedFragmentConfig,
     type FrontendSurfaceName,
-    type SurfaceFragmentProtection,
+    type FrontendSurfaceSurfaceFragmentProtection,
+    type SurfaceFragmentKey,
     type SurfaceScope,
-    type SurfaceWireFragment,
 } from "../generated/contracts";
 
 export type { FrontendSurfaceMountConfig } from "../generated/contracts";
@@ -20,8 +20,16 @@ export type ParsedFrontendSurfaceSubscriptionConfig = {
     scopeKey: string;
     mountKey: string;
     socketPath: string;
-    resyncFragments: SurfaceWireFragment[];
+    resyncFragments: LiveUpdateMountedFragment[];
     decorateRequestsWithin: string[];
+};
+
+export type LiveUpdateMountedFragment = {
+    fragmentKey: SurfaceFragmentKey;
+    targetId: string;
+    url: string;
+    deferUntilBlur: boolean;
+    protectionPolicy: FrontendSurfaceSurfaceFragmentProtection;
 };
 
 export type FrontendSurfaceMountedInstance = {
@@ -43,7 +51,9 @@ export function parseFrontendSurfaceSubscriptionConfig(value: unknown): ParsedFr
     const config = parseFrontendSurfaceMountConfig(value);
     if (!config?.subscription) return null;
 
-    const resyncFragments = config.subscription.resyncFragments.map(surfaceLiveFragmentToWire);
+    const resyncFragments = config.fragments
+        .map((fragment) => mountedFragmentForSurface(config.surface, fragment))
+        .filter((fragment) => config.subscription?.resyncFragments.some((key) => surfaceFragmentKeysEqual(key, fragment.fragmentKey)) ?? false);
     if (resyncFragments.length === 0) return null;
 
     return {
@@ -54,7 +64,7 @@ export function parseFrontendSurfaceSubscriptionConfig(value: unknown): ParsedFr
         mountKey: config.mountKey,
         socketPath: "/live-updates",
         resyncFragments,
-        decorateRequestsWithin: config.subscription.resyncFragments.map((fragment) => `#${fragment.targetId}`),
+        decorateRequestsWithin: resyncFragments.map((fragment) => `#${fragment.targetId}`),
     };
 }
 
@@ -98,22 +108,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function surfaceLiveFragmentToWire(fragment: FrontendSurfaceLiveWireFragment): SurfaceWireFragment {
+function mountedFragmentForSurface(surface: FrontendSurfaceName, fragment: FrontendSurfaceMountedFragmentConfig): LiveUpdateMountedFragment {
     return {
         fragmentKey: {
-            surface: fragment.fragment.surface,
-            kind: fragment.fragment.fragment.kind,
-            params: fragment.fragment.fragment.params,
-        } as SurfaceWireFragment["fragmentKey"],
+            surface,
+            kind: fragment.key.kind,
+            params: fragment.key.params,
+        } as SurfaceFragmentKey,
         targetId: fragment.targetId,
         url: fragment.url,
-        deferUntilBlur: fragment.deferUntilBlur,
-        protectionPolicy: fragmentProtectionToWire(fragment.protectionPolicy),
+        deferUntilBlur: isRecord(fragment.protection) && fragment.protection.kind === "focused-field",
+        protectionPolicy: fragmentProtectionForLocalMount(fragment.protection),
     };
 }
 
-function fragmentProtectionToWire(protection: FrontendSurfaceLiveWireFragment["protectionPolicy"]): SurfaceFragmentProtection {
-    if (protection.kind !== "focused-field") return { kind: "none" };
+function fragmentProtectionForLocalMount(protection: unknown): FrontendSurfaceSurfaceFragmentProtection {
+    if (!isRecord(protection) || protection.kind !== "focused-field") return { kind: "none" };
     if (typeof protection.activeSelector !== "string") return { kind: "none" };
     if (typeof protection.fieldKeyAttr !== "string") return { kind: "none" };
     if (typeof protection.fieldNameFallback !== "boolean") return { kind: "none" };

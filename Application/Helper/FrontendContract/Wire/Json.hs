@@ -44,6 +44,10 @@ schemaByName contract name =
 contractSchemas :: Contract.FrontendContractIR -> [Contract.SchemaIR]
 contractSchemas contract =
     [ schema | global <- contract.contractGlobals, Contract.GlobalSchemaIR schema <- global.globalPrimitives ]
+        <> [ Contract.RecordIR marker (marker <> "EventDetail") fields
+           | global <- contract.contractGlobals
+           , Contract.GlobalEventIR marker _ fields <- global.globalPrimitives
+           ]
         <> concatMap (.surfaceDtos) contract.contractSurfaces
 
 schemaName :: Contract.SchemaIR -> Text
@@ -159,7 +163,6 @@ validateWireValueWith contract fieldName wire value =
         Contract.WireRefIR refName -> validateContractValueWith contract refName value
         Contract.WireSurfaceScopeIR -> validateSurfaceScopeValueWith contract value
         Contract.WireSurfaceFragmentKeyIR -> validateSurfaceFragmentKeyValueWith contract value
-        Contract.WireSurfaceWireFragmentIR -> validateContractValueWith contract "SurfaceWireFragment" value
     where
         expectString = case value of
             Aeson.String _ -> pure ()

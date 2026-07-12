@@ -75,8 +75,8 @@ test.describe('HTMX submit regressions', () => {
         }).toBe(true);
     });
 
-    test('unavailable-period submit creates one request', async ({ page }) => {
-        const note = 'single-submit-leave-check';
+    test('unavailable-period submit creates one request', async ({ page }, testInfo) => {
+        const note = `single-submit-leave-check-${testInfo.repeatEachIndex}-${Date.now()}`;
 
         await login(page);
         await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');

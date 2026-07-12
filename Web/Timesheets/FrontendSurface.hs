@@ -10,7 +10,7 @@ module Web.Timesheets.FrontendSurface
     , timesheetsSurfaceImpl
     , timesheetsSurfaceMountConfig
     , timesheetsSurfaceScopeKey
-    , timesheetsSurfaceWireFragments
+    , timesheetsSurfaceFragmentKeys
     ) where
 
 import Application.Helper.FrontendContract.Surface.DSL
@@ -45,8 +45,8 @@ data TimesheetsMountStateValue = TimesheetsMountStateValue
 
 timesheetsSurfaceImpl :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> SurfaceImpl Surface.TimesheetsSurface
 timesheetsSurfaceImpl scope mountState =
-    let impl = mkSurfaceImpl "timesheets" (timesheetsSurfaceMountConfig scope mountState) (timesheetsSurfaceHandlers scope mountState)
-     in impl { surfaceImplMountConfig = impl.surfaceImplMountConfig { mountFragments = timesheetsCandidateMountedFragments scope mountState } }
+    mkSurfaceImpl "timesheets" (timesheetsSurfaceMountConfig scope mountState) (timesheetsSurfaceHandlers scope mountState)
+        |> surfaceImplWithMountedFragments (timesheetsCandidateMountedFragments scope mountState)
 
 timesheetsSurfaceMountConfig :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> FrontendSurfaceMountConfig
 timesheetsSurfaceMountConfig scope mountState =
@@ -68,9 +68,9 @@ timesheetsSurfaceScope :: TimesheetWeekScopeValue -> SurfaceScope
 timesheetsSurfaceScope scope =
     timesheetWeekLiveScope scope.timesheetWeekVenueId scope.timesheetWeekWeekOffset
 
-timesheetsSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [SurfaceWireFragment]
-timesheetsSurfaceWireFragments =
-    frontendSurfaceMountedFragmentsToWire "timesheets"
+timesheetsSurfaceFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
+timesheetsSurfaceFragmentKeys =
+    frontendSurfaceMountedFragmentsToKeys "timesheets"
 
 timesheetsCandidateMountedFragments :: TimesheetWeekScopeValue -> TimesheetsMountStateValue -> [FrontendSurfaceMountedFragment]
 timesheetsCandidateMountedFragments scope mountState =

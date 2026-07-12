@@ -1,8 +1,5 @@
 module Application.Helper.LiveUpdate
     ( SurfaceFragmentKey (..)
-    , SurfaceWireFragment (..)
-    , SurfaceFragmentProtection (..)
-    , FocusedFieldProtectionConfig (..)
     , SurfaceScope (..)
     , adminExportsLiveFragment
     , adminExportsLiveScope
@@ -40,7 +37,7 @@ module Application.Helper.LiveUpdate
     , timesheetToolbarLiveFragment
     , timesheetWeekLiveScope
     , activeRosterWeekScopes
-    , actorLiveFragmentsRefreshFragments
+    , actorLiveFragmentsRefreshKeys
     , actorLiveFragmentsRefreshTriggerPayload
     , currentLiveUpdateVersion
     , surfaceScopeKey
@@ -54,14 +51,15 @@ import Application.Helper.FrontendContract.AppValues (AppEvents (..),
 import Application.Helper.FrontendContract.Surface.DependencyPlanner (planFrontendSurfaceInvalidation)
 import Application.Helper.FrontendContract.Surface.Resource (SurfaceResourceValue)
 import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment,
-                                                            frontendSurfaceMountedFragmentsToWire)
+                                                            frontendSurfaceMountedFragmentsToKeys)
+import qualified Application.Helper.FrontendContract.Wire.LiveUpdate as Wire
 import Application.Helper.LiveUpdate.Internal
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Set as Set
 import IHP.ControllerPrelude
 
-setActorLiveFragmentsRefresh :: (?context :: ControllerContext, ?request :: Request) => SurfaceScope -> [SurfaceWireFragment] -> IO ()
+setActorLiveFragmentsRefresh :: (?context :: ControllerContext, ?request :: Request) => SurfaceScope -> [SurfaceFragmentKey] -> IO ()
 setActorLiveFragmentsRefresh scope fragments =
     setHeader
         ( "HX-Trigger"
@@ -70,20 +68,20 @@ setActorLiveFragmentsRefresh scope fragments =
 
 setActorLiveResourcesRefresh :: (?context :: ControllerContext, ?request :: Request) => SurfaceScope -> Set.Set SurfaceResourceValue -> [FrontendSurfaceMountedFragment] -> IO ()
 setActorLiveResourcesRefresh scope touchedResources candidates =
-    setActorLiveFragmentsRefresh scope (actorLiveFragmentsRefreshFragments scope touchedResources candidates)
+    setActorLiveFragmentsRefresh scope (actorLiveFragmentsRefreshKeys scope touchedResources candidates)
 
-actorLiveFragmentsRefreshFragments :: SurfaceScope -> Set.Set SurfaceResourceValue -> [FrontendSurfaceMountedFragment] -> [SurfaceWireFragment]
-actorLiveFragmentsRefreshFragments scope touchedResources candidates =
+actorLiveFragmentsRefreshKeys :: SurfaceScope -> Set.Set SurfaceResourceValue -> [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
+actorLiveFragmentsRefreshKeys scope touchedResources candidates =
     candidates
         |> planFrontendSurfaceInvalidation touchedResources scope
-        |> frontendSurfaceMountedFragmentsToWire (surfaceScopeKind scope)
+        |> frontendSurfaceMountedFragmentsToKeys (surfaceScopeKind scope)
 
-actorLiveFragmentsRefreshTriggerPayload :: SurfaceScope -> [SurfaceWireFragment] -> Aeson.Value
-actorLiveFragmentsRefreshTriggerPayload scope fragments =
+actorLiveFragmentsRefreshTriggerPayload :: SurfaceScope -> [SurfaceFragmentKey] -> Aeson.Value
+actorLiveFragmentsRefreshTriggerPayload scope fragmentKeys =
     Aeson.object
-        [ AesonKey.fromText canonicalAppEvents.appLiveFragmentsRefreshEventName Aeson..= Aeson.object
-            [ "scope" Aeson..= scope
-            , "scopeKey" Aeson..= surfaceScopeKey scope
-            , "fragments" Aeson..= coalesceSurfaceWireFragments fragments
-            ]
+        [ AesonKey.fromText canonicalAppEvents.appLiveFragmentsRefreshEventName Aeson..= Wire.LiveFragmentsRefreshEventDetail
+            { Wire.scope = surfaceScopeToWire scope
+            , Wire.scopeKey = surfaceScopeKey scope
+            , Wire.fragments = map surfaceFragmentKeyToWire (coalesceSurfaceFragmentKeys fragmentKeys)
+            }
         ]

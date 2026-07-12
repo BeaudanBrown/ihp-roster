@@ -203,7 +203,7 @@ type InteractionContract =
              ])
          , GlobalSchema (TaggedUnionWithTag InteractionIntentTarget "kind"
             '[ Case LiveFragment
-                '[ Field Fragment 'WireSurfaceWireFragment
+                '[ Field Fragment 'WireSurfaceFragmentKey
                  ]
              , Case MountLocal
                 '[ Field Target 'WireText

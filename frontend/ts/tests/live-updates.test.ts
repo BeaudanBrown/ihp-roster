@@ -1,4 +1,5 @@
-import type { SurfaceScope, SurfaceWireFragment } from "../generated/contracts";
+import { surfaceFragmentKeyIdentity, surfaceFragmentKeysEqual, type SurfaceScope } from "../generated/contracts";
+import type { LiveUpdateMountedFragment } from "../live-updates/frontend-surface";
 import {
     buildLiveUpdateSubscribeCommand,
     buildSurfaceSubscription,
@@ -20,7 +21,7 @@ const scope: SurfaceScope = {
     },
 };
 
-const fragment: SurfaceWireFragment = {
+const fragment: LiveUpdateMountedFragment = {
     fragmentKey: { surface: "timesheets", kind: "timesheet-day-section", params: { dayOffset: 1 } },
     targetId: "timesheet-day-1",
     url: "/ShowTimesheetDay?dayOffset=1",
@@ -35,11 +36,11 @@ const fragment: SurfaceWireFragment = {
 };
 
 test("live update command builder preserves backend-owned surface subscription contract", () => {
-    const subscription = buildSurfaceSubscription(scope, "timesheets:v:0", [fragment]);
+    const subscription = buildSurfaceSubscription(scope, "timesheets:v:0", [fragment.fragmentKey]);
     assertDeepEqual(subscription, {
         scope,
         scopeKey: "timesheets:v:0",
-        mountedFragments: [fragment],
+        fragments: [fragment.fragmentKey],
     });
     assertDeepEqual(buildLiveUpdateSubscribeCommand(subscription, "client-1", null), {
         type: "subscribe",
@@ -59,6 +60,24 @@ test("live update command builder preserves backend-owned surface subscription c
     });
 });
 
+test("generated fragment-key identity is canonical across parameter property order", () => {
+    const first = {
+        surface: "roster",
+        kind: "roster-row",
+        params: { rosterDayId: "00000000-0000-0000-0000-000000000001", rowIndex: 3 },
+    } as const;
+    const reordered = {
+        surface: "roster",
+        kind: "roster-row",
+        params: { rowIndex: 3, rosterDayId: "00000000-0000-0000-0000-000000000001" },
+    } as const;
+    const otherRow = { ...reordered, params: { ...reordered.params, rowIndex: 4 } } as const;
+
+    assertEqual(surfaceFragmentKeyIdentity(first), surfaceFragmentKeyIdentity(reordered));
+    assertEqual(surfaceFragmentKeysEqual(first, reordered), true);
+    assertEqual(surfaceFragmentKeysEqual(first, otherRow), false);
+});
+
 test("live update message helpers normalize scope keys and versions", () => {
     assertEqual(liveUpdateMessageScopeKey({ scopeKey: "timesheets:v:0" }), "timesheets:v:0");
     assertEqual(liveUpdateMessageScopeKey({ scopeKey: "" }), null);
@@ -71,7 +90,7 @@ test("live update message helpers normalize scope keys and versions", () => {
 test("live update fragment merge key includes structural fragment key and target", () => {
     assertEqual(
         liveUpdateFragmentMergeKey(fragment),
-        '{"surface":"timesheets","kind":"timesheet-day-section","params":{"dayOffset":1}}:timesheet-day-1'
+        '["timesheets","timesheet-day-section",{"dayOffset":1}]:timesheet-day-1'
     );
     assertEqual(liveUpdateFragmentMergeKey({ ...fragment, targetId: "" }), null);
 });
@@ -90,33 +109,24 @@ test("live update invalidations suppress same-client websocket echoes only", () 
     assertEqual(liveUpdateInvalidationIsOwnEcho("client-1", null), false);
 });
 
-test("invalidations resolve only through exact descriptors on local mounts", () => {
-    const incomingDescriptor: SurfaceWireFragment = {
-        ...fragment,
-        targetId: "incoming-target",
-        url: "https://attacker.invalid/fragment",
-        protectionPolicy: { kind: "none" },
-    };
-    const localDescriptor: SurfaceWireFragment = {
+test("semantic invalidation keys resolve only through descriptors on local mounts", () => {
+    const incomingKey = fragment.fragmentKey;
+    const localDescriptor: LiveUpdateMountedFragment = {
         ...fragment,
         targetId: "local-target",
         url: "/authorized-local-fragment",
     };
-    const reorderedIncomingDescriptor: SurfaceWireFragment = {
-        ...incomingDescriptor,
-        fragmentKey: { kind: "timesheet-day-section", params: { dayOffset: 1 }, surface: "timesheets" },
-    };
-    const otherSurfaceDescriptor: SurfaceWireFragment = {
-        ...fragment,
-        fragmentKey: { surface: "roster", kind: "roster-content", params: {} },
-        targetId: "unmounted-roster-target",
-        url: "https://attacker.invalid/unmounted",
-    };
+    const reorderedIncomingKey = {
+        kind: "timesheet-day-section",
+        params: { dayOffset: 1 },
+        surface: "timesheets",
+    } as const;
+    const unknownKey = { surface: "roster", kind: "roster-content", params: {} } as const;
 
     assertDeepEqual(
         resolveMountedFragmentsForInvalidation(
             [{ scopeKey: "timesheets:v:0", resyncFragments: [localDescriptor] }],
-            [incomingDescriptor],
+            [incomingKey],
             "timesheets:v:0",
         ),
         [localDescriptor],
@@ -124,7 +134,7 @@ test("invalidations resolve only through exact descriptors on local mounts", () 
     assertDeepEqual(
         resolveMountedFragmentsForInvalidation(
             [{ scopeKey: "timesheets:v:0", resyncFragments: [localDescriptor] }],
-            [reorderedIncomingDescriptor],
+            [reorderedIncomingKey],
             "timesheets:v:0",
         ),
         [localDescriptor],
@@ -132,19 +142,19 @@ test("invalidations resolve only through exact descriptors on local mounts", () 
     assertDeepEqual(
         resolveMountedFragmentsForInvalidation(
             [{ scopeKey: "timesheets:v:0", resyncFragments: [localDescriptor] }],
-            [otherSurfaceDescriptor],
+            [unknownKey],
             "timesheets:v:0",
         ),
         [],
     );
     assertDeepEqual(
-        resolveMountedFragmentsForInvalidation([], [incomingDescriptor], "timesheets:v:0"),
+        resolveMountedFragmentsForInvalidation([], [incomingKey], "timesheets:v:0"),
         [],
     );
     assertDeepEqual(
         resolveMountedFragmentsForInvalidation(
             [{ scopeKey: "timesheets:v:0", resyncFragments: [localDescriptor] }],
-            [incomingDescriptor],
+            [incomingKey],
             null,
         ),
         [],
@@ -152,21 +162,18 @@ test("invalidations resolve only through exact descriptors on local mounts", () 
 });
 
 test("actor invalidation resolves every semantic key from one-shot subscription iterators", () => {
-    const firstLocal: SurfaceWireFragment = {
+    const firstLocal: LiveUpdateMountedFragment = {
         ...fragment,
         targetId: "timesheet-day-local",
         url: "/local-day",
     };
-    const secondLocal: SurfaceWireFragment = {
+    const secondLocal: LiveUpdateMountedFragment = {
         ...fragment,
         fragmentKey: { surface: "timesheets", kind: "timesheet-toolbar", params: {} },
         targetId: "timesheet-toolbar-local",
         url: "/local-toolbar",
     };
-    const incomingFragments: SurfaceWireFragment[] = [
-        { ...firstLocal, targetId: "incoming-day", url: "/untrusted-day" },
-        { ...secondLocal, targetId: "incoming-toolbar", url: "/untrusted-toolbar" },
-    ];
+    const incomingFragments = [firstLocal.fragmentKey, secondLocal.fragmentKey];
     const subscriptions = new Map([
         ["timesheets:v:0", { scopeKey: "timesheets:v:0", resyncFragments: [firstLocal, secondLocal] }],
     ]).values();
@@ -178,22 +185,18 @@ test("actor invalidation resolves every semantic key from one-shot subscription 
 });
 
 test("actor-local invalidation resolves through every duplicate mounted fragment in scope", () => {
-    const actorFragment: SurfaceWireFragment = {
-        ...fragment,
-        targetId: "initiating-timesheet-day",
-        url: "/initiating-only",
-    };
-    const firstMount: SurfaceWireFragment = {
+    const actorFragmentKey = fragment.fragmentKey;
+    const firstMount: LiveUpdateMountedFragment = {
         ...fragment,
         targetId: "timesheet-day-primary",
         url: "/primary-day",
     };
-    const duplicateMount: SurfaceWireFragment = {
+    const duplicateMount: LiveUpdateMountedFragment = {
         ...fragment,
         targetId: "timesheet-day-duplicate",
         url: "/duplicate-day",
     };
-    const otherScopeMount: SurfaceWireFragment = {
+    const otherScopeMount: LiveUpdateMountedFragment = {
         ...fragment,
         targetId: "timesheet-day-other-week",
         url: "/other-week-day",
@@ -204,7 +207,7 @@ test("actor-local invalidation resolves through every duplicate mounted fragment
             { scopeKey: "timesheets:v:0", resyncFragments: [firstMount, duplicateMount] },
             { scopeKey: "timesheets:v:1", resyncFragments: [otherScopeMount] },
         ],
-        [actorFragment],
+        [actorFragmentKey],
         "timesheets:v:0",
     );
 

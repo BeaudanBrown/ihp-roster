@@ -1,14 +1,11 @@
 module Application.Helper.LiveUpdate.Runtime
     ( LiveBus
     , SurfaceFragmentKey (..)
-    , SurfaceFragmentProtection (..)
-    , FocusedFieldProtectionConfig (..)
     , LiveUpdateBroadcastResult (..)
     , LiveUpdateCommand (..)
     , LiveUpdateMessage (..)
     , SurfaceScope (..)
     , SurfaceSubscription (..)
-    , SurfaceWireFragment (..)
     , activeSurfaceSubscriptions
     , activeSurfaceSubscriptionsWithBus
     , activeSurfaceScopeMatchesWithBus
@@ -18,7 +15,7 @@ module Application.Helper.LiveUpdate.Runtime
     , broadcastLiveInvalidationDetailed
     , broadcastLiveInvalidationDetailedWithBus
     , broadcastLiveInvalidationDetailedWithoutContext
-    , coalesceSurfaceWireFragments
+    , coalesceSurfaceFragmentKeys
     , currentLiveUpdateVersion
     , currentLiveUpdateVersionWithBus
     , incrementLiveUpdateVersionWithBus
@@ -61,8 +58,8 @@ module Application.Helper.LiveUpdate.Runtime
     , surfaceScopeKind
     , surfaceScopeToWire
     , liveUpdateSourceClientId
-    , surfaceWireFragmentFromSurface
-    , surfaceWireFragmentToWire
+    , surfaceFragmentKeyFromWire
+    , surfaceFragmentKeyToWire
     , newInMemoryLiveBus
     , registerSurfaceSubscription
     , registerSurfaceSubscriptionWithBus

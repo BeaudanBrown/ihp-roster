@@ -67,15 +67,7 @@ tests = do
         it "renders live invalidation profile counts for timing diagnostics" do
             let venueId = fromWords 1 0 0 0
             let scope = billingLiveScope venueId
-            let fragment =
-                    SurfaceWireFragment
-                        { fragmentKey = billingStatusLiveFragment
-                        , targetId = "billing-status"
-                        , url = "/ShowbillingStatusLiveFragment"
-                        , deferUntilBlur = False
-                        , protectionPolicy = NoProtection
-                        }
-            let target = SurfaceInvalidationTarget scope [fragment]
+            let target = SurfaceInvalidationTarget scope [billingStatusLiveFragment]
             let broadcastResult =
                     LiveUpdateBroadcastResult
                         { broadcastVersion = 3

@@ -65,6 +65,10 @@ Read this before editing `frontend/ts/`.
   Haskell helpers/contracts. Do not make ordinary HTMX, dialogs, validation
   responses, partial navigation, or autosave controls participate without a
   future server-owned region contract.
+- Live subscriptions, websocket invalidations, and actor event details carry
+  generated `SurfaceFragmentKey` values only. Resolve keys through local mount
+  descriptors; never accept a transport URL, target id, selector, defer flag, or
+  protection policy as refetch authority.
 - Nested/composable FrontendSurface behavior must stay generic. If a parent
   fragment/region contains child surface mounts, TypeScript should reconcile
   lifecycle from current DOM mounts after swaps: initialize new child mounts,

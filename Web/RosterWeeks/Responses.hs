@@ -23,8 +23,8 @@ import Web.Controller.Prelude
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.FrontendSurface (RosterWeekScopeValue (..),
                                         rosterMountedFragmentForProjection,
-                                        rosterSurfaceScope,
-                                        rosterSurfaceWireFragments)
+                                        rosterSurfaceFragmentKeys,
+                                        rosterSurfaceScope)
 import Web.RosterWeeks.RenderData (fetchVisibleRosterReadModel,
                                    renderRosterProjectionFragmentWithMode,
                                    renderVisibleRosterReadModelFragment)
@@ -59,7 +59,7 @@ respondWithRosterActorInvalidation rosterGroupId weekOffset fragments extraHtml 
             , rosterWeekTimelineDayOffset = currentRosterTimelineDayOffset
             }
     setHeader ("HX-Reswap", "none")
-    setActorLiveFragmentsRefresh (rosterSurfaceScope scope) (rosterSurfaceWireFragments (map (rosterMountedFragmentForProjection scope) (nub fragments)))
+    setActorLiveFragmentsRefresh (rosterSurfaceScope scope) (rosterSurfaceFragmentKeys (map (rosterMountedFragmentForProjection scope) (nub fragments)))
     respondHtmlProfiled extraHtml
 
 respondWithRosterContentOob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO ()

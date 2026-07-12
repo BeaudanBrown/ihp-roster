@@ -125,6 +125,19 @@ expect_no_match \
     'data-live-update-(surface|url)' \
     Web/View/Timesheets/Index.hs
 
+expect_no_match \
+    "feature mount overrides must recompute subscriptions through surfaceImplWithMountedFragments" \
+    'surfaceImplMountConfig[[:space:]]*=.*mountFragments[[:space:]]*=' \
+    Application \
+    Web
+
+expect_no_match_including_generated \
+    "live wire contracts must not expose executable fragment descriptor types" \
+    '\b(SurfaceWireFragment|WireSurfaceWireFragment|FrontendSurfaceLiveWireFragment)\b' \
+    Application/Helper/FrontendContract/LiveUpdate.hs \
+    Application/Helper/FrontendContract/Wire/LiveUpdate.hs \
+    frontend/ts/generated/contracts.ts
+
 expect_match \
     "generated contracts must expose the reflected lab surface manifest" \
     'surfaceLabSurfaceManifest' \
@@ -327,7 +340,7 @@ expect_match \
 
 expect_match \
     "surface invalidation planning delegates dependency matching to generated FrontendSurface planner" \
-    'planFrontendSurfaceWireInvalidation resources subscription\.subscriptionScope subscription\.subscriptionMountedFragments' \
+    'planFrontendSurfaceKeyInvalidation resources subscription\.subscriptionScope subscription\.subscriptionFragmentKeys' \
     Web/SurfaceInvalidation.hs
 
 expect_no_match \

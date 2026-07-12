@@ -88,7 +88,7 @@ respondToShiftTypesSectionMutationWithXeroRefresh _shouldRefreshXero =
     if isHtmxRequest
         then do
             setHeader ("HX-Reswap", "none")
-            setActorLiveFragmentsRefresh (adminShiftTypesLiveScope (unpackId currentVenueId)) (AdminSurface.adminSurfaceWireFragments [AdminSurface.adminShiftTypesFragment])
+            setActorLiveFragmentsRefresh (adminShiftTypesLiveScope (unpackId currentVenueId)) (AdminSurface.adminSurfaceFragmentKeys [AdminSurface.adminShiftTypesFragment])
             respondHtml mempty
         else redirectToAdminFor (paramOrNothing "rosterGroupId")
 

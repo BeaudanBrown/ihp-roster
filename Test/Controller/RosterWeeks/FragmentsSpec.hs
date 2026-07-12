@@ -92,7 +92,8 @@ tests = beforeAll testContext do
                 bodyText `shouldNotContain` "hx-swap-oob=\"outerHTML\""
                 let rosterAssignmentTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 rosterAssignmentTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf dayColumnsTarget)
-                rosterAssignmentTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf staffPanelTarget)
+                rosterAssignmentTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-staff-panel\"")
+                rosterAssignmentTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf staffPanelTarget)
 
         it "plans non-overlapping passive roster content and staff panel fragments" $ withContext do
             withCleanDb do
@@ -111,7 +112,7 @@ tests = beforeAll testContext do
                                 SurfaceSubscription
                                     { subscriptionScope = scope
                                     , subscriptionScopeKey = surfaceScopeKey scope
-                                    , subscriptionMountedFragments = rosterSurfaceWireFragments (rosterCandidateMountedFragments scopeValue mountedPlan)
+                                    , subscriptionFragmentKeys = rosterSurfaceFragmentKeys (rosterCandidateMountedFragments scopeValue mountedPlan)
                                     }
                         pure $ planSurfaceInvalidations
                             (Set.singleton (rosterWeekResource rosterWeek.rosterGroupId rosterWeek.weekOffset))
@@ -132,7 +133,7 @@ tests = beforeAll testContext do
                 let fragmentKinds = map (\fragment -> fragment.mountedFragmentKey.fragmentKind) mountConfig.mountFragments
                 let fragmentTargets = map (.mountedFragmentTargetId) mountConfig.mountFragments
                 let fragmentUrls = map (.mountedFragmentUrl) mountConfig.mountFragments
-                let wireFragments = rosterSurfaceWireFragments mountConfig.mountFragments
+                let fragmentKeys = rosterSurfaceFragmentKeys mountConfig.mountFragments
 
                 impl.surfaceImplName `shouldBe` "roster"
                 map (.htmxRequestName) impl.surfaceImplActions
@@ -176,7 +177,7 @@ tests = beforeAll testContext do
                 fragmentTargets `shouldContain` [rosterRowDomIdText rosterDayId 1]
                 fragmentUrls `shouldSatisfy` all (Text.isInfixOf "weekOffset=3")
                 fragmentUrls `shouldSatisfy` all (Text.isInfixOf "rosterGroupId=00000000-0000-0000-0000-000000000222")
-                map (.fragmentKey) wireFragments `shouldContain` [rosterRowLiveFragment (unpackId rosterDayId) 1]
+                fragmentKeys `shouldContain` [rosterRowLiveFragment (unpackId rosterDayId) 1]
 
         it "renders hidden draft roster fragments without leaking closed days or slots to staff" $ withContext do
             withCleanDb do
@@ -1206,7 +1207,7 @@ tests = beforeAll testContext do
 
 targetFragmentKeys :: [SurfaceInvalidationTarget] -> [[SurfaceFragmentKey]]
 targetFragmentKeys targets =
-    [ map (.fragmentKey) target.targetFragments
+    [ target.targetFragments
     | target <- targets
     ]
 

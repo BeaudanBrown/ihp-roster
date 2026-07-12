@@ -1,5 +1,5 @@
 import type { LiveUpdateCommand, LiveUpdateMessage } from "./generated/contracts";
-import { parseLiveUpdateMessage, pageReadyEvent, liveFragmentsRefreshEvent, interactionSessionEndEvent } from "./generated/contracts";
+import { parseLiveFragmentsRefreshEventDetail, parseLiveUpdateMessage, pageReadyEvent, liveFragmentsRefreshEvent, interactionSessionEndEvent } from "./generated/contracts";
 import { enableHtmxUiRegionEventAdapter } from "./fragments/htmx-adapter";
 import { enableUiRegionTransitions } from "./fragments/transitions";
 import { resolveLiveFragmentInteractionConflict } from "./interaction/live-conflicts";
@@ -517,7 +517,7 @@ enableLazySurfaceErrorHandling();
     }
 
     function wireSubscription(subscription: SurfaceSubscription) {
-        return buildSurfaceSubscription(subscription.scope, subscription.scopeKey, subscription.resyncFragments);
+        return buildSurfaceSubscription(subscription.scope, subscription.scopeKey, subscription.resyncFragments.map((fragment) => fragment.fragmentKey));
     }
 
     function subscribeScope(subscription: SurfaceSubscription): void {
@@ -946,10 +946,14 @@ enableLazySurfaceErrorHandling();
     });
 
     function handleActorFragmentRefreshEvent(event: Event): void {
-        const detail = event instanceof CustomEvent ? event.detail : null;
-        const fragments = Array.isArray(detail && detail.fragments) ? detail.fragments : [];
-        const scopeKey = detail && typeof detail.scopeKey === 'string' ? detail.scopeKey : null;
-        resolveMountedFragmentsForInvalidation(activeSubscriptions.values(), fragments, scopeKey)
+        if (!(event instanceof CustomEvent)) return;
+        let detail;
+        try {
+            detail = parseLiveFragmentsRefreshEventDetail(event.detail);
+        } catch (_error) {
+            return;
+        }
+        resolveMountedFragmentsForInvalidation(activeSubscriptions.values(), detail.fragments, detail.scopeKey)
             .forEach(handleFragmentRefreshRequest);
     }
 

@@ -212,7 +212,8 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "hx-swap-oob=\"outerHTML\""
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
-                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "staff-profile-details")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"staff-details-section\"")
+                triggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "staff-profile-details")
 
         it "hides trial staff invitation email from the staff details form" $ withContext do
             withCleanDb do

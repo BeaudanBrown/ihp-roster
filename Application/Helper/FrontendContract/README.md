@@ -58,8 +58,8 @@ import generated types/data.
 
 `FrontendSurface*` TypeScript names that remain in generated output are
 runtime/mount metadata for server-rendered UI, not a parallel contract
-authority; websocket/browser wire shapes remain the generated `Surface*` and
-live-update contract types.
+authority; subscriptions, websocket invalidations, and actor details use the
+generated `SurfaceScope` and semantic `SurfaceFragmentKey` contract types only.
 
 The old `Application.Helper.Frontend` codec/DTO/schema-group tree has been
 removed. Guardrails fail if production Haskell modules or imports under that

@@ -109,8 +109,8 @@ tests = describe "FrontendSurface DSL foundation" do
                 { mountSurfaceName = "surface-lab"
                 , mountScopeKey = "surface-lab:scope"
                 , mountKey = "primary"
-        , mountScope = Aeson.Null
-        , mountSubscription = Nothing
+                , mountScope = Aeson.Null
+                , mountSubscription = Nothing
                 , mountState = Aeson.object ["showArchived" Aeson..= False]
                 , mountFragments = [fragment]
                 }
@@ -171,6 +171,11 @@ tests = describe "FrontendSurface DSL foundation" do
         frontendSurfaceMountConfigJson config `shouldContainText` "\"kind\":\"focused-field\""
         frontendSurfaceMountConfigJson config `shouldContainText` "\"activeSelector\":\"input[data-lab-field]:focus\""
         frontendSurfaceMountConfigJson parameterlessConfig `shouldContainText` "\"key\":{\"kind\":\"lab-shell\",\"params\":{}}"
+        let mountConfigJson = frontendSurfaceMountConfigJson impl.surfaceImplMountConfig
+        mountConfigJson `shouldNotContainText` "\"fragmentKey\""
+        mountConfigJson `shouldNotContainText` "\"deferUntilBlur\""
+        mountConfigJson `shouldNotContainText` "\"protectionPolicy\""
+        Text.count "\"url\":" mountConfigJson `shouldBe` length impl.surfaceImplMountConfig.mountFragments
 
     it "renders lazy fragments with canonical UI-region attrs and feature slot classes" do
         let fragment = FrontendSurfaceMountedFragment

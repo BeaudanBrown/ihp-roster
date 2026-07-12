@@ -461,6 +461,18 @@ export function parseSurfaceFragmentKey(value: unknown): SurfaceFragmentKey {
 }
 export function encodeSurfaceFragmentKey(value: SurfaceFragmentKey): SurfaceFragmentKey { return value; }
 
+function __canonicalFrontendContractJson(value: unknown): string {
+    if (Array.isArray(value)) return `[${value.map(__canonicalFrontendContractJson).join(",")}]`;
+    if (isRecord(value)) return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${__canonicalFrontendContractJson(value[key])}`).join(",")}}`;
+    return JSON.stringify(value) ?? "null";
+}
+export function surfaceFragmentKeyIdentity(value: SurfaceFragmentKey): string {
+    return __canonicalFrontendContractJson([value.surface, value.kind, value.params]);
+}
+export function surfaceFragmentKeysEqual(left: SurfaceFragmentKey, right: SurfaceFragmentKey): boolean {
+    return surfaceFragmentKeyIdentity(left) === surfaceFragmentKeyIdentity(right);
+}
+
 export type FrontendSurfaceInteractionSurfaceName = "roster" | "roster-day-timeline";
 export function isFrontendSurfaceInteractionSurfaceName(value: unknown): value is FrontendSurfaceInteractionSurfaceName {
     return typeof value === "string" && ["roster", "roster-day-timeline"].includes(value);
@@ -555,9 +567,9 @@ export function encodePageReadyEventDetail(value: PageReadyEventDetail): PageRea
 
 export const pageReadyEvent = "bepis:page-ready" as const;
 
-export type LiveFragmentsRefreshEventDetail = {  };
+export type LiveFragmentsRefreshEventDetail = { scope: SurfaceScope; scopeKey: string; fragments: ReadonlyArray<SurfaceFragmentKey> };
 export function isLiveFragmentsRefreshEventDetail(value: unknown): value is LiveFragmentsRefreshEventDetail {
-    return isRecord(value);
+    return isRecord(value) && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item)));
 }
 export function parseLiveFragmentsRefreshEventDetail(value: unknown): LiveFragmentsRefreshEventDetail {
     if (isLiveFragmentsRefreshEventDetail(value)) return value;
@@ -1321,10 +1333,10 @@ export function parseIntentHiddenField(value: unknown): IntentHiddenField {
 export function encodeIntentHiddenField(value: IntentHiddenField): IntentHiddenField { return value; }
 
 export type InteractionIntentTarget =
-    { kind: "live-fragment"; fragment: SurfaceWireFragment }
+    { kind: "live-fragment"; fragment: SurfaceFragmentKey }
   | { kind: "mount-local"; target: string };
 export function isInteractionIntentTarget(value: unknown): value is InteractionIntentTarget {
-    return ((isRecord(value) && value["kind"] === "live-fragment" && (isSurfaceWireFragment(value["fragment"]))) || (isRecord(value) && value["kind"] === "mount-local" && (typeof value["target"] === "string")));
+    return ((isRecord(value) && value["kind"] === "live-fragment" && (isSurfaceFragmentKey(value["fragment"]))) || (isRecord(value) && value["kind"] === "mount-local" && (typeof value["target"] === "string")));
 }
 export function parseInteractionIntentTarget(value: unknown): InteractionIntentTarget {
     if (isInteractionIntentTarget(value)) return value;
@@ -1527,31 +1539,9 @@ export function encodeInteractionStaticSchemaRegistry(value: InteractionStaticSc
 
 export const InteractionStaticSchemas: InteractionStaticSchemaRegistry = {"roster":{"serverLayers":[],"disposableLayers":[{"name":"drag-preview","domIdSuffix":"drag-preview"}],"sessionKinds":[{"kind":"drag","description":"Roster drag/drop prototype","effects":{"global":[{"className":"bepis-pointer-clone-shadow","kind":"clone-shadow","layer":"drag-preview","preserveGrabOffset":true,"source":"pointer-marker"}],"contextual":[{"className":"bepis-dropzone-highlight","kind":"dropzone-highlight"}]}}],"intents":[{"name":"set-roster-layout-mode","fields":[{"name":"rosterLayoutMode","presence":"required","defaultValue":null}]},{"name":"move-roster-shift-to-slot","fields":[{"name":"sourceItemKey","presence":"required","defaultValue":null},{"name":"targetDropzoneKey","presence":"required","defaultValue":null},{"name":"sessionKind","presence":"optional","defaultValue":null},{"name":"pointerId","presence":"optional","defaultValue":null},{"name":"pointerType","presence":"optional","defaultValue":null},{"name":"startClientX","presence":"optional","defaultValue":null},{"name":"startClientY","presence":"optional","defaultValue":null},{"name":"currentClientX","presence":"optional","defaultValue":null},{"name":"currentClientY","presence":"optional","defaultValue":null},{"name":"deltaX","presence":"optional","defaultValue":null},{"name":"deltaY","presence":"optional","defaultValue":null}]},{"name":"duplicate-roster-shift-to-day","fields":[{"name":"sourceItemKey","presence":"required","defaultValue":null},{"name":"targetDropzoneKey","presence":"required","defaultValue":null},{"name":"sessionKind","presence":"optional","defaultValue":null},{"name":"pointerId","presence":"optional","defaultValue":null},{"name":"pointerType","presence":"optional","defaultValue":null},{"name":"startClientX","presence":"optional","defaultValue":null},{"name":"startClientY","presence":"optional","defaultValue":null},{"name":"currentClientX","presence":"optional","defaultValue":null},{"name":"currentClientY","presence":"optional","defaultValue":null},{"name":"deltaX","presence":"optional","defaultValue":null},{"name":"deltaY","presence":"optional","defaultValue":null}]},{"name":"drop-roster-staff","fields":[{"name":"sourceItemKey","presence":"required","defaultValue":null},{"name":"targetDropzoneKey","presence":"required","defaultValue":null},{"name":"sessionKind","presence":"optional","defaultValue":null},{"name":"pointerId","presence":"optional","defaultValue":null},{"name":"pointerType","presence":"optional","defaultValue":null},{"name":"startClientX","presence":"optional","defaultValue":null},{"name":"startClientY","presence":"optional","defaultValue":null},{"name":"currentClientX","presence":"optional","defaultValue":null},{"name":"currentClientY","presence":"optional","defaultValue":null},{"name":"deltaX","presence":"optional","defaultValue":null},{"name":"deltaY","presence":"optional","defaultValue":null}]}],"conflictPolicies":[]},"roster-day-timeline":{"serverLayers":[],"disposableLayers":[{"name":"drag-preview","domIdSuffix":"drag-preview"}],"sessionKinds":[{"kind":"drag","description":"roster-day-timeline drag interaction session","effects":{"global":[{"className":"bepis-pointer-clone-shadow","kind":"clone-shadow","layer":"drag-preview","preserveGrabOffset":true,"source":"pointer-marker"}],"contextual":[{"className":"bepis-dropzone-highlight","kind":"dropzone-highlight"}]}}],"intents":[{"name":"move-roster-timeline-shift","fields":[{"name":"sourceItemKey","presence":"required","defaultValue":null},{"name":"targetDropzoneKey","presence":"required","defaultValue":null},{"name":"sessionKind","presence":"optional","defaultValue":null},{"name":"pointerId","presence":"optional","defaultValue":null},{"name":"pointerType","presence":"optional","defaultValue":null},{"name":"startClientX","presence":"optional","defaultValue":null},{"name":"startClientY","presence":"optional","defaultValue":null},{"name":"currentClientX","presence":"optional","defaultValue":null},{"name":"currentClientY","presence":"optional","defaultValue":null},{"name":"deltaX","presence":"optional","defaultValue":null},{"name":"deltaY","presence":"optional","defaultValue":null}]}],"conflictPolicies":[{"session":{"kind":"session","session":"drag"},"fragment":{"kind":"any"},"resolution":"defer","timeoutMs":5000}]}};
 
-export type SurfaceFragmentProtection =
-    { kind: "none" }
-  | { kind: "focused-field"; activeSelector: string; fieldKeyAttr: string; fieldNameFallback: boolean; containerSelector: string | null };
-export function isSurfaceFragmentProtection(value: unknown): value is SurfaceFragmentProtection {
-    return ((isRecord(value) && value["kind"] === "none") || (isRecord(value) && value["kind"] === "focused-field" && (typeof value["activeSelector"] === "string") && (typeof value["fieldKeyAttr"] === "string") && (typeof value["fieldNameFallback"] === "boolean") && (value["containerSelector"] === null || (typeof value["containerSelector"] === "string"))));
-}
-export function parseSurfaceFragmentProtection(value: unknown): SurfaceFragmentProtection {
-    if (isSurfaceFragmentProtection(value)) return value;
-    throw new Error("Invalid SurfaceFragmentProtection");
-}
-export function encodeSurfaceFragmentProtection(value: SurfaceFragmentProtection): SurfaceFragmentProtection { return value; }
-
-export type SurfaceWireFragment = { fragmentKey: SurfaceFragmentKey; targetId: string; url: string; deferUntilBlur: boolean; protectionPolicy: SurfaceFragmentProtection };
-export function isSurfaceWireFragment(value: unknown): value is SurfaceWireFragment {
-    return isRecord(value) && (isSurfaceFragmentKey(value["fragmentKey"])) && (typeof value["targetId"] === "string") && (typeof value["url"] === "string") && (typeof value["deferUntilBlur"] === "boolean") && (isSurfaceFragmentProtection(value["protectionPolicy"]));
-}
-export function parseSurfaceWireFragment(value: unknown): SurfaceWireFragment {
-    if (isSurfaceWireFragment(value)) return value;
-    throw new Error("Invalid SurfaceWireFragment");
-}
-export function encodeSurfaceWireFragment(value: SurfaceWireFragment): SurfaceWireFragment { return value; }
-
-export type SurfaceSubscription = { scope: SurfaceScope; scopeKey: string; mountedFragments: ReadonlyArray<SurfaceWireFragment> };
+export type SurfaceSubscription = { scope: SurfaceScope; scopeKey: string; fragments: ReadonlyArray<SurfaceFragmentKey> };
 export function isSurfaceSubscription(value: unknown): value is SurfaceSubscription {
-    return isRecord(value) && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (Array.isArray(value["mountedFragments"]) && value["mountedFragments"].every((item) => isSurfaceWireFragment(item)));
+    return isRecord(value) && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item)));
 }
 export function parseSurfaceSubscription(value: unknown): SurfaceSubscription {
     if (isSurfaceSubscription(value)) return value;
@@ -1573,10 +1563,10 @@ export function encodeLiveUpdateCommand(value: LiveUpdateCommand): LiveUpdateCom
 
 export type LiveUpdateMessage =
     { type: "subscribed"; scope: SurfaceScope; scopeKey: string; currentVersion: number; resync: boolean }
-  | { type: "invalidate"; scope: SurfaceScope; scopeKey: string; version: number; fragments: ReadonlyArray<SurfaceWireFragment>; sourceClientId: string | null }
+  | { type: "invalidate"; scope: SurfaceScope; scopeKey: string; version: number; fragments: ReadonlyArray<SurfaceFragmentKey>; sourceClientId: string | null }
   | { type: "error"; message: string };
 export function isLiveUpdateMessage(value: unknown): value is LiveUpdateMessage {
-    return ((isRecord(value) && value["type"] === "subscribed" && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && (typeof value["resync"] === "boolean")) || (isRecord(value) && value["type"] === "invalidate" && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceWireFragment(item))) && (value["sourceClientId"] === null || (typeof value["sourceClientId"] === "string"))) || (isRecord(value) && value["type"] === "error" && (typeof value["message"] === "string")));
+    return ((isRecord(value) && value["type"] === "subscribed" && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && (typeof value["resync"] === "boolean")) || (isRecord(value) && value["type"] === "invalidate" && (isSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item))) && (value["sourceClientId"] === null || (typeof value["sourceClientId"] === "string"))) || (isRecord(value) && value["type"] === "error" && (typeof value["message"] === "string")));
 }
 export function parseLiveUpdateMessage(value: unknown): LiveUpdateMessage {
     if (isLiveUpdateMessage(value)) return value;
@@ -2946,7 +2936,7 @@ export type AdminXeroDomToken = "admin-xero-fragment" | "xero-preparation-staff-
 export const adminXeroSurfaceManifest = {"surface":"admin-xero","scopes":["admin-xero"],"fragments":["admin-xero-shell"],"liveFragments":["admin-xero-shell"],"htmxActions":[{"name":"sync-xero-payroll-reference-data","fields":[],"htmx":{"method":"post","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"admin-xero-fragment","swap":"none","pushUrl":null,"custom":[{"name":"load-reference-sync-custom-htmx","reason":"automatic post-connect sync supplies load/push-url/indicator attributes; the manual shell action supplies this marker with no extra attributes"}]}},{"name":"show-xero-timesheet-preparation-staff-mappings","fields":["showMatched","editStaffId"],"htmx":{"method":"get","trigger":null,"include":null,"sync":null,"indicator":null,"confirm":null,"select":null,"target":"xero-preparation-staff-mappings","swap":"outerHTML","pushUrl":null,"custom":[]}}],"intents":[],"sessions":[],"interaction":{"sourceRefs":[],"dropzoneRefs":[],"activationRefs":[]},"layers":[],"domTokens":["admin-xero-fragment","xero-preparation-staff-mappings"],"overlayLanes":[],"containedSurfaces":{}} as const;
 
 // FrontendSurface* live types are server-rendered mount metadata adapters.
-// Canonical websocket wire contracts remain SurfaceScope, SurfaceFragmentKey, and SurfaceWireFragment.
+// Canonical websocket and actor invalidations carry SurfaceScope and SurfaceFragmentKey only.
 export type FrontendSurfaceScope =
     { surface: "timesheets"; scope: TimesheetsTimesheetWeekScope }
   | { surface: "roster"; scope: RosterRosterWeekScope }
@@ -2962,21 +2952,6 @@ export type FrontendSurfaceScope =
   | { surface: "admin-shift-types"; scope: AdminShiftTypesAdminShiftTypesScopeScope }
   | { surface: "admin-roster-groups"; scope: AdminRosterGroupsAdminRosterGroupsScopeScope }
   | { surface: "admin-xero"; scope: AdminXeroAdminXeroScopeScope };
-export type FrontendSurfaceLiveFragment =
-    { surface: "timesheets"; fragment: TimesheetsSurfaceFragmentKey }
-  | { surface: "roster"; fragment: RosterSurfaceFragmentKey }
-  | { surface: "roster-day-timeline"; fragment: RosterDayTimelineSurfaceFragmentKey }
-  | { surface: "leave-requests"; fragment: LeaveRequestsSurfaceFragmentKey }
-  | { surface: "billing"; fragment: BillingSurfaceFragmentKey }
-  | { surface: "support"; fragment: SupportSurfaceFragmentKey }
-  | { surface: "profile"; fragment: ProfileSurfaceFragmentKey }
-  | { surface: "staff"; fragment: StaffSurfaceFragmentKey }
-  | { surface: "admin-venue-config"; fragment: AdminVenueConfigSurfaceFragmentKey }
-  | { surface: "admin-invites"; fragment: AdminInvitesSurfaceFragmentKey }
-  | { surface: "admin-exports"; fragment: AdminExportsSurfaceFragmentKey }
-  | { surface: "admin-shift-types"; fragment: AdminShiftTypesSurfaceFragmentKey }
-  | { surface: "admin-roster-groups"; fragment: AdminRosterGroupsSurfaceFragmentKey }
-  | { surface: "admin-xero"; fragment: AdminXeroSurfaceFragmentKey };
 export function isFrontendSurfaceScope(value: unknown): value is FrontendSurfaceScope {
     if (!isRecord(value)) return false;
     if (!isFrontendSurfaceName(value.surface)) return false;
@@ -2985,16 +2960,6 @@ export function isFrontendSurfaceScope(value: unknown): value is FrontendSurface
 export function parseFrontendSurfaceScope(value: unknown): FrontendSurfaceScope {
     if (isFrontendSurfaceScope(value)) return value;
     throw new Error("Invalid FrontendSurfaceScope");
-}
-export function isFrontendSurfaceLiveFragment(value: unknown): value is FrontendSurfaceLiveFragment {
-    if (!isRecord(value)) return false;
-    if (!isFrontendSurfaceName(value.surface)) return false;
-    if (!isRecord(value.fragment)) return false;
-    return typeof value.fragment.kind === "string" && __surfaceHasFragment(value.surface, value.fragment.kind);
-}
-export function parseFrontendSurfaceLiveFragment(value: unknown): FrontendSurfaceLiveFragment {
-    if (isFrontendSurfaceLiveFragment(value)) return value;
-    throw new Error("Invalid FrontendSurfaceLiveFragment");
 }
 
 export type HtmxCustomHtmxAttribute = { name: string; reason: string };
@@ -3049,19 +3014,9 @@ export function parseFrontendSurfaceSurfaceFragmentProtection(value: unknown): F
 }
 export function encodeFrontendSurfaceSurfaceFragmentProtection(value: FrontendSurfaceSurfaceFragmentProtection): FrontendSurfaceSurfaceFragmentProtection { return value; }
 
-export type FrontendSurfaceLiveWireFragment = { fragment: FrontendSurfaceLiveFragment; targetId: string; url: string; deferUntilBlur: boolean; protectionPolicy: FrontendSurfaceSurfaceFragmentProtection };
-export function isFrontendSurfaceLiveWireFragment(value: unknown): value is FrontendSurfaceLiveWireFragment {
-    return isRecord(value) && (isFrontendSurfaceLiveFragment(value["fragment"])) && (typeof value["targetId"] === "string") && (typeof value["url"] === "string") && (typeof value["deferUntilBlur"] === "boolean") && (isFrontendSurfaceSurfaceFragmentProtection(value["protectionPolicy"]));
-}
-export function parseFrontendSurfaceLiveWireFragment(value: unknown): FrontendSurfaceLiveWireFragment {
-    if (isFrontendSurfaceLiveWireFragment(value)) return value;
-    throw new Error("Invalid FrontendSurfaceLiveWireFragment");
-}
-export function encodeFrontendSurfaceLiveWireFragment(value: FrontendSurfaceLiveWireFragment): FrontendSurfaceLiveWireFragment { return value; }
-
-export type FrontendSurfaceLiveSubscription = { scope: FrontendSurfaceScope; scopeKey: string; resyncFragments: ReadonlyArray<FrontendSurfaceLiveWireFragment> };
+export type FrontendSurfaceLiveSubscription = { scope: FrontendSurfaceScope; scopeKey: string; resyncFragments: ReadonlyArray<SurfaceFragmentKey> };
 export function isFrontendSurfaceLiveSubscription(value: unknown): value is FrontendSurfaceLiveSubscription {
-    return isRecord(value) && (isFrontendSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (Array.isArray(value["resyncFragments"]) && value["resyncFragments"].every((item) => isFrontendSurfaceLiveWireFragment(item)));
+    return isRecord(value) && (isFrontendSurfaceScope(value["scope"])) && (typeof value["scopeKey"] === "string") && (Array.isArray(value["resyncFragments"]) && value["resyncFragments"].every((item) => isSurfaceFragmentKey(item)));
 }
 export function parseFrontendSurfaceLiveSubscription(value: unknown): FrontendSurfaceLiveSubscription {
     if (isFrontendSurfaceLiveSubscription(value)) return value;
@@ -3074,10 +3029,6 @@ export type FrontendSurfaceMountedFragmentConfig = { key: FrontendSurfaceMounted
 export type FrontendSurfaceMountConfig = { surface: FrontendSurfaceName; scopeKey: string; mountKey: string; mountState: unknown; fragments: ReadonlyArray<FrontendSurfaceMountedFragmentConfig>; subscription: FrontendSurfaceLiveSubscription | null };
 // FrontendSurfaceMountConfig is the HTML data attribute shape emitted by Haskell views.
 // Runtime parsing/normalization lives in frontend/ts/live-updates/frontend-surface.ts.
-function __surfaceHasFragment(surface: FrontendSurfaceName, fragment: string): boolean {
-    return (FrontendSurfaceRegistry[surface].fragments as readonly string[]).includes(fragment);
-}
-
 export type FrontendSurfaceName = "surface-lab" | "timesheets" | "roster" | "roster-day-timeline" | "leave-requests" | "billing" | "support" | "profile" | "staff" | "admin-page" | "admin-xero-page" | "admin-venue-config" | "admin-invites" | "admin-exports" | "admin-shift-types" | "admin-roster-groups" | "admin-xero";
 export const FrontendSurfaceRegistry = {
     "surface-lab": surfaceLabSurfaceManifest,

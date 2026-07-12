@@ -1,6 +1,6 @@
 module Application.Helper.FrontendContract.Surface.DependencyPlanner
     ( planFrontendSurfaceInvalidation
-    , planFrontendSurfaceWireInvalidation
+    , planFrontendSurfaceKeyInvalidation
     , frontendSurfaceFragmentDependsOnTouchedResource
     ) where
 
@@ -25,9 +25,9 @@ planFrontendSurfaceInvalidation touchedResources scope candidates =
     where
         touchedValues = touchedResources
 
-planFrontendSurfaceWireInvalidation :: Set.Set SurfaceResourceValue -> SurfaceScope -> [SurfaceWireFragment] -> [SurfaceWireFragment]
-planFrontendSurfaceWireInvalidation touchedResources scope fragments =
-    filter (frontendSurfaceWireFragmentDependsOnTouchedResource touchedResources scope) fragments
+planFrontendSurfaceKeyInvalidation :: Set.Set SurfaceResourceValue -> SurfaceScope -> [SurfaceFragmentKey] -> [SurfaceFragmentKey]
+planFrontendSurfaceKeyInvalidation touchedResources scope fragmentKeys =
+    filter (frontendSurfaceFragmentKeyDependsOnTouchedResource touchedResources scope) fragmentKeys
 
 frontendSurfaceFragmentDependsOnTouchedResource :: Set.Set SurfaceResourceValue -> SurfaceScope -> FrontendSurfaceMountedFragment -> Bool
 frontendSurfaceFragmentDependsOnTouchedResource touchedValues scope mountedFragment =
@@ -35,30 +35,29 @@ frontendSurfaceFragmentDependsOnTouchedResource touchedValues scope mountedFragm
         [] -> False
         dependencies -> not (Set.null (Set.intersection touchedValues (Set.fromList dependencies)))
 
-frontendSurfaceWireFragmentDependsOnTouchedResource :: Set.Set SurfaceResourceValue -> SurfaceScope -> SurfaceWireFragment -> Bool
-frontendSurfaceWireFragmentDependsOnTouchedResource touchedValues scope fragment =
-    case wireFragmentDependencies scope fragment of
+frontendSurfaceFragmentKeyDependsOnTouchedResource :: Set.Set SurfaceResourceValue -> SurfaceScope -> SurfaceFragmentKey -> Bool
+frontendSurfaceFragmentKeyDependsOnTouchedResource touchedValues scope fragmentKey =
+    case fragmentKeyDependencies scope fragmentKey of
         [] -> False
         dependencies -> not (Set.null (Set.intersection touchedValues (Set.fromList dependencies)))
 
 mountedFragmentDependencies :: SurfaceScope -> FrontendSurfaceMountedFragment -> [SurfaceResourceValue]
 mountedFragmentDependencies scope mountedFragment = do
-    surface <- maybeToList (findSurface scopeWire.surface)
+    surface <- maybeToList (findSurface scopeSurface)
     fragment <- maybeToList (findFragment mountedFragment.mountedFragmentKey.fragmentKind surface)
     dependency <- SurfaceIR.optionResourceDependencies fragment.fragmentOptions
-    maybeToList (resourceValueFromDependency scopeWire.scope mountedFragment.mountedFragmentKey.fragmentParams dependency)
-    where
-        scopeWire = surfaceScopeToWire scope
+    maybeToList (resourceValueFromDependency scopePayload mountedFragment.mountedFragmentKey.fragmentParams dependency)
+  where
+    Wire.SurfaceScope { surface = scopeSurface, scope = scopePayload } = surfaceScopeToWire scope
 
-wireFragmentDependencies :: SurfaceScope -> SurfaceWireFragment -> [SurfaceResourceValue]
-wireFragmentDependencies scope fragment = do
-    let scopeWire = surfaceScopeToWire scope
-    let Wire.SurfaceWireFragment { fragmentKey = Wire.SurfaceFragmentKey { surface = fragmentSurface, kind = fragmentKind, params = fragmentParams } } = surfaceWireFragmentToWire fragment
-    True <- pure (fragmentSurface == scopeWire.surface)
-    surface <- maybeToList (findSurface scopeWire.surface)
-    fragmentIR <- maybeToList (findFragment fragmentKind surface)
+fragmentKeyDependencies :: SurfaceScope -> SurfaceFragmentKey -> [SurfaceResourceValue]
+fragmentKeyDependencies scope fragmentKey = do
+    let Wire.SurfaceScope { surface = scopeSurface, scope = scopePayload } = surfaceScopeToWire scope
+    True <- pure (fragmentKey.surfaceFragmentSurface == scopeSurface)
+    surface <- maybeToList (findSurface scopeSurface)
+    fragmentIR <- maybeToList (findFragment fragmentKey.surfaceFragmentWireKind surface)
     dependency <- SurfaceIR.optionResourceDependencies fragmentIR.fragmentOptions
-    maybeToList (resourceValueFromDependency scopeWire.scope fragmentParams dependency)
+    maybeToList (resourceValueFromDependency scopePayload fragmentKey.surfaceFragmentParams dependency)
 
 findSurface :: Text -> Maybe SurfaceIR.SurfaceIR
 findSurface surfaceName =

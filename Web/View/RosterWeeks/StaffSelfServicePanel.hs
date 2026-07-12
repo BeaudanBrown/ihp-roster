@@ -13,7 +13,8 @@ import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceActio
                                                             FrontendSurfaceMountedFragment (..),
                                                             SurfaceImpl (..),
                                                             renderFrontendSurfaceActionForm,
-                                                            renderFrontendSurfaceMount)
+                                                            renderFrontendSurfaceMount,
+                                                            surfaceImplWithMountedFragments)
 import qualified Application.Helper.FrontendContract.Surface.Timesheets as Surface
 import Application.Helper.Url (appendQueryParams)
 import Data.Time.Calendar (diffDays)
@@ -150,10 +151,10 @@ timesheetSurface panel =
             , timesheetsMountShowAllStaff = False
             , timesheetsMountStaffFilterId = Nothing
             }
-        impl = timesheetsSurfaceImpl scope mountState
         dayTargetId = "timesheet-day-section-" <> tshow (quickToolsTimesheetDayOffset panel)
         dayFragment = filter (\fragment -> fragment.mountedFragmentTargetId == dayTargetId) (timesheetsCandidateMountedFragments scope mountState)
-     in impl { surfaceImplMountConfig = impl.surfaceImplMountConfig { mountFragments = dayFragment } }
+     in timesheetsSurfaceImpl scope mountState
+            |> surfaceImplWithMountedFragments dayFragment
 
 quickToolsTimesheetDayOffset :: RosterStaffSelfServicePanel -> Int
 quickToolsTimesheetDayOffset panel =

@@ -79,7 +79,6 @@ canonicalWireSegment wire value =
         Contract.WireUnknownIR -> canonicalJsonSegment value
         Contract.WireSurfaceScopeIR -> fail "Nested Surface scopes cannot define scope identity"
         Contract.WireSurfaceFragmentKeyIR -> fail "Surface fragment keys cannot define scope identity"
-        Contract.WireSurfaceWireFragmentIR -> fail "Surface wire fragments cannot define scope identity"
     where
         escapedText = \case
             Aeson.String text -> pure (escapeSegment text)

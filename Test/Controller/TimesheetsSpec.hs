@@ -94,7 +94,7 @@ tests = beforeAll testContext do
                         let mountState = TimesheetsMountStateValue { timesheetsMountShowApproved = False, timesheetsMountShowAllStaff = True, timesheetsMountStaffFilterId = Nothing }
                         let impl = timesheetsSurfaceImpl scope mountState
                         response <- callAction ShowTimesheetWeekAction { weekOffset = 0 }
-                        pure (response, impl.surfaceImplMountConfig, timesheetsSurfaceWireFragments impl.surfaceImplMountConfig.mountFragments)
+                        pure (response, impl.surfaceImplMountConfig, impl.surfaceImplMountConfig.mountFragments)
 
                 mountConfig.mountSurfaceName `shouldBe` "timesheets"
                 mountConfig.mountScopeKey `shouldBe` "timesheets:" <> tshow (unpackId venue.id) <> ":0"
@@ -164,8 +164,8 @@ tests = beforeAll testContext do
                         let scope = TimesheetWeekScopeValue { timesheetWeekVenueId = unpackId venue.id, timesheetWeekWeekOffset = 0 }
                         let mountState = TimesheetsMountStateValue { timesheetsMountShowApproved = False, timesheetsMountShowAllStaff = True, timesheetsMountStaffFilterId = Nothing }
                         let daySectionRef =
-                                timesheetsSurfaceWireFragments (timesheetsCandidateMountedFragments scope mountState)
-                                    |> find (\fragment -> fragment.targetId == "timesheet-day-section-0")
+                                timesheetsCandidateMountedFragments scope mountState
+                                    |> find (\fragment -> fragment.mountedFragmentTargetId == "timesheet-day-section-0")
                                     |> fromMaybe (error "Expected day section fragment ref")
                         callAction ShowTimesheetWeekAction { weekOffset = 0 }
                         response <- callAction ShowTimesheetDaySectionFragmentAction { weekOffset = 0, dayOffset = 0 }
@@ -697,8 +697,9 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "id=\"timesheet-day-section-1\""
                 response `responseBodyShouldContain` "Timesheet entry created"
                 let hiddenCreateTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
-                hiddenCreateTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "timesheet-day-section")
-                hiddenCreateTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "timesheet-day-section-1")
+                hiddenCreateTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"timesheet-day-section\"")
+                hiddenCreateTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"dayOffset\":1")
+                hiddenCreateTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "timesheet-day-section-1")
 
         it "creating timesheets via HTMX updates the actor fragment and bumps the week scope version" $ withContext do
             withCleanDb do
@@ -731,8 +732,9 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "hx-swap-oob=\"outerHTML\""
                 let createTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 createTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
-                createTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "timesheet-day-section")
-                createTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "timesheet-day-section-1")
+                createTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"timesheet-day-section\"")
+                createTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"dayOffset\":1")
+                createTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "timesheet-day-section-1")
 
                 versionAfter <- currentLiveUpdateVersion (timesheetWeekLiveScope (unpackId venue.id) 0)
                 versionAfter `shouldBe` versionBefore
@@ -769,8 +771,11 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Timesheet entry updated"
                 response `responseBodyShouldNotContain` "hx-swap-oob=\"outerHTML\""
                 let moveTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
-                moveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "timesheet-day-section-1")
-                moveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "timesheet-day-section-2")
+                moveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"timesheet-day-section\"")
+                moveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"dayOffset\":1")
+                moveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"dayOffset\":2")
+                moveTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "timesheet-day-section-1")
+                moveTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "timesheet-day-section-2")
 
                 updatedEntry <- fetch entry.id
                 updatedEntry.workedOn `shouldBe` fromGregorian 2025 1 8
@@ -795,7 +800,9 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "id=\"timesheet-day-section-1\""
                 response `responseBodyShouldNotContain` "hx-swap-oob=\"outerHTML\""
                 let approveTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
-                approveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "timesheet-day-section-1")
+                approveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"timesheet-day-section\"")
+                approveTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"dayOffset\":1")
+                approveTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "timesheet-day-section-1")
                 versionAfter <- currentLiveUpdateVersion (timesheetWeekLiveScope (unpackId venue.id) 0)
                 versionAfter `shouldBe` versionBefore
 

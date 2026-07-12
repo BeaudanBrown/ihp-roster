@@ -123,15 +123,12 @@ tests = beforeAll testContext do
                         SurfaceSubscription
                             { subscriptionScope = scope
                             , subscriptionScopeKey = surfaceScopeKey scope
-                            , subscriptionMountedFragments =
-                                [ SurfaceWireFragment fragment ("target-" <> tshow index) ("/fragment/" <> tshow index) False NoProtection
-                                | (index, fragment) <- zip [(1 :: Int) ..] rosterContentFragments
-                                ]
+                            , subscriptionFragmentKeys = rosterContentFragments
                             }
                 let planFragments resource = withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                         withCurrentControllerContext do
                             pure
-                                [ (target.targetScope, map (.fragmentKey) target.targetFragments)
+                                [ (target.targetScope, target.targetFragments)
                                 | target <- planSurfaceInvalidations (Set.singleton resource) [subscription]
                                 ]
 
@@ -412,7 +409,8 @@ tests = beforeAll testContext do
                 createShiftResponse `responseBodyShouldNotContain` "id=\"app\""
                 let createShiftTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders createShiftResponse)
                 createShiftTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
-                createShiftTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-shift-types-fragment")
+                createShiftTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"admin-shift-types\"")
+                createShiftTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "admin-shift-types-fragment")
                 shiftTypesVersionAfter <- currentLiveUpdateVersion (adminShiftTypesLiveScope (unpackId venue.id))
                 shiftTypesVersionAfter `shouldBe` shiftTypesVersionBefore
                 xeroVersionAfterCreateShift <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
@@ -428,7 +426,8 @@ tests = beforeAll testContext do
                 moveShiftResponse `responseBodyShouldNotContain` "Fragment Shift"
                 moveShiftResponse `responseBodyShouldNotContain` "id=\"app\""
                 let moveShiftTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders moveShiftResponse)
-                moveShiftTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-shift-types-fragment")
+                moveShiftTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"admin-shift-types\"")
+                moveShiftTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "admin-shift-types-fragment")
                 shiftTypesVersionAfterMove <- currentLiveUpdateVersion (adminShiftTypesLiveScope (unpackId venue.id))
                 shiftTypesVersionAfterMove `shouldBe` shiftTypesVersionAfter
 
@@ -447,7 +446,8 @@ tests = beforeAll testContext do
                 updateShiftResponse `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
                 updateShiftResponse `responseBodyShouldNotContain` "hx-swap-oob=\"outerHTML\""
                 let updateShiftTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders updateShiftResponse)
-                updateShiftTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-shift-types-fragment")
+                updateShiftTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"admin-shift-types\"")
+                updateShiftTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "admin-shift-types-fragment")
                 xeroVersionAfterUpdateShift <- currentLiveUpdateVersion (adminXeroLiveScope (unpackId venue.id))
                 xeroVersionAfterUpdateShift `shouldBe` xeroVersionAfterCreateShift
 
@@ -468,7 +468,8 @@ tests = beforeAll testContext do
                 createRosterGroupResponse `responseBodyShouldNotContain` "id=\"app\""
                 let createRosterGroupTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders createRosterGroupResponse)
                 createRosterGroupTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "bepis:live-fragments-refresh")
-                createRosterGroupTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-roster-groups-fragment")
+                createRosterGroupTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"admin-roster-groups\"")
+                createRosterGroupTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "admin-roster-groups-fragment")
                 rosterGroupsVersionAfter <- currentLiveUpdateVersion (adminRosterGroupsLiveScope (unpackId venue.id))
                 rosterGroupsVersionAfter `shouldBe` rosterGroupsVersionBefore
 
@@ -482,7 +483,8 @@ tests = beforeAll testContext do
                 moveRosterGroupResponse `responseBodyShouldNotContain` "Fragment Group"
                 moveRosterGroupResponse `responseBodyShouldNotContain` "id=\"app\""
                 let moveRosterGroupTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders moveRosterGroupResponse)
-                moveRosterGroupTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-roster-groups-fragment")
+                moveRosterGroupTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"admin-roster-groups\"")
+                moveRosterGroupTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "admin-roster-groups-fragment")
                 rosterGroupsVersionAfterMove <- currentLiveUpdateVersion (adminRosterGroupsLiveScope (unpackId venue.id))
                 rosterGroupsVersionAfterMove `shouldBe` rosterGroupsVersionAfter
 
@@ -498,7 +500,8 @@ tests = beforeAll testContext do
                 updateRosterGroupResponse `responseBodyShouldNotContain` "Updated Fragment Group"
                 updateRosterGroupResponse `responseBodyShouldNotContain` tshow inactiveRosterGroup.id
                 let updateRosterGroupTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders updateRosterGroupResponse)
-                updateRosterGroupTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-roster-groups-fragment")
+                updateRosterGroupTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"admin-roster-groups\"")
+                updateRosterGroupTriggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "admin-roster-groups-fragment")
 
         it "creates venue-scoped non-pay config rows from the admin page" $ withContext do
             withCleanDb do
@@ -724,7 +727,8 @@ tests = beforeAll testContext do
                 lookup "HX-Reswap" (responseHeaders response) `shouldBe` Just "none"
                 response `responseBodyShouldNotContain` "id=\"admin-roster-groups-fragment\""
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
-                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin-roster-groups-fragment")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"admin-roster-groups\"")
+                triggerHeader `shouldSatisfy` maybe False (not . Text.isInfixOf "admin-roster-groups-fragment")
                 unchangedRosterGroup <- fetch rosterGroup.id
                 unchangedRosterGroup.isActive `shouldBe` True
                 versionAfter <- currentLiveUpdateVersion (adminRosterGroupsLiveScope (unpackId venue.id))

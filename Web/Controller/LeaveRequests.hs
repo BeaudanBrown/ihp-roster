@@ -16,18 +16,18 @@ import qualified Data.Text.IO as TextIO
 import Web.Controller.Prelude
 import Web.LeaveRequests.FrontendSurface (LeaveRequestsScopeValue (..),
                                           leaveRequestsCandidateMountedFragments,
-                                          leaveRequestsSurfaceScope,
-                                          leaveRequestsSurfaceWireFragments)
+                                          leaveRequestsSurfaceFragmentKeys,
+                                          leaveRequestsSurfaceScope)
 import Web.LeaveRequests.Mutations
 import Web.LeaveRequests.ProfileSelfService
 import Web.LeaveRequests.ReadModel
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
                                      profileSectionFragmentForSection,
+                                     profileSurfaceFragmentKeys,
                                      profileSurfaceScope,
-                                     profileSurfaceWireFragments,
                                      staffSectionFragmentForSection,
-                                     staffSurfaceScope,
-                                     staffSurfaceWireFragments)
+                                     staffSurfaceFragmentKeys,
+                                     staffSurfaceScope)
 import Web.RosterWeeks.Responses (respondWithRosterFragments)
 import Web.RosterWeeks.StaffSelfServiceLeaveFragments (buildDefaultRosterStaffSelfServiceLeaveRequest)
 import Web.RosterWeeks.Types (RosterProjectionFragment (..))
@@ -161,7 +161,7 @@ respondWithLeaveRequestsContent :: (?context :: ControllerContext, ?request :: R
 respondWithLeaveRequestsContent successMessage = do
     let scope = LeaveRequestsScopeValue (unpackId currentVenueId)
     setHeader ("HX-Reswap", "none")
-    setActorLiveFragmentsRefresh (leaveRequestsSurfaceScope scope) (leaveRequestsSurfaceWireFragments (leaveRequestsCandidateMountedFragments scope))
+    setActorLiveFragmentsRefresh (leaveRequestsSurfaceScope scope) (leaveRequestsSurfaceFragmentKeys (leaveRequestsCandidateMountedFragments scope))
     respondHtmlProfiled $
         [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
             <> renderToastOob ToastBottomCenter (successToast successMessage)
@@ -179,14 +179,14 @@ respondWithProfileLeaveActorInvalidation :: (?context :: ControllerContext, ?req
 respondWithProfileLeaveActorInvalidation staff successMessage = do
     let scope = ProfileScopeValue (unpackId currentVenueId) (unpackId staff.id)
     setHeader ("HX-Reswap", "none")
-    setActorLiveFragmentsRefresh (profileSurfaceScope scope) (profileSurfaceWireFragments [profileSectionFragmentForSection "leave"])
+    setActorLiveFragmentsRefresh (profileSurfaceScope scope) (profileSurfaceFragmentKeys [profileSectionFragmentForSection "leave"])
     respondHtmlProfiled (renderToastOob ToastBottomCenter (successToast successMessage))
 
 respondWithStaffLeaveActorInvalidation :: (?context :: ControllerContext, ?request :: Request) => Staff -> Text -> IO ()
 respondWithStaffLeaveActorInvalidation staff successMessage = do
     let scope = ProfileScopeValue (unpackId currentVenueId) (unpackId staff.id)
     setHeader ("HX-Reswap", "none")
-    setActorLiveFragmentsRefresh (staffSurfaceScope scope) (staffSurfaceWireFragments [staffSectionFragmentForSection scope "leave"])
+    setActorLiveFragmentsRefresh (staffSurfaceScope scope) (staffSurfaceFragmentKeys [staffSectionFragmentForSection scope "leave"])
     respondHtmlProfiled (renderToastOob ToastBottomCenter (successToast successMessage))
 
 resolveRosterLeaveScope :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Id RosterGroup, Int)

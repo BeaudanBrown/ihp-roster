@@ -10,7 +10,7 @@ module Web.LeaveRequests.FrontendSurface
     , leaveRequestsSurfaceImpl
     , leaveRequestsSurfaceMountConfig
     , leaveRequestsSurfaceScopeKey
-    , leaveRequestsSurfaceWireFragments
+    , leaveRequestsSurfaceFragmentKeys
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
@@ -38,8 +38,8 @@ data LeaveRequestsScopeValue = LeaveRequestsScopeValue
 
 leaveRequestsSurfaceImpl :: LeaveRequestsScopeValue -> SurfaceImpl Surface.LeaveRequestsSurface
 leaveRequestsSurfaceImpl scope =
-    let impl = mkSurfaceImpl "leave-requests" (leaveRequestsSurfaceMountConfig scope) (leaveRequestsSurfaceHandlers scope)
-     in impl { surfaceImplMountConfig = impl.surfaceImplMountConfig { mountFragments = leaveRequestsCandidateMountedFragments scope } }
+    mkSurfaceImpl "leave-requests" (leaveRequestsSurfaceMountConfig scope) (leaveRequestsSurfaceHandlers scope)
+        |> surfaceImplWithMountedFragments (leaveRequestsCandidateMountedFragments scope)
 
 leaveRequestsSurfaceMountConfig :: LeaveRequestsScopeValue -> FrontendSurfaceMountConfig
 leaveRequestsSurfaceMountConfig scope =
@@ -65,9 +65,9 @@ leaveRequestsCandidateMountedFragments :: LeaveRequestsScopeValue -> [FrontendSu
 leaveRequestsCandidateMountedFragments _ =
     leaveRequestsSectionMountedFragments
 
-leaveRequestsSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [SurfaceWireFragment]
-leaveRequestsSurfaceWireFragments =
-    frontendSurfaceMountedFragmentsToWire "leave-requests"
+leaveRequestsSurfaceFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
+leaveRequestsSurfaceFragmentKeys =
+    frontendSurfaceMountedFragmentsToKeys "leave-requests"
 
 leaveRequestsSurfaceHandlers :: LeaveRequestsScopeValue -> SurfaceImplHandlers Surface.LeaveRequestsSurface
 leaveRequestsSurfaceHandlers scope =

@@ -164,7 +164,7 @@ lands.
 - The roster shell stays subscribed even when a week is empty or hidden so
   create/copy/publish transitions can update passive viewers.
 - Actor browser responses return HTMX fragments or OOB swaps.
-- Passive viewers receive websocket invalidations with structural fragment refs.
+- Passive viewers receive websocket invalidations containing semantic fragment keys; each browser resolves them through its local roster mount descriptors.
 - Fragment GET routes must enforce the same venue/visibility rules as the full
   page.
 - Roster live fragments refresh immediately; discrete autosaved controls should

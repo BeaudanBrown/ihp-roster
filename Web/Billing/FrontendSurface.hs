@@ -10,7 +10,7 @@ module Web.Billing.FrontendSurface
     , billingSurfaceImpl
     , billingSurfaceMountConfig
     , billingSurfaceScopeKey
-    , billingSurfaceWireFragments
+    , billingSurfaceFragmentKeys
     , currentBillingCheckoutReturnState
     , currentBillingScopeValue
     ) where
@@ -49,8 +49,8 @@ currentBillingScopeValue =
 
 billingSurfaceImpl :: BillingScopeValue -> BillingCheckoutReturnState -> SurfaceImpl Surface.BillingSurface
 billingSurfaceImpl scope checkoutReturnState =
-    let impl = mkSurfaceImpl "billing" (billingSurfaceMountConfig scope checkoutReturnState) (billingSurfaceHandlers scope checkoutReturnState)
-     in impl { surfaceImplMountConfig = impl.surfaceImplMountConfig { mountFragments = billingCandidateMountedFragments checkoutReturnState } }
+    mkSurfaceImpl "billing" (billingSurfaceMountConfig scope checkoutReturnState) (billingSurfaceHandlers scope checkoutReturnState)
+        |> surfaceImplWithMountedFragments (billingCandidateMountedFragments checkoutReturnState)
 
 billingSurfaceMountConfig :: BillingScopeValue -> BillingCheckoutReturnState -> FrontendSurfaceMountConfig
 billingSurfaceMountConfig scope checkoutReturnState =
@@ -76,9 +76,9 @@ billingCandidateMountedFragments :: BillingCheckoutReturnState -> [FrontendSurfa
 billingCandidateMountedFragments checkoutReturnState =
     [billingStatusMountedFragment (billingStatusFragmentUrl checkoutReturnState)]
 
-billingSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [SurfaceWireFragment]
-billingSurfaceWireFragments =
-    frontendSurfaceMountedFragmentsToWire "billing"
+billingSurfaceFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
+billingSurfaceFragmentKeys =
+    frontendSurfaceMountedFragmentsToKeys "billing"
 
 billingSurfaceHandlers :: BillingScopeValue -> BillingCheckoutReturnState -> SurfaceImplHandlers Surface.BillingSurface
 billingSurfaceHandlers scope checkoutReturnState =

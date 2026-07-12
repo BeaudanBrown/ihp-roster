@@ -1,10 +1,11 @@
-import type { LiveUpdateCommand, SurfaceScope, SurfaceSubscription, SurfaceWireFragment } from "../generated/contracts";
-import { encodeLiveUpdateCommand } from "../generated/contracts";
+import type { LiveUpdateCommand, SurfaceFragmentKey, SurfaceScope, SurfaceSubscription } from "../generated/contracts";
+import { encodeLiveUpdateCommand, surfaceFragmentKeyIdentity } from "../generated/contracts";
+import type { LiveUpdateMountedFragment } from "./frontend-surface";
 
 type MessageWithScopeKey = { scopeKey?: unknown };
 export type MountedFragmentSubscription = {
     scopeKey: string;
-    resyncFragments: SurfaceWireFragment[];
+    resyncFragments: LiveUpdateMountedFragment[];
 };
 
 export function liveUpdateMessageScopeKey(message: MessageWithScopeKey | null | undefined): string | null {
@@ -19,11 +20,11 @@ export function normalizeLiveUpdateVersion(value: unknown): number | null {
     return Number.isInteger(value) && (value as number) >= 0 ? value as number : null;
 }
 
-export function buildSurfaceSubscription(scope: SurfaceScope, scopeKey: string, mountedFragments: SurfaceWireFragment[]): SurfaceSubscription {
+export function buildSurfaceSubscription(scope: SurfaceScope, scopeKey: string, fragments: SurfaceFragmentKey[]): SurfaceSubscription {
     return {
         scope,
         scopeKey,
-        mountedFragments,
+        fragments,
     };
 }
 
@@ -43,16 +44,9 @@ export function buildLiveUpdateUnsubscribeCommand(subscription: SurfaceSubscript
     });
 }
 
-export function liveUpdateFragmentMergeKey(fragment: Pick<SurfaceWireFragment, "fragmentKey" | "targetId"> | null | undefined): string | null {
+export function liveUpdateFragmentMergeKey(fragment: Pick<LiveUpdateMountedFragment, "fragmentKey" | "targetId"> | null | undefined): string | null {
     if (!fragment || !fragment.targetId) return null;
-    const fragmentKey = fragment.fragmentKey ? JSON.stringify(fragment.fragmentKey) : "";
-    return `${fragmentKey}:${fragment.targetId}`;
-}
-
-function liveUpdateFragmentSemanticKey(fragment: Pick<SurfaceWireFragment, "fragmentKey"> | null | undefined): string | null {
-    const fragmentKey = fragment?.fragmentKey;
-    if (!fragmentKey) return null;
-    return JSON.stringify([fragmentKey.surface, fragmentKey.kind, fragmentKey.params]);
+    return `${surfaceFragmentKeyIdentity(fragment.fragmentKey)}:${fragment.targetId}`;
 }
 
 export function liveUpdateInvalidationIsOwnEcho(sourceClientId: string | null | undefined, activeClientId: string | null | undefined): boolean {
@@ -61,23 +55,23 @@ export function liveUpdateInvalidationIsOwnEcho(sourceClientId: string | null | 
 
 export function resolveMountedFragmentsForInvalidation(
     subscriptions: Iterable<MountedFragmentSubscription>,
-    fragments: SurfaceWireFragment[],
+    fragments: readonly SurfaceFragmentKey[],
     scopeKey: string | null = null,
-): SurfaceWireFragment[] {
+): LiveUpdateMountedFragment[] {
     if (scopeKey === null || scopeKey.length === 0) return [];
 
     const mountedSubscriptions = Array.from(subscriptions);
-    const resolved: SurfaceWireFragment[] = [];
+    const resolved: LiveUpdateMountedFragment[] = [];
     const seen = new Set<string>();
 
-    fragments.forEach((fragment) => {
-        const semanticKey = liveUpdateFragmentSemanticKey(fragment);
-        const matches: SurfaceWireFragment[] = [];
+    fragments.forEach((fragmentKey) => {
+        const semanticKey = surfaceFragmentKeyIdentity(fragmentKey);
+        const matches: LiveUpdateMountedFragment[] = [];
 
         for (const subscription of mountedSubscriptions) {
             if (subscription.scopeKey !== scopeKey) continue;
             subscription.resyncFragments.forEach((mountedFragment) => {
-                if (semanticKey !== null && liveUpdateFragmentSemanticKey(mountedFragment) === semanticKey) {
+                if (surfaceFragmentKeyIdentity(mountedFragment.fragmentKey) === semanticKey) {
                     matches.push(mountedFragment);
                 }
             });

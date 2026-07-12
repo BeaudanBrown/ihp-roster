@@ -232,43 +232,25 @@ benchmarkSubscription scope =
     SurfaceSubscription
         { subscriptionScope = scope
         , subscriptionScopeKey = surfaceScopeKey scope
-        , subscriptionMountedFragments = benchmarkFragments scope
+        , subscriptionFragmentKeys = benchmarkFragmentKeys scope
         }
 
-benchmarkFragments :: SurfaceScope -> [SurfaceWireFragment]
-benchmarkFragments = \case
+benchmarkFragmentKeys :: SurfaceScope -> [SurfaceFragmentKey]
+benchmarkFragmentKeys = \case
     scope
-        | surfaceScopeKind scope == "billing" -> [fragment billingStatusLiveFragment]
-        | surfaceScopeKind scope == "timesheets" -> [fragment timesheetToolbarLiveFragment]
-        | surfaceScopeKind scope == "admin-xero" -> [fragment adminXeroShellLiveFragment]
-        | surfaceScopeKind scope == "roster" -> [fragment rosterContentLiveFragment]
-        | surfaceScopeKind scope == "support" -> [fragment supportAwardRatesSectionLiveFragment]
-        | surfaceScopeKind scope == "admin-invites" -> [fragment adminInvitesLiveFragment]
-        | surfaceScopeKind scope == "admin-venue-config" -> [fragment adminVenueConfigLiveFragment]
-        | surfaceScopeKind scope == "admin-shift-types" -> [fragment adminShiftTypesLiveFragment]
-        | surfaceScopeKind scope == "admin-roster-groups" -> [fragment adminRosterGroupsLiveFragment]
-        | surfaceScopeKind scope == "admin-exports" -> [fragment adminExportsLiveFragment]
-        | surfaceScopeKind scope == "leave-requests" -> [fragment leaveRequestsContentLiveFragment]
-        | surfaceScopeKind scope == "profile" -> [fragment profileContentLiveFragment]
+        | surfaceScopeKind scope == "billing" -> [billingStatusLiveFragment]
+        | surfaceScopeKind scope == "timesheets" -> [timesheetToolbarLiveFragment]
+        | surfaceScopeKind scope == "admin-xero" -> [adminXeroShellLiveFragment]
+        | surfaceScopeKind scope == "roster" -> [rosterContentLiveFragment]
+        | surfaceScopeKind scope == "support" -> [supportAwardRatesSectionLiveFragment]
+        | surfaceScopeKind scope == "admin-invites" -> [adminInvitesLiveFragment]
+        | surfaceScopeKind scope == "admin-venue-config" -> [adminVenueConfigLiveFragment]
+        | surfaceScopeKind scope == "admin-shift-types" -> [adminShiftTypesLiveFragment]
+        | surfaceScopeKind scope == "admin-roster-groups" -> [adminRosterGroupsLiveFragment]
+        | surfaceScopeKind scope == "admin-exports" -> [adminExportsLiveFragment]
+        | surfaceScopeKind scope == "leave-requests" -> [leaveRequestsContentLiveFragment]
+        | surfaceScopeKind scope == "profile" -> [profileContentLiveFragment]
         | otherwise -> []
-    where
-        fragment key = SurfaceWireFragment key ("profile-" <> surfaceFragmentKeyKindForProfile key) "/profile-live-invalidation" False NoProtection
-
-surfaceFragmentKeyKindForProfile :: SurfaceFragmentKey -> Text
-surfaceFragmentKeyKindForProfile = \case
-    billingStatusLiveFragment -> "billing-status"
-    timesheetToolbarLiveFragment -> "timesheet-toolbar"
-    adminXeroShellLiveFragment -> "admin-xero-shell"
-    rosterContentLiveFragment -> "roster-content"
-    supportAwardRatesSectionLiveFragment -> "support-award-rates"
-    adminInvitesLiveFragment -> "admin-invites"
-    adminVenueConfigLiveFragment -> "admin-venue-config"
-    adminShiftTypesLiveFragment -> "admin-shift-types"
-    adminRosterGroupsLiveFragment -> "admin-roster-groups"
-    adminExportsLiveFragment -> "admin-exports"
-    leaveRequestsContentLiveFragment -> "leave-requests-content"
-    profileContentLiveFragment -> "profile-content"
-    _ -> "fragment"
 
 venueIdFor :: Int -> UUID
 venueIdFor index =

@@ -151,7 +151,7 @@ tests = beforeAll testContext do
                 bodyText `shouldNotContain` "hx-swap-oob=\"outerHTML\""
                 let rosterActorTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 rosterActorTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterDayColumnsFragmentId))
-                rosterActorTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterStaffPanelFragmentId))
+                rosterActorTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-staff-panel\"")
 
                 updatedDay <- fetch rosterDay.id
                 updatedDay.isClosed `shouldBe` True
@@ -232,7 +232,7 @@ tests = beforeAll testContext do
                 bodyText `shouldNotContain` "hx-swap-oob=\"outerHTML\""
                 let rosterActorTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 rosterActorTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterDayColumnsFragmentId))
-                rosterActorTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterStaffPanelFragmentId))
+                rosterActorTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-staff-panel\"")
 
                 slotsForDay <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId rosterDay.id)
@@ -267,7 +267,7 @@ tests = beforeAll testContext do
                 bodyText `shouldNotContain` "hx-swap-oob=\"outerHTML\""
                 let rosterActorTriggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 rosterActorTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterDayColumnsFragmentId))
-                rosterActorTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf (cs rosterStaffPanelFragmentId))
+                rosterActorTriggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "\"kind\":\"roster-staff-panel\"")
 
                 slotsForDay <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId rosterDayWithRows.id)

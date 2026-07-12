@@ -66,7 +66,6 @@ data WireType
     | WireRef Type
     | WireSurfaceScope
     | WireSurfaceFragmentKey
-    | WireSurfaceWireFragment
 
 -- | Record-like fields. Presence is part of the DSL, not renderer policy.
 data FieldSpec

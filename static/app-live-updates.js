@@ -112,7 +112,25 @@
   function isSurfaceFragmentKey(value) {
     return isRecord(value) && value.surface === "surface-lab" && isSurfaceLabSurfaceFragmentKey(value) || isRecord(value) && value.surface === "timesheets" && isTimesheetsSurfaceFragmentKey(value) || isRecord(value) && value.surface === "roster" && isRosterSurfaceFragmentKey(value) || isRecord(value) && value.surface === "roster-day-timeline" && isRosterDayTimelineSurfaceFragmentKey(value) || isRecord(value) && value.surface === "leave-requests" && isLeaveRequestsSurfaceFragmentKey(value) || isRecord(value) && value.surface === "billing" && isBillingSurfaceFragmentKey(value) || isRecord(value) && value.surface === "support" && isSupportSurfaceFragmentKey(value) || isRecord(value) && value.surface === "profile" && isProfileSurfaceFragmentKey(value) || isRecord(value) && value.surface === "staff" && isStaffSurfaceFragmentKey(value) || isRecord(value) && value.surface === "admin-page" && isAdminPageSurfaceFragmentKey(value) || isRecord(value) && value.surface === "admin-xero-page" && isAdminXeroPageSurfaceFragmentKey(value) || isRecord(value) && value.surface === "admin-venue-config" && isAdminVenueConfigSurfaceFragmentKey(value) || isRecord(value) && value.surface === "admin-invites" && isAdminInvitesSurfaceFragmentKey(value) || isRecord(value) && value.surface === "admin-exports" && isAdminExportsSurfaceFragmentKey(value) || isRecord(value) && value.surface === "admin-shift-types" && isAdminShiftTypesSurfaceFragmentKey(value) || isRecord(value) && value.surface === "admin-roster-groups" && isAdminRosterGroupsSurfaceFragmentKey(value) || isRecord(value) && value.surface === "admin-xero" && isAdminXeroSurfaceFragmentKey(value);
   }
+  function __canonicalFrontendContractJson(value) {
+    if (Array.isArray(value)) return `[${value.map(__canonicalFrontendContractJson).join(",")}]`;
+    if (isRecord(value)) return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${__canonicalFrontendContractJson(value[key])}`).join(",")}}`;
+    return JSON.stringify(value) ?? "null";
+  }
+  function surfaceFragmentKeyIdentity(value) {
+    return __canonicalFrontendContractJson([value.surface, value.kind, value.params]);
+  }
+  function surfaceFragmentKeysEqual(left, right) {
+    return surfaceFragmentKeyIdentity(left) === surfaceFragmentKeyIdentity(right);
+  }
   var pageReadyEvent = "bepis:page-ready";
+  function isLiveFragmentsRefreshEventDetail(value) {
+    return isRecord(value) && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item)));
+  }
+  function parseLiveFragmentsRefreshEventDetail(value) {
+    if (isLiveFragmentsRefreshEventDetail(value)) return value;
+    throw new Error("Invalid LiveFragmentsRefreshEventDetail");
+  }
   var liveFragmentsRefreshEvent = "bepis:live-fragments-refresh";
   var interactionSessionStartEvent = "bepis:interaction-session-start";
   var interactionSessionEndEvent = "bepis:interaction-session-end";
@@ -170,17 +188,11 @@
     values: { enabled: enabledDomValue },
     pointerFields: { sessionKind: sessionKindFieldName, pointerId: pointerIdFieldName, pointerType: pointerTypeFieldName, startClientX: startClientXFieldName, startClientY: startClientYFieldName, currentClientX: currentClientXFieldName, currentClientY: currentClientYFieldName, deltaX: deltaXFieldName, deltaY: deltaYFieldName, sourceItemKey: sourceItemKeyFieldName, targetDropzoneKey: targetDropzoneKeyFieldName }
   };
-  function isSurfaceFragmentProtection(value) {
-    return isRecord(value) && value["kind"] === "none" || isRecord(value) && value["kind"] === "focused-field" && typeof value["activeSelector"] === "string" && typeof value["fieldKeyAttr"] === "string" && typeof value["fieldNameFallback"] === "boolean" && (value["containerSelector"] === null || typeof value["containerSelector"] === "string");
-  }
-  function isSurfaceWireFragment(value) {
-    return isRecord(value) && isSurfaceFragmentKey(value["fragmentKey"]) && typeof value["targetId"] === "string" && typeof value["url"] === "string" && typeof value["deferUntilBlur"] === "boolean" && isSurfaceFragmentProtection(value["protectionPolicy"]);
-  }
   function encodeLiveUpdateCommand(value) {
     return value;
   }
   function isLiveUpdateMessage(value) {
-    return isRecord(value) && value["type"] === "subscribed" && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && typeof value["resync"] === "boolean" || isRecord(value) && value["type"] === "invalidate" && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceWireFragment(item))) && (value["sourceClientId"] === null || typeof value["sourceClientId"] === "string") || isRecord(value) && value["type"] === "error" && typeof value["message"] === "string";
+    return isRecord(value) && value["type"] === "subscribed" && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["currentVersion"] === "number" && Number.isInteger(value["currentVersion"])) && typeof value["resync"] === "boolean" || isRecord(value) && value["type"] === "invalidate" && isSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (typeof value["version"] === "number" && Number.isInteger(value["version"])) && (Array.isArray(value["fragments"]) && value["fragments"].every((item) => isSurfaceFragmentKey(item))) && (value["sourceClientId"] === null || typeof value["sourceClientId"] === "string") || isRecord(value) && value["type"] === "error" && typeof value["message"] === "string";
   }
   function parseLiveUpdateMessage(value) {
     if (isLiveUpdateMessage(value)) return value;
@@ -259,23 +271,8 @@
     if (!isFrontendSurfaceName(value.surface)) return false;
     return isRecord(value.scope);
   }
-  function isFrontendSurfaceLiveFragment(value) {
-    if (!isRecord(value)) return false;
-    if (!isFrontendSurfaceName(value.surface)) return false;
-    if (!isRecord(value.fragment)) return false;
-    return typeof value.fragment.kind === "string" && __surfaceHasFragment(value.surface, value.fragment.kind);
-  }
-  function isFrontendSurfaceSurfaceFragmentProtection(value) {
-    return isRecord(value) && value["kind"] === "none" || isRecord(value) && value["kind"] === "focused-field" && typeof value["activeSelector"] === "string" && typeof value["fieldKeyAttr"] === "string" && typeof value["fieldNameFallback"] === "boolean" && (value["containerSelector"] === null || typeof value["containerSelector"] === "string");
-  }
-  function isFrontendSurfaceLiveWireFragment(value) {
-    return isRecord(value) && isFrontendSurfaceLiveFragment(value["fragment"]) && typeof value["targetId"] === "string" && typeof value["url"] === "string" && typeof value["deferUntilBlur"] === "boolean" && isFrontendSurfaceSurfaceFragmentProtection(value["protectionPolicy"]);
-  }
   function isFrontendSurfaceLiveSubscription(value) {
-    return isRecord(value) && isFrontendSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (Array.isArray(value["resyncFragments"]) && value["resyncFragments"].every((item) => isFrontendSurfaceLiveWireFragment(item)));
-  }
-  function __surfaceHasFragment(surface, fragment) {
-    return FrontendSurfaceRegistry[surface].fragments.includes(fragment);
+    return isRecord(value) && isFrontendSurfaceScope(value["scope"]) && typeof value["scopeKey"] === "string" && (Array.isArray(value["resyncFragments"]) && value["resyncFragments"].every((item) => isSurfaceFragmentKey(item)));
   }
   var FrontendSurfaceRegistry = {
     "surface-lab": surfaceLabSurfaceManifest,
@@ -577,7 +574,7 @@
   function parseFrontendSurfaceSubscriptionConfig(value) {
     const config = parseFrontendSurfaceMountConfig(value);
     if (!config?.subscription) return null;
-    const resyncFragments = config.subscription.resyncFragments.map(surfaceLiveFragmentToWire);
+    const resyncFragments = config.fragments.map((fragment) => mountedFragmentForSurface(config.surface, fragment)).filter((fragment) => config.subscription?.resyncFragments.some((key) => surfaceFragmentKeysEqual(key, fragment.fragmentKey)) ?? false);
     if (resyncFragments.length === 0) return null;
     return {
       feature: config.surface,
@@ -587,7 +584,7 @@
       mountKey: config.mountKey,
       socketPath: "/live-updates",
       resyncFragments,
-      decorateRequestsWithin: config.subscription.resyncFragments.map((fragment) => `#${fragment.targetId}`)
+      decorateRequestsWithin: resyncFragments.map((fragment) => `#${fragment.targetId}`)
     };
   }
   function parseFrontendSurfaceMountConfig(value) {
@@ -625,21 +622,21 @@
   function isRecord2(value) {
     return typeof value === "object" && value !== null && !Array.isArray(value);
   }
-  function surfaceLiveFragmentToWire(fragment) {
+  function mountedFragmentForSurface(surface, fragment) {
     return {
       fragmentKey: {
-        surface: fragment.fragment.surface,
-        kind: fragment.fragment.fragment.kind,
-        params: fragment.fragment.fragment.params
+        surface,
+        kind: fragment.key.kind,
+        params: fragment.key.params
       },
       targetId: fragment.targetId,
       url: fragment.url,
-      deferUntilBlur: fragment.deferUntilBlur,
-      protectionPolicy: fragmentProtectionToWire(fragment.protectionPolicy)
+      deferUntilBlur: isRecord2(fragment.protection) && fragment.protection.kind === "focused-field",
+      protectionPolicy: fragmentProtectionForLocalMount(fragment.protection)
     };
   }
-  function fragmentProtectionToWire(protection) {
-    if (protection.kind !== "focused-field") return { kind: "none" };
+  function fragmentProtectionForLocalMount(protection) {
+    if (!isRecord2(protection) || protection.kind !== "focused-field") return { kind: "none" };
     if (typeof protection.activeSelector !== "string") return { kind: "none" };
     if (typeof protection.fieldKeyAttr !== "string") return { kind: "none" };
     if (typeof protection.fieldNameFallback !== "boolean") return { kind: "none" };
@@ -856,11 +853,11 @@
   function normalizeLiveUpdateVersion(value) {
     return Number.isInteger(value) && value >= 0 ? value : null;
   }
-  function buildSurfaceSubscription(scope, scopeKey, mountedFragments) {
+  function buildSurfaceSubscription(scope, scopeKey, fragments) {
     return {
       scope,
       scopeKey,
-      mountedFragments
+      fragments
     };
   }
   function buildLiveUpdateSubscribeCommand(subscription, clientId, lastSeenVersion) {
@@ -879,13 +876,7 @@
   }
   function liveUpdateFragmentMergeKey(fragment) {
     if (!fragment || !fragment.targetId) return null;
-    const fragmentKey = fragment.fragmentKey ? JSON.stringify(fragment.fragmentKey) : "";
-    return `${fragmentKey}:${fragment.targetId}`;
-  }
-  function liveUpdateFragmentSemanticKey(fragment) {
-    const fragmentKey = fragment?.fragmentKey;
-    if (!fragmentKey) return null;
-    return JSON.stringify([fragmentKey.surface, fragmentKey.kind, fragmentKey.params]);
+    return `${surfaceFragmentKeyIdentity(fragment.fragmentKey)}:${fragment.targetId}`;
   }
   function liveUpdateInvalidationIsOwnEcho(sourceClientId, activeClientId) {
     return Boolean(sourceClientId && activeClientId && sourceClientId === activeClientId);
@@ -895,13 +886,13 @@
     const mountedSubscriptions = Array.from(subscriptions);
     const resolved = [];
     const seen = /* @__PURE__ */ new Set();
-    fragments.forEach((fragment) => {
-      const semanticKey = liveUpdateFragmentSemanticKey(fragment);
+    fragments.forEach((fragmentKey) => {
+      const semanticKey = surfaceFragmentKeyIdentity(fragmentKey);
       const matches = [];
       for (const subscription of mountedSubscriptions) {
         if (subscription.scopeKey !== scopeKey) continue;
         subscription.resyncFragments.forEach((mountedFragment) => {
-          if (semanticKey !== null && liveUpdateFragmentSemanticKey(mountedFragment) === semanticKey) {
+          if (surfaceFragmentKeyIdentity(mountedFragment.fragmentKey) === semanticKey) {
             matches.push(mountedFragment);
           }
         });
@@ -1313,7 +1304,7 @@
       return liveUpdateMessageScopeKey(message);
     }
     function wireSubscription(subscription) {
-      return buildSurfaceSubscription(subscription.scope, subscription.scopeKey, subscription.resyncFragments);
+      return buildSurfaceSubscription(subscription.scope, subscription.scopeKey, subscription.resyncFragments.map((fragment) => fragment.fragmentKey));
     }
     function subscribeScope(subscription) {
       const lastSeenVersion = getScopeVersion(subscription.scopeKey);
@@ -1670,10 +1661,14 @@
       }
     });
     function handleActorFragmentRefreshEvent(event) {
-      const detail = event instanceof CustomEvent ? event.detail : null;
-      const fragments = Array.isArray(detail && detail.fragments) ? detail.fragments : [];
-      const scopeKey = detail && typeof detail.scopeKey === "string" ? detail.scopeKey : null;
-      resolveMountedFragmentsForInvalidation(activeSubscriptions.values(), fragments, scopeKey).forEach(handleFragmentRefreshRequest);
+      if (!(event instanceof CustomEvent)) return;
+      let detail;
+      try {
+        detail = parseLiveFragmentsRefreshEventDetail(event.detail);
+      } catch (_error) {
+        return;
+      }
+      resolveMountedFragmentsForInvalidation(activeSubscriptions.values(), detail.fragments, detail.scopeKey).forEach(handleFragmentRefreshRequest);
     }
     document.addEventListener(actorFragmentRefreshEventName, handleActorFragmentRefreshEvent);
     document.addEventListener(interactionSessionEndEvent, function() {

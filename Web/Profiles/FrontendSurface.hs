@@ -12,13 +12,13 @@ module Web.Profiles.FrontendSurface
     , staffSurfaceAction
     , profileSurfaceMountConfig
     , profileSurfaceScopeKey
-    , profileSurfaceWireFragments
+    , profileSurfaceFragmentKeys
     , staffCandidateMountedFragments
     , staffSectionFragmentForSection
     , staffSurfaceImpl
     , staffSurfaceScope
     , staffSurfaceScopeKey
-    , staffSurfaceWireFragments
+    , staffSurfaceFragmentKeys
     ) where
 
 import qualified Application.Helper.FrontendContract.Surface.ContractIR as SurfaceIR
@@ -42,8 +42,8 @@ type StaffScopeValue = ProfileScopeValue
 
 profileSurfaceImpl :: ProfileScopeValue -> SurfaceImpl Surface.ProfileSurface
 profileSurfaceImpl scope =
-    let impl = mkSurfaceImpl "profile" (profileSurfaceMountConfig scope) (profileSurfaceHandlers scope)
-     in impl { surfaceImplMountConfig = impl.surfaceImplMountConfig { mountFragments = profileCandidateMountedFragments scope } }
+    mkSurfaceImpl "profile" (profileSurfaceMountConfig scope) (profileSurfaceHandlers scope)
+        |> surfaceImplWithMountedFragments (profileCandidateMountedFragments scope)
 
 profileSurfaceMountConfig :: ProfileScopeValue -> FrontendSurfaceMountConfig
 profileSurfaceMountConfig scope =
@@ -74,14 +74,14 @@ profileCandidateMountedFragments _ =
     , profileRsaMountedFragment
     ]
 
-profileSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [SurfaceWireFragment]
-profileSurfaceWireFragments =
-    frontendSurfaceMountedFragmentsToWire "profile"
+profileSurfaceFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
+profileSurfaceFragmentKeys =
+    frontendSurfaceMountedFragmentsToKeys "profile"
 
 staffSurfaceImpl :: StaffScopeValue -> SurfaceImpl Surface.StaffSurface
 staffSurfaceImpl scope =
-    let impl = mkSurfaceImpl "staff" (staffSurfaceMountConfig scope) (staffSurfaceHandlers scope)
-     in impl { surfaceImplMountConfig = impl.surfaceImplMountConfig { mountFragments = staffCandidateMountedFragments scope } }
+    mkSurfaceImpl "staff" (staffSurfaceMountConfig scope) (staffSurfaceHandlers scope)
+        |> surfaceImplWithMountedFragments (staffCandidateMountedFragments scope)
 
 staffSurfaceMountConfig :: StaffScopeValue -> FrontendSurfaceMountConfig
 staffSurfaceMountConfig scope =
@@ -112,9 +112,9 @@ staffCandidateMountedFragments scope =
     , staffLeaveMountedFragment scope
     ]
 
-staffSurfaceWireFragments :: [FrontendSurfaceMountedFragment] -> [SurfaceWireFragment]
-staffSurfaceWireFragments =
-    frontendSurfaceMountedFragmentsToWire "staff"
+staffSurfaceFragmentKeys :: [FrontendSurfaceMountedFragment] -> [SurfaceFragmentKey]
+staffSurfaceFragmentKeys =
+    frontendSurfaceMountedFragmentsToKeys "staff"
 
 staffSurfaceHandlers :: StaffScopeValue -> SurfaceImplHandlers Surface.StaffSurface
 staffSurfaceHandlers scope =

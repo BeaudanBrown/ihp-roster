@@ -76,6 +76,15 @@ tests = describe "Frontend contract generator foundation" do
         checkedIn <- Text.readFile "frontend/ts/generated/contracts.ts"
         checkedIn `shouldBe` frontendContractsTypeScript
 
+    it "keeps executable fragment descriptors out of the live wire contract" do
+        let generatedTypes = generatedContractTypeNames frontendContractsTypeScript
+        forM_ ["SurfaceFragmentKey", "SurfaceSubscription", "LiveFragmentsRefreshEventDetail"] \name ->
+            generatedTypes `shouldContain` [name]
+        forM_ ["SurfaceWireFragment", "SurfaceFragmentProtection"] \name ->
+            generatedTypes `shouldNotContain` [name]
+        frontendContractsTypeScript
+            `shouldSatisfy` Text.isInfixOf "export type SurfaceSubscription = { scope: SurfaceScope; scopeKey: string; fragments: ReadonlyArray<SurfaceFragmentKey> };"
+
     it "embeds the checked Surface topology directly in the unified registry" do
         registeredFrontendContractIR.contractSurfaces
             `shouldBe` registeredFrontendSurfaceContractIR.contractSurfaces
@@ -239,15 +248,10 @@ tests = describe "Frontend contract generator foundation" do
 
     it "validates records, refs, arrays, nullable fields, and tagged unions through the IR JSON interpreter" do
         let scope = Live.SurfaceScope "timesheets" (Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "weekOffset" Aeson..= (4 :: Int)])
-        let fragment = Live.SurfaceWireFragment
-                (Live.SurfaceFragmentKey "timesheets" "timesheet-day-section" (Aeson.object ["dayOffset" Aeson..= (2 :: Int)]))
-                "timesheet-day-2"
-                "/TimesheetDay?offset=2"
-                True
-                (Live.FocusedFieldProtection ".timesheet-input:focus" "data-field-key" True (Just ".timesheet-row"))
-        let subscription = Live.SurfaceSubscription scope "timesheets:11111111-1111-1111-1111-111111111111:4" [fragment]
+        let fragmentKey = Live.SurfaceFragmentKey "timesheets" "timesheet-day-section" (Aeson.object ["dayOffset" Aeson..= (2 :: Int)])
+        let subscription = Live.SurfaceSubscription scope "timesheets:11111111-1111-1111-1111-111111111111:4" [fragmentKey]
         let command = Live.Subscribe subscription "client-1" (Just 9)
-        let message = Live.Invalidate scope "timesheets:11111111-1111-1111-1111-111111111111:4" 10 [fragment] (Just "client-2")
+        let message = Live.Invalidate scope "timesheets:11111111-1111-1111-1111-111111111111:4" 10 [fragmentKey] (Just "client-2")
 
         AesonTypes.parseEither (validateContractValue "SurfaceSubscription") (Aeson.toJSON subscription) `shouldSatisfy` isRight
         AesonTypes.parseEither (validateContractValue "LiveUpdateCommand") (Aeson.toJSON command) `shouldSatisfy` isRight
@@ -258,12 +262,10 @@ tests = describe "Frontend contract generator foundation" do
     it "rejects invalid surface scopes, fragments, enum values, and union discriminators through the IR JSON interpreter" do
         let badScope = Aeson.object ["surface" Aeson..= ("missing" :: Text), "scope" Aeson..= Aeson.object []]
         let badFragment = Aeson.object ["surface" Aeson..= ("timesheets" :: Text), "kind" Aeson..= ("missing" :: Text), "params" Aeson..= Aeson.object []]
-        let badProtection = Aeson.object ["kind" Aeson..= ("missing" :: Text)]
         let badCommand = Aeson.object ["type" Aeson..= ("missing" :: Text)]
 
         AesonTypes.parseEither validateSurfaceScopeValue badScope `shouldSatisfy` isLeft
         AesonTypes.parseEither validateSurfaceFragmentKeyValue badFragment `shouldSatisfy` isLeft
-        AesonTypes.parseEither (validateContractValue "SurfaceFragmentProtection") badProtection `shouldSatisfy` isLeft
         AesonTypes.parseEither (validateContractValue "LiveUpdateCommand") badCommand `shouldSatisfy` isLeft
 
     it "covers Wire.Json field presence, nested refs, arrays, enums, and tagged unions" do
@@ -303,22 +305,15 @@ tests = describe "Frontend contract generator foundation" do
         AesonTypes.parseEither (validateContractValueWith contract "SpecUnion") (Aeson.object ["kind" Aeson..= ("missing" :: Text)]) `shouldSatisfy` isLeft
         AesonTypes.parseEither (validateContractValueWith contract "SpecUnion") (Aeson.object ["kind" Aeson..= ("one" :: Text), "value" Aeson..= goodNested, "extra" Aeson..= True]) `shouldSatisfy` isLeft
 
-    it "validates surface scope, fragment key, and SurfaceWireFragment wire constructors" do
+    it "validates semantic scope and fragment-key wire constructors without executable descriptors" do
         let scope = Aeson.object ["surface" Aeson..= ("timesheets" :: Text), "scope" Aeson..= Aeson.object ["venueId" Aeson..= ("11111111-1111-1111-1111-111111111111" :: Text), "weekOffset" Aeson..= (0 :: Int)]]
         let key = Aeson.object ["surface" Aeson..= ("timesheets" :: Text), "kind" Aeson..= ("timesheet-day-section" :: Text), "params" Aeson..= Aeson.object ["dayOffset" Aeson..= (0 :: Int)]]
-        let fragment = Aeson.object
-                [ "fragmentKey" Aeson..= key
-                , "targetId" Aeson..= ("target" :: Text)
-                , "url" Aeson..= ("/fragment" :: Text)
-                , "deferUntilBlur" Aeson..= True
-                , "protectionPolicy" Aeson..= Aeson.object ["kind" Aeson..= ("none" :: Text)]
-                ]
+        let descriptor = addJsonField "url" (Aeson.String "/fragment") key
         AesonTypes.parseEither (validateWireValue "scope" Contract.WireSurfaceScopeIR) scope `shouldSatisfy` isRight
         AesonTypes.parseEither (validateWireValue "key" Contract.WireSurfaceFragmentKeyIR) key `shouldSatisfy` isRight
-        AesonTypes.parseEither (validateWireValue "fragment" Contract.WireSurfaceWireFragmentIR) fragment `shouldSatisfy` isRight
         AesonTypes.parseEither (validateWireValue "scope" Contract.WireSurfaceScopeIR) (addJsonField "extra" (Aeson.Bool True) scope) `shouldSatisfy` isLeft
         AesonTypes.parseEither (validateWireValue "key" Contract.WireSurfaceFragmentKeyIR) (replaceJsonField "kind" (Aeson.String "missing") key) `shouldSatisfy` isLeft
-        AesonTypes.parseEither (validateWireValue "fragment" Contract.WireSurfaceWireFragmentIR) (removeJsonField "url" fragment) `shouldSatisfy` isLeft
+        AesonTypes.parseEither (validateWireValue "key" Contract.WireSurfaceFragmentKeyIR) descriptor `shouldSatisfy` isLeft
 
     it "keeps generated contract validators, parsers, and encoders out of handwritten TypeScript" do
         offenders <- frontendGeneratedHelperOffenders (generatedContractTypeNames frontendContractsTypeScript)

@@ -6,31 +6,16 @@ module Application.Helper.FrontendContract.LiveUpdate
 
 import Application.Helper.FrontendContract.DSL hiding (Scope)
 
--- Live update websocket protocol. Surface scope and fragment key payloads are
--- semantic wire forms derived from registered Surface declarations by the
--- FrontendContract renderer.
+-- Live update websocket and actor-local protocol. Surface scope and fragment
+-- key payloads are semantic wire forms derived from registered Surface
+-- declarations. Executable mount descriptors are deliberately not part of
+-- this contract.
 data LiveUpdate
-
-data SurfaceFragmentProtection
-data None
-data FocusedField
-
-data ActiveSelector
-data FieldKeyAttr
-data FieldNameFallback
-data ContainerSelector
-
-data SurfaceWireFragment
-data FragmentKey
-data TargetId
-data Url
-data DeferUntilBlur
-data ProtectionPolicy
 
 data SurfaceSubscription
 data Scope
 data ScopeKey
-data MountedFragments
+data Fragments
 
 data LiveUpdateCommand
 data Subscribe
@@ -46,32 +31,15 @@ data Error
 data CurrentVersion
 data Resync
 data Version
-data Fragments
 data SourceClientId
 data Message
 
 type LiveUpdateContract =
     Global LiveUpdate
-        '[ GlobalSchema (TaggedUnionWithTag SurfaceFragmentProtection "kind"
-            '[ Case None '[]
-             , Case FocusedField
-                '[ Field ActiveSelector 'WireText
-                 , Field FieldKeyAttr 'WireText
-                 , Field FieldNameFallback 'WireBool
-                 , NullableField ContainerSelector 'WireText
-                 ]
-             ])
-         , GlobalSchema (Record SurfaceWireFragment
-            '[ Field FragmentKey 'WireSurfaceFragmentKey
-             , Field TargetId 'WireText
-             , Field Url 'WireText
-             , Field DeferUntilBlur 'WireBool
-             , Field ProtectionPolicy ('WireRef SurfaceFragmentProtection)
-             ])
-         , GlobalSchema (Record SurfaceSubscription
+        '[ GlobalSchema (Record SurfaceSubscription
             '[ Field Scope 'WireSurfaceScope
              , Field ScopeKey 'WireText
-             , Field MountedFragments ('WireList ('WireRef SurfaceWireFragment))
+             , Field Fragments ('WireList 'WireSurfaceFragmentKey)
              ])
          , GlobalSchema (TaggedUnionWithTag LiveUpdateCommand "type"
             '[ Case Subscribe
@@ -94,7 +62,7 @@ type LiveUpdateContract =
                 '[ Field Scope 'WireSurfaceScope
                  , Field ScopeKey 'WireText
                  , Field Version 'WireInt
-                 , Field Fragments ('WireList ('WireRef SurfaceWireFragment))
+                 , Field Fragments ('WireList 'WireSurfaceFragmentKey)
                  , NullableField SourceClientId 'WireText
                  ]
              , Case Error

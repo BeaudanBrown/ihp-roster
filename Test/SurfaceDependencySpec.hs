@@ -1,12 +1,16 @@
 module Test.SurfaceDependencySpec where
 
 import Application.Helper.FrontendContract.Surface.DependencyPlanner (planFrontendSurfaceInvalidation)
-import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountedFragment (..))
-import Application.Helper.LiveUpdate (actorLiveFragmentsRefreshFragments)
+import Application.Helper.FrontendContract.Surface.Runtime (FrontendSurfaceMountConfig (..),
+                                                            FrontendSurfaceMountedFragment (..),
+                                                            SurfaceImpl (..))
+import Application.Helper.LiveUpdate (actorLiveFragmentsRefreshKeys)
 import Application.Helper.LiveUpdate.Runtime
 import Application.Helper.SurfaceResource
 import Application.Support.LiveUpdates (supportCandidateMountedFragments,
                                         supportSurfaceScope)
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.Set as Set
 import Data.UUID (fromWords)
 import Generated.Types (RosterDay, RosterGroup)
@@ -21,6 +25,8 @@ import Web.Billing.FrontendSurface (BillingCheckoutReturnState (..),
                                     billingSurfaceScope)
 import Web.LeaveRequests.FrontendSurface (LeaveRequestsScopeValue (..),
                                           leaveRequestsCandidateMountedFragments,
+                                          leaveRequestsSurfaceFragmentKeys,
+                                          leaveRequestsSurfaceImpl,
                                           leaveRequestsSurfaceScope)
 import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
                                      profileCandidateMountedFragments,
@@ -28,8 +34,7 @@ import Web.Profiles.FrontendSurface (ProfileScopeValue (..),
 import Web.RosterWeeks.FrontendSurface (RosterMountedFragmentPlan (..),
                                         RosterWeekScopeValue (..),
                                         rosterCandidateMountedFragments,
-                                        rosterMountedFragmentForProjection,
-                                        rosterSurfaceWireFragments)
+                                        rosterMountedFragmentForProjection)
 import Web.RosterWeeks.Types (RosterProjectionFragment (..))
 import Web.Routes ()
 import Web.SurfaceInvalidation (SurfaceInvalidationTarget (..),
@@ -60,10 +65,9 @@ tests = do
             let mountState = TimesheetsMountStateValue True True Nothing
             let scope = timesheetsSurfaceScope scopeValue
             let candidates = timesheetsCandidateMountedFragments scopeValue mountState
-            let fragments = actorLiveFragmentsRefreshFragments scope (Set.fromList [timesheetDayResource venueId 2 4]) candidates
+            let fragmentKeys = actorLiveFragmentsRefreshKeys scope (Set.fromList [timesheetDayResource venueId 2 4]) candidates
 
-            map targetId fragments `shouldBe` ["timesheet-day-section-4"]
-            map fragmentKey fragments `shouldBe` [timesheetDaySectionLiveFragment 4]
+            fragmentKeys `shouldBe` [timesheetDaySectionLiveFragment 4]
 
         it "selects parameterized leave section fragments from generated dependencies" do
             let venueId = fromWords 10 0 0 0
@@ -75,46 +79,49 @@ tests = do
             map (.mountedFragmentTargetId) affectedByPending `shouldBe` ["leave-pending-count", "leave-pending-list"]
             map (.mountedFragmentTargetId) affectedByApproved `shouldBe` ["leave-approved-count", "leave-approved-list"]
 
-        it "plans affected wire fragments from generated dependencies" do
+        it "derives subscription keys from the exact local mounted-fragment set" do
+            let scopeValue = LeaveRequestsScopeValue (fromWords 10 0 0 0)
+            let impl = leaveRequestsSurfaceImpl scopeValue
+            let candidates = leaveRequestsCandidateMountedFragments scopeValue
+            let expectedKeys = map (Aeson.toJSON . surfaceFragmentKeyToWire) (leaveRequestsSurfaceFragmentKeys candidates)
+            let subscriptionKeys = impl.surfaceImplMountConfig.mountSubscription >>= AesonTypes.parseMaybe (Aeson.withObject "FrontendSurfaceLiveSubscription" (Aeson..: "resyncFragments"))
+
+            subscriptionKeys `shouldBe` Just expectedKeys
+
+        it "plans affected semantic fragment keys from generated dependencies" do
             let venueId = fromWords 1 0 0 0
             let scope = timesheetWeekLiveScope venueId 2
-            let subscription = liveTestSubscription scope [SurfaceWireFragment (timesheetDaySectionLiveFragment 4) "timesheet-day-section-4" "/ShowTimesheetDaySectionFragment?weekOffset=2&dayOffset=4&showApproved=true&showAllStaff=true" False NoProtection]
+            let subscription = liveTestSubscription scope [timesheetDaySectionLiveFragment 4]
             let targets = planSurfaceInvalidationsWithoutContext (Set.fromList [timesheetDayResource venueId 2 4]) [subscription]
 
             map targetFragments targets
-                `shouldBe` [[SurfaceWireFragment (timesheetDaySectionLiveFragment 4) "timesheet-day-section-4" "/ShowTimesheetDaySectionFragment?weekOffset=2&dayOffset=4&showApproved=true&showAllStaff=true" False NoProtection]]
+                `shouldBe` [[timesheetDaySectionLiveFragment 4]]
 
         it "keeps generated dependency planning precise across surface resources" do
             let venueId = fromWords 2 0 0 0
             let adminScope = adminXeroLiveScope venueId
             let supportScope = supportPlatformLiveScope
             let subscriptions =
-                    [ liveTestSubscription adminScope
-                        [ SurfaceWireFragment adminXeroShellLiveFragment "admin-xero-shell" "/admin/xero" False NoProtection
-                        ]
-                    , liveTestSubscription supportScope
-                        [ SurfaceWireFragment supportAwardRatesSectionLiveFragment "support-award-rates" "/support/award-rates" False NoProtection
-                        ]
+                    [ liveTestSubscription adminScope [adminXeroShellLiveFragment]
+                    , liveTestSubscription supportScope [supportAwardRatesSectionLiveFragment]
                     ]
             let targets = planSurfaceInvalidationsWithoutContext (Set.fromList [xeroConnectionResource venueId]) subscriptions
 
-            map (map fragmentKey . targetFragments) targets `shouldBe` [[adminXeroShellLiveFragment]]
+            map targetFragments targets `shouldBe` [[adminXeroShellLiveFragment]]
 
-        it "declares the retained Admin Xero shell refetch target" do
-            let fragments =
-                    AdminSurface.adminSurfaceWireFragments
-                        [AdminSurface.adminXeroShellFragment]
+        it "keeps the retained Admin Xero refetch descriptor local to the mount" do
+            let mountedFragments = [AdminSurface.adminXeroShellFragment]
 
-            map fragmentKey fragments `shouldBe` [adminXeroShellLiveFragment]
-            map targetId fragments `shouldBe` ["admin-xero-fragment"]
-            map url fragments `shouldBe` [pathTo ShowadminXeroShellLiveFragmentAction]
+            AdminSurface.adminSurfaceFragmentKeys mountedFragments `shouldBe` [adminXeroShellLiveFragment]
+            map (.mountedFragmentTargetId) mountedFragments `shouldBe` ["admin-xero-fragment"]
+            map (.mountedFragmentUrl) mountedFragments `shouldBe` [pathTo ShowadminXeroShellLiveFragmentAction]
 
         it "maps only Xero connection changes to the retained shell" do
             let venueId = fromWords 3 0 0 0
             let scope = adminXeroLiveScope venueId
-            let fragments = AdminSurface.adminSurfaceWireFragments [AdminSurface.adminXeroShellFragment]
-            let subscription = liveTestSubscription scope fragments
-            let plannedFor resource = map (map fragmentKey . targetFragments) (planSurfaceInvalidationsWithoutContext (Set.fromList [resource venueId]) [subscription])
+            let fragmentKeys = AdminSurface.adminSurfaceFragmentKeys [AdminSurface.adminXeroShellFragment]
+            let subscription = liveTestSubscription scope fragmentKeys
+            let plannedFor resource = map (.targetFragments) (planSurfaceInvalidationsWithoutContext (Set.fromList [resource venueId]) [subscription])
 
             plannedFor xeroConnectionResource `shouldBe` [[adminXeroShellLiveFragment]]
             plannedFor xeroMappingsResource `shouldBe` []
@@ -142,8 +149,8 @@ tests = do
                     , "roster-day-section-" <> tshow rosterDayId
                     , "roster-row-" <> tshow rosterDayId <> "-2"
                     ]
-            let selectedWireFragments = rosterSurfaceWireFragments (map (rosterMountedFragmentForProjection scope) [RosterProjectionGridToolbar, RosterProjectionDaySection (fromWords 9 0 0 0), RosterProjectionRow (fromWords 9 0 0 0) 2])
-            map targetId selectedWireFragments
+            let selectedMountedFragments = map (rosterMountedFragmentForProjection scope) [RosterProjectionGridToolbar, RosterProjectionDaySection (fromWords 9 0 0 0), RosterProjectionRow (fromWords 9 0 0 0) 2]
+            map (.mountedFragmentTargetId) selectedMountedFragments
                 `shouldBe`
                     [ "roster-grid-toolbar"
                     , "roster-day-section-" <> tshow rosterDayId
@@ -178,10 +185,10 @@ tests = do
             map (.mountedFragmentTargetId) affectedByRsa `shouldBe` ["profile-rsa"]
             map (.mountedFragmentTargetId) affectedByLeave `shouldBe` ["profile-leave"]
 
-liveTestSubscription :: SurfaceScope -> [SurfaceWireFragment] -> SurfaceSubscription
-liveTestSubscription scope fragments =
+liveTestSubscription :: SurfaceScope -> [SurfaceFragmentKey] -> SurfaceSubscription
+liveTestSubscription scope fragmentKeys =
     SurfaceSubscription
         { subscriptionScope = scope
         , subscriptionScopeKey = surfaceScopeKey scope
-        , subscriptionMountedFragments = fragments
+        , subscriptionFragmentKeys = fragmentKeys
         }

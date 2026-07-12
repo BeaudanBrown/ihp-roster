@@ -115,7 +115,7 @@ Every controller requires changes in **four files** (missing any will cause comp
 - Fragment GET actions for FrontendSurface surfaces should return the authoritative plain target node through the feature's fragment renderer/handler. The old typed-live fragment compatibility path has been removed.
 - Treat scopes as authorized logical data slices, not pages. A mutation may invalidate multiple scopes, and only a subset of fragments within each scope.
 - Prefer one websocket connection per browser tab/client with many active scope subscriptions instead of one socket per page.
-- Keep fragment mappings explicit (`targetId`, `url`, defer/swap metadata) in `SurfaceImpl` so the transport stays structural and controllers do not need to know mounted DOM state.
+- Keep fragment mappings explicit (`targetId`, `url`, protection/swap metadata) in each local `SurfaceImpl` mount. Subscription, websocket, and actor transport carries semantic fragment keys only; controllers do not know mounted DOM state.
 - A fragment may contain nested child surface mounts when its type-level spec declares that topology. Controllers should keep child fragment GET actions independently authorized; parent refreshes over child mounts rely on generic recursive runtime reconciliation, not feature-specific cleanup.
 - Keep reconnect semantics explicit in the transport: each scope should expose a monotonic version, subscribe commands may include the client's `lastSeenVersion`, and the server should tell the client when a full scope resync is required instead of assuming no invalidations were missed.
 - Keep fragment GET actions authorized with the same venue/visibility rules as the full page; do not expose restricted fragments just because the websocket payload names them.
