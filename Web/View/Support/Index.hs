@@ -273,7 +273,7 @@ feedbackControlId prefix feedbackItemId = prefix <> "-" <> inputValue feedbackIt
 
 renderAwardRatesSection :: FwcMapdAdminData -> Maybe AppJob -> Maybe AppJob -> Html
 renderAwardRatesSection FwcMapdAdminData { latestSyncRun, currentAwards, currentCoreClassifications, currentCoreAdultPayRates, rateTypeBreakdown } latestRefreshJob activeRefreshJob = [hsx|
-    <div id="support-award-rates-section"
+    <div id="support-award-rates"
          class="d-flex flex-column gap-3">
         <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
             <div>
@@ -289,7 +289,7 @@ renderAwardRatesSection FwcMapdAdminData { latestSyncRun, currentAwards, current
 
 renderPublicHolidaysSection :: [PublicHolidayCoverageYear] -> Maybe AppJob -> Maybe AppJob -> Html
 renderPublicHolidaysSection publicHolidayCoverage latestRefreshJob activeRefreshJob = [hsx|
-    <div id="support-public-holidays-section"
+    <div id="support-public-holidays"
          class="d-flex flex-column gap-3">
         <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
             <div class="small app-muted">

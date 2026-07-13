@@ -175,8 +175,8 @@ tests = do
             let awardRatesFragments = planMountedFragments (Set.fromList [supportAwardRatesResource]) supportSurfaceScope supportCandidateMountedFragments
             let publicHolidayFragments = planMountedFragments (Set.fromList [supportPublicHolidaysResource]) supportSurfaceScope supportCandidateMountedFragments
 
-            map (.mountedFragmentTargetId) awardRatesFragments `shouldBe` ["support-award-rates-section"]
-            map (.mountedFragmentTargetId) publicHolidayFragments `shouldBe` ["support-public-holidays-section"]
+            map (.mountedFragmentTargetId) awardRatesFragments `shouldBe` ["support-award-rates"]
+            map (.mountedFragmentTargetId) publicHolidayFragments `shouldBe` ["support-public-holidays"]
 
         it "selects billing fragments through generated dependencies" do
             let venueId = fromWords 6 0 0 0

@@ -48,7 +48,7 @@ supportAwardRatesMountedFragment :: FrontendSurfaceMountedFragment
 supportAwardRatesMountedFragment =
     frontendSurfaceMountedFragmentFor @Surface.SupportSurface @Surface.SupportAwardRates
         NoSurfaceFields
-        "support-award-rates-section"
+        "support-award-rates"
         "/ShowFwcMapdAwardRatesSection"
         FrontendSurfaceReplace
 
@@ -56,6 +56,6 @@ supportPublicHolidaysMountedFragment :: FrontendSurfaceMountedFragment
 supportPublicHolidaysMountedFragment =
     frontendSurfaceMountedFragmentFor @Surface.SupportSurface @Surface.SupportPublicHolidays
         NoSurfaceFields
-        "support-public-holidays-section"
+        "support-public-holidays"
         "/ShowPublicHolidaysSection"
         FrontendSurfaceReplace

@@ -198,7 +198,7 @@ test("FrontendSurface config parser derives Billing and Support live subscriptio
         fragments: [{
             kind: "support-public-holidays",
             params: null,
-            targetId: "support-public-holidays-section",
+            targetId: "support-public-holidays",
             url: "/ShowPublicHolidaysSection",
             protection: { kind: "replace" },
         }],

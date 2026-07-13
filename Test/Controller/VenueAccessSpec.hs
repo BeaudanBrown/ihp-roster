@@ -364,7 +364,7 @@ tests = beforeAll testContext do
                         callAction CreateFwcMapdRefreshJobAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "id=\"support-award-rates-section\""
+                response `responseBodyShouldContain` "id=\"support-award-rates\""
                 response `responseBodyShouldContain` "Refresh queued/running"
                 response `responseBodyShouldContain` "hx-post=\"/CreateFwcMapdRefreshJob\""
 
@@ -380,7 +380,7 @@ tests = beforeAll testContext do
                     callAction ShowFwcMapdAwardRatesSectionAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "id=\"support-award-rates-section\""
+                response `responseBodyShouldContain` "id=\"support-award-rates\""
                 response `responseBodyShouldNotContain` "hx-get=\"/ShowFwcMapdAwardRatesSection\""
                 response `responseBodyShouldNotContain` "hx-trigger=\"load delay:2s\""
                 response `responseBodyShouldContain` "Refresh queued/running"
@@ -440,7 +440,7 @@ tests = beforeAll testContext do
                         callAction CreatePublicHolidayRefreshJobAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "id=\"support-public-holidays-section\""
+                response `responseBodyShouldContain` "id=\"support-public-holidays\""
                 response `responseBodyShouldContain` "Refresh queued/running"
                 response `responseBodyShouldContain` "hx-post=\"/CreatePublicHolidayRefreshJob\""
 

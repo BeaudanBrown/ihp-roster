@@ -73,8 +73,10 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-bepis-surface=\"support\""
-                response `responseBodyShouldContain` "support-award-rates-section"
-                response `responseBodyShouldContain` "support-public-holidays-section"
+                response `responseBodyShouldContain` "id=\"support-award-rates\""
+                response `responseBodyShouldContain` "hx-target=\"#support-award-rates\""
+                response `responseBodyShouldContain` "id=\"support-public-holidays\""
+                response `responseBodyShouldContain` "hx-target=\"#support-public-holidays\""
 
         it "shows submitted feedback without the submit-feedback button for super admins" $ withContext do
             withCleanDb do
@@ -133,7 +135,7 @@ tests = beforeAll testContext do
                 versionAfter <- currentLiveUpdateVersion supportSurfaceScope
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "id=\"support-public-holidays-section\""
+                response `responseBodyShouldContain` "id=\"support-public-holidays\""
                 versionAfter `shouldBe` versionBefore
 
         it "deduplicates concurrent award-rate refresh enqueues without 500s" $ withContext do
