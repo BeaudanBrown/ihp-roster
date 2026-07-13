@@ -39,13 +39,19 @@ JavaScript:
   whole open day-column `day-column-dropzone` targets, and the toolbar
   `delete-shift-dropzone`. The default intent moves; the copy modifier submits
   the duplicate intent, with delete targets still opening delete confirmation.
-- `staff-drag-source` can drop onto existing shift cards or explicit
-  `staff-create-dropzone` targets only. Existing-shift drops assign/replace
-  staff immediately with a toast; create-target drops open the new-shift dialog
-  with staff preselected.
+- `staff-drag-source` can drop onto existing shift cards, shared row-grid
+  `shift-slot-dropzone` targets, or explicit day-column
+  `staff-create-dropzone` targets. Existing-shift drops assign/replace staff
+  immediately with a toast; create-target drops open the new-shift dialog with
+  staff preselected.
 - Day-column gaps/whitespace are not staff-create targets. Only the bottom
   `+ Add shift` card is a staff-create target in day-column layout. Shift drags
   do not target that create card in day-column layout.
+
+Every compatible shift-modifying target receives the same disposable green
+highlight with a strong border and shaded interior. Row-grid create targets own
+the dropzone on their complete shift wrapper, so staff and shift drags highlight
+the full Start/End/Staff/Role span rather than a nested visual cell.
 
 All rendered keys remain opaque (`existing:<slot-id>`, `staff:<staff-id>`,
 `new:<day-id>:<slot-definition-id>:<row-index>`); controllers parse and validate

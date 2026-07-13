@@ -440,7 +440,7 @@ tests = beforeAll testContext do
                 bodyText `shouldContain` "roster-shift-unit roster-shift-launcher roster-shift-create-unit"
                 bodyText `shouldContain` "data-bepis-dropzone-ref=\"shift-slot-dropzone\""
                 bodyText `shouldContain` "roster-shift-create-staff-dropzone"
-                bodyText `shouldContain` "data-bepis-dropzone-ref=\"staff-create-dropzone\""
+                bodyText `shouldNotContain` "data-bepis-dropzone-ref=\"staff-create-dropzone\""
                 bodyText `shouldContain` "roster-shift-unit-cell slot-empty-cell"
                 bodyText `shouldContain` "roster-shift-create-plus-overlay"
                 bodyText `shouldContain` ("data-roster-shift-group-key=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")

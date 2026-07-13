@@ -165,8 +165,8 @@ pageHelpTopics =
             ]
         , section HelpManagerPlus "Planning"
             [ iconItem HelpManagerPlus "bi-plus-lg" "Add shift" "Create or edit shifts" "In a draft roster, click an empty cell to add a shift or click a shift to edit it."
-            , iconItem HelpManagerPlus "bi-arrows-move" "Drag" "Move or copy shifts" "Drag a shift to move it. Hold Ctrl, Option, or Alt while dragging to copy it."
-            , iconItem HelpManagerPlus "bi-person-plus" "Staff drag" "Assign staff from the list" "Drag a staff member from the staff list onto an empty roster slot to create a shift for them."
+            , iconItem HelpManagerPlus "bi-arrows-move" "Drag" "Move or copy shifts" "Drag a shift to a green-highlighted target to move it. Hold Ctrl, Option, or Alt while dragging to copy it."
+            , iconItem HelpManagerPlus "bi-person-plus" "Staff drag" "Assign staff from the list" "Drag a staff member to a green-highlighted empty slot to create a shift, or onto an existing shift to assign them."
             , buttonItem HelpManagerPlus "bi-gear" "Roster settings" "Change the roster layout" "Click the settings button, then Roster layout, to switch layout modes." "btn btn-outline-secondary app-settings-menu-button" (Just "bi-gear") ""
             , buttonItem HelpManagerPlus "bi-gear" "Roster settings" "Show warnings or wage estimates" "Click the settings button, then use the Warnings and Wages toggles." "btn btn-outline-secondary app-settings-menu-button" (Just "bi-gear") ""
             , buttonItem HelpManagerPlus "bi-gear" "Roster settings" "Prepare a draft faster" "Click the settings button, then Week actions, for sort tools or Copy previous week." "btn btn-outline-secondary app-settings-menu-button" (Just "bi-gear") ""

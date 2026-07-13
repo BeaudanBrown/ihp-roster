@@ -346,13 +346,16 @@ scope, ordering, conflicts, and permissions before returning OOB fragments.
 
 The roster drop implementation uses distinct generated refs for each semantic
 source/target pair. Existing shift launchers are `shift-drag-source` sources;
-staff-panel rows are `staff-drag-source` sources. Empty row-grid cells expose
-`shift-slot-dropzone` targets for moving existing shifts, while row-grid create
-launchers and day-column `+ Add shift` cards expose `staff-create-dropzone`
-targets for staff-create drops. Whole open day columns are
+staff-panel rows are `staff-drag-source` sources. Empty row-grid create
+launchers expose one full-span `shift-slot-dropzone` shared by shift-move and
+staff-create drags, while day-column `+ Add shift` cards retain explicit
+`staff-create-dropzone` targets. Whole open day columns are
 `day-column-dropzone` shift-move targets; the roster toolbar exposes
 `delete-shift-dropzone` for shift deletion confirmation; existing editable shift
-cards are `existing-shift-dropzone` staff-assignment targets.
+cards are `existing-shift-dropzone` staff-assignment targets. Compatible
+shift-modifying targets share one disposable green border/shading affordance;
+the class is applied to the semantic target owner rather than nested visual
+cells.
 The browser submits opaque `sourceItemKey` and `targetDropzoneKey` tokens through
 the generated move/copy/staff-drop forms. Controllers parse those tokens,
 validate venue/roster-week scope, draft/open-day status, empty target slots,

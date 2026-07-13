@@ -443,6 +443,10 @@ tests = describe "FrontendSurface DSL foundation" do
         map (.intentName) surface.surfaceIntents `shouldBe` ["set-roster-layout-mode", "move-roster-shift-to-slot", "duplicate-roster-shift-to-day", "drop-roster-staff"]
         surface.surfaceSessions `shouldBe` ["drag"]
         map (.sourceRefName) surface.surfaceSourceRefs `shouldBe` ["shift-drag-source", "staff-drag-source"]
+        map (.sourceRefCompatibleDropzones) surface.surfaceSourceRefs
+            `shouldBe` [ ["shift-slot-dropzone", "day-column-dropzone", "delete-shift-dropzone"]
+                       , ["existing-shift-dropzone", "shift-slot-dropzone", "staff-create-dropzone"]
+                       ]
         map (.dropzoneRefName) surface.surfaceDropzoneRefs `shouldBe` ["shift-slot-dropzone", "staff-create-dropzone", "day-column-dropzone", "existing-shift-dropzone", "delete-shift-dropzone"]
         map (.activationRefName) surface.surfaceActivationRefs `shouldBe` ["roster-layout-mode-activation"]
         surface.surfaceLayers `shouldBe` ["drag-preview"]

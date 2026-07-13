@@ -620,6 +620,10 @@ test("staff drag highlights only compatible roster drop targets", () => {
         [attrs.dropzoneRef]: "day-column-dropzone",
         [attrs.dropzoneKey]: "day:1",
     }));
+    const emptyRowShift = mount.append(new MiniElement({
+        [attrs.dropzoneRef]: "shift-slot-dropzone",
+        [attrs.dropzoneKey]: "new:row:1",
+    }));
     const existingShift = mount.append(new MiniElement({
         [attrs.dropzoneRef]: "existing-shift-dropzone",
         [attrs.dropzoneKey]: "existing:1",
@@ -634,23 +638,28 @@ test("staff drag highlights only compatible roster drop targets", () => {
         elementFromPoint: (_x: number, _y: number) => hitTarget,
         createElement: (_tag: string) => new MiniElement(),
     };
-    for (const element of [mount, marker, dayColumn, existingShift, createTarget, layer]) element.ownerDocument = doc;
+    for (const element of [mount, marker, dayColumn, emptyRowShift, existingShift, createTarget, layer]) element.ownerDocument = doc;
 
     const controller = createPointerSessionController({ runtime: { emit: () => ({ canceled: false }) } });
     controller.handlePointerDown(pointerEventWithTarget("pointerdown", marker, 1, 0, 0));
     controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 1, 8, 0));
     assertEqual(dayColumn.getAttribute("class"), null);
 
-    hitTarget = existingShift;
+    hitTarget = emptyRowShift;
     controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 1, 16, 0));
+    assertEqual(emptyRowShift.getAttribute("class"), "bepis-dropzone-highlight");
+
+    hitTarget = existingShift;
+    controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 1, 24, 0));
+    assertEqual(emptyRowShift.getAttribute("class"), null);
     assertEqual(existingShift.getAttribute("class"), "bepis-dropzone-highlight");
 
     hitTarget = createTarget;
-    controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 1, 24, 0));
+    controller.handlePointerMove(pointerEventWithTarget("pointermove", marker, 1, 32, 0));
     assertEqual(existingShift.getAttribute("class"), null);
     assertEqual(createTarget.getAttribute("class"), "bepis-dropzone-highlight");
 
-    controller.handlePointerUp(pointerEventWithTarget("pointerup", marker, 1, 24, 0));
+    controller.handlePointerUp(pointerEventWithTarget("pointerup", marker, 1, 32, 0));
     assertEqual(createTarget.getAttribute("class"), null);
 });
 

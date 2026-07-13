@@ -99,8 +99,11 @@ lands.
   day column remains a shift-move target for dragging existing shifts. Shift
   drags in day-row layout target row-grid `shift-slot-dropzone` slots; shift
   drags in day-column layout target the whole day column, not the green `+`
-  create card. Dropping a shift on the roster toolbar opens the existing delete
-  confirmation dialog instead of deleting immediately.
+  create card. Empty day-row create wrappers are one shared full-span drop target
+  for both shift and staff drags. Empty row targets, whole day-column targets,
+  and existing-shift staff targets use the same disposable green affordance with
+  a strong border and shaded interior. Dropping a shift on the roster toolbar
+  opens the existing delete confirmation dialog instead of deleting immediately.
 - The single-day timeline remains a URL-scoped view mode of the normal roster
   week page (`rosterView=timeline&dayOffset=<0-6>`), but visible roster entry
   links are hidden for the release candidate. When accessed directly, the roster

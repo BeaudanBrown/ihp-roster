@@ -355,6 +355,7 @@ type RosterInteractionBundle =
                  , 'Submits DropRosterStaff
                  , 'SourceField SourceItemKey
                  , 'CompatibleDropzone ExistingShiftDropzone
+                 , 'CompatibleDropzone ShiftSlotDropzone
                  , 'CompatibleDropzone StaffCreateDropzone
                  ]
             , DropzoneRef ShiftSlotDropzone '[ 'SessionOption DragSession, 'TargetField TargetDropzoneKey ]
