@@ -16,5 +16,7 @@ Use `docs/templates/adr.md` for new ADRs.
 
 - `0001-documentation-operating-model.md` - documentation, workstreams, and
   local agent instructions.
+- `0002-haskell-owns-browser-business-authority.md` - Haskell owns browser-facing
+  business meaning while TypeScript owns reusable presentation mechanics.
 - `0003-frontend-contract-runtime-authority.md` - reflection-backed contract,
   runtime, wire, target-ID, and browser-authority ownership.
